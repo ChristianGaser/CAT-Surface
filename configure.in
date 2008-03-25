@@ -1,0 +1,37 @@
+dnl $Id: configure.in,v 1.7 2003/06/12 15:54:01 spotspot Exp $
+dnl Process this file with autoconf to produce a configure script.
+
+AC_INIT(CAT,0.1,Christian Gaser <christian.gaser@uni-jena.de>)
+
+AM_INIT_AUTOMAKE(CAT,0.1,Christian Gaser <christian.gaser@uni-jena.de>)
+AM_CONFIG_HEADER(config.h)
+
+AC_PROG_CC
+AC_PROG_INSTALL
+
+dnl AC_ARG_ENABLE(openmp, [  --enable-openmp enable OpenMP support [default=yes]])
+
+AC_ARG_ENABLE(openmp, [AC_HELP_STRING([--enable-openmp],[enable openMP])], enable_openmp=$enableval, enable_openmp=yes)
+if test "$enable_openmp" = "yes"; then
+	AC_DEFINE(OPENMP,1,[Define to enable OpenMP.])
+    [CFLAGS="$CFLAGS -fopenmp"] 
+    [CXXFLAGS="$CXXFLAGS -fopenmp"] 
+    [CC="gcc-4"] 
+    [CXX="g++-4"] 
+fi
+
+dnl Build only static libs by default
+AM_DISABLE_SHARED
+AC_PROG_LIBTOOL
+
+smr_WITH_BUILD_PATH
+
+mni_REQUIRE_VOLUMEIO
+mni_REQUIRE_BICPL
+mni_REQUIRE_MINC
+
+AC_CHECK_HEADERS(values.h malloc.h)
+
+AC_CHECK_HEADERS()
+
+AC_OUTPUT( Makefile )

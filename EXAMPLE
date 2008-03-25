@@ -1,0 +1,23 @@
+Dump absolute mean curvature (AMC) around a distance of 3mm and apply heat kernel
+diffusion filter with FWHM of 20mm
+--------------------------------------------------------------------------------
+CAT_DumpAbsMeanCurv name.obj 20mm_curv_name.txt 20 3
+
+Compare AMC values between two samples which are saved in sep. folders sample1
+and sample2
+--------------------------------------------------------------------------------
+CAT_GLM_Estimate sample1/20mm_curv*.txt + sample2/20mm_curv*.txt
+
+Calculate means and difference sample1-sample2
+--------------------------------------------------------------------------------
+CAT_GLM_MATH diff_1_vs_2.txt beta_0001.txt - beta_0002.txt
+mv beta_0001.txt avg1.txt
+mv beta_0002.txt avg2.txt 
+
+Calculate T-test sample1-sample2
+--------------------------------------------------------------------------------
+CAT_GLM_MATH T_1_vs_2.txt T_0001.txt - T_0002.txt
+
+Colourcode results with opacity of 0.8 to visualize with MNI-tools "Display"
+--------------------------------------------------------------------------------
+CAT_Color2Surf avg_12.obj T_1_vs_2.txt T_1_vs_2.obj spectral -5 5 BLACK WHITE 0.8

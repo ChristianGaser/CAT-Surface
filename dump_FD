@@ -1,0 +1,23 @@
+#!/bin/sh
+
+n_polygons=`print_n_polygons $1`
+tmp_poly=/tmp/poly$$.obj
+
+name=`echo $1|sed -s 's/.obj/_FD.txt/'`
+
+cp $1 $tmp_poly
+
+n=1
+area=`./print_surface_area $tmp_poly|sed -e 's/Total surface area: //'`
+echo $n $area > $name
+
+while [ $n_polygons -gt 1024 ];
+do
+	n_polygons=`expr $n_polygons / 2`
+	n=`expr $n \* 2`
+	subdivide_polygons $tmp_poly $tmp_poly $n_polygons
+	area=`./print_surface_area $tmp_poly|sed -e 's/Total surface area: //'`
+	echo $n $area >> $name
+done
+
+rm $tmp_poly

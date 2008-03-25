@@ -1,0 +1,120 @@
+--------------------------------------------------------------------------------
+CAT: Cortex Analysis Tools
+Christian Gaser (christian.gaser@uni-jena.de), University of Jena, Germany.
+--------------------------------------------------------------------------------
+
+
+CAT_3dVol2Surf
+--------------------------------------------------------------------------------
+Map values form 3D volume to surface
+
+CAT_ApplyWarpSurf
+--------------------------------------------------------------------------------
+Apply deformations obtained with CAT_ApplySurf to surface
+
+CAT_ApplyWarpValues
+--------------------------------------------------------------------------------
+Apply deformations obtained with CAT_ApplySurf to values form surface
+
+CAT_BlurSurfHK
+--------------------------------------------------------------------------------
+Heat kernel smoothing of either surface or surface values
+
+CAT_Color2Surf
+--------------------------------------------------------------------------------
+Colorize surface using surface value files
+
+CAT_DeformSurf
+--------------------------------------------------------------------------------
+Extract cortical surface from 3D volume (very old algorithm from David MacDonald)
+
+CAT_DumpCurv
+--------------------------------------------------------------------------------
+Extract different folding parameters and optionally post-process and/or smooth
+values using diffusion heat kernel
+
+CAT_DumpCurv_ui
+--------------------------------------------------------------------------------
+User interface for CAT_DumpCurv for dealing with many files
+
+CAT_DumpGI
+--------------------------------------------------------------------------------
+Calculate gyrification index using the ratio of local surface area and local
+inflated surface area. Local surface area can be approximated by use of different
+curve types (default: mean curvature averaged over 3mm).
+
+CAT_DumpGI_ui
+--------------------------------------------------------------------------------
+User interface for CAT_DumpGI for dealing with many files.
+
+CAT_DumpSurfArea
+--------------------------------------------------------------------------------
+Extract surface area
+
+CAT_Dx2Obj
+--------------------------------------------------------------------------------
+Convert dx-file to BIC obj.
+
+CAT_Dfs2Obj
+--------------------------------------------------------------------------------
+WANING: Not working!
+Convert dfs-file (Brainsuite) to BIC obj.
+
+CAT_Freesurfer2Obj
+--------------------------------------------------------------------------------
+Convert freesurfer surfaces to BIC obj-files; restricted to binary triangle files
+
+CAT_FreesurferCurv2Txt
+--------------------------------------------------------------------------------
+Convert freesurfer curv to txt-files
+
+CAT_GLM_Estimate
+--------------------------------------------------------------------------------
+WARNING: error in estimating designs with more than one sample.
+Estimate GLM parameters to analyze surface values or minc 3D volumes.
+
+CAT_GLM_Math
+--------------------------------------------------------------------------------
+Perform simple math operations to value files (from CAT_GLM_Estimate)
+
+CAT_LSCM
+--------------------------------------------------------------------------------
+WARNING: Not finished! Final mapping is missing...
+Least Squares Conformal Mapping (LSCM) using the approach of Levy et al.
+
+CAT_Obj2Freesurfer
+--------------------------------------------------------------------------------
+Convert BIC obj-files to freesurfer surfaces; restricted to binary triangle files
+
+CAT_Obj2Neurolens
+--------------------------------------------------------------------------------
+Display BIC obj-files with Neurolens
+
+CAT_PlotValuesAtMaximum
+--------------------------------------------------------------------------------
+Plot values at maximum of a reference for each file
+
+CAT_PlotValuesAtPoint
+--------------------------------------------------------------------------------
+Plot values at coordinate x y z for each file
+
+CAT_ResampleSphericalSurf
+--------------------------------------------------------------------------------
+Resamples a spherical inflated surface to a sphere.
+
+CAT_Sheet2Surf
+--------------------------------------------------------------------------------
+Maps 2d image in pgm format to surface
+
+CAT_Surf2Sheet
+--------------------------------------------------------------------------------
+Maps surface values or mean curvature to 2d sheet in pgm format
+
+CAT_Surf2Sphere
+--------------------------------------------------------------------------------
+Maps a surface to a sphere by using the caret inflating approach. 
+
+CAT_TopologyCorrect
+--------------------------------------------------------------------------------
+Correct topology of a surface to a sphere (genus zero) by using the genetic
+approach of Segonne et al.

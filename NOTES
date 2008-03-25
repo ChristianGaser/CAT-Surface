@@ -1,0 +1,10 @@
+number of tiles
+caret:	numTiles	TopologyFile->getNumberOfTiles
+vtk:	cells->GetNumberOfCells()
+mni:	polygon->n_items
+
+nodes in coordinate file or points in topology file
+caret: 	numCoords	coordinates.getNumberOfCoordinates
+caret:	numNodes	TopologyFile->getNumberOfNodes
+vtk:	numPoints	vtkPolyData->GetNumberOfPoints
+mni:	polygon->n_points

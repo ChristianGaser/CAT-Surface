@@ -1,0 +1,76 @@
+#!/bin/sh
+
+if [ $# -lt 1 ]; then
+	echo "Usage $0 WM.mnc [hemi_threshold] [T1.mnc GM_CSF_threshold]"
+	exit
+fi
+
+if [ $# -lt 2 ]; then
+	hemi_threshold=128
+else
+	hemi_threshold=$2
+fi
+
+if [ $# -eq 4 ]; then
+	t1=$3
+	th_t1=$4
+fi
+
+tmp=/tmp/CAT$$
+marching_cubes=/Users/gaser/work/c/mincamap/mincmarching_cubes
+
+# intensity threshold for marching cubes
+th0=0.5
+
+# filter width of image
+fwhm=1.5
+
+# parameters for deforming WM
+th1=0.5
+step=".1 .1 15 0 $th1 $th1 n 0 0 0"
+iters=150
+model="-1 .5 avg -.05 .05"
+
+# parameters for deforming GM
+step2=".1 .1 15 0 $th_t1 $th_t1 - 0 0 0"
+mode2="-1 .5 avg -.1 .1"
+
+if [ 1 -eq 1 ]; then
+	cp $1 ${tmp}.mnc
+	mincblur -3dfwhm $fwhm $fwhm $fwhm ${tmp}.mnc ${tmp}_s${fwhm} -clobber
+else
+	expr=`expr ${hemi_threshold} + 1`
+	mincmath -segment -const2 $expr 255 $1 ${tmp}.mnc -clobber
+	mincblur -3dfwhm $fwhm $fwhm $fwhm ${tmp}.mnc ${tmp}_s${fwhm} -clobber
+fi
+$marching_cubes ${tmp}_s${fwhm}_blur.mnc ${tmp} $th0 -1
+#separate_polygons ${tmp}.obj ${tmp}_sep.obj 0
+#triangulate_polygons ${tmp}_sep.obj ${tmp}_tri.obj
+#CAT_TopologyCorrect ${tmp}_tri.obj ${tmp}_corr.obj 
+CAT_TopologyCorrect ${tmp}_1.obj ${tmp}_corr.obj 
+CAT_Surf2Sphere ${tmp}_corr.obj ${tmp}_sphere.obj
+CAT_ResampleSphericalSurf ${tmp}_corr.obj ${tmp}_sphere.obj ${tmp}_resamp.obj
+CAT_DeformSurf ${tmp}.mnc none 0 0 0 ${tmp}_resamp.obj RH.obj none 0 1 $model $step $iters 0.01 0.0
+set_object_surfprop RH.obj RH.obj 0.3 0.5 0.4 10 1
+#ascii_binary RH.obj
+if [ $# -eq 4 ]; then
+	CAT_DeformSurf ${t1}.mnc none 0 0 0 RH.obj RH_pial.obj none 0 1 $model2 $step2 $iters 0.01 0.0
+fi
+
+#rm ${tmp}*
+
+exit
+expr=`expr ${hemi_threshold} - 1`
+mincmath -segment -const2 1 $expr $1 ${tmp}.mnc -clobber
+mincblur -3dfwhm $fwhm $fwhm $fwhm ${tmp}.mnc ${tmp}_s${fwhm} -clobber
+marching_cubes ${tmp}_s${fwhm}_blur.mnc ${tmp}.obj $th0 -1
+separate_polygons ${tmp}.obj ${tmp}_sep.obj 0
+triangulate_polygons ${tmp}_sep.obj ${tmp}_tri.obj
+CAT_TopologyCorrect ${tmp}_tri.obj ${tmp}_corr.obj 
+CAT_Surf2Sphere ${tmp}_corr.obj ${tmp}_sphere.obj
+CAT_ResampleSphericalSurf ${tmp}_corr.obj ${tmp}_sphere.obj ${tmp}_resamp.obj
+CAT_DeformSurf ${tmp}.mnc none 0 0 0 ${tmp}_resamp.obj LH.obj none 0 1 $model $step $iters 0.01 0.0
+set_object_surfprop LH.obj LH.obj 0.3 0.5 0.4 10 1
+ascii_binary LH.obj
+
+rm ${tmp}*
