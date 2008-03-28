@@ -46,7 +46,8 @@ bin_PROGRAMS = CAT_DeformSurf$(EXEEXT) CAT_Surf2Sheet$(EXEEXT) \
 	CAT_Surf2Sphere$(EXEEXT) CAT_SeparateCluster$(EXEEXT) \
 	CAT_ResampleSphericalSurf$(EXEEXT) \
 	CAT_TopologyCorrect$(EXEEXT) CAT_AreaDistortion$(EXEEXT) \
-	CAT_GLM_Math$(EXEEXT) CAT_LBConformalMap$(EXEEXT)
+	CAT_GLM_Math$(EXEEXT) CAT_LBConformalMap$(EXEEXT) \
+	CAT_AngularDistortion$(EXEEXT)
 subdir = .
 DIST_COMMON = README $(am__configure_deps) $(dist_bin_SCRIPTS) \
 	$(srcdir)/Makefile.am $(srcdir)/Makefile.in \
@@ -71,6 +72,9 @@ PROGRAMS = $(bin_PROGRAMS)
 am_CAT_3dVol2Surf_OBJECTS = CAT_3dVol2Surf.$(OBJEXT)
 CAT_3dVol2Surf_OBJECTS = $(am_CAT_3dVol2Surf_OBJECTS)
 CAT_3dVol2Surf_LDADD = $(LDADD)
+CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c
+CAT_AngularDistortion_OBJECTS = CAT_AngularDistortion.$(OBJEXT)
+CAT_AngularDistortion_LDADD = $(LDADD)
 am_CAT_ApplyWarpSurf_OBJECTS = CAT_ApplyWarpSurf.$(OBJEXT) \
 	CAT_Map2d.$(OBJEXT)
 CAT_ApplyWarpSurf_OBJECTS = $(am_CAT_ApplyWarpSurf_OBJECTS)
@@ -198,13 +202,13 @@ CXXLD = $(CXX)
 CXXLINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(CAT_3dVol2Surf_SOURCES) $(CAT_ApplyWarpSurf_SOURCES) \
-	$(CAT_ApplyWarpValues_SOURCES) $(CAT_AreaDistortion_SOURCES) \
-	$(CAT_BlurSurfHK_SOURCES) $(CAT_Color2Surf_SOURCES) \
-	$(CAT_DeformSurf_SOURCES) $(CAT_Dfs2Obj_SOURCES) \
-	$(CAT_DumpCurv_SOURCES) $(CAT_DumpGI_SOURCES) \
-	$(CAT_DumpSurfArea_SOURCES) $(CAT_Dx2Obj_SOURCES) \
-	$(CAT_Freesurfer2Obj_SOURCES) \
+SOURCES = $(CAT_3dVol2Surf_SOURCES) CAT_AngularDistortion.c \
+	$(CAT_ApplyWarpSurf_SOURCES) $(CAT_ApplyWarpValues_SOURCES) \
+	$(CAT_AreaDistortion_SOURCES) $(CAT_BlurSurfHK_SOURCES) \
+	$(CAT_Color2Surf_SOURCES) $(CAT_DeformSurf_SOURCES) \
+	$(CAT_Dfs2Obj_SOURCES) $(CAT_DumpCurv_SOURCES) \
+	$(CAT_DumpGI_SOURCES) $(CAT_DumpSurfArea_SOURCES) \
+	$(CAT_Dx2Obj_SOURCES) $(CAT_Freesurfer2Obj_SOURCES) \
 	$(CAT_FreesurferCurv2Txt_SOURCES) $(CAT_GLM_Estimate_SOURCES) \
 	$(CAT_GLM_Math_SOURCES) $(CAT_LBConformalMap_SOURCES) \
 	$(CAT_Obj2Freesurfer_SOURCES) \
@@ -214,13 +218,13 @@ SOURCES = $(CAT_3dVol2Surf_SOURCES) $(CAT_ApplyWarpSurf_SOURCES) \
 	$(CAT_SeparateCluster_SOURCES) $(CAT_Sheet2Surf_SOURCES) \
 	$(CAT_Surf2Sheet_SOURCES) $(CAT_Surf2Sphere_SOURCES) \
 	$(CAT_TopologyCorrect_SOURCES)
-DIST_SOURCES = $(CAT_3dVol2Surf_SOURCES) $(CAT_ApplyWarpSurf_SOURCES) \
-	$(CAT_ApplyWarpValues_SOURCES) $(CAT_AreaDistortion_SOURCES) \
-	$(CAT_BlurSurfHK_SOURCES) $(CAT_Color2Surf_SOURCES) \
-	$(CAT_DeformSurf_SOURCES) $(CAT_Dfs2Obj_SOURCES) \
-	$(CAT_DumpCurv_SOURCES) $(CAT_DumpGI_SOURCES) \
-	$(CAT_DumpSurfArea_SOURCES) $(CAT_Dx2Obj_SOURCES) \
-	$(CAT_Freesurfer2Obj_SOURCES) \
+DIST_SOURCES = $(CAT_3dVol2Surf_SOURCES) CAT_AngularDistortion.c \
+	$(CAT_ApplyWarpSurf_SOURCES) $(CAT_ApplyWarpValues_SOURCES) \
+	$(CAT_AreaDistortion_SOURCES) $(CAT_BlurSurfHK_SOURCES) \
+	$(CAT_Color2Surf_SOURCES) $(CAT_DeformSurf_SOURCES) \
+	$(CAT_Dfs2Obj_SOURCES) $(CAT_DumpCurv_SOURCES) \
+	$(CAT_DumpGI_SOURCES) $(CAT_DumpSurfArea_SOURCES) \
+	$(CAT_Dx2Obj_SOURCES) $(CAT_Freesurfer2Obj_SOURCES) \
 	$(CAT_FreesurferCurv2Txt_SOURCES) $(CAT_GLM_Estimate_SOURCES) \
 	$(CAT_GLM_Math_SOURCES) $(CAT_LBConformalMap_SOURCES) \
 	$(CAT_Obj2Freesurfer_SOURCES) \
@@ -404,7 +408,8 @@ CAT_TopologyCorrect_SOURCES = CAT_TopologyCorrect.cpp $(topologysimplification_S
 CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c
 CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c
 CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c
-CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.cxx CAT_Curvature.c CAT_Surf.c nl/nl_api.c nl/nl_blas.c nl/nl_context.c nl/nl_iterative_solvers.c nl/nl_matrix.c nl/nl_os.c nl/nl_preconditioners.c nl/nl_superlu.c
+CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.cpp CAT_Curvature.c CAT_Surf.c nl/nl_api.c nl/nl_blas.c nl/nl_context.c nl/nl_iterative_solvers.c nl/nl_matrix.c nl/nl_os.c nl/nl_preconditioners.c nl/nl_superlu.c
+CAT_AngularDistortion_SOURCE = CAT_AngularDistortion.c CAT_Surf.c
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \
 	m4/mni_REQUIRE_OPENINVENTOR.m4 \
@@ -418,7 +423,7 @@ all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
-.SUFFIXES: .c .cpp .cxx .lo .o .obj
+.SUFFIXES: .c .cpp .lo .o .obj
 am--refresh:
 	@:
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
@@ -500,6 +505,9 @@ clean-binPROGRAMS:
 CAT_3dVol2Surf$(EXEEXT): $(CAT_3dVol2Surf_OBJECTS) $(CAT_3dVol2Surf_DEPENDENCIES) 
 	@rm -f CAT_3dVol2Surf$(EXEEXT)
 	$(LINK) $(CAT_3dVol2Surf_OBJECTS) $(CAT_3dVol2Surf_LDADD) $(LIBS)
+CAT_AngularDistortion$(EXEEXT): $(CAT_AngularDistortion_OBJECTS) $(CAT_AngularDistortion_DEPENDENCIES) 
+	@rm -f CAT_AngularDistortion$(EXEEXT)
+	$(LINK) $(CAT_AngularDistortion_OBJECTS) $(CAT_AngularDistortion_LDADD) $(LIBS)
 CAT_ApplyWarpSurf$(EXEEXT): $(CAT_ApplyWarpSurf_OBJECTS) $(CAT_ApplyWarpSurf_DEPENDENCIES) 
 	@rm -f CAT_ApplyWarpSurf$(EXEEXT)
 	$(LINK) $(CAT_ApplyWarpSurf_OBJECTS) $(CAT_ApplyWarpSurf_LDADD) $(LIBS)
@@ -602,6 +610,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CAT_3dVol2Surf.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CAT_AngularDistortion.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CAT_ApplyWarpSurf.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CAT_ApplyWarpValues.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/CAT_AreaDistortion.Po@am__quote@
@@ -918,27 +927,6 @@ utils.obj: topologysimplification/utils.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='topologysimplification/utils.cpp' object='utils.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o utils.obj `if test -f 'topologysimplification/utils.cpp'; then $(CYGPATH_W) 'topologysimplification/utils.cpp'; else $(CYGPATH_W) '$(srcdir)/topologysimplification/utils.cpp'; fi`
-
-.cxx.o:
-@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ $<
-
-.cxx.obj:
-@am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCXX_TRUE@	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
-
-.cxx.lo:
-@am__fastdepCXX_TRUE@	$(LTCXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCXX_TRUE@	mv -f $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Plo
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(LTCXXCOMPILE) -c -o $@ $<
 
 mostlyclean-libtool:
 	-rm -f *.lo

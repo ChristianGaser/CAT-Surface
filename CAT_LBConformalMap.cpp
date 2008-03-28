@@ -66,44 +66,52 @@ extern "C"
 class LSCM {
 public:
 
-    LSCM(polygons_struct &p, bool rp) : polygons(&p), rightPole(rp) {
+    LSCM(polygons_struct &p, int ms, STRING ppl) : polygons(&p), mapScale(ms) {
+        if (ppl[0] == '-') {
+            minFlag = TRUE;
+            pointPloc = ppl[1];
+        } else if (ppl[0] == '+') {
+            minFlag = FALSE;
+            pointPloc = ppl[1];
+        } else {
+            pointPloc = ppl[0];
+        }
     }
 
 
     // Apply the Laplace-Beltrami operator
-
     void apply() {
-        int nb_vertices = polygons->n_points ;
-        nlNewContext() ;
+        int nb_vertices = polygons->n_points;
+        nlNewContext();
         if(nlInitExtension("SUPERLU")) {
-            nlSolverParameteri(NL_SOLVER, NL_PERM_SUPERLU_EXT) ;
-            std::cerr << "Using SuperLU, cool !" << std::endl ;
+            nlSolverParameteri(NL_SOLVER, NL_PERM_SUPERLU_EXT);
+            std::cerr << "Using SuperLU, cool !" << std::endl;
         } else {
             nlSolverParameteri(NL_SOLVER, NL_CG) ;
             nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_NONE ); //NL_PRECOND_JACOBI) ;
             std::cerr << "Using Jacobi pre-conditioned conjugate gradient" 
-                      << std::endl ;
+                      << std::endl;
         }
-        nlSolverParameteri(NL_NB_VARIABLES, 2*nb_vertices) ;
-        nlSolverParameteri(NL_LEAST_SQUARES, NL_FALSE) ;
-        nlSolverParameteri(NL_MAX_ITERATIONS, 100*nb_vertices) ;
-        //nlSolverParameteri(NL_SYMMETRIC, NL_FALSE) ;
-        nlSolverParameterd(NL_THRESHOLD, 1e-10) ;
-        nlBegin(NL_SYSTEM) ;
+        nlSolverParameteri(NL_NB_VARIABLES, 2*nb_vertices);
+        nlSolverParameteri(NL_LEAST_SQUARES, NL_FALSE);
+        nlSolverParameteri(NL_MAX_ITERATIONS, 100*nb_vertices);
+        //nlSolverParameteri(NL_SYMMETRIC, NL_FALSE);
+        nlSolverParameterd(NL_THRESHOLD, 1e-10);
+        nlBegin(NL_SYSTEM);
         for(unsigned int i=0; i<nb_vertices*2; i++) {
-            nlSetVariable(i, 0) ;
+            nlSetVariable(i, 0);
         }
-        nlBegin(NL_MATRIX) ;
-        mesh_to_solver() ; // calculate the matrices and send it to the solver
-        nlEnd(NL_MATRIX) ;
-        nlEnd(NL_SYSTEM) ;
-        std::cerr << "Solving ..." << std::endl ;
-        nlSolve() ;
-        solver_to_mesh() ;
-        double time ;
-        nlGetDoublev(NL_ELAPSED_TIME, &time) ;
-        std::cerr << "Solver time: " << time << std::endl ;
-        nlDeleteContext(nlGetCurrent()) ;
+        nlBegin(NL_MATRIX);
+        mesh_to_solver(); // calculate the matrices and send it to the solver
+        nlEnd(NL_MATRIX);
+        nlEnd(NL_SYSTEM);
+        std::cerr << "Solving ..." << std::endl;
+        nlSolve();
+        solver_to_mesh();
+        double time;
+        nlGetDoublev(NL_ELAPSED_TIME, &time);
+        std::cerr << "Solver time: " << time << std::endl;
+        nlDeleteContext(nlGetCurrent());
     }
 
 protected:
@@ -115,14 +123,14 @@ protected:
         const unsigned int numberOfPoints = polygons->n_points;
         std::vector<double> zR(numberOfPoints), zI(numberOfPoints);
         for(unsigned int i=0; i<numberOfPoints; i++) {
-            zR[i] = nlGetVariable(i*2) ;
-            zI[i] = nlGetVariable(i*2 + 1) ;
+            zR[i] = nlGetVariable(i*2);
+            zI[i] = nlGetVariable(i*2 + 1);
         }
         
-        double xmin =  zR[0] ;
-        double ymin =  zI[0] ;
-        double xmax =  zR[0] ;
-        double ymax =  zI[0] ;
+        double xmin =  zR[0];
+        double ymin =  zI[0];
+        double xmax =  zR[0];
+        double ymax =  zI[0];
         
         for (int it = 0; it < numberOfPoints;  ++it) {
             xmin = (xmin<zR[it])?xmin:zR[it];
@@ -134,8 +142,7 @@ protected:
         double temp1 = ( fabs(xmin)>fabs(xmax) )?fabs(xmin):fabs(xmax);
         double temp2 = ( fabs(ymin)>fabs(ymax) )?fabs(ymin):fabs(ymax);
         //    std::cout<<std::max( temp1, temp2 )<<std::endl;
-        double _mapScale = 100;
-        double factor = _mapScale/( ( temp1>temp2 )?temp1:temp2 );
+        double factor = mapScale/( ( temp1>temp2 )?temp1:temp2 );
         
         // the factor is used to re-scale the points in the plane.
         
@@ -160,27 +167,50 @@ protected:
         
     /**
      * generates the matrices for computing Dx=b
-	 */
+     */
     void mesh_to_solver() {
         int numOfPoints = polygons->n_points;
         int numOfFacets = polygons->n_items;
         
         
         // 1. store the points coordinates: pointXYZ
-        std::vector< std::vector<double> > pointXYZ( numOfPoints, std::vector<
+        std::vector< std::vector<double> > pointXYZ(numOfPoints, std::vector<
                                                           double>(3, 0) );
         
-        double maxz = -1e30;
-        int polePoint;
+        double minval = 1e30;
+        double maxval = -1e30;
+        int pointP = 0;
         
         for (int it = 0; it < numOfPoints; ++it) {
             double x = polygons->points[it].coords[0];
             double y = polygons->points[it].coords[1];
             double z = polygons->points[it].coords[2];
             
-            if (z > maxz) {
-                polePoint = it;
-                maxz = z;
+            switch (pointPloc) {
+                case 'x':
+                    if (minFlag && x < minval) {
+                        pointP = it;
+                        minval = x;
+                    } else if (x > maxval) {
+                        pointP = it;
+                        maxval = x;
+                    }
+                case 'y':
+                    if (minFlag && y < minval) {
+                        pointP = it;
+                        minval = y;
+                    } else if (y > maxval) {
+                        pointP = it;
+                        maxval = y;
+                    }
+                case 'z':
+                    if (minFlag && z < minval) {
+                        pointP = it;
+                        minval = z;
+                    } else if (z > maxval) {
+                        pointP = it;
+                        maxval = z;
+                    }
             }
             
             pointXYZ[it][0] = x;
@@ -202,7 +232,7 @@ protected:
         std::vector <std::vector<int> > cellPoint(numOfFacets, std::vector<int>(3,0));
         
         int size;
-        for(unsigned int itCell=0; itCell<numOfFacets; itCell++) {
+        for (unsigned int itCell = 0; itCell < numOfFacets; itCell++) {
             size = GET_OBJECT_SIZE(*polygons, itCell);
             for (unsigned int itPntInCell = 0; itPntInCell < size; itPntInCell++) {
                 int p = polygons->indices[POINT_INDEX(polygons->end_indices, itCell, itPntInCell)];
@@ -260,10 +290,9 @@ protected:
         
         // compute b = bR + i*bI separately
         std::vector<double> bR(numOfPoints), bI(numOfPoints);
-        // int _cellHavePntP = 0; // changed to polePoint
-        std::vector<double> A( pointXYZ[ cellPoint[ polePoint ][ 0 ] ] ),
-        B( pointXYZ[ cellPoint[ polePoint ][ 1 ] ] ),
-        C( pointXYZ[ cellPoint[ polePoint ][ 2 ] ] );
+        std::vector<double> A( pointXYZ[ cellPoint[ pointP ][ 0 ] ] ),
+        B( pointXYZ[ cellPoint[ pointP ][ 1 ] ] ),
+        C( pointXYZ[ cellPoint[ pointP ][ 2 ] ] );
         double ABnorm, CA_BAip; // the inner product of vector C-A and B-A;
         ABnorm = (A[0] - B[0]) * (A[0] - B[0])
         + (A[1] - B[1]) * (A[1] - B[1])
@@ -289,12 +318,12 @@ protected:
         + (C[2] - E[2]) * (C[2] - E[2]);
         CEnorm = sqrt(CEnorm); // This is real norm of vector CE.
         
-        bR[cellPoint[ polePoint ][0]] = -1 / ABnorm;
-        bR[cellPoint[ polePoint ][1]] = 1 / ABnorm;
+        bR[cellPoint[ pointP ][0]] = -1 / ABnorm;
+        bR[cellPoint[ pointP ][1]] = 1 / ABnorm;
         
-        bI[cellPoint[ polePoint ][0]] = (1-theta)/ CEnorm;
-        bI[cellPoint[ polePoint ][1]] = theta/ CEnorm;
-        bI[cellPoint[ polePoint ][2]] = -1 / CEnorm;
+        bI[cellPoint[ pointP ][0]] = (1-theta)/ CEnorm;
+        bI[cellPoint[ pointP ][1]] = theta/ CEnorm;
+        bI[cellPoint[ pointP ][2]] = -1 / CEnorm;
         
         // 1. Iterate point P from 0 to the last point in the mesh.
         // 2. For each P, find its neighbors, each neighbor must have at least two triangles containing P and itself ---not the boundary.
@@ -454,15 +483,19 @@ protected:
 
 
     polygons_struct *polygons;
-    bool rightPole ;
+    char pointPloc;
+    bool minFlag;
+    double mapScale;
 };
 
 
 void usage(STRING executable) {
     STRING usage_str = "\n\
-Usage: %s infile.obj outfile.obj\n\n\
+Usage: %s infile.obj outfile.obj [mapScale] [pointPlocation]\n\n\
      Generate the Laplace-Beltrami conformal map of the mesh specified in\n\
-     infile.obj.  Results are saved in outfile.obj.\n";
+     infile.obj.  Results are saved in outfile.obj.\n\n\
+     mapScale = scaling factor [default: 100]\n\
+     pointPlocation = +x,-x,+y,-y,+z,-z,0 [default: 0]\n";
 
      print_error(usage_str, executable);
 }
@@ -475,6 +508,8 @@ int main(int argc, char** argv) {
     int n_objects;
     Real *curvatures;
     File_formats format;
+    STRING pointPloc;
+    int mapScale;
     
     initialize_argument_processing(argc, argv);
     if (!get_string_argument(NULL, &ifname) ||
@@ -482,6 +517,9 @@ int main(int argc, char** argv) {
         usage(argv[0]);
         return(1);
     }
+
+    get_int_argument(100, &mapScale);
+    get_string_argument("0", &pointPloc);
 
     if (input_graphics_file(ifname, &format, &n_objects, &objects) != OK) {
         print("Error reading input file\n");
@@ -501,7 +539,7 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    LSCM lscm(*polygons, false);
+    LSCM lscm(*polygons, mapScale, pointPloc);
     lscm.apply();
 
     compute_polygon_normals(polygons);

@@ -34,7 +34,8 @@ bin_PROGRAMS = \
 	CAT_TopologyCorrect \
         CAT_AreaDistortion \
 	CAT_GLM_Math \
-	CAT_LBConformalMap
+	CAT_LBConformalMap \
+	CAT_AngularDistortion
 
 topologysimplification_SRC = \
 	topologysimplification/Face.cpp \
@@ -85,6 +86,7 @@ CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c
 CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c
 CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c
 CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.cpp CAT_Curvature.c CAT_Surf.c nl/nl_api.c nl/nl_blas.c nl/nl_context.c nl/nl_iterative_solvers.c nl/nl_matrix.c nl/nl_os.c nl/nl_preconditioners.c nl/nl_superlu.c
+CAT_AngularDistortion_SOURCE = CAT_AngularDistortion.c CAT_Surf.c
 	
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \
