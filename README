@@ -77,10 +77,10 @@ CAT_GLM_Math
 --------------------------------------------------------------------------------
 Perform simple math operations to value files (from CAT_GLM_Estimate)
 
-CAT_LSCM
+CAT_LBConformalMap
 --------------------------------------------------------------------------------
-WARNING: Not finished! Final mapping is missing...
-Least Squares Conformal Mapping (LSCM) using the approach of Levy et al.
+Laplace-Beltrami Conformal Mapping using the approach of Haker et al. "Conformal 
+Surface Parameterization for Texture Mapping" 2000
 
 CAT_Obj2Freesurfer
 --------------------------------------------------------------------------------

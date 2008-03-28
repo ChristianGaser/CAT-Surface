@@ -2,7 +2,7 @@
 
 set -e
  
-glibtoolize --automake --copy
+libtoolize --automake --copy
 aclocal -I m4
 autoheader
 automake --add-missing --copy
