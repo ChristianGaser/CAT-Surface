@@ -82,13 +82,13 @@ AR="ar"
 AR_FLAGS="cru"
 
 # A C compiler.
-LTCC="/Developer/usr/bin/gcc"
+LTCC="gcc-4"
 
 # LTCC compiler flags.
-LTCFLAGS=" -I/usr/local/include -I/usr/X11R6/include -I/sw/include -funroll-loops -fstrict-aliasing -msse2 -ftree-vectorize -pipe  -O "
+LTCFLAGS=" -I/usr/local/include -I/usr/X11R6/include -I/sw/include -funroll-loops -fstrict-aliasing -msse2 -ftree-vectorize -pipe  -O  -fopenmp"
 
 # A language-specific compiler.
-CC="/Developer/usr/bin/gcc"
+CC="gcc-4"
 
 # Is the compiler the GNU C compiler?
 with_gcc=yes
@@ -97,7 +97,7 @@ with_gcc=yes
 EGREP="/usr/bin/grep -E"
 
 # The linker used to build libraries.
-LD="/Developer/usr/libexec/gcc/i686-apple-darwin9/4.0.1/ld"
+LD="/usr/bin/ld"
 
 # Whether we need hard or soft links.
 LN_S="ln -s"
@@ -322,7 +322,7 @@ variables_saved_for_relink="PATH DYLD_LIBRARY_PATH  GCC_EXEC_PREFIX COMPILER_PAT
 link_all_deplibs=yes
 
 # Compile-time system search path for libraries
-sys_lib_search_path_spec=" /lib/i686-apple-darwin9/4.0.1/ /lib/ /usr/lib/i686-apple-darwin9/4.0.1/ /usr/lib/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/i686-apple-darwin9/4.0.1/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../i686-apple-darwin9/4.0.1/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../  /lib /usr/lib /usr/local/lib"
+sys_lib_search_path_spec=" /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/ /usr/lib/gcc/i686-apple-darwin9/4.3.0/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../../i686-apple-darwin9/lib/i686-apple-darwin9/4.3.0/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../../i686-apple-darwin9/lib/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../i686-apple-darwin9/4.3.0/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../ /lib/i686-apple-darwin9/4.3.0/ /lib/ /usr/lib/i686-apple-darwin9/4.3.0/ /usr/lib/  /lib /usr/lib /usr/local/lib"
 
 # Run-time system search path for libraries
 sys_lib_dlsearch_path_spec="/usr/local/lib /lib /usr/lib"
@@ -7381,13 +7381,13 @@ AR="ar"
 AR_FLAGS="cru"
 
 # A C compiler.
-LTCC="/Developer/usr/bin/gcc"
+LTCC="gcc-4"
 
 # LTCC compiler flags.
-LTCFLAGS=" -I/usr/local/include -I/usr/X11R6/include -I/sw/include -funroll-loops -fstrict-aliasing -msse2 -ftree-vectorize -pipe  -O "
+LTCFLAGS=" -I/usr/local/include -I/usr/X11R6/include -I/sw/include -funroll-loops -fstrict-aliasing -msse2 -ftree-vectorize -pipe  -O  -fopenmp"
 
 # A language-specific compiler.
-CC="/Developer/usr/bin/g++"
+CC="g++-4"
 
 # Is the compiler the GNU C compiler?
 with_gcc=yes
@@ -7396,7 +7396,7 @@ with_gcc=yes
 EGREP="/usr/bin/grep -E"
 
 # The linker used to build libraries.
-LD="/Developer/usr/libexec/gcc/i686-apple-darwin9/4.0.1/ld"
+LD="/usr/bin/ld"
 
 # Whether we need hard or soft links.
 LN_S="ln -s"
@@ -7621,7 +7621,7 @@ variables_saved_for_relink="PATH DYLD_LIBRARY_PATH  GCC_EXEC_PREFIX COMPILER_PAT
 link_all_deplibs=yes
 
 # Compile-time system search path for libraries
-sys_lib_search_path_spec=" /lib/i686-apple-darwin9/4.0.1/ /lib/ /usr/lib/i686-apple-darwin9/4.0.1/ /usr/lib/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/i686-apple-darwin9/4.0.1/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../../i686-apple-darwin9/lib/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../i686-apple-darwin9/4.0.1/ /Developer/usr/bin/../lib/gcc/i686-apple-darwin9/4.0.1/../../../ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../i686-apple-darwin9/4.0.1/ /usr/lib/gcc/i686-apple-darwin9/4.0.1/../../../  /lib /usr/lib /usr/local/lib"
+sys_lib_search_path_spec=" /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/ /usr/lib/gcc/i686-apple-darwin9/4.3.0/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../../i686-apple-darwin9/lib/i686-apple-darwin9/4.3.0/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../../i686-apple-darwin9/lib/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../i686-apple-darwin9/4.3.0/ /sw/lib/gcc4.3/lib/gcc/i686-apple-darwin9/4.3.0/../../../ /lib/i686-apple-darwin9/4.3.0/ /lib/ /usr/lib/i686-apple-darwin9/4.3.0/ /usr/lib/  /lib /usr/lib /usr/local/lib"
 
 # Run-time system search path for libraries
 sys_lib_dlsearch_path_spec="/usr/local/lib /lib /usr/lib"
@@ -7686,10 +7686,10 @@ AR="ar"
 AR_FLAGS="cru"
 
 # A C compiler.
-LTCC="/Developer/usr/bin/gcc"
+LTCC="gcc-4"
 
 # LTCC compiler flags.
-LTCFLAGS=" -I/usr/local/include -I/usr/X11R6/include -I/sw/include -funroll-loops -fstrict-aliasing -msse2 -ftree-vectorize -pipe  -O "
+LTCFLAGS=" -I/usr/local/include -I/usr/X11R6/include -I/sw/include -funroll-loops -fstrict-aliasing -msse2 -ftree-vectorize -pipe  -O  -fopenmp"
 
 # A language-specific compiler.
 CC="gfortran"
@@ -7701,7 +7701,7 @@ with_gcc=yes
 EGREP="/usr/bin/grep -E"
 
 # The linker used to build libraries.
-LD="/Developer/usr/libexec/gcc/i686-apple-darwin9/4.0.1/ld"
+LD="/usr/bin/ld"
 
 # Whether we need hard or soft links.
 LN_S="ln -s"

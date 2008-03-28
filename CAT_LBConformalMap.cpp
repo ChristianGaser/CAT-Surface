@@ -333,7 +333,10 @@ protected:
         std::vector< std::vector<int> >::iterator itP, itPEnd = pointCell.end();
         int idP = 0;
         unsigned long numOfEdges = 0;
+	    progress_struct      progress;
+        initialize_progress_report(&progress, FALSE, numOfPoints, "Mesh2Solver");
         for (itP = pointCell.begin(); itP != itPEnd; ++itP, ++idP) {
+	        update_progress_report(&progress, idP);	
             std::vector<int> neighborOfP;
             std::vector<double> Dr(numOfPoints*2); // matrix row values
             // for each point P, traverse all cells containing it.
@@ -468,6 +471,8 @@ protected:
             }
             nlEnd(NL_ROW);
         } // itP
+
+        terminate_progress_report(&progress);
         ////////////////////////////////////////////////////////
         // calculate Euler Number to test whether the mesh is genus 0. i.e. Euler Num is 2;
         //    std::cout<<"Total number of edges: "<<numOfEdges<<std::endl;
