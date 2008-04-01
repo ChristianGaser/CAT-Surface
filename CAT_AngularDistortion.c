@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
     int                  pnt, tp[3], p, size, fac;
     object_struct        **objects1, **objects2;
     polygons_struct      *polygons1, *polygons2;
-    double               ang_dist;
+    double               ang_dist, total_ang_dist = 0;
 
     initialize_argument_processing(argc, argv);
 
@@ -146,11 +146,14 @@ int main(int argc, char *argv[]) {
                                       polygons2->points[tp[0]].coords,
                                       polygons2->points[tp[1]].coords,
                                       polygons2->points[tp[2]].coords);
+        total_ang_dist += ang_dist;
 
         if (output_double(file, ang_dist) != OK || output_newline(file) != OK) {
             return(1);
         }
     }
+
+    print("Angular distortion: %f\n", total_ang_dist/(3*polygons1->n_items));
       
     close_file(file);
 
