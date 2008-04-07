@@ -7,6 +7,7 @@
 extern "C"
 {
 	#include  <bicpl.h>
+	#include  "CAT_SurfaceIO.h"
 }
 
 void  usage(
@@ -39,7 +40,7 @@ int main(
         return( 1 );
     }
 
-    if( input_graphics_file( input_filename , &format, &n_objects, &objects ) != OK )
+    if( input_graphics_any_format( input_filename , &format, &n_objects, &objects ) != OK )
     {
         fprintf(stderr, "Error while reading %s.\n", input_filename );
         return( 1 );
@@ -65,7 +66,7 @@ int main(
 
 	objects[0] = surface.SurfaceToObj();
 
-    if( output_graphics_file( output_filename, format,
+    if( output_graphics_any_format( output_filename, format,
                                    1, objects ) != OK)
         return(1);
     

@@ -55,7 +55,7 @@ int  main(
     }
 
     /*--- input the surface */
-    if( input_graphics_file( surface_filename, &format, &n_objects, &objects )
+    if( input_graphics_any_format( surface_filename, &format, &n_objects, &objects )
          != OK )
         return( 1 );
 

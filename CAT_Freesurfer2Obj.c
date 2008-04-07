@@ -53,7 +53,7 @@ int  main(
     polygons = get_polygons_ptr( objects[0] );
     
 	print( "%d %d\n" , polygons->n_points, polygons->n_items);
-    if( output_graphics_file( output_filename, format,
+    if( output_graphics_any_format( output_filename, format,
                                    n_objects, objects ) != OK)
         return(1);
     

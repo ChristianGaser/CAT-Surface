@@ -54,7 +54,7 @@ int  main(
     polygons = get_polygons_ptr( objects[0] );
     
 
-    if( output_graphics_file( output_filename, format,
+    if( output_graphics_any_format( output_filename, format,
                                    n_objects, objects ) != OK)
         return(1);
     

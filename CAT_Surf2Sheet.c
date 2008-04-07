@@ -86,7 +86,7 @@ int  main(
             if( input_texture_values( values_filename, &n_values, &values ) != OK )
                 return( 1 );
         }
-        if( input_graphics_file( surface_filename, &format, &n_objects, &objects ) != OK )
+        if( input_graphics_any_format( surface_filename, &format, &n_objects, &objects ) != OK )
             return( 1 );
         /*--- check that the surface file contains a polyhedron */
         if( n_objects != 1 || get_object_type( objects[0] ) != POLYGONS ) {

@@ -60,7 +60,7 @@ int  main(
 		fprintf(stderr,"Please try 20*(4*x) triangles (e.g. 81920).\n");
 	}
 	
-    if( input_graphics_file( surface_filename,
+    if( input_graphics_any_format( surface_filename,
                              &format, &n_objects, &objects ) != OK ||
         n_objects != 1 || get_object_type(objects[0]) != POLYGONS ) {
         print_error( "File %s must contain 1 polygons object.\n",
@@ -68,7 +68,7 @@ int  main(
         return( 1 );
     }
 
-    if( input_graphics_file( sphere_filename,
+    if( input_graphics_any_format( sphere_filename,
                              &format, &n_objects_src_sphere, &objects_src_sphere ) != OK ||
         n_objects_src_sphere != 1 || get_object_type(objects_src_sphere[0]) != POLYGONS ) {
         print_error( "File %s must contain 1 polygons object.\n",
@@ -164,7 +164,7 @@ int  main(
 		
     compute_polygon_normals( polygons_dest_sphere );
 
-    output_graphics_file( output_filename, format, 1, &objects_dest_sphere );
+    output_graphics_any_format( output_filename, format, 1, &objects_dest_sphere );
     
     if( values_specified )
     {

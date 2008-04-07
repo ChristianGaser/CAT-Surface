@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
         return(1);
     }
 
-    if (input_graphics_file(iob_fname1, &format, &n_objects1, &objects1) != OK) {
+    if (input_graphics_any_format(iob_fname1, &format, &n_objects1, &objects1) != OK) {
         return(1);
     }
 
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
         return(1);
     }
 
-    if (input_graphics_file(iob_fname2, &format, &n_objects2, &objects2) != OK) {
+    if (input_graphics_any_format(iob_fname2, &format, &n_objects2, &objects2) != OK) {
         return(1);
     }
 

@@ -64,7 +64,7 @@ int  main(
     (void) get_int_argument( 0, &sign );
     
     if( fwhm > 0 ) smoothing = 1; else smoothing = 0;
-    if( input_graphics_file( object_filename,
+    if( input_graphics_any_format( object_filename,
                              &format, &n_objects, &objects ) != OK )
         return( 1 );
 

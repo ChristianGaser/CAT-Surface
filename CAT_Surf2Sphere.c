@@ -51,7 +51,7 @@ int  main(
     }
     else save_radius = FALSE;
 
-    if( input_graphics_file( input_filename, &format, &n_objects,
+    if( input_graphics_any_format( input_filename, &format, &n_objects,
                              &object_list ) != OK || n_objects != 1 ||
         get_object_type(object_list[0]) != POLYGONS )
     {
@@ -142,7 +142,7 @@ int  main(
 	fprintf(stderr,"Done                \n");
     convert_ellipsoid_to_sphere_with_surface_area( polygons, fiducialSurfaceArea);
 
-    output_graphics_file( output_filename, format, 1, object_list );
+    output_graphics_any_format( output_filename, format, 1, object_list );
 
     FREE( radius );
     return( 0 );

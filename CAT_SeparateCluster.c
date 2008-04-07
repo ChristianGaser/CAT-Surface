@@ -43,7 +43,7 @@ int  main(
 
     (void) get_int_argument( -1, &desired_index );
 
-    if( input_graphics_file( input_filename, &format, &n_objects,
+    if( input_graphics_any_format( input_filename, &format, &n_objects,
                              &object_list ) != OK || n_objects < 1 ||
         get_object_type( object_list[0] ) != POLYGONS )
     {
@@ -70,7 +70,7 @@ fprintf(stderr,"%d\n",n_out);
         else
             (void) sprintf( out_filename, "%s_%d.obj", output_prefix, i+1 );
 
-        (void) output_graphics_file( out_filename, format, 1, &out[i] );
+        (void) output_graphics_any_format( out_filename, format, 1, &out[i] );
 */
 		fprintf(stderr,"%g\n",i);
     }

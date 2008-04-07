@@ -49,6 +49,7 @@ extern "C"
         #include  <bicpl.h>
         #include <CAT_Curvature.h>
         #include <CAT_Surf.h>
+        #include <CAT_SurfaceIO.h>
 }   
 
 #include <vector>
@@ -526,7 +527,7 @@ int main(int argc, char** argv) {
     get_int_argument(100, &mapScale);
     get_string_argument("0", &pointPloc);
 
-    if (input_graphics_file(ifname, &format, &n_objects, &objects) != OK) {
+    if (input_graphics_any_format(ifname, &format, &n_objects, &objects) != OK) {
         print("Error reading input file\n");
         return(1);
     }
@@ -548,6 +549,6 @@ int main(int argc, char** argv) {
     lscm.apply();
 
     compute_polygon_normals(polygons);
-    output_graphics_file(ofname, format, 1, objects);
+    output_graphics_any_format(ofname, format, 1, objects);
 }
 

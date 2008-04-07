@@ -129,7 +129,7 @@ int  main(
         }
     }
 
-    if( input_graphics_file( src_filename, &format, &n_objects,
+    if( input_graphics_any_format( src_filename, &format, &n_objects,
                              &object_list ) != OK )
         return( 1 );
 
@@ -231,7 +231,7 @@ int  main(
         }
     }
 
-    status = output_graphics_file( dest_filename, format,
+    status = output_graphics_any_format( dest_filename, format,
                                    n_objects, object_list );
 
     return( status != OK );

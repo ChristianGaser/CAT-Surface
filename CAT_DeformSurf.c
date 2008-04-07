@@ -146,7 +146,7 @@ int  main( argc, argv )
 
     if( status == OK )
     {
-        status = input_graphics_file( input_filename, &file_format,
+        status = input_graphics_any_format( input_filename, &file_format,
                                       &n_objects, &object_list );
     }
 
@@ -182,7 +182,7 @@ int  main( argc, argv )
         end_time = current_cpu_seconds();
 
     if( status == OK )
-        status = output_graphics_file( output_filename, ASCII_FORMAT,
+        status = output_graphics_any_format( output_filename, ASCII_FORMAT,
                                        n_objects, object_list );
 /*
     print_time( "Total cpu time: %g %s\n", end_time - start_time );

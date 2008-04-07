@@ -45,7 +45,7 @@ int  main(
         return( 1 );
     }
 
-    if( input_graphics_file( surface_filename,
+    if( input_graphics_any_format( surface_filename,
                              &format, &n_objects, &objects ) != OK ||
         n_objects != 1 || get_object_type(objects[0]) != POLYGONS )
     {
@@ -121,7 +121,7 @@ int  main(
     for_less( p, 0, polygons->n_points )
         polygons->points[p] = new_points[p];
 
-    if( output_graphics_file( output_filename, format, n_objects,
+    if( output_graphics_any_format( output_filename, format, n_objects,
                               objects ) != OK )
         return( 1 );
 

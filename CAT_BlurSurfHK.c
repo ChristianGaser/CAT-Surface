@@ -53,7 +53,7 @@ int  main(
 
     values_present = get_string_argument( NULL, &values_filename );
 
-    if( input_graphics_file( input_filename, &format, &n_objects,
+    if( input_graphics_any_format( input_filename, &format, &n_objects,
                              &object_list ) != OK || n_objects != 1 ||
         get_object_type(object_list[0]) != POLYGONS )
     {
@@ -154,7 +154,7 @@ int  main(
 
         compute_polygon_normals( polygons );
 
-        output_graphics_file( output_filename, format, 1, object_list );
+        output_graphics_any_format( output_filename, format, 1, object_list );
         FREE( smooth_points );
     }
 

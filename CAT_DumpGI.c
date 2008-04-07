@@ -61,7 +61,7 @@ int  main(
     (void) get_real_argument( 100.0, &fwhm_surf );
     (void) get_int_argument( 0, &curvtype );
     
-    if( input_graphics_file( object_filename,
+    if( input_graphics_any_format( object_filename,
                              &format, &n_objects, &objects ) != OK )
         return( 1 );
 

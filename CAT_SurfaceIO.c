@@ -17,6 +17,79 @@
 #define SWAB24(x) ( ( (x)<<24 ) | ( ((x)&0x0000ff00UL)<<8  ) |\
                     ( ((x)&0x00ff0000UL)>>8  ) | ( ((x)&0xff000000UL)>>24 ) )
 
+
+public Status   input_graphics_any_format(
+    STRING         filename,
+    File_formats   *format,
+    int            *n_objects,
+    object_struct  ***object_list )
+{
+    Status         status;
+    FILE           *file;
+    BOOLEAN        eof;
+    object_struct  *object;
+    STRING         current_directory;
+
+    if( filename_extension_matches(filename,"obj"))
+    {
+        status = input_graphics_any_format( filename, format,
+                                      n_objects, object_list );
+    }
+    else if( filename_extension_matches(filename,"off"))
+    {
+        status = input_oogl( filename, &format,
+                                      n_objects, object_list );
+    }
+    else if( filename_extension_matches(filename,"dfs"))
+    {
+        status = input_dfs( filename, &format,
+                                      n_objects, object_list );
+    }
+    else if( filename_extension_matches(filename,"dx"))
+    {
+        status = input_dx( filename, &format,
+                                      n_objects, object_list );
+    }
+    else
+    {
+        status = input_freesurfer( filename, &format,
+                                      n_objects, object_list );
+    }
+
+    return( status );
+}
+
+public Status   output_graphics_any_format(
+    STRING         filename,
+    File_formats   format,
+    int            n_objects,
+    object_struct  **object_list )
+{
+    Status         status;
+    FILE           *file;
+    BOOLEAN        eof;
+    object_struct  *object;
+    STRING         current_directory;
+
+    if( filename_extension_matches(filename,"obj"))
+    {
+        status = output_graphics_any_format( filename, format,
+                                      n_objects, object_list );
+    }
+    else if( filename_extension_matches(filename,"off"))
+    {
+        status = output_oogl( filename, format,
+                                      n_objects, object_list );
+    }
+    else
+    {
+        status = output_freesurfer( filename, &format,
+                                      n_objects, object_list );
+    }
+
+    return( status );
+}
+
 void swapFloat(unsigned int *v){
 	*v=SWAB32(*v);
 }
@@ -62,6 +135,116 @@ int fread3(FILE *fp)
     count = fread (&b3, 1, 1, fp);
     return((b1 << 16) + (b2 << 8) + b3) ;
 
+}
+
+public int input_oogl(
+    char *fname,
+    File_formats   *format,
+    int            *n_objects,
+    object_struct  ***object_list)
+{
+    FILE    *fp;
+    int     i, f, e, g, n_edges, dummy;
+    char    line[1000];
+    Real *vertices, *faces;
+    polygons_struct     *polygons;
+    Point   point;
+    object_struct  *object;
+            
+    /* prepare object and polygons */
+    *n_objects = 0;
+    object = create_object( POLYGONS );
+    add_object_to_list( n_objects, object_list, object );
+    polygons = get_polygons_ptr(object);
+    initialize_polygons( polygons, WHITE, NULL );
+    *format = ASCII_FORMAT;
+
+    if((fp = fopen(fname, "rb")) == 0) {
+        fprintf(stderr, "input_oogl: Couldn't open file %s.\n", fname);
+        return(0);
+    }
+
+    fscanf(fp,"%s", line);
+    if (! strcmp(line,"OFF")) {
+    
+      fscanf(fp, "%d %d %d", &polygons->n_points, &polygons->n_items, &dummy );
+      ALLOC( polygons->points, polygons->n_points );
+      ALLOC( polygons->normals, polygons->n_points );
+      ALLOC( polygons->end_indices, polygons->n_items );
+
+      polygons->bintree = (bintree_struct_ptr) NULL;
+
+      for( i = 0; i < polygons->n_points; ++i ) {
+	    fscanf( fp, "%f %f %f\n", &Point_x(point), &Point_y(point), &Point_z(point)); 
+        polygons->points[i] = point;
+      }
+      
+      for (i = 0; i < (polygons->n_items); i++)
+          polygons->end_indices[i] = (i+1) * 3;
+
+      ALLOC( polygons->indices, polygons->end_indices[polygons->n_items-1] );
+            
+      for ( f = 0; f < polygons->n_items; ++f ) {
+
+	    fscanf( fp, "%d %d %d %d\n", &n_edges, 
+	        &polygons->indices[POINT_INDEX(polygons->end_indices, f, 0 )],
+	        &polygons->indices[POINT_INDEX(polygons->end_indices, f, 1 )],
+	        &polygons->indices[POINT_INDEX(polygons->end_indices, f, 2 )]);
+        if (n_edges != 3) {
+          fprintf(stderr,"Only 3 elements per item allowed.\n");
+          return(0);
+        }
+      }
+        
+      /* compute normals */
+      compute_polygon_normals( polygons );
+    } else {
+      fprintf(stderr,"Wrong oogl format\n");
+      return(0);
+    }
+    
+    fclose(fp);
+    return(OK);
+}
+
+public int output_oogl(
+    char *fname,
+    File_formats  format,
+    int           n_objects,
+    object_struct *object_list[])
+{
+    int i,e,f;
+    FILE    *fp;
+    unsigned char   buffer;
+    polygons_struct     *polygons;
+
+    if((fp = fopen(fname, "w")) == 0) {
+        fprintf(stderr, "output_oogl: Couldn't open file %s.\n", fname);
+        return(0);
+    }
+
+    polygons = get_polygons_ptr(object_list[0]);
+
+    fprintf( fp, "OFF\n" );
+    fprintf( fp, "%d %d %d\n", polygons->n_points, polygons->n_items, -1 );
+    for( i = 0; i < polygons->n_points; ++i ) {
+	  fprintf( fp, "%f %f %f\n", 
+		 Point_x( polygons->points[i] ), 
+		 Point_y( polygons->points[i] ), 
+		 Point_z( polygons->points[i] ) );
+    }
+    for ( f = 0; f < polygons->n_items; ++f ) {
+	  int n_face_edges = GET_OBJECT_SIZE( *polygons, f );
+
+	  fprintf( fp, "%d ", n_face_edges );
+	  for ( e = 0; e < n_face_edges; ++e ) {
+	    int index = polygons->indices[POINT_INDEX(polygons->end_indices, f, e )];
+	    fprintf( fp,"%d ", index );
+	  }
+	  fprintf( fp, "\n");
+    }
+    fprintf( fp, "\n");
+    fclose(fp);
 }
 
 public int output_freesurfer(

@@ -37,7 +37,7 @@ int  main(
         return( 1 );
     }
 
-    if( input_graphics_file( input_filename,
+    if( input_graphics_any_format( input_filename,
                              &format, &n_objects, &objects ) != OK )
         return( 1 );
 
