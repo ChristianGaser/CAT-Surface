@@ -23,11 +23,8 @@ bin_PROGRAMS = \
 	CAT_GLM_Estimate \
 	CAT_PlotValuesAtPoint \
 	CAT_PlotValuesAtMaximum \
-	CAT_Dx2Obj \
-	CAT_Dfs2Obj \
-	CAT_Freesurfer2Obj \
 	CAT_FreesurferCurv2Txt \
-	CAT_Obj2Freesurfer \
+	CAT_SurfConvert \
 	CAT_Surf2Sphere \
 	CAT_SeparateCluster \
 	CAT_ResampleSphericalSurf \
@@ -73,11 +70,8 @@ CAT_Color2Surf_SOURCES = CAT_Color2Surf.c CAT_SurfaceIO.c
 CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Blur2d.c CAT_SurfaceIO.c
 CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SliceIO.c
 CAT_GLM_Math_SOURCES = CAT_GLM_Math.c
-CAT_Obj2Freesurfer_SOURCES = CAT_Obj2Freesurfer.c CAT_SurfaceIO.c 
-CAT_Freesurfer2Obj_SOURCES = CAT_Freesurfer2Obj.c CAT_SurfaceIO.c 
+CAT_SurfConvert_SOURCES = CAT_SurfConvert.c CAT_SurfaceIO.c 
 CAT_FreesurferCurv2Txt_SOURCES = CAT_FreesurferCurv2Txt.c CAT_SurfaceIO.c 
-CAT_Dx2Obj_SOURCES = CAT_Dx2Obj.c CAT_SurfaceIO.c 
-CAT_Dfs2Obj_SOURCES = CAT_Dfs2Obj.c CAT_SurfaceIO.c 
 CAT_PlotValuesAtPoint_SOURCES = CAT_PlotValuesAtPoint.c CAT_SurfaceIO.c
 CAT_PlotValuesAtMaximum_SOURCES = CAT_PlotValuesAtMaximum.c CAT_SurfaceIO.c
 CAT_SeparateCluster_SOURCES = CAT_SeparateCluster.c CAT_Blur2d.c CAT_SurfaceIO.c

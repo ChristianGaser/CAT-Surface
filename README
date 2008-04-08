@@ -51,18 +51,9 @@ CAT_DumpSurfArea
 --------------------------------------------------------------------------------
 Extract surface area
 
-CAT_Dx2Obj
+CAT_SurfConvert
 --------------------------------------------------------------------------------
-Convert dx-file to BIC obj.
-
-CAT_Dfs2Obj
---------------------------------------------------------------------------------
-WANING: Not working!
-Convert dfs-file (Brainsuite) to BIC obj.
-
-CAT_Freesurfer2Obj
---------------------------------------------------------------------------------
-Convert freesurfer surfaces to BIC obj-files; restricted to binary triangle files
+Convert BIC obj to Freesurfer or OOGL and vice versa.
 
 CAT_FreesurferCurv2Txt
 --------------------------------------------------------------------------------
@@ -81,10 +72,6 @@ CAT_LBConformalMap
 --------------------------------------------------------------------------------
 Laplace-Beltrami Conformal Mapping using the approach of Haker et al. "Conformal 
 Surface Parameterization for Texture Mapping" 2000
-
-CAT_Obj2Freesurfer
---------------------------------------------------------------------------------
-Convert BIC obj-files to freesurfer surfaces; restricted to binary triangle files
 
 CAT_Obj2Neurolens
 --------------------------------------------------------------------------------
