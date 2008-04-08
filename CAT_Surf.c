@@ -9,6 +9,83 @@
 #include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
 #include  <float.h>
+#include "Cat_Surf.h"
+
+#define pi 3.14159265358979323846264338327510
+
+float* get_surface_ratio(float r, polygons_struct *polygons)
+{
+	int		i,j,x,y,z,a,b,c,nan=0;
+	float	*lf;
+	int		size, poly_size;
+	float	area,asum,*avol=(float*)calloc(256*256*256,sizeof(float));
+	char	str[512];
+    Point   points[MAX_POINTS_PER_POLYGON];
+	
+	lf=(float*)calloc(polygons->n_points,sizeof(float));
+		
+	for(i=0;i<256*256*256;i++)
+	  avol[i] = 0.0;
+
+	for(i=0;i<polygons->n_items;i++)
+	{
+        size = get_polygon_points( polygons, i, points );
+	    area = get_polygon_surface_area( size, points );
+
+        poly_size = GET_OBJECT_SIZE( *polygons, i );
+
+		for(j=0;j<poly_size;j++)
+		{
+		  *points = polygons->points[polygons->indices[POINT_INDEX(polygons->end_indices,i,j)]];
+          x = 128 + (int) Point_x(*points);
+		  y = 128 + (int) Point_y(*points);
+		  z = 128 + (int) Point_z(*points);
+		  if(x>=0&&x<256 && y>=0&&y<256 && z>=0&&z<256)
+				avol[z*256*256+y*256+x]+=area;
+		}
+	}
+	
+	for(i=0;i<polygons->n_points;i++)
+	{
+		if(i%100==0)
+		{
+		  sprintf(str,"%i/%i",i,polygons->n_points);
+		  printf(str);
+		  for(j=0;j<strlen(str);j++)
+			printf("\b");
+		  fflush(stdout);
+		}
+
+		asum=0;
+		for(x=-r;x<=r;x++)
+		  for(y=-r;y<=r;y++)
+		    for(z=-r;z<=r;z++)
+			  if(x*x + y*y + z*z < r*r)
+			  {
+		        *points = polygons->points[i];
+		        a = x + 128 + (int) Point_x(*points);
+		        b = y + 128 + (int) Point_y(*points);
+		        c = z + 128 + (int) Point_z(*points);
+			    if(a>=0&&a<256 && b>=0&&b<256 && c>=0&&c<256)
+					asum+=avol[c*65536+b*256+a];
+			  }
+		// the area of a triangle completely inside the sphere
+		// will be added 3 times (one per vertex)
+		// the area of a triangle partially inside the sphere		
+		// will be accounted proportionally to the number
+		// of vertices inside the sphere
+		lf[i]=asum/(pi*r*r)/3.0;
+		
+		if(!(lf[i]==lf[i]))
+			nan++;
+	}
+	free(avol);
+	
+	if(nan)
+		printf("ERROR: there are %i NaN\n",nan);
+	
+	return lf;
+}
 
 float get_area_of_points(
     polygons_struct     *polygons,
@@ -600,7 +677,6 @@ void inflate_surface_and_smooth_fingers(
             if (jNext >= n_neighbours[i]) {
                jNext = 0;
             }
-            const int nextNeighbor = neighbours[i][jNext];
             
             // compute area of tiles on aux and ref surfaces
             const float tileArea = area_valuesIn[i];

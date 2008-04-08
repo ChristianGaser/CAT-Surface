@@ -19,6 +19,7 @@ bin_PROGRAMS = \
 	CAT_ApplyWarpValues \
 	CAT_Color2Surf \
 	CAT_DumpSurfArea \
+	CAT_DumpSurfaceRatio \
 	CAT_BlurSurfHK \
 	CAT_GLM_Estimate \
 	CAT_PlotValuesAtPoint \
@@ -66,6 +67,7 @@ CAT_DeformSurf_SOURCES = CAT_DeformSurf.c CAT_DeformPolygons.c CAT_SurfaceIO.c
 CAT_ApplyWarpSurf_SOURCES = CAT_ApplyWarpSurf.c CAT_Map2d.c CAT_SurfaceIO.c
 CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map2d.c CAT_SurfaceIO.c
 CAT_DumpSurfArea_SOURCES = CAT_DumpSurfArea.c CAT_Surf.c CAT_SurfaceIO.c
+CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_SurfaceIO.c
 CAT_Color2Surf_SOURCES = CAT_Color2Surf.c CAT_SurfaceIO.c
 CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Blur2d.c CAT_SurfaceIO.c
 CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SliceIO.c

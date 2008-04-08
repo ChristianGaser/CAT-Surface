@@ -6,6 +6,7 @@
 
 #include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
+#include  "CAT_SurfaceIO.h"
 
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
 #define QUAD_FILE_MAGIC_NUMBER  16777215
@@ -18,10 +19,6 @@ public Status   input_graphics_any_format(
   object_struct  ***object_list )
 {
   Status     status;
-  FILE       *file;
-  BOOLEAN    eof;
-  object_struct  *object;
-  STRING     current_directory;
 
   if( filename_extension_matches(filename,"obj"))
   {
@@ -30,22 +27,22 @@ public Status   input_graphics_any_format(
   }
   else if( filename_extension_matches(filename,"off"))
   {
-    status = input_oogl( filename, &format,
+    status = input_oogl( filename, format,
                     n_objects, object_list );
   }
   else if( filename_extension_matches(filename,"dfs"))
   {
-    status = input_dfs( filename, &format,
+    status = input_dfs( filename, format,
                     n_objects, object_list );
   }
   else if( filename_extension_matches(filename,"dx"))
   {
-    status = input_dx( filename, &format,
+    status = input_dx( filename, format,
                     n_objects, object_list );
   }
   else
   {
-    status = input_freesurfer( filename, &format,
+    status = input_freesurfer( filename, format,
                     n_objects, object_list );
   }
 
@@ -59,10 +56,6 @@ public Status   output_graphics_any_format(
   object_struct  **object_list )
 {
   Status     status;
-  FILE       *file;
-  BOOLEAN    eof;
-  object_struct  *object;
-  STRING     current_directory;
 
   if( filename_extension_matches(filename,"obj"))
   {
@@ -76,7 +69,7 @@ public Status   output_graphics_any_format(
   }
   else
   {
-    status = output_freesurfer( filename, &format,
+    status = output_freesurfer( filename, format,
                     n_objects, object_list );
   }
 
@@ -163,9 +156,8 @@ public int input_oogl(
   object_struct  ***object_list)
 {
   FILE  *fp;
-  int   i, f, e, g, n_edges, dummy;
+  int   i, f, n_edges, dummy;
   char  line[1000];
-  Real *vertices, *faces;
   polygons_struct   *polygons;
   Point   point;
   object_struct  *object;
@@ -234,7 +226,6 @@ public int output_oogl(
 {
   int i,e,f;
   FILE  *fp;
-  unsigned char   buffer;
   polygons_struct   *polygons;
 
   if((fp = fopen(fname, "w")) == 0) {
@@ -247,23 +238,24 @@ public int output_oogl(
   fprintf( fp, "OFF\n" );
   fprintf( fp, "%d %d %d\n", polygons->n_points, polygons->n_items, -1 );
   for( i = 0; i < polygons->n_points; ++i ) {
-  fprintf( fp, "%f %f %f\n", 
-   Point_x( polygons->points[i] ), 
-   Point_y( polygons->points[i] ), 
-   Point_z( polygons->points[i] ) );
+    fprintf( fp, "%f %f %f\n", 
+    Point_x( polygons->points[i] ), 
+    Point_y( polygons->points[i] ), 
+    Point_z( polygons->points[i] ) );
   }
   for ( f = 0; f < polygons->n_items; ++f ) {
-  int n_face_edges = GET_OBJECT_SIZE( *polygons, f );
+    int n_face_edges = GET_OBJECT_SIZE( *polygons, f );
 
-  fprintf( fp, "%d ", n_face_edges );
-  for ( e = 0; e < n_face_edges; ++e ) {
-    int index = polygons->indices[POINT_INDEX(polygons->end_indices, f, e )];
-    fprintf( fp,"%d ", index );
-  }
-  fprintf( fp, "\n");
+    fprintf( fp, "%d ", n_face_edges );
+    for ( e = 0; e < n_face_edges; ++e ) {
+      int index = polygons->indices[POINT_INDEX(polygons->end_indices, f, e )];
+      fprintf( fp,"%d ", index );
+    }
+    fprintf( fp, "\n");
   }
   fprintf( fp, "\n");
   fclose(fp);
+  return(1);
 }
 
 public int output_freesurfer(
@@ -310,6 +302,7 @@ public int output_freesurfer(
     fwriteInt(polygons->indices[i], fp);
 
   fclose(fp);
+  return(1);
 }
 
 public int input_freesurfer(
@@ -321,7 +314,6 @@ public int input_freesurfer(
   FILE  *fp;
   int   i, magic;
   char  line[1000];
-  Real *vertices, *faces;
   polygons_struct   *polygons;
   Point   point;
   object_struct  *object;
@@ -342,7 +334,7 @@ public int input_freesurfer(
   /* read magic number for checking filetype */
   fread3(&magic, fp);
   if( magic == QUAD_FILE_MAGIC_NUMBER) {
-    fprintf(stderr, "QUAD_FILE_MAGIC_NUMBER not yet prepared %s.\n");
+    fprintf(stderr, "QUAD_FILE_MAGIC_NUMBER not yet prepared.\n");
     return(0);
   } else if( magic == TRIANGLE_FILE_MAGIC_NUMBER) {
     fgets(line, 1024, fp);
@@ -358,14 +350,14 @@ public int input_freesurfer(
       polygons->end_indices[i] = (i+1) * 3;
     ALLOC( polygons->indices, polygons->end_indices[polygons->n_items-1] );
     for (i = 0; i < (polygons->n_points); i++) {
-    Point_x(point) = freadFloat(fp);
-    Point_y(point) = freadFloat(fp);
-    Point_z(point) = freadFloat(fp);
+      Point_x(point) = freadFloat(fp);
+      Point_y(point) = freadFloat(fp);
+      Point_z(point) = freadFloat(fp);
       polygons->points[i] = point;
     }
     for (i = 0; i < 3*(polygons->n_items); i++) {
-    polygons->indices[i] = freadInt(fp);
-  }
+      polygons->indices[i] = freadInt(fp);
+    }
     /* compute normals */
     compute_polygon_normals( polygons );
   } else {
@@ -383,7 +375,7 @@ public int input_freesurfer_curv(
   Real  *input_values[])
 {
   FILE  *fp;
-  int   i, magic, vnum, fnum, vals_per_vertex;
+  int   i, magic, fnum, vals_per_vertex;
   Real  value;
       
   *n_values = 0;
@@ -429,7 +421,6 @@ public int input_dx(
   int   i, pos;
   char  line[1000];
   char  ch;
-  Real *vertices, *faces;
   polygons_struct   *polygons;
   Point   point;
   object_struct  *object;
@@ -519,10 +510,9 @@ public int input_dfs(
 {
   FILE  *fp;
   int   i, hdr_size;
-  char  line[256], dummy[256];
-  Real *vertices, *faces;
+  char  dummy[256];
   polygons_struct   *polygons;
-  Point   point;
+  Point *point;
   object_struct  *object;
       
   /* prepare object and polygons */
@@ -552,16 +542,16 @@ public int input_dfs(
     ALLOC( polygons->normals, polygons->n_points );
     ALLOC( polygons->end_indices, polygons->n_items );
     polygons->bintree = (bintree_struct_ptr) NULL;
-/*    for (i = 0; i < (polygons->n_items); i++)
+    for (i = 0; i < (polygons->n_items); i++)
       polygons->end_indices[i] = (i+1) * 3;
     ALLOC( polygons->indices, polygons->end_indices[polygons->n_items-1] );
-    for (i = 0; i < (polygons->n_points); i++) {
-      fread(&Point_x(point), 4, 1, fp);
+/*    for (i = 0; i < (polygons->n_points); i++) {
+      fread(Point_x(point), 4, 1, fp);
       fread(&Point_y(point), 4, 1, fp);
       fread(&Point_z(point), 4, 1, fp);
       polygons->points[i] = point;
     }
-    for (i = 0; i < 3*(polygons->n_items); i++)
+*/    for (i = 0; i < 3*(polygons->n_items); i++)
       fread(&polygons->indices[i], 4, 1, fp);
     /* compute normals */
     compute_polygon_normals( polygons );

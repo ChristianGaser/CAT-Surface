@@ -4,6 +4,10 @@
 /*                                                                           */
 /* Copyright Christian Gaser, University of Jena.                            */
 
+float* get_surface_ratio(
+	float r,
+	polygons_struct *polygons);
+
 float get_area_of_points(
     polygons_struct     *polygons,
     float               *area_values);

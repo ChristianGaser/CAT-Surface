@@ -4,13 +4,13 @@
 /*                                                                           */
 /* Copyright Christian Gaser, University of Jena.                            */
 
-int   input_graphics_any_format(
+Status   input_graphics_any_format(
     STRING         filename,
     File_formats   *format,
     int            *n_objects,
     object_struct  ***object_list );
 
-int   output_graphics_any_format(
+Status   output_graphics_any_format(
     STRING         filename,
     File_formats   format,
     int            n_objects,
