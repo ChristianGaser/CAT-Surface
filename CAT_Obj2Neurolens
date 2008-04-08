@@ -14,5 +14,5 @@ fi
 
 TMP=/tmp/lh.pial
 
-CAT_Obj2Freesurfer $1 $TMP
+CAT_SurfConvert $1 $TMP
 open $TMP
