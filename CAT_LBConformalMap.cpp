@@ -46,8 +46,9 @@ extern "C"
 {   
         #include "nl/nl.h"
         #include <volume_io/internal_volume_io.h>
-        #include  <bicpl.h>
+        #include <bicpl.h>
         #include <CAT_Curvature.h>
+        #include <CAT_Blur2d.h>
         #include <CAT_Surf.h>
         #include <CAT_SurfaceIO.h>
 }   
@@ -67,17 +68,7 @@ extern "C"
 class LSCM {
 public:
 
-    LSCM(polygons_struct &p, int ms, STRING ppl) : polygons(&p), mapScale(ms) {
-        if (ppl[0] == '-') {
-            minFlag = TRUE;
-            pointPloc = ppl[1];
-        } else if (ppl[0] == '+') {
-            minFlag = FALSE;
-            pointPloc = ppl[1];
-        } else {
-            pointPloc = ppl[0];
-        }
-    }
+    LSCM(polygons_struct &p, int ms) : polygons(&p), mapScale(ms) { }
 
 
     // Apply the Laplace-Beltrami operator
@@ -165,7 +156,88 @@ protected:
         } // for it
         
     }
-        
+
+    /* helper function for findPointP */
+    int maxi(double a[], int size) {
+        int i, maxi;
+
+        maxi = 0;
+        for (i = 1; i < size; i++) {
+            if (a[i] > a[maxi]) maxi = i;
+        }
+        return(maxi);
+    }
+
+    /**
+     * finds pointP at the flattest spot near the thalamus.
+     * assumes hemispheric data
+     */
+    int findPointP() {
+        int *n_neighbours, **neighbours;
+        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+
+        double curvatures[polygons->n_points];
+        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                3.0, 0, curvatures);
+
+        /* use absolute value */
+        for (int i=0; i < polygons->n_points; i++) {
+            curvatures[i] = fabs(curvatures[i]);
+        }
+
+        int n_flats = 100;
+        if (n_flats > polygons->n_points) n_flats = polygons->n_points;
+
+        int flats[n_flats];
+        double curvscore[n_flats];
+
+        /* bounding box near the thalamus (for finding flats) */
+        double minx = -5; double miny = -10; double minz = -60;
+        double maxx = 5; double maxy = 10; double maxz = -20;
+
+        int curvidx = 0;
+        for (int i=0; i < n_flats; i++) curvscore[i] = 1.797e+308;
+
+        /* get the points within the bbox with the smallest curvature values */
+        double xnorm = 0.95;
+        while (curvscore[curvidx] == 1.797e+308) {
+            for (int vertex=0; vertex < polygons->n_points; vertex++) {
+                if (fabs(polygons->normals[vertex].coords[0]) > xnorm
+                        && polygons->points[vertex].coords[0] <= maxx
+                        && polygons->points[vertex].coords[0] >= minx
+                        && polygons->points[vertex].coords[1] <= maxy
+                        && polygons->points[vertex].coords[1] >= miny
+                        && polygons->points[vertex].coords[2] <= maxz
+                        && polygons->points[vertex].coords[2] >= minz) {
+                    if (curvatures[vertex] < curvscore[curvidx]) {
+                        curvscore[curvidx] = curvatures[vertex];
+                        flats[curvidx] = vertex;
+                        curvidx = maxi(curvscore, n_flats);
+                    }
+                } 
+            } /* for vertex */
+            maxx += 0.5; maxy += 1; maxz += 1;
+            minx -= 0.5; miny -= 1; minz -= 1;
+            xnorm -= 0.05;
+        }
+
+        /* calculate their "curvature scores" based on nearest neighbors */
+        for (int vertex=0; vertex < n_flats; vertex++) {
+            for (int i=0; i < n_neighbours[vertex]; i++) {
+                curvscore[i] += curvatures[neighbours[vertex][i]];
+            }   
+        }               
+
+        curvidx = 0;
+        for (int i=1; i < n_flats; i++) {
+            if (curvscore[i] < curvscore[curvidx]) {
+                curvidx = i;
+            }
+        }
+        return(flats[curvidx]);
+    }
+
+
     /**
      * generates the matrices for computing Dx=b
      */
@@ -178,41 +250,12 @@ protected:
         std::vector< std::vector<double> > pointXYZ(numOfPoints, std::vector<
                                                           double>(3, 0) );
         
-        double minval = 1e30;
-        double maxval = -1e30;
-        int pointP = 0;
+        int pointP = findPointP();
         
         for (int it = 0; it < numOfPoints; ++it) {
             double x = polygons->points[it].coords[0];
             double y = polygons->points[it].coords[1];
             double z = polygons->points[it].coords[2];
-            
-            switch (pointPloc) {
-                case 'x':
-                    if (minFlag && x < minval) {
-                        pointP = it;
-                        minval = x;
-                    } else if (x > maxval) {
-                        pointP = it;
-                        maxval = x;
-                    }
-                case 'y':
-                    if (minFlag && y < minval) {
-                        pointP = it;
-                        minval = y;
-                    } else if (y > maxval) {
-                        pointP = it;
-                        maxval = y;
-                    }
-                case 'z':
-                    if (minFlag && z < minval) {
-                        pointP = it;
-                        minval = z;
-                    } else if (z > maxval) {
-                        pointP = it;
-                        maxval = z;
-                    }
-            }
             
             pointXYZ[it][0] = x;
             pointXYZ[it][1] = y;
@@ -334,10 +377,11 @@ protected:
         std::vector< std::vector<int> >::iterator itP, itPEnd = pointCell.end();
         int idP = 0;
         unsigned long numOfEdges = 0;
-	    progress_struct      progress;
+
+        progress_struct progress;
         initialize_progress_report(&progress, FALSE, numOfPoints, "Mesh2Solver");
         for (itP = pointCell.begin(); itP != itPEnd; ++itP, ++idP) {
-	        update_progress_report(&progress, idP);	
+            update_progress_report(&progress, idP);	
             std::vector<int> neighborOfP;
             std::vector<double> Dr(numOfPoints*2); // matrix row values
             // for each point P, traverse all cells containing it.
@@ -489,19 +533,16 @@ protected:
 
 
     polygons_struct *polygons;
-    char pointPloc;
     bool minFlag;
     double mapScale;
 };
 
-
 void usage(STRING executable) {
     STRING usage_str = "\n\
-Usage: %s infile.obj outfile.obj [mapScale] [pointPlocation]\n\n\
+Usage: %s infile.obj outfile.obj [mapScale]\n\n\
      Generate the Laplace-Beltrami conformal map of the mesh specified in\n\
      infile.obj.  Results are saved in outfile.obj.\n\n\
-     mapScale = scaling factor [default: 100]\n\
-     pointPlocation = +x,-x,+y,-y,+z,-z,0 [default: 0]\n";
+     mapScale = scaling factor [default: function based on # points]\n";
 
      print_error(usage_str, executable);
 }
@@ -514,8 +555,6 @@ int main(int argc, char** argv) {
     int n_objects;
     Real *curvatures;
     File_formats format;
-    STRING pointPloc;
-    int mapScale;
     
     initialize_argument_processing(argc, argv);
     if (!get_string_argument(NULL, &ifname) ||
@@ -524,8 +563,6 @@ int main(int argc, char** argv) {
         return(1);
     }
 
-    get_int_argument(100, &mapScale);
-    get_string_argument("0", &pointPloc);
 
     if (input_graphics_any_format(ifname, &format, &n_objects, &objects) != OK) {
         print("Error reading input file\n");
@@ -538,14 +575,19 @@ int main(int argc, char** argv) {
     }
 
     polygons = get_polygons_ptr(objects[0]);
+    compute_polygon_normals(polygons);
     
+    int mapScale = round(1.5*pow(polygons->n_points,0.5719));
+    get_int_argument(mapScale, &mapScale);
+    print("MapScale = %d\n", mapScale);
+
     int eulerNum = euler_characteristic(polygons);
     if (eulerNum != 2) {
         print_error("    Euler characteristics is %d, not 2! Not genus 0 surface, exiting...\n", eulerNum);
         exit(1);
     }
 
-    LSCM lscm(*polygons, mapScale, pointPloc);
+    LSCM lscm(*polygons, mapScale);
     lscm.apply();
 
     compute_polygon_normals(polygons);
