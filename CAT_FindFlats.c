@@ -15,11 +15,6 @@
 #define NINF -1.7976931348623157e+308 /* for doubles */
 
 
-struct list {
-    void *val;
-    struct list *next;
-};
-
 private int maxi(double a[], int size) {
     int i, maxi;
 
@@ -60,6 +55,7 @@ int main (int argc, char *argv[]) {
     object_struct        **objects;
     polygons_struct      *polygons;
     double               *curvatures, *curvscore;
+    double               minx, miny, minz, maxx, maxy, maxz;
     progress_struct      progress;
 
     initialize_argument_processing(argc, argv);
@@ -108,18 +104,46 @@ int main (int argc, char *argv[]) {
     ALLOC(curvscore,n_flats);
     ALLOC(flatmap,polygons->n_points);
 
+
+    /* Get the max. values */
+    maxx = NINF; maxy = NINF; maxz = NINF;
+    for (i=0; i < polygons->n_points; i++) {
+        maxx = (maxx > fabs(polygons->points[i].coords[0])) ?
+               maxx : fabs(polygons->points[i].coords[0]);
+        maxy = (maxy > fabs(polygons->points[i].coords[1])) ?
+               maxy : fabs(polygons->points[i].coords[1]);
+        maxz = (maxz > fabs(polygons->points[i].coords[2])) ?
+               maxz : fabs(polygons->points[i].coords[2]);
+    }
+    print("maxx = %f, maxy = %f, maxz = %f\n", maxx, maxy, maxz);
+
+    /* get a bounding box near the middle (for finding flats) */
+    minx = -5; miny = -10; minz = -60;
+    maxx = 5; maxy = 10; maxz = -20;
+
     curvidx = 0;
     for (i=0; i < n_flats; i++) curvscore[i] = PINF;
     
 
-    /* get the points with the smallest curvature values */
-    for (vertex=0; vertex < polygons->n_points; vertex++) {
-        if (curvatures[vertex] < curvscore[curvidx]) {
-            curvscore[curvidx] = curvatures[vertex];
-            flats[curvidx] = vertex;
-            curvidx = maxi(curvscore, n_flats);
-        }
-    } /* for vertex */
+    /* get the points near the origin with the smallest curvature values */
+    while (curvscore[curvidx] == PINF) {
+        for (vertex=0; vertex < polygons->n_points; vertex++) {
+            if (fabs(polygons->normals[vertex].coords[0]) > 0.95
+                    && polygons->points[vertex].coords[0] <= maxx
+                    && polygons->points[vertex].coords[0] >= minx
+                    && polygons->points[vertex].coords[1] <= maxy
+                    && polygons->points[vertex].coords[1] >= miny
+                    && polygons->points[vertex].coords[2] <= maxz
+                    && polygons->points[vertex].coords[2] >= minz) {
+                if (curvatures[vertex] < curvscore[curvidx]) {
+                    curvscore[curvidx] = curvatures[vertex];
+                    flats[curvidx] = vertex;
+                    curvidx = maxi(curvscore, n_flats);
+                }
+            }
+        } /* for vertex */
+        maxx += 1; maxy += 1; maxz += 1;
+    }
 
     /* calculate their "curvature scores" based on nearest neighbors */
     for (vertex=0; vertex < n_flats; vertex++) {
@@ -138,7 +162,12 @@ int main (int argc, char *argv[]) {
                 curvidx = i;
             }
         }
-        print("Vertex %d, curvscore %f\n",flats[curvidx], curvscore[curvidx]);
+        vertex = flats[curvidx];
+        print("Vertex %d, curvscore %f\n",vertex, curvscore[curvidx]);
+        print("(%f, %f, %f)\n",polygons->points[vertex].coords[0],
+              polygons->points[vertex].coords[1], polygons->points[vertex].coords[2]);
+        print("Normal %f, %f, %f\n",polygons->normals[vertex].coords[0],
+              polygons->normals[vertex].coords[1], polygons->normals[vertex].coords[2]);
         flatmap[flats[curvidx]] = 1;
         for (i=0; i < n_neighbours[flats[curvidx]]; i++) {
             flatmap[neighbours[flats[curvidx]][i]] = 1;
