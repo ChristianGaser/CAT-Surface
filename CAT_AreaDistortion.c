@@ -8,6 +8,30 @@
 #include  <bicpl.h>
 #include  <CAT_Surf.h>
 
+#include  "ParseArgv.h"
+
+typedef  enum { RATIO, LOG_RATIO, PERCENTAGE }
+              Distortion_method;
+
+/* argument defaults */
+Distortion_method     method = RATIO; /* area disortion method - default: ratio */
+
+/* the argument table */
+ArgvInfo argTable[] = {
+  { "-ratio", ARGV_CONSTANT, (char *) 0, 
+    (char *) &method,
+    "Use area ratio (Default): ratio = a2/a1." },
+  { "-log", ARGV_CONSTANT, (char *) 1, 
+    (char *) &method,
+    "Use log of area ratio: ratio = log10(a2/a1)." },
+  { "-percent", ARGV_CONSTANT, (char *) 2, 
+    (char *) &method,
+    "Use percent change of area: ratio = 100*(a2-a1)/a1." },
+  
+  { NULL, ARGV_END, NULL, NULL, NULL }
+};
+
+
 int  main(
    int   argc,
    char  *argv[] )
@@ -22,6 +46,14 @@ int  main(
    float                 *area_values, *area_values2, ratio, value;
    Point                points[MAX_POINTS_PER_POLYGON];
    Smallest_int         *point_done;
+
+    /* Call ParseArgv */
+    if ( ParseArgv( &argc, argv, argTable, 0 ) || ( argc < 3 ) ) {
+      (void) fprintf( stderr,"\nUsage: %s [options] object_file object_file2 output_file\n", argv[0] );
+      (void) fprintf( stderr,"\nCalculate area distortion between two surfaces.\n" );
+      (void) fprintf(stderr, "       %s -help\n\n", argv[0]);
+      return( 1 );
+    }
 
    initialize_argument_processing( argc, argv );
 
@@ -67,11 +99,23 @@ int  main(
    ALLOC( area_values2, polygons2->n_points );
    surface_area2 = get_area_of_points( polygons2, area_values2 );
 
-       ratio = surface_area/surface_area2;
+   ratio = surface_area/surface_area2;
 
    for_less( point_index, 0, polygons->n_points )
    {
-       value = ratio*area_values2[point_index]/area_values[point_index];
+       switch( method )
+       {
+       case RATIO:
+         value = ratio*area_values2[point_index]/area_values[point_index];
+         break;
+       case LOG_RATIO:
+         value = log(ratio*area_values2[point_index]/area_values[point_index])/log(10);
+         break;
+       case PERCENTAGE:
+         value = 100*(ratio*area_values2[point_index]-area_values[point_index])/area_values[point_index];
+         break;
+       }
+
        if( output_real( file, value ) != OK || output_newline( file ) != OK )
            break;
    }
