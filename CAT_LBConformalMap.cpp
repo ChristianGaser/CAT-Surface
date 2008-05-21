@@ -58,6 +58,7 @@ extern "C"
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <strstream>
 #include <algorithm>
 
 #include <math.h>
@@ -67,8 +68,7 @@ extern "C"
 class LSCM {
 public:
 
-    LSCM(polygons_struct &p, int ms) : polygons(&p), mapScale(ms) { }
-
+    LSCM(polygons_struct &p, double ms) : polygons(&p), mapScale(ms) { }
 
     // Apply the Laplace-Beltrami operator
     void apply() {
@@ -107,17 +107,26 @@ public:
 
 protected:
 
-    /* helper function to calculate the projection */
-    void calc_projection(Point *points, int numpoints, float f, std::vector<double> zR, std::vector<double> zI) {
-        for (int it = 0; it < numpoints; ++it) {
-            double r2 = f*f * (zR[it]*zR[it] + zI[it]*zI[it]);
-            Point_x(points[it]) = 2*f*zR[it]/(1+r2);
-            Point_y(points[it]) = 2*f*zI[it]/(1+r2);
+    /**
+     * calc_projection(): calculate the projection from the complex plane
+     * to the sphere.  np = number of points, f = scaling factor,
+     * zRf = translation of real value, zIf = translation of imaginary value.
+     */
+    void calc_projection(Point *points, int np, float f,
+                         std::vector<double> zR, double zRf,
+                         std::vector<double> zI, double zIf) {
+        for (int it = 0; it < np; ++it) {
+            double zRit = f * (zR[it] + zRf); 
+            double zIit = f * (zI[it] + zIf); 
+
+            double r2 = zRit*zRit + zIit*zIit;
+            Point_x(points[it]) = 2*zRit/(1+r2);
+            Point_y(points[it]) = 2*zIit/(1+r2);
             Point_z(points[it]) = 2*r2/(1+r2) - 1;
         }
     }
 
-    /* helper function to calculate the polygon areas */
+    /* calc_polygon_areas(): calculate the polygon areas, store in areas */
     void calc_polygon_areas(Point *points, float *areas) {
         Point tpoints[3];
 
@@ -132,138 +141,155 @@ protected:
         }
     }
 
-    /* helper function to calculate the area distortion.  right now it's
-     * just subtraction, but this could be changed to log or ratio */
+    /* calc_area_distortion(): calculate the area distortion.  calculates
+     * log difference of distortion between area1 and area2.
+     */
     float calc_area_distortion(float *area1, float *area2) {
         float area_distortion = 0.0;
-        for (int poly = 0; poly < polygons->n_items; poly++) {
-            area_distortion += fabs(log10(area1[poly]/area2[poly]));
+        for (int i = 0; i < polygons->n_items; i++) {
+            area_distortion += fabs(log10(area1[i]/area2[i]));
         }
         return area_distortion;
     }
 
     /**
-     * optimizes the solution, copies x + iy to mesh, & transforms it into
-     * spherical coordinates via stereographic projection
+     * solver_to_mesh(): gets the solution from the solver, optimizes
+     * the solution, & stereographically projects solution into spherical
+     * coordinates via stereographic projection
      */
     void solver_to_mesh() {
-        const unsigned int numberOfPoints = polygons->n_points;
-        std::vector<double> zR(numberOfPoints), zI(numberOfPoints);
-        for (unsigned int i=0; i<numberOfPoints; i++) {
+        Point points[polygons->n_points];
+        float areas[polygons->n_items];
+        double factor = 0.0;
+        double zRf = 0.0; double zIf = 0.0;
+        std::vector<double> zR(polygons->n_points), zI(polygons->n_points);
+
+        for (int i = 0; i < polygons->n_points; i++) {
             zR[i] = nlGetVariable(i*2);
             zI[i] = nlGetVariable(i*2 + 1);
         }
-        
-        double xmin =  zR[0];
-        double ymin =  zI[0];
-        double xmax =  zR[0];
-        double ymax =  zI[0];
-        
-        for (int it = 0; it < numberOfPoints;  ++it) {
-            xmin = (xmin<zR[it])?xmin:zR[it];
-            xmax = (xmax>zR[it])?xmax:zR[it];
-            ymin = (ymin<zI[it])?ymin:zI[it];
-            ymax = (ymax>zI[it])?ymax:zI[it];
-        } // for it
 
-        double temp1 = ( fabs(xmin)>fabs(xmax) )?fabs(xmin):fabs(xmax);
-        double temp2 = ( fabs(ymin)>fabs(ymax) )?fabs(ymin):fabs(ymax);
-        //    std::cout<<std::max( temp1, temp2 )<<std::endl;
+        if (mapScale >= 0) {
+            std::cout << "MapScale = " << mapScale << std::endl;
+            double xmin =  zR[0]; double ymin =  zI[0];
+            double xmax =  zR[0]; double ymax =  zI[0];
 
-        // the factor is used to re-scale the points in the plane.
-        double factor = mapScale/( (temp1>temp2) ? temp1 : temp2);
-
-        // first get all of the areas of the original triangles
-        float tareas[polygons->n_items];
-        Point tpoints[3];
-        for (int poly = 0; poly < polygons->n_items; poly++) {
-            int size = get_polygon_points(polygons, poly, tpoints);
-            tareas[poly] = get_polygon_surface_area(size, tpoints);
-        }
-
-        float original_area = get_polygons_surface_area( polygons );
-
-        // calculate the current stereographic projection
-        Point points[numberOfPoints];
-        calc_projection(points, numberOfPoints, factor, zR, zI);
-
-        // get the current area distortion
-        float areas[polygons->n_items];
-        calc_polygon_areas(points, areas);
-        float area_distortion = calc_area_distortion(areas, tareas);
-        std::cout << "f = " << factor << ", adist: " << area_distortion << std::endl;
-
-        Point newpoints[numberOfPoints];
-        float newareas[polygons->n_items];
-
-        /* test code!
-        FILE *ofp;
-        ofp = fopen("testfactor.txt","w");
-        for (int f = 100; f < 3000; f++) {
-            calc_projection(newpoints, numberOfPoints, f, zR, zI);
-            calc_polygon_areas(newpoints, newareas);
-            float new_dist = calc_area_distortion(newareas, tareas);
-            fprintf(ofp, "%d\t%f\n", f, new_dist);
-        }
-        fclose(ofp); */
-
-        // get an estimate of the optimal factor value
-        for (int f = 400; f <= 2000; ) { // get in the ballpark first
-            calc_projection(newpoints, numberOfPoints, f, zR, zI);
-            calc_polygon_areas(newpoints, newareas);
-            float dist_f = calc_area_distortion(newareas, tareas);
-            if (dist_f < area_distortion) {
-                factor = f;
-                area_distortion = dist_f;
+            // get approximate scale
+            for (int i = 1; i < polygons->n_points;  i++) {
+                xmin = (xmin<zR[i]) ? xmin : zR[i];
+                xmax = (xmax>zR[i]) ? xmax : zR[i];
+                ymin = (ymin<zI[i]) ? ymin : zI[i];
+                ymax = (ymax>zI[i]) ? ymax : zI[i];
             }
-            f += 200;
-        }
-        std::cout << "f = " << factor << ", adist: " << area_distortion << std::endl;
-        // optimize the parameter factor (it's already mostly optimized)
-        float stepsize = 100;
-        for (int i = 0; i < 5; i++) { // optimize 5x
-            calc_projection(newpoints, numberOfPoints, factor - stepsize, zR, zI);
-            calc_polygon_areas(newpoints, newareas);
-            float dist_lo = calc_area_distortion(newareas, tareas);
-            calc_projection(newpoints, numberOfPoints, factor + stepsize, zR, zI);
-            calc_polygon_areas(newpoints, newareas);
-            float dist_hi = calc_area_distortion(newareas, tareas);
-            if (dist_lo < area_distortion && dist_lo <= dist_hi && stepsize < factor) {
-                factor -= stepsize;
-                area_distortion = dist_lo;
-            } else if (dist_hi < area_distortion) {
-                factor += stepsize;
-                area_distortion = dist_hi;
+
+            xmax = ( fabs(xmin)>fabs(xmax) ) ? fabs(xmin) : fabs(xmax);
+            ymax = ( fabs(ymin)>fabs(ymax) ) ? fabs(ymin) : fabs(ymax);
+
+            // the factor is used to re-scale the points in the plane.
+            factor = mapScale/( (xmax>ymax) ? xmax : ymax);
+        } else { // optimize the solution
+            // first get all of the areas of the original triangles
+            float mareas[polygons->n_items];
+            for (int i = 0; i < polygons->n_items; i++) {
+                Point tpoints[3];
+                int size = get_polygon_points(polygons, i, tpoints);
+                mareas[i] = get_polygon_surface_area(size, tpoints);
             }
-            stepsize /= 2;
+
+            double area_distortion = 1e+308;
+
+            // get an estimate of the optimal factor value
+            for (int f = 400; f <= 2000; ) { // get in the ballpark first
+                calc_projection(points, polygons->n_points, f, zR, 0.0, zI, 0.0);
+                calc_polygon_areas(points, areas);
+                float new_ad = calc_area_distortion(areas, mareas);
+                if (new_ad < area_distortion) {
+                    factor = f;
+                    area_distortion = new_ad;
+                }
+                f += 200;
+            }
+
+            double fstep = 100;
+            for (int i = 0; i < 5; i++) { // optimize factor 5x more
+                calc_projection(points, polygons->n_points, factor - fstep, zR, 0.0, zI, 0.0);
+                calc_polygon_areas(points, areas);
+                float ad_lo = calc_area_distortion(areas, mareas);
+                calc_projection(points, polygons->n_points, factor + fstep, zR, 0.0, zI, 0.0);
+                calc_polygon_areas(points, areas);
+                float ad_hi = calc_area_distortion(areas, mareas);
+                if (ad_lo < area_distortion && ad_lo <= ad_hi && fstep < factor) {
+                    factor -= fstep;
+                    area_distortion = ad_lo;
+                } else if (ad_hi < area_distortion) {
+                    factor += fstep;
+                    area_distortion = ad_hi;
+                }
+                fstep /= 2;
+            }
+            std::cout<<"f = "<<factor<<", ad: "<<area_distortion<<std::endl;
+
+            // shift
+            fstep = 0.001;
+            for (int i = 0; i < 5; i++) { // optimize 5x
+                calc_projection(points, polygons->n_points, factor, zR, zRf - fstep, zI, zIf);
+                calc_polygon_areas(points, areas);
+                float ad_lo = calc_area_distortion(areas, mareas);
+                calc_projection(points, polygons->n_points, factor, zR, zRf + fstep, zI, zIf);
+                calc_polygon_areas(points, areas);
+                float ad_hi = calc_area_distortion(areas, mareas);
+                if (ad_lo < area_distortion && ad_lo <= ad_hi) {
+                    zRf -= fstep;
+                    area_distortion = ad_lo;
+                } else if (ad_hi < area_distortion) {
+                    zRf += fstep;
+                    area_distortion = ad_hi;
+                }
+
+                calc_projection(points, polygons->n_points, factor, zR, zRf, zI, zIf - fstep);
+                calc_polygon_areas(points, areas);
+                ad_lo = calc_area_distortion(areas, mareas);
+                calc_projection(points, polygons->n_points, factor, zR, zRf, zI, zIf + fstep);
+                calc_polygon_areas(points, areas);
+                ad_hi = calc_area_distortion(areas, mareas);
+                if (ad_lo < area_distortion && ad_lo <= ad_hi) {
+                    zIf -= fstep;
+                    area_distortion = ad_lo;
+                } else if (ad_hi < area_distortion) {
+                    zIf += fstep;
+                    area_distortion = ad_hi;
+                }
+                fstep /= 2;
+            }
+            std::cout << "zRf = " << zRf << ", zIf =" << zIf << ", ad: " << area_distortion << std::endl;
         }
-        std::cout << "f = " << factor << ", adist: " << area_distortion << std::endl;
-        calc_projection(newpoints, numberOfPoints, factor - stepsize, zR, zI);
-        for (int it = 0; it < numberOfPoints; it++) {
-            polygons->points[it].coords[0] = Point_x(newpoints[it]);
-            polygons->points[it].coords[1] = Point_y(newpoints[it]);
-            polygons->points[it].coords[2] = Point_z(newpoints[it]);
-        }
-        
-        // Determine radius of the output sphere based on original surface area
+
+        calc_projection(points, polygons->n_points, factor, zR, zRf, zI, zIf);
+
+        // map it to a sphere
+        float original_area = get_polygons_surface_area(polygons);
         float sphereRadius = sqrt(original_area / (4.0 * PI));
-        float xyz[3] = { 0.0, 0.0, 0.0 };
-        
-        for( int i = 0; i < polygons->n_points; i++ ) {
-          for( int j = 0; j < 3; j++ ) xyz[j] = Point_coord(polygons->points[i],j);
+        float xyz[3] = { 0.0, 0.0, 0.0 };        
 
-          float  f = sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2]);
-          if (f != 0.0) {
-            xyz[0] /= f;
-            xyz[1] /= f;
-            xyz[2] /= f;
-          }
-         
-          // Push coordinate onto the sphere
-          xyz[0] = (sphereRadius * xyz[0]);
-          xyz[1] = (sphereRadius * xyz[1]);
-          xyz[2] = (sphereRadius * xyz[2]);
-          for( int j = 0; j < 3; j++ )  Point_coord(polygons->points[i],j) = xyz[j];
+        for (int i = 0; i < polygons->n_points; i++) {
+            xyz[0] = Point_x(points[i]);
+            xyz[1] = Point_y(points[i]);
+            xyz[2] = Point_z(points[i]);
+
+            float dist = sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2]);
+            if (dist != 0.0) {
+                xyz[0] /= dist;
+                xyz[1] /= dist;
+                xyz[2] /= dist;
+            }
+
+            // Push coordinate onto the sphere
+            xyz[0] = (sphereRadius * xyz[0]);
+            xyz[1] = (sphereRadius * xyz[1]);
+            xyz[2] = (sphereRadius * xyz[2]);
+            for (int j = 0; j < 3; j++) {
+                Point_coord(polygons->points[i],j) = xyz[j];
+            }
         }
 
     }
@@ -652,7 +678,8 @@ void usage(STRING executable) {
 Usage: %s infile.obj outfile.obj [mapScale]\n\n\
      Generate the Laplace-Beltrami conformal map of the mesh specified in\n\
      infile.obj.  Results are saved in outfile.obj.\n\n\
-     mapScale = scaling factor [default: function based on # points]\n";
+     mapScale = scaling factor [default: optimized]\n\n\
+     Set mapScale to turn off optimization, 0 to estimate empirically.\n";
 
      print_error(usage_str, executable);
 }
@@ -687,14 +714,16 @@ int main(int argc, char** argv) {
     polygons = get_polygons_ptr(objects[0]);
     compute_polygon_normals(polygons);
     
-    // first decent guess for mapScale... later this is optimized
-    int mapScale = round(pow(polygons->n_points,0.5719));
-    get_int_argument(mapScale, &mapScale);
-    print("MapScale = %d\n", mapScale);
+    double mapScale;
+    int ms;
+    get_int_argument(-1, &ms);
+    // guess for mapScale, no optimization
+    if (ms == 0) mapScale = round(pow(polygons->n_points,0.5719));
+    else mapScale = ms;
 
     int eulerNum = euler_characteristic(polygons);
     if (eulerNum != 2) {
-        print_error(" Warning: Euler characteristics is %d, not 2! Not genus 0 surface...\n", eulerNum);
+        print_error("WARNING: Euler characteristics is %d, not 2! Not genus 0 surface, exiting...\n", eulerNum);
     }
 
     LSCM lscm(*polygons, mapScale);
