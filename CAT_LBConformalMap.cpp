@@ -58,7 +58,6 @@ extern "C"
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <strstream>
 #include <algorithm>
 
 #include <math.h>
@@ -182,6 +181,8 @@ protected:
             tareas[poly] = get_polygon_surface_area(size, tpoints);
         }
 
+        float original_area = get_polygons_surface_area( polygons );
+
         // calculate the current stereographic projection
         Point points[numberOfPoints];
         calc_projection(points, numberOfPoints, factor, zR, zI);
@@ -206,7 +207,6 @@ protected:
         }
         fclose(ofp); */
 
-        std::cout << "f = " << factor << ", adist: " << area_distortion << std::endl;
         // get an estimate of the optimal factor value
         for (int f = 400; f <= 2000; ) { // get in the ballpark first
             calc_projection(newpoints, numberOfPoints, f, zR, zI);
@@ -245,6 +245,27 @@ protected:
             polygons->points[it].coords[2] = Point_z(newpoints[it]);
         }
         
+        // Determine radius of the output sphere based on original surface area
+        float sphereRadius = sqrt(original_area / (4.0 * PI));
+        float xyz[3] = { 0.0, 0.0, 0.0 };
+        
+        for( int i = 0; i < polygons->n_points; i++ ) {
+          for( int j = 0; j < 3; j++ ) xyz[j] = Point_coord(polygons->points[i],j);
+
+          float  f = sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2]);
+          if (f != 0.0) {
+            xyz[0] /= f;
+            xyz[1] /= f;
+            xyz[2] /= f;
+          }
+         
+          // Push coordinate onto the sphere
+          xyz[0] = (sphereRadius * xyz[0]);
+          xyz[1] = (sphereRadius * xyz[1]);
+          xyz[2] = (sphereRadius * xyz[2]);
+          for( int j = 0; j < 3; j++ )  Point_coord(polygons->points[i],j) = xyz[j];
+        }
+
     }
 
     /* helper function for findPointP */
@@ -623,7 +644,6 @@ protected:
 
 
     polygons_struct *polygons;
-    bool minFlag;
     double mapScale;
 };
 
@@ -674,8 +694,7 @@ int main(int argc, char** argv) {
 
     int eulerNum = euler_characteristic(polygons);
     if (eulerNum != 2) {
-        print_error("    Euler characteristics is %d, not 2! Not genus 0 surface, exiting...\n", eulerNum);
-        exit(1);
+        print_error(" Warning: Euler characteristics is %d, not 2! Not genus 0 surface...\n", eulerNum);
     }
 
     LSCM lscm(*polygons, mapScale);

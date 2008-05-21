@@ -109,7 +109,7 @@ int  main(
          value = ratio*area_values2[point_index]/area_values[point_index];
          break;
        case LOG_RATIO:
-         value = log(ratio*area_values2[point_index]/area_values[point_index])/log(10);
+         value = log10(ratio*area_values2[point_index]/area_values[point_index]);
          break;
        case PERCENTAGE:
          value = 100*(ratio*area_values2[point_index]-area_values[point_index])/area_values[point_index];

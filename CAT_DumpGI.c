@@ -128,7 +128,7 @@ int  main(
     // calculate ratio of absolute values
     for_less( i, 0, polygons->n_points )
         if (curvatures_inflated[i] != 0)
-            GI[i] = ABS(curvatures[i])/ABS(curvatures_inflated[i]);
+            GI[i] = fabs(curvatures[i]/curvatures_inflated[i]);
         else
             GI[i] = 0.0;
     

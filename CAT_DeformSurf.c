@@ -122,9 +122,9 @@ int  main( argc, argv )
     {
         get_volume_separations( volume, separations );
 
-        x_filter_width /= ABS( separations[X] );
-        y_filter_width /= ABS( separations[Y] );
-        z_filter_width /= ABS( separations[Z] );
+        x_filter_width /= fabs( separations[X] );
+        y_filter_width /= fabs( separations[Y] );
+        z_filter_width /= fabs( separations[Z] );
 
         tmp = create_box_filtered_volume( volume, NC_BYTE, FALSE, 0.0, 0.0,
                                           x_filter_width,

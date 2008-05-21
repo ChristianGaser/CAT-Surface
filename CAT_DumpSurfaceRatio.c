@@ -12,8 +12,8 @@ private  void  usage(
     STRING   executable )
 {
     static  STRING  usage_str = "\n\
-Usage: %s  surface.obj output_values.txt\n\
-Computes surface ratio based on the method of Toro et al. 2008.\n\
+Usage: %s  surface.obj output_values.txt [radius]\n\
+Computes surface ratio based on the method of Toro et al. 2008. A default radius of 20mm is used.\n\
 \n\n";
 
     print_error( usage_str, executable );

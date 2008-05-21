@@ -64,7 +64,7 @@ double angular_distortion(float *a1, float *b1, float *c1,
         C2 = PI - A2 - B2;
     }
 
-    return(abs(A2 - A1) + abs(B2 - B1) + abs(C2 - C1));
+    return(fabs(A2 - A1) + fabs(B2 - B1) + fabs(C2 - C1));
 }
 
 
@@ -147,7 +147,6 @@ int main(int argc, char *argv[]) {
                                       polygons2->points[tp[1]].coords,
                                       polygons2->points[tp[2]].coords);
         total_ang_dist += ang_dist;
-
         if (output_double(file, ang_dist) != OK || output_newline(file) != OK) {
             return(1);
         }

@@ -95,7 +95,7 @@ int  main(
     /* use absolute value */
     if( use_abs_values ) 
         for_less( i, 0, polygons->n_points )
-            curvatures[i] = ABS(curvatures[i]);
+            curvatures[i] = fabs(curvatures[i]);
 
     /* use positive or negative values only if option is used */
     if(sign > 0)
