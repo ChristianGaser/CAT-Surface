@@ -294,84 +294,26 @@ protected:
 
     }
 
-    /* helper function for findPointP */
-    int maxi(double a[], int size) {
-        int i, maxi;
-
-        maxi = 0;
-        for (i = 1; i < size; i++) {
-            if (a[i] > a[maxi]) maxi = i;
-        }
-        return(maxi);
-    }
-
     /**
-     * finds pointP at the flattest spot near the thalamus.
-     * assumes hemispheric data
+     * finds pointP as close to the COM as possible
      */
     int findPointP() {
-        int *n_neighbours, **neighbours;
-        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-        double curvatures[polygons->n_points];
-        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
-                                3.0, 0, curvatures);
+        Point p, point;
+        float c[3] = {0.0, 0.0, 0.0};
 
-        /* use absolute value */
-        for (int i=0; i < polygons->n_points; i++) {
-            curvatures[i] = fabs(curvatures[i]);
-        }
-
-        int n_flats = 100;
-        if (n_flats > polygons->n_points) n_flats = polygons->n_points;
-
-        int flats[n_flats];
-        double curvscore[n_flats];
-
-        /* bounding box near the thalamus (for finding flats) */
-        double minx = -5; double miny = -10; double minz = -60;
-        double maxx = 5; double maxy = 10; double maxz = -20;
-
-        int curvidx = 0;
-        for (int i=0; i < n_flats; i++) curvscore[i] = 1.797e+308;
-
-        /* get the points within the bbox with the smallest curvature values */
-        double xnorm = 0.95;
-        while (curvscore[curvidx] == 1.797e+308) {
-            for (int vertex=0; vertex < polygons->n_points; vertex++) {
-                if (fabs(polygons->normals[vertex].coords[0]) > xnorm
-                        && polygons->points[vertex].coords[0] <= maxx
-                        && polygons->points[vertex].coords[0] >= minx
-                        && polygons->points[vertex].coords[1] <= maxy
-                        && polygons->points[vertex].coords[1] >= miny
-                        && polygons->points[vertex].coords[2] <= maxz
-                        && polygons->points[vertex].coords[2] >= minz) {
-                    if (curvatures[vertex] < curvscore[curvidx]) {
-                        curvscore[curvidx] = curvatures[vertex];
-                        flats[curvidx] = vertex;
-                        curvidx = maxi(curvscore, n_flats);
-                    }
-                } 
-            } /* for vertex */
-            maxx += 0.5; maxy += 1; maxz += 1;
-            minx -= 0.5; miny -= 1; minz -= 1;
-            xnorm -= 0.05;
-        }
-
-        /* calculate their "curvature scores" based on nearest neighbors */
-        for (int vertex=0; vertex < n_flats; vertex++) {
-            for (int i=0; i < n_neighbours[vertex]; i++) {
-                curvscore[i] += curvatures[neighbours[vertex][i]];
-            }   
-        }               
-
-        curvidx = 0;
-        for (int i=1; i < n_flats; i++) {
-            if (curvscore[i] < curvscore[curvidx]) {
-                curvidx = i;
+        for (int i = 0; i < polygons->n_points; i++) {
+            for (int j= 0; j< 3; j++) {
+                c[j] += Point_coord(polygons->points[i],j);
             }
         }
-        return(flats[curvidx]);
+
+        Point_x(p) = c[0]/polygons->n_points;
+        Point_y(p) = c[1]/polygons->n_points;
+        Point_z(p) = c[2]/polygons->n_points;
+
+        return(find_closest_polygon_point( &p, polygons, &point ));
+
     }
 
 
