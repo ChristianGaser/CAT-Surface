@@ -53,6 +53,8 @@ extern "C"
         #include <CAT_SurfaceIO.h>
 }   
 
+#include <ParseArgv.h>
+
 #include <vector>
 #include <set>
 #include <string>
@@ -60,15 +62,26 @@ extern "C"
 #include <fstream>
 #include <strstream>
 #include <algorithm>
+#include <cfloat>
 
 #include <math.h>
 #include <assert.h>
 
+int conformal = 0;
+double ms = -1.0;
+
+static ArgvInfo argTable[] = {
+  {"-mapscale", ARGV_FLOAT, (char *) 1, (char *) &ms,
+       "scaling factor [default: optimized]. Set mapScale to turn off optimization, 0 to estimate empirically."},
+  {"-conformal", ARGV_CONSTANT, (char *) TRUE, (char *) &conformal,
+       "force conformal mapping [default: minimize area distortions]"},
+   {NULL, ARGV_END, NULL, NULL, NULL}
+};
 
 class LSCM {
 public:
 
-    LSCM(polygons_struct &p, double ms) : polygons(&p), mapScale(ms) { }
+    LSCM(polygons_struct &p, double ms, int c) : polygons(&p), mapScale(ms), conformal(c) { }
 
     // Apply the Laplace-Beltrami operator
     void apply() {
@@ -106,7 +119,6 @@ public:
     }
 
 protected:
-
     /**
      * calc_projection(): calculate the projection from the complex plane
      * to the sphere.  np = number of points, f = scaling factor,
@@ -196,10 +208,10 @@ protected:
                 mareas[i] = get_polygon_surface_area(size, tpoints);
             }
 
-            double area_distortion = 1e+308;
+            double area_distortion = FLT_MAX;
 
             // get an estimate of the optimal factor value
-            for (int f = 400; f <= 2000; ) { // get in the ballpark first
+            for (int f = 400; f <= 10000; ) { // get in the ballpark first
                 calc_projection(points, polygons->n_points, f, zR, 0.0, zI, 0.0);
                 calc_polygon_areas(points, areas);
                 float new_ad = calc_area_distortion(areas, mareas);
@@ -328,19 +340,61 @@ protected:
         // 1. store the points coordinates: pointXYZ
         std::vector< std::vector<double> > pointXYZ(numOfPoints, std::vector<
                                                           double>(3, 0) );
+
+        // force conformal mapping                                                  
+        if (conformal) {
         
+          for (int it = 0; it < numOfPoints; ++it) {
+              double x = polygons->points[it].coords[0];
+              double y = polygons->points[it].coords[1];
+              double z = polygons->points[it].coords[2];            
+
+              pointXYZ[it][0] = x;
+              pointXYZ[it][1] = y;
+              pointXYZ[it][2] = z;
+          } // for it
+          
+       // Minimize area distortions by scaling the image to an equally sized
+       // bounding box. More distanct points are more area distorted and scaling
+       // will decrease the distance to the center (of mass).
+       } else {
+       
+          // find bounding box
+          double xmin =  FLT_MAX, ymin =  FLT_MAX, zmin =  FLT_MAX;                
+          double xmax = -FLT_MAX, ymax = -FLT_MAX, zmax = -FLT_MAX;                
+          for (int it = 0; it < numOfPoints; ++it) {
+              double x = polygons->points[it].coords[0];
+              double y = polygons->points[it].coords[1];
+              double z = polygons->points[it].coords[2];
+              if (x < xmin) xmin = x;
+              if (y < ymin) ymin = y;
+              if (z < zmin) zmin = z;
+              if (x > xmax) xmax = x;
+              if (y > ymax) ymax = y;
+              if (z > zmax) zmax = z;
+          } // for it
+
+          double xs = 1/(xmax - xmin);
+          double ys = 1/(ymax - ymin);
+          double zs = 1/(zmax - zmin);
+          double meanr = (xs + ys + zs)/3.0;
+          xs /= meanr; ys /= meanr; zs /= meanr; 
+          fprintf(stderr,"%f %f %f\n",xs,ys,zs);
+          // scale coordinates to obtain an equally sized bounding box
+          for (int it = 0; it < numOfPoints; ++it) {
+              double x = polygons->points[it].coords[0];
+              double y = polygons->points[it].coords[1];
+              double z = polygons->points[it].coords[2];            
+
+              pointXYZ[it][0] = xs*x;
+              pointXYZ[it][1] = ys*y;
+              pointXYZ[it][2] = zs*z;
+          } // for it
+
+        }
+        
+        // find point closest to center-of-mass
         int pointP = findPointP();
-        
-        for (int it = 0; it < numOfPoints; ++it) {
-            double x = polygons->points[it].coords[0];
-            double y = polygons->points[it].coords[1];
-            double z = polygons->points[it].coords[2];
-            
-            pointXYZ[it][0] = x;
-            pointXYZ[it][1] = y;
-            pointXYZ[it][2] = z;
-        } // for it
-        
         
         // 2. store the relationship from point to facet, i.e. for each
         // point, which facets contain it?  For each point in the mesh,
@@ -604,27 +658,15 @@ protected:
         
         std::cerr << "  Calculating Euler characteristics......" << std::endl;
         std::cerr << "    Euler Characteristics = " << eulerNum << std::endl;
-        std::cerr << "    genus = "<< (2.0 - eulerNum)/2 << std::endl;
-        
-        
+        std::cerr << "    genus = "<< (2.0 - eulerNum)/2 << std::endl;        
         
     }
 
 
     polygons_struct *polygons;
     double mapScale;
+    int conformal;
 };
-
-void usage(STRING executable) {
-    STRING usage_str = "\n\
-Usage: %s infile.obj outfile.obj [mapScale]\n\n\
-     Generate the Laplace-Beltrami conformal map of the mesh specified in\n\
-     infile.obj.  Results are saved in outfile.obj.\n\n\
-     mapScale = scaling factor [default: optimized]\n\n\
-     Set mapScale to turn off optimization, 0 to estimate empirically.\n";
-
-     print_error(usage_str, executable);
-}
 
 int main(int argc, char** argv) {
     STRING ifname, ofname;
@@ -635,13 +677,21 @@ int main(int argc, char** argv) {
     Real *curvatures;
     File_formats format;
     
-    initialize_argument_processing(argc, argv);
-    if (!get_string_argument(NULL, &ifname) ||
-                !get_string_argument(NULL, &ofname) ) {
-        usage(argv[0]);
+    /* Get arguments */
+    if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
+      (void) fprintf(stderr, 
+      "\nUsage: %s [options] infile.obj outfile.obj\n\n\
+         Generate the Laplace-Beltrami conformal map of the mesh specified in\n\
+         infile.obj.  Results are saved in outfile.obj.\n\n",
+                     argv[0]);
+      (void) fprintf(stderr, 
+        "       %s -help\n\n", argv[0]);
         return(1);
     }
 
+    initialize_argument_processing(argc, argv);
+    get_string_argument(NULL, &ifname);
+    get_string_argument(NULL, &ofname);
 
     if (input_graphics_any_format(ifname, &format, &n_objects, &objects) != OK) {
         print("Error reading input file\n");
@@ -657,18 +707,16 @@ int main(int argc, char** argv) {
     compute_polygon_normals(polygons);
     
     double mapScale;
-    int ms;
-    get_int_argument(-1, &ms);
     // guess for mapScale, no optimization
     if (ms == 0) mapScale = round(pow(polygons->n_points,0.5719));
     else mapScale = ms;
 
     int eulerNum = euler_characteristic(polygons);
     if (eulerNum != 2) {
-        print_error("WARNING: Euler characteristics is %d, not 2! Not genus 0 surface, exiting...\n", eulerNum);
+        print_error("WARNING: Euler characteristics is %d, not 2! Not genus 0 surface...\n", eulerNum);
     }
 
-    LSCM lscm(*polygons, mapScale);
+    LSCM lscm(*polygons, mapScale, conformal);
     lscm.apply();
 
     compute_polygon_normals(polygons);

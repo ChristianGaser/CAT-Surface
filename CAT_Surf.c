@@ -373,7 +373,6 @@ void  linear_smoothing(
     }
 }
 
-// Warning: Its not working!!!!
 void  areal_smoothing(
     polygons_struct     *polygons,
     float                strength,
@@ -385,6 +384,7 @@ void  areal_smoothing(
     int     i, j, k, l;
     int     *n_neighbours, **neighbours;
     float   *area_values;
+    Point   points[1000];
 
     BOOLEAN smoothSubsetOfNodes = 0;
     const float invStrength = 1.0 - strength;
@@ -392,9 +392,6 @@ void  areal_smoothing(
     
     create_polygon_point_neighbours( polygons, TRUE, &n_neighbours,
                                      &neighbours, NULL, NULL );
-
-    ALLOC( area_values, polygons->n_points);
-    get_area_of_points( polygons, area_values);
     
     if (smoothOnlyTheseNodes != NULL)
          smoothSubsetOfNodes = 1;
@@ -416,11 +413,32 @@ void  areal_smoothing(
 
                 if (n_neighbours[i] > 1) { 
                 
+                    float tileAreas[n_neighbours[i]];
+                    float tileCenters[n_neighbours[i]*3];
                     float totalArea = 0.0;    
-                    float tileAreas[MAX_POINTS_PER_POLYGON];
-                    for_less( j, 0, n_neighbours[i] ) {                        
-                        tileAreas[j] = area_values[neighbours[i][j]];
-                        totalArea += area_values[neighbours[i][j]];
+                    
+                    // Get 2 consecutive neighbors of this node
+                    for_less( j, 0, n_neighbours[i] ) {        
+                    
+                        const int n1 = neighbours[i][j];
+                        int next = j + 1;
+                        if (next >= n_neighbours[i])
+                            next = 0;
+                        const n2 = neighbours[i][next];
+                    
+                        // Area of the triangle
+                        points[0] = polygons->points[i];
+                        points[1] = polygons->points[n1];
+                        points[2] = polygons->points[n2];
+                        tileAreas[j] = get_polygon_surface_area(3, points);
+                        totalArea += tileAreas[j];
+                        
+                        // Save center of this tile
+                        for_less( l, 0, 3 ) {
+                            tileCenters[j*3+l] = (Point_coord(polygons->points[i],l) + 
+                                                  Point_coord(polygons->points[n1],l) +
+                                                  Point_coord(polygons->points[n2],l)) / 3.0;
+                        }
                     }
                     
                     // Compute the influence of the neighboring nodes
@@ -428,8 +446,9 @@ void  areal_smoothing(
                     for_less( j, 0, n_neighbours[i] ) {
                         if (tileAreas[j] > 0.0) {
                             const float weight = tileAreas[j] / totalArea;
-                            for_less( l, 0, 3 )
-                                xyz[l] += weight * (float) Point_coord(polygons->points[neighbours[i][j]],l);
+                            for_less( l, 0, 3 ) {
+                                xyz[l] += weight * tileCenters[j*3+l];
+                            }
                         }
                     }
                     // Update the nodes position
@@ -446,7 +465,6 @@ void  areal_smoothing(
                 for_less( i, 0, polygons->n_points )
                     set_vector_length(&polygons->points[i], sphereRadius);
     }
-    FREE( area_values );
 }
 
 void  distance_smoothing(
@@ -507,7 +525,6 @@ void  distance_smoothing(
                         	        xyz[l] += weight * (float) Point_coord(polygons->points[neighbours[i][j]],l);
 	                        }
     	                }
-	
     	                // Update the nodes position
         	            for_less( l, 0, 3 )
             	            Point_coord(polygons->points[i],l) = (Point_coord(polygons->points[i],l) * invStrength) + 
@@ -587,7 +604,7 @@ void inflate_surface_and_smooth_fingers(
    
         if (cycles < numberSmoothingCycles) {
             // Step 6a: Apply Smoothing to AUX coord
-            distance_smoothing(polygonsIn,
+            areal_smoothing(polygonsIn,
                         regularSmoothingStrength, 
                         regularSmoothingIterations,
                         1, NULL, 0);
@@ -755,7 +772,7 @@ void inflate_surface_and_smooth_fingers(
              
     if (cycles < numberSmoothingCycles) {
          // Step 6f: Targeted smoothing
-         distance_smoothing(polygonsIn,
+         areal_smoothing(polygonsIn,
                         fingerSmoothingStrength,
                         fingerSmoothingIterations,
                         1,
