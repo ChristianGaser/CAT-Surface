@@ -128,8 +128,8 @@ protected:
                          std::vector<double> zR, double zRf,
                          std::vector<double> zI, double zIf) {
         for (int it = 0; it < np; ++it) {
-            double zRit = f * (zR[it] + zRf); 
-            double zIit = f * (zI[it] + zIf); 
+            double zRit = f * (zR[it] + zRf);
+            double zIit = f * (zI[it] + zIf);
 
             double r2 = zRit*zRit + zIit*zIit;
             Point_x(points[it]) = 2*zRit/(1+r2);
@@ -137,6 +137,7 @@ protected:
             Point_z(points[it]) = 2*r2/(1+r2) - 1;
         }
     }
+
 
     /* calc_polygon_areas(): calculate the polygon areas, store in areas */
     void calc_polygon_areas(Point *points, float *areas) {
@@ -159,7 +160,9 @@ protected:
     float calc_area_distortion(float *area1, float *area2) {
         float area_distortion = 0.0;
         for (int i = 0; i < polygons->n_items; i++) {
-            area_distortion += fabs(log10(area1[i]/area2[i]));
+            if (area2[i] > 0 && area1[i] > 0) { // get sure that areas are > 0
+                area_distortion += fabs(log10(area1[i]/area2[i]));
+            }
         }
         return area_distortion;
     }
@@ -241,9 +244,10 @@ protected:
             }
             std::cout<<"f = "<<factor<<", ad: "<<area_distortion<<std::endl;
 
+
             // shift
             fstep = 0.001;
-            for (int i = 0; i < 5; i++) { // optimize 5x
+            for (int i = 0; i < 50; i++) { // optimize 5x
                 calc_projection(points, polygons->n_points, factor, zR, zRf - fstep, zI, zIf);
                 calc_polygon_areas(points, areas);
                 float ad_lo = calc_area_distortion(areas, mareas);
@@ -274,6 +278,7 @@ protected:
                 fstep /= 2;
             }
             std::cout << "zRf = " << zRf << ", zIf =" << zIf << ", ad: " << area_distortion << std::endl;
+
         }
 
         calc_projection(points, polygons->n_points, factor, zR, zRf, zI, zIf);
@@ -722,4 +727,5 @@ int main(int argc, char** argv) {
     compute_polygon_normals(polygons);
     output_graphics_any_format(ofname, format, 1, objects);
 }
+
 
