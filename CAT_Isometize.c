@@ -15,22 +15,6 @@
 
 
 
-/* calc_polygon_areas(): calculate the polygon areas, store in areas */
-void calc_polygon_areas(polygons_struct *polygons, double *areas) {
-    Point tpoints[3];
-    int p;
-
-    for (p = 0; p < polygons->n_items; p++) {
-        tpoints[0] = polygons->points[polygons->indices[
-                            POINT_INDEX(polygons->end_indices,p,0)]];
-        tpoints[1] = polygons->points[polygons->indices[
-                            POINT_INDEX(polygons->end_indices,p,1)]];
-        tpoints[2] = polygons->points[polygons->indices[
-                            POINT_INDEX(polygons->end_indices,p,2)]];
-        areas[p] = get_polygon_surface_area(3, tpoints);
-    }
-}
-
 void usage(char *executable) {
     fprintf(stderr, 
       "\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n\n\
@@ -40,13 +24,16 @@ void usage(char *executable) {
                      executable);
 }
 
+
 int main(int argc, char** argv) {
     STRING ifname, cmfname, ofname;
     object_struct **objects;
     polygons_struct *ipolygons, *polygons;
+    int     *n_neighbours, **neighbours;
     int n_objects;
     File_formats format;
-    int i, it, p;
+    int i, n, it, p;
+    Point pts[3];
     
     /* Get arguments */
 
@@ -90,59 +77,92 @@ int main(int argc, char** argv) {
         return(1);
     }
     
-    double iareas[ipolygons->n_items];
-    calc_polygon_areas(ipolygons, iareas);
-
-    double alpha = 2; /* how fast to change the point positions */
     float sphereRadius = get_largest_dist(polygons);
-    float surfaceArea = get_polygons_surface_area(polygons);
+    
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                                     &neighbours, NULL, NULL);
+    
+    float beta = 0.5; /* 1 = all area, 0 = all angle */
 
-    for (i = 0; i < 100; i++) { /* 5 iterations */
-        double area_distortion = 0;
-        for (it = 0; it < polygons->n_items; it++) {
-            Point tpoints[3];
+    for (it = 0; it < 100; it++) {
+        float area_distortion = 0.0;
 
-            for (p = 0; p < 3; p++) {
-                tpoints[p] = polygons->points[polygons->indices[
-                                    POINT_INDEX(polygons->end_indices,it,p)]];
+        for (p = 0; p < polygons->n_points; p++) {
+            if (n_neighbours[p] > 1) { 
+                
+                float tileAreas[n_neighbours[p]];
+                float itileAreas[n_neighbours[p]];
+                float tileAngles[n_neighbours[p]];
+                float itileAngles[n_neighbours[p]];
+                float tileCenters[n_neighbours[p]*3];
+                float totalArea = 0.0;
+                float itotalArea = 0.0;
+                    
+                // Get 2 consecutive neighbors of this node
+                for (n = 0; n < n_neighbours[p]; n++) {        
+                    int n1 = neighbours[p][n];
+                    int next = (n + 1) % n_neighbours[p];
+                    int n2 = neighbours[p][next];
+                    
+                    // area and angle of the triangle
+                    pts[0] = polygons->points[p];
+                    pts[1] = polygons->points[n1];
+                    pts[2] = polygons->points[n2];
+                    tileAreas[n] = get_polygon_surface_area(3, pts);
+                    totalArea += tileAreas[n];
+                    tileAngles[n] = get_angle_between_points(&pts[1], &pts[0], &pts[2]);
+
+                    // area and angles of the original triangle
+                    pts[0] = ipolygons->points[p];
+                    pts[1] = ipolygons->points[n1];
+                    pts[2] = ipolygons->points[n2];
+                    itileAreas[n] = get_polygon_surface_area(3, pts);
+                    itotalArea += itileAreas[n];
+                    itileAngles[n] = get_angle_between_points(&pts[1], &pts[0], &pts[2]);
+
+
+                    area_distortion += fabs(itotalArea - totalArea)/n_neighbours[p];
+
+                    // Save center of this tile
+                    for (i = 0; i < 3; i++) {
+                        tileCenters[n*3+i] = (Point_coord(polygons->points[p],i) + 
+                                              Point_coord(polygons->points[n1],i) +
+                                              Point_coord(polygons->points[n2],i)) / 3.0;
+                    }
+                }
+                    
+                // Compute the influence of the neighboring nodes
+                float xyz[3] = {0.0, 0.0, 0.0};
+                for (n = 0; n <  n_neighbours[p]; n++) {
+                    if (itileAreas[n] > 0.0) {
+                        float weight = (tileAreas[n] / totalArea);
+                        /* weight +=  itileAngles[n]/(2*PI);
+                        if (itotalArea != totalArea) {
+                            weight *= 0.8;
+                            weight += 0.2*(itileAreas[n] - tileAreas[n])/(itotalArea - totalArea);
+                        } */
+                        for (i = 0; i < 3; i++) {
+                            xyz[i] += weight * tileCenters[n*3+i];
+                        }
+                    }
+                }
+                // Update the nodes position
+                for (i = 0; i < 3; i++) {
+                    Point_coord(polygons->points[p],i) = xyz[i];
+                }
             }
-
-            double area = get_polygon_surface_area(3, tpoints);
-            if (iareas[it] > 0 && area > 0) {
-                area_distortion += fabs(log10(area/iareas[it]));
-            }
-
-            Point center;
-            for (p = 0; p < 3; p++) {
-                center.coords[p] = (tpoints[0].coords[p]
-                                 + tpoints[1].coords[p]
-                                 + tpoints[2].coords[p])/3.0;
-            }
-
-            double weight = alpha * (iareas[it] - area) / (area + iareas[it]); 
-            for (p = 0; p < 3; p++) {
-                Vector dir;
-                Point np;
-
-                SUB_POINTS(dir, tpoints[p], center);
-                SCALE_VECTOR(dir, dir, 1 + weight / MAGNITUDE(dir));
-                ADD_POINT_VECTOR(tpoints[p], center, dir);
-                set_vector_length(&tpoints[p], sphereRadius);
-
-                polygons->points[polygons->indices[
-                                 POINT_INDEX(polygons->end_indices,it,p)]]
-                                      = tpoints[p];
-            }
-
         }
-        alpha *= 0.95;
-        convert_ellipsoid_to_sphere_with_surface_area(polygons, surfaceArea);
-        printf("ad = %f\n", area_distortion);
     }
 
-    compute_polygon_normals(polygons);
+    convert_ellipsoid_to_sphere_with_surface_area(polygons, 100.0);
 
+    compute_polygon_normals(polygons);
     output_graphics_any_format(ofname, format, 1, objects);
+
+    delete_object_list(n_objects, objects);
+
+    return(0);
+
 }
 
 
