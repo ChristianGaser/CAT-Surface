@@ -9,7 +9,7 @@
 #include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
 #include  <float.h>
-#include "Cat_Surf.h"
+#include "CAT_Surf.h"
 
 #define pi 3.14159265358979323846264338327510
 

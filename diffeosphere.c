@@ -2,8 +2,9 @@
 /* (c) John Ashburner (2007) */
 
 #include <math.h>
-#include "optimizersphere.h"
 #include <stdio.h>
+#include "optimizersphere.h"
+#include "CAT_Surf.h"
 
 #define WRAP(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
 
@@ -441,7 +442,7 @@ double initialise_objfun2(int dm[], double f[], double g[], double t0[], double 
         double k11, k12, k21, k22;
         int o11, o12, o21, o22;
         double dx0, dx1, dx2, dy0, dy1, dy2;
-        double Y[128], dx[128], dy[128], sY;
+        double Ya[128], dx[128], dy[128], sY;
         double ta11, ta12, ta22, tb1, tb2, tss;
 
         x    = t0[j  ]-1.0;
@@ -462,10 +463,10 @@ double initialise_objfun2(int dm[], double f[], double g[], double t0[], double 
             k21   = f[o21 + m*k];
             k11   = f[o11 + m*k];
 
-            Y[k]  = exp((k11*dx1 + k21*dx2)*dy1 + (k12*dx1 + k22*dx2)*dy2);
+            Ya[k]  = exp((k11*dx1 + k21*dx2)*dy1 + (k12*dx1 + k22*dx2)*dy2);
             dx0   =    ((k11     - k21    )*dy1 + (k12     - k22    )*dy2);
             dy0   =    ((k11*dx1 + k21*dx2)     - (k12*dx1 + k22*dx2)    );
-            sY   += Y[k];
+            sY   += Ya[k];
             dx[k] = J0[j    ]*dx0 + J0[j+  m]*dy0;
             dy[k] = J0[j+2*m]*dx0 + J0[j+3*m]*dy0;
         }
@@ -476,18 +477,18 @@ double initialise_objfun2(int dm[], double f[], double g[], double t0[], double 
         {
             double T = g[j + m*k], wt;
             int k1;
-            Y[k] /= sY;
-            tss  += log(Y[k])*T;
-            tb1  += (Y[k]-T)*dx[k];
-            tb2  += (Y[k]-T)*dy[k];
+            Ya[k] /= sY;
+            tss  += log(Ya[k])*T;
+            tb1  += (Ya[k]-T)*dx[k];
+            tb2  += (Ya[k]-T)*dy[k];
             for(k1=0; k1<k; k1++)
             {
-                wt    = -Y[k]*Y[k1];
+                wt    = -Ya[k]*Ya[k1];
                 ta11 += wt* dx[k]*dx[k1]*2.0;
                 ta22 += wt* dy[k]*dy[k1]*2.0;
                 ta12 += wt*(dx[k]*dy[k1]+dx[k1]*dy[k]);
             }
-            wt    = Y[k]*(1.0-Y[k]);
+            wt    = Ya[k]*(1.0-Ya[k]);
             ta11 += wt*dx[k]*dx[k];
             ta22 += wt*dy[k]*dy[k];
             ta12 += wt*dx[k]*dy[k];

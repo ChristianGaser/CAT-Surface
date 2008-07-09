@@ -4,11 +4,19 @@
 /*                                                                           */
 /* Copyright Christian Gaser, University of Jena.                            */
 
+#include  <volume_io/internal_volume_io.h>
+#include  <bicpl.h>
+
 #define BINTREE_FACTOR 0.5
 
+int bound(
+    int                   i,
+    int                   j,
+    int *                 dm);
+
 float* get_surface_ratio(
-	float r,
-	polygons_struct *polygons);
+    float                r,
+    polygons_struct      *polygons);
 
 float get_area_of_points(
     polygons_struct     *polygons,
@@ -21,8 +29,8 @@ float get_largest_dist(
     polygons_struct     *polygons);
 
 void set_vector_length(
-    Point   *p,
-    float   newLength);
+    Point               *p,
+    float               newLength);
 
 void get_radius_of_points(
     polygons_struct     *polygons,
@@ -30,23 +38,23 @@ void get_radius_of_points(
 
 void get_bounds(
     polygons_struct     *polygons,
-    float bounds[6]);
+    float               bounds[6]);
 
 int  count_edges(
-    polygons_struct   *polygons,
-    int               n_neighbours[],
-    int               *neighbours[] );
+    polygons_struct     *polygons,
+    int                 n_neighbours[],
+    int                 *neighbours[] );
     
 int euler_characteristic(
-    polygons_struct   *polygons);
+    polygons_struct     *polygons);
 
 void convert_ellipsoid_to_sphere_with_surface_area(
     polygons_struct     *polygons,
-    float         desiredSurfaceArea);
+    float               desiredSurfaceArea);
 
 void  linear_smoothing(
     polygons_struct     *polygons,
-    float                strength,
+    float               strength,
     int                 iterations,
     int                 smoothEdgesEveryXIterations,
     int                 *smoothOnlyTheseNodes,
@@ -54,7 +62,7 @@ void  linear_smoothing(
 
 void  areal_smoothing(
     polygons_struct     *polygons,
-    float                strength,
+    float               strength,
     int                 iterations,
     int                 smoothEdgesEveryXIterations,
     int                 *smoothOnlyTheseNodes,
@@ -70,10 +78,10 @@ void  distance_smoothing(
 
 void inflate_surface_and_smooth_fingers(
     polygons_struct     *polygonsIn,
-    const int numberSmoothingCycles,
-    const float regularSmoothingStrength,
-    const int regularSmoothingIterations,
-    const float inflationFactorIn,
-    const float compressStretchThreshold,
-    const float fingerSmoothingStrength,
-    const int fingerSmoothingIterations);
+    const int           numberSmoothingCycles,
+    const float         regularSmoothingStrength,
+    const int           regularSmoothingIterations,
+    const float         inflationFactorIn,
+    const float         compressStretchThreshold,
+    const float         fingerSmoothingStrength,
+    const int           fingerSmoothingIterations);
