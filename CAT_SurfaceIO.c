@@ -34,7 +34,7 @@ public Status   input_values(
   }
   else
   {
-    return(input_freesurfer_curv( filename, n_values, &values ));
+    return(input_freesurfer_curv( filename, &n_values, &values ));
   }
 
 }

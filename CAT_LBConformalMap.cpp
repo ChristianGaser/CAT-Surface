@@ -60,7 +60,6 @@ extern "C"
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <strstream>
 #include <algorithm>
 #include <cfloat>
 
