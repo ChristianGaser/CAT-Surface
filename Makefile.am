@@ -72,7 +72,7 @@ CAT_DumpCurv_SOURCES = CAT_DumpCurv.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO
 CAT_DumpGI_SOURCES = CAT_DumpGI.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
 CAT_DeformSurf_SOURCES = CAT_DeformSurf.c CAT_DeformPolygons.c CAT_SurfaceIO.c
 CAT_ApplyWarpSurf_SOURCES = CAT_ApplyWarpSurf.c CAT_Map2d.c CAT_SurfaceIO.c CAT_Surf.c diffeosphere.c optimizersphere.c
-CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map2d.c CAT_SurfaceIO.c diffeosphere.c optimizersphere.c
+CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map2d.c CAT_SurfaceIO.c CAT_Surf.c diffeosphere.c optimizersphere.c
 CAT_DumpSurfArea_SOURCES = CAT_DumpSurfArea.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_AverageSurfaces_SOURCES = CAT_AverageSurfaces.c CAT_SurfaceIO.c
 CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
@@ -97,7 +97,7 @@ CAT_SPH2Surf_SOURCES = CAT_SPH2Surf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT
 CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c $(s2kit10_SRC)
 CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.cpp CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c \
 	nl/nl_api.c nl/nl_blas.c nl/nl_context.c nl/nl_iterative_solvers.c nl/nl_matrix.c nl/nl_os.c nl/nl_preconditioners.c nl/nl_superlu.c
-	
+
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \
 	m4/mni_REQUIRE_OPENINVENTOR.m4 \

@@ -8,21 +8,24 @@
 
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
-#include <CAT_Curvature.h>
-#include <CAT_Blur2d.h>
-#include <CAT_Surf.h>
-#include <CAT_SurfaceIO.h>
+#include <ParseArgv.h>
+#include "CAT_Curvature.h"
+#include "CAT_Blur2d.h"
+#include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 
+#define PINF 1.7976931348623157e+308 /* for doubles */
+#define NINF -1.7976931348623157e+308 /* for doubles */
 
-void usage(char *executable) {
-    fprintf(stderr, 
-      "\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n\n\
-         Adjust a conformal map to be more isometric (area preserving).\n\
-         The original mesh is infile.obj and the conformal map of the mesh\n\
-         is conformalmap.obj.  Results are saved in outfile.obj.\n\n",
-                     executable);
-}
+double beta = 0.5; /* 1 = all area smoothing, 0 = all length adjustment */
+
+static ArgvInfo argTable[] = {
+  {"-beta", ARGV_FLOAT, (char *) 0, (char *) &beta,
+       "weighting factor [default: 50% area smoothing, 50% stretch]. Set to 1 for all area smoothing, 0 for all stretch optimization."},
+   {NULL, ARGV_END, NULL, NULL, NULL}
+};
+
 
 
 int main(int argc, char** argv) {
@@ -36,12 +39,20 @@ int main(int argc, char** argv) {
     Point pts[3];
     
     /* Get arguments */
+    if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
+        (void) fprintf(stderr,"\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n", argv[0] );
+        (void) fprintf(stderr,"\nAdjust a conformal map to be more isometric (area preserving).\n\
+         The original mesh is infile.obj and the conformal map of the mesh\n\
+         is conformalmap.obj.  Results are saved in outfile.obj.\n\n");
+        (void) fprintf(stderr, "       %s -help\n\n", argv[0]);
+        return(1);
+    }
 
     initialize_argument_processing(argc, argv);
     if (!get_string_argument(NULL, &ifname) ||
             !get_string_argument(NULL, &cmfname) ||
             !get_string_argument(NULL, &ofname)) {
-        usage(argv[0]);
+        (void) fprintf(stderr,"\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n", argv[0] );
         return(1);
     }
 
@@ -82,7 +93,6 @@ int main(int argc, char** argv) {
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                      &neighbours, NULL, NULL);
     
-    float beta = 0.5; /* 1 = all area, 0 = all angle */
 
     for (it = 0; it < 100; it++) {
         float area_distortion = 0.0;
@@ -92,8 +102,6 @@ int main(int argc, char** argv) {
                 
                 float tileAreas[n_neighbours[p]];
                 float itileAreas[n_neighbours[p]];
-                float tileAngles[n_neighbours[p]];
-                float itileAngles[n_neighbours[p]];
                 float tileCenters[n_neighbours[p]*3];
                 float totalArea = 0.0;
                 float itotalArea = 0.0;
@@ -110,7 +118,6 @@ int main(int argc, char** argv) {
                     pts[2] = polygons->points[n2];
                     tileAreas[n] = get_polygon_surface_area(3, pts);
                     totalArea += tileAreas[n];
-                    tileAngles[n] = get_angle_between_points(&pts[1], &pts[0], &pts[2]);
 
                     // area and angles of the original triangle
                     pts[0] = ipolygons->points[p];
@@ -118,7 +125,6 @@ int main(int argc, char** argv) {
                     pts[2] = ipolygons->points[n2];
                     itileAreas[n] = get_polygon_surface_area(3, pts);
                     itotalArea += itileAreas[n];
-                    itileAngles[n] = get_angle_between_points(&pts[1], &pts[0], &pts[2]);
 
 
                     area_distortion += fabs(itotalArea - totalArea)/n_neighbours[p];
@@ -136,19 +142,41 @@ int main(int argc, char** argv) {
                 for (n = 0; n <  n_neighbours[p]; n++) {
                     if (itileAreas[n] > 0.0) {
                         float weight = (tileAreas[n] / totalArea);
-                        /* weight +=  itileAngles[n]/(2*PI);
-                        if (itotalArea != totalArea) {
-                            weight *= 0.8;
-                            weight += 0.2*(itileAreas[n] - tileAreas[n])/(itotalArea - totalArea);
-                        } */
                         for (i = 0; i < 3; i++) {
                             xyz[i] += weight * tileCenters[n*3+i];
                         }
                     }
                 }
-                // Update the nodes position
+
+                // update the point to minimize length distortion
+
+                Point dir, idir, center;
+                double mindist = PINF;
+
                 for (i = 0; i < 3; i++) {
-                    Point_coord(polygons->points[p],i) = xyz[i];
+                    Point_coord(center,i) = 0;
+                }
+
+                for (n = 0; n <  n_neighbours[p]; n++) {
+                    int nidx = neighbours[p][n];
+                    SUB_POINTS(dir, polygons->points[nidx], polygons->points[p]);
+                    double dirdist = MAGNITUDE(dir);
+                    if (dirdist < mindist) mindist = dirdist;
+
+                    SUB_POINTS(idir, ipolygons->points[nidx],
+                                     ipolygons->points[p]);
+                    SCALE_VECTOR(dir, dir, MAGNITUDE(idir));
+                    ADD_POINT_VECTOR(center, center, dir);
+                }
+                if (MAGNITUDE(center) > mindist/2) {
+                    SCALE_VECTOR(center, center, 0);
+                }
+                ADD_POINT_VECTOR(center, polygons->points[p], center);
+
+                // update the node position
+                for (i = 0; i < 3; i++) {
+                    Point_coord(polygons->points[p],i) = beta*xyz[i]
+                                  + (1 - beta)*Point_coord(center,i);
                 }
             }
         }
