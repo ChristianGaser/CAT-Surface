@@ -13,6 +13,21 @@
 
 #define pi 3.14159265358979323846264338327510
 
+int bound(int i, int j, int dm[])
+{
+	int i1,j1;
+	
+	i1 = (((i)>=0)     ? (i)%(dm[0]) : ((dm[0])+(i)%(dm[0]))%dm[0]);
+	if(j>=dm[1]) {
+		i1 = dm[0]   - i1 - 1;
+		j1 = 2*dm[1] - j  - 1; 	
+	} else if(j<0) {
+		i1 = - i1 - 1;
+		j1 = - j; 	
+	} else j1 = j;
+	return(i1 + dm[0]*j1);
+}
+
 float* get_surface_ratio(float r, polygons_struct *polygons)
 {
 	int		i,j,x,y,z,a,b,c,nan=0;
@@ -239,6 +254,79 @@ int  count_edges(
         print( "N duplicate edges: %d\n", n_duplicate_edges );
 
     return( n_edges );
+}
+
+void apply_warp(
+  polygons_struct  *polygons,
+  double           *flow,
+  int              *size_map,
+  int              *shift
+)
+{
+
+  Point             centre, unit_point, *new_points, trans_point;
+  polygons_struct   unit_sphere;
+  double            inflow_x, inflow_y, u, v, x, y, z, ux, vy;
+  double            indx, indy;
+  int               p, ind;
+
+  fill_Point( centre, 0.0, 0.0, 0.0 );
+
+  create_polygons_bintree( polygons,
+               round( (double) polygons->n_items * BINTREE_FACTOR ) );
+
+  create_tetrahedral_sphere( &centre, 1.0, 1.0, 1.0, polygons->n_items,
+                 &unit_sphere );
+
+  create_polygons_bintree( &unit_sphere,
+               round( (double) unit_sphere.n_items * BINTREE_FACTOR ) );
+
+  ALLOC( new_points, polygons->n_points );
+  
+  inflow_x = (double)size_map[0] - 1.0;
+  inflow_y = (double)size_map[1] - 1.0;
+
+  for( p = 0; p < polygons->n_points; p++ )
+  {
+    map_point_to_unit_sphere( polygons, &polygons->points[p],
+                  &unit_sphere, &unit_point );
+
+    point_to_uv(&unit_point, &u, &v);
+
+    indx = u*inflow_x;
+    indy = v*inflow_y;    
+    ind  = (int)round(indx) + size_map[0]*(int)round(indy);
+
+    ux = (flow[ind] - 1.0 - indx + shift[0])/inflow_x;
+    vy = (flow[ind + size_map[0]*size_map[1]] - 1.0 - indy + shift[1])/inflow_y;
+    
+    u += ux;
+    v += vy;
+
+    // wrap borders
+	while( u < 0.0 )  u += 1.0;
+	while( u >= 1.0 ) u -= 1.0;
+	if( v < 0.0 )     v = 0.0;
+	if( v > 1.0 )     v = 1.0;
+
+    uv_to_point(u, v, &unit_point );
+
+    x = Point_x( unit_point );
+    y = Point_y( unit_point );
+    z = Point_z( unit_point );
+
+    fill_Point( trans_point, x, y, z );
+
+    map_unit_sphere_to_point( &unit_sphere, &trans_point,
+                  polygons, &new_points[p] );
+
+  }
+
+  for( p = 0; p < polygons->n_points; p++ )
+    polygons->points[p] = new_points[p];
+
+  compute_polygon_normals( polygons );
+
 }
 
 int euler_characteristic(

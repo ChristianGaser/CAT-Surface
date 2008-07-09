@@ -107,7 +107,6 @@ int  main(
                                 "Blurring" );
 
 	/* diffusion smoothing using heat kernel */			
-{
     for( j=0; j<n_iter; j++ )
     {
         for ( i=0; i<polygons->n_points; i++ )
@@ -129,7 +128,7 @@ int  main(
                 polygons->points[i] = smooth_points[i];
         }
     }
-}
+
     terminate_progress_report( &progress );
 
     if( values_present )

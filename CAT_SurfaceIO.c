@@ -12,6 +12,33 @@
 #define QUAD_FILE_MAGIC_NUMBER  16777215
 #define NEW_VERSION_MAGIC_NUMBER 16777215
 
+public Status   input_values(
+  STRING     filename,
+  int        n_values,
+  Real       *values )
+{
+  FILE     *file;
+  int      i;
+
+  if( filename_extension_matches(filename,"txt"))
+  {
+    if( open_file( filename, READ_FILE, ASCII_FORMAT, &file ) != OK )
+      return( 1 );
+
+    for( i = 0; i < n_values; i++ )
+    {
+      if( input_real( file, &values[i] ) != OK )
+        return( 1 );
+    }
+    (void) close_file( file );
+  }
+  else
+  {
+    return(input_freesurfer_curv( filename, n_values, &values ));
+  }
+
+}
+
 public Status   input_graphics_any_format(
   STRING     filename,
   File_formats   *format,
@@ -371,14 +398,14 @@ public int input_freesurfer(
 
 public int input_freesurfer_curv(
   char *fname,
-  int   *n_values,
+  int   *vnum,
   Real  *input_values[])
 {
   FILE  *fp;
   int   i, magic, fnum, vals_per_vertex;
   Real  value;
       
-  *n_values = 0;
+  *vnum = 0;
   
   if((fp = fopen(fname, "rb")) == 0) {
     fprintf(stderr, "input_freesurfer_curv: Couldn't open file %s.\n", fname);
@@ -393,15 +420,15 @@ public int input_freesurfer_curv(
     return(0);
   } else {
     /* read # of vertices and faces */
-    *n_values = freadInt(fp);
+    *vnum = freadInt(fp);
     fnum = freadInt(fp);
     vals_per_vertex = freadInt(fp);
     if ( vals_per_vertex != 1) {
       fprintf(stderr, "Only one values per vertex allowed.\n");
       return(0);
     }
-    ALLOC( *input_values, *n_values );
-    for (i = 0; i < *n_values; i++) {
+    ALLOC( *input_values, *vnum );
+    for (i = 0; i < *vnum; i++) {
       value = freadFloat(fp);
       (*input_values)[i]= value;
     }

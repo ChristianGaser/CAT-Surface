@@ -1,6 +1,12 @@
+/* Christian Gaser - christian.gaser@uni-jena.de                             */
+/* Department of Psychiatry                                                  */
+/* University of Jena                                                        */
+/*                                                                           */
+/* Copyright Christian Gaser, University of Jena.                            */
+
 #include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
-#include  <CAT_Surf.h>
+#include "Cat_Surf.h"
 
 private  void  usage(
     STRING   executable )
@@ -22,14 +28,14 @@ int  main(
     File_formats         format;
     FILE                 *file;
     int                  n_objects, n_objects_src_sphere, n_triangles, point, i, j, k;
-    int                  poly, n_points;
+    int                  poly, n_points, n_intersections;
     int                  *n_neighbours, **neighbours;
     Point                centre, point_on_src_sphere, poly_points[MAX_POINTS_PER_POLYGON];
     Point				 poly_points_src[MAX_POINTS_PER_POLYGON], *new_points;
     Point                scaled_point;
     object_struct        **objects, **objects_src_sphere, *objects_dest_sphere;
     polygons_struct      *polygons_fiducial, *polygons_src_sphere, *polygons_dest_sphere;
-    Real                 *input_values, *output_values;
+    Real                 *input_values, *output_values, dist;
 	Vector 				 normal;
     BOOLEAN				 values_specified;
     Real                 weights[MAX_POINTS_PER_POLYGON];
@@ -99,16 +105,16 @@ int  main(
 
     }
 
-    // Determine radius for the output sphere by using the first 100 xyz coordinates.
-    // Use of the surface to approximate radius failed for some examples.
+    // Determine radius for the output sphere 
+    // sphere is not always perfectly spherical, thus use average radius
 	float sphereRadius = 0.0, r;
-    for_less( i, 0, 100) {
+	for( i=0; i<polygons_src_sphere->n_points; i++) {
     	r = 0.0;
-	    for_less( k, 0, 3)
+    	for( k=0; k<3; k++) 
     		r += Point_coord(polygons_src_sphere->points[i],k)*Point_coord(polygons_src_sphere->points[i],k);
     	sphereRadius += sqrt(r);
 	}
-	sphereRadius /= 100;
+	sphereRadius /= polygons_src_sphere->n_points;
 		
     // Determine centre of sphere based on bounds of input (to correct for shiftings)
     float bounds[6];
@@ -118,9 +124,9 @@ int  main(
     objects_dest_sphere = create_object( POLYGONS );
     polygons_dest_sphere = get_polygons_ptr(objects_dest_sphere);
     
-    // make radius slightly larger to get sure that the outside of handles will be found as
+    // make radius slightly smaller to get sure that the inner side of handles will be found as
     // nearest point on the surface
-    sphereRadius *= 1.025;
+    sphereRadius *= 0.975;
     create_tetrahedral_sphere( &centre, sphereRadius, sphereRadius, sphereRadius,
                                n_triangles, polygons_dest_sphere );
 
@@ -132,9 +138,8 @@ int  main(
     for_less( i, 0, polygons_dest_sphere->n_points ) {
         poly =  find_closest_polygon_point( &polygons_dest_sphere->points[i], polygons_src_sphere,
                                               &point_on_src_sphere );
-
-		n_points = get_polygon_points( polygons_src_sphere, poly, poly_points_src );
 		
+		n_points = get_polygon_points( polygons_src_sphere, poly, poly_points_src );
         get_polygon_interpolation_weights( &point_on_src_sphere, n_points, poly_points_src,
                                            weights );
 

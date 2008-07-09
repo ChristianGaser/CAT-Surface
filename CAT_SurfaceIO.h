@@ -4,6 +4,16 @@
 /*                                                                           */
 /* Copyright Christian Gaser, University of Jena.                            */
 
+Status   input_values(
+    STRING         filename,
+    int            n_values,
+    Real           *values );
+
+Status   output_values(
+    STRING         filename,
+    int            n_values,
+    Real           *values );
+
 Status   input_graphics_any_format(
     STRING         filename,
     File_formats   *format,

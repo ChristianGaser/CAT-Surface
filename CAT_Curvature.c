@@ -8,6 +8,7 @@
 
 #include <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
+#include "CAT_Curvature.h"
 
 #define PI2 0.6366197724    /* 2/pi */
 

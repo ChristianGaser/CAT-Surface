@@ -15,8 +15,9 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: %s surface.obj  input.pgm output.txt\n\n\
-     Maps an PNG-image to a surface. The output is saved as texture values.\n\n";
+Usage: %s surface.obj  input.pgm output.txt [0|1]\n\n\
+     Maps an PGM-image to a surface. The output is saved as texture values.\n\n\
+     Optionally linear interpolation can be skipped with a 0 as 4th argument\n\n";
 
     print_error( usage_str, executable );
 }
@@ -30,17 +31,17 @@ int  main(
     File_formats         format;
     polygons_struct      *polygons, unit_sphere;
     int                  i, n_objects, nx, ny, x, y, point_index;
-    int                  degree, poly, size, ind, n_done;
+    int                  degree, poly, size, ind, n_done, interpolate;
     int                  *n_neighbours, **neighbours;
-    Real		         *image;
+    double		         *image;
     object_struct        **objects;
     BOOLEAN              use_volume;
     Point                unit_point, on_sphere_point, centre;
     Point                poly_points[1000], centroid;
-    Real                 u, v, *values;
+    double               u, v, *values;
     Vector               normal;
     progress_struct      progress;
-    int                  tmp_x, tmp_y;
+    double               tmp_x, tmp_y;
 
     /*--- get the arguments from the command line */
 
@@ -54,6 +55,7 @@ int  main(
         return( 1 );
     }
 
+	get_int_argument(1, &interpolate);
     /*--- input the surface */
     if( input_graphics_any_format( surface_filename, &format, &n_objects, &objects )
          != OK )
@@ -80,7 +82,7 @@ int  main(
                                polygons->n_items, &unit_sphere );
 
     create_polygons_bintree( &unit_sphere,
-                             ROUND( (Real) unit_sphere.n_items *
+                             ROUND( (double) unit_sphere.n_items *
                                     BINTREE_FACTOR ) );
 
     ALLOC(values, polygons->n_points);
@@ -93,15 +95,28 @@ int  main(
     if( open_file( output_filename, WRITE_FILE, ASCII_FORMAT, &outputfile ) != OK )
         return( 1 );
 
-	tmp_x = nx - 1;
-	tmp_y = ny - 1;
+	tmp_x = (double)nx - 1.0;
+	tmp_y = (double)ny - 1.0;
 
     for ( i=0; i<polygons->n_points; i++ ) {
 
         point_to_uv(&unit_sphere.points[i], &u, &v);
+		x = (int) round(u*tmp_x - 1.0);
+		y = (int) round(v*tmp_y - 1.0);
+		if (interpolate) {
+			double xp = u*tmp_x - 1.0 - x;
+			double yp = v*tmp_y - 1.0 - y;
+			double xm = 1.0 - xp;
+			double ym = 1.0 - yp;
+			double H00 = image[x  +    y*nx];
+			double H01 = image[x  +(y+1)*nx];
+			double H10 = image[x+1+    y*nx];
+			double H11 = image[x+1+(y+1)*nx];
 
-        values[i] = image[ROUND(u*tmp_x) + nx*ROUND(v*tmp_y)];
-
+			values[i] = (ym * ( xm * H00 + xp * H10) + 
+		 		yp * ( xm * H01 + xp * H11));
+		} else values[i] = image[x + y*nx];
+		
 		if( output_real( outputfile, values[i] ) != OK || output_newline( outputfile ) != OK )
             break;
 

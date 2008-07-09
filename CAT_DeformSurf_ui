@@ -8,7 +8,10 @@ fi
 # parameters for deforming WM
 th1=$4
 step=".1 .1 15 0 $th1 $th1 n 0 0 0"
-iters=100
-model="-1 .5 avg -.05 .05"
 
+iters=50
+model="-1 .5 avg -.01 .01"
+CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+iters=50
+model="-1 .5 avg -.15 .15"
 CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0

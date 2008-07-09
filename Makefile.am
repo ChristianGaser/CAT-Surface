@@ -29,24 +29,27 @@ bin_PROGRAMS = \
 	CAT_Surf2Sphere \
 	CAT_SeparateCluster \
 	CAT_ResampleSphericalSurf \
-	CAT_TopologyCorrect \
 	CAT_AreaDistortion \
 	CAT_AngularDistortion \
 	CAT_AverageSurfaces \
 	CAT_GLM_Math \
 	CAT_FindFlats \
 	CAT_Isometize \
-	CAT_LBConformalMap 
+	CAT_LBConformalMap \
+	CAT_WarpSurf \
+	CAT_ResampleSphericalSurfSPH \
+	CAT_Surf2SPH \
+	CAT_SPH2Surf
 
-topologysimplification_SRC = \
-	topologysimplification/Face.cpp \
-	topologysimplification/FastLoop.cpp \
-	topologysimplification/Loop.cpp \
-	topologysimplification/PatchDisk.cpp \
-	topologysimplification/Segment.cpp \
-	topologysimplification/SurfaceObj.cpp \
-	topologysimplification/Vertex.cpp \
-	topologysimplification/utils.cpp
+s2kit10_SRC = \
+	s2kit10/FST_semi_fly.c \
+	s2kit10/cospmls.c \
+	s2kit10/makeweights.c \
+	s2kit10/pmls.c \
+	s2kit10/seminaive.c \
+	s2kit10/csecond.c \
+	s2kit10/naive_synthesis.c \
+	s2kit10/primitive.c
 
 extra_headers = \
 	CAT_Deform.h \
@@ -57,6 +60,7 @@ extra_headers = \
 	CAT_Surf.h \
 	CAT_Pinv.h \
 	CAT_SurfaceIO.h \
+	CAT_SPH.h \
 	CAT_DeformPrototypes.h	
 
 EXTRA_DIST = $(extra_headers)
@@ -67,11 +71,11 @@ CAT_3dVol2Surf_SOURCES = CAT_3dVol2Surf.c CAT_SurfaceIO.c
 CAT_DumpCurv_SOURCES = CAT_DumpCurv.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
 CAT_DumpGI_SOURCES = CAT_DumpGI.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
 CAT_DeformSurf_SOURCES = CAT_DeformSurf.c CAT_DeformPolygons.c CAT_SurfaceIO.c
-CAT_ApplyWarpSurf_SOURCES = CAT_ApplyWarpSurf.c CAT_Map2d.c CAT_SurfaceIO.c
-CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map2d.c CAT_SurfaceIO.c
-CAT_DumpSurfArea_SOURCES = CAT_DumpSurfArea.c CAT_Surf.c CAT_SurfaceIO.c
+CAT_ApplyWarpSurf_SOURCES = CAT_ApplyWarpSurf.c CAT_Map2d.c CAT_SurfaceIO.c CAT_Surf.c diffeosphere.c optimizersphere.c
+CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map2d.c CAT_SurfaceIO.c diffeosphere.c optimizersphere.c
+CAT_DumpSurfArea_SOURCES = CAT_DumpSurfArea.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_AverageSurfaces_SOURCES = CAT_AverageSurfaces.c CAT_SurfaceIO.c
-CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_SurfaceIO.c
+CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_Color2Surf_SOURCES = CAT_Color2Surf.c CAT_SurfaceIO.c
 CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Blur2d.c CAT_SurfaceIO.c
 CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SliceIO.c
@@ -81,14 +85,18 @@ CAT_FreesurferCurv2Txt_SOURCES = CAT_FreesurferCurv2Txt.c CAT_SurfaceIO.c
 CAT_PlotValuesAtPoint_SOURCES = CAT_PlotValuesAtPoint.c CAT_SurfaceIO.c
 CAT_PlotValuesAtMaximum_SOURCES = CAT_PlotValuesAtMaximum.c CAT_SurfaceIO.c
 CAT_SeparateCluster_SOURCES = CAT_SeparateCluster.c CAT_Blur2d.c CAT_SurfaceIO.c
-CAT_TopologyCorrect_SOURCES = CAT_TopologyCorrect.cpp CAT_SurfaceIO.c  $(topologysimplification_SRC)
-CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c CAT_SurfaceIO.c
-CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c CAT_SurfaceIO.c
-CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c
-CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c
+CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
+CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
+CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
+CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_FindFlats_SOURCES = CAT_FindFlats.c CAT_Curvature.c CAT_Blur2d.c
-CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
-CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.cpp CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c nl/nl_api.c nl/nl_blas.c nl/nl_context.c nl/nl_iterative_solvers.c nl/nl_matrix.c nl/nl_os.c nl/nl_preconditioners.c nl/nl_superlu.c
+CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
+CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c diffeosphere.c optimizersphere.c
+CAT_Surf2SPH_SOURCES = CAT_Surf2SPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c $(s2kit10_SRC)
+CAT_SPH2Surf_SOURCES = CAT_SPH2Surf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c $(s2kit10_SRC)
+CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c $(s2kit10_SRC)
+CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.cpp CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c \
+	nl/nl_api.c nl/nl_blas.c nl/nl_context.c nl/nl_iterative_solvers.c nl/nl_matrix.c nl/nl_os.c nl/nl_preconditioners.c nl/nl_superlu.c
 	
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \

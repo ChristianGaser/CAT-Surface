@@ -6,9 +6,8 @@
 
 #include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
-#include  <CAT_Surf.h>
-
-#include  "ParseArgv.h"
+#include  <ParseArgv.h>
+#include  "CAT_Surf.h"
 
 typedef  enum { RATIO, LOG_RATIO, PERCENTAGE }
               Distortion_method;
