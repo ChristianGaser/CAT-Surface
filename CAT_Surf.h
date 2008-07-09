@@ -4,6 +4,8 @@
 /*                                                                           */
 /* Copyright Christian Gaser, University of Jena.                            */
 
+#define BINTREE_FACTOR 0.5
+
 float* get_surface_ratio(
 	float r,
 	polygons_struct *polygons);

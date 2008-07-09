@@ -1,4 +1,5 @@
 /* (c) John Ashburner (2007) */
+
 extern void composition(int dm[], double *A, double *B, double *C);
 extern void composition_jacobian(int dm[],
                                  double *A, double * JA, double *B, double *JB,
