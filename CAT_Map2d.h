@@ -14,17 +14,25 @@ typedef struct {
 	float y;
 } Vector2D;
 
+
 public  void  point_to_uv(
     Point            *point,
-    Real             *u,
-    Real             *v );
+    double           *u,
+    double           *v );
 
-public  Real point_to_uv_radius(
+public  double point_to_uv_radius(
     Point            *point,
-    Real             *u,
-    Real             *v );
+    double           *u,
+    double           *v );
 
 public void  uv_to_point(
-    Real             u,
-    Real             v,
+    double           u,
+    double           v,
     Point            *point );
+
+void map_smoothed_curvature_to_sphere(
+    polygons_struct     *polygons,
+    double              *values,
+    double              *data,
+    double              fwhm,
+    int                 *size_map);

@@ -8,6 +8,7 @@
 #include  <bicpl.h>
 #include  <CAT_SheetIO.h>
 #include  <CAT_Map2d.h>
+#include  <CAT_Blur2d.h>
 
 #define  BINTREE_FACTOR   0.5
     

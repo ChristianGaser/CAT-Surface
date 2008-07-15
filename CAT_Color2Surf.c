@@ -141,6 +141,10 @@ int  main(
     for_less( i, 0, n_objects )
     {
         n_points = get_object_points( object_list[i], &points );
+        if (n_points != n_values) {
+            fprintf(stderr,"Number of points differs from number of values.\n");
+            return(1);
+        }
 
         colour_flag_ptr = get_object_colours( object_list[i], &colours );
 

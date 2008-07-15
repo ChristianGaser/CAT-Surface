@@ -10,11 +10,10 @@
 #include  <ParseArgv.h>
 #include  "CAT_SheetIO.h"
 #include  "CAT_Map2d.h"
-#include  "CAT_Blur2d.h"
 #include  "CAT_Surf.h"
   
 struct dartel_prm {
-  int rform;         // regularization form: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy
+  int rtype;         // regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy
   double rparam[5];  // regularization parameters
   double lmreg;      // LM regularization
   int cycles;        // number of cycles for full multi grid (FMG)
@@ -36,8 +35,8 @@ int translate = 0;
 int code = 1;
 int loop = 6;
 int verbose = 0;
-int rform = 1;
-double reg   = 0;
+int rtype = 1;
+double reg   = 0.0001;
 double lmreg = 0.0001;
 double fwhm  = 10.0;
 
@@ -60,8 +59,8 @@ static ArgvInfo argTable[] = {
      "Parameter file."},
   {"-code", ARGV_INT, (char *) 1, (char *) &code,
      "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares."},
-  {"-rform", ARGV_INT, (char *) 1, (char *) &rform,
-     "Regularization form: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
+  {"-rtype", ARGV_INT, (char *) 1, (char *) &rtype,
+     "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
   {"-reg", ARGV_FLOAT, (char *) 1, (char *) &reg,
      "Regularization parameter."},
   {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
@@ -123,110 +122,6 @@ private void translate_to_template(
   
 }
 
-private void map2d_smoothed_curvature(
-  polygons_struct *polygons,
-  double          *data,
-  double          fwhm,
-  int             *size_map
-)
-{
-  int             *n_neighbours, **neighbours;
-  int             i, j, n_iter;
-  double          sigma, value, *values, *smooth_values;
-  polygons_struct unit_sphere;
-  int             x, y, point_index, value_index;
-  int             poly, size, ind;
-  double          u, v;
-  double          weights[1000], mn, mx;
-  Point           unit_point, on_sphere_point, centre;
-  Point           poly_points[1000];
-
-  ALLOC( values, polygons->n_points );
-  ALLOC( smooth_values, polygons->n_points );
-
-  get_all_polygon_point_neighbours( polygons, &n_neighbours, &neighbours);
-
-  get_polygon_vertex_curvatures( polygons, n_neighbours, neighbours,
-                   3.0, 0.0, values );
-
-  /* calculate n_iter for sigma = 1.0 */
-  n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482);
-  if( n_iter == 0 )
-    n_iter = 1;
-
-  /* select sigma according fwhm */
-  if( fwhm > 50.0 )
-      sigma = 8.0;
-  else if( fwhm > 30.0)
-      sigma = 3.0;
-  else if( fwhm > 20.0)
-      sigma = 2.0;
-  else sigma = 1.0;
-				
-  for ( j=0; j<n_iter; j++ )
-  {
-    for ( i=0; i<polygons->n_points; i++ )
-    {
-      heatkernel_blur_points( polygons->n_points, polygons->points, values,
-              n_neighbours[i], neighbours[i], i, sigma, NULL, &value );
-      smooth_values[i] = value;
-    }
-    for ( i=0; i<polygons->n_points; i++ )
-      values[i] = smooth_values[i];
-  }
-
-  /* create a unit sphere with same number of triangles as skin surface */
-  fill_Point( centre, 0.0, 0.0, 0.0 );
-
-  create_tetrahedral_sphere( &centre, 1.0, 1.0, 1.0,
-                 polygons->n_items, &unit_sphere );
-
-  create_polygons_bintree( &unit_sphere,
-               ROUND( (double) unit_sphere.n_items *
-                  BINTREE_FACTOR ) );
-    
-  for( x = 0; x < size_map[0]; x++ ) {
-    for( y = 0; y < size_map[1]; y++ ) {
-    
-      u = ((double) x)/(double) (size_map[0] - 1);
-      v = ((double) y)/(double) (size_map[1] - 1);
-  
-      uv_to_point(u, v, &unit_point );
-      
-      poly = find_closest_polygon_point( &unit_point, &unit_sphere,
-                         &on_sphere_point );
-      
-      size = get_polygon_points( &unit_sphere, poly, poly_points );
-
-      get_polygon_interpolation_weights( &on_sphere_point, size,
-                           poly_points, weights );
-
-      value = 0.0;
-      for_less( i, 0, size ) {
-        ind = unit_sphere.indices[
-             POINT_INDEX(unit_sphere.end_indices,poly,i)];
-        value += weights[i] * values[ind];
-      }
-      value_index = x + (size_map[0]*y);
-      data[value_index] = value;  
-    }
-
-  }
-
-  // scale data to uint8 range
-  mn = FLT_MAX; mx = -FLT_MAX;
-  for( i=0; i<size_map[0]*size_map[1]; i++) {
-	if(data[i] > mx) mx = data[i];
-	if(data[i] < mn) mn = data[i];
-  }
-	
-  for( i=0; i<size_map[0]*size_map[1]; i++) 
-    data[i] = 1.0*(data[i]-mn)/(mx - mn);
-		
-  delete_polygons( &unit_sphere );
-  FREE(values);
-  FREE(smooth_values);
-}
 
 int  main(
   int   argc,
@@ -241,8 +136,8 @@ int  main(
   double           *map_source, *map_target, *map_warp, *flow, *flow1, *inflow, *scratch, *jd, *jd1;
   object_struct    **objects, *object;
   double           ll[3];
-  static double    param[3] = {1.0, 1.0, 1.0};
-  int              size_map[3] = {360, 360, 1}, shift[2];
+  static double    param[3] = {1.0, 1.0, 0.25};
+  int              size_map[3] = {512, 256, 1}, shift[2];
 
   /* get the arguments from the command line */
 
@@ -295,7 +190,7 @@ int  main(
     while (fgets(line, sizeof(line), fp)) {
       if (!isalnum(line[0]))  continue;           
       // check for 9 values in each line
-      if (sscanf(line,"%d %lf %lf %lf %d %d %d %d", &prm[loop].rform, &prm[loop].rparam[3], &prm[loop].rparam[4],
+      if (sscanf(line,"%d %lf %lf %lf %d %d %d %d", &prm[loop].rtype, &prm[loop].rparam[3], &prm[loop].rparam[4],
            &prm[loop].lmreg, &prm[loop].cycles, &prm[loop].its, &prm[loop].k, &prm[loop].code) != 8)
         continue;
       loop++;
@@ -311,7 +206,7 @@ int  main(
   } else {
       // some entry are equal
     for (j = 0; j < loop; j++) {
-      prm[j].rform = rform;
+      prm[j].rtype = rtype;
       prm[j].cycles = 3;
       prm[j].its = 3;
       prm[j].code = code;
@@ -326,7 +221,7 @@ int  main(
     fprintf(stderr,"___________________________________________________________________________\n");
     fprintf(stderr,"Parameters\n");
     fprintf(stderr,"___________________________________________________________________________\n");
-    fprintf(stderr,"Regularization (0 - elastic; 1 - membrane; 2 - bending):\t\t%d\n", prm[0].rform);
+    fprintf(stderr,"Regularization (0 - elastic; 1 - membrane; 2 - bending):\t\t%d\n", prm[0].rtype);
     fprintf(stderr,"Number of cycles for full multi grid (FMG):\t\t\t\t%d\n", prm[0].cycles);
     fprintf(stderr,"Number of relaxation iterations in each multigrid cycle:\t\t%d\n", prm[0].its);
     fprintf(stderr,"Objective function (0 - sum of squares; 1 - sym. sum of squares):\t%d\n", prm[0].code);
@@ -345,13 +240,13 @@ int  main(
   flow  = (double *)malloc(sizeof(double)*xy_size*2);
   flow1 = (double *)malloc(sizeof(double)*xy_size*2);
   inflow   = (double *)malloc(sizeof(double)*xy_size*2);
-  map_source = (double *)malloc(sizeof(double)*xy_size);
-  map_target = (double *)malloc(sizeof(double)*xy_size);
-  map_warp   = (double *)malloc(sizeof(double)*xy_size);
+  map_source  = (double *)malloc(sizeof(double)*xy_size);
+  map_target  = (double *)malloc(sizeof(double)*xy_size);
+  map_warp    = (double *)malloc(sizeof(double)*xy_size);
 
-  map2d_smoothed_curvature(polygons_source, map_source, fwhm, size_map);
-  map2d_smoothed_curvature(polygons_target, map_target, fwhm, size_map);
-               
+  map_smoothed_curvature_to_sphere(polygons_source, (double *)0, map_source, fwhm, size_map);
+  map_smoothed_curvature_to_sphere(polygons_target, (double *)0, map_target, fwhm, size_map);
+
   if (translate) {
     translate_to_template(map_source, map_target, size_map, shift);
     fprintf(stderr,"%d %d\n", shift[0], shift[1]);
@@ -386,9 +281,9 @@ int  main(
     scratch = (double *)malloc(sizeof(double)*it_scratch);
     for (it1 = 0; it1 < prm[it0].its; it1++) {
       it++;
-      dartel(size_map, prm[it0].k, inflow, map_target, map_source, (double *)0, prm[it0].rform, 
+      dartel(size_map, prm[it0].k, inflow, map_target, map_source, (double *)0, prm[it0].rtype, 
              prm[it0].rparam, prm[it0].lmreg, prm[it0].cycles, prm[it0].its, prm[it0].code, flow, ll, scratch);
-      fprintf(stderr, "%02d:\t%7.2f\t%7.2f\t%7.2f\t%7.2f\n", it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
+      fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n", it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
     for (i = 0; i < xy_size*2; i++) inflow[i] = flow[i];
     }
     free(scratch);

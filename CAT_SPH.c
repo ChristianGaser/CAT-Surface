@@ -411,19 +411,20 @@ void get_equally_sampled_coords_of_polygon(
     double               weights[1000], centre[3];
 
     // Determine centre of sphere based on bounds of input (to correct for shiftings)
-    float bounds[6];
+    float bounds[6], rsphere;
     get_bounds(polygons_sphere, bounds);
     for( j=0; j<3; j++ )
         centre[j] = bounds[2*j]+bounds[2*j+1];
-        
+    rsphere = (bounds[1]-bounds[0]+bounds[3]+bounds[2]+bounds[5]-bounds[4])/4.0;
+
     // set centre and radius
     // make radius slightly smaller to get sure that the inner side of handles will be found as
     // nearest point on the surface
     for( i=0; i<polygons_sphere->n_points; i++ ) {
-        set_vector_length(&polygons_sphere->points[i], 0.99);
-        for( j=0; j<3; j++ )
+        for( j=0; j<3; j++ ) {
             Point_coord(polygons_sphere->points[i],j) -= centre[j];        
-
+            Point_coord(polygons_sphere->points[i],j) /= rsphere;
+        }
     }
 
     create_polygons_bintree( polygons_sphere,
@@ -442,7 +443,7 @@ void get_equally_sampled_coords_of_polygon(
             
             poly = find_closest_polygon_point( &unit_point, polygons_sphere,
                                                &on_sphere_point );
-            
+
             size = get_polygon_points( polygons_sphere, poly, poly_points_src );
 
             get_polygon_interpolation_weights( &on_sphere_point, size,

@@ -51,7 +51,7 @@ int  main(
         print( "File must contain 1 polygons object.\n" );
         return( 1 );
     }
-    
+
     if( output_graphics_any_format( output_filename, format,
                                    n_objects, objects ) != OK)
         return(1);

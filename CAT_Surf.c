@@ -9,24 +9,35 @@
 #include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
 #include  <float.h>
-#include "CAT_Surf.h"
+#include  "CAT_Surf.h"
+#include  "CAT_Blur2d.h"
 
 #define pi 3.14159265358979323846264338327510
+
+
 
 int bound(int i, int j, int dm[])
 {
 	int i1,j1;
-	
+
+    // circulant boundary condition for x-coordinates
 	i1 = (((i)>=0)     ? (i)%(dm[0]) : ((dm[0])+(i)%(dm[0]))%dm[0]);
-	if(j>=dm[1]) {
-		i1 = dm[0]   - i1 - 1;
-		j1 = 2*dm[1] - j  - 1; 	
-	} else if(j<0) {
-		i1 = - i1 - 1;
-		j1 = - j; 	
-	} else j1 = j;
+
+    // Neumann boundary condition for y-coordinates
+	if (dm[1] == 1)
+		j1 = 0;
+	else
+	{
+		int m2 = dm[1]*2;
+		j = (j<0) ? (-j-m2*((-j)/m2)-1) : (j-m2*(j/m2));
+		if (dm[1] <= j)
+			j1 = m2-j-1;
+		else
+			j1 = j;
+	}
 	return(i1 + dm[0]*j1);
 }
+
 
 float* get_surface_ratio(float r, polygons_struct *polygons)
 {
@@ -176,10 +187,10 @@ void set_vector_length(
     float   newLength)
 {
     int   j;
-    const float len = sqrt(Point_coord(*p,0)*Point_coord(*p,0) + 
+    const double len = sqrt(Point_coord(*p,0)*Point_coord(*p,0) + 
         Point_coord(*p,1)*Point_coord(*p,1) + Point_coord(*p,2)*Point_coord(*p,2));
     if (len > 0) {
-        const float scale = newLength / len;
+        const double scale = newLength / len;
         for_less( j, 0, 3 )
             Point_coord(*p,j) *= scale;
     }
