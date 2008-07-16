@@ -15,8 +15,14 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: %s surface.obj sphere.obj [radius_values.txt]\n\n\
-     Maps a surface to a sphere using the caret inflating approach.\n\n";
+Usage: %s surface.obj sphere.obj [stop_at]\n\n\
+     Maps a surface to a sphere using the caret inflating approach.\n\n\
+     The inflating can be limited using stop_at (default 5), where\n\
+       1 - Low smooth\n\
+       2 - Inflating\n\
+       3 - Very inflating\n\
+       4 - High smoothing\n\
+       5 - Ellipsoid\n";
 
     print_error( usage_str, executable );
 }
@@ -25,15 +31,14 @@ int  main(
     int    argc,
     char   *argv[] )
 {
-    STRING           input_filename, output_filename, radius_filename;
-    int              n_objects, i;
+    STRING           input_filename, output_filename;
+    int              n_objects, i, stop_at;
     FILE             *file;
     File_formats     format;
     object_struct    **object_list;
     polygons_struct  *polygons;
-    BOOLEAN          enableFingerSmoothing = 1, save_radius;
+    BOOLEAN          enableFingerSmoothing = 1;
     int              fingerSmoothingIterations;
-    float            *radius;
     
     initialize_argument_processing( argc, argv );
 
@@ -44,13 +49,8 @@ int  main(
         return( 1 );
     }
 
-    if( get_string_argument( NULL, &radius_filename ) ) {
-        save_radius = TRUE;
-        if( open_file( radius_filename, WRITE_FILE, ASCII_FORMAT, &file ) != OK )
-        return( 1 );
-    }
-    else save_radius = FALSE;
-
+    get_int_argument(5, &stop_at);
+    
     if( input_graphics_any_format( input_filename, &format, &n_objects,
                              &object_list ) != OK || n_objects != 1 ||
         get_object_type(object_list[0]) != POLYGONS )
@@ -66,17 +66,6 @@ int  main(
         print_error( "Euler characteristic of %s must be 2.\n", input_filename );
     }
      
-    ALLOC(radius, polygons->n_points);
-    get_radius_of_points(polygons, radius);
-    
-    if( save_radius ) {
-        for_less( i, 0, polygons->n_points ) {
-            if( output_real( file, radius[i] ) != OK || output_newline( file ) != OK )
-                break;		    
-        }
-	   (void) close_file( file );    
-    }
-
     float fiducialSurfaceArea = get_polygons_surface_area( polygons );
 
     // low smooth
@@ -89,12 +78,14 @@ int  main(
                                                    3.0,   // finger compress/stretch threshold
                                                    1.0,   // finger smoothing strength
                                                    0);     // finger smoothing iterations
-    // inflated                                                      
-    fingerSmoothingIterations = 0;
-    if (enableFingerSmoothing)
-      fingerSmoothingIterations = 30;
-	fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inflating...        ");
-    inflate_surface_and_smooth_fingers(polygons,
+                                                   
+    if (stop_at > 1) {
+      // inflated                                                      
+      fingerSmoothingIterations = 0;
+      if (enableFingerSmoothing)
+        fingerSmoothingIterations = 30;
+	  fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inflating...        ");
+      inflate_surface_and_smooth_fingers(polygons,
                                                    2,     // number of cycles
                                                    1.0,   // regular smoothing strength
                                                    30,    // regular smoothing iterations
@@ -102,11 +93,12 @@ int  main(
                                                    3.0,   // finger compress/stretch threshold
                                                    1.0,   // finger smoothing strength
                                                    fingerSmoothingIterations);     // finger smoothing iterations
-
-                                                   
-    // very inflated
-	fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Very inflating...   ");
-    inflate_surface_and_smooth_fingers(polygons,
+    }                                             
+    
+    if (stop_at > 2) {
+      // very inflated
+      fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Very inflating...   ");
+      inflate_surface_and_smooth_fingers(polygons,
                                                       4,     // number of cycles
                                                       1.0,   // regular smoothing strength
                                                       30,    // regular smoothing iterations
@@ -114,12 +106,15 @@ int  main(
                                                       3.0,   // finger compress/stretch threshold
                                                       1.0,   // finger smoothing strength
                                                       0);     // finger smoothing iterations
-    // high smooth
-    fingerSmoothingIterations = 0;
-    if (enableFingerSmoothing) 
+    }
+    
+    if (stop_at > 3) {
+      // high smooth
+      fingerSmoothingIterations = 0;
+      if (enableFingerSmoothing) 
     	fingerSmoothingIterations = 60;
-	fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","High smoothing...   ");
-    inflate_surface_and_smooth_fingers(polygons,
+	  fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","High smoothing...   ");
+      inflate_surface_and_smooth_fingers(polygons,
                                                       6,     // number of cycles
                                                       1.0,   // regular smoothing strength
                                                       60,    // regular smoothing iterations
@@ -128,9 +123,12 @@ int  main(
                                                       1.0,   // finger smoothing strength
                                                       fingerSmoothingIterations);     // finger smoothing iterations
 
-    // ellipsoid
-	fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Ellipsoid...        ");
-    inflate_surface_and_smooth_fingers(polygons,
+    }
+
+    if (stop_at > 4) {
+      // ellipsoid
+      fprintf(stderr,"%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Ellipsoid...        ");
+      inflate_surface_and_smooth_fingers(polygons,
                                                       6,     // number of cycles
                                                       1.0,   // regular smoothing strength
                                                       50,    // regular smoothing iterations
@@ -138,12 +136,14 @@ int  main(
                                                       4.0,   // finger compress/stretch threshold
                                                       1.0,   // finger smoothing strength
                                                       fingerSmoothingIterations);     // finger smoothing iterations
-
+      convert_ellipsoid_to_sphere_with_surface_area( polygons, fiducialSurfaceArea);
+    }
+    
 	fprintf(stderr,"Done                \n");
-    convert_ellipsoid_to_sphere_with_surface_area( polygons, fiducialSurfaceArea);
+
+    compute_polygon_normals( polygons );
 
     output_graphics_any_format( output_filename, format, 1, object_list );
 
-    FREE( radius );
     return( 0 );
 }

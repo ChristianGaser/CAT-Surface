@@ -26,6 +26,7 @@ struct dartel_prm {
 char *param_filename   = NULL;
 char *source_filename  = NULL;
 char *target_filename  = NULL;
+char *weight_filename  = NULL;
 char *jacdet_filename  = NULL;
 char *output_filename  = NULL;
 char *pgm_filename     = NULL;
@@ -51,6 +52,8 @@ static ArgvInfo argTable[] = {
      "Warped input."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_filename, 
      "Warped map as pgm file."},
+  {"-s", ARGV_STRING, (char *) 1, (char *) &weight_filename, 
+     "Weight warping with the inverse from values in this file (e.g. std)."},
   {"-if", ARGV_STRING, (char *) 1, (char *) &inflow_filename, 
      "Warped input."},
   {"-of", ARGV_STRING, (char *) 1, (char *) &outflow_filename, 
@@ -131,9 +134,10 @@ int  main(
   FILE             *fp, *fp_flow;
   char             line[1024];
   polygons_struct  *polygons_source, *polygons_target;
-  int              x, y, i, j, it, it0, it1, n_objects, it_scratch, xy_size;
-  double           value;
-  double           *map_source, *map_target, *map_warp, *flow, *flow1, *inflow, *scratch, *jd, *jd1;
+  int              x, y, i, j, it, it0, it1, n_objects, it_scratch, xy_size, n_weights;
+  double           value, *weights;
+  double           *map_source, *map_target, *map_warp, *map_weights, *map_source0;
+  double           *flow, *flow1, *inflow, *scratch, *jd, *jd1;
   object_struct    **objects, *object;
   double           ll[3];
   static double    param[3] = {1.0, 1.0, 0.25};
@@ -171,6 +175,12 @@ int  main(
       return( 1 );
   }
   
+  // read weights
+  if (weight_filename != NULL) {
+    if( input_texture_values( weight_filename, &n_weights, &weights ) != OK )
+        return( 1 );
+  }
+
   struct dartel_prm* prm = (struct dartel_prm*)malloc(sizeof(struct dartel_prm)*100);
 
   // first three entrys of param are equal
@@ -247,6 +257,26 @@ int  main(
   map_smoothed_curvature_to_sphere(polygons_source, (double *)0, map_source, fwhm, size_map);
   map_smoothed_curvature_to_sphere(polygons_target, (double *)0, map_target, fwhm, size_map);
 
+if( write_pgm("source.pgm", map_source, size_map[0], size_map[1]) != 0 )
+return( 1 );
+
+if( write_pgm("target.pgm", map_target, size_map[0], size_map[1]) != 0 )
+return( 1 );
+
+  // weight maps of target and source by the inverse std
+  if (weight_filename != NULL) {
+    map_weights    = (double *)malloc(sizeof(double)*xy_size);
+    map_source0    = (double *)malloc(sizeof(double)*xy_size);
+    map_smoothed_curvature_to_sphere(polygons_source, weights, map_weights, fwhm, size_map);
+    for (i = 0; i < xy_size; i++) {
+      map_source0[i] = map_source[i];
+      map_weights[i] += 1.0;
+      map_source[i] /= map_weights[i];
+      map_target[i] /= map_weights[i];
+    }
+    free(map_weights);
+  }
+  
   if (translate) {
     translate_to_template(map_source, map_target, size_map, shift);
     fprintf(stderr,"%d %d\n", shift[0], shift[1]);
@@ -316,7 +346,13 @@ int  main(
   free( flow1 );
   free( inflow );
 
-  if (pgm_filename != NULL) { 
+  if (pgm_filename != NULL) {
+    // rescue old unweighted map data 
+    if (weight_filename != NULL) {
+      for (i = 0; i < xy_size; i++) 
+        map_source[i] = map_source0[i];
+      free(map_source0);
+    }
     for (i = 0; i < xy_size; i++) {
       x = (int) flow[i] - 1.0;
       y = (int) flow[i + xy_size] - 1.0;
@@ -343,13 +379,6 @@ int  main(
                 objects ) != OK )
       return( 1 );
   }
-  
-if( write_pgm("source.pgm", map_source, size_map[0], size_map[1]) != 0 )
-return( 1 );
-
-if( write_pgm("target.pgm", map_target, size_map[0], size_map[1]) != 0 )
-return( 1 );
-
 
   delete_object_list( n_objects, objects );
   free( map_source );
