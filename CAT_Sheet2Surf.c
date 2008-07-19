@@ -30,19 +30,12 @@ int  main(
     STRING               surface_filename, output_filename, input_filename;
     FILE		         *outputfile;
     File_formats         format;
-    polygons_struct      *polygons, unit_sphere;
-    int                  i, n_objects, nx, ny, x, y, point_index;
-    int                  degree, poly, size, ind, n_done, interpolate;
-    int                  *n_neighbours, **neighbours;
+    polygons_struct      *polygons;
+    int                  i, n_objects;
+    int                  degree, poly, size_map[2], ind, n_done, interpolate;
     double		         *image;
     object_struct        **objects;
-    BOOLEAN              use_volume;
-    Point                unit_point, on_sphere_point, centre;
-    Point                poly_points[1000], centroid;
-    double               u, v, *values;
-    Vector               normal;
-    progress_struct      progress;
-    double               tmp_x, tmp_y;
+    double               *values;
 
     /*--- get the arguments from the command line */
 
@@ -70,69 +63,28 @@ int  main(
     }
 
     /*--- get a pointer to the surface */
-
     polygons = get_polygons_ptr( objects[0] );
     
-    create_polygon_point_neighbours( polygons, TRUE, &n_neighbours,
-                                     &neighbours, FALSE, NULL );
+    values = (double *)malloc(sizeof(double)*polygons->n_points);
 
-    /*--- create a unit sphere with same number of triangles as skin surface */
-    fill_Point( centre, 0.0, 0.0, 0.0 );
-
-    create_tetrahedral_sphere( &centre, 1.0, 1.0, 1.0,
-                               polygons->n_items, &unit_sphere );
-
-    create_polygons_bintree( &unit_sphere,
-                             ROUND( (double) unit_sphere.n_items *
-                                    BINTREE_FACTOR ) );
-
-    ALLOC(values, polygons->n_points);
-
-    if ((image = read_pgm( input_filename, &nx, &ny )) == NULL )
+    if ((image = read_pgm( input_filename, &size_map[0], &size_map[1] )) == NULL )
         return( 1 );
-
-    initialize_progress_report( &progress, FALSE, polygons->n_points, "Mapping" );
+        
+    map_sheet2d_to_sphere(image, values, polygons, interpolate, size_map);
 
     if( open_file( output_filename, WRITE_FILE, ASCII_FORMAT, &outputfile ) != OK )
         return( 1 );
-
-	tmp_x = (double)nx - 1.0;
-	tmp_y = (double)ny - 1.0;
-
+    
     for ( i=0; i<polygons->n_points; i++ ) {
-
-        point_to_uv(&unit_sphere.points[i], &u, &v);
-		x = (int) round(u*tmp_x - 1.0);
-		y = (int) round(v*tmp_y - 1.0);
-		if (interpolate) {
-			double xp = u*tmp_x - 1.0 - x;
-			double yp = v*tmp_y - 1.0 - y;
-			double xm = 1.0 - xp;
-			double ym = 1.0 - yp;
-			double H00 = image[x  +    y*nx];
-			double H01 = image[x  +(y+1)*nx];
-			double H10 = image[x+1+    y*nx];
-			double H11 = image[x+1+(y+1)*nx];
-
-			values[i] = (ym * ( xm * H00 + xp * H10) + 
-		 		yp * ( xm * H01 + xp * H11));
-		} else values[i] = image[x + y*nx];
-		
 		if( output_real( outputfile, values[i] ) != OK || output_newline( outputfile ) != OK )
             break;
-
-        update_progress_report( &progress, i + 1 );
     }
-    
     (void) close_file( outputfile );
 
-    terminate_progress_report( &progress );
-
-    delete_polygons( &unit_sphere );
     delete_object_list( n_objects, objects );
 
-    FREE( image );
-    FREE( values );
+    free( image );
+    free( values );
 
     return( 0 );
 }

@@ -8,6 +8,7 @@
 #include  <bicpl.h>
 #include  <float.h>
 #include  <CAT_Blur2d.h>
+#include  <CAT_Surf.h>
 
 #define  BINTREE_FACTOR   0.5
 
@@ -209,4 +210,55 @@ void map_smoothed_curvature_to_sphere(
 		
     delete_polygons( &unit_sphere );
     free(smooth_values);
+}
+
+void map_sheet2d_to_sphere(
+    double *sheet2d,
+    double *values,
+    polygons_struct *polygons,
+    int    interpolate,
+    int    *size_map
+)
+{
+    double               tmp_x, tmp_y;
+    double               u, v;
+    Point                unit_point, on_sphere_point, centre;
+    polygons_struct      unit_sphere;
+    int                  i, x, y, point_index;
+
+    /*--- create a unit sphere with same number of triangles as skin surface */
+    fill_Point( centre, 0.0, 0.0, 0.0 );
+
+    create_tetrahedral_sphere( &centre, 1.0, 1.0, 1.0,
+                               polygons->n_items, &unit_sphere );
+
+    create_polygons_bintree( &unit_sphere,
+                             ROUND( (double) unit_sphere.n_items *
+                                    BINTREE_FACTOR ) );
+
+	tmp_x = (double)size_map[0] - 1.0;
+	tmp_y = (double)size_map[1] - 1.0;
+
+    for ( i=0; i<polygons->n_points; i++ ) {
+
+        point_to_uv(&unit_sphere.points[i], &u, &v);
+
+		x = (int) round(u*tmp_x - 1.0);
+		y = (int) round(v*tmp_y - 1.0);
+		if (interpolate) {
+			double xp = u*tmp_x - 1.0 - x;
+			double yp = v*tmp_y - 1.0 - y;
+			double xm = 1.0 - xp;
+			double ym = 1.0 - yp;
+			double H00 = sheet2d[bound(x,  y,  size_map)];
+			double H01 = sheet2d[bound(x,  y+1,size_map)];
+			double H10 = sheet2d[bound(x+1,y,  size_map)];
+			double H11 = sheet2d[bound(x+1,y+1,size_map)];
+			
+			values[i] = (ym * ( xm * H00 + xp * H10) + 
+		 		yp * ( xm * H01 + xp * H11));
+		} else values[i] = sheet2d[x + y*size_map[0]];
+		
+    }
+    delete_polygons( &unit_sphere );
 }

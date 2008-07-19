@@ -47,7 +47,7 @@ static ArgvInfo argTable[] = {
   {"-t", ARGV_STRING, (char *) 1, (char *) &target_filename, 
      "Template file."},
   {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_filename, 
-     "Jacobian determinant (-1)."},
+     "Jacobian determinant values on the surface."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_filename, 
      "Warped input."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_filename, 
@@ -131,13 +131,13 @@ int  main(
   char  *argv[] )
 {
   File_formats     format;
-  FILE             *fp, *fp_flow;
+  FILE             *fp, *fp_flow, *fp_jacdet;
   char             line[1024];
   polygons_struct  *polygons_source, *polygons_target;
   int              x, y, i, j, it, it0, it1, n_objects, it_scratch, xy_size, n_weights;
   double           value, *weights;
   double           *map_source, *map_target, *map_warp, *map_weights, *map_source0;
-  double           *flow, *flow1, *inflow, *scratch, *jd, *jd1;
+  double           *flow, *flow1, *inflow, *scratch, *jd, *jd1, *values;
   object_struct    **objects, *object;
   double           ll[3];
   static double    param[3] = {1.0, 1.0, 0.25};
@@ -336,8 +336,21 @@ return( 1 );
     jd    = (double *)malloc(sizeof(double)*xy_size);
     jd1   = (double *)malloc(sizeof(double)*xy_size);
     expdefdet(size_map, 10, inflow, flow, flow1, jd, jd1);
-    if( write_pgm(jacdet_filename, jd1, size_map[0], size_map[1]) != 0 )
-      return( 1 );
+    
+    values = (double *)malloc(sizeof(double)*polygons_source->n_points);
+
+    map_sheet2d_to_sphere(jd1, values, polygons_source, 1, size_map);
+
+    if( open_file( jacdet_filename, WRITE_FILE, ASCII_FORMAT, &fp_jacdet ) != OK )
+        return( 1 );
+    
+    for ( i=0; i<polygons_source->n_points; i++ ) {
+		if( output_real( fp_jacdet, values[i] ) != OK || output_newline( fp_jacdet ) != OK )
+            break;
+    }
+    (void) close_file( fp_jacdet );
+
+    free(values);
     free(jd);
     free(jd1);
   }

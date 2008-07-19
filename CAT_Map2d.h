@@ -31,8 +31,15 @@ public void  uv_to_point(
     Point            *point );
 
 void map_smoothed_curvature_to_sphere(
-    polygons_struct     *polygons,
-    double              *values,
-    double              *data,
-    double              fwhm,
-    int                 *size_map);
+    polygons_struct  *polygons,
+    double           *values,
+    double           *data,
+    double           fwhm,
+    int              *size_map);
+
+void map_sheet2d_to_sphere(
+    double           *sheet2d,
+    double           *values,
+    polygons_struct  *polygons,
+    int              interpolate,
+    int              *size_xy);
