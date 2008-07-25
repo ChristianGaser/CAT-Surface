@@ -6,9 +6,9 @@ if [ $# -lt 1 ]; then
 fi
 
 if [ $# -lt 2 ]; then
-	hemi_threshold=128
+	hemi_thresh=128
 else
-	hemi_threshold=$2
+	hemi_thresh=$2
 fi
 
 if [ $# -eq 4 ]; then
@@ -39,7 +39,7 @@ if [ 1 -eq 1 ]; then
 	cp $1 ${tmp}.mnc
 	mincblur -3dfwhm $fwhm $fwhm $fwhm ${tmp}.mnc ${tmp}_s${fwhm} -clobber
 else
-	expr=`expr ${hemi_threshold} + 1`
+	expr=`expr ${hemi_thresh} + 1`
 	mincmath -segment -const2 $expr 255 $1 ${tmp}.mnc -clobber
 	mincblur -3dfwhm $fwhm $fwhm $fwhm ${tmp}.mnc ${tmp}_s${fwhm} -clobber
 fi
@@ -60,7 +60,7 @@ fi
 #rm ${tmp}*
 
 exit
-expr=`expr ${hemi_threshold} - 1`
+expr=`expr ${hemi_thresh} - 1`
 mincmath -segment -const2 1 $expr $1 ${tmp}.mnc -clobber
 mincblur -3dfwhm $fwhm $fwhm $fwhm ${tmp}.mnc ${tmp}_s${fwhm} -clobber
 marching_cubes ${tmp}_s${fwhm}_blur.mnc ${tmp}.obj $th0 -1

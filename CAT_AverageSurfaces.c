@@ -1,95 +1,82 @@
-/* Christian Gaser - christian.gaser@uni-jena.de                             */
-/* Department of Psychiatry                                                  */
-/* University of Jena                                                        */
-/*                                                                           */
-/* Copyright Christian Gaser, University of Jena.                            */
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ */
 
-/* modified from average_objects.c to enable different surface formats       */
+/* modified from average_objects.c to enable different surface formats */
 
-#include  <bicpl.h>
+#include <bicpl.h>
 
-int  main(
-    int    argc,
-    char   *argv[] )
+int
+main(int argc, char *argv[])
 {
-    Status           status;
-    STRING           filename, output_filename;
-    int              i, n_objects;
-    File_formats     format;
-    int              n_sets, n_points, n_set_points;
-    object_struct    *out_object;
-    object_struct    **object_list;
-    Point            *points, *set_points;
+        Status           status;
+        char             *infile, *outfile;
+        int              i, n_objects;
+        File_formats     format;
+        int              n_sets, n_pts, n_set_pts;
+        object_struct    *out_object;
+        object_struct    **object_list;
+        Point            *pts, *set_pts;
 
-    status = OK;
+        initialize_argument_processing(argc, argv);
 
-    initialize_argument_processing( argc, argv );
-
-    if( !get_string_argument( NULL, &output_filename ) )
-    {
-        print_error(
-          "Usage: %s output\n", argv[0] );
-        print_error( "         [input1] [input2] ...\n" );
-        return( 1 );
-    }
-
-    n_sets = 0;
-
-    while( get_string_argument( NULL, &filename ) )
-    {
-        if( input_graphics_any_format( filename, &format,
-                                      &n_objects, &object_list ) != OK )
-	{
-	    print_error( "Could not read input %s\n", filename );
-	    return 2;
-	}
-
-        n_points = get_object_points( object_list[0], &points );
-
-        if( n_sets == 0 )
-        {
-            out_object = object_list[0];
-            n_set_points = n_points;
-            set_points = points;
-        }
-        else
-        {
-            if( n_points != n_set_points )
-            {
-                print( "N points mismatch\n" );
-                return( 1 );
-            }
-
-            for_less( i, 0, n_points )
-            {
-                ADD_POINTS( set_points[i], set_points[i], points[i] );
-            }
+        if (!get_string_argument(NULL, &outfile)) {
+            fprintf(stderr, "Usage: %s output\n", argv[0]);
+            fprintf(stderr, "         [input1] [input2] ...\n");
+            return(1);
         }
 
-        print( "%d:  %s\n", n_sets, filename );
+        n_sets = 0;
 
-        if( n_sets > 0 )
-            delete_object_list( n_objects, object_list );
+        while (get_string_argument(NULL, &infile)) {
+                if (input_graphics_any_format(infile, &format, &n_objects,
+                                              &object_list) != OK) {
+	                fprintf(stderr, "Could not read input %s\n", infile);
+	                return(2);
+	        }
 
-        ++n_sets;
-    }
+                n_pts = get_object_points(object_list[0], &pts);
 
-    if ( n_sets == 0 ) {
-	print_error( "No input?!  No output for you!!\n" );
-	return 1;
-    }
+                if (n_sets == 0) {
+                        out_object = object_list[0];
+                        n_set_pts = n_pts;
+                        set_pts = pts;
+                } else {
+                        if (n_pts != n_set_pts) {
+                                printf("N points mismatch\n");
+                                return(1);
+                        }
 
-    for_less( i, 0, n_points )
-    {
-	SCALE_POINT( set_points[i], set_points[i], (1.0/n_sets) );
-    }
+                        for (i = 0; i < n_pts; i++) {
+                                ADD_POINTS(set_pts[i], set_pts[i], pts[i]);
+                        }
+                }
 
-    if( get_object_type( out_object ) == POLYGONS )
-        compute_polygon_normals( get_polygons_ptr(out_object) );
+                printf("%d:  %s\n", n_sets, infile);
 
-    if( status == OK )
-        status = output_graphics_any_format( output_filename, ASCII_FORMAT,
-                                       1, &out_object );
+                if (n_sets > 0)
+                    delete_object_list(n_objects, object_list);
 
-    return( status != OK );
+                ++n_sets;
+        }
+
+        if (n_sets == 0) {
+	        fprintf(stderr, "No input?!  No output for you!!\n");
+	        return(1);
+        }
+
+        for (i = 0; i < n_pts; i++) {
+	        SCALE_POINT(set_pts[i], set_pts[i], (1.0/n_sets));
+        }
+
+        if (get_object_type(out_object) == POLYGONS)
+                compute_polygon_normals(get_polygons_ptr(out_object));
+
+        status = output_graphics_any_format(outfile, ASCII_FORMAT,
+                                            1, &out_object);
+
+        return(status != OK);
 }

@@ -123,7 +123,7 @@ protected:
      * to the sphere.  np = number of points, f = scaling factor,
      * zRf = translation of real value, zIf = translation of imaginary value.
      */
-    void calc_projection(Point *points, int np, float f,
+    void calc_projection(Point *points, int np, double f,
                          std::vector<double> zR, double zRf,
                          std::vector<double> zI, double zIf) {
         for (int it = 0; it < np; ++it) {
@@ -139,7 +139,7 @@ protected:
 
 
     /* calc_polygon_areas(): calculate the polygon areas, store in areas */
-    void calc_polygon_areas(Point *points, float *areas) {
+    void calc_polygon_areas(Point *points, double *areas) {
         Point tpoints[3];
 
         for (int poly = 0; poly < polygons->n_items; poly++) {
@@ -156,8 +156,8 @@ protected:
     /* calc_area_distortion(): calculate the area distortion.  calculates
      * log difference of distortion between area1 and area2.
      */
-    float calc_area_distortion(float *area1, float *area2) {
-        float area_distortion = 0.0;
+    double calc_area_distortion(double *area1, double *area2) {
+        double area_distortion = 0.0;
         for (int i = 0; i < polygons->n_items; i++) {
             if (area2[i] > 0 && area1[i] > 0) { // get sure that areas are > 0
                 area_distortion += fabs(log10(area1[i]/area2[i]));
@@ -173,7 +173,7 @@ protected:
      */
     void solver_to_mesh() {
         Point points[polygons->n_points];
-        float areas[polygons->n_items];
+        double areas[polygons->n_items];
         double factor = 0.0;
         double zRf = 0.0; double zIf = 0.0;
         std::vector<double> zR(polygons->n_points), zI(polygons->n_points);
@@ -203,7 +203,7 @@ protected:
             factor = mapScale/( (xmax>ymax) ? xmax : ymax);
         } else { // optimize the solution
             // first get all of the areas of the original triangles
-            float mareas[polygons->n_items];
+            double mareas[polygons->n_items];
             for (int i = 0; i < polygons->n_items; i++) {
                 Point tpoints[3];
                 int size = get_polygon_points(polygons, i, tpoints);
@@ -216,7 +216,7 @@ protected:
             for (int f = 400; f <= 10000; ) { // get in the ballpark first
                 calc_projection(points, polygons->n_points, f, zR, 0.0, zI, 0.0);
                 calc_polygon_areas(points, areas);
-                float new_ad = calc_area_distortion(areas, mareas);
+                double new_ad = calc_area_distortion(areas, mareas);
                 if (new_ad < area_distortion) {
                     factor = f;
                     area_distortion = new_ad;
@@ -228,10 +228,10 @@ protected:
             for (int i = 0; i < 5; i++) { // optimize factor 5x more
                 calc_projection(points, polygons->n_points, factor - fstep, zR, 0.0, zI, 0.0);
                 calc_polygon_areas(points, areas);
-                float ad_lo = calc_area_distortion(areas, mareas);
+                double ad_lo = calc_area_distortion(areas, mareas);
                 calc_projection(points, polygons->n_points, factor + fstep, zR, 0.0, zI, 0.0);
                 calc_polygon_areas(points, areas);
-                float ad_hi = calc_area_distortion(areas, mareas);
+                double ad_hi = calc_area_distortion(areas, mareas);
                 if (ad_lo < area_distortion && ad_lo <= ad_hi && fstep < factor) {
                     factor -= fstep;
                     area_distortion = ad_lo;
@@ -249,10 +249,10 @@ protected:
             for (int i = 0; i < 50; i++) { // optimize 5x
                 calc_projection(points, polygons->n_points, factor, zR, zRf - fstep, zI, zIf);
                 calc_polygon_areas(points, areas);
-                float ad_lo = calc_area_distortion(areas, mareas);
+                double ad_lo = calc_area_distortion(areas, mareas);
                 calc_projection(points, polygons->n_points, factor, zR, zRf + fstep, zI, zIf);
                 calc_polygon_areas(points, areas);
-                float ad_hi = calc_area_distortion(areas, mareas);
+                double ad_hi = calc_area_distortion(areas, mareas);
                 if (ad_lo < area_distortion && ad_lo <= ad_hi) {
                     zRf -= fstep;
                     area_distortion = ad_lo;
@@ -283,16 +283,16 @@ protected:
         calc_projection(points, polygons->n_points, factor, zR, zRf, zI, zIf);
 
         // map it to a sphere
-        float original_area = get_polygons_surface_area(polygons);
-        float sphereRadius = sqrt(original_area / (4.0 * PI));
-        float xyz[3] = { 0.0, 0.0, 0.0 };        
+        double original_area = get_polygons_surface_area(polygons);
+        double sphereRadius = sqrt(original_area / (4.0 * PI));
+        double xyz[3] = { 0.0, 0.0, 0.0 };        
 
         for (int i = 0; i < polygons->n_points; i++) {
             xyz[0] = Point_x(points[i]);
             xyz[1] = Point_y(points[i]);
             xyz[2] = Point_z(points[i]);
 
-            float dist = sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2]);
+            double dist = sqrt(xyz[0]*xyz[0] + xyz[1]*xyz[1] + xyz[2]*xyz[2]);
             if (dist != 0.0) {
                 xyz[0] /= dist;
                 xyz[1] /= dist;
@@ -316,7 +316,7 @@ protected:
     int findPointP() {
 
         Point p, point;
-        float c[3] = {0.0, 0.0, 0.0};
+        double c[3] = {0.0, 0.0, 0.0};
 
         for (int i = 0; i < polygons->n_points; i++) {
             for (int j= 0; j< 3; j++) {
@@ -459,7 +459,7 @@ protected:
         std::cerr << "  Checking the existence of boundary...";
         for (int itPointCell = 0; itPointCell < numOfPoints; itPointCell++) {
             if (pointCell[itPointCell].size() < 3) {
-                    // If one node has two or less neighbors, it's on the boundary.
+                    // If one node has <= 2 neighbors, it's on the boundary.
                     // This is the sufficient condition, i.e., it may still be a
                     // boundary point even having more than 3 neighbors.
                     // So, what's the equivalent expression of being a boundary point?
@@ -471,9 +471,11 @@ protected:
         
         // compute b = bR + i*bI separately
         std::vector<double> bR(numOfPoints), bI(numOfPoints);
-        std::vector<double> A( pointXYZ[ cellPoint[ pointP ][ 0 ] ] ),
-        B( pointXYZ[ cellPoint[ pointP ][ 1 ] ] ),
-        C( pointXYZ[ cellPoint[ pointP ][ 2 ] ] );
+        int facet = pointCell[pointP][0];
+        //     for (std::vector<int>::const_iterator vi = pointCell[it].begin();
+        std::vector<double> A( pointXYZ[ cellPoint[ facet ][ 0 ] ] ),
+        B( pointXYZ[ cellPoint[ facet][ 1 ] ] ),
+        C( pointXYZ[ cellPoint[ facet ][ 2 ] ] );
         double ABnorm, CA_BAip; // the inner product of vector C-A and B-A;
         ABnorm = (A[0] - B[0]) * (A[0] - B[0])
         + (A[1] - B[1]) * (A[1] - B[1])
@@ -499,15 +501,15 @@ protected:
         + (C[2] - E[2]) * (C[2] - E[2]);
         CEnorm = sqrt(CEnorm); // This is real norm of vector CE.
         
-        bR[cellPoint[ pointP ][0]] = -1 / ABnorm;
-        bR[cellPoint[ pointP ][1]] = 1 / ABnorm;
+        bR[cellPoint[ facet ][0]] = -1 / ABnorm;
+        bR[cellPoint[ facet ][1]] = 1 / ABnorm;
         
-        bI[cellPoint[ pointP ][0]] = (1-theta)/ CEnorm;
-        bI[cellPoint[ pointP ][1]] = theta/ CEnorm;
-        bI[cellPoint[ pointP ][2]] = -1 / CEnorm;
+        bI[cellPoint[ facet ][0]] = (1-theta)/ CEnorm;
+        bI[cellPoint[ facet ][1]] = theta/ CEnorm;
+        bI[cellPoint[ facet ][2]] = -1 / CEnorm;
         
         // 1. Iterate point P from 0 to the last point in the mesh.
-        // 2. For each P, find its neighbors, each neighbor must have at least two triangles containing P and itself ---not the boundary.
+        // 2. For each P, find its neighbors
         // 3. For each of P's neighbors, Q, calculate R, S
         // 4. Write the value in matrix.
         
@@ -624,7 +626,7 @@ protected:
                 double cosR = RPRQinnerProd / (RPnorm * RQnorm);
                 double ctgS = cosS/sqrt(1-cosS*cosS), ctgR = cosR/sqrt(1-cosR*cosR);
                 
-                Dr[*itQ]= -0.5*(ctgS + ctgR);
+                Dr[*itQ] = -0.5*(ctgS + ctgR);
                 Dr[idP] += 0.5*(ctgS + ctgR);
                 // add to the diagonal element of this line.
                 
@@ -673,8 +675,7 @@ protected:
 };
 
 int main(int argc, char** argv) {
-    STRING ifname, ofname;
-    FILE *file;
+    STRING input_file, output_file;
     object_struct **objects;
     polygons_struct *polygons;
     int n_objects;
@@ -694,10 +695,10 @@ int main(int argc, char** argv) {
     }
 
     initialize_argument_processing(argc, argv);
-    get_string_argument(NULL, &ifname);
-    get_string_argument(NULL, &ofname);
+    get_string_argument(NULL, &input_file);
+    get_string_argument(NULL, &output_file);
 
-    if (input_graphics_any_format(ifname, &format, &n_objects, &objects) != OK) {
+    if (input_graphics_any_format(input_file, &format, &n_objects, &objects) != OK) {
         print("Error reading input file\n");
         return(1);
     }
@@ -724,7 +725,7 @@ int main(int argc, char** argv) {
     lscm.apply();
 
     compute_polygon_normals(polygons);
-    output_graphics_any_format(ofname, format, 1, objects);
+    output_graphics_any_format(output_file, format, 1, objects);
 }
 
 

@@ -1,8 +1,9 @@
-/* Christian Gaser - christian.gaser@uni-jena.de                             */
-/* Department of Psychiatry                                                  */
-/* University of Jena                                                        */
-/*                                                                           */
-/* Copyright Christian Gaser, University of Jena.                            */
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ */
 
 typedef struct {
 	long x;
@@ -10,36 +11,13 @@ typedef struct {
 } Header;
 
 typedef struct {
-	float x;
-	float y;
+	double x;
+	double y;
 } Vector2D;
 
-
-public  void  point_to_uv(
-    Point            *point,
-    double           *u,
-    double           *v );
-
-public  double point_to_uv_radius(
-    Point            *point,
-    double           *u,
-    double           *v );
-
-public void  uv_to_point(
-    double           u,
-    double           v,
-    Point            *point );
-
-void map_smoothed_curvature_to_sphere(
-    polygons_struct  *polygons,
-    double           *values,
-    double           *data,
-    double           fwhm,
-    int              *size_map);
-
-void map_sheet2d_to_sphere(
-    double           *sheet2d,
-    double           *values,
-    polygons_struct  *polygons,
-    int              interpolate,
-    int              *size_xy);
+void   point_to_uv(Point *, double *, double *);
+double point_to_uv_radius(Point *, double *, double *);
+void   uv_to_point(double, double, Point *);
+void   map_smoothed_curvature_to_sphere(polygons_struct *, double *, double *,
+                                        double, int *);
+void map_sheet2d_to_sphere(double *, double *, polygons_struct *, int, int *);

@@ -35,7 +35,6 @@ bin_PROGRAMS = \
 	CAT_GLM_Math \
 	CAT_FindFlats \
 	CAT_Isometize \
-	CAT_Test \
 	CAT_LBConformalMap \
 	CAT_WarpSurf \
 	CAT_ResampleSphericalSurfSPH \
@@ -92,7 +91,6 @@ CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT
 CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c
 CAT_FindFlats_SOURCES = CAT_FindFlats.c CAT_Curvature.c CAT_Blur2d.c
 CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
-CAT_Test_SOURCES = CAT_Test.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c diffeosphere.c optimizersphere.c
 CAT_Surf2SPH_SOURCES = CAT_Surf2SPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Blur2d.c $(s2kit10_SRC)
 CAT_SPH2Surf_SOURCES = CAT_SPH2Surf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Blur2d.c $(s2kit10_SRC)

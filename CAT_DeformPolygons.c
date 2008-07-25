@@ -1,486 +1,439 @@
-/* Christian Gaser - christian.gaser@uni-jena.de                             */
-/* Department of Psychiatry                                                  */
-/* University of Jena                                                        */
-/*                                                                           */
-/* Copyright Christian Gaser, University of Jena.                            */
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ */
 
-#include  <volume_io/internal_volume_io.h>
-#include  <CAT_Deform.h>
+#include <volume_io/internal_volume_io.h>
 
-private  void  perturb_points(
-    polygons_struct              *polygons,
-    Point                        new_points[],
-    Real                         fractional_step,
-    Real                         max_step,
-    Real                         max_search_distance,
-    int                          degrees_continuity,
-    deform_data_struct           *deform_data,
-    boundary_definition_struct   *boundary_def,
-    deformation_model_struct     *deformation_model,
-    Real                         movement_threshold,
-    float                        prev_movements[],
-    deform_stats                 *stats );
-private  Real  one_iteration_polygons(
-    polygons_struct   *polygons,
-    deform_struct     *deform_parms,
-    int               iteration );
-private  void    check_polygons_shape_integrity(
-    polygons_struct *polygons,
-    Point           new_points[] );
-
-public  void  deform_polygons(
-    polygons_struct   *polygons,
-    deform_struct     *deform_parms )
-{
-    int                iteration, countdown, countdown2;
-    Real               avg_error, prev_avg_error, rate;
-
-    iteration = 0;
-    prev_avg_error = 1e10;
-    countdown = 0;
-    countdown2 = 0;
-    
-    print("\n");
-    do
-    {
-        ++iteration;
-
-        avg_error = one_iteration_polygons( polygons, deform_parms, iteration );
-        rate = (prev_avg_error - avg_error)/(prev_avg_error + avg_error);
-		if (rate < deform_parms->stop_threshold)
-			{countdown = countdown + 1;}
-		else {countdown = 0;}
-        if (prev_avg_error < avg_error)
-			{countdown2 = countdown2 + 1;}
-		else {countdown2 = 0;}
-        prev_avg_error = avg_error;
-    }
-    while( (countdown < 4 || countdown2 < 4) &&
-           countdown < 10 &&
-           iteration < deform_parms->max_iterations );
-}
-
-void  deform_polygons_one_iteration(
-    polygons_struct   *polygons,
-    deform_struct     *deform_parms,
-    int               iteration )
-{
-    (void) one_iteration_polygons( polygons, deform_parms, iteration );
-}
-
-private  Real  one_iteration_polygons(
-    polygons_struct   *polygons,
-    deform_struct     *deform_parms,
-    int               iteration )
-{
-    int                i;
-    Point              *new_points, *tmp;
-    deform_stats       stats;
-    
-
-    if( polygons->n_points <= 0 )
-        return( 0.0 );
-
-    if( !check_correct_deformation_polygons( polygons,
-                                        &deform_parms->deformation_model ) )
-        return( 0.0 );
-
-    if( deform_parms->n_movements_alloced != polygons->n_points )
-    {
-        if( deform_parms->n_movements_alloced > 0 )
-            FREE( deform_parms->prev_movements );
-
-        deform_parms->n_movements_alloced = polygons->n_points;
-
-        ALLOC( deform_parms->prev_movements, polygons->n_points );
-
-        for_less( i, 0, polygons->n_points )
-            deform_parms->prev_movements[i] =
-                      (float) deform_parms->movement_threshold + 1.0f;
-    }
-
-    ALLOC( new_points, polygons->n_points );
-
-    check_polygons_neighbours_computed( polygons );
-
-    initialize_deform_stats( &stats );
-
-    /* --- every 50 iterations do all points */
-
-    if( iteration % 50 == 0 )
-    {
-        for_less( i, 0, polygons->n_points )
-        {
-            deform_parms->prev_movements[i] =
-                         (float) deform_parms->movement_threshold + 1.0f;
-        }
-    }
-
-    perturb_points( polygons, new_points,
-                    deform_parms->fractional_step,
-                    deform_parms->max_step,
-                    deform_parms->max_search_distance,
-                    deform_parms->degrees_continuity,
-                    &deform_parms->deform_data,
-                    &deform_parms->boundary_definition,
-                    &deform_parms->deformation_model,
-                    deform_parms->movement_threshold,
-                    deform_parms->prev_movements,
-                    &stats );
-
-    print( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-    print( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-    print("Iteration %d:\t",iteration );
-    print("avg: %3.4f\tmax: %3.4f\n",stats.average/polygons->n_points,stats.maximum);
-//    print_deform_stats( &stats, polygons->n_points );
-    if( iteration % 20 == 0 )
-        (void) flush_file( stdout );
-
-    check_polygons_shape_integrity( polygons, new_points );
-
-    tmp = polygons->points;
-    polygons->points = new_points;
-    new_points = tmp;
-
-    FREE( new_points );
-
-    if( deform_parms->movement_threshold < 0.0 )
-    {
-        deform_parms->movement_threshold = stats.average / 10.0;
-        if( deform_parms->movement_threshold > 0.1 )
-            deform_parms->movement_threshold = 0.1;
-    }
-
-    return( stats.average );
-}
+#include "CAT_Deform.h"
 
 #define  MAX_NEIGHBOURS  2000
 
-private  void  get_polygon_equilibrium_point(
-    polygons_struct              *polygons,
-    int                          poly,
-    int                          vertex_index,
-    Real                         curvature_factors[],
-    Real                         max_search_distance,
-    int                          degrees_continuity,
-    deform_data_struct           *deform_data,
-    boundary_definition_struct   *boundary_def,
-    deformation_model_struct     *deformation_model,
-    Point                        *equilibrium_point )
+void perturb_points(polygons_struct *, Point [], Real, Real, Real,
+                            int, deform_data_struct *, bound_def_struct *,
+                            deform_model_struct *, Real, double [],
+                            deform_stats *);
+Real one_iter_polygons(polygons_struct *, deform_struct *, int);
+void check_polygons_shape_integrity(polygons_struct *, Point []);
+    
+void
+deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
 {
-    int              point_index;
-    int              n_neighbours, neighbours[MAX_NEIGHBOURS];
-    BOOLEAN          interior_flag, found;
-    Real             curvature_factor, model_distance, boundary_distance;
-    Real             base_length;
-    Point            centroid, model_point, search_origin;
-    Vector           normal, pos_model_dir, neg_model_dir;
+        int                iter, countdown, countdown2;
+        Real               avg_err, prev_avg_err, rate;
 
-    point_index = polygons->indices[
-                          POINT_INDEX(polygons->end_indices,poly,vertex_index)];
+        iter = 0;
+        prev_avg_err = 1e10;
+        countdown = 0;
+        countdown2 = 0;
+    
+        printf("\n");
+        do {
+                iter++;
 
-    n_neighbours = get_subsampled_neighbours_of_point( deformation_model,
-                                 polygons, poly,
-                                 vertex_index, neighbours, MAX_NEIGHBOURS,
-                                 &interior_flag );
+                avg_err = one_iter_polygons(polygons, deform_parms, iter);
+                rate = (prev_avg_err - avg_err) / (prev_avg_err + avg_err);
 
-    compute_points_centroid_and_normal( polygons, point_index,
-                              n_neighbours, neighbours, &centroid,
-                              &normal, &base_length, &curvature_factor );
+                if (rate < deform_parms->stop_thresh) {
+                        countdown = countdown + 1;
+                } else countdown = 0;
 
-    get_model_point( deformation_model, polygons->points,
-                     point_index, n_neighbours, neighbours, curvature_factors,
-                     &centroid, &normal, base_length, &model_point );
+                if (prev_avg_err < avg_err) {
+                        countdown2 = countdown2 + 1;
+                } else countdown2 = 0;
 
-    compute_model_dirs( &centroid, &normal, base_length, &model_point,
-                        &model_distance, &search_origin,
-                        &pos_model_dir, &neg_model_dir );
-
-    found = find_boundary_in_direction( deform_data->volume,
-                                        deform_data->label_volume,
-                                        NULL, NULL, NULL,
-                                        model_distance, &search_origin,
-                                        &pos_model_dir, &neg_model_dir,
-                                        max_search_distance,
-                                        max_search_distance,
-                                        degrees_continuity,
-                                        boundary_def,
-                                        &boundary_distance );
-
-    compute_equilibrium_point( point_index, found, boundary_distance,
-                               base_length, model_distance,
-                               &pos_model_dir, &neg_model_dir,
-                               &centroid, deformation_model, equilibrium_point);
+                prev_avg_err = avg_err;
+        } while ((countdown < 4 || countdown2 < 4) && countdown < 10 &&
+                 iter < deform_parms->max_iters);
 }
 
-private  BOOLEAN  counter_clockwise_neighbours(
-    Point        *centroid,
-    Vector       *normal,
-    Point        points[],
-    int          n_neighbours,
-    int          neighbours[],
-    Smallest_int point_error[] )
+void
+deform_polygons_one_iter(polygons_struct *polygons,
+                         deform_struct *deform_parms, int iter)
 {
-    Vector    to_neighbour, prev_to_neighbour, up, offset;
-    Real      len;
-    int       i;
-    BOOLEAN   counter_clockwise;
+        one_iter_polygons(polygons, deform_parms, iter);
+}
 
-    counter_clockwise = TRUE;
+Real
+one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
+                  int iter)
+{
+        int                i;
+        Point              *new_pts, *tmp;
+        deform_stats       stats;
+    
 
-    fill_Vector( to_neighbour, 0.0, 0.0, 0.0 );
-    for_less( i, 0, n_neighbours + 1 )
-    {
-        prev_to_neighbour = to_neighbour;
-        SUB_VECTORS( to_neighbour, points[neighbours[i%n_neighbours]],
-                     *centroid );
-        len = DOT_VECTORS( to_neighbour, *normal );
-        SCALE_VECTOR( offset, *normal, len );
-        SUB_VECTORS( to_neighbour, to_neighbour, offset );
+        if (polygons->n_points <= 0)
+                return(0.0);
 
-        if( i != 0 )
-        {
-            CROSS_VECTORS( up, prev_to_neighbour, to_neighbour );
-            if( DOT_VECTORS( up, *normal ) < 0.0 )
-            {
-                ++point_error[neighbours[i%n_neighbours]];
-                ++point_error[neighbours[(i-1+n_neighbours)%n_neighbours]];
-                counter_clockwise = FALSE;
-            }
+        if (!check_correct_deformation_polygons(polygons,
+                                              &deform_parms->deform_model))
+                return(0.0);
+
+        if (deform_parms->n_movements_alloced != polygons->n_points) {
+                if (deform_parms->n_movements_alloced > 0)
+                        FREE(deform_parms->prev_movements);
+
+                deform_parms->n_movements_alloced = polygons->n_points;
+
+                ALLOC(deform_parms->prev_movements, polygons->n_points);
+
+                for (i = 0; i < polygons->n_points; i++)
+                        deform_parms->prev_movements[i] =
+                                (double) deform_parms->movement_thresh + 1.0f;
         }
-    }
 
-    return( counter_clockwise );
+        ALLOC(new_pts, polygons->n_points);
+
+        check_polygons_neighbours_computed(polygons);
+
+        initialize_deform_stats(&stats);
+
+        /* every 50 iterations do all points */
+        if (iter % 50 == 0) {
+                for (i = 0; i < polygons->n_points; i++) {
+                        deform_parms->prev_movements[i] =
+                                (double) deform_parms->movement_thresh + 1.0f;
+                }
+        }
+
+        perturb_points(polygons, new_pts,
+                       deform_parms->fractional_step,
+                       deform_parms->max_step,
+                       deform_parms->max_search_dist,
+                       deform_parms->degrees_continuity,
+                       &deform_parms->deform_data,
+                       &deform_parms->bound_def,
+                       &deform_parms->deform_model,
+                       deform_parms->movement_thresh,
+                       deform_parms->prev_movements,
+                       &stats);
+
+        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+        printf("Iteration %d:\t",iter);
+        printf("avg: %3.4f\tmax: %3.4f\n",
+               stats.average/polygons->n_points, stats.maximum);
+        /* print_deform_stats(&stats, polygons->n_points); */
+        if (iter % 20 == 0)
+                flush_file(stdout);
+
+        check_polygons_shape_integrity(polygons, new_pts);
+
+        tmp = polygons->points;
+        polygons->points = new_pts;
+        new_pts = tmp;
+
+        FREE(new_pts);
+
+        if (deform_parms->movement_thresh < 0.0) {
+                deform_parms->movement_thresh = stats.average / 10.0;
+                if (deform_parms->movement_thresh > 0.1)
+                        deform_parms->movement_thresh = 0.1;
+        }
+
+        return(stats.average);
 }
 
-private  void  check_polygons_shape_integrity(
-    polygons_struct              *polygons,
-    Point                        new_points[] )
+void
+get_polygon_equilibrium_point(polygons_struct *polygons, int poly,
+                              int vertidx, Real curv_factors[],
+                              Real max_search_dist, int degrees_continuity,
+                              deform_data_struct *deform_data,
+                              bound_def_struct *bound_def,
+                              deform_model_struct *deform_model,
+                              Point *equil_pt)
 {
-    Smallest_int     *point_done;
-    int              vertex_index, point_index, poly, size;
-    Point            *centroids;
-    Vector           normal;
-    progress_struct  progress;
-    Real             base_length, curvature_factor;
-    int              n_neighbours, neighbours[MAX_NEIGHBOURS];
-    BOOLEAN          interior_flag;
-    Smallest_int     *point_error;
+        int              ptidx;
+        int              n_nb, neighbours[MAX_NEIGHBOURS];
+        BOOLEAN          interior_flag, found;
+        Real             curv_factor, model_dist, bound_dist;
+        Real             base_length;
+        Point            centroid, model_point, search_origin;
+        Vector           normal, pos_model_dir, neg_model_dir;
+
+        ptidx = polygons->indices[
+                          POINT_INDEX(polygons->end_indices, poly, vertidx)];
+
+        n_nb = get_subsampled_neighbours_of_point(deform_model, polygons, poly,
+                                                  vertidx, neighbours,
+                                                  MAX_NEIGHBOURS,
+                                                  &interior_flag);
+
+        compute_points_centroid_and_normal(polygons, ptidx, n_nb, neighbours,
+                                           &centroid, &normal,
+                                           &base_length, &curv_factor);
+
+        get_model_point(deform_model, polygons->points, ptidx, n_nb,
+                        neighbours, curv_factors,
+                        &centroid, &normal, base_length, &model_point);
+
+        compute_model_dirs(&centroid, &normal, base_length, &model_point,
+                           &model_dist, &search_origin,
+                           &pos_model_dir, &neg_model_dir);
+
+        found = find_boundary_in_direction(deform_data->volume,
+                                           deform_data->label_volume,
+                                           NULL, NULL, NULL,
+                                           model_dist, &search_origin,
+                                           &pos_model_dir, &neg_model_dir,
+                                           max_search_dist, max_search_dist,
+                                           degrees_continuity,
+                                           bound_def, &bound_dist);
+
+        compute_equilibrium_point(ptidx, found, bound_dist, base_length,
+                                  model_dist, &pos_model_dir, &neg_model_dir,
+                                  &centroid, deform_model, equil_pt);
+}
+
+BOOLEAN
+ccw_neighbours(Point *centroid, Vector *normal, Point points[],
+               int n_nb, int neighbours[], signed char point_error[])
+{
+        Vector    to_nb, prev_to_nb, up, offset;
+        Real      len;
+        int       i;
+        BOOLEAN   ccw;
+
+        ccw = TRUE;
+        fill_Vector(to_nb, 0.0, 0.0, 0.0);
+
+        for (i = 0; i < n_nb + 1; i++) {
+                prev_to_nb = to_nb;
+                SUB_VECTORS(to_nb, points[neighbours[i % n_nb]], *centroid);
+                len = DOT_VECTORS(to_nb, *normal);
+                SCALE_VECTOR(offset, *normal, len);
+                SUB_VECTORS(to_nb, to_nb, offset);
+
+                if (i != 0) {
+                        CROSS_VECTORS(up, prev_to_nb, to_nb);
+                        if (DOT_VECTORS(up, *normal) < 0.0) {
+                                ++point_error[neighbours[i % n_nb]];
+                                ++point_error[neighbours[(i-1 + n_nb) % n_nb]];
+                                ccw = FALSE;
+                        }
+                }
+        }
+
+        return(ccw);
+}
+
+void
+check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
+{
+        signed char      *point_done;
+        int              vertidx, ptidx, poly, size;
+        Point            *centroids;
+        Vector           normal;
+        progress_struct  progress;
+        Real             base_length, curv_factor;
+        int              n_nb, neighbours[MAX_NEIGHBOURS];
+        BOOLEAN          interior_flag;
+        signed char      *point_error;
 #ifdef  DEBUG
-    int              n_errors, n_bad_points;
+        int              n_errors, n_bad_points;
 #endif
 
-    ALLOC( point_done, polygons->n_points );
-    ALLOC( point_error, polygons->n_points );
-    ALLOC( centroids, polygons->n_points );
+        ALLOC(point_done, polygons->n_points);
+        ALLOC(point_error, polygons->n_points);
+        ALLOC(centroids, polygons->n_points);
 
-    for_less( point_index, 0, polygons->n_points )
-    {
-        point_done[point_index] = FALSE;
-        point_error[point_index] = 0;
-    }
+        for (ptidx = 0; ptidx <  polygons->n_points; ptidx++) {
+                point_done[ptidx] = FALSE;
+                point_error[ptidx] = 0;
+        }
 
-    initialize_progress_report( &progress, TRUE, polygons->n_items,
-                                "Checking Integrity" );
+        initialize_progress_report(&progress, TRUE, polygons->n_items,
+                                   "Checking Integrity");
 
-    for_less( poly, 0, polygons->n_items )
-    {
-        size = GET_OBJECT_SIZE( *polygons, poly );
+        for (poly = 0; poly < polygons->n_items; poly++) {
+                size = GET_OBJECT_SIZE(*polygons, poly);
 
-        for_less( vertex_index, 0, size )
-        {
-            point_index = polygons->indices[
-                      POINT_INDEX(polygons->end_indices,poly,vertex_index)];
+                for (vertidx = 0; vertidx <  size; vertidx++) {
+                        ptidx = polygons->indices[
+                          POINT_INDEX(polygons->end_indices, poly, vertidx)];
 
-            if( !point_done[point_index] )
-            {
-                point_done[point_index] = TRUE;
+                        if (!point_done[ptidx]) {
+                                point_done[ptidx] = TRUE;
 
-                compute_polygon_point_centroid( polygons, poly,
-                                vertex_index, point_index,
-                                &centroids[point_index], &normal, &base_length,
-                                &curvature_factor );
-                n_neighbours = get_neighbours_of_point( polygons,
-                                 poly, vertex_index, neighbours, MAX_NEIGHBOURS,
-                                 &interior_flag );
+                                compute_polygon_point_centroid(polygons, poly,
+                                                              vertidx, ptidx,
+                                                              &centroids[ptidx],
+                                                              &normal,
+                                                              &base_length,
+                                                              &curv_factor);
+                                n_nb = get_neighbours_of_point(polygons, poly,
+                                                               vertidx,
+                                                               neighbours,
+                                                               MAX_NEIGHBOURS,
+                                                               &interior_flag);
 
 #ifdef CHECK_CLOCKWISE_NEIGHBOURS
-                if( !counter_clockwise_neighbours( &centroids[point_index],
-                            &normal,
-                            new_points, n_neighbours, neighbours, point_error ))
-                {
-                    point_error[point_index] = TRUE;
-                    ++n_errors;
-                }
+                                if (!ccw_neighbours(&centroids[ptidx], &normal,
+                                                    new_points, n_nb,
+                                                    neighbours, point_error)) {
+                                        point_error[ptidx] = TRUE;
+                                        ++n_errors;
+                                }
 #else
-                (void) counter_clockwise_neighbours( &centroids[point_index],
-                            &normal, new_points, n_neighbours,
-                            neighbours, point_error );
+                                ccw_neighbours(&centroids[ptidx], &normal,
+                                               new_points, n_nb,
+                                               neighbours, point_error);
 #endif
-            }
+                        }
+                }
+
+                update_progress_report(&progress, poly+1);
         }
 
-        update_progress_report( &progress, poly+1 );
-    }
-
-    terminate_progress_report( &progress );
+        terminate_progress_report(&progress);
 
 #ifdef DEBUG
-    n_errors = 0;
-    n_bad_points = 0;
+        n_errors = 0;
+        n_bad_points = 0;
 #endif
-    for_less( point_index, 0, polygons->n_points )
-    {
-        if( point_error[point_index] > 0 )
-        {
+        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
+                if (point_error[ptidx] > 0) {
 #ifdef DEBUG
-            ++n_errors;
-            n_bad_points += point_error[point_index];
-            if( n_errors < 10 )
-                print( " %d", point_index );
+                        ++n_errors;
+                        n_bad_points += point_error[ptidx];
+                        if (n_errors < 10)
+                                printf(" %d", ptidx);
 #endif
-            new_points[point_index] = centroids[point_index];
+                        new_points[ptidx] = centroids[ptidx];
+                }
         }
-    }
 
 #ifdef DEBUG
-    if( n_errors > 0 )
-        print( ": Shape errors %d/%d\n", n_errors, n_bad_points );
+        if (n_errors > 0)
+                printf(": Shape errors %d/%d\n", n_errors, n_bad_points);
 #endif
 
-    FREE( point_error );
-    FREE( centroids );
-    FREE( point_done );
+        FREE(point_error);
+        FREE(centroids);
+        FREE(point_done);
 }
 
-private  void  perturb_points(
-    polygons_struct              *polygons,
-    Point                        new_points[],
-    Real                         fractional_step,
-    Real                         max_step,
-    Real                         max_search_distance,
-    int                          degrees_continuity,
-    deform_data_struct           *deform_data,
-    boundary_definition_struct   *boundary_def,
-    deformation_model_struct     *deformation_model,
-    Real                         movement_threshold,
-    float                        prev_movements[],
-    deform_stats                 *stats )
+void
+perturb_points(polygons_struct *polygons, Point new_points[],
+               Real fractional_step, Real max_step, Real max_search_dist,
+               int degrees_continuity, deform_data_struct *deform_data,
+               bound_def_struct *bound_def, deform_model_struct *deform_model,
+               Real movement_thresh, double prev_movements[],
+               deform_stats *stats)
 {
-    Real             *curvature_factors;
-    Smallest_int     *point_done;
-    int              vertex_index, point_index, poly, size, n1, n2;
-    Point            centroid;
-    Vector           normal;
-    progress_struct  progress;
-    Point            equilibrium_point;
-    Real             dist_to_equil, base_length;
-    float            *movements;
+        Real             *curv_factors;
+        signed char      *point_done;
+        int              vertidx, ptidx, poly, size, n1, n2;
+        Point            centroid;
+        Vector           normal;
+        progress_struct  progress;
+        Point            equil_pt;
+        Real             dist_to_equil, base_length;
+        double           *movements;
 
-    ALLOC( curvature_factors, polygons->n_points );
-    ALLOC( point_done, polygons->n_points );
+        ALLOC(curv_factors, polygons->n_points);
+        ALLOC(point_done, polygons->n_points);
 
-    if( deformation_model_includes_average( deformation_model ) )
-    {
-        for_less( point_index, 0, polygons->n_points )
-            point_done[point_index] = FALSE;
+        if (deformation_model_includes_average(deform_model)) {
+                for (ptidx = 0; ptidx < polygons->n_points; ptidx++)
+                        point_done[ptidx] = FALSE;
 
-        initialize_progress_report( &progress, TRUE, polygons->n_items,
-                                    "Computing Curvatures" );
+                initialize_progress_report(&progress, TRUE, polygons->n_items,
+                                           "Computing Curvatures");
 
-        for_less( poly, 0, polygons->n_items )
-        {
-            size = GET_OBJECT_SIZE( *polygons, poly );
+                for (poly = 0; poly <  polygons->n_items; poly++) {
+                        size = GET_OBJECT_SIZE(*polygons, poly);
 
-            for_less( vertex_index, 0, size )
-            {
-                point_index = polygons->indices[
-                          POINT_INDEX(polygons->end_indices,poly,vertex_index)];
+                        for (vertidx = 0; vertidx < size; vertidx++) {
+                                ptidx = polygons->indices[POINT_INDEX(
+                                                          polygons->end_indices,
+                                                          poly, vertidx)];
 
-                if( !point_done[point_index] )
-                {
-                    point_done[point_index] = TRUE;
+                                if (!point_done[ptidx]) {
+                                        point_done[ptidx] = TRUE;
 
-                    compute_polygon_point_centroid( polygons, poly,
-                                      vertex_index, point_index,
-                                      &centroid, &normal, &base_length,
-                                      &curvature_factors[point_index] );
+                                        compute_polygon_point_centroid(polygons,
+                                                         poly, vertidx, ptidx,
+                                                         &centroid, &normal,
+                                                         &base_length,
+                                                         &curv_factors[ptidx]);
+                                }
+                        }
+
+                        update_progress_report(&progress, poly+1);
                 }
-            }
 
-            update_progress_report( &progress, poly+1 );
+                terminate_progress_report(&progress);
         }
 
-        terminate_progress_report( &progress );
-    }
+        ALLOC(movements, polygons->n_points);
 
-    ALLOC( movements, polygons->n_points );
-
-    for_less( point_index, 0, polygons->n_points )
-    {
-        movements[point_index] = 0.0f;
-        point_done[point_index] = FALSE;
-        new_points[point_index] = polygons->points[point_index];
-    }
-
-    for_less( poly, 0, polygons->n_items )
-    {
-        size = GET_OBJECT_SIZE( *polygons, poly );
-
-        for_less( vertex_index, 0, size )
-        {
-            point_index = polygons->indices[
-                          POINT_INDEX(polygons->end_indices,poly,vertex_index)];
-
-            if( point_done[point_index] )
-                continue;
-
-            n1 = polygons->indices[
-                       POINT_INDEX(
-                       polygons->end_indices,poly,(vertex_index+1)%size )];
-            n2 = polygons->indices[
-                       POINT_INDEX(
-                       polygons->end_indices,poly,(vertex_index-1+size)%size )];
-
-            if( (Real) prev_movements[point_index] < movement_threshold &&
-                (Real) prev_movements[n1] < movement_threshold &&
-                (Real) prev_movements[n2] < movement_threshold )
-                continue;
-
-            point_done[point_index] = TRUE;
-
-            get_polygon_equilibrium_point( polygons, poly, vertex_index,
-                                           curvature_factors,
-                                           max_search_distance,
-                                           degrees_continuity,
-                                           deform_data, boundary_def,
-                                           deformation_model,
-                                           &equilibrium_point );
-
-            dist_to_equil = deform_point( point_index, polygons->points,
-                                      &equilibrium_point,
-                                      fractional_step, max_step,
-                                      deformation_model->position_constrained,
-                                      deformation_model->max_position_offset,
-                                      deformation_model->original_positions,
-                                      &new_points[point_index] );
-
-            movements[point_index] = (float) distance_between_points(
-                                         &polygons->points[point_index],
-                                         &new_points[point_index] );
-
-            record_error_in_deform_stats( stats, dist_to_equil );
+        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
+                movements[ptidx] = 0.0f;
+                point_done[ptidx] = FALSE;
+                new_points[ptidx] = polygons->points[ptidx];
         }
-    }
 
-    for_less( point_index, 0, polygons->n_points )
-    {
-        if( !point_done[point_index] )
-            record_error_in_deform_stats( stats, 0.0 );
-        prev_movements[point_index] = movements[point_index];
-    }
+        for (poly = 0; poly <  polygons->n_items; poly++) {
+                size = GET_OBJECT_SIZE(*polygons, poly);
 
-    FREE( movements );
-    FREE( point_done );
-    FREE( curvature_factors );
+                for (vertidx = 0; vertidx < size; vertidx++) {
+                        ptidx = polygons->indices[POINT_INDEX(
+                                                 polygons->end_indices,
+                                                 poly, vertidx)];
+
+                        if (point_done[ptidx])
+                                continue;
+
+                        n1 = polygons->indices[POINT_INDEX(
+                                               polygons->end_indices,
+                                               poly, (vertidx+1) % size)];
+                        n2 = polygons->indices[POINT_INDEX(
+                                               polygons->end_indices,
+                                               poly, (vertidx-1+size)%size)];
+
+                        if ((Real) prev_movements[ptidx] < movement_thresh &&
+                            (Real) prev_movements[n1] < movement_thresh &&
+                            (Real) prev_movements[n2] < movement_thresh)
+                                continue;
+
+                        point_done[ptidx] = TRUE;
+
+                        get_polygon_equilibrium_point(polygons, poly,
+                                                      vertidx, curv_factors,
+                                                      max_search_dist,
+                                                      degrees_continuity,
+                                                      deform_data, bound_def,
+                                                      deform_model, &equil_pt);
+
+                        dist_to_equil = deform_point(ptidx, polygons->points,
+                                             &equil_pt,
+                                             fractional_step, max_step,
+                                             deform_model->position_constrained,
+                                             deform_model->max_position_offset,
+                                             deform_model->original_positions,
+                                             &new_points[ptidx]);
+
+                        movements[ptidx] = (double) distance_between_points(
+                                                       &polygons->points[ptidx],
+                                                       &new_points[ptidx]);
+
+                        record_error_in_deform_stats(stats, dist_to_equil);
+                }
+        }
+
+        for (ptidx = 0; ptidx <  polygons->n_points; ptidx++) {
+                if (!point_done[ptidx])
+                        record_error_in_deform_stats(stats, 0.0);
+                prev_movements[ptidx] = movements[ptidx];
+        }
+
+        FREE(movements);
+        FREE(point_done);
+        FREE(curv_factors);
 }

@@ -1,177 +1,166 @@
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ */
+
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
-#include <CAT_Blur2d.h>
 
-private  int   separate_polygons(
-    polygons_struct    *polygons,
-    int                desired_index,
-    Real			   *values);
+#include "CAT_Blur2d.h"
 
-private  void  usage(
-    STRING   executable )
-{
-    STRING  usage_str = "\n\
-Usage: %s  input.obj input.txt output_prefix [which] \n\
-\n\
+int
+separate_polygons(polygons_struct *polygons, int desired_index, Real *values);
+
+void
+usage(char *executable) {
+        char *usage_str = "\n\
+Usage: %s  input.obj input.txt output_prefix [which] \n\n\
      Separates polygons into its disjoint parts.\n\n";
 
-    print_error( usage_str, executable );
+        fprintf(stderr, usage_str, executable);
 }
 
-int  main(
-    int    argc,
-    char   *argv[] )
+int
+main(int argc, char *argv[])
 {
-    STRING           input_filename, output_prefix, values_filename;
-    char             out_filename[EXTREMELY_LARGE_STRING_SIZE];
-    int              n_objects, n_out;
-    int              i, desired_index, n_values;
-    Real			 *values;
-    File_formats     format;
-    object_struct    **object_list;
-    polygons_struct  *polygons;
+        char             *input_file, *output_prefix, *values_file;
+        char             out_file[512];
+        int              n_objects, n_out;
+        int              i, desired_index, n_values;
+        Real             *values;
+        File_formats     format;
+        object_struct    **object_list;
+        polygons_struct  *polygons;
 
-    initialize_argument_processing( argc, argv );
+        initialize_argument_processing(argc, argv);
 
-    if( !get_string_argument( NULL, &input_filename ) ||
-        !get_string_argument( NULL, &values_filename ) ||
-        !get_string_argument( NULL, &output_prefix ) )
-    {
-        usage( argv[0] );
-        return( 1 );
-    }
-
-    (void) get_int_argument( -1, &desired_index );
-
-    if( input_graphics_any_format( input_filename, &format, &n_objects,
-                             &object_list ) != OK || n_objects < 1 ||
-        get_object_type( object_list[0] ) != POLYGONS )
-    {
-        print_error( "File must have a polygons structure.\n" );
-        return( 1 );
-    }
-
-    if( input_texture_values( values_filename, &n_values, &values ) != OK ) {
-        print_error( "Cannot read values.\n" );
-    	return( 1 );
-    }
-
-    polygons = get_polygons_ptr( object_list[0] );
-
-    check_polygons_neighbours_computed( polygons );
-
-    n_out = separate_polygons( polygons, desired_index, values);
-fprintf(stderr,"%d\n",n_out);
-
-    for_less( i, 0, n_out )
-    {
-/*        if( n_out == 1 )
-            (void) sprintf( out_filename, "%s", output_prefix );
-        else
-            (void) sprintf( out_filename, "%s_%d.obj", output_prefix, i+1 );
-
-        (void) output_graphics_any_format( out_filename, format, 1, &out[i] );
-*/
-		fprintf(stderr,"%g\n",i);
-    }
-
-    return( 0 );
-}
-
-private  int   make_connected_components(
-    polygons_struct    *polygons,
-    int       point_classes[],
-    Real			   *values,
-    int                n_in_class[] )
-{
-    int                point, edge, size;
-    int                neigh, j;
-    int                *n_neighbours, **neighbours;
-    int                n_components, not_done;
-    QUEUE_STRUCT(int)  queue;
-
-    n_components = 0;
-
-    not_done = 16383;
-
-    get_all_polygon_point_neighbours( polygons, &n_neighbours, &neighbours);
-
-    for_less( point, 0, polygons->n_points )
-        point_classes[point] = not_done;
-
-    for_less( point, 0, polygons->n_points )
-    {
-        if( point_classes[point] != not_done )
-            continue;
-
-        if( n_components == 16383 )
-        {
-            ++n_components;
-            break;
+        if (!get_string_argument(NULL, &input_file) ||
+            !get_string_argument(NULL, &values_file) ||
+            !get_string_argument(NULL, &output_prefix)) {
+                usage(argv[0]);
+                return(1);
         }
 
-        point_classes[point] = n_components;
-        n_in_class[n_components] = 1;
+        get_int_argument(-1, &desired_index);
 
+        if (input_graphics_any_format(input_file, &format, &n_objects,
+                                      &object_list) != OK ||
+            n_objects < 1 || get_object_type(object_list[0]) != POLYGONS) {
+                fprintf(stderr, "File must have a polygons structure.\n");
+                return(1);
+        }
+
+        if (input_texture_values(values_file, &n_values, &values) != OK) {
+                fprintf(stderr, "Cannot read values.\n");
+                return(1);
+        }
+
+        polygons = get_polygons_ptr(object_list[0]);
+
+        check_polygons_neighbours_computed(polygons);
+
+        n_out = separate_polygons(polygons, desired_index, values);
+        fprintf(stderr,"%d\n",n_out);
+
+        for (i = 0; i < n_out; i++) {
+/* ===============
+*               if (n_out == 1)
+*                       sprintf(out_file, "%s", output_prefix);
+*               else
+*                       sprintf(out_file, "%s_%d.obj", output_prefix, i+1);
+*
+*               output_graphics_any_format(out_file, format, 1, &out[i]);
+=============== */
+                fprintf(stderr,"%g\n",i);
+        }
+
+        return(0);
+}
+
+int
+make_connected_components(polygons_struct *polygons, int point_classes[],
+                          Real *values, int n_in_class[])
+{
+        int                point, edge, size;
+        int                neigh, j;
+        int                *n_neighbours, **neighbours;
+        int                n_parts = 0, not_done = 16383;
+        QUEUE_STRUCT(int)  queue;
+
+        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+
+        for (point = 0; point < polygons->n_points; point++)
+                point_classes[point] = not_done;
+
+        for (point = 0; point < polygons->n_points; point++) {
+                if (point_classes[point] != not_done)
+                        continue;
+
+                if (n_parts == 16383) {
+                        n_parts++;
+                        break;
+                }
+
+                point_classes[point] = n_parts;
+                n_in_class[n_parts] = 1;
+
+                if (n_neighbours[point] > 0) { 
+                        for (j = 0; j < n_neighbours[point]; j++) {
+                                if (point_classes[j] == not_done) {
+                                        if (values[neighbours[point][j]] >
+                                             0.0 && values[point] > 0.0) {
+                                                 point_classes[j] = n_parts;
+                                                 n_in_class[n_parts]++;
+                                        } else {
+                                                n_parts++;
+                                        }
+                                }
+                        }
+                }
             
-		if (n_neighbours[point] > 0) { 
-            for_less( j, 0, n_neighbours[point] ) {
-		        if( point_classes[j] == not_done) 
-		        {
-		         	if (values[neighbours[point][j]]>0.0 && values[point]>0.0)
-	        		{
-		         		point_classes[j] = n_components;
-        	     		++n_in_class[n_components];
-        			} else         ++n_components;
-        		}
-
-	        }
-		}
-			
-		fprintf(stderr,"%d: %d\n",point, point_classes[point]);
-    }
-
-    return( n_components );
-}
-
-private  int   separate_polygons(
-    polygons_struct    *polygons,
-    int                desired_index,
-    Real			   *values)
-{
-    int                ind, p_ind, point, vertex, size, i, j, tmp;
-    int                point_index, *new_point_ids, n_objects, comp, c;
-    int                biggest;
-    int       *point_classes;
-    int                n_components, *n_in_class, *ordered;
-
-    ALLOC( point_classes, polygons->n_points );
-    ALLOC( n_in_class, 16384 );
-    ALLOC( ordered, 16384 );
-
-    n_components = make_connected_components( polygons, point_classes, values,
-                                              n_in_class );
-
-    for_less( i, 0, n_components )
-        ordered[i] = i;
-
-    for_less( i, 0, n_components-1 )
-    {
-        biggest = i;
-        for_less( j, i+1, n_components )
-        {
-            if( n_in_class[ordered[j]] > n_in_class[ordered[biggest]] )
-                biggest = j;
+                fprintf(stderr, "%d: %d\n", point, point_classes[point]);
         }
 
-        tmp = ordered[i];
-        ordered[i] = ordered[biggest];
-        ordered[biggest] = tmp;
-    }
+        return(n_parts);
+}
 
-    FREE( point_classes );
-    FREE( n_in_class );
-    FREE( ordered );
+int
+separate_polygons(polygons_struct *polygons, int desired_index, Real *values)
+{
+        int       ind, p_ind, point, vertex, size, i, j, tmp;
+        int       *new_point_ids, n_objects, comp, c;
+        int       biggest;
+        int       *point_classes;
+        int       n_parts, *n_in_class, *ordered;
 
-    return( n_objects );
+        ALLOC(point_classes, polygons->n_points);
+        ALLOC(n_in_class, 16384);
+        ALLOC(ordered, 16384);
+
+        n_parts = make_connected_components(polygons, point_classes, values,
+                                            n_in_class);
+
+        for (i = 0; i < n_parts; i++)
+                ordered[i] = i;
+
+        for (i = 0; i < n_parts-1; i++) {
+                biggest = i;
+                for (j = i+1; j < n_parts; j++) {
+                        if (n_in_class[ordered[j]] >
+                            n_in_class[ordered[biggest]])
+                        biggest = j;
+                }
+
+                tmp = ordered[i];
+                ordered[i] = ordered[biggest];
+                ordered[biggest] = tmp;
+        }
+
+        FREE(point_classes);
+        FREE(n_in_class);
+        FREE(ordered);
+
+        return(n_objects);
 }

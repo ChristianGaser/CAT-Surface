@@ -1,21 +1,23 @@
-/* Christian Gaser - christian.gaser@uni-jena.de                             */
-/* Department of Psychiatry                                                  */
-/* University of Jena                                                        */
-/*                                                                           */
-/* Copyright Christian Gaser, University of Jena.                            */
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ */
 
-#include  <volume_io/internal_volume_io.h>
-#include  <bicpl.h>
-#include  <ParseArgv.h>
-#include  "CAT_SheetIO.h"
-#include  "CAT_Map2d.h"
-#include  "CAT_Blur2d.h"
-#include  "CAT_SPH.h"
+#include <volume_io/internal_volume_io.h>
+#include <bicpl.h>
+#include <ParseArgv.h>
+
+#include "CAT_SheetIO.h"
+#include "CAT_Map2d.h"
+#include "CAT_Blur2d.h"
+#include "CAT_SPH.h"
 
 /* argument defaults */
-int   bandwidth = 256;
-int   bandwidth_limited = 64;
-int   n_triangles = 81920;
+int bandwidth = 256;
+int bandwidth_limited = 64;
+int n_triangles = 81920;
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -31,134 +33,138 @@ ArgvInfo argTable[] = {
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
-private  void  usage(
-    STRING   executable )
+void
+usage(char *executable)
 {
-    static  STRING  usage_str = "\n\
-Usage: %s  surface.obj sphere.obj output.obj\n\
+        static char *usage_str = "\n\
+Usage: %s surface.obj sphere.obj output.obj\n\
 Use spherical harmonic coefficients to create an equally sampled surface.\n\
 \n\n";
 
-    print_error( usage_str, executable );
+       fprintf(stderr, usage_str, executable);
 }
 
-int  main(
-    int   argc,
-    char  *argv[] )
+int
+main(int argc, char *argv[])
 {
-    STRING               surface_filename, sphere_filename, output_filename;
-    File_formats         format;
-    int                  dataformat; /* dataformat =0 -> samples are complex, =1 -> samples real */
-    int                  i, bandwidth2, n_dims, n_objects;
-    double               *rcoeffsx, *icoeffsx, *rcoeffsy, *icoeffsy, *rcoeffsz, *icoeffsz;
-    double               *rcoeffsx2, *icoeffsx2, *rcoeffsy2, *icoeffsy2, *rcoeffsz2, *icoeffsz2;
-    double               *rdatax, *rdatay, *rdataz;
-    polygons_struct      *polygons, *polygons_sphere, *polygons_output;
-    object_struct        **objects, *objects_output;
+        char                 *surface_file, *sphere_file, *output_file;
+        File_formats         format;
+        int                  dataformat; /* = 0 -> samples are complex,
+                                          * = 1 -> samples are real */
+        int                  i, bandwidth2, n_dims, n_objects;
+        double               *rcx, *icx, *rcy, *icy, *rcz, *icz;
+        double               *rdatax, *rdatay, *rdataz;
+        polygons_struct      *polygons, *polygons_sphere, *polygons_output;
+        object_struct        **objects, *objects_output;
 
-    /* Call ParseArgv */
-    if ( ParseArgv( &argc, argv, argTable, 0 ) || ( argc != 4 ) ) {
-        usage( argv[0] );
-        fprintf(stderr, "       %s -help\n\n", argv[0]);
-        return( 1 );
-    }
+        /* Call ParseArgv */
+        if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
+                usage(argv[0]);
+                fprintf(stderr, "       %s -help\n\n", argv[0]);
+                return(1);
+        }
 
-    initialize_argument_processing( argc, argv );
+        initialize_argument_processing(argc, argv);
 
-    if( !get_string_argument( NULL, &surface_filename ) ||
-        !get_string_argument( NULL, &sphere_filename ) ||
-        !get_string_argument( NULL, &output_filename ) )
-    {
-        usage( argv[0] );
-        return( 1 );
-    }
+        if (!get_string_argument(NULL, &surface_file) ||
+            !get_string_argument(NULL, &sphere_file) ||
+            !get_string_argument(NULL, &output_file)) {
+                usage(argv[0]);
+                return(1);
+        }
      
-    if( input_graphics_any_format( surface_filename, &format, &n_objects, &objects ) != OK )
-            return( 1 );
-    /* check that the surface file contains a polyhedron */
-    if( n_objects != 1 || get_object_type( objects[0] ) != POLYGONS ) {
-            print( "Surface file must contain 1 polygons object.\n" );
-            return( 1 );
-    }
-    /* get a pointer to the surface */
-    polygons = get_polygons_ptr( objects[0] );
+        if (input_graphics_any_format(surface_file, &format,
+                                      &n_objects, &objects) != OK)
+                return(1);
+
+        /* check that the surface file contains a polyhedron */
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("Surface file must contain 1 polygons object.\n");
+                return(1);
+        }
+        /* get a pointer to the surface */
+        polygons = get_polygons_ptr(objects[0]);
     
-    if( input_graphics_any_format( sphere_filename, &format, &n_objects, &objects ) != OK )
-            return( 1 );
-    /* check that the surface file contains a polyhedron */
-    if( n_objects != 1 || get_object_type( objects[0] ) != POLYGONS ) {
-            print( "Surface file must contain 1 polygons object.\n" );
-            return( 1 );
-    }
-    /* get a pointer to the surface */
-    polygons_sphere = get_polygons_ptr( objects[0] );
+        if (input_graphics_any_format(sphere_file, &format,
+                                      &n_objects, &objects) != OK)
+                return(1);
 
-    /* check that surface and sphere are same size */
-    if( polygons->n_items != polygons_sphere->n_items ) {
-            print( "Surface and sphere must have same size.\n" );
-            return( 1 );
-    }
+        /* check that the surface file contains a polyhedron */
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("Surface file must contain 1 polygons object.\n");
+                return(1);
+        }
+        /* get a pointer to the surface */
+        polygons_sphere = get_polygons_ptr(objects[0]);
+
+        /* check that surface and sphere are same size */
+        if (polygons->n_items != polygons_sphere->n_items) {
+                printf("Surface and sphere must have same size.\n");
+                return(1);
+        }
     
-    bandwidth2 = 2*bandwidth;
+        bandwidth2 = 2*bandwidth;
 
-    rdatax   = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
-    rdatay   = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
-    rdataz   = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
-    rcoeffsx = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-    rcoeffsy = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-    rcoeffsz = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-    icoeffsx = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-    icoeffsy = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-    icoeffsz = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-    		
-    fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Sample spherical coordinates..");
-    get_equally_sampled_coords_of_polygon(polygons, polygons_sphere, bandwidth, 
-        rdatax, rdatay, rdataz);
+        rdatax = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
+        rdatay = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
+        rdataz = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
+        rcx    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
+        rcy    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
+        rcz    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
+        icx    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
+        icy    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
+        icz    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
 
-    // dataformat indicates real data
-    dataformat = 1;
-    fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Forward SPH transform...      ");
-    get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, rcoeffsx, icoeffsx);
-    get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, rcoeffsy, icoeffsy);
-    get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, rcoeffsz, icoeffsz);
+        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Sample spherical coordinates..");
+        get_equally_sampled_coords_of_polygon(polygons, polygons_sphere,
+                                              bandwidth,
+                                              rdatax, rdatay, rdataz);
 
-    if ( bandwidth_limited > 0 && bandwidth_limited < bandwidth) {
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
-        limit_bandwidth(bandwidth, bandwidth_limited, rcoeffsx, rcoeffsx);
-        limit_bandwidth(bandwidth, bandwidth_limited, rcoeffsy, rcoeffsy);
-        limit_bandwidth(bandwidth, bandwidth_limited, rcoeffsz, rcoeffsz);
-        limit_bandwidth(bandwidth, bandwidth_limited, icoeffsx, icoeffsx);
-        limit_bandwidth(bandwidth, bandwidth_limited, icoeffsy, icoeffsy);
-        limit_bandwidth(bandwidth, bandwidth_limited, icoeffsz, icoeffsz);
-    }
+        /* dataformat indicates real data */
+        dataformat = 1;
+        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Forward SPH transform...      ");
+        get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, rcx, icx);
+        get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, rcy, icy);
+        get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, rcz, icz);
+
+        if (bandwidth_limited > 0 && bandwidth_limited < bandwidth) {
+                fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
+                limit_bandwidth(bandwidth, bandwidth_limited, rcx, rcx);
+                limit_bandwidth(bandwidth, bandwidth_limited, rcy, rcy);
+                limit_bandwidth(bandwidth, bandwidth_limited, rcz, rcz);
+                limit_bandwidth(bandwidth, bandwidth_limited, icx, icx);
+                limit_bandwidth(bandwidth, bandwidth_limited, icy, icy);
+                limit_bandwidth(bandwidth, bandwidth_limited, icz, icz);
+        }
     
-    fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");
-    get_realdata_from_sph_coeffs(rdatax, bandwidth, dataformat, rcoeffsx, icoeffsx);
-    get_realdata_from_sph_coeffs(rdatay, bandwidth, dataformat, rcoeffsy, icoeffsy);
-    get_realdata_from_sph_coeffs(rdataz, bandwidth, dataformat, rcoeffsz, icoeffsz);
+        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");
+        get_realdata_from_sph_coeffs(rdatax, bandwidth, dataformat, rcx, icx);
+        get_realdata_from_sph_coeffs(rdatay, bandwidth, dataformat, rcy, icy);
+        get_realdata_from_sph_coeffs(rdataz, bandwidth, dataformat, rcz, icz);
 
-    objects_output = create_object( POLYGONS );
-    polygons_output = get_polygons_ptr(objects_output);
+        objects_output = create_object(POLYGONS);
+        polygons_output = get_polygons_ptr(objects_output);
 
-    fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
-    sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons_output, n_triangles, bandwidth);
+        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
+        sample_sphere_from_sph(rdatax, rdatay, rdataz,
+                               polygons_output, n_triangles, bandwidth);
 
-    if( output_graphics_any_format( output_filename, ASCII_FORMAT, 1,
-                &objects_output ) != OK )
-      return( 1 );
+        if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
+                                       &objects_output) != OK)
+                return(1);
 
-    /* clean up */        
-    free( rcoeffsx );
-    free( rcoeffsy );
-    free( rcoeffsz );
-    free( icoeffsx );
-    free( icoeffsy );
-    free( icoeffsz );
-    free( rdatax );
-    free( rdatay );
-    free( rdataz );
+        /* clean up */
+        free(rcx);
+        free(rcy);
+        free(rcz);
+        free(icx);
+        free(icy);
+        free(icz);
+        free(rdatax);
+        free(rdatay);
+        free(rdataz);
     
-	fprintf(stderr,"%30s\n","Done                          ");
+        fprintf(stderr,"%30s\n","Done                          ");
 
-    return(0);    
+        return(0);    
 }

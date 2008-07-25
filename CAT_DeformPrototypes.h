@@ -1,267 +1,84 @@
 #ifndef  DEF_deform_prototypes
 #define  DEF_deform_prototypes
 
-public  void  deform_lines(
-    lines_struct      *lines,
-    deform_struct     *deform_parms );
+void       deform_polygons(polygons_struct *, deform_struct *);
+void       deform_lines(lines_struct *, deform_struct *);
+void       deform_lines_one_iter(lines_struct *, deform_struct *, int);
 
-public  void  deform_lines_one_iteration(
-    lines_struct      *lines,
-    deform_struct     *deform_parms,
-    int               iteration );
+void       get_line_equilibrium_point(lines_struct *, int, int, int [],
+                                      Real [], Real, int, Volume, Volume,
+                                      bound_def_struct *, deform_model_struct *,
+                                      Point *, Point *);
+int        find_axial_plane(lines_struct *);
 
-public  void  get_line_equilibrium_point(
-    lines_struct                 *lines,
-    int                          axis,
-    int                          point_index,
-    int                          neighbours[],
-    Real                         curvature_factors[],
-    Real                         max_search_distance,
-    int                          degrees_continuity,
-    Volume                       volume,
-    Volume                       label_volume,
-    boundary_definition_struct   *boundary_def,
-    deformation_model_struct     *deformation_model,
-    Point                        *equilibrium_point,
-    Point                        *boundary_point );
+void       deform_polygons(polygons_struct *, deform_struct *);
+void       deform_polygons_one_iter(polygons_struct *, deform_struct *, int);
 
-public  int  find_axial_plane(
-    lines_struct   *lines );
+BOOLEAN    find_boundary_in_direction(Volume, Volume, voxel_coeff_struct *,
+                                      bitlist_3d_struct *, bitlist_3d_struct *,
+                                      Real, Point *, Vector *, Vector *, Real,
+                                      Real, int, bound_def_struct *, Real *);
+int        find_voxel_line_polynomial(Real [], int, int, int, int,
+                                      Real [], Real [], Real []);
+int        find_voxel_line_value_intersection(Real [], int, int, int, int,
+                                              Real [], Real [], Real, Real,
+                                              Real, Real [3]);
 
-public  void  deform_polygons(
-    polygons_struct   *polygons,
-    deform_struct     *deform_parms );
+void       initialize_deformation_model(deform_model_struct *);
+void       print_deformation_model(deform_model_struct *);
+Status     add_deformation_model(deform_model_struct *, int, Real,
+                                 char [], Real, Real);
+void       delete_deformation_model(deform_model_struct *);
 
-public  void  deform_polygons_one_iteration(
-    polygons_struct   *polygons,
-    deform_struct     *deform_parms,
-    int               iteration );
+Status     input_original_positions(deform_model_struct *, char [], Real, int);
 
-public  BOOLEAN  find_boundary_in_direction(
-    Volume                      volume,
-    Volume                      label_volume,
-    voxel_coef_struct           *lookup,
-    bitlist_3d_struct           *done_bits,
-    bitlist_3d_struct           *surface_bits,
-    Real                        model_dist,
-    Point                       *ray_origin,
-    Vector                      *unit_pos_dir,
-    Vector                      *unit_neg_dir,
-    Real                        max_outwards_search_distance,
-    Real                        max_inwards_search_distance,
-    int                         degrees_continuity,
-    boundary_definition_struct  *boundary_def,
-    Real                        *boundary_distance );
+BOOLEAN    check_correct_deformation_polygons(polygons_struct *,
+                                              deform_model_struct *);
+BOOLEAN    check_correct_deformation_lines(lines_struct *,
+                                           deform_model_struct *);
 
-public  int  find_voxel_line_polynomial(
-    Real        coefs[],
-    int         degrees_continuity,
-    int         x,
-    int         y,
-    int         z,
-    Real        line_origin[],
-    Real        line_direction[],
-    Real        line_poly[] );
+void       get_model_shape_point(Point *, Vector *, Vector *, Real, Point *);
+void       compute_equilibrium_point(int, BOOLEAN, Real, Real, Real, Vector *,
+                                     Vector *, Point *, deform_model_struct *,
+                                     Point *);
+void       compute_model_dirs(Point *, Vector *, Real, Point *, Real *,
+                              Point *, Vector *, Vector *);
+void       get_model_point(deform_model_struct *, Point [], int, int, int [],
+                           Real [], Point *, Vector *, Real, Point *);
 
-public  int  find_voxel_line_value_intersection(
-    Real        coefs[],
-    int         degrees_continuity,
-    int         x,
-    int         y,
-    int         z,
-    Real        line_origin[],
-    Real        line_direction[],
-    Real        t_min,
-    Real        t_max,
-    Real        isovalue,
-    Real        distances[3] );
+void       get_neighbours_of_line_vertex(lines_struct *, int, int [2]);
+BOOLEAN    deformation_model_includes_average(deform_model_struct *);
+Real       compute_line_curvature(lines_struct *, int, int, int, int);
+Real       deform_point(int, Point [], Point *, Real, Real, BOOLEAN,
+                        Real, Point [], Point *);
 
-public  void  initialize_deformation_model(
-    deformation_model_struct  *model );
+void       compute_line_centroid_and_normal(lines_struct *, int, int, int,
+                                            Point *, Vector *, Real *);
+int        get_subsampled_neighbours_of_point(deform_model_struct *,
+                                              polygons_struct *, int, int,
+                                              int [], int, BOOLEAN *);
+BOOLEAN    is_point_inside_surface(Volume, Volume, int, Real [],
+                                   Vector *, bound_def_struct *);
 
-public  void  print_deformation_model(
-    deformation_model_struct   *deformation_model );
+void       get_centre_of_cube(Point *, int [3], Point *);
+BOOLEAN    contains_value(Real [2][2][2], int [3]);
+BOOLEAN    cube_is_small_enough(Point [2], int [3], Real);
 
-public  Status   add_deformation_model(
-    deformation_model_struct   *deformation_model,
-    int                        up_to_n_points,
-    Real                       model_weight,
-    char                       model_filename[],
-    Real                       min_curvature_offset,
-    Real                       max_curvature_offset );
+void       initialize_deform_stats(deform_stats  *);
+void       record_error_in_deform_stats(deform_stats *, Real);
+void       print_deform_stats(deform_stats *, int);
+BOOLEAN    get_max_point_cube_dist(Point [2], int [3], Point *, Real *);
+void       init_deform_params(deform_struct *);
+void       delete_deform_params(deform_struct *);
 
-public  void  delete_deformation_model(
-    deformation_model_struct  *model );
+void       set_boundary_definition(bound_def_struct *, Real, Real,
+                                   Real, Real, char, Real);
 
-public  Status  input_original_positions(
-    deformation_model_struct  *deform_model,
-    char                      position_filename[],
-    Real                      max_position_offset,
-    int                       n_deforming_points );
+void       initialize_lookup_volume_coeffs(voxel_coeff_struct *);
+void       lookup_volume_coeffs(voxel_coeff_struct *, Volume, int,
+                                int, int, int, Real []);
+void       delete_lookup_volume_coeffs(voxel_coeff_struct *);
 
-public  BOOLEAN  check_correct_deformation_polygons(
-    polygons_struct            *polygons,
-    deformation_model_struct   *model );
+deform_model_struct * find_relevent_model(deform_model_struct *, int);
 
-public  BOOLEAN  check_correct_deformation_lines(
-    lines_struct               *lines,
-    deformation_model_struct   *model );
-
-public  deform_model_struct  *find_relevent_model(
-    deformation_model_struct  *model,
-    int                       point_index );
-
-public  void  get_model_shape_point(
-    Point    *origin,
-    Vector   *pos_model_dir,
-    Vector   *neg_model_dir,
-    Real     dist,
-    Point    *point );
-
-public  void  compute_equilibrium_point(
-    int                       point_index,
-    BOOLEAN                   boundary_exists,
-    Real                      boundary_dist,
-    Real                      base_length,
-    Real                      model_dist,
-    Vector                    *pos_model_dir,
-    Vector                    *neg_model_dir,
-    Point                     *centroid,
-    deformation_model_struct  *deformation_model,
-    Point                     *equilibrium_point );
-
-public  void  compute_model_dirs(
-    Point      *centroid,
-    Vector     *normal,
-    Real       base_length,
-    Point      *model_point,
-    Real       *model_dist,
-    Point      *search_origin,
-    Vector     *pos_model_dir,
-    Vector     *neg_model_dir );
-
-public  void  get_model_point(
-    deformation_model_struct  *deformation_model,
-    Point                     points[],
-    int                       point_index,
-    int                       n_neighbours,
-    int                       neighbours[],
-    Real                      curvatures[],
-    Point                     *centroid,
-    Vector                    *normal,
-    Real                      base_length,
-    Point                     *model_point );
-
-public  void  get_neighbours_of_line_vertex(
-    lines_struct    *lines,
-    int             vertex_index,
-    int             neighbours[2] );
-
-public  BOOLEAN  deformation_model_includes_average(
-    deformation_model_struct   *model );
-
-public  Real  compute_line_curvature(
-    lines_struct    *lines,
-    int             axis,
-    int             point_index,
-    int             prev_point_index,
-    int             next_point_index );
-
-public  Real  deform_point(
-    int                        point_index,
-    Point                      points[],
-    Point                      *equilibrium_point,
-    Real                       fractional_step,
-    Real                       max_step,
-    BOOLEAN                    position_constrained,
-    Real                       max_position_offset,
-    Point                      original_positions[],
-    Point                      *new_point );
-
-public  void  compute_line_centroid_and_normal(
-    lines_struct     *lines,
-    int              axis,
-    int              prev_point_index,
-    int              next_point_index,
-    Point            *centroid,
-    Vector           *normal,
-    Real             *base_length );
-
-public  int  get_subsampled_neighbours_of_point(
-    deformation_model_struct  *deformation_model,
-    polygons_struct           *polygons,
-    int                       poly,
-    int                       vertex_index,
-    int                       neighbours[],
-    int                       max_neighbours,
-    BOOLEAN                   *interior_flag );
-
-public  BOOLEAN  is_point_inside_surface(
-    Volume                      volume,
-    Volume                      label_volume,
-    int                         continuity,
-    Real                        voxel[],
-    Vector                      *direction,
-    boundary_definition_struct  *boundary_def );
-
-public  void   get_centre_of_cube(
-    Point       *cube,
-    int         sizes[3],
-    Point       *centre );
-
-public  BOOLEAN  contains_value(
-    Real  values[2][2][2],
-    int   sizes[3] );
-
-public  BOOLEAN  cube_is_small_enough(
-    Point     cube[2],
-    int       sizes[3],
-    Real      min_cube_size );
-
-public  void  initialize_deform_stats(
-    deform_stats  *stats );
-
-public  void  record_error_in_deform_stats(
-    deform_stats   *stats,
-    Real           error );
-
-public  void  print_deform_stats(
-    deform_stats   *stats,
-    int            n_points );
-
-public  BOOLEAN   get_max_point_cube_distance(
-    Point   cube[2],
-    int     sizes[3],
-    Point   *point,
-    Real    *distance );
-
-public  void  initialize_deformation_parameters(
-    deform_struct  *deform );
-
-public  void  delete_deformation_parameters(
-    deform_struct  *deform );
-
-public  void  set_boundary_definition(
-    boundary_definition_struct  *boundary_def,
-    Real                        min_value,
-    Real                        max_value,
-    Real                        grad_threshold,
-    Real                        angle,
-    char                        direction,
-    Real                        tolerance );
-
-public  void  initialize_lookup_volume_coeficients(
-    voxel_coef_struct  *lookup );
-
-public  void  lookup_volume_coeficients(
-    voxel_coef_struct  *lookup,
-    Volume             volume,
-    int                degrees_continuity,
-    int                x,
-    int                y,
-    int                z,
-    Real               c[] );
-
-public  void  delete_lookup_volume_coeficients(
-    voxel_coef_struct  *lookup );
 #endif
