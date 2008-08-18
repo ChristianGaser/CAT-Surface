@@ -21,7 +21,7 @@
 #define NINF -1.7976931348623157e+308 /* for doubles */
 
 double beta = 0.5; /* 1 = all area smoothing, 0 = all length adjustment */
-double iter = 100; /* number of iterations */
+int iter = 100; /* number of iterations */
 
 static ArgvInfo argTable[] = {
   {"-beta", ARGV_FLOAT, (char *) 0, (char *) &beta,
@@ -54,10 +54,10 @@ main(int argc, char** argv)
         File_formats       format;
         int                i, n, it, p;
         Point              pts[3];
-        Point              dir, idir, newcenter;
-        double             areas[128], iareas[128], centers[384];
-        double             totalArea, itotalArea, adistort, weight;
-        double             mindist, dirdist;
+        Point              npt, dir, idir, newcenter;
+        double             areas[128], iareas[128], centers[384], ratio;
+        double             totalArea, adistort, weight;
+        double             bounds[6];
         double             xyz[3];
         int                n1, n2, nidx;
 
@@ -109,20 +109,19 @@ main(int argc, char** argv)
                 return(1);
         }
     
-        double sphereRadius = get_largest_dist(polygons);
-    
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                          &neighbours, NULL, NULL);
 
-for (it = 0; it < iter; it++) {
-        adistort = 0.0;
+        ratio = get_polygons_surface_area(ipolygons) /
+                get_polygons_surface_area(polygons);
 
+for (it = 1; it <= iter; it++) {
         for (p = 0; p < polygons->n_points; p++) {
                 if (n_neighbours[p] <= 1)
                         continue; /* skip this point */
 
+                adistort = 0.0;
                 totalArea = 0.0;
-                itotalArea = 0.0;
 
                 /* Get 2 consecutive neighbors of this node */
                 for (n = 0; n < n_neighbours[p]; n++) {
@@ -141,10 +140,8 @@ for (it = 0; it < iter; it++) {
                         pts[1] = ipolygons->points[n1];
                         pts[2] = ipolygons->points[n2];
                         iareas[n] = get_polygon_surface_area(3, pts);
-                        itotalArea += iareas[n];
 
-                        adistort += fabs(itotalArea - totalArea) /
-                                    n_neighbours[p];
+                        adistort += log10(ratio*areas[n]/iareas[n]);
 
                         /* Save center of this tile */
                         centers[n*3    ] = (Point_x(polygons->points[p]) +
@@ -158,6 +155,10 @@ for (it = 0; it < iter; it++) {
                                             Point_z(polygons->points[n2]))/3.0;
                 }
 
+                adistort /= n_neighbours[p];
+                if (fabs(adistort) < 0.2)
+                        continue; /* skip this point */
+
                 /* Compute the influence of the neighboring nodes */
                 for (i = 0; i < 3; i++)
                         xyz[i] = 0.0;
@@ -166,33 +167,61 @@ for (it = 0; it < iter; it++) {
                                 weight = 0;
                                 if (totalArea > 0)
                                         weight = areas[n] / totalArea;
-                                for (i = 0; i < 3; i++) {
+                                for (i = 0; i < 3; i++)
                                         xyz[i] += weight * centers[n*3+i];
-                                }
                         }
                 }
 
                 /* update the point to minimize length distortion */
-
-                mindist = PINF;
                 fill_Point(newcenter, 0.0, 0.0, 0.0);
 
-                for (n = 0; n <  n_neighbours[p]; n++) {
-                        nidx = neighbours[p][n];
-                        SUB_POINTS(dir, polygons->points[nidx],
-                                   polygons->points[p]);
-                        dirdist = MAGNITUDE(dir);
-                        if (dirdist < mindist)
-                                mindist = dirdist;
+                if (fabs(adistort) > 0.5) {
+                        bounds[0] = bounds[1] = Point_x(polygons->points[p]);
+                        bounds[2] = bounds[3] = Point_y(polygons->points[p]);
+                        bounds[4] = bounds[5] = Point_z(polygons->points[p]);
 
-                        SUB_POINTS(idir, ipolygons->points[nidx],
-                                   ipolygons->points[p]);
-                        SCALE_VECTOR(dir, dir, MAGNITUDE(idir));
-                        ADD_POINT_VECTOR(newcenter, newcenter, dir);
+                        for (n = 0; n <  n_neighbours[p]; n++) {
+                                nidx = neighbours[p][n];
+                                npt = polygons->points[nidx];
+
+                                SUB_POINTS(dir, npt, polygons->points[p]);
+                                bounds[0] = (bounds[0] < Point_x(npt)) ?
+                                            bounds[0] : Point_x(npt);
+                                bounds[1] = (bounds[1] > Point_x(npt)) ?
+                                            bounds[1] : Point_x(npt);
+                                bounds[2] = (bounds[2] < Point_y(npt)) ?
+                                            bounds[2] : Point_y(npt);
+                                bounds[3] = (bounds[3] > Point_y(npt)) ?
+                                            bounds[3] : Point_y(npt);
+                                bounds[4] = (bounds[4] < Point_z(npt)) ?
+                                            bounds[4] : Point_z(npt);
+                                bounds[5] = (bounds[5] > Point_z(npt)) ?
+                                            bounds[5] : Point_z(npt);
+
+                                SUB_POINTS(idir, ipolygons->points[nidx],
+                                           ipolygons->points[p]);
+                                SCALE_VECTOR(dir, dir, MAGNITUDE(dir)
+                                                       - MAGNITUDE(idir));
+                                ADD_POINT_VECTOR(newcenter, newcenter, dir);
+                        }
+
+                        bounds[0] -= Point_x(polygons->points[p]);
+                        bounds[1] -= Point_x(polygons->points[p]);
+                        bounds[2] -= Point_y(polygons->points[p]);
+                        bounds[3] -= Point_y(polygons->points[p]);
+                        bounds[4] -= Point_z(polygons->points[p]);
+                        bounds[5] -= Point_z(polygons->points[p]);
+
+                        if (Point_x(newcenter) < bounds[0]/10 ||
+                            Point_x(newcenter) > bounds[1]/10 ||
+                            Point_y(newcenter) < bounds[2]/10 ||
+                            Point_y(newcenter) > bounds[3]/10 ||
+                            Point_z(newcenter) < bounds[4]/10 ||
+                            Point_z(newcenter) > bounds[5]/10) {
+                                fill_Point(newcenter, 0.0, 0.0, 0.0);
+                        }
                 }
-                if (MAGNITUDE(newcenter) > mindist/2) {
-                        SCALE_VECTOR(newcenter, newcenter, 0);
-                }
+
                 ADD_POINT_VECTOR(newcenter, polygons->points[p], newcenter);
 
                 /* update the node position */
