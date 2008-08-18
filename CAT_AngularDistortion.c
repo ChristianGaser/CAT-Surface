@@ -67,6 +67,13 @@ angular_distortion(float *a1, float *b1, float *c1,
                 B2 = asin(ac2 * sin(A2)/bc2);
                 C2 = PI - A2 - B2;
         }
+        
+        A1 *= RAD_TO_DEG;
+        A2 *= RAD_TO_DEG;
+        B1 *= RAD_TO_DEG;
+        B2 *= RAD_TO_DEG;
+        C1 *= RAD_TO_DEG;
+        C2 *= RAD_TO_DEG;
 
         return(fabs(A2 - A1) + fabs(B2 - B1) + fabs(C2 - C1));
 }

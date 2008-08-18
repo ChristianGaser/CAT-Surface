@@ -144,7 +144,7 @@ main(int argc, char *argv[])
                                                               surfarea);
         }
     
-	fprintf(stderr, "Done                \n");
+        fprintf(stderr, "Done                \n");
 
         compute_polygon_normals(polygons);
         output_graphics_any_format(output_file, format, 1, object_list);
