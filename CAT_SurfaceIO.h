@@ -7,7 +7,8 @@
 
 Status input_values(char *, int, Real *);
 Status output_values(char *, int, Real *);
-Status input_graphics_any_format(char *, File_formats *, int *, object_struct  ***); 
+Status input_graphics_any_format(char *, File_formats *, int *,
+                                 object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct  **);
 int    input_oogl(char *, File_formats *, int *, object_struct  ***);
 int    output_oogl(char *, File_formats, int, object_struct * []);

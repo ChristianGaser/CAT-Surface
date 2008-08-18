@@ -11,8 +11,8 @@
 #include "CAT_SurfaceIO.h"
 
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
-#define QUAD_FILE_MAGIC_NUMBER  16777215
-#define NEW_VERSION_MAGIC_NUMBER 16777215
+#define QUAD_FILE_MAGIC_NUMBER      16777215
+#define NEW_VERSION_MAGIC_NUMBER    16777215
 
 Status
 input_values(char *file, int n_values, Real *values)
@@ -81,6 +81,15 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
 }
 
 void
+swapFloat(float *n)
+{
+        char *by = (char *) n;
+        char sw[4] = {by[3], by[2], by[1], by[0]};
+  
+        *n =* (float *) sw;
+}
+
+void
 swapDouble(double *n)
 {
         char *by = (char *) n;
@@ -96,6 +105,16 @@ swapInt(int *n)
         char sw[4] = {by[3], by[2], by[1], by[0]};
   
         *n =* (int *) sw;
+}
+
+int
+fwriteFloat(float f, FILE *fp)
+{
+
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+       swapFloat(&f);  
+#endif
+       return(fwrite(&f, sizeof(float), 1, fp));
 }
 
 int
@@ -139,6 +158,19 @@ freadDouble(FILE *fp)
         count = fread(&temp, 4, 1, fp);
 #if __LITTLE_ENDIAN__
         swapDouble(&temp);
+#endif
+        return(temp);  
+}
+
+float
+freadFloat(FILE *fp)
+{
+        float temp;
+        int count;
+  
+        count = fread(&temp, 4, 1, fp);
+#if __LITTLE_ENDIAN__
+        swapFloat(&temp);
 #endif
         return(temp);  
 }
@@ -301,9 +333,9 @@ output_freesurfer(char *file, File_formats format, int n_objects,
 
         /* write points */
         for (i = 0; i < (polygons->n_points); i++) {
-                fwriteDouble(Point_x(polygons->points[i]), fp);
-                fwriteDouble(Point_y(polygons->points[i]), fp);
-                fwriteDouble(Point_z(polygons->points[i]), fp);
+                fwriteFloat(Point_x(polygons->points[i]), fp);
+                fwriteFloat(Point_y(polygons->points[i]), fp);
+                fwriteFloat(Point_z(polygons->points[i]), fp);
         }
   
         /* write indices */
@@ -316,11 +348,11 @@ output_freesurfer(char *file, File_formats format, int n_objects,
 
 int
 input_freesurfer(char *file, File_formats *format, int *n_objects,
-                 object_struct  ***object_list)
+                 object_struct ***object_list)
 {
         FILE              *fp;
         int               i, magic;
-        char              line[1000];
+        char              line[1024];
         polygons_struct   *polygons;
         Point             point;
         object_struct     *object;
@@ -359,9 +391,9 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
                 ALLOC(polygons->indices,
                       polygons->end_indices[polygons->n_items-1]);
                 for (i = 0; i < polygons->n_points; i++) {
-                        Point_x(point) = freadDouble(fp);
-                        Point_y(point) = freadDouble(fp);
-                        Point_z(point) = freadDouble(fp);
+                        Point_x(point) = freadFloat(fp);
+                        Point_y(point) = freadFloat(fp);
+                        Point_z(point) = freadFloat(fp);
                         polygons->points[i] = point;
                 }
                 for (i = 0; i < 3*(polygons->n_items); i++) {
@@ -411,7 +443,7 @@ input_freesurfer_curv(char *file, int *vnum, Real *input_values[])
                 }
                 ALLOC(*input_values, *vnum);
                 for (i = 0; i < *vnum; i++) {
-                        value = freadDouble(fp);
+                        value = freadFloat(fp);
                         (*input_values)[i]= value;
                 }
         }
