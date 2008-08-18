@@ -158,7 +158,9 @@ main(int argc, char *argv[])
                                               polygons2->points[tp[0]].coords,
                                               polygons2->points[tp[1]].coords,
                                               polygons2->points[tp[2]].coords);
-                total_ang_dist += ang_dist;
+                if (!isnan(ang_dist))
+                        total_ang_dist += ang_dist;
+
                 if (output_double(fp, ang_dist) != OK ||
                     output_newline(fp) != OK) {
                         return(1);

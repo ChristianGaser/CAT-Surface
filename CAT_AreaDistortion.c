@@ -11,6 +11,10 @@
 
 #include "CAT_Surf.h"
 
+
+#define PINF  1.7976931348623157e+308 /* for doubles */
+#define NINF -1.7976931348623157e+308 /* for doubles */
+
 typedef enum { RATIO, LOG_RATIO, PERCENTAGE }
              Distortion_method;
 
@@ -44,6 +48,7 @@ main(int argc, char *argv[])
        polygons_struct   *polygons, *polygons2;
        double            poly_size, area, surface_area, surface_area2;
        double            *area_values, *area_values2, ratio, value;
+       double            distortion = 0;
        Point             points[MAX_POINTS_PER_POLYGON];
 
         /* Call ParseArgv */
@@ -113,10 +118,14 @@ main(int argc, char *argv[])
                                area_values[ptidx];
                        break;
                 }
+                if (value < PINF && value > NINF)
+                        distortion += fabs(value);
 
                 if (output_real(fp, value) != OK || output_newline(fp) != OK)
                         break;
         }
+
+        printf("Area distortion = %f\n", distortion / polygons->n_points);
 
         close_file(fp);
 
