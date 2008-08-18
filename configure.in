@@ -7,6 +7,7 @@ AM_INIT_AUTOMAKE(CAT,0.1,Christian Gaser <christian.gaser@uni-jena.de>)
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_INSTALL
 
 dnl Build only static libs by default

@@ -40,16 +40,16 @@ ArgvInfo argTable[] = {
 int
 main(int argc, char *argv[])
 {
-       char              *object_file, *object2_file, *output_file;
-       FILE              *fp;
-       File_formats      format;
-       int               poly, n_objects, ptidx, size;
-       object_struct     **objects, **objects2;
-       polygons_struct   *polygons, *polygons2;
-       double            poly_size, area, surface_area, surface_area2;
-       double            *area_values, *area_values2, ratio, value;
-       double            distortion = 0;
-       Point             points[MAX_POINTS_PER_POLYGON];
+        char              *object_file, *object2_file, *output_file;
+        FILE              *fp;
+        File_formats      format;
+        int               poly, n_objects, ptidx, size;
+        object_struct     **objects, **objects2;
+        polygons_struct   *polygons, *polygons2;
+        double            poly_size, area, surface_area, surface_area2;
+        double            *area_values, *area_values2, ratio, value;
+        double            distortion = 0;
+        Point             points[MAX_POINTS_PER_POLYGON];
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {

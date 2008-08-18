@@ -383,7 +383,7 @@ protected:
           double zs = 1/(zmax - zmin);
           double meanr = (xs + ys + zs)/3.0;
           xs /= meanr; ys /= meanr; zs /= meanr; 
-          fprintf(stderr,"%f %f %f\n",xs,ys,zs);
+
           // scale coordinates to obtain an equally sized bounding box
           for (int it = 0; it < numOfPoints; ++it) {
               double x = polygons->points[it].coords[0];
@@ -709,7 +709,6 @@ int main(int argc, char** argv) {
     }
 
     polygons = get_polygons_ptr(objects[0]);
-    compute_polygon_normals(polygons);
     
     double mapScale;
     // guess for mapScale, no optimization
