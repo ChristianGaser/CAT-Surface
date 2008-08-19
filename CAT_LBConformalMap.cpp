@@ -314,22 +314,29 @@ protected:
      * finds pointP as close to the COM as possible
      */
     int findPointP() {
-
-        Point p, point;
+        Point p;
+        Real dist, closest_dist = 0.0;
         double c[3] = {0.0, 0.0, 0.0};
+        int closest_pt;
 
         for (int i = 0; i < polygons->n_points; i++) {
-            for (int j= 0; j< 3; j++) {
-                c[j] += Point_coord(polygons->points[i],j);
-            }
+            for (int j = 0; j< 3; j++)
+                c[j] += Point_coord(polygons->points[i], j);
         }
 
         Point_x(p) = c[0]/polygons->n_points;
         Point_y(p) = c[1]/polygons->n_points;
         Point_z(p) = c[2]/polygons->n_points;
 
-        return(find_closest_polygon_point( &p, polygons, &point ));
+        for (int i = 0; i < polygons->n_points; i++) {
+            dist = sq_distance_between_points(&p, &polygons->points[i]);
+            if (i == 0 || dist < closest_dist) {
+                closest_pt = i;
+                closest_dist = dist;
+            }
+        }
 
+        return(closest_pt);
     }
 
 
