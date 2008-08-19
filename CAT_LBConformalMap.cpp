@@ -66,21 +66,18 @@ extern "C"
 #include <math.h>
 #include <assert.h>
 
-int conformal = 0;
 double ms = -1.0;
 
 static ArgvInfo argTable[] = {
   {"-mapscale", ARGV_FLOAT, (char *) 1, (char *) &ms,
        "scaling factor [default: optimized]. Set mapScale to turn off optimization, 0 to estimate empirically."},
-  {"-conformal", ARGV_CONSTANT, (char *) TRUE, (char *) &conformal,
-       "force conformal mapping [default: minimize area distortions]"},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
 class LSCM {
 public:
 
-    LSCM(polygons_struct &p, double ms, int c) : polygons(&p), mapScale(ms), conformal(c) { }
+    LSCM(polygons_struct &p, double ms) : polygons(&p), mapScale(ms) { }
 
     // Apply the Laplace-Beltrami operator
     void apply() {
@@ -352,10 +349,7 @@ protected:
         std::vector< std::vector<double> > pointXYZ(numOfPoints, std::vector<
                                                           double>(3, 0) );
 
-        // force conformal mapping                                                  
-        if (conformal) {
-        
-          for (int it = 0; it < numOfPoints; ++it) {
+        for (int it = 0; it < numOfPoints; ++it) {
               double x = polygons->points[it].coords[0];
               double y = polygons->points[it].coords[1];
               double z = polygons->points[it].coords[2];            
@@ -363,73 +357,34 @@ protected:
               pointXYZ[it][0] = x;
               pointXYZ[it][1] = y;
               pointXYZ[it][2] = z;
-          } // for it
-          
-       // Minimize area distortions by scaling the image to an equally sized
-       // bounding box. More distanct points are more area distorted and scaling
-       // will decrease the distance to the center (of mass).
-       } else {
-       
-          // find bounding box
-          double xmin =  FLT_MAX, ymin =  FLT_MAX, zmin =  FLT_MAX;                
-          double xmax = -FLT_MAX, ymax = -FLT_MAX, zmax = -FLT_MAX;                
-          for (int it = 0; it < numOfPoints; ++it) {
-              double x = polygons->points[it].coords[0];
-              double y = polygons->points[it].coords[1];
-              double z = polygons->points[it].coords[2];
-              if (x < xmin) xmin = x;
-              if (y < ymin) ymin = y;
-              if (z < zmin) zmin = z;
-              if (x > xmax) xmax = x;
-              if (y > ymax) ymax = y;
-              if (z > zmax) zmax = z;
-          } // for it
-
-          double xs = 1/(xmax - xmin);
-          double ys = 1/(ymax - ymin);
-          double zs = 1/(zmax - zmin);
-          double meanr = (xs + ys + zs)/3.0;
-          xs /= meanr; ys /= meanr; zs /= meanr; 
-
-          // scale coordinates to obtain an equally sized bounding box
-          for (int it = 0; it < numOfPoints; ++it) {
-              double x = polygons->points[it].coords[0];
-              double y = polygons->points[it].coords[1];
-              double z = polygons->points[it].coords[2];            
-
-              pointXYZ[it][0] = xs*x;
-              pointXYZ[it][1] = ys*y;
-              pointXYZ[it][2] = zs*z;
-          } // for it
-
         }
-        
+          
         // find point closest to center-of-mass
         int pointP = findPointP();
-        
+
         // 2. store the relationship from point to facet, i.e. for each
         // point, which facets contain it?  For each point in the mesh,
         // generate a vector, storing the id number of triangles containing
         // this point.  The vectors of all the points form a vector:
         // pointCell
-        
+
         // 3. store the relationship from cell to point, i.e. for each cell,
         // which points does it contains? store in vector: cellPoint
-        
+
         std::vector <std::vector<int> > pointCell(numOfPoints);
         std::vector <std::vector<int> > cellPoint(numOfFacets, std::vector<int>(3,0));
-        
+
         int size;
         for (unsigned int itCell = 0; itCell < numOfFacets; itCell++) {
             size = GET_OBJECT_SIZE(*polygons, itCell);
             for (unsigned int itPntInCell = 0; itPntInCell < size; itPntInCell++) {
                 int p = polygons->indices[POINT_INDEX(polygons->end_indices, itCell, itPntInCell)];
-                
+
                 pointCell[p].push_back(itCell);
                 cellPoint[itCell][itPntInCell] = p;
             }
         }
-        
+
         // //--------------------------------------------------------------
         // // print out the result for debuging
         // std::cout<<std::endl;
@@ -460,7 +415,7 @@ protected:
         //     <<cellPoint[it][2]<<std::endl;
         // }
         //---------------------------------------------------------------
-        
+
 
                  
         std::cerr << "  Checking the existence of boundary...";
@@ -678,7 +633,6 @@ protected:
 
     polygons_struct *polygons;
     double mapScale;
-    int conformal;
 };
 
 int main(int argc, char** argv) {
@@ -727,7 +681,7 @@ int main(int argc, char** argv) {
         print_error("WARNING: Euler characteristics is %d, not 2! Not genus 0 surface...\n", eulerNum);
     }
 
-    LSCM lscm(*polygons, mapScale, conformal);
+    LSCM lscm(*polygons, mapScale);
     lscm.apply();
 
     compute_polygon_normals(polygons);
