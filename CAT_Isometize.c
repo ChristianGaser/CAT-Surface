@@ -20,10 +20,13 @@
 #define PINF  1.7976931348623157e+308 /* for doubles */
 #define NINF -1.7976931348623157e+308 /* for doubles */
 
+double alpha = 1; /* 1 = all area smoothing, 0 = all distortion correction */
 double beta = 0.5; /* 1 = all area smoothing, 0 = all length adjustment */
 int iter = 100; /* number of iterations */
 
 static ArgvInfo argTable[] = {
+  {"-alpha", ARGV_FLOAT, (char *) 0, (char *) &alpha,
+       "weighting factor [default: all area smoothing]. Set to 1 for all area smoothing, 0 for all area distortion correction."},
   {"-beta", ARGV_FLOAT, (char *) 0, (char *) &beta,
        "weighting factor [default: 50% area smoothing, 50% stretch]. Set to 1 for all area smoothing, 0 for all stretch optimization."},
   {"-iter", ARGV_INT, (char *) 1, (char *) &iter,
@@ -56,7 +59,7 @@ main(int argc, char** argv)
         Point              pts[3];
         Point              npt, dir, idir, newcenter;
         double             areas[128], iareas[128], centers[384], ratio;
-        double             totalArea, adistort, weight;
+        double             totalArea, adistort, totaldistort, weight;
         double             bounds[6];
         double             xyz[3];
         int                n1, n2, nidx;
@@ -121,6 +124,7 @@ for (it = 1; it <= iter; it++) {
                         continue; /* skip this point */
 
                 adistort = 0.0;
+                totaldistort = 0.0;
                 totalArea = 0.0;
 
                 /* Get 2 consecutive neighbors of this node */
@@ -142,6 +146,7 @@ for (it = 1; it <= iter; it++) {
                         iareas[n] = get_polygon_surface_area(3, pts);
 
                         adistort += log10(ratio*areas[n]/iareas[n]);
+                        totaldistort += areas[n]/iareas[n];
 
                         /* Save center of this tile */
                         centers[n*3    ] = (Point_x(polygons->points[p]) +
@@ -165,8 +170,12 @@ for (it = 1; it <= iter; it++) {
                 for (n = 0; n <  n_neighbours[p]; n++) {
                         if (iareas[n] > 0.0) {
                                 weight = 0;
-                                if (totalArea > 0)
-                                        weight = areas[n] / totalArea;
+                                if (totalArea > 0) {
+                                        weight = alpha * (areas[n]/totalArea) +
+                                                 (1 - alpha) *
+                                                 (areas[n]/iareas[n]) /
+                                                 totaldistort;
+                                }
                                 for (i = 0; i < 3; i++)
                                         xyz[i] += weight * centers[n*3+i];
                         }
