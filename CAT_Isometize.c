@@ -257,7 +257,6 @@ for (it = 1; it <= iter; it++) {
                         fill_Point(polygons->points[p],
                                    xyz1[0], xyz1[1], xyz1[2]);
                         adistort = newdistort;
-                        continue;
                 }
                 fill_Point(newcenter, xyz2[0], xyz2[1], xyz2[2]);
                 newdistort = newangdistort = 0;
@@ -282,7 +281,6 @@ for (it = 1; it <= iter; it++) {
                         fill_Point(polygons->points[p],
                                    xyz2[0], xyz2[1], xyz2[2]);
                         adistort = newdistort;
-                        continue;
                 }
 
                 /* try length distortion */
