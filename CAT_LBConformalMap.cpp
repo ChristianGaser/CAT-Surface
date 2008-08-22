@@ -87,8 +87,8 @@ public:
             nlSolverParameteri(NL_SOLVER, NL_PERM_SUPERLU_EXT);
             std::cerr << "Using SuperLU, cool !" << std::endl;
         } else {
-            nlSolverParameteri(NL_SOLVER, NL_CG) ;
-            nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_NONE ); //NL_PRECOND_JACOBI) ;
+            nlSolverParameteri(NL_SOLVER, NL_CG);
+            nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_NONE); //NL_PRECOND_JACOBI);
             std::cerr << "Using Jacobi pre-conditioned conjugate gradient" 
                       << std::endl;
         }
@@ -98,9 +98,9 @@ public:
         //nlSolverParameteri(NL_SYMMETRIC, NL_FALSE);
         nlSolverParameterd(NL_THRESHOLD, 1e-10);
         nlBegin(NL_SYSTEM);
-        for(unsigned int i=0; i<nb_vertices*2; i++) {
+        for(unsigned int i=0; i<nb_vertices*2; i++)
             nlSetVariable(i, 0);
-        }
+
         nlBegin(NL_MATRIX);
         mesh_to_solver(); // calculate the matrices and send it to the solver
         nlEnd(NL_MATRIX);
@@ -193,11 +193,11 @@ protected:
                 ymax = (ymax>zI[i]) ? ymax : zI[i];
             }
 
-            xmax = ( fabs(xmin)>fabs(xmax) ) ? fabs(xmin) : fabs(xmax);
-            ymax = ( fabs(ymin)>fabs(ymax) ) ? fabs(ymin) : fabs(ymax);
+            xmax = ( fabs(xmin) > fabs(xmax) ) ? fabs(xmin) : fabs(xmax);
+            ymax = ( fabs(ymin) > fabs(ymax) ) ? fabs(ymin) : fabs(ymax);
 
             // the factor is used to re-scale the points in the plane.
-            factor = mapScale/( (xmax>ymax) ? xmax : ymax);
+            factor = mapScale / ( (xmax > ymax) ? xmax : ymax);
         } else { // optimize the solution
             // first get all of the areas of the original triangles
             double mareas[polygons->n_items];
@@ -240,7 +240,6 @@ protected:
             }
             std::cout<<"f = "<<factor<<", ad: "<<area_distortion<<std::endl;
 
-
             // shift
             fstep = 0.001;
             for (int i = 0; i < 50; i++) { // optimize 5x
@@ -274,7 +273,6 @@ protected:
                 fstep /= 2;
             }
             std::cout << "zRf = " << zRf << ", zIf =" << zIf << ", ad: " << area_distortion << std::endl;
-
         }
 
         calc_projection(points, polygons->n_points, factor, zR, zRf, zI, zIf);
@@ -282,7 +280,7 @@ protected:
         // map it to a sphere
         double original_area = get_polygons_surface_area(polygons);
         double sphereRadius = sqrt(original_area / (4.0 * PI));
-        double xyz[3] = { 0.0, 0.0, 0.0 };        
+        double xyz[3] = {0.0, 0.0, 0.0};        
 
         for (int i = 0; i < polygons->n_points; i++) {
             xyz[0] = Point_x(points[i]);
@@ -300,9 +298,8 @@ protected:
             xyz[0] = (sphereRadius * xyz[0]);
             xyz[1] = (sphereRadius * xyz[1]);
             xyz[2] = (sphereRadius * xyz[2]);
-            for (int j = 0; j < 3; j++) {
+            for (int j = 0; j < 3; j++)
                 Point_coord(polygons->points[i],j) = xyz[j];
-            }
         }
 
     }
@@ -439,13 +436,13 @@ protected:
         B( pointXYZ[ cellPoint[ facet][ 1 ] ] ),
         C( pointXYZ[ cellPoint[ facet ][ 2 ] ] );
         double ABnorm, CA_BAip; // the inner product of vector C-A and B-A;
-        ABnorm = (A[0] - B[0]) * (A[0] - B[0])
-        + (A[1] - B[1]) * (A[1] - B[1])
-        + (A[2] - B[2]) * (A[2] - B[2]);
+        ABnorm = (A[0] - B[0]) * (A[0] - B[0]) +
+                 (A[1] - B[1]) * (A[1] - B[1]) +
+                 (A[2] - B[2]) * (A[2] - B[2]);
         
-        CA_BAip = (C[0] - A[0]) * (B[0] - A[0])
-        + (C[1] - A[1]) * (B[1] - A[1])
-        + (C[2] - A[2]) * (B[2] - A[2]);
+        CA_BAip = (C[0] - A[0]) * (B[0] - A[0]) +
+                  (C[1] - A[1]) * (B[1] - A[1]) +
+                  (C[2] - A[2]) * (B[2] - A[2]);
         
         double theta = CA_BAip / ABnorm;
         // Here ABnorm is actually the square of AB's norm, which is what we
@@ -458,17 +455,17 @@ protected:
             E[it] = A[it] + theta*(B[it] - A[it]);
         
         double CEnorm;
-        CEnorm = (C[0] - E[0]) * (C[0] - E[0])
-        + (C[1] - E[1]) * (C[1] - E[1])
-        + (C[2] - E[2]) * (C[2] - E[2]);
+        CEnorm = (C[0] - E[0]) * (C[0] - E[0]) +
+                 (C[1] - E[1]) * (C[1] - E[1]) +
+                 (C[2] - E[2]) * (C[2] - E[2]);
         CEnorm = sqrt(CEnorm); // This is real norm of vector CE.
         
-        bR[cellPoint[ facet ][0]] = -1 / ABnorm;
-        bR[cellPoint[ facet ][1]] = 1 / ABnorm;
+        bR[cellPoint[facet][0]] = -1 / ABnorm;
+        bR[cellPoint[facet][1]] = 1 / ABnorm;
         
-        bI[cellPoint[ facet ][0]] = (1-theta)/ CEnorm;
-        bI[cellPoint[ facet ][1]] = theta/ CEnorm;
-        bI[cellPoint[ facet ][2]] = -1 / CEnorm;
+        bI[cellPoint[facet][0]] = (1 - theta) / CEnorm;
+        bI[cellPoint[facet][1]] = theta / CEnorm;
+        bI[cellPoint[facet][2]] = -1 / CEnorm;
         
         // 1. Iterate point P from 0 to the last point in the mesh.
         // 2. For each P, find its neighbors
@@ -491,20 +488,20 @@ protected:
             for (std::vector<int>::iterator itCell = (*itP).begin(); itCell != itCellEnd; ++itCell) {
                 // for each cell containing P, store the point with larger point Id.
                 // only three points, don't use for-loop to save time.
-                if ( cellPoint[*itCell][0] != idP )
+                if (cellPoint[*itCell][0] != idP)
                     neighborOfP.push_back(cellPoint[*itCell][0]);
-                if ( cellPoint[*itCell][1] != idP )
+                if (cellPoint[*itCell][1] != idP)
                     neighborOfP.push_back(cellPoint[*itCell][1]);
-                if ( cellPoint[*itCell][2] != idP )
+                if (cellPoint[*itCell][2] != idP)
                     neighborOfP.push_back(cellPoint[*itCell][2]);
-            } // for itCell. Ok, now all neighbors of P is stored in neighborOfP;
+            } // for itCell. Ok, now all neighbors of P is stored in neighborOfP
+
             sort(neighborOfP.begin(), neighborOfP.end());
             std::vector<int>::iterator it;
             it = unique(neighborOfP.begin(), neighborOfP.end());
             neighborOfP.erase(it, neighborOfP.end());
             
-                
-            
+
             // //-----------------------------------------------
             // // print out the neighbors
             // std::vector<int>::iterator itNeighbor = neighborOfP.begin();
@@ -524,9 +521,9 @@ protected:
             // *itQ is the point Id of Q (so idP and *itQ are same type)
             std::vector<int>::iterator itQ, itQEnd = neighborOfP.end();
             for (itQ = neighborOfP.begin(); itQ != itQEnd; ++itQ) {
-                if (*itQ > idP) {
+                if (*itQ > idP)
                     numOfEdges++;
-                }
+
                 // first check whether PQ is a boundary edge:
                 std::vector<int> cellsContainingP(*itP), cellsContainingQ(pointCell[*itQ]);
                 std::vector<int> cells(cellsContainingP.size() + cellsContainingQ.size());
@@ -573,12 +570,21 @@ protected:
                 
                 std::vector<double> SP(3), SQ(3), RP(3), RQ(3);
                 double SPnorm = 0, SQnorm = 0, RPnorm = 0, RQnorm = 0, SPSQinnerProd = 0, RPRQinnerProd = 0;
-                for (int it = 0; it<3; ++it) {
-                    SP[it] = P[it] - S[it]; SPnorm += SP[it]*SP[it];
-                    SQ[it] = Q[it] - S[it]; SQnorm += SQ[it]*SQ[it]; SPSQinnerProd += SP[it]*SQ[it];
-                    RP[it] = P[it] - R[it]; RPnorm += RP[it]*RP[it];
-                    RQ[it] = Q[it] - R[it]; RQnorm += RQ[it]*RQ[it]; RPRQinnerProd += RP[it]*RQ[it];
-                } //it
+                for (int it = 0; it < 3; ++it) {
+                    SP[it] = P[it] - S[it];
+                    SPnorm += SP[it] * SP[it];
+
+                    SQ[it] = Q[it] - S[it];
+                    SQnorm += SQ[it] * SQ[it];
+                    SPSQinnerProd += SP[it] * SQ[it];
+
+                    RP[it] = P[it] - R[it];
+                    RPnorm += RP[it] * RP[it];
+
+                    RQ[it] = Q[it] - R[it];
+                    RQnorm += RQ[it] * RQ[it];
+                    RPRQinnerProd += RP[it] * RQ[it];
+                }
                 SPnorm = sqrt(SPnorm);
                 SQnorm = sqrt(SQnorm);
                 RPnorm = sqrt(RPnorm);
@@ -586,20 +592,21 @@ protected:
                 
                 double cosS = SPSQinnerProd / (SPnorm * SQnorm);
                 double cosR = RPRQinnerProd / (RPnorm * RQnorm);
-                double ctgS = cosS/sqrt(1-cosS*cosS), ctgR = cosR/sqrt(1-cosR*cosR);
+                double ctgS = cosS / sqrt(1 - cosS*cosS);
+                double ctgR = cosR / sqrt(1 - cosR*cosR);
                 
-                Dr[*itQ] = -0.5*(ctgS + ctgR);
-                Dr[idP] += 0.5*(ctgS + ctgR);
+                Dr[*itQ] = -0.5 * (ctgS + ctgR);
+                Dr[idP] += 0.5 * (ctgS + ctgR);
                 // add to the diagonal element of this line.
                 
                 //D(*itQ, idP) = -0.5*(ctgS + ctgR); // symmetric
                 //D(*itQ, *itQ) += 0.5*(ctgS + ctgR);
-                // add to the diagonal element of this line.
-            } // itQ
+            }
             
             // write the real values
-            nlRowParameterd(NL_RIGHT_HAND_SIDE,-bR[idP]);
+            nlRowParameterd(NL_RIGHT_HAND_SIDE, bR[idP]);
             nlBegin(NL_ROW);
+
             for (int i = 0; i < numOfPoints; i++) {
                 if (Dr[i] != 0) { // store it
                     nlCoefficient(i*2, Dr[i]);
@@ -608,7 +615,7 @@ protected:
             nlEnd(NL_ROW);
             
             // write the imaginary values
-            nlRowParameterd(NL_RIGHT_HAND_SIDE,-bI[idP]);
+            nlRowParameterd(NL_RIGHT_HAND_SIDE, -bI[idP]);
             nlBegin(NL_ROW);
             for (int i = 0; i < numOfPoints; i++) {
                 if (Dr[i] != 0) {
@@ -616,7 +623,7 @@ protected:
                 }
             }
             nlEnd(NL_ROW);
-        } // itP
+        }
 
         terminate_progress_report(&progress);
         ////////////////////////////////////////////////////////
