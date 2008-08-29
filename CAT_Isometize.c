@@ -20,8 +20,6 @@
 #define PINF  1.7976931348623157e+308 /* for doubles */
 #define NINF -1.7976931348623157e+308 /* for doubles */
 
-double areathresh = 0.0;
-double anglethresh = 0;
 int iter = 100; /* number of iterations */
 
 struct ptinfo {
@@ -31,10 +29,6 @@ struct ptinfo {
 };
 
 static ArgvInfo argTable[] = {
-  {"-areathresh", ARGV_FLOAT, (char *) 0, (char *) &areathresh,
-       "Area distortion threshold... how much the area distortion can increase (on a log scale) with each iteration [default=0]."},
-  {"-anglethresh", ARGV_FLOAT, (char *) 0, (char *) &anglethresh,
-       "Angle distortion threshold... how much the angle distortion can increase in degrees with each iteration [default=0]."},
   {"-iter", ARGV_INT, (char *) 1, (char *) &iter,
        "number of iterations."},
    {NULL, ARGV_END, NULL, NULL, NULL}
@@ -67,7 +61,7 @@ main(int argc, char** argv)
         double             areas[128], angles[128];
         double             iarea, iangle, centers[384], ratio, totalArea;
         double             adistort, newdistort, totaldistort, weight;
-        double             angdistort, newangdistort;
+        double             dist, maxdist = 0.05;
         double             bounds[6];
         double             xyz1[3], xyz2[3];
         int                n1, n2, nidx;
@@ -173,7 +167,6 @@ for (it = 1; it <= iter; it++) {
                         continue; /* skip this point */
 
                 adistort = 0.0;
-                angdistort = 0.0;
                 totaldistort = 0.0;
                 totalArea = 0.0;
 
@@ -198,7 +191,6 @@ for (it = 1; it <= iter; it++) {
                                 adistort += log10(ratio*areas[n]/iarea);
                                 totaldistort += areas[n]/iarea;
                         }
-                        angdistort += fabs(iangle - angles[n]);
 
                         /* Save center of this tile */
                         centers[n*3    ] = (Point_x(polygons->points[p]) +
@@ -231,9 +223,10 @@ for (it = 1; it <= iter; it++) {
                                         xyz2[i] += weight * centers[n*3+i];
                         }
                 }
-                /* see if the new centers reduces area distortion! */
+
+                /* see if the new centers reduces area & angle distortion! */
                 fill_Point(newcenter, xyz1[0], xyz1[1], xyz1[2]);
-                newdistort = newangdistort = 0;
+                newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
@@ -243,23 +236,27 @@ for (it = 1; it <= iter; it++) {
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
+                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
+                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
                         iangle = ipolyinfo[p]->angles[n];
 
                         if (iarea > 0)
                                 newdistort += log10(ratio*areas[n]/iarea);
-                        newangdistort += fabs(iangle - angles[n]);
                 }
+
                 newdistort = fabs(newdistort / n_neighbours[p]);
-                if (newdistort < adistort + areathresh) {
+                if (newdistort < adistort) {
                         Acount++;
                         fill_Point(polygons->points[p],
                                    xyz1[0], xyz1[1], xyz1[2]);
-                        adistort = newdistort;
+                        //adistort = newdistort;
+                        continue;
                 }
+
                 fill_Point(newcenter, xyz2[0], xyz2[1], xyz2[2]);
-                newdistort = newangdistort = 0;
+                newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
@@ -269,18 +266,23 @@ for (it = 1; it <= iter; it++) {
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
+                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
+                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
+                        iangle = ipolyinfo[p]->angles[n];
 
                         if (iarea > 0)
                                 newdistort += log10(ratio*areas[n]/iarea);
                 }
+
                 newdistort = fabs(newdistort / n_neighbours[p]);
-                if (newdistort < adistort + areathresh) {
+                if (newdistort < adistort) {
                         Dcount++;
                         fill_Point(polygons->points[p],
                                    xyz2[0], xyz2[1], xyz2[2]);
-                        adistort = newdistort;
+                        //adistort = newdistort;
+                        continue;
                 }
 
                 /* try length distortion */
@@ -308,10 +310,17 @@ for (it = 1; it <= iter; it++) {
                         bounds[5] = (bounds[5] > Point_z(npt)) ?
                                     bounds[5] : Point_z(npt);
 
-                        SCALE_VECTOR(dir, dir, MAGNITUDE(dir) -
-                                               ipolyinfo[p]->lengths[n]);
+                        dist = MAGNITUDE(dir) -
+                               ipolyinfo[p]->lengths[n];
+                        if (dist > maxdist)
+                                dist = maxdist;
+                        dist /= MAGNITUDE(dir);
+                        SCALE_VECTOR(dir, dir, dist);
                         ADD_POINT_VECTOR(newcenter, newcenter, dir);
                 }
+                for (i = 0; i < 3; i++)
+                        Point_coord(newcenter, i) = Point_coord(newcenter, i) /
+                                                    n_neighbours[p];
 
                 bounds[0] -= Point_x(polygons->points[p]);
                 bounds[1] -= Point_x(polygons->points[p]);
@@ -326,12 +335,12 @@ for (it = 1; it <= iter; it++) {
                     Point_y(newcenter) > bounds[3]/10 ||
                     Point_z(newcenter) < bounds[4]/10 ||
                     Point_z(newcenter) > bounds[5]/10) {
-                        continue; /* algorithm gave an unreasonable answer */
+                        continue; /* algorithm gave an aggressive answer */
                 }
 
                 ADD_POINT_VECTOR(newcenter, polygons->points[p], newcenter);
                 /* see if the new center reduces area distortion! */
-                newdistort = newangdistort = 0;
+                newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
@@ -341,21 +350,24 @@ for (it = 1; it <= iter; it++) {
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
+                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
+                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
+                        iangle = ipolyinfo[p]->angles[n];
 
                         if (iarea > 0)
                                 newdistort += log10(ratio*areas[n]/iarea);
                 }
                 newdistort = fabs(newdistort / n_neighbours[p]);
-                if (newdistort < adistort + areathresh) {
+                if (newdistort < adistort) {
                         Scount++;
                         fill_Point(polygons->points[p], Point_x(newcenter),
                                    Point_y(newcenter), Point_z(newcenter));
                 }
 
         }
-        /* printf("A = %d, D = %d, S = %d\n", Acount, Dcount, Scount); */
+        printf("A = %d, D = %d, S = %d\n", Acount, Dcount, Scount);
         if (Acount == 0 && Dcount == 0 && Scount == 0) break; /* done! */
 }
 
