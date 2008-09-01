@@ -17,6 +17,10 @@
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 
+#define SMOOTHING 1
+#undef AREADISTORTION /* don't run this algorithm by default */
+#define STRETCH 1
+
 #define PINF  1.7976931348623157e+308 /* for doubles */
 #define NINF -1.7976931348623157e+308 /* for doubles */
 
@@ -24,7 +28,6 @@ int iter = 100; /* number of iterations */
 
 struct ptinfo {
         double *areas;
-        double *angles;
         double *lengths;
 };
 
@@ -58,8 +61,8 @@ main(int argc, char** argv)
         int                i, n, it, p;
         Point              pts[3];
         Point              npt, dir, newcenter;
-        double             areas[128], angles[128];
-        double             iarea, iangle, centers[384], ratio, totalArea;
+        double             areas[128];
+        double             iarea, centers[384], ratio, totalArea;
         double             adistort, newdistort, totaldistort, weight;
         double             dist, maxdist = 0.05;
         double             bounds[6];
@@ -134,8 +137,6 @@ main(int argc, char** argv)
 
                 ipolyinfo[p]->areas = (double *) malloc(sizeof(double) *
                                                         n_neighbours[p]);
-                ipolyinfo[p]->angles = (double *) malloc(sizeof(double) *
-                                                         n_neighbours[p]);
                 ipolyinfo[p]->lengths = (double *) malloc(sizeof(double) *
                                                           n_neighbours[p]);
 
@@ -144,14 +145,12 @@ main(int argc, char** argv)
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
 
-                        /* area and angle of the triangle */
+                        /* area of the triangle */
                         pts[0] = ipolygons->points[p];
                         pts[1] = ipolygons->points[n1];
                         pts[2] = ipolygons->points[n2];
                         ipolyinfo[p]->areas[n] = get_polygon_surface_area(3,
                                                                           pts);
-                        ipolyinfo[p]->angles[n] = get_angle_between_points(
-                                                  &pts[1], &pts[0], &pts[2]);
 
                         /* lengths to neighbouring nodes */
                         SUB_POINTS(dir, ipolygons->points[n1],
@@ -176,15 +175,12 @@ for (it = 1; it <= iter; it++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
 
-                        // area and angle of the triangle
+                        /* area of the triangle */
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
-                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
-                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
-                        iangle = ipolyinfo[p]->angles[n];
 
                         totalArea += areas[n];
                         if (iarea > 0) {
@@ -205,11 +201,10 @@ for (it = 1; it <= iter; it++) {
                 }
                 adistort = fabs(adistort / n_neighbours[p]);
 
-                /* Compute two new possible centers */
-                for (i = 0; i < 3; i++) {
+#ifdef SMOOTHING
+                /* Algorithm #1 - Area Smoothing */
+                for (i = 0; i < 3; i++)
                         xyz1[i] = 0.0;
-                        xyz2[i] = 0.0;
-                }
                 for (n = 0; n <  n_neighbours[p]; n++) {
                         iarea = ipolyinfo[p]->areas[n];
                         if (totalArea > 0) {
@@ -217,30 +212,22 @@ for (it = 1; it <= iter; it++) {
                                 for (i = 0; i < 3; i++)
                                         xyz1[i] += weight * centers[n*3+i];
                         }
-                        if (iarea > 0) {
-                                weight = (areas[n]/iarea) / totaldistort;
-                                for (i = 0; i < 3; i++)
-                                        xyz2[i] += weight * centers[n*3+i];
-                        }
                 }
 
-                /* see if the new centers reduces area & angle distortion! */
+                /* see if the new centers reduces area distortion! */
                 fill_Point(newcenter, xyz1[0], xyz1[1], xyz1[2]);
                 newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
 
-                        /* area and angle of the triangle */
+                        /* area of the triangle */
                         pts[0] = newcenter;
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
-                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
-                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
-                        iangle = ipolyinfo[p]->angles[n];
 
                         if (iarea > 0)
                                 newdistort += log10(ratio*areas[n]/iarea);
@@ -251,26 +238,35 @@ for (it = 1; it <= iter; it++) {
                         Acount++;
                         fill_Point(polygons->points[p],
                                    xyz1[0], xyz1[1], xyz1[2]);
-                        //adistort = newdistort;
                         continue;
                 }
+#endif
 
+#ifdef AREADISTORTION
+                /* Algorithm #2 - Area Distortion */
+                for (i = 0; i < 3; i++)
+                        xyz2[i] = 0.0;
+                for (n = 0; n <  n_neighbours[p]; n++) {
+                        iarea = ipolyinfo[p]->areas[n];
+                        if (iarea > 0) {
+                                weight = (areas[n]/iarea) / totaldistort;
+                                for (i = 0; i < 3; i++)
+                                        xyz2[i] += weight * centers[n*3+i];
+                        }
+                }
                 fill_Point(newcenter, xyz2[0], xyz2[1], xyz2[2]);
                 newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
 
-                        /* area and angle of the triangle */
+                        /* area of the triangle */
                         pts[0] = newcenter;
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
-                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
-                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
-                        iangle = ipolyinfo[p]->angles[n];
 
                         if (iarea > 0)
                                 newdistort += log10(ratio*areas[n]/iarea);
@@ -281,11 +277,12 @@ for (it = 1; it <= iter; it++) {
                         Dcount++;
                         fill_Point(polygons->points[p],
                                    xyz2[0], xyz2[1], xyz2[2]);
-                        //adistort = newdistort;
                         continue;
                 }
+#endif
 
-                /* try length distortion */
+#ifdef STRETCH
+                /* Algorithm #3 - Stretch Optimization */
                 fill_Point(newcenter, 0.0, 0.0, 0.0);
 
                 bounds[0] = bounds[1] = Point_x(polygons->points[p]);
@@ -310,8 +307,7 @@ for (it = 1; it <= iter; it++) {
                         bounds[5] = (bounds[5] > Point_z(npt)) ?
                                     bounds[5] : Point_z(npt);
 
-                        dist = MAGNITUDE(dir) -
-                               ipolyinfo[p]->lengths[n];
+                        dist = MAGNITUDE(dir) - ipolyinfo[p]->lengths[n];
                         if (dist > maxdist)
                                 dist = maxdist;
                         dist /= MAGNITUDE(dir);
@@ -345,16 +341,13 @@ for (it = 1; it <= iter; it++) {
                         n1 = neighbours[p][n];
                         n2 = neighbours[p][(n + 1) % n_neighbours[p]];
 
-                        /* area and angle of the triangle */
+                        /* area of the triangle */
                         pts[0] = newcenter;
                         pts[1] = polygons->points[n1];
                         pts[2] = polygons->points[n2];
                         areas[n] = get_polygon_surface_area(3, pts);
-                        angles[n] = get_angle_between_points(&pts[1], &pts[0],
-                                                             &pts[2]);
 
                         iarea = ipolyinfo[p]->areas[n];
-                        iangle = ipolyinfo[p]->angles[n];
 
                         if (iarea > 0)
                                 newdistort += log10(ratio*areas[n]/iarea);
@@ -365,9 +358,10 @@ for (it = 1; it <= iter; it++) {
                         fill_Point(polygons->points[p], Point_x(newcenter),
                                    Point_y(newcenter), Point_z(newcenter));
                 }
+#endif
 
         }
-        printf("A = %d, D = %d, S = %d\n", Acount, Dcount, Scount);
+        /* printf("A = %d, D = %d, S = %d\n", Acount, Dcount, Scount); */
         if (Acount == 0 && Dcount == 0 && Scount == 0) break; /* done! */
 }
 
