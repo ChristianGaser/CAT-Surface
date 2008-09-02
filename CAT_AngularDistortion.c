@@ -7,8 +7,21 @@
 
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
+#include <ParseArgv.h>
 
 #include "CAT_Surf.h"
+
+BOOLEAN PerPoly = 0; /* by default, generate angle distortion per point */
+
+/* the argument table */
+ArgvInfo argTable[] = {
+  { "-polygon", ARGV_CONSTANT, (char *) 1,
+    (char *) &PerPoly,
+    "Calculate angular distortion on a per-polygon basis." },
+
+  { NULL, ARGV_END, NULL, NULL, NULL }
+};
+
 
 /*
  * Calculation of angular distortion based on Ju et al 2005.
@@ -82,42 +95,52 @@ angular_distortion(float *a1, float *b1, float *c1,
 int
 main(int argc, char *argv[])
 {
-        char                 *inobj_file1, *inobj_file2, *output_file;
+        char                 *object_file, *object2_file, *output_file;
         FILE                 *fp;
         File_formats         format;
-        int                  n_objects1, n_objects2;
-        int                  pnt, tp[3], p, size, fac;
-        object_struct        **objects1, **objects2;
-        polygons_struct      *polygons1, *polygons2;
-        double               ang_dist, total_ang_dist = 0;
+        int                  n_objects, n_obj;
+        int                  i, tp[3], p, size, poly;
+        object_struct        **objects, **objects2;
+        polygons_struct      *polygons, *polygons2;
+        double               ad, total_distortion = 0;
+        double               *ad_values;
+        signed char          *point_done;
+
+        /* Call ParseArgv */
+        if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
+                fprintf(stderr,"\nUsage: %s [options] object_file object_file2 output_file\n", argv[0]);
+                fprintf( stderr,"\nCalculate angular distortion between two surfaces.\n");
+                fprintf(stderr, "       %s -help\n\n", argv[0]);
+                return(1);
+        }
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &inobj_file1) ||
-            !get_string_argument(NULL, &inobj_file2) ||
+        if (!get_string_argument(NULL, &object_file) ||
+            !get_string_argument(NULL, &object2_file) ||
             !get_string_argument(NULL, &output_file)) {
                 fprintf(stderr,
                       "Usage: %s  object_file object_file2 output_file\n",
-                      argv[0] );
+                      argv[0]);
                 return(1);
         }
 
-        if (input_graphics_any_format(inobj_file1, &format,
-                                      &n_objects1, &objects1) != OK) {
+        if (input_graphics_any_format(object_file, &format,
+                                      &n_objects, &objects) != OK) {
                 return(1);
         }
 
-        if (n_objects1 != 1 || get_object_type(objects1[0]) != POLYGONS) {
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
                 return(1);
         }
 
-        if (input_graphics_any_format(inobj_file2, &format,
-                                      &n_objects2, &objects2) != OK) {
+        if (input_graphics_any_format(object2_file, &format,
+                                      &n_objects, &objects2) != OK) {
                 return(1);
         }
 
-        if (n_objects2 != 1 || get_object_type(objects2[0]) != POLYGONS) {
+        if (n_objects != 1 || get_object_type(objects2[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
                 return(1);
         }
@@ -126,61 +149,78 @@ main(int argc, char *argv[])
                 return(1);
         }
 
-        polygons1 = get_polygons_ptr(objects1[0]);
+        polygons = get_polygons_ptr(objects[0]);
         polygons2 = get_polygons_ptr(objects2[0]);
 
-        if (polygons1->n_items != polygons2->n_items) {
-                printf("The number of facets must be the same for both objects.\n");
+        if (polygons->n_items != polygons2->n_items ||
+            polygons->n_points != polygons2->n_points) {
+                fprintf(stderr, "Input polygons don't match. Exiting.\n");
                 return(1);
         }
 
+        if (PerPoly) {
+                ALLOC(ad_values, polygons->n_items);
+                n_obj = polygons->n_items;
+        } else {        
+                ALLOC(ad_values, polygons->n_points);
+                ALLOC(point_done, polygons->n_points);
+                for (i = 0; i < polygons->n_points; i++)
+                        point_done[i] = FALSE;
+                n_obj = polygons->n_points;
+        }
+
         /* walk through facets */
-        for (fac = 0; fac < polygons1->n_items; fac++) {
-                size = GET_OBJECT_SIZE(*polygons1, fac);
-                if (size != GET_OBJECT_SIZE(*polygons2, fac)) {
-                        printf("Objects don't match. Exiting...\n");
-                        return(1);
-                }
+        for (poly = 0; poly < polygons->n_items; poly++) {
+                size = GET_OBJECT_SIZE(*polygons, poly);
                 if (size != 3) {
                         printf("Mesh must only contain triangles. Exiting..\n");
                         return(1);
                 }
 
                 /* walk through facet points */
-                for (pnt = 0; pnt < size; pnt++) {
-                        int p1 = polygons1->indices[
-                                 POINT_INDEX(polygons1->end_indices, fac, pnt)];
-                        int p2 = polygons2->indices[
-                                 POINT_INDEX(polygons2->end_indices, fac, pnt)];
-                        if (p1 != p2) {
-                                printf("Objects don't match. Exiting...\n");
-                                return(1);
+                for (i = 0; i < size; i++)
+                        tp[i] = polygons->indices[
+                                   POINT_INDEX(polygons->end_indices, poly, i)];
+
+                ad = angular_distortion(polygons->points[tp[0]].coords,
+                                        polygons->points[tp[1]].coords,
+                                        polygons->points[tp[2]].coords,
+                                        polygons2->points[tp[0]].coords,
+                                        polygons2->points[tp[1]].coords,
+                                        polygons2->points[tp[2]].coords);
+
+                if (!isnan(ad))
+                        total_distortion += ad;
+
+                if (PerPoly) {
+                        ad_values[poly] = ad;
+                } else {
+                        for (i = 0; i < size; i++) {
+                                if (!point_done[tp[i]]) {
+                                        point_done[tp[i]] = TRUE;
+                                        ad_values[tp[i]] = ad;
+                                }
                         }
-                        tp[pnt] = p1; /* save facet points */
-                }
-
-                ang_dist = angular_distortion(polygons1->points[tp[0]].coords,
-                                              polygons1->points[tp[1]].coords,
-                                              polygons1->points[tp[2]].coords,
-                                              polygons2->points[tp[0]].coords,
-                                              polygons2->points[tp[1]].coords,
-                                              polygons2->points[tp[2]].coords);
-                if (!isnan(ang_dist))
-                        total_ang_dist += ang_dist;
-
-                if (output_double(fp, ang_dist) != OK ||
-                    output_newline(fp) != OK) {
-                        return(1);
                 }
         }
 
-        printf("Angular distortion: %f\n",
-              total_ang_dist/(3*polygons1->n_items));
+        for (i = 0; i < n_obj; i++) {
+                if (output_double(fp, ad_values[i]) != OK ||
+                    output_newline(fp) != OK)
+                        return(1);
+        }
+
+        printf("Angular distortion: %f\n", total_distortion /
+                                           (3 * polygons->n_items));
       
         close_file(fp);
 
-        delete_object_list(n_objects1, objects1);
-        delete_object_list(n_objects2, objects2);
+        delete_object_list(n_objects, objects);
+        delete_object_list(n_objects, objects2);
+
+        FREE(ad_values);
+        if (!PerPoly)
+                FREE(point_done);
 
         return(0);
 }
