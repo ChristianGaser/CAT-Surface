@@ -51,8 +51,8 @@ main(int argc, char *argv[])
         int               poly, n_objects, n_obj, i, size, vertidx;
         object_struct     **objects, **objects2;
         polygons_struct   *polygons, *polygons2;
-        double            area, area2, surface_area, surface_area2;
-        double            *area_values, *area_values2, ratio, value;
+        double            area, area2;
+        double            *ad_values, ratio, value;
         double            distortion = 0;
         Point             pts[MAX_POINTS_PER_POLYGON];
         Point             pts2[MAX_POINTS_PER_POLYGON];
@@ -108,84 +108,76 @@ main(int argc, char *argv[])
         }
 
         if (PerPoly) {
-                ALLOC(area_values, polygons->n_items);
-                ALLOC(area_values2, polygons2->n_items);
+                ALLOC(ad_values, polygons->n_items);
                 n_obj = polygons->n_items;
         } else {
-                ALLOC(area_values, polygons->n_points);
-                ALLOC(area_values2, polygons2->n_points);
+                ALLOC(ad_values, polygons->n_points);
                 ALLOC(n_polys, polygons->n_points);
                 for (i = 0; i < polygons->n_points; i++) {
                         n_polys[i] = 0;
-                        area_values[i] = 0;
-                        area_values2[i] = 0;
+                        ad_values[i] = 0;
                 }
                 n_obj = polygons->n_points;
         }
 
+        ratio = get_polygons_surface_area(polygons) /
+                get_polygons_surface_area(polygons2);
+
         for (poly = 0; poly < polygons->n_items; poly++) {
                 size = get_polygon_points(polygons, poly, pts);
                 area = get_polygon_surface_area(size, pts);
-                surface_area += area;
 
                 size = get_polygon_points(polygons2, poly, pts2);
                 area2 = get_polygon_surface_area(size, pts2);
-                surface_area2 += area2;
 
                 size = GET_OBJECT_SIZE(*polygons, poly);
 
+                switch (method) {
+                case RATIO:
+                        value = ratio * area2 / area;
+                        break;
+                case LOG_RATIO:
+                       value = log10(ratio * area2 / area);
+                       break;
+                case PERCENTAGE:
+                       value = 100 * (ratio * (area2 - area)) / area;
+                       break;
+                }
+
+                if (value < PINF && value > NINF)
+                        distortion += fabs(value);
+
                 if (PerPoly) {
-                        area_values[poly] = area;
-                        area_values2[poly] = area2;
+                        ad_values[poly] = value;
                 } else {
                         for (vertidx = 0; vertidx < size; vertidx++) {
                                 i = polygons->indices[
                                               POINT_INDEX(polygons->end_indices,
                                               poly, vertidx)];
                                 n_polys[i]++;
-                                area_values[i] += area;
-                                area_values2[i] += area2;
+                                ad_values[i] += value;
                         }
                 }
         }
 
-        ratio = surface_area / surface_area2;
 
         for (i = 0; i < n_obj; i++) {
-                if (!PerPoly && n_polys[i] > 0) { /* average area values */
-                        area_values[i] /= n_polys[i];
-                        area_values2[i] /= n_polys[i];
-                }
+                if (!PerPoly && n_polys[i] > 0) /* average distortion */
+                        ad_values[i] /= n_polys[i];
 
-                switch (method) {
-                case RATIO:
-                        value = ratio * area_values2[i] / area_values[i];
-                        break;
-                case LOG_RATIO:
-                       value = log10(ratio * area_values2[i] / area_values[i]);
-                       break;
-                case PERCENTAGE:
-                       value = 100 *
-                               (ratio * (area_values2[i] - area_values[i])) /
-                               area_values[i];
-                       break;
-                }
-                if (value < PINF && value > NINF)
-                        distortion += fabs(value);
-
-                if (output_real(fp, value) != OK || output_newline(fp) != OK)
-                        break;
+                if (output_real(fp, ad_values[i]) != OK ||
+                    output_newline(fp) != OK)
+                        return(1);
         }
 
-        printf("Area distortion = %f\n", distortion / n_obj);
+        printf("Area distortion = %f\n", distortion / polygons->n_items);
 
         close_file(fp);
 
         delete_object_list(n_objects, objects);
         delete_object_list(n_objects, objects2);
 
-        FREE(area_values);
-        FREE(area_values2);
+        FREE(ad_values);
         if (!PerPoly)
                 FREE(n_polys);
 
