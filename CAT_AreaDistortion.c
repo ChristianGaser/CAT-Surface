@@ -56,7 +56,7 @@ main(int argc, char *argv[])
         double            distortion = 0;
         Point             pts[MAX_POINTS_PER_POLYGON];
         Point             pts2[MAX_POINTS_PER_POLYGON];
-        signed char       *point_done;
+        int               *n_polys;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
@@ -114,9 +114,12 @@ main(int argc, char *argv[])
         } else {
                 ALLOC(area_values, polygons->n_points);
                 ALLOC(area_values2, polygons2->n_points);
-                ALLOC(point_done, polygons->n_points);
-                for (i = 0; i < polygons->n_points; i++)
-                        point_done[i] = FALSE;
+                ALLOC(n_polys, polygons->n_points);
+                for (i = 0; i < polygons->n_points; i++) {
+                        n_polys[i] = 0;
+                        area_values[i] = 0;
+                        area_values2[i] = 0;
+                }
                 n_obj = polygons->n_points;
         }
 
@@ -139,11 +142,9 @@ main(int argc, char *argv[])
                                 i = polygons->indices[
                                               POINT_INDEX(polygons->end_indices,
                                               poly, vertidx)];
-                                if (!point_done[i]) {
-                                        point_done[i] = TRUE;
-                                        area_values[i] = area;
-                                        area_values2[i] = area2;
-                                }
+                                n_polys[i]++;
+                                area_values[i] += area;
+                                area_values2[i] += area2;
                         }
                 }
         }
@@ -151,6 +152,11 @@ main(int argc, char *argv[])
         ratio = surface_area / surface_area2;
 
         for (i = 0; i < n_obj; i++) {
+                if (!PerPoly && n_polys[i] > 0) { /* average area values */
+                        area_values[i] /= n_polys[i];
+                        area_values2[i] /= n_polys[i];
+                }
+
                 switch (method) {
                 case RATIO:
                         value = ratio * area_values2[i] / area_values[i];
@@ -181,7 +187,7 @@ main(int argc, char *argv[])
         FREE(area_values);
         FREE(area_values2);
         if (!PerPoly)
-                FREE(point_done);
+                FREE(n_polys);
 
         return(0);
 }

@@ -104,7 +104,7 @@ main(int argc, char *argv[])
         polygons_struct      *polygons, *polygons2;
         double               ad, total_distortion = 0;
         double               *ad_values;
-        signed char          *point_done;
+        int                  *n_polys;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
@@ -163,9 +163,11 @@ main(int argc, char *argv[])
                 n_obj = polygons->n_items;
         } else {        
                 ALLOC(ad_values, polygons->n_points);
-                ALLOC(point_done, polygons->n_points);
-                for (i = 0; i < polygons->n_points; i++)
-                        point_done[i] = FALSE;
+                ALLOC(n_polys, polygons->n_points);
+                for (i = 0; i < polygons->n_points; i++) {
+                        n_polys[i] = 0;
+                        ad_values[i] = 0;
+                }
                 n_obj = polygons->n_points;
         }
 
@@ -196,15 +198,16 @@ main(int argc, char *argv[])
                         ad_values[poly] = ad;
                 } else {
                         for (i = 0; i < size; i++) {
-                                if (!point_done[tp[i]]) {
-                                        point_done[tp[i]] = TRUE;
-                                        ad_values[tp[i]] = ad;
-                                }
+                                n_polys[tp[i]]++;
+                                ad_values[tp[i]] += ad;
                         }
                 }
         }
 
         for (i = 0; i < n_obj; i++) {
+                if (!PerPoly && n_polys[i] > 0) /* average distortion */
+                        ad_values[i] /= n_polys[i];
+
                 if (output_double(fp, ad_values[i]) != OK ||
                     output_newline(fp) != OK)
                         return(1);
@@ -220,7 +223,7 @@ main(int argc, char *argv[])
 
         FREE(ad_values);
         if (!PerPoly)
-                FREE(point_done);
+                FREE(n_polys);
 
         return(0);
 }
