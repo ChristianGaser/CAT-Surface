@@ -118,10 +118,10 @@ main(int argc, char *argv[])
         ticoeffsy = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
         ticoeffsz = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
         		
-        get_equally_sampled_coords_of_polygon(polygons_source, polygons_source_sphere, bandwidth, rdatax, rdatay, rdataz);
-
-        // dataformat indicates real data
+        /* dataformat indicates real data */
         dataformat = 1;
+
+        get_equally_sampled_coords_of_polygon(polygons_source, polygons_source_sphere, bandwidth, rdatax, rdatay, rdataz);
         get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, srcoeffsx, sicoeffsx);
         get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, srcoeffsy, sicoeffsy);
         get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, srcoeffsz, sicoeffsz);
