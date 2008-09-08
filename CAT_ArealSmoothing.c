@@ -31,7 +31,7 @@ main(int argc, char *argv[])
                 return(1);
         }
 
-        get_int_argument(500, &n_iters);
+        get_int_argument(4000, &n_iters);
     
         if(input_graphics_any_format(object_filename, &format, &n_objects, &objects) != OK)
                 return(1);

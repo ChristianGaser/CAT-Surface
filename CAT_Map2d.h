@@ -16,7 +16,6 @@ typedef struct {
 } Vector2D;
 
 void   point_to_uv(Point *, double *, double *);
-double point_to_uv_radius(Point *, double *, double *);
 void   uv_to_point(double, double, Point *);
 void   map_smoothed_curvature_to_sphere(polygons_struct *, double *, double *,
                                         double, int *);

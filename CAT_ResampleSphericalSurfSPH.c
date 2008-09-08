@@ -16,11 +16,22 @@
 
 /* argument defaults */
 int bandwidth = 256;
-int bandwidth_limited = 64;
+int bandwidth_limited = 128;
 int n_triangles = 81920;
+double t1_threshold = 0.0;
+char *t1_file   = NULL;
 
 /* the argument table */
 ArgvInfo argTable[] = {
+  {"-t1", ARGV_STRING, (char *) 1, 
+    (char *) &t1_file,
+    "Optional T1-image to weight topology correction. If values in T1-image are above the threshold defined with -th, \n\
+           then the radius of the sphere is decreased by 1% to resample the most outside points. This indicates a hole. \n\
+           For T1-values below the threshold this area is assumed to be a handle and the sphere radius is increased by 1% \n\
+           to resample the most inside points."},
+  { "-th", ARGV_FLOAT, (char *) 1, 
+    (char *) &t1_threshold,
+    "Threshold between GM and CSF." },
   { "-bw", ARGV_INT, (char *) 1, 
     (char *) &bandwidth,
     "Bandwidth of coefficients for spherical harmonic expansion." },
@@ -51,9 +62,11 @@ main(int argc, char *argv[])
         File_formats         format;
         int                  dataformat; /* = 0 -> samples are complex,
                                           * = 1 -> samples are real */
-        int                  i, bandwidth2, n_dims, n_objects;
+        int                  i, j, bandwidth2, n_objects;
         double               *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double               *rdatax, *rdatay, *rdataz;
+        double               r, value, avgt1, *t1value;
+        Volume               volume;
         polygons_struct      *polygons, *polygons_sphere, *polygons_output;
         object_struct        **objects, *objects_output;
 
@@ -103,6 +116,49 @@ main(int argc, char *argv[])
                 return(1);
         }
     
+        /* An optional T1 image can be used for changing the radius of the sphere to influence
+           the resampling. We assume that values in the T1 image below a given threshold (=CSF) 
+           indicate a handle. The radius in these areas is increased by 1% to get sure that the
+           bottom is resampled which equals a cutting, becasue the most inside points are resampled. 
+           In contrast T1-values above the threshold (=GM/WM) point to a hole and the radius of the
+           sphere is decrease by 1%. Thus, the resampling is done form the most outside points, 
+           which equals a filling.
+        */
+        if (t1_file != NULL) {
+                if( input_volume( t1_file, 3, File_order_dimension_names,
+                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                      TRUE, &volume, NULL ) != OK )
+                        return( 1 );
+                t1value    = (double *) malloc(sizeof(double)*polygons_sphere->n_points);
+                
+                avgt1 = 0.0;
+                for (i = 0; i < polygons_sphere->n_points; i++) {
+                        evaluate_volume_in_world( volume,
+                                  RPoint_x(polygons_sphere->points[i]),
+                                  RPoint_y(polygons_sphere->points[i]),
+                                  RPoint_z(polygons_sphere->points[i]),
+                                  0, 
+                                  FALSE, 0.0,
+                                  &value,
+                                  NULL, NULL, NULL,
+                                  NULL, NULL, NULL, NULL, NULL, NULL );
+                        t1value[i] = value;
+                        avgt1 += value;
+                }
+                if (t1_threshold == 0.0)
+                        avgt1 /= polygons_sphere->n_points;
+                else    avgt1 = t1_threshold;
+
+                for (i = 0; i < polygons_sphere->n_points; i++) {
+                        if (t1value[i] < avgt1)
+                                r = 1.01;
+                        else r = 0.99;
+                        for (j = 0; j < 3; j++) 
+                                Point_coord(polygons_sphere->points[i], j) *= r;                
+                }
+                free(t1value);
+        }
+
         bandwidth2 = 2*bandwidth;
 
         rdatax = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);

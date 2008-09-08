@@ -377,7 +377,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                                       double ycoord[], double zcoord[])
 {
         int       i, j, x, y;
-        double    value, u, v;
+        double    value, u, v, r;
         Point     unit_point, on_sphere_point, new_point;
         Point     poly_points[1000], poly_points_src[1000], scaled_point;
         int       poly, size, ind, bandwidth2;
@@ -388,8 +388,16 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
         get_bounds(polygons_sphere, bounds);
         for (j = 0; j < 3; j++)
                 centre[j] = bounds[2*j] + bounds[2*j+1];
-        rsphere = (bounds[1] - bounds[0] + bounds[3] + bounds[2] + bounds[5] -
-                   bounds[4]) / 4.0;
+
+        rsphere = 0.0;
+        for (i = 0; i < polygons_sphere->n_points; i++) {
+                r = 0.0;
+                for (j = 0; j < 3; j++) 
+                        r += Point_coord(polygons_sphere->points[i], j) *
+                             Point_coord(polygons_sphere->points[i], j);
+                rsphere += sqrt(r);
+        }
+        rsphere /= polygons_sphere->n_points;
 
         /*
          * Set centre and radius.  Make radius slightly smaller to get sure

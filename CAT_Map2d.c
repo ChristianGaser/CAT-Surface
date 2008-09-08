@@ -41,21 +41,6 @@ compute_clockwise_rotation2(double x, double y)
         }
 }
 
-double
-point_to_uv_radius(Point *point, double *u, double *v)
-{
-        double x, y, z, theta, phi, scale = 100.0;
-    
-        x = (double) Point_x(*point) / scale;
-        y = (double) Point_y(*point) / scale;
-        z = (double) Point_z(*point) / scale;
-
-        phi = acos(z);
-        theta = compute_clockwise_rotation(y, x);
-        *u = theta / (PI * 2.0);
-        *v = phi / PI;
-        return(sqrt(x*x + y*y + z*z));
-}
 
 void
 point_to_uv(Point *point, double *u, double *v)

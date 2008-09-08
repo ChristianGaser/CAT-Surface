@@ -16,7 +16,7 @@ void
 usage(char *executable)
 {
         static  char  *usage_str = "\n\
-Usage: %s  source.obj source_sphere.obj target.obj target_sphere.obj warped.obj\n\
+Usage: %s  source.obj source_sphere.obj target.obj target_sphere.obj warped.obj [cutoff]\n\
         Use spherical harmonic coefficients to warp a surface to a given template.\n\
 \n\n";
 
@@ -54,6 +54,8 @@ main(int argc, char *argv[])
                 usage(argv[0]);
                 return(1);
         }
+
+        get_int_argument(4, &cutoff);
         
         if (input_graphics_any_format(target_filename, &format, &n_objects, &objects) != OK)
                 return(1);
@@ -131,7 +133,6 @@ main(int argc, char *argv[])
         get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, trcoeffsy, ticoeffsy);
         get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, trcoeffsz, ticoeffsz);
 
-        cutoff = 4;
         replaceSPH(bandwidth, cutoff, srcoeffsx, trcoeffsx);
         replaceSPH(bandwidth, cutoff, srcoeffsy, trcoeffsy);
         replaceSPH(bandwidth, cutoff, srcoeffsz, trcoeffsz);
