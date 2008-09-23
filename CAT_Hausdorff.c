@@ -1,0 +1,177 @@
+/* Rachel Yotter - rachel.yotter@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Rachel Yotter, University of Jena.
+ */
+
+#include <volume_io/internal_volume_io.h>
+#include <bicpl.h>
+#include <ParseArgv.h>
+
+#include "CAT_Surf.h"
+
+BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
+
+/* the argument table */
+ArgvInfo argTable[] = {
+  { "-exact", ARGV_CONSTANT, (char *) 1,
+    (char *) &exact,
+    "Calculate the Hausdorff distance on a point-by-point basis.  Requires that both meshes are of the same brain with the same number of points." },
+  { NULL, ARGV_END, NULL, NULL, NULL }
+};
+
+
+/*
+ * Calculate the exact Hausdorff distance.  This assumes that the two
+ * input meshes are the same size and of the same brain.
+ */
+double
+calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+{
+        int i;
+        double max_hd = 0;
+        progress_struct progress;
+
+        initialize_progress_report(&progress, FALSE, p->n_points,
+                                   "CalcHausdorff");
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+                hd[i] = sq_distance_between_points(&p->points[i],
+                                                   &p2->points[i]);
+                hd[i] = sqrt(hd[i]);
+                if (hd[i] > max_hd)
+                        max_hd = hd[i];
+                update_progress_report(&progress, i);
+        }
+        terminate_progress_report(&progress);
+        return(max_hd);
+}
+
+/*
+ * Calculate the general Hausdorff distance.  The two input meshes do
+ * not need to be the same size.
+ */
+double
+calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+{
+        int i, j;
+        double max_hd = 0.0, dist, min_dist;
+        progress_struct progress;
+
+        initialize_progress_report(&progress, FALSE, p->n_points,
+                                   "CalcHausdorff");
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+                min_dist = sq_distance_between_points(&p->points[i],
+                                                      &p2->points[0]);
+                for (j = 1; j < p2->n_points; j++) {
+                        dist = sq_distance_between_points(&p->points[i],
+                                                          &p2->points[j]);
+                        if (dist < min_dist) {
+                                min_dist = dist;
+                        }
+                }
+                hd[i] = sqrt(min_dist);
+                if (hd[i] > max_hd)
+                        max_hd = hd[i];
+                update_progress_report(&progress, i);
+        }
+        terminate_progress_report(&progress);
+        return(max_hd);
+}
+
+int
+main(int argc, char *argv[])
+{
+        char                 *object_file, *object2_file, *output_file;
+        FILE                 *fp;
+        File_formats         format;
+        int                  n_objects;
+        int                  i;
+        object_struct        **objects, **objects2;
+        polygons_struct      *polygons, *polygons2;
+        double               max_hd = 0, mean_hd = 0, *hd;
+
+        /* Call ParseArgv */
+        if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
+                fprintf(stderr,"\nUsage: %s [options] object_file object_file2 output_file\n", argv[0]);
+                fprintf( stderr,"\nCalculate Hausdorff distance between two surfaces.\n");
+                fprintf(stderr, "       %s -help\n\n", argv[0]);
+                return(1);
+        }
+
+        initialize_argument_processing(argc, argv);
+
+        if (!get_string_argument(NULL, &object_file) ||
+            !get_string_argument(NULL, &object2_file) ||
+            !get_string_argument(NULL, &output_file)) {
+                fprintf(stderr,
+                      "Usage: %s  object_file object_file2 output_file\n",
+                      argv[0]);
+                return(1);
+        }
+
+        if (input_graphics_any_format(object_file, &format,
+                                      &n_objects, &objects) != OK) {
+                return(1);
+        }
+
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("File must contain 1 polygons object.\n");
+                return(1);
+        }
+
+        if (input_graphics_any_format(object2_file, &format,
+                                      &n_objects, &objects2) != OK) {
+                return(1);
+        }
+
+        if (n_objects != 1 || get_object_type(objects2[0]) != POLYGONS) {
+                printf("File must contain 1 polygons object.\n");
+                return(1);
+        }
+
+        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
+                return(1);
+        }
+
+        polygons = get_polygons_ptr(objects[0]);
+        polygons2 = get_polygons_ptr(objects2[0]);
+
+        if (exact && (polygons->n_items != polygons2->n_items ||
+                      polygons->n_points != polygons2->n_points)) {
+                fprintf(stderr, "Input polygons don't match. Exiting.\n");
+                return(1);
+        }
+
+        ALLOC(hd, polygons->n_points);
+
+        if (exact) { /* O(n) time */
+                max_hd = calc_exact_hausdorff(polygons, polygons2, hd);
+        } else { /* O(n*m) time */
+                max_hd = calc_hausdorff(polygons, polygons2, hd);
+        }
+
+        for (i = 0; i < polygons->n_points; i++) {
+                mean_hd += hd[i];
+
+                if (output_double(fp, hd[i]) != OK || output_newline(fp) != OK)
+                        return(1);
+        }
+
+        mean_hd /= polygons->n_points;
+
+        printf("Hausdorff distance: %f\n", max_hd);
+        printf("Mean Hausdorff distance: %f\n", mean_hd);
+      
+        close_file(fp);
+
+        delete_object_list(n_objects, objects);
+        delete_object_list(n_objects, objects2);
+
+        FREE(hd);
+        return(0);
+}
