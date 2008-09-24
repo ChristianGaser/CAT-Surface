@@ -11,6 +11,9 @@
 
 #include "CAT_Surf.h"
 
+#define PINF  1.7976931348623157e+308 /* for doubles */
+#define NINF -1.7976931348623157e+308 /* for doubles */
+
 BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
 
 /* the argument table */
@@ -21,6 +24,34 @@ ArgvInfo argTable[] = {
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
+/*
+ * Go through the neighboring triangles around the closest point and find the
+ * closest distance between each triangle and the point p.
+ */
+double
+get_closest_dist(Point *p, Point *p2, int n_neighbours, int *neighbours,
+                 polygons_struct *polygons2)
+{
+        int n;
+        Point pts[3], closest;
+        double dist, min_dist = PINF;
+
+        pts[0] = *p2;
+        for (n = 0; n < n_neighbours - 1; n++) {
+                pts[1] = polygons2->points[ neighbours[n] ];
+                pts[2] = polygons2->points[ neighbours[n+1] ];
+                dist = find_point_polygon_distance_sq(p, 3, pts, &closest);
+                if (dist < min_dist)
+                        min_dist = dist;
+        }
+        pts[1] = polygons2->points[ neighbours[n] ];
+        pts[2] = polygons2->points[ neighbours[0] ];
+        dist = find_point_polygon_distance_sq(p, 3, pts, &closest);
+        if (dist < min_dist)
+                min_dist = dist;
+
+        return(sqrt(min_dist));
+}
 
 /*
  * Calculate the exact Hausdorff distance.  This assumes that the two
@@ -30,22 +61,22 @@ double
 calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 {
         int i;
-        double max_hd = 0;
-        progress_struct progress;
-
-        initialize_progress_report(&progress, FALSE, p->n_points,
-                                   "CalcHausdorff");
+        double max_hd = 0.0, avg_hd = 0.0;
 
         /* walk through the points */
         for (i = 0; i < p->n_points; i++) {
-                hd[i] = sq_distance_between_points(&p->points[i],
-                                                   &p2->points[i]);
+                hd[i] = distance_between_points(&p->points[i], &p2->points[i]);
                 hd[i] = sqrt(hd[i]);
+
                 if (hd[i] > max_hd)
                         max_hd = hd[i];
-                update_progress_report(&progress, i);
+                avg_hd += hd[i];
         }
-        terminate_progress_report(&progress);
+
+        avg_hd /= p->n_points;
+        printf("Hausdorff distance: %f\n", max_hd);
+        printf("Mean Hausdorff distance: %f\n", avg_hd);
+
         return(max_hd);
 }
 
@@ -56,30 +87,87 @@ calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 double
 calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 {
-        int i, j;
-        double max_hd = 0.0, dist, min_dist;
+        int i, j, n, minj;
+        int *n_neighbours, **neighbours;
+        int *n_neighbours2, **neighbours2;
+        double max_hd, max_revhd;
+        double avg_hd, avg_revhd;
+        double dist, min_dist;
+        int *revpts;
+        double *revhd;
+        Point closest, pts[3];
         progress_struct progress;
 
         initialize_progress_report(&progress, FALSE, p->n_points,
                                    "CalcHausdorff");
 
+        create_polygon_point_neighbours(p, TRUE, &n_neighbours,
+                                        &neighbours, NULL, NULL);
+        create_polygon_point_neighbours(p2, TRUE, &n_neighbours2,
+                                        &neighbours2, NULL, NULL);
+
+        revpts = (int *) malloc(sizeof(int) * p2->n_points);
+        revhd = (double *) malloc(sizeof(double) * p2->n_points);
+
+        for (j = 0; j < p2->n_points; j++)
+                revhd[j] = PINF; /* mark as not found yet */
+
         /* walk through the points */
+        max_hd = 0; avg_hd = 0;
         for (i = 0; i < p->n_points; i++) {
-                min_dist = sq_distance_between_points(&p->points[i],
-                                                      &p2->points[0]);
-                for (j = 1; j < p2->n_points; j++) {
+                min_dist = PINF;
+
+                for (j = 0; j < p2->n_points; j++) {
                         dist = sq_distance_between_points(&p->points[i],
                                                           &p2->points[j]);
                         if (dist < min_dist) {
                                 min_dist = dist;
+                                minj = j;
+                        }
+                        if (dist < revhd[j]) {
+                                revhd[j] = dist; /* save for reverse calc */
+                                revpts[j] = i;
                         }
                 }
-                hd[i] = sqrt(min_dist);
+                min_dist = sqrt(min_dist);
+
+                dist = get_closest_dist(&p->points[i], &p2->points[minj],
+                                        n_neighbours2[minj], neighbours2[minj],
+                                        p2);
+
+                hd[i] = min_dist < dist ? min_dist : dist;
                 if (hd[i] > max_hd)
                         max_hd = hd[i];
+                avg_hd += hd[i];
+
                 update_progress_report(&progress, i);
         }
-        terminate_progress_report(&progress);
+
+        /* calculate the reverse Hausdorff distance */
+        max_revhd = 0;
+        for (j = 0; j < p2->n_points; j++) {
+                revhd[j] = sqrt(revhd[j]);
+                dist = get_closest_dist(&p2->points[j], &p->points[revpts[j]],
+                                        n_neighbours[revpts[j]],
+                                        neighbours[revpts[j]], p);
+                if (dist < revhd[j])
+                        revhd[j] = dist;
+                avg_revhd += revhd[j];
+                if (revhd[j] > max_revhd)
+                        max_revhd = revhd[j];
+        }
+
+        avg_hd /= p->n_points;
+        avg_revhd /= p2->n_points;
+
+        printf("Hausdorff distance: %f\n", max_hd);
+        printf("Reverse Hausdorff distance: %f\n", max_revhd);
+        printf("Mean Hausdorff distance: %f\n", avg_hd);
+        printf("Mean reverse Hausdorff distance: %f\n", avg_revhd);
+
+        free(revpts);
+        free(revhd);
+
         return(max_hd);
 }
 
@@ -93,7 +181,7 @@ main(int argc, char *argv[])
         int                  i;
         object_struct        **objects, **objects2;
         polygons_struct      *polygons, *polygons2;
-        double               max_hd = 0, mean_hd = 0, *hd;
+        double               max_hd = 0, *hd;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
@@ -156,17 +244,10 @@ main(int argc, char *argv[])
         }
 
         for (i = 0; i < polygons->n_points; i++) {
-                mean_hd += hd[i];
-
                 if (output_double(fp, hd[i]) != OK || output_newline(fp) != OK)
                         return(1);
         }
 
-        mean_hd /= polygons->n_points;
-
-        printf("Hausdorff distance: %f\n", max_hd);
-        printf("Mean Hausdorff distance: %f\n", mean_hd);
-      
         close_file(fp);
 
         delete_object_list(n_objects, objects);
