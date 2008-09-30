@@ -87,85 +87,62 @@ calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 double
 calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 {
-        int i, j, n, minj;
-        int *n_neighbours, **neighbours;
-        int *n_neighbours2, **neighbours2;
+        int i;
         double max_hd, max_revhd;
         double avg_hd, avg_revhd;
-        double dist, min_dist;
-        int *revpts;
         double *revhd;
-        Point closest, pts[3];
+        double val;
+        struct octree *tree;
         progress_struct progress;
 
-        initialize_progress_report(&progress, FALSE, p->n_points,
-                                   "CalcHausdorff");
-
-        create_polygon_point_neighbours(p, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
-        create_polygon_point_neighbours(p2, TRUE, &n_neighbours2,
-                                        &neighbours2, NULL, NULL);
-
-        revpts = (int *) malloc(sizeof(int) * p2->n_points);
-        revhd = (double *) malloc(sizeof(double) * p2->n_points);
-
-        for (j = 0; j < p2->n_points; j++)
-                revhd[j] = PINF; /* mark as not found yet */
-
-        /* walk through the points */
+        /* find the forward hausdorff distances */
         max_hd = 0; avg_hd = 0;
+        tree = build_octree(p2);
+
+        initialize_progress_report(&progress, FALSE, p->n_points,
+                                   "ForwardHausdorff");
+
         for (i = 0; i < p->n_points; i++) {
-                min_dist = PINF;
+                hausdorff_distance(p->points[i], p2, tree, &hd[i]);
 
-                for (j = 0; j < p2->n_points; j++) {
-                        dist = sq_distance_between_points(&p->points[i],
-                                                          &p2->points[j]);
-                        if (dist < min_dist) {
-                                min_dist = dist;
-                                minj = j;
-                        }
-                        if (dist < revhd[j]) {
-                                revhd[j] = dist; /* save for reverse calc */
-                                revpts[j] = i;
-                        }
-                }
-                min_dist = sqrt(min_dist);
-
-                dist = get_closest_dist(&p->points[i], &p2->points[minj],
-                                        n_neighbours2[minj], neighbours2[minj],
-                                        p2);
-
-                hd[i] = min_dist < dist ? min_dist : dist;
-                if (hd[i] > max_hd)
+                if (hd[i] > max_hd) {
                         max_hd = hd[i];
+                }
                 avg_hd += hd[i];
 
                 update_progress_report(&progress, i);
         }
-
-        /* calculate the reverse Hausdorff distance */
-        max_revhd = 0;
-        for (j = 0; j < p2->n_points; j++) {
-                revhd[j] = sqrt(revhd[j]);
-                dist = get_closest_dist(&p2->points[j], &p->points[revpts[j]],
-                                        n_neighbours[revpts[j]],
-                                        neighbours[revpts[j]], p);
-                if (dist < revhd[j])
-                        revhd[j] = dist;
-                avg_revhd += revhd[j];
-                if (revhd[j] > max_revhd)
-                        max_revhd = revhd[j];
-        }
+        terminate_progress_report(&progress);
+        delete_octree(tree);
 
         avg_hd /= p->n_points;
-        avg_revhd /= p2->n_points;
-
         printf("Hausdorff distance: %f\n", max_hd);
+        printf("Mean Hausdorff distance: %f\n\n", avg_hd);
+
+        /* calculate the reverse Hausdorff distance */
+        revhd = (double *) malloc(sizeof(double) * p2->n_points);
+        max_revhd = 0; avg_revhd = 0;
+
+        tree = build_octree(p);
+
+        initialize_progress_report(&progress, FALSE, p->n_points,
+                                   "ReverseHausdorff");
+
+        for (i = 0; i < p2->n_points; i++) {
+                hausdorff_distance(p2->points[i], p, tree, &revhd[i]);
+
+                if (revhd[i] > max_revhd)
+                        max_revhd = revhd[i];
+                avg_revhd += revhd[i];
+
+                update_progress_report(&progress, i);
+        }
+        terminate_progress_report(&progress);
+
+        avg_revhd /= p2->n_points;
         printf("Reverse Hausdorff distance: %f\n", max_revhd);
-        printf("Mean Hausdorff distance: %f\n", avg_hd);
         printf("Mean reverse Hausdorff distance: %f\n", avg_revhd);
 
-        free(revpts);
         free(revhd);
 
         return(max_hd);
