@@ -10,9 +10,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
-
-#define PINF  1.7976931348623157e+308 /* for doubles */
-#define NINF -1.7976931348623157e+308 /* for doubles */
+#include "CAT_Octree.h"
 
 BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
 
