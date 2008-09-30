@@ -25,35 +25,6 @@ ArgvInfo argTable[] = {
 };
 
 /*
- * Go through the neighboring triangles around the closest point and find the
- * closest distance between each triangle and the point p.
- */
-double
-get_closest_dist(Point *p, Point *p2, int n_neighbours, int *neighbours,
-                 polygons_struct *polygons2)
-{
-        int n;
-        Point pts[3], closest;
-        double dist, min_dist = PINF;
-
-        pts[0] = *p2;
-        for (n = 0; n < n_neighbours - 1; n++) {
-                pts[1] = polygons2->points[ neighbours[n] ];
-                pts[2] = polygons2->points[ neighbours[n+1] ];
-                dist = find_point_polygon_distance_sq(p, 3, pts, &closest);
-                if (dist < min_dist)
-                        min_dist = dist;
-        }
-        pts[1] = polygons2->points[ neighbours[n] ];
-        pts[2] = polygons2->points[ neighbours[0] ];
-        dist = find_point_polygon_distance_sq(p, 3, pts, &closest);
-        if (dist < min_dist)
-                min_dist = dist;
-
-        return(sqrt(min_dist));
-}
-
-/*
  * Calculate the exact Hausdorff distance.  This assumes that the two
  * input meshes are the same size and of the same brain.
  */

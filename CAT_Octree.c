@@ -84,7 +84,7 @@ get_polynode_bounds(polygons_struct *polygons, struct polynode *pn,
                 bounds[5] = polygons->points[pn->pts[2]].coords[2];
 }
 
-/* x- and y-intersect tests */
+/* x-, y- and z-intersect tests */
 unsigned char
 xintersect(double bounds1[6], double bounds2[6])
 {
@@ -113,30 +113,6 @@ zintersect(double bounds1[6], double bounds2[6])
         if (bounds1[4] > bounds2[5])
                 return 0;
         return 1;
-}
-
-/* test if the bounding boxes intersect */
-unsigned char
-intersect(double bounds1[6], double bounds2[6])
-{
-        unsigned char xintersect = 1, yintersect = 1, zintersect = 1;
-    
-        if (bounds1[1] < bounds2[0])
-                xintersect = 0;
-        if (bounds1[0] > bounds2[1])
-                xintersect = 0;
-
-        if (bounds1[3] < bounds2[2])
-                yintersect = 0;
-        if (bounds1[2] > bounds2[3])
-                yintersect = 0;
-
-        if (bounds1[5] < bounds2[4])
-                zintersect = 0;
-        if (bounds1[4] > bounds2[5])
-                zintersect = 0;
-
-        return (xintersect && yintersect && zintersect);
 }
 
 void
@@ -256,9 +232,7 @@ recursive_node_delete(struct polynode *n)
 {
         if(n->next != NULL)
                 recursive_node_delete(n->next);
-        else
-                free(n);
-
+        free(n);
 }
 
 /* delete the octree and all nodes */
