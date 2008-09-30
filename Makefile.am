@@ -40,6 +40,7 @@ bin_PROGRAMS = \
 	CAT_WarpSurfSPH \
 	CAT_ResampleSphericalSurfSPH \
 	CAT_ArealSmoothing \
+	CAT_GaussCurvSmoothing \
 	CAT_Surf2SPH \
 	CAT_ApplyWarpSPH \
 	CAT_SPH2Surf \
@@ -55,6 +56,11 @@ s2kit10_SRC = \
 	s2kit10/naive_synthesis.c \
 	s2kit10/primitive.c
 
+ccsht_SRC = \
+	ccSHTlib/generalTools.c \
+	ccSHTlib/fftw_complex_helper.c \
+	ccSHTlib/ccSHT.c 
+	
 nl_SRC = \
 	nl/nl_api.c \
 	nl/nl_blas.c \
@@ -82,7 +88,7 @@ extra_headers = \
 	CAT_DeformPrototypes.h	
 
 EXTRA_DIST = $(extra_headers)
-
+        
 CAT_Surf2Sheet_SOURCES = CAT_Surf2Sheet.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_SurfaceIO.c CAT_Surf.c
 CAT_Sheet2Surf_SOURCES = CAT_Sheet2Surf.c CAT_Map2d.c CAT_SheetIO.c CAT_SurfaceIO.c CAT_Blur2d.c CAT_Surf.c
 CAT_3dVol2Surf_SOURCES = CAT_3dVol2Surf.c CAT_SurfaceIO.c
@@ -112,9 +118,11 @@ CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c 
 CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c $(dartel_SRC)
 CAT_WarpSurfSPH_SOURCES = CAT_WarpSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Blur2d.c $(s2kit10_SRC)
 CAT_ArealSmoothing_SOURCES = CAT_ArealSmoothing.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
+CAT_GaussCurvSmoothing_SOURCES = CAT_GaussCurvSmoothing.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_Surf2SPH_SOURCES = CAT_Surf2SPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Blur2d.c $(s2kit10_SRC)
 CAT_SPH2Surf_SOURCES = CAT_SPH2Surf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Blur2d.c $(s2kit10_SRC)
 CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_SPH.c $(s2kit10_SRC)
+# CAT_ResampleSphericalSurfSPHnew_SOURCES = CAT_ResampleSphericalSurfSPHnew.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_SPHnew.c $(ccsht_SRC)
 CAT_ApplyWarpSPH_SOURCES = CAT_ApplyWarpSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c 
 CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c $(nl_SRC)
 CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c

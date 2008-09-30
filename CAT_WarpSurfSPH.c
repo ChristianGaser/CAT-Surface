@@ -29,20 +29,16 @@ main(int argc, char *argv[])
         File_formats         format;
         polygons_struct      *polygons_source, *polygons_target, *polygons_source_sphere;
         polygons_struct      *polygons_target_sphere, *polygons_warped;
-        int                  x, y, i, j, xy_size, n_objects, bandwidth, bandwidth2;
+        int                  x, y, i, j, l, m, xy_size, n_objects, bandwidth, bandwidth2, cutoff;
         int                  size_map[2], n_triangles, n_polygons;
         double               *srcoeffsx, *sicoeffsx, *srcoeffsy, *sicoeffsy, *srcoeffsz, *sicoeffsz;
         double               *trcoeffsx, *ticoeffsx, *trcoeffsy, *ticoeffsy, *trcoeffsz, *ticoeffsz;
-        double               *rdatax, *rdatay, *rdataz, u, v;
+        double               *rdatax0, *rdatay0, *rdataz0, *rdatax, *rdatay, *rdataz, u, v;
         double               H00, H01, H10, H11, valuex, valuey, valuez;
         double               x0, y0, xp, yp, xm, ym;
         object_struct        **objects, *object;
-        int                  dataformat, cutoff;
+        int                  dataformat;
         Point                centre, new_point;    
-
-        bandwidth   = 256;
-        bandwidth2  = bandwidth*2;
-        n_triangles = 81920;
 
         initialize_argument_processing(argc, argv);
 
@@ -55,8 +51,12 @@ main(int argc, char *argv[])
                 return(1);
         }
 
-        get_int_argument(4, &cutoff);
+        get_int_argument(32, &cutoff);
+        bandwidth = 256;
         
+        bandwidth2  = bandwidth*2;
+        n_triangles = 81920;
+
         if (input_graphics_any_format(target_filename, &format, &n_objects, &objects) != OK)
                 return(1);
         /* check that the surface file contains a polyhedron */
@@ -104,6 +104,9 @@ main(int argc, char *argv[])
         /* get a pointer to the surface */
         polygons_source_sphere = get_polygons_ptr(objects[0]);
 
+        rdatax0   = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
+        rdatay0   = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
+        rdataz0   = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
         rdatax    = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
         rdatay    = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
         rdataz    = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
@@ -123,27 +126,48 @@ main(int argc, char *argv[])
         /* dataformat indicates real data */
         dataformat = 1;
 
-        get_equally_sampled_coords_of_polygon(polygons_source, polygons_source_sphere, bandwidth, rdatax, rdatay, rdataz);
-        get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, srcoeffsx, sicoeffsx);
-        get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, srcoeffsy, sicoeffsy);
-        get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, srcoeffsz, sicoeffsz);
+        get_equally_sampled_coords_of_polygon(polygons_source, polygons_source_sphere, bandwidth, rdatax0, rdatay0, rdataz0);
+        get_sph_coeffs_of_realdata(rdatax0, bandwidth, dataformat, srcoeffsx, sicoeffsx);
+        get_sph_coeffs_of_realdata(rdatay0, bandwidth, dataformat, srcoeffsy, sicoeffsy);
+        get_sph_coeffs_of_realdata(rdataz0, bandwidth, dataformat, srcoeffsz, sicoeffsz);
   
         get_equally_sampled_coords_of_polygon(polygons_target, polygons_target_sphere, bandwidth, rdatax, rdatay, rdataz);
         get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, trcoeffsx, ticoeffsx);
         get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, trcoeffsy, ticoeffsy);
         get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, trcoeffsz, ticoeffsz);
 
-        replaceSPH(bandwidth, cutoff, srcoeffsx, trcoeffsx);
-        replaceSPH(bandwidth, cutoff, srcoeffsy, trcoeffsy);
-        replaceSPH(bandwidth, cutoff, srcoeffsz, trcoeffsz);
-        replaceSPH(bandwidth, cutoff, sicoeffsx, ticoeffsx);
-        replaceSPH(bandwidth, cutoff, sicoeffsy, ticoeffsy);
-        replaceSPH(bandwidth, cutoff, sicoeffsz, ticoeffsz);
+        /* calculate difference of SPH coefficients */
+        for (l = 0; l < bandwidth; l++) {
+                for (m = -l; m < l+1; m++) {
+                        i = seanindex(m, l, bandwidth);
+                        srcoeffsx[i] = trcoeffsx[i] - srcoeffsx[i];
+                        srcoeffsy[i] = trcoeffsy[i] - srcoeffsy[i];
+                        srcoeffsz[i] = trcoeffsz[i] - srcoeffsz[i];
+                        sicoeffsx[i] = ticoeffsx[i] - sicoeffsx[i];
+                        sicoeffsy[i] = ticoeffsy[i] - sicoeffsy[i];
+                        sicoeffsz[i] = ticoeffsz[i] - sicoeffsz[i];
+                }
+        }
+
+        if (cutoff > 0 && cutoff < bandwidth) {
+                limit_bandwidth(bandwidth, cutoff, srcoeffsx, srcoeffsx);
+                limit_bandwidth(bandwidth, cutoff, srcoeffsy, srcoeffsy);
+                limit_bandwidth(bandwidth, cutoff, srcoeffsz, srcoeffsz);
+                limit_bandwidth(bandwidth, cutoff, sicoeffsx, sicoeffsx);
+                limit_bandwidth(bandwidth, cutoff, sicoeffsy, sicoeffsy);
+                limit_bandwidth(bandwidth, cutoff, sicoeffsz, sicoeffsz);
+        }
 
         get_realdata_from_sph_coeffs(rdatax, bandwidth, 1, srcoeffsx, sicoeffsx);
         get_realdata_from_sph_coeffs(rdatay, bandwidth, 1, srcoeffsy, sicoeffsy);
         get_realdata_from_sph_coeffs(rdataz, bandwidth, 1, srcoeffsz, sicoeffsz);
         
+        for (i=0; i<bandwidth2*bandwidth2; i++) {
+                rdatax[i] += rdatax0[i];
+                rdatay[i] += rdatay0[i];
+                rdataz[i] += rdataz0[i];        
+        }
+
         object = create_object(POLYGONS);
         polygons_warped = get_polygons_ptr(object);
         
@@ -206,6 +230,9 @@ main(int argc, char *argv[])
 
 
         delete_object_list(n_objects, objects);
+        free(rdatax0);
+        free(rdatay0);
+        free(rdataz0);
         free(rdatax);
         free(rdatay);
         free(rdataz);
