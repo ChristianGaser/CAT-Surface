@@ -10,6 +10,7 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 
@@ -17,12 +18,14 @@
 
 //#define LEVEL 4
 //#define NNODES 512
-//#define LEVEL 5
-//#define NNODES 4096 /* pow(8, level - 1) */
+#define LEVEL 5
+#define NNODES 4096 /* pow(8, level - 1) */
 //#define LEVEL 6
 //#define NNODES 8*8*8*8*8
-#define LEVEL 8
-#define NNODES 8*8*8*8*8*8*8
+//#define LEVEL 8
+//#define NNODES 8*8*8*8*8*8*8
+#define YINC 2*2*2*2 /* pow(2, LEVEL - 1) */
+#define XINC YINC*YINC
 
 #define PINF  1.7976931348623157e+308 /* for doubles */
 #define NINF -1.7976931348623157e+308 /* for doubles */
@@ -121,18 +124,14 @@ insert_triangle(struct octree *tree, struct polynode *node, double bounds[6])
         int n, i;
         unsigned char insertedflag = 0;
         struct polynode *tmp, *cur;
-        int xinc, yinc;
-
-        yinc = pow(2, LEVEL - 1);
-        xinc = yinc*yinc;
 
         for (n = 0; n < NNODES; n++) {
                 if (xintersect(bounds, tree->bounds[n]) == 0) {
-                        n += xinc - 1;
+                        n += XINC - 1;
                         continue;
                 }
                 if (yintersect(bounds, tree->bounds[n]) == 0) {
-                        n += yinc - 1;
+                        n += YINC - 1;
                         continue;
                 }
                 if (zintersect(bounds, tree->bounds[n]) == 1) {
@@ -258,10 +257,6 @@ hausdorff_distance(Point p, polygons_struct *polygons, struct octree *tree,
         Point tp[3], closest;
         struct polynode *cur;
         double dist, min_dist = PINF;
-        int xinc, yinc;
-
-        yinc = pow(2, LEVEL - 1);
-        xinc = yinc*yinc;
 
         for (n = 0; n < tree->npoly; n++)
                 tree->polyflag[n] = 0;
@@ -287,11 +282,11 @@ hausdorff_distance(Point p, polygons_struct *polygons, struct octree *tree,
         for (n = 0; n < NNODES; n++) {
                 tree->nodeflag[n] = 0;
                 if (xintersect(bounds, tree->bounds[n]) == 0) {
-                        n += xinc - 1;
+                        n += XINC - 1;
                         continue;
                 }
                 if (yintersect(bounds, tree->bounds[n]) == 0) {
-                        n += yinc - 1;
+                        n += YINC - 1;
                         continue;
                 }
                 if (zintersect(bounds, tree->bounds[n]) == 1) {
@@ -313,21 +308,22 @@ hausdorff_distance(Point p, polygons_struct *polygons, struct octree *tree,
 
         /* update the bounding box based on hausdorff distance and check if
          * the nearest point is in a neighboring node */
-        dist = min_dist;
-        bounds[0] -= dist; bounds[1] += dist;
-        bounds[2] -= dist; bounds[3] += dist;
-        bounds[4] -= dist; bounds[5] += dist;
+        dist = sqrt(min_dist*2);
+        hbounds[0] = bounds[0] - dist; hbounds[1] = bounds[1] + dist;
+        hbounds[2] = bounds[2] - dist; hbounds[3] = bounds[3] + dist;
+        hbounds[4] = bounds[4] - dist; hbounds[5] = bounds[5] + dist;
+
         for (n = 0; n < NNODES; n++) {
-                if (xintersect(bounds, tree->bounds[n]) == 0) {
-                        n += xinc - 1;
+                if (xintersect(hbounds, tree->bounds[n]) == 0) {
+                        n += XINC - 1;
                         continue;
                 }
-                if (yintersect(bounds, tree->bounds[n]) == 0) {
-                        n += yinc - 1;
+                if (yintersect(hbounds, tree->bounds[n]) == 0) {
+                        n += YINC - 1;
                         continue;
                 }
                 if (tree->nodeflag[n] == 0 &&
-                    zintersect(bounds, tree->bounds[n]) == 1) {
+                    zintersect(hbounds, tree->bounds[n]) == 1) {
                         cur = tree->nodes[n];
                         while (cur != NULL) {
                                 if (tree->polyflag[cur->num] == 0) {
@@ -339,6 +335,21 @@ hausdorff_distance(Point p, polygons_struct *polygons, struct octree *tree,
                                                &p, 3, tp, &closest);
                                         if (dist < min_dist) {
                                                 min_dist = dist;
+                                                dist = sqrt(min_dist*2);
+                                                hbounds[0] = bounds[0] - dist;
+                                                hbounds[1] = bounds[1] + dist;
+                                                hbounds[2] = bounds[2] - dist;
+                                                hbounds[3] = bounds[3] + dist;
+                                                hbounds[4] = bounds[4] - dist;
+                                                hbounds[5] = bounds[5] + dist;
+
+                                                /* rewind if out-of-bounds */
+                                                if (xintersect(hbounds,
+                                                       tree->bounds[n]) == 0 ||
+                                                    yintersect(hbounds,
+                                                       tree->bounds[n]) == 0) {
+                                                        n = -1;
+                                                }
                                         }
                                 }
                                 cur = cur->next;
