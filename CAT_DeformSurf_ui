@@ -1,14 +1,22 @@
 #!/bin/sh
 
-if [ $# -lt 3 ]; then
-	echo "Usage $0 WM.mnc WM.obj Wmout.obj threshold"
+if [ $# -lt 4 ]; then
+	echo "Usage $0 WM.mnc WM.obj Wmout.obj threshold fwhm"
 	exit
 fi
+
+mincblur -3dfwhm $5 $5 $5 $1 /tmp/$$blur
+image=/tmp/$$blur_blur.mnc
 
 # parameters for deforming WM
 th1=$4
 step=".1 .1 15 0 $th1 $th1 n 0 0 0"
-iters=100
-model="-1 .5 avg -.25 .25"
 
-CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+iters=50
+model="-1 .5 avg -.1 .1"
+CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+iters=50
+model="-1 .5 avg -.10 .10"
+#CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+
+rm $image

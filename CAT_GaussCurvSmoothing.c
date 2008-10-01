@@ -5,144 +5,114 @@
  * Copyright Christian Gaser, University of Jena.
  */
 
-#include  <volume_io/internal_volume_io.h>
-#include  <bicpl.h>
+/*
+ * Heat kernel smoothing is based on matlab code from Moo K. Chung:
+ * Chung, M.K., Robbins,S., Dalton, K.M., Davidson, R.J., Evans, A.C. (2005) 
+ * Cortical thickness analysis in autism via heat kernel smoothing. NeuroImage. 
+ * http://www.stat.wisc.edu/~mchung/papers/ni_heatkernel.pdf
+ */
 
-#include "CAT_Curvature.h"
+#include <volume_io/internal_volume_io.h>
+#include <bicpl.h>
+
 #include "CAT_Blur2d.h"
-#include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
-    
+#include "CAT_Curvature.h"
+
 void
-gaussian_curv_smoothing(polygons_struct *polygons, double *strength, int iters)
+usage(char *executable)
 {
-        int     i, j, k, l;
-        int     n1, n2, next;
-        int     *n_neighbours, **neighbours;
-        double  *area_values;
-        Point   pts[1000];
-        double tileAreas[32], tileCenters[32*3];
-        double xyz[3], pt1[3], pt2[3], pt3[3];
-        double totalArea, weight, invstr;
+        char *usage_str = "\n\
+Usage: %s object_file output_file fwhm [gausscurv_threshold]\n\n\
+     Diffusion smoothing of surface points w.r.t. gaussian curvature using\n\
+     heat kernel.\n\n";
 
-        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
-    
-        for (k = 1; k < iters; k++) {
-
-                for (i = 0; i < polygons->n_points; i++) {
-        
-                        if (strength[i] == 0)
-                                continue; /* skip this point */
-
-                        totalArea = 0.0;    
-                    
-                        /* Get 2 consecutive neighbors of this node */
-                        for (j = 0; j < n_neighbours[i]; j++) {
-                                n1 = neighbours[i][j];
-                                next = j + 1;
-                                if (next >= n_neighbours[i])
-                                        next = 0;
-                                n2 = neighbours[i][next];
-            
-                                /* Area of the triangle */
-                                pts[0] = polygons->points[i];
-                                pts[1] = polygons->points[n1];
-                                pts[2] = polygons->points[n2];
-                                tileAreas[j] = get_polygon_surface_area(3, pts);
-                                totalArea += tileAreas[j];
-                
-                                /* Save center of this tile */
-                                to_array(&polygons->points[i], pt1);
-                                to_array(&polygons->points[n1], pt2);
-                                to_array(&polygons->points[n2], pt3);
-                                for (l = 0; l < 3; l++) {
-                                        tileCenters[j*3+l] = (pt1[l] +
-                                                              pt2[l] +
-                                                              pt3[l]) / 3.0;
-                                }
-                        }
-
-                        /* Compute the influence of the neighboring nodes */
-                        for (j = 0; j < 3; j++)
-                                xyz[j] = 0.0;
-                        for (j = 0; j < n_neighbours[i]; j++) {
-                                if (tileAreas[j] > 0.0) {
-                                        weight = tileAreas[j] / totalArea;
-                                        for (l = 0; l < 3; l++) {
-                                                xyz[l] += weight *
-                                                          tileCenters[j*3+l];
-                                        }
-                                }
-                        }
-                        /* Update the nodes position */
-                        to_array(&polygons->points[i], pt1);
-                        invstr = 1.0 - strength[i];
-                        for (l = 0; l < 3; l++) {
-                                pt1[l] = (pt1[l] * invstr) +
-                                         (xyz[l] * strength[i]);
-                        }
-                        from_array(pt1, &polygons->points[i]);
-                }
-        
-        }
+        fprintf(stderr, usage_str, executable);
 }
-
 
 int
 main(int argc, char *argv[])
 {
-        STRING               object_filename, output_filename;
-        FILE                 *file;
-        File_formats         format;
-        int                  i, poly, n_objects, n_iters;
-        int                  *n_neighbours, **neighbours;
-        object_struct        **objects;
-        polygons_struct      *polygons;
-        double               *gc_strength, gc_threshold;
+        char             *input_file, *output_file;
+        int              n_objects, i, j, n_iter;
+        int              *n_neighbours, **neighbours;
+        File_formats     format;
+        object_struct    **object_list;
+        polygons_struct  *polygons;
+        Point            *smooth_pts, point;
+        Real             fwhm, value;
+        progress_struct  progress;
+        double           *gc_strength, gc_threshold, sigma;
 
         initialize_argument_processing(argc, argv);
 
-        if(!get_string_argument(NULL, &object_filename) || (!get_string_argument(NULL, &output_filename))) {
-                printf("Usage: %s  input.obj output.obj [n_iters] [gausscurv_threshold]\n", argv[0]);
+        if (!get_string_argument(NULL, &input_file) ||
+            !get_string_argument(NULL, &output_file)) {
+                usage(argv[0]);
                 return(1);
         }
 
-        get_int_argument(250, &n_iters);
-        get_real_argument(0.1, &gc_threshold);
-    
-        if(input_graphics_any_format(object_filename, &format, &n_objects, &objects) != OK)
-                return(1);
+        get_real_argument(25.0, &fwhm);
+        get_real_argument(0.01, &gc_threshold);
 
-        if(n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-                printf("File must contain 1 polygons object.\n");
+        if (input_graphics_any_format(input_file, &format, &n_objects,
+                                      &object_list) != OK ||
+            n_objects != 1 || get_object_type(object_list[0]) != POLYGONS) {
+                fprintf(stderr, "Error reading %s.\n", input_file);
                 return(1);
         }
 
-        polygons = get_polygons_ptr(objects[0]);
+        polygons = get_polygons_ptr(object_list[0]);
 
-        gc_strength      = (double *)malloc(sizeof(double)*polygons->n_points);
+        gc_strength = (double *)malloc(sizeof(double)*polygons->n_points);
+        smooth_pts  = (Point *)malloc(sizeof(Point)*polygons->n_points);
             
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
         get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                                          0.0, 1, gc_strength);
-                                         
-        for (i=0; i<polygons->n_points; i++) {
-                /* use absolute gaussian gc_strength if values are above threshold otherwise don't smooth */
-                gc_strength[i] = (fabs(gc_strength[i]) > gc_threshold) ? fabs(gc_strength[i]) : 0.0;       
-                /* get sure that values are <= 1.0 */
-                gc_strength[i] = (gc_strength[i] > 1.0) ? 1.0 : gc_strength[i];       
-        }
-        
-        /* smooth according to strength */
-        gaussian_curv_smoothing(polygons, gc_strength, n_iters);
-                        
-        compute_polygon_normals(polygons);
-        output_graphics_any_format(output_filename, format, 1, objects);
 
-        delete_object_list(n_objects, objects);
+        sigma = 5.0;
+        /* use absolute gaussian gc_strength if values are above threshold otherwise don't smooth */
+        for (i=0; i<polygons->n_points; i++) 
+                gc_strength[i] = (fabs(gc_strength[i]) > gc_threshold) ? sigma*fabs(gc_strength[i]) : 0.0;       
+
+        /* calculate n_iter in relation to sigma */
+        n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482/sigma);
+        if (n_iter == 0)
+                n_iter = 1;
+
+        initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
+                                   "Blurring");
+
+        /* diffusion smoothing using heat kernel */
+        for (j = 0; j < n_iter; j++) {
+                for (i = 0; i < polygons->n_points; i++) {
+                        /* smooth only if strength is > 0 */
+                        if (gc_strength[i] > 0.0) {
+                                
+                                heatkernel_blur_points(polygons->n_points,
+                                               polygons->points, NULL,
+                                               n_neighbours[i], neighbours[i],
+                                               i, gc_strength[i], &point, &value);
+                                smooth_pts[i] = point;
+                        } else smooth_pts[i] = polygons->points[i];
+
+                        update_progress_report(&progress, j*polygons->n_points + i + 1);
+                }
+                for (i = 0; i < polygons->n_points; i++)
+                        polygons->points[i] = smooth_pts[i];
+        }
+
+        terminate_progress_report(&progress);
+
+        polygons->points = smooth_pts;
+
+        compute_polygon_normals(polygons);
+
+        output_graphics_any_format(output_file, format, 1, object_list);
         
+        free(smooth_pts);
         free(gc_strength);
 
         return(0);
