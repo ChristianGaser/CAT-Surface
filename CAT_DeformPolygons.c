@@ -6,15 +6,13 @@
  */
 
 #include <volume_io/internal_volume_io.h>
-
-#include "CAT_Deform.h"
+#include <bicpl/deform.h>
 
 #define  MAX_NEIGHBOURS  2000
 
-void perturb_points(polygons_struct *, Point [], Real, Real, Real,
-                            int, deform_data_struct *, bound_def_struct *,
-                            deform_model_struct *, Real, double [],
-                            deform_stats *);
+void perturb_points(polygons_struct *, Point [], Real, Real, Real, int,
+                    deform_data_struct *, boundary_definition_struct *,
+                    deformation_model_struct *, Real, float [], deform_stats *);
 Real one_iter_polygons(polygons_struct *, deform_struct *, int);
 void check_polygons_shape_integrity(polygons_struct *, Point []);
     
@@ -36,7 +34,7 @@ deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
                 avg_err = one_iter_polygons(polygons, deform_parms, iter);
                 rate = (prev_avg_err - avg_err) / (prev_avg_err + avg_err);
 
-                if (rate < deform_parms->stop_thresh) {
+                if (rate < deform_parms->stop_threshold) {
                         countdown = countdown + 1;
                 } else countdown = 0;
 
@@ -46,7 +44,7 @@ deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
 
                 prev_avg_err = avg_err;
         } while ((countdown < 4 || countdown2 < 4) && countdown < 10 &&
-                 iter < deform_parms->max_iters);
+                 iter < deform_parms->max_iterations);
 }
 
 void
@@ -69,7 +67,7 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
                 return(0.0);
 
         if (!check_correct_deformation_polygons(polygons,
-                                              &deform_parms->deform_model))
+                                              &deform_parms->deformation_model))
                 return(0.0);
 
         if (deform_parms->n_movements_alloced != polygons->n_points) {
@@ -82,7 +80,7 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
 
                 for (i = 0; i < polygons->n_points; i++)
                         deform_parms->prev_movements[i] =
-                                (double) deform_parms->movement_thresh + 1.0f;
+                               (double) deform_parms->movement_threshold + 1.0f;
         }
 
         ALLOC(new_pts, polygons->n_points);
@@ -95,19 +93,19 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
         if (iter % 50 == 0) {
                 for (i = 0; i < polygons->n_points; i++) {
                         deform_parms->prev_movements[i] =
-                                (double) deform_parms->movement_thresh + 1.0f;
+                               (double) deform_parms->movement_threshold + 1.0f;
                 }
         }
 
         perturb_points(polygons, new_pts,
                        deform_parms->fractional_step,
                        deform_parms->max_step,
-                       deform_parms->max_search_dist,
+                       deform_parms->max_search_distance,
                        deform_parms->degrees_continuity,
                        &deform_parms->deform_data,
-                       &deform_parms->bound_def,
-                       &deform_parms->deform_model,
-                       deform_parms->movement_thresh,
+                       &deform_parms->boundary_definition,
+                       &deform_parms->deformation_model,
+                       deform_parms->movement_threshold,
                        deform_parms->prev_movements,
                        &stats);
 
@@ -130,10 +128,10 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
 
         FREE(new_pts);
 
-        if (deform_parms->movement_thresh < 0.0) {
-                deform_parms->movement_thresh = stats.average / 10.0;
-                if (deform_parms->movement_thresh > 0.1)
-                        deform_parms->movement_thresh = 0.1;
+        if (deform_parms->movement_threshold < 0.0) {
+                deform_parms->movement_threshold = stats.average / 10.0;
+                if (deform_parms->movement_threshold > 0.1)
+                        deform_parms->movement_threshold = 0.1;
         }
 
         return(stats.average);
@@ -144,8 +142,8 @@ get_polygon_equilibrium_point(polygons_struct *polygons, int poly,
                               int vertidx, Real curv_factors[],
                               Real max_search_dist, int degrees_continuity,
                               deform_data_struct *deform_data,
-                              bound_def_struct *bound_def,
-                              deform_model_struct *deform_model,
+                              boundary_definition_struct *bound_def,
+                              deformation_model_struct *deform_model,
                               Point *equil_pt)
 {
         int              ptidx;
@@ -322,8 +320,9 @@ void
 perturb_points(polygons_struct *polygons, Point new_points[],
                Real fractional_step, Real max_step, Real max_search_dist,
                int degrees_continuity, deform_data_struct *deform_data,
-               bound_def_struct *bound_def, deform_model_struct *deform_model,
-               Real movement_thresh, double prev_movements[],
+               boundary_definition_struct *bound_def,
+               deformation_model_struct *deform_model,
+               Real movement_thresh, float prev_movements[],
                deform_stats *stats)
 {
         Real             *curv_factors;

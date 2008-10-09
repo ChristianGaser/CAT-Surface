@@ -6,8 +6,7 @@
  */
 
 #include <volume_io/internal_volume_io.h>
-
-#include "CAT_Deform.h"
+#include <bicpl/deform.h>
 
 void
 usage(char *executable)
@@ -33,15 +32,16 @@ main(int argc, char *argv[])
 {
         Status            status;
         Real              start_time, end_time;
-        char              *volume_file, *activity_file;
-        char              *input_file, *output_file;
-        char              *model_file, *normal_direction, *original_file;
+        char              *volume_file = NULL, *activity_file = NULL;
+        char              *input_file = NULL, *output_file = NULL;
+        char              *model_file = NULL, *original_file = NULL;
+        char              *normal_direction = NULL;
         Real              min_isovalue, max_isovalue, gradient_thresh;
         Real              model_weight, min_curv_offset, max_curv_offset;
-        Real              angle, tolerance, max_dist;
+        Real              angle, tolerance, max_dist = 0;
         Real              separations[N_DIMENSIONS];
-        Real              x_filter_width, y_filter_width, z_filter_width;
-        int               i, n_models, up_to_n_points;
+        Real              xfilt_width = 0, yfilt_width = 0, zfilt_width = 0;
+        int               i, n_models = 0, up_to_n_points;
         deform_struct     deform;
         File_formats      file_format;
         int               n_objects;
@@ -55,57 +55,58 @@ main(int argc, char *argv[])
 
         initialize_deformation_parameters(&deform);
 
-        if (!get_string_argument("", &volume_file) ||
-            !get_string_argument("", &activity_file) ||
-            !get_real_argument(0.0, &x_filter_width) ||
-            !get_real_argument(0.0, &y_filter_width) ||
-            !get_real_argument(0.0, &z_filter_width) ||
-            !get_string_argument("", &input_file) ||
-            !get_string_argument("", &output_file) ||
-            !get_string_argument("", &original_file) ||
-            !get_real_argument(0.0, &max_dist) ||
-            !get_int_argument(1, &n_models)) {
+        if (get_string_argument("", &volume_file) == 0 ||
+            get_string_argument("", &activity_file) == 0 ||
+            get_real_argument(0.0, &xfilt_width) == 0 ||
+            get_real_argument(0.0, &yfilt_width) == 0 ||
+            get_real_argument(0.0, &zfilt_width) == 0 ||
+            get_string_argument("", &input_file) == 0 ||
+            get_string_argument("", &output_file) == 0 ||
+            get_string_argument("", &original_file) == 0 ||
+            get_real_argument(0.0, &max_dist) == 0 ||
+            get_int_argument(1, &n_models) == 0) {
                 usage(argv[0]);
                 return(1);
         }
 
         for (i = 0; i < n_models; i++) {
-                if (!get_int_argument(0, &up_to_n_points) ||
-                    !get_real_argument(0.0, &model_weight) ||
-                    !get_string_argument("", &model_file) ||
-                    !get_real_argument(0.0, &min_curv_offset) ||
-                    !get_real_argument(0.0, &max_curv_offset)) {
+                if (get_int_argument(0, &up_to_n_points) == 0 ||
+                    get_real_argument(0.0, &model_weight) == 0 ||
+                    get_string_argument("", &model_file) == 0 ||
+                    get_real_argument(0.0, &min_curv_offset) == 0 ||
+                    get_real_argument(0.0, &max_curv_offset) == 0) {
                         usage(argv[0]);
                         return(1);
                 }
 
-                if (add_deformation_model(&deform.deform_model, up_to_n_points,
+                if (add_deformation_model(&deform.deformation_model,
+                                          up_to_n_points,
                                           model_weight, model_file,
                                           min_curv_offset,
                                           max_curv_offset) != OK)
                         return(1);
         }
 
-        if (!get_real_argument(0.0, &deform.fractional_step) ||
-            !get_real_argument(0.0, &deform.max_step) ||
-            !get_real_argument(0.0, &deform.max_search_dist) ||
-            !get_int_argument(0.0, &deform.degrees_continuity) ||
-            !get_real_argument(0.0, &min_isovalue) ||
-            !get_real_argument(0.0, &max_isovalue) ||
-            !get_string_argument("", &normal_direction) ||
-            !get_real_argument(0.0, &gradient_thresh) ||
-            !get_real_argument(0.0, &angle) ||
-            !get_real_argument(0.0, &tolerance) ||
-            !get_int_argument(0, &deform.max_iters) ||
-            !get_real_argument(0.0, &deform.movement_thresh) ||
-            !get_real_argument(0.0, &deform.stop_thresh)) {
+        if (get_real_argument(0.0, &deform.fractional_step) == 0 ||
+            get_real_argument(0.0, &deform.max_step) == 0 ||
+            get_real_argument(0.0, &deform.max_search_distance) == 0 ||
+            get_int_argument(0.0, &deform.degrees_continuity) == 0 ||
+            get_real_argument(0.0, &min_isovalue) == 0 ||
+            get_real_argument(0.0, &max_isovalue) == 0 ||
+            get_string_argument("", &normal_direction) == 0 ||
+            get_real_argument(0.0, &gradient_thresh) == 0 ||
+            get_real_argument(0.0, &angle) == 0 ||
+            get_real_argument(0.0, &tolerance) == 0 ||
+            get_int_argument(0, &deform.max_iterations) == 0 ||
+            get_real_argument(0.0, &deform.movement_threshold) == 0 ||
+            get_real_argument(0.0, &deform.stop_threshold) == 0) {
                 usage(argv[0]);
                 return(1);
         }
 
-        set_boundary_definition(&deform.bound_def, min_isovalue, max_isovalue,
-                                gradient_thresh, angle, normal_direction[0],
-                                tolerance);
+        set_boundary_definition(&deform.boundary_definition, min_isovalue,
+                                max_isovalue, gradient_thresh, angle,
+                                normal_direction[0], tolerance);
 
         deform.deform_data.type = VOLUME_DATA;
 
@@ -116,24 +117,22 @@ main(int argc, char *argv[])
 
         label_volume = (Volume) NULL;
 
-        if (x_filter_width > 0.0 && y_filter_width > 0.0 &&
-                                    z_filter_width > 0.0) {
+        if (xfilt_width > 0.0 && yfilt_width > 0.0 && zfilt_width > 0.0) {
                 get_volume_separations(volume, separations);
 
-                x_filter_width /= fabs(separations[X]);
-                y_filter_width /= fabs(separations[Y]);
-                z_filter_width /= fabs(separations[Z]);
+                xfilt_width /= fabs(separations[X]);
+                yfilt_width /= fabs(separations[Y]);
+                zfilt_width /= fabs(separations[Z]);
 
                 tmp = create_box_filtered_volume(volume, NC_BYTE, FALSE,
-                                                 0.0, 0.0,
-                                                 x_filter_width,
-                                                 y_filter_width,
-                                                 z_filter_width);
+                                                 0.0, 0.0, xfilt_width,
+                                                 yfilt_width, zfilt_width);
 
                 delete_volume(volume);
                 volume = tmp;
         }
 
+        delete_volume(deform.deform_data.volume);
         deform.deform_data.volume = volume;
         deform.deform_data.label_volume = label_volume;
 
@@ -147,7 +146,7 @@ main(int argc, char *argv[])
         polygons = get_polygons_ptr(object_list[0]);
 
         if (!equal_strings(original_file, "none")) {
-                if (input_original_positions(&deform.deform_model,
+                if (input_original_positions(&deform.deformation_model,
                                              original_file, max_dist,
                                              polygons->n_points) == ERROR)
                         return(1);
@@ -164,5 +163,9 @@ main(int argc, char *argv[])
                                        n_objects, object_list) == ERROR)
                 return(1);
 
+        if (deform.prev_movements != NULL)
+                free(deform.prev_movements);
+        delete_volume(deform.deform_data.volume);
+        delete_deformation_parameters(&deform);
         return(0);
 }
