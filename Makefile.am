@@ -31,6 +31,7 @@ bin_PROGRAMS = \
 	CAT_ResampleSphericalSurf \
 	CAT_AreaDistortion \
 	CAT_AngularDistortion \
+	CAT_MetricDistortion \
 	CAT_AverageSurfaces \
 	CAT_GLM_Math \
 	CAT_FindFlats \
@@ -113,6 +114,7 @@ CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d
 CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c 
 CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c
 CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c
+CAT_MetricDistortion_SOURCES = CAT_MetricDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c
 CAT_FindFlats_SOURCES = CAT_FindFlats.c CAT_Curvature.c CAT_Blur2d.c
 CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c $(dartel_SRC)
