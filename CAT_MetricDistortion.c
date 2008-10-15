@@ -33,10 +33,9 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] object_file object_file2 output_file\n\n\
-    Calculate the metric distortion between two surfaces. The first mesh\n\
-    should be the original mesh.\n\
-    Results are saved in the text file output_file.\n\n";
+"\nUsage: %s [options] object_file sphericalmap_file output_file\n\n\
+    Calculate the metric distortion between a brain surface and its\n\
+    spherical map.  Results are saved in the text file output_file.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -44,7 +43,7 @@ usage(char *executable)
 int
 main(int argc, char** argv)
 {
-        char               *in_file, *in_file2, *out_file;
+        char               *in_file, *map_file, *out_file;
         FILE               *fp;
         object_struct      **objects, **objects2;
         polygons_struct    *polygons, *polygons2;
@@ -53,9 +52,8 @@ main(int argc, char** argv)
         File_formats       format;
         int                n, p, nidx;
         double             *metric_dist;
-        double             length, length2, total_dist;
+        double             length, length2, radius, total_dist;
         Point              dir;
-        double             ratio;
 
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 4)) {
                 usage(argv[0]);
@@ -65,9 +63,9 @@ main(int argc, char** argv)
 
         initialize_argument_processing(argc, argv);
         if (!get_string_argument(NULL, &in_file) ||
-            !get_string_argument(NULL, &in_file2) ||
+            !get_string_argument(NULL, &map_file) ||
             !get_string_argument(NULL, &out_file)) {
-                fprintf(stderr, "\nUsage: %s [options] object_file object_file2 output_file\n", argv[0]);
+                fprintf(stderr, "\nUsage: %s [options] object_file sphericalmap_file output_file\n", argv[0]);
                 return(1);
         }
 
@@ -82,9 +80,9 @@ main(int argc, char** argv)
                 return(1);
         }
 
-        if (input_graphics_any_format(in_file2, &format, &n_objects,
+        if (input_graphics_any_format(map_file, &format, &n_objects,
                                       &objects2) != OK) {
-                printf("Error reading input file %s\n", in_file2);
+                printf("Error reading spherical map file %s\n", map_file);
                 return(1);
         }
 
@@ -98,7 +96,7 @@ main(int argc, char** argv)
 
         if (polygons->n_points != polygons2->n_points ||
             polygons->n_items != polygons2->n_items) {
-                printf("The two input meshes do not match.\n");
+                printf("The input and spherical map meshes do not match.\n");
                 return(1);
         }
     
@@ -107,8 +105,10 @@ main(int argc, char** argv)
 
         metric_dist = (double *) malloc(sizeof(double) * polygons->n_points);
 
-        ratio = sqrt(get_polygons_surface_area(polygons) /
-                     get_polygons_surface_area(polygons2));
+        /* map the spherical map to a sphere of the same surface area */
+        radius = sqrt(get_polygons_surface_area(polygons) / (4.0 * PI));
+        for (p = 0; p < polygons->n_points; p++)
+                set_vector_length(&polygons2->points[p], radius);
 
         for (p = 0; p < polygons->n_points; p++) {
                 metric_dist[p] = 0;
@@ -124,7 +124,7 @@ main(int argc, char** argv)
                         length = MAGNITUDE(dir);
                         SUB_POINTS(dir, polygons2->points[nidx],
                                         polygons2->points[p]);
-                        length2 = MAGNITUDE(dir) * ratio;
+                        length2 = MAGNITUDE(dir);
 
                         if (Energy)
                             metric_dist[p] += pow(length2 - length, 2);
