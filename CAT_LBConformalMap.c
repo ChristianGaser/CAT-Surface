@@ -309,7 +309,21 @@ solver_to_mesh()
                 Point_z(points[p]) = (sphereRadius * xyz[2]);
         }
 
-        /* re-align the sphere with respect to phi */
+        /* rough alignment */
+        xx = 1; yy = 1; zz = 1;
+        if (Point_x(points[xpt]) < 0)
+                xx = -1;
+        if (Point_y(points[ypt]) < 0)
+                yy = -1;
+        if (Point_z(points[zpt]) < 0)
+                zz = -1;
+        for (p = 0; p < polygons->n_points; p++) {
+                Point_x(points[p]) *= xx;
+                Point_y(points[p]) *= yy;
+                Point_z(points[p]) *= zz;
+        }
+
+        /* align the maximum z-point (phi) */
         phi = -acos(Point_z(points[zpt]) / sphereRadius);
         cp = cos(phi); sp = sin(phi);
         for (p = 0; p < polygons->n_points; p++) {
@@ -322,17 +336,23 @@ solver_to_mesh()
                 Point_z(points[p]) = zz;
         }
 
-        /* rotate along the x-y plane */
-        theta = PI/2 - atan(Point_y(points[ypt]) / Point_x(points[ypt]));
+        /* align the maximum x-point (theta & phi) */
+        theta = PI + atan(Point_y(points[xpt]) / Point_x(points[xpt]));
+        phi = PI/2 - acos(Point_z(points[xpt]) / sphereRadius);
         ct = cos(theta); st = sin(theta);
+        cp = cos(phi); sp = sin(phi);
         for (p = 0; p < polygons->n_points; p++) {
                 xx = ct*Point_x(points[p]) - st*Point_y(points[p]);
                 yy = st*Point_x(points[p]) + ct*Point_y(points[p]);
                 zz = Point_z(points[p]);
 
-                Point_x(polygons->points[p]) = xx;
-                Point_y(polygons->points[p]) = yy;
-                Point_z(polygons->points[p]) = zz;
+                x = xx;
+                y = cp*yy - sp*zz;
+                z = sp*yy + cp*zz;
+
+                Point_x(polygons->points[p]) = x;
+                Point_y(polygons->points[p]) = y;
+                Point_z(polygons->points[p]) = z;
         }
 }
 
