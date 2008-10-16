@@ -54,7 +54,6 @@
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 
-
 struct ptmap {
         int *cells;
         int size;
@@ -63,6 +62,7 @@ struct ptmap {
 double mapScale = -1.0;
 int ptP = -1;
 polygons_struct *polygons;
+int xpt, ypt, zpt;
 
 static ArgvInfo argTable[] = {
   {"-pointP", ARGV_INT, (char *) 0, (char *) &ptP,
@@ -247,6 +247,7 @@ solver_to_mesh()
         double factor = 0.0, zRf = 0.0, zIf = 0.0;
         double *zR, *zI;
         double xmin, xmax, ymin, ymax;
+        double phi, theta, xx, yy, zz, x, y, z, ct, st, cp, sp;
         int i, p;
         double dist, sphereRadius, xyz[3];
 
@@ -303,42 +304,68 @@ solver_to_mesh()
                 }
 
                 /* Push coordinate onto the sphere */
-                xyz[0] = (sphereRadius * xyz[0]);
-                xyz[1] = (sphereRadius * xyz[1]);
-                xyz[2] = (sphereRadius * xyz[2]);
-                for (i = 0; i < 3; i++)
-                        Point_coord(polygons->points[p], i) = xyz[i];
+                Point_x(points[p]) = (sphereRadius * xyz[0]);
+                Point_y(points[p]) = (sphereRadius * xyz[1]);
+                Point_z(points[p]) = (sphereRadius * xyz[2]);
+        }
+
+        /* re-align the sphere with respect to phi */
+        phi = -acos(Point_z(points[zpt]) / sphereRadius);
+        cp = cos(phi); sp = sin(phi);
+        for (p = 0; p < polygons->n_points; p++) {
+                xx = Point_x(points[p]);
+                yy = cp*Point_y(points[p]) - sp*Point_z(points[p]);
+                zz = sp*Point_y(points[p]) + cp*Point_z(points[p]);
+
+                Point_x(points[p]) = xx;
+                Point_y(points[p]) = yy;
+                Point_z(points[p]) = zz;
+        }
+
+        /* rotate along the x-y plane */
+        theta = PI/2 - atan(Point_y(points[ypt]) / Point_x(points[ypt]));
+        ct = cos(theta); st = sin(theta);
+        for (p = 0; p < polygons->n_points; p++) {
+                xx = ct*Point_x(points[p]) - st*Point_y(points[p]);
+                yy = st*Point_x(points[p]) + ct*Point_y(points[p]);
+                zz = Point_z(points[p]);
+
+                Point_x(polygons->points[p]) = xx;
+                Point_y(polygons->points[p]) = yy;
+                Point_z(polygons->points[p]) = zz;
         }
 }
 
 /**
- * finds pointP as close to the COM as possible
+ * finds pointP at the top of the brain, as well as other coordinates
+ * for rotating the sphere later on.
  */
 int
 findPointP()
 {
-        Point p;
-        Real dist, closest_dist = 0.0;
-        double c[3] = {0.0, 0.0, 0.0};
-        int i, j, closest_pt;
+        double max_x, max_y, max_z;
+        int i;
 
-        for (i = 0; i < polygons->n_points; i++) {
-                for (j = 0; j < 3; j++)
-                        c[j] += Point_coord(polygons->points[i], j);
-        }
+        xpt = 0; ypt = 0; zpt = 0;
+        max_x = Point_coord(polygons->points[0], 0);
+        max_y = Point_coord(polygons->points[0], 1);
+        max_z = Point_coord(polygons->points[0], 2);
 
-        Point_x(p) = c[0] / polygons->n_points;
-        Point_y(p) = c[1] / polygons->n_points;
-        Point_z(p) = c[2] / polygons->n_points;
-
-        for (i = 0; i < polygons->n_points; i++) {
-                dist = sq_distance_between_points(&p, &polygons->points[i]);
-                if (i == 0 || dist < closest_dist) {
-                        closest_pt = i;
-                        closest_dist = dist;
+        for (i = 1; i < polygons->n_points; i++) {
+                if (Point_x(polygons->points[i]) > max_x) {
+                        xpt = i;
+                        max_x = Point_x(polygons->points[i]);
+                }
+                if (Point_y(polygons->points[i]) > max_y) {
+                        ypt = i;
+                        max_y = Point_y(polygons->points[i]);
+                }
+                if (Point_z(polygons->points[i]) > max_z) {
+                        zpt = i;
+                        max_z = Point_z(polygons->points[i]);
                 }
         }
-        return(closest_pt);
+        return(zpt);
 }
 
 
@@ -469,11 +496,14 @@ mesh_to_solver()
                         int facets[2] = {-1, -1};
                         for (i = 0; i < ptinfo[p].size; i++) {
                                 for (j = 0; j < ptinfo[q].size; j++) {
-                                        if (ptinfo[p].cells[i] == ptinfo[q].cells[j]) {
+                                        if (ptinfo[p].cells[i] ==
+                                            ptinfo[q].cells[j]) {
                                                 if (facets[0] < 0)
-                                                        facets[0] = ptinfo[p].cells[i];
+                                                        facets[0] =
+                                                             ptinfo[p].cells[i];
                                                 else
-                                                        facets[1] = ptinfo[p].cells[i];
+                                                        facets[1] =
+                                                             ptinfo[p].cells[i];
                                         }
                                 }
                         }
@@ -481,15 +511,17 @@ mesh_to_solver()
                         /* get R and S */
                         size = GET_OBJECT_SIZE(*polygons, facets[0]);
                         for (i = 0; i < size; i++) {
-                                pidx = polygons->indices[POINT_INDEX(polygons->end_indices,
-                                                     facets[0], i)];
+                                pidx = polygons->indices[
+                                              POINT_INDEX(polygons->end_indices,
+                                                          facets[0], i)];
                                 if (pidx != p && pidx != q)
                                         r = pidx;
                         }
                         size = GET_OBJECT_SIZE(*polygons, facets[1]);
                         for (i = 0; i < size; i++) {
-                                pidx = polygons->indices[POINT_INDEX(polygons->end_indices,
-                                                     facets[1], i)];
+                                pidx = polygons->indices[
+                                             POINT_INDEX(polygons->end_indices,
+                                                         facets[1], i)];
                                 if (pidx != p && pidx != q)
                                         s = pidx;
                         }
