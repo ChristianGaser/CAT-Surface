@@ -64,7 +64,7 @@ main(int argc, char** argv)
         double             areas[128];
         double             iarea, centers[384], ratio, totalArea;
         double             adistort, newdistort, totaldistort, weight;
-        double             dist, maxdist = 0.05;
+        double             dist, radius, maxdist = 0.05;
         double             bounds[6];
         double             xyz1[3], xyz2[3];
         int                n1, n2, nidx;
@@ -112,6 +112,7 @@ main(int argc, char** argv)
 
         polygons = get_polygons_ptr(objects[0]);
         compute_polygon_normals(polygons);
+        radius = sqrt(get_polygons_surface_area(polygons) / (4.0 * PI));
 
         if (polygons->n_points != ipolygons->n_points
             || polygons->n_items != ipolygons->n_items) {
@@ -216,6 +217,7 @@ for (it = 1; it <= iter; it++) {
 
                 /* see if the new centers reduces area distortion! */
                 fill_Point(newcenter, xyz1[0], xyz1[1], xyz1[2]);
+                set_vector_length(&newcenter, radius);
                 newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
@@ -255,6 +257,7 @@ for (it = 1; it <= iter; it++) {
                         }
                 }
                 fill_Point(newcenter, xyz2[0], xyz2[1], xyz2[2]);
+                set_vector_length(&newcenter, radius);
                 newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
@@ -317,6 +320,8 @@ for (it = 1; it <= iter; it++) {
                 for (i = 0; i < 3; i++)
                         Point_coord(newcenter, i) = Point_coord(newcenter, i) /
                                                     n_neighbours[p];
+
+                set_vector_length(&newcenter, radius);
 
                 bounds[0] -= Point_x(polygons->points[p]);
                 bounds[1] -= Point_x(polygons->points[p]);
