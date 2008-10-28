@@ -217,7 +217,6 @@ for (it = 1; it <= iter; it++) {
 
                 /* see if the new centers reduces area distortion! */
                 fill_Point(newcenter, xyz1[0], xyz1[1], xyz1[2]);
-                set_vector_length(&newcenter, radius);
                 newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
@@ -257,7 +256,6 @@ for (it = 1; it <= iter; it++) {
                         }
                 }
                 fill_Point(newcenter, xyz2[0], xyz2[1], xyz2[2]);
-                set_vector_length(&newcenter, radius);
                 newdistort = 0;
                 for (n = 0; n < n_neighbours[p]; n++) {
                         n1 = neighbours[p][n];
@@ -321,8 +319,6 @@ for (it = 1; it <= iter; it++) {
                         Point_coord(newcenter, i) = Point_coord(newcenter, i) /
                                                     n_neighbours[p];
 
-                set_vector_length(&newcenter, radius);
-
                 bounds[0] -= Point_x(polygons->points[p]);
                 bounds[1] -= Point_x(polygons->points[p]);
                 bounds[2] -= Point_y(polygons->points[p]);
@@ -366,6 +362,9 @@ for (it = 1; it <= iter; it++) {
 #endif
 
         }
+        for (p = 0; p < polygons->n_points; p++)
+                set_vector_length(&polygons->points[p], radius);
+
         /* printf("A = %d, D = %d, S = %d\n", Acount, Dcount, Scount); */
         if (Acount == 0 && Dcount == 0 && Scount == 0) break; /* done! */
 }
