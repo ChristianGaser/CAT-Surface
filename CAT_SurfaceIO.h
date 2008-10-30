@@ -5,8 +5,8 @@
  * Copyright Christian Gaser, University of Jena.
  */
 
-Status input_values(char *, int, Real *);
-Status output_values(char *, int, Real *);
+Status input_values_any_format(char *, int, Real *);
+Status output_values_any_format(char *, int, Real *);
 Status input_graphics_any_format(char *, File_formats *, int *,
                                  object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct  **);

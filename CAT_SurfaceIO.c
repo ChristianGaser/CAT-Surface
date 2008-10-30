@@ -15,7 +15,7 @@
 #define NEW_VERSION_MAGIC_NUMBER    16777215
 
 Status
-input_values(char *file, int n_values, Real *values)
+input_values_any_format(char *file, int n_values, Real *values)
 {
         FILE     *fp;
         int      i;
