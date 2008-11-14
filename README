@@ -100,8 +100,3 @@ Maps surface values or mean curvature to 2d sheet in pgm format
 CAT_Surf2Sphere
 --------------------------------------------------------------------------------
 Maps a surface to a sphere by using the caret inflating approach. 
-
-CAT_TopologyCorrect
---------------------------------------------------------------------------------
-Correct topology of a surface to a sphere (genus zero) by using the genetic
-approach of Segonne et al.
