@@ -37,13 +37,12 @@ main(int argc, char *argv[])
         Status           status;
         char             *infile;
         int              i, n_objects;
-        FILE             *fp;
         File_formats     format;
         int              n_sets, n_pts, n_avg_pts;
         object_struct    *out_object;
         object_struct    **object_list;
         Point            *pts, *avg_pts, *sqr_pts, sqr_pt;
-        double           value;
+        double           value, *values;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) ||
@@ -117,18 +116,17 @@ main(int argc, char *argv[])
         }
         
         if (rms_file != NULL) {
-                if (open_file(rms_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                        return(1);
+                values = (double *) malloc(sizeof(double) * n_pts);
                 for (i = 0; i < n_pts; i++) {
                         SCALE_POINT(sqr_pts[i], sqr_pts[i], (1.0/(n_sets-1.0)));
                         POINT_EXP2(avg_pts[i], avg_pts[i], *, avg_pts[i]);
                         SCALE_POINT(avg_pts[i], avg_pts[i], (n_sets/(n_sets-1.0)));
                         SUB_POINTS(sqr_pts[i], sqr_pts[i], avg_pts[i]);
                         value = sqrt(Point_x(sqr_pts[i]) + Point_y(sqr_pts[i]) + Point_z(sqr_pts[i]));
-                        if (output_real(fp, value) != OK ||
-                            output_newline(fp) != OK)
-                                break;
+                        values[i] = value;
                 }
+                output_values_any_format(rms_file, n_pts, values);
+                free(values);
                 free(sqr_pts);
         }
 

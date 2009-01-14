@@ -153,10 +153,9 @@ main(int argc, char *argv[])
         int                  i, j, n_values, n_objects;
         object_struct        **objects;
         polygons_struct      *polygons;
-        Real                 value, voxel[N_DIMENSIONS];
+        Real                 value, *values, voxel[N_DIMENSIONS];
         Real                 val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
         Real                 exp_sum, exp_array[MAX_N_ARRAY];
-        FILE                 *fp;
         Vector               normal;
 
         /* Call ParseArgv */
@@ -242,8 +241,7 @@ main(int argc, char *argv[])
 
         compute_polygon_normals(polygons);
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
+        ALLOC(values, polygons->n_points);
 
         for (i = 0; i < polygons->n_points; i++) {
                 /* look only for inward normals */
@@ -262,13 +260,12 @@ main(int argc, char *argv[])
                 /* evaluate function */
                 value = evaluate_function(val_array, n_values,
                                           map_func, exp_array);
-                if (output_real(fp, value) != OK ||
-                    output_newline(fp) != OK)
-                        return(1);
+                values[i] = value;
         }
 
-        close_file(fp);
+        output_values_any_format(output_file, polygons->n_points, values);
 
+        FREE(values);
         delete_object_list(n_objects, objects);
         return(0);
 }

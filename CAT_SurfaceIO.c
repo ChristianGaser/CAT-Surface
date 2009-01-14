@@ -15,23 +15,28 @@
 #define NEW_VERSION_MAGIC_NUMBER    16777215
 
 Status
-input_values_any_format(char *file, int n_values, Real *values)
+input_values_any_format(char *file, int *n_values, Real **values)
 {
-        FILE     *fp;
-        int      i;
+        Status status;
 
-        if (filename_extension_matches(file,"txt")) {
-                if (open_file(file, READ_FILE, ASCII_FORMAT, &fp) != OK)
-                        return(1);
+        if (filename_extension_matches(file,"txt"))
+                status = input_texture_values(file, n_values, values);
+        else
+                status = input_freesurfer_curv(file, n_values, values);
 
-                for (i = 0; i < n_values; i++) {
-                        if (input_real(fp, &values[i]) != OK)
-                                return( 1 );
-                }
-                close_file(fp);
-        } else {
-                return(input_freesurfer_curv(file, &n_values, &values));
-        }
+        return(status);
+}
+
+Status
+output_values_any_format(char *file, int n_values, Real *values)
+{
+        Status status;
+
+        if (filename_extension_matches(file, "txt"))
+                status = output_texture_values(file, ASCII_FORMAT, n_values, values);
+        else 
+                status = output_freesurfer_curv(file, n_values, values);        
+        return(status);
 }
 
 Status
@@ -107,6 +112,15 @@ swapInt(int *n)
         *n =* (int *) sw;
 }
 
+void
+swapShort(short *n)
+{
+        char *by = (char *) n;
+        char sw[2] = {by[1], by[0]};
+  
+        *n =* (short *) sw;
+}
+
 int
 fwriteFloat(float f, FILE *fp)
 {
@@ -137,13 +151,49 @@ fwriteInt(int v, FILE *fp)
 }
 
 int
+fwrite2(int v, FILE *fp)
+{
+        short s ;
+
+        if (v > 0x7fff)    /* don't let it overflow */
+                v = 0x7fff ;
+        else if (v < -0x7fff)
+                v = -0x7fff ;
+        s = (short)v;
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+        swapShort(&s) ;
+#endif
+        return(fwrite(&s, 2, 1, fp));
+}
+
+int
+fwrite3(int v, FILE *fp)
+{
+        int i = (v << 8);
+
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+        swapInt(&i) ;
+#endif
+        return(fwrite(&i, 3, 1, fp));
+}
+
+int
+fwrite4(float v, FILE *fp)
+{
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+        swapFloat(&v);
+#endif
+        return(fwrite(&v, 4, 1, fp));
+}
+
+int
 freadInt(FILE *fp)
 {
         int temp;
         int count;
   
         count = fread(&temp, 4, 1, fp);
-#if __LITTLE_ENDIAN__
+#if (BYTE_ORDER == LITTLE_ENDIAN)
         swapInt(&temp);
 #endif
         return(temp);
@@ -156,7 +206,7 @@ freadDouble(FILE *fp)
         int count;
   
         count = fread(&temp, 4, 1, fp);
-#if __LITTLE_ENDIAN__
+#if (BYTE_ORDER == LITTLE_ENDIAN)
         swapDouble(&temp);
 #endif
         return(temp);  
@@ -169,7 +219,7 @@ freadFloat(FILE *fp)
         int count;
   
         count = fread(&temp, 4, 1, fp);
-#if __LITTLE_ENDIAN__
+#if (BYTE_ORDER == LITTLE_ENDIAN)
         swapFloat(&temp);
 #endif
         return(temp);  
@@ -182,7 +232,7 @@ fread3(int *v, FILE *fp)
         int  ret ;
 
         ret = fread(&i, 3, 1, fp);
-#if __LITTLE_ENDIAN__
+#if (BYTE_ORDER == LITTLE_ENDIAN)
         swapInt(&i) ;
 #endif
         *v = ((i >> 8) & 0xffffff);
@@ -347,6 +397,32 @@ output_freesurfer(char *file, File_formats format, int n_objects,
 }
 
 int
+output_freesurfer_curv(char *fname, int nvertices, Real *data)
+{
+        FILE *fp;
+        Real f;
+        int k;
+
+        fp = fopen(fname,"wb");
+        if(fp == NULL){
+                fprintf(stderr, "output_freesurfer_curv: Couldn't open file %s.\n",
+                        fname);
+                return(-1);
+        }
+        fwrite3(NEW_VERSION_MAGIC_NUMBER, fp); 
+        fwriteInt(nvertices, fp);
+        fwriteInt(0, fp);
+        fwriteInt(1, fp);
+        for (k = 0; k < nvertices; k++) {
+                f = data[k];
+                fwriteFloat(f, fp);
+        }
+        fclose(fp);
+
+        return(0);
+}
+
+int
 input_freesurfer(char *file, File_formats *format, int *n_objects,
                  object_struct ***object_list)
 {
@@ -411,7 +487,7 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
 }
 
 int
-input_freesurfer_curv(char *file, int *vnum, Real *input_values[])
+input_freesurfer_curv(char *file, int *vnum, Real **input_values)
 {
         FILE  *fp;
         int   i, magic, fnum, vals_per_vertex;

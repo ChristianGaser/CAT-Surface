@@ -128,7 +128,7 @@ main(int argc, char *argv[])
                                       &object_list) != OK)
                 return(1);
 
-        if (input_texture_values(values_file, &n_values, &values) != OK)
+        if (input_values_any_format(values_file, &n_values, &values) != OK)
                 return(1);
       
         value_index = 0;

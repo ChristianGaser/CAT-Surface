@@ -81,7 +81,7 @@ main(int argc, char *argv[])
         if (values_file == NULL) {
                 values_specified = FALSE;
         } else {
-                if (input_texture_values(values_file, &n_values, &values) != OK)
+                if (input_values_any_format(values_file, &n_values, &values) != OK)
                         return(1);
                 values_specified = TRUE;
         }
@@ -95,7 +95,7 @@ main(int argc, char *argv[])
                                           polygons);
         } else {
                 if (values_specified) {
-                        if (input_texture_values(values_file, &n_values,
+                        if (input_values_any_format(values_file, &n_values,
                                                  &values) != OK)
                                 return(1);
                 }

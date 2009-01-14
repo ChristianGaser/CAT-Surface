@@ -44,7 +44,6 @@ int
 main(int argc, char** argv)
 {
         char               *in_file, *map_file, *out_file;
-        FILE               *fp;
         object_struct      **objects, **objects2;
         polygons_struct    *polygons, *polygons2;
         int                *n_neighbours, **neighbours;
@@ -135,18 +134,12 @@ main(int argc, char** argv)
                         metric_dist[p] /= n_neighbours[p];
         }
 
-        if (open_file(out_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
-                return(1);
-        }
+        output_values_any_format(out_file, polygons->n_points, metric_dist);
 
         total_dist = 0;
-        for (p = 0; p < polygons->n_points; p++) {
+        for (p = 0; p < polygons->n_points; p++)
                 total_dist += metric_dist[p];
 
-                if (output_real(fp, metric_dist[p]) != OK ||
-                    output_newline(fp) != OK)
-                        return(1);
-        }
 
         if (Energy)
                 total_dist /= 4 * polygons->n_points;
@@ -154,8 +147,6 @@ main(int argc, char** argv)
                 total_dist /= polygons->n_points;
 
         printf("Metric distortion = %f\n", total_dist);
-
-        close_file(fp);
 
         delete_object_list(n_objects, objects);
         delete_object_list(n_objects, objects2);

@@ -35,8 +35,8 @@ main(int argc, char *argv[])
                 return(1);
         }
 
-        if (input_texture_values(values_file, &n_values, &values) != OK) {
-                fprintf(stderr, "Cannot read values.\n");
+        if (input_values_any_format(values_file, &n_values, &values) != OK) {
+                fprintf(stderr, "Cannot read values in %s.\n", values_file);
     	        return(1);
         }
 
@@ -59,21 +59,15 @@ main(int argc, char *argv[])
 
         for (i = 0; i < n_files; i++) {
                 get_string_argument(NULL, &input_file);
-                if ((infp = fopen(input_file, "r")) == 0) {
-                        fprintf(stderr, "Couldn't open file %s.\n", input_file);
+                if (input_values_any_format(input_file, &n_values, &values) != OK) {
+                        fprintf(stderr, "Cannot read values in %s.\n", values_file);
                         return(1);
-                }
-
-                for (j = 0; j <  max_index+1; j++) {
-                        if (input_real(infp, &values[j]) != OK)
-                                return(1);
                 }
 
                 if (output_real(outfp, values[max_index]) != OK ||
         	    output_newline(outfp) != OK)
                         return(1);
 
-                close_file(infp);
         }
 
         close_file(outfp);

@@ -27,7 +27,7 @@ int
 main(int argc, char *argv[])
 {
         char                 *output_file, *vector_file, *values_file;
-        FILE                 *outfp, *infp;
+        FILE                 *infp;
         File_formats         format;
         polygons_struct      unit_sphere;
         int                  i, j, x, y;
@@ -55,7 +55,7 @@ main(int argc, char *argv[])
         }
 
 
-        if (input_texture_values(values_file, &n_values, &input_values) != OK)
+        if (input_values_any_format(values_file, &n_values, &input_values) != OK)
                 return(1);
 
         if ((infp = fopen(vector_file, "rb")) == NULL) {
@@ -90,9 +90,6 @@ main(int argc, char *argv[])
     
         initialize_progress_report(&progress, FALSE, size_map[0],
                                    "Mapping to sheet");
-
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &outfp) != OK)
-                return(1);
 
         ALLOC2D(sheet, size_map[0],size_map[1]);
 
@@ -140,16 +137,13 @@ main(int argc, char *argv[])
                         value += weights[j] * input_values[ind];
                 }
                 values[i] = value;
-                if (output_real(outfp, values[i]) != OK ||
-                    output_newline(outfp) != OK)
-                        break;
  
                 update_progress_report(&progress, i + 1);
         }
 
-        terminate_progress_report(&progress);
+        output_values_any_format(output_file, unit_sphere.n_points, values);
 
-        close_file(outfp);
+        terminate_progress_report(&progress);
 
         delete_polygons(&unit_sphere);
         free(flow);

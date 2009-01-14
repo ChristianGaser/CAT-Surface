@@ -46,7 +46,6 @@ int
 main(int argc, char *argv[])
 {
         char              *object_file, *object2_file, *output_file;
-        FILE              *fp;
         File_formats      format;
         int               poly, n_objects, n_obj, i, size, vertidx;
         object_struct     **objects, **objects2;
@@ -94,9 +93,6 @@ main(int argc, char *argv[])
                 printf("File must contain 1 polygons object.\n");
                 return(1);
         }
-
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
 
         polygons = get_polygons_ptr(objects[0]);
         polygons2 = get_polygons_ptr(objects2[0]);
@@ -164,15 +160,11 @@ main(int argc, char *argv[])
         for (i = 0; i < n_obj; i++) {
                 if (!PerPoly && n_polys[i] > 0) /* average distortion */
                         ad_values[i] /= n_polys[i];
-
-                if (output_real(fp, ad_values[i]) != OK ||
-                    output_newline(fp) != OK)
-                        return(1);
         }
 
+        output_values_any_format(output_file, n_obj, ad_values);
+        
         printf("Area distortion = %f\n", distortion / polygons->n_items);
-
-        close_file(fp);
 
         delete_object_list(n_objects, objects);
         delete_object_list(n_objects, objects2);

@@ -33,7 +33,7 @@ int
 main(int argc, char *argv[])
 {
         char             *input_file, *output_file, *values_file;
-        int              n_objects, i, j, n_iter;
+        int              n_objects, i, j, n_iter, n_values;
         int              *n_neighbours, **neighbours;
         FILE             *fp;
         File_formats     format;
@@ -68,15 +68,10 @@ main(int argc, char *argv[])
                 ALLOC(values, polygons->n_points);
                 ALLOC(smooth_values, polygons->n_points);
 
-                if (open_file(values_file, READ_FILE, ASCII_FORMAT, &fp) != OK)
-                        return(1);
-
-                for (i = 0; i < polygons->n_points; i++) {
-                        if (input_real(fp, &values[i]) != OK)
-                                return(1);
+                if (input_values_any_format(values_file, &n_values, &values) != OK) {
+                        fprintf(stderr, "Cannot read values in %s.\n", values_file);
+    	               return(1);
                 }
-
-                close_file(fp);
 
                 smooth_pts = NULL;
         } else {
@@ -129,16 +124,7 @@ main(int argc, char *argv[])
         terminate_progress_report(&progress);
 
         if (values_present) {
-                if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                        return(1);
-
-                for (i = 0; i < polygons->n_points; i++) {
-                        if (output_real(fp, smooth_values[i]) != OK ||
-                            output_newline(fp) != OK)
-                                return(1);
-                }
-
-                close_file(fp);
+                output_values_any_format(output_file, polygons->n_points, smooth_values);
                 FREE(smooth_values);
                 FREE(values);
         } else {

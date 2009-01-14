@@ -27,11 +27,10 @@ main(int argc, char *argv[])
         char             *surface_file, *sphere_file, *output_file;
         char             *input_values_file, *output_values_file;
         File_formats     format;
-        FILE             *fp;
         int              n_objects, n_objects_src_sphere, point;
         int              n_triangles, n_polygons;
         int              i, j, k;
-        int              poly, n_points, n_intersections;
+        int              poly, n_points, n_intersections, n_values;
         int              *n_neighbours, **neighbours;
         Point            centre, point_on_src_sphere, scaled_point;
         Point            poly_points[MAX_POINTS_PER_POLYGON];
@@ -98,15 +97,11 @@ main(int argc, char *argv[])
                 ALLOC(input_values, polygons->n_points);
                 ALLOC(output_values, poly_src_sphere->n_points);
 
-                if (open_file(input_values_file, READ_FILE,
-                              ASCII_FORMAT, &fp) != OK)
-                        return(1);
-
-                for (i = 0; i < polygons->n_points; i++) {
-                        if (input_real(fp, &input_values[i]) != OK)
-                                return(1);
+                if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
+                        fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
+    	               return(1);
                 }
-                close_file(fp);
+
         }
 
         /*
@@ -183,17 +178,7 @@ main(int argc, char *argv[])
                                    &objects_dest_sphere);
     
         if (values_specified) {
-                if (open_file(output_values_file, WRITE_FILE,
-                              ASCII_FORMAT, &fp) != OK)
-                        return(1);
-
-                for (i = 0; i < poly_dest_sphere->n_points; i++) {
-                        if (output_real(fp, output_values[i]) != OK ||
-                            output_newline(fp) != OK)
-                                return(1);
-                }
-
-                close_file(fp);
+                output_values_any_format(output_values_file, poly_dest_sphere->n_points, output_values);
                 FREE(input_values);
                 FREE(output_values);
         }

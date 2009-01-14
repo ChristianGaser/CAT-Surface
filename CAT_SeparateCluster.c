@@ -52,7 +52,7 @@ main(int argc, char *argv[])
                 return(1);
         }
 
-        if (input_texture_values(values_file, &n_values, &values) != OK) {
+        if (input_values_any_format(values_file, &n_values, &values) != OK) {
                 fprintf(stderr, "Cannot read values.\n");
                 return(1);
         }

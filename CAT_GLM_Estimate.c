@@ -109,7 +109,7 @@ estimate(char **infiles, char *arg_string, int argc)
         double               *outdata;
         Real                 **vals, *tmpvals, *data, **indata;
         Real                 **G, *v, **inv_G, **transp_G, **pinv_GG;
-        Real                 **beta, **estimates, **resSD, sum, result;
+        Real                 **beta, **estimates, **resSD, sum, *result;
         progress_struct      progress;
         Volume_Info          vol_info[MAX_FILES];
 
@@ -175,7 +175,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 if (equal_strings(infiles[i], ":")) {
                         /* count columns and files */
                         i++; j++;
-                        if (input_texture_values(infiles[i], &n_tmp,
+                        if (input_values_any_format(infiles[i], &n_tmp,
                                                  &tmpvals) != OK) {
                                 fprintf(stderr, "\nError reading file %s\n",
                                         infiles[i]);
@@ -196,7 +196,7 @@ estimate(char **infiles, char *arg_string, int argc)
                         /* define groups */
                         j++;
                 } else if (n_dims == 1) {
-                        if (input_texture_values(infiles[i], &n_vals,
+                        if (input_values_any_format(infiles[i], &n_vals,
                                                  &tmpvals) != OK) {
                                 fprintf(stderr, "\nError reading file %s\n",
                                        infiles[i]);
@@ -462,15 +462,7 @@ estimate(char **infiles, char *arg_string, int argc)
                         sprintf(buffer, "_%04d.txt", j+1);
                         concat_to_string(&outfile, buffer);
     
-                        if (open_file(outfile, WRITE_FILE, ASCII_FORMAT,
-                                      &fp) != OK)
-                                return(1);
-                        for (k = 0; k < n_vals; k++) {
-                                if (output_real(fp, beta[j][k]) != OK ||
-                                    output_newline(fp) != OK)
-                                        break;
-                        }
-                        close_file(fp);        
+                        output_values_any_format(outfile, n_vals, beta);
                 }
 
                 /* calculate fitted data: estimates = G*beta */
@@ -488,14 +480,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 }
 
                 outfile = create_string("ResMS.txt");    
-                if (open_file(outfile, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                        return(1);
-                for (k = 0; k < n_vals; k++) {
-                        if (output_real(fp, v[k]) != OK ||
-                            output_newline(fp) != OK)
-                                break;
-                }
-                close_file(fp);
+                output_values_any_format(outfile, n_vals, v);
 
                 /* write beta and beta/ResSD for each column of design matrix */
                 for (j = 0; j < n_beta; j++) {
@@ -503,34 +488,25 @@ estimate(char **infiles, char *arg_string, int argc)
                         outfile = create_string("ResSD");
                         sprintf(buffer, "_%04d.txt", j+1);
                         concat_to_string(&outfile, buffer);
-    
-                        if (open_file(outfile, WRITE_FILE, ASCII_FORMAT,
-                                      &fp) != OK)
-                                return(1);
+                        
+                        ALLOC(result, n_vals);
+                            
                         for (k = 0; k < n_vals; k++) {
-                                result = sqrt(v[k] * pinv_GG[j][j]);
-                                if (output_real(fp, result) != OK ||
-                                    output_newline(fp) != OK)
-                                        break;
+                                result[k] = sqrt(v[k] * pinv_GG[j][j]);
                         }
-                        close_file(fp);
+                        output_values_any_format(outfile, n_vals, result);
 
                         /* T-values */
                         outfile = create_string("T");
                         sprintf(buffer, "_%04d.txt", j+1);
                         concat_to_string(&outfile, buffer);
 
-                        if (open_file(outfile, WRITE_FILE, ASCII_FORMAT,
-                                      &fp) != OK)
-                                return(1);
                         for (k = 0; k < n_vals; k++) {
-                                result = beta[j][k] /
+                                result[k] = beta[j][k] /
                                          (sqrt(v[k] * pinv_GG[j][j]) + EPS);
-                                if (output_real(fp, result) != OK ||
-                                    output_newline(fp) != OK)
-                                        break;
                         }
-                        close_file(fp);
+                        output_values_any_format(outfile, n_vals, result);
+                        FREE(result);
                 }
         } // if n_dims == 1
     

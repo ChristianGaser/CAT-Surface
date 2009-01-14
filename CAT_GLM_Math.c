@@ -50,7 +50,7 @@ main(int argc, char *argv[])
                         plus  = 0;
                         minus = 1;
                 } else {
-                        if (input_texture_values(infiles[i], &n_values,
+                        if (input_values_any_format(infiles[i], &n_values,
                                                  &values ) != OK) {
                                 fprintf(stderr, "Error reading file %s\n",
                                         infiles[i]);
@@ -87,15 +87,7 @@ main(int argc, char *argv[])
                 }
         }
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
-
-        for (i = 0; i < n_values; i++) {
-                if (output_real(fp, result[i]) != OK ||
-                    output_newline(fp) != OK)
-                        break;
-        }
-        close_file(fp);
+        output_values_any_format(output_file, n_values, result);
 
         FREE(result);
         return(0);

@@ -133,7 +133,7 @@ int
 main(int argc, char *argv[])
 {
         File_formats     format;
-        FILE             *fp, *fp_flow, *fp_jacdet;
+        FILE             *fp, *fp_flow;
         char             line[1024];
         polygons_struct  *polygons_source, *polygons_target;
         int              x, y, i, j, it, it0, it1;
@@ -185,7 +185,7 @@ main(int argc, char *argv[])
   
         /* read weights */
         if (weight_file != NULL) {
-                if (input_texture_values(weight_file, &n_weights,
+                if (input_values_any_format(weight_file, &n_weights,
                                          &weights) != OK)
                         return(1);
         }
@@ -384,16 +384,7 @@ main(int argc, char *argv[])
                 map_sheet2d_to_sphere(jd1, values, polygons_source,
                                       1, size_map);
 
-                if (open_file(jacdet_file, WRITE_FILE, ASCII_FORMAT,
-                              &fp_jacdet) != OK)
-                        return(1);
-    
-                for (i = 0; i < polygons_source->n_points; i++) {
-		        if (output_real(fp_jacdet, values[i]) != OK ||
-                            output_newline(fp_jacdet) != OK)
-                                break;
-                }
-                close_file(fp_jacdet);
+                output_values_any_format(jacdet_file, polygons_source->n_points, values);
 
                 free(values);
                 free(jd);

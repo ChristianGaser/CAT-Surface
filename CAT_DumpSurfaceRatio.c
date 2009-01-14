@@ -26,7 +26,6 @@ int
 main(int argc, char *argv[])
 {
         char                 *object_file, *output_file;
-        FILE                 *fp;
         File_formats         format;
         int                  n_objects, ptidx;
         object_struct        **objects;
@@ -48,11 +47,9 @@ main(int argc, char *argv[])
                                       &n_objects, &objects) != OK)
                 return(1);
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
-                if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-                        printf("File must contain 1 polygons object.\n");
-                        return(1);
-                }
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("File must contain 1 polygons object.\n");
+                return(1);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -60,12 +57,7 @@ main(int argc, char *argv[])
         ALLOC(area_values, polygons->n_points);
         area_values = get_surface_ratio(radius, polygons);
     
-        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
-                if (output_real(fp, area_values[ptidx]) != OK ||
-                    output_newline(fp) != OK)
-                        break;
-        }
-        close_file(fp);
+        output_values_any_format(output_file, polygons->n_points, area_values);
 
         delete_object_list(n_objects, objects);
 

@@ -15,7 +15,6 @@ int
 main(int argc, char *argv[])
 {
         char                 *object_file, *output_file;
-        FILE                 *fp;
         File_formats         format;
         int                  poly, n_objects, ptidx, vertidx, size;
         object_struct        **objects;
@@ -40,8 +39,6 @@ main(int argc, char *argv[])
 
         if (get_string_argument(NULL, &output_file)) {
                 all_values = TRUE;
-                if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                        return(1);
         } else all_values = FALSE;
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
@@ -54,14 +51,8 @@ main(int argc, char *argv[])
         ALLOC(area_values, polygons->n_points);
         surface_area = get_area_of_points(polygons, area_values);
     
-        if (all_values) {
-                for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
-                        if (output_real(fp, area_values[ptidx]) != OK ||
-                            output_newline(fp) != OK)
-                                break;
-                }
-                close_file(fp);
-        }
+        if (all_values)
+                output_values_any_format(output_file, polygons->n_points, area_values);
 
         printf("Total surface area: %g\n", surface_area);
 

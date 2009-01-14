@@ -29,7 +29,6 @@ int
 main(int argc, char *argv[])
 {
         char                 *surface_file, *output_file, *input_file;
-        FILE                 *outfp;
         File_formats         format;
         polygons_struct      *polygons;
         int                  i, n_objects;
@@ -70,16 +69,8 @@ main(int argc, char *argv[])
         
         map_sheet2d_to_sphere(image, values, polygons, interpolate, size_map);
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &outfp) != OK)
-                return(1);
-    
-        for (i = 0; i < polygons->n_points; i++) {
-                if (output_real(outfp, values[i]) != OK ||
-                    output_newline(outfp) != OK)
-                        break;
-        }
+        output_values_any_format(output_file, polygons->n_points, values);
 
-        close_file(outfp);
         delete_object_list(n_objects, objects);
 
         free(image);

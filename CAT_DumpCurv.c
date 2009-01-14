@@ -158,16 +158,7 @@ main(int argc, char *argv[])
                 FREE(done_flags);
         }
     
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
-
-        for (i = 0; i < polygons->n_points; i++) {
-                if (output_real(fp, curvatures[i]) != OK ||
-                    output_newline(fp) != OK)
-                        break;
-        }
-
-        close_file(fp);
+        output_values_any_format(output_file, polygons->n_points, curvatures);
 
         delete_object_list(n_objects, objects);
         FREE(curvatures);

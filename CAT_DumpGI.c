@@ -39,7 +39,6 @@ int
 main(int argc, char *argv[])
 {
         char                 *object_file, *output_file;
-        FILE                 *fp;
         File_formats         format;
         int                  i, j, n_iter, n_objects, curvtype;
         int                  *n_neighbours, **neighbours;
@@ -162,15 +161,7 @@ main(int argc, char *argv[])
 
         terminate_progress_report(&progress);
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
-
-        for (i = 0; i < polygons->n_points; i++) {
-                if (output_real(fp, GI[i]) != OK || output_newline(fp) != OK)
-                        break;
-        }
-
-        close_file(fp);
+        output_values_any_format(output_file, polygons->n_points, GI);
 
         delete_object_list(n_objects, objects);
         FREE(curvatures);
