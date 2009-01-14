@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
  */
 
 /* Heat kernel smoothing is based on matlab code from Moo K. Chung:

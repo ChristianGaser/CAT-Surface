@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
  */
 
 void get_all_polygon_point_neighbours(polygons_struct *, int *[], int **[]);

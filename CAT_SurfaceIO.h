@@ -3,7 +3,9 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- */
+ * $Id$
+ *
+*/
 
 Status input_values_any_format(char *, int *, Real **);
 Status output_values_any_format(char *, int, Real *);

@@ -3,7 +3,9 @@
  * University of Jena
  *
  * Copyright Rachel Yotter, University of Jena.
- */
+ * $Id$
+ *
+*/
 
 //#define LEVEL 4
 //#define NNODES 512

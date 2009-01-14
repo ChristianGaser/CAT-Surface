@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
  */
 
 /* Some of the code is used from caret 5.3 (BrainModelSurfaceCurvature.cxx)  */

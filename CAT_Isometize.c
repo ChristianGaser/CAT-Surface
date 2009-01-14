@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
  */
 
 /* Program to make a conformal map more isometric. */

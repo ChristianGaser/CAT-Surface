@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Rachel Yotter, University of Jena.
+ * $Id$
+ *
  */
 
 /* Routines for constructing an octree for finding the nearest polygon

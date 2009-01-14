@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
  */
 
 Real * read_pgm(char *, int *, int *);

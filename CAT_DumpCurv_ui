@@ -1,10 +1,18 @@
 #!/bin/sh
 #
+# Christian Gaser - christian.gaser@uni-jena.de
+# Department of Psychiatry
+# University of Jena
+#
+# Copyright Christian Gaser, University of Jena.
+# $Id$
+#
 
 ########################################################
 # global parameters
 ########################################################
-version='CAT_DumpCurv_ui, v 1.0 2005/11/14 Christian Gaser'
+
+version=$Id$
 
 use_absolute=0
 method=0

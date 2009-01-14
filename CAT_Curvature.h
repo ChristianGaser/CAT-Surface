@@ -3,6 +3,8 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
  */
 
 void get_polygon_vertex_curvatures_cg(polygons_struct *, int [], int *[],

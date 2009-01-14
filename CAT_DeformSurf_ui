@@ -1,4 +1,13 @@
 #!/bin/sh
+# Christian Gaser - christian.gaser@uni-jena.de
+# Department of Psychiatry
+# University of Jena
+#
+# Copyright Christian Gaser, University of Jena.
+# $Id$
+#
+
+version=$Id$
 
 if [ $# -lt 4 ]; then
 	echo "Usage $0 WM.mnc WM.obj Wmout.obj threshold fwhm"

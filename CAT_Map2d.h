@@ -3,7 +3,9 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- */
+ * $Id$
+ *
+*/
 
 typedef struct {
 	long x;
