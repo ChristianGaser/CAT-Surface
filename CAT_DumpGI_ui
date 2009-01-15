@@ -12,8 +12,6 @@
 # global parameters
 ########################################################
 
-version=$Id$
-
 fwhm=30
 fwhm_surf=100
 method=0
@@ -218,7 +216,6 @@ USED FUNCTIONS:
     CAT_DumpGI
 
 This script was written by Christian Gaser (christian.gaser@uni-jena.de).
-This is version ${version}.
 
 __EOM__
 }

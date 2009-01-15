@@ -5,7 +5,7 @@
 # University of Jena
 #
 # Copyright Christian Gaser, University of Jena.
-# $Id$
+# $Id: CAT_DumpCurv_ui 85 2009-01-14 23:29:48Z gaser $
 #
 
 ########################################################
@@ -15,7 +15,6 @@
 use_absolute=0
 method=0
 fwhm=0
-removestr=''
 
 ########################################################
 # run main
@@ -35,32 +34,6 @@ main ()
 ########################################################
 DumpCurv ()
 {
-  if [ -n "$ARGV_list" ]
-  then
-	for i in $ARGV_list
-	do
-	   get_outputname $i
-	   echo calculating $outputname
-	   CAT_DumpCurv $i $outputname $method $fwhm $use_absolute
-	done
-  else
-	echo "No arguments given."
-	echo
-	usage
-	echo "Use the --help option for more information."
-	exit 1
-  fi
-
-}
-
-########################################################
-# get_outputname
-########################################################
-
-get_outputname ()
-{
-  bn=`basename $1|sed -e s,.obj,,g -e s,${removestr},,g`
-  dn=`dirname $1`
   case "$method" in
     0)
         str='mc'
@@ -81,11 +54,29 @@ get_outputname ()
   if [ "$use_absolute" == 1 ]; then
     str=a$str
   fi
-  if [ ! "$fwhm" == 0 ]; then
-    str=${fwhm}mm_${str}
+
+  if [ -n "$ARGV_list" ]
+  then
+    get_basename $ARGV_list
+    echo calculating $outputname
+    echo CAT_DumpCurv ${outputname}.white ${outputname}.${str} $method $fwhm $use_absolute
+  else
+	echo "No arguments given."
+	echo
+	usage
+	echo "Use the --help option for more information."
+	exit 1
   fi
 
-  outputname=${dn}/${str}_${bn}.txt
+}
+
+########################################################
+# get_basename
+########################################################
+
+get_basename ()
+{
+  outputname=${SUBJECTS_DIR}/${1}/surf/${2}
 }
 
 ########################################################
@@ -103,15 +94,6 @@ parse_args ()
 	case "$1" in
 		--a* | -a*)
 			use_absolute=1
-			;;
-		--r* | -r*)
-			exit_if_empty "$optname" "$optarg"
-			removestr=$optarg
-			;;
-		--f* | -f*)
-			optarg=`echo $optarg | sed 's,[^0-9],,g'`
-			exit_if_empty "$optname" "$optarg"
-			fwhm=$optarg
 			;;
 		--mc | -mc)
 			method=0
@@ -170,8 +152,7 @@ exit_if_empty ()
 usage ()
 {
 cat <<__EOM__
-USAGE: DumpCurv_ui name [name2 name3 ... nameN]  [-mc|-mc0|-gc|-cv|-si] [-a]
-        [-f=fwhm_in_mm] [-r=remove_str_from_ouputname]
+USAGE: DumpCurv_ui subject hemisphere [-mc|-mc0|-gc|-cv|-si] [-a]
 		
 __EOM__
 }
@@ -185,19 +166,16 @@ help ()
 cat <<__EOM__
 
 PURPOSE:
-Compute curvature-based parameters from a given obj-file. The result is a txt-file
-containing the values for each node. The values can be optionally filtered using a
-diffusion heat kernel and values can be saved as absolute values.
+Compute curvature-based parameters from a given freesurfer file. The result is a file
+containing the values for each node. The values can be optionally saved as absolute values.
 
 USAGE:
-    CAT_DumpCurv_ui name.obj [name2.obj ... nameN.obj] [-mc|-mc0|-gc|-cv|-si] [-a]
-        [-f=fwhm_in_mm] [-r=remove_str_from_ouputname]
+    CAT_DumpCurvL4FS_ui subject hemisphere [-mc|-mc0|-gc|-cv|-si] [-a]
     
 OPTIONS:
-	name.obj   - input obj-file(s)
-	-f         - diffusion heat kernel smoothing defined in fwhm in mm
+	subject    - a subject directory in the SUBJECTS_DIR path
+	hemisphere - lh or rh
 	-a         - calculate absolute values of parameters
-	-r         - remove string from outputname
 	-mc        - calculate mean curvature averaged over 3mm [default]                
 	-mc0       - calculate mean curvature                
 	-gc        - calculate gaussian curvature                
@@ -205,18 +183,15 @@ OPTIONS:
 	-si        - calculate shape index                
     
 EXAMPLE:
-    CAT_DumpCurv_ui *.obj -mc -a -f=10 -r=cerebrum_a305_12p
-    This will calculate absolute mean curvature smoothed with fwhm of 10mm. The outputfiles
-    will be named according to the inputname and the string "cerebrum_a305_12p" will removed.
-    If the name of the input is ab01_cerebrum_a305_12p.obj the outputname will be called
-    10mm_amc_ab01.txt.
+    CAT_DumpCurvL4FS_ui bert lh -mc -a 
+    This will calculate absolute mean curvature. The output files will be named according 
+    to the inputname with a prepended amc_.
 
 INPUT:
-    MNI obj-files
+    Freesurfer of MNI surface files
 
 OUTPUT:
-    txt-files where the string defined using the option "-r" is removed. The names will be
-    prepended by a string indicating the filtersize and the used method.
+    Values-files
 
 USED FUNCTIONS:
     CAT_DumpCurv
