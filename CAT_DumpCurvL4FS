@@ -12,7 +12,7 @@
 # global parameters
 ########################################################
 
-use_absolute=0
+use_absolute=1
 method=0
 fwhm=0
 
@@ -22,6 +22,7 @@ fwhm=0
 
 main ()
 {
+	check_tools
   parse_args ${1+"$@"}
   DumpCurv
 
@@ -55,29 +56,47 @@ DumpCurv ()
     str=a$str
   fi
 
+  if [ ! "$fwhm" == 0 ]; then
+    str=${fwhm}mm_${str}
+  fi
+
   if [ -n "$ARGV_list" ]
   then
-    get_basename $ARGV_list
-    echo calculating $outputname
-    echo CAT_DumpCurv ${outputname}.white ${outputname}.${str} $method $fwhm $use_absolute
+		for subject in $ARGV_list
+		do
+		  outputname=${SUBJECTS_DIR}/${subject}/surf/
+		  if [ ! -d "$outputname" ]; then
+	  		echo Directory $outputname not found.
+	  		exit 1
+	  	fi
+    	echo calculating ${SUBJECTS_DIR}/${subject} 
+    	tmp_name=/tmp/$$_avg
+    	for hemi in lh rh; do
+    		for name in ${outputname}${hemi}.white ${outputname}${hemi}.pial; do
+				  if [ ! -f "$name" ]; then
+			  		echo File $name not found.
+	  				exit 1
+	  			fi
+	  		done
+	    	CAT_AverageSurfaces -avg $tmp_name ${outputname}${hemi}.white ${outputname}${hemi}.pial >/dev/null 2>&1
+			  if [ ! -f "$tmp_name" ]; then
+		  		echo File $tmp_name not found. Error using CAT_AverageSurfaces.
+  				exit 1
+  			fi
+  	  	CAT_DumpCurv $tmp_name ${outputname}${hemi}.${str}.central $method $fwhm $use_absolute
+  	  	rm $tmp_name
+  		done
+  	done
   else
-	echo "No arguments given."
-	echo
-	usage
-	echo "Use the --help option for more information."
-	exit 1
+		echo "No arguments given."
+		echo
+		usage
+		echo "Use the --help option for more information."
+		exit 1
   fi
 
 }
 
-########################################################
-# get_basename
-########################################################
-
-get_basename ()
-{
-  outputname=${SUBJECTS_DIR}/${1}/surf/${2}
-}
 
 ########################################################
 # check arguments and files
@@ -94,6 +113,11 @@ parse_args ()
 	case "$1" in
 		--a* | -a*)
 			use_absolute=1
+			;;
+		--f* | -f*)
+			optarg=`echo $optarg | sed 's,[^0-9],,g'`
+			exit_if_empty "$optname" "$optarg"
+			fwhm=$optarg
 			;;
 		--mc | -mc)
 			method=0
@@ -147,12 +171,28 @@ exit_if_empty ()
 }
 
 ########################################################
+# check if CAT tools exist
+########################################################
+
+check_tools ()
+{
+	for name in CAT_DumpCurv CAT_AverageSurfaces; do
+	  found=`which ${name}`
+  	if [ ! -n "$found" ];then
+    	echo $name not found.
+    	exit 1
+  	fi
+  done
+}
+
+########################################################
 # usage
 ########################################################
 usage ()
 {
 cat <<__EOM__
-USAGE: DumpCurv_ui subject hemisphere [-mc|-mc0|-gc|-cv|-si] [-a]
+USAGE: CAT_DumpCurvL4FS subject [subject2 .. subjectN] [-mc|-mc0|-gc|-cv|-si] [-a]
+        [-f=fwhm_in_mm]
 		
 __EOM__
 }
@@ -166,16 +206,19 @@ help ()
 cat <<__EOM__
 
 PURPOSE:
-Compute curvature-based parameters from a given freesurfer file. The result is a file
-containing the values for each node. The values can be optionally saved as absolute values.
+Compute curvature-based parameters from a central surface. The result is a file
+containing the values for each node. The values can be optionally filtered using a
+diffusion heat kernel and values can be saved as absolute values.
+The central surface is otbained by averaging the white and pial surface.
 
 USAGE:
-    CAT_DumpCurvL4FS_ui subject hemisphere [-mc|-mc0|-gc|-cv|-si] [-a]
+    CAT_DumpCurvL4FS subject [subject2 .. subjectN] [-mc|-mc0|-gc|-cv|-si] [-a]
+        [-f=fwhm_in_mm]
     
 OPTIONS:
 	subject    - a subject directory in the SUBJECTS_DIR path
-	hemisphere - lh or rh
-	-a         - calculate absolute values of parameters
+	-f         - diffusion heat kernel smoothing defined in fwhm in mm
+	-a         - calculate absolute values of parameters [default]
 	-mc        - calculate mean curvature averaged over 3mm [default]                
 	-mc0       - calculate mean curvature                
 	-gc        - calculate gaussian curvature                
@@ -183,18 +226,19 @@ OPTIONS:
 	-si        - calculate shape index                
     
 EXAMPLE:
-    CAT_DumpCurvL4FS_ui bert lh -mc -a 
-    This will calculate absolute mean curvature. The output files will be named according 
-    to the inputname with a prepended amc_.
+    CAT_DumpCurvL4FS bert fsaverage -mc -a 
+    This will calculate absolute mean curvature. The output files will be named 
+    SUBJECTS_DIR/subject/surf/[lr]h.amc.central.
 
 INPUT:
-    Freesurfer of MNI surface files
+    Freesurfer or MNI-OBJ surface files
 
 OUTPUT:
     Values-files
 
 USED FUNCTIONS:
     CAT_DumpCurv
+    CAT_AverageSurfaces
 
 This script was written by Christian Gaser (christian.gaser@uni-jena.de).
 

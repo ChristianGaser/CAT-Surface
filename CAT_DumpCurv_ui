@@ -170,8 +170,8 @@ exit_if_empty ()
 usage ()
 {
 cat <<__EOM__
-USAGE: DumpCurv_ui name [name2 name3 ... nameN]  [-mc|-mc0|-gc|-cv|-si] [-a]
-        [-f=fwhm_in_mm] [-r=remove_str_from_ouputname]
+USAGE: CAT_DumpCurv_ui name [name2 name3 ... nameN]  [-mc|-mc0|-gc|-cv|-si] [-a]
+        [-f=fwhm_in_mm] [-r=remove_str_from_outputname]
 		
 __EOM__
 }
@@ -191,7 +191,7 @@ diffusion heat kernel and values can be saved as absolute values.
 
 USAGE:
     CAT_DumpCurv_ui name.obj [name2.obj ... nameN.obj] [-mc|-mc0|-gc|-cv|-si] [-a]
-        [-f=fwhm_in_mm] [-r=remove_str_from_ouputname]
+        [-f=fwhm_in_mm] [-r=remove_str_from_outputname]
     
 OPTIONS:
 	name.obj   - input obj-file(s)
