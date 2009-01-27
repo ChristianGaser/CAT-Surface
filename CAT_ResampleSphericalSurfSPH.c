@@ -69,7 +69,7 @@ main(int argc, char *argv[])
         double               *rdatax, *rdatay, *rdataz;
         double               r, value, avgt1, *t1value;
         Volume               volume;
-        polygons_struct      *polygons, *polygons_sphere, *polygons_output;
+        polygons_struct      *polygons, *sphere, *polygons_output;
         object_struct        **objects, *objects_output;
 
         /* Call ParseArgv */
@@ -110,72 +110,73 @@ main(int argc, char *argv[])
                 return(1);
         }
         /* get a pointer to the surface */
-        polygons_sphere = get_polygons_ptr(objects[0]);
+        sphere = get_polygons_ptr(objects[0]);
 
         /* check that surface and sphere are same size */
-        if (polygons->n_items != polygons_sphere->n_items) {
+        if (polygons->n_items != sphere->n_items) {
                 printf("Surface and sphere must have same size.\n");
                 return(1);
         }
     
-        /* An optional T1 image can be used for changing the radius of the sphere to influence
-           the resampling. We assume that values in the T1 image below a given threshold (=CSF) 
-           indicate a handle. The radius in these areas is increased by 1% to get sure that the
-           bottom is resampled which equals a cutting, becasue the most inside points are resampled. 
-           In contrast T1-values above the threshold (=GM/WM) point to a hole and the radius of the
-           sphere is decrease by 1%. Thus, the resampling is done form the most outside points, 
-           which equals a filling.
-        */
+        /* An optional T1 image can be used for changing the radius of the
+         * sphere to influence the resampling. We assume that values in the
+         * T1 image below a given threshold (=CSF) indicate a handle. The
+         * radius in these areas is increased by 1% to get sure that the
+         * bottom is resampled which equals a cutting, becasue the most
+         * inside points are resampled.  In contrast T1-values above the
+         * threshold (=GM/WM) point to a hole and the radius of the sphere
+         * is decrease by 1%. Thus, the resampling is done form the most
+         * outside points, which equals a filling.
+         */
         if (t1_file != NULL) {
-                if( input_volume( t1_file, 3, File_order_dimension_names,
-                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                      TRUE, &volume, NULL ) != OK )
-                        return( 1 );
-                t1value    = (double *) malloc(sizeof(double)*polygons_sphere->n_points);
+                if (input_volume(t1_file, 3, File_order_dimension_names,
+                                 NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                                 TRUE, &volume, NULL) != OK)
+                        return(1);
+                t1value = (double *) malloc(sizeof(double) * sphere->n_points);
                 
                 avgt1 = 0.0;
-                for (i = 0; i < polygons_sphere->n_points; i++) {
-                        evaluate_volume_in_world( volume,
-                                  RPoint_x(polygons_sphere->points[i]),
-                                  RPoint_y(polygons_sphere->points[i]),
-                                  RPoint_z(polygons_sphere->points[i]),
-                                  0, 
-                                  FALSE, 0.0,
-                                  &value,
-                                  NULL, NULL, NULL,
-                                  NULL, NULL, NULL, NULL, NULL, NULL );
+                for (i = 0; i < sphere->n_points; i++) {
+                        evaluate_volume_in_world(volume,
+                                                 RPoint_x(sphere->points[i]),
+                                                 RPoint_y(sphere->points[i]),
+                                                 RPoint_z(sphere->points[i]),
+                                                 0, FALSE, 0.0, &value, NULL,
+                                                 NULL, NULL, NULL, NULL,
+                                                 NULL, NULL, NULL, NULL);
                         t1value[i] = value;
                         avgt1 += value;
                 }
                 if (t1_threshold == 0.0)
-                        avgt1 /= polygons_sphere->n_points;
-                else    avgt1 = t1_threshold;
+                        avgt1 /= sphere->n_points;
+                else
+                        avgt1 = t1_threshold;
 
-                for (i = 0; i < polygons_sphere->n_points; i++) {
+                for (i = 0; i < sphere->n_points; i++) {
                         if (t1value[i] < avgt1)
                                 r = 1.01;
-                        else r = 0.99;
+                        else
+                                r = 0.99;
                         for (j = 0; j < 3; j++) 
-                                Point_coord(polygons_sphere->points[i], j) *= r;                
+                                Point_coord(sphere->points[i], j) *= r;                
                 }
                 free(t1value);
         }
 
         bandwidth2 = 2*bandwidth;
 
-        rdatax = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
-        rdatay = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
-        rdataz = (double *) malloc(sizeof(double)*bandwidth2*bandwidth2);
-        rcx    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-        rcy    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-        rcz    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-        icx    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-        icy    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
-        icz    = (double *) malloc(sizeof(double)*bandwidth*bandwidth);
+        rdatax = (double *) malloc(sizeof(double) * bandwidth2 * bandwidth2);
+        rdatay = (double *) malloc(sizeof(double) * bandwidth2 * bandwidth2);
+        rdataz = (double *) malloc(sizeof(double) * bandwidth2 * bandwidth2);
+        rcx    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
+        rcy    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
+        rcz    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
+        icx    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
+        icy    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
+        icz    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
 
         fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Sample spherical coordinates..");
-        get_equally_sampled_coords_of_polygon(polygons, polygons_sphere,
-                                              bandwidth,
+        get_equally_sampled_coords_of_polygon(polygons, sphere, bandwidth,
                                               rdatax, rdatay, rdataz);
 
         /* dataformat indicates real data */
@@ -187,12 +188,12 @@ main(int argc, char *argv[])
 
         if (bandwidth_limited > 0 && bandwidth_limited < bandwidth) {
                 fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
-                limit_bandwidth(bandwidth, bandwidth_limited, rcx, rcx);
-                limit_bandwidth(bandwidth, bandwidth_limited, rcy, rcy);
-                limit_bandwidth(bandwidth, bandwidth_limited, rcz, rcz);
-                limit_bandwidth(bandwidth, bandwidth_limited, icx, icx);
-                limit_bandwidth(bandwidth, bandwidth_limited, icy, icy);
-                limit_bandwidth(bandwidth, bandwidth_limited, icz, icz);
+                butterworth_filter(bandwidth, bandwidth_limited, rcx, rcx);
+                butterworth_filter(bandwidth, bandwidth_limited, rcy, rcy);
+                butterworth_filter(bandwidth, bandwidth_limited, rcz, rcz);
+                butterworth_filter(bandwidth, bandwidth_limited, icx, icx);
+                butterworth_filter(bandwidth, bandwidth_limited, icy, icy);
+                butterworth_filter(bandwidth, bandwidth_limited, icz, icz);
         }
     
         fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");

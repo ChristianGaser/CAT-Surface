@@ -240,6 +240,31 @@ shape_description(int bandwidth, double *rcx, double *rcy, double *rcz,
 }
 
 void
+butterworth_filter(int bandwidth, int bandwidth_limited,
+                   double *coeffs_old, double *coeffs_new)
+{
+        int l, m, i;
+        const double order = 128;
+        double *coeffs;
+
+        coeffs = (double *) malloc(sizeof(double) * bandwidth);
+
+        for (l = 0; l < bandwidth; l++) {
+                coeffs[l] = l;
+                coeffs[l] /= bandwidth_limited;
+                coeffs[l] = 1/sqrt(1 + pow(coeffs[l], order));
+       }
+
+        for (l = 0; l < bandwidth; l++) {
+                for (m = -l; m < l+1; m++) {
+                        i = seanindex(m, l, bandwidth);
+                        coeffs_new[i] = coeffs_old[i] * coeffs[l];
+                }
+        }
+        free(coeffs);
+}
+
+void
 limit_bandwidth(int bandwidth, int bandwidth_limited,
                 double *coeffs_old, double *coeffs_new)
 {
