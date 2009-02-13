@@ -123,7 +123,7 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
 
 void
 sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
-                       polygons_struct *polygons_sphere, int n_triangles,
+                       polygons_struct *sphere, int n_triangles,
                        int bandwidth)
 {
         Point     centre, new_point;    
@@ -148,18 +148,17 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
         }
     
         fill_Point(centre, 0.0, 0.0, 0.0);
-        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0,
-                                  n_triangles, polygons_sphere);
+        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles, sphere);
 
-        create_polygons_bintree(polygons_sphere,
-                                round((double) polygons_sphere->n_items *
+        create_polygons_bintree(sphere,
+                                round((double) sphere->n_items *
                                       BINTREE_FACTOR));
 
         size_map[0] = bandwidth2;
         size_map[1] = bandwidth2;
 
-        for (i = 0; i < polygons_sphere->n_points; i++) {
-                point_to_uv(&polygons_sphere->points[i], &u, &v);
+        for (i = 0; i < sphere->n_points; i++) {
+                point_to_uv(&sphere->points[i], &u, &v);
 
                 /* interpolate points */
                 double x0 = (double) (bandwidth2 - 1) * u;
@@ -196,10 +195,10 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
                           yp * (xm * H01 + xp * H11));
 
                 fill_Point(new_point,valuex,valuey,valuez);
-                polygons_sphere->points[i] = new_point;
+                sphere->points[i] = new_point;
         }
 
-        compute_polygon_normals( polygons_sphere );
+        compute_polygon_normals(sphere);
 }
 
 void
@@ -399,47 +398,52 @@ get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
 
 void
 get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
-                                      polygons_struct *polygons_sphere,
+                                      polygons_struct *sphere,
                                       int bandwidth, double xcoord[],
                                       double ycoord[], double zcoord[])
 {
-        int       i, j, x, y;
-        double    value, u, v, r;
-        Point     unit_point, on_sphere_point, new_point;
-        Point     poly_points[1000], poly_points_src[1000], scaled_point;
-        int       poly, size, ind, bandwidth2;
-        double    weights[1000], centre[3];
-        double    bounds[6], rsphere;
+        int i, j, x, y;
+        double value, u, v, r;
+        Point unit_point, on_sphere_point, new_point;
+        Point poly_points[1000], poly_points_src[1000], scaled_point;
+        int poly, size, ind, bandwidth2;
+        double weights[1000], centre[3], bounds[6], radius;
+        object_struct *objects;
+        polygons_struct *scaled_sphere;
+
+        objects = create_object(POLYGONS);
+        scaled_sphere = get_polygons_ptr(objects);
+        copy_polygons(sphere, scaled_sphere);
 
         /* Find centre of sphere based on bounds (to correct for shiftings) */
-        get_bounds(polygons_sphere, bounds);
+        get_bounds(scaled_sphere, bounds);
         for (j = 0; j < 3; j++)
                 centre[j] = bounds[2*j] + bounds[2*j+1];
 
-        rsphere = 0.0;
-        for (i = 0; i < polygons_sphere->n_points; i++) {
+        radius = 0.0;
+        for (i = 0; i < scaled_sphere->n_points; i++) {
                 r = 0.0;
                 for (j = 0; j < 3; j++) 
-                        r += Point_coord(polygons_sphere->points[i], j) *
-                             Point_coord(polygons_sphere->points[i], j);
-                rsphere += sqrt(r);
+                        r += Point_coord(scaled_sphere->points[i], j) *
+                             Point_coord(scaled_sphere->points[i], j);
+                radius += sqrt(r);
         }
-        rsphere /= polygons_sphere->n_points;
+        radius /= scaled_sphere->n_points;
 
         /*
          * Set centre and radius.  Make radius slightly smaller to get sure
          * that the inner side of handles will be found as nearest point
          * on the surface
          */
-        for (i = 0; i < polygons_sphere->n_points; i++) {
+        for (i = 0; i < scaled_sphere->n_points; i++) {
                 for (j = 0; j < 3; j++) {
-                        Point_coord(polygons_sphere->points[i], j) -= centre[j];
-                        Point_coord(polygons_sphere->points[i], j) /= rsphere;
+                        Point_coord(scaled_sphere->points[i], j) -= centre[j];
+                        Point_coord(scaled_sphere->points[i], j) /= radius;
                 }
         }
 
-        create_polygons_bintree(polygons_sphere,
-                                round((double) polygons_sphere->n_items *
+        create_polygons_bintree(scaled_sphere,
+                                round((double) scaled_sphere->n_items *
                                       BINTREE_FACTOR));
 
         bandwidth2 = bandwidth*2;
@@ -452,10 +456,10 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                         uv_to_point(u, v, &unit_point);
             
                         poly = find_closest_polygon_point(&unit_point,
-                                                          polygons_sphere,
+                                                          scaled_sphere,
                                                           &on_sphere_point);
 
-                        size = get_polygon_points(polygons_sphere, poly,
+                        size = get_polygon_points(scaled_sphere, poly,
                                                   poly_points_src);
 
                         get_polygon_interpolation_weights(&on_sphere_point,
