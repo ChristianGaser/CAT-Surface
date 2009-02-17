@@ -37,7 +37,6 @@ calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
         /* walk through the points */
         for (i = 0; i < p->n_points; i++) {
                 hd[i] = distance_between_points(&p->points[i], &p2->points[i]);
-                hd[i] = sqrt(hd[i]);
 
                 if (hd[i] > max_hd)
                         max_hd = hd[i];
