@@ -10,6 +10,7 @@
 /* Some of the code is used from caret 5.3 (BrainModelSurfaceCurvature.cxx)  */
 
 #include <volume_io/internal_volume_io.h>
+#include <volume_io/geometry.h>
 #include <bicpl.h>
 
 #include "CAT_Curvature.h"
@@ -276,4 +277,39 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
 
         if (smoothing_distance > 0.0)
                 FREE(distances);
+}
+
+void
+compute_local_sharpness(polygons_struct *polygons, int n_neighbours[],
+                        int *neighbours[], double *sharpness)
+{
+        int              n, n2, p;
+        Point            pts[3];
+        Vector           norms[MAX_NEIGHBOURS];
+        double           max_radians, r;
+
+        for (p = 0; p < polygons->n_points; p++) {
+                if (n_neighbours[p] <= 1)
+                        continue; /* skip this point */
+
+                /* Get 2 consecutive neighbors of this node */
+                pts[0] = polygons->points[p];
+                for (n = 0; n < n_neighbours[p]; n++) {
+                        n2 = (n + 1) % n_neighbours[p];
+
+                        /* normal of the triangle */
+                        pts[1] = polygons->points[neighbours[p][n]];
+                        pts[2] = polygons->points[neighbours[p][n2]];
+                        find_polygon_normal(3, pts, &norms[n]);
+                }
+
+                max_radians = 0;
+                for (n = 0; n < n_neighbours[p]; n++) {
+                        n2 = (n + 1) % n_neighbours[p];
+                        r = acos(DOT_VECTORS(norms[n], norms[n2]));
+                        if (r > max_radians)
+                                max_radians = r;
+                }
+                sharpness[p] = PI2 * 90 * max_radians;
+        }
 }
