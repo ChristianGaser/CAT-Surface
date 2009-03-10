@@ -414,6 +414,11 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                         ADD_POINT_VECTOR(newcenter, map->points[p], newcenter);
                         set_vector_length(&newcenter, radius);
 
+                        if (isnan(Point_x(newcenter)) ||
+                            isnan(Point_y(newcenter)) ||
+                            isnan(Point_z(newcenter)))
+                                continue;
+
                         /* check for flips */
                         ok = 1;
                         pts[0] = newcenter;
