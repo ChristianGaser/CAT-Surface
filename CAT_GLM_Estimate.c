@@ -115,14 +115,9 @@ estimate(char **infiles, char *arg_string, int argc)
         progress_struct      progress;
         Volume_Info          vol_info[MAX_FILES];
 
-        if (filename_extension_matches(infiles[0], "txt"))
-                n_dims = 1;
-        else if (filename_extension_matches(infiles[0], "mnc"))
+        if (filename_extension_matches(infiles[0], "mnc"))
                 n_dims = 3;
-        else {
-                fprintf(stderr, "\nError: unsupported file format\n");
-                return(1);
-        }
+        else    n_dims = 1;
 
         counter = 0;
         n_beta = 1;
