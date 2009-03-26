@@ -134,7 +134,6 @@ main(int argc, char *argv[])
                 volume = tmp;
         }
 
-        delete_volume(deform.deform_data.volume);
         deform.deform_data.volume = volume;
         deform.deform_data.label_volume = label_volume;
 
@@ -168,6 +167,5 @@ main(int argc, char *argv[])
         if (deform.prev_movements != NULL)
                 free(deform.prev_movements);
         delete_volume(deform.deform_data.volume);
-        delete_deformation_parameters(&deform);
         return(0);
 }

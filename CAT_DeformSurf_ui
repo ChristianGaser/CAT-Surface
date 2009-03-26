@@ -22,6 +22,7 @@ step=".1 .1 15 0 $th1 $th1 n 0 0 0"
 iters=50
 model="-1 .5 avg -.1 .1"
 CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+echo CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
 iters=50
 model="-1 .5 avg -.10 .10"
 #CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
