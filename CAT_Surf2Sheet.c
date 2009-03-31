@@ -14,22 +14,23 @@
 
 #include "CAT_SheetIO.h"
 #include "CAT_Map2d.h"
+#include "CAT_Curvature.h"
 
 #define  BINTREE_FACTOR   0.5
 
 double fwhm         = 0.0;
-double curv_dist    = 3.0;
 char * values_file  = NULL;
 char * surface_file = NULL;
 int    sz_map[2]    = {512, 256};
+int    curvtype     = 0;
 
 static ArgvInfo argTable[] = {
   {"-values", ARGV_STRING, (char *) 1, (char *) &values_file, 
      "Optional file with values for mapping."},
   {"-surf", ARGV_STRING, (char *) 1, (char *) &surface_file, 
      "Surface for mapping."},
-  {"-distance", ARGV_FLOAT, (char *) 1, (char *) &curv_dist,
-     "Average curvature around distance."},
+  {"-type", ARGV_FLOAT, (char *) 1, (char *) &curvtype,
+     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
      "Filter size for curvature map in FWHM."},
   {"-sz", ARGV_INT, (char *) 2, (char *) &sz_map,
@@ -59,7 +60,7 @@ main(int argc, char *argv[])
         int                  i, n_objects, x, y;
         int                  n_values;
         int                  *n_neighbours, **neighbours;
-        double               *values, *data, mn, mx;
+        double               *values, *data, mn, mx, distance;
         Point                centre;
         object_struct        **objects, *object;
         BOOLEAN              values_specified;
@@ -118,13 +119,16 @@ main(int argc, char *argv[])
                 create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                                 &neighbours, FALSE, NULL);
                 values = (double *) malloc(sizeof(double) * polygons->n_points);
-                get_polygon_vertex_curvatures(polygons,
+                if (curvtype == 0)
+                        distance = 3.0;
+                else distance = 0.0;
+                get_polygon_vertex_curvatures_cg(polygons,
                                               n_neighbours, neighbours,
-                                              curv_dist, 0.0, values);
+                                              distance, curvtype, values);
         }
 
         data = (double *) malloc(sizeof(double) * sz_map[0] * sz_map[1]);
-        map_smoothed_curvature_to_sphere(polygons, values, data, fwhm, sz_map);
+        map_smoothed_curvature_to_sphere(polygons, values, data, fwhm, sz_map, curvtype);
 
         /* scale data to uint8 range */
         mn = FLT_MAX; mx = -FLT_MAX;

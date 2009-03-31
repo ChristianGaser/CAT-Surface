@@ -15,6 +15,7 @@
 #include "CAT_SheetIO.h"
 #include "CAT_Map2d.h"
 #include "CAT_Surf.h"
+#include "CAT_Curvature.h"
   
 struct dartel_prm {
   int rtype;         /* regularization type: 0 - linear elastic energy; */
@@ -43,6 +44,7 @@ int code = 1;
 int loop = 6;
 int verbose = 0;
 int rtype = 1;
+int curvtype = 0;
 double reg   = 0.0001;
 double lmreg = 0.0001;
 double fwhm  = 10.0;
@@ -80,6 +82,8 @@ static ArgvInfo argTable[] = {
      "Number of outer loops for default parameters (max. 6)."},
   {"-shift", ARGV_CONSTANT, (char *) TRUE, (char *) &translate,
      "Shift map before warping."},
+  {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
+     "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
    {NULL, ARGV_END, NULL, NULL, NULL}
@@ -289,9 +293,9 @@ main(int argc, char *argv[])
         map_warp    = (double *) malloc(sizeof(double) * xy_size);
 
         map_smoothed_curvature_to_sphere(polygons_source, (double *)0,
-                                         map_source, fwhm, size_map);
+                                         map_source, fwhm, size_map, curvtype);
         map_smoothed_curvature_to_sphere(polygons_target, (double *)0,
-                                         map_target, fwhm, size_map);
+                                         map_target, fwhm, size_map, curvtype);
 
         if (write_pgm("source.pgm", map_source, size_map[0], size_map[1]) != 0)
                 return(1);
@@ -304,7 +308,7 @@ main(int argc, char *argv[])
                 map_weights = (double *) malloc(sizeof(double) * xy_size);
                 map_source0 = (double *) malloc(sizeof(double) * xy_size);
                 map_smoothed_curvature_to_sphere(polygons_source, weights,
-                                                 map_weights, fwhm, size_map);
+                                                 map_weights, fwhm, size_map, curvtype);
                 for (i = 0; i < xy_size; i++) {
                         map_source0[i] = map_source[i];
                         map_weights[i] += 1.0;

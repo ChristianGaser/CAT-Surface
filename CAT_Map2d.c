@@ -13,6 +13,7 @@
 
 #include "CAT_Surf.h"
 #include "CAT_Blur2d.h"
+#include "CAT_Curvature.h"
 
 #define  BINTREE_FACTOR   0.5
 
@@ -83,14 +84,14 @@ uv_to_point(double u, double v, Point *point)
 
 void
 map_smoothed_curvature_to_sphere(polygons_struct *polygons, double *values,
-                                 double *data, double fwhm, int *size_map)
+                                 double *data, double fwhm, int *size_map, int curvtype)
 {
         polygons_struct   unit_sphere;
         Point             unit_point, on_sphere_point, centre;
         Point             poly_points[1000];
         double            sigma, value, *smooth_values;
         double            u, v;
-        double            weights[1000], mn, mx;
+        double            weights[1000], mn, mx, distance;
         int               *n_neighbours, **neighbours;
         int               i, j, n_iter;
         int               x, y, validx;
@@ -101,8 +102,12 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons, double *values,
         // if values is empty calculate curvature
         if (values == (double *)0) {
                 values = (double *)malloc(sizeof(double)*polygons->n_points);
-                get_polygon_vertex_curvatures(polygons, n_neighbours,
-                                              neighbours, 3.0, 0.0, values);
+                if (curvtype == 0)
+                        distance = 3.0;
+                else distance = 0.0;
+
+                get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                         distance, curvtype, values);
         }
         smooth_values = (double *)malloc(sizeof(double)*polygons->n_points);
 
