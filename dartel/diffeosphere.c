@@ -6,6 +6,7 @@
 #include "optimizersphere.h"
 #include "CAT_Surf.h"
 
+#define LOG(x) (((x)>0) ? log(x+0.001): -6.9078)
 #define WRAP(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
 
 extern double floor();
@@ -562,6 +563,122 @@ double initialise_objfun(int dm[], double f[], double g[], double t0[], double J
     return(0.5*ssl);
 }
 
+double initialise_objfun_mn(int dm[], double f[], double g[], double t0[], double J0[], double jd[], double b[], double A[])
+{
+    int j, m = dm[0]*dm[1];
+    double ssl = 0.0;
+ 
+    for(j=0; j<m; j++)
+    {
+        double x, y;
+        int    ix, iy, k;
+        double dx1, dx2, dy1, dy2;
+        double k22, k12, k21, k11;
+        int    o11, o12, o21, o22;
+        double dx0, dy0;
+        double dx[128], dy[128], Ya[128], T[128], sT = 1.0, sY;
+        double ta11, ta22, ta12;
+        double tb1,  tb2, tss;
+        double sk22 = 1.0, sk12 = 1.0, sk21 = 1.0, sk11 = 1.0;
+        
+        x    = t0[j    ]-1.0;
+        y    = t0[j+m  ]-1.0;
+        ix   = (int)floor(x); dx1=x-ix; dx2=1.0-dx1;
+        iy   = (int)floor(y); dy1=y-iy; dy2=1.0-dy1;
+
+        o22   = bound(ix,  iy,  dm);
+        o12   = bound(ix+1,iy,  dm);
+        o21   = bound(ix,  iy+1,dm);
+        o11   = bound(ix+1,iy+1,dm);
+
+        sY   = 0.0;
+        
+        sk22 = sk12 = sk21 = sk11 = 1.0;
+        
+        for(k=0; k<dm[2]; k++)
+        {
+            int km= k*m;
+            T[k]  = g[j + km];
+            sT   -= T[k];
+            k22  = f[o22 + km];sk22-=k22;k22=LOG(k22);
+            k12  = f[o12 + km];sk12-=k12;k12=LOG(k12);
+            k21  = f[o21 + km];sk21-=k21;k21=LOG(k21);
+            k11  = f[o11 + km];sk11-=k11;k11=LOG(k11);
+
+            Ya[k]  = exp((k22*dx2 + k12*dx1)*dy2 + (k21*dx2 + k11*dx1)*dy1);
+            sY   += Ya[k];
+            
+            dx0   = ((k22     - k12    )*dy2 + (k21     - k11    )*dy1);
+            dy0   = ((k22*dx2 + k12*dx1)     - (k21*dx2 + k11*dx1)    );
+
+            dx[k] = -(J0[j    ]*dx0 + J0[j+  m]*dy0);
+            dy[k] = -(J0[j+2*m]*dx0 + J0[j+3*m]*dy0);
+        }
+        
+        k    = dm[2];
+        T[k] = sT;
+
+        k22 = LOG(sk22);
+        k12 = LOG(sk21);
+        k21 = LOG(sk12);
+        k11 = LOG(sk11);
+
+        Ya[k]  = exp((k22*dx2 + k12*dx1)*dy2 + (k21*dx2 + k11*dx1)*dy1);
+        sY   += Ya[k];
+            
+        dx0   = ((k22     - k12    )*dy2 + (k21     - k11    )*dy1);
+        dy0   = ((k22*dx2 + k12*dx1)     - (k21*dx2 + k11*dx1)    );
+
+        dx[k] = -(J0[j    ]*dx0 + J0[j+  m]*dy0);
+        dy[k] = -(J0[j+2*m]*dx0 + J0[j+3*m]*dy0);
+
+        ta11 = ta22 = ta12 = 0.0;
+        tb1  = tb2  = 0.0;
+        tss  = 0.0;
+        for(k=0; k<=dm[2]; k++)
+        {
+            double wt;
+            int k1;
+            Ya[k] /= sY;
+            tss  += log(Ya[k])*T[k];
+            tb1  += (Ya[k]-T[k])*dx[k];
+            tb2  += (Ya[k]-T[k])*dy[k];
+
+            for(k1=0; k1<k; k1++)
+            {
+                wt    =  -Ya[k]*Ya[k1];
+                ta11 += wt* dx[k]*dx[k1]*2;
+                ta22 += wt* dy[k]*dy[k1]*2;
+                ta12 += wt*(dx[k]*dy[k1] + dx[k1]*dy[k]);
+            }
+            wt    = Ya[k]*(1.0-Ya[k]);
+            ta11 += wt*dx[k]*dx[k];
+            ta22 += wt*dy[k]*dy[k];
+            ta12 += wt*dx[k]*dy[k];
+        }
+        if (jd != (double *)0)
+        {
+            double dt = jd[j];
+            if (dt<0.0) dt = 0.0;
+            A[j    ]  = ta11*dt;
+            A[j+m  ]  = ta22*dt;
+            A[j+m*2]  = ta12*dt;
+            b[j    ]  = tb1*dt;
+            b[j+m  ]  = tb2*dt;
+            ssl      -= tss*dt;
+        }
+        else
+        {
+            A[j    ] = ta11;
+            A[j+m  ] = ta22;
+            A[j+m*2] = ta12;
+            b[j    ] = tb1;
+            b[j+m  ] = tb2;
+            ssl     -= tss;
+        }
+    }
+    return(ssl);
+}
 
 /*
  * t0 = Id + v0*sc
@@ -702,13 +819,12 @@ void unwrap(int dm[], double f[])
     }
 }
 
-int dartel_scratchsize(int dm[], int issym)
+int dartel_scratchsize(int dm[], int code)
 {
     int m1, m2;
     int m = dm[0]*dm[1];
-    
     m1 = 15*m;
-    if (issym) m1 += 5*m;
+    if (code) m1 += 5*m;
     m2 = 5*m+fmg2_scratchsize(dm);
     if (m1>m2)
         return(m1);
@@ -716,7 +832,7 @@ int dartel_scratchsize(int dm[], int issym)
         return(m2);
 }
 
-void dartel(int dm[], int k, double v[], double g[], double f[], double dj[], int rtype, double param[], double lmreg, int cycles, int nits, int issym, double ov[], double ll[], double *buf)
+void dartel(int dm[], int k, double v[], double g[], double f[], double dj[], int rtype, double param[], double lmreg, int cycles, int nits, int code, double ov[], double ll[], double *buf)
 {
     double *sbuf;
     double *b, *A, *b1, *A1;
@@ -746,11 +862,14 @@ void dartel(int dm[], int k, double v[], double g[], double f[], double dj[], in
 
     expdef(dm, k, v, t0, t1, J0, J1);
     jac_div_smalldef(dm, sc, v, J0);
-    ssl = initialise_objfun(dm, f, g, t0, J0, dj, b, A);
+    if (code==2)
+        ssl = initialise_objfun_mn(dm, f, g, t0, J0, dj, b, A);
+    else
+        ssl = initialise_objfun(dm, f, g, t0, J0, dj, b, A);
     smalldef_jac(dm, -sc, v, t0, J0);
-    squaring(dm, k, issym, b, A, t0, t1, J0, J1);
+    squaring(dm, k, code==1, b, A, t0, t1, J0, J1);
 
-    if (issym)
+    if (code==1)
     {
         jac_div_smalldef(dm, -sc, v, J0);
         ssl += initialise_objfun(dm, g, f, t0, J0, (double *)0, b1, A1);

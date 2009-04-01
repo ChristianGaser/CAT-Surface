@@ -72,7 +72,7 @@ static ArgvInfo argTable[] = {
   {"-p", ARGV_STRING, (char *) 1, (char *) &param_file, 
      "Parameter file."},
   {"-code", ARGV_INT, (char *) 1, (char *) &code,
-     "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares."},
+     "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares; 2 - multinomial."},
   {"-rtype", ARGV_INT, (char *) 1, (char *) &rtype,
      "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
   {"-reg", ARGV_FLOAT, (char *) 1, (char *) &reg,
