@@ -220,10 +220,9 @@ map_sheet2d_to_sphere(double *sheet2d, double *values,
         for (i = 0; i < polygons->n_points; i++) {
                 point_to_uv(&unit_sphere.points[i], &u, &v);
 
-                x = (int) round(u*tmp_x - 1.0);
-                y = (int) round(v*tmp_y - 1.0);
-
                 if (interpolate) {
+                        x = (int) (u*tmp_x) - 1.0;
+                        y = (int) (v*tmp_y) - 1.0;
                         xp = u*tmp_x - 1.0 - x;
                         yp = v*tmp_y - 1.0 - y;
                         xm = 1.0 - xp;
@@ -236,6 +235,9 @@ map_sheet2d_to_sphere(double *sheet2d, double *values,
                         values[i] = (ym * ( xm * H00 + xp * H10) + 
                                      yp * ( xm * H01 + xp * H11));
                 } else values[i] = sheet2d[x + y*size_map[0]];
+                
+                /* prevent unlikely values at the poles */
+                if (values[i] < -1e15 || values[i] > 1e15) values[i] = 0.0;
         
         }
         delete_polygons(&unit_sphere);

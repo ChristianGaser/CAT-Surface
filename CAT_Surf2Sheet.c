@@ -29,7 +29,7 @@ static ArgvInfo argTable[] = {
      "Optional file with values for mapping."},
   {"-surf", ARGV_STRING, (char *) 1, (char *) &surface_file, 
      "Surface for mapping."},
-  {"-type", ARGV_FLOAT, (char *) 1, (char *) &curvtype,
+  {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
      "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
      "Filter size for curvature map in FWHM."},

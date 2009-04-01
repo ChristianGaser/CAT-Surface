@@ -35,6 +35,7 @@ char *source_file  = NULL;
 char *target_file  = NULL;
 char *weight_file  = NULL;
 char *jacdet_file  = NULL;
+char *deform_file  = NULL;
 char *output_file  = NULL;
 char *pgm_file     = NULL;
 char *outflow_file = NULL;
@@ -55,13 +56,15 @@ static ArgvInfo argTable[] = {
   {"-t", ARGV_STRING, (char *) 1, (char *) &target_file, 
      "Template file."},
   {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
-     "Jacobian determinant values on the surface."},
+     "Save Jacobian determinant values (-1 to ease the use of relative volume changes) of the surface."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
      "Warped input."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_file, 
      "Warped map as pgm file."},
   {"-s", ARGV_STRING, (char *) 1, (char *) &weight_file, 
      "Weight warping with the inverse from values in this file (e.g. std)."},
+  {"-d", ARGV_STRING, (char *) 1, (char *) &deform_file, 
+     "Save amplitude of deformations (displacements) of the surface."},
   {"-if", ARGV_STRING, (char *) 1, (char *) &inflow_file, 
      "Warped input."},
   {"-of", ARGV_STRING, (char *) 1, (char *) &outflow_file, 
@@ -83,7 +86,7 @@ static ArgvInfo argTable[] = {
   {"-shift", ARGV_CONSTANT, (char *) TRUE, (char *) &translate,
      "Shift map before warping."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
-     "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares."},
+     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
    {NULL, ARGV_END, NULL, NULL, NULL}
@@ -146,7 +149,7 @@ main(int argc, char *argv[])
         int              n_objects, it_scratch, xy_size, n_weights;
         double           *weights;
         double           *map_source, *map_target;
-        double           *map_warp, *map_weights, *map_source0;
+        double           *map_warp, *map_weights, *map_source0, *deform;
         double           *flow, *flow1, *inflow, *scratch, *jd, *jd1, *values;
         object_struct    **objects, *object;
         double           ll[3];
@@ -161,7 +164,8 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) ||
             source_file == NULL || target_file == NULL ||
             (jacdet_file == NULL && output_file == NULL &&
-             pgm_file == NULL  && outflow_file == NULL)) {
+             pgm_file == NULL  && outflow_file == NULL &&
+             deform_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -198,7 +202,7 @@ main(int argc, char *argv[])
 
         prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
 
-        /* first three entrys of param are equal */
+        /* first three entries of param are equal */
         for (j = 0; j < loop; j++) {
                 for (i = 0; i < 3; i++)
                         prm[j].rparam[i] = param[i];
@@ -383,6 +387,11 @@ main(int argc, char *argv[])
                 jd1 = (double *) malloc(sizeof(double) * xy_size);
 
                 expdefdet(size_map, 10, inflow, flow, flow1, jd, jd1);
+                
+                /* subtract 1 to get values around 0 instead of 1 */
+                for (i = 0; i < xy_size; i++) {
+                        jd1[i] -= 1;
+                }
 
                 values = (double *) malloc(sizeof(double) *
                                            polygons_source->n_points);
@@ -398,6 +407,32 @@ main(int argc, char *argv[])
         } else {
                 expdef(size_map, 10, inflow, flow, flow1,
                        (double *) 0, (double *) 0);
+        }
+
+        /* get amplitude of deformations from flow field */
+        if (deform_file != NULL) {
+                deform  = (double *) malloc(sizeof(double) * xy_size);
+
+                for (i = 0; i < xy_size; i++) {
+                        x = (int) flow[i] - 1.0;
+                        y = (int) flow[i + xy_size] - 1.0;
+                        xp = flow[i] - 1.0 - x;
+                        yp = flow[i + xy_size] - 1.0 - y;
+                        xm = 1.0 - xp;
+                        ym = 1.0 - yp;
+                        deform[i] = sqrt(xp*xp + yp*yp);
+                }
+                
+                values = (double *) malloc(sizeof(double) *
+                                           polygons_source->n_points);
+
+                map_sheet2d_to_sphere(deform, values, polygons_source,
+                                      1, size_map);
+
+                output_values_any_format(deform_file, polygons_source->n_points, values);
+
+                free(values);
+                free(deform);
         }
 
         free(flow1);
