@@ -46,7 +46,7 @@ int loop      = 6;
 int verbose   = 0;
 int rtype     = 1;
 int curvtype  = 0;
-int staticmu  = 0;
+int muchange  = 2;
 double lambda = 0.0001;
 double mu     = 0.25;
 double lmreg  = 0.0001;
@@ -79,8 +79,8 @@ static ArgvInfo argTable[] = {
      "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
   {"-mu", ARGV_FLOAT, (char *) 1, (char *) &mu,
      "Regularization parameter mu."},
-  {"-staticmu", ARGV_CONSTANT, (char *) TRUE, (char *) &staticmu,
-     "Use constant mu instead of decreasing mu with increasing number of iterations."},
+  {"-muchange", ARGV_INT, (char *) TRUE, (char *) &muchange,
+     "Decrease mu after muchange iterations."},
   {"-lambda", ARGV_FLOAT, (char *) 1, (char *) &lambda,
      "Regularization parameter lambda."},
   {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
@@ -251,10 +251,7 @@ main(int argc, char *argv[])
                         prm[j].lmreg = lmreg;
                 }
                 for (i = 0; i < 24; i++) {
-                        if (staticmu)
-                                prm[i].rparam[2] = mu;
-                        else
-                                prm[i].rparam[2] = mu/(double)(i/2+1);
+                        prm[i].rparam[2] = mu/(double)(i/muchange+1);
                         prm[i].rparam[3] = lambda;
                         prm[i].rparam[4] = lambda/2.0;
                         prm[i].k = i;
