@@ -20,7 +20,7 @@
 struct dartel_prm {
   int rtype;         /* regularization type: 0 - linear elastic energy; */
                      /* 1 - membrane energy; 2 - bending energy */
-  double rparam[5];  /* regularization parameters */
+  double rparam[5];  /* regularization parameters: ?? ?? mu lambda id */
   double lmreg;      /* LM regularization */
   int cycles;        /* # of cycles for full multi grid (FMG) */
   int its;           /* # of relaxation iterations in each multigrid cycle */
@@ -47,6 +47,7 @@ int verbose   = 0;
 int rtype     = 1;
 int curvtype  = 0;
 int muchange  = 4;
+int sz_map[2] = {512, 256};
 double lambda = 0.0;
 double mu     = 0.25;
 double lmreg  = 0.0;
@@ -57,12 +58,12 @@ static ArgvInfo argTable[] = {
      "Input file."},
   {"-t", ARGV_STRING, (char *) 1, (char *) &target_file, 
      "Template file."},
-  {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
-     "Save Jacobian determinant values (-1 to ease the use of relative volume changes) of the surface."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
      "Warped brain."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_file, 
      "Warped map as pgm file."},
+  {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
+     "Save Jacobian determinant values (-1 to ease the use of relative volume changes) of the surface."},
   {"-s", ARGV_STRING, (char *) 1, (char *) &weight_file, 
      "Weight warping with the inverse from values in this file (e.g. std)."},
   {"-d", ARGV_STRING, (char *) 1, (char *) &deform_file, 
@@ -89,6 +90,8 @@ static ArgvInfo argTable[] = {
      "Filter size for curvature map in FWHM."},
   {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
      "Number of outer loops for default parameters (max. 6)."},
+  {"-size", ARGV_INT, (char *) 2, (char *) &sz_map,
+     "Size of curvature map for warping."},
   {"-shift", ARGV_CONSTANT, (char *) TRUE, (char *) &translate,
      "Shift map before warping."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
@@ -99,25 +102,25 @@ static ArgvInfo argTable[] = {
 };
 
 void
-translate_to_template(double *source, double *target, int *size_map,
+translate_to_template(double *source, double *target, int *size_curv,
                       int *shift)
 {
         int     mn = -10, mx = 10;
         int     i, sx, sy, x, y;
         double  *shifted, sdiff, diff, sdiff0 = FLT_MAX;
   
-        shifted = (double *) malloc(sizeof(double) * size_map[0] * size_map[1]);
+        shifted = (double *) malloc(sizeof(double) * size_curv[0] * size_curv[1]);
 
         /* restricted to shifts on x-scale only */
         for (sx = mn; sx < mx; sx++) {
                 for (sy = 0; sy < 1; sy++) {
                         sdiff = 0.0;
-                        for (x = 0; x < size_map[0]; x++) {
-                                for (y = 0; y < size_map[1]; y++) {
-                                        i = x + (size_map[0] * y);
+                        for (x = 0; x < size_curv[0]; x++) {
+                                for (y = 0; y < size_curv[1]; y++) {
+                                        i = x + (size_curv[0] * y);
                                         diff = target[i] -
                                                source[bound(x + sx, y + sy,
-                                                            size_map)];
+                                                            size_curv)];
                                         sdiff += diff*diff;
                                 }
                         }
@@ -129,15 +132,15 @@ translate_to_template(double *source, double *target, int *size_map,
                 }
         }
   
-        for (x = 0; x < size_map[0]; x++) {
-                for (y = 0; y < size_map[1]; y++) {
-                        i = x + (size_map[0] * y);
+        for (x = 0; x < size_curv[0]; x++) {
+                for (y = 0; y < size_curv[1]; y++) {
+                        i = x + (size_curv[0] * y);
                         shifted[i] = source[bound(x + shift[0], y + shift[1],
-                                                  size_map)];
+                                                  size_curv)];
                 }
         }
 
-        for (i = 0; i < size_map[0]*size_map[1]; i++)
+        for (i = 0; i < size_curv[0]*size_curv[1]; i++)
                 source[i] = shifted[i];
 
         free(shifted);
@@ -160,7 +163,7 @@ main(int argc, char *argv[])
         object_struct    **objects, *object;
         double           ll[3];
         static double    param[2] = {1.0, 1.0};
-        int              size_map[3] = {512, 256, 1}, shift[2];
+        int              size_curv[3], shift[2];
         double           xp, yp, xm, ym;
         double           H00, H01, H10, H11;
         struct dartel_prm* prm;
@@ -207,6 +210,11 @@ main(int argc, char *argv[])
         }
 
         prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
+        
+        /* size of curvature map for warping */
+        size_curv[0] = sz_map[0];
+        size_curv[1] = sz_map[1];
+        size_curv[2] = 1;
 
         /* first two entries of param are equal */
         for (j = 0; j < loop; j++) {
@@ -297,7 +305,7 @@ main(int argc, char *argv[])
         /* get a pointer to the surface */
         polygons_source = get_polygons_ptr(objects[0]);
   
-        xy_size = size_map[0] * size_map[1];
+        xy_size = size_curv[0] * size_curv[1];
 
         flow        = (double *) malloc(sizeof(double) * xy_size * 2);
         flow1       = (double *) malloc(sizeof(double) * xy_size * 2);
@@ -307,22 +315,24 @@ main(int argc, char *argv[])
         map_warp    = (double *) malloc(sizeof(double) * xy_size);
 
         map_smoothed_curvature_to_sphere(polygons_source, (double *)0,
-                                         map_source, fwhm, size_map, curvtype);
+                                         map_source, fwhm, size_curv, curvtype);
         map_smoothed_curvature_to_sphere(polygons_target, (double *)0,
-                                         map_target, fwhm, size_map, curvtype);
+                                         map_target, fwhm, size_curv, curvtype);
 
-        if (write_pgm("source.pgm", map_source, size_map[0], size_map[1]) != 0)
-                return(1);
+        if (verbose) {
+                if (write_pgm("source.pgm", map_source, size_curv[0], size_curv[1]) != 0)
+                        return(1);
 
-        if (write_pgm("target.pgm", map_target, size_map[0], size_map[1]) != 0)
-                return(1);
-
+                if (write_pgm("target.pgm", map_target, size_curv[0], size_curv[1]) != 0)
+                        return(1);
+        }
+        
         /* weight maps of target and source by the inverse std */
         if (weight_file != NULL) {
                 map_weights = (double *) malloc(sizeof(double) * xy_size);
                 map_source0 = (double *) malloc(sizeof(double) * xy_size);
                 map_smoothed_curvature_to_sphere(polygons_source, weights,
-                                                 map_weights, fwhm, size_map, curvtype);
+                                                 map_weights, fwhm, size_curv, curvtype);
                 for (i = 0; i < xy_size; i++) {
                         map_source0[i] = map_source[i];
                         map_weights[i] += 1.0;
@@ -333,7 +343,7 @@ main(int argc, char *argv[])
         }
   
         if (translate) {
-                translate_to_template(map_source, map_target, size_map, shift);
+                translate_to_template(map_source, map_target, size_curv, shift);
                 fprintf(stderr, "%d %d\n", shift[0], shift[1]);
         } else {
                 shift[0] = 0; shift[1] = 0;
@@ -349,11 +359,11 @@ main(int argc, char *argv[])
                         return(1);
                 }
                 fprintf(stderr,"Shift is not considered!!!\n");
-                fread(&size_map, 2, sizeof(int), fp_flow);
+                fread(&size_curv, 2, sizeof(int), fp_flow);
                 fread(&shift, 2, sizeof(int), fp_flow);
                 fread(inflow, xy_size*2, sizeof(double), fp_flow);
                 fclose(fp_flow);
-                size_map[2] = 1;
+                size_curv[2] = 1;
         } else {
                 for (i = 0; i < xy_size*2; i++) {
                         inflow[i] = 0.0;
@@ -361,12 +371,12 @@ main(int argc, char *argv[])
         }
 
         for (it = 0, it0 = 0; it0 < loop; it0++) {
-                it_scratch = dartel_scratchsize((int *)size_map, prm[it0].code);
+                it_scratch = dartel_scratchsize((int *)size_curv, prm[it0].code);
                 scratch = (double *) malloc(sizeof(double) * it_scratch);
 
                 for (it1 = 0; it1 < prm[it0].its; it1++) {
                         it++;
-                        dartel(size_map, prm[it0].k, inflow, map_target,
+                        dartel(size_curv, prm[it0].k, inflow, map_target,
                                map_source, (double *)0, prm[it0].rtype, 
                                prm[it0].rparam, prm[it0].lmreg,
                                prm[it0].cycles, prm[it0].its, prm[it0].code,
@@ -385,7 +395,7 @@ main(int argc, char *argv[])
                                 outflow_file);
                         return(1);
                 }
-                fwrite(&size_map, 2, sizeof(int), fp_flow);
+                fwrite(&size_curv, 2, sizeof(int), fp_flow);
                 fwrite(&shift, 2, sizeof(int), fp_flow);
                 fwrite(inflow, xy_size*2, sizeof(double), fp_flow);
                 fclose(fp_flow);
@@ -396,7 +406,7 @@ main(int argc, char *argv[])
                 jd  = (double *) malloc(sizeof(double) * xy_size);
                 jd1 = (double *) malloc(sizeof(double) * xy_size);
 
-                expdefdet(size_map, 10, inflow, flow, flow1, jd, jd1);
+                expdefdet(size_curv, 10, inflow, flow, flow1, jd, jd1);
                 
                 /* subtract 1 to get values around 0 instead of 1 */
                 for (i = 0; i < xy_size; i++) {
@@ -407,7 +417,7 @@ main(int argc, char *argv[])
                                            polygons_source->n_points);
 
                 map_sheet2d_to_sphere(jd1, values, polygons_source,
-                                      1, size_map);
+                                      1, size_curv);
 
                 output_values_any_format(jacdet_file, polygons_source->n_points, values);
 
@@ -415,7 +425,7 @@ main(int argc, char *argv[])
                 free(jd);
                 free(jd1);
         } else {
-                expdef(size_map, 10, inflow, flow, flow1,
+                expdef(size_curv, 10, inflow, flow, flow1,
                        (double *) 0, (double *) 0);
         }
 
@@ -437,7 +447,7 @@ main(int argc, char *argv[])
                                            polygons_source->n_points);
 
                 map_sheet2d_to_sphere(deform, values, polygons_source,
-                                      1, size_map);
+                                      1, size_curv);
 
                 output_values_any_format(deform_file, polygons_source->n_points, values);
 
@@ -461,21 +471,21 @@ main(int argc, char *argv[])
                         yp = flow[i + xy_size] - 1.0 - y;
                         xm = 1.0 - xp;
                         ym = 1.0 - yp;
-                        H00 = map_source[bound(x,  y,  size_map)];
-                        H01 = map_source[bound(x,  y+1,size_map)];
-                        H10 = map_source[bound(x+1,y,  size_map)];
-                        H11 = map_source[bound(x+1,y+1,size_map)];
+                        H00 = map_source[bound(x,  y,  size_curv)];
+                        H01 = map_source[bound(x,  y+1,size_curv)];
+                        H10 = map_source[bound(x+1,y,  size_curv)];
+                        H11 = map_source[bound(x+1,y+1,size_curv)];
 
                         map_warp[i] = ym * (xm * H00 + xp * H10) +
 		                      yp * (xm * H01 + xp * H11);
                 }
-                if (write_pgm(pgm_file, map_warp, size_map[0],
-                              size_map[1]) != 0)
+                if (write_pgm(pgm_file, map_warp, size_curv[0],
+                              size_curv[1]) != 0)
                         return(1);
         }
 
         if (output_file != NULL) {
-                apply_warp(polygons_source, flow, size_map, shift);  
+                apply_warp(polygons_source, flow, size_curv, shift);  
   
                 if (output_graphics_any_format(output_file, format, n_objects,
                                                objects) != OK)
