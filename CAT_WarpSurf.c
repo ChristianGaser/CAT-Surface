@@ -46,6 +46,7 @@ int loop      = 6;
 int verbose   = 0;
 int rtype     = 1;
 int curvtype  = 0;
+int staticmu  = 0;
 double lambda = 0.0001;
 double mu     = 0.25;
 double lmreg  = 0.0001;
@@ -78,6 +79,8 @@ static ArgvInfo argTable[] = {
      "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
   {"-mu", ARGV_FLOAT, (char *) 1, (char *) &mu,
      "Regularization parameter mu."},
+  {"-staticmu", ARGV_CONSTANT, (char *) TRUE, (char *) &staticmu,
+     "Use constant mu instead of decreasing mu with increasing number of iterations."},
   {"-lambda", ARGV_FLOAT, (char *) 1, (char *) &lambda,
      "Regularization parameter lambda."},
   {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
@@ -205,7 +208,7 @@ main(int argc, char *argv[])
 
         prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
 
-        /* first three entries of param are equal */
+        /* first two entries of param are equal */
         for (j = 0; j < loop; j++) {
                 for (i = 0; i < 2; i++)
                         prm[j].rparam[i] = param[i];
@@ -224,11 +227,10 @@ main(int argc, char *argv[])
                 fprintf(stderr, "Read parameters from %s\n", param_file);
                 while (fgets(line, sizeof(line), fp)) {
                         /* check for 9 values in each line */
-                        if (sscanf(line, "%d %lf %lf %lf %d %d %d %d",
-                                   &prm[loop].rtype, &prm[loop].rparam[3],
-                                   &prm[loop].rparam[4], &prm[loop].lmreg,
-                                   &prm[loop].cycles, &prm[loop].its,
-                                   &prm[loop].k, &prm[loop].code) != 8)
+                        if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
+                                   &prm[loop].rtype, &prm[loop].rparam[2], &prm[loop].rparam[3],
+                                   &prm[loop].rparam[4], &prm[loop].lmreg, &prm[loop].cycles,
+                                   &prm[loop].its, &prm[loop].k, &prm[loop].code) != 9)
                                 continue;
                         loop++;
                 }
@@ -249,11 +251,14 @@ main(int argc, char *argv[])
                         prm[j].lmreg = lmreg;
                 }
                 for (i = 0; i < 24; i++) {
-                        prm[i].rparam[2] = mu;
+                        if (staticmu)
+                                prm[i].rparam[2] = mu;
+                        else
+                                prm[i].rparam[2] = mu/(double)(i/2+1);
                         prm[i].rparam[3] = lambda;
-                        prm[i].rparam[4] = lambda/2;
+                        prm[i].rparam[4] = lambda/2.0;
                         prm[i].k = i;
-                        lambda /= 5;
+                        lambda /= 5.0;
                 }
         }
 
@@ -273,10 +278,12 @@ main(int argc, char *argv[])
                 fprintf(stderr, "1 - sym. sum of squares):\t%d\n", prm[0].code);
                 fprintf(stderr, "Levenberg-Marquardt regularization:");
                 fprintf(stderr, "\t\t\t\t\t%g\n", prm[0].lmreg);
-                fprintf(stderr, "Regularization mu:");
-                fprintf(stderr, "\t\t\t\t\t\t\t%g\n", prm[0].rparam[2]);
                 fprintf(stderr, "\n%d Iterative loops\n", loop);
-                fprintf(stderr, "\nRegularization parameter lambda:\t");
+                fprintf(stderr, "\nRegularization parameter mu:\t\t");
+                for (i = 0; i < loop; i++)
+                        fprintf(stderr, "%8g\t", prm[i].rparam[2]);
+                fprintf(stderr,"\n");
+                fprintf(stderr, "Regularization parameter lambda:\t");
                 for (i = 0; i < loop; i++)
                         fprintf(stderr, "%8g\t", prm[i].rparam[3]);
                 fprintf(stderr,"\n");
