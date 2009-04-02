@@ -41,14 +41,15 @@ char *pgm_file     = NULL;
 char *outflow_file = NULL;
 char *inflow_file  = NULL;
 int translate = 0;
-int code = 1;
-int loop = 6;
-int verbose = 0;
-int rtype = 1;
-int curvtype = 0;
-double reg   = 0.0001;
-double lmreg = 0.0001;
-double fwhm  = 10.0;
+int code      = 1;
+int loop      = 6;
+int verbose   = 0;
+int rtype     = 1;
+int curvtype  = 0;
+double lambda = 0.0001;
+double mu     = 0.25;
+double lmreg  = 0.0001;
+double fwhm   = 10.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
@@ -75,8 +76,10 @@ static ArgvInfo argTable[] = {
      "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares; 2 - multinomial."},
   {"-rtype", ARGV_INT, (char *) 1, (char *) &rtype,
      "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
-  {"-reg", ARGV_FLOAT, (char *) 1, (char *) &reg,
-     "Regularization parameter."},
+  {"-mu", ARGV_FLOAT, (char *) 1, (char *) &mu,
+     "Regularization parameter mu."},
+  {"-lambda", ARGV_FLOAT, (char *) 1, (char *) &lambda,
+     "Regularization parameter lambda."},
   {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
      "LM regularization."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
@@ -153,7 +156,7 @@ main(int argc, char *argv[])
         double           *flow, *flow1, *inflow, *scratch, *jd, *jd1, *values;
         object_struct    **objects, *object;
         double           ll[3];
-        static double    param[3] = {1.0, 1.0, 0.25};
+        static double    param[2] = {1.0, 1.0};
         int              size_map[3] = {512, 256, 1}, shift[2];
         double           xp, yp, xm, ym;
         double           H00, H01, H10, H11;
@@ -204,7 +207,7 @@ main(int argc, char *argv[])
 
         /* first three entries of param are equal */
         for (j = 0; j < loop; j++) {
-                for (i = 0; i < 3; i++)
+                for (i = 0; i < 2; i++)
                         prm[j].rparam[i] = param[i];
         }
 
@@ -246,10 +249,11 @@ main(int argc, char *argv[])
                         prm[j].lmreg = lmreg;
                 }
                 for (i = 0; i < 24; i++) {
-                        prm[i].rparam[3] = reg;
-                        prm[i].rparam[4] = reg/2;
+                        prm[i].rparam[2] = mu;
+                        prm[i].rparam[3] = lambda;
+                        prm[i].rparam[4] = lambda/2;
                         prm[i].k = i;
-                        reg /= 5;
+                        lambda /= 5;
                 }
         }
 
@@ -269,16 +273,18 @@ main(int argc, char *argv[])
                 fprintf(stderr, "1 - sym. sum of squares):\t%d\n", prm[0].code);
                 fprintf(stderr, "Levenberg-Marquardt regularization:");
                 fprintf(stderr, "\t\t\t\t\t%g\n", prm[0].lmreg);
+                fprintf(stderr, "Regularization mu:");
+                fprintf(stderr, "\t\t\t\t\t\t\t%g\n", prm[0].rparam[2]);
                 fprintf(stderr, "\n%d Iterative loops\n", loop);
-                fprintf(stderr, "\nRegularization parameters 1:\t");
+                fprintf(stderr, "\nRegularization parameter lambda:\t");
                 for (i = 0; i < loop; i++)
                         fprintf(stderr, "%8g\t", prm[i].rparam[3]);
                 fprintf(stderr,"\n");
-                fprintf(stderr, "Regularization parameters 2:\t");
+                fprintf(stderr, "Regularization parameter id:\t\t");
                 for (i = 0; i < loop; i++)
                         fprintf(stderr, "%8g\t", prm[i].rparam[4]);
                 fprintf(stderr,"\n");
-                fprintf(stderr, "Time steps for solving the PDE:\t");
+                fprintf(stderr, "Time steps for solving the PDE:\t\t");
                 for (i = 0; i < loop; i++)
                         fprintf(stderr,"%8d\t",prm[i].k);
                 fprintf(stderr,"\n\n");
