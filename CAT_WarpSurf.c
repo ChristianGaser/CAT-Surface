@@ -46,10 +46,10 @@ int loop      = 6;
 int verbose   = 0;
 int rtype     = 1;
 int curvtype  = 0;
-int muchange  = 2;
-double lambda = 0.0001;
+int muchange  = 4;
+double lambda = 0.0;
 double mu     = 0.25;
-double lmreg  = 0.0001;
+double lmreg  = 0.0;
 double fwhm   = 10.0;
 
 static ArgvInfo argTable[] = {
@@ -168,9 +168,9 @@ main(int argc, char *argv[])
         /* get the arguments from the command line */
 
         if (ParseArgv(&argc, argv, argTable, 0) ||
-            source_file == NULL || target_file == NULL ||
+             source_file == NULL || target_file == NULL ||
             (jacdet_file == NULL && output_file == NULL &&
-             pgm_file == NULL  && outflow_file == NULL &&
+             pgm_file == NULL   && outflow_file == NULL &&
              deform_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
