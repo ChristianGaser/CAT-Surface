@@ -48,6 +48,7 @@ int rtype     = 1;
 int curvtype  = 0;
 int muchange  = 4;
 int sz_map[2] = {512, 256};
+double murate = 1.25;
 double lambda = 0.0;
 double mu     = 0.25;
 double lmreg  = 0.0;
@@ -81,7 +82,9 @@ static ArgvInfo argTable[] = {
   {"-mu", ARGV_FLOAT, (char *) 1, (char *) &mu,
      "Regularization parameter mu."},
   {"-muchange", ARGV_INT, (char *) TRUE, (char *) &muchange,
-     "Decrease mu after muchange iterations."},
+     "Decrease mu after muchange loops."},
+  {"-murate", ARGV_FLOAT, (char *) TRUE, (char *) &murate,
+     "Divide mu after muchange loops with murate."},
   {"-lambda", ARGV_FLOAT, (char *) 1, (char *) &lambda,
      "Regularization parameter lambda."},
   {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
@@ -259,10 +262,11 @@ main(int argc, char *argv[])
                         prm[j].lmreg = lmreg;
                 }
                 for (i = 0; i < 24; i++) {
-                        prm[i].rparam[2] = mu/(double)(i/muchange+1);
+                        prm[i].rparam[2] = mu;
                         prm[i].rparam[3] = lambda;
                         prm[i].rparam[4] = lambda/2.0;
                         prm[i].k = i;
+                        if ((i+1) % muchange == 0) mu /= murate;
                         lambda /= 5.0;
                 }
         }
