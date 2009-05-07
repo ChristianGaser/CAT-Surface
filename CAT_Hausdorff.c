@@ -15,12 +15,14 @@
 #include "CAT_Octree.h"
 
 BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
+BOOLEAN point2point = 0; /* 0 - closest surface, 1 - closest mesh point */
 
 /* the argument table */
 ArgvInfo argTable[] = {
-  { "-exact", ARGV_CONSTANT, (char *) 1,
-    (char *) &exact,
+  { "-exact", ARGV_CONSTANT, (char *) 1, (char *) &exact,
     "Calculate the Hausdorff distance on a point-by-point basis.  Requires that both meshes are of the same brain with the same number of points." },
+  { "-point", ARGV_CONSTANT, (char *) 1, (char *) &point2point,
+    "Calculate the Hausdorff distance using only the mesh points.  Faster with a slight overestimation." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -51,6 +53,55 @@ calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 }
 
 /*
+ * Calculate the Hausdorff distance using mesh points only.
+ */
+double
+calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+{
+        int i, poly;
+        double *revhd;
+        double max_hd = 0.0, avg_hd = 0.0;
+        double max_revhd = 0.0, avg_revhd = 0.0;
+        Point closest;
+
+        create_polygons_bintree(p, ROUND((double) p->n_items * 0.5));
+        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+                poly = find_closest_polygon_point(&p->points[i], p2, &closest);
+                hd[i] = distance_between_points(&p->points[i], &closest);
+
+                if (hd[i] > max_hd)
+                        max_hd = hd[i];
+                avg_hd += hd[i];
+        }
+
+        avg_hd /= p->n_points;
+        printf("Hausdorff distance: %f\n", max_hd);
+        printf("Mean Hausdorff distance: %f\n", avg_hd);
+
+        /* Calculate the reverse Hausdorff */
+
+        revhd = (double *) malloc(sizeof(double) * p2->n_points);
+
+        for (i = 0; i < p2->n_points; i++) {
+                poly = find_closest_polygon_point(&p2->points[i], p, &closest);
+                revhd[i] = distance_between_points(&p2->points[i], &closest);
+
+                if (revhd[i] > max_revhd)
+                        max_revhd = revhd[i];
+                avg_hd += revhd[i];
+        }
+
+        avg_revhd /= p2->n_points;
+        printf("Reverse Hausdorff distance: %f\n", max_revhd);
+        printf("Mean Hausdorff Reverse distance: %f\n", avg_revhd);
+
+        return(max_hd);
+}
+
+/*
  * Calculate the general Hausdorff distance.  The two input meshes do
  * not need to be the same size.
  */
@@ -68,6 +119,7 @@ calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
         /* find the forward hausdorff distances */
         max_hd = 0; avg_hd = 0;
         tree = build_octree(p2);
+        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
 
         initialize_progress_report(&progress, FALSE, p->n_points,
                                    "ForwardHausdorff");
@@ -94,6 +146,7 @@ calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
         max_revhd = 0; avg_revhd = 0;
 
         tree = build_octree(p);
+        create_polygons_bintree(p, ROUND((double) p->n_items * 0.5));
 
         initialize_progress_report(&progress, FALSE, p->n_points,
                                    "ReverseHausdorff");
@@ -111,7 +164,12 @@ calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 
         avg_revhd /= p2->n_points;
         printf("Reverse Hausdorff distance: %f\n", max_revhd);
-        printf("Mean reverse Hausdorff distance: %f\n", avg_revhd);
+        printf("Mean reverse Hausdorff distance: %f\n\n", avg_revhd);
+
+        printf("Mean(Fwd + Rev) Hausdorff distance: %f\n",
+               (max_revhd + max_hd)/2);
+        printf("Mean(Fwd + Rev) Mean Hausdorff distance: %f\n",
+               (avg_revhd + avg_hd)/2);
 
         free(revhd);
 
@@ -186,6 +244,8 @@ main(int argc, char *argv[])
 
         if (exact) { /* O(n) time */
                 max_hd = calc_exact_hausdorff(polygons, polygons2, hd);
+        } else if (point2point) { /* O(n*log(m)) time */
+                max_hd = calc_point_hausdorff(polygons, polygons2, hd);
         } else { /* O(n*m) time */
                 max_hd = calc_hausdorff(polygons, polygons2, hd);
         }

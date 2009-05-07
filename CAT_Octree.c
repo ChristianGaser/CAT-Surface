@@ -223,11 +223,15 @@ void
 hausdorff_distance(Point p, polygons_struct *polygons, struct octree *tree,
                    double *val)
 {
-        int n;
+        int n, poly;
         double bounds[6], hbounds[6];
         Point tp[3], closest;
         struct polynode *cur;
         double dist, min_dist = PINF;
+
+        poly = find_closest_polygon_point(&p, polygons, &closest);
+        min_dist = distance_between_points(&p, &closest);
+        min_dist *= min_dist;
 
         for (n = 0; n < tree->npoly; n++)
                 tree->polyflag[n] = 0;
