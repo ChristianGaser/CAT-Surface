@@ -45,7 +45,7 @@ usage(char *executable)
 {
         static char *usage_str = "\n\
 Usage: %s surface.obj sphere.obj output.obj\n\
-Correct the topology of a brain surface.\n\\n\n";
+Correct the topology of a brain surface.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
 }
