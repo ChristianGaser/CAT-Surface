@@ -46,8 +46,9 @@ bin_PROGRAMS = \
 	CAT_Surf2SPH \
 	CAT_ApplyWarpSPH \
 	CAT_SPH2Surf \
+	CAT_SeparatePolygons \
 	CAT_Hausdorff \
-        CAT_Sharpness
+  CAT_Sharpness
 
 s2kit10_SRC = \
 	s2kit10/FST_semi_fly.c \
@@ -129,6 +130,7 @@ CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c
 CAT_ApplyWarpSPH_SOURCES = CAT_ApplyWarpSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
 CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c $(nl_SRC)
 CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Octree.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
+CAT_SeparatePolygons_SOURCES = CAT_SeparatePolygons.c CAT_SurfaceIO.c
 CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
