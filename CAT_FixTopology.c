@@ -15,19 +15,28 @@
 #include "CAT_Blur2d.h"
 #include "CAT_SPH.h"
 
-#define BW 1024
-#define LIM 64
-#define N_TRIANGLES 327680
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 
 /* argument defaults */
+int bw = 1024;
+int lim = 64;
+int n_triangles = 32768;
 BOOLEAN gauss_smooth = 0; /* gaussian curvature weighted smoothing on/off */
 
 /* the argument table */
 ArgvInfo argTable[] = {
+  { "-bw", ARGV_INT, (char *) 1, 
+    (char *) &bw,
+    "Bandwidth of coefficients for spherical harmonic expansion." },
+  { "-lim", ARGV_INT, (char *) 1, 
+    (char *) &lim,
+    "Limit bandwidth of spherical harmonic expansion." },
+  { "-n", ARGV_INT, (char *) 1, 
+    (char *) &n_triangles,
+    "Number of triangles for sampled surface." },
   { "-smooth", ARGV_CONSTANT, (char *) TRUE, 
     (char *) &gauss_smooth,
-    "Turn on Gaussian curvature weighted smoothing (recommended for CS)." },
+    "Turn on Gaussian curvature weighted smoothing (recommended for central surface)." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -163,7 +172,7 @@ fix_topology_sph(polygons_struct *polygons, polygons_struct *sphere)
         double *rdatax, *rdatay, *rdataz;
         int bw2;
 
-        bw2 = BW * BW;
+        bw2 = bw * bw;
 
         rdatax = (double *) malloc(sizeof(double) * 4 * bw2);
         rdatay = (double *) malloc(sizeof(double) * 4 * bw2);
@@ -181,37 +190,37 @@ fix_topology_sph(polygons_struct *polygons, polygons_struct *sphere)
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        get_equally_sampled_coords_of_polygon(polygons, sphere, BW,
+        get_equally_sampled_coords_of_polygon(polygons, sphere, bw,
                                               rdatax, rdatay, rdataz);
 
-        get_sph_coeffs_of_realdata(rdatax, BW, DATAFORMAT, rcx, icx);
-        get_sph_coeffs_of_realdata(rdatay, BW, DATAFORMAT, rcy, icy);
-        get_sph_coeffs_of_realdata(rdataz, BW, DATAFORMAT, rcz, icz);
+        get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
+        get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
+        get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
 
-        get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT, rcx, icx);
-        get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT, rcy, icy);
-        get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT, rcz, icz);
+        get_realdata_from_sph_coeffs(rdatax, bw, DATAFORMAT, rcx, icx);
+        get_realdata_from_sph_coeffs(rdatay, bw, DATAFORMAT, rcy, icy);
+        get_realdata_from_sph_coeffs(rdataz, bw, DATAFORMAT, rcz, icz);
 
         objects = create_object(POLYGONS);
         sph_polys = get_polygons_ptr(objects);
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                               sph_polys, N_TRIANGLES, BW);
+                               sph_polys, n_triangles, bw);
 
-        butterworth_filter(BW, LIM, rcx, lrcx);
-        butterworth_filter(BW, LIM, rcy, lrcy);
-        butterworth_filter(BW, LIM, rcz, lrcz);
-        butterworth_filter(BW, LIM, icx, licx);
-        butterworth_filter(BW, LIM, icy, licy);
-        butterworth_filter(BW, LIM, icz, licz);
+        butterworth_filter(bw, lim, rcx, lrcx);
+        butterworth_filter(bw, lim, rcy, lrcy);
+        butterworth_filter(bw, lim, rcz, lrcz);
+        butterworth_filter(bw, lim, icx, licx);
+        butterworth_filter(bw, lim, icy, licy);
+        butterworth_filter(bw, lim, icz, licz);
     
-        get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT, lrcx, licx);
-        get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT, lrcy, licy);
-        get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT, lrcz, licz);
+        get_realdata_from_sph_coeffs(rdatax, bw, DATAFORMAT, lrcx, licx);
+        get_realdata_from_sph_coeffs(rdatay, bw, DATAFORMAT, lrcy, licy);
+        get_realdata_from_sph_coeffs(rdataz, bw, DATAFORMAT, lrcz, licz);
 
         lim_objects = create_object(POLYGONS);
         lim_polys = get_polygons_ptr(lim_objects);
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                               lim_polys, N_TRIANGLES, BW);
+                               lim_polys, n_triangles, bw);
 
         free(rcx); free(rcy); free(rcz);
         free(icx); free(icy); free(icz);
