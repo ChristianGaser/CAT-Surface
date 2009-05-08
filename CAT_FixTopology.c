@@ -21,21 +21,10 @@
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 
 /* argument defaults */
-double t1_threshold = 0.0;
-char *t1_file = NULL;
 BOOLEAN gauss_smooth = 0; /* gaussian curvature weighted smoothing on/off */
 
 /* the argument table */
 ArgvInfo argTable[] = {
-  {"-t1", ARGV_STRING, (char *) 1, 
-    (char *) &t1_file,
-    "Optional T1-image to weight topology correction. If values in T1-image are above the threshold defined with -th, \n\
-           then the radius of the sphere is decreased by 1% to resample the most outside points. This indicates a hole. \n\
-           For T1-values below the threshold this area is assumed to be a handle and the sphere radius is increased by 1% \n\
-           to resample the most inside points."},
-  { "-th", ARGV_FLOAT, (char *) 1, 
-    (char *) &t1_threshold,
-    "Threshold between GM and CSF." },
   { "-smooth", ARGV_CONSTANT, (char *) TRUE, 
     (char *) &gauss_smooth,
     "Turn on Gaussian curvature weighted smoothing (recommended for CS)." },
@@ -240,7 +229,7 @@ main(int argc, char *argv[])
         char                 *surface_file, *sphere_file, *output_file;
         File_formats         format;
         int                  i, j, n_objects;
-        double               r, value, avgt1, *t1value;
+        double               r, value;
         Volume               volume;
         polygons_struct      *polygons, *sphere;
         object_struct        **poly_objects, **objects;
@@ -291,51 +280,6 @@ main(int argc, char *argv[])
                 return(1);
         }
     
-        /* An optional T1 image can be used for changing the radius of the
-         * sphere to influence the resampling. We assume that values in the
-         * T1 image below a given threshold (=CSF) indicate a handle. The
-         * radius in these areas is increased by 1% to get sure that the
-         * bottom is resampled which equals a cutting, becasue the most
-         * inside points are resampled.  In contrast T1-values above the
-         * threshold (=GM/WM) point to a hole and the radius of the sphere
-         * is decrease by 1%. Thus, the resampling is done form the most
-         * outside points, which equals a filling.
-         */
-        if (t1_file != NULL) {
-                if (input_volume(t1_file, 3, File_order_dimension_names,
-                                 NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                                 TRUE, &volume, NULL) != OK)
-                        return(1);
-                t1value = (double *) malloc(sizeof(double) * sphere->n_points);
-                
-                avgt1 = 0.0;
-                for (i = 0; i < sphere->n_points; i++) {
-                        evaluate_volume_in_world(volume,
-                                                 RPoint_x(sphere->points[i]),
-                                                 RPoint_y(sphere->points[i]),
-                                                 RPoint_z(sphere->points[i]),
-                                                 0, FALSE, 0.0, &value, NULL,
-                                                 NULL, NULL, NULL, NULL,
-                                                 NULL, NULL, NULL, NULL);
-                        t1value[i] = value;
-                        avgt1 += value;
-                }
-                if (t1_threshold == 0.0)
-                        avgt1 /= sphere->n_points;
-                else
-                        avgt1 = t1_threshold;
-
-                for (i = 0; i < sphere->n_points; i++) {
-                        if (t1value[i] < avgt1)
-                                r = 1.01;
-                        else
-                                r = 0.99;
-                        for (j = 0; j < 3; j++) 
-                                Point_coord(sphere->points[i], j) *= r;                
-                }
-                free(t1value);
-        }
-
         *objects = fix_topology_sph(polygons, sphere);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
