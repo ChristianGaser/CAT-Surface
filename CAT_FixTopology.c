@@ -20,7 +20,7 @@
 /* argument defaults */
 int bw = 1024;
 int lim = 64;
-int n_triangles = 32768;
+int n_triangles = 327680;
 BOOLEAN gauss_smooth = 0; /* gaussian curvature weighted smoothing on/off */
 
 /* the argument table */
