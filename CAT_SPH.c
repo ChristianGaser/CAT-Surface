@@ -9,6 +9,8 @@
 
 #include "Cat_SPH.h"
 
+#define _PI 3.14159265358979323846264338327510
+
 // not yet working (pointers!!!)
 int
 read_SPHxyz(char *file, int *bandwidth, double *rcx, double *rcy, double *rcz,
@@ -483,4 +485,79 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                 }
 
         }
+}
+
+object_struct **
+create_equally_sampled_unit_sphere(int n_theta, int n_phi)
+{
+        object_struct **object;
+        polygons_struct *sphere;
+        Point unit_point;
+        int p, theta, phi;
+        double u, v, x, y;
+
+        object = (object_struct **) malloc(sizeof(object_struct *));
+        *object = create_object(POLYGONS);
+        sphere = get_polygons_ptr(*object);
+        initialize_polygons(sphere, WHITE, NULL);
+
+        sphere->n_items = 2*n_theta*(n_phi - 1);
+        sphere->n_points = (n_theta * (n_phi-1)) + 2;
+
+        sphere->points = (Point *) malloc(sizeof(Point) * sphere->n_points);
+        sphere->normals = (Vector *) malloc(sizeof(Vector) * sphere->n_points);
+        sphere->indices = (int *) malloc(sizeof(int) * 3 * sphere->n_items);
+        sphere->end_indices = (int *) malloc(sizeof(int) * sphere->n_items);
+
+        p = 0;
+        for (phi = 0; phi <= n_phi; phi++) {
+                v = (double) phi / (double) n_phi;
+                for (theta = 0; theta < n_theta; theta++) {
+                        u = (double) theta / (double) n_theta;
+
+                        uv_to_point(u, v, &sphere->points[p]);
+                        p++;
+
+                        if (phi == 0 || phi == n_phi) break; // pole
+                }
+        }
+
+        for (p = 0; p < sphere->n_items; p++)
+                sphere->end_indices[p] = 3 * (p + 1); // all triangles
+
+        // north pole
+        p = 0;
+        for (theta = 0; theta < n_theta; theta++) {
+                sphere->indices[p++] = 0;
+                sphere->indices[p++] = theta + 1;
+                sphere->indices[p++] = theta + 2;
+                if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+        }
+
+        // longitudinal rows
+        for (phi = 1; phi < n_phi-1; phi++) {
+                for (theta = 0; theta < n_theta; theta++) {
+                        sphere->indices[p++] = (phi-1)*n_theta + theta + 1;
+                        sphere->indices[p++] = phi*n_theta + theta + 1;
+                        sphere->indices[p++] = phi*n_theta + theta + 2;
+                        if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+
+                        sphere->indices[p++] = (phi-1)*n_theta + theta + 1;
+                        sphere->indices[p++] = phi*n_theta + theta + 2;
+                        if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                        sphere->indices[p++] = (phi-1)*n_theta + theta + 2;
+                        if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                }
+        }
+
+        // south pole
+        for (theta = 0; theta < n_theta; theta++) {
+                sphere->indices[p++] = (n_phi-2)*n_theta + theta + 1;
+                sphere->indices[p++] = (n_phi-2)*n_theta + theta + 2;
+                if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                sphere->indices[p++] = (n_theta * (n_phi-1)) + 1;
+        }
+        compute_polygon_normals(sphere);
+  
+        return object;
 }
