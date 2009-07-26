@@ -46,7 +46,6 @@ bin_PROGRAMS = \
 	CAT_Surf2SPH \
 	CAT_ApplyWarpSPH \
 	CAT_SPH2Surf \
-	CAT_SeparatePolygons \
 	CAT_Hausdorff \
   CAT_Sharpness
 

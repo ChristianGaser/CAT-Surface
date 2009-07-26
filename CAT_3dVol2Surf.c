@@ -67,10 +67,10 @@ ArgvInfo argTable[] = {
     "Count number of values in range for mapping along normals. If any value is out of range \n\t\tvalues will be counted only until this point" },
   { "-max", ARGV_CONSTANT, (char *) 2, 
     (char *) &map_func,
-    "Use maximum value for mapping along normals (Default)." },
+    "Use maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined to output its value at the maximum value of the 1st volume." },
   { "-min", ARGV_CONSTANT, (char *) 3, 
     (char *) &map_func,
-    "Use minimum value for mapping along normals." },
+    "Use minimum value for mapping along normals. Optionally a 2nd volume can be defined to output its value at the minimum value of the 1st volume." },
   { "-exp", ARGV_FLOAT, (char *) 1, 
     (char *) &exp_half,
     "Use exponential average of values for mapping along normals. The argument defines the \n\t\tdistance in mm where values are decayed to 50% (recommended value is 10mm)." },
@@ -82,10 +82,12 @@ ArgvInfo argTable[] = {
 
 
 Real
-evaluate_function(Real val_array[], int n_val, int map_func, Real exp_array[])
+evaluate_function(Real val_array[], int n_val, int map_func, Real exp_array[], int index[])
 {
         int   i, in_range;
         Real  result;
+        
+        index[0] = 0;
     
         switch (map_func) {
         case F_AVERAGE:
@@ -119,15 +121,19 @@ evaluate_function(Real val_array[], int n_val, int map_func, Real exp_array[])
         case F_MAX:
                 result = -FLT_MAX;
                 for (i = 0; i < n_val; i++) {
-                        if (val_array[i] > result)
+                        if (val_array[i] > result) {
                                 result = val_array[i];
+                                index[0] = i;
+                        }
                 } 
                 break;
         case F_MIN:
                 result = FLT_MAX;
                 for (i = 0; i < n_val; i++) {
-                        if (val_array[i] < result)
+                        if (val_array[i] < result) {
                                 result = val_array[i];
+                                index[0] = i;
+                        }
                 }
                 break;
         case F_EXP:
@@ -148,34 +154,38 @@ evaluate_function(Real val_array[], int n_val, int map_func, Real exp_array[])
 int
 main(int argc, char *argv[])
 {
-        char                 *input_volume_file, *object_file;
-        char                 *output_file;
+        char                 *input_volume_file, *input_volume_file2, *object_file;
+        char                 *output_file, *output_file2;
         File_formats         format;
-        Volume               volume;
-        int                  i, j, n_values, n_objects;
+        Volume               volume, volume2;
+        int                  i, j, index, n_values, n_objects;
         object_struct        **objects;
         polygons_struct      *polygons;
-        Real                 value, *values, voxel[N_DIMENSIONS];
+        Real                 value, value2, *values, *values2, voxel[N_DIMENSIONS];
         Real                 val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
         Real                 exp_sum, exp_array[MAX_N_ARRAY];
         Vector               normal;
 
         /* Call ParseArgv */
-        if (ParseArgv(&argc, argv, argTable, 0) || (argc != 4)) {
-                fprintf(stderr, "\nUsage: %s [options] <volume.mnc> <object.obj> <output.txt>\n\n", argv[0]);
+        if (ParseArgv(&argc, argv, argTable, 0) || ((argc != 4) && (argc != 6))) {
+                fprintf(stderr, "\nUsage2: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
                 fprintf(stderr, "Map data from a minc volume to a surface.\n");
                 return(1);
         }
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &input_volume_file) ||
-            !get_string_argument(NULL, &object_file) ||
+        if (!get_string_argument(NULL, &object_file) ||
+            !get_string_argument(NULL, &input_volume_file) ||
             !get_string_argument(NULL, &output_file)) {
-                fprintf(stderr, "Usage: %s  volume.mnc  object.obj  output_file.txt\n", argv[0]);
+                fprintf(stderr, "\nUsage: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
                 return(1);
         }
     
+        /* get optional arguments for 2nd volume and output */ 
+        get_string_argument(NULL, &input_volume_file2);
+        get_string_argument(NULL, &output_file2);
+        
         /* calculate number of values needed to subdivide grid along normals */ 
         n_values = (grid_length/grid_res) + 1;
     
@@ -235,6 +245,20 @@ main(int argc, char *argv[])
                                       &n_objects, &objects) != OK)
                 return(1);
 
+        if (output_file2 != NULL) {  
+                /* check that optional 2nd volume was used either with min or max mapping function */
+                if ((map_func != F_MAX) && (map_func != F_MIN)) {
+                        fprintf(stderr, "For 2nd volume only min/max is allowed as mapping function.\n");
+                        return(1);
+                }
+                
+                if (input_volume(input_volume_file2, 3, File_order_dimension_names,
+                         NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                         TRUE, &volume2, NULL) != OK)
+                return(1);
+                ALLOC(values2, polygons->n_points);
+        }
+
         if (n_objects != 1)
                 printf("Warning, more than one object in file: %s\n",
                       object_file);
@@ -261,11 +285,28 @@ main(int argc, char *argv[])
                 }
                 /* evaluate function */
                 value = evaluate_function(val_array, n_values,
-                                          map_func, exp_array);
+                                          map_func, exp_array, &index);
                 values[i] = value;
+                
+                /* get optional values for 2nd volume according to index of 1st volume */
+                if (output_file2 != NULL) {
+                        GET_grid_POINT(voxel, polygons->points[i],
+                                       normal, length_array[index]);
+                        evaluate_volume_in_world(volume2, voxel[X], voxel[Y],
+                                                 voxel[Z], degrees_continuity, 
+                                                 FALSE, 0.0, &value2, NULL,
+                                                 NULL, NULL, NULL, NULL, NULL,
+                                                 NULL, NULL, NULL);
+                        values2[i] = value2;
+                }
         }
 
         output_values_any_format(output_file, polygons->n_points, values);
+
+        if (output_file2 != NULL) {  
+                output_values_any_format(output_file2, polygons->n_points, values2);
+                FREE(values2);
+        }
 
         FREE(values);
         delete_object_list(n_objects, objects);
