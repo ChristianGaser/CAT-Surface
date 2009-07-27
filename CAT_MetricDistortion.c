@@ -22,6 +22,7 @@
 
 BOOLEAN Energy = 0; /* by default, use the direct metric distortion */
 BOOLEAN Global = 0; /* by default, calculate the local metric distortion */
+int NumPts = 0; /* by default, use all points */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -31,6 +32,9 @@ ArgvInfo argTable[] = {
   { "-global", ARGV_CONSTANT, (char *) 1,
     (char *) &Global,
     "Calculate global metric distortion (Dijkstra algorithm, slow)." },
+  { "-random", ARGV_INT, (char *) 1,
+    (char *) &NumPts,
+    "Use a random subset of the points [0=all]." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -160,7 +164,7 @@ main(int argc, char** argv)
         object_struct      **objects, **objects2;
         polygons_struct    *polygons, *polygons2;
         int                *n_neighbours, **neighbours;
-        unsigned char      *visited;
+        unsigned char      *visited, *pointset;
         double             *geo_dist, *geo_dist2;
         int                n_objects;
         File_formats       format;
@@ -223,7 +227,8 @@ main(int argc, char** argv)
         memset(metric_dist, 0, sizeof(double) * polygons->n_points);
 
         if (Global) {
-                visited = (unsigned char *) malloc(sizeof(unsigned char) * polygons->n_points);
+                visited = (unsigned char *) malloc(sizeof(unsigned char) *
+                                                   polygons->n_points);
                 geo_dist = (double *) malloc(sizeof(double) *
                                              polygons->n_points);
                 geo_dist2 = (double *) malloc(sizeof(double) *
@@ -235,6 +240,22 @@ main(int argc, char** argv)
         for (p = 0; p < polygons->n_points; p++)
                 set_vector_length(&polygons2->points[p], radius);
 
+        /* create a subset of points to visit if -random flag is used */
+        pointset = (unsigned char *) malloc(sizeof(unsigned char) *
+                                            polygons->n_points);
+        if (NumPts > 0) {
+                srand(time(NULL));
+                memset(pointset, 0, sizeof(unsigned char) * polygons->n_points);
+                for (p = 0; p < NumPts; p++) {
+                        n = round(rand() % (polygons->n_points - 1));
+                        while (pointset[n] == 1)
+                                n = round(rand() % (polygons->n_points - 1));
+                        pointset[n] = 1;
+                }
+        } else {
+                NumPts = polygons->n_points;
+                memset(pointset, 1, sizeof(char) * polygons->n_points);
+        }
 
         if (Global)
                 initialize_progress_report(&progress, FALSE, polygons->n_points,
@@ -242,7 +263,7 @@ main(int argc, char** argv)
 
         for (p = 0; p < polygons->n_points; p++) {
                 metric_dist[p] = 0;
-                if (n_neighbours[p] <= 1)
+                if (pointset[p] == 0 || n_neighbours[p] <= 1)
                         continue; /* skip this point */
 
                 if (Global) {
@@ -316,9 +337,9 @@ main(int argc, char** argv)
 
 
         if (Energy)
-                total_dist /= 4 * polygons->n_points;
+                total_dist /= 4 * NumPts;
         else
-                total_dist /= polygons->n_points;
+                total_dist /= NumPts;
 
         printf("Metric distortion = %f\n", total_dist);
 
@@ -326,6 +347,7 @@ main(int argc, char** argv)
         delete_object_list(n_objects, objects2);
 
         free(metric_dist);
+        free(pointset);
 
         if (Global) {
                 free(visited);
