@@ -36,3 +36,6 @@ void get_realdata_from_sph_coeffs(double *, int, int, double *, double *);
 void get_equally_sampled_coords_of_polygon(polygons_struct *,
                                            polygons_struct *, int, double [],
                                            double [], double []);
+
+object_struct ** create_equally_sampled_unit_sphere(int, int);
+
