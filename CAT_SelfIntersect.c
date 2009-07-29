@@ -33,20 +33,24 @@ usage(char *executable)
 }
 
 int
-intersect_triangle_triangle(int poly0, int poly1, polygons_struct *surface)
+intersect_triangle_triangle(int pidx0[3], int pidx1[3],
+                            polygons_struct *surface)
 {
-        int size, i;
+        int i, result;
         Point pts[3];
-        int result;
 
-        size = GET_OBJECT_SIZE(*surface, poly0);
-        for (i = 0; i < size; i++) {
-                pts[i] = surface->points[surface->indices[
-                                  POINT_INDEX(surface->end_indices, poly0, i)]];
+        /* test if neighbors... if so, skip */
+        for (i = 0; i < 3; i++) {
+                if (pidx0[i] == pidx1[0]) return 0;
+                if (pidx0[i] == pidx1[1]) return 0;
+                if (pidx0[i] == pidx1[2]) return 0;
         }
 
-        for (i = 1; i < size; i++) {
-                result = intersect_segment_triangle(pts[i-1], pts[i], poly1,
+        for (i = 0; i < 3; i++)
+                pts[i] = surface->points[pidx0[i]];
+
+        for (i = 1; i < 3; i++) {
+                result = intersect_segment_triangle(pts[i-1], pts[i], pidx1,
                                                     surface);
                 if (result > 0)
                         return 1;
@@ -56,14 +60,16 @@ intersect_triangle_triangle(int poly0, int poly1, polygons_struct *surface)
 }
 
 
-// intersect_segment_triangle(): test if a segment intersects a triangle
-//    Input:  two points for the segment p0 p1, triangle poly
-//    Return: -1 = triangle is degenerate (a segment or point)
-//             0 = disjoint (no intersect)
-//             1 = intersect in unique point I1
-//             2 = are in the same plane
+/*
+ * intersect_segment_triangle(): test if a segment intersects a triangle
+ *    Input:  two points for the segment p0 p1, triangle indices tpidx[3]
+ *    Return: -1 = triangle is degenerate (a segment or point)
+ *             0 = disjoint (no intersect)
+ *             1 = intersect in unique point I1
+ *             2 = are in the same plane
+ */
 int
-intersect_segment_triangle(Point p0, Point p1, int poly,
+intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
                            polygons_struct *surface)
 {
         Vector   u, v, n;             // triangle vectors
@@ -73,20 +79,10 @@ intersect_segment_triangle(Point p0, Point p1, int poly,
         float    uu, uv, vv, wu, wv, D;
         float    s, t;
         Point    pts[3], I;
-        int      size, i;
-        double   area;
+        int      i;
 
-        size = GET_OBJECT_SIZE(*surface, poly);
-        if (size != 3) return 0;
-        for (i = 0; i < size; i++) {
-                pts[i] = surface->points[surface->indices[
-                                  POINT_INDEX(surface->end_indices, poly, i)]];
-                if (EQUAL_POINTS(pts[i], p0)) return 0;
-                if (EQUAL_POINTS(pts[i], p1)) return 0;
-        }
-
-        area = get_polygon_surface_area(size, pts);
-        if (area == 0) return 0;
+        for (i = 0; i < 3; i++)
+                pts[i] = surface->points[tpidx[i]];
 
         /* get triangle edge vectors and plane normal */
         SUB_POINTS(u, pts[1], pts[0]);
@@ -145,10 +141,10 @@ main(int argc, char** argv)
         char               *in_file, *out_file;
         object_struct      **objects;
         polygons_struct    *polygons;
-        double             *intersectflag, **bounds, x, y, z;
+        double             *isflag, **bounds, x, y, z;
         int                n_objects;
         File_formats       format;
-        int                p, p2, n_intersects, size, i, pt;
+        int                p, p2, n_intersects, size, i, **pidx;
         progress_struct    progress;
         FILE               *fp;
 
@@ -174,31 +170,40 @@ main(int argc, char** argv)
 
         polygons = get_polygons_ptr(objects[0]);
 
-        intersectflag = (double *) malloc(sizeof(double) * polygons->n_points);
-        memset(intersectflag, 0, sizeof(double) * polygons->n_points);
+        isflag = (double *) malloc(sizeof(double) * polygons->n_points);
+        memset(isflag, 0, sizeof(double) * polygons->n_points);
 
         bounds = (double **) malloc(sizeof(double *) * polygons->n_items);
         for (p = 0; p < polygons->n_items; p++)
                 bounds[p] = (double *) malloc(sizeof(double) * 6);
+        pidx = (int **) malloc(sizeof(int *) * polygons->n_items);
+        for (p = 0; p < polygons->n_items; p++)
+                pidx[p] = (int *) malloc(sizeof(int) * 3);
 
-        /* get bounding boxes for all triangles to make it run FASTER */
+        /* get bboxes and pts for all triangles to make it run FASTER */
         for (p = 0; p < polygons->n_items; p++) {
                 size = GET_OBJECT_SIZE(*polygons, p);
-                pt = polygons->indices[POINT_INDEX(polygons->end_indices,p,0)];
+                if (size != 3) {
+                        fprintf(stderr, "Error: Mesh contains non-triangles... Exiting!\n");
+                        return(-1);
+                }
 
-                bounds[p][0] = Point_x(polygons->points[pt]);
-                bounds[p][1] = Point_x(polygons->points[pt]);
-                bounds[p][2] = Point_y(polygons->points[pt]);
-                bounds[p][3] = Point_y(polygons->points[pt]);
-                bounds[p][4] = Point_z(polygons->points[pt]);
-                bounds[p][5] = Point_z(polygons->points[pt]);
+                pidx[p][0] = polygons->indices[
+                                      POINT_INDEX(polygons->end_indices, p, 0)];
+
+                bounds[p][0] = Point_x(polygons->points[pidx[p][0]]);
+                bounds[p][1] = Point_x(polygons->points[pidx[p][0]]);
+                bounds[p][2] = Point_y(polygons->points[pidx[p][0]]);
+                bounds[p][3] = Point_y(polygons->points[pidx[p][0]]);
+                bounds[p][4] = Point_z(polygons->points[pidx[p][0]]);
+                bounds[p][5] = Point_z(polygons->points[pidx[p][0]]);
 
                 for (i = 1; i < size; i++) {
-                        pt = polygons->indices[
+                        pidx[p][i] = polygons->indices[
                                      POINT_INDEX(polygons->end_indices, p, i)];
-                        x = Point_x(polygons->points[pt]);
-                        y = Point_y(polygons->points[pt]);
-                        z = Point_z(polygons->points[pt]);
+                        x = Point_x(polygons->points[pidx[p][i]]);
+                        y = Point_y(polygons->points[pidx[p][i]]);
+                        z = Point_z(polygons->points[pidx[p][i]]);
 
                         bounds[p][0] = bounds[p][0] < x ? bounds[p][0] : x;
                         bounds[p][1] = bounds[p][1] > x ? bounds[p][1] : x;
@@ -219,44 +224,38 @@ main(int argc, char** argv)
                             yintersect(bounds[p], bounds[p2]) == 0 ||
                             zintersect(bounds[p], bounds[p2]) == 0)
                                 continue;
-                        if (intersect_triangle_triangle(p, p2, polygons)) {
+                        if (intersect_triangle_triangle(pidx[p], pidx[p2],
+                                                        polygons)) {
                                 n_intersects++;
 
-                                size = GET_OBJECT_SIZE(*polygons, p);
-
-                                for (i = 0; i < size; i++) {
-                                        pt = polygons->indices[
-                                             POINT_INDEX(polygons->end_indices,
-                                                         p, i)];
-                                        intersectflag[pt] = n_intersects;
-                                }
-                                size = GET_OBJECT_SIZE(*polygons, p2);
-
-                                for (i = 0; i < size; i++) {
-                                        pt = polygons->indices[
-                                             POINT_INDEX(polygons->end_indices,
-                                                         p2, i)];
-                                        intersectflag[pt] = n_intersects;
+                                for (i = 0; i < 3; i++) {
+                                        isflag[pidx[p][i]] = n_intersects;
+                                        isflag[pidx[p2][i]] = n_intersects;
                                 }
                         }
 
                 }
                 update_progress_report(&progress, p);
         }
-
         terminate_progress_report(&progress);
 
         if (open_file(out_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
                 exit(0);
-        for (p = 0; p < polygons->n_points; p++)
-                fprintf(fp, " %0.1f\n", intersectflag[p]);
+        for (i = 0; i < polygons->n_points; i++)
+                fprintf(fp, " %0.1f\n", isflag[i]);
         fclose(fp);
 
         printf("Self-Intersections:  %d\n", n_intersects);
 
-        delete_object_list(n_objects, objects);
+        free(isflag);
+        for (p = 0; p < polygons->n_items; p++) {
+                free(bounds[p]);
+                free(pidx[p]);
+        }
+        free(bounds);
+        free(pidx);
 
-        free(intersectflag);
+        delete_object_list(n_objects, objects);
 
         return(0);
 }
