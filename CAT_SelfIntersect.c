@@ -35,7 +35,7 @@ usage(char *executable)
 int
 intersect_triangle_triangle(int poly0, int poly1, polygons_struct *surface)
 {
-        int size, i, p;
+        int size, i;
         Point pts[3];
         int result;
 
@@ -56,9 +56,8 @@ intersect_triangle_triangle(int poly0, int poly1, polygons_struct *surface)
 }
 
 
-// intersect_RayTriangle(): intersect a ray with a 3D triangle
-//    Input:  a ray R, and a triangle T
-//    Output: *I = intersection point (when it exists)
+// intersect_segment_triangle(): test if a segment intersects a triangle
+//    Input:  two points for the segment p0 p1, triangle poly
 //    Return: -1 = triangle is degenerate (a segment or point)
 //             0 = disjoint (no intersect)
 //             1 = intersect in unique point I1
@@ -137,11 +136,6 @@ intersect_segment_triangle(Point p0, Point p1, int poly,
         if (t < 0.0 || (s + t) > 1.0)  /* I is outside T */
                 return 0;
 
-        /*printf("(%f, %f, %f) => (%f, %f, %f)\n", Point_x(p0), Point_y(p0), Point_z(p0), Point_x(p1), Point_y(p1), Point_z(p1));
-        printf("(%f, %f, %f)\n", Point_x(pts[0]), Point_y(pts[0]), Point_z(pts[0]));
-        printf("(%f, %f, %f)\n", Point_x(pts[1]), Point_y(pts[1]), Point_z(pts[1]));
-        printf("(%f, %f, %f)\n", Point_x(pts[2]), Point_y(pts[2]), Point_z(pts[2]));
-        */
         return 1; /* I is in T */
 }
 
@@ -156,6 +150,7 @@ main(int argc, char** argv)
         File_formats       format;
         int                p, p2, n_intersects, size, i, pt;
         progress_struct    progress;
+        FILE               *fp;
 
 
         initialize_argument_processing(argc, argv);
@@ -233,7 +228,7 @@ main(int argc, char** argv)
                                         pt = polygons->indices[
                                              POINT_INDEX(polygons->end_indices,
                                                          p, i)];
-                                        intersectflag[pt] = 1;
+                                        intersectflag[pt] = n_intersects;
                                 }
                                 size = GET_OBJECT_SIZE(*polygons, p2);
 
@@ -241,7 +236,7 @@ main(int argc, char** argv)
                                         pt = polygons->indices[
                                              POINT_INDEX(polygons->end_indices,
                                                          p2, i)];
-                                        intersectflag[pt] = 1;
+                                        intersectflag[pt] = n_intersects;
                                 }
                         }
 
@@ -251,7 +246,11 @@ main(int argc, char** argv)
 
         terminate_progress_report(&progress);
 
-        output_values_any_format(out_file, polygons->n_points, intersectflag);
+        if (open_file(out_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
+                exit(0);
+        for (p = 0; p < polygons->n_points; p++)
+                fprintf(fp, " %0.1f\n", intersectflag[p]);
+        fclose(fp);
 
         printf("Self-Intersections:  %d\n", n_intersects);
 
