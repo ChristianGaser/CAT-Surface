@@ -141,10 +141,12 @@ main(int argc, char** argv)
         char               *in_file, *out_file;
         object_struct      **objects;
         polygons_struct    *polygons;
-        double             *isflag, **bounds, x, y, z;
+        int                *n_neighbours, **neighbours;
+        double             *isflag, is, old_is, **bounds, x, y, z;
         int                n_objects;
         File_formats       format;
-        int                p, p2, n_intersects, size, i, **pidx;
+        int                p, p2, n_intersects, size, i, **pidx, *ismap;
+        int                done, n;
         progress_struct    progress;
         FILE               *fp;
 
@@ -239,13 +241,65 @@ main(int argc, char** argv)
         }
         terminate_progress_report(&progress);
 
+        printf("All Triangle Intersections:  %d\n", n_intersects);
+
+        /* consolidate intersections */
+        if (n_intersects > 0) {
+                create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                                                &neighbours, NULL, NULL);
+
+                for (i = 0; i < polygons->n_points; i++) {
+                        if (isflag[i] == 0.0)
+                                continue; /* skip */
+
+                        for (n = 0; n < n_neighbours[i]; n++) {
+                                is = isflag[neighbours[i][n]];
+                                if (is > 0.0 && is != isflag[i]) {
+                                        old_is = is > isflag[i] ?
+                                                 is : isflag[i];
+                                        is = is < isflag[i] ? is : isflag[i];
+
+                                        isflag[i] = is;
+                                        isflag[neighbours[i][n]] = is;
+                                        for (p = 0; p < polygons->n_points; p++) {
+                                                if (isflag[p] == old_is)
+                                                        isflag[p] = is;
+                                        }
+                                }
+                        }
+                }
+
+                ismap = (int *) malloc(sizeof(int) * n_intersects);
+                memset(ismap, 0, sizeof(int) * n_intersects);
+
+                n_intersects = 0;
+                for (i = 0; i < polygons->n_points; i++) {
+                        if (isflag[i] == 0.0)
+                                continue; /* skip */
+
+                        is = 0;
+                        for (n = 0; n < n_intersects; n++) {
+                                if (isflag[i] == ismap[n]) {
+                                        is = 1; /* already remapped */
+                                        isflag[i] = n + 1;
+                                        break;
+                                }
+                        }
+                        if (is == 0) {
+                                ismap[n_intersects++] = isflag[i];
+                                isflag[i] = n_intersects;
+                        }
+                }
+                free(ismap);
+        }
+
         if (open_file(out_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
                 exit(0);
         for (i = 0; i < polygons->n_points; i++)
                 fprintf(fp, " %0.1f\n", isflag[i]);
         fclose(fp);
 
-        printf("Self-Intersections:  %d\n", n_intersects);
+        printf("Self Intersections:  %d\n", n_intersects);
 
         free(isflag);
         for (p = 0; p < polygons->n_items; p++) {
