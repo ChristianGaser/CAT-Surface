@@ -48,7 +48,8 @@ bin_PROGRAMS = \
 	CAT_SPH2Surf \
 	CAT_Hausdorff \
 	CAT_Sharpness \
-        CAT_SelfIntersect
+        CAT_SelfIntersect \
+        CAT_DumpTopoErrors
 
 s2kit10_SRC = \
 	s2kit10/FST_semi_fly.c \
@@ -60,7 +61,7 @@ s2kit10_SRC = \
 	s2kit10/naive_synthesis.c \
 	s2kit10/primitive.c
 
-ccsht_SRC = \
+csht_SRC = \
 	ccSHTlib/generalTools.c \
 	ccSHTlib/fftw_complex_helper.c \
 	ccSHTlib/ccSHT.c 
@@ -130,9 +131,9 @@ CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c
 CAT_ApplyWarpSPH_SOURCES = CAT_ApplyWarpSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
 CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c $(nl_SRC)
 CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Octree.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_SeparatePolygons_SOURCES = CAT_SeparatePolygons.c CAT_SurfaceIO.c
 CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
-CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
+CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_Intersect.c
+CAT_DumpTopoErrors_SOURCES = CAT_DumpTopoErrors.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c
 
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
