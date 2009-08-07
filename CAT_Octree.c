@@ -145,6 +145,8 @@ build_octree(polygons_struct *polygons)
         tree = (struct octree *) malloc(sizeof(struct octree));
         tree->polyflag = (int *) malloc(sizeof(int) * polygons->n_items);
         tree->npoly = polygons->n_items;
+        tree->nodelist = (struct polynode **)
+                         malloc(sizeof(struct polynode *) * polygons->n_items);
 
         /* set the bounds on the boxes */
         get_bounds(polygons, tree->bbox);
@@ -196,6 +198,7 @@ build_octree(polygons_struct *polygons)
                 cur->pts[2] = polygons->indices[
                                       POINT_INDEX(polygons->end_indices, t, 2)];
                 get_triangle_bounds(polygons, cur);
+                tree->nodelist[t] = cur;
                 insert_triangle(tree, cur);
                 update_progress_report(&progress, t);
         }
@@ -223,6 +226,7 @@ delete_octree(struct octree *tree) {
         }
 
         free(tree->polyflag);
+        free(tree->nodelist);
         free(tree);
 }
 

@@ -36,6 +36,7 @@ struct octree {
         int *polyflag; /* flag for keeping track of what's been done */
         int npoly;
 
+        struct polynode **nodelist; /* raw list of triangles */
         struct polynode *nodes[NBOXES]; /* the triangles in each box */
         double bounds[NBOXES][6]; /* bounds for boxes */
 };

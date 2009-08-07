@@ -127,61 +127,67 @@ intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
 int
 find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
 {
-        int                n_intersects, size, i, n, p, p2;
-        struct polynode    **nodes;
+        int                n_intersects, size, i, n, p, p2, b;
         progress_struct    progress;
+        struct octree      *tree;
+        struct polynode    *cur, *node;
 
         memset(defects, 0, sizeof(int) * surface->n_points);
         memset(polydefects, 0, sizeof(int) * surface->n_items);
 
-        nodes = (struct polynode **) malloc(sizeof(struct polynode *) *
-                                            surface->n_items);
-        for (p = 0; p < surface->n_items; p++)
-                nodes[p] = (struct polynode *) malloc(sizeof(struct polynode));
-
-        /* get bboxes and pts for all triangles to make it run FASTER */
-        for (p = 0; p < surface->n_items; p++) {
-                size = GET_OBJECT_SIZE(*surface, p);
-                if (size != 3) {
-                        fprintf(stderr, "Error: Mesh contains non-triangles... Exiting!\n");
-                        return(-1);
-                }
-
-                nodes[p]->num = p;
-                nodes[p]->pts[0] = surface->indices[
-                                      POINT_INDEX(surface->end_indices, p, 0)];
-                nodes[p]->pts[1] = surface->indices[
-                                      POINT_INDEX(surface->end_indices, p, 1)];
-                nodes[p]->pts[2] = surface->indices[
-                                      POINT_INDEX(surface->end_indices, p, 2)];
-                get_triangle_bounds(surface, nodes[p]);
-
-        }
+        tree = build_octree(surface);
 
         initialize_progress_report(&progress, FALSE, surface->n_items,
                                    "Self-Intersect Test");
 
         n_intersects = 0;
         for (p = 0; p < surface->n_items; p++) {
-                for (p2 = p+1; p2 < surface->n_items; p2++) {
-                        if (intersect(nodes[p]->bounds, nodes[p2]->bounds) == 0)
+                node = tree->nodelist[p];
+
+                for (p2 = p+1; p2 < surface->n_items; p2++)
+                        tree->polyflag[p2] = 0;
+
+                for (b = 0; b < NBOXES; b++) {
+                        if (xintersect(node->bounds, tree->bounds[b]) == 0) {
+                                b += XINC - 1;
+                                continue;
+                        }
+                        if (yintersect(node->bounds, tree->bounds[b]) == 0) {
+                                b += YINC - 1;
+                                continue;
+                        }
+                        if (zintersect(node->bounds, tree->bounds[b]) == 0)
                                 continue;
 
-                        if (intersect_triangle_triangle(nodes[p]->pts,
-                                                        nodes[p2]->pts,
-                                                        surface) == 0)
-                                continue;
+                        for (cur = tree->nodes[b];
+                             cur != NULL; cur = cur->next) {
+                                if (tree->polyflag[cur->num] == 1)
+                                        continue;
 
-                        n_intersects++;
+                                if (cur->num <= p)
+                                        continue;
 
-                        polydefects[p] = n_intersects;
-                        for (i = 0; i < 3; i++)
-                                defects[nodes[p]->pts[i]] = n_intersects;
+                                tree->polyflag[cur->num] = 1;
 
-                        n_intersects++;
-                        polydefects[p2] = n_intersects;
-                        for (i = 0; i < 3; i++)
-                                defects[nodes[p2]->pts[i]] = n_intersects;
+                                if (intersect(node->bounds, cur->bounds) == 0)
+                                        continue;
+
+                                if (intersect_triangle_triangle(node->pts,
+                                                                cur->pts,
+                                                                surface) == 0)
+                                        continue;
+
+                                n_intersects++;
+
+                                polydefects[p] = n_intersects;
+                                for (i = 0; i < 3; i++)
+                                        defects[node->pts[i]] = n_intersects;
+
+                                n_intersects++;
+                                polydefects[cur->num] = n_intersects;
+                                for (i = 0; i < 3; i++)
+                                        defects[cur->pts[i]] = n_intersects;
+                        }
 
                 }
                 update_progress_report(&progress, p);
@@ -189,9 +195,7 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
 
         terminate_progress_report(&progress);
 
-        for (p = 0; p < surface->n_items; p++)
-                free(nodes[p]);
-        free(nodes);
+        delete_octree(tree);
 
         return n_intersects/2;
 }
