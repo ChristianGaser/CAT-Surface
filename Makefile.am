@@ -119,7 +119,7 @@ CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c CAT_S
 CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
 CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
 CAT_MetricDistortion_SOURCES = CAT_MetricDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_FixTopology_SOURCES = CAT_FixTopology.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_SPH.c $(s2kit10_SRC)
+CAT_FixTopology_SOURCES = CAT_FixTopology.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_SPH.c CAT_Octree.c CAT_Intersect.c $(s2kit10_SRC)
 CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Isometrics.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
 CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c $(dartel_SRC)
 CAT_WarpSurfSPH_SOURCES = CAT_WarpSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Blur2d.c CAT_Curvature.c $(s2kit10_SRC)
@@ -132,8 +132,10 @@ CAT_ApplyWarpSPH_SOURCES = CAT_ApplyWarpSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map
 CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c $(nl_SRC)
 CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Octree.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
 CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
-CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_Intersect.c
+CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_Intersect.c CAT_Patch.c
 CAT_DumpTopoErrors_SOURCES = CAT_DumpTopoErrors.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c
+
+
 
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \

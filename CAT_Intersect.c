@@ -16,9 +16,7 @@
 #include "CAT_Blur2d.h"
 #include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"
-
-#define PINF  1.7976931348623157e+308 /* for doubles */
-#define NINF -1.7976931348623157e+308 /* for doubles */
+#include "CAT_Intersect.h"
 
 
 int
@@ -61,10 +59,10 @@ int
 intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
                            polygons_struct *surface)
 {
-        Vector   u, v, n;             // triangle vectors
-        Vector   dir, w0, w;          // ray vectors
+        Vector   u, v, n;             /* triangle vectors */
+        Vector   dir, w0, w;          /* ray vectors */
         Vector   zero;
-        float    r, a, b;             // params to calc ray-plane intersect
+        float    r, a, b;             /* params to calc ray-plane intersect */
         float    uu, uv, vv, wu, wv, D;
         float    s, t;
         Point    pts[3], I;
@@ -92,7 +90,7 @@ intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
         if (fabs(b) < 1e-6) { /* ray is parallel to triangle plane */
                 if (a == 0) { /* ray lies in triangle plane */
                         return 2;
-                } else return 0;             /* ray disjoint from plane */
+                } else return 0; /* ray disjoint from plane */
         }
 
         /* get intersect point of ray with triangle plane */
@@ -113,7 +111,7 @@ intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
         wv = DOT_VECTORS(w,v);
         D = uv * uv - uu * vv;
 
-        // get and test parametric coords
+        /* get and test parametric coords */
         s = (uv * wv - vv * wu) / D;
         if (s < 0.0 || s > 1.0) /* I is outside T */
                 return 0;
@@ -125,7 +123,7 @@ intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
 }
 
 int
-find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
+find_selfintersections(polygons_struct *surface, int *defects)
 {
         int                n_intersects, size, i, n, p, p2, b;
         progress_struct    progress;
@@ -133,12 +131,11 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
         struct polynode    *cur, *node;
 
         memset(defects, 0, sizeof(int) * surface->n_points);
-        memset(polydefects, 0, sizeof(int) * surface->n_items);
 
         tree = build_octree(surface);
 
         initialize_progress_report(&progress, FALSE, surface->n_items,
-                                   "Self-Intersect Test");
+                                   "find_selfintersections");
 
         n_intersects = 0;
         for (p = 0; p < surface->n_items; p++) {
@@ -178,13 +175,10 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
                                         continue;
 
                                 n_intersects++;
-
-                                polydefects[p] = n_intersects;
                                 for (i = 0; i < 3; i++)
                                         defects[node->pts[i]] = n_intersects;
 
                                 n_intersects++;
-                                polydefects[cur->num] = n_intersects;
                                 for (i = 0; i < 3; i++)
                                         defects[cur->pts[i]] = n_intersects;
                         }
@@ -255,47 +249,36 @@ join_intersections(polygons_struct *surface, int *defects,
         return n_intersects;
 }
 
+/* consolidate neighboring self-intersections */
 int
-find_topological_defects(polygons_struct *surface, int *defects)
+join_intersections_poly(polygons_struct *surface, int *defects,
+                        int *polydefects, int *n_neighbours, int **neighbours)
 {
-        int                *n_neighbours, **neighbours;
+        join_intersections(surface, defects, n_neighbours, neighbours);
+        update_polydefects(surface, defects, polydefects);
+}
+
+int
+find_topological_defects(polygons_struct *surface, int *defects,
+                         int *n_neighbours, int **neighbours)
+{
         int                d, pts[3];
         int                n_intersects = 0, size, i, n, p;
         int                n_v, n_e, n_f;
         int                *polydefects;
 
-        polydefects = (int *) malloc(sizeof(int) * surface->n_items);
-
-        n_intersects = find_selfintersections(surface, defects, polydefects);
-
-        printf("Raw Triangle Intersects %d\n", n_intersects);
-
-        if (n_intersects == 0) return 0; /* done! */
+        n_intersects = find_selfintersections(surface, defects);
+        if (n_intersects == 0)
+                return 0; /* done! */
 
         /* consolidate intersections */
-        create_polygon_point_neighbours(surface, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
         n_intersects = join_intersections(surface, defects,
                                           n_neighbours, neighbours);
 
-        /* find the matching intersecting polygons */
-        for (i = 0; i < surface->n_items; i++) {
-                if (polydefects[i] == 0)
-                        continue;
+        printf("%d Topological Defects\n", n_intersects);
 
-                pts[0] = surface->indices[
-                                      POINT_INDEX(surface->end_indices, i, 0)];
-                pts[1] = surface->indices[
-                                      POINT_INDEX(surface->end_indices, i, 1)];
-                pts[2] = surface->indices[
-                                      POINT_INDEX(surface->end_indices, i, 2)];
-
-                if (defects[pts[0]] == defects[pts[1]] &&
-                    defects[pts[0]] == defects[pts[2]]) {
-                        polydefects[i] = defects[pts[0]];
-                } else
-                        polydefects[i] = 0;
-        }
+        polydefects = (int *) malloc(sizeof(int) * surface->n_items);
+        update_polydefects(surface, defects, polydefects);
 
         /* calculate the Euler number of each defect, delete if = 1 */
         for (d = 1; d <= n_intersects; d++) {
@@ -345,13 +328,10 @@ find_topological_defects(polygons_struct *surface, int *defects)
  * or can just expand one defect.
  */
 void
-expand_defects(polygons_struct *surface, int *defects, int defect, int level)
+expand_defects(polygons_struct *surface, int *defects, int defect, int level,
+               int *n_neighbours, int **neighbours)
 {
-        int *n_neighbours, **neighbours;
         int *buffer, p, n;
-
-        create_polygon_point_neighbours(surface, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
 
         buffer = (int *) malloc(sizeof(int) * surface->n_points);
 
@@ -361,10 +341,10 @@ expand_defects(polygons_struct *surface, int *defects, int defect, int level)
 
                 for (p = 0; p < surface->n_points; p++) {
                         if (buffer[p] == 0)
-                                continue;
+                                continue; /* skip */
 
                         if (defect > 0 && buffer[p] != defect)
-                                continue;
+                                continue; /* skip */
 
                         for (n = 0; n < n_neighbours[p]; n++) {
                                 defects[neighbours[p][n]] = defects[p];
@@ -374,4 +354,283 @@ expand_defects(polygons_struct *surface, int *defects, int defect, int level)
         }
 
         free(buffer);
+}
+
+/* expand defects to include neighboring points.  defect = 0 for all defects,
+ * or can just expand one defect.
+ */
+void
+expand_defects_poly(polygons_struct *surface, int *defects, int *polydefects,
+                    int defect, int level, int *n_neighbours, int **neighbours)
+{
+        expand_defects(surface, defects, defect, level,
+                       n_neighbours, neighbours);
+        update_polydefects(surface, defects, polydefects);
+}
+
+/* Update the polygon defect list from the point defect list */
+void
+update_polydefects(polygons_struct *surface, int *defects, int *polydefects)
+{
+        int p;
+
+        /* update polygon defect list */
+        for (p = 0; p < surface->n_items; p++) {
+                polydefects[p] = defects[surface->indices[
+                                    POINT_INDEX(surface->end_indices, p, 0)]];
+                if (polydefects[p] == 0) continue;
+                polydefects[p] = defects[surface->indices[
+                                    POINT_INDEX(surface->end_indices, p, 1)]];
+                if (polydefects[p] == 0) continue;
+                polydefects[p] = defects[surface->indices[
+                                    POINT_INDEX(surface->end_indices, p, 2)]];
+        }
+}
+
+
+/* holes = 1, handles = 2, in between = 3 */
+/* this code doesn't work correctly */
+void
+identify_holes_handles(polygons_struct *surface, int *defects, int n_defects,
+                       double *curvatures, int *n_neighbours, int **neighbours)
+{
+        int                d, p, *count;
+        double             *curv_score;
+
+        if (n_defects == 0) return;
+
+        get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
+                                         3, 4, curvatures); /* mean curv */
+
+        curv_score = (double *) malloc(sizeof(double) * n_defects);
+        count = (int *) malloc(sizeof(int) * n_defects);
+        memset(curv_score, 0, sizeof(double) * n_defects);
+        memset(count, 0, sizeof(int) * n_defects);
+
+        for (p = 0; p < surface->n_points; p++) {
+                if (defects[p] > 0) {
+                        curv_score[defects[p]-1] += curvatures[p];
+                        count[defects[p]-1]++;
+                }
+        }
+
+        for (d = 0; d < n_defects; d++) {
+                curv_score[d] /= count[d];
+                if (curv_score[d] > 5)
+                        curv_score[d] = 1; /* hole */
+                else if (curv_score[d] < 3)
+                        curv_score[d] = 2; /* handle */
+                else 
+                        curv_score[d] = 3;
+        }
+
+
+        for (p = 0; p < surface->n_points; p++) {
+                if (defects[p] > 0) {
+                        curvatures[p] = curv_score[defects[p]-1];
+                } else curvatures[p] = 0;
+        }
+
+        free(curv_score);
+        free(count);
+}
+
+/* remap topological defects from the original spherical mapping to a new
+ * spherical mapping
+ */
+void
+remap_defect_points(polygons_struct *sphere, int *defects,
+                    polygons_struct *remap, int *remap_defects)
+{
+        int p, size, i, idx, poly;
+        Point closest_pt;
+        progress_struct progress;
+
+        if (remap->bintree == NULL) {
+                create_polygons_bintree(remap, round((double) remap->n_items *
+                                              BINTREE_FACTOR));
+        }
+
+        initialize_progress_report(&progress, FALSE, remap->n_points,
+                                   "remap_defect");
+
+        for (p = 0; p < sphere->n_points; p++) {
+                if (defects[p] == 0) continue; /* skip */
+
+                poly = find_closest_polygon_point(&sphere->points[p], remap,
+                                                  &closest_pt);
+                size = GET_OBJECT_SIZE(*remap, poly);
+                for (i = 0; i < size; i++) {
+                        idx = remap->indices[POINT_INDEX(remap->end_indices,
+                                                  poly, i)];
+                        remap_defects[idx] = defects[p];
+                }
+                update_progress_report(&progress, p);
+        }
+
+        terminate_progress_report(&progress);
+}
+
+void
+repair_selfintersections(polygons_struct *surface, int *n_neighbours,
+                      int **neighbours)
+{
+        int p, i, iter, d, n, n2, npts;
+        int *defects, *polydefects, *edgeflag;
+        int n_defects;
+        Point *pts, tp[3];
+        double areas[128], centers[128], xyz[3], weight, t_area;
+
+        defects = (int *) malloc(sizeof(int) * surface->n_points);
+
+        n_defects = find_selfintersections(surface, defects);
+        n_defects = join_intersections(surface, defects,
+                                       n_neighbours, neighbours);
+        printf("%d defect(s) to repair\n", n_defects);
+
+        if (n_defects == 0) {
+                 free(defects);
+                 return;
+        }
+
+        polydefects = (int *) malloc(sizeof(int) * surface->n_items);
+        update_polydefects(surface, defects, polydefects);
+
+        edgeflag = (int *) malloc(sizeof(int) * surface->n_points);
+        pts = (Point *) malloc(sizeof(Point) * surface->n_points);
+        for (p = 0; p < surface->n_points; p++)
+                pts[p] = surface->points[p];
+
+        /* smooth defect areas.. increase defect area every 3rd iter */
+        iter = 0;
+        while (n_defects != 0) {
+                iter++;
+                npts = 0; /* # of smoothed points */
+
+                /* mark defect edges */
+                memset(edgeflag, 0, sizeof(int) * surface->n_points);
+                for (p = 0; p < surface->n_points; p++) {
+                        if (defects[p] == 0)
+                                continue; /* skip */
+
+                        for (n = 0; n < n_neighbours[p]; n++) {
+                                if (defects[neighbours[p][n]] != defects[p]) {
+                                        edgeflag[p] = defects[p]; /* an edge! */
+                                        break;
+                                }
+                        }
+                }
+
+                /* smooth out self-intersections */
+                for (p = 0; p < surface->n_points; p++) {
+                        if (defects[p] == 0 || edgeflag[p] != 0)
+                                continue; /* skip */
+
+                        t_area = 0;
+
+                        tp[0] = surface->points[p];
+                        for (n = 0; n < n_neighbours[p]; n++) {
+                                n2 = (n + 1) % n_neighbours[p];
+
+                                /* area of the triangle */
+                                tp[1] = surface->points[neighbours[p][n]];
+                                tp[2] = surface->points[neighbours[p][n2]];
+                                areas[n] = get_polygon_surface_area(3, tp);
+
+                                t_area += areas[n];
+
+                                /* Save center of this tile */
+                                centers[n*3    ] = (Point_x(tp[0]) +
+                                                    Point_x(tp[1]) +
+                                                    Point_x(tp[2])) / 3.0;
+                                centers[n*3 + 1] = (Point_y(tp[0]) +
+                                                    Point_y(tp[1]) +
+                                                    Point_y(tp[2])) / 3.0;
+                                centers[n*3 + 2] = (Point_z(tp[0]) +
+                                                    Point_z(tp[1]) +
+                                                    Point_z(tp[2])) / 3.0;
+                        }
+                        if (t_area <= 0)
+                                continue; /* skip */
+
+                        /* Area Smoothing */
+                        xyz[0] = xyz[1] = xyz[2] = 0.0;
+                        for (n = 0; n <  n_neighbours[p]; n++) {
+                                weight = areas[n] / t_area;
+                                for (i = 0; i < 3; i++)
+                                        xyz[i] += weight * centers[n*3 + i];
+                        }
+                        fill_Point(surface->points[p], xyz[0], xyz[1], xyz[2]);
+                        npts++;
+                }
+
+                /* test if self-intersections repaired */
+                for (d = 1; d <= n_defects; d++) {
+                        n = count_defect_intersections(surface, polydefects, d);
+
+                        if (n == 0) { /* delete it, it's fixed! */
+                                for (i = 0; i < surface->n_points; i++) {
+                                        if (defects[i] == d)
+                                                defects[i] = 0;
+                                        else if (defects[i] == n_defects)
+                                                defects[i] = d;
+                                }
+                                for (i = 0; i < surface->n_items; i++) {
+                                        if (polydefects[i] == d)
+                                                polydefects[i] = 0;
+                                        else if (polydefects[i] == n_defects)
+                                                polydefects[i] = d;
+                                }
+                                n_defects--;
+                                d--;
+                        }
+                }
+                printf("iter %d: %d smoothed points, %d defect(s) remaining\n",
+                       iter, npts, n_defects);
+
+                if (n_defects == 0)
+                        break; /* all done! */
+
+                /* expand remaining defects every 3rd iteration */
+                if (iter % 3 == 0) {
+                        expand_defects_poly(surface, defects, polydefects,
+                                            0, 1, n_neighbours, neighbours);
+                }
+        }
+
+        free(defects);
+        free(polydefects);
+        free(edgeflag);
+        free(pts);
+}
+
+int
+count_defect_intersections(polygons_struct *polygons, int *polydefects,
+                           int defect)
+{
+        int p, p2, i, t[3], t2[3];
+        int count = 0;
+
+        for (p = 0; p < polygons->n_items; p++) {
+                if (polydefects[p] != defect)
+                        continue; /* skip */
+
+                for (i = 0; i < 3; i++) {
+                        t[i] = polygons->indices[
+                                      POINT_INDEX(polygons->end_indices, p, i)];
+                }
+
+                for (p2 = 0; p2 < polygons->n_items; p2++) {
+                        if (p2 == p) continue;
+
+                        for (i = 0; i < 3; i++) {
+                                t2[i] = polygons->indices[
+                                     POINT_INDEX(polygons->end_indices, p2, i)];
+                        }
+                        count += intersect_triangle_triangle(t, t2, polygons);
+                        if (polydefects[p2] == defect && p > p2)
+                                count--; /* don't double-count intersections */
+                }
+        }
+        return count;
 }

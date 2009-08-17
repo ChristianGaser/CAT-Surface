@@ -7,6 +7,7 @@
  *
  */
 
+
 #include <volume_io/internal_volume_io.h>
 #include <volume_io/geometry.h>
 #include <bicpl.h>
@@ -16,9 +17,18 @@
 #include "CAT_Blur2d.h"
 #include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Patch.h"
+#include "CAT_Intersect.h"
 
-#define PINF  1.7976931348623157e+308 /* for doubles */
-#define NINF -1.7976931348623157e+308 /* for doubles */
+BOOLEAN dump_patch = 0; /* dump patches of defects */
+
+/* the argument table */
+ArgvInfo argTable[] = {
+  { "-patch", ARGV_CONSTANT, (char *) FALSE,
+    (char *) &dump_patch,
+    "Dump defect patches." },
+  { NULL, ARGV_END, NULL, NULL, NULL }
+};
 
 
 void
@@ -32,32 +42,37 @@ usage(char *executable)
         fprintf(stderr, usage_str, executable);
 }
 
-
 int
 main(int argc, char** argv)
 {
-        char               *in_file, *out_file;
-        object_struct      **objects;
-        polygons_struct    *polygons;
+        char               *surface_file, *out_file;
+        object_struct      **objects, **patch_objects;
+        polygons_struct    *polygons, *patch;
         int                *n_neighbours, **neighbours;
-        int                *defects, *polydefects;
-        int                n_objects;
+        int                *defects;
         File_formats       format;
-        int                n_intersects, i;
+        int                n_objects, n_intersects, i;
+        char               str[80];
         progress_struct    progress;
         FILE               *fp;
 
+        if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
+                usage(argv[0]);
+                fprintf(stderr, "       %s -help\n\n", argv[0]);
+                return(1);
+        }
+
         initialize_argument_processing(argc, argv);
-        if (!get_string_argument(NULL, &in_file) ||
+        if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &out_file)) {
                 fprintf(stderr, "\nUsage: %s object_file output_file\n",
                                 argv[0]);
                 return(1);
         }
 
-        if (input_graphics_any_format(in_file, &format, &n_objects,
+        if (input_graphics_any_format(surface_file, &format, &n_objects,
                                       &objects) != OK) {
-                printf("Error reading input file %s\n", in_file);
+                printf("Error reading input file %s\n", surface_file);
                 return(1);
         }
 
@@ -69,28 +84,41 @@ main(int argc, char** argv)
         polygons = get_polygons_ptr(objects[0]);
 
         defects = (int *) malloc(sizeof(int) * polygons->n_points);
-        polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
 
-        n_intersects = find_selfintersections(polygons, defects, polydefects);
+        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                                        &neighbours, NULL, NULL);
+
+        n_intersects = find_selfintersections(polygons, defects);
 
         printf("All Triangle Intersections:  %d\n", n_intersects);
 
         /* consolidate intersections */
-        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
         n_intersects = join_intersections(polygons, defects, n_neighbours,
                                           neighbours);
+        printf("Self Intersections:  %d\n", n_intersects);
 
         if (open_file(out_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
                 exit(0);
         for (i = 0; i < polygons->n_points; i++)
-                fprintf(fp, " %0.1f\n", defects[i]);
+                fprintf(fp, " %d.0\n", defects[i]);
         fclose(fp);
 
-        printf("Self Intersections:  %d\n", n_intersects);
+        if (dump_patch == TRUE) {
+                for (i = 1; i <= n_intersects; i++) {
+                        sprintf(str, "patch_%d.obj\0", i);
+                        patch_objects = extract_patch_points(polygons,
+                                                             defects, i);
+                        patch = get_polygons_ptr(objects[0]);
+                        output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                                   patch_objects);
+                        delete_object_list(1, patch_objects);
+                }
+        }
 
         free(defects);
-        free(polydefects);
+
+        delete_polygon_point_neighbours(polygons, n_neighbours,
+                                        neighbours, NULL, NULL);
 
         delete_object_list(n_objects, objects);
 
