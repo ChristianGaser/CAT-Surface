@@ -95,6 +95,16 @@ intersect(double bounds[6], double bounds2[6])
         return 1;
 }
 
+unsigned char
+point_in_bounds(Point pt, double bounds[6])
+{
+        if (Point_x(pt) >= bounds[0] && Point_x(pt) <= bounds[1] &&
+            Point_y(pt) >= bounds[2] && Point_y(pt) <= bounds[3] &&
+            Point_z(pt) >= bounds[4] && Point_z(pt) <= bounds[5])
+                return 1;
+        return 1;
+}
+
 void
 insert_triangle(struct octree *tree, struct polynode *node)
 {

@@ -47,6 +47,7 @@ unsigned char xintersect(double [6], double [6]);
 unsigned char yintersect(double [6], double [6]);
 unsigned char zintersect(double [6], double [6]);
 unsigned char intersect(double [6], double [6]);
+unsigned char point_in_bounds(Point, double [6]);
 
 struct octree * build_octree(polygons_struct *);
 void delete_octree(struct octree *);
