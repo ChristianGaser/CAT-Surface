@@ -12,13 +12,8 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
+#include "CAT_Patch.h"
 
-struct patchinfo {
-        int num;
-        int pts[3];
-
-        struct patchinfo *next;
-};
 
 /* internal helper routine */
 struct patchinfo *
@@ -118,6 +113,15 @@ make_patch(polygons_struct *polygons, struct patchinfo *head)
         *object = create_object(POLYGONS);
         patch = get_polygons_ptr(*object);
         initialize_polygons(patch, WHITE, NULL);
+
+        Surfprop_a(polygons->surfprop) = 0.3;
+        Surfprop_d(polygons->surfprop) = 0.6;
+        Surfprop_s(polygons->surfprop) = 0.6;
+        Surfprop_se(polygons->surfprop) = 60;
+        Surfprop_t(polygons->surfprop) = 1.0;
+
+        polygons->colour_flag = 0;
+        polygons->line_thickness = 1.0f;
 
         /* find the number of points & polygons */
         for (cur = head; cur != NULL; cur = cur->next) {
@@ -239,3 +243,84 @@ extract_patch_around_point(polygons_struct *polygons, int point, int level)
 
         return(object);
 }
+
+/* a routine for extracting a patch from a list of polygons... polys must
+ * have size polygons->n_items.
+ */
+object_struct **
+extract_patch_polys(polygons_struct *polygons, int *polys, int num)
+{
+        int poly;
+        struct patchinfo *head = NULL, *cur;
+        object_struct **object;
+
+        for (poly = 0; poly < polygons->n_items; poly++) {
+                if (polys[poly] == 0 || (num != 0 && polys[poly] != num))
+                        continue; /* skip */
+
+                if (head == NULL) { /* initialize list */
+                        head = newnode(polygons, poly);
+                        cur = head;
+                } else {
+                        cur->next = newnode(polygons, poly);
+                        cur = cur->next;
+                }
+        }
+
+        if (head == NULL) {
+                object = (object_struct **) malloc(sizeof(object_struct *));
+                *object = create_object(POLYGONS);
+                return(object);
+        }
+
+        object = make_patch(polygons, head);
+
+        cur = head;
+        while (head != NULL) {
+                head = cur->next;
+                free(cur);
+                cur = head;
+        }
+
+        return(object);
+}
+
+/* a routine for extracting a patch from a list of points... points must
+ * have size polygons->n_points.
+ */
+object_struct **
+extract_patch_points(polygons_struct *polygons, int *points, int num)
+{
+        int i, p, poly, size, n_polys;
+        int *polys;
+        object_struct **object;
+
+        /* get the associated polygons */
+        polys = (int *) malloc(sizeof(int) * polygons->n_items);
+        memset(polys, 0, sizeof(int) * polygons->n_items);
+        n_polys = 0;
+
+        for (poly = 0; poly < polygons->n_items; poly++) {
+                size = GET_OBJECT_SIZE(*polygons, poly);
+                for (i = 0; i < size; i++) {
+                        p = polygons->indices[POINT_INDEX(polygons->end_indices,
+                                                  poly, i)];
+                        if (points[p] == 0 || (num != 0 && points[p] != num))
+                                continue; /* skip */
+
+                        polys[poly] = 1; /* not in set, delete */
+                        n_polys++;
+                        break;
+                }
+        }
+
+        if (n_polys == 0) {
+                object = (object_struct **) malloc(sizeof(object_struct *));
+                *object = create_object(POLYGONS);
+        } else {
+                object = extract_patch_polys(polygons, polys, 0);
+        }
+        free(polys);
+        return(object);
+}
+
