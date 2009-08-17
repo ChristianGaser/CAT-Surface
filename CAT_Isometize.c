@@ -16,15 +16,12 @@
 #define POST_ONLY    2
 
 BOOLEAN prepostflag = PRE_AND_POST; /* default: both pre + post processing */
-BOOLEAN quiet = 0; /* turn progress reports on and off */
 
 static ArgvInfo argTable[] = {
   {"-preonly", ARGV_CONSTANT, (char *) PRE_ONLY, (char *) &prepostflag,
     "execute only the preprocessing pipeline" },
   {"-postonly", ARGV_CONSTANT, (char *) POST_ONLY, (char *) &prepostflag,
     "execute only the postprocessing pipeline" },
-  {"-quiet", ARGV_CONSTANT, (char *) TRUE, (char *) &quiet,
-    "turn off progress reports" },
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -49,6 +46,7 @@ main(int argc, char** argv)
         struct metricdata  *brain;
         File_formats       format;
         int                n_objects;
+        int                iters, count;
 
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
                 usage(argv[0]);
@@ -100,16 +98,32 @@ main(int argc, char** argv)
     
         brain = getmetricdata(polygons);
 
-        if (prepostflag != POST_ONLY)
-                distortcorrect(brain, map, 15000, SELECT_OFF, quiet);
+        if (prepostflag != POST_ONLY) {
+                distortcorrect(brain, map, 100000, SELECT_OFF);
+        }
+
         if (prepostflag != PRE_ONLY) {
-                smooth(brain, map, 100, SELECT_ON, quiet);
-                stretch(brain, map, 100, SELECT_OFF, quiet, LARGE_ONLY);
-                distortcorrect(brain, map, 100, SELECT_ON, quiet);
-                stretch(brain, map, 100, SELECT_ON, quiet, ~LARGE_ONLY);
-                distortcorrect(brain, map, 100, SELECT_ON, quiet);
-                stretch(brain, map, 100, SELECT_ON, quiet, ~LARGE_ONLY);
-                distortcorrect(brain, map, 100, SELECT_ON, quiet);
+                count = 0;
+                do {
+                        iters = 0;
+                        count++;
+                        iters += smooth(brain, map, 1000, SELECT_ON);
+                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY);
+                } while (iters > 0 && count < 5);
+
+                do {
+                        iters = 0;
+                        count++;
+                        iters += stretch(brain, map, 1000, SELECT_OFF, LARGE_ONLY);
+                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY);
+                } while (iters > 0 && count < 10);
+
+                do {
+                        iters = 0;
+                        count++;
+                        iters += distortcorrect(brain, map, 1000, SELECT_ON);
+                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY);
+                } while (iters > 0 && count < 15);
         }
 
         compute_polygon_normals(map);

@@ -40,6 +40,6 @@ struct pointdata {
 };
 
 struct metricdata * getmetricdata(polygons_struct *);
-int smooth(struct metricdata *, polygons_struct *, int, int, int);
-int distortcorrect(struct metricdata *, polygons_struct *, int, int, int);
-int stretch(struct metricdata *, polygons_struct *, int, int, int, int);
+int smooth(struct metricdata *, polygons_struct *, int, int);
+int distortcorrect(struct metricdata *, polygons_struct *, int, int);
+int stretch(struct metricdata *, polygons_struct *, int, int, int);

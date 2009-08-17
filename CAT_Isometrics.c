@@ -71,20 +71,49 @@ getmetricdata(polygons_struct *polygons)
         return brain;
 }
 
+double
+areadistortion(struct metricdata *brain, polygons_struct *map)
+{
+        double ratio, area, area2, value;
+        double distortion = 0;
+        int poly, size;
+        Point pts[3], pts2[3];
+
+        ratio = get_polygons_surface_area(brain->polygons) /
+                get_polygons_surface_area(map);
+
+        for (poly = 0; poly < brain->polygons->n_items; poly++) {
+                size = get_polygon_points(brain->polygons, poly, pts);
+                area = get_polygon_surface_area(size, pts);
+
+                size = get_polygon_points(map, poly, pts2);
+                area2 = get_polygon_surface_area(size, pts2);
+
+                size = GET_OBJECT_SIZE(*brain->polygons, poly);
+
+                value = log10(ratio * area2 / area);
+
+                if (value < PINF && value > NINF)
+                        distortion += fabs(value);
+        }
+
+        return (distortion / brain->polygons->n_items);
+}
+
 int
-smooth(struct metricdata *brain, polygons_struct *map, int iters,
-       int selectflag, int quietflag)
+smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
+       int selectflag)
 {
         int                i, n, it, p;
-        Point              pts[3], newcenter;
+        Point              pts[3], *oldpts, *newpts, newcenter;
         double             a, areas[128], centers[128], totalArea;
         double             ad, new_ad, weight, radius, xyz[3];
-        int                n1, n2, count;
-        progress_struct    progress;
+        double             metric, newmetric;
+        int                n1, n2, count, stepsize;
 
         if (brain->polygons->n_points != map->n_points
             || brain->polygons->n_items != map->n_items) {
-                printf("Input mesh and conformal map mesh do not match.\n");
+                printf("Input mesh and spherical map mesh do not match.\n");
                 return(-1);
         }
     
@@ -93,10 +122,15 @@ smooth(struct metricdata *brain, polygons_struct *map, int iters,
         for (p = 0; p < map->n_points; p++)
                 set_vector_length(&map->points[p], radius);
 
-        if (quietflag == 0)
-                initialize_progress_report(&progress, FALSE, iters, "Smooth");
-        
-        for (it = 1; it <= iters; it++) {
+        newpts = (Point *) malloc(sizeof(Point) * map->n_points);
+        for (p = 0; p < map->n_points; p++)
+                newpts[p] = map->points[p];
+
+        metric = areadistortion(brain, map);
+        fprintf(stderr, "  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
+
+        stepsize = 100;
+        for (it = 1; it <= maxiters; it++) {
                 count = 0;
                 for (p = 0; p < map->n_points; p++) {
                         if (brain->n_neigh[p] <= 1)
@@ -105,21 +139,22 @@ smooth(struct metricdata *brain, polygons_struct *map, int iters,
                         ad = 0.0;
                         totalArea = 0.0;
 
-                        /* lengths to neighbouring nodes */
-                        pts[0] = map->points[p];
+                        /* Get 2 consecutive neighbors of this node */
+                        pts[0] = newpts[p];
                         for (n = 0; n < brain->n_neigh[p]; n++) {
                                 n2 = (n + 1) % brain->n_neigh[p];
 
                                 /* area of the triangle */
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 areas[n] = get_polygon_surface_area(3, pts);
 
                                 totalArea += areas[n];
 
                                 a = brain->ptdata[p]->areas[n];
-                                if (a > 0)
+                                if (a > 0) {
                                         ad += log10(areas[n] / a);
+                                }
 
                                 /* Save center of this tile */
                                 centers[n*3    ] = (Point_x(pts[0]) +
@@ -132,6 +167,8 @@ smooth(struct metricdata *brain, polygons_struct *map, int iters,
                                                     Point_z(pts[1]) +
                                                     Point_z(pts[2])) / 3.0;
                         }
+                        if (totalArea == 0) continue;
+
                         ad = fabs(ad / brain->n_neigh[p]);
 
                         /* Algorithm #1 - Area Smoothing */
@@ -148,8 +185,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int iters,
 
                         if (selectflag == SELECT_OFF) {
                                 count++;
-                                fill_Point(map->points[p],
-                                           xyz[0], xyz[1], xyz[2]);
+                                fill_Point(newpts[p], xyz[0], xyz[1], xyz[2]);
                                 continue;
                         }
 
@@ -162,8 +198,8 @@ smooth(struct metricdata *brain, polygons_struct *map, int iters,
                                 n2 = (n + 1) % brain->n_neigh[p];
 
                                 /* area of the triangle */
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 areas[n] = get_polygon_surface_area(3, pts);
 
                                 a = brain->ptdata[p]->areas[n];
@@ -174,41 +210,65 @@ smooth(struct metricdata *brain, polygons_struct *map, int iters,
 
                         if (new_ad < ad) {
                                 count++;
-                                fill_Point(map->points[p],
-                                           xyz[0], xyz[1], xyz[2]);
+                                fill_Point(newpts[p], xyz[0], xyz[1], xyz[2]);
                         }
-
                 }
 
                 for (p = 0; p < map->n_points; p++)
-                        set_vector_length(&map->points[p], radius);
+                        set_vector_length(&newpts[p], radius);
 
-                if (quietflag == 0)
-                        update_progress_report(&progress, it);
+                if (it % stepsize == 0) {
+                        oldpts = map->points;
+                        map->points = newpts;
+                        newmetric = areadistortion(brain, map);
 
-                if (count == 0)
-                        break; /* done! */
+                        if (newmetric >= metric) {
+                                /* don't update, decrement step */
+                                map->points = oldpts;
+                                for (p = 0; p < map->n_points; p++)
+                                        newpts[p] = map->points[p];
+                                it -= stepsize;
+                                stepsize = round(stepsize / 2);
+                                if (stepsize == 0) break;
+                        } else if (metric - newmetric < 1e-9) {
+                                metric = newmetric;
+                                newpts = oldpts;
+                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                break;
+                        } else {
+                                metric = newmetric;
+                                newpts = oldpts;
+                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                if (count == 0) break;
+                                for (p = 0; p < map->n_points; p++)
+                                        newpts[p] = map->points[p];
+                        }
+                }
         }
-        if (quietflag == 0)
-                terminate_progress_report(&progress);
+        if (it > maxiters) it = maxiters;
+        if (it < 0) it == 0;
 
+        printf("sm %d iters, ad %f\n", it, areadistortion(brain, map));
+
+        free(newpts);
         return it;
 }
 
 int
-distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
-       int selectflag, int quietflag)
+distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
+               int selectflag)
 {
         int                i, n, it, p;
-        Point              pts[3], newcenter;
+        Point              pts[3], *oldpts, *newpts, newcenter;
         double             a, areas[128], centers[128];
         double             ad, new_ad, total_ad, weight, radius, xyz[3];
-        int                n1, n2, count;
+        double             metric, newmetric;
+        int                n1, n2, count, stepsize;
         progress_struct    progress;
 
         if (brain->polygons->n_points != map->n_points
             || brain->polygons->n_items != map->n_items) {
-                printf("Input mesh and conformal map mesh do not match.\n");
+                printf("Input mesh and spherical map mesh do not match.\n");
                 return(-1);
         }
     
@@ -217,11 +277,15 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
         for (p = 0; p < map->n_points; p++)
                 set_vector_length(&map->points[p], radius);
 
-        if (quietflag == 0)
-                initialize_progress_report(&progress, FALSE, iters,
-                                           "DistortCorrect");
-        
-        for (it = 1; it <= iters; it++) {
+        newpts = (Point *) malloc(sizeof(Point) * map->n_points);
+        for (p = 0; p < map->n_points; p++)
+                newpts[p] = map->points[p];
+
+        metric = areadistortion(brain, map);
+        fprintf(stderr, "  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
+
+        stepsize = 100;
+        for (it = 1; it <= maxiters; it++) {
                 count = 0;
                 for (p = 0; p < map->n_points; p++) {
                         if (brain->n_neigh[p] <= 1)
@@ -231,13 +295,13 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
                         total_ad = 0.0;
 
                         /* Get 2 consecutive neighbors of this node */
-                        pts[0] = map->points[p];
+                        pts[0] = newpts[p];
                         for (n = 0; n < brain->n_neigh[p]; n++) {
                                 n2 = (n + 1) % brain->n_neigh[p];
 
                                 /* area of the triangle */
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 areas[n] = get_polygon_surface_area(3, pts);
 
                                 a = brain->ptdata[p]->areas[n];
@@ -257,6 +321,8 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
                                                     Point_z(pts[1]) +
                                                     Point_z(pts[2])) / 3.0;
                         }
+                        if (total_ad == 0) continue;
+
                         ad = fabs(ad / brain->n_neigh[p]);
 
                         /* Algorithm #2 - Area Distortion */
@@ -274,8 +340,7 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
 
                         if (selectflag == SELECT_OFF) {
                                 count++;
-                                fill_Point(map->points[p],
-                                           xyz[0], xyz[1], xyz[2]);
+                                fill_Point(newpts[p], xyz[0], xyz[1], xyz[2]);
                                 continue;
                         }
 
@@ -288,8 +353,8 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
                                 n2 = (n + 1) % brain->n_neigh[p];
 
                                 /* area of the triangle */
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 areas[n] = get_polygon_surface_area(3, pts);
 
                                 a = brain->ptdata[p]->areas[n];
@@ -300,38 +365,61 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int iters,
 
                         if (new_ad < ad) {
                                 count++;
-                                fill_Point(map->points[p],
-                                           xyz[0], xyz[1], xyz[2]);
+                                fill_Point(newpts[p], xyz[0], xyz[1], xyz[2]);
                         }
-
                 }
 
                 for (p = 0; p < map->n_points; p++)
-                        set_vector_length(&map->points[p], radius);
+                        set_vector_length(&newpts[p], radius);
 
-                if (quietflag == 0)
-                        update_progress_report(&progress, it);
+                if (it % stepsize == 0) {
+                        oldpts = map->points;
+                        map->points = newpts;
+                        newmetric = areadistortion(brain, map);
 
-                if (count == 0)
-                        break; /* done! */
+                        if (newmetric >= metric) {
+                                /* don't update, decrement step */
+                                map->points = oldpts;
+                                for (p = 0; p < map->n_points; p++)
+                                        newpts[p] = map->points[p];
+                                it -= stepsize;
+                                stepsize = round(stepsize / 2);
+                                if (stepsize == 0) break;
+                        } else if (metric - newmetric < 1e-5) {
+                                metric = newmetric;
+                                newpts = oldpts;
+                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                break;
+                        } else {
+                                metric = newmetric;
+                                newpts = oldpts;
+                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                if (count == 0) break;
+                                for (p = 0; p < map->n_points; p++)
+                                        newpts[p] = map->points[p];
+                        }
+                }
         }
-        if (quietflag == 0)
-                terminate_progress_report(&progress);
+        if (it > maxiters) it = maxiters;
+        if (it < 0) it == 0;
 
+        printf("dc %d iters, ad %f\n", it, metric);
+
+        free(newpts);
         return it;
 }
 
 int
-stretch(struct metricdata *brain, polygons_struct *map, int iters,
-        int selectflag, int quietflag, int largeonly)
+stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
+        int selectflag, int largeonly)
 {
         int                i, n, it, p;
-        Point              pts[3], npt, dir, newcenter;
+        Point              pts[3], *oldpts, *newpts, npt, dir, newcenter;
         Vector             norm;
         double             dist, radius;
+        double             metric, newmetric;
         double             ad, new_ad, a, areas[128];
-        int                n2, count, ok;
-        progress_struct    progress;
+        int                n2, count, ok, stepsize;
 
         if (brain->polygons->n_points != map->n_points
             || brain->polygons->n_items != map->n_items) {
@@ -362,10 +450,15 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                 }
         }
 
-        if (quietflag == 0)
-                initialize_progress_report(&progress, FALSE, iters, "Stretch");
+        newpts = (Point *) malloc(sizeof(Point) * map->n_points);
+        for (p = 0; p < map->n_points; p++)
+                newpts[p] = map->points[p];
 
-        for (it = 1; it <= iters; it++) {
+        metric = areadistortion(brain, map);
+        fprintf(stderr, "  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
+
+        stepsize = 10;
+        for (it = 1; it <= maxiters; it++) {
                 count = 0;
 
                 for (p = 0; p < map->n_points; p++) {
@@ -374,13 +467,13 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
 
                         ad = 0.0;
 
-                        pts[0] = map->points[p];
+                        pts[0] = newpts[p];
                         for (n = 0; n < brain->n_neigh[p]; n++) {
                                 n2 = (n + 1) % brain->n_neigh[p];
 
                                 /* area of the triangle */
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 areas[n] = get_polygon_surface_area(3, pts);
 
                                 a = brain->ptdata[p]->areas[n] * 2;
@@ -397,9 +490,9 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                         fill_Point(newcenter, 0.0, 0.0, 0.0);
 
                         for (n = 0; n <  brain->n_neigh[p]; n++) {
-                                npt = map->points[ brain->neigh[p][n] ];
+                                npt = newpts[ brain->neigh[p][n] ];
 
-                                SUB_POINTS(dir, npt, map->points[p]);
+                                SUB_POINTS(dir, npt, newpts[p]);
 
                                 dist = MAGNITUDE(dir) -
                                        brain->ptdata[p]->lengths[n];
@@ -411,7 +504,7 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                         Point_x(newcenter) /= brain->n_neigh[p];
                         Point_y(newcenter) /= brain->n_neigh[p];
                         Point_z(newcenter) /= brain->n_neigh[p];
-                        ADD_POINT_VECTOR(newcenter, map->points[p], newcenter);
+                        ADD_POINT_VECTOR(newcenter, newpts[p], newcenter);
                         set_vector_length(&newcenter, radius);
 
                         if (isnan(Point_x(newcenter)) ||
@@ -426,8 +519,8 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                                 n2 = (n + 1) % brain->n_neigh[p];
 
                                 /* normal of the triangle */
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 find_polygon_normal(3, pts, &norm);
                                 if (acos(DOT_VECTORS(norm,
                                            brain->ptdata[p]->norm[n])) > 0.01) {
@@ -446,8 +539,8 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                                          n2 = (n + 1) % brain->n_neigh[p];
 
                                         /* area of the triangle */
-                                        pts[1]=map->points[brain->neigh[p][n]];
-                                        pts[2]=map->points[brain->neigh[p][n2]];
+                                        pts[1] = newpts[brain->neigh[p][n]];
+                                        pts[2] = newpts[brain->neigh[p][n2]];
                                         areas[n] =
                                                get_polygon_surface_area(3, pts);
 
@@ -462,31 +555,56 @@ stretch(struct metricdata *brain, polygons_struct *map, int iters,
                         }
 
                         count++;
-                        fill_Point(map->points[p], Point_x(newcenter),
+                        fill_Point(newpts[p], Point_x(newcenter),
                                    Point_y(newcenter), Point_z(newcenter));
-                        pts[0] = map->points[p];
+                        pts[0] = newpts[p];
                         for (n = 0; n < brain->n_neigh[p]; n++) {
                                  n2 = (n + 1) % brain->n_neigh[p];
 
-                                pts[1] = map->points[brain->neigh[p][n]];
-                                pts[2] = map->points[brain->neigh[p][n2]];
+                                pts[1] = newpts[brain->neigh[p][n]];
+                                pts[2] = newpts[brain->neigh[p][n2]];
                                 find_polygon_normal(3, pts,
                                                     &brain->ptdata[p]->norm[n]);
                         }
                 }
-                if (quietflag == 0)
-                        update_progress_report(&progress, it);
 
-                if (count == 0)
-                        break; /* done! */
+                if (it % stepsize == 0) {
+                        oldpts = map->points;
+                        map->points = newpts;
+                        newmetric = areadistortion(brain, map);
+
+                        if (newmetric >= metric) {
+                                /* don't update, decrement step */
+                                map->points = oldpts;
+                                for (p = 0; p < map->n_points; p++)
+                                        newpts[p] = map->points[p];
+                                it -= stepsize;
+                                stepsize = round(stepsize / 2);
+                                if (stepsize == 0) break;
+                        } else if (metric - newmetric < 1e-9) {
+                                metric = newmetric;
+                                newpts = oldpts;
+                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                break;
+                        } else {
+                                metric = newmetric;
+                                newpts = oldpts;
+                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                if (count == 0) break;
+                                for (p = 0; p < map->n_points; p++)
+                                        newpts[p] = map->points[p];
+                        }
+                }
         }
-
-        if (quietflag == 0)
-                terminate_progress_report(&progress);
+        if (it > maxiters) it = maxiters;
+        if (it < 0) it == 0;
 
         radius = sqrt(get_polygons_surface_area(brain->polygons) / (4.0 * PI));
         for (p = 0; p < map->n_points; p++)
-                set_vector_length(&map->points[p], radius);
+                set_vector_length(&newpts[p], radius);
 
+        printf("st %d iters, ad %f\n", it, areadistortion(brain, map));
+
+        free(newpts);
         return it;
 }
