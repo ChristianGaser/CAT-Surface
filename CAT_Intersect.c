@@ -480,6 +480,7 @@ repair_selfintersections(polygons_struct *surface, int *n_neighbours,
         int n_defects;
         Point *pts, tp[3];
         double areas[128], centers[128], xyz[3], weight, t_area;
+        FILE *fp;
 
         defects = (int *) malloc(sizeof(int) * surface->n_points);
 
@@ -487,6 +488,16 @@ repair_selfintersections(polygons_struct *surface, int *n_neighbours,
         n_defects = join_intersections(surface, defects,
                                        n_neighbours, neighbours);
         printf("%d defect(s) to repair\n", n_defects);
+
+        /* optionally dump self intersections */ /*
+        if (open_file("si.txt", WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
+                exit(0);
+        }
+
+        for (p = 0; p < surface->n_points; p++)
+                fprintf(fp, " %d.0\n", defects[p]);
+        fclose(fp);
+        */
 
         if (n_defects == 0) {
                  free(defects);
@@ -566,9 +577,9 @@ repair_selfintersections(polygons_struct *surface, int *n_neighbours,
 
                 /* test if self-intersections repaired */
                 for (d = 1; d <= n_defects; d++) {
-                        n = count_defect_intersections(surface, polydefects, d);
-
-                        if (n == 0) { /* delete it, it's fixed! */
+                        if (defect_has_intersections(surface, polydefects,
+                                                     d) == 0) {
+                                /* delete it, it's fixed! */
                                 for (i = 0; i < surface->n_points; i++) {
                                         if (defects[i] == d)
                                                 defects[i] = 0;
@@ -585,7 +596,7 @@ repair_selfintersections(polygons_struct *surface, int *n_neighbours,
                                 d--;
                         }
                 }
-                printf("iter %d: %d smoothed points, %d defect(s) remaining\n",
+                printf("iter %2d: %3d smoothed pts, %2d defect(s) remaining\n",
                        iter, npts, n_defects);
 
                 if (n_defects == 0)
@@ -605,11 +616,10 @@ repair_selfintersections(polygons_struct *surface, int *n_neighbours,
 }
 
 int
-count_defect_intersections(polygons_struct *polygons, int *polydefects,
-                           int defect)
+defect_has_intersections(polygons_struct *polygons, int *polydefects,
+                         int defect)
 {
         int p, p2, i, t[3], t2[3];
-        int count = 0;
 
         for (p = 0; p < polygons->n_items; p++) {
                 if (polydefects[p] != defect)
@@ -627,10 +637,9 @@ count_defect_intersections(polygons_struct *polygons, int *polydefects,
                                 t2[i] = polygons->indices[
                                      POINT_INDEX(polygons->end_indices, p2, i)];
                         }
-                        count += intersect_triangle_triangle(t, t2, polygons);
-                        if (polydefects[p2] == defect && p > p2)
-                                count--; /* don't double-count intersections */
+                        if (intersect_triangle_triangle(t, t2, polygons))
+                                return 1;
                 }
         }
-        return count;
+        return 0;
 }

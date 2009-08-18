@@ -56,7 +56,7 @@ main(int argc, char** argv)
         progress_struct    progress;
         FILE               *fp;
 
-        if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
+        if (ParseArgv(&argc, argv, argTable, 0) || argc != 3) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
                 return(1);
