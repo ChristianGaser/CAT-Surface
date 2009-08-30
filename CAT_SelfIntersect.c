@@ -109,8 +109,9 @@ main(int argc, char** argv)
                         patch_objects = extract_patch_points(polygons,
                                                              defects, i);
                         patch = get_polygons_ptr(objects[0]);
-                        output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                   patch_objects);
+                        if(output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                                   patch_objects) != OK)
+                                    exit(EXIT_FAILURE);
                         delete_object_list(1, patch_objects);
                 }
         }

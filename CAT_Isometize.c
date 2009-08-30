@@ -127,7 +127,9 @@ main(int argc, char** argv)
         }
 
         compute_polygon_normals(map);
-        output_graphics_any_format(output_file, format, 1, objects);
+        if(output_graphics_any_format(output_file, format, 1, 
+                       objects) != OK)
+                exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);
 

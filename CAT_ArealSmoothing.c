@@ -54,7 +54,9 @@ main(int argc, char *argv[])
         convert_ellipsoid_to_sphere_with_surface_area(polygons, surface_area);
 
         compute_polygon_normals(polygons);
-        output_graphics_any_format(output_filename, format, 1, objects);
+        if(output_graphics_any_format(output_filename, format, 1, 
+                        objects) != OK)
+                exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);
 

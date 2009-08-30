@@ -310,5 +310,5 @@ main(int argc, char *argv[])
 
         FREE(values);
         delete_object_list(n_objects, objects);
-        return(CAT_3dVol2Surf);
+        return(EXIT_SUCCESS);
 }

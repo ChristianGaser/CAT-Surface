@@ -112,7 +112,9 @@ main(int argc, char *argv[])
 
         compute_polygon_normals(polygons);
 
-        output_graphics_any_format(output_file, format, 1, object_list);
+        if(output_graphics_any_format(output_file, format, 1, 
+                        object_list) != OK)
+                exit(EXIT_FAILURE);
         
         free(smooth_pts);
         free(gc_strength);

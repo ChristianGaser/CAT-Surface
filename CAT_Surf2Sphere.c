@@ -149,6 +149,8 @@ main(int argc, char *argv[])
         fprintf(stderr, "Done                \n");
 
         compute_polygon_normals(polygons);
-        output_graphics_any_format(output_file, format, 1, object_list);
+        if(output_graphics_any_format(output_file, format, 1, 
+                        object_list) != OK)
+                exit(EXIT_FAILURE);
         return(EXIT_SUCCESS);
 }

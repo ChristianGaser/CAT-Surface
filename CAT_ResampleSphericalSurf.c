@@ -176,8 +176,9 @@ main(int argc, char *argv[])
 		
         compute_polygon_normals(poly_dest_sphere);
 
-        output_graphics_any_format(output_file, format, 1,
-                                   &objects_dest_sphere);
+        if(output_graphics_any_format(output_file, format, 1,
+                                   &objects_dest_sphere) != OK)
+                    exit(EXIT_FAILURE);
     
         if (values_specified) {
                 output_values_any_format(output_values_file, poly_dest_sphere->n_points, output_values);

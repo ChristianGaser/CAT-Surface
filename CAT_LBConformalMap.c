@@ -710,6 +710,8 @@ main(int argc, char** argv)
         find_conformal_map();
 
         compute_polygon_normals(polygons);
-        output_graphics_any_format(output_file, format, 1, objects);
+        if(output_graphics_any_format(output_file, format, 1, 
+                        objects) != OK)
+                    exit(EXIT_FAILURE);
         exit(EXIT_SUCCESS);
 }
