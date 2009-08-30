@@ -33,16 +33,16 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &input_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_freesurfer_curv( input_file, &n_values, &values) != OK) {
                 printf("Error while reading %s.\n", input_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         for (i = 0; i < n_values; i++) {
                 if (output_real(fp, values[i]) != OK ||
@@ -51,5 +51,5 @@ main(int argc, char *argv[])
         }
 
         close_file(fp);    
-        return(0);
+        return(EXIT_SUCCESS);
 }

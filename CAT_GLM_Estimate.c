@@ -116,7 +116,7 @@ estimate(char **infiles, char *arg_string, int argc)
                         if (!file_exists(infiles[i])) {
                                 fprintf(stderr, "\nFile %s not found.\n",
                                         infiles[i]);
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
                         counter++;
                 }
@@ -147,11 +147,11 @@ estimate(char **infiles, char *arg_string, int argc)
                                                  &tmpvals) != OK) {
                                 fprintf(stderr, "\nError reading file %s\n",
                                         infiles[i]);
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
                         if (n_subj != n_tmp) {
                                 fprintf(stderr, "\nError: Number of files differs from number of rows in design matrix.\n");
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
                         /* normalize covariates to zero mean */
                         normalize_vector(tmpvals, n_tmp);
@@ -168,14 +168,14 @@ estimate(char **infiles, char *arg_string, int argc)
                                                  &tmpvals) != OK) {
                                 fprintf(stderr, "\nError reading file %s\n",
                                        infiles[i]);
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
                         if (i == 0) {
                                 ALLOC2D(vals, n_subj, n_vals);
                         } else {
                                 if (prev_n_vals != n_vals) {
                                         fprintf(stderr, "\nError: Wrong number of values in %s\n",infiles[i]);
-                                        return(1);
+                                        exit(EXIT_FAILURE);
                                 }
                         }
                         for (k = 0; k < n_vals; k++)
@@ -202,18 +202,18 @@ estimate(char **infiles, char *arg_string, int argc)
         /* check estimability */
         if (erdf < 0) {
                 fprintf(stderr, "This design is unestimable! (df=%d).\n",erdf);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (erdf == 0) {
                 fprintf(stderr, "This design has no res! (df=0).\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* open log file */
         if ((fp = fopen("glm.log", "w")) == 0) {
                 fprintf(stderr, "Couldn't open file glm.log.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         fprintf(fp, "[df]\n%d\n", erdf);
@@ -348,7 +348,9 @@ main(int argc, char *argv[])
         /* get filenames */
         if (argc < 2) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
         estimate(infiles, arg_string, argc);
+        
+        return(EXIT_SUCCESS);
 }

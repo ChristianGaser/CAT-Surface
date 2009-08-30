@@ -50,7 +50,7 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &target_sphere_filename) ||    
             !get_string_argument(NULL, &warped_filename)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(32, &cutoff);
@@ -60,47 +60,47 @@ main(int argc, char *argv[])
         n_triangles = 81920;
 
         if (input_graphics_any_format(target_filename, &format, &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 print("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* get a pointer to the surface */
         polygons_target = get_polygons_ptr(objects[0]);
 
         if (input_graphics_any_format(target_sphere_filename, &format, &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
         
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 print("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* get a pointer to the surface */
         polygons_target_sphere = get_polygons_ptr(objects[0]);
 
         if (input_graphics_any_format(source_filename, &format, &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
                 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 print("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         
         /* get a pointer to the surface */
         polygons_source = get_polygons_ptr(objects[0]);
     
         if (input_graphics_any_format(source_sphere_filename, &format, &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
         
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 print("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         
         /* get a pointer to the surface */
@@ -228,7 +228,7 @@ main(int argc, char *argv[])
         compute_polygon_normals(polygons_warped);
 
         if (output_graphics_any_format(warped_filename, ASCII_FORMAT, 1, &object) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
 
         delete_object_list(n_objects, objects);
@@ -251,5 +251,5 @@ main(int argc, char *argv[])
         free(ticoeffsy);
         free(ticoeffsz);
                 
-        return(0);
+        return(EXIT_SUCCESS);
 }

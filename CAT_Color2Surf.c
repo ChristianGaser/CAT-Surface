@@ -65,7 +65,7 @@ main(int argc, char *argv[])
             !get_string_argument( NULL, &dest_file) ||
             !get_string_argument( NULL, &coding_type_string)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         default_over = "WHITE";
@@ -87,7 +87,7 @@ main(int argc, char *argv[])
                 if (!get_string_argument(NULL, &user_def_file)) {
                         usage(argv[0]);
                         fprintf(stderr, "User color coding file undefined.\n");
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
         } else {
                 coding_type = SINGLE_COLOUR_SCALE;
@@ -108,7 +108,7 @@ main(int argc, char *argv[])
                 composite_method = ADD_COLOUR;
         else {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         under_colour = convert_string_to_colour(under_colour_name);
@@ -122,16 +122,16 @@ main(int argc, char *argv[])
                                                      user_def_file) != OK) {
                         fprintf(stderr,"Error in user defined colour map: %s\n",
                                     user_def_file);
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
         }
 
         if (input_graphics_any_format(src_file, &format, &n_objects,
                                       &object_list) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (input_values_any_format(values_file, &n_values, &values) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
       
         value_index = 0;
 
@@ -139,7 +139,7 @@ main(int argc, char *argv[])
                 n_pts = get_object_points(object_list[i], &pts);
                 if (n_pts != n_values) {
                         fprintf(stderr,"Number of points differs from number of values.\n");
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
 
                 colour_flag_ptr = get_object_colours(object_list[i], &colours);
@@ -179,7 +179,7 @@ main(int argc, char *argv[])
                 for (p = 0; p < n_pts; p++) {
                         if (value_index >= n_values) {
                                 fprintf(stderr, "Insufficient number of values in file.\n");
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
 
                         value = values[value_index];

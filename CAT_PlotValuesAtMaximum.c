@@ -34,12 +34,12 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &values_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_values_any_format(values_file, &n_values, &values) != OK) {
                 fprintf(stderr, "Cannot read values in %s.\n", values_file);
-    	        return(1);
+    	        exit(EXIT_FAILURE);
         }
 
         n_files = argc - 3;
@@ -57,21 +57,21 @@ main(int argc, char *argv[])
                 max_value, max_index);
     
         if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &outfp) != OK)
-    	        return(1);
+    	        exit(EXIT_FAILURE);
 
         for (i = 0; i < n_files; i++) {
                 get_string_argument(NULL, &input_file);
                 if (input_values_any_format(input_file, &n_values, &values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", values_file);
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
 
                 if (output_real(outfp, values[max_index]) != OK ||
         	    output_newline(outfp) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
 
         }
 
         close_file(outfp);
-        return(0);
+        return(EXIT_SUCCESS);
 }

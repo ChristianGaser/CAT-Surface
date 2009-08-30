@@ -39,23 +39,23 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &input_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(input_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (output_graphics_any_format(output_file, format,
                                        n_objects, objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

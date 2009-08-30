@@ -63,7 +63,7 @@ main(int argc, char *argv[])
                 if (input_graphics_any_format(infile, &format, &n_objects,
                                               &object_list) != OK) {
 	                fprintf(stderr, "Could not read input %s\n", infile);
-	                return(2);
+	                exit(EXIT_FAILURE);
 	        }
 
                 n_pts = get_object_points(object_list[0], &pts);
@@ -80,7 +80,7 @@ main(int argc, char *argv[])
                 } else {
                         if (n_pts != n_avg_pts) {
                                 printf("N points mismatch\n");
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
 
                         for (i = 0; i < n_pts; i++) {
@@ -102,7 +102,7 @@ main(int argc, char *argv[])
 
         if (n_sets == 0) {
                 fprintf(stderr, "No input?!  No output for you!!\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         for (i = 0; i < n_pts; i++) {
@@ -131,5 +131,6 @@ main(int argc, char *argv[])
                 free(values);
                 free(sqr_pts);
         }
-
+        
+  return(EXIT_SUCCESS);
 }

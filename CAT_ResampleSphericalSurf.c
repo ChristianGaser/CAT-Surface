@@ -51,7 +51,7 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(81920, &n_triangles);
@@ -76,7 +76,7 @@ main(int argc, char *argv[])
             n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 fprintf(stderr, "File %s must contain 1 polygons object.\n",
                         surface_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(sphere_file, &format,
@@ -86,7 +86,7 @@ main(int argc, char *argv[])
             get_object_type(objects_src_sphere[0]) != POLYGONS ) {
                 fprintf(stderr, "File %s must contain 1 polygons object.\n",
                         sphere_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -101,7 +101,7 @@ main(int argc, char *argv[])
 
                 if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
-    	               return(1);
+    	               exit(EXIT_FAILURE);
                 }
 
         }
@@ -186,5 +186,5 @@ main(int argc, char *argv[])
         }
         
         FREE(new_points);
-        return(0);
+        return(EXIT_SUCCESS);
 }

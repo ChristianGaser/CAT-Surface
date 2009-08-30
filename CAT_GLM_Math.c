@@ -26,7 +26,7 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &output_file) || (argc < 3)) {
                 printf("Usage: %s  output.txt file1 +|- file2 +|- file3 ..\n",
                       argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         counter = 0;
@@ -56,7 +56,7 @@ main(int argc, char *argv[])
                                                  &values ) != OK) {
                                 fprintf(stderr, "Error reading file %s\n",
                                         infiles[i]);
-                                return(1);
+                                exit(EXIT_FAILURE);
                         }
                         if (counter == 0) {
                                 ALLOC(result, n_values);
@@ -73,7 +73,7 @@ main(int argc, char *argv[])
                         } else {
                                 if (prev_n_values != n_values) {
                                         fprintf(stderr, "Wrong number of values in %s: %d instead of %d\n", file, n_values, prev_n_values);
-                                        return(1);
+                                        exit(EXIT_FAILURE);
                                 }
                                 for (j = 0; j < n_values; j++) {
                                         if (plus)
@@ -92,5 +92,5 @@ main(int argc, char *argv[])
         output_values_any_format(output_file, n_values, result);
 
         FREE(result);
-        return(0);
+        return(EXIT_SUCCESS);
 }

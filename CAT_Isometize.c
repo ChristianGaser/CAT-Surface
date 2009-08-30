@@ -51,7 +51,7 @@ main(int argc, char** argv)
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -59,18 +59,18 @@ main(int argc, char** argv)
             !get_string_argument(NULL, &cmap_file) ||
             !get_string_argument(NULL, &output_file)) {
                 fprintf(stderr, "\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(input_file, &format, &n_objects,
                                       &objects) != OK) {
                 printf("Error reading input file\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Input file must contain one polygon object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -79,12 +79,12 @@ main(int argc, char** argv)
         if (input_graphics_any_format(cmap_file, &format, &n_objects,
                                       &objects) != OK) {
                 printf("Error reading conformal map file\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Conformal map file must contain one polygon object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         map = get_polygons_ptr(objects[0]);
@@ -93,7 +93,7 @@ main(int argc, char** argv)
         if (polygons->n_points != map->n_points
             || polygons->n_items != map->n_items) {
                 printf("Input mesh and conformal map mesh do not match.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         brain = getmetricdata(polygons);
@@ -131,5 +131,5 @@ main(int argc, char** argv)
 
         delete_object_list(n_objects, objects);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

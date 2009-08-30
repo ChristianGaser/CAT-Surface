@@ -682,7 +682,7 @@ main(int argc, char** argv)
                 fprintf(stderr, "map of the mesh specified in\ninfile.obj.  ");
                 fprintf(stderr, "Results are saved in outfile.obj.\n\n");
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -692,12 +692,12 @@ main(int argc, char** argv)
         if (input_graphics_any_format(input_file, &format,
                                       &n_objects, &objects) != OK) {
                 printf("Error reading input file\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Input file must contain one polygon object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -711,4 +711,5 @@ main(int argc, char** argv)
 
         compute_polygon_normals(polygons);
         output_graphics_any_format(output_file, format, 1, objects);
+        exit(EXIT_SUCCESS);
 }

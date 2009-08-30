@@ -170,7 +170,7 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) || ((argc != 4) && (argc != 6))) {
                 fprintf(stderr, "\nUsage2: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
                 fprintf(stderr, "Map data from a minc volume to a surface.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -179,7 +179,7 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &input_volume_file) ||
             !get_string_argument(NULL, &output_file)) {
                 fprintf(stderr, "\nUsage: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         /* get optional arguments for 2nd volume and output */ 
@@ -192,13 +192,13 @@ main(int argc, char *argv[])
         /* check minimum number of values */
         if (n_values < 2) {
                 fprintf(stderr, "Resolution of grid is too low.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         /* .. and also check maximum number of values */
         if (n_values > MAX_N_ARRAY) {
                 fprintf(stderr, "Resolution of grid is too high.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* if exp is given use exponential mapping function */
@@ -212,7 +212,7 @@ main(int argc, char *argv[])
         /* check range values */
         if (range[0] > range[1]) {
                 fprintf(stderr, "First range value is larger than second.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* initialize values for lengths (starting with origin) */
@@ -239,23 +239,23 @@ main(int argc, char *argv[])
         if (input_volume(input_volume_file, 3, File_order_dimension_names,
                          NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                          TRUE, &volume, NULL) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (output_file2 != NULL) {  
                 /* check that optional 2nd volume was used either with min or max mapping function */
                 if ((map_func != F_MAX) && (map_func != F_MIN)) {
                         fprintf(stderr, "For 2nd volume only min/max is allowed as mapping function.\n");
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
                 
                 if (input_volume(input_volume_file2, 3, File_order_dimension_names,
                          NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                          TRUE, &volume2, NULL) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
                 ALLOC(values2, polygons->n_points);
         }
 
@@ -310,5 +310,5 @@ main(int argc, char *argv[])
 
         FREE(values);
         delete_object_list(n_objects, objects);
-        return(0);
+        return(CAT_3dVol2Surf);
 }

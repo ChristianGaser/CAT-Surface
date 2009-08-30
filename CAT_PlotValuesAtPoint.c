@@ -39,25 +39,25 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &object_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects ) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (!get_real_argument(0.0, &x) ||
             !get_real_argument(0.0, &y) ||
             !get_real_argument(0.0, &z)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         n_files = argc - 5;
         
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         fill_Point(point, x, y, z);
@@ -81,7 +81,7 @@ main(int argc, char *argv[])
                 if ((infp = fopen(input_file, "r")) == 0) {
                         fprintf(stderr, "Couldn't open file %s.\n",
                                 input_file);
-                        return(0);
+                        exit(EXIT_FAILURE);
                 }
                 for (j = 0; j <  min_index+1; j++)
                         fgets(line, 256, infp);
@@ -90,5 +90,5 @@ main(int argc, char *argv[])
         }
 
         delete_object_list(n_objects, objects);
-        return(0);
+        return(EXIT_SUCCESS);
 }

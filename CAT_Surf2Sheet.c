@@ -78,14 +78,14 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (values_file == NULL) {
                 values_specified = FALSE;
         } else {
                 if (input_values_any_format(values_file, &n_values, &values) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
                 values_specified = TRUE;
         }
 
@@ -100,16 +100,16 @@ main(int argc, char *argv[])
                 if (values_specified) {
                         if (input_values_any_format(values_file, &n_values,
                                                  &values) != OK)
-                                return(1);
+                                exit(EXIT_FAILURE);
                 }
                 if (input_graphics_any_format(surface_file, &format,
                                               &n_objects, &objects) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
 
                 /* check that the surface file contains a polyhedron */
                 if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                         printf("Surface file must contain 1 polygon object.\n");
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
                 /* get a pointer to the surface */
                 polygons = get_polygons_ptr(objects[0]);
@@ -141,7 +141,7 @@ main(int argc, char *argv[])
                 data[i] = 255.0 * (data[i] - mn) / (mx - mn);
 
         if (write_pgm(output_file, data, sz_map[0], sz_map[1]) != 0)
-                return(1);
+                exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);
         free(data);
@@ -149,5 +149,5 @@ main(int argc, char *argv[])
         if (!values_specified)
                 free(values);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

@@ -113,7 +113,7 @@ main(int argc, char *argv[])
                 fprintf(stderr,"\nUsage: %s [options] object_file object_file2 output_file\n", argv[0]);
                 fprintf( stderr,"\nCalculate angular distortion between two surfaces.\n");
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -124,31 +124,31 @@ main(int argc, char *argv[])
                 fprintf(stderr,
                       "Usage: %s  object_file object_file2 output_file\n",
                       argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects) != OK) {
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(object2_file, &format,
                                       &n_objects, &objects2) != OK) {
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects2[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -157,7 +157,7 @@ main(int argc, char *argv[])
         if (polygons->n_items != polygons2->n_items ||
             polygons->n_points != polygons2->n_points) {
                 fprintf(stderr, "Input polygons don't match. Exiting.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (PerPoly) {
@@ -178,7 +178,7 @@ main(int argc, char *argv[])
                 size = GET_OBJECT_SIZE(*polygons, poly);
                 if (size != 3) {
                         printf("Mesh must only contain triangles. Exiting..\n");
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
 
                 /* walk through facet points */
@@ -212,7 +212,7 @@ main(int argc, char *argv[])
 
                 if (output_double(fp, ad_values[i]) != OK ||
                     output_newline(fp) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
 
         printf("Angular distortion: %f\n", total_distortion /
@@ -227,5 +227,5 @@ main(int argc, char *argv[])
         if (!PerPoly)
                 FREE(n_polys);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

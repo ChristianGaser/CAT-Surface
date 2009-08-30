@@ -43,16 +43,16 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &out_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
      
         if (input_graphics_any_format(sphere_file, &format,
                                       &n_objects, &sphere_objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (n_objects != 1 || get_object_type(sphere_objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         sphere = get_polygons_ptr(sphere_objects[0]);
@@ -80,5 +80,5 @@ main(int argc, char *argv[])
                                         neighbours, NULL, NULL);
         delete_object_list(1, sphere_objects);
     
-        return(0);
+        return(EXIT_SUCCESS);
 }

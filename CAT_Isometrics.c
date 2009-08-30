@@ -114,7 +114,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
         if (brain->polygons->n_points != map->n_points
             || brain->polygons->n_items != map->n_items) {
                 printf("Input mesh and spherical map mesh do not match.\n");
-                return(-1);
+                return(EXIT_FAILURE);
         }
     
         /* map the spherical map to a sphere of the same surface area */

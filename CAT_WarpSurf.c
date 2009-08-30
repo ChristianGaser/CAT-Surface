@@ -185,31 +185,31 @@ main(int argc, char *argv[])
 
         if (input_graphics_any_format(target_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         polygons_target = get_polygons_ptr(objects[0]);
 
         if (input_graphics_any_format(source_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
   
         /* read weights */
         if (weight_file != NULL) {
                 if (input_values_any_format(weight_file, &n_weights,
                                          &weights) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
 
         prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
@@ -230,7 +230,7 @@ main(int argc, char *argv[])
                 if ((fp = fopen(param_file, "r")) == 0) {
                         fprintf(stderr, "Couldn't open parameter file %s.\n",
                                 param_file);
-                        return(0);
+                        exit(EXIT_FAILURE);
                 }
     
                 loop = 0;
@@ -249,7 +249,7 @@ main(int argc, char *argv[])
 
                 if (loop == 0) {
                         fprintf(stderr, "Could not read parameter file %s. Check that each line contains 9 values\n", param_file);
-                        return(0);
+                        exit(EXIT_FAILURE);
                 }
 
         } else { /* use predefined values */
@@ -325,10 +325,10 @@ main(int argc, char *argv[])
 
         if (verbose) {
                 if (write_pgm("source.pgm", map_source, size_curv[0], size_curv[1]) != 0)
-                        return(1);
+                        exit(EXIT_FAILURE);
 
                 if (write_pgm("target.pgm", map_target, size_curv[0], size_curv[1]) != 0)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
         
         /* weight maps of target and source by the inverse std */
@@ -360,7 +360,7 @@ main(int argc, char *argv[])
                 if ((fp_flow = fopen(inflow_file, "rb")) == NULL) {
                         fprintf(stderr, "Error: Couldn't read file %s.\n",
                                 inflow_file);
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
                 fprintf(stderr,"Shift is not considered!!!\n");
                 fread(&size_curv, 2, sizeof(int), fp_flow);
@@ -397,7 +397,7 @@ main(int argc, char *argv[])
                 if ((fp_flow = fopen(outflow_file, "wb")) == NULL) {
                         fprintf(stderr, "Error: Couldn't write file %s.\n",
                                 outflow_file);
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
                 fwrite(&size_curv, 2, sizeof(int), fp_flow);
                 fwrite(&shift, 2, sizeof(int), fp_flow);
@@ -485,7 +485,7 @@ main(int argc, char *argv[])
                 }
                 if (write_pgm(pgm_file, map_warp, size_curv[0],
                               size_curv[1]) != 0)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
 
         if (output_file != NULL) {
@@ -493,7 +493,7 @@ main(int argc, char *argv[])
   
                 if (output_graphics_any_format(output_file, format, n_objects,
                                                objects) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
 
         delete_object_list(n_objects, objects);
@@ -503,5 +503,5 @@ main(int argc, char *argv[])
         free(flow);
         free(prm);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

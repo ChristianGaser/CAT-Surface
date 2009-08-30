@@ -53,16 +53,16 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &vector_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
 
         if (input_values_any_format(values_file, &n_values, &input_values) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if ((infp = fopen(vector_file, "rb")) == NULL) {
                 fprintf(stderr, "Error: Couldn't read file %s.\n", vector_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         fread(&size_map, 2, sizeof(int), infp);
@@ -151,5 +151,5 @@ main(int argc, char *argv[])
         free(flow);
         free(values);
  
-        return(0);
+        return(EXIT_SUCCESS);
 }

@@ -302,7 +302,7 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -311,29 +311,29 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
      
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &surf_objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(surf_objects[0]) != POLYGONS) {
                 fprintf(stderr,"Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         surface = get_polygons_ptr(surf_objects[0]);
     
         if (input_graphics_any_format(sphere_file, &format,
                                       &n_objects, &sphere_objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(sphere_objects[0]) != POLYGONS) {
                 fprintf(stderr,"Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         sphere = get_polygons_ptr(sphere_objects[0]);
@@ -341,14 +341,14 @@ main(int argc, char *argv[])
         /* check that surface and sphere are same size */
         if (surface->n_items != sphere->n_items) {
                 fprintf(stderr,"Surface and sphere must have same size.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         objects = fix_topology_sph(surface, sphere);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
                                        objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* clean up */
 
@@ -356,5 +356,5 @@ main(int argc, char *argv[])
         delete_object_list(1, sphere_objects);
         delete_object_list(1, objects);
     
-        return(0);    
+        return(EXIT_SUCCESS);    
 }

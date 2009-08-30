@@ -52,7 +52,7 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &output_file) ||
             !get_real_argument(0.0, &fwhm)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         values_present = get_string_argument(NULL, &values_file);
@@ -61,7 +61,7 @@ main(int argc, char *argv[])
                                       &object_list) != OK ||
             n_objects != 1 || get_object_type(object_list[0]) != POLYGONS) {
                 fprintf(stderr, "Error reading %s.\n", input_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(object_list[0]);
@@ -72,7 +72,7 @@ main(int argc, char *argv[])
 
                 if (input_values_any_format(values_file, &n_values, &values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", values_file);
-    	               return(1);
+    	               exit(EXIT_FAILURE);
                 }
 
                 smooth_pts = NULL;
@@ -138,5 +138,5 @@ main(int argc, char *argv[])
                 FREE(smooth_pts);
         }
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

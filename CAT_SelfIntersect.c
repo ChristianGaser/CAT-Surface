@@ -59,7 +59,7 @@ main(int argc, char** argv)
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 3) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -67,18 +67,18 @@ main(int argc, char** argv)
             !get_string_argument(NULL, &out_file)) {
                 fprintf(stderr, "\nUsage: %s object_file output_file\n",
                                 argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(surface_file, &format, &n_objects,
                                       &objects) != OK) {
                 printf("Error reading input file %s\n", surface_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Input file must contain one polygon object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -122,5 +122,5 @@ main(int argc, char** argv)
 
         delete_object_list(n_objects, objects);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

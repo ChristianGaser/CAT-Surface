@@ -67,7 +67,7 @@ main(int argc, char *argv[]) {
         if (!get_string_argument(NULL, &input_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(2, &total_flats);
@@ -75,16 +75,16 @@ main(int argc, char *argv[]) {
 
         if (total_flats < 1 || total_flats > 10) {
                 printf("Out of bounds value for the number of flats.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_file(input_file, &format,
                                 &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -184,7 +184,7 @@ main(int argc, char *argv[]) {
         }
 
         if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         for (i = 0; i < polygons->n_points; i++) {
                 if (output_int(fp, flatmap[i]) != OK ||
@@ -197,5 +197,5 @@ main(int argc, char *argv[]) {
         delete_object_list(n_objects, objects);
         FREE(curvatures);
     
-        return(0);
+        return(EXIT_SUCCESS);
 }

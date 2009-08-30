@@ -25,63 +25,6 @@ Usage: %s  input.obj input.txt output_prefix [which] \n\n\
 }
 
 int
-main(int argc, char *argv[])
-{
-        char             *input_file, *output_prefix, *values_file;
-        char             out_file[512];
-        int              n_objects, n_out;
-        int              i, desired_index, n_values;
-        Real             *values;
-        File_formats     format;
-        object_struct    **object_list;
-        polygons_struct  *polygons;
-
-        initialize_argument_processing(argc, argv);
-
-        if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &values_file) ||
-            !get_string_argument(NULL, &output_prefix)) {
-                usage(argv[0]);
-                return(1);
-        }
-
-        get_int_argument(-1, &desired_index);
-
-        if (input_graphics_any_format(input_file, &format, &n_objects,
-                                      &object_list) != OK ||
-            n_objects < 1 || get_object_type(object_list[0]) != POLYGONS) {
-                fprintf(stderr, "File must have a polygons structure.\n");
-                return(1);
-        }
-
-        if (input_values_any_format(values_file, &n_values, &values) != OK) {
-                fprintf(stderr, "Cannot read values.\n");
-                return(1);
-        }
-
-        polygons = get_polygons_ptr(object_list[0]);
-
-        check_polygons_neighbours_computed(polygons);
-
-        n_out = separate_polygons(polygons, desired_index, values);
-        fprintf(stderr,"%d\n",n_out);
-
-        for (i = 0; i < n_out; i++) {
-/* ===============
-*               if (n_out == 1)
-*                       sprintf(out_file, "%s", output_prefix);
-*               else
-*                       sprintf(out_file, "%s_%d.obj", output_prefix, i+1);
-*
-*               output_graphics_any_format(out_file, format, 1, &out[i]);
-=============== */
-                fprintf(stderr,"%g\n",i);
-        }
-
-        return(0);
-}
-
-int
 make_connected_components(polygons_struct *polygons, int point_classes[],
                           Real *values, int n_in_class[])
 {
@@ -165,4 +108,61 @@ separate_polygons(polygons_struct *polygons, int desired_index, Real *values)
         FREE(ordered);
 
         return(n_objects);
+}
+
+int
+main(int argc, char *argv[])
+{
+        char             *input_file, *output_prefix, *values_file;
+        char             out_file[512];
+        int              n_objects, n_out;
+        int              i, desired_index, n_values;
+        Real             *values;
+        File_formats     format;
+        object_struct    **object_list;
+        polygons_struct  *polygons;
+
+        initialize_argument_processing(argc, argv);
+
+        if (!get_string_argument(NULL, &input_file) ||
+            !get_string_argument(NULL, &values_file) ||
+            !get_string_argument(NULL, &output_prefix)) {
+                usage(argv[0]);
+                exit(EXIT_FAILURE);
+        }
+
+        get_int_argument(-1, &desired_index);
+
+        if (input_graphics_any_format(input_file, &format, &n_objects,
+                                      &object_list) != OK ||
+            n_objects < 1 || get_object_type(object_list[0]) != POLYGONS) {
+                fprintf(stderr, "File must have a polygons structure.\n");
+                exit(EXIT_FAILURE);
+        }
+
+        if (input_values_any_format(values_file, &n_values, &values) != OK) {
+                fprintf(stderr, "Cannot read values.\n");
+                exit(EXIT_FAILURE);
+        }
+
+        polygons = get_polygons_ptr(object_list[0]);
+
+        check_polygons_neighbours_computed(polygons);
+
+        n_out = separate_polygons(polygons, desired_index, values);
+        fprintf(stderr,"%d\n",n_out);
+
+        for (i = 0; i < n_out; i++) {
+/* ===============
+*               if (n_out == 1)
+*                       sprintf(out_file, "%s", output_prefix);
+*               else
+*                       sprintf(out_file, "%s_%d.obj", output_prefix, i+1);
+*
+*               output_graphics_any_format(out_file, format, 1, &out[i]);
+=============== */
+                fprintf(stderr,"%g\n",i);
+        }
+
+        return(EXIT_SUCCESS);
 }

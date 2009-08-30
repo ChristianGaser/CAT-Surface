@@ -61,7 +61,7 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &object_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(0, &curvtype);
@@ -75,11 +75,11 @@ main(int argc, char *argv[])
 
         if (input_graphics_any_format(object_file, &format, &n_objects,
                                       &objects ) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -165,5 +165,5 @@ main(int argc, char *argv[])
         delete_object_list(n_objects, objects);
         FREE(curvatures);
     
-        return(0);
+        return(EXIT_SUCCESS);
 }

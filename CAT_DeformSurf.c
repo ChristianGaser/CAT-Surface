@@ -68,7 +68,7 @@ main(int argc, char *argv[])
             get_real_argument(0.0, &max_dist) == 0 ||
             get_int_argument(1, &n_models) == 0) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         for (i = 0; i < n_models; i++) {
@@ -78,7 +78,7 @@ main(int argc, char *argv[])
                     get_real_argument(0.0, &min_curv_offset) == 0 ||
                     get_real_argument(0.0, &max_curv_offset) == 0) {
                         usage(argv[0]);
-                        return(1);
+                        exit(EXIT_FAILURE);
                 }
 
                 if (add_deformation_model(&deform.deformation_model,
@@ -86,7 +86,7 @@ main(int argc, char *argv[])
                                           model_weight, model_file,
                                           min_curv_offset,
                                           max_curv_offset) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
 
         if (get_real_argument(0.0, &deform.fractional_step) == 0 ||
@@ -103,7 +103,7 @@ main(int argc, char *argv[])
             get_real_argument(0.0, &deform.movement_threshold) == 0 ||
             get_real_argument(0.0, &deform.stop_threshold) == 0) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         set_boundary_definition(&deform.boundary_definition, min_isovalue,
@@ -115,7 +115,7 @@ main(int argc, char *argv[])
         if (input_volume(volume_file, 3, XYZ_dimension_names,
                          NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
                          &volume, (minc_input_options *) NULL) == ERROR)
-                return(1);
+                exit(EXIT_FAILURE);
 
         label_volume = (Volume) NULL;
 
@@ -141,7 +141,7 @@ main(int argc, char *argv[])
                                       &n_objects, &object_list) == ERROR ||
             n_objects != 1 || object_list[0]->object_type != POLYGONS) {
                 fprintf(stderr, "File must contain 1 polygons struct.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(object_list[0]);
@@ -150,7 +150,7 @@ main(int argc, char *argv[])
                 if (input_original_positions(&deform.deformation_model,
                                              original_file, max_dist,
                                              polygons->n_points) == ERROR)
-                        return(1);
+                        exit(EXIT_FAILURE);
         }
 
         start_time = current_cpu_seconds();
@@ -162,10 +162,10 @@ main(int argc, char *argv[])
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT,
                                        n_objects, object_list) == ERROR)
-                return(1);
+                exit(EXIT_FAILURE);
 
         if (deform.prev_movements != NULL)
                 free(deform.prev_movements);
         delete_volume(deform.deform_data.volume);
-        return(0);
+        return(EXIT_SUCCESS);
 }

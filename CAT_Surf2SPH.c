@@ -49,7 +49,7 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &SPH_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(256, &bandwidth);
@@ -57,12 +57,12 @@ main(int argc, char *argv[])
 
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* get a pointer to the surface */
@@ -70,12 +70,12 @@ main(int argc, char *argv[])
 
         if (input_graphics_any_format(sphere_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         polygons_sphere = get_polygons_ptr(objects[0]);
@@ -83,7 +83,7 @@ main(int argc, char *argv[])
         /* check that surface and sphere are same size */
         if (polygons->n_items != polygons_sphere->n_items) {
                 printf("Surface and sphere must have same size.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         rdatax   = (double *) malloc(sizeof(double) * bandwidth2*bandwidth2);
@@ -110,7 +110,7 @@ main(int argc, char *argv[])
 
         if (write_SPHxyz(SPH_file, bandwidth, rcx, rcy, rcz,
                          icx, icy, icz) != OK)
-              return(1);
+              exit(EXIT_FAILURE);
 
         /* clean up */        
         free(rcx);
@@ -125,5 +125,5 @@ main(int argc, char *argv[])
 
         fprintf(stderr, "%30s\n", "Done                          ");
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

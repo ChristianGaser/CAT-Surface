@@ -76,7 +76,7 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -85,29 +85,29 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
      
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         polygons = get_polygons_ptr(objects[0]);
     
         if (input_graphics_any_format(sphere_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
         sphere = get_polygons_ptr(objects[0]);
@@ -115,7 +115,7 @@ main(int argc, char *argv[])
         /* check that surface and sphere are same size */
         if (polygons->n_items != sphere->n_items) {
                 printf("Surface and sphere must have same size.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         /* An optional T1 image can be used for changing the radius of the
@@ -132,7 +132,7 @@ main(int argc, char *argv[])
                 if (input_volume(t1_file, 3, File_order_dimension_names,
                                  NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                                  TRUE, &volume, NULL) != OK)
-                        return(1);
+                        exit(EXIT_FAILURE);
                 t1value = (double *) malloc(sizeof(double) * sphere->n_points);
                 
                 avgt1 = 0.0;
@@ -210,7 +210,7 @@ main(int argc, char *argv[])
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
                                        &objects_output) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* clean up */
         free(rcx);
@@ -225,5 +225,5 @@ main(int argc, char *argv[])
     
         fprintf(stderr,"%30s\n","Done                          ");
 
-        return(0);    
+        return(EXIT_SUCCESS);    
 }

@@ -46,19 +46,19 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &input_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(1, &interpolate);
 
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         /* get a pointer to the surface */
@@ -67,7 +67,7 @@ main(int argc, char *argv[])
         values = (double *)malloc(sizeof(double) * polygons->n_points);
 
         if ((image = read_pgm(input_file, &size_map[0], &size_map[1])) == NULL)
-                return(1);
+                exit(EXIT_FAILURE);
         
         map_sheet2d_to_sphere(image, values, polygons, interpolate, size_map);
 
@@ -78,5 +78,5 @@ main(int argc, char *argv[])
         free(image);
         free(values);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

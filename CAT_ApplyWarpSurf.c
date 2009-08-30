@@ -41,7 +41,7 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &flow_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(surface_file, &format,
@@ -49,14 +49,14 @@ main(int argc, char *argv[])
             n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 fprintf(stderr,
                         "Surface file must contain one polygons struct\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
 
         if ((infp = fopen(flow_file, "rb")) == NULL) {
                 fprintf(stderr, "Error: Couldn't read file %s.\n", flow_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         fread(&size_map, 2, sizeof(int), infp);
@@ -77,9 +77,9 @@ main(int argc, char *argv[])
 
         if (output_graphics_any_format(output_file, format, n_objects,
                                        objects) != OK)
-                return(1);
+                exit(EXIT_FAILURE);
 
         free(flow);
 
-        return(0);
+        return(EXIT_SUCCESS);
 }

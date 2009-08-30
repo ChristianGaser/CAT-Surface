@@ -49,7 +49,7 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &input_file) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         get_int_argument(5, &stop_at);
@@ -58,7 +58,7 @@ main(int argc, char *argv[])
                                       &object_list) != OK || n_objects != 1 ||
             get_object_type(object_list[0]) != POLYGONS) {
                 fprintf(stderr, "Error reading %s.\n", input_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(object_list[0]);
@@ -150,5 +150,5 @@ main(int argc, char *argv[])
 
         compute_polygon_normals(polygons);
         output_graphics_any_format(output_file, format, 1, object_list);
-        return(0);
+        return(EXIT_SUCCESS);
 }

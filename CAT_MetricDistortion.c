@@ -178,7 +178,7 @@ main(int argc, char** argv)
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 4)) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
@@ -186,29 +186,29 @@ main(int argc, char** argv)
             !get_string_argument(NULL, &map_file) ||
             !get_string_argument(NULL, &out_file)) {
                 fprintf(stderr, "\nUsage: %s [options] object_file sphericalmap_file output_file\n", argv[0]);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(in_file, &format, &n_objects,
                                       &objects) != OK) {
                 printf("Error reading input file %s\n", in_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Input file must contain one polygon object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(map_file, &format, &n_objects,
                                       &objects2) != OK) {
                 printf("Error reading spherical map file %s\n", map_file);
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects2[0]) != POLYGONS) {
                 printf("Input file must contain one polygon object.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
@@ -217,7 +217,7 @@ main(int argc, char** argv)
         if (polygons->n_points != polygons2->n_points ||
             polygons->n_items != polygons2->n_items) {
                 printf("The input and spherical map meshes do not match.\n");
-                return(1);
+                exit(EXIT_FAILURE);
         }
     
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
@@ -355,5 +355,5 @@ main(int argc, char** argv)
                 free(geo_dist2);
         }
 
-        return(0);
+        return(EXIT_SUCCESS);
 }
