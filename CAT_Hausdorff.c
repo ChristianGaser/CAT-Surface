@@ -227,10 +227,6 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
-                exit(EXIT_FAILURE);
-        }
-
         polygons = get_polygons_ptr(objects[0]);
         polygons2 = get_polygons_ptr(objects2[0]);
 
@@ -250,12 +246,9 @@ main(int argc, char *argv[])
                 max_hd = calc_hausdorff(polygons, polygons2, hd);
         }
 
-        for (i = 0; i < polygons->n_points; i++) {
-                if (output_double(fp, hd[i]) != OK || output_newline(fp) != OK)
-                        exit(EXIT_FAILURE);
+        if (output_values_any_format(output_file, polygons->n_points, hd) != OK) {
+                exit(EXIT_FAILURE);
         }
-
-        close_file(fp);
 
         delete_object_list(n_objects, objects);
         delete_object_list(n_objects, objects2);
