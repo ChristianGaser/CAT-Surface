@@ -12,6 +12,7 @@ Status output_values_any_format(char *, int, Real *);
 Status input_graphics_any_format(char *, File_formats *, int *,
                                  object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct  **);
+Status output_txt(char *, int, Real *);
 int    input_oogl(char *, File_formats *, int *, object_struct  ***);
 int    output_oogl(char *, File_formats, int, object_struct * []);
 int    output_freesurfer(char *, File_formats, int, object_struct * []);

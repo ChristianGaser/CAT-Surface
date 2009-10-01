@@ -48,13 +48,12 @@ main(int argc, char *argv[])
         char                 *volume_file, *output_file;
         File_formats         format;
         int                  n_objects;
-        FILE                 *fp;
         Volume               volume;
         polygons_struct      *surface, *sphere;
         object_struct        **objects, **sphere_objects;
         int                  *n_neighbours, **neighbours;
         int                  p, n_defects, *defects, *holes;
-        double               t1_threshold = 0;
+        double               t1_threshold = 0, *val;
 
         /* Call ParseArgv */
         if (argc != 5) {
@@ -121,6 +120,7 @@ main(int argc, char *argv[])
                                              n_neighbours, neighbours);
 
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
+        val = (double *) malloc(sizeof(double) * sphere->n_points);
 
         if (n_defects > 0) {
                 t1_threshold = get_holes_handles(surface, sphere, defects,
@@ -129,19 +129,13 @@ main(int argc, char *argv[])
                 printf("t1 threshold = %f\n", t1_threshold);
         }
 
-
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
+        /* output function only accepts floating values */
+        for (p=0; p<surface->n_points; p++)
+                val[p] = (double)holes[p];
+                
+        if (output_values_any_format(output_file, surface->n_points, val) != OK) {
                 exit(EXIT_FAILURE);
         }
-
-        for (p = 0; p < surface->n_points; p++) {
-                if (holes[p] == 0)
-                        fprintf(fp, " 0.0\n");
-                else
-                        fprintf(fp, " %d.0\n", holes[p]);
-        }
-                
-        fclose(fp);
 
         delete_polygon_point_neighbours(sphere, n_neighbours,
                                         neighbours, NULL, NULL);
