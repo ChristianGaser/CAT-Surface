@@ -329,7 +329,8 @@ main(int argc, char** argv)
         if (Global)
                 terminate_progress_report(&progress);
 
-        output_values_any_format(out_file, polygons->n_points, metric_dist);
+        output_values_any_format(out_file, polygons->n_points,
+                                 metric_dist, TYPE_DOUBLE);
 
         total_dist = 0;
         for (p = 0; p < polygons->n_points; p++)

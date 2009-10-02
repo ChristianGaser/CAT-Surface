@@ -13,6 +13,7 @@
 
 #include "CAT_Surf.h"
 #include "CAT_Octree.h"
+#include "CAT_SurfaceIO.h"
 
 BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
 BOOLEAN point2point = 0; /* 0 - closest surface, 1 - closest mesh point */
@@ -246,7 +247,8 @@ main(int argc, char *argv[])
                 max_hd = calc_hausdorff(polygons, polygons2, hd);
         }
 
-        if (output_values_any_format(output_file, polygons->n_points, hd) != OK) {
+        if (output_values_any_format(output_file, polygons->n_points,
+                                     hd, TYPE_DOUBLE) != OK) {
                 exit(EXIT_FAILURE);
         }
 

@@ -10,6 +10,8 @@
 #include <bicpl.h>
 #include <ParseArgv.h>
 
+#include "CAT_SurfaceIO.h"
+
 /* argument defaults */
 char *outfile  = NULL;
 char *rms_file = NULL;
@@ -127,7 +129,7 @@ main(int argc, char *argv[])
                         value = sqrt(Point_x(sqr_pts[i]) + Point_y(sqr_pts[i]) + Point_z(sqr_pts[i]));
                         values[i] = value;
                 }
-                output_values_any_format(rms_file, n_pts, values);
+                output_values_any_format(rms_file, n_pts, values, TYPE_DOUBLE);
                 free(values);
                 free(sqr_pts);
         }

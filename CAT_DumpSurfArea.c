@@ -12,6 +12,7 @@
 
 #include "CAT_Blur2d.h"
 #include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
     
 int
 main(int argc, char *argv[])
@@ -54,7 +55,8 @@ main(int argc, char *argv[])
         surface_area = get_area_of_points(polygons, area_values);
     
         if (all_values)
-                output_values_any_format(output_file, polygons->n_points, area_values);
+                output_values_any_format(output_file, polygons->n_points,
+                                         area_values, TYPE_DOUBLE);
 
         printf("Total surface area: %g\n", surface_area);
 

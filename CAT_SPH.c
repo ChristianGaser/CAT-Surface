@@ -13,12 +13,12 @@
 
 // not yet working (pointers!!!)
 int
-read_SPHxyz(char *file, int *bandwidth, double *rcx, double *rcy, double *rcz,
-            double *icx, double *icy, double *icz)
+read_SPHxyz(char *file, int bandwidth, double **rcx, double **rcy, double **rcz,
+            double **icx, double **icy, double **icz)
 {
         FILE  *fp;
         char  line[256];
-        int   n_dims, i;
+        int   bw2, n_dims, i;
         int   dataformat;
 
         /* read coefficients */
@@ -28,52 +28,53 @@ read_SPHxyz(char *file, int *bandwidth, double *rcx, double *rcy, double *rcz,
         }
 
         fgets(line, 256, fp);
-        if (strncmp(line,"SPH", 3)) {
+        if (strncmp(line, "SPH", 3)) {
                 fprintf(stderr, "Wrong file format.\n");
                 return(1);
         }
         fgets(line, 256, fp);
-        sscanf(line, "%d %d %d", bandwidth, &n_dims, &dataformat);
+        sscanf(line, "%d %d %d", &bandwidth, &n_dims, &dataformat);
 
-        if (dataformat !=1) {
+        if (dataformat != 1) {
                 fprintf(stderr, "Wrong dataformat: Data should be real and not complex.\n");
                 return(1);
         }
 
-        if (n_dims !=3) {
+        if (n_dims != 3) {
                 fprintf(stderr, "Data dimension should be 3.\n");
                 return(1);
         }
 
-        int size = (*bandwidth) * (*bandwidth);
-        rcx = (double *) malloc(sizeof(double)*size);
-        rcy = (double *) malloc(sizeof(double)*size);
-        rcz = (double *) malloc(sizeof(double)*size);
-        icx = (double *) malloc(sizeof(double)*size);
-        icy = (double *) malloc(sizeof(double)*size);
-        icz = (double *) malloc(sizeof(double)*size);
+        bw2 = bandwidth * bandwidth;
 
-        if (fread(rcx, sizeof(double), size, fp) != size) {
+        *rcx = (double *) malloc(sizeof(double) * bw2);
+        *rcy = (double *) malloc(sizeof(double) * bw2);
+        *rcz = (double *) malloc(sizeof(double) * bw2);
+        *icx = (double *) malloc(sizeof(double) * bw2);
+        *icy = (double *) malloc(sizeof(double) * bw2);
+        *icz = (double *) malloc(sizeof(double) * bw2);
+
+        if (fread(*rcx, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(icx, sizeof(double), size, fp) != size) {
+        if (fread(*icx, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(rcy, sizeof(double), size, fp) != size) {
+        if (fread(*rcy, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(icy, sizeof(double), size, fp) != size) {
+        if (fread(*icy, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(rcz, sizeof(double), size, fp) != size) {
+        if (fread(*rcz, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(icz, sizeof(double), size, fp) != size) {
+        if (fread(*icz, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
@@ -86,40 +87,36 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
              double *icx, double *icy, double *icz)
 {
         FILE  *fp;
+        int bw2 = bandwidth * bandwidth;
 
         /* output coefficients */
         fp = fopen(file, "w");
-        fprintf(fp,"SPH\n%d %d %d\n",bandwidth, 3, 1);
-        if (fwrite(rcx, sizeof(double), bandwidth*bandwidth, fp) !=
-            bandwidth*bandwidth) {
+        fprintf(fp, "SPH\n%d %d %d\n", bandwidth, 3, 1);
+        if (fwrite(rcx, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error writing data.\n");
                 return(1);
         }
-        if (fwrite(icx, sizeof(double), bandwidth*bandwidth, fp) !=
-            bandwidth*bandwidth) {
+        if (fwrite(icx, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error writing data.\n");
                 return(1);
         }
-        if (fwrite(rcy, sizeof(double), bandwidth*bandwidth, fp) !=
-            bandwidth*bandwidth) {
+        if (fwrite(rcy, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error writing data.\n");
                 return(1);
         }
-        if (fwrite(icy, sizeof(double), bandwidth*bandwidth, fp) !=
-            bandwidth*bandwidth) {
+        if (fwrite(icy, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error writing data.\n");
                 return(1);
         }
-        if (fwrite(rcz, sizeof(double), bandwidth*bandwidth, fp) !=
-            bandwidth*bandwidth) {
+        if (fwrite(rcz, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error writing data.\n");
                 return(1);
         }
-        if (fwrite(icz, sizeof(double), bandwidth*bandwidth, fp) !=
-            bandwidth*bandwidth) {
+        if (fwrite(icz, sizeof(double), bw2, fp) != bw2) {
                 fprintf(stderr, "Error writing data.\n");
                 return(1);
         }
+
         return(fclose(fp));
 }
 
@@ -139,10 +136,11 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
         /* best areal distribution of triangles is achieved for 20 edges */
         n_polygons = n_triangles;
         
-        while (n_polygons != 20 && n_polygons > 8 && n_polygons % 4 == 0)
+        while (n_polygons % 4 == 0)
                 n_polygons /= 4;
 
-        if (n_polygons != 20) {
+        if (n_polygons != 5 && n_polygons != 2 &&
+            n_polygons != 6 && n_polygons != 1) { /* sizes 20, 8, 6, 4 */
                 fprintf(stderr,"Warning: Number of triangles %d", n_triangles);
                 fprintf(stderr," is not recommend because\n");
                 fprintf(stderr,"tetrahedral topology is not optimal.\n");
@@ -152,9 +150,8 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
         fill_Point(centre, 0.0, 0.0, 0.0);
         create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles, sphere);
 
-        create_polygons_bintree(sphere,
-                                round((double) sphere->n_items *
-                                      BINTREE_FACTOR));
+        create_polygons_bintree(sphere, round((double) sphere->n_items *
+                                              BINTREE_FACTOR));
 
         size_map[0] = bandwidth2;
         size_map[1] = bandwidth2;
@@ -172,31 +169,31 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
                 double xm = 1.0 - xp;
                 double ym = 1.0 - yp;
         
-                H00 = rdatax[bound(x,  y,  size_map)];
-                H01 = rdatax[bound(x,  y+1,size_map)];
-                H10 = rdatax[bound(x+1,y,  size_map)];
-                H11 = rdatax[bound(x+1,y+1,size_map)];
+                H00 = rdatax[bound(x,   y,   size_map)];
+                H01 = rdatax[bound(x,   y+1, size_map)];
+                H10 = rdatax[bound(x+1, y,   size_map)];
+                H11 = rdatax[bound(x+1, y+1, size_map)];
 
-                valuex = (ym * (xm * H00 + xp * H10) + 
-                          yp * (xm * H01 + xp * H11));
+                valuex = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
  
-                H00 = rdatay[bound(x,  y,  size_map)];
-                H01 = rdatay[bound(x,  y+1,size_map)];
-                H10 = rdatay[bound(x+1,y,  size_map)];
-                H11 = rdatay[bound(x+1,y+1,size_map)];
+                H00 = rdatay[bound(x,   y,   size_map)];
+                H01 = rdatay[bound(x,   y+1, size_map)];
+                H10 = rdatay[bound(x+1, y,   size_map)];
+                H11 = rdatay[bound(x+1, y+1, size_map)];
 
-                valuey = (ym * (xm * H00 + xp * H10) + 
-                          yp * (xm * H01 + xp * H11));
+                valuey = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
 
-                H00 = rdataz[bound(x,  y,  size_map)];
-                H01 = rdataz[bound(x,  y+1,size_map)];
-                H10 = rdataz[bound(x+1,y,  size_map)];
-                H11 = rdataz[bound(x+1,y+1,size_map)];
+                H00 = rdataz[bound(x,   y,   size_map)];
+                H01 = rdataz[bound(x,   y+1, size_map)];
+                H10 = rdataz[bound(x+1, y,   size_map)];
+                H11 = rdataz[bound(x+1, y+1, size_map)];
 
-                valuez = (ym * (xm * H00 + xp * H10) + 
-                          yp * (xm * H01 + xp * H11));
+                valuez = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
 
-                fill_Point(new_point,valuex,valuey,valuez);
+                fill_Point(new_point, valuex, valuey, valuez);
                 sphere->points[i] = new_point;
         }
 
@@ -224,7 +221,7 @@ shape_description(int bandwidth, double *rcx, double *rcy, double *rcz,
                   double *icx, double *icy, double *icz, double *shape_desc)
 {
 
-        int k,l,m;
+        int k, l, m;
 
         for (l = 0; l < bandwidth; l++) {
                 shape_desc[l] = 0;
@@ -430,7 +427,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                              Point_coord(scaled_sphere->points[i], j);
                 radius += sqrt(r);
         }
-        radius /= scaled_sphere->n_points;
+        radius /= scaled_sphere->n_points * 1.01;
 
         /*
          * Set centre and radius.  Make radius slightly smaller to get sure
@@ -525,7 +522,7 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
         for (p = 0; p < sphere->n_items; p++)
                 sphere->end_indices[p] = 3 * (p + 1); // all triangles
 
-        // north pole
+        /* north pole */
         p = 0;
         for (theta = 0; theta < n_theta; theta++) {
                 sphere->indices[p++] = 0;
@@ -534,7 +531,7 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
                 if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
         }
 
-        // longitudinal rows
+        /* longitudinal rows */
         for (phi = 1; phi < n_phi-1; phi++) {
                 for (theta = 0; theta < n_theta; theta++) {
                         sphere->indices[p++] = (phi-1)*n_theta + theta + 1;
@@ -550,7 +547,7 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
                 }
         }
 
-        // south pole
+        /* south pole */
         for (theta = 0; theta < n_theta; theta++) {
                 sphere->indices[p++] = (n_phi-2)*n_theta + theta + 1;
                 sphere->indices[p++] = (n_phi-2)*n_theta + theta + 2;

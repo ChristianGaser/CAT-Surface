@@ -16,6 +16,7 @@
 #include "CAT_Map2d.h"
 #include "CAT_Surf.h"
 #include "CAT_Curvature.h"
+#include "CAT_SurfaceIO.h"
   
 struct dartel_prm {
   int rtype;         /* regularization type: 0 - linear elastic energy; */
@@ -156,7 +157,7 @@ main(int argc, char *argv[])
         File_formats     format;
         FILE             *fp, *fp_flow;
         char             line[1024];
-        polygons_struct  *polygons_source, *polygons_target;
+        polygons_struct  *source, *target;
         int              x, y, i, j, it, it0, it1;
         int              n_objects, it_scratch, xy_size, n_weights;
         double           *weights;
@@ -193,7 +194,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
         /* get a pointer to the surface */
-        polygons_target = get_polygons_ptr(objects[0]);
+        target = get_polygons_ptr(objects[0]);
 
         if (input_graphics_any_format(source_file, &format,
                                       &n_objects, &objects) != OK)
@@ -239,9 +240,11 @@ main(int argc, char *argv[])
                 while (fgets(line, sizeof(line), fp)) {
                         /* check for 9 values in each line */
                         if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
-                                   &prm[loop].rtype, &prm[loop].rparam[2], &prm[loop].rparam[3],
-                                   &prm[loop].rparam[4], &prm[loop].lmreg, &prm[loop].cycles,
-                                   &prm[loop].its, &prm[loop].k, &prm[loop].code) != 9)
+                                   &prm[loop].rtype, &prm[loop].rparam[2],
+                                   &prm[loop].rparam[3], &prm[loop].rparam[4],
+                                   &prm[loop].lmreg, &prm[loop].cycles,
+                                   &prm[loop].its, &prm[loop].k,
+                                   &prm[loop].code) != 9)
                                 continue;
                         loop++;
                 }
@@ -307,7 +310,7 @@ main(int argc, char *argv[])
         }
   
         /* get a pointer to the surface */
-        polygons_source = get_polygons_ptr(objects[0]);
+        source = get_polygons_ptr(objects[0]);
   
         xy_size = size_curv[0] * size_curv[1];
 
@@ -318,16 +321,18 @@ main(int argc, char *argv[])
         map_target  = (double *) malloc(sizeof(double) * xy_size);
         map_warp    = (double *) malloc(sizeof(double) * xy_size);
 
-        map_smoothed_curvature_to_sphere(polygons_source, (double *)0,
-                                         map_source, fwhm, size_curv, curvtype);
-        map_smoothed_curvature_to_sphere(polygons_target, (double *)0,
-                                         map_target, fwhm, size_curv, curvtype);
+        map_smoothed_curvature_to_sphere(source, (double *)0, map_source, fwhm,
+                                         size_curv, curvtype);
+        map_smoothed_curvature_to_sphere(target, (double *)0, map_target, fwhm,
+                                         size_curv, curvtype);
 
         if (verbose) {
-                if (write_pgm("source.pgm", map_source, size_curv[0], size_curv[1]) != 0)
+                if (write_pgm("source.pgm", map_source,
+                              size_curv[0], size_curv[1]) != 0)
                         exit(EXIT_FAILURE);
 
-                if (write_pgm("target.pgm", map_target, size_curv[0], size_curv[1]) != 0)
+                if (write_pgm("target.pgm", map_target,
+                              size_curv[0], size_curv[1]) != 0)
                         exit(EXIT_FAILURE);
         }
         
@@ -335,8 +340,8 @@ main(int argc, char *argv[])
         if (weight_file != NULL) {
                 map_weights = (double *) malloc(sizeof(double) * xy_size);
                 map_source0 = (double *) malloc(sizeof(double) * xy_size);
-                map_smoothed_curvature_to_sphere(polygons_source, weights,
-                                                 map_weights, fwhm, size_curv, curvtype);
+                map_smoothed_curvature_to_sphere(source, weights, map_weights,
+                                                 fwhm, size_curv, curvtype);
                 for (i = 0; i < xy_size; i++) {
                         map_source0[i] = map_source[i];
                         map_weights[i] += 1.0;
@@ -362,7 +367,8 @@ main(int argc, char *argv[])
                                 inflow_file);
                         exit(EXIT_FAILURE);
                 }
-                fprintf(stderr,"Shift is not considered!!!\n");
+
+                fprintf(stderr, "Shift is not considered!!!\n");
                 fread(&size_curv, 2, sizeof(int), fp_flow);
                 fread(&shift, 2, sizeof(int), fp_flow);
                 fread(inflow, xy_size*2, sizeof(double), fp_flow);
@@ -375,7 +381,8 @@ main(int argc, char *argv[])
         }
 
         for (it = 0, it0 = 0; it0 < loop; it0++) {
-                it_scratch = dartel_scratchsize((int *)size_curv, prm[it0].code);
+                it_scratch = dartel_scratchsize((int *)size_curv,
+                                                prm[it0].code);
                 scratch = (double *) malloc(sizeof(double) * it_scratch);
 
                 for (it1 = 0; it1 < prm[it0].its; it1++) {
@@ -418,12 +425,13 @@ main(int argc, char *argv[])
                 }
 
                 values = (double *) malloc(sizeof(double) *
-                                           polygons_source->n_points);
+                                           source->n_points);
 
-                map_sheet2d_to_sphere(jd1, values, polygons_source,
+                map_sheet2d_to_sphere(jd1, values, source,
                                       1, size_curv);
 
-                output_values_any_format(jacdet_file, polygons_source->n_points, values);
+                output_values_any_format(jacdet_file, source->n_points,
+                                         values, TYPE_DOUBLE);
 
                 free(values);
                 free(jd);
@@ -448,12 +456,12 @@ main(int argc, char *argv[])
                 }
                 
                 values = (double *) malloc(sizeof(double) *
-                                           polygons_source->n_points);
+                                           source->n_points);
 
-                map_sheet2d_to_sphere(deform, values, polygons_source,
-                                      1, size_curv);
+                map_sheet2d_to_sphere(deform, values, source, 1, size_curv);
 
-                output_values_any_format(deform_file, polygons_source->n_points, values);
+                output_values_any_format(deform_file, source->n_points,
+                                         values, TYPE_DOUBLE);
 
                 free(values);
                 free(deform);
@@ -489,7 +497,7 @@ main(int argc, char *argv[])
         }
 
         if (output_file != NULL) {
-                apply_warp(polygons_source, flow, size_curv, shift);  
+                apply_warp(source, flow, size_curv, shift);  
   
                 if (output_graphics_any_format(output_file, format, n_objects,
                                                objects) != OK)

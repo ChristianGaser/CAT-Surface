@@ -18,6 +18,7 @@
 #include <bicpl.h>
 
 #include "CAT_Blur2d.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -126,7 +127,8 @@ main(int argc, char *argv[])
         terminate_progress_report(&progress);
 
         if (values_present) {
-                output_values_any_format(output_file, polygons->n_points, smooth_values);
+                output_values_any_format(output_file, polygons->n_points,
+                                         smooth_values, TYPE_REAL);
                 FREE(smooth_values);
                 FREE(values);
         } else {

@@ -16,8 +16,8 @@
 
 #define BINTREE_FACTOR   0.5
 
-int read_SPHxyz(char *, int *, double *, double *, double *, double *,
-                double *, double *);
+int read_SPHxyz(char *, int, double **, double **, double **, double **,
+                double **, double **);
 int write_SPHxyz(char *, int, double *, double *, double *, double *,
                  double *, double *);
 

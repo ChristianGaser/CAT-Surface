@@ -15,6 +15,7 @@
 #include "CAT_Map2d.h"
 #include "CAT_Blur2d.h"
 #include "CAT_Intersect.h"
+#include "CAT_SurfaceIO.h"
 
 /* argument defaults */
 char *t1_file = NULL;
@@ -53,7 +54,7 @@ main(int argc, char *argv[])
         object_struct        **objects, **sphere_objects;
         int                  *n_neighbours, **neighbours;
         int                  p, n_defects, *defects, *holes;
-        double               t1_threshold = 0, *val;
+        double               t1_threshold = 0;
 
         /* Call ParseArgv */
         if (argc != 5) {
@@ -120,7 +121,6 @@ main(int argc, char *argv[])
                                              n_neighbours, neighbours);
 
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
-        val = (double *) malloc(sizeof(double) * sphere->n_points);
 
         if (n_defects > 0) {
                 t1_threshold = get_holes_handles(surface, sphere, defects,
@@ -129,11 +129,8 @@ main(int argc, char *argv[])
                 printf("t1 threshold = %f\n", t1_threshold);
         }
 
-        /* output function only accepts floating values */
-        for (p=0; p<surface->n_points; p++)
-                val[p] = (double)holes[p];
-                
-        if (output_values_any_format(output_file, surface->n_points, val) != OK) {
+        if (output_values_any_format(output_file, surface->n_points,
+                                     holes, TYPE_INTEGER) != OK) {
                 exit(EXIT_FAILURE);
         }
 

@@ -12,6 +12,7 @@
 
 #include "CAT_Map2d.h"
 #include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 #define BINTREE_FACTOR   0.5
         
@@ -31,7 +32,7 @@ main(int argc, char *argv[])
         char                 *output_file, *vector_file, *values_file;
         FILE                 *infp;
         File_formats         format;
-        polygons_struct      unit_sphere;
+        polygons_struct      *unit_sphere;
         int                  i, j, x, y;
         int                  degree, poly, size, ind, n_done;
         int                  n_values;
@@ -82,13 +83,13 @@ main(int argc, char *argv[])
         fill_Point(centre, 0.0, 0.0, 0.0);
 
         create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0,
-                                  2*(n_values-2), &unit_sphere);
+                                  2*(n_values-2), unit_sphere);
 
-        create_polygons_bintree(&unit_sphere,
-                                round((double) unit_sphere.n_items *
+        create_polygons_bintree(unit_sphere,
+                                round((double) unit_sphere->n_items *
                                       BINTREE_FACTOR));
 
-        values = (double *)malloc(sizeof(double)*unit_sphere.n_points);
+        values = (double *) malloc(sizeof(double) * unit_sphere->n_points);
     
         initialize_progress_report(&progress, FALSE, size_map[0],
                                    "Mapping to sheet");
@@ -98,12 +99,12 @@ main(int argc, char *argv[])
         inflow_x = (double)size_map[0] - 1.0;
         inflow_y = (double)size_map[1] - 1.0;
 
-        initialize_progress_report(&progress, FALSE, unit_sphere.n_points,
+        initialize_progress_report(&progress, FALSE, unit_sphere->n_points,
                                    "Mapping to sphere");
 	
         /* remap to sphere */
-        for (i = 0; i < unit_sphere.n_points; i++ ) {
-                point_to_uv(&unit_sphere.points[i], &u, &v);
+        for (i = 0; i < unit_sphere->n_points; i++ ) {
+                point_to_uv(&unit_sphere->points[i], &u, &v);
         
                 indx = u*inflow_x;
     	        indy = v*inflow_y;    
@@ -124,18 +125,18 @@ main(int argc, char *argv[])
 	
                 uv_to_point(u, v, &unit_point);
 
-                poly = find_closest_polygon_point(&unit_point, &unit_sphere,
+                poly = find_closest_polygon_point(&unit_point, unit_sphere,
                                                   &on_sphere_point);
       
-                size = get_polygon_points(&unit_sphere, poly, poly_points);
+                size = get_polygon_points(unit_sphere, poly, poly_points);
 
                 get_polygon_interpolation_weights(&on_sphere_point, size,
                                                   poly_points, weights);
 
                 value = 0.0;
                 for (j = 0; j < size; j++) {
-                        ind = unit_sphere.indices[
-                              POINT_INDEX(unit_sphere.end_indices,poly,j)];
+                        ind = unit_sphere->indices[
+                              POINT_INDEX(unit_sphere->end_indices,poly,j)];
                         value += weights[j] * input_values[ind];
                 }
                 values[i] = value;
@@ -143,11 +144,12 @@ main(int argc, char *argv[])
                 update_progress_report(&progress, i + 1);
         }
 
-        output_values_any_format(output_file, unit_sphere.n_points, values);
+        output_values_any_format(output_file, unit_sphere->n_points,
+                                 values, TYPE_DOUBLE);
 
         terminate_progress_report(&progress);
 
-        delete_polygons(&unit_sphere);
+        delete_polygons(unit_sphere);
         free(flow);
         free(values);
  

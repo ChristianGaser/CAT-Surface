@@ -11,6 +11,7 @@
 
 #include "CAT_Blur2d.h"
 #include "CAT_Curvature.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -57,7 +58,8 @@ main(int argc, char *argv[])
         ALLOC(sharpness, polygons->n_points);
         compute_local_sharpness(polygons, n_neighbours, neighbours, sharpness);
 
-        output_values_any_format(output_file, polygons->n_points, sharpness);
+        output_values_any_format(output_file, polygons->n_points,
+                                 sharpness, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);
         FREE(sharpness);

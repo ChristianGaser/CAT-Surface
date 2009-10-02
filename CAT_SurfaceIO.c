@@ -30,38 +30,40 @@ input_values_any_format(char *file, int *n_values, Real **values)
 }
 
 Status
-output_values_any_format(char *file, int n_values, Real *values)
+output_values_any_format(char *file, int n_values, void *values, int flag)
 {
         Status status;
+        Real *buffer;
+        double *d;
+        int i, *r;
+
+        /* a workaround for Real stupidity */
+        if (flag == TYPE_REAL) {
+                buffer = (Real *) values;
+        } else {
+                buffer = (Real *) malloc(sizeof(Real) * n_values);
+
+                if (flag == TYPE_DOUBLE) {
+                        d = (double *) values;
+                        for (i = 0; i < n_values; i++)
+                                buffer[i] = (Real) d[i];
+                } else if (flag == TYPE_INTEGER) {
+                        r = (int *) values;
+                        for (i = 0; i < n_values; i++)
+                                buffer[i] = (Real) r[i];
+                }
+        }
 
         if (filename_extension_matches(file, "txt"))
-                status = output_txt(file, n_values, values);
-        else 
-                status = output_freesurfer_curv(file, n_values, values);        
+                status = output_texture_values(file, ASCII_FORMAT, n_values,
+                                               buffer);
+        else
+                status = output_freesurfer_curv(file, n_values, buffer);
+
+        if (flag != TYPE_REAL)
+                free(buffer);
+
         return(status);
-}
-
-Status  
-output_txt(
-    STRING   filename,
-    int      n_values,
-    Real     values[] )
-{
-    int      i;
-    Status   status;
-    FILE     *file;
-
-    status = open_file( filename, WRITE_FILE, ASCII_FORMAT, &file );
-
-    if( status != OK )
-        return( status );
-
-    for( i=0; i<n_values; i++ )
-        fprintf(file,"%f\n",(double)values[i] );
-
-    (void) close_file( file );
-
-    return( OK );
 }
 
 Status

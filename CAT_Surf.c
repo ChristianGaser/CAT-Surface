@@ -69,11 +69,11 @@ get_surface_ratio(double r, polygons_struct *polygons)
         char     str[512];
         Point    points[MAX_POINTS_PER_POLYGON];
         
-        avol = (double*) calloc(256*256*256, sizeof(double));
+        avol = (double *) calloc(256*256*256, sizeof(double));
 
-        lf = (double*) calloc(polygons->n_points, sizeof(double));
+        lf = (double *) calloc(polygons->n_points, sizeof(double));
                 
-        for (i = 0;i < 256*256*256; i++)
+        for (i = 0; i < 256*256*256; i++)
                 avol[i] = 0.0;
 
         for (i = 0; i < polygons->n_items; i++) {
@@ -141,7 +141,7 @@ get_surface_ratio(double r, polygons_struct *polygons)
         free(avol);
         
         if (nan)
-                printf("ERROR: there are %i NaN\n",nan);
+                printf("ERROR: there are %i NaN\n", nan);
         
         return lf;
 }

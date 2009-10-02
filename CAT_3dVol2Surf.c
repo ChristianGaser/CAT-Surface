@@ -12,6 +12,8 @@
 #include <float.h>
 #include <ParseArgv.h>
 
+#include "CAT_SurfaceIO.h"
+
 #define GET_grid_POINT(result, grid_origin, normal, length) \
 { \
         (result)[X] = RPoint_x(grid_origin) + (length) * Vector_x(normal); \
@@ -301,10 +303,12 @@ main(int argc, char *argv[])
                 }
         }
 
-        output_values_any_format(output_file, polygons->n_points, values);
+        output_values_any_format(output_file, polygons->n_points,
+                                 values, TYPE_REAL);
 
         if (output_file2 != NULL) {  
-                output_values_any_format(output_file2, polygons->n_points, values2);
+                output_values_any_format(output_file2, polygons->n_points,
+                                         values2, TYPE_REAL);
                 FREE(values2);
         }
 

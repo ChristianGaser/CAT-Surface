@@ -11,6 +11,7 @@
 #include <bicpl.h>
 
 #include "Cat_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -163,7 +164,8 @@ main(int argc, char *argv[])
                         SCALE_POINT(scaled_point, poly_points[k], weights[k]);
                         ADD_POINTS(new_points[i], new_points[i], scaled_point);
                         if (values_specified)
-                                output_values[i] += weights[k] * input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
+                                output_values[i] += weights[k] *
+input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
                 }
        }
 
@@ -181,7 +183,9 @@ main(int argc, char *argv[])
                     exit(EXIT_FAILURE);
     
         if (values_specified) {
-                output_values_any_format(output_values_file, poly_dest_sphere->n_points, output_values);
+                output_values_any_format(output_values_file,
+                                         poly_dest_sphere->n_points,
+                                         output_values, TYPE_REAL);
                 FREE(input_values);
                 FREE(output_values);
         }

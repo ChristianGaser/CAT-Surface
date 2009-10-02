@@ -7,8 +7,17 @@
  *
 */
 
+#define TRIANGLE_FILE_MAGIC_NUMBER  16777214
+#define QUAD_FILE_MAGIC_NUMBER      16777215
+#define NEW_VERSION_MAGIC_NUMBER    16777215
+
+#define TYPE_REAL 0
+#define TYPE_DOUBLE 1
+#define TYPE_INTEGER 2
+#define TYPE_CHAR 3
+
 Status input_values_any_format(char *, int *, Real **);
-Status output_values_any_format(char *, int, Real *);
+Status output_values_any_format(char *, int, void *, int);
 Status input_graphics_any_format(char *, File_formats *, int *,
                                  object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct  **);

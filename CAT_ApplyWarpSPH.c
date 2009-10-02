@@ -11,6 +11,7 @@
 #include <bicpl.h>
 
 #include "Cat_Surf.h"
+#include "Cat_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -178,7 +179,8 @@ main(int argc, char *argv[])
                 }
         }
 		    
-        output_values_any_format(output_values_file, polygons->n_points, output_values2);
+        output_values_any_format(output_values_file, polygons->n_points,
+                                 output_values2, TYPE_REAL);
         FREE(input_values);
         FREE(output_values);
         FREE(output_values2);

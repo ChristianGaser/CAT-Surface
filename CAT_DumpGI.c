@@ -19,6 +19,7 @@
 
 #include "CAT_Blur2d.h"
 #include "CAT_Curvature.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -163,7 +164,8 @@ main(int argc, char *argv[])
 
         terminate_progress_report(&progress);
 
-        output_values_any_format(output_file, polygons->n_points, GI);
+        output_values_any_format(output_file, polygons->n_points,
+                                 GI, TYPE_REAL);
 
         delete_object_list(n_objects, objects);
         FREE(curvatures);

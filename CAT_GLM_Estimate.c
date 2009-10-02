@@ -11,6 +11,7 @@
 #include <time_stamp.h>
 
 #include "CAT_Pinv.h"
+#include "CAT_SurfaceIO.h"
 
 #define VERBOSE 0
 #define EPS 1e-15
@@ -273,7 +274,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 concat_to_string(&outfile, buffer);
                 for (k = 0; k < n_vals; k++) beta0[k] = beta[j][k];
     
-                output_values_any_format(outfile, n_vals, beta0);
+                output_values_any_format(outfile, n_vals, beta0, TYPE_REAL);
         }
 
         /* calculate fitted data: estimates = G*beta */
@@ -291,7 +292,7 @@ estimate(char **infiles, char *arg_string, int argc)
         }
 
         outfile = create_string("ResMS.txt");    
-        output_values_any_format(outfile, n_vals, v);
+        output_values_any_format(outfile, n_vals, v, TYPE_REAL);
 
         /* write beta and beta/ResSD for each column of design matrix */
         for (j = 0; j < n_beta; j++) {
@@ -305,7 +306,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 for (k = 0; k < n_vals; k++) {
                         result[k] = sqrt(v[k] * pinv_GG[j][j]);
                 }
-                output_values_any_format(outfile, n_vals, result);
+                output_values_any_format(outfile, n_vals, result, TYPE_REAL);
 
                 /* T-values */
                 outfile = create_string("T");
@@ -315,7 +316,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 for (k = 0; k < n_vals; k++) {
                         result[k] = beta[j][k] / (sqrt(v[k] * pinv_GG[j][j]) + EPS);
                 }
-                output_values_any_format(outfile, n_vals, result);
+                output_values_any_format(outfile, n_vals, result, TYPE_REAL);
                 FREE(result);
         }
     

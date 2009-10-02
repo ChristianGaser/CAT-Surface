@@ -13,6 +13,7 @@
 #include "CAT_SheetIO.h"
 #include "CAT_Map2d.h"
 #include "CAT_Blur2d.h"
+#include "CAT_SurfaceIO.h"
 
 #define BINTREE_FACTOR 0.5
     
@@ -64,14 +65,15 @@ main(int argc, char *argv[])
         /* get a pointer to the surface */
         polygons = get_polygons_ptr(objects[0]);
     
-        values = (double *)malloc(sizeof(double) * polygons->n_points);
+        values = (double *) malloc(sizeof(double) * polygons->n_points);
 
         if ((image = read_pgm(input_file, &size_map[0], &size_map[1])) == NULL)
                 exit(EXIT_FAILURE);
         
         map_sheet2d_to_sphere(image, values, polygons, interpolate, size_map);
 
-        output_values_any_format(output_file, polygons->n_points, values);
+        output_values_any_format(output_file, polygons->n_points,
+                                 values, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);
 

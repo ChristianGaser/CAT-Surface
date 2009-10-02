@@ -10,6 +10,8 @@
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 
+#include "CAT_SurfaceIO.h"
+
 int
 main(int argc, char *argv[])
 {
@@ -89,7 +91,7 @@ main(int argc, char *argv[])
                 }
         }
 
-        output_values_any_format(output_file, n_values, result);
+        output_values_any_format(output_file, n_values, result, TYPE_REAL);
 
         FREE(result);
         return(EXIT_SUCCESS);

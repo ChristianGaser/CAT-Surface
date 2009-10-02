@@ -11,6 +11,7 @@
 #include <bicpl.h>
 
 #include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -29,7 +30,7 @@ main(int argc, char *argv[])
 {
         char                 *object_file, *output_file;
         File_formats         format;
-        int                  n_objects, ptidx;
+        int                  n_objects;
         object_struct        **objects;
         polygons_struct      *polygons;
         double               *area_values;
@@ -56,12 +57,13 @@ main(int argc, char *argv[])
 
         polygons = get_polygons_ptr(objects[0]);
 
-        ALLOC(area_values, polygons->n_points);
         area_values = get_surface_ratio(radius, polygons);
     
-        output_values_any_format(output_file, polygons->n_points, area_values);
+        output_values_any_format(output_file, polygons->n_points,
+                                 area_values, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);
+        free(area_values);
 
         return(EXIT_SUCCESS);
 }

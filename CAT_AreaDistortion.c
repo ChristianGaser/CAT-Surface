@@ -12,6 +12,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 
 #define PINF  1.7976931348623157e+308 /* for doubles */
@@ -164,7 +165,7 @@ main(int argc, char *argv[])
                         ad_values[i] /= n_polys[i];
         }
 
-        output_values_any_format(output_file, n_obj, ad_values);
+        output_values_any_format(output_file, n_obj, ad_values, TYPE_DOUBLE);
         
         printf("Area distortion = %f\n", distortion / polygons->n_items);
 
