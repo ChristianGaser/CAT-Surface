@@ -102,7 +102,7 @@ areadistortion(struct metricdata *brain, polygons_struct *map)
 
 int
 smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
-       int selectflag)
+       int selectflag, double tolerance)
 {
         int                i, n, it, p;
         Point              pts[3], *oldpts, *newpts, newcenter;
@@ -230,7 +230,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
                                 it -= stepsize;
                                 stepsize = round(stepsize / 2);
                                 if (stepsize == 0) break;
-                        } else if (metric - newmetric < 1e-9) {
+                        } else if (metric - newmetric < tolerance) {
                                 metric = newmetric;
                                 newpts = oldpts;
                                 fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
@@ -256,7 +256,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
 
 int
 distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
-               int selectflag)
+               int selectflag, double tolerance)
 {
         int                i, n, it, p;
         Point              pts[3], *oldpts, *newpts, newcenter;
@@ -385,7 +385,7 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
                                 it -= stepsize;
                                 stepsize = round(stepsize / 2);
                                 if (stepsize == 0) break;
-                        } else if (metric - newmetric < 1e-5) {
+                        } else if (metric - newmetric < tolerance) {
                                 metric = newmetric;
                                 newpts = oldpts;
                                 fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
@@ -411,7 +411,7 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
 
 int
 stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
-        int selectflag, int largeonly)
+        int selectflag, int largeonly, double tolerance)
 {
         int                i, n, it, p;
         Point              pts[3], *oldpts, *newpts, npt, dir, newcenter;
@@ -581,7 +581,7 @@ stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
                                 it -= stepsize;
                                 stepsize = round(stepsize / 2);
                                 if (stepsize == 0) break;
-                        } else if (metric - newmetric < 1e-9) {
+                        } else if (metric - newmetric < tolerance) {
                                 metric = newmetric;
                                 newpts = oldpts;
                                 fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);

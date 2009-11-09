@@ -15,6 +15,8 @@
 #define PRE_ONLY     1
 #define POST_ONLY    2
 
+#define TOLERANCE    0.001
+
 BOOLEAN prepostflag = PRE_AND_POST; /* default: both pre + post processing */
 
 static ArgvInfo argTable[] = {
@@ -99,7 +101,7 @@ main(int argc, char** argv)
         brain = getmetricdata(polygons);
 
         if (prepostflag != POST_ONLY) {
-                distortcorrect(brain, map, 100000, SELECT_OFF);
+                distortcorrect(brain, map, 100000, SELECT_OFF, TOLERANCE);
         }
 
         if (prepostflag != PRE_ONLY) {
@@ -107,22 +109,27 @@ main(int argc, char** argv)
                 do {
                         iters = 0;
                         count++;
-                        iters += smooth(brain, map, 1000, SELECT_ON);
-                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY);
+                        iters += smooth(brain, map, 1000, SELECT_ON, TOLERANCE);
+                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY,
+                                TOLERANCE);
                 } while (iters > 0 && count < 5);
 
                 do {
                         iters = 0;
                         count++;
-                        iters += stretch(brain, map, 1000, SELECT_OFF, LARGE_ONLY);
-                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY);
+                        iters += stretch(brain, map, 1000, SELECT_OFF,
+                                         LARGE_ONLY, TOLERANCE);
+                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY,
+                                TOLERANCE);
                 } while (iters > 0 && count < 10);
 
                 do {
                         iters = 0;
                         count++;
-                        iters += distortcorrect(brain, map, 1000, SELECT_ON);
-                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY);
+                        iters += distortcorrect(brain, map, 1000, SELECT_ON,
+                                                TOLERANCE);
+                        stretch(brain, map, 1000, SELECT_ON, ~LARGE_ONLY,
+                                TOLERANCE);
                 } while (iters > 0 && count < 15);
         }
 
