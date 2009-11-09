@@ -16,19 +16,8 @@
 #include "CAT_Blur2d.h"
 #include "CAT_Intersect.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Defect.h"
 
-/* argument defaults */
-char *t1_file = NULL;
-
-Volume volume;
-
-/* the argument table */
-ArgvInfo argTable[] = {
-  {"-t1", ARGV_STRING, (char *) 1,
-    (char *) &t1_file,
-    "Optional T1-image for post-harmonic topology correction."},
-  { NULL, ARGV_END, NULL, NULL, NULL }
-};
 
 void
 usage(char *executable)
@@ -39,8 +28,6 @@ Find and label the holes (=1), handles (=2), and large errors (=3) of a surface.
 
        fprintf(stderr, usage_str, executable);
 }
-
-
 
 int
 main(int argc, char *argv[])
@@ -53,7 +40,7 @@ main(int argc, char *argv[])
         polygons_struct      *surface, *sphere;
         object_struct        **objects, **sphere_objects;
         int                  *n_neighbours, **neighbours;
-        int                  p, n_defects, *defects, *holes;
+        int                  p, n_defects, *defects, *polydefects, *holes;
         double               t1_threshold = 0;
 
         /* Call ParseArgv */
@@ -117,8 +104,10 @@ main(int argc, char *argv[])
 
         /* find defects in original uncorrected surface */
         defects = (int *) malloc(sizeof(int) * sphere->n_points);
+        polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
         n_defects = find_topological_defects(surface, sphere, defects,
-                                             n_neighbours, neighbours);
+                                             polydefects, n_neighbours,
+                                             neighbours);
 
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
 

@@ -175,19 +175,19 @@ main(int argc, char *argv[])
         icy    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
         icz    = (double *) malloc(sizeof(double) * bandwidth * bandwidth);
 
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Sample spherical coordinates..");
+        fprintf(stderr,"Samp SPH coords..");
         get_equally_sampled_coords_of_polygon(polygons, sphere, bandwidth,
                                               rdatax, rdatay, rdataz);
 
         /* dataformat indicates real data */
         dataformat = 1;
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Forward SPH transform...      ");
+        fprintf(stderr,"Fwd SPH xform..");
         get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, rcz, icz);
 
         if (bandwidth_limited > 0 && bandwidth_limited < bandwidth) {
-                fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
+                fprintf(stderr,"Limit BW..");
                 butterworth_filter(bandwidth, bandwidth_limited, rcx, rcx);
                 butterworth_filter(bandwidth, bandwidth_limited, rcy, rcy);
                 butterworth_filter(bandwidth, bandwidth_limited, rcz, rcz);
@@ -196,7 +196,7 @@ main(int argc, char *argv[])
                 butterworth_filter(bandwidth, bandwidth_limited, icz, icz);
         }
     
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");
+        fprintf(stderr,"Inv SPH xform..");
         get_realdata_from_sph_coeffs(rdatax, bandwidth, dataformat, rcx, icx);
         get_realdata_from_sph_coeffs(rdatay, bandwidth, dataformat, rcy, icy);
         get_realdata_from_sph_coeffs(rdataz, bandwidth, dataformat, rcz, icz);
@@ -204,7 +204,7 @@ main(int argc, char *argv[])
         objects_output = create_object(POLYGONS);
         polygons_output = get_polygons_ptr(objects_output);
 
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
+        fprintf(stderr,"Resamp surf..");
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
                                polygons_output, n_triangles, bandwidth);
 
@@ -223,7 +223,7 @@ main(int argc, char *argv[])
         free(rdatay);
         free(rdataz);
     
-        fprintf(stderr,"%30s\n","Done                          ");
+        fprintf(stderr,"Done\n");
 
         return(EXIT_SUCCESS);    
 }

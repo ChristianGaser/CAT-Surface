@@ -28,6 +28,7 @@ void replaceSPH(int, int, double *, double *);
 
 void shape_description(int, double *, double *, double *, double *, double *, 
                        double *, double *);
+void butterworth_filter(int, int, double *, double *);
 void limit_bandwidth(int, int, double *, double *);
 
 void get_sph_coeffs_of_realdata(double *, int, int, double *, double *);
@@ -36,6 +37,8 @@ void get_realdata_from_sph_coeffs(double *, int, int, double *, double *);
 void get_equally_sampled_coords_of_polygon(polygons_struct *,
                                            polygons_struct *, int, double [],
                                            double [], double []);
+void get_equally_sampled_coords_holes(polygons_struct *, polygons_struct *,
+                                      int *, int, int *, int, double [],
+                                      double [], double []);
 
 object_struct ** create_equally_sampled_unit_sphere(int, int);
-

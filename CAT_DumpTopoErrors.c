@@ -15,37 +15,67 @@
 #include "CAT_Blur2d.h"
 #include "CAT_SPH.h"
 #include "CAT_Octree.h"
+#include "CAT_SurfaceIO.h"
+#include "CAT_Patch.h"
+
+BOOLEAN dump_patch = FALSE; /* dump patches of defects */
+
+/* the argument table */
+ArgvInfo argTable[] = {
+  { "-patch", ARGV_CONSTANT, (char *) TRUE,
+    (char *) &dump_patch,
+    "Dump defect patches." },
+  { NULL, ARGV_END, NULL, NULL, NULL }
+};
 
 
 void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] sphere_file output_file\n\n\
+"\nUsage: %s [options] surface_file sphere_file output_file\n\n\
     Locate and mark topological errors using a spherical mapping.  Output is a text file.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
 
+
 int
 main(int argc, char *argv[])
 {
         int                  *n_neighbours, **neighbours;
-        char                 *sphere_file, *out_file;
+        char                 *surface_file, *sphere_file, *out_file;
         File_formats         format;
-        int                  p, n_defects, *defects, n_objects;
-        polygons_struct      *sphere;
-        object_struct        **sphere_objects;
-        FILE                 *fp;
+        int                  p, n_objects, n_defects, *defects, *polydefects;
+        polygons_struct      *surface, *sphere, *patch;
+        object_struct        **objects, **sphere_objects, **patch_objects;
+        char                 str[80];
+
+        if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
+                usage(argv[0]);
+                fprintf(stderr, "       %s -help\n\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &sphere_file) ||
+        if (!get_string_argument(NULL, &surface_file) ||
+            !get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &out_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
      
+        if (input_graphics_any_format(surface_file, &format,
+                                      &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("Surface file must contain 1 polygons object.\n");
+                exit(EXIT_FAILURE);
+        }
+        surface = get_polygons_ptr(objects[0]);
+
         if (input_graphics_any_format(sphere_file, &format,
                                       &n_objects, &sphere_objects) != OK)
                 exit(EXIT_FAILURE);
@@ -54,30 +84,48 @@ main(int argc, char *argv[])
                 printf("Surface file must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
         }
-        /* get a pointer to the surface */
+
         sphere = get_polygons_ptr(sphere_objects[0]);
+
+        if (surface->n_items != sphere->n_items) {
+                fprintf(stderr,"Surface and sphere must have same size.\n");
+                exit(EXIT_FAILURE);
+        }
 
         create_polygon_point_neighbours(sphere, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
     
         defects = (int *) malloc(sizeof(int) * sphere->n_points);
-        n_defects = find_topological_defects(sphere, defects,
-                                             n_neighbours, neighbours);
-        expand_defects(sphere, defects, 0, 2, n_neighbours, neighbours);
+        polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
+        n_defects = find_topological_defects(surface, sphere, defects,
+                                             polydefects, n_neighbours,
+                                             neighbours);
 
         printf("%d errors found\n", n_defects);
 
-        if (open_file(out_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                exit(0);
+        output_values_any_format(out_file, sphere->n_points,
+                                 defects, TYPE_INTEGER);
 
-        for (p = 0; p < sphere->n_points; p++)
-                fprintf(fp, " %d.0\n", defects[p]);
-        fclose(fp);
+        if (dump_patch == TRUE) {
+                for (p = 1; p <= n_defects; p++) {
+                        sprintf(str, "patch_%d.obj\0", p);
+                        patch_objects = extract_patch_points(surface,
+                                                             defects, p);
+                        patch = get_polygons_ptr(objects[0]);
+                        if (output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                                      patch_objects) != OK)
+                                    exit(EXIT_FAILURE);
+                        delete_object_list(1, patch_objects);
+                }
+        }
 
         /* clean up */
         free(defects);
+        free(polydefects);
+
         delete_polygon_point_neighbours(sphere, n_neighbours,
                                         neighbours, NULL, NULL);
+
         delete_object_list(1, sphere_objects);
     
         return(EXIT_SUCCESS);

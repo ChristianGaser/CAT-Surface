@@ -7,9 +7,14 @@
  *
  */
 
-#include "Cat_SPH.h"
+#include <volume_io/geometry.h>
+
+#include "CAT_SPH.h"
+#include "CAT_Intersect.h"
+#include "CAT_Defect.h"
 
 #define _PI 3.14159265358979323846264338327510
+
 
 // not yet working (pointers!!!)
 int
@@ -120,6 +125,7 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
         return(fclose(fp));
 }
 
+
 void
 sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
                        polygons_struct *sphere, int n_triangles,
@@ -149,6 +155,7 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
     
         fill_Point(centre, 0.0, 0.0, 0.0);
         create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles, sphere);
+        compute_polygon_normals(sphere);
 
         create_polygons_bintree(sphere, round((double) sphere->n_items *
                                               BINTREE_FACTOR));
@@ -200,6 +207,7 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
         compute_polygon_normals(sphere);
 }
 
+
 void
 replaceSPH(int bandwidth, int bandwidth_limited,
            double *coeffs, double *coeffs_filter)
@@ -237,6 +245,7 @@ shape_description(int bandwidth, double *rcx, double *rcy, double *rcz,
         }
 }
 
+
 void
 butterworth_filter(int bandwidth, int bandwidth_limited,
                    double *coeffs_old, double *coeffs_new)
@@ -262,6 +271,8 @@ butterworth_filter(int bandwidth, int bandwidth_limited,
         free(coeffs);
 }
 
+
+/* boxcar filter */
 void
 limit_bandwidth(int bandwidth, int bandwidth_limited,
                 double *coeffs_old, double *coeffs_new)
@@ -277,6 +288,7 @@ limit_bandwidth(int bandwidth, int bandwidth_limited,
                 }
         }
 }
+
 
 void
 get_sph_coeffs_of_realdata(double *rdata, int bandwidth, int dataformat,
@@ -339,6 +351,7 @@ get_sph_coeffs_of_realdata(double *rdata, int bandwidth, int dataformat,
         free(weights);
 }
 
+
 void
 get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
                              double *rc, double *ic)
@@ -394,6 +407,7 @@ get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
         free(workspace);
         free(weights);
 }
+
 
 void
 get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
@@ -483,6 +497,115 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
 
         }
 }
+
+
+void
+get_equally_sampled_coords_holes(polygons_struct *polygons,
+                                 polygons_struct *sphere, int *defects,
+                                 int n_defects, int *holes, int bandwidth,
+                                 double xcoord[], double ycoord[],
+                                 double zcoord[])
+{
+        int i, j, x, y, *bisected;
+        double value, u, v, r;
+        Point unit_point, on_sphere_point, new_point;
+        Point poly_points[1000], poly_points_src[1000], scaled_point;
+        int poly, size, ind, bandwidth2;
+        double weights[1000], centre[3], bounds[6], radius;
+        object_struct *objects;
+        polygons_struct *scaled_sphere;
+
+        objects = create_object(POLYGONS);
+        scaled_sphere = get_polygons_ptr(objects);
+        initialize_polygons(scaled_sphere, WHITE, NULL);
+        copy_polygons(sphere, scaled_sphere);
+
+        /* Find centre of sphere based on bounds (to correct for shiftings) */
+        get_bounds(scaled_sphere, bounds);
+        for (j = 0; j < 3; j++)
+                centre[j] = bounds[2*j] + bounds[2*j+1];
+
+        radius = 0.0;
+        for (i = 0; i < scaled_sphere->n_points; i++) {
+                r = 0.0;
+                for (j = 0; j < 3; j++) 
+                        r += Point_coord(scaled_sphere->points[i], j) *
+                             Point_coord(scaled_sphere->points[i], j);
+                radius += sqrt(r);
+        }
+        radius /= scaled_sphere->n_points;
+
+        /* cut holes and handles in half, saving the correct half 
+         * for cutting/filling */
+        bisected = (int *) malloc(sizeof(int) * polygons->n_points);
+        bisect_defects(polygons, defects, n_defects, holes, bisected);
+
+        /* Set centre and radius */
+        for (i = 0; i < scaled_sphere->n_points; i++) {
+                switch (bisected[i]) {
+                        case VENTRICLE: /* ventricle, fill */
+                                r = radius * 0.99;
+                                break;
+                        case LARGE_DEFECT: /* large defect, cut */
+                        case HANDLE: /* handle, cut */
+                                r = radius * 1.01;
+                                break;
+                        case HOLE: /* hole, fill */
+                                r = radius * 0.95;
+                                break;
+                        default:
+                                r = radius;
+                }
+
+                for (j = 0; j < 3; j++) {
+                        Point_coord(scaled_sphere->points[i], j) -= centre[j];
+                        Point_coord(scaled_sphere->points[i], j) /= r;
+                }
+        }
+
+        create_polygons_bintree(scaled_sphere,
+                                round((double) scaled_sphere->n_items *
+                                      BINTREE_FACTOR));
+        bandwidth2 = bandwidth*2;
+    
+        for (x = 0; x < bandwidth2; x++) {
+                for (y = 0; y < bandwidth2; y++) {
+                        u = ((double) x) / (double) (bandwidth2 - 1);
+                        v = ((double) y) / (double) (bandwidth2 - 1);
+  
+                        uv_to_point(u, v, &unit_point);
+            
+                        poly = find_closest_polygon_point(&unit_point,
+                                                          scaled_sphere,
+                                                          &on_sphere_point);
+
+                        size = get_polygon_points(scaled_sphere, poly,
+                                                  poly_points_src);
+
+                        get_polygon_interpolation_weights(&on_sphere_point,
+                                                          size,
+                                                          poly_points_src,
+                                                          weights);
+
+                        if (get_polygon_points(polygons, poly,
+                                               poly_points) != size)
+                                handle_internal_error("map_point_between_polygons");
+                
+                        fill_Point(new_point, 0.0, 0.0, 0.0);
+                        for (i = 0; i < size; i++) {
+                                SCALE_POINT(scaled_point, poly_points[i],
+                                            weights[i]);
+                                ADD_POINTS(new_point, new_point, scaled_point);
+                        }
+                        xcoord[x + (bandwidth2*y)] = Point_x(new_point);
+                        ycoord[x + (bandwidth2*y)] = Point_y(new_point);
+                        zcoord[x + (bandwidth2*y)] = Point_z(new_point);
+                }
+
+        }
+        free(bisected);
+}
+
 
 object_struct **
 create_equally_sampled_unit_sphere(int n_theta, int n_phi)

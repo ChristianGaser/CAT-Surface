@@ -15,8 +15,14 @@
 void perturb_points(polygons_struct *, Point [], Real, Real, Real, int,
                     deform_data_struct *, boundary_definition_struct *,
                     deformation_model_struct *, Real, float [], deform_stats *);
+void perturb_points_points(polygons_struct *, Point [], Real, Real, Real, int,
+                           deform_data_struct *, boundary_definition_struct *,
+                           deformation_model_struct *, Real, float [],
+                           deform_stats *, int *);
 Real one_iter_polygons(polygons_struct *, deform_struct *, int);
+Real one_iter_polygons_points(polygons_struct *, deform_struct *, int, int *);
 void check_polygons_shape_integrity(polygons_struct *, Point []);
+void check_shape_integrity_points(polygons_struct *, Point [], int *);
     
 void
 deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
@@ -437,4 +443,53 @@ perturb_points(polygons_struct *polygons, Point new_points[],
         FREE(movements);
         FREE(point_done);
         FREE(curv_factors);
+}
+
+
+#define FLAG_MODIFY 0
+#define FLAG_PRESERVE 1
+
+/* only modify point if flag[point] = FLAG_MODIFY */
+void
+deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
+                       int *flag)
+{
+        int                iter, countdown, countdown2, p;
+        Real               avg_err, prev_avg_err, rate;
+        Point              *pts;
+
+        pts = (Point *) malloc(sizeof(Point) * polygons->n_points);
+        for (p = 0; p < polygons->n_points; p++)
+                pts[p] = polygons->points[p];
+
+        iter = 0;
+        prev_avg_err = 1e10;
+        countdown = 0;
+        countdown2 = 0;
+    
+        printf("\n");
+        do {
+                iter++;
+
+                avg_err = one_iter_polygons(polygons, deform_parms, iter);
+                rate = (prev_avg_err - avg_err) / (prev_avg_err + avg_err);
+
+                if (rate < deform_parms->stop_threshold) {
+                        countdown = countdown + 1;
+                } else countdown = 0;
+
+                if (prev_avg_err < avg_err) {
+                        countdown2 = countdown2 + 1;
+                } else countdown2 = 0;
+
+                prev_avg_err = avg_err;
+                for (p = 0; p < polygons->n_points; p++) {
+                        if (flag[p] == FLAG_PRESERVE)
+                                polygons->points[p] = pts[p]; /* restore */
+                }
+                pts[p] = polygons->points[p];
+        } while ((countdown < 4 || countdown2 < 4) && countdown < 10 &&
+                 iter < deform_parms->max_iterations);
+
+        free(pts);
 }
