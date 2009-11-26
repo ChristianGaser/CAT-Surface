@@ -7,6 +7,9 @@
  *
 */
 
+#include <volume_io/internal_volume_io.h>
+#include <bicpl.h>
+
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
 #define QUAD_FILE_MAGIC_NUMBER      16777215
 #define NEW_VERSION_MAGIC_NUMBER    16777215

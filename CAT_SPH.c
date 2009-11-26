@@ -9,10 +9,12 @@
 
 #include <volume_io/geometry.h>
 
+#include "CAT_SurfaceIO.h"
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
 
+#define DUMP_FILES 0
 #define _PI 3.14159265358979323846264338327510
 
 
@@ -512,11 +514,12 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         Point poly_points[1000], poly_points_src[1000], scaled_point;
         int poly, size, ind, bandwidth2;
         double weights[1000], centre[3], bounds[6], radius;
-        object_struct *objects;
+        object_struct **objects;
         polygons_struct *scaled_sphere;
 
-        objects = create_object(POLYGONS);
-        scaled_sphere = get_polygons_ptr(objects);
+        objects = (object_struct **) malloc(sizeof(object_struct *));
+        *objects = create_object(POLYGONS);
+        scaled_sphere = get_polygons_ptr(*objects);
         initialize_polygons(scaled_sphere, WHITE, NULL);
         copy_polygons(sphere, scaled_sphere);
 
@@ -539,19 +542,24 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
          * for cutting/filling */
         bisected = (int *) malloc(sizeof(int) * polygons->n_points);
         bisect_defects(polygons, defects, n_defects, holes, bisected);
+        if (DUMP_FILES) {
+                output_values_any_format("orig_bisected.txt",
+                                         polygons->n_points, bisected,
+                                         TYPE_INTEGER);
+        }
 
         /* Set centre and radius */
         for (i = 0; i < scaled_sphere->n_points; i++) {
                 switch (bisected[i]) {
                         case VENTRICLE: /* ventricle, fill */
-                                r = radius * 0.99;
+                                r = radius * 1.01;
                                 break;
                         case LARGE_DEFECT: /* large defect, cut */
                         case HANDLE: /* handle, cut */
-                                r = radius * 1.01;
+                                r = radius * 0.99;
                                 break;
                         case HOLE: /* hole, fill */
-                                r = radius * 0.95;
+                                r = radius * 1.05;
                                 break;
                         default:
                                 r = radius;
@@ -563,9 +571,15 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                 }
         }
 
+        if (DUMP_FILES) {
+                output_graphics_any_format("holesphere.obj", ASCII_FORMAT,
+                                           1, objects);
+        }
+
         create_polygons_bintree(scaled_sphere,
                                 round((double) scaled_sphere->n_items *
                                       BINTREE_FACTOR));
+
         bandwidth2 = bandwidth*2;
     
         for (x = 0; x < bandwidth2; x++) {

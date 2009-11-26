@@ -349,9 +349,9 @@ bisect_defects(polygons_struct *surface, int *defects, int n_defects,
                         }
 
                         /* remove i from the list */
+                        npts--;
                         dist[i] = dist[npts];
                         pts[i] = pts[npts];
-                        npts--;
                 }
                 for (p = 0; p < npts; p++) {
                         bisected[pts[p]] = fillflag;

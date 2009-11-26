@@ -21,6 +21,7 @@
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 #define DEBUG 1
+#define DUMP_FILES 0
 
 #define FLAG_MODIFY 0
 #define FLAG_PRESERVE 1
@@ -166,10 +167,11 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                 }
         }
 
-        /* optionally output the defects list */ /*
-        output_values_any_format("hbw_defects.txt", hbw->n_points, hbw_defects,
-                                 TYPE_INTEGER);
-        */
+        /* optionally output the defects list */
+        if (DUMP_FILES) {
+                output_values_any_format("hbw_defects.txt", hbw->n_points,
+                                         hbw_defects, TYPE_INTEGER);
+        }
 
         /* preserve original points */
         pts = (Point *) malloc(sizeof(Point) * hbw->n_points);
@@ -274,18 +276,19 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 
         }
 
-        /*
-        output_values_any_format("modpts.txt", hbw->n_points, flag,
+        if (DUMP_FILES) { 
+                output_values_any_format("hbw_modpts.txt", hbw->n_points, flag,
                                  TYPE_INTEGER);
-        */
+        }
 
         if (DEBUG) fprintf(stderr,"compute_polygon_normals...\n");
         compute_polygon_normals(hbw);
 
-        /* clean up */
+        /* clean up */ /*
         if (DEBUG) fprintf(stderr,"delete_polygon_point_neighbours...\n");
-        /*delete_polygon_point_neighbours(hbw, n_neighbours,
-                                        neighbours, NULL, NULL); */
+        delete_polygon_point_neighbours(hbw, n_neighbours,
+                                        neighbours, NULL, NULL);
+        */
 
         free(sharpness);
         free(flag);
@@ -326,6 +329,11 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
                                                  n_defects, holes, volume,
                                                  n_neighbours, neighbours);
                 if (DEBUG) printf("T1 threshold = %f\n", t1_threshold);
+                if (DUMP_FILES) { 
+                        output_values_any_format("orig_holes.txt",
+                                                 sphere->n_points, holes,
+                                                 TYPE_INTEGER);
+                }
         } else {
                 for (p = 0; p < sphere->n_points; p++)
                         holes[p] = 2; /* always cut */
@@ -373,7 +381,10 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (hbw)...\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw, n_triangles, bw);
 
-        output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1, hbw_objects);
+        if (DUMP_FILES) {
+                output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1,
+                                           hbw_objects);
+        }
 
         if (DEBUG) fprintf(stderr,"butterworth_filter...\n");
         butterworth_filter(bw, lim, rcx, lrcx);
@@ -395,7 +406,10 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
                                lbw, n_triangles, bw);
 
-        output_graphics_any_format("lbw.obj", ASCII_FORMAT, 1, lbw_objects);
+        if (DUMP_FILES) {
+                output_graphics_any_format("lbw.obj", ASCII_FORMAT, 1,
+                                           lbw_objects);
+        }
 
         free(rcx); free(rcy); free(rcz);
         free(icx); free(icy); free(icz);
