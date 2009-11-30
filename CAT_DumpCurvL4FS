@@ -83,7 +83,7 @@ DumpCurv ()
 		  		echo File $tmp_name not found. Error using CAT_AverageSurfaces.
   				exit 1
   			fi
-  	  	CAT_DumpCurv $tmp_name ${outputname}${hemi}.${str}.central $method $fwhm $use_absolute
+  	  	CAT_DumpCurv $tmp_name ${outputname}${hemi}.${str}_central $method $fwhm $use_absolute
   	  	rm $tmp_name
   		done
   	done
@@ -228,7 +228,7 @@ OPTIONS:
 EXAMPLE:
     CAT_DumpCurvL4FS bert fsaverage -mc -a 
     This will calculate absolute mean curvature. The output files will be named 
-    SUBJECTS_DIR/subject/surf/[lr]h.amc.central.
+    SUBJECTS_DIR/subject/surf/[lr]h.amc_central.
 
 INPUT:
     Freesurfer or MNI-OBJ surface files
