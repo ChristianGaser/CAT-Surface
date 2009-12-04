@@ -114,14 +114,14 @@ make_patch(polygons_struct *polygons, struct patchinfo *head)
         patch = get_polygons_ptr(*object);
         initialize_polygons(patch, WHITE, NULL);
 
-        Surfprop_a(polygons->surfprop) = 0.3;
-        Surfprop_d(polygons->surfprop) = 0.6;
-        Surfprop_s(polygons->surfprop) = 0.6;
-        Surfprop_se(polygons->surfprop) = 60;
-        Surfprop_t(polygons->surfprop) = 1.0;
+        Surfprop_a(patch->surfprop) = 0.3;
+        Surfprop_d(patch->surfprop) = 0.6;
+        Surfprop_s(patch->surfprop) = 0.6;
+        Surfprop_se(patch->surfprop) = 60;
+        Surfprop_t(patch->surfprop) = 1.0;
 
-        polygons->colour_flag = 0;
-        polygons->line_thickness = 1.0f;
+        patch->colour_flag = 0;
+        patch->line_thickness = 1.0f;
 
         /* find the number of points & polygons */
         for (cur = head; cur != NULL; cur = cur->next) {
