@@ -48,7 +48,8 @@ main(int argc, char** argv)
         struct metricdata  *brain;
         File_formats       format;
         int                n_objects;
-        int                iters, count;
+        int                p, iters, count;
+        double             radius;
 
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
                 usage(argv[0]);
@@ -98,6 +99,10 @@ main(int argc, char** argv)
                 exit(EXIT_FAILURE);
         }
     
+        radius = sqrt(get_polygons_surface_area(map) / (4.0 * PI));
+        for (p = 0; p < map->n_points; p++)
+                set_vector_length(&map->points[p], radius);
+
         brain = getmetricdata(polygons);
 
         if (prepostflag != POST_ONLY) {
