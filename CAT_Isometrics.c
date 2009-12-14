@@ -601,7 +601,7 @@ stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
 
         radius = sqrt(get_polygons_surface_area(brain->polygons) / (4.0 * PI));
         for (p = 0; p < map->n_points; p++)
-                set_vector_length(&newpts[p], radius);
+                set_vector_length(&map->points[p], radius);
 
         printf("st %d iters, ad %f\n", it, areadistortion(brain, map));
 
