@@ -287,7 +287,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
 
         if ((fp = fopen(file, "rb")) == 0) {
                 fprintf(stderr, "input_oogl: Couldn't open file %s.\n", file);
-                return(0);
+                return(-1);
         }
 
         fscanf(fp, "%s", line);
@@ -323,7 +323,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
                         if (n_edges != 3) {
                                 fprintf(stderr,
                                         "Only 3 elements per item allowed.\n");
-                                return(0);
+                                return(-1);
                         }
                 }
     
@@ -331,7 +331,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
                 compute_polygon_normals(polygons);
         } else {
                 fprintf(stderr, "Wrong oogl format\n");
-                return(0);
+                return(-1);
         }
   
         fclose(fp);
@@ -348,7 +348,7 @@ output_oogl(char *file, File_formats format, int n_objects,
 
         if ((fp = fopen(file, "w")) == 0) {
                 fprintf(stderr, "output_oogl: Couldn't open file %s.\n", file);
-                return(0);
+                return(-1);
         }
 
         polygons = get_polygons_ptr(object_list[0]);
@@ -374,7 +374,7 @@ output_oogl(char *file, File_formats format, int n_objects,
         }
         fprintf(fp, "\n");
         fclose(fp);
-        return(1);
+        return(OK);
 }
 
 int
@@ -389,7 +389,7 @@ output_freesurfer(char *file, File_formats format, int n_objects,
         if ((fp = fopen(file, "w")) == 0) {
                 fprintf(stderr, "output_freesurfer: Couldn't open file %s.\n",
                         file);
-                return(0);
+                return(-1);
         }
 
         polygons = get_polygons_ptr(object_list[0]);
@@ -420,7 +420,7 @@ output_freesurfer(char *file, File_formats format, int n_objects,
                 fwriteInt(polygons->indices[i], fp);
 
         fclose(fp);
-        return(1);
+        return(OK);
 }
 
 int
@@ -446,7 +446,7 @@ output_freesurfer_curv(char *fname, int nvertices, Real *data)
         }
         fclose(fp);
 
-        return(0);
+        return(OK);
 }
 
 int
@@ -471,14 +471,14 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
         if ((fp = fopen(file, "rb")) == 0) {
                 fprintf(stderr, "input_freesurfer: Couldn't open file %s.\n",
                         file);
-                return(0);
+                return(-1);
         }
 
         /* read magic number for checking filetype */
         fread3(&magic, fp);
         if (magic == QUAD_FILE_MAGIC_NUMBER) {
                 fprintf(stderr, "QUAD_FILE_MAGIC_NUMBER not yet prepared.\n");
-                return(0);
+                return(-1);
         } else if (magic == TRIANGLE_FILE_MAGIC_NUMBER) {
                 fgets(line, 1024, fp);
                 fscanf(fp, "\n");
@@ -506,7 +506,7 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
                 compute_polygon_normals(polygons);
         } else {
                 fprintf(stderr, "input_freesurfer: Unknown magic identifier: %d.\n", magic);
-                return(0);
+                return(-1);
         }
 
         fclose(fp);
@@ -526,7 +526,7 @@ input_freesurfer_curv(char *file, int *vnum, Real **input_values)
                 fprintf(stderr,
                         "input_freesurfer_curv: Couldn't open file %s.\n",
                         file);
-                return(0);
+                return(-1);
         }
 
         /* read magic number for checking filetype */
@@ -534,7 +534,7 @@ input_freesurfer_curv(char *file, int *vnum, Real **input_values)
   
         if (magic != NEW_VERSION_MAGIC_NUMBER) {
                 fprintf(stderr, "MAGIC_NUMBER %d not yet prepared.\n", magic);
-                return(0);
+                return(-1);
         } else {
                 /* read # of vertices and faces */
                 *vnum = freadInt(fp);
@@ -542,7 +542,7 @@ input_freesurfer_curv(char *file, int *vnum, Real **input_values)
                 vals_per_vertex = freadInt(fp);
                 if (vals_per_vertex != 1) {
                         fprintf(stderr, "Only one value per vertex allowed.\n");
-                        return(0);
+                        return(-1);
                 }
                 ALLOC(*input_values, *vnum);
                 for (i = 0; i < *vnum; i++) {
@@ -580,7 +580,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
 
         if ((fp = fopen(file, "r")) == 0) {
                 fprintf(stderr, "input_dx: Couldn't open file %s.\n", file);
-                return(0);
+                return(-1);
         }
 
         fgets(line, 54, fp);
@@ -626,7 +626,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
                         sscanf(line,"%d", &polygons->n_items);
                 } else {
                         fprintf(stderr, "input_dx: Error reading %s\n", file);
-                        return(0);
+                        return(-1);
                 }
 
                 ALLOC(polygons->end_indices, polygons->n_items);
@@ -645,7 +645,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
                 compute_polygon_normals(polygons);
         } else {
                 fprintf(stderr, "input_dx: Unknown dx format..\n");
-                return(0);
+                return(-1);
         }
 
         fclose(fp);
@@ -675,7 +675,7 @@ input_dfs(char *file, File_formats *format, int *n_objects,
 
         if ((fp = fopen(file, "r")) == 0) {
                 fprintf(stderr, "input_dfs: Couldn't open file %s.\n", file);
-                return(0);
+                return(-1);
         }
 
         fread(&dummy, sizeof(char), 12, fp);
