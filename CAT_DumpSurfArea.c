@@ -17,9 +17,9 @@
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_file;
+        char                 *object_file, *output_file, *log;
         File_formats         format;
-        int                  poly, n_objects, ptidx, vertidx, size;
+        int                  poly, n_objects, ptidx, vertidx, size, i, use_log;
         object_struct        **objects;
         polygons_struct      *polygons;
         double               poly_size, area, surface_area;
@@ -31,7 +31,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file)) {
-                fprintf(stderr, "Usage: %s  object_file [output_file]\n",
+                fprintf(stderr, "Usage: %s  object_file [output_file] [log]\n",
                         argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -44,6 +44,10 @@ main(int argc, char *argv[])
                 all_values = TRUE;
         } else all_values = FALSE;
 
+        if (get_string_argument(NULL, &log)) {
+                use_log = 1;
+        } else  use_log = 0;
+
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
@@ -54,11 +58,19 @@ main(int argc, char *argv[])
         ALLOC(area_values, polygons->n_points);
         surface_area = get_area_of_points(polygons, area_values);
     
-        if (all_values)
+        if (all_values) {
+                if(use_log) {
+                        for(i=0; i<polygons->n_points; i++)
+                                area_values[i] = log10(area_values[i]);
+                }
                 output_values_any_format(output_file, polygons->n_points,
                                          area_values, TYPE_DOUBLE);
-
-        printf("Total surface area: %g\n", surface_area);
+        }
+        
+        if(use_log) 
+                printf("Total log. surface area: %g\n", log10(surface_area));
+        else
+                printf("Total surface area: %g\n", surface_area);
 
         delete_object_list(n_objects, objects);
 

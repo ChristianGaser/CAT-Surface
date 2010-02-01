@@ -1,23 +1,32 @@
 #!/bin/sh
 
-n_polygons=`print_n_polygons $1`
-tmp_poly=/tmp/poly$$.obj
+tmp_poly=/tmp/poly$$
 
-name=`echo $1|sed -s 's/.obj/_FD.txt/'`
+name=`echo $1|sed -e 's/.obj/_FD1.txt/'`
+name=FD.txt
 
-cp $1 $tmp_poly
+# start with lower resolution
+subdivide_polygons $1 $tmp_poly 2560
+#cp $1 $tmp_poly
+n_polygons=`print_n_polygons $tmp_poly`
+n_polygons0=$n_polygons
 
 n=1
-area=`./print_surface_area $tmp_poly|sed -e 's/Total surface area: //'`
-echo $n $area > $name
+area=`CAT_DumpSurfArea ${tmp_poly}.obj NULL log| sed -e 's/Total log. surface area: //g'`
 
-while [ $n_polygons -gt 1024 ];
+echo $n $area > $name
+echo $n $n_polygons $area
+
+while [ $n_polygons -gt 16 ];
 do
 	n_polygons=`expr $n_polygons / 2`
 	n=`expr $n \* 2`
-	subdivide_polygons $tmp_poly $tmp_poly $n_polygons
-	area=`./print_surface_area $tmp_poly|sed -e 's/Total surface area: //'`
+	subdivide_polygons ${tmp_poly}.obj ${tmp_poly}_sub.obj $n_polygons
+	subdivide_polygons ${tmp_poly}_sub.obj ${tmp_poly}_${n}.obj $n_polygons0
+	CAT_DumpSurfArea ${tmp_poly}_${n}.obj ${tmp_poly}_${n}.txt log
+	area=`CAT_DumpSurfArea ${tmp_poly}_sub.obj NULL log|sed -e 's/Total log. surface area: //'`
 	echo $n $area >> $name
+	echo $n $n_polygons $area
 done
 
-rm $tmp_poly
+#rm ${tmp_poly}*
