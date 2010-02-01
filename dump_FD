@@ -3,11 +3,9 @@
 tmp_poly=/tmp/poly$$
 
 name=`echo $1|sed -e 's/.obj/_FD1.txt/'`
-name=FD.txt
 
 # start with lower resolution
 subdivide_polygons $1 $tmp_poly 2560
-#cp $1 $tmp_poly
 n_polygons=`print_n_polygons $tmp_poly`
 n_polygons0=$n_polygons
 
