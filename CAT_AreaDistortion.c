@@ -24,7 +24,7 @@ typedef enum { RATIO, LOG_RATIO, PERCENTAGE }
 /* argument defaults */
 Distortion_method method = RATIO; /* area disortion method - default: ratio */
 BOOLEAN PerPoly = 0; /* by default, generate area distortion per point */
-
+BOOLEAN normalized = 0; /* by default, don't normalize by total surf area */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -36,6 +36,9 @@ ArgvInfo argTable[] = {
     "Use log of area ratio: ratio = log10(a2/a1)." },
   { "-percent", ARGV_CONSTANT, (char *) 2, 
     (char *) &method,
+    "Use percent change of area: ratio = 100*(a2-a1)/a1." },
+  { "-norm", ARGV_CONSTANT, (char *) 1, 
+    (char *) &normalized,
     "Use percent change of area: ratio = 100*(a2-a1)/a1." },
   { "-polygon", ARGV_CONSTANT, (char *) 1, 
     (char *) &PerPoly,
@@ -119,8 +122,12 @@ main(int argc, char *argv[])
                 n_obj = polygons->n_points;
         }
 
-        ratio = get_polygons_surface_area(polygons) /
-                get_polygons_surface_area(polygons2);
+        if (normalized) {
+                ratio = get_polygons_surface_area(polygons) /
+                        get_polygons_surface_area(polygons2);
+        } else {
+                ratio = 1.0;
+        }
 
         for (poly = 0; poly < polygons->n_items; poly++) {
                 size = get_polygon_points(polygons, poly, pts);
