@@ -106,7 +106,7 @@ parse_args ()
 			exit_if_empty "$optname" "$optarg"
 			output_dir=$optarg
 			;;
-		--s* | -s*)
+		--d* | -d*)
 			exit_if_empty "$optname" "$optarg"
 			subjects_dir=$optarg
 			;;
@@ -177,7 +177,7 @@ usage ()
 {
 cat <<__EOM__
 USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-n=n_triangles] [-f=fwhm_in_mm] 
-                         [-s=SUBJECTS_DIR] [-o=output_directory] [-m=measure] [-r=surfreg]
+                         [-d=SUBJECTS_DIR] [-o=output_directory] [-m=measure] [-r=surfreg]
 		
 __EOM__
 }
@@ -196,19 +196,19 @@ optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
     CAT_ResampleFS_ui subject [subject2 .. subjectN] [-n=n_triangles] [-f=fwhm_in_mm] 
-                         [-s=SUBJECTS_DIR] [-o=output_directory] [-m=measure] [-r=surfreg]
+                         [-d=SUBJECTS_DIR] [-o=output_directory] [-m=measure] [-r=surfreg]
     
 OPTIONS:
 	subject    - a subject directory in the SUBJECTS_DIR path
+	-d         - subject directory [default $subjects_dir]                
 	-f         - diffusion heat kernel smoothing defined in fwhm in mm [default $fwhm]
 	-n         - number of triangles after resampling [default $n_triangles]
-	-s         - subject directory [default $subjects_dir]                
 	-o         - output directory (created if neccessary) [default $output_dir]                
 	-m         - surface measure as input [default $measure]                 
 	-r         - sperical surface for resampling [default $reg]                 
     
 EXAMPLE:
-    CAT_ResampleFS_ui bert fsaverage -f=20 -n=327680 -s=~/subjects -o=~/data -m=thickness
+    CAT_ResampleFS_ui bert fsaverage -f=20 -n=327680 -d=~/subjects -o=~/data -m=thickness
     This will resample thickness values of subject bert and fsaverage in the folder ~/subjects.
     The resampled values are smoothed with 20mm and saved in ~/data.
 
