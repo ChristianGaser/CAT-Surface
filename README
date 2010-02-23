@@ -89,6 +89,10 @@ CAT_ResampleSphericalSurf
 --------------------------------------------------------------------------------
 Resamples a spherical inflated surface to a sphere.
 
+CAT_ResampleSphericalSurf
+--------------------------------------------------------------------------------
+Resamples a spherical inflated surface to an external given sphere.
+
 CAT_Sheet2Surf
 --------------------------------------------------------------------------------
 Maps 2d image in pgm format to surface
