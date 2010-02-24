@@ -15,7 +15,6 @@
 use_absolute=1
 method=0
 fwhm=0
-subjects_dir=$SUBJECTS_DIR
 
 ########################################################
 # run main
@@ -65,12 +64,12 @@ DumpCurv ()
   then
 		for subject in $ARGV_list
 		do
-		  outputname=${subjects_dir}/${subject}/surf/
+		  outputname=${subject}/surf/
 		  if [ ! -d "$outputname" ]; then
 	  		echo Directory $outputname not found.
 	  		exit 1
 	  	fi
-    	echo calculating ${subjects_dir}/${subject} 
+    	echo calculating ${subject} 
     	tmp_name=/tmp/$$_avg
     	for hemi in lh rh; do
     		for name in ${outputname}${hemi}.white ${outputname}${hemi}.pial; do
@@ -106,6 +105,7 @@ DumpCurv ()
 parse_args ()
 {
   local optname optarg
+  count=0
 
   while [ $# -gt 0 ]
   do
@@ -134,10 +134,6 @@ parse_args ()
 			;;
 		--mc0 | -mc0)
 			method=4
-			;;
-		--d* | -d*)
-			exit_if_empty "$optname" "$optarg"
-			subjects_dir=$optarg
 			;;
 		-h | --help | -v | --version | -V)
 			help
@@ -197,7 +193,7 @@ usage ()
 {
 cat <<__EOM__
 USAGE: CAT_DumpCurvL4FS subject [subject2 .. subjectN] [-mc|-mc0|-gc|-cv|-si] [-a]
-        [-d=SUBJECTS_DIR] [-f=fwhm_in_mm]
+        [-f=fwhm_in_mm]
 		
 __EOM__
 }
@@ -218,11 +214,10 @@ The central surface is otbained by averaging the white and pial surface.
 
 USAGE:
     CAT_DumpCurvL4FS subject [subject2 .. subjectN] [-mc|-mc0|-gc|-cv|-si] [-a]
-        [-g=SUBJECTS_DIR] [-f=fwhm_in_mm]
+        [-f=fwhm_in_mm]
     
 OPTIONS:
-	subject    - a subject directory in the SUBJECTS_DIR path
-	-g         - subject directory [default $subjects_dir]                
+	subject    - one or more subject directories
 	-f         - diffusion heat kernel smoothing defined in fwhm in mm
 	-a         - calculate absolute values of parameters [default]
 	-mc        - calculate mean curvature averaged over 3mm [default]                
@@ -232,9 +227,9 @@ OPTIONS:
 	-si        - calculate shape index                
     
 EXAMPLE:
-    CAT_DumpCurvL4FS bert fsaverage -mc -a -d=~/subjects
-    This will calculate absolute mean curvature for subjects bert and fsaverage in the folder ~/subjects. 
-    The output files will be named ~/subjects/subject/surf/[lr]h.amc_central.
+    CAT_DumpCurvL4FS ${SUBJECTS_DIR}/[a-d]* -mc -a
+    This will calculate absolute mean curvature for all subjects with a beginning a-d in the folder ${SUBJECTS_DIR}. 
+    The output files will be named ${SUBJECTS_DIR}/subject/surf/[lr]h.amc_central.
 
 INPUT:
     Freesurfer or MNI-OBJ surface files

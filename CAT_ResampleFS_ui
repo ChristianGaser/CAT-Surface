@@ -14,10 +14,9 @@
 
 fwhm=0
 measure=thickness
-subjects_dir=$SUBJECTS_DIR
 output_dir="."
 reg=sphere.reg
-template=fsaverage
+template=$SUBJECTS_DIR/fsaverage
 ascii=0
 
 ########################################################
@@ -50,19 +49,19 @@ preprocess ()
 		for subject in $ARGV_list
 		do
 
-		  surfdir=${subjects_dir}/${subject}/surf
+		  surfdir=${subject}/surf
 		  if [ ! -d "$surfdir" ]; then
 	  		echo Directory $surfdir not found.
 	  		exit 1
 	  	fi
 
-		  targetdir=${subjects_dir}/${target}/surf
+		  targetdir=${template}/surf
 		  if [ ! -d "$targetdir" ]; then
 	  		echo Directory $targetdir not found.
 	  		exit 1
 	  	fi
 
-    	echo calculate ${subjects_dir}/${subject} 
+    	echo calculate ${subject} 
     	tmp_name=/tmp/$$_resample
     	for hemi in lh rh; do
         if [ ! "$fwhm" == 0 ]; then
@@ -128,10 +127,6 @@ parse_args ()
 			exit_if_empty "$optname" "$optarg"
 			output_dir=$optarg
 			;;
-		--d* | -d*)
-			exit_if_empty "$optname" "$optarg"
-			subjects_dir=$optarg
-			;;
 		--r* | -r*)
 			exit_if_empty "$optname" "$optarg"
 			reg=$optarg
@@ -193,7 +188,7 @@ check_tools ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-d=SUBJECTS_DIR] [-a]
+USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
 		
 __EOM__
@@ -212,12 +207,11 @@ Resample surface values to a parametric tetrahedral sphere. The resampled values
 optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
-        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-d=SUBJECTS_DIR] [-a]
+        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 OPTIONS:
-	subject    - a subject directory in the SUBJECTS_DIR path
-	-d         - subject directory [default $subjects_dir]                
+	subject    - one or more subject directories
 	-f         - diffusion heat kernel smoothing defined in fwhm in mm [default $fwhm]
 	-t         - target surface for resampling [default $template]
 	-o         - output directory (created if neccessary) [default $output_dir]                
@@ -226,9 +220,9 @@ OPTIONS:
 	-a         - save output as ascii (text) file
     
 EXAMPLE:
-    CAT_ResampleFS_ui bert -f=20 -t=fsavergae -d=~/subjects -o=~/data -m=thickness
-    This will resample thickness values of subject bert in the folder ~/subjects according
-    to target surface fsaverage.
+    CAT_ResampleFS_ui ${SUBJECTS_DIR}/[a-d]* -f=20 -t=fsaverage -o=~/data -m=thickness
+    This will resample thickness values of all subject with a beginning a-d in the folder ${SUBJECTS_DIR}
+    according to target surface fsaverage.
     The resampled values are smoothed with 20mm and saved in ~/data.
 
 INPUT:
