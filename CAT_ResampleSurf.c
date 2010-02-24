@@ -17,7 +17,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  src.obj src_sphere.obj resampled_output.obj dest_sphere.obj [input_values.txt output_values.txt]\n\
+Usage: %s  src.obj src_sphere.obj resampled_output.obj target_sphere.obj [input_values.txt output_values.txt]\n\
 Resamples a spherical inflated surface to an external defined sphere.\n\
 \n\n";
 
@@ -27,7 +27,7 @@ Resamples a spherical inflated surface to an external defined sphere.\n\
 int
 main(int argc, char *argv[])
 {
-        char             *surface_file, *sphere_file, *output_file, *dest_sphere_file;
+        char             *surface_file, *sphere_file, *output_file, *target_sphere_file;
         char             *input_values_file, *output_values_file;
         File_formats     format;
         int              n_objects, point;
@@ -38,8 +38,8 @@ main(int argc, char *argv[])
         Point            poly_points[MAX_POINTS_PER_POLYGON];
         Point            poly_points_src[MAX_POINTS_PER_POLYGON];
         Point            *new_points;
-        object_struct    **objects, **objects_src_sphere, **objects_dest_sphere;
-        polygons_struct  *polygons, *poly_src_sphere, *poly_dest_sphere;
+        object_struct    **objects, **objects_src_sphere, **objects_target_sphere;
+        polygons_struct  *polygons, *poly_src_sphere, *poly_target_sphere;
         Real             *input_values, *output_values, dist;
         BOOLEAN          values_specified;
         Real             weights[MAX_POINTS_PER_POLYGON];
@@ -49,7 +49,7 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &surface_file    ) ||
             !get_string_argument(NULL, &sphere_file     ) ||
-            !get_string_argument(NULL, &dest_sphere_file     ) ||
+            !get_string_argument(NULL, &target_sphere_file     ) ||
             !get_string_argument(NULL, &output_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -73,19 +73,19 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (input_graphics_any_format(dest_sphere_file, &format,
+        if (input_graphics_any_format(target_sphere_file, &format,
                                       &n_objects,
-                                      &objects_dest_sphere) != OK ||
+                                      &objects_target_sphere) != OK ||
             n_objects != 1 ||
-            get_object_type(objects_dest_sphere[0]) != POLYGONS ) {
+            get_object_type(objects_target_sphere[0]) != POLYGONS ) {
                 fprintf(stderr, "File %s must contain 1 polygons object.\n",
-                        dest_sphere_file);
+                        target_sphere_file);
                 exit(EXIT_FAILURE);
         }
 
         polygons = get_polygons_ptr(objects[0]);
         poly_src_sphere = get_polygons_ptr(objects_src_sphere[0]);
-        poly_dest_sphere = get_polygons_ptr(objects_dest_sphere[0]);
+        poly_target_sphere = get_polygons_ptr(objects_target_sphere[0]);
 
         values_specified = get_string_argument(NULL, &input_values_file) &&
                            get_string_argument(NULL, &output_values_file);
@@ -108,11 +108,11 @@ main(int argc, char *argv[])
         for (i = 0; i < poly_src_sphere->n_points; i++) 
                 set_vector_length(&poly_src_sphere->points[i], 100.0);
 
-        for (i = 0; i < poly_dest_sphere->n_points; i++) 
-                set_vector_length(&poly_dest_sphere->points[i], 100.0);
+        for (i = 0; i < poly_target_sphere->n_points; i++) 
+                set_vector_length(&poly_target_sphere->points[i], 100.0);
 
         /* Calc. sphere center based on bounds of input (correct for shifts) */    
-        get_bounds(poly_dest_sphere, bounds_dest);
+        get_bounds(poly_target_sphere, bounds_dest);
         get_bounds(poly_src_sphere, bounds_src);
         fill_Point(center, bounds_src[0]-bounds_dest[0],
                            bounds_src[2]-bounds_dest[2], bounds_src[4]-bounds_dest[4]);
@@ -125,10 +125,10 @@ main(int argc, char *argv[])
         create_polygons_bintree(poly_src_sphere,
                                 ROUND((Real) poly_src_sphere->n_items * 0.5));
 
-        ALLOC(new_points, poly_dest_sphere->n_points);
+        ALLOC(new_points, poly_target_sphere->n_points);
 
-        for (i = 0; i < poly_dest_sphere->n_points; i++) {
-                poly = find_closest_polygon_point(&poly_dest_sphere->points[i],
+        for (i = 0; i < poly_target_sphere->n_points; i++) {
+                poly = find_closest_polygon_point(&poly_target_sphere->points[i],
                                                   poly_src_sphere,
                                                   &point_on_src_sphere);
 		
@@ -154,22 +154,22 @@ input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
                 }
        }
 
-        create_polygon_point_neighbours(poly_dest_sphere, TRUE, &n_neighbours,
+        create_polygon_point_neighbours(poly_target_sphere, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
 
-        for (i = 0; i < poly_dest_sphere->n_points; i++) {
-                poly_dest_sphere->points[i] = new_points[i];
+        for (i = 0; i < poly_target_sphere->n_points; i++) {
+                poly_target_sphere->points[i] = new_points[i];
         }
 		
-        compute_polygon_normals(poly_dest_sphere);
+        compute_polygon_normals(poly_target_sphere);
 
         if(output_graphics_any_format(output_file, format, 1,
-                                   objects_dest_sphere) != OK)
+                                   objects_target_sphere) != OK)
                     exit(EXIT_FAILURE);
     
         if (values_specified) {
                 output_values_any_format(output_values_file,
-                                         poly_dest_sphere->n_points,
+                                         poly_target_sphere->n_points,
                                          output_values, TYPE_REAL);
                 FREE(input_values);
                 FREE(output_values);
