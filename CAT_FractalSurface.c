@@ -33,8 +33,10 @@ create_von_koch_surface(int iterations)
         double len, dist, scale;
 
         /* overestimate the # of points and triangles initially */
-        n_points = 4 * pow(6, iterations);
-        n_items = 4 * pow(6, iterations);
+        //n_points = 4 * pow(6, iterations);
+        //n_items = 4 * pow(6, iterations);
+        n_points = 4 * pow(6, 6);
+        n_items = 4 * pow(6, 6);
 
         points = (Point *) malloc(sizeof(Point) * n_points);
         pflag = (int *) malloc(sizeof(int) * n_points);
@@ -46,10 +48,14 @@ create_von_koch_surface(int iterations)
 
         /* create the base tetrahedron */
         n_points = 4; n_items = 4;
-        fill_Point(points[0], 0.0, 0.0, 1.0);
-        fill_Point(points[1], 0.942809, 0.0, -0.333333);
-        fill_Point(points[2], -0.471405, 0.816497, -0.333333);
-        fill_Point(points[3], -0.471405, -0.816497, -0.333333);
+        //fill_Point(points[0], 0.0, 0.0, 1.0);
+        //fill_Point(points[1], 0.942809, 0.0, -0.333333);
+        //fill_Point(points[2], -0.471405, 0.816497, -0.333333);
+        //fill_Point(points[3], -0.471405, -0.816497, -0.333333);
+        fill_Point(points[0], 1.0, 1.0, 1.0);
+        fill_Point(points[1], -1.0, -1.0, 1.0);
+        fill_Point(points[2], 1.0, -1.0, -1.0);
+        fill_Point(points[3], -1.0, 1.0, -1.0);
         indices[0] = 0; indices[1] = 1; indices[2] = 2;
         indices[3] = 0; indices[4] = 2; indices[5] = 3;
         indices[6] = 0; indices[7] = 3; indices[8] = 1;
@@ -86,13 +92,13 @@ create_von_koch_surface(int iterations)
 
                         INTERPOLATE_POINTS(points[n_points],
                                            points[a], points[b], 0.5);
+                        pflag[n_points] = 1;
                         INTERPOLATE_POINTS(points[n_points+1],
                                            points[b], points[c], 0.5);
+                        pflag[n_points + 1] = 1;
                         INTERPOLATE_POINTS(points[n_points+2],
                                            points[a], points[c], 0.5);
-                        pflag[n_points] = 1;
-                        pflag[n_points+1] = 1;
-                        pflag[n_points+2] = 1;
+                        pflag[n_points + 2] = 1;
                         n_points += 3;
 
                         INTERPOLATE_POINTS(median, points[n_points-3],
@@ -106,8 +112,8 @@ create_von_koch_surface(int iterations)
                         /* a real von koch surface */
                         //SCALE_POINT(normal, normals[n], sqrt(6.0f)*len/3.0f);
                         /* our modified one to avoid intersections */
-                        SCALE_POINT(normal, normals[n], len/3.0f);
-                        if (flipflag[n]) SCALE_POINT(normal, normal, -1.0f);
+                        SCALE_POINT(normal, normals[n], sqrt(6.0f)*len/6.0f);
+                        //if (flipflag[n]) SCALE_POINT(normal, normal, -1.0f);
                         ADD_POINTS(points[n_points], points[n_points], normal);
                         n_points++;
 
@@ -145,8 +151,8 @@ create_von_koch_surface(int iterations)
                 }
                 /* remove duplicate points */
                 for (p = 0; p < n_points; p++) {
+                        if (pflag[p] == 0) continue; /* skip */
                         for (p2 = p+1; p2 < n_points; p2++) {
-                                if (pflag[p2] == 0) continue;
                                 dist = distance_between_points(&points[p],
                                                                &points[p2]);
                                 if (dist < 0.01*len) { /* delete it */
@@ -162,7 +168,6 @@ create_von_koch_surface(int iterations)
                                 }
                         }
                 }
-                memset(pflag, 0, sizeof(int) * n_points);
                 /* remove duplicate triangles */
                 offset = 0;
                 for (n = 0; n < n_items; n++) {
@@ -195,6 +200,82 @@ create_von_koch_surface(int iterations)
                         Point_y(points[p]) = 0;
                 if (fabs(Point_z(points[p])) < dist)
                         Point_z(points[p])  = 0;
+        }
+
+        /* cut each triangle into 4 triangles */
+        for (; iter < 4; iter++) {
+                len /= 2;
+
+                n_i = n_items;
+                for (n = 0; n < n_i; n++) {
+                        a = indices[n*3];
+                        b = indices[n*3 + 1];
+                        c = indices[n*3 + 2];
+
+                        INTERPOLATE_POINTS(points[n_points],
+                                           points[a], points[b], 0.5);
+                        INTERPOLATE_POINTS(points[n_points+1],
+                                           points[b], points[c], 0.5);
+                        INTERPOLATE_POINTS(points[n_points+2],
+                                           points[a], points[c], 0.5);
+                        n_points += 3;
+
+                        /* add the triangle indices */
+                        indices[n*3 + 1] = n_points - 3;
+                        indices[n*3 + 2] = n_points - 1;
+
+                        indices[n_items*3] = n_points - 3;
+                        indices[n_items*3 + 1] = b;
+                        indices[n_items*3 + 2] = n_points - 2;
+                        n_items++;
+                        indices[n_items*3] = n_points - 2;
+                        indices[n_items*3 + 1] = c;
+                        indices[n_items*3 + 2] = n_points - 1;
+                        n_items++;
+                        indices[n_items*3 + 2] = n_points - 3;
+                        indices[n_items*3] = n_points - 2;
+                        indices[n_items*3 + 1] = n_points - 1;
+                        n_items++;
+                }
+                /* remove duplicate points */
+                for (p = 0; p < n_points; p++) {
+                        for (p2 = p+1; p2 < n_points; p2++) {
+                                dist = distance_between_points(&points[p],
+                                                               &points[p2]);
+                                if (dist < 0.01*len) { /* delete it */
+                                        n_points--;
+                                        for (n = 0; n < n_items * 3; n++) {
+                                                if (indices[n] == p2)
+                                                        indices[n] = p;
+                                                else if (indices[n] == n_points)
+                                                        indices[n] = p2;
+                                        }
+                                        points[p2] = points[n_points];
+                                        p2--;
+                                }
+                        }
+                }
+                /* remove duplicate triangles */
+                offset = 0;
+                for (n = 0; n < n_items; n++) {
+                        for (n2 = n+1; n2 < n_items; n2++) {
+                                if ( (indices[n*3  ] == indices[n2*3  ] ||
+                                      indices[n*3  ] == indices[n2*3+1] ||
+                                      indices[n*3  ] == indices[n2*3+2]) &&
+                                     (indices[n*3+1] == indices[n2*3  ] ||
+                                      indices[n*3+1] == indices[n2*3+1] ||
+                                      indices[n*3+1] == indices[n2*3+2]) &&
+                                     (indices[n*3+2] == indices[n2*3  ] ||
+                                      indices[n*3+2] == indices[n2*3+1] ||
+                                      indices[n*3+2] == indices[n2*3+2])) {
+                                        n_items--;
+                                        offset++;
+                                }
+                        }
+                        indices[n*3] = indices[(n+offset)*3];
+                        indices[n*3+1] = indices[(n+offset)*3+1];
+                        indices[n*3+2] = indices[(n+offset)*3+2];
+                }
         }
 
         /* build surface */
@@ -252,8 +333,10 @@ create_square_von_koch_surface(int iterations)
         double len, dist, scale1 = 0.3f, scale2 = 0.6f;
 
         /* overestimate the # of points and triangles initially */
-        n_points = 2 + 6 * pow(20, iterations);
-        n_items = 6 + 6 * pow(26, iterations);
+        //n_points = 2 + 6 * pow(20, iterations);
+        //n_items = 6 + 6 * pow(26, iterations);
+        n_points = 2 + 6 * pow(20, 3);
+        n_items = 6 + 6 * pow(26, 3);
 
         points = (Point *) malloc(sizeof(Point) * n_points);
         indices = (int *) malloc(sizeof(int) * n_items * 3);
@@ -261,7 +344,7 @@ create_square_von_koch_surface(int iterations)
         flipflag = (int *) malloc(sizeof(int) * n_items / 2);
         memset(flipflag, 0, sizeof(int) * n_items / 2);
 
-        /* create the base cube */
+        /* create the base cube */ /*
         n_points = 8; n_items = 12;
         fill_Point(points[0], -1.0, -1.0, -1.0);
         fill_Point(points[1], -1.0, -1.0, 1.0);
@@ -282,7 +365,22 @@ create_square_von_koch_surface(int iterations)
         indices[24] = 1; indices[25] = 5; indices[26] = 3;
         indices[27] = 3; indices[28] = 5; indices[29] = 7;
         indices[30] = 2; indices[31] = 6; indices[32] = 0;
-        indices[33] = 0; indices[34] = 6; indices[35] = 4;
+        indices[33] = 0; indices[34] = 6; indices[35] = 4; */
+
+        n_points = 7; n_items = 6;
+        fill_Point(points[0], -1.0, -1.0, 1.0);
+        fill_Point(points[1], -1.0, 1.0, -1.0);
+        fill_Point(points[2], -1.0, 1.0, 1.0);
+        fill_Point(points[3], 1.0, -1.0, -1.0);
+        fill_Point(points[4], 1.0, -1.0, 1.0);
+        fill_Point(points[5], 1.0, 1.0, -1.0);
+        fill_Point(points[6], 1.0, 1.0, 1.0);
+        indices[0] = 3; indices[1] = 5; indices[2] = 4;
+        indices[3] = 4; indices[4] = 5; indices[5] = 6;
+        indices[6] = 5; indices[7] = 1; indices[8] = 6;
+        indices[9] = 6; indices[10] = 1; indices[11] = 2;
+        indices[12] = 0; indices[13] = 4; indices[14] = 2;
+        indices[15] = 2; indices[16] = 4; indices[17] = 6;
 
         SUB_POINTS(tri[0], points[1], points[0]);
         len = sqrt(DOT_POINTS(tri[0], tri[0]));
@@ -496,6 +594,7 @@ create_square_von_koch_surface(int iterations)
                                 }
                         }
                 }
+
                 /* remove duplicate triangles */
                 offset = 0;
                 for (n = 0; n < n_items; n++) {
@@ -530,6 +629,179 @@ create_square_von_koch_surface(int iterations)
                 if (fabs(Point_z(points[p])) < dist)
                         Point_z(points[p])  = 0;
         }
+
+        /* increase the resolution */
+        for (; iter < 3; iter++) {
+                len /= 3;
+                n_squares = n_items / 2;
+                for (n = 0; n < n_squares; n++) {
+                        tri[0] = points[indices[n*6]];
+                        tri[1] = points[indices[n*6 + 1]];
+                        tri[2] = points[indices[n*6 + 2]];
+                        find_polygon_normal(3, tri, &normals[n]);
+                }
+
+                for (n = 0; n < n_squares; n++) {
+                        b = indices[n*6];
+                        c = indices[n*6 + 1];
+                        a = indices[n*6 + 2];
+                        d = indices[n*6 + 5];
+                        a_pt = points[a];
+                        b_pt = points[b];
+                        c_pt = points[c];
+                        d_pt = points[d];
+
+                        /* make perimeter points */
+                        INTERPOLATE_POINTS(points[n_points], a_pt, d_pt,
+                                           1.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+1], a_pt, d_pt,
+                                           2.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+5], d_pt, c_pt,
+                                           1.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+9], d_pt, c_pt,
+                                           2.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+2], a_pt, b_pt,
+                                           1.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+6], a_pt, b_pt,
+                                           2.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+10], b_pt, c_pt,
+                                           1.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+11], b_pt, c_pt,
+                                           2.0/3.0);
+
+                        /* make the four inner points */
+                        INTERPOLATE_POINTS(points[n_points+3],
+                                           points[n_points+2],
+                                           points[n_points+5], 1.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+4],
+                                           points[n_points+2],
+                                           points[n_points+5], 2.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+7],
+                                           points[n_points+6],
+                                           points[n_points+9], 1.0/3.0);
+                        INTERPOLATE_POINTS(points[n_points+8],
+                                           points[n_points+6],
+                                           points[n_points+9], 2.0/3.0);
+
+                        /* add the triangle indices */
+                        indices[n*6] = n_points + 2;
+                        indices[n*6 + 1] = indices[n*6 + 4] = n_points + 3;
+                        indices[n*6 + 5] = n_points;
+
+                        indices[n_items*3] = n_points + 3;
+                        indices[n_items*3 + 1] = n_points + 4;
+                        indices[n_items*3 + 2] = n_points;
+                        n_items++;
+                        indices[n_items*3] = n_points;
+                        indices[n_items*3 + 1] = n_points + 4;
+                        indices[n_items*3 + 2] = n_points + 1;
+                        n_items++;
+                        indices[n_items*3] = n_points + 4;
+                        indices[n_items*3 + 1] = n_points + 5;
+                        indices[n_items*3 + 2] = n_points + 1;
+                        n_items++;
+                        indices[n_items*3] = n_points + 1;
+                        indices[n_items*3 + 1] = n_points + 5;
+                        indices[n_items*3 + 2] = d;
+                        n_items++;
+                        indices[n_items*3] = n_points + 6;
+                        indices[n_items*3 + 1] = n_points + 7;
+                        indices[n_items*3 + 2] = n_points + 2;
+                        n_items++;
+                        indices[n_items*3] = n_points + 2;
+                        indices[n_items*3 + 1] = n_points + 7;
+                        indices[n_items*3 + 2] = n_points + 3;
+                        n_items++;
+
+                        /* center square */
+                        indices[n_items*3] = n_points + 7;
+                        indices[n_items*3 + 1] = n_points + 8;
+                        indices[n_items*3 + 2] = n_points + 3;
+                        n_items++;
+                        indices[n_items*3] = n_points + 3;
+                        indices[n_items*3 + 1] = n_points + 8;
+                        indices[n_items*3 + 2] = n_points + 4;
+                        n_items++;
+
+                        indices[n_items*3] = n_points + 8;
+                        indices[n_items*3 + 1] = n_points + 9;
+                        indices[n_items*3 + 2] = n_points + 4;
+                        n_items++;
+                        indices[n_items*3] = n_points + 4;
+                        indices[n_items*3 + 1] = n_points + 9;
+                        indices[n_items*3 + 2] = n_points + 5;
+                        n_items++;
+                        indices[n_items*3] = b;
+                        indices[n_items*3 + 1] = n_points + 10;
+                        indices[n_items*3 + 2] = n_points + 6;
+                        n_items++;
+                        indices[n_items*3] = n_points + 6;
+                        indices[n_items*3 + 1] = n_points + 10;
+                        indices[n_items*3 + 2] = n_points + 7;
+                        n_items++;
+                        indices[n_items*3] = n_points + 10;
+                        indices[n_items*3 + 1] = n_points + 11;
+                        indices[n_items*3 + 2] = n_points + 7;
+                        n_items++;
+                        indices[n_items*3] = n_points + 7;
+                        indices[n_items*3 + 1] = n_points + 11;
+                        indices[n_items*3 + 2] = n_points + 8;
+                        n_items++;
+                        indices[n_items*3] = n_points + 11;
+                        indices[n_items*3 + 1] = c;
+                        indices[n_items*3 + 2] = n_points + 8;
+                        n_items++;
+                        indices[n_items*3] = n_points + 8;
+                        indices[n_items*3 + 1] = c;
+                        indices[n_items*3 + 2] = n_points + 9;
+                        n_items++;
+
+                        n_points += 12;
+
+                }
+
+                /* remove duplicate points */
+                for (p = 0; p < n_points; p++) {
+                        for (p2 = p+1; p2 < n_points; p2++) {
+                                dist = distance_between_points(&points[p],
+                                                               &points[p2]);
+                                if (dist < 0.01*len) { /* delete it */
+                                        n_points--;
+                                        for (n = 0; n < n_items * 3; n++) {
+                                                if (indices[n] == p2)
+                                                        indices[n] = p;
+                                                else if (indices[n] == n_points)
+                                                        indices[n] = p2;
+                                        }
+                                        points[p2] = points[n_points];
+                                        p2--;
+                                }
+                        }
+                }
+                /* remove duplicate triangles */
+                offset = 0;
+                for (n = 0; n < n_items; n++) {
+                        for (n2 = n+1; n2 < n_items; n2++) {
+                                if ( (indices[n*3  ] == indices[n2*3  ] ||
+                                      indices[n*3  ] == indices[n2*3+1] ||
+                                      indices[n*3  ] == indices[n2*3+2]) &&
+                                     (indices[n*3+1] == indices[n2*3  ] ||
+                                      indices[n*3+1] == indices[n2*3+1] ||
+                                      indices[n*3+1] == indices[n2*3+2]) &&
+                                     (indices[n*3+2] == indices[n2*3  ] ||
+                                      indices[n*3+2] == indices[n2*3+1] ||
+                                      indices[n*3+2] == indices[n2*3+2])) {
+                                        n_items--;
+                                        offset++;
+                                }
+                        }
+                        indices[n*3] = indices[(n+offset)*3];
+                        indices[n*3+1] = indices[(n+offset)*3+1];
+                        indices[n*3+2] = indices[(n+offset)*3+2];
+                }
+
+        }
+
 
         /* build surface */
         object = (object_struct **) malloc(sizeof(object_struct *));
