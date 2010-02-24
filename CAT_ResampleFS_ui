@@ -18,6 +18,7 @@ subjects_dir=$SUBJECTS_DIR
 output_dir="."
 reg=sphere.reg
 template=fsaverage
+ascii=0
 
 ########################################################
 # run main
@@ -106,6 +107,9 @@ parse_args ()
 			exit_if_empty "$optname" "$optarg"
 			fwhm=$optarg
 			;;
+		--a* | -a*)
+			ascii=1
+			;;
 		--m* | -m*)
 			exit_if_empty "$optname" "$optarg"
 			measure=$optarg
@@ -183,7 +187,7 @@ check_tools ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-d=SUBJECTS_DIR]
+USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-d=SUBJECTS_DIR] [-a]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
 		
 __EOM__
@@ -202,7 +206,7 @@ Resample surface values to a parametric tetrahedral sphere. The resampled values
 optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
-        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-d=SUBJECTS_DIR]
+        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-d=SUBJECTS_DIR] [-a]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 OPTIONS:
@@ -213,6 +217,7 @@ OPTIONS:
 	-o         - output directory (created if neccessary) [default $output_dir]                
 	-m         - surface measure as input [default $measure]                 
 	-r         - sperical surface for resampling [default $reg]                 
+	-a         - save output as ascii (text) file
     
 EXAMPLE:
     CAT_ResampleFS_ui bert -f=20 -t=fsavergae -d=~/subjects -o=~/data -m=thickness
