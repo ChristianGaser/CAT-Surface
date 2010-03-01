@@ -61,15 +61,16 @@ preprocess ()
 	  		exit 1
 	  	fi
 
-    	echo calculate ${subject} 
+      subject_name=`basename $subject`
+    	echo calculate ${subject_name} 
     	tmp_name=/tmp/$$_resample
     	for hemi in lh rh; do
         if [ ! "$fwhm" == 0 ]; then
-          name=${output_dir}/${fwhm}mm.${measure}.${hemi}.resample.${subject}
+          name=${output_dir}/${fwhm}mm.${measure}.${hemi}.resample.${subject_name}
           if [ "$ascii" == 1 ]; then
             name=${name}.txt
           fi
-	    	  CAT_ResampleSphericalSurf ${surfdir}/${hemi}.white ${surfdir}/${hemi}.${reg} $tmp_name ${targetdir}/${hemi}.${reg} ${surfdir}/${hemi}.${measure} ${tmp_name}.txt
+	    	  CAT_ResampleSurf ${surfdir}/${hemi}.white ${surfdir}/${hemi}.${reg} ${targetdir}/${hemi}.${reg} $tmp_name ${surfdir}/${hemi}.${measure} ${tmp_name}.txt
 	    	  CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
 	    	  echo resample and smooth to $name
         else
@@ -77,7 +78,7 @@ preprocess ()
           if [ "$ascii" == 1 ]; then
             name=${name}.txt
           fi
-	    	  CAT_ResampleSphericalSurf ${surfdir}/${hemi}.white ${surfdir}/${hemi}.${reg} $tmp_name ${targetdir}/${hemi}.${reg} ${surfdir}/${hemi}.${measure} $name
+	    	  CAT_ResampleSurf ${surfdir}/${hemi}.white ${surfdir}/${hemi}.${reg} ${targetdir}/${hemi}.${reg} $tmp_name ${surfdir}/${hemi}.${measure} $name
 	    	  echo resample to $name
   	  	fi
   		done
