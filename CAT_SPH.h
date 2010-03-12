@@ -29,6 +29,7 @@ void replaceSPH(int, int, double *, double *);
 void shape_description(int, double *, double *, double *, double *, double *, 
                        double *, double *);
 void butterworth_filter(int, int, double *, double *);
+void bandpass_bandwidth(int, int, int, double *, double *);
 void limit_bandwidth(int, int, double *, double *);
 
 void get_sph_coeffs_of_realdata(double *, int, int, double *, double *);

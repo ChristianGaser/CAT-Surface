@@ -273,6 +273,23 @@ butterworth_filter(int bandwidth, int bandwidth_limited,
         free(coeffs);
 }
 
+/* bandpass boxcar filter */
+void
+bandpass_bandwidth(int bandwidth, int bw_lo, int bw_hi,
+                   double *coeffs_old, double *coeffs_new)
+{
+        int l, m, i;
+
+        for (l = 0; l < bandwidth; l++) {
+                for (m = -l; m < l+1; m++) {
+                        i = seanindex(m, l, bandwidth);
+                        if (l >= bw_lo && l <= bw_hi && l < bandwidth) {
+                                coeffs_new[i] = coeffs_old[i];
+                        } else coeffs_new[i] = 0;
+                }
+        }
+}
+
 
 /* boxcar filter */
 void
