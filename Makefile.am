@@ -1,5 +1,5 @@
 AUTOMAKE_OPTIONS = check-news
-ACLOCAL_AMFLAGS = -I m4
+ACLOCAL_AMFLAGS = -g -I m4
 
 dist_bin_SCRIPTS = \
 	CAT_GLM_tmp \
@@ -52,7 +52,9 @@ bin_PROGRAMS = \
 	CAT_Sharpness \
         CAT_SelfIntersect \
         CAT_DumpTopoErrors \
-        CAT_LabelHoles
+        CAT_LabelHoles \
+        CAT_FractalSurface \
+        CAT_FractalDimension
 
 s2kit10_SRC = \
 	s2kit10/FST_semi_fly.c \
@@ -139,7 +141,8 @@ CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Blur2d.c CAT_Curvature.c CAT_Surface
 CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_Intersect.c CAT_Patch.c CAT_Defect.c
 CAT_DumpTopoErrors_SOURCES = CAT_DumpTopoErrors.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
 CAT_LabelHoles_SOURCES = CAT_LabelHoles.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c
-
+CAT_FractalSurface_SOURCES = CAT_FractalSurface.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c
+CAT_FractalDimension_SOURCES = CAT_FractalDimension.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \
