@@ -12,7 +12,6 @@
 
 #include "Cat_Surf.h"
 #include "CAT_SurfaceIO.h"
-#include "CAT_LeastSquares.c"
 #include "CAT_Complexity.h"
 
 
