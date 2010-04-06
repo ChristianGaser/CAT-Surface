@@ -131,7 +131,7 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
 void
 sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
                        polygons_struct *sphere, int n_triangles,
-                       int bandwidth)
+                       polygons_struct *reparam, int bandwidth)
 {
         Point     centre, new_point;    
         double    H00, H01, H10, H11, valuex, valuey, valuez;
@@ -140,25 +140,31 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
 
         bandwidth2 = bandwidth*2;
     
-        /* check tetrahedral topology */
-        /* best areal distribution of triangles is achieved for 20 edges */
-        n_polygons = n_triangles;
+        if (reparam == NULL) {
+                /* check tetrahedral topology */
+                /* best areal distribution is achieved for 20 edges */
+                n_polygons = n_triangles;
         
-        while (n_polygons % 4 == 0)
-                n_polygons /= 4;
+                while (n_polygons % 4 == 0)
+                        n_polygons /= 4;
 
-        if (n_polygons != 5 && n_polygons != 2 &&
-            n_polygons != 6 && n_polygons != 1) { /* sizes 20, 8, 6, 4 */
-                fprintf(stderr,"Warning: Number of triangles %d", n_triangles);
-                fprintf(stderr," is not recommend because\n");
-                fprintf(stderr,"tetrahedral topology is not optimal.\n");
-                fprintf(stderr,"Please try 20*(4*x) triangles (e.g. 81920).\n");
-        }
+                if (n_polygons != 5 && n_polygons != 2 &&
+                    n_polygons != 6 && n_polygons != 1) { /* 20, 8, 6, 4 */
+                        fprintf(stderr,"Warning: Number of triangles %d is",
+                                       n_triangles);
+                        fprintf(stderr," not recommend because\ntetrahedral");
+                        fprintf(stderr," topology is not optimal.\nPlease try");
+                        fprintf(stderr," 20*(4*x) triangles (e.g. 81920).\n");
+                }
     
-        fill_Point(centre, 0.0, 0.0, 0.0);
-        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles, sphere);
-        compute_polygon_normals(sphere);
+                fill_Point(centre, 0.0, 0.0, 0.0);
+                create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles,
+                                          sphere);
+        } else {
+                copy_polygons(reparam, sphere);
+        }
 
+        compute_polygon_normals(sphere);
         create_polygons_bintree(sphere, round((double) sphere->n_items *
                                               BINTREE_FACTOR));
 

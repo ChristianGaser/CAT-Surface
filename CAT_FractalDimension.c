@@ -28,17 +28,16 @@
 int maxiters = 30; /* the number of FD's to calculate */
 BOOLEAN sph = 1; /* 1=sph, 0=straight resampling */
 int n_triangles = 327680; /* # of triangles */
-//int n_triangles = 81920; /* # of triangles */
-int bw = 1024; /* starting bandwidth, only for SPH */
+BOOLEAN debug = 0; /* massive output */
+char *reparam_file = NULL;
 
 /* the argument table */
 ArgvInfo argTable[] = {
+  {"-sphere", ARGV_STRING, (char *) 1, (char *) &reparam_file,
+     "Sphere object for reparameterization."},
   { "-iters", ARGV_INT, (char *) 1, 
     (char *) &maxiters,
     "Number of iterations." },
-  { "-bw", ARGV_INT, (char *) 1, 
-    (char *) &bw,
-    "Coefficient bandwidth for spherical harmonic expansion (SPH only)." },
   { "-n", ARGV_INT, (char *) 1,
     (char *) &n_triangles,
     "Number of triangles for sampled surface." },
@@ -48,6 +47,9 @@ ArgvInfo argTable[] = {
   { "-nosph", ARGV_CONSTANT, (char *) FALSE,
     (char *) &sph,
     "Use direct resampling for FD calculation." },
+  { "-debug", ARGV_CONSTANT, (char *) TRUE,
+    (char *) &debug,
+    "Output SPH reconstructions & area values." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -56,7 +58,7 @@ usage(char *executable)
 {
         static char *usage_str = "\n\
 Usage: %s surface.obj sphere.obj out.txt\n\
-Calculate the fractal dimension.  Output are surface areas.\n\n\n";
+Calculate the fractal dimension.  Output are local FD values.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
 }
@@ -67,9 +69,10 @@ main(int argc, char *argv[])
         char                 *surface_file, *sphere_file, *output_file;
         File_formats         format;
         int                  n_objects;
-        polygons_struct      *surface, *sphere;
-        object_struct        **surf_objects, **sphere_objects;
+        polygons_struct      *surface, *sphere, *reparam;
+        object_struct        **objects, **sphere_objects, **reparam_objects;
         double               fd;
+        Point                centre;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
@@ -88,17 +91,17 @@ main(int argc, char *argv[])
         }
 
         if (input_graphics_any_format(surface_file, &format,
-                                      &n_objects, &surf_objects) != OK)
+                                      &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
 
         /* check that the surface file contains a polyhedron */
-        if (n_objects != 1 || get_object_type(surf_objects[0]) != POLYGONS) {
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 fprintf(stderr,"Surface file must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
         }
 
         /* get a pointer to the surface */
-        surface = get_polygons_ptr(surf_objects[0]);
+        surface = get_polygons_ptr(objects[0]);
     
         if (input_graphics_any_format(sphere_file, &format,
                                       &n_objects, &sphere_objects) != OK)
@@ -118,19 +121,37 @@ main(int argc, char *argv[])
                 fprintf(stderr,"Surface and sphere must have same size.\n");
                 exit(EXIT_FAILURE);
         }
+        if (reparam_file != NULL) {
+                if (input_graphics_any_format(reparam_file, &format, &n_objects,
+                                              &reparam_objects) != OK)
+                        exit(EXIT_FAILURE);
+                reparam = get_polygons_ptr(*reparam_objects);
+                n_triangles = reparam->n_items;
+        } else {
+                reparam_objects = (object_struct **)
+                                  malloc(sizeof(object_struct *));
+                *reparam_objects = create_object(POLYGONS);
+                reparam = get_polygons_ptr(*reparam_objects);
+                fill_Point(centre, 0.0, 0.0, 0.0);
+                create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles,
+                                          reparam);
+                compute_polygon_normals(reparam);
+        }
+
 
         if (sph) {
                 fd = fractal_dimension_sph(surface, sphere, output_file,
-                                           n_triangles);
+                                           n_triangles, reparam, debug);
         } else {
-                fd = fractal_dimension(surface, sphere, maxiters, output_file);
+                fd = fractal_dimension(surface, sphere, maxiters,
+                                       output_file, debug);
         }
 
-        printf("fd = %f\n", fd);
+        printf("global FD: %f\n", 2 + fd);
 
         /* clean up */
-        delete_object_list(1, surf_objects);
+        delete_object_list(1, objects);
         delete_object_list(1, sphere_objects);
 
-        return(EXIT_SUCCESS);    
+        return(EXIT_SUCCESS);
 }

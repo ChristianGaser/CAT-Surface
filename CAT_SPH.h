@@ -22,7 +22,7 @@ int write_SPHxyz(char *, int, double *, double *, double *, double *,
                  double *, double *);
 
 void sample_sphere_from_sph(double *, double *, double *, polygons_struct *,
-                            int, int);
+                            int, polygons_struct *, int);
 
 void replaceSPH(int, int, double *, double *);
 

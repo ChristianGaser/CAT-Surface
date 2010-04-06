@@ -379,7 +379,8 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         *hbw_objects = create_object(POLYGONS);
         hbw = get_polygons_ptr(*hbw_objects);
         if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (hbw)...\n");
-        sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw, n_triangles, bw);
+        sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
+                               n_triangles, NULL, bw);
 
         if (DUMP_FILES) {
                 output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1,
@@ -404,7 +405,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         lbw = get_polygons_ptr(*lbw_objects);
         if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (lbw)...\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                               lbw, n_triangles, bw);
+                               lbw, n_triangles, NULL, bw);
 
         if (DUMP_FILES) {
                 output_graphics_any_format("lbw.obj", ASCII_FORMAT, 1,

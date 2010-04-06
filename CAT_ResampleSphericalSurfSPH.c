@@ -206,7 +206,7 @@ main(int argc, char *argv[])
 
         fprintf(stderr,"Resamp surf..");
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                               polygons_output, n_triangles, bandwidth);
+                               polygons_output, n_triangles, NULL, bandwidth);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
                                        &objects_output) != OK)

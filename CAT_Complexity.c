@@ -26,31 +26,28 @@ slope(double *x, double *y, int len)
                 slope += (y[i] - y[i-1]) / (x[i] - x[i-1]);
         }
 
-        slope /= len;
+        if (len > 1) {
+                slope /= (len-1);
+        }
 
         return(slope);
 }
 
 /* get global FD values ... only use area values below the threshold */
 double
-get_globalfd(double *x, double *y, int len, double threshold)
+get_globalfd(double *x, double *y, int len)
 {
-        int i, tlen;
+        int i;
         double *logx, *logy, fd;
 
-        for (tlen = len-1; tlen > 0; tlen--) {
-                if (y[tlen] < threshold) break;
-        }
-        tlen++;
-
-        logx = (double *) malloc(sizeof(double) * tlen);
-        logy = (double *) malloc(sizeof(double) * tlen);
-        for (i = 0; i < tlen; i++) {
+        logx = (double *) malloc(sizeof(double) * len);
+        logy = (double *) malloc(sizeof(double) * len);
+        for (i = 0; i < len; i++) {
                 logx[i] = log(x[i]);
                 logy[i] = log(y[i]);
         }
 
-        fd = slope(logx, logy, tlen);
+        fd = slope(logx, logy, len);
 
         free(logx);
         free(logy);
@@ -61,10 +58,9 @@ get_globalfd(double *x, double *y, int len, double threshold)
 /* get local FD values ... x is bandwidth or dimension.
  * only uses area values below the threshold */
 void
-get_localfd(double *x, double **areas, int x_len, int n_points, double *fd,
-            double threshold)
+get_localfd(double *x, double **areas, int x_len, int n_points, double *fd)
 {
-        int xx, p, len;
+        int xx, p;
         double *logx, *logy;
 
         logx = (double *) malloc(sizeof(double) * x_len);
@@ -73,16 +69,11 @@ get_localfd(double *x, double **areas, int x_len, int n_points, double *fd,
 
         logy = (double *) malloc(sizeof(double) * x_len);
         for (p = 0; p < n_points; p++) {
-                for (len = x_len-1; len > 0; len--) {
-                        if (areas[len][p] < threshold) break;
-                }
-                len++;
-
-                for (xx = 0; xx < len; xx++)
+                for (xx = 0; xx < x_len; xx++)
                         logy[xx] = log(areas[xx][p]);
 
-                fd[p] = slope(logx, logy, len);
-
+                fd[p] = slope(logx, logy, x_len);
+                if (fd[p] < 0) fd[p] = 0;
         }
 
         free(logx);
@@ -443,7 +434,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
  */
 double
 fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
-                  int maxiters, char *file)
+                  int maxiters, char *file, int debugflag)
 {
         object_struct **object;
         polygons_struct *polygons;
@@ -465,10 +456,12 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                 object = resample_surface(surface, sphere, n_triangles, NULL,
                                            NULL);
 
-                sprintf(str, "resamp_%d.obj", n_triangles);
-                if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                               object) != OK)
-                        exit(EXIT_FAILURE);
+                if (debugflag) {
+                        sprintf(str, "resamp_%d.obj", n_triangles);
+                        if (output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                                       object) != OK)
+                                exit(EXIT_FAILURE);
+                }
 
                 polygons = get_polygons_ptr(*object);
                 areas[iter] = get_polygons_surface_area(polygons) / orig_area;
@@ -483,7 +476,7 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                         break;
         }
 
-        get_localfd(dimension, &areas, n, 1, &fd, 0.9);
+        get_localfd(dimension, &areas, n, 1, &fd);
 
         if (output_values_any_format(file, maxiters, areas, TYPE_DOUBLE) != OK)
                 exit(EXIT_FAILURE);
@@ -532,7 +525,7 @@ get_smoothed_areas(polygons_struct *polygons, double *orig_areas, double *areas)
 }
 
 
-double bws[10] = {8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 28.0, 32.0, 48.0, 64.0};
+double bws[8] = {12.0, 13.0, 14.0, 16.0, 18.0, 22.0, 24.0, 28.0};
 
 /*
  * Compute the fractal dimension using spherical harmonics: progressively
@@ -540,7 +533,8 @@ double bws[10] = {8.0, 10.0, 12.0, 16.0, 20.0, 24.0, 28.0, 32.0, 48.0, 64.0};
  */
 double
 fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
-                      char *file, int n_triangles)
+                      char *file, int n_triangles, polygons_struct *reparam,
+                      int debugflag)
 {
         polygons_struct *polygons;
         object_struct **object;
@@ -569,30 +563,36 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        fprintf(stderr,"Samp SPH coords..");
+        if (debugflag) fprintf(stderr,"Samp SPH coords..");
         get_equally_sampled_coords_of_polygon(surface, sphere, BW,
                                               rdatax, rdatay, rdataz);
 
-        fprintf(stderr,"Fwd SPH xform..");
+        if (debugflag) fprintf(stderr,"Fwd SPH xform..");
         get_sph_coeffs_of_realdata(rdatax, BW, DATAFORMAT, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, BW, DATAFORMAT, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, BW, DATAFORMAT, rcz, icz);
 
-        /* output the spectral power */
-        spectral_power = (double *) malloc(sizeof(double) * BW);
-        memset(spectral_power, 0.0, sizeof(double) * BW);
-        for (l = 0; l < BW; l++) {
-                for (m = -l; m < l+1; m++) {
-                        i = seanindex(m, l, BW);
-                        spectral_power[l] += (rcx[i]*rcx[i]) + (rcy[i]*rcy[i]) +
-                                             (rcz[i]*rcz[i]) + (icx[i]*icx[i]) +
-                                             (icy[i]*icy[i]) + (icz[i]*icz[i]);
+        if (debugflag) {
+                /* output the spectral power */
+                spectral_power = (double *) malloc(sizeof(double) * BW);
+                memset(spectral_power, 0.0, sizeof(double) * BW);
+                for (l = 0; l < BW; l++) {
+                        for (m = -l; m < l+1; m++) {
+                                i = seanindex(m, l, BW);
+                                spectral_power[l] += (rcx[i]*rcx[i]) +
+                                                     (rcy[i]*rcy[i]) +
+                                                     (rcz[i]*rcz[i]) +
+                                                     (icx[i]*icx[i]) +
+                                                     (icy[i]*icy[i]) +
+                                                     (icz[i]*icz[i]);
+                        }
                 }
+                output_values_any_format("psd.txt", BW, spectral_power,
+                                         TYPE_DOUBLE);
+                free(spectral_power);
         }
-        output_values_any_format("psd.txt", BW, spectral_power, TYPE_DOUBLE);
-        free(spectral_power);
 
-        fprintf(stderr,"Inv SPH xform..");
+        if (debugflag) fprintf(stderr,"Inv SPH xform..");
         get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT, rcx, icx);
         get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT, rcy, icy);
         get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT, rcz, icz);
@@ -601,20 +601,23 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         *object = create_object(POLYGONS);
         polygons = get_polygons_ptr(*object);
 
-        fprintf(stderr,"Resamp surf.\n");
+        if (debugflag) fprintf(stderr,"Resamp surf.\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons,
-                               n_triangles, BW);
+                               n_triangles, reparam, BW);
 
         orig_areas = (double *) malloc(sizeof(double) * polygons->n_points);
         get_smoothed_areas(polygons, NULL, orig_areas);
         orig_area = get_polygons_surface_area(polygons);
 
-        sprintf(str, "sarea_%d.txt", BW);
-        output_values_any_format(str, polygons->n_points, orig_areas,
-                                 TYPE_DOUBLE);
-        sprintf(str, "sph_%d.obj", BW);
-        if (output_graphics_any_format(str, ASCII_FORMAT, 1, object) != OK)
-                exit(EXIT_FAILURE);
+        if (debugflag) {
+                sprintf(str, "sarea_%d.txt", BW);
+                output_values_any_format(str, polygons->n_points, orig_areas,
+                                         TYPE_DOUBLE);
+                sprintf(str, "sph_%d.obj", BW);
+                if (output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                               object) != OK)
+                        exit(EXIT_FAILURE);
+        }
         delete_polygons(polygons);
 
         areas = (double *) malloc(sizeof(double) * SPH_ITERS);
@@ -625,9 +628,9 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         }
 
         for (it = 0; it < SPH_ITERS; it++) {
-                fprintf(stderr, "BW %d: ", (int) bws[it]);
+                if (debugflag) fprintf(stderr, "BW %d: ", (int) bws[it]);
 
-                fprintf(stderr,"Samp SPH coords..");
+                if (debugflag) fprintf(stderr,"Samp SPH coords..");
                 limit_bandwidth(BW, (int) bws[it], rcx, lrcx);
                 limit_bandwidth(BW, (int) bws[it], rcy, lrcy);
                 limit_bandwidth(BW, (int) bws[it], rcz, lrcz);
@@ -635,7 +638,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 limit_bandwidth(BW, (int) bws[it], icy, licy);
                 limit_bandwidth(BW, (int) bws[it], icz, licz);
 
-                fprintf(stderr,"Inv SPH xform..");
+                if (debugflag) fprintf(stderr,"Inv SPH xform..");
                 get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT,
                                              lrcx, licx);
                 get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT,
@@ -643,37 +646,40 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT,
                                              lrcz, licz);
 
-                fprintf(stderr,"Resamp surf.\n");
+                if (debugflag) fprintf(stderr,"Resamp surf.\n");
                 sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                                       polygons, n_triangles, BW);
+                                       polygons, n_triangles, reparam, BW);
 
                 areas[it] = get_polygons_surface_area(polygons) / orig_area;
                 get_smoothed_areas(polygons, orig_areas, sph_areas[it]);
-                printf("bw = %d, area = %f\n", (int) bws[it], areas[it]);
+                printf("bw = %d, area = %0.7f\n", (int) bws[it], areas[it]);
 
-                sprintf(str, "sph_%d.obj", (int) bws[it]);
-                if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                               object) != OK)
-                        exit(EXIT_FAILURE);
+                if (debugflag) {
+                        sprintf(str, "sph_%d.obj", (int) bws[it]);
+                        if (output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                                       object) != OK)
+                                exit(EXIT_FAILURE);
 
-                sprintf(str, "sarea_%d.txt", (int) bws[it]);
-                output_values_any_format(str, polygons->n_points,
-                                         sph_areas[it], TYPE_DOUBLE);
+                        sprintf(str, "sarea_%d.txt", (int) bws[it]);
+                        output_values_any_format(str, polygons->n_points,
+                                                 sph_areas[it], TYPE_DOUBLE);
+                }
 
                 delete_polygons(polygons);
         }
 
         local_fd = (double *) malloc(sizeof(double) * polygons->n_points);
-        get_localfd(bws, sph_areas, SPH_ITERS, polygons->n_points,
-                    local_fd, 0.9);
-        sprintf(str, "fd_local.txt");
-        output_values_any_format(str, polygons->n_points, local_fd,
+        get_localfd(bws, sph_areas, SPH_ITERS, polygons->n_points, local_fd);
+        output_values_any_format(file, polygons->n_points, local_fd,
                                  TYPE_DOUBLE);
  
-        if (output_values_any_format(file, SPH_ITERS, areas, TYPE_DOUBLE) != OK)
-                exit(EXIT_FAILURE);
+        if (debugflag) {
+                if (output_values_any_format("fd_global.txt", SPH_ITERS, areas,
+                                             TYPE_DOUBLE) != OK)
+                        exit(EXIT_FAILURE);
+        }
 
-        fd = get_globalfd(bws, areas, SPH_ITERS, 0.8);
+        fd = get_globalfd(bws, areas, SPH_ITERS);
 
 	free(rcx); free(rcy); free(rcz); 
         free(icx); free(icy); free(icz); 

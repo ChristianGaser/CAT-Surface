@@ -159,7 +159,7 @@ main(int argc, char *argv[])
         polygons_sphere = get_polygons_ptr(objects_sphere);
         fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons_sphere,
-                               n_triangles, bandwidth);
+                               n_triangles, NULL, bandwidth);
 
         if (output_graphics_any_format(surface_file, ASCII_FORMAT, 1,
                                        &objects_sphere) != OK)
