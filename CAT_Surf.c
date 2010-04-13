@@ -146,19 +146,19 @@ get_surface_ratio(double r, polygons_struct *polygons)
         return lf;
 }
 
+/* assign each point the average of area values for neighboring polygons */
 double
 get_area_of_points(polygons_struct *polygons, double *area_values)
 {
-        signed char     *point_done;
+        int             *pcount;
         double          poly_size, area;
         Point           points[MAX_POINTS_PER_POLYGON];
         int             ptidx, poly, vertidx, size;
         double          surface_area = 0.0;
 
-        ALLOC(point_done, polygons->n_points);
-
-        for (ptidx = 0; ptidx < polygons->n_points; ptidx++)
-                point_done[ptidx] = FALSE;
+        pcount = (int *) malloc(sizeof(int) * polygons->n_points);
+        memset(pcount, 0, sizeof(int) * polygons->n_points);
+        memset(area_values, 0.0, sizeof(double) * polygons->n_points);
 
         for (poly = 0; poly < polygons->n_items; poly++) {    
                 size = get_polygon_points(polygons, poly, points);
@@ -171,15 +171,35 @@ get_area_of_points(polygons_struct *polygons, double *area_values)
                         ptidx = polygons->indices[
                                               POINT_INDEX(polygons->end_indices,
                                               poly, vertidx)];
-                        if (!point_done[ptidx]) {
-                                point_done[ptidx] = TRUE;
-                                area_values[ptidx] = area;
-                        }
+                        pcount[ptidx]++;
+                        area_values[ptidx] += area;
                 }
         }
-        FREE(point_done);
+
+        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
+                if (pcount[ptidx] > 0)
+                        area_values[ptidx] /= pcount[ptidx];
+        }
+
+        FREE(pcount);
         return(surface_area);
 }
+
+double
+get_area_of_polygons(polygons_struct *polygons, double *area_values)
+{
+        int             poly, size;
+        double          surface_area = 0.0;
+        Point           points[MAX_POINTS_PER_POLYGON];
+
+        for (poly = 0; poly < polygons->n_items; poly++) {    
+                size = get_polygon_points(polygons, poly, points);
+                area_values[poly] = get_polygon_surface_area(size, points);
+                surface_area += area_values[poly];
+        }
+        return(surface_area);
+}
+
 
 void
 translate_to_center_of_mass(polygons_struct *polygons)

@@ -17,6 +17,7 @@ void get_bounds(polygons_struct *, double [6]);
 
 double * get_surface_ratio(double, polygons_struct *);
 double get_area_of_points(polygons_struct *, double *);
+double get_area_of_polygons(polygons_struct *, double *);
 void get_radius_of_points(polygons_struct *, double *);
 
 void translate_to_center_of_mass(polygons_struct *);
