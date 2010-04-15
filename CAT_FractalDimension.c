@@ -68,11 +68,10 @@ main(int argc, char *argv[])
 {
         char                 *surface_file, *sphere_file, *output_file;
         File_formats         format;
-        int                  n_objects;
+        int                  n_objects, i;
         polygons_struct      *surface, *sphere, *reparam;
         object_struct        **objects, **sphere_objects, **reparam_objects;
         double               fd;
-        Point                centre;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
@@ -132,12 +131,14 @@ main(int argc, char *argv[])
                                   malloc(sizeof(object_struct *));
                 *reparam_objects = create_object(POLYGONS);
                 reparam = get_polygons_ptr(*reparam_objects);
-                fill_Point(centre, 0.0, 0.0, 0.0);
-                create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles,
-                                          reparam);
+                copy_polygons(sphere, reparam);
                 compute_polygon_normals(reparam);
         }
 
+        /* center and scale the reparameterizing sphere */
+        translate_to_center_of_mass(reparam);
+        for (i = 0; i < reparam->n_points; i++)
+                set_vector_length(&reparam->points[i], 1.0);
 
         if (sph) {
                 fd = fractal_dimension_sph(surface, sphere, output_file,

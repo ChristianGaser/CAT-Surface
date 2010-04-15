@@ -55,29 +55,61 @@ get_globalfd(double *x, double *y, int len)
         return fd;
 }
 
-/* get local FD values ... x is bandwidth or dimension.
- * only uses area values below the threshold */
+/* get local FD values ... x is bandwidth or dimension. */
 void
-get_localfd(double *x, double **areas, int x_len, int n_points, double *fd)
+get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
+            double *fd)
 {
         int xx, p;
         double *logx, *logy;
+        int *pcount;
+        double *polyfd, poly_size, area;
+        Point points[MAX_POINTS_PER_POLYGON];
+        int ptidx, poly, vertidx, size;
 
+        polyfd = (double *) malloc(sizeof(double) * polygons->n_items);
         logx = (double *) malloc(sizeof(double) * x_len);
+        logy = (double *) malloc(sizeof(double) * x_len);
+
+        /* calculate the FD for each polygon */
         for (xx = 0; xx < x_len; xx++)
                 logx[xx] = log(x[xx]);
 
-        logy = (double *) malloc(sizeof(double) * x_len);
-        for (p = 0; p < n_points; p++) {
+        for (p = 0; p < polygons->n_items; p++) {
                 for (xx = 0; xx < x_len; xx++)
                         logy[xx] = log(areas[xx][p]);
 
-                fd[p] = slope(logx, logy, x_len);
-                if (fd[p] < 0) fd[p] = 0;
+                polyfd[p] = slope(logx, logy, x_len);
         }
+
+        /* calculate a point-wise FD value based on neighboring polygons */
+        pcount = (int *) malloc(sizeof(int) * polygons->n_points);
+        memset(pcount, 0, sizeof(int) * polygons->n_points);
+        memset(fd, 0.0, sizeof(double) * polygons->n_points);
+
+        for (poly = 0; poly < polygons->n_items; poly++) {    
+                size = GET_OBJECT_SIZE(*polygons, poly);
+
+                for (p = 0; p < size; p++) {
+                        ptidx = polygons->indices[
+                                              POINT_INDEX(polygons->end_indices,
+                                              poly, p)];
+                        pcount[ptidx]++;
+                        fd[ptidx] += polyfd[poly];
+                }
+        }
+
+        for (p = 0; p < polygons->n_points; p++) {
+                if (pcount[p] > 0)
+                        fd[p] /= pcount[p];
+        }
+
+        /* smooth the FD values with FWHM = 30.0 mm */
+        get_smoothed_values(polygons, fd, FWHM);
 
         free(logx);
         free(logy);
+        free(pcount);
 }
 
 object_struct **
@@ -338,11 +370,11 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
                  int n_triangles, double *invals, double *outvals)
 {
         int i, j, t, poly, n_points;
-        Point point, centre, scaled_point;
+        Point point, scaled_point;
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct **objects;
         polygons_struct *platonic_solid;
-        double radius, r, bounds[6];
+        double radius, r;
         Real weights[MAX_POINTS_PER_POLYGON];
 
         /* Check tetrahedral topology. Best areal distribution of triangles
@@ -372,12 +404,6 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
         }
         radius /= sphere->n_points;
 
-        /* Calc. sphere center based on bounds of input (correct for shifts) */
-        get_bounds(sphere, bounds);
-        fill_Point(centre, (bounds[0]+bounds[1]) / 2,
-                           (bounds[2]+bounds[3]) / 2,
-                           (bounds[4]+bounds[5]) / 2);
-    
         objects = create_resampling_sphere(radius, n_triangles);
         platonic_solid = get_polygons_ptr(*objects);
 
@@ -444,6 +470,7 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
         int iter, n, n_triangles;
         double *areas, *dimension, fd;
         
+        translate_to_center_of_mass(sphere);
         orig_area = get_polygons_surface_area(surface);
         n_triangles = base4;
         base4 *= 4;
@@ -476,7 +503,7 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                         break;
         }
 
-        get_localfd(dimension, &areas, n, 1, &fd);
+        //get_localfd(dimension, &areas, n, 1, &fd);
 
         if (output_values_any_format(file, maxiters, areas, TYPE_DOUBLE) != OK)
                 exit(EXIT_FAILURE);
@@ -484,27 +511,19 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
         return fd;
 }
 
-double
-get_smoothed_areas(polygons_struct *polygons, double *orig_areas, double *areas)
+void
+get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 {
         int i, j, n_iter;
-        double fwhm, sigma, sa, *sm_areas;
+        double sigma, *sm_values;
         int *n_neighbours, **neighbours;
         Point point;
 
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-        sa = get_area_of_points(polygons, areas);
-        sm_areas = (double *) malloc(sizeof(double) * polygons->n_points);
+        sm_values = (double *) malloc(sizeof(double) * polygons->n_points);
 
-        /* normalize the areas */
-        if (orig_areas != NULL) {
-                for (i = 0; i < polygons->n_points; i++)
-                        areas[i] = areas[i] / orig_areas[i];
-        }
-
-        /* smooth the areas */
-        fwhm = 25.0;
+        /* smooth the values */
         sigma = 2.0;
         n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482/sigma);
     
@@ -512,20 +531,20 @@ get_smoothed_areas(polygons_struct *polygons, double *orig_areas, double *areas)
         for (j = 0; j < n_iter; j++) {
                 for (i = 0; i < polygons->n_points; i++) {
                         heatkernel_blur_points(polygons->n_points,
-                                               polygons->points, areas,
+                                               polygons->points, values,
                                                n_neighbours[i], neighbours[i],
-                                               i, sigma, &point, &sm_areas[i]);
+                                               i, sigma, &point, &sm_values[i]);
                 }
                 for (i = 0; i < polygons->n_points; i++)
-                        areas[i] = sm_areas[i];
+                        values[i] = sm_values[i];
         }
 
-        free(sm_areas);
-        return sa;
+        free(sm_values);
 }
 
 
-double bws[8] = {12.0, 13.0, 14.0, 16.0, 18.0, 22.0, 24.0, 28.0};
+//double bws[SPH_ITERS] = {10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 22.0, 24.0, 28.0};
+double bws[SPH_ITERS] = {11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 23.0, 26.0, 29.0};
 
 /*
  * Compute the fractal dimension using spherical harmonics: progressively
@@ -605,12 +624,11 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons,
                                n_triangles, reparam, BW);
 
-        orig_areas = (double *) malloc(sizeof(double) * polygons->n_points);
-        get_smoothed_areas(polygons, NULL, orig_areas);
-        orig_area = get_polygons_surface_area(polygons);
+        orig_areas = (double *) malloc(sizeof(double) * polygons->n_items);
+        orig_area = get_area_of_polygons(polygons, orig_areas);
 
         if (debugflag) {
-                sprintf(str, "sarea_%d.txt", BW);
+                sprintf(str, "area_%d.txt", BW);
                 output_values_any_format(str, polygons->n_points, orig_areas,
                                          TYPE_DOUBLE);
                 sprintf(str, "sph_%d.obj", BW);
@@ -624,7 +642,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         sph_areas = (double **) malloc(sizeof(double *) * SPH_ITERS);
         for (i = 0; i < SPH_ITERS; i++) {
                 sph_areas[i] = (double *) malloc(sizeof(double) *
-                                                 polygons->n_points);
+                                                 polygons->n_items);
         }
 
         for (it = 0; it < SPH_ITERS; it++) {
@@ -650,8 +668,12 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 sample_sphere_from_sph(rdatax, rdatay, rdataz,
                                        polygons, n_triangles, reparam, BW);
 
-                areas[it] = get_polygons_surface_area(polygons) / orig_area;
-                get_smoothed_areas(polygons, orig_areas, sph_areas[it]);
+                areas[it] = get_area_of_polygons(polygons, sph_areas[it]) /
+                            orig_area;
+                for (i = 0; i < polygons->n_items; i++) {
+                        if (orig_areas[i] != 0)
+                                sph_areas[it][i] /= orig_areas[i];
+                }
                 printf("bw = %d, area = %0.7f\n", (int) bws[it], areas[it]);
 
                 if (debugflag) {
@@ -660,7 +682,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                                                        object) != OK)
                                 exit(EXIT_FAILURE);
 
-                        sprintf(str, "sarea_%d.txt", (int) bws[it]);
+                        sprintf(str, "area_%d.txt", (int) bws[it]);
                         output_values_any_format(str, polygons->n_points,
                                                  sph_areas[it], TYPE_DOUBLE);
                 }
@@ -668,9 +690,9 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 delete_polygons(polygons);
         }
 
-        local_fd = (double *) malloc(sizeof(double) * polygons->n_points);
-        get_localfd(bws, sph_areas, SPH_ITERS, polygons->n_points, local_fd);
-        output_values_any_format(file, polygons->n_points, local_fd,
+        local_fd = (double *) malloc(sizeof(double) * reparam->n_points);
+        get_localfd(reparam, bws, sph_areas, SPH_ITERS, local_fd);
+        output_values_any_format(file, reparam->n_points, local_fd,
                                  TYPE_DOUBLE);
  
         if (debugflag) {
