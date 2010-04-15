@@ -445,7 +445,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
         Point unit_point, on_sphere_point, new_point;
         Point poly_points[1000], poly_points_src[1000], scaled_point;
         int poly, size, ind, bandwidth2;
-        double weights[1000], centre[3], bounds[6], radius;
+        double weights[1000], radius;
         object_struct *objects;
         polygons_struct *scaled_sphere;
 
@@ -453,32 +453,14 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
         scaled_sphere = get_polygons_ptr(objects);
         copy_polygons(sphere, scaled_sphere);
 
-        /* Find centre of sphere based on bounds (to correct for shiftings) */
-        get_bounds(scaled_sphere, bounds);
-        for (j = 0; j < 3; j++)
-                centre[j] = bounds[2*j] + bounds[2*j+1];
-
-        radius = 0.0;
-        for (i = 0; i < scaled_sphere->n_points; i++) {
-                r = 0.0;
-                for (j = 0; j < 3; j++) 
-                        r += Point_coord(scaled_sphere->points[i], j) *
-                             Point_coord(scaled_sphere->points[i], j);
-                radius += sqrt(r);
-        }
-        radius /= scaled_sphere->n_points * 1.01;
-
         /*
          * Set centre and radius.  Make radius slightly smaller to get sure
          * that the inner side of handles will be found as nearest point
          * on the surface
          */
-        for (i = 0; i < scaled_sphere->n_points; i++) {
-                for (j = 0; j < 3; j++) {
-                        Point_coord(scaled_sphere->points[i], j) -= centre[j];
-                        Point_coord(scaled_sphere->points[i], j) /= radius;
-                }
-        }
+        translate_to_center_of_mass(scaled_sphere);
+        for (i = 0; i < scaled_sphere->n_points; i++) 
+                set_vector_length(&scaled_sphere->points[i], 1.01);
 
         create_polygons_bintree(scaled_sphere,
                                 round((double) scaled_sphere->n_items *
@@ -536,7 +518,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         Point unit_point, on_sphere_point, new_point;
         Point poly_points[1000], poly_points_src[1000], scaled_point;
         int poly, size, ind, bandwidth2;
-        double weights[1000], centre[3], bounds[6], radius;
+        double weights[1000], radius;
         object_struct **objects;
         polygons_struct *scaled_sphere;
 
@@ -545,21 +527,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         scaled_sphere = get_polygons_ptr(*objects);
         initialize_polygons(scaled_sphere, WHITE, NULL);
         copy_polygons(sphere, scaled_sphere);
-
-        /* Find centre of sphere based on bounds (to correct for shiftings) */
-        get_bounds(scaled_sphere, bounds);
-        for (j = 0; j < 3; j++)
-                centre[j] = bounds[2*j] + bounds[2*j+1];
-
-        radius = 0.0;
-        for (i = 0; i < scaled_sphere->n_points; i++) {
-                r = 0.0;
-                for (j = 0; j < 3; j++) 
-                        r += Point_coord(scaled_sphere->points[i], j) *
-                             Point_coord(scaled_sphere->points[i], j);
-                radius += sqrt(r);
-        }
-        radius /= scaled_sphere->n_points;
+        translate_to_center_of_mass(scaled_sphere);
 
         /* cut holes and handles in half, saving the correct half 
          * for cutting/filling */
@@ -575,23 +543,20 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         for (i = 0; i < scaled_sphere->n_points; i++) {
                 switch (bisected[i]) {
                         case VENTRICLE: /* ventricle, fill */
-                                r = radius * 1.01;
+                                r = 0.99;
                                 break;
                         case LARGE_DEFECT: /* large defect, cut */
                         case HANDLE: /* handle, cut */
-                                r = radius * 0.99;
+                                r = 1.01;
                                 break;
                         case HOLE: /* hole, fill */
-                                r = radius * 1.05;
+                                r = 0.95;
                                 break;
                         default:
-                                r = radius;
+                                r = 1.0;
                 }
 
-                for (j = 0; j < 3; j++) {
-                        Point_coord(scaled_sphere->points[i], j) -= centre[j];
-                        Point_coord(scaled_sphere->points[i], j) /= r;
-                }
+                set_vector_length(&scaled_sphere->points[i], r);
         }
 
         if (DUMP_FILES) {
