@@ -31,16 +31,19 @@ struct dartel_prm {
 };
 
 /* defaults */
-char *param_file   = NULL;
-char *source_file  = NULL;
-char *target_file  = NULL;
-char *weight_file  = NULL;
-char *jacdet_file  = NULL;
-char *deform_file  = NULL;
-char *output_file  = NULL;
-char *pgm_file     = NULL;
-char *outflow_file = NULL;
-char *inflow_file  = NULL;
+char *param_file         = NULL;
+char *source_file        = NULL;
+char *source_sphere_file = NULL;
+char *target_file        = NULL;
+char *target_sphere_file = NULL;
+char *weight_file        = NULL;
+char *jacdet_file        = NULL;
+char *deform_file        = NULL;
+char *output_file        = NULL;
+char *pgm_file           = NULL;
+char *outflow_file       = NULL;
+char *inflow_file        = NULL;
+
 int translate = 0;
 int code      = 1;
 int loop      = 6;
@@ -58,8 +61,12 @@ double fwhm   = 10.0;
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
      "Input file."},
+  {"-is", ARGV_STRING, (char *) 1, (char *) &source_sphere_file, 
+     "Input sphere file."},
   {"-t", ARGV_STRING, (char *) 1, (char *) &target_file, 
      "Template file."},
+  {"-ts", ARGV_STRING, (char *) 1, (char *) &target_sphere_file, 
+     "Template sphere file."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
      "Warped brain."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_file, 
@@ -157,14 +164,14 @@ main(int argc, char *argv[])
         File_formats     format;
         FILE             *fp, *fp_flow;
         char             line[1024];
-        polygons_struct  *source, *target;
+        polygons_struct  *source, *target, *source_sphere, *target_sphere;
         int              x, y, i, j, it, it0, it1;
         int              n_objects, it_scratch, xy_size, n_weights;
         double           *weights;
         double           *map_source, *map_target;
         double           *map_warp, *map_weights, *map_source0, *deform;
         double           *flow, *flow1, *inflow, *scratch, *jd, *jd1, *values;
-        object_struct    **objects, *object;
+        object_struct    **objects;
         double           ll[3];
         static double    param[2] = {1.0, 1.0};
         int              size_curv[3], shift[2];
@@ -200,12 +207,33 @@ main(int argc, char *argv[])
                                       &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
 
+        /* get a pointer to the surface */
+        source = get_polygons_ptr(objects[0]);
+
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
         }
   
+        /* read sphere for input surface */
+        if (source_sphere_file != NULL) {
+                if (input_graphics_any_format(source_sphere_file, &format,
+                                      &n_objects, &objects) != OK)
+                        exit(EXIT_FAILURE);
+                source_sphere = get_polygons_ptr(objects[0]);
+        } else 
+                source_sphere = (polygons_struct *) 0;
+
+        /* read sphere for template surface */
+        if (target_sphere_file != NULL) {
+                if (input_graphics_any_format(target_sphere_file, &format,
+                                      &n_objects, &objects) != OK)
+                        exit(EXIT_FAILURE);
+                target_sphere = get_polygons_ptr(objects[0]);
+        } else 
+                target_sphere = (polygons_struct *) 0;
+
         /* read weights */
         if (weight_file != NULL) {
                 if (input_values_any_format(weight_file, &n_weights,
@@ -308,10 +336,7 @@ main(int argc, char *argv[])
                         fprintf(stderr,"%8d\t",prm[i].k);
                 fprintf(stderr,"\n\n");
         }
-  
-        /* get a pointer to the surface */
-        source = get_polygons_ptr(objects[0]);
-  
+    
         xy_size = size_curv[0] * size_curv[1];
 
         flow        = (double *) malloc(sizeof(double) * xy_size * 2);
@@ -321,9 +346,9 @@ main(int argc, char *argv[])
         map_target  = (double *) malloc(sizeof(double) * xy_size);
         map_warp    = (double *) malloc(sizeof(double) * xy_size);
 
-        map_smoothed_curvature_to_sphere(source, (double *)0, map_source, fwhm,
+        map_smoothed_curvature_to_sphere(source, source_sphere, (double *)0, map_source, fwhm,
                                          size_curv, curvtype);
-        map_smoothed_curvature_to_sphere(target, (double *)0, map_target, fwhm,
+        map_smoothed_curvature_to_sphere(target, target_sphere, (double *)0, map_target, fwhm,
                                          size_curv, curvtype);
 
         if (verbose) {
@@ -340,7 +365,7 @@ main(int argc, char *argv[])
         if (weight_file != NULL) {
                 map_weights = (double *) malloc(sizeof(double) * xy_size);
                 map_source0 = (double *) malloc(sizeof(double) * xy_size);
-                map_smoothed_curvature_to_sphere(source, weights, map_weights,
+                map_smoothed_curvature_to_sphere(source, source_sphere, weights, map_weights,
                                                  fwhm, size_curv, curvtype);
                 for (i = 0; i < xy_size; i++) {
                         map_source0[i] = map_source[i];
@@ -497,7 +522,7 @@ main(int argc, char *argv[])
         }
 
         if (output_file != NULL) {
-                apply_warp(source, flow, size_curv, shift);  
+                apply_warp(source, source_sphere, flow, size_curv, shift);  
   
                 if (output_graphics_any_format(output_file, format, n_objects,
                                                objects) != OK)

@@ -83,7 +83,7 @@ uv_to_point(double u, double v, Point *point)
 }
 
 void
-map_smoothed_curvature_to_sphere(polygons_struct *polygons, double *values,
+map_smoothed_curvature_to_sphere(polygons_struct *polygons, polygons_struct *sphere, double *values,
                                  double *data, double fwhm, int *size_map, int curvtype)
 {
         polygons_struct   unit_sphere;
@@ -96,6 +96,7 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons, double *values,
         int               i, j, n_iter;
         int               x, y, validx;
         int               poly, size, ind;
+
 
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
@@ -137,11 +138,17 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons, double *values,
                         values[i] = smooth_values[i];
         }
 
-        /* create unit sphere with same number of triangles as skin surface */
-        fill_Point(centre, 0.0, 0.0, 0.0);
-
-        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0,
+        if (sphere == NULL) {
+                /* create unit sphere with same number of triangles as skin surface */
+                fill_Point(centre, 0.0, 0.0, 0.0);
+                create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0,
                                   polygons->n_items, &unit_sphere);
+        } else {
+                copy_polygons(sphere, &unit_sphere);
+                /* set radius to 1 */
+                for (i = 0; i < unit_sphere.n_points; i++) 
+                        set_vector_length(&unit_sphere.points[i], 1.0);
+        }
 
         create_polygons_bintree(&unit_sphere,
                                 ROUND((double) unit_sphere.n_items *

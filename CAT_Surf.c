@@ -317,21 +317,28 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
 }
 
 void
-apply_warp(polygons_struct *polygons, double *flow, int *size_map, int *shift)
+apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int *size_map, int *shift)
 {
         Point             centre, unit_point, *new_points, trans_point;
         polygons_struct   unit_sphere;
         double            inflow_x, inflow_y, u, v, x, y, z, ux, vy;
         double            indx, indy;
-        int               p, ind;
+        int               i, p, ind;
 
-        fill_Point(centre, 0.0, 0.0, 0.0);
+        if (sphere == NULL) {
+                /* create unit sphere with same number of triangles as skin surface */
+                fill_Point(centre, 0.0, 0.0, 0.0);
+                create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0,
+                                  polygons->n_items, &unit_sphere);
+        } else {
+                copy_polygons(sphere, &unit_sphere);
+                /* set radius to 1 */
+                for (i = 0; i < unit_sphere.n_points; i++) 
+                        set_vector_length(&unit_sphere.points[i], 1.0);
+        }
 
         create_polygons_bintree(polygons, round((double) polygons->n_items *
                                                 BINTREE_FACTOR));
-
-        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, polygons->n_items,
-                                  &unit_sphere);
 
         create_polygons_bintree(&unit_sphere,
                                 round((double) unit_sphere.n_items *

@@ -9,10 +9,20 @@
 
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
+#include <ParseArgv.h>
 
 #include "CAT_Map2d.h"
 
 #define  BINTREE_FACTOR   0.5
+
+/* defaults */
+char *sphere_file = NULL;
+
+static ArgvInfo argTable[] = {
+  {"-sphere", ARGV_STRING, (char *) 1, (char *) &sphere_file, 
+     "Sphere for input surface."},
+   {NULL, ARGV_END, NULL, NULL, NULL}
+};
 
 void
 usage(char *executable)
@@ -30,7 +40,7 @@ main(int argc, char *argv[])
         FILE              *infp;
         File_formats      format;
         int               n_objects, i, xy_size, shift[2];
-        polygons_struct   *polygons;
+        polygons_struct   *polygons, *sphere;
         object_struct     **objects;
         double            *inflow, *flow, *flow1;
         int               size_map[2];
@@ -54,6 +64,15 @@ main(int argc, char *argv[])
 
         polygons = get_polygons_ptr(objects[0]);
 
+        /* read sphere for input surface */
+        if (sphere_file != NULL) {
+                if (input_graphics_any_format(sphere_file, &format,
+                                      &n_objects, &objects) != OK)
+                        exit(EXIT_FAILURE);
+                sphere = get_polygons_ptr(objects[0]);
+        } else 
+                sphere = (polygons_struct *) 0;
+
         if ((infp = fopen(flow_file, "rb")) == NULL) {
                 fprintf(stderr, "Error: Couldn't read file %s.\n", flow_file);
                 exit(EXIT_FAILURE);
@@ -73,7 +92,7 @@ main(int argc, char *argv[])
         free(flow1);
         free(inflow);
 
-        apply_warp(polygons, flow, size_map, shift);  
+        apply_warp(polygons, sphere, flow, size_map, shift);  
 
         if (output_graphics_any_format(output_file, format, n_objects,
                                        objects) != OK)

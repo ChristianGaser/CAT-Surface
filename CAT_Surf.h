@@ -15,6 +15,8 @@
 int bound(int, int, int *);
 void get_bounds(polygons_struct *, double [6]);
 
+void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int *);
+
 double * get_surface_ratio(double, polygons_struct *);
 double get_area_of_points(polygons_struct *, double *);
 double get_area_of_polygons(polygons_struct *, double *);

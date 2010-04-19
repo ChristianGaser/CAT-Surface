@@ -19,6 +19,6 @@ typedef struct {
 
 void   point_to_uv(Point *, double *, double *);
 void   uv_to_point(double, double, Point *);
-void   map_smoothed_curvature_to_sphere(polygons_struct *, double *, double *,
+void   map_smoothed_curvature_to_sphere(polygons_struct *, polygons_struct *, double *, double *,
                                         double, int *, int);
 void map_sheet2d_to_sphere(double *, double *, polygons_struct *, int, int *);
