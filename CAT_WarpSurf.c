@@ -40,6 +40,7 @@ char *weight_file        = NULL;
 char *jacdet_file        = NULL;
 char *deform_file        = NULL;
 char *output_file        = NULL;
+char *output_sphere_file = NULL;
 char *pgm_file           = NULL;
 char *outflow_file       = NULL;
 char *inflow_file        = NULL;
@@ -69,10 +70,12 @@ static ArgvInfo argTable[] = {
      "Template sphere file."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
      "Warped brain."},
+  {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
+     "Warped brain."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_file, 
      "Warped map as pgm file."},
   {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
-     "Save Jacobian determinant values (-1 to ease the use of relative volume changes) of the surface."},
+     "Save Jacobian determinant values (subtract 1 to ease the use of relative volume changes) of the surface."},
   {"-s", ARGV_STRING, (char *) 1, (char *) &weight_file, 
      "Weight warping with the inverse from values in this file (e.g. std)."},
   {"-d", ARGV_STRING, (char *) 1, (char *) &deform_file, 
@@ -195,13 +198,14 @@ main(int argc, char *argv[])
                                       &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
 
+        /* get a pointer to the surface */
+        target = get_polygons_ptr(objects[0]);
+
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("Surface file must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
         }
-        /* get a pointer to the surface */
-        target = get_polygons_ptr(objects[0]);
 
         if (input_graphics_any_format(source_file, &format,
                                       &n_objects, &objects) != OK)
@@ -216,6 +220,12 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
   
+        /* check that source sphere is defined if warped sphere should be saved */
+        if ((output_sphere_file != NULL) && (source_sphere_file == NULL)) {
+                printf("To save warped sphere an input sphere has to be defined with -is.\n");
+                exit(EXIT_FAILURE);
+        }
+
         /* read sphere for input surface */
         if (source_sphere_file != NULL) {
                 if (input_graphics_any_format(source_sphere_file, &format,
@@ -524,7 +534,19 @@ main(int argc, char *argv[])
         if (output_file != NULL) {
                 apply_warp(source, source_sphere, flow, size_curv, shift);  
   
+                /* get a pointer to the surface */
+                *get_polygons_ptr(objects[0]) = *source;
                 if (output_graphics_any_format(output_file, format, n_objects,
+                                               objects) != OK)
+                        exit(EXIT_FAILURE);
+        }
+
+        if (output_sphere_file != NULL) {
+                apply_warp(source_sphere, source_sphere, flow, size_curv, shift);  
+  
+                /* get a pointer to the surface */
+                *get_polygons_ptr(objects[0]) = *source_sphere;
+                if (output_graphics_any_format(output_sphere_file, format, n_objects,
                                                objects) != OK)
                         exit(EXIT_FAILURE);
         }

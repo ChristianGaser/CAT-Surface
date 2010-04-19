@@ -99,7 +99,7 @@ get_surface_ratio(double r, polygons_struct *polygons)
         for (i = 0; i < polygons->n_points; i++) {
                 if (i % 100 == 0) {
                         sprintf(str, "%i/%i", i, polygons->n_points);
-                        printf(str);
+                        printf("%s",str);
                         for (j = 0; j < strlen(str); j++)
                                 printf("\b");
                         fflush(stdout);
