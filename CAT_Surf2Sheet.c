@@ -66,7 +66,6 @@ main(int argc, char *argv[])
         double               *values, *data, mn, mx, distance;
         Point                centre;
         object_struct        **objects, *object;
-        BOOLEAN              values_specified;
 
         initialize_argument_processing(argc, argv);
 
@@ -84,36 +83,14 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (values_file == NULL) {
-                values_specified = FALSE;
-        } else {
-                if (input_values_any_format(values_file, &n_values, &values) != OK)
-                        exit(EXIT_FAILURE);
-                values_specified = TRUE;
-        }
-
         if (sphere_file != NULL) {
                 if (input_graphics_any_format(sphere_file, &format, &n_objects, &objects) != OK)
                         exit(EXIT_FAILURE);
                 /* get a pointer to the sphere */
                 sphere = get_polygons_ptr(objects[0]);
-        }
+        } 
 
-        if (surface_file == NULL) {
-                if (sphere_file == NULL) {
-                        /* if no surface_file and sphere_file is given then create tetra */
-                        object = create_object(POLYGONS);
-                        polygons = get_polygons_ptr(object);
-                        fill_Point(centre, 0.0, 0.0, 0.0);
-                        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, (2 * (n_values-2)),
-                                          sphere);
-                }
-        } else {
-                if (values_specified) {
-                        if (input_values_any_format(values_file, &n_values,
-                                                 &values) != OK)
-                                exit(EXIT_FAILURE);
-                }
+        if (surface_file != NULL) {
                 if (input_graphics_any_format(surface_file, &format,
                                               &n_objects, &objects) != OK)
                         exit(EXIT_FAILURE);
@@ -127,7 +104,7 @@ main(int argc, char *argv[])
                 polygons = get_polygons_ptr(objects[0]);
         }
         
-        if (!values_specified) {
+        if (values_file == NULL) {
                 create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                                 &neighbours, FALSE, NULL);
                 values = (double *) malloc(sizeof(double) * polygons->n_points);
@@ -137,10 +114,24 @@ main(int argc, char *argv[])
                 get_polygon_vertex_curvatures_cg(polygons,
                                               n_neighbours, neighbours,
                                               distance, curvtype, values);
+        } else {
+                if (input_values_any_format(values_file, &n_values, &values) != OK)
+                        exit(EXIT_FAILURE);
+                if (sphere_file == NULL) {
+                        /* if no surface_file and sphere_file is given then create tetra */
+                        object = create_object(POLYGONS);
+                        polygons = get_polygons_ptr(object);
+                        fill_Point(centre, 0.0, 0.0, 0.0);
+                        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, (2 * (n_values-2)),
+                                  sphere);   
+                } 
         }
-
         data = (double *) malloc(sizeof(double) * sz_map[0] * sz_map[1]);
-        map_smoothed_curvature_to_sphere(polygons, sphere, values, data, fwhm, sz_map, curvtype);
+        
+        if (values_file == NULL)
+                map_smoothed_curvature_to_sphere(polygons, sphere, values, data, fwhm, sz_map, curvtype);
+        else
+                map_smoothed_curvature_to_sphere(sphere, sphere, values, data, fwhm, sz_map, curvtype);
 
         /* scale data to uint8 range */
         mn = FLT_MAX; mx = -FLT_MAX;
@@ -158,7 +149,7 @@ main(int argc, char *argv[])
         delete_object_list(n_objects, objects);
         free(data);
 
-        if (!values_specified)
+        if (values_file == NULL)
                 free(values);
 
         return(EXIT_SUCCESS);
