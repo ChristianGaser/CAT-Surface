@@ -148,7 +148,7 @@ main(int argc, char *argv[])
                                        output_file, debug);
         }
 
-        printf("global FD: %f\n", 2 + fd);
+        printf("global FD: %f\n", fd);
 
         /* clean up */
         delete_object_list(1, objects);

@@ -47,7 +47,7 @@ get_globalfd(double *x, double *y, int len)
                 logy[i] = log(y[i]);
         }
 
-        fd = slope(logx, logy, len);
+        fd = 2 + slope(logx, logy, len);
 
         free(logx);
         free(logy);
@@ -102,6 +102,7 @@ get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
         for (p = 0; p < polygons->n_points; p++) {
                 if (pcount[p] > 0)
                         fd[p] /= pcount[p];
+                fd[p] += 2;
         }
 
         /* smooth the FD values with FWHM = 30.0 mm */
