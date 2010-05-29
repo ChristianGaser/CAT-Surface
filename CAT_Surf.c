@@ -317,7 +317,7 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
 }
 
 void
-apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int *size_map, int *shift)
+apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int *size_map, int inverse)
 {
         Point             centre, unit_point, *new_points, trans_point;
         polygons_struct   unit_sphere;
@@ -359,12 +359,16 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int
                 indy = v*inflow_y;
                 ind  = (int) round(indx) + (size_map[0] * (int) round(indy));
 
-                ux = (flow[ind] - 1.0 - indx + shift[0]) / inflow_x;
-                vy = (flow[ind + size_map[0]*size_map[1]] - 1.0 - indy +
-                      shift[1]) / inflow_y;
-    
-                u += ux;
-                v += vy;
+                ux = (flow[ind] - 1.0 - indx) / inflow_x;
+                vy = (flow[ind + size_map[0]*size_map[1]] - 1.0 - indy) / inflow_y;
+                      
+                if (inverse) {
+                        u -= ux;
+                        v -= vy;
+                } else {
+                        u += ux;
+                        v += vy;
+                }
 
                 /* wrap borders */
                 while (u < 0.0)  u += 1.0;

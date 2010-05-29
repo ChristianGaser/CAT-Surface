@@ -16,6 +16,7 @@
 #include "CAT_Curvature.h"
 
 #define  BINTREE_FACTOR   0.5
+#define  NEW_COORDINATE_SYSTEM   1
 
 double
 compute_clockwise_rotation2(double x, double y)
@@ -55,8 +56,14 @@ point_to_uv(Point *point, double *u, double *v)
         z = (double) Point_z(*point);
 
         phi = acos(z);
-        theta = compute_clockwise_rotation2(y, x);
-        *u = theta / (PI * 2.0);
+        if (NEW_COORDINATE_SYSTEM) {
+                theta = compute_clockwise_rotation(y, x) + PI/2.0;
+                *u = theta / (PI * 2.0);
+                if (*u > 1.0) *u -= 1.0;
+        } else {
+                theta = compute_clockwise_rotation2(y, x);
+                *u = theta / (PI * 2.0);
+        }
         *v = phi / PI;
 }
 
@@ -66,8 +73,12 @@ uv_to_point(double u, double v, Point *point)
         double x, y, z, theta, phi, cos_u;
         double sin_u, cos_v, sin_v;
     
-        /* shift theta by 90 to obtain correct position of midline */    
-        theta = u * PI * 2.0 + PI/2.0;
+        if (NEW_COORDINATE_SYSTEM) {
+                theta = u * PI * 2.0;
+        } else {
+                /* shift theta by 90 degree to obtain correct position of midline */    
+                theta = u * PI * 2.0 + PI/2.0;
+        }
         phi = v * PI;
  
         cos_u = cos(theta);
@@ -100,7 +111,7 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons, polygons_struct *sph
 
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-        // if values is empty calculate curvature
+        /* if values is empty calculate curvature */
         if (values == (double *)0) {
                 values = (double *)malloc(sizeof(double)*polygons->n_points);
                 if (curvtype == 0)
@@ -158,8 +169,9 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons, polygons_struct *sph
                 for (y = 0; y < size_map[1]; y++) {
                         u = ((double) x) / (double) (size_map[0] - 1);
                         v = ((double) y) / (double) (size_map[1] - 1);
-    
                         uv_to_point(u, v, &unit_point);
+                        double u2, v2;
+                        point_to_uv(&unit_point, &u2, &v2);
             
                         poly = find_closest_polygon_point(&unit_point,
                                                           &unit_sphere,
@@ -184,7 +196,7 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons, polygons_struct *sph
                 }
         }
 
-        // scale data to uint8 range
+        /* scale data to uint8 range */
         mn = FLT_MAX; mx = -FLT_MAX;
         for (i = 0; i < size_map[0]*size_map[1]; i++) {
             if (data[i] > mx) mx = data[i];

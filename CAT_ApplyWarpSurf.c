@@ -92,7 +92,7 @@ main(int argc, char *argv[])
         free(flow1);
         free(inflow);
 
-        apply_warp(polygons, sphere, flow, size_map, shift);  
+        apply_warp(polygons, sphere, flow, size_map, 0);  
 
         if (output_graphics_any_format(output_file, format, n_objects,
                                        objects) != OK)
