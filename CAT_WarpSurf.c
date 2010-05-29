@@ -17,7 +17,9 @@
 #include "CAT_Surf.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
-  
+
+#define INVERSE_WARPING 0
+
 struct dartel_prm {
   int rtype;         /* regularization type: 0 - linear elastic energy; */
                      /* 1 - membrane energy; 2 - bending energy */
@@ -509,8 +511,8 @@ main(int argc, char *argv[])
         resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
 
         /* smooth surfaces */
-        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 50, 1.0, 3.0, 1.0, 0);
-        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 50, 1.0, 3.0, 1.0, 0);
+        inflate_surface_and_smooth_fingers(&resampled_source, 2, 0.2, 30, 1.0, 3.0, 1.0, 0);
+        inflate_surface_and_smooth_fingers(&resampled_target, 2, 0.2, 30, 1.0, 3.0, 1.0, 0);
 
         if (verbose) {
                 map_smoothed_curvature_to_sphere(&resampled_source, NULL, (double *)0, map_source, fwhm,
@@ -562,6 +564,7 @@ main(int argc, char *argv[])
         for (i = 0; i < xy_size*2; i++) 
                 inflow[i] = 0.0;
 
+        fprintf(stderr,"Dartel step 1\n");
         for (it = 0, it0 = 0; it0 < loop; it0++) {
                 it_scratch = dartel_scratchsize((int *)size_curv,
                                                 prm[it0].code);
@@ -570,11 +573,19 @@ main(int argc, char *argv[])
                 for (it1 = 0; it1 < prm[it0].its; it1++) {
                         it++;
                         /* map target onto source */
-                        dartel(size_curv, prm[it0].k, inflow, map_source,
-                               map_target, (double *)0, prm[it0].rtype, 
-                               prm[it0].rparam, prm[it0].lmreg,
-                               prm[it0].cycles, prm[it0].its, prm[it0].code,
-                               flow, ll, scratch);
+                        if (INVERSE_WARPING) {
+                                dartel(size_curv, prm[it0].k, inflow, map_source,
+                                       map_target, (double *)0, prm[it0].rtype, 
+                                       prm[it0].rparam, prm[it0].lmreg,
+                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
+                                       flow, ll, scratch);
+                        } else {
+                                dartel(size_curv, prm[it0].k, inflow, map_target,
+                                       map_source, (double *)0, prm[it0].rtype, 
+                                       prm[it0].rparam, prm[it0].lmreg,
+                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
+                                       flow, ll, scratch);
+                        }
                         fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n",
                                 it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
                         for (i = 0; i < xy_size*2; i++)
@@ -582,6 +593,60 @@ main(int argc, char *argv[])
                 }
                 free(scratch);
         }
+
+        fprintf(stderr,"\nDartel step 2\n");
+        resample_spherical_surface(source, source_sphere, &resampled_source, NULL, NULL, n_triangles);
+        resample_spherical_surface(source_sphere, source_sphere, &resampled_source_sphere, NULL, NULL, n_triangles);
+        resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
+
+        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
+        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
+
+        map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
+                                         size_curv, curvtype);
+
+        map_smoothed_curvature_to_sphere(&resampled_source, &resampled_source_sphere, (double *)0, map_source, fwhm,
+                                         size_curv, curvtype);
+        
+        if (verbose) {
+                if (write_pgm("source2.pgm", map_source,
+                              size_curv[0], size_curv[1]) != 0)
+                        exit(EXIT_FAILURE);
+
+                if (write_pgm("target2.pgm", map_target,
+                              size_curv[0], size_curv[1]) != 0)
+                        exit(EXIT_FAILURE);
+        }
+
+        for (it = 0, it0 = 0; it0 < loop; it0++) {
+                it_scratch = dartel_scratchsize((int *)size_curv,
+                                                prm[it0].code);
+                scratch = (double *) malloc(sizeof(double) * it_scratch);
+
+                for (it1 = 0; it1 < prm[it0].its; it1++) {
+                        it++;
+                        /* map target onto source */
+                        if (INVERSE_WARPING) {
+                                dartel(size_curv, prm[it0].k, inflow, map_source,
+                                       map_target, (double *)0, prm[it0].rtype, 
+                                       prm[it0].rparam, prm[it0].lmreg,
+                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
+                                       flow, ll, scratch);
+                        } else {
+                                dartel(size_curv, prm[it0].k, inflow, map_target,
+                                       map_source, (double *)0, prm[it0].rtype, 
+                                       prm[it0].rparam, prm[it0].lmreg,
+                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
+                                       flow, ll, scratch);
+                        }
+                        fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n",
+                                it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
+                        for (i = 0; i < xy_size*2; i++)
+                                inflow[i] = flow[i];
+                }
+                free(scratch);
+        }
+
 
         /* get deformations and jacobian det. from flow field */
         if (jacdet_file != NULL) {
@@ -668,7 +733,10 @@ main(int argc, char *argv[])
 
         if (output_file != NULL) {
                 /* apply inverse deformations */
-                apply_warp(source, source_sphere, flow, size_curv, 1);  
+                if (INVERSE_WARPING)
+                        apply_warp(source, source_sphere, flow, size_curv, 1); 
+                else 
+                        apply_warp(source, source_sphere, flow, size_curv, 0); 
                 if (rotate) {
                         rotation_to_matrix(rotation_matrix, -rot[0], -rot[1], -rot[2]);
                         rotate_polygons(source, NULL, rotation_matrix);
@@ -682,7 +750,10 @@ main(int argc, char *argv[])
         }
 
         if (output_sphere_file != NULL) {
-                apply_warp(source_sphere, source_sphere, flow, size_curv, 0);  
+                if (INVERSE_WARPING)
+                        apply_warp(source_sphere, source_sphere, flow, size_curv, 0);  
+                else
+                        apply_warp(source_sphere, source_sphere, flow, size_curv, 1);  
                 if (rotate) {
                         rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
                         rotate_polygons(source_sphere, NULL, rotation_matrix);
