@@ -18,6 +18,7 @@ output_dir="."
 reg=sphere.reg
 template=$SUBJECTS_DIR/fsaverage
 ascii=0
+hemi="lh rh"
 
 ########################################################
 # run main
@@ -62,23 +63,22 @@ preprocess ()
 	  	fi
 
       subject_name=`basename $subject`
-    	echo calculate ${subject_name} 
     	tmp_name=/tmp/$$_resample
-    	for hemi in lh rh; do
+    	for i in $hemi; do
         if [ ! "$fwhm" == 0 ]; then
-          name=${output_dir}/${fwhm}mm.${measure}.${hemi}.resample.${subject_name}
+          name=${output_dir}/${fwhm}mm.${measure}.${i}.resample.${subject_name}
           if [ "$ascii" == 1 ]; then
             name=${name}.txt
           fi
-	    	  CAT_ResampleSurf ${surfdir}/${hemi}.white ${surfdir}/${hemi}.${reg} ${targetdir}/${hemi}.${reg} $tmp_name ${surfdir}/${hemi}.${measure} ${tmp_name}.txt
+	    	  CAT_ResampleSurf ${surfdir}/${i}.white ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
 	    	  CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
 	    	  echo resample and smooth to $name
         else
-          name=${output_dir}/${measure}.${hemi}.resample.${subject}
+          name=${output_dir}/${measure}.${i}.resample.${subject}
           if [ "$ascii" == 1 ]; then
             name=${name}.txt
           fi
-	    	  CAT_ResampleSurf ${surfdir}/${hemi}.white ${surfdir}/${hemi}.${reg} ${targetdir}/${hemi}.${reg} $tmp_name ${surfdir}/${hemi}.${measure} $name
+	    	  CAT_ResampleSurf ${surfdir}/${i}.white ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
 	    	  echo resample to $name
   	  	fi
   		done
@@ -115,6 +115,12 @@ parse_args ()
 			;;
 		--a* | -a*)
 			ascii=1
+			;;
+		--lh* | -lh*)
+			hemi=lh
+			;;
+		--rh* | -rh*)
+			hemi=rh
 			;;
 		--m* | -m*)
 			exit_if_empty "$optname" "$optarg"
