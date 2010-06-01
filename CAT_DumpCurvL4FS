@@ -12,7 +12,7 @@
 # global parameters
 ########################################################
 
-use_absolute=1
+use_absolute=0
 method=0
 fwhm=0
 
