@@ -58,7 +58,7 @@ get_globalfd(double *x, double *y, int len)
 /* get local FD values ... x is bandwidth or dimension. */
 void
 get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
-            double *fd)
+            double *fd, int smoothflag)
 {
         int xx, p;
         double *logx, *logy;
@@ -105,8 +105,10 @@ get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
                 fd[p] += 2;
         }
 
-        /* smooth the FD values with FWHM = 30.0 mm */
-        get_smoothed_values(polygons, fd, FWHM);
+        if (smoothflag) {
+                /* smooth the FD values with FWHM = 30.0 mm */
+                get_smoothed_values(polygons, fd, FWHM);
+        }
 
         free(logx);
         free(logy);
@@ -461,7 +463,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
  */
 double
 fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
-                  int maxiters, char *file, int debugflag)
+                  int maxiters, char *file, int smoothflag, int debugflag)
 {
         object_struct **object;
         polygons_struct *polygons;
@@ -554,7 +556,7 @@ double bws[SPH_ITERS] = {11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 23.0, 26.0, 2
 double
 fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                       char *file, int n_triangles, polygons_struct *reparam,
-                      int debugflag)
+                      int smoothflag, int debugflag)
 {
         polygons_struct *polygons;
         object_struct **object;
@@ -692,7 +694,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         }
 
         local_fd = (double *) malloc(sizeof(double) * reparam->n_points);
-        get_localfd(reparam, bws, sph_areas, SPH_ITERS, local_fd);
+        get_localfd(reparam, bws, sph_areas, SPH_ITERS, local_fd, smoothflag);
         output_values_any_format(file, reparam->n_points, local_fd,
                                  TYPE_DOUBLE);
  
