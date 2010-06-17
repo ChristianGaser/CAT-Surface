@@ -17,7 +17,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  src.obj src_sphere.obj resampled_output.obj target_sphere.obj [input_values.txt output_values.txt]\n\
+Usage: %s  src.obj src_sphere.obj target_sphere.obj resampled_output.obj [input_values.txt output_values.txt]\n\
 Resamples a spherical inflated surface to an external defined sphere.\n\
 \n\n";
 
