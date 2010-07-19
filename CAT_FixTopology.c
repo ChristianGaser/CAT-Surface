@@ -33,6 +33,7 @@ int bw = 1024;
 int lim = 64;
 int n_triangles = 327680;
 char *t1_file = NULL;
+char *reparam_file = NULL;
 
 Volume volume;
 
@@ -53,6 +54,8 @@ ArgvInfo argTable[] = {
   {"-t1", ARGV_STRING, (char *) 1,
     (char *) &t1_file,
     "Optional T1-image for post-harmonic topology correction."},
+  {"-sphere", ARGV_STRING, (char *) 1, (char *) &reparam_file,
+     "Sphere object for reparameterization."},
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -299,15 +302,16 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 object_struct **
 fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
 {
-        object_struct **hbw_objects, **lbw_objects;
-        polygons_struct *hbw, *lbw;
+        object_struct **hbw_objects, **lbw_objects, **reparam_objects;
+        polygons_struct *hbw, *lbw, *reparam;
         double *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double *lrcx, *licx, *lrcy, *licy, *lrcz, *licz;
         double *rdatax, *rdatay, *rdataz;
         int bw2;
-        int *defects, *polydefects, *holes, n_defects, p;
+        int *defects, *polydefects, *holes, n_defects, n_objects, p;
         int *n_neighbours, **neighbours;
         double t1_threshold;
+        File_formats format;
 
         /* find defects in original uncorrected surface */
         create_polygon_point_neighbours(sphere, TRUE, &n_neighbours,
@@ -378,9 +382,28 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         hbw_objects = (object_struct **) malloc(sizeof(object_struct *));
         *hbw_objects = create_object(POLYGONS);
         hbw = get_polygons_ptr(*hbw_objects);
+
+        if (reparam_file != NULL) {
+                if (input_graphics_any_format(reparam_file, &format, &n_objects,
+                                              &reparam_objects) != OK)
+                        exit(EXIT_FAILURE);
+
+                /* check that the surface file contains a polyhedron */
+                if (n_objects != 1 ||
+                    get_object_type(reparam_objects[0]) != POLYGONS) {
+                        fprintf(stderr,"Reparam sphere file must contain 1 polygons object.\n");
+                        exit(EXIT_FAILURE);
+                }
+                reparam = get_polygons_ptr(reparam_objects[0]);
+                for (p = 0; p < reparam->n_points; p++)
+                        set_vector_length(&reparam->points[p], 1.0);
+                n_triangles = reparam->n_items;
+        } else {
+                reparam = NULL;
+        }
         if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (hbw)...\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
-                               n_triangles, NULL, bw);
+                               n_triangles, reparam, bw);
 
         if (DUMP_FILES) {
                 output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1,
@@ -405,7 +428,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         lbw = get_polygons_ptr(*lbw_objects);
         if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (lbw)...\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                               lbw, n_triangles, NULL, bw);
+                               lbw, n_triangles, reparam, bw);
 
         if (DUMP_FILES) {
                 output_graphics_any_format("lbw.obj", ASCII_FORMAT, 1,
