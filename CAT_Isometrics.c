@@ -222,24 +222,32 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
                         map->points = newpts;
                         newmetric = areadistortion(brain, map);
 
-                        if (newmetric >= metric) {
-                                /* don't update, decrement step */
-                                map->points = oldpts;
-                                for (p = 0; p < map->n_points; p++)
-                                        newpts[p] = map->points[p];
-                                it -= stepsize;
-                                stepsize = round(stepsize / 2);
-                                if (stepsize == 0) break;
-                        } else if (metric - newmetric < tolerance) {
-                                metric = newmetric;
-                                newpts = oldpts;
-                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
-                                break;
+                        if (selectflag == SELECT_ON) {
+                                if (newmetric >= metric) {
+                                        /* don't update, decrement step */
+                                        map->points = oldpts;
+                                        for (p = 0; p < map->n_points; p++)
+                                                newpts[p] = map->points[p];
+                                        it -= stepsize;
+                                        stepsize = round(stepsize / 2);
+                                        if (stepsize == 0) break;
+                                } else if (metric - newmetric < tolerance) {
+                                        metric = newmetric;
+                                        newpts = oldpts;
+                                        fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                        break;
+                                } else {
+                                        metric = newmetric;
+                                        newpts = oldpts;
+                                        fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                        if (count == 0) break;
+                                        for (p = 0; p < map->n_points; p++)
+                                                newpts[p] = map->points[p];
+                                }
                         } else {
                                 metric = newmetric;
                                 newpts = oldpts;
                                 fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
-                                if (count == 0) break;
                                 for (p = 0; p < map->n_points; p++)
                                         newpts[p] = map->points[p];
                         }
