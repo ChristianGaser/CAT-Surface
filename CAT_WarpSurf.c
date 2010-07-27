@@ -19,6 +19,8 @@
 #include "CAT_SurfaceIO.h"
 
 #define INVERSE_WARPING 0
+#define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
+#define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
 
 struct dartel_prm {
   int rtype;         /* regularization type: 0 - linear elastic energy; */
@@ -256,24 +258,26 @@ void
 rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *target, polygons_struct *source_sphere, double *map_source, double *map_target, int *size_curv, double fwhm, int curvtype, double *rot)
 {
         int             i;
-        int             n_intervals;
-        double          alpha, beta, gamma, sum_sq, prev_sum_sq;
-        double          search_width, interval;
+        int             n_angles;
+        double          alpha, beta, gamma, sum_sq, min_sum_sq;
+        double          degrees, delta;
         double          curr_alpha = 0.0, curr_beta = 0.0, curr_gamma = 0.0;
-        double          best_alpha = 0.0, best_beta = 0.0, best_gamma = 0.0;
+        double          best_alpha, best_beta, best_gamma;
         polygons_struct rotated_source_sphere;
-        double          rotation_tmp[9];
+        double          rotation_tmp[9], min_degrees, max_degrees;
                 
-        search_width = 16.0/180.0*PI;
-        n_intervals  = 4;
+        min_degrees = RADIANS(1.0);
+        max_degrees = RADIANS(32.0);
+        degrees = max_degrees;
+        n_angles  = 4;
         
-        prev_sum_sq = 1e15;
+        min_sum_sq = 1e15;
         
-        while(search_width >= PI/180.0) {
-                interval = 2.0*search_width/n_intervals;
-                for (alpha = curr_alpha - search_width; alpha < curr_alpha + search_width; alpha += interval) {
-                        for (beta = curr_beta - search_width; beta < curr_beta + search_width; beta += interval) {
-                                for (gamma = curr_gamma - search_width; gamma < curr_gamma + search_width; gamma += interval) {
+        for (degrees = max_degrees ; degrees >= min_degrees ; degrees /= 2.0f) {
+                delta = 2.0*degrees/(double)n_angles;
+                for (alpha = curr_alpha - degrees; alpha < curr_alpha + degrees; alpha += delta) {
+                        for (beta = curr_beta - degrees; beta < curr_beta + degrees; beta += delta) {
+                                for (gamma = curr_gamma - degrees; gamma < curr_gamma + degrees; gamma += delta) {
                                 
                                         /* rotate source sphere */
                                         rotation_to_matrix(rotation_tmp, alpha, beta, gamma);
@@ -287,21 +291,20 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *target, polyg
                                         for (i = 0; i < size_curv[0]*size_curv[1]; i++) 
                                                 sum_sq += (map_source[i]-map_target[i])*(map_source[i]-map_target[i]);     
 
-                                        if(sum_sq < prev_sum_sq) {
-                                                prev_sum_sq = sum_sq;
+                                        if(sum_sq < min_sum_sq) {
+                                                min_sum_sq = sum_sq;
                                                 best_alpha = alpha;
                                                 best_beta = beta;
                                                 best_gamma = gamma;
                                                 rot[0] = best_alpha;
                                                 rot[1] = best_beta;
                                                 rot[2] = best_gamma;
-                                                if (verbose) fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",alpha,beta,gamma, sum_sq);
+                                                if (verbose) fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",
+                                                        DEGREES(alpha),DEGREES(beta),DEGREES(gamma), sum_sq);
                                         }
                                 }
                         }
                 }
-                /* increase search accuracy */
-                search_width /= 2.0;
                 
                 /* save best estimates */
                 curr_alpha = best_alpha;
@@ -511,8 +514,8 @@ main(int argc, char *argv[])
         resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
 
         /* smooth surfaces */
-        inflate_surface_and_smooth_fingers(&resampled_source, 2, 0.2, 30, 1.0, 3.0, 1.0, 0);
-        inflate_surface_and_smooth_fingers(&resampled_target, 2, 0.2, 30, 1.0, 3.0, 1.0, 0);
+        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.5, 30, 1.0, 3.0, 1.0, 0);
+        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.5, 30, 1.0, 3.0, 1.0, 0);
 
         if (verbose) {
                 map_smoothed_curvature_to_sphere(&resampled_source, NULL, (double *)0, map_source, fwhm,
@@ -531,11 +534,8 @@ main(int argc, char *argv[])
                                          map_target, size_curv, fwhm, curvtype, rot);
                 rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
                 if (verbose) {
-                        fprintf(stderr,"Estimated initial rotation matrix:\n");
-                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  rot[0], rot[1], rot[2]);
-                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  rotation_matrix[0],rotation_matrix[1],rotation_matrix[2]);
-                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  rotation_matrix[3],rotation_matrix[4],rotation_matrix[5]);
-                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n\n",rotation_matrix[6],rotation_matrix[7],rotation_matrix[8]);
+                        fprintf(stderr,"Estimated initial rotations:\n");
+                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
                 }
                 
                 /* rotate resampled source sphere */
@@ -601,6 +601,11 @@ main(int argc, char *argv[])
 
         inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
         inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
+
+        if (rotate) {
+                /* rotate resampled source sphere */
+                rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
+        }
 
         map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
                                          size_curv, curvtype);
@@ -732,15 +737,15 @@ main(int argc, char *argv[])
         }
 
         if (output_file != NULL) {
+                if (rotate) {
+                        rotation_to_matrix(rotation_matrix, -rot[0], -rot[1], -rot[2]);
+                        rotate_polygons(source, NULL, rotation_matrix);
+                }
                 /* apply inverse deformations */
                 if (INVERSE_WARPING)
                         apply_warp(source, source_sphere, flow, size_curv, 1); 
                 else 
                         apply_warp(source, source_sphere, flow, size_curv, 0); 
-                if (rotate) {
-                        rotation_to_matrix(rotation_matrix, -rot[0], -rot[1], -rot[2]);
-                        rotate_polygons(source, NULL, rotation_matrix);
-                }
   
                 /* get a pointer to the surface */
                 *get_polygons_ptr(objects[0]) = *source;
@@ -750,14 +755,14 @@ main(int argc, char *argv[])
         }
 
         if (output_sphere_file != NULL) {
-                if (INVERSE_WARPING)
-                        apply_warp(source_sphere, source_sphere, flow, size_curv, 0);  
-                else
-                        apply_warp(source_sphere, source_sphere, flow, size_curv, 1);  
                 if (rotate) {
                         rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
                         rotate_polygons(source_sphere, NULL, rotation_matrix);
                 }
+                if (INVERSE_WARPING)
+                        apply_warp(source_sphere, source_sphere, flow, size_curv, 0);  
+                else
+                        apply_warp(source_sphere, source_sphere, flow, size_curv, 1);  
   
                 /* get a pointer to the surface */
                 *get_polygons_ptr(objects[0]) = *source_sphere;
