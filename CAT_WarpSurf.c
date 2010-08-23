@@ -41,24 +41,26 @@ char *source_sphere_file = NULL;
 char *target_file        = NULL;
 char *target_sphere_file = NULL;
 char *jacdet_file        = NULL;
-char *deform_file        = NULL;
 char *output_file        = NULL;
 char *output_sphere_file = NULL;
 char *pgm_file           = NULL;
 
-int rotate    = 0;
-int code      = 1;
-int loop      = 6;
-int verbose   = 0;
-int rtype     = 1;
-int curvtype  = 4;
-int muchange  = 4;
-int sz_map[2] = {512, 256};
-double murate = 1.25;
-double lambda = 0.0;
-double mu     = 0.25;
-double lmreg  = 0.0;
-double fwhm   = 10.0;
+int rotate      = 0;
+int code        = 1;
+int loop        = 6;
+int verbose     = 0;
+int rtype       = 1;
+int curvtype    = 3;
+int muchange    = 4;
+int sz_map[2]   = {512, 256};
+int n_triangles = 20480;
+int n_steps     = 3;
+int debug       = 0;
+double murate   = 1.25;
+double lambda   = 0.0;
+double mu       = 0.25;
+double lmreg    = 0.0;
+double fwhm     = 10.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
@@ -77,8 +79,6 @@ static ArgvInfo argTable[] = {
      "Warped map as pgm file."},
   {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
      "Save Jacobian determinant values (subtract 1 to ease the use of relative volume changes) of the surface."},
-  {"-d", ARGV_STRING, (char *) 1, (char *) &deform_file, 
-     "Save amplitude of deformations (displacements) of the surface."},
   {"-p", ARGV_STRING, (char *) 1, (char *) &param_file, 
      "Parameter file."},
   {"-code", ARGV_INT, (char *) 1, (char *) &code,
@@ -99,6 +99,8 @@ static ArgvInfo argTable[] = {
      "Filter size for curvature map in FWHM."},
   {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
      "Number of outer loops for default parameters (max. 6)."},
+  {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
+     "Number of Dartel steps (max. 6)."},
   {"-size", ARGV_INT, (char *) 2, (char *) &sz_map,
      "Size of curvature map for warping."},
   {"-rotate", ARGV_CONSTANT, (char *) TRUE, (char *) &rotate,
@@ -107,6 +109,8 @@ static ArgvInfo argTable[] = {
      "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
+  {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
+     "Save debug files."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -318,13 +322,13 @@ main(int argc, char *argv[])
 {
         File_formats     format;
         FILE             *fp;
-        char             line[1024];
+        char             line[1024], buffer[1024];
         polygons_struct  *source, *target, *source_sphere, *target_sphere, resampled_source_sphere;
         polygons_struct  resampled_source, resampled_target;
-        int              x, y, i, j, it, it0, it1, n_triangles;
+        int              x, y, i, j, it, it0, it1, step;
         int              n_objects, it_scratch, xy_size;
         double           *map_source, *map_target;
-        double           *map_warp, *deform;
+        double           *map_warp;
         double           *flow, *flow1, *inflow, *scratch, *jd, *jd1, *values;
         object_struct    **objects;
         double           ll[3];
@@ -334,15 +338,14 @@ main(int argc, char *argv[])
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
         double           rot[3];
-        Point            center;
 
         /* get the arguments from the command line */
 
         if (ParseArgv(&argc, argv, argTable, 0) ||
-             source_file == NULL || target_file == NULL ||
+             source_file == NULL || target_file == NULL || 
+             source_sphere_file == NULL || target_sphere_file == NULL ||
             (jacdet_file == NULL && output_file == NULL &&
-             pgm_file == NULL  && deform_file == NULL && 
-             output_sphere_file == NULL)) {
+             pgm_file == NULL  &&  output_sphere_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -374,33 +377,17 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
   
-        /* check that source sphere is defined if warped sphere should be saved */
-        if ((output_sphere_file != NULL) && (source_sphere_file == NULL)) {
-                printf("To save warped sphere an input sphere has to be defined with the flag -is.\n");
-                exit(EXIT_FAILURE);
-        }
-
         /* read sphere for input surface */
-        if (source_sphere_file != NULL) {
-                if (input_graphics_any_format(source_sphere_file, &format,
-                                      &n_objects, &objects) != OK)
-                        exit(EXIT_FAILURE);
-                source_sphere = get_polygons_ptr(objects[0]);
-        } else {
-                fill_Point(center, 0.0, 0.0, 0.0);
-                create_tetrahedral_sphere(&center, 1.0, 1.0, 1.0, source->n_items, source_sphere);        
-        }
+        if (input_graphics_any_format(source_sphere_file, &format,
+                              &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+        source_sphere = get_polygons_ptr(objects[0]);
 
         /* read sphere for template surface */
-        if (target_sphere_file != NULL) {
-                if (input_graphics_any_format(target_sphere_file, &format,
-                                      &n_objects, &objects) != OK)
-                        exit(EXIT_FAILURE);
-                target_sphere = get_polygons_ptr(objects[0]);
-        } else {
-                fill_Point(center, 0.0, 0.0, 0.0);
-                create_tetrahedral_sphere(&center, 1.0, 1.0, 1.0, target->n_items, target_sphere);        
-        }
+        if (input_graphics_any_format(target_sphere_file, &format,
+                              &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+        target_sphere = get_polygons_ptr(objects[0]);
 
         prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
         
@@ -507,151 +494,112 @@ main(int argc, char *argv[])
         map_target  = (double *) malloc(sizeof(double) * xy_size);
         map_warp    = (double *) malloc(sizeof(double) * xy_size);
 
-        n_triangles = 20480;
 
-        resample_spherical_surface(source, source_sphere, &resampled_source, NULL, NULL, n_triangles);
-        resample_spherical_surface(source_sphere, source_sphere, &resampled_source_sphere, NULL, NULL, n_triangles);
-        resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
-
-        /* smooth surfaces */
-        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.5, 30, 1.0, 3.0, 1.0, 0);
-        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.5, 30, 1.0, 3.0, 1.0, 0);
-
-        if (verbose) {
-                map_smoothed_curvature_to_sphere(&resampled_source, NULL, (double *)0, map_source, fwhm,
-                                         size_curv, curvtype);
-                if (write_pgm("source0.pgm", map_source,
-                              size_curv[0], size_curv[1]) != 0)
-                        exit(EXIT_FAILURE);
-
-        }
-
-        if (rotate) {
-                fprintf(stderr,"Not yet working\n");
-                map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
-                                         size_curv, curvtype);
-                rotate_polygons_to_atlas(&resampled_source, &resampled_target, &resampled_source_sphere, map_source, 
-                                         map_target, size_curv, fwhm, curvtype, rot);
-                rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-                if (verbose) {
-                        fprintf(stderr,"Estimated initial rotations:\n");
-                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
-                }
-                
-                /* rotate resampled source sphere */
-                rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
-        }
-
-        map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
-                                         size_curv, curvtype);
-
-        map_smoothed_curvature_to_sphere(&resampled_source, &resampled_source_sphere, (double *)0, map_source, fwhm,
-                                         size_curv, curvtype);
-
-        if (verbose) {
-                if (write_pgm("source.pgm", map_source,
-                              size_curv[0], size_curv[1]) != 0)
-                        exit(EXIT_FAILURE);
-
-                if (write_pgm("target.pgm", map_target,
-                              size_curv[0], size_curv[1]) != 0)
-                        exit(EXIT_FAILURE);
-        }
-            
-        for (i = 0; i < xy_size; i++)
-                map_warp[i]  = 0.0;
-
-        for (i = 0; i < xy_size*2; i++) 
-                inflow[i] = 0.0;
-
-        fprintf(stderr,"Dartel step 1\n");
-        for (it = 0, it0 = 0; it0 < loop; it0++) {
-                it_scratch = dartel_scratchsize((int *)size_curv,
-                                                prm[it0].code);
-                scratch = (double *) malloc(sizeof(double) * it_scratch);
-
-                for (it1 = 0; it1 < prm[it0].its; it1++) {
-                        it++;
-                        /* map target onto source */
-                        if (INVERSE_WARPING) {
-                                dartel(size_curv, prm[it0].k, inflow, map_source,
-                                       map_target, (double *)0, prm[it0].rtype, 
-                                       prm[it0].rparam, prm[it0].lmreg,
-                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
-                                       flow, ll, scratch);
-                        } else {
-                                dartel(size_curv, prm[it0].k, inflow, map_target,
-                                       map_source, (double *)0, prm[it0].rtype, 
-                                       prm[it0].rparam, prm[it0].lmreg,
-                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
-                                       flow, ll, scratch);
-                        }
-                        fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n",
-                                it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
-                        for (i = 0; i < xy_size*2; i++)
-                                inflow[i] = flow[i];
-                }
-                free(scratch);
-        }
-
-        fprintf(stderr,"\nDartel step 2\n");
-        resample_spherical_surface(source, source_sphere, &resampled_source, NULL, NULL, n_triangles);
-        resample_spherical_surface(source_sphere, source_sphere, &resampled_source_sphere, NULL, NULL, n_triangles);
-        resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
-
-        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
-        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
-
-        if (rotate) {
-                /* rotate resampled source sphere */
-                rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
-        }
-
-        map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
-                                         size_curv, curvtype);
-
-        map_smoothed_curvature_to_sphere(&resampled_source, &resampled_source_sphere, (double *)0, map_source, fwhm,
-                                         size_curv, curvtype);
+        for (step = 0; step < n_steps; step++) {
         
-        if (verbose) {
-                if (write_pgm("source2.pgm", map_source,
-                              size_curv[0], size_curv[1]) != 0)
-                        exit(EXIT_FAILURE);
+                if (step > 1)
+                        fwhm /= 2.0;
+                        
+                resample_spherical_surface(source, source_sphere, &resampled_source, NULL, NULL, n_triangles);
+                resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
+                if (step == 0)
+                        resample_spherical_surface(source_sphere, source_sphere, &resampled_source_sphere, NULL, NULL, n_triangles);
 
-                if (write_pgm("target2.pgm", map_target,
-                              size_curv[0], size_curv[1]) != 0)
-                        exit(EXIT_FAILURE);
-        }
-
-        for (it = 0, it0 = 0; it0 < loop; it0++) {
-                it_scratch = dartel_scratchsize((int *)size_curv,
-                                                prm[it0].code);
-                scratch = (double *) malloc(sizeof(double) * it_scratch);
-
-                for (it1 = 0; it1 < prm[it0].its; it1++) {
-                        it++;
-                        /* map target onto source */
-                        if (INVERSE_WARPING) {
-                                dartel(size_curv, prm[it0].k, inflow, map_source,
-                                       map_target, (double *)0, prm[it0].rtype, 
-                                       prm[it0].rparam, prm[it0].lmreg,
-                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
-                                       flow, ll, scratch);
-                        } else {
-                                dartel(size_curv, prm[it0].k, inflow, map_target,
-                                       map_source, (double *)0, prm[it0].rtype, 
-                                       prm[it0].rparam, prm[it0].lmreg,
-                                       prm[it0].cycles, prm[it0].its, prm[it0].code,
-                                       flow, ll, scratch);
-                        }
-                        fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n",
-                                it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
-                        for (i = 0; i < xy_size*2; i++)
-                                inflow[i] = flow[i];
+                if (step == 0) {
+                        /* inflate surfaces */
+                        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 50, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 50, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_source, 2, 1.0, 30, 1.4, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_target, 2, 1.0, 30, 1.4, 3.0, 1.0, 0);
+                } else if (step == 1) {
+                        /* smooth surfaces */
+                        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
+                }       
+         
+                if (rotate && debug && step == 0) {
+                        map_smoothed_curvature_to_sphere(&resampled_source, NULL, (double *)0, map_source, fwhm,
+                                                 size_curv, curvtype);
+                        sprintf(buffer,"source%d.pgm",curvtype);
+                        if (write_pgm(buffer, map_source,
+                                      size_curv[0], size_curv[1]) != 0)
+                                exit(EXIT_FAILURE);
                 }
-                free(scratch);
-        }
 
+                /* initial rotation at first step */
+                if (rotate && step == 0) {
+                        map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
+                                                 size_curv, curvtype);
+                        rotate_polygons_to_atlas(&resampled_source, &resampled_target, &resampled_source_sphere, map_source, 
+                                                 map_target, size_curv, fwhm, curvtype, rot);
+                        rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
+                        if (verbose) {
+                                fprintf(stderr,"Estimated initial rotations:\n");
+                                fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
+                        }
+                
+                        /* rotate resampled source sphere */
+                        rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
+                }
+
+                map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
+                                                 size_curv, curvtype);
+
+                map_smoothed_curvature_to_sphere(&resampled_source, &resampled_source_sphere, (double *)0, map_source, fwhm,
+                                                 size_curv, curvtype);
+
+                if (debug) {
+                        sprintf(buffer,"source%d%d.pgm",curvtype,step+1);
+                        if (write_pgm(buffer, map_source,
+                                      size_curv[0], size_curv[1]) != 0)
+                                exit(EXIT_FAILURE);
+                                
+                        sprintf(buffer,"target%d%d.pgm",curvtype,step+1);
+                        if (write_pgm(buffer, map_target,
+                                      size_curv[0], size_curv[1]) != 0)
+                                exit(EXIT_FAILURE);
+                }
+        
+                /* set warps and flows to zero at first step */
+                if (step == 0) {
+                        for (i = 0; i < xy_size; i++)
+                                map_warp[i]  = 0.0;
+
+                        for (i = 0; i < xy_size*2; i++) 
+                                inflow[i] = 0.0;
+                }
+        
+                fprintf(stderr,"Dartel step %d\n", step+1);
+                for (it = 0, it0 = 0; it0 < loop; it0++) {
+                        it_scratch = dartel_scratchsize((int *)size_curv,
+                                                        prm[it0].code);
+                        scratch = (double *) malloc(sizeof(double) * it_scratch);
+
+                        for (it1 = 0; it1 < prm[it0].its; it1++) {
+                                it++;
+                                /* map target onto source */
+                                if (INVERSE_WARPING) {
+                                        dartel(size_curv, prm[it0].k, inflow, map_source,
+                                               map_target, (double *)0, prm[it0].rtype, 
+                                               prm[it0].rparam, prm[it0].lmreg,
+                                               prm[it0].cycles, prm[it0].its, prm[it0].code,
+                                               flow, ll, scratch);
+                                } else {
+                                        dartel(size_curv, prm[it0].k, inflow, map_target,
+                                               map_source, (double *)0, prm[it0].rtype, 
+                                               prm[it0].rparam, prm[it0].lmreg,
+                                               prm[it0].cycles, prm[it0].its, prm[it0].code,
+                                               flow, ll, scratch);
+                                }
+                                fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n",
+                                        it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
+                                for (i = 0; i < xy_size*2; i++)
+                                        inflow[i] = flow[i];
+                        }
+                        free(scratch);
+                }
+        }
+        
 
         /* get deformations and jacobian det. from flow field */
         if (jacdet_file != NULL) {
@@ -682,33 +630,6 @@ main(int argc, char *argv[])
         } else {
                 expdef(size_curv, 10, inflow, flow, flow1,
                        (double *) 0, (double *) 0);
-        }
-
-        /* get amplitude of deformations from flow field */
-        if (deform_file != NULL) {
-                if (rotate) fprintf(stderr,"Warning: Rotation not yet considered\n");
-                deform  = (double *) malloc(sizeof(double) * xy_size);
-
-                for (i = 0; i < xy_size; i++) {
-                        x = (int) flow[i] - 1.0;
-                        y = (int) flow[i + xy_size] - 1.0;
-                        xp = flow[i] - 1.0 - x;
-                        yp = flow[i + xy_size] - 1.0 - y;
-                        xm = 1.0 - xp;
-                        ym = 1.0 - yp;
-                        deform[i] = sqrt(xp*xp + yp*yp);
-                }
-                
-                values = (double *) malloc(sizeof(double) *
-                                           source->n_points);
-
-                map_sheet2d_to_sphere(deform, values, source, 1, size_curv);
-
-                output_values_any_format(deform_file, source->n_points,
-                                         values, TYPE_DOUBLE);
-
-                free(values);
-                free(deform);
         }
 
         free(flow1);
