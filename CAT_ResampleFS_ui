@@ -16,7 +16,7 @@ fwhm=0
 measure=thickness
 output_dir="."
 reg=sphere.reg
-template=$SUBJECTS_DIR/fsaverage
+template=$FREESURFER_HOME/subjects/fsaverage
 ascii=0
 hemi="lh rh"
 
@@ -214,7 +214,7 @@ Resample surface values to a parametric tetrahedral sphere. The resampled values
 optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
-        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a]
+        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-lh|-rh]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 OPTIONS:
@@ -225,6 +225,8 @@ OPTIONS:
 	-m         - surface measure as input [default $measure]                 
 	-r         - sperical surface for resampling [default $reg]                 
 	-a         - save output as ascii (text) file
+	-lh        - resample left hemisphere only
+	-rh        - resample right hemisphere only
     
 EXAMPLE:
     CAT_ResampleFS_ui ${SUBJECTS_DIR}/[a-d]* -f=20 -t=fsaverage -o=~/data -m=thickness

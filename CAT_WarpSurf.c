@@ -45,7 +45,7 @@ char *output_file        = NULL;
 char *output_sphere_file = NULL;
 char *pgm_file           = NULL;
 
-int rotate      = 0;
+int rotate      = 1;
 int code        = 1;
 int loop        = 6;
 int verbose     = 0;
@@ -103,8 +103,8 @@ static ArgvInfo argTable[] = {
      "Number of Dartel steps (max. 6)."},
   {"-size", ARGV_INT, (char *) 2, (char *) &sz_map,
      "Size of curvature map for warping."},
-  {"-rotate", ARGV_CONSTANT, (char *) TRUE, (char *) &rotate,
-     "Rotate input surface before warping."},
+  {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
+     "Don't rotate input surface before warping."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
      "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
@@ -496,58 +496,65 @@ main(int argc, char *argv[])
 
 
         for (step = 0; step < n_steps; step++) {
-        
-                if (step > 1)
-                        fwhm /= 2.0;
-                        
+                                
+                /* resample source and target surface */
                 resample_spherical_surface(source, source_sphere, &resampled_source, NULL, NULL, n_triangles);
                 resample_spherical_surface(target, target_sphere, &resampled_target, NULL, NULL, n_triangles);
-                if (step == 0)
-                        resample_spherical_surface(source_sphere, source_sphere, &resampled_source_sphere, NULL, NULL, n_triangles);
-
+                
+                /* initialization */
                 if (step == 0) {
                         /* inflate surfaces */
                         inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 50, 1.0, 3.0, 1.0, 0);
                         inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 50, 1.0, 3.0, 1.0, 0);
                         inflate_surface_and_smooth_fingers(&resampled_source, 2, 1.0, 30, 1.4, 3.0, 1.0, 0);
                         inflate_surface_and_smooth_fingers(&resampled_target, 2, 1.0, 30, 1.4, 3.0, 1.0, 0);
+                        
+                        /* resample source sphere */
+                        resample_spherical_surface(source_sphere, source_sphere, &resampled_source_sphere, NULL, NULL, n_triangles);
+                        
+                        /* save pgm for debugging */
+                        if (debug) {
+                                map_smoothed_curvature_to_sphere(&resampled_source, NULL, (double *)0, map_source, fwhm,
+                                                 size_curv, curvtype);
+                                sprintf(buffer,"source%d.pgm",curvtype);
+                                if (write_pgm(buffer, map_source,
+                                              size_curv[0], size_curv[1]) != 0)
+                                        exit(EXIT_FAILURE);
+                        }
+                        
+                        /* initial rotation */
+                        if (rotate) {
+                                map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
+                                                 size_curv, curvtype);
+                                rotate_polygons_to_atlas(&resampled_source, &resampled_target, &resampled_source_sphere, map_source, 
+                                                 map_target, size_curv, fwhm, curvtype, rot);
+                                rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
+                                if (verbose) {
+                                        fprintf(stderr,"Estimated initial rotations:\n");
+                                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
+                                }
+                
+                                /* rotate resampled source sphere */
+                                rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
+                        }
+
+                        /* init warps and flows with zeros */
+                        for (i = 0; i < xy_size; i++) map_warp[i]  = 0.0;
+                        for (i = 0; i < xy_size*2; i++)  inflow[i] = 0.0;
+
                 } else if (step == 1) {
                         /* smooth surfaces */
                         inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
                         inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
                 }       
          
-                if (rotate && debug && step == 0) {
-                        map_smoothed_curvature_to_sphere(&resampled_source, NULL, (double *)0, map_source, fwhm,
-                                                 size_curv, curvtype);
-                        sprintf(buffer,"source%d.pgm",curvtype);
-                        if (write_pgm(buffer, map_source,
-                                      size_curv[0], size_curv[1]) != 0)
-                                exit(EXIT_FAILURE);
-                }
-
-                /* initial rotation at first step */
-                if (rotate && step == 0) {
-                        map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
-                                                 size_curv, curvtype);
-                        rotate_polygons_to_atlas(&resampled_source, &resampled_target, &resampled_source_sphere, map_source, 
-                                                 map_target, size_curv, fwhm, curvtype, rot);
-                        rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-                        if (verbose) {
-                                fprintf(stderr,"Estimated initial rotations:\n");
-                                fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
-                        }
-                
-                        /* rotate resampled source sphere */
-                        rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
-                }
-
+                /* get curvatures */
                 map_smoothed_curvature_to_sphere(&resampled_target, NULL, (double *)0, map_target, fwhm,
                                                  size_curv, curvtype);
-
                 map_smoothed_curvature_to_sphere(&resampled_source, &resampled_source_sphere, (double *)0, map_source, fwhm,
                                                  size_curv, curvtype);
 
+                /* save pgm images for debugging */
                 if (debug) {
                         sprintf(buffer,"source%d%d.pgm",curvtype,step+1);
                         if (write_pgm(buffer, map_source,
@@ -560,15 +567,7 @@ main(int argc, char *argv[])
                                 exit(EXIT_FAILURE);
                 }
         
-                /* set warps and flows to zero at first step */
-                if (step == 0) {
-                        for (i = 0; i < xy_size; i++)
-                                map_warp[i]  = 0.0;
-
-                        for (i = 0; i < xy_size*2; i++) 
-                                inflow[i] = 0.0;
-                }
-        
+                /* go through dartel steps */
                 fprintf(stderr,"Dartel step %d\n", step+1);
                 for (it = 0, it0 = 0; it0 < loop; it0++) {
                         it_scratch = dartel_scratchsize((int *)size_curv,
@@ -598,6 +597,9 @@ main(int argc, char *argv[])
                         }
                         free(scratch);
                 }
+                
+                /* use smaller FWHM for next steps*/
+                fwhm /= 2.0;
         }
         
 
