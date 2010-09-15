@@ -156,7 +156,7 @@ evaluate_function(Real val_array[], int n_val, int map_func, Real exp_array[], i
 int
 main(int argc, char *argv[])
 {
-        char                 *input_volume_file, *input_volume_file2, *object_file;
+        char                 *volume_file, *volume_file2, *object_file;
         char                 *output_file, *output_file2;
         File_formats         format;
         Volume               volume, volume2;
@@ -178,14 +178,14 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &input_volume_file) ||
+            !get_string_argument(NULL, &volume_file) ||
             !get_string_argument(NULL, &output_file)) {
                 fprintf(stderr, "\nUsage: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     
         /* get optional arguments for 2nd volume and output */ 
-        get_string_argument(NULL, &input_volume_file2);
+        get_string_argument(NULL, &volume_file2);
         get_string_argument(NULL, &output_file2);
         
         /* calculate number of values needed to subdivide grid along normals */ 
@@ -238,9 +238,9 @@ main(int argc, char *argv[])
                         exp_array[j] /= exp_sum;
         }
     
-        if (input_volume(input_volume_file, 3, File_order_dimension_names,
-                         NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                         TRUE, &volume, NULL) != OK)
+        if (input_volume_all(volume_file, 3, File_order_dimension_names,
+                             NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                             TRUE, &volume, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         if (input_graphics_any_format(object_file, &format,
@@ -248,15 +248,17 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
 
         if (output_file2 != NULL) {  
-                /* check that optional 2nd volume was used either with min or max mapping function */
+                /* check that optional 2nd volume was used either with min
+                 * or max mapping function */
                 if ((map_func != F_MAX) && (map_func != F_MIN)) {
                         fprintf(stderr, "For 2nd volume only min/max is allowed as mapping function.\n");
                         exit(EXIT_FAILURE);
                 }
                 
-                if (input_volume(input_volume_file2, 3, File_order_dimension_names,
-                         NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                         TRUE, &volume2, NULL) != OK)
+                if (input_volume_all(volume_file2, 3,
+                                     File_order_dimension_names,
+                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                                     TRUE, &volume2, NULL) != OK)
                 exit(EXIT_FAILURE);
                 ALLOC(values2, polygons->n_points);
         }

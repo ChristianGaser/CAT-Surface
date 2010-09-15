@@ -129,9 +129,9 @@ main(int argc, char *argv[])
          * outside points, which equals a filling.
          */
         if (t1_file != NULL) {
-                if (input_volume(t1_file, 3, File_order_dimension_names,
-                                 NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                                 TRUE, &volume, NULL) != OK)
+                if (input_volume_all(t1_file, 3, File_order_dimension_names,
+                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                                     TRUE, &volume, NULL) != OK)
                         exit(EXIT_FAILURE);
                 t1value = (double *) malloc(sizeof(double) * sphere->n_points);
                 

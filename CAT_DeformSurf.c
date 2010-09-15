@@ -112,9 +112,9 @@ main(int argc, char *argv[])
 
         deform.deform_data.type = VOLUME_DATA;
 
-        if (input_volume(volume_file, 3, XYZ_dimension_names,
-                         NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
-                         &volume, (minc_input_options *) NULL) == ERROR)
+        if (input_volume_all(volume_file, 3, XYZ_dimension_names,
+                             NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
+                             &volume, (minc_input_options *) NULL) == ERROR)
                 exit(EXIT_FAILURE);
 
         label_volume = (Volume) NULL;

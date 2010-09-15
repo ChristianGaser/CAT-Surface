@@ -479,9 +479,9 @@ main(int argc, char *argv[])
         }
 
         if (t1_file != NULL) {
-                if (input_volume(t1_file, 3, File_order_dimension_names,
-                                 NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
-                                 &volume, NULL) == ERROR) {
+                if (input_volume_all(t1_file, 3, File_order_dimension_names,
+                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
+                                     &volume, NULL) == ERROR) {
                         fprintf(stderr, "Error opening T1 file: %s\n", t1_file);
                         exit(EXIT_FAILURE);
                 }

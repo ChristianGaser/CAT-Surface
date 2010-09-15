@@ -60,9 +60,9 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
      
-        if (input_volume(volume_file, 3, File_order_dimension_names,
-                         NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
-                         &volume, NULL) == ERROR) {
+        if (input_volume_all(volume_file, 3, File_order_dimension_names,
+                             NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
+                             &volume, NULL) == ERROR) {
                 fprintf(stderr, "Error opening T1 file: %s\n", volume_file);
                 exit(EXIT_FAILURE);
         }
