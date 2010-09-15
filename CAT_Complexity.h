@@ -10,7 +10,7 @@
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 
 #define SPH_ITERS 10
-#define BW 1536
+#define BW 1024
 #define FWHM 30.0
 
 double slope(double *, double *, int);
