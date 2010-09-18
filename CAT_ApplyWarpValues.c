@@ -98,28 +98,28 @@ main(int argc, char *argv[])
 
         initialize_progress_report(&progress, FALSE, unit_sphere.n_points,
                                    "Mapping to sphere");
-	
+    
         /* remap to sphere */
         for (i = 0; i < unit_sphere.n_points; i++ ) {
                 point_to_uv(&unit_sphere.points[i], &u, &v);
         
                 indx = u*inflow_x;
-    	        indy = v*inflow_y;    
-    	        ind  = (int)round(indx) + size_map[0]*(int)round(indy);
+                indy = v*inflow_y;    
+                ind  = (int)round(indx) + size_map[0]*(int)round(indy);
 
-    	        ux = (flow[ind] - 1.0 - indx + shift[0])/inflow_x;
-    	        vy = (flow[ind + size_map[0]*size_map[1]] - 1.0 - indy +
+                ux = (flow[ind] - 1.0 - indx + shift[0])/inflow_x;
+                vy = (flow[ind + size_map[0]*size_map[1]] - 1.0 - indy +
                      shift[1])/inflow_y;
     
-    	        u += ux;
-    	        v += vy;
+                u += ux;
+                v += vy;
 
-    	        // wrap borders
+                // wrap borders
                 while (u < 0.0)  u += 1.0;
-               	while (u >= 1.0) u -= 1.0;
+                while (u >= 1.0) u -= 1.0;
                 if (v < 0.0)     v = 0.0;
                 if (v > 1.0)     v = 1.0;
-	
+    
                 uv_to_point(u, v, &unit_point);
 
                 poly = find_closest_polygon_point(&unit_point, &unit_sphere,

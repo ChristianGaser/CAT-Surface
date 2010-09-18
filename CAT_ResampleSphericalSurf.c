@@ -98,7 +98,7 @@ main(int argc, char *argv[])
 
         if (values_specified) {
                 ALLOC(input_values, polygons->n_points);
-                ALLOC(output_values, poly_src_sphere->n_points);
+                ALLOC(output_values, poly_dest_sphere->n_points);
 
                 if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", input_values_file);

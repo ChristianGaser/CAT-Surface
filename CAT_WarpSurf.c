@@ -127,9 +127,6 @@ resample_spherical_surface(polygons_struct *polygons, polygons_struct *poly_src_
         Real             weights[MAX_POINTS_PER_POLYGON];
         double           sphereRadius, r, bounds[6];
 
-        if (input_values != NULL)
-                ALLOC(output_values, poly_src_sphere->n_points);
-
         /*
          * Determine radius for the output sphere.  The sphere is not always
          * perfectly spherical, thus use average radius
@@ -161,6 +158,8 @@ resample_spherical_surface(polygons_struct *polygons, polygons_struct *poly_src_
                                 ROUND((Real) poly_src_sphere->n_items * 0.5));
 
         ALLOC(new_points, resampled_source->n_points);
+        if (input_values != NULL)
+                ALLOC(output_values, resampled_source->n_points);
 
         for (i = 0; i < resampled_source->n_points; i++) {
                 poly = find_closest_polygon_point(&resampled_source->points[i],
