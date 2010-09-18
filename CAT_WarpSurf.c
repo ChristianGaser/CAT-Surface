@@ -302,7 +302,7 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *target, polyg
                                                 rot[0] = best_alpha;
                                                 rot[1] = best_beta;
                                                 rot[2] = best_gamma;
-                                                if (verbose) fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",
+                                                fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",
                                                         DEGREES(alpha),DEGREES(beta),DEGREES(gamma), sum_sq);
                                         }
                                 }
@@ -528,10 +528,9 @@ main(int argc, char *argv[])
                                 rotate_polygons_to_atlas(&resampled_source, &resampled_target, &resampled_source_sphere, map_source, 
                                                  map_target, size_curv, fwhm, curvtype, rot);
                                 rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-                                if (verbose) {
-                                        fprintf(stderr,"Estimated initial rotations:\n");
-                                        fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
-                                }
+
+                                fprintf(stderr,"Estimated initial rotations:\n");
+                                fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
                 
                                 /* rotate resampled source sphere */
                                 rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
@@ -567,7 +566,6 @@ main(int argc, char *argv[])
                 }
         
                 /* go through dartel steps */
-                fprintf(stderr,"Dartel step %d\n", step+1);
                 for (it = 0, it0 = 0; it0 < loop; it0++) {
                         it_scratch = dartel_scratchsize((int *)size_curv,
                                                         prm[it0].code);
@@ -589,8 +587,7 @@ main(int argc, char *argv[])
                                                prm[it0].cycles, prm[it0].its, prm[it0].code,
                                                flow, ll, scratch);
                                 }
-                                fprintf(stderr, "%02d:\t%8.2f\t%5.2f\t%8.2f\t%5.2f\n",
-                                        it, ll[0], ll[1], ll[0]+ll[1], ll[2]);
+                                fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];
                         }
@@ -600,6 +597,7 @@ main(int argc, char *argv[])
                 /* use smaller FWHM for next steps*/
                 fwhm /= 2.0;
         }
+        fprintf(stderr,"\n");
         
 
         /* get deformations and jacobian det. from flow field */
