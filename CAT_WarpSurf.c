@@ -53,7 +53,7 @@ int rtype       = 1;
 int curvtype    = 3;
 int muchange    = 4;
 int sz_map[2]   = {512, 256};
-int n_triangles = 20480;
+int n_triangles = 81920;
 int n_steps     = 3;
 int debug       = 0;
 double murate   = 1.25;
@@ -302,8 +302,12 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *target, polyg
                                                 rot[0] = best_alpha;
                                                 rot[1] = best_beta;
                                                 rot[2] = best_gamma;
-                                                fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",
+                                                fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
                                                         DEGREES(alpha),DEGREES(beta),DEGREES(gamma), sum_sq);
+                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
                                         }
                                 }
                         }
@@ -314,6 +318,7 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *target, polyg
                 curr_beta  = best_beta;
                 curr_gamma = best_gamma;
         }
+        fprintf(stderr,"\n");
 }
 
 int
@@ -528,9 +533,6 @@ main(int argc, char *argv[])
                                 rotate_polygons_to_atlas(&resampled_source, &resampled_target, &resampled_source_sphere, map_source, 
                                                  map_target, size_curv, fwhm, curvtype, rot);
                                 rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-
-                                fprintf(stderr,"Estimated initial rotations:\n");
-                                fprintf(stderr,"%5.3f\t%5.3f\t%5.3f\n",  DEGREES(rot[0]), DEGREES(rot[1]), DEGREES(rot[2]));
                 
                                 /* rotate resampled source sphere */
                                 rotate_polygons(&resampled_source_sphere, NULL, rotation_matrix);
@@ -542,8 +544,14 @@ main(int argc, char *argv[])
 
                 } else if (step == 1) {
                         /* smooth surfaces */
-                        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 10, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 30, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 30, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_source, 2, 1.0, 10, 1.4, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_target, 2, 1.0, 10, 1.4, 3.0, 1.0, 0);
+                } else if (step == 2) {
+                        /* smooth surfaces */
+                        inflate_surface_and_smooth_fingers(&resampled_source, 1, 0.2, 20, 1.0, 3.0, 1.0, 0);
+                        inflate_surface_and_smooth_fingers(&resampled_target, 1, 0.2, 20, 1.0, 3.0, 1.0, 0);
                 }       
          
                 /* get curvatures */
@@ -595,6 +603,7 @@ main(int argc, char *argv[])
                 }
                 
                 /* use smaller FWHM for next steps*/
+//                if (fwhm>4) fwhm -= 2.0;
                 fwhm /= 2.0;
         }
         fprintf(stderr,"\n");
@@ -602,6 +611,7 @@ main(int argc, char *argv[])
 
         /* get deformations and jacobian det. from flow field */
         if (jacdet_file != NULL) {
+                fprintf(stderr,"Warning: Saving jacobians not working\n");
                 if (rotate) fprintf(stderr,"Warning: Rotation not yet considered\n");
                 jd  = (double *) malloc(sizeof(double) * xy_size);
                 jd1 = (double *) malloc(sizeof(double) * xy_size);
@@ -615,12 +625,12 @@ main(int argc, char *argv[])
                 }
 
                 values = (double *) malloc(sizeof(double) *
-                                           source->n_points);
+                                           source_sphere->n_points);
 
-                map_sheet2d_to_sphere(jd1, values, source,
+                map_sheet2d_to_sphere(map_source, values, source_sphere,
                                       1, size_curv);
 
-                output_values_any_format(jacdet_file, source->n_points,
+                output_values_any_format(jacdet_file, source_sphere->n_points,
                                          values, TYPE_DOUBLE);
 
                 free(values);
