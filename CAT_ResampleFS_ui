@@ -70,7 +70,7 @@ preprocess ()
           if [ "$ascii" == 1 ]; then
             name=${name}.txt
           fi
-	    	  CAT_ResampleSurf ${surfdir}/${i}.white ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
+	    	  CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
 	    	  CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
 	    	  echo resample and smooth to $name
         else
@@ -78,7 +78,7 @@ preprocess ()
           if [ "$ascii" == 1 ]; then
             name=${name}.txt
           fi
-	    	  CAT_ResampleSurf ${surfdir}/${i}.white ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
+	    	  CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
 	    	  echo resample to $name
   	  	fi
   		done
