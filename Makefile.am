@@ -7,6 +7,7 @@ dist_bin_SCRIPTS = \
 	CAT_DeformSurf_ui \
 	CAT_Obj2Neurolens \
 	CAT_ResampleFS_ui \
+	CAT_FractalDimensionFS_ui \
 	CAT_DumpCurvL4FS \
 	CAT_DumpCurv_ui
 

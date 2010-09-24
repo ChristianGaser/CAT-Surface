@@ -195,7 +195,7 @@ check_tools ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a]
+USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-lh|-rh]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
 		
 __EOM__
