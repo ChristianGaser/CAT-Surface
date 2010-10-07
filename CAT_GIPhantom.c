@@ -23,6 +23,7 @@ int gtheta = 0;
 int nphi = 0;
 int gphi = 0;
 double amplitude = 0.05;
+double radius = 65.0;
 BOOLEAN gamp = 0;
 int n_triangles = 327680;
 
@@ -49,7 +50,10 @@ ArgvInfo argTable[] = {
   { "-gamp", ARGV_CONSTANT, (char *) 1, 
     (char *) &gamp,
     "Flag to use amplitude gradient along y-axis." },
-  { "-n", ARGV_INT, (char *) 1, 
+  { "-radius", ARGV_FLOAT, (char *) 1, 
+    (char *) &radius,
+    "Radius of output surface." },
+  { "-ntriangles", ARGV_INT, (char *) 1, 
     (char *) &n_triangles,
     "Number of triangles for output surface." },
   { NULL, ARGV_END, NULL, NULL, NULL }
@@ -152,7 +156,7 @@ main(int argc, char *argv[])
 
                 a = a * ((cos(theta * gx * 2 * ntheta) +
                           cos(phi * gz * 2 * nphi))/2) + 1;
-                set_vector_length(&surface->points[p], a);
+                set_vector_length(&surface->points[p], radius*a);
         }
 
         compute_polygon_normals(surface);
