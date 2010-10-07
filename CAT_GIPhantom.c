@@ -10,6 +10,7 @@
 #include <bicpl.h>
 #include <bicpl/deform.h>
 #include <ParseArgv.h>
+#include <math.h>
 
 #include "CAT_SheetIO.h"
 #include "CAT_Map2d.h"
@@ -17,9 +18,12 @@
 #include "CAT_SurfaceIO.h"
 
 /* argument defaults */
-int ntheta = 2;
-double amplitude = 0.2;
+int ntheta = 4;
+int gtheta = 0;
 int nphi = 0;
+int gphi = 0;
+double amplitude = 0.05;
+BOOLEAN gamp = 0;
 int n_triangles = 327680;
 
 #define PINF  1.7976931348623157e+308 /* for doubles */
@@ -29,13 +33,22 @@ int n_triangles = 327680;
 ArgvInfo argTable[] = {
   { "-ntheta", ARGV_INT, (char *) 1, 
     (char *) &ntheta,
-    "Number of oscillations wrt theta." },
+    "Number of oscillations (or rings) wrt theta." },
+  { "-gtheta", ARGV_INT, (char *) 1, 
+    (char *) &gtheta,
+    "Size of theta gradient (frequencies from ntheta to ntheta*gtheta." },
   { "-nphi", ARGV_INT, (char *) 1, 
     (char *) &nphi,
-    "Number of oscillations wrt phi." },
+    "Number of oscillations (or rings) wrt phi." },
+  { "-gphi", ARGV_INT, (char *) 1, 
+    (char *) &gphi,
+    "Size of phi gradient (frequencies from nphi to nphi*gphi." },
   { "-amplitude", ARGV_FLOAT, (char *) 1, 
     (char *) &amplitude,
-    "Amplitude of oscillations." },
+    "Amplitude of oscillations, between 0 and 1." },
+  { "-gamp", ARGV_CONSTANT, (char *) 1, 
+    (char *) &gamp,
+    "Flag to use amplitude gradient along y-axis." },
   { "-n", ARGV_INT, (char *) 1, 
     (char *) &n_triangles,
     "Number of triangles for output surface." },
@@ -62,7 +75,7 @@ main(int argc, char *argv[])
         object_struct        **objects;
         int                  *n_neighbours, **neighbours;
         Point                centre;
-        double               a, theta, phi;
+        double               a, theta, phi, x, y, z, gx, gz;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 2) {
@@ -113,12 +126,32 @@ main(int argc, char *argv[])
    
         fill_Point(centre, 0.0, 0.0, 0.0);
         create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles, surface);
+        compute_polygon_normals(surface);
 
         for (p = 0; p < surface->n_points; p++) {
-                theta = acos(Point_x(surface->points[p]));
-                phi = asin(Point_z(surface->points[p]));
+                x = Point_x(surface->normals[p]);
+                y = Point_y(surface->normals[p]);
+                z = Point_z(surface->points[p]);
 
-                a = amplitude * (cos(theta * ntheta)*cos(phi * nphi)) + 1;
+                theta = acos(x);
+                phi = acos(z);
+
+                if (gamp) {
+                        if (y != 0)
+                                a = amplitude *
+                                    (asin(y / sqrt(x*x + y*y))/M_PI + 0.5);
+                        else
+                                a = amplitude * 0.5;
+                } else {
+                        a = amplitude; /* default value */
+                }
+
+                /* set the gradients */
+                gx = 1 + gtheta * (theta/M_PI);
+                gz = 1 + gphi * (phi/M_PI);
+
+                a = a * ((cos(theta * gx * 2 * ntheta) +
+                          cos(phi * gz * 2 * nphi))/2) + 1;
                 set_vector_length(&surface->points[p], a);
         }
 
