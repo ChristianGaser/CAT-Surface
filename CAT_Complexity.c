@@ -60,7 +60,7 @@ void
 get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
             double *fd, int smoothflag)
 {
-        int xx, p;
+        int xx, p, offset;
         double *logx, *logy;
         int *pcount;
         double *polyfd, poly_size, area;
@@ -76,10 +76,14 @@ get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
                 logx[xx] = log(x[xx]);
 
         for (p = 0; p < polygons->n_items; p++) {
-                for (xx = 0; xx < x_len; xx++)
+                offset = 0;
+                for (xx = 0; xx < x_len; xx++) {
+                        if (areas[xx][p] == 0)
+                                offset = xx+1;
                         logy[xx] = log(areas[xx][p]);
+                }
 
-                polyfd[p] = slope(logx, logy, x_len);
+                polyfd[p] = slope(logx + offset, logy + offset, x_len - offset);
         }
 
         /* calculate a point-wise FD value based on neighboring polygons */
@@ -115,246 +119,12 @@ get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
         free(pcount);
 }
 
-object_struct **
-create_resampling_sphere(double radius, int n_triangles)
-{
-        printf("radius = %f, n_triangles = %d\n", radius, n_triangles);
-        int iterations, n_points, n_items, n_p, n_i, *indices, base;
-        polygons_struct *polygons;
-        object_struct **object;
-        int n, n2, i, a, b, c, p, p2, count, offset, iter;
-        Point *points, v;
-        double len, dist;
-
-        /* overestimate the # of points initially */
-        n_points = n_triangles;
-        n_items = n_triangles;
-
-        points = (Point *) malloc(sizeof(Point) * n_points);
-        indices = (int *) malloc(sizeof(int) * n_items * 3);
-
-        /* figure out the base and the iterations first */
-        iterations = 0;
-        base = n_triangles;
-        while (base > 8 && base != 20) {
-                base /= 4;
-                iterations++;
-        }
-        printf("base = %d, iters = %d\n", base, iterations);
-
-        /* create the base shape */
-        if (base == 4) { /* tetrahedral */
-                n_points = 4; n_items = 4;
-                fill_Point(points[0], 1.0, 1.0, 1.0);
-                fill_Point(points[1], -1.0, -1.0, 1.0);
-                fill_Point(points[2], 1.0, -1.0, -1.0);
-                fill_Point(points[3], -1.0, 1.0, -1.0);
-                indices[0] = 0; indices[1] = 1; indices[2] = 2;
-                indices[3] = 0; indices[4] = 2; indices[5] = 3;
-                indices[6] = 0; indices[7] = 3; indices[8] = 1;
-                indices[9] = 1; indices[10] = 3; indices[11] = 2;
-        } else if (base == 6) { /* hexahedral */
-                n_points = 5; n_items = 6;
-                fill_Point(points[0], 1.0, 0.0, 0.0);
-                fill_Point(points[1], -1.0, 0.0, 0.0);
-                fill_Point(points[2], 0.0, 1.0, 0.0);
-                fill_Point(points[3], 0.0, -0.5, sqrt(3)/2.0);
-                fill_Point(points[4], 0.0, -0.5, -sqrt(3)/2.0);
-                indices[0] = 0; indices[1] = 2; indices[2] = 3;
-                indices[3] = 0; indices[4] = 3; indices[5] = 4;
-                indices[6] = 0; indices[7] = 4; indices[8] = 2;
-                indices[9] = 1; indices[10] = 3; indices[11] = 2;
-                indices[12] = 1; indices[13] = 4; indices[14] = 3;
-                indices[15] = 1; indices[16] = 2; indices[17] = 4;
-        } else if (base == 8) { /* octahedral */
-                n_points = 6; n_items = 8;
-                fill_Point(points[0], 1.0, 0.0, 0.0);
-                fill_Point(points[1], -1.0, 0.0, 0.0);
-                fill_Point(points[2], 0.0, 1.0, 0.0);
-                fill_Point(points[3], 0.0, 0.0, 1.0);
-                fill_Point(points[4], 0.0, -1.0, 0.0);
-                fill_Point(points[5], 0.0, 0.0, -1.0);
-                indices[0] = 0; indices[1] = 2; indices[2] = 3;
-                indices[3] = 0; indices[4] = 3; indices[5] = 4;
-                indices[6] = 0; indices[7] = 4; indices[8] = 5;
-                indices[9] = 0; indices[10] = 5; indices[11] = 2;
-                indices[12] = 1; indices[13] = 3; indices[14] = 2;
-                indices[15] = 1; indices[16] = 4; indices[17] = 3;
-                indices[18] = 1; indices[19] = 5; indices[20] = 4;
-                indices[21] = 1; indices[22] = 2; indices[23] = 5;
-        } else if (base == 20) { /* icosahedral */
-                n_points = 12; n_items = 20;
-                fill_Point(points[0], (sqrt(5)+1)/2, 1.0, 0.0);
-                fill_Point(points[1], (sqrt(5)+1)/2, -1.0, 0.0);
-                fill_Point(points[2], -(sqrt(5)+1)/2, 1.0, 0.0);
-                fill_Point(points[3], -(sqrt(5)+1)/2, -1.0, 0.0);
-                fill_Point(points[4], 0.0, (sqrt(5)+1)/2, 1.0);
-                fill_Point(points[5], 0.0, (sqrt(5)+1)/2, -1.0);
-                fill_Point(points[6], 0.0, -(sqrt(5)+1)/2, 1.0);
-                fill_Point(points[7], 0.0, -(sqrt(5)+1)/2, -1.0);
-                fill_Point(points[8], 1.0, 0.0, (sqrt(5)+1)/2);
-                fill_Point(points[9], -1.0, 0.0, (sqrt(5)+1)/2);
-                fill_Point(points[10], 1.0, 0.0, -(sqrt(5)+1)/2);
-                fill_Point(points[11], -1.0, 0.0, -(sqrt(5)+1)/2);
-                indices[0] = 2; indices[1] = 11; indices[2] = 3; 
-                indices[3] = 2; indices[4] = 5; indices[5] = 11; 
-                indices[6] = 11; indices[7] = 5; indices[8] = 10; 
-                indices[9] = 5; indices[10] = 0; indices[11] = 10; 
-                indices[12] = 0; indices[13] = 5; indices[14] = 4; 
-                indices[15] = 4; indices[16] = 5; indices[17] = 2; 
-                indices[18] = 4; indices[19] = 2; indices[20] = 9; 
-                indices[21] = 9; indices[22] = 2; indices[23] = 3; 
-                indices[24] = 9; indices[25] = 3; indices[26] = 6; 
-                indices[27] = 9; indices[28] = 6; indices[29] = 8; 
-                indices[30] = 4; indices[31] = 9; indices[32] = 8; 
-                indices[33] = 4; indices[34] = 8; indices[35] = 0; 
-                indices[36] = 0; indices[37] = 8; indices[38] = 1; 
-                indices[39] = 1; indices[40] = 8; indices[41] = 6; 
-                indices[42] = 1; indices[43] = 6; indices[44] = 7; 
-                indices[45] = 7; indices[46] = 6; indices[47] = 3; 
-                indices[48] = 11; indices[49] = 7; indices[50] = 3; 
-                indices[51] = 11; indices[52] = 10; indices[53] = 7; 
-                indices[54] = 10; indices[55] = 1; indices[56] = 7; 
-                indices[57] = 10; indices[58] = 0; indices[59] = 1; 
-        } else {
-                fprintf(stderr, "Error: base of %d is invalid!\n", base);
-                exit(EXIT_FAILURE);
-        }
-
-        SUB_POINTS(v, points[indices[0]], points[indices[1]]);
-        len = sqrt(DOT_POINTS(v, v));
-
-        /* cut each triangle into 4 triangles */
-        for (iter = 0; iter < iterations; iter++) {
-                len /= 2;
-
-                n_i = n_items;
-                for (n = 0; n < n_i; n++) {
-                        a = indices[n*3];
-                        b = indices[n*3 + 1];
-                        c = indices[n*3 + 2];
-
-                        INTERPOLATE_POINTS(points[n_points],
-                                           points[a], points[b], 0.5);
-                        INTERPOLATE_POINTS(points[n_points+1],
-                                           points[b], points[c], 0.5);
-                        INTERPOLATE_POINTS(points[n_points+2],
-                                           points[a], points[c], 0.5);
-                        n_points += 3;
-
-                        /* add the triangle indices */
-                        indices[n*3 + 1] = n_points - 3;
-                        indices[n*3 + 2] = n_points - 1;
-
-                        indices[n_items*3] = n_points - 3;
-                        indices[n_items*3 + 1] = b;
-                        indices[n_items*3 + 2] = n_points - 2;
-                        n_items++;
-                        indices[n_items*3] = n_points - 2;
-                        indices[n_items*3 + 1] = c;
-                        indices[n_items*3 + 2] = n_points - 1;
-                        n_items++;
-                        indices[n_items*3 + 2] = n_points - 3;
-                        indices[n_items*3] = n_points - 2;
-                        indices[n_items*3 + 1] = n_points - 1;
-                        n_items++;
-                }
-                /* remove duplicate points */
-                for (p = 0; p < n_points; p++) {
-                        for (p2 = p+1; p2 < n_points; p2++) {
-                                dist = distance_between_points(&points[p],
-                                                               &points[p2]);
-                                if (dist < 0.01*len) { /* delete it */
-                                        n_points--;
-                                        for (n = 0; n < n_items * 3; n++) {
-                                                if (indices[n] == p2)
-                                                        indices[n] = p;
-                                                else if (indices[n] == n_points)
-                                                        indices[n] = p2;
-                                        }
-                                        points[p2] = points[n_points];
-                                        break;
-                                }
-                        }
-                }
-                /* remove duplicate triangles */
-                offset = 0;
-                for (n = 0; n < n_items; n++) {
-                        for (n2 = n+1; n2 < n_items; n2++) {
-                                if ( (indices[n*3  ] == indices[n2*3  ] ||
-                                      indices[n*3  ] == indices[n2*3+1] ||
-                                      indices[n*3  ] == indices[n2*3+2]) &&
-                                     (indices[n*3+1] == indices[n2*3  ] ||
-                                      indices[n*3+1] == indices[n2*3+1] ||
-                                      indices[n*3+1] == indices[n2*3+2]) &&
-                                     (indices[n*3+2] == indices[n2*3  ] ||
-                                      indices[n*3+2] == indices[n2*3+1] ||
-                                      indices[n*3+2] == indices[n2*3+2])) {
-                                        n_items--;
-                                        offset++;
-                                }
-                        }
-                        indices[n*3] = indices[(n+offset)*3];
-                        indices[n*3+1] = indices[(n+offset)*3+1];
-                        indices[n*3+2] = indices[(n+offset)*3+2];
-                }
-                for (i = 0; i < n_points; i++) {
-                        set_vector_length(&points[i], radius);
-                }
-        }
-
-        /* build surface */
-        object = (object_struct **) malloc(sizeof(object_struct *));
-        *object = create_object(POLYGONS);
-        polygons = get_polygons_ptr(*object);
-        initialize_polygons(polygons, WHITE, NULL);
-
-        Surfprop_a(polygons->surfprop) = 0.3;
-        Surfprop_d(polygons->surfprop) = 0.6;
-        Surfprop_s(polygons->surfprop) = 0.6;
-        Surfprop_se(polygons->surfprop) = 60;
-        Surfprop_t(polygons->surfprop) = 1.0;
-
-        polygons->colour_flag = 0;
-        polygons->line_thickness = 1.0f;
-
-        polygons->points = (Point *) malloc(sizeof(Point) * n_points);
-        polygons->indices = (int *) malloc(sizeof(int) * 3 * n_items);
-        polygons->end_indices = (int *) malloc(sizeof(int) * n_items);
-        polygons->normals = (Vector *) malloc(sizeof(Vector) * n_points);
-        polygons->n_points = n_points;
-        polygons->n_items = n_items;
-
-        for (i = 0; i < polygons->n_points; i++) {
-                polygons->points[i] = points[i];
-                set_vector_length(&polygons->points[i], radius);
-        }
-
-        for (i = 0; i < n_items; i++) {
-                polygons->end_indices[i] = 3 * (i + 1);
-                polygons->indices[i] = indices[i];
-        }
-
-        for (i = n_items; i < n_items * 3; i++) 
-                polygons->indices[i] = indices[i];
-
-        compute_polygon_normals(polygons);
-
-        free(points);
-        free(indices);
-
-        return(object);
-}
-
 int
-min_triangles_update(int *base4, int *base6, int *base8, int *base20)
+min_triangles_update(int *base6, int *base8, int *base20)
 {
         int retval;
 
-        if (*base4 < *base6 && *base4 < *base8 && *base4 < *base20) {
-                retval = *base4;
-                *base4 *= 4;
-        } else if (*base6 < *base8 && *base6 < *base20) {
+        if (*base6 < *base8 && *base6 < *base20) {
                 retval = *base6;
                 *base6 *= 4;
         } else if (*base8 < *base20) {
@@ -368,15 +138,79 @@ min_triangles_update(int *base4, int *base6, int *base8, int *base20)
         return(retval);
 }
 
+/* resample back into the original object space... polygons has tetrahedral
+ * topology as its sphere. */
+object_struct **
+resample_surface_sphere(polygons_struct *polygons, polygons_struct *sphere)
+{
+        int i, j, t, poly, n_points;
+        Point point, scaled_point, centre;
+        Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
+        object_struct **objects, **scaled_objects;
+        polygons_struct *polygons_sphere, *scaled_sphere;
+        Real weights[MAX_POINTS_PER_POLYGON];
+
+        objects = (object_struct **) malloc(sizeof(object_struct *));
+        *objects = create_object(POLYGONS);
+        polygons_sphere = get_polygons_ptr(*objects);
+        fill_Point(centre, 0.0, 0.0, 0.0);
+        create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0,
+                                  polygons->n_items, polygons_sphere);
+
+        /* scale the re-parameterizing sphere... also the return object. */
+        scaled_objects = (object_struct **) malloc(sizeof(object_struct *));
+        *scaled_objects = create_object(POLYGONS);
+        scaled_sphere = get_polygons_ptr(*scaled_objects);
+        copy_polygons(sphere, scaled_sphere);
+
+        translate_to_center_of_mass(scaled_sphere);
+        for (i = 0; i < scaled_sphere->n_points; i++)
+                set_vector_length(&scaled_sphere->points[i], 100.0);
+
+        create_polygons_bintree(scaled_sphere,
+                                ROUND((Real) scaled_sphere->n_items * 0.5));
+
+        new_points = (Point *) malloc(sizeof(Point) * scaled_sphere->n_points);
+
+        for (i = 0; i < scaled_sphere->n_points; i++) {
+                poly = find_closest_polygon_point(&scaled_sphere->points[i],
+                                                  polygons_sphere, &point);
+		
+                n_points = get_polygon_points(polygons_sphere, poly,
+                                              poly_points);
+                get_polygon_interpolation_weights(&point, n_points, poly_points,
+                                                  weights);
+
+                get_polygon_points(polygons, poly, poly_points);
+
+                fill_Point(new_points[i], 0.0, 0.0, 0.0);
+
+                for (j = 0; j < n_points; j++) {
+                        SCALE_POINT(scaled_point, poly_points[j], weights[j]);
+                        ADD_POINTS(new_points[i], new_points[i], scaled_point);
+                }
+        }
+
+        free(scaled_sphere->points);
+        scaled_sphere->points = new_points;
+
+        compute_polygon_normals(scaled_sphere);
+
+        delete_object_list(1, objects);
+
+        return(scaled_objects);
+}
+
+
 object_struct **
 resample_surface(polygons_struct *surface, polygons_struct *sphere,
                  int n_triangles, double *invals, double *outvals)
 {
         int i, j, t, poly, n_points;
-        Point point, scaled_point;
+        Point point, scaled_point, centre;
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
-        object_struct **objects;
-        polygons_struct *platonic_solid;
+        object_struct **objects, *scaled_objects;
+        polygons_struct *platonic_solid, *scaled_sphere;
         double radius, r;
         Real weights[MAX_POINTS_PER_POLYGON];
 
@@ -393,22 +227,21 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
                 fprintf(stderr,"topology is not optimal.\n");
                 fprintf(stderr,"Please try 20*(4*x) triangles (e.g. 81920).\n");
         } */
-	
-        /* Determine radius for the output sphere.  The sphere is not always
-         * perfectly spherical, thus use average radius
-         */
-        radius = 0.0;
-        for (i = 0; i < sphere->n_points; i++) {
-                r = 0.0;
-                for (j = 0; j < 3; j++) 
-                        r += Point_coord(sphere->points[i], j) *
-                             Point_coord(sphere->points[i], j);
-                radius += sqrt(r);
-        }
-        radius /= sphere->n_points;
 
-        objects = create_resampling_sphere(radius, n_triangles);
+        scaled_objects = create_object(POLYGONS);
+        scaled_sphere = get_polygons_ptr(scaled_objects);
+        copy_polygons(sphere, scaled_sphere);
+
+        translate_to_center_of_mass(scaled_sphere);
+        for (i = 0; i < scaled_sphere->n_points; i++)
+                set_vector_length(&scaled_sphere->points[i], 100.0);
+
+        objects = (object_struct **) malloc(sizeof(object_struct *));
+        *objects = create_object(POLYGONS);
         platonic_solid = get_polygons_ptr(*objects);
+        fill_Point(centre, 0.0, 0.0, 0.0);
+        create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0, n_triangles,
+                                  platonic_solid);
 
         char str[80];
         sprintf(str, "base_%d.obj", n_triangles);
@@ -465,52 +298,105 @@ double
 fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                   int maxiters, char *file, int smoothflag, int debugflag)
 {
-        object_struct **object;
-        polygons_struct *polygons;
-        double orig_area;
+        object_struct **object, **object2;
+        polygons_struct *polygons, *resampled;
+        double orig_area, *orig_areas;
         char str[80];
-        int base4 = 64, base6 = 96, base8 = 128, base20 = 80;
-        int iter, n, n_triangles;
-        double *areas, *dimension, fd;
+        int base6 = 96, base8 = 128, base20 = 80;
+        int i, iter, n, n_triangles;
+        double **bc_areas, *areas, *dimension, fd, *local_fd;
+        Point centre;
         
         translate_to_center_of_mass(sphere);
-        orig_area = get_polygons_surface_area(surface);
-        n_triangles = base4;
-        base4 *= 4;
 
-        areas = (double *) malloc(sizeof(double) * maxiters);
+        n_triangles = base20;
+        base20 *= 4;
+
+        orig_areas = (double *) malloc(sizeof(double) * surface->n_items);
+        orig_area = get_area_of_polygons(surface, orig_areas);
+
         dimension = (double *) malloc(sizeof(double) * maxiters);
+        areas = (double *) malloc(sizeof(double) * maxiters);
+
+        bc_areas = (double **) malloc(sizeof(double *) * maxiters);
+        for (i = 0; i < maxiters; i++) {
+                bc_areas[i] = (double *) malloc(sizeof(double) *
+                                                surface->n_items);
+        }
 
         for (iter = 0; iter < maxiters; iter++) {
-                dimension[iter] = 1/sqrt(n_triangles);
+                dimension[iter] = sqrt(n_triangles);
                 object = resample_surface(surface, sphere, n_triangles, NULL,
                                            NULL);
+
+                polygons = get_polygons_ptr(*object);
+                areas[iter] = get_polygons_surface_area(polygons) /
+                              orig_area;
+
+                /* resample back into the original object space */
+                object2 = resample_surface_sphere(polygons, sphere);
+                resampled = get_polygons_ptr(*object2);
+
+                get_area_of_polygons(resampled, bc_areas[iter]);
+
+                printf("n_tri = %d, areas = %f\n", n_triangles, areas[iter]);
+
+                for (i = 0; i < sphere->n_items; i++) {
+                        if (orig_areas[i] != 0)
+                                bc_areas[iter][i] /= orig_areas[i];
+                }
 
                 if (debugflag) {
                         sprintf(str, "resamp_%d.obj", n_triangles);
                         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
                                                        object) != OK)
                                 exit(EXIT_FAILURE);
+                        sprintf(str, "reresamp_%d.obj", n_triangles);
+                        if (output_graphics_any_format(str, ASCII_FORMAT, 1,
+                                                       object2) != OK)
+                                exit(EXIT_FAILURE);
+                        sprintf(str, "areas_%d.txt", n_triangles);
+                        if (output_values_any_format(str, sphere->n_items,
+                                                     bc_areas[iter],
+                                                     TYPE_DOUBLE) != OK)
+                                exit(EXIT_FAILURE);
                 }
 
-                polygons = get_polygons_ptr(*object);
-                areas[iter] = get_polygons_surface_area(polygons) / orig_area;
+                n_triangles = min_triangles_update(&base6, &base8, &base20);
 
-                n_triangles = min_triangles_update(&base4, &base6, &base8,
-                                                   &base20);
                 delete_object_list(1, object);
+                delete_object_list(1, object2);
+
+                //if (areas[iter] > 0.9)
+                        //break; /* stop here */
         }
 
-        for (n = 0; n < maxiters; n++) {
-                if (areas[iter] > 0.9)
-                        break;
-        }
+        if (iter < maxiters) iter--; /* skip >90% values */
 
-        //get_localfd(dimension, &areas, n, 1, &fd);
+        local_fd = (double *) malloc(sizeof(double) * surface->n_points);
+        get_localfd(surface, dimension, bc_areas, iter, local_fd, smoothflag);
 
-        if (output_values_any_format(file, maxiters, areas, TYPE_DOUBLE) != OK)
+        if (output_values_any_format(file, surface->n_points,
+                                     local_fd, TYPE_DOUBLE) != OK)
                 exit(EXIT_FAILURE);
-        
+
+        fd = get_globalfd(dimension, areas, iter);
+
+        if (1) {
+                if (output_values_any_format("fd_global.txt", maxiters,
+                                     areas, TYPE_DOUBLE) != OK)
+                                exit(EXIT_FAILURE);
+        }
+
+        free(orig_areas);
+        free(dimension);
+        free(areas);
+        free(local_fd);
+
+        for (i = 0; i < maxiters; i++)
+                free(bc_areas[i]);
+        free(bc_areas);
+
         return fd;
 }
 
@@ -546,8 +432,10 @@ get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 }
 
 
-//double bws[SPH_ITERS] = {10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 22.0, 24.0, 28.0};
 double bws[SPH_ITERS] = {11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 23.0, 26.0, 29.0};
+
+//double bws[SPH_ITERS] = {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0, 25.0, 26.0, 27.0, 28.0, 29.0, 30.0, 31.0, 32.0, 33.0, 34.0, 35.0, 36.0, 37.0, 38.0, 39.0, 40.0, 41.0, 42.0, 43.0, 44.0, 45.0, 46.0, 47.0, 48.0}; // for testing
+//double bws[SPH_ITERS] = {5.0, 6.0, 7.0, 8.0}; // for von Koch surfaces
 
 /*
  * Compute the fractal dimension using spherical harmonics: progressively
