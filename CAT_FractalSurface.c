@@ -19,6 +19,28 @@
 #include "Cat_Surf.h"
 #include "CAT_SurfaceIO.h"
 
+int level = 0; /* default: generate a normal tetrahedron */
+double Scale = 2; /* default: projections are half of "real" von Koch surface */
+BOOLEAN squareflag = 0; /* default: tetrahedral output */
+BOOLEAN comboflag = 0; /* default: regular surface */
+BOOLEAN roiflag = 0; /* default: no ROI output */
+BOOLEAN flipflag = 0; /* fractal structures point outwards or alternates */
+
+static ArgvInfo argTable[] = {
+  {"-level", ARGV_INT, (char *) 0, (char *) &level,
+    "Number of times to subdivide tetrahedral surfaces" },
+  { "-square", ARGV_CONSTANT, (char *) TRUE, (char *) &squareflag,
+    "Cubic topology rather than tetrahedral." },
+  { "-combo", ARGV_CONSTANT, (char *) TRUE, (char *) &comboflag,
+    "Different fractal topology for each surface." },
+  { "-roi", ARGV_CONSTANT, (char *) TRUE, (char *) &roiflag,
+    "Output ROIs for each face into roi.txt file." },
+  { "-flip", ARGV_CONSTANT, (char *) TRUE, (char *) &flipflag,
+    "Alternate inward/outward projections of fractal structures." },
+  {"-scale", ARGV_FLOAT, (char *) 0, (char *) &Scale,
+    "Divide the projections by this amount... 1 gives a true von Koch surface" },
+   {NULL, ARGV_END, NULL, NULL, NULL}
+};
 
 /* Create a fractal surface using triangles and tetrahedron base */
 object_struct **
@@ -26,32 +48,38 @@ create_von_koch_surface(int iterations)
 {
         polygons_struct *polygons;
         object_struct **object;
-        int iter, n_points, n_items, n_p, n_i, *indices;
-        int n, n2, i, a, b, c, p, p2, count, offset, *pflag, *flipflag;
+        int iter, n_points, n_items, n_p, n_i, *indices, idx;
+        int n, n2, i, a, b, c, p, p2, count, offset, *pflag, *flip;
         Point *points, tri[3], median, dir;
         Vector *normals, normal;
         double len, dist, scale;
+        int *polynum, *pointnum;
+        FILE *fp;
 
         /* overestimate the # of points and triangles initially */
         //n_points = 4 * pow(6, iterations);
         //n_items = 4 * pow(6, iterations);
-        n_points = 4 * pow(6, 6);
-        n_items = 4 * pow(6, 6);
+        n_points = 4 * pow(6, 7);
+        n_items = 4 * pow(6, 7);
 
         points = (Point *) malloc(sizeof(Point) * n_points);
         pflag = (int *) malloc(sizeof(int) * n_points);
         memset(pflag, 0, sizeof(int) * n_points);
         indices = (int *) malloc(sizeof(int) * n_items * 3);
         normals = (Vector *) malloc(sizeof(Vector) * n_items);
-        flipflag = (int *) malloc(sizeof(int) * n_items);
-        memset(flipflag, 0, sizeof(int) * n_items);
+
+        if (flipflag) {
+                flip = (int *) malloc(sizeof(int) * n_items);
+                memset(flip, 0, sizeof(int) * n_items);
+        }
+
+        if (roiflag) {
+                polynum = (int *) malloc(sizeof(int) * n_items);
+                pointnum = (int *) malloc(sizeof(int) * n_points);
+        }
 
         /* create the base tetrahedron */
         n_points = 4; n_items = 4;
-        //fill_Point(points[0], 0.0, 0.0, 1.0);
-        //fill_Point(points[1], 0.942809, 0.0, -0.333333);
-        //fill_Point(points[2], -0.471405, 0.816497, -0.333333);
-        //fill_Point(points[3], -0.471405, -0.816497, -0.333333);
         fill_Point(points[0], 1.0, 1.0, 1.0);
         fill_Point(points[1], -1.0, -1.0, 1.0);
         fill_Point(points[2], 1.0, -1.0, -1.0);
@@ -60,15 +88,9 @@ create_von_koch_surface(int iterations)
         indices[3] = 0; indices[4] = 2; indices[5] = 3;
         indices[6] = 0; indices[7] = 3; indices[8] = 1;
         indices[9] = 1; indices[10] = 3; indices[11] = 2;
-
-        /* create the base */ /*
-        n_points = 3; n_items = 1; //2;
-        fill_Point(points[0], 1.0, 0.0, 0.0);
-        fill_Point(points[1], -1.0, 0.0, 0.0);
-        fill_Point(points[2], 0.0, sqrt(3.0), 0.0);
-        indices[0] = 0; indices[1] = 1; indices[2] = 2;
-        //indices[3] = 0; indices[4] = 2; indices[5] = 1;
-        */
+        if (roiflag) {
+                polynum[0] = 1; polynum[1] = 2; polynum[2] = 4; polynum[3] = 8;
+        }
 
         SUB_POINTS(tri[0], points[1], points[0]);
         len = sqrt(DOT_POINTS(tri[0], tri[0]));
@@ -112,8 +134,35 @@ create_von_koch_surface(int iterations)
                         /* a real von koch surface */
                         //SCALE_POINT(normal, normals[n], sqrt(6.0f)*len/3.0f);
                         /* our modified one to avoid intersections */
-                        SCALE_POINT(normal, normals[n], sqrt(6.0f)*len/6.0f);
-                        //if (flipflag[n]) SCALE_POINT(normal, normal, -1.0f);
+                        if (!comboflag) {
+                                SCALE_POINT(normal, normals[n], sqrt(6.0f)*len /
+                                                                (3.0f * Scale));
+                        } else { /* make combination surface */
+                                if (n == 0 || (n >= 4 && n <= 8) ||
+                                    (n >= 24 && n <= 28) ||
+                                    (n >= 44 && n <= 68)) { /* 1.5 */
+                                        SCALE_POINT(normal, normals[n],
+                                                    sqrt(6.0f)*len / 4.5f);
+                                } else if (n == 1 || (n >= 9 && n <= 13) ||
+                                           (n >= 29 && n <= 33) ||
+                                           (n >= 69 && n <= 93)) { /* 2.0 */
+                                        SCALE_POINT(normal, normals[n],
+                                                    sqrt(6.0f)*len / 6.0f);
+                                } else if (n == 2 || (n >= 14 && n <= 18) ||
+                                           (n >= 34 && n <= 38) ||
+                                           (n >= 94 && n <= 118)) { /* 3.0 */
+                                        SCALE_POINT(normal, normals[n],
+                                                    sqrt(6.0f)*len / 9.0f);
+                                } else if (n == 3 || (n >= 19 && n <= 23) ||
+                                           (n >= 39 && n <= 43) ||
+                                           (n >= 119 && n <= 143)) { /* 4.0 */
+                                        SCALE_POINT(normal, normals[n],
+                                                    sqrt(6.0f)*len / 12.0f);
+                                }
+                        }
+
+                        if (flipflag && flip[n])
+                                SCALE_POINT(normal, normal, -1.0f);
                         ADD_POINTS(points[n_points], points[n_points], normal);
                         n_points++;
 
@@ -124,30 +173,35 @@ create_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points - 4;
                         indices[n_items*3 + 1] = b;
                         indices[n_items*3 + 2] = n_points - 3;
-                        flipflag[n_items] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items] = (flip[n] == 0);
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                         indices[n_items*3] = n_points - 3;
                         indices[n_items*3 + 1] = c;
                         indices[n_items*3 + 2] = n_points - 2;
-                        flipflag[n_items] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items] = (flip[n] == 0);
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                         indices[n_items*3] = n_points - 4;
                         indices[n_items*3 + 1] = n_points - 1;
                         indices[n_items*3 + 2] = n_points - 2;
-                        flipflag[n_items] = flipflag[n];
+                        if (flipflag) flip[n_items] = (flip[n] == 0);
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                         indices[n_items*3] = n_points - 4;
                         indices[n_items*3 + 1] = n_points - 3;
                         indices[n_items*3 + 2] = n_points - 1;
-                        flipflag[n_items] = flipflag[n];
+                        if (flipflag) flip[n_items] = (flip[n] == 0);
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                         indices[n_items*3] = n_points - 1;
                         indices[n_items*3 + 1] = n_points - 3;
                         indices[n_items*3 + 2] = n_points - 2;
-                        flipflag[n_items] = flipflag[n];
+                        if (flipflag) flip[n_items] = (flip[n] == 0);
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
 
-                        flipflag[n] = (flipflag[n] == 0);
+                        if (flipflag) flip[n] = (flip[n] == 0);
                 }
                 /* remove duplicate points */
                 for (p = 0; p < n_points; p++) {
@@ -168,27 +222,6 @@ create_von_koch_surface(int iterations)
                                 }
                         }
                 }
-                /* remove duplicate triangles */
-                offset = 0;
-                for (n = 0; n < n_items; n++) {
-                        for (n2 = n+1; n2 < n_items; n2++) {
-                                if ( (indices[n*3  ] == indices[n2*3  ] ||
-                                      indices[n*3  ] == indices[n2*3+1] ||
-                                      indices[n*3  ] == indices[n2*3+2]) &&
-                                     (indices[n*3+1] == indices[n2*3  ] ||
-                                      indices[n*3+1] == indices[n2*3+1] ||
-                                      indices[n*3+1] == indices[n2*3+2]) &&
-                                     (indices[n*3+2] == indices[n2*3  ] ||
-                                      indices[n*3+2] == indices[n2*3+1] ||
-                                      indices[n*3+2] == indices[n2*3+2])) {
-                                        n_items--;
-                                        offset++;
-                                }
-                        }
-                        indices[n*3] = indices[(n+offset)*3];
-                        indices[n*3+1] = indices[(n+offset)*3+1];
-                        indices[n*3+2] = indices[(n+offset)*3+2];
-                }
         }
 
         /* clean up any rounding ickiness */
@@ -203,7 +236,7 @@ create_von_koch_surface(int iterations)
         }
 
         /* cut each triangle into 4 triangles */
-        for (; iter < 4; iter++) {
+        for (; iter < 7; iter++) {
                 len /= 2;
 
                 n_i = n_items;
@@ -227,14 +260,17 @@ create_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points - 3;
                         indices[n_items*3 + 1] = b;
                         indices[n_items*3 + 2] = n_points - 2;
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                         indices[n_items*3] = n_points - 2;
                         indices[n_items*3 + 1] = c;
                         indices[n_items*3 + 2] = n_points - 1;
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                         indices[n_items*3 + 2] = n_points - 3;
                         indices[n_items*3] = n_points - 2;
                         indices[n_items*3 + 1] = n_points - 1;
+                        if (roiflag) polynum[n_items] = polynum[n];
                         n_items++;
                 }
                 /* remove duplicate points */
@@ -254,27 +290,6 @@ create_von_koch_surface(int iterations)
                                         p2--;
                                 }
                         }
-                }
-                /* remove duplicate triangles */
-                offset = 0;
-                for (n = 0; n < n_items; n++) {
-                        for (n2 = n+1; n2 < n_items; n2++) {
-                                if ( (indices[n*3  ] == indices[n2*3  ] ||
-                                      indices[n*3  ] == indices[n2*3+1] ||
-                                      indices[n*3  ] == indices[n2*3+2]) &&
-                                     (indices[n*3+1] == indices[n2*3  ] ||
-                                      indices[n*3+1] == indices[n2*3+1] ||
-                                      indices[n*3+1] == indices[n2*3+2]) &&
-                                     (indices[n*3+2] == indices[n2*3  ] ||
-                                      indices[n*3+2] == indices[n2*3+1] ||
-                                      indices[n*3+2] == indices[n2*3+2])) {
-                                        n_items--;
-                                        offset++;
-                                }
-                        }
-                        indices[n*3] = indices[(n+offset)*3];
-                        indices[n*3+1] = indices[(n+offset)*3+1];
-                        indices[n*3+2] = indices[(n+offset)*3+2];
                 }
         }
 
@@ -311,11 +326,40 @@ create_von_koch_surface(int iterations)
         for (i = n_items; i < n_items * 3; i++) 
                 polygons->indices[i] = indices[i];
 
+       if (roiflag) {
+               for (i = 0; i < n_items; i++) {
+                        for (n = 0; n < 3; n++) {
+                                idx = polygons->indices[i*3 + n];
+                                pointnum[idx] = pointnum[idx] | polynum[i];
+                        }
+                }
+                fp = fopen("roi.txt", "w");
+                for (i = 0; i < n_points; i++)
+                        fprintf(fp, " %d\n", pointnum[i]);
+                fclose(fp);
+        }
+
+        for (i = 0; i < n_items; i++) {
+                polygons->end_indices[i] = 3 * (i + 1);
+                polygons->indices[i] = indices[i];
+        }
+
+        for (i = n_items; i < n_items * 3; i++) 
+                polygons->indices[i] = indices[i];
+
         compute_polygon_normals(polygons);
 
         free(points);
+        free(pflag);
         free(indices);
         free(normals);
+
+        if (flipflag) free(flip);
+
+        if (roiflag) {
+                free(polynum);
+                free(pointnum);
+        }
 
         return(object);
 }
@@ -327,24 +371,30 @@ create_square_von_koch_surface(int iterations)
         polygons_struct *polygons;
         object_struct **object;
         int iter, n_points, n_items, n_p, n_squares, *indices;
-        int n, n2, i, a, b, c, d, p, p2, count, offset, *flipflag;
+        int n, n2, i, a, b, c, d, p, p2, count, offset, *flip;
         Point *points, tri[3], a_pt, b_pt, c_pt, d_pt, median, dir;
         Vector *normals, normal;
         double len, dist, scale1 = 0.3f, scale2 = 0.6f;
+        int *squarenum, *pointnum;
+        FILE *fp;
 
         /* overestimate the # of points and triangles initially */
-        //n_points = 2 + 6 * pow(20, iterations);
-        //n_items = 6 + 6 * pow(26, iterations);
-        n_points = 2 + 6 * pow(20, 3);
-        n_items = 6 + 6 * pow(26, 3);
+        n_points = 2 + 6 * pow(20, 4);
+        n_items = 6 + 6 * pow(26, 4);
 
         points = (Point *) malloc(sizeof(Point) * n_points);
         indices = (int *) malloc(sizeof(int) * n_items * 3);
         normals = (Vector *) malloc(sizeof(Vector) * n_items);
-        flipflag = (int *) malloc(sizeof(int) * n_items / 2);
-        memset(flipflag, 0, sizeof(int) * n_items / 2);
 
-        /* create the base cube */ /*
+        if (flipflag) {
+                flip = (int *) malloc(sizeof(int) * n_items / 2);
+                memset(flip, 0, sizeof(int) * n_items / 2);
+        }
+
+        squarenum = (int *) malloc(sizeof(int) * n_items / 2);
+        pointnum = (int *) malloc(sizeof(int) * n_points);
+
+        /* create the base cube */
         n_points = 8; n_items = 12;
         fill_Point(points[0], -1.0, -1.0, -1.0);
         fill_Point(points[1], -1.0, -1.0, 1.0);
@@ -365,22 +415,10 @@ create_square_von_koch_surface(int iterations)
         indices[24] = 1; indices[25] = 5; indices[26] = 3;
         indices[27] = 3; indices[28] = 5; indices[29] = 7;
         indices[30] = 2; indices[31] = 6; indices[32] = 0;
-        indices[33] = 0; indices[34] = 6; indices[35] = 4; */
+        indices[33] = 0; indices[34] = 6; indices[35] = 4;
 
-        n_points = 7; n_items = 6;
-        fill_Point(points[0], -1.0, -1.0, 1.0);
-        fill_Point(points[1], -1.0, 1.0, -1.0);
-        fill_Point(points[2], -1.0, 1.0, 1.0);
-        fill_Point(points[3], 1.0, -1.0, -1.0);
-        fill_Point(points[4], 1.0, -1.0, 1.0);
-        fill_Point(points[5], 1.0, 1.0, -1.0);
-        fill_Point(points[6], 1.0, 1.0, 1.0);
-        indices[0] = 3; indices[1] = 5; indices[2] = 4;
-        indices[3] = 4; indices[4] = 5; indices[5] = 6;
-        indices[6] = 5; indices[7] = 1; indices[8] = 6;
-        indices[9] = 6; indices[10] = 1; indices[11] = 2;
-        indices[12] = 0; indices[13] = 4; indices[14] = 2;
-        indices[15] = 2; indices[16] = 4; indices[17] = 6;
+        squarenum[0] = 1; squarenum[1] = 2; squarenum[2] = 4;
+        squarenum[3] = 8; squarenum[4] = 16; squarenum[5] = 32;
 
         SUB_POINTS(tri[0], points[1], points[0]);
         len = sqrt(DOT_POINTS(tri[0], tri[0]));
@@ -441,8 +479,33 @@ create_square_von_koch_surface(int iterations)
                         /* a real von koch surface */
                         //SCALE_VECTOR(normal, normals[n], len);
                         /* our modified one to avoid intersections */
-                        SCALE_VECTOR(normal, normals[n], len/2.0f);
-                        if (flipflag[n]) SCALE_VECTOR(normal, normal, -1.0);
+                        if (!comboflag) {
+                                SCALE_VECTOR(normal, normals[n], len / Scale);
+                        } else { /* make combination surface */
+                                if (squarenum[n] == 1) { /* 1.5 */
+                                        SCALE_VECTOR(normal, normals[n],
+                                                    len / 1.5f);
+                                } else if (squarenum[n] == 2) { /* 2.0 */
+                                        SCALE_VECTOR(normal, normals[n],
+                                                    len / 2.0f);
+                                } else if (squarenum[n] == 4) { /* 2.5 */
+                                        SCALE_VECTOR(normal, normals[n],
+                                                    len / 2.5f);
+                                } else if (squarenum[n] == 8) { /* 3.0 */
+                                        SCALE_VECTOR(normal, normals[n],
+                                                    len / 3.0f);
+                                } else if (squarenum[n] == 16) { /* 3.5 */
+                                        SCALE_VECTOR(normal, normals[n],
+                                                    len / 3.5f);
+                                } else if (squarenum[n] == 32) { /* 4.0 */
+                                        SCALE_VECTOR(normal, normals[n],
+                                                    len / 4.0f);
+                                } else {
+                                        printf("ERROR! %d\n", n);
+                                }
+                        }
+                        if (flipflag && flip[n])
+                                SCALE_VECTOR(normal, normal, -1.0);
 
                         /* make the other four points */
                         ADD_POINTS(points[n_points+12], points[n_points+3],
@@ -462,7 +525,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 3;
                         indices[n_items*3 + 1] = n_points + 4;
                         indices[n_items*3 + 2] = n_points;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points;
                         indices[n_items*3 + 1] = n_points + 4;
@@ -471,7 +535,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 4;
                         indices[n_items*3 + 1] = n_points + 5;
                         indices[n_items*3 + 2] = n_points + 1;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 1;
                         indices[n_items*3 + 1] = n_points + 5;
@@ -480,7 +545,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 6;
                         indices[n_items*3 + 1] = n_points + 7;
                         indices[n_items*3 + 2] = n_points + 2;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 2;
                         indices[n_items*3 + 1] = n_points + 7;
@@ -491,7 +557,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 3;
                         indices[n_items*3 + 1] = n_points + 7;
                         indices[n_items*3 + 2] = n_points + 12;
-                        flipflag[n_items/2] = flipflag[n];
+                        if (flipflag) flip[n_items/2] = flip[n];
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 12;
                         indices[n_items*3 + 1] = n_points + 7;
@@ -500,7 +567,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 7;
                         indices[n_items*3 + 1] = n_points + 8;
                         indices[n_items*3 + 2] = n_points + 14;
-                        flipflag[n_items/2] = flipflag[n];
+                        if (flipflag) flip[n_items/2] = flip[n];
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 14;
                         indices[n_items*3 + 1] = n_points + 8;
@@ -509,7 +577,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 8;
                         indices[n_items*3 + 1] = n_points + 4;
                         indices[n_items*3 + 2] = n_points + 15;
-                        flipflag[n_items/2] = flipflag[n];
+                        if (flipflag) flip[n_items/2] = flip[n];
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 15;
                         indices[n_items*3 + 1] = n_points + 4;
@@ -518,7 +587,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 4;
                         indices[n_items*3 + 1] = n_points + 3;
                         indices[n_items*3 + 2] = n_points + 13;
-                        flipflag[n_items/2] = flipflag[n];
+                        if (flipflag) flip[n_items/2] = flip[n];
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 13;
                         indices[n_items*3 + 1] = n_points + 3;
@@ -527,7 +597,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 14;
                         indices[n_items*3 + 1] = n_points + 15;
                         indices[n_items*3 + 2] = n_points + 12;
-                        flipflag[n_items/2] = flipflag[n];
+                        if (flipflag) flip[n_items/2] = flip[n];
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 12;
                         indices[n_items*3 + 1] = n_points + 15;
@@ -537,7 +608,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 8;
                         indices[n_items*3 + 1] = n_points + 9;
                         indices[n_items*3 + 2] = n_points + 4;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 4;
                         indices[n_items*3 + 1] = n_points + 9;
@@ -546,7 +618,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = b;
                         indices[n_items*3 + 1] = n_points + 10;
                         indices[n_items*3 + 2] = n_points + 6;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 6;
                         indices[n_items*3 + 1] = n_points + 10;
@@ -555,7 +628,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 10;
                         indices[n_items*3 + 1] = n_points + 11;
                         indices[n_items*3 + 2] = n_points + 7;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 7;
                         indices[n_items*3 + 1] = n_points + 11;
@@ -564,7 +638,8 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 11;
                         indices[n_items*3 + 1] = c;
                         indices[n_items*3 + 2] = n_points + 8;
-                        flipflag[n_items/2] = (flipflag[n] == 0);
+                        if (flipflag) flip[n_items/2] = (flip[n] == 0);
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 8;
                         indices[n_items*3 + 1] = c;
@@ -572,7 +647,7 @@ create_square_von_koch_surface(int iterations)
                         n_items++;
 
                         n_points += 16;
-                        flipflag[n] = (flipflag[n] == 0);
+                        if (flipflag) flip[n] = (flip[n] == 0);
 
                 }
 
@@ -594,29 +669,6 @@ create_square_von_koch_surface(int iterations)
                                 }
                         }
                 }
-
-                /* remove duplicate triangles */
-                offset = 0;
-                for (n = 0; n < n_items; n++) {
-                        for (n2 = n+1; n2 < n_items; n2++) {
-                                if ( (indices[n*3  ] == indices[n2*3  ] ||
-                                      indices[n*3  ] == indices[n2*3+1] ||
-                                      indices[n*3  ] == indices[n2*3+2]) &&
-                                     (indices[n*3+1] == indices[n2*3  ] ||
-                                      indices[n*3+1] == indices[n2*3+1] ||
-                                      indices[n*3+1] == indices[n2*3+2]) &&
-                                     (indices[n*3+2] == indices[n2*3  ] ||
-                                      indices[n*3+2] == indices[n2*3+1] ||
-                                      indices[n*3+2] == indices[n2*3+2])) {
-                                        n_items--;
-                                        offset++;
-                                }
-                        }
-                        indices[n*3] = indices[(n+offset)*3];
-                        indices[n*3+1] = indices[(n+offset)*3+1];
-                        indices[n*3+2] = indices[(n+offset)*3+2];
-                }
-
         }
 
         /* clean up any rounding ickiness */
@@ -631,7 +683,7 @@ create_square_von_koch_surface(int iterations)
         }
 
         /* increase the resolution */
-        for (; iter < 3; iter++) {
+        for (; iter < 4; iter++) {
                 len /= 3;
                 n_squares = n_items / 2;
                 for (n = 0; n < n_squares; n++) {
@@ -695,6 +747,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points;
                         indices[n_items*3 + 1] = n_points + 4;
                         indices[n_items*3 + 2] = n_points + 1;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 4;
                         indices[n_items*3 + 1] = n_points + 5;
@@ -703,6 +756,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 1;
                         indices[n_items*3 + 1] = n_points + 5;
                         indices[n_items*3 + 2] = d;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 6;
                         indices[n_items*3 + 1] = n_points + 7;
@@ -711,6 +765,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 2;
                         indices[n_items*3 + 1] = n_points + 7;
                         indices[n_items*3 + 2] = n_points + 3;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
 
                         /* center square */
@@ -721,6 +776,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 3;
                         indices[n_items*3 + 1] = n_points + 8;
                         indices[n_items*3 + 2] = n_points + 4;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
 
                         indices[n_items*3] = n_points + 8;
@@ -730,6 +786,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 4;
                         indices[n_items*3 + 1] = n_points + 9;
                         indices[n_items*3 + 2] = n_points + 5;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = b;
                         indices[n_items*3 + 1] = n_points + 10;
@@ -738,6 +795,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 6;
                         indices[n_items*3 + 1] = n_points + 10;
                         indices[n_items*3 + 2] = n_points + 7;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 10;
                         indices[n_items*3 + 1] = n_points + 11;
@@ -746,6 +804,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 7;
                         indices[n_items*3 + 1] = n_points + 11;
                         indices[n_items*3 + 2] = n_points + 8;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
                         indices[n_items*3] = n_points + 11;
                         indices[n_items*3 + 1] = c;
@@ -754,6 +813,7 @@ create_square_von_koch_surface(int iterations)
                         indices[n_items*3] = n_points + 8;
                         indices[n_items*3 + 1] = c;
                         indices[n_items*3 + 2] = n_points + 9;
+                        squarenum[n_items/2] = squarenum[n];
                         n_items++;
 
                         n_points += 12;
@@ -778,30 +838,7 @@ create_square_von_koch_surface(int iterations)
                                 }
                         }
                 }
-                /* remove duplicate triangles */
-                offset = 0;
-                for (n = 0; n < n_items; n++) {
-                        for (n2 = n+1; n2 < n_items; n2++) {
-                                if ( (indices[n*3  ] == indices[n2*3  ] ||
-                                      indices[n*3  ] == indices[n2*3+1] ||
-                                      indices[n*3  ] == indices[n2*3+2]) &&
-                                     (indices[n*3+1] == indices[n2*3  ] ||
-                                      indices[n*3+1] == indices[n2*3+1] ||
-                                      indices[n*3+1] == indices[n2*3+2]) &&
-                                     (indices[n*3+2] == indices[n2*3  ] ||
-                                      indices[n*3+2] == indices[n2*3+1] ||
-                                      indices[n*3+2] == indices[n2*3+2])) {
-                                        n_items--;
-                                        offset++;
-                                }
-                        }
-                        indices[n*3] = indices[(n+offset)*3];
-                        indices[n*3+1] = indices[(n+offset)*3+1];
-                        indices[n*3+2] = indices[(n+offset)*3+2];
-                }
-
         }
-
 
         /* build surface */
         object = (object_struct **) malloc(sizeof(object_struct *));
@@ -838,20 +875,30 @@ create_square_von_koch_surface(int iterations)
 
         compute_polygon_normals(polygons);
 
+        if (roiflag) {
+               for (i = 0; i < n_items; i++) {
+                        for (n = 0; n < 3; n++) {
+                                p = polygons->indices[i*3 + n];
+                                pointnum[p] = pointnum[p] | squarenum[i/2];
+                        }
+                }
+                fp = fopen("roi.txt", "w");
+                for (i = 0; i < n_points; i++)
+                        fprintf(fp, " %d\n", pointnum[i]);
+                fclose(fp);
+        }
+
         free(points);
         free(indices);
         free(normals);
 
+        if (flipflag) free(flip);
+
+        free(squarenum);
+        free(pointnum);
+
         return(object);
 }
-
-int level = 0; /* default: generate a normal tetrahedron */
-
-static ArgvInfo argTable[] = {
-  {"-level", ARGV_INT, (char *) 0, (char *) &level,
-    "Number of times to subdivide tetrahedral surfaces" },
-   {NULL, ARGV_END, NULL, NULL, NULL}
-};
 
 void
 usage(char *executable)
@@ -884,13 +931,18 @@ main(int argc, char** argv)
                 exit(EXIT_FAILURE);
         }
 
-        objects = create_square_von_koch_surface(level);
-        //objects = create_von_koch_surface(level);
+        if (squareflag) {
+                objects = create_square_von_koch_surface(level);
+        } else {
+                objects = create_von_koch_surface(level);
+        }
 
-        if(output_graphics_any_format(output_file, ASCII_FORMAT, 1, objects) != OK)
+        if(output_graphics_any_format(output_file, ASCII_FORMAT,
+                                      1, objects) != OK)
                 exit(EXIT_FAILURE);
 
         delete_object_list(1, objects);
 
         return(EXIT_SUCCESS);
 }
+
