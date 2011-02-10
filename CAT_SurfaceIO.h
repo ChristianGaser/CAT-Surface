@@ -20,6 +20,7 @@
 #define TYPE_CHAR 3
 
 Status input_values_any_format(char *, int *, Real **);
+Status input_values_integer(char *, int *, int **);
 Status output_values_any_format(char *, int, void *, int);
 Status input_graphics_any_format(char *, File_formats *, int *,
                                  object_struct  ***); 

@@ -30,6 +30,31 @@ input_values_any_format(char *file, int *n_values, Real **values)
 }
 
 Status
+input_values_integer(char *file, int *n_values, int **values)
+{
+        FILE *fp;
+        int n;
+        size_t len;
+
+        *n_values = 0;
+        fp = fopen(file, "r");
+        while (fgetln(fp, &len) != NULL)
+                (*n_values)++;
+
+        rewind(fp);
+
+        *values = (int *) malloc(sizeof(int) * (*n_values));
+
+        for (n = 0; n < (*n_values); n++) {
+                if (fscanf(fp, "%d\n", &(*values)[n]) == 0)
+                        return(ERROR);
+        }
+        fclose(fp);
+
+        return(OK);
+}
+
+Status
 output_values_any_format(char *file, int n_values, void *values, int flag)
 {
         Status status;
