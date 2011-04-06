@@ -144,17 +144,15 @@ static void relax_le(int dm[], double a[], double b[], double s[], int nit, doub
     printf("%dx%d: ", dm[0],dm[1]);
 #endif
 
-    for(it=0; it<2*nit; it++)
+    for(it=0; it<4*nit; it++)
     {
-        int j, jstart;
-        int i, istart;
+        int i, j;
 
 #ifdef VERBOSE
         printf(" %g", sumsq_le(dm, a, b, s, u));
 #endif
 
-        jstart = it%2;
-        for(j=0; j<dm[1]; j++)
+        for(j=(it>>1)&1; j<dm[1]; j+=2)
         {
             double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
             int jm1,jp1, im1,ip1;
@@ -170,9 +168,7 @@ static void relax_le(int dm[], double a[], double b[], double s[], int nit, doub
 	        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
     	    jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
 
-            istart = (jstart == (j%2));
-
-            for(i=istart; i<dm[0]; i+=2)
+            for(i=(it>>0)&1; i<dm[0]; i+=2)
             {
                 double sux, suy, axx, ayy, axy, idt;
                 double *px = pux+i, *py = puy+i;
