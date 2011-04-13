@@ -155,8 +155,8 @@ main(int argc, char *argv[])
 
                 *colour_flag_ptr = PER_VERTEX_COLOURS;
 
-                min_range = FLT_MAX;
-                max_range = FLT_MIN;
+                min_range =  FLT_MAX;
+                max_range = -FLT_MAX;
         
                 value_index2 = 0;
                 for (p = 0; p < n_pts; p++) {
