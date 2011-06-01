@@ -2,21 +2,46 @@
 /* (c) John Ashburner (2007) */
 
 #include<math.h>
-#include "optimizersphere.h"
+#include "dartel.h"
 #include <stdio.h>
 
 #define S 1.0000000001
+
+
+static int
+bound(int i, int j, int dm[])
+{
+        int i1, j1;
+        int m2;
+
+        /* circulant boundary condition for x-coordinates */
+        i1 = (i >= 0 ? (i % dm[0]) : (dm[0] + (i % dm[0])) % dm[0]);
+
+        /* Neumann boundary condition for y-coordinates */ 
+        if (dm[1] == 1) {
+                j1 = 0;
+        } else {
+                m2 = dm[1] * 2;
+                j = (j < 0) ? (-j - m2*(-j / m2) - 1) : (j - m2*(j / m2));
+                if (dm[1] <= j)
+                        j1 = m2 - j - 1;
+                else
+                        j1 = j;
+        } 
+        return(i1 + dm[0]*j1);
+}
+
 /* Neumann boundary conditions */
-static int neumann(int i, int m)
+static int
+neumann(int i, int m)
 {
 	if (m==1)
 		return(0);
-	else
-	{
+	else {
 		int m2 = m*2;
-		i = (i<0) ? (-i-m2*((-i)/m2)-1) : (i-m2*(i/m2));
-		if (m<=i)
-			return(m2-i-1);
+		i = (i < 0) ? (-i - m2*((-i)/m2) - 1) : (i - m2*(i/m2));
+		if (m <= i)
+			return(m2 - i - 1);
 		else
 			return(i);
 	}
@@ -24,165 +49,168 @@ static int neumann(int i, int m)
 #    define BOUNDY(i,m) neumann(i,m)
 #    define BOUNDX(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
 
-double sumsq_le(int dm[], double a[], double b[], double s[], double u[])
+double
+sumsq_le(int dm[], double a[], double b[], double s[], double u[])
 {
     double ss = 0.0;
     int i, j;
     double mu = s[2], lam = s[3], id = s[4];
     double wx0, wx1, wx2, wy0, wy1, wy2, wxy;
+    double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
 
-    wx0 = mu*(2*s[1]*s[1]+4*s[0]*s[0])+2*lam*s[0]*s[0] + id;
-    wy0 = mu*(2*s[0]*s[0]+4*s[1]*s[1])+2*lam*s[1]*s[1] + id;
-    wx1 = -(2*mu+lam)*s[0]*s[0];
-    wy1 = -(2*mu+lam)*s[1]*s[1];
+    wx0 = mu*(2*s[1]*s[1] + 4*s[0]*s[0]) + 2*lam*s[0]*s[0] + id;
+    wy0 = mu*(2*s[0]*s[0] + 4*s[1]*s[1]) + 2*lam*s[1]*s[1] + id;
+    wx1 = -(2*mu + lam)*s[0]*s[0];
+    wy1 = -(2*mu + lam)*s[1]*s[1];
     wx2 = -mu*s[0]*s[0];
     wy2 = -mu*s[1]*s[1];
-    wxy = (0.25*lam+0.25*mu)*s[0]*s[1];
+    wxy = (0.25*lam + 0.25*mu)*s[0]*s[1];
 
-    for(j=0; j<dm[1]; j++)
-    {
-        double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
-        int jm1,jp1,im1,ip1;
+    pux  = u;
+    puy  = u + dm[0]*dm[1];
+    pbx  = b;
+    pby  = b + dm[0]*dm[1];
+    paxx = a;
+    payy = a + dm[0]*dm[1];
+    paxy = a + dm[0]*dm[1]*2;
 
-        pux  = u+dm[0]*j;
-        puy  = u+dm[0]*(j+dm[1]);
-        pbx  = b+dm[0]*j;
-        pby  = b+dm[0]*(j+dm[1]);
-        paxx = a+dm[0]*j;
-        payy = a+dm[0]*(j+dm[1]);
-        paxy = a+dm[0]*(j+dm[1]*2);
-
-        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-        jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
-
-        for(i=0; i<dm[0]; i++)
-        {
-            double *px = &pux[i], *py = &puy[i];
+    for (j = 0; j < dm[1]; j++) {
+        for (i = 0; i < dm[0]; i++) {
+            int ij;
             double tmp;
 
-            im1 = BOUNDX(i-1,dm[0])-i;
-            ip1 = BOUNDX(i+1,dm[0])-i;
+            ij  = bound(i  ,j  ,dm);
 
-            tmp = (wx0+paxx[i])*px[0] + paxy[i]*py[0]
-                 + wy2*(px[jm1] + px[jp1])
-                 + wx1*(px[im1] + px[ip1])
-                 + wxy*(py[jp1+im1] - py[jp1+ip1] - py[jm1+im1] + py[jm1+ip1])
-                 - pbx[i];
+            tmp = (wx0 + paxx[ij])*pux[ij] + paxy[ij]*puy[ij]
+                 + wy2*(pux[bound(i,j-1,dm)] + pux[bound(i,j+1,dm)])
+                 + wx1*(pux[bound(i-1,j,dm)] + pux[bound(i+1,j,dm)])
+                 + wxy*(puy[bound(i-1,j-1,dm)] - puy[bound(i-1,j+1,dm)] -
+                        puy[bound(i+1,j-1,dm)] + puy[bound(i+1,j+1,dm)])
+                 - pbx[ij];
             ss += tmp*tmp;
 
-            tmp = (wy0+payy[i])*py[0] + paxy[i]*px[0]
-                 + wy1*(py[jm1] + py[jp1])
-                 + wx2*(py[im1] + py[ip1])
-                 + wxy*(px[jp1+im1] - px[jp1+ip1] - px[jm1+im1] + px[jm1+ip1])
-                 - pby[i];
+            tmp = (wy0 + payy[ij])*puy[ij] + paxy[ij]*pux[ij]
+                 + wy1*(puy[bound(i,j-1,dm)] + puy[bound(i,j+1,dm)])
+                 + wx2*(puy[bound(i-1,j,dm)] + puy[bound(i+1,j,dm)])
+                 + wxy*(pux[bound(i-1,j-1,dm)] - pux[bound(i-1,j+1,dm)] -
+                        pux[bound(i+1,j-1,dm)] + pux[bound(i+1,j+1,dm)])
+                 - pby[ij];
             ss += tmp*tmp;
         }
     }
     return(ss);
 }
 
-void LtLf_le(int dm[], double f[], double s[], double g[])
+void
+LtLf_le(int dm[], double f[], double s[], double g[])
 {
     int i, j, jm1,jp1, im1,ip1;
     double *pgx, *pgy, *pfx, *pfy;
     double mu = s[2], lam = s[3], id = s[4];
     double wx0, wx1, wx2, wy0, wy1, wy2, wxy;
 
-    wx0 = mu*(2*s[1]*s[1]+4*s[0]*s[0])+2*lam*s[0]*s[0] + id;
-    wy0 = mu*(2*s[0]*s[0]+4*s[1]*s[1])+2*lam*s[1]*s[1] + id;
-    wx1 = -(2*mu+lam)*s[0]*s[0];
-    wy1 = -(2*mu+lam)*s[1]*s[1];
+    wx0 = mu*(2*s[1]*s[1] + 4*s[0]*s[0]) + 2*lam*s[0]*s[0] + id;
+    wy0 = mu*(2*s[0]*s[0] + 4*s[1]*s[1]) + 2*lam*s[1]*s[1] + id;
+    wx1 = -(2*mu + lam)*s[0]*s[0];
+    wy1 = -(2*mu + lam)*s[1]*s[1];
     wx2 = -mu*s[0]*s[0];
     wy2 = -mu*s[1]*s[1];
-    wxy = (0.25*lam+0.25*mu)*s[0]*s[1];
+    wxy = (0.25*lam + 0.25*mu)*s[0]*s[1];
 
-    for(j=0; j<dm[1]; j++)
-    {
-        pgx = g+dm[0]*j;
-        pgy = g+dm[0]*(j+dm[1]);
-        pfx = f+dm[0]*j;
-        pfy = f+dm[0]*(j+dm[1]);
+    pgx = g;
+    pgy = g + dm[0]*dm[1];
+    pfx = f;
+    pfy = f + dm[0]*dm[1];
 
-        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-        jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
+    for (j = 0; j < dm[1]; j++) {
+        for (i = 0; i < dm[0]; i++) {
+            int ij;
 
-        for(i=0; i<dm[0]; i++)
-        {
-            double *px = &pfx[i], *py = &pfy[i];
+            ij = bound(i,j,dm);
 
-            im1 = BOUNDX(i-1,dm[0])-i;
-            ip1 = BOUNDX(i+1,dm[0])-i;
-
-            pgx[i] = wx0* px[0] + wy2*(px[jm1] + px[jp1]) + wx1*(px[im1] + px[ip1])
-                   + wxy*(py[jp1+im1] - py[jp1+ip1] - py[jm1+im1] + py[jm1+ip1]);
-            pgy[i] = wy0* py[0] + wy1*(py[jm1] + py[jp1])+ wx2*(py[im1] + py[ip1])
-                   + wxy*(px[jp1+im1] - px[jp1+ip1] - px[jm1+im1] + px[jm1+ip1]);
+            pgx[ij] = wx0*pfx[ij] +
+                      wy2*(pfx[bound(i,j-1,dm)] + pfx[bound(i,j+1,dm)]) +
+                      wx1*(pfx[bound(i-1,j,dm)] + pfx[bound(i+1,j,dm)]) +
+                      wxy*(pfy[bound(i-1,j-1,dm)] - pfy[bound(i-1,j+1,dm)] -
+                           pfy[bound(i+1,j-1,dm)] + pfy[bound(i+1,j+1,dm)]);
+            pgy[ij] = wy0*pfy[ij] +
+                      wy1*(pfy[bound(i,j-1,dm)] + pfy[bound(i,j+1,dm)]) +
+                      wx2*(pfy[bound(i-1,j,dm)] + pfy[bound(i+1,j,dm)]) +
+                      wxy*(pfx[bound(i-1,j-1,dm)] - pfx[bound(i-1,j+1,dm)] -
+                           pfx[bound(i+1,j-1,dm)] + pfx[bound(i+1,j+1,dm)]);
         }
     }
 }
 
-static void relax_le(int dm[], double a[], double b[], double s[], int nit, double u[])
+void
+relax_le(int dm[], double a[], double b[], double s[], int nit, double u[])
 {
     int it;
     double mu = s[2], lam = s[3], id = s[4];
     double wx0, wx1, wx2, wy0, wy1, wy2, wxy;
     double regx, regy;
 
-    wx0 = mu*(2*s[1]*s[1]+4*s[0]*s[0])+2*lam*s[0]*s[0] + id;
-    wy0 = mu*(2*s[0]*s[0]+4*s[1]*s[1])+2*lam*s[1]*s[1] + id;
-    wx1 = -(2*mu+lam)*s[0]*s[0];
-    wy1 = -(2*mu+lam)*s[1]*s[1];
+    wx0 = mu*(2*s[1]*s[1] + 4*s[0]*s[0]) + 2*lam*s[0]*s[0] + id;
+    wy0 = mu*(2*s[0]*s[0] + 4*s[1]*s[1]) + 2*lam*s[1]*s[1] + id;
+    wx1 = -(2*mu + lam)*s[0]*s[0];
+    wy1 = -(2*mu + lam)*s[1]*s[1];
     wx2 = -mu*s[0]*s[0];
     wy2 = -mu*s[1]*s[1];
-    wxy = (0.25*lam+0.25*mu)*s[0]*s[1];
+    wxy = (0.25*lam + 0.25*mu)*s[0]*s[1];
 
-    regx = (4.0*wxy-2.0*(wx1+wy2)) - wx0; if (regx<0) regx = 0.0;
-    regy = (4.0*wxy-2.0*(wx2+wy1)) - wy0; if (regy<0) regy = 0.0;
+    regx = (4.0*wxy - 2.0*(wx1+wy2)) - wx0; if (regx<0) regx = 0.0;
+    regy = (4.0*wxy - 2.0*(wx2+wy1)) - wy0; if (regy<0) regy = 0.0;
 
 #ifdef VERBOSE
-    for(it=0; it< 10-(int)ceil(1.44269504088896*log((double)dm[0])); it++) printf("  ");
+    for (it = 0; it < 10 - (int)ceil(1.44269504088896*log((double)dm[0])); it++)
+            printf("  ");
     printf("%dx%d: ", dm[0],dm[1]);
 #endif
 
-    for(it=0; it<4*nit; it++)
-    {
-        int i, j;
+    for (it = 0; it < 2*nit; it++) {
+        int j, jstart;
+        int i, istart;
 
 #ifdef VERBOSE
         printf(" %g", sumsq_le(dm, a, b, s, u));
 #endif
 
-        for(j=(it>>1)&1; j<dm[1]; j+=2)
-        {
+        jstart = it%2;
+        for (j = 0; j < dm[1]; j++) {
             double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
-            int jm1,jp1, im1,ip1;
+            int jm1, jp1, im1, ip1;
 
-            pux  = u+dm[0]*j;
-            puy  = u+dm[0]*(j+dm[1]);
-            pbx  = b+dm[0]*j;
-            pby  = b+dm[0]*(j+dm[1]);
-            paxx = a+dm[0]*j;
-            payy = a+dm[0]*(j+dm[1]);
-            paxy = a+dm[0]*(j+dm[1]*2);
+            pux  = u + dm[0]*j;
+            puy  = u + dm[0]*(j + dm[1]);
+            pbx  = b + dm[0]*j;
+            pby  = b + dm[0]*(j + dm[1]);
+            paxx = a + dm[0]*j;
+            payy = a + dm[0]*(j + dm[1]);
+            paxy = a + dm[0]*(j + dm[1]*2);
 
-	        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-    	    jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
+            jm1 = (BOUNDY(j-1,dm[1]) - j)*dm[0];
+    	    jp1 = (BOUNDY(j+1,dm[1]) - j)*dm[0];
 
-            for(i=(it>>0)&1; i<dm[0]; i+=2)
-            {
+            istart = (jstart == (j%2));
+
+            for (i = istart; i < dm[0]; i+=2) {
                 double sux, suy, axx, ayy, axy, idt;
                 double *px = pux+i, *py = puy+i;
 
-	            im1 = BOUNDX(i-1,dm[0])-i;
-    	        ip1 = BOUNDX(i+1,dm[0])-i;
+                im1 = BOUNDX(i-1,dm[0]) - i;
+    	        ip1 = BOUNDX(i+1,dm[0]) - i;
 	    
-                sux = pbx[i] - ((wx0+paxx[i])*px[0] + paxy[i]*py[0]
-                              + wy2*(px[jm1] + px[jp1]) + wx1*(px[im1] + px[ip1])
-                              + wxy*(py[jp1+im1] - py[jp1+ip1] - py[jm1+im1] + py[jm1+ip1]));
+                sux = pbx[i] - ((wx0 + paxx[i])*px[0] + paxy[i]*py[0] +
+                                wy2*(px[jm1] + px[jp1]) +
+                                wx1*(px[im1] + px[ip1]) +
+                                wxy*(py[jp1+im1] - py[jp1+ip1] -
+                                     py[jm1+im1] + py[jm1+ip1]));
 
-                suy = pby[i] - (paxy[i]*px[0] + (wy0+payy[i])*py[0]
-                              + wy1*(py[jm1] + py[jp1])+ wx2*(py[im1] + py[ip1])
-                              + wxy*(px[jp1+im1] - px[jp1+ip1] - px[jm1+im1] + px[jm1+ip1]));
+                suy = pby[i] - (paxy[i]*px[0] + (wy0 + payy[i])*py[0] +
+                                wy1*(py[jm1] + py[jp1]) +
+                                wx2*(py[im1] + py[ip1]) +
+                                wxy*(px[jp1+im1] - px[jp1+ip1] -
+                                     px[jm1+im1] + px[jm1+ip1]));
 
                 /*
                    syms axx ayy axy sux suy
@@ -205,116 +233,110 @@ static void relax_le(int dm[], double a[], double b[], double s[], int nit, doub
 #endif
 }
 
-static void Atimesp_le(int dm[], double A[], double s[], double p[], double Ap[])
+
+void
+Atimesp_le(int dm[], double A[], double s[], double p[], double Ap[])
 {
     int i, m = dm[0]*dm[1];
+
     LtLf_le(dm, p, s, Ap);
-    for(i=0; i<m; i++)
-    {
+    for (i = 0; i < m; i++) {
         Ap[i  ] += A[i  ]*p[i  ] + A[i+2*m]*p[i+m];
         Ap[i+m] += A[i+m]*p[i+m] + A[i+2*m]*p[i  ];
     }
 }
 
-double sumsq_me(int dm[], double a[], double b[], double s[], double u[])
+double
+sumsq_me(int dm[], double a[], double b[], double s[], double u[])
 {
     double w00,w01, w10;
     double ss = 0.0;
-    int i, j;
+    int i, j, m = dm[0]*dm[1];
 
-    w00 = s[2]*(2*s[0]*s[0]+2*s[1]*s[1]) + s[4];
+    w00 = s[2]*(2*s[0]*s[0] + 2*s[1]*s[1]) + s[4];
     w01 = s[2]*(-s[1]*s[1]);
     w10 = s[2]*(-s[0]*s[0]);
 
-    for(j=0; j<dm[1]; j++)
-    {
+    for (j = 0; j < dm[1]; j++) {
         double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
         int jm1,jp1,im1,ip1;
 
-        pux  = u+dm[0]*j;
-        puy  = u+dm[0]*(j+dm[1]);
-        pbx  = b+dm[0]*j;
-        pby  = b+dm[0]*(j+dm[1]);
-        paxx = a+dm[0]*j;
-        payy = a+dm[0]*(j+dm[1]);
-        paxy = a+dm[0]*(j+dm[1]*2);
+        pux  = u;
+        puy  = u + dm[0]*dm[1];
+        pbx  = b;
+        pby  = b + dm[0]*dm[1];
+        paxx = a;
+        payy = a + dm[0]*dm[1];
+        paxy = a + dm[0]*dm[1]*2;
 
-        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-        jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
-
-        for(i=0; i<dm[0]; i++)
-        {
-            double *px = &pux[i], *py = &puy[i];
+        for (i = 0; i < dm[0]; i++) {
             double tmp;
+            int ij;
 
-            im1 = BOUNDX(i-1,dm[0])-i;
-            ip1 = BOUNDX(i+1,dm[0])-i;
+            ij = bound(i,j,dm);
 
-            tmp = (w00+paxx[i])*px[0] + paxy[i]*py[0]
-                 + w01*(px[jm1] + px[jp1])
-                 + w10*(px[im1] + px[ip1])
-                 - pbx[i];
+            tmp = (w00 + paxx[ij])*pux[ij] + paxy[ij]*puy[ij] +
+                  w01*(pux[bound(i,j-1,dm)] + pux[bound(i,j+1,dm)]) +
+                  w10*(pux[bound(i-1,j,dm)] + pux[bound(i+1,j,dm)]) -
+                  pbx[ij];
             ss += tmp*tmp;
 
-            tmp = (w00+payy[i])*py[0] + paxy[i]*px[0]
-                 + w01*(py[jm1] + py[jp1])
-                 + w10*(py[im1] + py[ip1])
-                 - pby[i];
+            tmp = (w00 + payy[ij])*puy[ij] + paxy[ij]*pux[ij] +
+                  w01*(puy[bound(i,j-1,dm)] + puy[bound(i,j+1,dm)]) +
+                  w10*(puy[bound(i-1,j,dm)] + puy[bound(i+1,j,dm)]) -
+                  pby[ij];
             ss += tmp*tmp;
         }
     }
     return(ss);
 }
 
-void LtLf_me(int dm[], double f[], double s[], double g[])
+#define _PI 3.14159265358979323846264338327510
+
+void
+LtLf_me(int dm[], double f[], double s[], double g[])
 {
-    int i, j, jm1,jp1, im1,ip1;
-    double *pgx, *pgy, *pfx, *pfy;
+    int i, j, m = dm[0]*dm[1];
     double w00,w01,w10;
 
-    w00 = s[2]*(2*s[0]*s[0]+2*s[1]*s[1]) + s[4];
+    w00 = s[2]*(2*s[0]*s[0] + 2*s[1]*s[1]) + s[4];
     w01 = s[2]*(-s[1]*s[1]);
     w10 = s[2]*(-s[0]*s[0]);
 
-    for(j=0; j<dm[1]; j++)
-    {
-        pgx = g+dm[0]*j;
-        pgy = g+dm[0]*(j+dm[1]);
-        pfx = f+dm[0]*j;
-        pfy = f+dm[0]*(j+dm[1]);
+    for (j = 0; j < dm[1]; j++) {
+        for (i = 0; i < dm[0]; i++) {
+            int ij;
 
-        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-        jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
+            ij = bound(i,j,dm);
 
-        for(i=0; i<dm[0]; i++)
-        {
-            double *px = &pfx[i], *py = &pfy[i];
-
-            im1 = BOUNDX(i-1,dm[0])-i;
-            ip1 = BOUNDX(i+1,dm[0])-i;
-
-            pgx[i] = w00* px[0] + w01*(px[jm1] + px[jp1]) + w10*(px[im1] + px[ip1]);
-            pgy[i] = w00* py[0] + w01*(py[jm1] + py[jp1]) + w10*(py[im1] + py[ip1]);
+            g[ij  ] = w00* f[ij] +
+                      w01*(f[bound(i,j-1,dm)  ] + f[bound(i,j+1,dm)  ]) +
+                      w10*(f[bound(i-1,j,dm)  ] + f[bound(i+1,j,dm)  ]);
+            g[ij+m] = w00* f[ij+m] +
+                      w01*(f[bound(i,j-1,dm)+m] + f[bound(i,j+1,dm)+m]) +
+                      w10*(f[bound(i-1,j,dm)+m] + f[bound(i+1,j,dm)+m]);
         }
     }
 }
 
-static void relax_me(int dm[], double a[], double b[], double s[], int nit, double u[])
+void
+relax_me(int dm[], double a[], double b[], double s[], int nit, double u[])
 {
     int it;
     double w00,w01, w10;
+    double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
 
-    w00 = s[2]*(2*s[0]*s[0]+2*s[1]*s[1]) + s[4];
+    w00 = s[2]*(2*s[0]*s[0] + 2*s[1]*s[1]) + s[4];
     w01 = s[2]*(-s[1]*s[1]);
     w10 = s[2]*(-s[0]*s[0]);
 
 #ifdef VERBOSE
-    for(it=0; it< 10-(int)ceil(1.44269504088896*log((double)dm[0])); it++) printf("  ");
+    for (it=0; it < 10 - (int)ceil(1.44269504088896*log((double)dm[0])); it++)
+        printf("  ");
     printf("%dx%d: ", dm[0],dm[1]);
 #endif
 
-    for(it=0; it<2*nit; it++)
-    {
+    for (it = 0; it < 2*nit; it++) {
         int j, jstart;
         int i, istart;
 
@@ -322,35 +344,34 @@ static void relax_me(int dm[], double a[], double b[], double s[], int nit, doub
         printf(" %g", sumsq_me(dm, a, b, s, u));
 #endif
 
+        pux  = u;
+        puy  = u + dm[0]*dm[1];
+        pbx  = b;
+        pby  = b + dm[0]*dm[1];
+        paxx = a;
+        payy = a + dm[0]*dm[1];
+        paxy = a + dm[0]*dm[1]*2;
+
         jstart = it%2;
-        for(j=0; j<dm[1]; j++)
-        {
-            double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
-            int jm1,jp1, im1,ip1;
-
-            pux  = u+dm[0]*j;
-            puy  = u+dm[0]*(j+dm[1]);
-            pbx  = b+dm[0]*j;
-            pby  = b+dm[0]*(j+dm[1]);
-            paxx = a+dm[0]*j;
-            payy = a+dm[0]*(j+dm[1]);
-            paxy = a+dm[0]*(j+dm[1]*2);
-
-	        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-    	    jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
+        for (j = 0; j < dm[1]; j++) {
 
             istart = (jstart == (j%2));
-
-            for(i=istart; i<dm[0]; i+=2)
-            {
+            for (i = istart; i < dm[0]; i+=2) {
                 double sux, suy, axx, ayy, axy, idt;
-                double *px = pux+i, *py = puy+i;
+                int ij, jm1, jp1, im1, ip1;
 
-	            im1 = BOUNDX(i-1,dm[0])-i;
-    	        ip1 = BOUNDX(i+1,dm[0])-i;
+                im1 = bound(i-1,j  ,dm);
+    	        ip1 = bound(i+1,j  ,dm);
+                jm1 = bound(i  ,j-1,dm);
+    	        jp1 = bound(i  ,j+1,dm);
+    	        ij = bound(i,j,dm);
 
-                sux = pbx[i]-(w01*(px[jm1] + px[jp1]) + w10*(px[im1] + px[ip1]));
-                suy = pby[i]-(w01*(py[jm1] + py[jp1]) + w10*(py[im1] + py[ip1]));
+                sux = pbx[ij] -
+                      (w01*(pux[jm1] + pux[jp1]) +
+                       w10*(pux[im1] + pux[ip1]));
+                suy = pby[ij] -
+                      (w01*(puy[jm1] + puy[jp1]) +
+                       w10*(puy[im1] + puy[ip1]));
 
                 /*
                    syms axx ayy axy sux suy
@@ -358,13 +379,13 @@ static void relax_me(int dm[], double a[], double b[], double s[], int nit, doub
                    su = [sux ; suy]
                    inv(A)*su
                 */
-                axx = paxx[i] + w00;
-                ayy = payy[i] + w00;
-                axy = paxy[i];
+                axx = paxx[ij] + w00;
+                ayy = payy[ij] + w00;
+                axy = paxy[ij];
                 idt = 1.0/(axx*ayy*S - axy*axy);
 
-                *px = idt*( ayy*sux - axy*suy);
-                *py = idt*(-axy*sux + axx*suy);
+                pux[ij] = idt*( ayy*sux - axy*suy);
+                puy[ij] = idt*(-axy*sux + axx*suy);
             }
         }
     }
@@ -373,85 +394,91 @@ static void relax_me(int dm[], double a[], double b[], double s[], int nit, doub
 #endif
 }
 
-static void Atimesp_me(int dm[], double A[], double s[], double p[], double Ap[])
+
+void
+Atimesp_me(int dm[], double A[], double s[], double p[], double Ap[])
 {
     int i, m = dm[0]*dm[1];
+
     LtLf_me(dm, p, s, Ap);
-    for(i=0; i<m; i++)
-    {
+
+    for (i = 0; i < m; i++) {
         Ap[i  ] += A[i  ]*p[i  ] + A[i+2*m]*p[i+m];
         Ap[i+m] += A[i+m]*p[i+m] + A[i+2*m]*p[i  ];
     }
 }
 
-double sumsq_be(int dm[], double a[], double b[], double s[], double u[])
+
+double
+sumsq_be(int dm[], double a[], double b[], double s[], double u[])
 {
-    double w00,w01,w02, w10,w11, w20;
+    double w00, w01, w02, w10, w11, w20;
     double ss = 0.0;
     int i, j;
 
-    w00 = s[2]*( 6*s[0]*s[0]*s[0]*s[0]+6*s[1]*s[1]*s[1]*s[1]+8*s[0]*s[0]*s[1]*s[1]) + s[4];
-    w01 = s[2]*(-4*s[0]*s[0]*s[1]*s[1]-4*s[1]*s[1]*s[1]*s[1]);
+    w00 = s[2]*( 6*s[0]*s[0]*s[0]*s[0] + 6*s[1]*s[1]*s[1]*s[1] +
+                 8*s[0]*s[0]*s[1]*s[1]) + s[4];
+    w01 = s[2]*(-4*s[0]*s[0]*s[1]*s[1] - 4*s[1]*s[1]*s[1]*s[1]);
     w02 = s[2]*(   s[1]*s[1]*s[1]*s[1]);
-    w10 = s[2]*(-4*s[0]*s[0]*s[0]*s[0]-4*s[0]*s[0]*s[1]*s[1]);
+    w10 = s[2]*(-4*s[0]*s[0]*s[0]*s[0] - 4*s[0]*s[0]*s[1]*s[1]);
     w11 = s[2]*( 2*s[0]*s[0]*s[1]*s[1]);
     w20 = s[2]*(   s[0]*s[0]*s[0]*s[0]);
 
-    for(j=0; j<dm[1]; j++)
-    {
+    for (j = 0; j < dm[1]; j++) {
         double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
-        int jm2,jm1,jp1,jp2, im2,im1,ip1,ip2;
+        int jm2, jm1, jp1, jp2, im2, im1, ip1, ip2;
 
-        pux  = u+dm[0]*j;
-        puy  = u+dm[0]*(j+dm[1]);
-        pbx  = b+dm[0]*j;
-        pby  = b+dm[0]*(j+dm[1]);
-        paxx = a+dm[0]*j;
-        payy = a+dm[0]*(j+dm[1]);
-        paxy = a+dm[0]*(j+dm[1]*2);
+        pux  = u + dm[0]*j;
+        puy  = u + dm[0]*(j + dm[1]);
+        pbx  = b + dm[0]*j;
+        pby  = b + dm[0]*(j + dm[1]);
+        paxx = a + dm[0]*j;
+        payy = a + dm[0]*(j + dm[1]);
+        paxy = a + dm[0]*(j + dm[1]*2);
 
-        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-        jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
-        jm2 = (BOUNDY(j-2,dm[1])-j)*dm[0];
-        jp2 = (BOUNDY(j+2,dm[1])-j)*dm[0];
+        jm1 = (BOUNDY(j-1,dm[1]) - j)*dm[0];
+        jp1 = (BOUNDY(j+1,dm[1]) - j)*dm[0];
+        jm2 = (BOUNDY(j-2,dm[1]) - j)*dm[0];
+        jp2 = (BOUNDY(j+2,dm[1]) - j)*dm[0];
 
-        for(i=0; i<dm[0]; i++)
-        {
+        for (i = 0; i < dm[0]; i++) {
             double *px = &pux[i], *py = &puy[i];
             double tmp;
 
-            im1 = BOUNDX(i-1,dm[0])-i;
-            ip1 = BOUNDX(i+1,dm[0])-i;
-            im2 = BOUNDX(i-2,dm[0])-i;
-            ip2 = BOUNDX(i+2,dm[0])-i;
+            im1 = BOUNDX(i-1,dm[0]) - i;
+            ip1 = BOUNDX(i+1,dm[0]) - i;
+            im2 = BOUNDX(i-2,dm[0]) - i;
+            ip2 = BOUNDX(i+2,dm[0]) - i;
 
-            tmp = (w00+paxx[i])*px[0] + paxy[i]*py[0]
-                 + w01*(px[    jm1] + px[    jp1])
-                 + w02*(px[    jm2] + px[    jp2])
-                 + w10*(px[im1    ] + px[ip1    ])
-                 + w11*(px[im1+jm1] + px[ip1+jm1] + px[im1+jp1] + px[ip1+jp1])
-                 + w20*(px[im2    ] + px[ip2    ])
-                 - pbx[i];
+            tmp = (w00 + paxx[i])*px[0] + paxy[i]*py[0] +
+                  w01*(px[    jm1] + px[    jp1]) +
+                  w02*(px[    jm2] + px[    jp2]) +
+                  w10*(px[im1    ] + px[ip1    ]) +
+                  w11*(px[im1+jm1] + px[ip1+jm1] + px[im1+jp1] + px[ip1+jp1]) +
+                  w20*(px[im2    ] + px[ip2    ]) -
+                  pbx[i];
             ss += tmp*tmp;
 
-            tmp = (w00+payy[i])*py[0] + paxy[i]*px[0]
-                 + w01*(py[    jm1] + py[    jp1])
-                 + w02*(py[    jm2] + py[    jp2])
-                 + w10*(py[im1    ] + py[ip1    ])
-                 + w11*(py[im1+jm1] + py[ip1+jm1] + py[im1+jp1] + py[ip1+jp1])
-                 + w20*(py[im2    ] + py[ip2    ])
-                 - pby[i];
+            tmp = (w00 + payy[i])*py[0] + paxy[i]*px[0] +
+                  w01*(py[    jm1] + py[    jp1]) +
+                  w02*(py[    jm2] + py[    jp2]) +
+                  w10*(py[im1    ] + py[ip1    ]) +
+                  w11*(py[im1+jm1] + py[ip1+jm1] + py[im1+jp1] + py[ip1+jp1]) +
+                  w20*(py[im2    ] + py[ip2    ]) -
+                  pby[i];
             ss += tmp*tmp;
         }
     }
     return(ss);
 }
 
-void LtLf_be(int dm[], double f[], double s[], double g[])
+
+void
+LtLf_be(int dm[], double f[], double s[], double g[])
 {
-    int i, j, jm2,jm1,jp1,jp2, im2,im1,ip1,ip2;
+    int i, j, jm2, jm1, jp1, jp2, im2, im1, ip1, ip2;
     double *pgx, *pgy, *pfx, *pfy;
-    double w00,w01,w02, w10,w11, w20;
+    double w00, w01, w02, w10, w11, w20;
     /*
         syms s1 s2
         K1 = [0 -s1 0; 0 2*s1 0; 0 -s1 0];
@@ -461,77 +488,82 @@ void LtLf_be(int dm[], double f[], double s[], double g[])
         L  = sym(zeros(5))
         for i=1:3,
             for j=1:3,
-                L(i-1+1:i+1+1,j-1+1:j+1+1) = L(i-1+1:i+1+1,j-1+1:j+1+1) + K(i,j)*K;
+                L(i-1+1:i+1+1,j-1+1:j+1+1) = L(i-1+1:i+1+1,j-1+1:j+1+1) +
+                                             K(i,j)*K;
             end;
         end;
     */
 
-    w00 = s[2]*( 6*s[0]*s[0]*s[0]*s[0]+6*s[1]*s[1]*s[1]*s[1]+8*s[0]*s[0]*s[1]*s[1]) + s[4];
-    w01 = s[2]*(-4*s[0]*s[0]*s[1]*s[1]-4*s[1]*s[1]*s[1]*s[1]);
+    w00 = s[2]*( 6*s[0]*s[0]*s[0]*s[0] + 6*s[1]*s[1]*s[1]*s[1] +
+                 8*s[0]*s[0]*s[1]*s[1]) + s[4];
+    w01 = s[2]*(-4*s[0]*s[0]*s[1]*s[1] - 4*s[1]*s[1]*s[1]*s[1]);
     w02 = s[2]*(   s[1]*s[1]*s[1]*s[1]);
-    w10 = s[2]*(-4*s[0]*s[0]*s[0]*s[0]-4*s[0]*s[0]*s[1]*s[1]);
+    w10 = s[2]*(-4*s[0]*s[0]*s[0]*s[0] - 4*s[0]*s[0]*s[1]*s[1]);
     w11 = s[2]*( 2*s[0]*s[0]*s[1]*s[1]);
     w20 = s[2]*(   s[0]*s[0]*s[0]*s[0]);
 
-    for(j=0; j<dm[1]; j++)
-    {
-        pgx = g+dm[0]*j;
-        pgy = g+dm[0]*(j+dm[1]);
-        pfx = f+dm[0]*j;
-        pfy = f+dm[0]*(j+dm[1]);
+    for (j = 0; j < dm[1]; j++) {
+        pgx = g + dm[0]*j;
+        pgy = g + dm[0]*(j + dm[1]);
+        pfx = f + dm[0]*j;
+        pfy = f + dm[0]*(j + dm[1]);
 
-        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-        jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
-        jm2 = (BOUNDY(j-2,dm[1])-j)*dm[0];
-        jp2 = (BOUNDY(j+2,dm[1])-j)*dm[0];
+        jm1 = (BOUNDY(j-1,dm[1]) - j)*dm[0];
+        jp1 = (BOUNDY(j+1,dm[1]) - j)*dm[0];
+        jm2 = (BOUNDY(j-2,dm[1]) - j)*dm[0];
+        jp2 = (BOUNDY(j+2,dm[1]) - j)*dm[0];
 
-        for(i=0; i<dm[0]; i++)
-        {
+        for (i = 0; i < dm[0]; i++) {
             double *px = &pfx[i], *py = &pfy[i];
 
-            im1 = BOUNDX(i-1,dm[0])-i;
-            ip1 = BOUNDX(i+1,dm[0])-i;
-            im2 = BOUNDX(i-2,dm[0])-i;
-            ip2 = BOUNDX(i+2,dm[0])-i;
+            im1 = BOUNDX(i-1,dm[0]) - i;
+            ip1 = BOUNDX(i+1,dm[0]) - i;
+            im2 = BOUNDX(i-2,dm[0]) - i;
+            ip2 = BOUNDX(i+2,dm[0]) - i;
 
-            pgx[i] = w00* px[0]
-                   + w01*(px[    jm1] + px[    jp1])
-                   + w02*(px[    jm2] + px[    jp2])
-                   + w10*(px[im1    ] + px[ip1    ])
-                   + w11*(px[im1+jm1] + px[ip1+jm1] + px[im1+jp1] + px[ip1+jp1])
-                   + w20*(px[im2    ] + px[ip2    ]);
-            pgy[i] = w00* py[0]
-                   + w01*(py[    jm1] + py[    jp1])
-                   + w02*(py[    jm2] + py[    jp2])
-                   + w10*(py[im1    ] + py[ip1    ])
-                   + w11*(py[im1+jm1] + py[ip1+jm1] + py[im1+jp1] + py[ip1+jp1])
-                   + w20*(py[im2    ] + py[ip2    ]);
+            pgx[i] = w00* px[0] +
+                     w01*(px[    jm1] + px[    jp1]) +
+                     w02*(px[    jm2] + px[    jp2]) +
+                     w10*(px[im1    ] + px[ip1    ]) +
+                     w11*(px[im1+jm1] + px[ip1+jm1] +
+                          px[im1+jp1] + px[ip1+jp1]) +
+                     w20*(px[im2    ] + px[ip2    ]);
+            pgy[i] = w00* py[0] +
+                     w01*(py[    jm1] + py[    jp1]) +
+                     w02*(py[    jm2] + py[    jp2]) +
+                     w10*(py[im1    ] + py[ip1    ]) +
+                     w11*(py[im1+jm1] + py[ip1+jm1] +
+                          py[im1+jp1] + py[ip1+jp1]) +
+                     w20*(py[im2    ] + py[ip2    ]);
         }
     }
 }
 
-static void relax_be(int dm[], double a[], double b[], double s[], int nit, double u[])
+
+void
+relax_be(int dm[], double a[], double b[], double s[], int nit, double u[])
 {
     int it;
-    double w00,w01,w02, w10,w11, w20;
+    double w00, w01, w02, w10, w11, w20;
     double lam;
 
-    w00 = s[2]*( 6*s[0]*s[0]*s[0]*s[0]+6*s[1]*s[1]*s[1]*s[1]+8*s[0]*s[0]*s[1]*s[1]) + s[4];
-    w01 = s[2]*(-4*s[0]*s[0]*s[1]*s[1]-4*s[1]*s[1]*s[1]*s[1]);
+    w00 = s[2]*( 6*s[0]*s[0]*s[0]*s[0] + 6*s[1]*s[1]*s[1]*s[1] +
+                 8*s[0]*s[0]*s[1]*s[1]) + s[4];
+    w01 = s[2]*(-4*s[0]*s[0]*s[1]*s[1] - 4*s[1]*s[1]*s[1]*s[1]);
     w02 = s[2]*(   s[1]*s[1]*s[1]*s[1]);
-    w10 = s[2]*(-4*s[0]*s[0]*s[0]*s[0]-4*s[0]*s[0]*s[1]*s[1]);
+    w10 = s[2]*(-4*s[0]*s[0]*s[0]*s[0] - 4*s[0]*s[0]*s[1]*s[1]);
     w11 = s[2]*( 2*s[0]*s[0]*s[1]*s[1]);
     w20 = s[2]*(   s[0]*s[0]*s[0]*s[0]);
-    lam = 2*(w20+w02)-2*(w10+w01)+4*w11 - w00;
-    if (lam<0.0) lam = 0.0;
+    lam = 2*(w20 + w02) - 2*(w10 + w01) + 4*w11 - w00;
+    if (lam < 0.0) lam = 0.0;
 
 #ifdef VERBOSE
-    for(it=0; it< 10-(int)ceil(1.44269504088896*log((double)dm[0])); it++) printf("  ");
+    for(it=0; it< 10-(int)ceil(1.44269504088896*log((double)dm[0])); it++)
+        printf("  ");
     printf("%dx%d (%g): ", dm[0],dm[1],lam);
 #endif
 
-    for(it=0; it<4*nit; it++)
-    {
+    for (it = 0; it < 4*nit; it++) {
         int j, jstart,jend,jskip;
         int i, istart,iend,iskip;
 
@@ -539,70 +571,65 @@ static void relax_be(int dm[], double a[], double b[], double s[], int nit, doub
         printf(" %g", sumsq_be(dm, a, b, s, u)); 
 #endif
 
-        if ((it/2)%2)
-        {
+        if ((it/2)%2) {
             jstart = 0;
             jend   = dm[1];
             jskip  = 1;
-        }
-        else
-        {
+        } else {
             jstart = dm[1]-1;
             jend   = -1;
             jskip  = -1;
         }
-        if (it%2)
-        {
+        if (it%2) {
             istart = 0;
             iend   = dm[0];
             iskip  = 1;
-        }
-        else
-        {
+        } else {
             istart = dm[0]-1;
             iend   = -1;
             iskip  = -1;
         }
-        for(j=jstart; j!=jend; j+=jskip)
-        {
+
+        for (j = jstart; j != jend; j+=jskip) {
             double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
-            int jm2,jm1,jp1,jp2, im2,im1,ip1,ip2;
+            int jm2, jm1, jp1, jp2, im2, im1, ip1, ip2;
 
-            pux  = u+dm[0]*j;
-            puy  = u+dm[0]*(j+dm[1]);
-            pbx  = b+dm[0]*j;
-            pby  = b+dm[0]*(j+dm[1]);
-            paxx = a+dm[0]*j;
-            payy = a+dm[0]*(j+dm[1]);
-            paxy = a+dm[0]*(j+dm[1]*2);
+            pux  = u + dm[0]*j;
+            puy  = u + dm[0]*(j + dm[1]);
+            pbx  = b + dm[0]*j;
+            pby  = b + dm[0]*(j + dm[1]);
+            paxx = a + dm[0]*j;
+            payy = a + dm[0]*(j + dm[1]);
+            paxy = a + dm[0]*(j + dm[1]*2);
 
-	        jm1 = (BOUNDY(j-1,dm[1])-j)*dm[0];
-    	    jp1 = (BOUNDY(j+1,dm[1])-j)*dm[0];
-        	jm2 = (BOUNDY(j-2,dm[1])-j)*dm[0];
-        	jp2 = (BOUNDY(j+2,dm[1])-j)*dm[0];
+            jm1 = (BOUNDY(j-1,dm[1]) - j)*dm[0];
+            jp1 = (BOUNDY(j+1,dm[1]) - j)*dm[0];
+            jm2 = (BOUNDY(j-2,dm[1]) - j)*dm[0];
+            jp2 = (BOUNDY(j+2,dm[1]) - j)*dm[0];
 
-            for(i=istart; i!=iend; i+=iskip)
-            {
+            for (i = istart; i != iend; i+=iskip) {
                 double sux, suy, axx, ayy, axy, idt;
                 double *px = &pux[i], *py = &puy[i];
 
-	            im1 = BOUNDX(i-1,dm[0])-i;
-    	        ip1 = BOUNDX(i+1,dm[0])-i;
-        	    im2 = BOUNDX(i-2,dm[0])-i;
-            	ip2 = BOUNDX(i+2,dm[0])-i;
+                im1 = BOUNDX(i-1,dm[0]) - i;
+                ip1 = BOUNDX(i+1,dm[0]) - i;
+                im2 = BOUNDX(i-2,dm[0]) - i;
+                ip2 = BOUNDX(i+2,dm[0]) - i;
 
-                sux = pbx[i] - ((w00+paxx[i])*px[0] + paxy[i]*py[0]
-                              + w01*(px[    jm1] + px[    jp1])
-                              + w02*(px[    jm2] + px[    jp2])
-                              + w10*(px[im1    ] + px[ip1    ])
-                              + w11*(px[im1+jm1] + px[ip1+jm1] + px[im1+jp1] + px[ip1+jp1])
-                              + w20*(px[im2    ] + px[ip2    ]));
-                suy = pby[i] - (paxy[i]*px[0] + (w00+payy[i])*py[0]
-                              + w01*(py[    jm1] + py[    jp1])
-                              + w02*(py[    jm2] + py[    jp2])
-                              + w10*(py[im1    ] + py[ip1    ])
-                              + w11*(py[im1+jm1] + py[ip1+jm1] + py[im1+jp1] + py[ip1+jp1])
-                              + w20*(py[im2    ] + py[ip2    ]));
+                sux = pbx[i] - ((w00 + paxx[i])*px[0] + paxy[i]*py[0] +
+                                w01*(px[    jm1] + px[    jp1]) +
+                                w02*(px[    jm2] + px[    jp2]) +
+                                w10*(px[im1    ] + px[ip1    ]) +
+                                w11*(px[im1+jm1] + px[ip1+jm1] +
+                                     px[im1+jp1] + px[ip1+jp1]) +
+                                w20*(px[im2    ] + px[ip2    ]));
+                suy = pby[i] - (paxy[i]*px[0] + (w00 + payy[i])*py[0] +
+                                w01*(py[    jm1] + py[    jp1]) +
+                                w02*(py[    jm2] + py[    jp2]) +
+                                w10*(py[im1    ] + py[ip1    ]) +
+                                w11*(py[im1+jm1] + py[ip1+jm1] +
+                                     py[im1+jp1] + py[ip1+jp1]) +
+                                w20*(py[im2    ] + py[ip2    ]));
 
                 /*
                    syms axx ayy axy sux suy
@@ -626,50 +653,65 @@ static void relax_be(int dm[], double a[], double b[], double s[], int nit, doub
 }
 
 
-static void Atimesp_be(int dm[], double A[], double param[], double p[], double Ap[])
+void
+Atimesp_be(int dm[], double A[], double param[], double p[], double Ap[])
 {
     int i, m = dm[0]*dm[1];
     LtLf_be(dm, p, param, Ap);
-    for(i=0; i<m; i++)
-    {
+
+    for (i = 0; i < m; i++) {
         Ap[i  ] = Ap[i  ] + A[i  ]*p[i  ] + A[i+2*m]*p[i+m];
         Ap[i+m] = Ap[i+m] + A[i+m]*p[i+m] + A[i+2*m]*p[i  ];
     }
 }
 
-static void solve22(double a[], double b[], double t,  double u[])
+
+void
+solve22(double a[], double b[], double t,  double u[])
 {
     double dt;
     double a0 = a[0]+t, a1 = a[1]+t;
+
     dt  = a0*a1*S - a[2]*a[2];
-    if (dt<1e-12*a0*a1)
+    if (dt < 1e-12*a0*a1)
         dt = 1e-12*a0*a1;
     u[0] = (   a1*b[0] - a[2]*b[1])/dt;
     u[1] = (-a[2]*b[0] +   a0*b[1])/dt;
 }
 
-static double dotprod(int m, double a[], double b[])
+
+double
+dotprod(int m, double a[], double b[])
 {
     int i;
     double dp = 0.0;
-    for(i=0; i<m; i++)
+
+    for (i = 0; i < m; i++)
         dp += a[i]*b[i];
+
     return(dp);
 }
 
-static void addscaled(int m, double a[], double b[], double s)
+
+void
+addscaled(int m, double a[], double b[], double s)
 {
     int i;
-    for(i=0; i<m; i++)
+
+    for(i = 0; i < m; i++)
         a[i] += s*b[i];
 }
 
-double norm(int m, double a[])
+
+double
+norm(int m, double a[])
 {
     int i;
     double dp = 0.0;
-    for(i=0; i<m; i++)
+
+    for (i = 0; i < m; i++)
         dp += a[i]*a[i];
+
     return(sqrt(dp));
 }
 
@@ -704,8 +746,8 @@ while norm(r) > tol*norm(b),
     if it>nit, break; end;
 end;
 */
-void cgs2(int dm[], double A[], double b[], int rtype, double param[], double tol, int nit,
-             double x[], double r[], double p[], double Ap[])
+void cgs2(int dm[], double A[], double b[], int rtype, double param[],
+          double tol, int nit, double x[], double r[], double p[], double Ap[])
 {
     int i, m = dm[0]*dm[1]*2, it;
     double rtr, nb, rtrold, alpha, beta;
@@ -719,23 +761,20 @@ void cgs2(int dm[], double A[], double b[], int rtype, double param[], double to
 
     nb      = tol*norm(m,b);
 
-    if (0)
-    {
+    if (0) {
         /* Assuming starting estimates of zeros */
         /* x    = zeros(size(b)); */
-        for(i=0; i<m;i++)
+        for (i = 0; i < m; i++)
             x[i] = 0.0;
 
         /* r    = b; */
-        for(i=0; i<m;i++)
+        for (i = 0; i < m; i++)
             r[i] = b[i];
-    }
-    else
-    {
+    } else {
         /* Assume starting estimates are passed as arguments */
         /* r    = b-A*x; */
         Atimesp(dm, A, param, x, Ap);
-        for(i=0; i<m;i++)
+        for (i = 0; i < m; i++)
             r[i] = b[i]-Ap[i];
     }
 
@@ -743,21 +782,20 @@ void cgs2(int dm[], double A[], double b[], int rtype, double param[], double to
     rtr     = dotprod(m, r, r);
 
     /* p    = zeros(size(b)); */
-    for(i=0; i<m;i++)
+    for (i = 0; i < m; i++)
         p[i] = 0.0;
 
     /* beta = 0; */
     beta    = 0.0;
 
     /* for it=1:nit, */
-    for(it=0; it<nit; it++)
-    {
+    for (it = 0; it < nit; it++) {
         /* if norm(r) < tol*norm(b), break; end; */
         if (norm(m,r) < nb)
             break;
 
         /* p      = r + beta*p; */
-        for(i=0; i<m; i++)
+        for (i = 0; i < m; i++)
             p[i]  = r[i] + beta*p[i];
 
         /* Ap     = A*p; */
@@ -781,7 +819,7 @@ void cgs2(int dm[], double A[], double b[], int rtype, double param[], double to
         /* beta   = rtr/rtrold; */
         beta      = rtr/rtrold;
 
-        /* printf("%d\t%g\t%g  %g %g\n",it, norm(m,r), nb/tol, alpha, beta); */
+        printf("%d\t%g\t%g  %g %g\n",it, norm(m,r), nb/tol, alpha, beta);
     /* end; */
     }
     /* printf("Done after %d iterations (%g, %g).\n",it, norm(m,r), nb); */
@@ -790,20 +828,21 @@ void cgs2(int dm[], double A[], double b[], int rtype, double param[], double to
 /*******************************************************/
 
 
-static double wt2(double x)
+double
+wt2(double x)
 {
         x = fabs(x);
         if (x < 0.5)
                 return(0.75 - x*x);
-        if (x < 1.5)
-        {
+        if (x < 1.5) {
                 x = 1.5 - x;
                 return(0.5*x*x);
         }
         return(0.0);
 }
 
-void resize(int na[], double *a, int nc[], double *c, double *b)
+void
+resize(int na[], double *a, int nc[], double *c, double *b)
 {
     int i, j, o,om,op;
     double loc, s, w, wm, wp;
@@ -813,122 +852,127 @@ void resize(int na[], double *a, int nc[], double *c, double *b)
      * b - na[0]*nc[1]
      */
 
-    s = (double)na[1]/(double)nc[1];
-    for(j=0; j<nc[1]; j++)
-    {
-        loc = (j+0.5)*s-0.5;
-        o   = floor(loc+0.5);
-        om  = BOUNDY(o-1,na[1])*na[0];
-        op  = BOUNDY(o+1,na[1])*na[0];
+    s = (double) na[1] / (double) nc[1];
+    for (j = 0; j < nc[1]; j++) {
+        loc = (j + 0.5)*s - 0.5;
+        o   = floor(loc + 0.5);
         w   = wt2( o   -loc);
         wp  = wt2((o+1)-loc);
         wm  = wt2((o-1)-loc);
-        o  *= na[0];
-        for(ap=a, bp=b+j*na[0], cp=ap+na[0]; ap<cp; ap++, bp++)
-            *bp = wm*ap[om]+w*ap[o]+wp*ap[op];
+        for (i = 0, bp = b+j*na[0]; i < na[0]; i++, bp++) {
+            *bp = wm*a[bound(i,o-1,na)] +
+                  w *a[bound(i,o  ,na)] +
+                  wp*a[bound(i,o+1,na)];
+        }
     }
-    s = (double)na[0]/(double)nc[0];
-    for(i=0; i<nc[0]; i++)
-    {
-        loc = (i+0.5)*s-0.5;
-        o   = floor(loc+0.5);
+    s = (double) na[0] / (double) nc[0];
+    for (i = 0; i < nc[0]; i++) {
+        loc = (i + 0.5)*s - 0.5;
+        o   = floor(loc + 0.5);
         om  = BOUNDX(o-1,na[0]);
         op  = BOUNDX(o+1,na[0]);
         w   = wt2( o   -loc);
         wp  = wt2((o+1)-loc);
         wm  = wt2((o-1)-loc);
-        for(bp=b, cp=c+i, ap=bp+na[0]*nc[1]; bp<ap; bp+=na[0], cp+=nc[0])
-            *cp = wm*bp[om]+w*bp[o]+wp*bp[op];
+        for (j = 0, bp = b, cp = c+i; j < nc[1]; j++, bp+=na[0], cp+=nc[0]) {
+            *cp = wm*bp[om] + w*bp[o] + wp*bp[op];
+        }
     }
 }
 
-static void rescale(int n, double *a, double s)
+
+void
+rescale(int n, double *a, double s)
 {
     int i;
-    for(i=0; i<n; i++)
+    for (i = 0; i < n; i++)
         a[i] *= s;
 }
 
-static void restrict(int n, int na[], double *a, int nc[], double *c, double *b)
+
+void
+restrict(int n, int na[], double *a, int nc[], double *c, double *b)
 {
     int i;
-    for(i=0; i<n; i++)
-    {
-        resize(na, a+i*na[0]*na[1], nc, c+i*nc[0]*nc[1], b);
+    for (i = 0; i < n; i++) {
+        resize(na, a + i*na[0]*na[1], nc, c + i*nc[0]*nc[1], b);
      /* rescale(nc[0]*nc[1], c+i*nc[0]*nc[1], 4.0); */
     }
 }
 
-static void prolong(int n, int na[], double *a, int nc[], double *c, double *b)
+
+void
+prolong(int n, int na[], double *a, int nc[], double *c, double *b)
 {
     int i;
-    for(i=0; i<n; i++)
-        resize(na, a+i*na[0]*na[1], nc, c+i*nc[0]*nc[1], b);
+    for (i = 0; i < n; i++)
+        resize(na, a + i*na[0]*na[1], nc, c + i*nc[0]*nc[1], b);
 }
 
-static void zeros(int n, double *a)
+
+void
+zeros(int n, double *a)
 {
     int i;
-    for(i=0; i<n; i++)
+    for (i = 0; i < n; i++)
         a[i] = 0.0;
 }
 
-static void copy(int n, double *a, double *b)
+
+void
+copy(int n, double *a, double *b)
 {
     int i;
-    for(i=0; i<n; i++)
+    for (i = 0; i < n; i++)
         b[i] = a[i];
 }
 
-static void addto(int n, double *a, double *b)
+
+void
+addto(int n, double *a, double *b)
 {
     int i;
-    for(i=0; i<n; i++)
+    for (i = 0; i < n; i++)
         a[i] += b[i];
 }
 
-int fmg2_scratchsize(int n0[])
+
+int
+fmg2_scratchsize(int n0[])
 {
     int    n[32][2], m[32], bs, j;
     bs = 0;
     n[0][0] = n0[0];
     n[0][1] = n0[1];
 
-    for(j=1; j<16; j++)
-    {
+    for (j = 1; j < 16; j++) {
         n[j][0] = ceil(n[j-1][0]/2.0);
         n[j][1] = ceil(n[j-1][1]/2.0);
         m[j]    = n[j][0]*n[j][1];
         bs += m[j];
-        if ((n[j][0]<2) && (n[j][1]<2))
+        if (n[j][0] < 2 && n[j][1] < 2)
             break;
     }
     return((2*n0[0]*n0[1] + n[0][0]*n[1][1] + 9*bs));
 }
 
-/*
-    Full Multigrid solver.  See Numerical Recipes (second edition) for more information
-*/
-void fmg2(int n0[], double *a0, double *b0, int rtype, double param0[], int c, int nit,
-          double *u0, double *scratch)
+/* Full Multigrid solver.  See Numerical Recipes (2nd ed) for more info */
+void
+fmg2(int n0[], double *a0, double *b0, int rtype, double param0[], int c,
+     int nit, double *u0, double *scratch)
 {
     int i, j, ng, bs;
     int    n[32][2], m[32];
     double *bo[32], *a[32], *b[32], *u[32], *res, *rbuf, param[32][5];
     void (*relax)(), (*Atimesp)();
 
-    if (rtype == 0)
-    {
+    if (rtype == 0) {
         relax   = relax_le;
         Atimesp = Atimesp_le;
-    }
-    else if (rtype == 1)
-    {
+    } else if (rtype == 1) {
         relax   = relax_me;
         Atimesp = Atimesp_me;
-    }
-    else
-    {
+    } else {
         relax   = relax_be;
         Atimesp = Atimesp_be;
     }
@@ -948,14 +992,13 @@ void fmg2(int n0[], double *a0, double *b0, int rtype, double param0[], int c, i
 
     ng = 1;
     bs = 0;
-    for(j=1; j<16; j++)
-    {
+    for (j = 1; j < 16; j++) {
         n[j][0] = ceil(n[j-1][0]/2.0);
         n[j][1] = ceil(n[j-1][1]/2.0);
         m[j]    = n[j][0]*n[j][1];
         ng ++;
         bs += m[j];
-        if ((n[j][0]<2) && (n[j][1]<2))
+        if (n[j][0] < 2 && n[j][1] < 2)
             break;
     }
 
@@ -966,50 +1009,45 @@ void fmg2(int n0[], double *a0, double *b0, int rtype, double param0[], int c, i
     u[1]   = scratch + 2*m[0] + n[0][0]*n[1][1] + 4*bs;
     a[1]   = scratch + 2*m[0] + n[0][0]*n[1][1] + 6*bs;
 
-    for(j=2; j<ng; j++)
-    {
-        bo[j] = bo[j-1]+2*m[j-1];
-        b[j]  =  b[j-1]+2*m[j-1];
-        u[j]  =  u[j-1]+2*m[j-1];
-        a[j]  =  a[j-1]+3*m[j-1];
+    for (j = 2; j < ng; j++) {
+        bo[j] = bo[j-1] + 2*m[j-1];
+        b[j]  =  b[j-1] + 2*m[j-1];
+        u[j]  =  u[j-1] + 2*m[j-1];
+        a[j]  =  a[j-1] + 3*m[j-1];
     }
 
-    for(j=1; j<ng; j++)
-    {
+    for (j = 1; j < ng; j++) {
         param[j][0] = param0[0]*(double)n[j][0]/n0[0];
         param[j][1] = param0[1]*(double)n[j][1]/n0[1];
         param[j][2] = param[0][2];
         param[j][3] = param[0][3];
         param[j][4] = param[0][4];
 
-        restrict(2,n[j-1],bo[j-1],n[j],bo[j],rbuf);
-        restrict(3,n[j-1],a[j-1],n[j],a[j],rbuf);
+        restrict(2, n[j-1], bo[j-1], n[j], bo[j], rbuf);
+        restrict(3, n[j-1], a[j-1],  n[j], a[j],  rbuf);
     }
 
-    solve22(a[ng-1], bo[ng-1],param0[4], u[ng-1]);
+    solve22(a[ng-1], bo[ng-1], param0[4], u[ng-1]);
 
-    for(j=ng-2; j>=0; j--)
-    {
+    for (j = ng-2; j >= 0; j--) {
         int jc;
-        prolong(2,n[j+1],u[j+1],n[j],u[j],rbuf);
-        if(j>0) copy(2*m[j],bo[j],b[j]);
-        for(jc=0; jc<c; jc++)
-        {
+
+        prolong(2, n[j+1], u[j+1], n[j], u[j], rbuf);
+        if (j > 0) copy(2*m[j], bo[j], b[j]);
+        for (jc = 0; jc < c; jc++) {
             int jj;
-            for(jj=j; jj<ng-1; jj++)
-            {
+            for (jj = j; jj < ng-1; jj++) {
                 relax(n[jj], a[jj], b[jj], param[jj], nit, u[jj]);
                 Atimesp(n[jj], a[jj], param[jj], u[jj], res);
-                for(i=0; i<2*m[jj]; i++)
+                for (i = 0; i < 2*m[jj]; i++)
                     res[i] = b[jj][i] - res[i];
 
-                restrict(2,n[jj],res,n[jj+1],b[jj+1],rbuf);
-                zeros(2*m[jj+1],u[jj+1]);
+                restrict(2, n[jj], res, n[jj+1], b[jj+1], rbuf);
+                zeros(2*m[jj+1], u[jj+1]);
             }
             solve22(a[ng-1], b[ng-1], param0[4], u[ng-1]);
-            for(jj=ng-2; jj>=j; jj--)
-            {
-                prolong(2,n[jj+1],u[jj+1],n[jj],res,rbuf);
+            for (jj = ng-2; jj >= j; jj--) {
+                prolong(2, n[jj+1], u[jj+1], n[jj], res, rbuf);
                 addto(2*m[jj], u[jj], res);
                 relax(n[jj], a[jj], b[jj], param[jj], nit, u[jj]);
             }
