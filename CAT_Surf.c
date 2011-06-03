@@ -38,8 +38,21 @@ bound(int i, int j, int dm[])
                 else
                         j1 = j;
         }
+/*
+        if (j < 0) { /* flip to the other side */ /*
+                j1 = -j - 1;
+                i1 += dm[0] / 2; i1 = i1 % dm[0];
+        } else if (j >= dm[1]) {
+                j1 = 2*dm[1] - j - 1;
+                i1 += dm[0] / 2; i1 = i1 % dm[0];
+        } else {
+                j1 = j;
+        }
+*/
+
         return(i1 + dm[0]*j1);
 }
+
 
 /* helper functions -- copy Point values to/from double array of length 3 */
 void
@@ -317,16 +330,19 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
 }
 
 void
-apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int *size_map, int inverse)
+apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
+           int *size_map, int inverse)
 {
-        Point             centre, unit_point, *new_points, trans_point;
+        Point             centre, unit_point, *new_points, *orig_points, point;
         polygons_struct   unit_sphere;
-        double            inflow_x, inflow_y, u, v, x, y, z, ux, vy;
-        double            indx, indy;
-        int               i, p, ind;
+        double            inflow_x, inflow_y;
+        double            xm, ym, xp, yp, cu, cv, x0, x1, y0, y1, z0, weight;
+        double            *uflow, *vflow, u, v, *ux, *vy, *ubuf, *vbuf;
+        int               i, j, p, x, y, count, m = size_map[0]*size_map[1];
+        int               *n_neighbours, **neighbours;
 
         if (sphere == NULL) {
-                /* create unit sphere with same number of triangles as skin surface */
+                /* create unit sphere w/ same # of triangles as skin surf */
                 fill_Point(centre, 0.0, 0.0, 0.0);
                 create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0,
                                   polygons->n_items, &unit_sphere);
@@ -345,9 +361,34 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int
                                       BINTREE_FACTOR));
 
         ALLOC(new_points, polygons->n_points);
-  
-        inflow_x = (double)size_map[0] - 1.0;
-        inflow_y = (double)size_map[1] - 1.0;
+
+        uflow = (double *) malloc(sizeof(double) * m);
+        vflow = (double *) malloc(sizeof(double) * m);
+
+        inflow_x = (double)size_map[0];
+        inflow_y = (double)size_map[1];
+
+        for (i = 0; i < size_map[0]; i++) {
+                for (j = 0; j < size_map[1]; j++) {
+                        p = i + size_map[0]*j;
+                        weight = 1.0 -
+                                 64.0 * pow( ((double) j/inflow_y) - 0.5, 6.0);
+
+                        uflow[p] = (flow[p  ] - i - 1.0) / inflow_x;
+                        vflow[p] = (flow[p+m] - j - 1.0) / inflow_y;
+                        if (uflow[p] >=  1.0) uflow[p] -= floor(uflow[p]);
+                        if (uflow[p] <= -1.0) uflow[p] += floor(-uflow[p]);
+                        if (uflow[p] >=  0.5) uflow[p] -= 1.0;
+                        if (uflow[p] <= -0.5) uflow[p] += 1.0;
+                        if (vflow[p] >=  1.0) vflow[p] -= floor(uflow[p]);
+                        if (vflow[p] <= -1.0) vflow[p] += floor(-uflow[p]);
+                        uflow[p] *= weight;
+                        vflow[p] *= weight;
+                }
+        }
+
+        ux = (double *) malloc(sizeof(double) * polygons->n_points);
+        vy = (double *) malloc(sizeof(double) * polygons->n_points);
 
         for (p = 0; p < polygons->n_points; p++) {
                 map_point_to_unit_sphere(polygons, &polygons->points[p],
@@ -355,13 +396,160 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int
 
                 point_to_uv(&unit_point, &u, &v);
 
-                indx = u*inflow_x;
-                indy = v*inflow_y;
-                ind  = (int) round(indx) + (size_map[0] * (int) round(indy));
+                xp = u*inflow_x - 0.5;
+                yp = v*inflow_y - 0.5;
 
-                ux = (flow[ind] - 1.0 - indx) / inflow_x;
-                vy = (flow[ind + size_map[0]*size_map[1]] - 1.0 - indy) / inflow_y;
-                      
+                x = (int) floor(xp); xp -= x; xm = 1.0 - xp;
+                y = (int) floor(yp); yp -= y; ym = 1.0 - yp;
+
+                x0 = uflow[bound(x,  y,  size_map)];
+                x1 = uflow[bound(x+1,y,  size_map)];
+                y0 = uflow[bound(x,  y+1,size_map)];
+                y1 = uflow[bound(x+1,y+1,size_map)];
+
+                ux[p] = ((xm*x0 + xp*x1)*ym + (xm*y0 + xp*y1)*yp);
+                if (ux[p] >=  1.0) ux[p] -= floor(ux[p]);
+                if (ux[p] <= -1.0) ux[p] += floor(-ux[p]);
+                if (ux[p] <  -0.5) ux[p] += 1.0;
+                if (ux[p] >   0.5) ux[p] -= 1.0;
+
+                x0 = vflow[bound(x,  y,  size_map)];
+                x1 = vflow[bound(x+1,y,  size_map)];
+                y0 = vflow[bound(x,  y+1,size_map)];
+                y1 = vflow[bound(x+1,y+1,size_map)];
+                vy[p] = ((xm*x0 + xp*x1)*ym + (xm*y0 + xp*y1)*yp);
+                if (vy[p] >=  1.0) vy[p] -= floor(vy[p]);
+                if (vy[p] <= -1.0) vy[p] += floor(-vy[p]);
+
+                if (inverse) {
+                        ux[p] = -ux[p];
+                        vy[p] = -vy[p];
+                }
+
+                u += ux[p];
+                v += vy[p];
+
+                /* wrap borders */
+                if (v < 0.0) {
+                        v = -v;
+                        u += 0.5;
+                }
+                if (v > 1.0) {
+                        v = 2 - v;
+                        u += 0.5;
+                }
+                while (u < 0.0)  u += 1.0;
+                while (u >= 1.0) u -= 1.0;
+
+                uv_to_point(u, v, &new_points[p]);
+                set_vector_length(&new_points[p], 1.0);
+        }
+        for (p = 0; p < polygons->n_points; p++)
+                polygons->points[p] = new_points[p];
+
+        compute_polygon_normals(polygons);
+        free(new_points);
+}
+
+void
+apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
+              double *vy, int inverse)
+{
+        Point             centre, unit_point, *new_points, trans_point;
+        polygons_struct   unit_sphere;
+        double            inflow_x, inflow_y, u, v, x, y, z;
+        double            indx, indy;
+        int               i, p, ind;
+
+        copy_polygons(sphere, &unit_sphere);
+        /* set radius to 1 */
+        for (i = 0; i < unit_sphere.n_points; i++) 
+                set_vector_length(&unit_sphere.points[i], 1.0);
+
+        create_polygons_bintree(polygons, round((double) polygons->n_items *
+                                                BINTREE_FACTOR));
+        create_polygons_bintree(&unit_sphere,
+                                round((double) unit_sphere.n_items *
+                                      BINTREE_FACTOR));
+
+        ALLOC(new_points, polygons->n_points);
+  
+        for (p = 0; p < polygons->n_points; p++) {
+                map_point_to_unit_sphere(polygons, &polygons->points[p],
+                                         &unit_sphere, &unit_point);
+
+                point_to_uv(&unit_point, &u, &v);
+
+                if (inverse) {
+                        u -= ux[p];
+                        v -= vy[p];
+                } else {
+                        u += ux[p];
+                        v += vy[p];
+                }
+
+                /* wrap borders */
+                while (u < 0.0)  u += 1.0;
+                while (u >= 1.0) u -= 1.0;
+                if (v < 0.0)     v = 0.0;
+                if (v > 1.0)     v = 1.0;
+
+                uv_to_point(u, v, &unit_point);
+
+                x = Point_x(unit_point);
+                y = Point_y(unit_point);
+                z = Point_z(unit_point);
+
+                fill_Point(trans_point, x, y, z);
+
+                map_unit_sphere_to_point(&unit_sphere, &trans_point,
+                                         polygons, &new_points[p]);
+
+        }
+
+        for (p = 0; p < polygons->n_points; p++)
+                polygons->points[p] = new_points[p];
+
+        compute_polygon_normals(polygons);
+}
+
+void
+apply_poly_warp(polygons_struct *polygons, polygons_struct *sphere,
+                double *flow, int inverse)
+{
+        Point             centre, unit_point, *new_points, trans_point;
+        polygons_struct   unit_sphere;
+        double            inflow_x, inflow_y, u, v, x, y, z, ux, vy;
+        double            indx, indy;
+        int               i, p, ind;
+
+        copy_polygons(sphere, &unit_sphere);
+        /* set radius to 1 */
+        for (i = 0; i < unit_sphere.n_points; i++) 
+                set_vector_length(&unit_sphere.points[i], 1.0);
+
+        create_polygons_bintree(polygons, round((double) polygons->n_items *
+                                                BINTREE_FACTOR));
+        create_polygons_bintree(&unit_sphere,
+                                round((double) unit_sphere.n_items *
+                                      BINTREE_FACTOR));
+
+        ALLOC(new_points, polygons->n_points);
+  
+FILE *ufp, *vfp;
+ufp = fopen("u.txt","w");
+vfp = fopen("v.txt","w");
+        for (p = 0; p < polygons->n_points; p++) {
+                map_point_to_unit_sphere(polygons, &polygons->points[p],
+                                         &unit_sphere, &unit_point);
+
+                point_to_uv(&unit_point, &u, &v);
+
+                ux = flow[p] - u;
+                vy = flow[p + sphere->n_points] - v;
+fprintf(ufp, "%f\n", ux);
+fprintf(vfp, "%f\n", vy);
+
                 if (inverse) {
                         u -= ux;
                         v -= vy;
@@ -393,6 +581,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow, int
                 polygons->points[p] = new_points[p];
 
         compute_polygon_normals(polygons);
+        free(new_points);
+fclose(ufp); fclose(vfp);
 }
 
 int

@@ -13,6 +13,7 @@
 #define BINTREE_FACTOR 0.5
 
 int bound(int, int, int *);
+void indices(int *, int *, int *);
 void get_bounds(polygons_struct *, double [6]);
 
 void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int);

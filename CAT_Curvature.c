@@ -12,6 +12,7 @@
 #include <volume_io/internal_volume_io.h>
 #include <volume_io/geometry.h>
 #include <bicpl.h>
+#include <float.h>
 
 #include "CAT_Curvature.h"
 
@@ -29,6 +30,7 @@ projectToPlane(Vector projected, Vector basis[2])
         return(xyz);
 }
 
+
 Vector
 projection(Vector vector, Vector normal)
 {
@@ -40,6 +42,7 @@ projection(Vector vector, Vector normal)
         Vector_z(xyz) = Vector_z(vector) - (t2*Vector_z(normal));
         return(xyz);
 }
+
 
 void
 leastSquares(const int num, Vector dc[], Vector dn[], Real *k1, Real *k2)
@@ -186,6 +189,7 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
         }
 }
 
+
 /* ----------------------------- MNI Header -----------------------------------
 @NAME       : get_polygon_vertex_curvatures_cg
 @INPUT      : polygons
@@ -278,6 +282,67 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
         if (smoothing_distance > 0.0)
                 FREE(distances);
 }
+
+
+void
+get_smoothed_curvatures(polygons_struct *polygons, polygons_struct *sphere,
+                        double *values, double fwhm, int curvtype)
+{
+        double            sigma, value, distance, mn, mx;
+        double            *smooth_values;
+        int               *n_neighbours, **neighbours;
+        int               i, j, n_iter;
+
+        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+
+        if (curvtype == 0)
+                distance = 3.0;
+        else distance = 0.0;
+
+        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                         distance, curvtype, values);
+
+        smooth_values = (double *) malloc(sizeof(double) * polygons->n_points);
+
+        /* calculate n_iter for sigma = 1.0 */
+        n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482);
+        if (n_iter == 0)
+                n_iter = 1;
+
+        /* select sigma according fwhm */
+        if (fwhm > 50.0)
+                sigma = 8.0;
+        else if (fwhm > 30.0)
+                sigma = 3.0;
+        else if (fwhm > 20.0)
+                sigma = 2.0;
+        else sigma = 1.0;
+                
+        for (j = 0; j < n_iter; j++) {
+                for (i = 0; i < polygons->n_points; i++) {
+                        heatkernel_blur_points(polygons->n_points,
+                                               polygons->points, values,
+                                               n_neighbours[i], neighbours[i],
+                                               i, sigma, NULL, &value);
+                        smooth_values[i] = value;
+                }
+                for (i = 0; i < polygons->n_points; i++)
+                        values[i] = smooth_values[i];
+        }
+
+        /* scale data to uint8 range */
+        mn = FLT_MAX; mx = -FLT_MAX;
+        for (i = 0; i < polygons->n_points; i++) {
+            if (values[i] > mx) mx = values[i];
+            if (values[i] < mn) mn = values[i];
+        }
+
+        for (i = 0; i < polygons->n_points; i++)
+                values[i] = (values[i] - mn)/(mx - mn);
+
+        free(smooth_values);
+}
+
 
 void
 compute_local_sharpness(polygons_struct *polygons, int n_neighbours[],
