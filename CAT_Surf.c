@@ -331,15 +331,13 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
 
 void
 apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
-           int *size_map, int inverse)
+           int *dm, int inverse)
 {
-        Point             centre, unit_point, *new_points, *orig_points, point;
+        Point             centre, unit_point, *new_points;
         polygons_struct   unit_sphere;
-        double            inflow_x, inflow_y;
-        double            xm, ym, xp, yp, cu, cv, x0, x1, y0, y1, z0, weight;
-        double            *uflow, *vflow, u, v, *ux, *vy, *ubuf, *vbuf;
-        int               i, j, p, x, y, count, m = size_map[0]*size_map[1];
-        int               *n_neighbours, **neighbours;
+        double            xm, ym, xp, yp, x0, x1, y0, y1, weight;
+        double            *uflow, *vflow, u, v, *ux, *vy;
+        int               i, j, p, x, y, m = dm[0]*dm[1];
 
         if (sphere == NULL) {
                 /* create unit sphere w/ same # of triangles as skin surf */
@@ -365,17 +363,14 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
         uflow = (double *) malloc(sizeof(double) * m);
         vflow = (double *) malloc(sizeof(double) * m);
 
-        inflow_x = (double)size_map[0];
-        inflow_y = (double)size_map[1];
+        for (i = 0; i < dm[0]; i++) {
+                for (j = 0; j < dm[1]; j++) {
+                        p = i + dm[0]*j;
+                        weight = 1.0;
+                         // - 64.0 * pow( ((double)j/(double)dm[1]) - 0.5, 6.0);
 
-        for (i = 0; i < size_map[0]; i++) {
-                for (j = 0; j < size_map[1]; j++) {
-                        p = i + size_map[0]*j;
-                        weight = 1.0 -
-                                 64.0 * pow( ((double) j/inflow_y) - 0.5, 6.0);
-
-                        uflow[p] = (flow[p  ] - i - 1.0) / inflow_x;
-                        vflow[p] = (flow[p+m] - j - 1.0) / inflow_y;
+                        uflow[p] = (flow[p  ] - i - 1.0) / (double)dm[0];
+                        vflow[p] = (flow[p+m] - j - 1.0) / (double)dm[1];
                         if (uflow[p] >=  1.0) uflow[p] -= floor(uflow[p]);
                         if (uflow[p] <= -1.0) uflow[p] += floor(-uflow[p]);
                         if (uflow[p] >=  0.5) uflow[p] -= 1.0;
@@ -396,16 +391,16 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
 
                 point_to_uv(&unit_point, &u, &v);
 
-                xp = u*inflow_x - 0.5;
-                yp = v*inflow_y - 0.5;
+                xp = u*((double)dm[0]) - 0.5;
+                yp = v*((double)dm[1]) - 0.5;
 
                 x = (int) floor(xp); xp -= x; xm = 1.0 - xp;
                 y = (int) floor(yp); yp -= y; ym = 1.0 - yp;
 
-                x0 = uflow[bound(x,  y,  size_map)];
-                x1 = uflow[bound(x+1,y,  size_map)];
-                y0 = uflow[bound(x,  y+1,size_map)];
-                y1 = uflow[bound(x+1,y+1,size_map)];
+                x0 = uflow[bound(x,  y,  dm)];
+                x1 = uflow[bound(x+1,y,  dm)];
+                y0 = uflow[bound(x,  y+1,dm)];
+                y1 = uflow[bound(x+1,y+1,dm)];
 
                 ux[p] = ((xm*x0 + xp*x1)*ym + (xm*y0 + xp*y1)*yp);
                 if (ux[p] >=  1.0) ux[p] -= floor(ux[p]);
@@ -413,10 +408,10 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
                 if (ux[p] <  -0.5) ux[p] += 1.0;
                 if (ux[p] >   0.5) ux[p] -= 1.0;
 
-                x0 = vflow[bound(x,  y,  size_map)];
-                x1 = vflow[bound(x+1,y,  size_map)];
-                y0 = vflow[bound(x,  y+1,size_map)];
-                y1 = vflow[bound(x+1,y+1,size_map)];
+                x0 = vflow[bound(x,  y,  dm)];
+                x1 = vflow[bound(x+1,y,  dm)];
+                y0 = vflow[bound(x,  y+1,dm)];
+                y1 = vflow[bound(x+1,y+1,dm)];
                 vy[p] = ((xm*x0 + xp*x1)*ym + (xm*y0 + xp*y1)*yp);
                 if (vy[p] >=  1.0) vy[p] -= floor(vy[p]);
                 if (vy[p] <= -1.0) vy[p] += floor(-vy[p]);
@@ -457,7 +452,7 @@ apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
 {
         Point             centre, unit_point, *new_points, trans_point;
         polygons_struct   unit_sphere;
-        double            inflow_x, inflow_y, u, v, x, y, z;
+        double            u, v, x, y, z;
         double            indx, indy;
         int               i, p, ind;
 
@@ -519,7 +514,7 @@ apply_poly_warp(polygons_struct *polygons, polygons_struct *sphere,
 {
         Point             centre, unit_point, *new_points, trans_point;
         polygons_struct   unit_sphere;
-        double            inflow_x, inflow_y, u, v, x, y, z, ux, vy;
+        double            u, v, x, y, z, ux, vy;
         double            indx, indy;
         int               i, p, ind;
 
