@@ -366,8 +366,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
         for (i = 0; i < dm[0]; i++) {
                 for (j = 0; j < dm[1]; j++) {
                         p = i + dm[0]*j;
-                        weight = 1.0;
-                         // - 64.0 * pow( ((double)j/(double)dm[1]) - 0.5, 6.0);
+                        v = (double)j / (double)dm[1];
+                        weight = 1.0 - pow(2.0*v - 1.0, 8.0);
 
                         uflow[p] = (flow[p  ] - i - 1.0) / (double)dm[0];
                         vflow[p] = (flow[p+m] - j - 1.0) / (double)dm[1];
