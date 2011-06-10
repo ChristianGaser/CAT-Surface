@@ -42,16 +42,16 @@ int loop        = 6;
 int verbose     = 0;
 int rtype       = 1;
 int curvtype    = 3;
-int muchange    = 4;
-int sz_map[2]   = {500, 300};
+int muchange    = 2;
+int sz_map[2]   = {512, 256};
 int n_triangles = 81920;
 int n_steps     = 3;
 int debug       = 0;
-double murate   = 1.25;
-double lambda   = 0.0;
-double mu       = 0.25;
-double lmreg    = 0.0;
-double fwhm     = 10.0;
+double murate   = 2.0;
+double lambda   = 1e-3;
+double mu       = 0.15;
+double lmreg    = 1e-3;
+double fwhm     = 8.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
@@ -91,7 +91,7 @@ static ArgvInfo argTable[] = {
   {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
      "Number of outer loops for default parameters (max. 6)."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
-     "Number of Dartel steps (max. 6)."},
+     "Number of Dartel steps (max. 3):\n\t1 - Inflated surface\n\t2 - High smoothed surface\n\t3 - Low smoothed surface."},
   {"-size", ARGV_INT, (char *) 2, (char *) &sz_map,
      "Size of curvature map for warping."},
   {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
@@ -826,7 +826,6 @@ main(int argc, char *argv[])
 
         solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
                           rot, flow);
-        rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
         rotate = 0;
 
         /* solve again, but rotated to change pole location */
@@ -861,8 +860,8 @@ main(int argc, char *argv[])
 
                 if (output_sphere_file != NULL) {
                         apply_warp(src_sphere, src_sphere, flow, dm,
-                                   INVERSE_WARPING);
-                        apply_warp(rs_sph, rs_sph, flow2, dm, INVERSE_WARPING); 
+                                   !INVERSE_WARPING);
+                        apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 
                         rotate_polygons(rs_sph, NULL, rotation_matrix);
 
                         as_sph  = (polygons_struct *)
@@ -883,7 +882,7 @@ main(int argc, char *argv[])
 
                 if (output_sphere_file != NULL) {
                         apply_warp(src_sphere, src_sphere, flow, dm,
-                                   INVERSE_WARPING);
+                                   !INVERSE_WARPING);
                 }
         }
 
