@@ -175,6 +175,7 @@ input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
                 FREE(output_values);
         }
         
+        delete_the_bintree(&poly_src_sphere->bintree);
         FREE(new_points);
         return(EXIT_SUCCESS);
 }

@@ -132,6 +132,7 @@ resample_noscale(polygons_struct *source, polygons_struct *target,
                                                             poly,j)]];
                 }
         }
+        delete_the_bintree(&source->bintree);
 }
 
 /* resample values from source sphere onto target sphere */

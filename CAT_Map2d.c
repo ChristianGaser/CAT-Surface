@@ -269,6 +269,7 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
         for (i = 0; i < dm[0]*dm[1]; i++) 
                 data[i] = (data[i] - mn)/(mx - mn);
         
+        delete_the_bintree(&unit_sphere.bintree);
         delete_polygons(&unit_sphere);
 }
 
@@ -321,6 +322,7 @@ map_sheet2d_to_sphere(double *sheet2d, double *values,
                 if (values[i] < -1e15 || values[i] > 1e15) values[i] = 0.0;
         
         }
+        delete_the_bintree(&unit_sphere.bintree);
         delete_polygons(&unit_sphere);
 }
 
@@ -367,6 +369,7 @@ map_sheet2d_to_unit_sphere(double *sheet2d, double *values,
                 if (values[i] < -1e15 || values[i] > 1e15) values[i] = 0.0;
         
         }
+        delete_the_bintree(&sphere->bintree);
 }
 
 /* smooth the sheet such that diff between neighbours <= tol */

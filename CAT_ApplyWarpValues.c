@@ -146,6 +146,7 @@ main(int argc, char *argv[])
 
         terminate_progress_report(&progress);
 
+        delete_the_bintree(&unit_sphere.bintree);
         delete_polygons(&unit_sphere);
         free(flow);
         free(values);

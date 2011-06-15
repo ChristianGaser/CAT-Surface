@@ -40,7 +40,8 @@ interp_point_unit_sphere(polygons_struct *sphere, double *values, Point pt)
                                                   poly, i)];
                 value += weights[i] * values[ind];
         }
-
+        
+        delete_the_bintree(&sphere->bintree);
         return value;
 }
 

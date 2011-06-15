@@ -444,6 +444,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
 
         compute_polygon_normals(polygons);
         free(new_points);
+        delete_the_bintree(&polygons->bintree);
+        delete_the_bintree(&unit_sphere.bintree);
 }
 
 void
