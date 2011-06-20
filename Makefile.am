@@ -52,7 +52,8 @@ bin_PROGRAMS = \
 	CAT_Hausdorff \
 	CAT_Sharpness \
         CAT_SelfIntersect \
-        CAT_DumpTopoErrors \
+        CAT_MarkDefects \
+        CAT_Artifacts \
         CAT_LabelHoles \
         CAT_FractalSurface \
         CAT_FractalDimension \
@@ -141,7 +142,8 @@ CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Blur2d.c CAT_Cu
 CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Octree.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
 CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
 CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_Intersect.c CAT_Patch.c CAT_Defect.c
-CAT_DumpTopoErrors_SOURCES = CAT_DumpTopoErrors.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
+CAT_MarkDefects_SOURCES = CAT_MarkDefects.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
+CAT_Artifacts_SOURCES = CAT_Artifacts.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
 CAT_LabelHoles_SOURCES = CAT_LabelHoles.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_NiftiIO.c
 CAT_FractalSurface_SOURCES = CAT_FractalSurface.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c
 CAT_FractalDimension_SOURCES = CAT_FractalDimension.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c
