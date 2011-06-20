@@ -587,7 +587,7 @@ main(int argc, char *argv[])
         FILE             *fp;
         char             line[1024];
         polygons_struct  *src, *trg, *src_sphere, *trg_sphere;
-        polygons_struct  *rsrc, *rs_sph;
+        polygons_struct  *rsrc, *rs_sph, *rtrg, *rt_sph;
         polygons_struct  *as_sph;
         int              i, j, run;
         int              n_objects, xy_size, prev_loop;
@@ -796,57 +796,52 @@ main(int argc, char *argv[])
         /* do not rotate anymore */
         rotate = 0;
 
+        if (avg) {
+                flow2   = (double *) malloc(sizeof(double) * xy_size * 2);
+                rsrc    = (polygons_struct *) malloc(sizeof(polygons_struct));
+                rs_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));        
+                rtrg    = (polygons_struct *) malloc(sizeof(polygons_struct));
+                rt_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));        
+                as_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));
+        }
+        
         /* run dartel */
         for (run = 0; run < n_runs; run++) {
-                /* apply warp after first run */
-                if (run>0) apply_warp(src_sphere, src_sphere, flow, dm,
-                                   !INVERSE_WARPING);
                 solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
                           rot, flow);
-        }
 
-        /* solve again, but rotated to change pole location */
-        if (avg) {
-                flow2 = (double *) malloc(sizeof(double) * xy_size * 2);
-                rsrc = (polygons_struct *) malloc(sizeof(polygons_struct));
-                rs_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));
+                /* solve again, but rotated to change pole location */
+                if (avg) {
+                        rotation_to_matrix(rotation_matrix, 0.0, PI/2.0, 0.0);
+                        rotate_polygons(src, rsrc, rotation_matrix);
+                        rotate_polygons(src_sphere, rs_sph, rotation_matrix);
+                        rotate_polygons(trg, rtrg, rotation_matrix);
+                        rotate_polygons(trg_sphere, rt_sph, rotation_matrix);
 
-                rotation_to_matrix(rotation_matrix, 0.0, PI/2.0, 0.0);
-
-                rotate_polygons(src, rsrc, rotation_matrix);
-                rotate_polygons(src_sphere, rs_sph, rotation_matrix);
-                rotate_polygons(trg, NULL, rotation_matrix);
-                rotate_polygons(trg_sphere, NULL, rotation_matrix);
-
-                for (run = 0; run < n_runs; run++) {
-                        if (run>0) apply_warp(rs_sph, rs_sph, flow2, dm,
-                                   !INVERSE_WARPING);
-                        solve_dartel_flow(rsrc, rs_sph, trg, trg_sphere, prm,
+                        solve_dartel_flow(rsrc, rs_sph, rtrg, rt_sph, prm,
                                   dm, n_steps, rot, flow2);
-                }
 
-                rotation_to_matrix(rotation_matrix, 0.0, -PI/2.0, 0.0);
-
-                if (output_sphere_file != NULL) {
-                        apply_warp(src_sphere, src_sphere, flow, dm,
-                                   !INVERSE_WARPING);
+                        apply_warp(src_sphere, src_sphere, flow, dm, !INVERSE_WARPING);
                         apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 
+                        
+                        rotation_to_matrix(rotation_matrix, 0.0, -PI/2.0, 0.0);
                         rotate_polygons(rs_sph, NULL, rotation_matrix);
 
-                        as_sph  = (polygons_struct *)
-                                                malloc(sizeof(polygons_struct));
                         average_xz_surf(rs_sph, src_sphere, as_sph);
                         copy_polygons(as_sph, src_sphere);
-                        free(as_sph);
+                } else {
+                        apply_warp(src_sphere, src_sphere, flow, dm,
+                                   !INVERSE_WARPING);
                 }
+        }
+
+        if (avg) {
                 free(flow2);
                 free(rsrc);
                 free(rs_sph);
-        } else {
-                if (output_sphere_file != NULL) {
-                        apply_warp(src_sphere, src_sphere, flow, dm,
-                                   !INVERSE_WARPING);
-                }
+                free(rtrg);
+                free(rt_sph);
+                free(as_sph);
         }
 
         if (output_sphere_file != NULL) {
