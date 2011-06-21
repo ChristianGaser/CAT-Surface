@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_Interpolate.h 175 2010-05-29 18:49:24Z raytrace $
+ * $Id$
  *
  */
 

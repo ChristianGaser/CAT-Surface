@@ -1,6 +1,6 @@
 dnl @synopsis mni_REQUIRE_LIB(LIBRARY,INCLUDES,BODY)
 dnl
-dnl @version $Id: mni_REQUIRE_LIB.m4,v 1.1 2001/08/20 16:51:50 stever Exp $
+dnl @version $Id$
 dnl @author Steve M. Robbins <smr@debian.org>
 
 

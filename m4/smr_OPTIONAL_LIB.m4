@@ -2,7 +2,7 @@ dnl @synopsis smr_OPTIONAL_LIB(LIBRARY,FUNCTION,HEADER-FILE,[OTHER-LIBRARIES],[I
 dnl Check for presence of library and header file.
 dnl If found, the AC_SUBST(LIBRARY,HAVE_[LIBRARY]) is called.
 dnl
-dnl @version $Id: smr_OPTIONAL_LIB.m4,v 1.2 2001/07/25 04:22:49 stever Exp $
+dnl @version $Id$
 dnl @author Steve M. Robbins <smr@debian.org>
 
 

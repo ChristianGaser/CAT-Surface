@@ -1,4 +1,4 @@
-/* $Id: optimizersphere.c 964 2007-10-19 16:35:34Z john $ */
+/* $Id$ */
 /* (c) John Ashburner (2007) */
 
 #include<math.h>

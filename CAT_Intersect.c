@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_SelfIntersections.c 121 2009-07-27 14:42:19Z raytrace $
+ * $Id$
  *
  */
 

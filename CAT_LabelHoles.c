@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_LabelHoles.c 89 2009-01-27 14:43:59Z raytrace $
+ * $Id$
  */
 
 #include <volume_io/internal_volume_io.h>

@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_Euler.c 139 2009-10-02 15:39:28Z raytrace $
+ * $Id$
  *
  */
 

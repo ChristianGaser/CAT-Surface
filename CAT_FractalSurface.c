@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_FractalSurface.c 140 2009-11-09 12:54:40Z raytrace $
+ * $Id$
  *
  */
 

@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_DumpCurv.c 85 2009-01-14 23:29:48Z raytrace $
+ * $Id$
  */
 
 #include <volume_io/internal_volume_io.h>
