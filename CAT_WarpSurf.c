@@ -23,6 +23,7 @@
 #define INVERSE_WARPING 0
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
 #define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
+#define MIN_WEIGHTS 0.01
 
 /* defaults */
 char *param_file         = NULL;
@@ -30,6 +31,7 @@ char *source_file        = NULL;
 char *source_sphere_file = NULL;
 char *target_file        = NULL;
 char *target_sphere_file = NULL;
+char *weight_file        = NULL;
 char *jacdet_file        = NULL;
 char *output_sphere_file = NULL;
 char *pgm_file           = NULL;
@@ -64,6 +66,8 @@ static ArgvInfo argTable[] = {
      "Template sphere file."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
      "Warped input sphere."},
+  {"-weight", ARGV_STRING, (char *) 1, (char *) &weight_file, 
+     "Weight warping with the inverse from values in this file (e.g. std)."},
   {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_file, 
      "Warped map as pgm file."},
   {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
@@ -410,7 +414,7 @@ void
 solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                   polygons_struct *trg, polygons_struct *trg_sphere,
                   struct dartel_prm *prm, int dm[3], int n_steps,
-                  double rot[3], double *flow)
+                  double rot[3], double *flow, double *weights)
 {
         int step, i, it, it0, it1, xy_size, it_scratch;
         polygons_struct *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
@@ -512,6 +516,14 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                                                  (double *)0, map_src, fwhm,
                                                  dm, curvtype);
 
+                /* weight maps if defined */
+                if (weights != (double *)0) {
+                        for (i = 0; i < xy_size; i++) {
+                                map_src[i] *= weights[i];
+                                map_trg[i] *= weights[i];
+                        }
+                }
+
                 /* go through dartel steps */
                 for (it = 0, it0 = 0; it0 < loop; it0++) {
                         it_scratch = dartel_scratchsize((int *)dm,
@@ -591,9 +603,9 @@ main(int argc, char *argv[])
         polygons_struct  *src, *trg, *src_sphere, *trg_sphere;
         polygons_struct  *rsrc, *rs_sph, *rtrg, *rt_sph;
         polygons_struct  *as_sph;
-        int              i, j, run;
+        int              i, j, run, n_weights;
         int              n_objects, xy_size, prev_loop;
-        double           *flow, *flow2, *data;
+        double           *flow, *flow2, *data, *weights, *weights_tmp;
         object_struct    **objects;
         static double    param[2] = {1.0, 1.0};
         int              dm[3];
@@ -601,6 +613,11 @@ main(int argc, char *argv[])
         struct           dartel_prm* prm;
         double           rot[3];
 
+
+        /* size of curvature map for warping */
+        dm[0] = sz_map[0];
+        dm[1] = sz_map[1];
+        dm[2] = 1;
 
         /* get the arguments from the command line */
         if (ParseArgv(&argc, argv, argTable, 0) ||
@@ -657,13 +674,32 @@ main(int argc, char *argv[])
         for (i = 0; i < trg_sphere->n_points; i++)
                 set_vector_length(&trg_sphere->points[i], 1.0);
 
+        /* read weights */
+        if (weight_file != NULL) {
+                if (input_values_any_format(weight_file, &n_weights,
+                                         &weights_tmp) != OK)
+                        exit(EXIT_FAILURE);
+                        
+                /* check size of weights */
+                if (trg_sphere->n_points != n_weights) {
+                        fprintf(stderr,"Number of weights should match to target.");                
+                        exit(EXIT_FAILURE);
+                }
+                
+                weights = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
+
+                map_smoothed_curvature_to_sphere(trg, trg_sphere, weights_tmp, weights,
+                                                 fwhm, dm, 0);
+                for (i = 0; i < dm[0]*dm[1]; i++) {
+                        if (weights[i] > MIN_WEIGHTS)
+                                weights[i] = 1.0/weights[i];
+                        else
+                                weights[i] = 0.0;
+                }
+        } else weights = (double *) 0;
+
         prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
         
-        /* size of curvature map for warping */
-        dm[0] = sz_map[0];
-        dm[1] = sz_map[1];
-        dm[2] = 1;
-
         /* first two entries of param are equal */
         for (j = 0; j < loop; j++) {
                 for (i = 0; i < 2; i++)
@@ -779,7 +815,7 @@ main(int argc, char *argv[])
                 prev_loop = loop;
                 loop = 0;
                 solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm,
-                                  n_steps, rot, flow);
+                                  n_steps, rot, flow, weights);
                 loop = prev_loop;
         }
         
@@ -813,7 +849,7 @@ main(int argc, char *argv[])
         /* run dartel */
         for (run = 0; run < n_runs; run++) {
                 solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
-                          rot, flow);
+                          rot, flow, weights);
 
                 /* solve again, but rotated to change pole location */
                 if (avg) {
@@ -822,7 +858,7 @@ main(int argc, char *argv[])
                         rotate_polygons(src_sphere, rs_sph, rotation_matrix);
 
                         solve_dartel_flow(rsrc, rs_sph, rtrg, rt_sph, prm,
-                                  dm, n_steps, rot, flow2);
+                                  dm, n_steps, rot, flow2, weights);
 
                         apply_warp(src_sphere, src_sphere, flow, dm, !INVERSE_WARPING);
                         apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 
@@ -845,6 +881,10 @@ main(int argc, char *argv[])
                 free(rtrg);
                 free(rt_sph);
                 free(as_sph);
+        }
+
+        if (weight_file != NULL) {
+                free(weights);
         }
 
         if (output_sphere_file != NULL) {
