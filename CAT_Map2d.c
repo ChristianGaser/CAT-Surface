@@ -203,7 +203,8 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
         Point             poly_points[1000];
         double            sigma, value;
         double            u, v, wm;
-        double            weights[1000], mn, mx;
+        double            weights[1000], mn, mx, *smooth_values;
+        int               *n_neighbours, **neighbours;
         int               i, j, n_iter;
         int               x, y, validx;
         int               poly, size, ind;
@@ -213,6 +214,35 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
                 values = (double *) malloc(sizeof(double) * polygons->n_points);
                 get_smoothed_curvatures(polygons, sphere, values, fwhm,
                                         curvtype);
+        } else if (fwhm > 0) {
+                get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+                smooth_values = (double *) malloc(sizeof(double) * polygons->n_points);
+                /* calculate n_iter for sigma = 1.0 */
+                n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482);
+                if (n_iter == 0)
+                        n_iter = 1;
+
+                /* select sigma according fwhm */
+                if (fwhm > 50.0)
+                        sigma = 8.0;
+                else if (fwhm > 30.0)
+                        sigma = 3.0;
+                else if (fwhm > 20.0)
+                        sigma = 2.0;
+                else sigma = 1.0;
+                
+                for (j = 0; j < n_iter; j++) {
+                        for (i = 0; i < polygons->n_points; i++) {
+                                heatkernel_blur_points(polygons->n_points,
+                                               polygons->points, values,
+                                               n_neighbours[i], neighbours[i],
+                                               i, sigma, NULL, &value);
+                                smooth_values[i] = value;
+                        }
+                        for (i = 0; i < polygons->n_points; i++)
+                                values[i] = smooth_values[i];
+                }
+                free(smooth_values);
         }
 
         if (sphere == NULL) {

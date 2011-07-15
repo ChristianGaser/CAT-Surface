@@ -20,6 +20,7 @@ if [ -f log ]; then
   nano CHANGES.txt
   svn ci -F log2
   svn list -R | grep -v '/$' | xargs svn propset svn:keywords "Id Rev Date Author" 1>/dev/null
+  svn update
 else
   echo "Put commit information in log"
 fi
