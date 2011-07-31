@@ -12,7 +12,6 @@
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
-#include "CAT_Loop.h"
 
 Vector
 defect_direction(polygons_struct *surface, int *defects, int defect)
@@ -276,12 +275,12 @@ get_defect_center(polygons_struct *surface, int *defects, int defect)
  * should be cut. Returns the brain t1 threshold. */
 double
 get_holes_handles(polygons_struct *surface, polygons_struct *sphere,
-                  int *defects, int n_defects, int *holes, int *dtype,
-                  Volume volume, int *n_neighbours, int **neighbours)
+                  int *defects, int n_defects, int *holes, Volume volume,
+                  int *n_neighbours, int **neighbours)
 {
         double val, t1_threshold, t1_defect;
         int i, d, p, npts;
-        int *polydefects;
+        int *polydefects, *dtype;
         Point center;
         double com[3] = {0.0, 0.0, 0.0};
 
@@ -306,6 +305,7 @@ get_holes_handles(polygons_struct *surface, polygons_struct *sphere,
 
         polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
         update_polydefects(sphere, defects, polydefects);
+        dtype = (int *) malloc(sizeof(int) * (n_defects + 1));
 
         /* estimate the threshold based on the unmodified points */
         t1_threshold = 0; npts = 0;
@@ -357,6 +357,9 @@ get_holes_handles(polygons_struct *surface, polygons_struct *sphere,
                                 holes[p] = dtype[d];
                 }
         }
+        free(polydefects);
+        free(dtype);
+
         return(t1_threshold);
 }
 

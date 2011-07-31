@@ -322,8 +322,8 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
 
         if (DEBUG) fprintf(stderr,"(orig) find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
-                                             polydefects, n_neighbours,
-                                             neighbours);
+                                             n_neighbours, neighbours);
+
         if (DEBUG) printf("%d topological defects\n", n_defects);
 
         /* label defects as holes or handles */
@@ -332,6 +332,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
                 t1_threshold = get_holes_handles(surface, sphere, defects,
                                                  n_defects, holes, volume,
                                                  n_neighbours, neighbours);
+
                 if (DEBUG) printf("T1 threshold = %f\n", t1_threshold);
                 if (DUMP_FILES) { 
                         output_values_any_format("orig_holes.txt",

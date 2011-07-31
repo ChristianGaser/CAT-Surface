@@ -106,8 +106,7 @@ main(int argc, char *argv[])
         defects = (int *) malloc(sizeof(int) * sphere->n_points);
         polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
         n_defects = find_topological_defects(surface, sphere, defects,
-                                             polydefects, n_neighbours,
-                                             neighbours);
+                                             n_neighbours, neighbours);
 
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
 
