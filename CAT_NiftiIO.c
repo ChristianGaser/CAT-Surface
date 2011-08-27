@@ -1605,7 +1605,8 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         }     
 
         set_volume_starts(*volume, mnc_starts);
-        set_voxel_to_world_transform(*volume, &mnc_linear_xform);
+        if (nii_ptr->sform_code != NIFTI_XFORM_UNKNOWN)
+                set_voxel_to_world_transform(*volume, &mnc_linear_xform);
 
         set_volume_sizes(*volume, nii_ptr->dim + 1);
         alloc_volume_data(*volume);
