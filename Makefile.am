@@ -58,7 +58,8 @@ bin_PROGRAMS = \
 	CAT_FractalSurface \
 	CAT_FractalDimension \
 	CAT_RefineMesh \
-	CAT_GIPhantom
+	CAT_GIPhantom \
+	CAT_DumpConvexity
 
 s2kit10_SRC = \
 	s2kit10/FST_semi_fly.c \
@@ -150,6 +151,7 @@ CAT_FractalSurface_SOURCES = CAT_FractalSurface.c CAT_SurfaceIO.c CAT_Complexity
 CAT_FractalDimension_SOURCES = CAT_FractalDimension.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c
 CAT_GIPhantom_SOURCES = CAT_GIPhantom.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c
 CAT_RefineMesh_SOURCES = CAT_RefineMesh.c CAT_SurfaceIO.c
+CAT_DumpConvexity_SOURCES = CAT_DumpConvexity.c CAT_SurfaceIO.c CAT_Metrics.c 
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \
