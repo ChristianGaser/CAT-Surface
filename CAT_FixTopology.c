@@ -26,8 +26,6 @@
 #define FLAG_MODIFY 0
 #define FLAG_PRESERVE 1
 
-#define CURV 0.2
-
 /* argument defaults */
 int bw = 1024;
 int lim = 64;
@@ -137,7 +135,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 {
         double *sharpness;
         int *n_neighbours, **neighbours;
-        int i, p, d, npts, val, *flag;
+        int p, d, val, *flag;
         int *hbw_defects, *hbw_polydefects, *hbw_holes;
         Point *pts;
         deform_struct deform;
@@ -209,14 +207,14 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         n_defects = join_intersections(hbw, hbw_defects, hbw_polydefects,
                                        n_neighbours, neighbours);
 
-        printf("%d self intersection(s) to repair\n", n_defects);
+        fprintf(stderr,"%d self intersection(s) to repair\n", n_defects);
 
         /* patch self-intersections first */
         if (DEBUG) fprintf(stderr, "patch_selfintersections...\n");
         n_defects = patch_selfintersections(hbw, lbw, hbw_defects,
                                             hbw_polydefects, n_defects,
                                             n_neighbours, neighbours);
-        printf("Post-patch: %d self intersection(s) remaining\n", n_defects);
+        fprintf(stderr,"Post-patch: %d self intersection(s) remaining\n", n_defects);
 
         /* smooth out remaining self-intersections */
         if (DEBUG) fprintf(stderr,"smooth_selfintersections...\n");
@@ -249,7 +247,6 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                                         t1_threshold, t1_threshold,
                                         0, 0, 'n', 0);
 
-                flag = (int *) malloc(sizeof(int) * hbw->n_points);
                 memset(flag, FLAG_MODIFY, sizeof(int) * hbw->n_points);
                 for (p = 0; p < hbw->n_points; p++) {
                         if (hbw_holes[p] == VENTRICLE ||
@@ -264,11 +261,11 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                 n_defects = find_selfintersections(hbw, hbw_defects,
                                                    hbw_polydefects);
 
-                printf("%d intersection(s) to repair\n", n_defects);
+                fprintf(stderr,"%d intersection(s) to repair\n", n_defects);
                 n_defects = join_intersections(hbw, hbw_defects,
                                                hbw_polydefects,
                                                n_neighbours, neighbours);
-                printf("%d intersection(s) to repair\n", n_defects);
+                fprintf(stderr,"%d intersection(s) to repair\n", n_defects);
 
                 /* smooth out remaining self-intersections */
                 if (DEBUG) fprintf(stderr,"smooth_selfintersections...\n");
@@ -296,6 +293,8 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         free(sharpness);
         free(flag);
         free(hbw_defects);
+        free(hbw_polydefects);
+        free(hbw_holes);
         free(pts);
 }
 
@@ -324,7 +323,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
 
-        if (DEBUG) printf("%d topological defects\n", n_defects);
+        if (DEBUG) fprintf(stderr,"%d topological defects\n", n_defects);
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
@@ -333,7 +332,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
                                                  n_defects, holes, volume,
                                                  n_neighbours, neighbours);
 
-                if (DEBUG) printf("T1 threshold = %f\n", t1_threshold);
+                if (DEBUG) fprintf(stderr,"T1 threshold = %f\n", t1_threshold);
                 if (DUMP_FILES) { 
                         output_values_any_format("orig_holes.txt",
                                                  sphere->n_points, holes,
@@ -374,11 +373,6 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere)
         get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
-
-        if (DEBUG) fprintf(stderr,"get_realdata_from_sph_coeffs (hbw)...\n");
-        //get_realdata_from_sph_coeffs(rdatax, bw, DATAFORMAT, rcx, icx);
-        //get_realdata_from_sph_coeffs(rdatay, bw, DATAFORMAT, rcy, icy);
-        //get_realdata_from_sph_coeffs(rdataz, bw, DATAFORMAT, rcz, icz);
 
         hbw_objects = (object_struct **) malloc(sizeof(object_struct *));
         *hbw_objects = create_object(POLYGONS);
@@ -461,7 +455,6 @@ main(int argc, char *argv[])
         int                  n_objects;
         polygons_struct      *surface, *sphere;
         object_struct        **surf_objects, **sphere_objects, **objects;
-        int                  *n_neighbours, **neighbours;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
