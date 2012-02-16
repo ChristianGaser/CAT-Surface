@@ -145,7 +145,7 @@ int  main(
 	if( n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
 	
     triangulate_polygons( get_polygons_ptr(object2[0]), get_polygons_ptr(object3) );
-    (void) output_graphics_file( output_filename, ASCII_FORMAT, 1, &object3 );
+    (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3 );
 
     delete_volume( volume );
     delete_marching_cubes_table();

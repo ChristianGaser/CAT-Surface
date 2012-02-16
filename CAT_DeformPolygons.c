@@ -122,7 +122,7 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         printf("Iteration %d:\t",iter);
-        printf("avg: %3.4f\tmax: %3.4f\n",
+        printf("avg: %3.4f\tmax: %3.4f",
                stats.average/polygons->n_points, stats.maximum);
         /* print_deform_stats(&stats, polygons->n_points); */
         if (iter % 20 == 0)
@@ -491,5 +491,6 @@ deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
         } while ((countdown < 4 || countdown2 < 4) && countdown < 10 &&
                  iter < deform_parms->max_iterations);
 
+        printf("\n\n");
         free(pts);
 }

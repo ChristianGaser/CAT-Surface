@@ -256,7 +256,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
         if (it > maxiters) it = maxiters;
         if (it < 0) it == 0;
 
-        printf("sm %d iters, ad %f\n", it, areadistortion(brain, map));
+        printf("Smooth %d iters, Area distortion %f\n", it, areadistortion(brain, map));
 
         free(newpts);
         return it;
@@ -411,7 +411,7 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
         if (it > maxiters) it = maxiters;
         if (it < 0) it == 0;
 
-        printf("dc %d iters, ad %f\n", it, metric);
+        printf("Distortion correction %d iters, Area distortion %f\n", it, metric);
 
         free(newpts);
         return it;
@@ -611,7 +611,7 @@ stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
         for (p = 0; p < map->n_points; p++)
                 set_vector_length(&map->points[p], radius);
 
-        printf("st %d iters, ad %f\n", it, areadistortion(brain, map));
+        printf("Stretch %d iters, Are distortion %f\n", it, areadistortion(brain, map));
 
         free(newpts);
         return it;
