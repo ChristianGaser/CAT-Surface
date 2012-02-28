@@ -60,6 +60,8 @@ bin_PROGRAMS = \
 	CAT_RefineMesh \
 	CAT_GIPhantom \
 	CAT_DumpConvexity \
+	CAT_Test \
+	CAT_WarpSurfPoly \
 	CAT_MarchingCubes
 
 s2kit10_SRC = \
@@ -154,6 +156,8 @@ CAT_GIPhantom_SOURCES = CAT_GIPhantom.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature
 CAT_RefineMesh_SOURCES = CAT_RefineMesh.c CAT_SurfaceIO.c
 CAT_DumpConvexity_SOURCES = CAT_DumpConvexity.c CAT_SurfaceIO.c CAT_Metrics.c 
 CAT_MarchingCubes_SOURCES = CAT_MarchingCubes.c CAT_NiftiIO.c CAT_SurfaceIO.c
+CAT_WarpSurfPoly_SOURCES = CAT_WarpSurfPoly.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c CAT_Interpolate.c dartel/diffeopoly.c
+CAT_Test_SOURCES = CAT_Test.c CAT_Surf.c CAT_SurfaceIO.c CAT_Blur2d.c CAT_Map2d.c CAT_Curvature.c
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \
