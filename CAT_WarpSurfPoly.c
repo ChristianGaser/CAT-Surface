@@ -531,7 +531,9 @@ main(int argc, char *argv[])
         }
     
         xy_size = source->n_points;
-        dpoly = init_dartel_poly(src_sphere);
+
+        dpoly = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
+        init_dartel_poly(src_sphere, dpoly);
 
         flow        = (double *) malloc(sizeof(double) * xy_size * 2);
         flow1       = (double *) malloc(sizeof(double) * xy_size * 2);
@@ -658,7 +660,7 @@ main(int argc, char *argv[])
                                                inflow, map_target, map_source,
                                                (double *)0, flow, ll, scratch);
                                 }
-printf("warpsurf (dartel): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m] = %f\n", inflow[0], flow[0], inflow[xy_size], flow[xy_size]);
+fprintf(stderr,"warpsurf (dartel): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m] = %f\n", inflow[0], flow[0], inflow[xy_size], flow[xy_size]);
                                 fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];

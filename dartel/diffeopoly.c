@@ -657,14 +657,12 @@ squaring_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
 }
 
 
-struct dartel_poly *
-init_dartel_poly(polygons_struct *sphere)
+void
+init_dartel_poly(polygons_struct *sphere, struct dartel_poly *dpoly)
 {
         int i;
-        struct dartel_poly *dpoly;
         double x, y, z, xo, yo, zo;
 
-        dpoly = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
         dpoly->n_points = sphere->n_points;
         dpoly->u = (double *) malloc(sizeof(double) * dpoly->n_points);
         dpoly->v = (double *) malloc(sizeof(double) * dpoly->n_points);
@@ -717,7 +715,6 @@ init_dartel_poly(polygons_struct *sphere)
                   + yo * cos(-PHI);
                 fill_Point(dpoly->nphi[i], x, y, z);
         }
-        return dpoly;
 }
 
 int
