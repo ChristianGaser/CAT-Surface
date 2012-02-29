@@ -93,8 +93,7 @@ dartel_SRC = \
 	dartel/diffeosphere.c \
 	dartel/optimizersphere.c
 	
-extra_headers = \
-	CAT_Deform.h \
+noinst_HEADERS = \
 	CAT_SheetIO.h \
 	CAT_Map2d.h \
 	CAT_Blur2d.h \
@@ -103,9 +102,37 @@ extra_headers = \
 	CAT_Pinv.h \
 	CAT_SurfaceIO.h \
 	CAT_SPH.h \
-	CAT_DeformPrototypes.h	
+	CAT_SliceIO.h \
+	CAT_Interpolate.h \
+    CAT_Isometrics.h \
+	CAT_Metrics.h \
+	CAT_Patch.h \
+	CAT_Resample.h \
+	CAT_Complexity.h \
+	CAT_Defect.h \
+	CAT_Intersect.h \
+	CAT_Octree.h \
+	dartel/dartel.h \
+    niftilib/analyze75.h \
+	niftilib/nifti1.h \
+	niftilib/nifti1_io.h \
+	niftilib/nifti1_local.h \
+    s2kit10/FST_semi_fly.h \
+	s2kit10/csecond.h \
+	s2kit10/naive_synthesis.h s2kit10/primitive.h \
+	s2kit10/cospmls.h \
+	s2kit10/makeweights.h \
+	s2kit10/pmls.h \
+	s2kit10/seminaive.h \
+    nl/nl.h \
+	nl/nl_context.h \
+	nl/nl_matrix.h \
+	nl/nl_private.h \
+	nl/nl_blas.h \
+	nl/nl_iterative_solvers.h \
+	nl/nl_preconditioners.h \
+	nl/nl_superlu.h
 
-EXTRA_DIST = $(extra_headers)
         
 CAT_Surf2Sheet_SOURCES = CAT_Surf2Sheet.c CAT_Map2d.c CAT_Blur2d.c CAT_SheetIO.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c
 CAT_Sheet2Surf_SOURCES = CAT_Sheet2Surf.c CAT_Map2d.c CAT_SheetIO.c CAT_SurfaceIO.c CAT_Blur2d.c CAT_Surf.c CAT_Curvature.c

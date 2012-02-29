@@ -546,6 +546,14 @@ if (j == 0) {
 
         ssl += d*d*dt;
     }
+                                if (output_values_any_format("dx.txt",
+                                                   dpoly->n_points, dx_arr,
+                                                   1) != 0)
+                                        exit(EXIT_FAILURE);
+                                if (output_values_any_format("dy.txt",
+                                                   dpoly->n_points, dy_arr,
+                                                   1) != 0)
+                                        exit(EXIT_FAILURE);
     return(0.5*ssl);
 }
 
@@ -752,7 +760,7 @@ dartel_scratchsize_poly(polygons_struct *sphere, int code)
 }
 
 void
-dartel_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
+dartel_poly2(polygons_struct *sphere, struct dartel_poly *dpoly,
             struct dartel_prm prm, double v[], double g[], double f[],
             double dj[], double ov[], double ll[], double *buf)
 {
@@ -852,7 +860,7 @@ dartel_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
      *     d: vector of first derivatives
      */
     //cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-9, 2, t0, J0, J0+2*m, t1);   
-    cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-9, 200, sbuf, sbuf+2*m,
+    cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-9, 20, sbuf, sbuf+2*m,
               sbuf+4*m, sbuf+6*m);
     //fmg2(sphere, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
 

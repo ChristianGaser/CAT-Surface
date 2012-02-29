@@ -375,7 +375,7 @@ main(int argc, char *argv[])
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
         double           rot[3];
-        struct           dartel_poly* dpoly;
+        struct           dartel_poly *dpoly;
 
         /* get the arguments from the command line */
 
@@ -652,11 +652,11 @@ main(int argc, char *argv[])
                                 it++;
                                 /* map target onto source */
                                 if (INVERSE_WARPING) {
-                                        dartel_poly(src_sphere, dpoly, prm[it0],
+                                        dartel_poly2(src_sphere, dpoly, prm[it0],
                                                inflow, map_source, map_target,
                                                (double *)0, flow, ll, scratch);
                                 } else {
-                                        dartel_poly(src_sphere, dpoly, prm[it0],
+                                        dartel_poly2(src_sphere, dpoly, prm[it0],
                                                inflow, map_target, map_source,
                                                (double *)0, flow, ll, scratch);
                                 }
