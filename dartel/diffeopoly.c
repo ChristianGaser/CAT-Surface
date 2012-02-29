@@ -546,14 +546,6 @@ if (j == 0) {
 
         ssl += d*d*dt;
     }
-                                if (output_values_any_format("dx.txt",
-                                                   dpoly->n_points, dx_arr,
-                                                   1) != 0)
-                                        exit(EXIT_FAILURE);
-                                if (output_values_any_format("dy.txt",
-                                                   dpoly->n_points, dy_arr,
-                                                   1) != 0)
-                                        exit(EXIT_FAILURE);
     return(0.5*ssl);
 }
 
