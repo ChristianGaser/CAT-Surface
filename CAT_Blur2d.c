@@ -132,20 +132,32 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
 }
 
 void
-smooth_heatkernel(polygons_struct *polygons, int *n_neighbours, int **neighbours, double *values, double fwhm)
+smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
 {
         Real             sigma, value, *smooth_values;
         Point            point, *smooth_pts;
         int              n_iter, i, j;
+        int              *n_neighbours, **neighbours;
         BOOLEAN          values_present;
         progress_struct  progress;
         
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
            
         /* calculate sigma in relation to n_iter */    
-        n_iter = 100;
+        n_iter = 50;
         sigma = fwhm/2.35482 * fwhm/2.35482/n_iter;
-        fprintf(stderr,"fwhm=%3.1f  sigma=%3.2f n_iter=%d\n",fwhm,sigma,n_iter);
+        
+        /* decrease iterations if sigma gets too small */
+        while (sigma < 1.0) {
+                n_iter -= 1;
+                sigma = fwhm/2.35482 * fwhm/2.35482/n_iter;
+        }
+        
+        /* check that at least 1 iteration is done */
+        if (n_iter < 1) {
+                n_iter = 1;
+                sigma = fwhm/2.35482 * fwhm/2.35482/n_iter;
+        }
         
         initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
                                    "Blurring");
@@ -164,8 +176,7 @@ smooth_heatkernel(polygons_struct *polygons, int *n_neighbours, int **neighbours
 
                         if (values != NULL)
                                 smooth_values[i] = value;
-                        else
-                                smooth_pts[i] = point;
+                        else    smooth_pts[i] = point;
 
                         update_progress_report(&progress,
                                                j*polygons->n_points + i + 1);
@@ -179,12 +190,6 @@ smooth_heatkernel(polygons_struct *polygons, int *n_neighbours, int **neighbours
         }
 
 
-                for (i = 0; i < polygons->n_points; i++) {
-                        if (values != NULL)
-                                values[i] = smooth_values[i];
-                        else
-                                polygons->points[i] = smooth_pts[i];
-                }
         terminate_progress_report(&progress);
 
         if (values != NULL) 

@@ -71,7 +71,7 @@ main(int argc, char *argv[])
         get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                                          0.0, 1, gc_strength);
 
-        smooth_heatkernel(polygons, &n_neighbours, &neighbours, NULL, fwhm);
+        smooth_heatkernel(polygons, NULL, fwhm);
         
         compute_polygon_normals(polygons);
 

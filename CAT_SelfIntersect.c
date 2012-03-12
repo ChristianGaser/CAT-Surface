@@ -104,7 +104,7 @@ main(int argc, char** argv)
 
         if (dump_patch == TRUE) {
                 for (i = 1; i <= n_intersects; i++) {
-                        sprintf(str, "patch_%d.obj\0", i);
+                        sprintf(str, "patch_%d.obj\n", i);
                         patch_objects = extract_patch_points(polygons,
                                                              defects, i);
                         patch = get_polygons_ptr(objects[0]);

@@ -204,7 +204,6 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
         double            value;
         double            u, v;
         double            weights[1000], mn, mx;
-        int               *n_neighbours, **neighbours;
         int               i;
         int               x, y;
         int               poly, size, ind;
@@ -215,11 +214,9 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
                 get_smoothed_curvatures(polygons, values, fwhm,
                                         curvtype);
         } else if (fwhm > 0) {
-                get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-                
-                smooth_heatkernel(polygons, &n_neighbours, &neighbours, values, fwhm);
+                smooth_heatkernel(polygons, values, fwhm);
         }
-
+        
         if (sphere == NULL) {
                 /* create unit sphere w/ same # of triangles as skin surface */
                 fill_Point(centre, 0.0, 0.0, 0.0);

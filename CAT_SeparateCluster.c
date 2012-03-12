@@ -153,15 +153,7 @@ main(int argc, char *argv[])
         fprintf(stderr,"%d\n",n_out);
 
         for (i = 0; i < n_out; i++) {
-/* ===============
-*               if (n_out == 1)
-*                       sprintf(out_file, "%s", output_prefix);
-*               else
-*                       sprintf(out_file, "%s_%d.obj", output_prefix, i+1);
-*
-*               output_graphics_any_format(out_file, format, 1, &out[i]);
-=============== */
-                fprintf(stderr,"%g\n",i);
+                fprintf(stderr,"%d\n",i);
         }
 
         return(EXIT_SUCCESS);

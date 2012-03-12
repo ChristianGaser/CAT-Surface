@@ -90,7 +90,7 @@ main(int argc, char *argv[])
                                          distance, curvtype, curvatures);
 
         /* inflate surface by smoothing with FWHM of 150mm */
-        smooth_heatkernel(polygons, &n_neighbours, &neighbours, NULL, fwhm_surf);
+        smooth_heatkernel(polygons, NULL, fwhm_surf);
 
         compute_polygon_normals(polygons);
 
@@ -106,7 +106,7 @@ main(int argc, char *argv[])
                         GI[i] = 0.0;
         }
     
-        smooth_heatkernel(polygons, &n_neighbours, &neighbours, GI, fwhm);
+        smooth_heatkernel(polygons, GI, fwhm);
         
         output_values_any_format(output_file, polygons->n_points,
                                  GI, TYPE_REAL);

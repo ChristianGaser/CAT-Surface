@@ -74,7 +74,7 @@ main(int argc, char *argv[])
 
         } else values = NULL;
 
-        smooth_heatkernel(polygons, &n_neighbours, &neighbours, values, fwhm);
+        smooth_heatkernel(polygons, values, fwhm);
 
         if (values_present) {
                 output_values_any_format(output_file, polygons->n_points,

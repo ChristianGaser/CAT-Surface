@@ -127,7 +127,7 @@ main(int argc, char *argv[])
 
         /* and smooth curvatures */
         if (smoothing)
-                smooth_heatkernel(polygons, &n_neighbours, &neighbours, curvatures, fwhm);
+                smooth_heatkernel(polygons, curvatures, fwhm);
     
         output_values_any_format(output_file, polygons->n_points,
                                  curvatures, TYPE_REAL);
