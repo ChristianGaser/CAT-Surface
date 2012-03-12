@@ -36,16 +36,13 @@ int
 main(int argc, char *argv[])
 {
         char             *input_file, *output_file, *values_file;
-        int              n_objects, i, j, n_iter, n_values;
+        int              n_objects, n_values;
         int              *n_neighbours, **neighbours;
-        FILE             *fp;
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
-        Point            *smooth_pts, point;
-        Real             fwhm, *values, value, *smooth_values, sigma;
+        Real             fwhm, *values;
         BOOLEAN          values_present;
-        progress_struct  progress;
 
         initialize_argument_processing(argc, argv);
 
@@ -69,77 +66,27 @@ main(int argc, char *argv[])
 
         if (values_present) {
                 ALLOC(values, polygons->n_points);
-                ALLOC(smooth_values, polygons->n_points);
 
                 if (input_values_any_format(values_file, &n_values, &values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", values_file);
     	               exit(EXIT_FAILURE);
                 }
 
-                smooth_pts = NULL;
-        } else {
-                ALLOC(smooth_pts, polygons->n_points);
-                values = NULL;
-        }
+        } else values = NULL;
 
-        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-
-        /* select sigma according fwhm */
-        if (fwhm > 50.0)
-                sigma = 8.0;
-        else if (fwhm > 30.0)
-                sigma = 3.0;
-        else if (fwhm > 20.0)
-                sigma = 2.0;
-        else sigma = 1.0;
-
-        /* calculate n_iter in relation to sigma */
-        n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482/sigma);
-        if (n_iter == 0)
-                n_iter = 1;
-    
-        initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
-                                   "Blurring");
-
-        /* diffusion smoothing using heat kernel */
-        for (j = 0; j < n_iter; j++) {
-                for (i = 0; i < polygons->n_points; i++) {
-                        heatkernel_blur_points(polygons->n_points,
-                                               polygons->points, values,
-                                               n_neighbours[i], neighbours[i],
-                                               i, sigma, &point, &value);
-                        if (values_present)
-                                smooth_values[i] = value;
-                        else
-                                smooth_pts[i] = point;
-
-                        update_progress_report(&progress,
-                                               j*polygons->n_points + i + 1);
-                }
-                for (i = 0; i < polygons->n_points; i++) {
-                        if (values_present)
-                                values[i] = smooth_values[i];
-                        else
-                                polygons->points[i] = smooth_pts[i];
-                }
-        }
-
-        terminate_progress_report(&progress);
+        smooth_heatkernel(polygons, &n_neighbours, &neighbours, values, fwhm);
 
         if (values_present) {
                 output_values_any_format(output_file, polygons->n_points,
-                                         smooth_values, TYPE_REAL);
-                FREE(smooth_values);
+                                         values, TYPE_REAL);
                 FREE(values);
         } else {
-                polygons->points = smooth_pts;
 
                 compute_polygon_normals(polygons);
 
                 if(output_graphics_any_format(output_file, format, 1, 
                                 object_list) != OK)
                         exit(EXIT_FAILURE);
-                FREE(smooth_pts);
         }
 
         return(EXIT_SUCCESS);

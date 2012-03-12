@@ -43,15 +43,12 @@ main(int argc, char *argv[])
 {
         char                 *object_file, *output_file;
         File_formats         format;
-        int                  i, j, n_iter, n_objects, curvtype;
+        int                  i, n_objects, curvtype;
         int                  *n_neighbours, **neighbours;
         object_struct        **objects;
         polygons_struct      *polygons;
-        Point                *smooth_points, point;
-        signed char          *done_flags;
         Real                 fwhm, fwhm_surf, *curvatures, *curvs_inflated;
-        Real                 *GI, value, distance, sigma;
-        progress_struct      progress;
+        Real                 *GI, distance;
 
         initialize_argument_processing(argc, argv);
 
@@ -81,8 +78,6 @@ main(int argc, char *argv[])
         ALLOC(curvatures, polygons->n_points);
         ALLOC(curvs_inflated, polygons->n_points);
         ALLOC(GI, polygons->n_points);
-        ALLOC(smooth_points, polygons->n_points);
-        ALLOC(done_flags, polygons->n_points);
 
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
     
@@ -95,36 +90,8 @@ main(int argc, char *argv[])
                                          distance, curvtype, curvatures);
 
         /* inflate surface by smoothing with FWHM of 150mm */
-    
-        /* calculate n_iter with regard to sigma */
-        sigma = 8.0;
-        n_iter = ROUND(fwhm_surf/2.35482 * fwhm_surf/2.35482/sigma);
+        smooth_heatkernel(polygons, &n_neighbours, &neighbours, NULL, fwhm_surf);
 
-        for (i = 0; i < polygons->n_points; i++)
-                done_flags[i] = FALSE;
-
-        initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
-                                   "Blurring surface" );
-
-        /* diffusion smoothing using heat kernel */                        
-        for (j = 0; j < n_iter; j++) {
-                for (i = 0; i < polygons->n_points; i++) {
-                        heatkernel_blur_points(polygons->n_points,
-                                               polygons->points, NULL,
-                                               n_neighbours[i], neighbours[i],
-                                               i, sigma, &point, &value);
-                        smooth_points[i] = point;
-
-                        update_progress_report(&progress,
-                                               j*polygons->n_points + i + 1);
-                }
-                for (i = 0; i <  polygons->n_points; i++) {
-                        polygons->points[i] = smooth_points[i];
-                }
-        }
-        terminate_progress_report(&progress);
-
-        polygons->points = smooth_points;
         compute_polygon_normals(polygons);
 
         /* get curvature values of inflated surface */
@@ -139,31 +106,8 @@ main(int argc, char *argv[])
                         GI[i] = 0.0;
         }
     
-        /* smooth GI values */
-        /* calculate n_iter for sigma = 1.0 */
-        n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482);
-        sigma = 1.0;
-
-        for (i = 0; i < polygons->n_points; i++)
-                done_flags[i] = FALSE;
-
-        initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
-                                   "Blurring values");
-
-        for (j = 0; j < n_iter; j++) {
-                for (i = 0; i < polygons->n_points; i++) {
-                        heatkernel_blur_points(polygons->n_points,
-                                               polygons->points, GI,
-                                               n_neighbours[i], neighbours[i],
-                                               i, sigma, NULL, &value);
-                        GI[i] = value;
-                        update_progress_report(&progress,
-                                               j*polygons->n_points + i + 1 );
-                }
-        }
-
-        terminate_progress_report(&progress);
-
+        smooth_heatkernel(polygons, &n_neighbours, &neighbours, GI, fwhm);
+        
         output_values_any_format(output_file, polygons->n_points,
                                  GI, TYPE_REAL);
 
@@ -171,7 +115,6 @@ main(int argc, char *argv[])
         FREE(curvatures);
         FREE(curvs_inflated);
         FREE(GI);
-        FREE(done_flags);
 
         return(EXIT_SUCCESS);
 }

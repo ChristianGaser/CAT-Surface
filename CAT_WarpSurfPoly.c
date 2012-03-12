@@ -288,9 +288,9 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *src_sphere,
         map_target = (double *) malloc(sizeof(double) * source->n_points);
         map_source = (double *) malloc(sizeof(double) * source->n_points);
 
-        get_smoothed_curvatures(target, trg_sphere, orig_target,
+        get_smoothed_curvatures(target, orig_target,
                                 fwhm, curvtype);
-        get_smoothed_curvatures(source, src_sphere, map_source,
+        get_smoothed_curvatures(source, map_source,
                                 fwhm, curvtype);
 
         for (degrees = max_degrees; degrees >= min_degrees; degrees /= 2.0f) {
@@ -568,7 +568,7 @@ main(int argc, char *argv[])
                         
                         /* save pgm for debugging */
                         if (debug) {
-                                get_smoothed_curvatures(sm_source, src_sphere,
+                                get_smoothed_curvatures(sm_source,
                                                         map_source, fwhm,
                                                         curvtype);
                                 sprintf(buffer,"source%d.txt",curvtype);
@@ -620,10 +620,10 @@ main(int argc, char *argv[])
                 }
 
                 /* get curvatures */
-                get_smoothed_curvatures(sm_source, src_sphere, map_source,
+                get_smoothed_curvatures(sm_source, map_source,
                                         fwhm, curvtype);
 
-                get_smoothed_curvatures(sm_target, trg_sphere, orig_target,
+                get_smoothed_curvatures(sm_target, orig_target,
                                         fwhm, curvtype);
                 resample_values(trg_sphere, src_sphere, orig_target,
                                 map_target);

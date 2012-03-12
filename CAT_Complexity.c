@@ -409,26 +409,7 @@ get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
         Point point;
 
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-
-        sm_values = (double *) malloc(sizeof(double) * polygons->n_points);
-
-        /* smooth the values */
-        sigma = 2.0;
-        n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482/sigma);
-    
-        /* diffusion smoothing using heat kernel */
-        for (j = 0; j < n_iter; j++) {
-                for (i = 0; i < polygons->n_points; i++) {
-                        heatkernel_blur_points(polygons->n_points,
-                                               polygons->points, values,
-                                               n_neighbours[i], neighbours[i],
-                                               i, sigma, &point, &sm_values[i]);
-                }
-                for (i = 0; i < polygons->n_points; i++)
-                        values[i] = sm_values[i];
-        }
-
-        free(sm_values);
+        smooth_heatkernel(polygons, &n_neighbours, &neighbours, values, fwhm);
 }
 
 

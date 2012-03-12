@@ -341,9 +341,9 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
         map_trg  = (double *) malloc(sizeof(double) * src->n_points);
         map_src  = (double *) malloc(sizeof(double) * src->n_points);
 
-        get_smoothed_curvatures(trg, trg_sphere, orig_trg,
+        get_smoothed_curvatures(trg, orig_trg,
                                 fwhm, curvtype);
-        get_smoothed_curvatures(src, src_sphere, map_src,
+        get_smoothed_curvatures(src, map_src,
                                 fwhm, curvtype);
 
         for (degrees = max_degrees; degrees >= min_degrees; degrees /= 2.0f) {

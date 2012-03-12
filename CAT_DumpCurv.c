@@ -46,16 +46,13 @@ int
 main(int argc, char *argv[])
 {
         char                 *object_file, *output_file;
-        FILE                 *fp;
         File_formats         format;
-        int                  i, j, n_iter, n_objects, curvtype, sign;
+        int                  i, n_objects, curvtype, sign;
         int                  *n_neighbours, **neighbours, use_abs_values;
         object_struct        **objects;
         polygons_struct      *polygons;
-        signed char          *done_flags;
-        Real                 fwhm, sigma, *curvatures, value, distance;
+        Real                 fwhm, *curvatures, distance;
         BOOLEAN              smoothing;
-        progress_struct      progress;
 
         initialize_argument_processing(argc, argv);
 
@@ -129,37 +126,8 @@ main(int argc, char *argv[])
         }
 
         /* and smooth curvatures */
-        if (smoothing) {
-                /* calculate n_iter for sigma = 1.0 */
-                n_iter = ROUND(fwhm/2.35482 * fwhm/2.35482);
-                if (n_iter == 0)
-                        n_iter = 1;
-
-                sigma = 1.0;
-                ALLOC(done_flags, polygons->n_points);
-
-                initialize_progress_report(&progress, FALSE,
-                                           n_iter * polygons->n_points,
-                                           "Blurring");
-
-                for (j = 0; j < n_iter; j++) {
-                        for (i = 0; i < polygons->n_points; i++) {
-                                heatkernel_blur_points(polygons->n_points,
-                                                       polygons->points,
-                                                       curvatures,
-                                                       n_neighbours[i],
-                                                       neighbours[i], i, sigma,
-                                                       NULL, &value);
-                                curvatures[i] = value;
-                                update_progress_report(&progress,
-                                                       (j*polygons->n_points) +
-                                                       i + 1);
-                        }
-                }
-
-                terminate_progress_report(&progress);
-                FREE(done_flags);
-        }
+        if (smoothing)
+                smooth_heatkernel(polygons, &n_neighbours, &neighbours, curvatures, fwhm);
     
         output_values_any_format(output_file, polygons->n_points,
                                  curvatures, TYPE_REAL);
