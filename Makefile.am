@@ -101,7 +101,6 @@ noinst_HEADERS = \
 	CAT_Pinv.h \
 	CAT_SurfaceIO.h \
 	CAT_SPH.h \
-	CAT_SliceIO.h \
 	CAT_Interpolate.h \
     CAT_Isometrics.h \
 	CAT_Metrics.h \
@@ -146,7 +145,7 @@ CAT_AverageSurfaces_SOURCES = CAT_AverageSurfaces.c CAT_SurfaceIO.c
 CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_Blur2d.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Curvature.c
 CAT_Color2Surf_SOURCES = CAT_Color2Surf.c CAT_SurfaceIO.c
 CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Blur2d.c CAT_SurfaceIO.c
-CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SliceIO.c CAT_SurfaceIO.c
+CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SurfaceIO.c
 CAT_GLM_Math_SOURCES = CAT_GLM_Math.c CAT_SurfaceIO.c
 CAT_SurfConvert_SOURCES = CAT_SurfConvert.c CAT_SurfaceIO.c 
 CAT_FreesurferCurv2Txt_SOURCES = CAT_FreesurferCurv2Txt.c CAT_SurfaceIO.c 

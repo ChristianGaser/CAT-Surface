@@ -14,7 +14,6 @@ struct patchinfo {
         struct patchinfo *next;
 };
 
-
 object_struct ** extract_patch_around_polygon(polygons_struct *, int, int);
 object_struct ** extract_patch_around_point(polygons_struct *, int, int);
 object_struct ** extract_patch_polys(polygons_struct *, int *, int);
