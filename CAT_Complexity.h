@@ -8,8 +8,6 @@
  */
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
-
-//#define SPH_ITERS 47
 #define SPH_ITERS 10
 #define BW 1024
 #define FWHM 30.0
@@ -18,10 +16,7 @@ double slope(double *, double *, int);
 double get_globalfd(double *, double *, int);
 void get_localfd(polygons_struct *, double *, double **, int, double *, int);
 
-object_struct ** create_resampling_sphere(double, int);
 int min_triangles_update(int *, int *, int *);
-object_struct ** resample_surface(polygons_struct *, polygons_struct *,
-                                  int, double *, double *);
 double fractal_dimension(polygons_struct *, polygons_struct *, int, char *,
                          int, int);
 
