@@ -14,7 +14,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Curvature.h"
-#include "CAT_Blur2d.h"
+#include "CAT_Smooth.h"
 #include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Patch.h"

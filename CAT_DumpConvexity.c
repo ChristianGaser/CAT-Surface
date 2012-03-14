@@ -10,10 +10,10 @@
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 
-#include "CAT_Blur2d.h"
+#include "CAT_Smooth.h"
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
-#include "CAT_Metrics.h"
+#include "CAT_Curvature.h"
     
 int
 main(int argc, char *argv[])

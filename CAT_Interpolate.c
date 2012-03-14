@@ -7,13 +7,6 @@
  *
  */
 
-#include <volume_io/internal_volume_io.h>
-#include <bicpl.h>
-#include <float.h>
-
-#include "CAT_Surf.h"
-#include "CAT_Blur2d.h"
-#include "CAT_Curvature.h"
 #include "CAT_Interpolate.h"
 
 

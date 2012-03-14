@@ -94,8 +94,8 @@ dartel_SRC = \
 	dartel/optimizersphere.c
 	
 noinst_HEADERS = \
-	CAT_Map2d.h \
-	CAT_Blur2d.h \
+	CAT_Map.h \
+	CAT_Smooth.h \
 	CAT_Curvature.h \
 	CAT_Surf.h \
 	CAT_Pinv.h \
@@ -103,7 +103,6 @@ noinst_HEADERS = \
 	CAT_SPH.h \
 	CAT_Interpolate.h \
     CAT_Isometrics.h \
-	CAT_Metrics.h \
 	CAT_Patch.h \
 	CAT_Resample.h \
 	CAT_Complexity.h \
@@ -132,57 +131,57 @@ noinst_HEADERS = \
 	nl/nl_superlu.h
 
         
-CAT_Surf2Sheet_SOURCES = CAT_Surf2Sheet.c CAT_Map2d.c CAT_Blur2d.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c
-CAT_Sheet2Surf_SOURCES = CAT_Sheet2Surf.c CAT_Map2d.c CAT_SurfaceIO.c CAT_Blur2d.c CAT_Surf.c CAT_Curvature.c
+CAT_Surf2Sheet_SOURCES = CAT_Surf2Sheet.c CAT_Map.c CAT_Smooth.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c
+CAT_Sheet2Surf_SOURCES = CAT_Sheet2Surf.c CAT_Map.c CAT_SurfaceIO.c CAT_Smooth.c CAT_Surf.c CAT_Curvature.c
 CAT_3dVol2Surf_SOURCES = CAT_3dVol2Surf.c CAT_SurfaceIO.c CAT_NiftiIO.c
-CAT_DumpCurv_SOURCES = CAT_DumpCurv.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
-CAT_DumpGI_SOURCES = CAT_DumpGI.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
+CAT_DumpCurv_SOURCES = CAT_DumpCurv.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c
+CAT_DumpGI_SOURCES = CAT_DumpGI.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c
 CAT_DeformSurf_SOURCES = CAT_DeformSurf.c CAT_DeformPolygons.c CAT_SurfaceIO.c CAT_NiftiIO.c
-CAT_ApplyWarpSurf_SOURCES = CAT_ApplyWarpSurf.c CAT_Blur2d.c CAT_Map2d.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c $(dartel_SRC)
-CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map2d.c CAT_SurfaceIO.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c $(dartel_SRC)
-CAT_DumpSurfArea_SOURCES = CAT_DumpSurfArea.c CAT_Surf.c CAT_SurfaceIO.c CAT_Blur2d.c CAT_Map2d.c CAT_Curvature.c
+CAT_ApplyWarpSurf_SOURCES = CAT_ApplyWarpSurf.c CAT_Smooth.c CAT_Map.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c $(dartel_SRC)
+CAT_ApplyWarpValues_SOURCES = CAT_ApplyWarpValues.c CAT_Map.c CAT_SurfaceIO.c CAT_Surf.c CAT_Smooth.c CAT_Curvature.c $(dartel_SRC)
+CAT_DumpSurfArea_SOURCES = CAT_DumpSurfArea.c CAT_Surf.c CAT_SurfaceIO.c CAT_Smooth.c CAT_Map.c CAT_Curvature.c
 CAT_AverageSurfaces_SOURCES = CAT_AverageSurfaces.c CAT_SurfaceIO.c
-CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_Blur2d.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Curvature.c
+CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_Smooth.c CAT_SurfaceIO.c CAT_Map.c CAT_Curvature.c
 CAT_Color2Surf_SOURCES = CAT_Color2Surf.c CAT_SurfaceIO.c
-CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Blur2d.c CAT_SurfaceIO.c
+CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Smooth.c CAT_SurfaceIO.c
 CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SurfaceIO.c
 CAT_GLM_Math_SOURCES = CAT_GLM_Math.c CAT_SurfaceIO.c
 CAT_SurfConvert_SOURCES = CAT_SurfConvert.c CAT_SurfaceIO.c 
 CAT_FreesurferCurv2Txt_SOURCES = CAT_FreesurferCurv2Txt.c CAT_SurfaceIO.c 
 CAT_PlotValuesAtPoint_SOURCES = CAT_PlotValuesAtPoint.c CAT_SurfaceIO.c
 CAT_PlotValuesAtMaximum_SOURCES = CAT_PlotValuesAtMaximum.c CAT_SurfaceIO.c
-CAT_SeparateCluster_SOURCES = CAT_SeparateCluster.c CAT_Blur2d.c CAT_SurfaceIO.c
-CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c 
-CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c 
-CAT_ResampleSurf_SOURCES = CAT_ResampleSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c 
-CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_MetricDistortion_SOURCES = CAT_MetricDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_FixTopology_SOURCES = CAT_FixTopology.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_SPH.c CAT_Octree.c CAT_Intersect.c CAT_DeformPolygons.c CAT_Defect.c CAT_NiftiIO.c $(s2kit10_SRC)
-CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Isometrics.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
-CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c $(dartel_SRC)
-CAT_WarpSurfSPH_SOURCES = CAT_WarpSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Blur2d.c CAT_Curvature.c $(s2kit10_SRC)
-CAT_ArealSmoothing_SOURCES = CAT_ArealSmoothing.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
-CAT_GaussCurvSmoothing_SOURCES = CAT_GaussCurvSmoothing.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c
-CAT_Surf2SPH_SOURCES = CAT_Surf2SPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Blur2d.c CAT_Curvature.c $(s2kit10_SRC)
-CAT_SPH2Surf_SOURCES = CAT_SPH2Surf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Blur2d.c CAT_Curvature.c $(s2kit10_SRC)
-CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Curvature.c CAT_NiftiIO.c $(s2kit10_SRC)
-CAT_ApplyWarpSPH_SOURCES = CAT_ApplyWarpSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c $(nl_SRC)
-CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Octree.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c
-CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c
-CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_Intersect.c CAT_Patch.c CAT_Defect.c
-CAT_MarkDefects_SOURCES = CAT_MarkDefects.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
-CAT_Artifacts_SOURCES = CAT_Artifacts.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
-CAT_LabelHoles_SOURCES = CAT_LabelHoles.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map2d.c CAT_Blur2d.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_NiftiIO.c
-CAT_FractalSurface_SOURCES = CAT_FractalSurface.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Resample.c
-CAT_FractalDimension_SOURCES = CAT_FractalDimension.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Resample.c
-CAT_GIPhantom_SOURCES = CAT_GIPhantom.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c CAT_Map2d.c CAT_Blur2d.c
+CAT_SeparateCluster_SOURCES = CAT_SeparateCluster.c CAT_Smooth.c CAT_SurfaceIO.c
+CAT_Surf2Sphere_SOURCES = CAT_Surf2Sphere.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c 
+CAT_ResampleSphericalSurf_SOURCES = CAT_ResampleSphericalSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c 
+CAT_ResampleSurf_SOURCES = CAT_ResampleSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c 
+CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
+CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
+CAT_MetricDistortion_SOURCES = CAT_MetricDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
+CAT_FixTopology_SOURCES = CAT_FixTopology.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_SPH.c CAT_Octree.c CAT_Intersect.c CAT_DeformPolygons.c CAT_Defect.c CAT_NiftiIO.c $(s2kit10_SRC)
+CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Isometrics.c CAT_Surf.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c
+CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c $(dartel_SRC)
+CAT_WarpSurfSPH_SOURCES = CAT_WarpSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Smooth.c CAT_Curvature.c $(s2kit10_SRC)
+CAT_ArealSmoothing_SOURCES = CAT_ArealSmoothing.c CAT_Surf.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c
+CAT_GaussCurvSmoothing_SOURCES = CAT_GaussCurvSmoothing.c CAT_Surf.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c
+CAT_Surf2SPH_SOURCES = CAT_Surf2SPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Smooth.c CAT_Curvature.c $(s2kit10_SRC)
+CAT_SPH2Surf_SOURCES = CAT_SPH2Surf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Smooth.c CAT_Curvature.c $(s2kit10_SRC)
+CAT_ResampleSphericalSurfSPH_SOURCES = CAT_ResampleSphericalSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Curvature.c CAT_NiftiIO.c $(s2kit10_SRC)
+CAT_ApplyWarpSPH_SOURCES = CAT_ApplyWarpSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
+CAT_LBConformalMap_SOURCES = CAT_LBConformalMap.c CAT_Surf.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c $(nl_SRC)
+CAT_Hausdorff_SOURCES = CAT_Hausdorff.c CAT_Octree.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
+CAT_Sharpness_SOURCES = CAT_Sharpness.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c
+CAT_SelfIntersect_SOURCES = CAT_SelfIntersect.c CAT_SurfaceIO.c CAT_Octree.c CAT_Surf.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c CAT_Intersect.c CAT_Patch.c CAT_Defect.c
+CAT_MarkDefects_SOURCES = CAT_MarkDefects.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
+CAT_Artifacts_SOURCES = CAT_Artifacts.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_Patch.c
+CAT_LabelHoles_SOURCES = CAT_LabelHoles.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Octree.c CAT_Intersect.c CAT_Defect.c CAT_NiftiIO.c
+CAT_FractalSurface_SOURCES = CAT_FractalSurface.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map.c CAT_Smooth.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Resample.c
+CAT_FractalDimension_SOURCES = CAT_FractalDimension.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map.c CAT_Smooth.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Resample.c
+CAT_GIPhantom_SOURCES = CAT_GIPhantom.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c CAT_Map.c CAT_Smooth.c
 CAT_RefineMesh_SOURCES = CAT_RefineMesh.c CAT_SurfaceIO.c
-CAT_DumpConvexity_SOURCES = CAT_DumpConvexity.c CAT_SurfaceIO.c CAT_Metrics.c 
+CAT_DumpConvexity_SOURCES = CAT_DumpConvexity.c CAT_SurfaceIO.c CAT_Curvature.c CAT_Smooth.c
 CAT_MarchingCubes_SOURCES = CAT_MarchingCubes.c CAT_NiftiIO.c CAT_SurfaceIO.c
-CAT_WarpSurfPoly_SOURCES = CAT_WarpSurfPoly.c CAT_Map2d.c CAT_Blur2d.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c CAT_Interpolate.c dartel/diffeopoly.c
-CAT_Test_SOURCES = CAT_Test.c CAT_Surf.c CAT_SurfaceIO.c CAT_Blur2d.c CAT_Map2d.c CAT_Curvature.c
+CAT_WarpSurfPoly_SOURCES = CAT_WarpSurfPoly.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c CAT_Interpolate.c dartel/diffeopoly.c
+CAT_Test_SOURCES = CAT_Test.c CAT_Surf.c CAT_SurfaceIO.c CAT_Smooth.c CAT_Map.c CAT_Curvature.c
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
 	m4/mni_REQUIRE_MNILIBS.m4 \

@@ -11,7 +11,7 @@
 #include <bicpl.h>
 #include <ParseArgv.h>
 
-#include "CAT_Map2d.h"
+#include "CAT_Map.h"
 
 #define  BINTREE_FACTOR   0.5
 

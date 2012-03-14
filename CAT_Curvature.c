@@ -350,3 +350,48 @@ compute_local_sharpness(polygons_struct *polygons, int n_neighbours[],
                 sharpness[p] = PI2 * 90 * max_radians;
         }
 }
+
+void
+calc_convexity(polygons_struct *polygons, int n_neighbours[],
+               int *neighbours[], double l_convex, double *convexity)
+{
+        int              p, n;
+        double nx, ny, nz, x, y, z, sx, sy, sz, nc;
+        Point npt;
+
+        compute_polygon_normals(polygons);
+
+        for (p = 0; p < polygons->n_points; p++) {
+            nx = Point_x(polygons->normals[p]);
+            ny = Point_y(polygons->normals[p]);
+            nz = Point_z(polygons->normals[p]);
+            x = Point_x(polygons->points[p]);
+            y = Point_y(polygons->points[p]);
+            z = Point_z(polygons->points[p]);
+
+            sx = sy = sz = 0.0;
+            for (n = 0; n < n_neighbours[p]; n++) {
+                npt = polygons->points[neighbours[p][n]];
+                sx += Point_x(npt) - x;
+                sy += Point_y(npt) - y;
+                sz += Point_z(npt) - z;
+            }
+            if (n > 0) {
+                sx /= n; sy /= n; sz /= n;
+            }
+            convexity[p] = sx*nx + sy*ny + sz*nz;   /* projection onto normal */
+            if (convexity[p] < 0)
+                convexity[p] = 0;
+
+            sx = convexity[p]*nx;              /* move in normal direction */
+            sy = convexity[p]*ny;
+            sz = convexity[p]*nz;
+
+            //Point_x(depths[p]) += l_convex * sx;
+            //Point_y(depths[p]) += l_convex * sy;
+            //Point_z(depths[p]) += l_convex * sz;
+    }
+
+
+}
+

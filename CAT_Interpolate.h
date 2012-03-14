@@ -12,7 +12,7 @@
 #include <float.h>
 
 #include "CAT_Surf.h"
-#include "CAT_Blur2d.h"
+#include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 
 #define  BINTREE_FACTOR   0.5

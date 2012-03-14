@@ -10,7 +10,7 @@
 #include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 
-#include "CAT_Blur2d.h"
+#include "CAT_Smooth.h"
 
 int
 separate_polygons(polygons_struct *polygons, int desired_index, Real *values);

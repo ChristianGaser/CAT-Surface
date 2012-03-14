@@ -10,8 +10,8 @@
 #include <bicpl.h>
 #include <ParseArgv.h>
 
-#include "CAT_Map2d.h"
-#include "CAT_Blur2d.h"
+#include "CAT_Map.h"
+#include "CAT_Smooth.h"
 #include "CAT_SPH.h"
 #include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"

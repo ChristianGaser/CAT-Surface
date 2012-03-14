@@ -14,7 +14,7 @@
 #include <float.h>
 
 #include "CAT_Surf.h"
-#include "CAT_Blur2d.h"
+#include "CAT_Smooth.h"
 
 #define _PI 3.14159265358979323846264338327510
 

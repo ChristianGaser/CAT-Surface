@@ -12,7 +12,7 @@
 #include <float.h>
 #include <ParseArgv.h>
 
-#include "CAT_Map2d.h"
+#include "CAT_Map.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
 
