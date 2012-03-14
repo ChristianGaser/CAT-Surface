@@ -11,7 +11,6 @@
 #include <bicpl/deform.h>
 #include <ParseArgv.h>
 
-#include "CAT_SheetIO.h"
 #include "CAT_Map2d.h"
 #include "CAT_Blur2d.h"
 #include "CAT_Intersect.h"

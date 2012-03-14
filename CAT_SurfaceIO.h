@@ -33,3 +33,5 @@ int    input_freesurfer(char *, File_formats *, int *, object_struct  ***);
 int    input_freesurfer_curv(char *, int *, Real **);
 int    input_dx(char *, File_formats *, int *, object_struct  ***);
 int    input_dfs(char *, File_formats *, int *, object_struct  ***);
+Real * read_pgm(char *, int *, int *);
+int    write_pgm(char *, Real *, int, int);

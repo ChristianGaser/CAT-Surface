@@ -12,7 +12,6 @@
 #include <ParseArgv.h>
 #include <math.h>
 
-#include "CAT_SheetIO.h"
 #include "CAT_Map2d.h"
 #include "CAT_Blur2d.h"
 #include "CAT_SurfaceIO.h"
