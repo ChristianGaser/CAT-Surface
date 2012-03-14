@@ -24,7 +24,7 @@ resample_tetrahedron(polygons_struct *surface, polygons_struct *sphere,
         object_struct **objects, *scaled_objects;
         polygons_struct *platonic_solid, *scaled_sphere;
         double radius, r;
-        Real weights[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
 
         /* Check tetrahedral topology. Best areal distribution of triangles
          * is achieved for 20 edges
@@ -110,7 +110,7 @@ resample_noscale(polygons_struct *source, polygons_struct *target,
         Point point, centre;
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         double radius, r;
-        Real weights[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
 
         if (source->bintree == NULL) {
                 create_polygons_bintree(source,
@@ -176,7 +176,7 @@ resample_surface_sphere(polygons_struct *polygons, polygons_struct *sphere)
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct **objects, **scaled_objects;
         polygons_struct *polygons_sphere, *scaled_sphere;
-        Real weights[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
 
         objects = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
@@ -240,7 +240,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
         object_struct **objects, *scaled_objects;
         polygons_struct *platonic_solid, *scaled_sphere;
         double radius, r;
-        Real weights[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
 
         /* Check tetrahedral topology. Best areal distribution of triangles
          * is achieved for 20 edges

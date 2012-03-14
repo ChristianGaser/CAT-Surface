@@ -41,7 +41,7 @@ main(int argc, char *argv[])
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
-        Real             fwhm, *values;
+        double             fwhm, *values;
         BOOLEAN          values_present;
 
         initialize_argument_processing(argc, argv);
@@ -78,7 +78,7 @@ main(int argc, char *argv[])
 
         if (values_present) {
                 output_values_any_format(output_file, polygons->n_points,
-                                         values, TYPE_REAL);
+                                         values, TYPE_DOUBLE);
                 FREE(values);
         } else {
 

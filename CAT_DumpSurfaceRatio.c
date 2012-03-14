@@ -34,7 +34,7 @@ main(int argc, char *argv[])
         object_struct        **objects;
         polygons_struct      *polygons;
         double               *area_values;
-        Real                 radius;
+        double                 radius;
 
         initialize_argument_processing(argc, argv);
 

@@ -35,7 +35,7 @@ Vector
 projection(Vector vector, Vector normal)
 {
         Vector xyz;
-        const Real t2 = DOT_VECTORS(vector, normal);
+        const double t2 = DOT_VECTORS(vector, normal);
  
         Vector_x(xyz) = Vector_x(vector) - (t2*Vector_x(normal));
         Vector_y(xyz) = Vector_y(vector) - (t2*Vector_y(normal));
@@ -45,15 +45,15 @@ projection(Vector vector, Vector normal)
 
 
 void
-leastSquares(const int num, Vector dc[], Vector dn[], Real *k1, Real *k2)
+leastSquares(const int num, Vector dc[], Vector dn[], double *k1, double *k2)
 {
         int i;
-        Real sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
-        Real wx = 0.0, wy = 0.0, wxy = 0.0;
-        Real a = 0.0, b = 0.0, c = 0.0;
-        Real wx2, wy2, wxy2, t1;
-        Real trC, detC, temp;
-        Real deltaPlus, deltaMinus;
+        double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
+        double wx = 0.0, wy = 0.0, wxy = 0.0;
+        double a = 0.0, b = 0.0, c = 0.0;
+        double wx2, wy2, wxy2, t1;
+        double trC, detC, temp;
+        double deltaPlus, deltaMinus;
    
         for (i = 0; i < num; i++) {
                 sum1 += (Vector_x(dc[i]) * Vector_x(dn[i]));
@@ -120,15 +120,15 @@ void
 compute_points_centroid_and_normal_cg(polygons_struct *polygons,
                                       int pidx, int n_neighbours,
                                       int neighbours[], Point *centroid,
-                                      Vector *normal, Real *baselen,
-                                      int curvtype, Real *curvparameter)
+                                      Vector *normal, double *baselen,
+                                      int curvtype, double *curvparameter)
 {
         int      i;
         Point    neigh_pts[MAX_NEIGHBOURS];
         Vector   deltaNormal[MAX_NEIGHBOURS],deltaCoord[MAX_NEIGHBOURS];
         Vector   basis[2], t1, dn[MAX_NEIGHBOURS], dc[MAX_NEIGHBOURS];
         Vector   projected;
-        Real     k1, k2;
+        double     k1, k2;
 
         if (n_neighbours > 2) {
                 for (i = 0; i < n_neighbours; i++)
@@ -211,11 +211,11 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
 
 void
 get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
-                                 int *neighbours[], Real smoothing_distance,
-                                 int curvtype, Real curvatures[])
+                                 int *neighbours[], double smoothing_distance,
+                                 int curvtype, double curvatures[])
 {
         int              size, pidx, vidx, p;
-        Real             curvature, baselen;
+        double             curvature, baselen;
         signed char      *point_done;
         Point            centroid;
         Vector           normal;

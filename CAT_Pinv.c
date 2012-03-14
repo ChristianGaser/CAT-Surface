@@ -20,10 +20,10 @@
 #define EPS 1e-15
 
 int
-pinv(int m, int n, Real **A, Real **Ainv)
+pinv(int m, int n, double **A, double **Ainv)
 {
         int   i, j, k, r;
-        Real  **U, **V, **S, *W, **Ut;
+        double  **U, **V, **S, *W, **Ut;
     
         ALLOC2D(U, m, n);
         ALLOC2D(V, n, n);

@@ -74,18 +74,18 @@ get_all_polygon_point_neighbours(polygons_struct *polygons,
 }
 
 Real
-evaluate_heatkernel(Real x, Real sigma)
+evaluate_heatkernel(double x, double sigma)
 {
     return(exp(-x / (2 * sigma * sigma)));
 }
 
 void
 heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
-                       Real values[], int n_neighbours, int *neighbours,
-                       int ptidx, Real sigma, Point *smooth_point,
-                       Real *value)
+                       double values[], int n_neighbours, int *neighbours,
+                       int ptidx, double sigma, Point *smooth_point,
+                       double *value)
 {
-        Real   sum[3], weight, sum_weight, point_dist;
+        double   sum[3], weight, sum_weight, point_dist;
         int    i, c, n_pts, neigh;
 
         if (sigma <= 0.0)
@@ -134,7 +134,7 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
 void
 smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
 {
-        Real             sigma, value, *smooth_values;
+        double             sigma, value, *smooth_values;
         Point            point, *smooth_pts;
         int              n_iter, i, j;
         int              *n_neighbours, **neighbours;

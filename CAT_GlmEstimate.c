@@ -65,9 +65,9 @@ DESCRIPTION\n\
 }
 
 void
-normalize_vector(Real *data, int length)
+normalize_vector(double *data, int length)
 {
-        Real mean;
+        double mean;
         int i;
     
         mean = 0.0;
@@ -92,9 +92,9 @@ estimate(char **infiles, char *arg_string, int argc)
         int                  i, j, k, n_subj, n_vals, n_tmp, prev_n_vals;
         int                  n_beta, rank, erdf, counter, *idx;
         int                  n_cov;
-        Real                 **vals, *tmpvals, *data, **indata;
-        Real                 **G, *v, **inv_G, **transp_G, **pinv_GG;
-        Real                 **beta, *beta0, **estimates, **resSD, sum, *result;
+        double                 **vals, *tmpvals, *data, **indata;
+        double                 **G, *v, **inv_G, **transp_G, **pinv_GG;
+        double                 **beta, *beta0, **estimates, **resSD, sum, *result;
         progress_struct      progress;
 
         counter = 0;
@@ -274,7 +274,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 concat_to_string(&outfile, buffer);
                 for (k = 0; k < n_vals; k++) beta0[k] = beta[j][k];
     
-                output_values_any_format(outfile, n_vals, beta0, TYPE_REAL);
+                output_values_any_format(outfile, n_vals, beta0, TYPE_DOUBLE);
         }
 
         /* calculate fitted data: estimates = G*beta */
@@ -292,7 +292,7 @@ estimate(char **infiles, char *arg_string, int argc)
         }
 
         outfile = create_string("ResMS.txt");    
-        output_values_any_format(outfile, n_vals, v, TYPE_REAL);
+        output_values_any_format(outfile, n_vals, v, TYPE_DOUBLE);
 
         /* write beta and beta/ResSD for each column of design matrix */
         for (j = 0; j < n_beta; j++) {
@@ -306,7 +306,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 for (k = 0; k < n_vals; k++) {
                         result[k] = sqrt(v[k] * pinv_GG[j][j]);
                 }
-                output_values_any_format(outfile, n_vals, result, TYPE_REAL);
+                output_values_any_format(outfile, n_vals, result, TYPE_DOUBLE);
 
                 /* T-values */
                 outfile = create_string("T");
@@ -316,7 +316,7 @@ estimate(char **infiles, char *arg_string, int argc)
                 for (k = 0; k < n_vals; k++) {
                         result[k] = beta[j][k] / (sqrt(v[k] * pinv_GG[j][j]) + EPS);
                 }
-                output_values_any_format(outfile, n_vals, result, TYPE_REAL);
+                output_values_any_format(outfile, n_vals, result, TYPE_DOUBLE);
                 FREE(result);
         }
     

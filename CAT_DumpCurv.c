@@ -51,7 +51,7 @@ main(int argc, char *argv[])
         int                  *n_neighbours, **neighbours, use_abs_values;
         object_struct        **objects;
         polygons_struct      *polygons;
-        Real                 fwhm, *curvatures, distance;
+        double                 fwhm, *curvatures, distance;
         BOOLEAN              smoothing;
 
         initialize_argument_processing(argc, argv);
@@ -130,7 +130,7 @@ main(int argc, char *argv[])
                 smooth_heatkernel(polygons, curvatures, fwhm);
     
         output_values_any_format(output_file, polygons->n_points,
-                                 curvatures, TYPE_REAL);
+                                 curvatures, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);
         FREE(curvatures);

@@ -17,7 +17,7 @@
 #define NEW_VERSION_MAGIC_NUMBER    16777215
 
 Status
-input_values_any_format(char *file, int *n_values, Real **values)
+input_values_any_format(char *file, int *n_values, double **values)
 {
         Status status;
 
@@ -58,25 +58,20 @@ Status
 output_values_any_format(char *file, int n_values, void *values, int flag)
 {
         Status status;
-        Real *buffer;
+        double *buffer;
         double *d;
         int i, *r;
 
-        /* a workaround for Real stupidity */
-        if (flag == TYPE_REAL) {
-                buffer = (Real *) values;
-        } else {
-                buffer = (Real *) malloc(sizeof(Real) * n_values);
+        buffer = (double *) malloc(sizeof(Real) * n_values);
 
-                if (flag == TYPE_DOUBLE) {
-                        d = (double *) values;
-                        for (i = 0; i < n_values; i++)
-                                buffer[i] = (Real) d[i];
-                } else if (flag == TYPE_INTEGER) {
-                        r = (int *) values;
-                        for (i = 0; i < n_values; i++)
-                                buffer[i] = (Real) r[i];
-                }
+        if (flag == TYPE_DOUBLE) {
+                d = (double *) values;
+                for (i = 0; i < n_values; i++)
+                        buffer[i] = (Real) d[i];
+        } else if (flag == TYPE_INTEGER) {
+                r = (int *) values;
+                for (i = 0; i < n_values; i++)
+                        buffer[i] = (Real) r[i];
         }
 
         if (filename_extension_matches(file, "txt"))
@@ -85,8 +80,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
         else
                 status = output_freesurfer_curv(file, n_values, buffer);
 
-        if (flag != TYPE_REAL)
-                free(buffer);
+        free(buffer);
 
         return(status);
 }
@@ -449,10 +443,10 @@ output_freesurfer(char *file, File_formats format, int n_objects,
 }
 
 int
-output_freesurfer_curv(char *fname, int nvertices, Real *data)
+output_freesurfer_curv(char *fname, int nvertices, double *data)
 {
         FILE *fp;
-        Real f;
+        double f;
         int k;
 
         fp = fopen(fname,"wb");
@@ -539,11 +533,11 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
 }
 
 int
-input_freesurfer_curv(char *file, int *vnum, Real **input_values)
+input_freesurfer_curv(char *file, int *vnum, double **input_values)
 {
         FILE  *fp;
         int   i, magic, fnum, vals_per_vertex;
-        Real  value;
+        double  value;
       
         *vnum = 0;
   
@@ -733,14 +727,14 @@ input_dfs(char *file, File_formats *format, int *n_objects,
         return(OK);
 }
 
-Real *
+double *
 read_pgm(char *file, int *nx, int *ny)
 {
         FILE          *fp;
         int           i, size, max_val;
         char          line[256];
         unsigned char *data_char;
-        Real          *data;
+        double          *data;
             
         if ((fp = fopen(file, "r")) == 0) {
                 fprintf(stderr, "read_pgm: Couldn't open file %s.\n", file);
@@ -785,10 +779,10 @@ read_pgm(char *file, int *nx, int *ny)
 }
 
 int
-write_pgm(char *file, Real *data, int nx, int ny)
+write_pgm(char *file, double *data, int nx, int ny)
 {
         FILE    *fp;
-        Real    min_value, max_value, scale, offset;
+        double    min_value, max_value, scale, offset;
         int     i;
         char    *data_char;
     

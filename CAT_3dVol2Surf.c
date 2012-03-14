@@ -34,11 +34,11 @@
 /* argument defaults */
 int  degrees_continuity = -1; /* interpolation - default: nearest neighbour */
 int  map_func = F_MAX;        /* default mapping function: maximum value */
-Real grid_res = 1.0;          /* resolution of grid along normals in mm */
-Real grid_length = 10.0;      /* length of grid along normals */
-Real grid_origin = 0.0;       /* origin of grid along normals */
-Real range[2] = {FLT_MAX, FLT_MAX};
-Real exp_half = FLT_MAX;
+double grid_res = 1.0;          /* resolution of grid along normals in mm */
+double grid_length = 10.0;      /* length of grid along normals */
+double grid_origin = 0.0;       /* origin of grid along normals */
+double range[2] = {FLT_MAX, FLT_MAX};
+double exp_half = FLT_MAX;
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -84,10 +84,10 @@ ArgvInfo argTable[] = {
 
 
 Real
-evaluate_function(Real val_array[], int n_val, int map_func, Real exp_array[], int index[])
+evaluate_function(double val_array[], int n_val, int map_func, double exp_array[], int index[])
 {
         int   i, in_range;
-        Real  result;
+        double  result;
         
         index[0] = 0;
     
@@ -163,9 +163,9 @@ main(int argc, char *argv[])
         int                  i, j, index, n_values, n_objects;
         object_struct        **objects;
         polygons_struct      *polygons;
-        Real                 value, value2, *values, *values2, voxel[N_DIMENSIONS];
-        Real                 val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
-        Real                 exp_sum, exp_array[MAX_N_ARRAY];
+        double                 value, value2, *values, *values2, voxel[N_DIMENSIONS];
+        double                 val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
+        double                 exp_sum, exp_array[MAX_N_ARRAY];
         Vector               normal;
 
         /* Call ParseArgv */
@@ -306,11 +306,11 @@ main(int argc, char *argv[])
         }
 
         output_values_any_format(output_file, polygons->n_points,
-                                 values, TYPE_REAL);
+                                 values, TYPE_DOUBLE);
 
         if (output_file2 != NULL) {  
                 output_values_any_format(output_file2, polygons->n_points,
-                                         values2, TYPE_REAL);
+                                         values2, TYPE_DOUBLE);
                 FREE(values2);
         }
 

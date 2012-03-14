@@ -119,7 +119,7 @@ resample_spherical_surface(polygons_struct *polygons,
         Point  poly_points[MAX_POINTS_PER_POLYGON];
         Point  poly_points_src[MAX_POINTS_PER_POLYGON];
         Point  *new_points;
-        Real   weights[MAX_POINTS_PER_POLYGON];
+        double   weights[MAX_POINTS_PER_POLYGON];
         double sphereRadius, r, bounds[6];
 
         /*

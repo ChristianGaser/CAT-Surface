@@ -41,8 +41,8 @@ main(int argc, char *argv[])
         Point            poly_points_src[MAX_POINTS_PER_POLYGON];
         object_struct    **objects, **objects_src_sphere, *objects_dest_sphere;
         polygons_struct  *polygons, *poly_src_sphere, *poly_dest_sphere;
-        Real             *input_values, *output_values, *output_values2, dist;
-        Real             weights[MAX_POINTS_PER_POLYGON];
+        double             *input_values, *output_values, *output_values2, dist;
+        double             weights[MAX_POINTS_PER_POLYGON];
         double           sphereRadius, r;
 
         initialize_argument_processing(argc, argv);
@@ -180,7 +180,7 @@ main(int argc, char *argv[])
         }
 		    
         output_values_any_format(output_values_file, polygons->n_points,
-                                 output_values2, TYPE_REAL);
+                                 output_values2, TYPE_DOUBLE);
         FREE(input_values);
         FREE(output_values);
         FREE(output_values2);

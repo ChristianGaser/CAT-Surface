@@ -26,7 +26,7 @@ main(int argc, char *argv[])
         File_formats         format;
         FILE                 *fp;
         int                  n_values, i;
-        Real                 *values;
+        double                 *values;
 
         initialize_argument_processing(argc, argv);
 

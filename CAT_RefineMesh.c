@@ -3,7 +3,7 @@
 private  int  refine_mesh(
     Point              *length_points[],
     polygons_struct    *polygons,
-    Real               max_length,
+    double               max_length,
     polygons_struct    *new_polygons );
 
 private  void  usage(
@@ -25,7 +25,7 @@ int  main(
     object_struct      **object_list;
     polygons_struct    *polygons, new_polygons;
     Point              *length_points;
-    Real               max_length;
+    double               max_length;
 
     initialize_argument_processing( argc, argv );
 
@@ -85,7 +85,7 @@ private  BOOLEAN  lookup_edge_midpoint(
 
 private  void  subdivide_edge(
     hash2_table_struct *edge_lookup,
-    Real               normalized_length,
+    double               normalized_length,
     int                p1,
     int                p2,
     polygons_struct    *new_polygons,
@@ -234,11 +234,11 @@ public  void  add_polygons(
 private  int  refine_mesh(
     Point              *length_points[],
     polygons_struct    *polygons,
-    Real               max_length,
+    double               max_length,
     polygons_struct    *new_polygons )
 {
     int                  n_indices, p1, p2, size, point, edge, midpoint, poly;
-    Real                 normalized_length;
+    double                 normalized_length;
     hash2_table_struct   edge_lookup;
 
     initialize_polygons( new_polygons, WHITE, NULL );

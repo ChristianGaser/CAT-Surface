@@ -15,31 +15,31 @@ private  void  triangulate_polygons(
 private  void  extract_isosurface(
     Volume            volume,
     Volume            label_volume,
-    Real              min_label,
-    Real              max_label,
+    double              min_label,
+    double              max_label,
     int               spatial_axes[],
     General_transform *voxel_to_world_transform,
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    Real              min_threshold,
-    Real              max_threshold,
-    Real              valid_low,
-    Real              valid_high,
+    double              min_threshold,
+    double              max_threshold,
+    double              valid_low,
+    double              valid_high,
     polygons_struct   *polygons );
     
 private  void  extract_surface(
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    Real              min_threshold,
-    Real              max_threshold,
-    Real              valid_low,
-    Real              valid_high,
+    double              min_threshold,
+    double              max_threshold,
+    double              valid_low,
+    double              valid_high,
     int               x_size,
     int               y_size,
-    Real              ***slices,
-    Real              min_label,
-    Real              max_label,
-    Real              ***label_slices,
+    double              ***slices,
+    double              min_label,
+    double              max_label,
+    double              ***label_slices,
     int               slice_index,
     BOOLEAN           right_handed,
     int               spatial_axes[],
@@ -70,9 +70,9 @@ int  main(
 {
     STRING               input_filename, output_filename;
     Volume               volume, label_volume;
-    Real                 min_threshold, max_threshold;
-    Real                 min_label, max_label;
-    Real                 valid_low, valid_high;
+    double                 min_threshold, max_threshold;
+    double                 min_label, max_label;
+    double                 valid_low, valid_high;
     BOOLEAN              binary_flag;
     int                  i, c, spatial_axes[N_DIMENSIONS];
     int                  int_method, n_out;
@@ -156,7 +156,7 @@ int  main(
 
 private  void  clear_slice(
     Volume            volume,
-    Real              **slice )
+    double              **slice )
 {
     int    x, y, sizes[MAX_DIMENSIONS];
 
@@ -169,7 +169,7 @@ private  void  clear_slice(
 
 private  void  input_slice(
     Volume            volume,
-    Real              **slice )
+    double              **slice )
 {
     int    sizes[MAX_DIMENSIONS];
 
@@ -179,8 +179,8 @@ private  void  input_slice(
                                    &slice[0][0] );
 }
 
-private  Real  get_slice_value(
-    Real      ***slices,
+private  double  get_slice_value(
+    double      ***slices,
     int       x_size,
     int       y_size,
     int       z,
@@ -212,16 +212,16 @@ private  void  clear_points(
 }
 
 private  void   get_world_point(
-    Real                slice,
-    Real                x,
-    Real                y,
+    double                slice,
+    double                x,
+    double                y,
     int                 spatial_axes[],
     General_transform   *voxel_to_world_transform,
     Point               *point )
 {
     int            c;
-    Real           xw, yw, zw;
-    Real           real_voxel[N_DIMENSIONS], voxel_pos[N_DIMENSIONS];
+    double           xw, yw, zw;
+    double           real_voxel[N_DIMENSIONS], voxel_pos[N_DIMENSIONS];
 
     real_voxel[0] = slice;
     real_voxel[1] = x;
@@ -245,23 +245,23 @@ private  void   get_world_point(
 private  void  extract_isosurface(
     Volume            volume,
     Volume            label_volume,
-    Real              min_label,
-    Real              max_label,
+    double              min_label,
+    double              max_label,
     int               spatial_axes[],
     General_transform *voxel_to_world_transform,
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    Real              min_threshold,
-    Real              max_threshold,
-    Real              valid_low,
-    Real              valid_high,
+    double              min_threshold,
+    double              max_threshold,
+    double              valid_low,
+    double              valid_high,
     polygons_struct   *polygons )
 {
     int             n_slices, sizes[MAX_DIMENSIONS], x_size, y_size, slice;
     int             ***point_ids[2], ***tmp_point_ids;
     int             max_edges;
-    Real            **slices[2], **tmp_slices;
-    Real            **label_slices[2];
+    double            **slices[2], **tmp_slices;
+    double            **label_slices[2];
     progress_struct progress;
     Surfprop        spr;
     Point           point000, point100, point010, point001;
@@ -384,18 +384,18 @@ private  int   get_point_index(
     int                 x_size,
     int                 y_size,
     voxel_point_type    *point,
-    Real                corners[2][2][2],
+    double                corners[2][2][2],
     int                 spatial_axes[],
     General_transform   *voxel_to_world_transform,
     BOOLEAN             binary_flag,
-    Real                min_threshold,
-    Real                max_threshold,
+    double                min_threshold,
+    double                max_threshold,
     int                 ***point_ids[],
     polygons_struct     *polygons )
 {
     int            voxel[N_DIMENSIONS], edge, point_index;
     int            edge_voxel[N_DIMENSIONS];
-    Real           v[N_DIMENSIONS];
+    double           v[N_DIMENSIONS];
     Point          world_point;
     Point_classes  point_class;
 
@@ -431,16 +431,16 @@ private  int   get_point_index(
 private  void  extract_surface(
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    Real              min_threshold,
-    Real              max_threshold,
-    Real              valid_low,
-    Real              valid_high,
+    double              min_threshold,
+    double              max_threshold,
+    double              valid_low,
+    double              valid_high,
     int               x_size,
     int               y_size,
-    Real              ***slices,
-    Real              min_label,
-    Real              max_label,
-    Real              ***label_slices,
+    double              ***slices,
+    double              min_label,
+    double              max_label,
+    double              ***label_slices,
     int               slice_index,
     BOOLEAN           right_handed,
     int               spatial_axes[],
@@ -451,7 +451,7 @@ private  void  extract_surface(
     int                x, y, *sizes, tx, ty, tz, n_polys, ind;
     int                p, point_index, poly, size, start_points, dir;
     voxel_point_type   *points;
-    Real               corners[2][2][2], label;
+    double               corners[2][2][2], label;
     BOOLEAN            valid;
 
     for_less( x, -1, x_size )

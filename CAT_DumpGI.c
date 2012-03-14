@@ -47,8 +47,8 @@ main(int argc, char *argv[])
         int                  *n_neighbours, **neighbours;
         object_struct        **objects;
         polygons_struct      *polygons;
-        Real                 fwhm, fwhm_surf, *curvatures, *curvs_inflated;
-        Real                 *GI, distance;
+        double                 fwhm, fwhm_surf, *curvatures, *curvs_inflated;
+        double                 *GI, distance;
 
         initialize_argument_processing(argc, argv);
 
@@ -109,7 +109,7 @@ main(int argc, char *argv[])
         smooth_heatkernel(polygons, GI, fwhm);
         
         output_values_any_format(output_file, polygons->n_points,
-                                 GI, TYPE_REAL);
+                                 GI, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);
         FREE(curvatures);

@@ -36,7 +36,7 @@ Usage: %s  src.obj values_file dest.obj\n\
 int
 main(int argc, char *argv[])
 {
-        Real                 value, *values, min_range, max_range;
+        double                 value, *values, min_range, max_range;
         Status               status;
         char                 *src_file, *dest_file, *values_file;
         char                 *user_def_file;
@@ -53,7 +53,7 @@ main(int argc, char *argv[])
         colour_coding_struct colour_coding;
         Colour_flags         *colour_flag_ptr;
         char                 *coding_type_string;
-        Real                 low, high, r, g, b, a, opacity;
+        double                 low, high, r, g, b, a, opacity;
         BOOLEAN              per_vertex;
         Composite_methods    composite_method;
         char                 *composite_method_name;

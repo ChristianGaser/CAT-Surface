@@ -19,8 +19,8 @@ void perturb_points_points(polygons_struct *, Point [], Real, Real, Real, int,
                            deform_data_struct *, boundary_definition_struct *,
                            deformation_model_struct *, Real, float [],
                            deform_stats *, int *);
-Real one_iter_polygons(polygons_struct *, deform_struct *, int);
-Real one_iter_polygons_points(polygons_struct *, deform_struct *, int, int *);
+double one_iter_polygons(polygons_struct *, deform_struct *, int);
+double one_iter_polygons_points(polygons_struct *, deform_struct *, int, int *);
 void check_polygons_shape_integrity(polygons_struct *, Point []);
 void check_shape_integrity_points(polygons_struct *, Point [], int *);
     
@@ -28,7 +28,7 @@ void
 deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
 {
         int                iter, countdown, countdown2;
-        Real               avg_err, prev_avg_err, rate;
+        double               avg_err, prev_avg_err, rate;
 
         iter = 0;
         prev_avg_err = 1e10;
@@ -147,8 +147,8 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
 
 void
 get_polygon_equilibrium_point(polygons_struct *polygons, int poly,
-                              int vertidx, Real curv_factors[],
-                              Real max_search_dist, int degrees_continuity,
+                              int vertidx, double curv_factors[],
+                              double max_search_dist, int degrees_continuity,
                               deform_data_struct *deform_data,
                               boundary_definition_struct *bound_def,
                               deformation_model_struct *deform_model,
@@ -157,8 +157,8 @@ get_polygon_equilibrium_point(polygons_struct *polygons, int poly,
         int              ptidx;
         int              n_nb, neighbours[MAX_NEIGHBOURS];
         BOOLEAN          interior_flag, found;
-        Real             curv_factor, model_dist, bound_dist;
-        Real             base_length;
+        double             curv_factor, model_dist, bound_dist;
+        double             base_length;
         Point            centroid, model_point, search_origin;
         Vector           normal, pos_model_dir, neg_model_dir;
 
@@ -201,7 +201,7 @@ ccw_neighbours(Point *centroid, Vector *normal, Point points[],
                int n_nb, int neighbours[], signed char point_error[])
 {
         Vector    to_nb, prev_to_nb, up, offset;
-        Real      len;
+        double      len;
         int       i;
         BOOLEAN   ccw;
 
@@ -236,7 +236,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
         Point            *centroids;
         Vector           normal;
         progress_struct  progress;
-        Real             base_length, curv_factor;
+        double             base_length, curv_factor;
         int              n_nb, neighbours[MAX_NEIGHBOURS];
         BOOLEAN          interior_flag;
         signed char      *point_error;
@@ -326,21 +326,21 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
 
 void
 perturb_points(polygons_struct *polygons, Point new_points[],
-               Real fractional_step, Real max_step, Real max_search_dist,
+               double fractional_step, double max_step, double max_search_dist,
                int degrees_continuity, deform_data_struct *deform_data,
                boundary_definition_struct *bound_def,
                deformation_model_struct *deform_model,
-               Real movement_thresh, float prev_movements[],
+               double movement_thresh, float prev_movements[],
                deform_stats *stats)
 {
-        Real             *curv_factors;
+        double             *curv_factors;
         signed char      *point_done;
         int              vertidx, ptidx, poly, size, n1, n2;
         Point            centroid;
         Vector           normal;
         progress_struct  progress;
         Point            equil_pt;
-        Real             dist_to_equil, base_length;
+        double             dist_to_equil, base_length;
         double           *movements;
 
         ALLOC(curv_factors, polygons->n_points);
@@ -455,7 +455,7 @@ deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
                        int *flag)
 {
         int                iter, countdown, countdown2, p;
-        Real               avg_err, prev_avg_err, rate;
+        double               avg_err, prev_avg_err, rate;
         Point              *pts;
 
         pts = (Point *) malloc(sizeof(Point) * polygons->n_points);

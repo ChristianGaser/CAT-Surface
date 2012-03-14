@@ -41,7 +41,7 @@ main(int argc, char *argv[])
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
-        Real             fwhm;
+        double             fwhm;
         double           *gc_strength, gc_threshold;
 
         initialize_argument_processing(argc, argv);

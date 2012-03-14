@@ -7,7 +7,7 @@
  *
  */
 
-#define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
+#define DATAFORMAT 1 /* 1 = double data, 0 = complex data */
 #define SPH_ITERS 10
 #define BW 1024
 #define FWHM 30.0

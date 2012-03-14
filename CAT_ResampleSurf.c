@@ -40,9 +40,9 @@ main(int argc, char *argv[])
         Point            *new_points;
         object_struct    **objects, **objects_src_sphere, **objects_target_sphere;
         polygons_struct  *polygons, *poly_src_sphere, *poly_target_sphere;
-        Real             *input_values, *output_values, dist;
+        double             *input_values, *output_values, dist;
         BOOLEAN          values_specified;
-        Real             weights[MAX_POINTS_PER_POLYGON];
+        double             weights[MAX_POINTS_PER_POLYGON];
         double           bounds_dest[6], bounds_src[6];
 
         initialize_argument_processing(argc, argv);
@@ -170,7 +170,7 @@ input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
         if (values_specified) {
                 output_values_any_format(output_values_file,
                                          poly_target_sphere->n_points,
-                                         output_values, TYPE_REAL);
+                                         output_values, TYPE_DOUBLE);
                 FREE(input_values);
                 FREE(output_values);
         }

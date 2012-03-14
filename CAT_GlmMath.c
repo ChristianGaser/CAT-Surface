@@ -19,7 +19,7 @@ main(int argc, char *argv[])
         char             *file, *output_file;
         int              counter, i, j, n_values, prev_n_values, n_plus;
         int              n_minus, n_infiles;
-        Real             *values, *result;
+        double             *values, *result;
         BOOLEAN          plus = 0, minus = 0;
         char             **infiles;
 
@@ -91,7 +91,7 @@ main(int argc, char *argv[])
                 }
         }
 
-        output_values_any_format(output_file, n_values, result, TYPE_REAL);
+        output_values_any_format(output_file, n_values, result, TYPE_DOUBLE);
 
         FREE(result);
         return(EXIT_SUCCESS);

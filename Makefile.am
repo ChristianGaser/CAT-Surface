@@ -24,7 +24,7 @@ bin_PROGRAMS = \
 	CAT_DumpSurfArea \
 	CAT_DumpSurfaceRatio \
 	CAT_BlurSurfHK \
-	CAT_GLM_Estimate \
+	CAT_GlmEstimate \
 	CAT_PlotValuesAtPoint \
 	CAT_PlotValuesAtMaximum \
 	CAT_FreesurferCurv2Txt \
@@ -37,7 +37,7 @@ bin_PROGRAMS = \
 	CAT_AngularDistortion \
 	CAT_MetricDistortion \
 	CAT_AverageSurfaces \
-	CAT_GLM_Math \
+	CAT_GlmMath \
 	CAT_FixTopology \
 	CAT_Isometize \
 	CAT_LBConformalMap \
@@ -144,8 +144,8 @@ CAT_AverageSurfaces_SOURCES = CAT_AverageSurfaces.c CAT_SurfaceIO.c
 CAT_DumpSurfaceRatio_SOURCES = CAT_DumpSurfaceRatio.c CAT_Surf.c CAT_Smooth.c CAT_SurfaceIO.c CAT_Map.c CAT_Curvature.c
 CAT_Color2Surf_SOURCES = CAT_Color2Surf.c CAT_SurfaceIO.c
 CAT_BlurSurfHK_SOURCES = CAT_BlurSurfHK.c CAT_Smooth.c CAT_SurfaceIO.c
-CAT_GLM_Estimate_SOURCES = CAT_GLM_Estimate.c CAT_Pinv.c CAT_SurfaceIO.c
-CAT_GLM_Math_SOURCES = CAT_GLM_Math.c CAT_SurfaceIO.c
+CAT_GlmEstimate_SOURCES = CAT_GlmEstimate.c CAT_Pinv.c CAT_SurfaceIO.c
+CAT_GlmMath_SOURCES = CAT_GlmMath.c CAT_SurfaceIO.c
 CAT_SurfConvert_SOURCES = CAT_SurfConvert.c CAT_SurfaceIO.c 
 CAT_FreesurferCurv2Txt_SOURCES = CAT_FreesurferCurv2Txt.c CAT_SurfaceIO.c 
 CAT_PlotValuesAtPoint_SOURCES = CAT_PlotValuesAtPoint.c CAT_SurfaceIO.c

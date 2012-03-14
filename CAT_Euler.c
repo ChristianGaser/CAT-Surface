@@ -129,7 +129,7 @@ volume_euler(Volume volume, int righthemi)
 int
 volume_euler_surface(char *filename, Volume volume, int righthemi)
 {
-        Real min, max;
+        double min, max;
         int euler;
         object_struct **objects;
         polygons_struct *surface;

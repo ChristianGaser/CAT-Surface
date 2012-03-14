@@ -670,7 +670,7 @@ main(int argc, char** argv)
         char *input_file, *output_file;
         object_struct **objects;
         int n_objects;
-        Real *curvatures;
+        double *curvatures;
         File_formats format;
     
         /* Get arguments */

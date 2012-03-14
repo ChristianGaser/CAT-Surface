@@ -33,16 +33,16 @@ int
 main(int argc, char *argv[])
 {
         Status            status;
-        Real              start_time, end_time;
+        double              start_time, end_time;
         char              *volume_file = NULL, *activity_file = NULL;
         char              *input_file = NULL, *output_file = NULL;
         char              *model_file = NULL, *original_file = NULL;
         char              *normal_direction = NULL;
-        Real              min_isovalue, max_isovalue, gradient_thresh;
-        Real              model_weight, min_curv_offset, max_curv_offset;
-        Real              angle, tolerance, max_dist = 0;
-        Real              separations[N_DIMENSIONS];
-        Real              xfilt_width = 0, yfilt_width = 0, zfilt_width = 0;
+        double              min_isovalue, max_isovalue, gradient_thresh;
+        double              model_weight, min_curv_offset, max_curv_offset;
+        double              angle, tolerance, max_dist = 0;
+        double              separations[N_DIMENSIONS];
+        double              xfilt_width = 0, yfilt_width = 0, zfilt_width = 0;
         int               i, n_models = 0, up_to_n_points;
         deform_struct     deform;
         File_formats      file_format;

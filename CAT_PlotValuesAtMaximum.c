@@ -27,7 +27,7 @@ main(int argc, char *argv[])
         FILE                 *infp, *outfp;
         File_formats         format;
         int                  n_files, n_values, i, j, max_index;
-        Real                 output_value, *values, max_value;
+        double                 output_value, *values, max_value;
 
         initialize_argument_processing(argc, argv);
 

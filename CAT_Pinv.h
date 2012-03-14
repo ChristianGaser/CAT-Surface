@@ -7,4 +7,4 @@
  *
 */
 
-int pinv(int, int, Real **, Real **);
+int pinv(int, int, double **, double **);

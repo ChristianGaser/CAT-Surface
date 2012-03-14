@@ -1233,7 +1233,7 @@ find_data_range(int datatype, long nvox, void *data, double range[2])
 Status
 input_nifti(char *filename, int n_dimensions, char *dim_names[],
             nc_type volume_nc_data_type, BOOLEAN volume_signed_flag,
-            Real volume_voxel_min, Real volume_voxel_max,
+            double volume_voxel_min, double volume_voxel_max,
             BOOLEAN create_volume_flag, Volume *volume,
             minc_input_options *options)
 {
@@ -1625,7 +1625,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
 Status
 input_volume_all(char *filename, int n_dimensions, char *dim_names[],
                  nc_type volume_nc_data_type, BOOLEAN volume_signed_flag,
-                 Real volume_voxel_min, Real volume_voxel_max,
+                 double volume_voxel_min, double volume_voxel_max,
                  BOOLEAN create_volume_flag, Volume *volume,
                  minc_input_options *options)
 {

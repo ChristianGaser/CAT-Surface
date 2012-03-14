@@ -13,7 +13,7 @@
 #include "CAT_Smooth.h"
 
 int
-separate_polygons(polygons_struct *polygons, int desired_index, Real *values);
+separate_polygons(polygons_struct *polygons, int desired_index, double *values);
 
 void
 usage(char *executable) {
@@ -26,7 +26,7 @@ Usage: %s  input.obj input.txt output_prefix [which] \n\n\
 
 int
 make_connected_components(polygons_struct *polygons, int point_classes[],
-                          Real *values, int n_in_class[])
+                          double *values, int n_in_class[])
 {
         int                point, edge, size;
         int                neigh, j;
@@ -72,7 +72,7 @@ make_connected_components(polygons_struct *polygons, int point_classes[],
 }
 
 int
-separate_polygons(polygons_struct *polygons, int desired_index, Real *values)
+separate_polygons(polygons_struct *polygons, int desired_index, double *values)
 {
         int       ind, p_ind, point, vertex, size, i, j, tmp;
         int       *new_point_ids, n_objects, comp, c;
@@ -117,7 +117,7 @@ main(int argc, char *argv[])
         char             out_file[512];
         int              n_objects, n_out;
         int              i, desired_index, n_values;
-        Real             *values;
+        double             *values;
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
