@@ -67,88 +67,9 @@ main(int argc, char *argv[])
                 fprintf(stderr, "Euler characteristic of %s must be 2.\n",
                             input_file);
         }
+        
+        surf_to_sphere(polygons, stop_at);
      
-        surfarea = get_polygons_surface_area(polygons);
-
-        /* low smooth */
-	fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                "Low smoothing...    ");
-        inflate_surface_and_smooth_fingers(polygons,
-                              /* cycles */ 1,
-          /* regular smoothing strength */ 0.2,
-             /* regular smoothing iters */ 50,
-                    /* inflation factor */ 1.0,
-          /* finger comp/stretch thresh */ 3.0,
-              /* finger smooth strength */ 1.0,
-                 /* finger smooth iters */ 0);
-
-        if (stop_at > 1) {
-                /* inflated */
-                fingerSmoothingIters = 0;
-                if (enableFingerSmoothing)
-                        fingerSmoothingIters = 30;
-	        fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Inflating...        ");
-                inflate_surface_and_smooth_fingers(polygons,
-                                      /* cycles */ 2,
-                  /* regular smoothing strength */ 1.0,
-                     /* regular smoothing iters */ 30,
-                            /* inflation factor */ 1.4,
-                  /* finger comp/stretch thresh */ 3.0,
-                      /* finger smooth strength */ 1.0,
-                         /* finger smooth iters */ fingerSmoothingIters);
-        }                                             
-    
-        if (stop_at > 2) {
-                /* very inflated */
-                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Very inflating...   ");
-                inflate_surface_and_smooth_fingers(polygons,
-                  /*                     cycles */ 4,
-                  /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ 30,
-                  /*           inflation factor */ 1.1,
-                  /* finger comp/stretch thresh */ 3.0,
-                  /*     finger smooth strength */ 1.0,
-                  /*        finger smooth iters */ 0);
-        }                                             
-    
-        if (stop_at > 3) {
-                /* high smooth */
-                fingerSmoothingIters = 0;
-                if (enableFingerSmoothing)
-                        fingerSmoothingIters = 60;
-	        fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "High smoothing...   ");
-                inflate_surface_and_smooth_fingers(polygons,
-                  /*                     cycles */ 6,
-                  /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ 60,
-                  /*           inflation factor */ 1.6,
-                  /* finger comp/stretch thresh */ 3.0,
-                  /*     finger smooth strength */ 1.0,
-                  /*        finger smooth iters */ fingerSmoothingIters);
-        }
-
-        if (stop_at > 4) {
-                /* ellipsoid */
-                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Ellipsoid...        ");
-                inflate_surface_and_smooth_fingers(polygons,
-                  /*                     cycles */ 6,
-                  /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ 50,
-                  /*           inflation factor */ 1.4,
-                  /* finger comp/stretch thresh */ 4.0,
-                  /*     finger smooth strength */ 1.0,
-                  /*        finger smooth iters */ fingerSmoothingIters);
-                convert_ellipsoid_to_sphere_with_surface_area(polygons,
-                                                              surfarea);
-        }
-    
-        fprintf(stderr, "Done                \n");
-
-        compute_polygon_normals(polygons);
         if(output_graphics_any_format(output_file, format, 1, 
                         object_list) != OK)
                 exit(EXIT_FAILURE);

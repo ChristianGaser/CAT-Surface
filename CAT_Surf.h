@@ -39,3 +39,5 @@ void distance_smoothing(polygons_struct *, double, int, int, int *, int);
 void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
                                         const double, const int, const double,
                                         const double, const double, const int);
+void
+surf_to_sphere(polygons_struct *, int);
