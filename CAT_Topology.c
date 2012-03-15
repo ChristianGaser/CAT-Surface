@@ -16,11 +16,11 @@
 #include "CAT_Curvature.h"
 #include "CAT_Defect.h"
 #include "CAT_DeformPolygons.h"
+#include "CAT_Refine.h"
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 #define DEBUG 1
 #define DUMP_FILES 0
-
 #define FLAG_MODIFY 0
 #define FLAG_PRESERVE 1
 
@@ -242,12 +242,6 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         if (DEBUG) fprintf(stderr,"compute_polygon_normals...\n");
         compute_polygon_normals(hbw);
 
-        /* clean up */ /*
-        if (DEBUG) fprintf(stderr,"delete_polygon_point_neighbours...\n");
-        delete_polygon_point_neighbours(hbw, n_neighbours,
-                                        neighbours, NULL, NULL);
-        */
-
         free(sharpness);
         free(flag);
         free(hbw_defects);
@@ -257,14 +251,16 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 }
 
 object_struct **
-fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, Volume volume, char *t1_file, int bw, int lim, char *reparam_file)
+fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, Volume volume, char *t1_file, int bw, int lim, 
+        char *reparam_file, double max_refine_length)
 {
         object_struct **hbw_objects, **lbw_objects, **reparam_objects;
-        polygons_struct *hbw, *lbw, *reparam;
+        polygons_struct *hbw, *lbw, *reparam, refined;
+        Point *length_points;
         double *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double *lrcx, *licx, *lrcy, *licy, *lrcz, *licz;
         double *rdatax, *rdatay, *rdataz;
-        int bw2;
+        int bw2, i, n_done;
         int *defects, *polydefects, *holes, n_defects, n_objects, p;
         int *n_neighbours, **neighbours;
         double t1_threshold;
@@ -397,6 +393,26 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         sph_postcorrect(surface, sphere, defects, polydefects, n_defects, holes,
                         t1_threshold, hbw, lbw, t1_file, volume);
 
+        /* make refinement to guarantee small sized vertices */ 
+        if (max_refine_length > 0.0) {
+                SET_ARRAY_SIZE( length_points, 0, hbw->n_points, DEFAULT_CHUNK_SIZE );
+                for_less( i, 0, hbw->n_points )
+                        length_points[i] = hbw->points[i];
+
+                do
+                {
+                        n_done = refine_mesh( &length_points, hbw, max_refine_length,
+                              &refined );
+
+                delete_polygons( hbw );
+                *hbw = refined;
+                }
+                while( n_done > 0 );
+
+                print( "Resampled into %d polygons.\n", hbw->n_items );
+        
+        }
+        
         delete_object_list(1, lbw_objects);
         free(defects);
         free(polydefects);

@@ -19,6 +19,8 @@ ArgvInfo argTable[] = {
   { "-n", ARGV_INT, (char *) 1, 
     (char *) &n_triangles,
     "Number of triangles for sampled surface." },
+  {"-refine_length", ARGV_FLOAT, (char *) TRUE, (char *) &max_refine_length,
+     "Maximal length of vertex side after refinement (use negative values for no refinement)."},
   {"-t1", ARGV_STRING, (char *) 1,
     (char *) &t1_file,
     "Optional T1-image for post-harmonic topology correction."},
@@ -102,7 +104,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        objects = fix_topology_sph(surface, sphere, n_triangles, volume, t1_file, bw, lim, reparam_file);
+        objects = fix_topology_sph(surface, sphere, n_triangles, volume, t1_file, bw, lim, reparam_file, max_refine_length);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
                                        objects) != OK)

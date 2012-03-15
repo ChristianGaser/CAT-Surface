@@ -110,6 +110,7 @@ noinst_HEADERS = \
 	CAT_Intersect.h \
 	CAT_Octree.h \
 	CAT_FixTopology.h \
+	CAT_Refine.h \
 	CAT_DeformPolygons.h \
 	dartel/dartel.h \
     niftilib/analyze75.h \
@@ -159,7 +160,7 @@ CAT_ResampleSurf_SOURCES = CAT_ResampleSurf.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map
 CAT_AreaDistortion_SOURCES = CAT_AreaDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
 CAT_AngularDistortion_SOURCES = CAT_AngularDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
 CAT_MetricDistortion_SOURCES = CAT_MetricDistortion.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c
-CAT_FixTopology_SOURCES = CAT_FixTopology.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_SPH.c CAT_Octree.c CAT_Intersect.c CAT_DeformPolygons.c CAT_Topology.c CAT_Defect.c CAT_NiftiIO.c $(s2kit10_SRC)
+CAT_FixTopology_SOURCES = CAT_FixTopology.c CAT_Surf.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c CAT_Smooth.c CAT_SPH.c CAT_Octree.c CAT_Intersect.c CAT_DeformPolygons.c CAT_Topology.c CAT_Defect.c CAT_Refine.c CAT_NiftiIO.c $(s2kit10_SRC)
 CAT_Isometize_SOURCES = CAT_Isometize.c CAT_Isometrics.c CAT_Surf.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Map.c
 CAT_WarpSurf_SOURCES = CAT_WarpSurf.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c $(dartel_SRC)
 CAT_WarpSurfSPH_SOURCES = CAT_WarpSurfSPH.c CAT_Surf.c CAT_SurfaceIO.c CAT_Map.c CAT_SPH.c CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Smooth.c CAT_Curvature.c $(s2kit10_SRC)
@@ -179,7 +180,7 @@ CAT_LabelHoles_SOURCES = CAT_LabelHoles.c CAT_Surf.c CAT_Curvature.c CAT_Surface
 CAT_FractalSurface_SOURCES = CAT_FractalSurface.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map.c CAT_Smooth.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Resample.c
 CAT_FractalDimension_SOURCES = CAT_FractalDimension.c CAT_SurfaceIO.c CAT_Complexity.c CAT_SPH.c CAT_Surf.c CAT_Curvature.c CAT_Map.c CAT_Smooth.c $(s2kit10_SRC) CAT_Defect.c CAT_Intersect.c CAT_Octree.c CAT_Resample.c
 CAT_GIPhantom_SOURCES = CAT_GIPhantom.c CAT_SurfaceIO.c CAT_Surf.c CAT_Curvature.c CAT_Map.c CAT_Smooth.c
-CAT_RefineMesh_SOURCES = CAT_RefineMesh.c CAT_SurfaceIO.c
+CAT_RefineMesh_SOURCES = CAT_RefineMesh.c CAT_Refine.c CAT_SurfaceIO.c
 CAT_DumpConvexity_SOURCES = CAT_DumpConvexity.c CAT_SurfaceIO.c CAT_Curvature.c CAT_Smooth.c
 CAT_MarchingCubes_SOURCES = CAT_MarchingCubes.c CAT_NiftiIO.c CAT_SurfaceIO.c
 CAT_WarpSurfPoly_SOURCES = CAT_WarpSurfPoly.c CAT_Map.c CAT_Smooth.c CAT_Curvature.c CAT_SurfaceIO.c CAT_Surf.c CAT_Resample.c CAT_Interpolate.c dartel/diffeopoly.c
