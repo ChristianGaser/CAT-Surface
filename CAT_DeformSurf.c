@@ -10,6 +10,8 @@
 #include <volume_io/internal_volume_io.h>
 #include <bicpl/deform.h>
 
+#include "CAT_DeformPolygons.h"
+
 void
 usage(char *executable)
 {
