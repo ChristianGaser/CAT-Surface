@@ -143,22 +143,10 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
         
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
            
-        /* calculate sigma in relation to n_iter */    
-        n_iter = 50;
-        sigma = fwhm/2.35482 * fwhm/2.35482/n_iter;
-        
-        /* decrease iterations if sigma gets too small */
-        while (sigma < 1.0) {
-                n_iter -= 1;
-                sigma = fwhm/2.35482 * fwhm/2.35482/n_iter;
-        }
-        
-        /* check that at least 1 iteration is done */
-        if (n_iter < 1) {
-                n_iter = 1;
-                sigma = fwhm/2.35482 * fwhm/2.35482/n_iter;
-        }
-        
+        /* calculate n_iter with regard to fwhm */    
+        sigma = 1.0;
+        n_iter = ceil(fwhm*fwhm*3/(8*log(2)));
+
         initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
                                    "Blurring");
         if (values != NULL) 
