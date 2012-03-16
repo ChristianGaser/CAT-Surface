@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_FixTopology.h 238 2012-03-14 23:35:41Z gaser $
+ * $Id$
  */
 
 #include <bicpl.h>
