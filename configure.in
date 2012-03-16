@@ -1,32 +1,28 @@
 dnl $Id$
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(CAT,0.1,Christian Gaser <christian.gaser@uni-jena.de>)
+AC_INIT(CAT, 0.1, Christian Gaser <christian.gaser@uni-jena.de>)
 
-AM_INIT_AUTOMAKE(CAT,0.1,Christian Gaser <christian.gaser@uni-jena.de>)
-AM_CONFIG_HEADER(config.h)
+AM_INIT_AUTOMAKE(CAT, 0.1, Christian Gaser <christian.gaser@uni-jena.de>)
+
+AC_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
+AC_PROG_RANLIB
 
-dnl Build only static libs by default
-AM_DISABLE_SHARED
+LT_INIT([disable-shared])
 AC_PROG_LIBTOOL
 
 smr_WITH_BUILD_PATH
-
 mni_REQUIRE_BICPL
 
 AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
 
 AC_CHECK_HEADERS(fftw3.h)
-              
-dnl AC_CHECK_LIB(fftw,fftw_execute,,AC_MSG_ERROR(The fftw library is required.))
-dnl AC_CHECK_HEADERS(fftw.h)
-
 AC_CHECK_HEADERS(values.h malloc.h)
-
 AC_CHECK_HEADERS()
 
-AC_OUTPUT( Makefile )
+AC_CONFIG_FILES( Makefile Progs/Makefile)
+AC_OUTPUT
