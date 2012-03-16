@@ -9,6 +9,7 @@ dist_bin_SCRIPTS = \
 	CAT_ResampleFS_ui \
 	CAT_FractalDimensionFS_ui \
 	CAT_DumpCurvL4FS \
+	Cat_ReconSurf \
 	CAT_DumpCurv_ui
 
 bin_PROGRAMS = \

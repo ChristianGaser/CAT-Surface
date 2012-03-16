@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_BlurSurfHK.c 218 2011-06-21 12:13:03Z gaser $
+ * $Id$
  *
  */
 
