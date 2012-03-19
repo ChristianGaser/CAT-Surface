@@ -17,6 +17,36 @@
 #define NEW_VERSION_MAGIC_NUMBER    16777215
 
 Status
+bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
+{
+        int i, j;
+        Status status;
+
+        status = OK;        
+        for (i = 0; i < polygons->n_points; i++) {
+                 *vertices[i,1] = Point_x(polygons->points[i]);
+                 *vertices[i,2] = Point_y(polygons->points[i]);
+                 *vertices[i,3] = Point_z(polygons->points[i]);
+        }
+        
+        for (i = 0; i < polygons->n_items; i++) {
+                if (GET_OBJECT_SIZE(*polygons, i) != 3) {
+                        status = ERROR;
+                        return(status);
+                }
+                   
+
+                for (j = 0; j < 3; j++) {
+                        *faces[i,j] = polygons->indices[POINT_INDEX(
+                                                  polygons->end_indices, i, j)];
+                }
+        }
+
+        return(status);
+  
+}
+
+Status
 input_values_any_format(char *file, int *n_values, double **values)
 {
         Status status;
