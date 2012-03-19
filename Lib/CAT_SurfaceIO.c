@@ -24,9 +24,9 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
 
         status = OK;        
         for (i = 0; i < polygons->n_points; i++) {
-                 *vertices[i,1] = Point_x(polygons->points[i]);
-                 *vertices[i,2] = Point_y(polygons->points[i]);
-                 *vertices[i,3] = Point_z(polygons->points[i]);
+                 (*vertices)[i]                      = Point_x(polygons->points[i]);
+                 (*vertices)[i+polygons->n_points]   = Point_y(polygons->points[i]);
+                 (*vertices)[i+2*polygons->n_points] = Point_z(polygons->points[i]);
         }
         
         for (i = 0; i < polygons->n_items; i++) {
@@ -35,10 +35,10 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
                         return(status);
                 }
                    
-
+                /* add "1" to faces (for matlab arrays) */
                 for (j = 0; j < 3; j++) {
-                        *faces[i,j] = polygons->indices[POINT_INDEX(
-                                                  polygons->end_indices, i, j)];
+                        (*faces)[i + j*polygons->n_items] = polygons->indices[POINT_INDEX(
+                                                  polygons->end_indices, i, j)] + 1;
                 }
         }
 
@@ -92,16 +92,16 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
         double *d;
         int i, *r;
 
-        buffer = (double *) malloc(sizeof(Real) * n_values);
+        buffer = (double *) malloc(sizeof(double) * n_values);
 
         if (flag == TYPE_DOUBLE) {
                 d = (double *) values;
                 for (i = 0; i < n_values; i++)
-                        buffer[i] = (Real) d[i];
+                        buffer[i] = (double) d[i];
         } else if (flag == TYPE_INTEGER) {
                 r = (int *) values;
                 for (i = 0; i < n_values; i++)
-                        buffer[i] = (Real) r[i];
+                        buffer[i] = (double) r[i];
         }
 
         if (filename_extension_matches(file, "txt"))
@@ -800,7 +800,7 @@ read_pgm(char *file, int *nx, int *ny)
 
         ALLOC(data, size);   
         for (i = 0; i < size; i++) {
-                data[i] = (Real) data_char[i];
+                data[i] = (double) data_char[i];
         }
 
         FREE(data_char);

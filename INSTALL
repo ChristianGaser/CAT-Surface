@@ -4,7 +4,7 @@ Installation Instructions
 Copyright (C) 1994, 1995, 1996, 1999, 2000, 2001, 2002, 2004, 2005,
 2006 Free Software Foundation, Inc.
 
-This file is free documentation; the Free Software Foundation gives
+   This file is free documentation; the Free Software Foundation gives
 unlimited permission to copy, distribute and modify it.
 
 Basic Installation
@@ -67,6 +67,9 @@ The simplest way to compile this package is:
      all sorts of other programs in order to regenerate files that came
      with the distribution.
 
+  6. Often, you can also type `make uninstall' to remove the installed
+     files again.
+
 Compilers and Options
 =====================
 
@@ -123,7 +126,7 @@ option `--program-prefix=PREFIX' or `--program-suffix=SUFFIX'.
 Optional Features
 =================
 
-Some packages pay attention to `--enable-FEATURE' options to
+   Some packages pay attention to `--enable-FEATURE' options to
 `configure', where FEATURE indicates an optional part of the package.
 They may also pay attention to `--with-PACKAGE' options, where PACKAGE
 is something like `gnu-as' or `x' (for the X Window System).  The
@@ -134,6 +137,38 @@ package recognizes.
 find the X include and library files automatically, but if it doesn't,
 you can use the `configure' options `--x-includes=DIR' and
 `--x-libraries=DIR' to specify their locations.
+
+Particular systems
+==================
+
+   On HP-UX, the default C compiler is not ANSI C compatible.  If GNU
+CC is not installed, it is recommended to use the following options in
+order to use an ANSI C compiler:
+
+     ./configure CC="cc -Ae -D_XOPEN_SOURCE=500"
+
+and if that doesn't work, install pre-built binaries of GCC for HP-UX.
+
+   On OSF/1 a.k.a. Tru64, some versions of the default C compiler cannot
+parse its `<wchar.h>' header file.  The option `-nodtk' can be used as
+a workaround.  If GNU CC is not installed, it is therefore recommended
+to try
+
+     ./configure CC="cc"
+
+and if that doesn't work, try
+
+     ./configure CC="cc -nodtk"
+
+   On Solaris, don't put `/usr/ucb' early in your `PATH'.  This
+directory contains several dysfunctional programs; working variants of
+these programs are available in `/usr/bin'.  So, if you need `/usr/ucb'
+in your `PATH', put it _after_ `/usr/bin'.
+
+   On Haiku, software installed for all users goes in `/boot/common',
+not `/usr/local'.  It is recommended to use the following options:
+
+     ./configure --prefix=/boot/common
 
 Specifying the System Type
 ==========================
@@ -228,6 +263,16 @@ an Autoconf bug.  Until the bug is fixed you can use this workaround:
 `--srcdir=DIR'
      Look for the package's source code in directory DIR.  Usually
      `configure' can determine that directory automatically.
+
+`--prefix=DIR'
+     Use DIR as the installation prefix.  *Note Installation Names::
+     for more details, including other options available for fine-tuning
+     the installation locations.
+
+`--no-create'
+`-n'
+     Run the configure checks, but stop before creating any output
+     files.
 
 `configure' also accepts some other, not widely useful, options.  Run
 `configure --help' for more details.

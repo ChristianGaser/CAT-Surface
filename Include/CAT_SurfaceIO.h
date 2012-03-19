@@ -7,7 +7,6 @@
  *
 */
 
-#include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
@@ -18,11 +17,11 @@
 #define TYPE_INTEGER 2
 #define TYPE_CHAR 3
 
+Status bicpl_to_facevertexdata(polygons_struct *, double **, double **);
 Status input_values_any_format(char *, int *, double **);
 Status input_values_integer(char *, int *, int **);
 Status output_values_any_format(char *, int, void *, int);
-Status input_graphics_any_format(char *, File_formats *, int *,
-                                 object_struct  ***); 
+Status input_graphics_any_format(char *, File_formats *, int *, object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct  **);
 Status output_txt(char *, int, double *);
 int    input_oogl(char *, File_formats *, int *, object_struct  ***);

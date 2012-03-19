@@ -43,7 +43,7 @@ main(int argc, char *argv[])
         polygons_struct  *polygons, *polygonsIn;
         Point            *smooth_pts;
         Real             fwhm;
-        double           *sulc_depth;
+        double           *sulc_depth, *faces, *vertices;
 
         initialize_argument_processing(argc, argv);
 
@@ -80,7 +80,6 @@ main(int argc, char *argv[])
         output_values_any_format(output_file, polygons->n_points,
                                  sulc_depth, TYPE_DOUBLE);
 
-        FREE(smooth_pts);
 
         return(EXIT_SUCCESS);
 }
