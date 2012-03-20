@@ -10,9 +10,9 @@ function [curv, fnum] = read_curv(fname)
 %
 % Original Author: Bruce Fischl
 % CVS Revision Info:
-%    $Author: nicks $
-%    $Date: 2007/01/10 22:55:09 $
-%    $Revision: 1.2 $
+%    $Author$
+%    $Date$
+%    $Revision$
 %
 % Copyright (C) 2002-2007,
 % The General Hospital Corporation (Boston, MA). 
@@ -59,9 +59,9 @@ function [retval] = fread3(fid)
 %
 % Original Author: Bruce Fischl
 % CVS Revision Info:
-%    $Author: nicks $
-%    $Date: 2007/01/10 22:55:09 $
-%    $Revision: 1.2 $
+%    $Author$
+%    $Date$
+%    $Revision$
 %
 % Copyright (C) 2002-2007,
 % The General Hospital Corporation (Boston, MA). 

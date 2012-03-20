@@ -8,7 +8,7 @@ dist_bin_SCRIPTS = \
 	CAT_Obj2Neurolens \
 	CAT_ResampleFS_ui \
 	CAT_FractalDimensionFS_ui \
-	CAT_DumpCurvL4FS \
+	CAT_DumpCurvL4FS_ui \
 	Cat_ReconSurf \
 	CAT_DumpCurv_ui
 

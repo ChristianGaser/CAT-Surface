@@ -29,9 +29,9 @@ function [vol, M, mr_parms, volsz] = load_mgh(fname,slices,frames,headeronly)
 %
 % Original Author: Bruce Fischl
 % CVS Revision Info:
-%    $Author: nicks $
-%    $Date: 2009/11/09 22:36:52 $
-%    $Revision: 1.19 $
+%    $Author$
+%    $Date$
+%    $Revision$
 %
 % Copyright (C) 2002-2007,
 % The General Hospital Corporation (Boston, MA). 
@@ -283,9 +283,9 @@ function len = strlen(str)
 %
 % Original Author: Bruce Fischl
 % CVS Revision Info:
-%    $Author: nicks $
-%    $Date: 2007/01/10 22:55:10 $
-%    $Revision: 1.2 $
+%    $Author$
+%    $Date$
+%    $Revision$
 %
 % Copyright (C) 2002-2007,
 % The General Hospital Corporation (Boston, MA). 
