@@ -1,7 +1,5 @@
 /* (c) John Ashburner (2007) */
 
-#include <volume_io/internal_volume_io.h>
-#include <volume_io/geometry.h>
 #include <bicpl.h>
 
 #define LOG(x) (((x)>0) ? log(x+0.001): -6.9078)

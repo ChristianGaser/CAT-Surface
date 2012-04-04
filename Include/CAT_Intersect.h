@@ -7,8 +7,6 @@
  *
  */
 
-#include <volume_io/internal_volume_io.h>
-#include <volume_io/geometry.h>
 #include <bicpl.h>
 
 #define PINF  1.7976931348623157e+308 /* for doubles */
