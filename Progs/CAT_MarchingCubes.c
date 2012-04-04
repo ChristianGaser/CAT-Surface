@@ -14,7 +14,6 @@ private  void  triangulate_polygons(
 
 private  void  extract_isosurface(
     Volume            volume,
-    Volume            label_volume,
     double              min_label,
     double              max_label,
     int               spatial_axes[],
@@ -69,7 +68,7 @@ int  main(
     char  *argv[] )
 {
     STRING               input_filename, output_filename;
-    Volume               volume, label_volume;
+    Volume               volume;
     double                 min_threshold, max_threshold;
     double                 min_label, max_label;
     double                 valid_low, valid_high;
@@ -120,18 +119,16 @@ int  main(
     for_less( c, 0, N_DIMENSIONS )
         spatial_axes[c] = volume->spatial_axes[c];
 
-//    delete_volume( volume );
-
-//    volume = create_volume( 2, dimension_names, NC_UNSPECIFIED, FALSE,
- //                           0.0, 0.0 );
-
-    label_volume = NULL;
+   /* It is really weird, but only this combination worked */
+    spatial_axes[0] = 0;
+    spatial_axes[1] = 2;
+    spatial_axes[2] = 1;
 
     object  = create_object( POLYGONS );
     object3 = create_object( POLYGONS );
 
     extract_isosurface( volume,
-                        label_volume, min_label, max_label,
+                        min_label, max_label,
                         spatial_axes,
                         &voxel_to_world_transform,
                         method, binary_flag,
@@ -169,14 +166,16 @@ private  void  clear_slice(
 
 private  void  input_slice(
     Volume            volume,
-    double              **slice )
+    double            **slice,
+    int               z )
 {
-    int    sizes[MAX_DIMENSIONS];
+    int    x, y, sizes[MAX_DIMENSIONS];
 
     get_volume_sizes( volume, sizes );
 
-    get_volume_value_hyperslab_2d( volume, 0, 0, sizes[0], sizes[1],
-                                   &slice[0][0] );
+    for_less( x, 0, sizes[0] )
+    for_less( y, 0, sizes[1] )
+        slice[x][y] = get_volume_real_value( volume, x, y, z, 0, 0);;
 }
 
 private  double  get_slice_value(
@@ -244,7 +243,6 @@ private  void   get_world_point(
 
 private  void  extract_isosurface(
     Volume            volume,
-    Volume            label_volume,
     double              min_label,
     double              max_label,
     int               spatial_axes[],
@@ -292,20 +290,12 @@ private  void  extract_isosurface(
     ALLOC2D( slices[0], x_size, y_size );
     ALLOC2D( slices[1], x_size, y_size );
 
-    if( label_volume != NULL )
-    {
-        ALLOC2D( label_slices[0], x_size, y_size );
-        ALLOC2D( label_slices[1], x_size, y_size );
-    }
-
     max_edges = get_max_marching_edges( method );
 
     ALLOC3D( point_ids[0], x_size+2, y_size+2, max_edges );
     ALLOC3D( point_ids[1], x_size+2, y_size+2, max_edges );
 
     clear_slice( volume, slices[1] );
-    if( label_volume != NULL )
-        clear_slice( volume, label_slices[1] );
 
     clear_points( x_size, y_size, max_edges, point_ids[0] );
     clear_points( x_size, y_size, max_edges, point_ids[1] );
@@ -326,20 +316,9 @@ private  void  extract_isosurface(
         slices[0] = slices[1];
         slices[1] = tmp_slices;
         if( slice < n_slices - 1 )
-            input_slice( volume, slices[1] );
+            input_slice( volume, slices[1], slice );
         else
             clear_slice( volume, slices[1] );
-
-        if( label_volume != NULL )
-        {
-            tmp_slices = label_slices[0];
-            label_slices[0] = label_slices[1];
-            label_slices[1] = tmp_slices;
-            if( slice < n_slices - 1 )
-                input_slice( label_volume, label_slices[1] );
-            else
-                clear_slice( volume, label_slices[1] );
-        }
 
         tmp_point_ids = point_ids[0];
         point_ids[0] = point_ids[1];
@@ -366,12 +345,6 @@ private  void  extract_isosurface(
 
     FREE2D( slices[0] );
     FREE2D( slices[1] );
-
-    if( label_volume != NULL )
-    {
-        FREE2D( label_slices[0] );
-        FREE2D( label_slices[1] );
-    }
 
     FREE3D( point_ids[0] );
     FREE3D( point_ids[1] );
@@ -465,7 +438,6 @@ private  void  extract_surface(
             {
                 corners[tx][ty][tz] = get_slice_value( slices, x_size, y_size,
                                                        tz, x + tx, y + ty );
-
                 if( valid_low <= valid_high &&
                     (corners[tx][ty][tz] < min_threshold ||
                     corners[tx][ty][tz] > max_threshold) &&
