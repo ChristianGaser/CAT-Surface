@@ -15,7 +15,7 @@ fi
 if [ $# -eq 5 ]; then
     curv=$5
 else
-    curv=0.1
+    curv=0.05
 fi
 
 if [ $# -eq 6 ]; then
@@ -35,11 +35,11 @@ fi
 th1=$4
 step=".1 .1 15 0 $th1 $th1 n 0 0 0"
 
-iters=50
+iters=250
 model="-1 .5 avg -0.15 0.15"
 CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
 
-iters=50
+iters=250
 model="-1 .5 avg -$curv $curv"
 CAT_DeformSurf $image none 0 0 0 $3 $3 none 0 1 $model $step $iters 0.01 0.0
 
