@@ -33,7 +33,6 @@ nl_SRC = \
 	
 dartel_SRC = \
 	dartel/diffeosphere.c \
-    dartel/diffeopoly.c \
 	dartel/optimizersphere.c
 	
 noinst_HEADERS = \

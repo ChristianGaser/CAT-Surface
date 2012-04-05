@@ -62,6 +62,5 @@ bin_PROGRAMS = \
 	CAT_GIPhantom \
 	CAT_DumpConvexity \
 	CAT_Test \
-	CAT_WarpSurfPoly \
 	CAT_MarchingCubes
 	
