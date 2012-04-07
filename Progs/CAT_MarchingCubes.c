@@ -142,6 +142,9 @@ int  main(
 	if( n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
 	
     triangulate_polygons( get_polygons_ptr(object2[0]), get_polygons_ptr(object3) );
+    
+    fprintf(stderr, "Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
+
     (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3 );
 
     delete_volume( volume );
@@ -175,7 +178,7 @@ private  void  input_slice(
 
     for_less( x, 0, sizes[0] )
     for_less( y, 0, sizes[1] )
-        slice[x][y] = get_volume_real_value( volume, x, y, z, 0, 0);;
+        slice[x][y] = get_volume_real_value( volume, x, y, z, 0, 0);
 }
 
 private  double  get_slice_value(
