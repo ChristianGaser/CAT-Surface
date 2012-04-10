@@ -9,8 +9,6 @@
 
 /* Some of the code is used from caret 5.3 (BrainModelSurfaceCurvature.cxx)  */
 
-#include <volume_io/internal_volume_io.h>
-#include <volume_io/geometry.h>
 #include <bicpl.h>
 #include <float.h>
 

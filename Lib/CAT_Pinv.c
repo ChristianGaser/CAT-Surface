@@ -14,7 +14,7 @@
  * are treated as zero. The rank of the matrix A is returned.
  */
 
-#include <volume_io/internal_volume_io.h>
+#include <bicpl.h>
 
 #define TOL 1e-10
 #define EPS 1e-15

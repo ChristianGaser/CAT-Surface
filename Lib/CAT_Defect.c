@@ -7,7 +7,6 @@
  *
  */
 
-#include <volume_io/geometry.h>
 
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"

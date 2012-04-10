@@ -1,4 +1,12 @@
-#include  <volume_io/internal_volume_io.h>
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
+ */
+
 #include  <bicpl/marching.h>
 
 #define  CHUNK_SIZE   1000000

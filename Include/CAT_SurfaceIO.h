@@ -8,6 +8,7 @@
 */
 
 #include <bicpl.h>
+#include <stdio.h>
 
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
 #define QUAD_FILE_MAGIC_NUMBER      16777215

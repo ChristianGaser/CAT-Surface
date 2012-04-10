@@ -7,36 +7,11 @@
  *
  */
 
-#include <volume_io/internal_volume_io.h>
-#include <bicpl.h>
-
 #include "CAT_SurfaceIO.h"
 
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
 #define QUAD_FILE_MAGIC_NUMBER      16777215
 #define NEW_VERSION_MAGIC_NUMBER    16777215
-
-#ifdef __GLIBC__
-char *
-fgetln (stream, len)
-	FILE *stream;
-	size_t *len;
-{
-	char *line=NULL;
-	size_t nread = 0;
-
-	while (nread == 1) {
-		nread = getline (&line, len, stream);
-		if (nread == -1)
-			return NULL;
-	}
-
-	(*len)--; /* get rid of the trailing \0, fgetln
-		     does not have it */
-
-	return line;
-}
-#endif
 
 Status
 bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
@@ -81,30 +56,6 @@ input_values_any_format(char *file, int *n_values, double **values)
         return(status);
 }
 
-Status
-input_values_integer(char *file, int *n_values, int **values)
-{
-        FILE *fp;
-        int n;
-        size_t len;
-
-        *n_values = 0;
-        fp = fopen(file, "r");
-        while (fgetln(fp, &len) != NULL)
-                (*n_values)++;
-
-        rewind(fp);
-
-        *values = (int *) malloc(sizeof(int) * (*n_values));
-
-        for (n = 0; n < (*n_values); n++) {
-                if (fscanf(fp, "%d\n", &(*values)[n]) == 0)
-                        return(ERROR);
-        }
-        fclose(fp);
-
-        return(OK);
-}
 
 Status
 output_values_any_format(char *file, int n_values, void *values, int flag)

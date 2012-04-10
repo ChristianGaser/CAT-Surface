@@ -9,7 +9,6 @@
 
 /* Some of the code is used from caret 5.3 (BrainModelSurface.cxx)  */
 
-#include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 #include <float.h>
 

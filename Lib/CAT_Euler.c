@@ -7,8 +7,6 @@
  *
  */
 
-#include <volume_io/geometry.h>
-
 #include "CAT_SurfMatrix.h"
 #include "CAT_MarchingCubes.h"
 

@@ -7,9 +7,7 @@
  *
  */
 
-#include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
-#include <ParseArgv.h>
 
 #include "CAT_Surf.h"
 #include "CAT_Patch.h"

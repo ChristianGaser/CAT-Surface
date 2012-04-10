@@ -17,7 +17,6 @@ s2kit10_SRC = \
 	s2kit10/makeweights.c \
 	s2kit10/pmls.c \
 	s2kit10/seminaive.c \
-	s2kit10/csecond.c \
 	s2kit10/naive_synthesis.c \
 	s2kit10/primitive.c
 	
@@ -60,8 +59,8 @@ noinst_HEADERS = \
 	niftilib/nifti1_io.h \
 	niftilib/nifti1_local.h \
     s2kit10/FST_semi_fly.h \
-	s2kit10/csecond.h \
-	s2kit10/naive_synthesis.h s2kit10/primitive.h \
+	s2kit10/naive_synthesis.h \
+	s2kit10/primitive.h \
 	s2kit10/cospmls.h \
 	s2kit10/makeweights.h \
 	s2kit10/pmls.h \

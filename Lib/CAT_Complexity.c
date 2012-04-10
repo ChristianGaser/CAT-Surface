@@ -7,7 +7,6 @@
  *
  */
 
-#include <volume_io/internal_volume_io.h>
 #include <bicpl.h>
 
 #include "Cat_Surf.h"

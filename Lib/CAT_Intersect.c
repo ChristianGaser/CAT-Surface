@@ -7,10 +7,7 @@
  *
  */
 
-#include <volume_io/internal_volume_io.h>
-#include <volume_io/geometry.h>
 #include <bicpl.h>
-#include <ParseArgv.h>
 
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
