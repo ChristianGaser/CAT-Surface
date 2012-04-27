@@ -26,7 +26,7 @@ Usage: %s  source.obj source_sphere.obj target.obj target_sphere.obj warped.obj 
 int
 main(int argc, char *argv[])
 {
-        char             *source_file, *source_sphere_file;
+        char             *source_file, *source_sphere_file, *warped_sphere;
         char             *target_file, *target_sphere_file, *warped_file;
         File_formats     format;
         polygons_struct  *source, *source_sphere;
@@ -51,7 +51,8 @@ main(int argc, char *argv[])
             !get_string_argument(NULL, &source_sphere_file) ||
             !get_string_argument(NULL, &target_file) ||
             !get_string_argument(NULL, &target_sphere_file) ||    
-            !get_string_argument(NULL, &warped_file)) {
+            !get_string_argument(NULL, &warped_file) ||    
+            !get_string_argument(NULL, &warped_sphere)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -154,6 +155,24 @@ main(int argc, char *argv[])
         get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat,
                                    trcoeffsz, ticoeffsz);
 
+        if (cutoff > 0 && cutoff < bandwidth) {
+                butterworth_filter(bandwidth, cutoff, srcoeffsx, srcoeffsx);
+                butterworth_filter(bandwidth, cutoff, srcoeffsy, srcoeffsy);
+                butterworth_filter(bandwidth, cutoff, srcoeffsz, srcoeffsz);
+                butterworth_filter(bandwidth, cutoff, sicoeffsx, sicoeffsx);
+                butterworth_filter(bandwidth, cutoff, sicoeffsy, sicoeffsy);
+                butterworth_filter(bandwidth, cutoff, sicoeffsz, sicoeffsz);
+        }
+
+        if (cutoff > 0 && cutoff < bandwidth) {
+                butterworth_filter(bandwidth, cutoff, trcoeffsx, trcoeffsx);
+                butterworth_filter(bandwidth, cutoff, trcoeffsy, trcoeffsy);
+                butterworth_filter(bandwidth, cutoff, trcoeffsz, trcoeffsz);
+                butterworth_filter(bandwidth, cutoff, ticoeffsx, ticoeffsx);
+                butterworth_filter(bandwidth, cutoff, ticoeffsy, ticoeffsy);
+                butterworth_filter(bandwidth, cutoff, ticoeffsz, ticoeffsz);
+        }
+
         /* calculate difference of SPH coefficients */
         for (l = 0; l < bandwidth; l++) {
                 for (m = -l; m < l+1; m++) {
@@ -167,15 +186,6 @@ main(int argc, char *argv[])
                 }
         }
 
-        if (cutoff > 0 && cutoff < bandwidth) {
-                limit_bandwidth(bandwidth, cutoff, srcoeffsx, srcoeffsx);
-                limit_bandwidth(bandwidth, cutoff, srcoeffsy, srcoeffsy);
-                limit_bandwidth(bandwidth, cutoff, srcoeffsz, srcoeffsz);
-                limit_bandwidth(bandwidth, cutoff, sicoeffsx, sicoeffsx);
-                limit_bandwidth(bandwidth, cutoff, sicoeffsy, sicoeffsy);
-                limit_bandwidth(bandwidth, cutoff, sicoeffsz, sicoeffsz);
-        }
-
         get_realdata_from_sph_coeffs(rdatax, bandwidth, 1,
                                      srcoeffsx, sicoeffsx);
         get_realdata_from_sph_coeffs(rdatay, bandwidth, 1,
@@ -183,12 +193,6 @@ main(int argc, char *argv[])
         get_realdata_from_sph_coeffs(rdataz, bandwidth, 1,
                                      srcoeffsz, sicoeffsz);
         
-        for (i=0; i<bandwidth2*bandwidth2; i++) {
-                rdatax[i] += rdatax0[i];
-                rdatay[i] += rdatay0[i];
-                rdataz[i] += rdataz0[i];        
-        }
-
         object = create_object(POLYGONS);
         warped = get_polygons_ptr(object);
         
@@ -200,6 +204,61 @@ main(int argc, char *argv[])
 
         size_map[0] = bandwidth2;
         size_map[1] = bandwidth2;
+
+        for (i = 0; i < warped->n_points; i++) {
+                point_to_uv(&warped->points[i], &u, &v);
+
+                /* interpolate points */
+                x0 = (double) (bandwidth2 - 1) * u;
+                y0 = (double) (bandwidth2 - 1) * v;
+                x = (int) x0;
+                y = (int) y0;
+                xp = x0 - x;
+                yp = y0 - y;
+                xm = 1.0 - xp;
+                ym = 1.0 - yp;
+        
+                H00 = rdatax[bound(x,   y,   size_map)];
+                H01 = rdatax[bound(x,   y+1, size_map)];
+                H10 = rdatax[bound(x+1, y,   size_map)];
+                H11 = rdatax[bound(x+1, y+1, size_map)];
+
+                valuex = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
+ 
+                H00 = rdatay[bound(x,   y,   size_map)];
+                H01 = rdatay[bound(x,   y+1, size_map)];
+                H10 = rdatay[bound(x+1, y,   size_map)];
+                H11 = rdatay[bound(x+1, y+1, size_map)];
+
+                valuey = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
+
+                H00 = rdataz[bound(x,   y,   size_map)];
+                H01 = rdataz[bound(x,   y+1, size_map)];
+                H10 = rdataz[bound(x+1, y,   size_map)];
+                H11 = rdataz[bound(x+1, y+1, size_map)];
+
+                valuez = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
+
+                fill_Point(new_point, valuex, valuey, valuez);
+                warped->points[i] = new_point;
+        }
+
+        compute_polygon_normals(warped);
+
+        if (output_graphics_any_format(warped_sphere, ASCII_FORMAT,
+                                       1, &object) != OK)
+                exit(EXIT_FAILURE);
+
+        for (i=0; i<bandwidth2*bandwidth2; i++) {
+                rdatax[i] += rdatax0[i];
+                rdatay[i] += rdatay0[i];
+                rdataz[i] += rdataz0[i];        
+        }
+
+        create_tetrahedral_sphere(&centre, 1.0, 1.0, 1.0, n_triangles, warped);
 
         for (i = 0; i < warped->n_points; i++) {
                 point_to_uv(&warped->points[i], &u, &v);
