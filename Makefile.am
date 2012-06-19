@@ -3,12 +3,13 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = check-news
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CPPFLAGS = -I$(top_srcdir)/Include
+AM_CPPFLAGS = -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes
 
 lib_LTLIBRARIES = libCAT.la
 
 EXTRA_DIST = \
 	autogen.sh \
+	MarchingCubes/README \
 	$(m4_files)
 
 s2kit10_SRC = \
@@ -53,6 +54,9 @@ noinst_HEADERS = \
 	Include/CAT_FixTopology.h \
 	Include/CAT_Refine.h \
 	Include/CAT_DeformPolygons.h \
+	Include/CAT_Separate.h \
+    MarchingCubes/MarchingCubes.h \
+    MarchingCubes/LookUpTable.h \
 	dartel/dartel.h \
     niftilib/analyze75.h \
 	niftilib/nifti1.h \
@@ -94,7 +98,9 @@ libCAT_la_SOURCES = \
     Lib/CAT_Interpolate.c \
     Lib/CAT_LaplaceBeltrami.c \
     Lib/CAT_Isometrics.c \
+    Lib/CAT_Separate.c \
     Lib/CAT_NiftiIO.c \
+    MarchingCubes/MarchingCubes.c \
 	$(nl_SRC) \
 	$(dartel_SRC) \
 	$(s2kit10_SRC)

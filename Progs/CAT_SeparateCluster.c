@@ -12,7 +12,7 @@
 #include "CAT_Smooth.h"
 
 int
-separate_polygons(polygons_struct *polygons, int desired_index, double *values);
+separate_cluster(polygons_struct *polygons, int desired_index, double *values);
 
 void
 usage(char *executable) {
@@ -24,7 +24,7 @@ Usage: %s  input.obj input.txt output_prefix [which] \n\n\
 }
 
 int
-make_connected_components(polygons_struct *polygons, int point_classes[],
+make_connected_components_values(polygons_struct *polygons, int point_classes[],
                           double *values, int n_in_class[])
 {
         int                point, edge, size;
@@ -71,7 +71,7 @@ make_connected_components(polygons_struct *polygons, int point_classes[],
 }
 
 int
-separate_polygons(polygons_struct *polygons, int desired_index, double *values)
+separate_cluster(polygons_struct *polygons, int desired_index, double *values)
 {
         int       ind, p_ind, point, vertex, size, i, j, tmp;
         int       *new_point_ids, n_objects, comp, c;
@@ -83,7 +83,7 @@ separate_polygons(polygons_struct *polygons, int desired_index, double *values)
         ALLOC(n_in_class, 16384);
         ALLOC(ordered, 16384);
 
-        n_parts = make_connected_components(polygons, point_classes, values,
+        n_parts = make_connected_components_values(polygons, point_classes, values,
                                             n_in_class);
 
         for (i = 0; i < n_parts; i++)
@@ -148,7 +148,7 @@ main(int argc, char *argv[])
 
         check_polygons_neighbours_computed(polygons);
 
-        n_out = separate_polygons(polygons, desired_index, values);
+        n_out = separate_cluster(polygons, desired_index, values);
         fprintf(stderr,"%d\n",n_out);
 
         for (i = 0; i < n_out; i++) {

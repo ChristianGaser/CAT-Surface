@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir)/Include -I$(top_srcdir)
+AM_CPPFLAGS = -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)
 LDADD = ../libCAT.la -lm
 
 dist_bin_SCRIPTS = \
@@ -62,5 +62,6 @@ bin_PROGRAMS = \
 	CAT_GIPhantom \
 	CAT_DumpConvexity \
 	CAT_Test \
+	CAT_MarchingCubesTopological \
 	CAT_MarchingCubes
 	
