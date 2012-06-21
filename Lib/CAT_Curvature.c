@@ -239,8 +239,8 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                 polygonsIn = get_polygons_ptr(create_object(POLYGONS));
                 copy_polygons(polygons, polygonsIn);
                 
-                /* use smoothing with FWHM of 20mm */
-                smooth_heatkernel(polygons, NULL, 20.0);
+                /* use smoothing with FWHM of 25mm */
+                smooth_heatkernel(polygons, NULL, 25.0);
 
                 compute_polygon_normals(polygons);
 
