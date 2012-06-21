@@ -26,18 +26,18 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &object_file)) {
-                fprintf(stderr, "Usage: %s  object_file [output_file]\n",
+        if (!get_string_argument(NULL, &object_file) ||
+            !get_string_argument(NULL, &output_file)) {
+                fprintf(stderr, "Usage: %s  object_file output_file\n",
                         argv[0]);
                 exit(EXIT_FAILURE);
         }
 
         if (input_graphics_any_format(object_file, &format,
-                                      &n_objects, &objects) != OK)
+                                      &n_objects, &objects) != OK) {
+                fprintf(stderr, "Error reading %s.\n", object_file);
                 exit(EXIT_FAILURE);
-
-        if (get_string_argument(NULL, &output_file) != OK)
-                exit(EXIT_FAILURE);
+        }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
                 printf("File must contain 1 polygons object.\n");

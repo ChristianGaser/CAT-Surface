@@ -257,7 +257,7 @@ get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
         Point point;
 
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-        smooth_heatkernel(polygons, &n_neighbours, &neighbours, values, fwhm);
+        smooth_heatkernel(polygons, values, fwhm);
 }
 
 

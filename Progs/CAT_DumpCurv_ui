@@ -82,6 +82,9 @@ get_outputname ()
     4)
         str='mc0'
         ;;
+    5)
+        str='sd'
+        ;;
   esac
   if [ "$use_absolute" == 1 ]; then
     str=a$str
@@ -137,11 +140,14 @@ parse_args ()
     --c* | -c*)
       method=2
       ;;
-    --s* | -s*)
+    --si | -si)
       method=3
       ;;
     --mc0 | -mc0)
       method=4
+      ;;
+    --sd | -sd)
+      method=5
       ;;
     -h | --help | -v | --version | -V)
       help
@@ -185,7 +191,7 @@ exit_if_empty ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_DumpCurv_ui name [name2 name3 ... nameN] [-noclobber] [-mc|-mc0|-gc|-cv|-si] [-a]
+USAGE: CAT_DumpCurv_ui name [name2 name3 ... nameN] [-noclobber] [-mc|-mc0|-gc|-cv|-si|-sd] [-a]
         [-f=fwhm_in_mm] [-r=remove_str_from_outputname]
     
 __EOM__
@@ -205,7 +211,7 @@ containing the values for each node. The values can be optionally filtered using
 diffusion heat kernel and values can be saved as absolute values.
 
 USAGE:
-    CAT_DumpCurv_ui name.obj [name2.obj ... nameN.obj] [-mc|-mc0|-gc|-cv|-si] [-a]
+    CAT_DumpCurv_ui name.obj [name2.obj ... nameN.obj] [-mc|-mc0|-gc|-cv|-si|-sd] [-a]
         [-noclobber] [-f=fwhm_in_mm] [-r=remove_str_from_outputname]
     
 OPTIONS:
@@ -218,6 +224,7 @@ OPTIONS:
   -gc        - calculate gaussian curvature                
   -cv        - calculate curvedness                
   -si        - calculate shape index                
+  -sd        - calculate sulcal depth like estimator                
   -noclobber - do not overwrite existing file
     
 EXAMPLE:

@@ -12,7 +12,7 @@
  *  Chung, M.K., Robbins,S., Dalton, K.M., Davidson, R.J., Evans, A.C. (2004) 
  *  Cortical thickness analysis in autism via heat kernel smoothing.
  *  NeuroImage, submitted. 
- *  http://www.stat.wisc.edu/~mchung/papers/ni_heatkernel.pd
+ *  http://www.stat.wisc.edu/~mchung/papers/ni_heatkernel.pdf
  */
 
 #include <bicpl.h>
@@ -36,7 +36,8 @@ Usage: %s  object_file output_file [curvtype] [fwhm] [use_abs_vals] [-1|1]\n\n\
                 1 - gaussian curvature\n\
                 2 - curvedness\n\
                 3 - shape index\n\
-                4 - mean curvature (in radians)\n\n";
+                4 - mean curvature (in radians)\n\
+                5 - sulcal depth like estimator\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -94,7 +95,7 @@ main(int argc, char *argv[])
 
         /* limit range to values between -1..1 for all curvtypes > 0 */
         /*  (don't ask me where the large values come from...) */
-        if (curvtype > 0) { 
+        if ((curvtype > 0) && (curvtype < 5)) { 
                 for (i = 0; i < polygons->n_points; i++) {
                         if (curvatures[i] < -1)
                                 curvatures[i] = -1;

@@ -38,7 +38,7 @@ main(int argc, char *argv[])
         int              n_objects, i;
         int              *n_neighbours, **neighbours;
         File_formats     format;
-        object_struct    **object_list, *out_object;
+        object_struct    **object_list;
         polygons_struct  *polygons, *polygonsIn;
         Point            *smooth_pts;
         Real             fwhm;
@@ -60,20 +60,22 @@ main(int argc, char *argv[])
         }
 
         polygons = get_polygons_ptr(object_list[0]);
-        out_object = create_object(POLYGONS);
-        polygonsIn = get_polygons_ptr(out_object);
+        polygonsIn = get_polygons_ptr(create_object(POLYGONS));
         copy_polygons(polygons, polygonsIn);
 
         sulc_depth = (double *) malloc(sizeof(double) * polygons->n_points);
 
-        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+ //       get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
+fwhm = 5;
         smooth_heatkernel(polygons, NULL, fwhm);
 
+        compute_polygon_normals(polygons);
+
         for (i = 0; i < polygons->n_points; i++) {
-                sulc_depth[i] = sqrt((Point_x(polygons->points[i]) - Point_x(polygonsIn->points[i]))*(Point_x(polygons->points[i]) - Point_x(polygonsIn->points[i])) +
-                                (Point_y(polygons->points[i]) - Point_y(polygonsIn->points[i]))*(Point_y(polygons->points[i]) - Point_y(polygonsIn->points[i])) +
-                                (Point_z(polygons->points[i]) - Point_z(polygonsIn->points[i]))*(Point_z(polygons->points[i]) - Point_z(polygonsIn->points[i])));
+                sulc_depth[i] = ((Point_x(polygons->points[i]) - Point_x(polygonsIn->points[i]))*Point_x(polygons->normals[i]) +
+                                 (Point_y(polygons->points[i]) - Point_y(polygonsIn->points[i]))*Point_y(polygons->normals[i]) +
+                                 (Point_z(polygons->points[i]) - Point_z(polygonsIn->points[i]))*Point_z(polygons->normals[i]));
         }
 
         output_values_any_format(output_file, polygons->n_points,

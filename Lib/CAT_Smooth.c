@@ -176,7 +176,6 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
                 }
         }
 
-
         terminate_progress_report(&progress);
 
         if (values != NULL) 

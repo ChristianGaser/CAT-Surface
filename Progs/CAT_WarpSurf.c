@@ -38,7 +38,7 @@ int code        = 1;
 int loop        = 6;
 int verbose     = 0;
 int rtype       = 1;
-int curvtype    = 3;
+int curvtype    = 5;
 int muchange    = 4;
 int sz_map[2]   = {512, 256};
 int n_triangles = 81920;
@@ -97,7 +97,7 @@ static ArgvInfo argTable[] = {
   {"-avg", ARGV_CONSTANT, (char *) TRUE, (char *) &avg,
      "Average together two weighted DARTEL solutions into final mesh."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
-     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
+     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,

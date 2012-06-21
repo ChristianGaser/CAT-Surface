@@ -220,6 +220,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
         double           *distances;
         BOOLEAN          initialized;
         progress_struct  progress;
+        polygons_struct  *polygonsIn;
 
         compute_polygon_normals(polygons);
 
@@ -232,32 +233,48 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                 ALLOC(distances, polygons->n_points);
                 initialized = FALSE;
         }
+        
+        /* for sulcal depth like estimator */
+        if (curvtype == 5) {
+                polygonsIn = get_polygons_ptr(create_object(POLYGONS));
+                copy_polygons(polygons, polygonsIn);
+                
+                /* use smoothing with FWHM of 20mm */
+                smooth_heatkernel(polygons, NULL, 20.0);
 
-        initialize_progress_report(&progress, FALSE, polygons->n_items,
+                compute_polygon_normals(polygons);
+
+                for (p = 0; p < polygons->n_points; p++) {
+                        curvatures[p] = ((Point_x(polygons->points[p]) - Point_x(polygonsIn->points[p]))*Point_x(polygons->normals[p]) +
+                                         (Point_y(polygons->points[p]) - Point_y(polygonsIn->points[p]))*Point_y(polygons->normals[p]) +
+                                         (Point_z(polygons->points[p]) - Point_z(polygonsIn->points[p]))*Point_z(polygons->normals[p]));
+                }
+        } else {
+
+                initialize_progress_report(&progress, FALSE, polygons->n_items,
                                    "Computing Curvatures");
 
-        for (p = 0; p < polygons->n_items; p++) {
-                size = GET_OBJECT_SIZE(*polygons, p);
+                for (p = 0; p < polygons->n_items; p++) {
+                        size = GET_OBJECT_SIZE(*polygons, p);
 
-                for (vidx = 0; vidx < size; vidx++) {
-                        pidx = polygons->indices[
-                                   POINT_INDEX(polygons->end_indices, p, vidx)];
+                        for (vidx = 0; vidx < size; vidx++) {
+                                pidx = polygons->indices[
+                                           POINT_INDEX(polygons->end_indices, p, vidx)];
 
-                        if (!point_done[pidx]) {
-                                point_done[pidx] = TRUE;
-                                /* if smoothing_distance is > 0 mean curvature
-                                 * will be calculated and averaged over
-                                 * smoothing_distance */
-                                if (smoothing_distance <= 0.0)
-                {
-                                        compute_points_centroid_and_normal_cg(polygons,
-                                            pidx, n_neighbours[pidx],
-                                            neighbours[pidx],
-                                            &centroid, &normal, &baselen,
-                                            curvtype, &curvature);
+                                if (!point_done[pidx]) {
+                                        point_done[pidx] = TRUE;
+                                        /* if smoothing_distance is > 0 mean curvature
+                                         * will be calculated and averaged over
+                                         * smoothing_distance */
+                                        if (smoothing_distance <= 0.0) {
+                                                compute_points_centroid_and_normal_cg(polygons,
+                                                    pidx, n_neighbours[pidx],
+                                                    neighbours[pidx],
+                                                    &centroid, &normal, &baselen,
+                                                    curvtype, &curvature);
 
-                                } else {
-                                        curvature = get_smooth_surface_curvature(polygons,
+                                        } else {
+                                                curvature = get_smooth_surface_curvature(polygons,
                                                         n_neighbours,
                                                         neighbours,
                                                         p, vidx,
@@ -265,17 +282,18 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                                         (float *) distances,
                                                         smoothing_distance);
 
-                                        initialized = TRUE;
-                                }
+                                                initialized = TRUE;
+                                        }
 
-                                curvatures[pidx] = curvature;
+                                        curvatures[pidx] = curvature;
+                                }
                         }
+
+                        update_progress_report(&progress, p + 1);
                 }
 
-                update_progress_report(&progress, p + 1);
+                terminate_progress_report(&progress);
         }
-
-        terminate_progress_report(&progress);
 
         if (smoothing_distance > 0.0)
                 FREE(distances);
@@ -299,7 +317,7 @@ get_smoothed_curvatures(polygons_struct *polygons,
         get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                                          distance, curvtype, values);
 
-        smooth_heatkernel(polygons, &n_neighbours, &neighbours, values, fwhm);
+        smooth_heatkernel(polygons, values, fwhm);
 
         /* scale data to uint8 range */
         mn = FLT_MAX; mx = -FLT_MAX;
@@ -378,16 +396,9 @@ calc_convexity(polygons_struct *polygons, int n_neighbours[],
                 sx /= n; sy /= n; sz /= n;
             }
             convexity[p] = sx*nx + sy*ny + sz*nz;   /* projection onto normal */
-            if (convexity[p] < 0)
+/*            if (convexity[p] < 0)
                 convexity[p] = 0;
-
-            sx = convexity[p]*nx;              /* move in normal direction */
-            sy = convexity[p]*ny;
-            sz = convexity[p]*nz;
-
-            //Point_x(depths[p]) += l_convex * sx;
-            //Point_y(depths[p]) += l_convex * sy;
-            //Point_z(depths[p]) += l_convex * sz;
+*/
     }
 
 
