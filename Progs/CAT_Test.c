@@ -7,36 +7,27 @@
  *
  */
 
-/*
- * Heat kernel smoothing is based on matlab code from Moo K. Chung:
- * Chung, M.K., Robbins,S., Dalton, K.M., Davidson, R.J., Evans, A.C. (2005) 
- * Cortical thickness analysis in autism via heat kernel smoothing. NeuroImage. 
- * http://www.stat.wisc.edu/~mchung/papers/ni_heatkernel.pdf
- */
+#include    <bicpl.h>
+#include    <float.h>
 
-#include <bicpl.h>
-
-#include "CAT_Smooth.h"
-#include "CAT_SurfaceIO.h"
-
+#include    "CAT_Surf.h"
+#include    "CAT_SPH.h"
+    
 void
 usage(char *executable)
 {
-        char *usage_str = "\n\
-Usage: %s object_file output_file fwhm [values_file]\n\n\
-     Diffusion smoothing of values or surface points using\n\
-     heat kernel. If values are defined then values will be\n\
-     smoothed, otherwise only surface points.\n\n";
+        static  char  *usage_str = "\n\
+Usage: %s  source.obj source_sphere.obj target.obj target_sphere.obj warped.obj [cutoff]\n\
+        Use spherical harmonic coefficients to warp a surface to a given template.\n\
+\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
-
 int
 main(int argc, char *argv[])
 {
-        char             *input_file, *output_file;
-        int              n_objects, i;
-        int              *n_neighbours, **neighbours;
+        char             *source_file, *source_sphere_file, *warped_sphere_file;
+        char             *target_file, *target_sphere_file, *warped_file;
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons, *polygonsIn;
@@ -46,16 +37,29 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &output_file)) {
+        if (!get_string_argument(NULL, &source_file) ||
+            !get_string_argument(NULL, &source_sphere_file) ||
+            !get_string_argument(NULL, &target_file) ||
+            !get_string_argument(NULL, &target_sphere_file) ||    
+            !get_string_argument(NULL, &warped_file) ||    
+            !get_string_argument(NULL, &warped_sphere_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
 
-        if (input_graphics_any_format(input_file, &format, &n_objects,
-                                      &object_list) != OK ||
-            n_objects != 1 || get_object_type(object_list[0]) != POLYGONS) {
-                fprintf(stderr, "Error reading %s.\n", input_file);
+        get_int_argument(32, &cutoff);
+        bandwidth = 256;
+        
+        bandwidth2  = bandwidth*2;
+        n_triangles = 81920;
+
+        if (input_graphics_any_format(target_file, &format,
+                                      &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+
+        /* check that the surface file contains a polyhedron */
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                print("Surface file must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
         }
 
@@ -63,7 +67,15 @@ main(int argc, char *argv[])
         polygonsIn = get_polygons_ptr(create_object(POLYGONS));
         copy_polygons(polygons, polygonsIn);
 
-        sulc_depth = (double *) malloc(sizeof(double) * polygons->n_points);
+        if (input_graphics_any_format(target_sphere_file, &format,
+                                      &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+        
+        /* check that the surface file contains a polyhedron */
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                print("Surface file must contain 1 polygons object.\n");
+                exit(EXIT_FAILURE);
+        }
 
  //       get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
@@ -78,9 +90,18 @@ fwhm = 5;
                                  (Point_z(polygons->points[i]) - Point_z(polygonsIn->points[i]))*Point_z(polygons->normals[i]));
         }
 
-        output_values_any_format(output_file, polygons->n_points,
-                                 sulc_depth, TYPE_DOUBLE);
+        for (i = 0; i < warped_sphere->n_points; i++) 
+                set_vector_length(&warped_sphere->points[i], 1.0);
 
+        if (output_graphics_any_format(warped_file, ASCII_FORMAT,
+                                       1, &object) != OK)
+                exit(EXIT_FAILURE);
 
+        if (output_graphics_any_format(warped_sphere_file, ASCII_FORMAT,
+                                       1, &object2) != OK)
+                exit(EXIT_FAILURE);
+
+        delete_object_list(n_objects, objects);
+               
         return(EXIT_SUCCESS);
 }

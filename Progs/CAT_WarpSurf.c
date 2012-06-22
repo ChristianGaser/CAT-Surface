@@ -38,7 +38,7 @@ int code        = 1;
 int loop        = 6;
 int verbose     = 0;
 int rtype       = 1;
-int curvtype    = 5;
+int curvtype    = 3;
 int muchange    = 4;
 int sz_map[2]   = {512, 256};
 int n_triangles = 81920;
@@ -410,11 +410,11 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                   struct dartel_prm *prm, int dm[3], int n_steps,
                   double rot[3], double *flow)
 {
-        int step, i, it, it0, it1, xy_size, it_scratch;
-        polygons_struct *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
+        int              step, i, it, it0, it1, xy_size, it_scratch, curvtype0;
+        polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
         double           rotation_matrix[9];
-        double *flow1, *inflow, *map_src, *map_trg;
-        double  *scratch, *jd, *jd1, *values;
+        double           *flow1, *inflow, *map_src, *map_trg;
+        double           *scratch, *jd, *jd1, *values;
         double           ll[3];
 
         xy_size = dm[0] * dm[1];
@@ -459,11 +459,14 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                                                    sm_trg_sphere, NULL, NULL,
                                                    n_triangles);
 
+                        /* always use sulcal depth first */
+                        curvtype0 = 5;
+
                         /* initial rotation */
                         if (rotate) {
                                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                                                          sm_trg, sm_trg_sphere,
-                                                         fwhm, curvtype, rot);
+                                                         fwhm, curvtype0, rot);
                                 rotation_to_matrix(rotation_matrix,
                                                    rot[0], rot[1], rot[2]);
                 
@@ -493,7 +496,12 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                         inflate_surface_and_smooth_fingers(sm_trg,
                                                            2, 1.0, 10, 1.4,
                                                            3.0, 1.0, 0);
+                        /* always use sulcal depth first */
+                        curvtype0 = 5;
                 } else if (step == 2) {
+                        /* use default at final step */
+                        curvtype0 = curvtype;
+                        
                         /* smooth surfaces */
                         inflate_surface_and_smooth_fingers(sm_src,
                                                            1, 0.2, 20, 1.0,
@@ -505,10 +513,10 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
 
                 /* get curvatures */
                 map_smoothed_curvature_to_sphere(sm_trg, NULL, (double *)0,
-                                                 map_trg, fwhm, dm, curvtype);
+                                                 map_trg, fwhm, dm, curvtype0);
                 map_smoothed_curvature_to_sphere(sm_src, sm_src_sphere,
                                                  (double *)0, map_src, fwhm,
-                                                 dm, curvtype);
+                                                 dm, curvtype0);
 
                 /* go through dartel steps */
                 for (it = 0, it0 = 0; it0 < loop; it0++) {
@@ -755,13 +763,13 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm("source.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
 
                 map_smoothed_curvature_to_sphere(trg, trg_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm("target.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
@@ -785,7 +793,7 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm("source_rotated.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
@@ -857,7 +865,7 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm(pgm_file, data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
