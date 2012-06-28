@@ -255,11 +255,6 @@ main(int argc, char *argv[])
 
                 fill_Point(new_point, valuex, valuey, valuez);
                 warped->points[i] = new_point;
-}
-        warped = get_polygons_ptr(object);
-        copy_polygons(target_sphere,warped);
-        warped_sphere = get_polygons_ptr(object2);
-        copy_polygons(target_sphere,warped_sphere);
 
                 poly = find_closest_polygon_point(&warped->points[i], target, &closest);
 //                n_points = get_polygon_points(target_sphere, poly, &sphere_point);

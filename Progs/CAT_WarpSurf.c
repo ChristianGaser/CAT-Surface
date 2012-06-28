@@ -38,7 +38,7 @@ int code        = 1;
 int loop        = 6;
 int verbose     = 0;
 int rtype       = 1;
-int curvtype    = 3;
+int curvtype    = 2;
 int muchange    = 4;
 int sz_map[2]   = {512, 256};
 int n_triangles = 81920;
@@ -46,8 +46,8 @@ int n_steps     = 3;
 int n_runs      = 2;
 int debug       = 0;
 double murate   = 1.25;
-double lambda   = 1e-3;
-double mu       = 0.25;
+double lambda   = 0;
+double mu       = 0.125;
 double lmreg    = 1e-3;
 double fwhm     = 8.0;
 
@@ -763,13 +763,13 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype0);
+                                                 data, 0.0, dm, curvtype);
 
                 if (write_pgm("source.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
 
                 map_smoothed_curvature_to_sphere(trg, trg_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype0);
+                                                 data, 0.0, dm, curvtype);
 
                 if (write_pgm("target.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
@@ -793,7 +793,7 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype0);
+                                                 data, 0.0, dm, curvtype);
 
                 if (write_pgm("source_rotated.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
@@ -865,7 +865,7 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype0);
+                                                 data, 0.0, dm, curvtype);
 
                 if (write_pgm(pgm_file, data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
