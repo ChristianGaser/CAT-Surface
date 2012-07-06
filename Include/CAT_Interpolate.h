@@ -18,6 +18,7 @@
 #define  NEW_COORDINATE_SYSTEM   1
 
 double interp_point_unit_sphere(polygons_struct *, double *, Point);
+double interp_point_unit_sphere_fast(polygons_struct *, double *, Point, int);
 double interp_point_sphere(polygons_struct *, double *, Point);
 double interp_uv_unit_sphere(polygons_struct *, double *, double, double);
 double interp_uv_sphere(polygons_struct *, double *, double, double);

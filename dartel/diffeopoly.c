@@ -79,7 +79,7 @@ LtLf_me_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
         kyp   = interp_point_unit_sphere(sphere, f, dpoly->pphi[i]);
         g[i] = w00*f[i] + w01*(kym + kyp) + w10*(kxm + kxp);
 
-        kxm   = interp_point_unit_sphere(sphere, f+mm, dpoly->ptheta[i]);
+        kxm   = interp_point_unit_sphere(sphere, f+mm, dpoly->ntheta[i]);
         kxp   = interp_point_unit_sphere(sphere, f+mm, dpoly->ptheta[i]);
         kym   = interp_point_unit_sphere(sphere, f+mm, dpoly->nphi[i]);
         kyp   = interp_point_unit_sphere(sphere, f+mm, dpoly->pphi[i]);

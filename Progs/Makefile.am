@@ -43,6 +43,7 @@ bin_PROGRAMS = \
 	CAT_Isometize \
 	CAT_LBConformalMap \
 	CAT_WarpSurf \
+	CAT_WarpSurfDemon \
 	CAT_WarpSurfSPH \
 	CAT_ResampleSphericalSurfSPH \
 	CAT_ArealSmoothing \
