@@ -40,7 +40,7 @@ main(int argc, char *argv[])
         double           *srx, *sry, *srz;
         double           *trx, *try, *trz;
         double           H00, H01, H10, H11, valuex, valuey, valuez;
-        double           u, v, u2, v2, xp, yp, xm, ym;
+        double           u, v, u2, v2, xp, yp, xm, ym, weight, *ux, *vy;
         object_struct    **objects, *object, *object2;
         int              dataformat;
         Point            sphere_point, new_point, closest;    
@@ -187,11 +187,13 @@ main(int argc, char *argv[])
         get_realdata_from_sph_coeffs(trz, bandwidth, dataformat, srcoeffsz, sicoeffsz);
         
 
+        weight = 1.0;
+        
         /* add difference to source data */
         for (i=0; i<bandwidth2*bandwidth2; i++) {
-                srx[i] += trx[i];
-                sry[i] += try[i];
-                srz[i] += trz[i];        
+                srx[i] += weight*trx[i];
+                sry[i] += weight*try[i];
+                srz[i] += weight*trz[i];        
         }
 
         /* create sphere */
@@ -217,6 +219,7 @@ main(int argc, char *argv[])
         size_map[0] = bandwidth2;
         size_map[1] = bandwidth2;
 
+if (1==2) {
         for (i = 0; i < source->n_points; i++) {
 
                 fill_Point(sphere_point, Point_x(source_sphere->points[i]), Point_y(source_sphere->points[i]), Point_z(source_sphere->points[i]));
@@ -255,32 +258,71 @@ main(int argc, char *argv[])
 
                 fill_Point(new_point, valuex, valuey, valuez);
                 warped->points[i] = new_point;
-
+                                
                 poly = find_closest_polygon_point(&warped->points[i], target, &closest);
 //                n_points = get_polygon_points(target_sphere, poly, &sphere_point);
                 sphere_point = target_sphere->points[target_sphere->indices[POINT_INDEX(target_sphere->end_indices,poly,0)]];
+                
+//                fprintf(stderr,"%3.4f %3.4f %3.4f\n",Point_x(source_sphere->points[i])-Point_x(sphere_point),Point_y(source_sphere->points[i])-Point_y(sphere_point),Point_z(source_sphere->points[i])-Point_z(sphere_point));
+                warped_sphere->points[i] = sphere_point;
+                
+        }
+}
+        warped = get_polygons_ptr(object);
+        copy_polygons(target_sphere,warped);
+        warped_sphere = get_polygons_ptr(object2);
+        copy_polygons(target_sphere,warped_sphere);
 
-                point_to_uv(&sphere_point, &u2, &v2);
+        for (i = 0; i < target->n_points; i++) {
+
+                fill_Point(sphere_point, Point_x(target_sphere->points[i]), Point_y(target_sphere->points[i]), Point_z(target_sphere->points[i]));
+                point_to_uv(&sphere_point, &u, &v);
+
+                /* interpolate points */
+                xp = u*((double)bandwidth2) - 0.5;
+                yp = v*((double)bandwidth2) - 0.5;
+
+                x = (int) floor(xp); xp -= x; xm = 1.0 - xp;
+                y = (int) floor(yp); yp -= y; ym = 1.0 - yp;
+        
+                H00 = srx[bound(x,   y,   size_map)];
+                H01 = srx[bound(x,   y+1, size_map)];
+                H10 = srx[bound(x+1, y,   size_map)];
+                H11 = srx[bound(x+1, y+1, size_map)];
+
+                valuex = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
+ 
+                H00 = sry[bound(x,   y,   size_map)];
+                H01 = sry[bound(x,   y+1, size_map)];
+                H10 = sry[bound(x+1, y,   size_map)];
+                H11 = sry[bound(x+1, y+1, size_map)];
+
+                valuey = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
+
+                H00 = srz[bound(x,   y,   size_map)];
+                H01 = srz[bound(x,   y+1, size_map)];
+                H10 = srz[bound(x+1, y,   size_map)];
+                H11 = srz[bound(x+1, y+1, size_map)];
+
+                valuez = ym * (xm * H00 + xp * H10) + 
+                         yp * (xm * H01 + xp * H11);
+
+                fill_Point(new_point, valuex, valuey, valuez);
+                warped->points[i] = new_point;
+                                
+                poly = find_closest_polygon_point(&warped->points[i], target, &closest);
+//                n_points = get_polygon_points(target_sphere, poly, &sphere_point);
+                sphere_point = target_sphere->points[target_sphere->indices[POINT_INDEX(target_sphere->end_indices,poly,0)]];
                 
-//                fprintf(stderr,"%3.2f %3.2f %g\n",u,u2,u-u2);
-                u = u2; v = v2;
-                /* wrap borders */
-                if (v < 0.0) {
-                        v = -v;
-                        u += 0.5;
-                }
-                if (v > 1.0) {
-                        v = 2 - v;
-                        u += 0.5;
-                }
-                while (u < 0.0)  u += 1.0;
-                while (u >= 1.0) u -= 1.0;
-                
-                uv_to_point(u, v, &new_point);
-                warped_sphere->points[i] = new_point;
+//                fprintf(stderr,"%3.4f %3.4f %3.4f\n",Point_x(source_sphere->points[i])-Point_x(sphere_point),Point_y(source_sphere->points[i])-Point_y(sphere_point),Point_z(source_sphere->points[i])-Point_z(sphere_point));
+                warped_sphere->points[i] = sphere_point;
                 
         }
 
+        for (i = 0; i < warped_sphere->n_points; i++) 
+                set_vector_length(&warped_sphere->points[i], 1.0);
 
         if (output_graphics_any_format(warped_file, ASCII_FORMAT,
                                        1, &object) != OK)
