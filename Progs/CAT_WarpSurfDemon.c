@@ -511,7 +511,6 @@ main(int argc, char *argv[])
                 }
                 
                 gradient_poly(trg_sphere, dpoly, curv_target, dtheta_samp, dphi_samp);
-                kxm   = interp_point_unit_sphere(polygons, f, dpoly->ntheta[i]);
 
                 /* use smaller FWHM for next steps */
                 //if (fwhm > 4) fwhm -= 2.0;
