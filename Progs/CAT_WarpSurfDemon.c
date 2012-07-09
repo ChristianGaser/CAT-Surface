@@ -116,95 +116,6 @@ gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
 }
 
 void
-resample_spherical_surface(polygons_struct *polygons,
-                           polygons_struct *poly_src_sphere,
-                           polygons_struct *resampled_source,
-                           double *input_values, double *output_values,
-                           int n_triangles)
-{
-        int    i, k, poly, n_points;
-        int    *n_neighbours, **neighbours;
-        Point  centre, point_on_src_sphere, scaled_point;
-        Point  poly_points[MAX_POINTS_PER_POLYGON];
-        Point  poly_points_src[MAX_POINTS_PER_POLYGON];
-        Point  *new_points;
-        double   weights[MAX_POINTS_PER_POLYGON];
-        double sphereRadius, r, bounds[6];
-
-        /*
-         * Determine radius for the output sphere.  The sphere is not always
-         * perfectly spherical, thus use average radius
-         */
-        sphereRadius = 0.0;
-        for (i = 0; i < poly_src_sphere->n_points; i++) {
-                r = 0.0;
-                for (k = 0; k < 3; k++) 
-                        r += Point_coord(poly_src_sphere->points[i], k) *
-                             Point_coord(poly_src_sphere->points[i], k);
-                sphereRadius += sqrt(r);
-        }
-        sphereRadius /= poly_src_sphere->n_points;
-
-        /* Calc. sphere center based on bounds of input (correct for shifts) */
-        get_bounds(poly_src_sphere, bounds);
-        fill_Point(centre, bounds[0]+bounds[1],
-                           bounds[2]+bounds[3], bounds[4]+bounds[5]);
-    
-        /*
-         * Make radius slightly smaller to get sure that the
-         * inner side of handles will be found as nearest point on the surface
-         */
-        sphereRadius *= 0.975;
-        create_tetrahedral_sphere(&centre, sphereRadius, sphereRadius,
-                                  sphereRadius, n_triangles, resampled_source);
-
-        create_polygons_bintree(poly_src_sphere,
-                                ROUND((Real) poly_src_sphere->n_items * 0.5));
-
-        ALLOC(new_points, resampled_source->n_points);
-        if (input_values != NULL)
-                ALLOC(output_values, resampled_source->n_points);
-
-        for (i = 0; i < resampled_source->n_points; i++) {
-                poly = find_closest_polygon_point(&resampled_source->points[i],
-                                                  poly_src_sphere,
-                                                  &point_on_src_sphere);
-		
-                n_points = get_polygon_points(poly_src_sphere, poly,
-                                              poly_points_src);
-                get_polygon_interpolation_weights(&point_on_src_sphere,
-                                                  n_points, poly_points_src,
-                                                  weights);
-
-                if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                        handle_internal_error("map_point_between_polygons");
-
-                fill_Point(new_points[i], 0.0, 0.0, 0.0);
-                if (input_values != NULL)
-                        output_values[i] = 0.0;
-
-                for (k = 0; k < n_points; k++) {
-                        SCALE_POINT(scaled_point, poly_points[k], weights[k]);
-                        ADD_POINTS(new_points[i], new_points[i], scaled_point);
-                        if (input_values != NULL)
-                                output_values[i] += weights[k] *
-                                    input_values[polygons->indices[
-                                    POINT_INDEX(polygons->end_indices,poly,k)]];
-                }
-       }
-
-        create_polygon_point_neighbours(resampled_source, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
-
-        for (i = 0; i < resampled_source->n_points; i++) {
-                resampled_source->points[i] = new_points[i];
-        }
-		
-        compute_polygon_normals(resampled_source);
-        free(new_points);
-}
-
-void
 rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygons,
                 double *rotation_matrix)
 {
@@ -284,10 +195,10 @@ main(int argc, char *argv[])
         double           ll[3];
         static double    param[2] = {UTHETA, VPHI};
         int              size_curv[3], shift[2] = {0, 0};
-        double           xp, yp, xm, ym;
+        double           xp, yp, xm, ym, idiff, denom;
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
-        double           rot[3], *curv_target, *curv_source, *dtheta, *dphi, *dtheta_samp, *dphi_samp, *u, *v;
+        double           rot[3], *curv_tmp, *curv_target, *curv_source, *dtheta, *dphi, *u, *v;
         struct           dartel_poly *dpoly;
         int              *n_neighbours, **neighbours;
 
@@ -446,23 +357,25 @@ main(int argc, char *argv[])
         sm_source   = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_target   = (polygons_struct *) malloc(sizeof(polygons_struct));
 
-        ALLOC(curv_target, target->n_points);
-        ALLOC(curv_source, source->n_points);
-        ALLOC(dtheta_samp, target->n_points);
-        ALLOC(dphi_samp, target->n_points);
-        ALLOC(dtheta, source->n_points);
-        ALLOC(dphi, source->n_points);
-        ALLOC(u, source->n_points);
-        ALLOC(v, source->n_points);
+        curv_tmp    = (double *) malloc(sizeof(double) * target->n_points);
+        curv_source = (double *) malloc(sizeof(double) * source->n_points);
+        curv_target = (double *) malloc(sizeof(double) * source->n_points);
+        dtheta      = (double *) malloc(sizeof(double) * source->n_points);
+        dphi        = (double *) malloc(sizeof(double) * source->n_points);
+        u           = (double *) malloc(sizeof(double) * source->n_points);
+        v           = (double *) malloc(sizeof(double) * source->n_points);
         
         get_all_polygon_point_neighbours(source, &n_neighbours, &neighbours);
         get_polygon_vertex_curvatures_cg(source, n_neighbours, neighbours,
-                                         0.0, 4, curv_source);
+                                         0.0, curvtype, curv_source);
 
         get_all_polygon_point_neighbours(target, &n_neighbours, &neighbours);
         get_polygon_vertex_curvatures_cg(target, n_neighbours, neighbours,
-                                         0.0, 4, curv_target);
+                                         0.0, curvtype, curv_tmp);
 
+        /* resample curvature of target to source space */
+        resample_noscale(trg_sphere, src_sphere, curv_tmp, curv_target);
+                 
         init_dartel_poly(trg_sphere, dpoly);
 
         for (step = 0; step < n_steps; step++) {
@@ -510,17 +423,31 @@ main(int argc, char *argv[])
                                                            3.0, 1.0, 0);
                 }
                 
-                gradient_poly(trg_sphere, dpoly, curv_target, dtheta_samp, dphi_samp);
+                gradient_poly(trg_sphere, dpoly, curv_target, dtheta, dphi);
+                for (i = 0; i < source->n_points; i++) {
+                        idiff = curv_source[i] - curv_target[i];
+                        denom = -((dtheta[i]*dtheta[i] + dphi[i]*dphi[i]) + idiff*idiff);
+                        if (denom == 0.0) {
+                                u[i] = 0.0;
+                                v[i] = 0.0;
+                        } else {
+                                u[i] = idiff*dtheta[i]/denom;
+                                v[i] = idiff*dphi[i]/denom;                        
+                        }
+                }
+                
+                /* lowpass filter displacements */
+                smooth_heatkernel(source, u, 5);
+                smooth_heatkernel(source, v, 5);
 
                 /* use smaller FWHM for next steps */
-                //if (fwhm > 4) fwhm -= 2.0;
                 fwhm /= 2.0;
         }
         fprintf(stderr,"\n");
         
-        output_values_any_format("dtheta.txt", sm_target->n_points, dtheta, TYPE_DOUBLE);
-        output_values_any_format("dphi.txt", sm_target->n_points, dphi, TYPE_DOUBLE);
-        output_values_any_format("curv.txt", sm_target->n_points, curv_target, TYPE_DOUBLE);
+        output_values_any_format("u.txt", source->n_points, u, TYPE_DOUBLE);
+        output_values_any_format("v.txt", source->n_points, v, TYPE_DOUBLE);
+        output_values_any_format("curv.txt", source->n_points, curv_target, TYPE_DOUBLE);
 
         if (output_sphere_file != NULL) {
   
