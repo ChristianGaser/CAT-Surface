@@ -40,7 +40,7 @@ int rtype       = 1;
 int curvtype    = 3;
 int muchange    = 4;
 int n_triangles = 81920;
-int n_steps     = 3;
+int n_steps     = 1;
 int debug       = 0;
 double murate   = 1.25;
 double lambda   = 0.0;
@@ -93,6 +93,27 @@ static ArgvInfo argTable[] = {
      "Save debug files."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
+
+void
+gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
+             double f[], double dtheta[], double dphi[])
+{
+    int i, mm = polygons->n_points;
+    double kxm, kxp, kym, kyp;
+
+    for (i = 0; i < mm; i++) {
+
+        kxm   = interp_point_unit_sphere(polygons, f, dpoly->ntheta[i]);
+        kxp   = interp_point_unit_sphere(polygons, f, dpoly->ptheta[i]);
+        kym   = interp_point_unit_sphere(polygons, f, dpoly->nphi[i]);
+        kyp   = interp_point_unit_sphere(polygons, f, dpoly->pphi[i]);
+        dtheta[i] = (kxp - kxm)/2.0;
+        dphi[i]   = (kyp - kym)/2.0;
+
+    }
+
+    if (polygons->bintree != NULL) delete_the_bintree(&polygons->bintree);
+}
 
 void
 resample_spherical_surface(polygons_struct *polygons,
@@ -266,16 +287,16 @@ main(int argc, char *argv[])
         double           xp, yp, xm, ym;
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
-        double           rot[3];
+        double           rot[3], *curv_target, *curv_source, *dtheta, *dphi, *dtheta_samp, *dphi_samp, *u, *v;
         struct           dartel_poly *dpoly;
+        int              *n_neighbours, **neighbours;
 
         /* get the arguments from the command line */
 
         if (ParseArgv(&argc, argv, argTable, 0) ||
             source_file == NULL || target_file == NULL || 
             source_sphere_file == NULL || target_sphere_file == NULL ||
-            (jacdet_file == NULL && output_file == NULL &&
-             pgm_file == NULL && output_sphere_file == NULL)) {
+            (output_file == NULL && output_sphere_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -425,6 +446,25 @@ main(int argc, char *argv[])
         sm_source   = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_target   = (polygons_struct *) malloc(sizeof(polygons_struct));
 
+        ALLOC(curv_target, target->n_points);
+        ALLOC(curv_source, source->n_points);
+        ALLOC(dtheta_samp, target->n_points);
+        ALLOC(dphi_samp, target->n_points);
+        ALLOC(dtheta, source->n_points);
+        ALLOC(dphi, source->n_points);
+        ALLOC(u, source->n_points);
+        ALLOC(v, source->n_points);
+        
+        get_all_polygon_point_neighbours(source, &n_neighbours, &neighbours);
+        get_polygon_vertex_curvatures_cg(source, n_neighbours, neighbours,
+                                         0.0, 4, curv_source);
+
+        get_all_polygon_point_neighbours(target, &n_neighbours, &neighbours);
+        get_polygon_vertex_curvatures_cg(target, n_neighbours, neighbours,
+                                         0.0, 4, curv_target);
+
+        init_dartel_poly(trg_sphere, dpoly);
+
         for (step = 0; step < n_steps; step++) {
                 /* resample source and target surface */
                 copy_polygons(source, sm_source);
@@ -446,9 +486,6 @@ main(int argc, char *argv[])
                                                            2, 1.0, 30, 1.4,
                                                            3.0, 1.0, 0);
                         
-                        /* init warps and flows with zeros */
-//                        for (i = 0; i < xy_size*2; i++)  inflow[i] = 0.0;
-
                 } else if (step == 1) {
                         /* smooth surfaces */
                         inflate_surface_and_smooth_fingers(sm_source,
@@ -473,18 +510,20 @@ main(int argc, char *argv[])
                                                            3.0, 1.0, 0);
                 }
                 
+                gradient_poly(trg_sphere, dpoly, curv_target, dtheta_samp, dphi_samp);
+                kxm   = interp_point_unit_sphere(polygons, f, dpoly->ntheta[i]);
+
                 /* use smaller FWHM for next steps */
                 //if (fwhm > 4) fwhm -= 2.0;
                 fwhm /= 2.0;
         }
         fprintf(stderr,"\n");
         
+        output_values_any_format("dtheta.txt", sm_target->n_points, dtheta, TYPE_DOUBLE);
+        output_values_any_format("dphi.txt", sm_target->n_points, dphi, TYPE_DOUBLE);
+        output_values_any_format("curv.txt", sm_target->n_points, curv_target, TYPE_DOUBLE);
+
         if (output_sphere_file != NULL) {
-                if (rotate) {
-                        rotation_to_matrix(rotation_matrix,
-                                           rot[0], rot[1], rot[2]);
-                        rotate_polygons(src_sphere, NULL, rotation_matrix);
-                }
   
                 /* get a pointer to the surface */
                 *get_polygons_ptr(objects[0]) = *src_sphere;
