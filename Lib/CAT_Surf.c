@@ -458,6 +458,7 @@ apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
         int               i, p, ind;
 
         copy_polygons(sphere, &unit_sphere);
+        
         /* set radius to 1 */
         for (i = 0; i < unit_sphere.n_points; i++) 
                 set_vector_length(&unit_sphere.points[i], 1.0);

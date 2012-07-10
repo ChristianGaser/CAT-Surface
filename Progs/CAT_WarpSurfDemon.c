@@ -18,11 +18,6 @@
 #include "CAT_Interpolate.h"
 #include "dartel/dartel.h"
 
-#define INVERSE_WARPING 0
-#define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
-#define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
-
-
 /* defaults */
 char *param_file         = NULL;
 char *source_file        = NULL;
@@ -187,18 +182,19 @@ main(int argc, char *argv[])
         FILE             *fp;
         char             line[1024], buffer[1024];
         polygons_struct  *source, *target, *src_sphere, *trg_sphere;
-        polygons_struct  *sm_source, *sm_target;
+        polygons_struct  *sm_source, *sm_target, *warped_src_sphere;
         int              x, y, i, j, it, it0, it1, step;
         int              n_objects, it_scratch, xy_size;
         double           *values;
         object_struct    **objects;
         double           ll[3];
         static double    param[2] = {UTHETA, VPHI};
-        int              size_curv[3], shift[2] = {0, 0};
-        double           xp, yp, xm, ym, idiff, denom;
+        int              iter_demon;
+        double           xp, yp, xm, ym, idiff, denom, squared_diff;
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
-        double           rot[3], *curv_tmp, *curv_target, *curv_source, *dtheta, *dphi, *u, *v;
+        double           rot[3], *curv_target_tmp, *curv_target, *curv_source;
+        double           *curv_source_tmp, *dtheta, *dphi, *u, *v;
         struct           dartel_poly *dpoly;
         int              *n_neighbours, **neighbours;
 
@@ -356,8 +352,10 @@ main(int argc, char *argv[])
 
         sm_source   = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_target   = (polygons_struct *) malloc(sizeof(polygons_struct));
+        warped_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
 
-        curv_tmp    = (double *) malloc(sizeof(double) * target->n_points);
+        curv_target_tmp = (double *) malloc(sizeof(double) * target->n_points);
+        curv_source_tmp = (double *) malloc(sizeof(double) * source->n_points);
         curv_source = (double *) malloc(sizeof(double) * source->n_points);
         curv_target = (double *) malloc(sizeof(double) * source->n_points);
         dtheta      = (double *) malloc(sizeof(double) * source->n_points);
@@ -371,12 +369,16 @@ main(int argc, char *argv[])
 
         get_all_polygon_point_neighbours(target, &n_neighbours, &neighbours);
         get_polygon_vertex_curvatures_cg(target, n_neighbours, neighbours,
-                                         0.0, curvtype, curv_tmp);
+                                         0.0, curvtype, curv_target_tmp);
 
         /* resample curvature of target to source space */
-        resample_noscale(trg_sphere, src_sphere, curv_tmp, curv_target);
+        resample_noscale(trg_sphere, src_sphere, curv_target_tmp, curv_target);
                  
+        output_values_any_format("curv.txt", source->n_points, curv_target, TYPE_DOUBLE);
+
         init_dartel_poly(trg_sphere, dpoly);
+
+        copy_polygons(src_sphere, warped_src_sphere);
 
         for (step = 0; step < n_steps; step++) {
                 /* resample source and target surface */
@@ -424,21 +426,33 @@ main(int argc, char *argv[])
                 }
                 
                 gradient_poly(trg_sphere, dpoly, curv_target, dtheta, dphi);
-                for (i = 0; i < source->n_points; i++) {
-                        idiff = curv_source[i] - curv_target[i];
-                        denom = -((dtheta[i]*dtheta[i] + dphi[i]*dphi[i]) + idiff*idiff);
-                        if (denom == 0.0) {
-                                u[i] = 0.0;
-                                v[i] = 0.0;
-                        } else {
-                                u[i] = idiff*dtheta[i]/denom;
-                                v[i] = idiff*dphi[i]/denom;                        
-                        }
-                }
                 
-                /* lowpass filter displacements */
-                smooth_heatkernel(source, u, 5);
-                smooth_heatkernel(source, v, 5);
+                for (iter_demon = 0; iter_demon < 5; iter_demon++) {
+                        squared_diff = 0.0;
+                        for (i = 0; i < source->n_points; i++) {
+                                idiff = curv_source[i] - curv_target[i];
+                                squared_diff += idiff*idiff;
+                                denom = -((dtheta[i]*dtheta[i] + dphi[i]*dphi[i]) + idiff*idiff)*45.0;
+                                if (denom == 0.0) {
+                                        u[i] = 0.0;
+                                        v[i] = 0.0;
+                                } else {
+                                        u[i] = idiff*dtheta[i]/denom;
+                                        v[i] = idiff*dphi[i]/denom;                        
+                                }
+                        }
+                        fprintf(stderr,"squared diff: %g\n",squared_diff);
+                
+                        /* lowpass filter displacements */
+                        smooth_heatkernel(source, u, 10);
+                        smooth_heatkernel(source, v, 10);
+
+                        apply_uv_warp(warped_src_sphere, src_sphere, u, v, 0);
+
+                        resample_noscale(src_sphere, warped_src_sphere, curv_target, curv_source_tmp);
+                        for (i = 0; i < source->n_points; i++) curv_target[i] = curv_source_tmp[i];
+                
+                }
 
                 /* use smaller FWHM for next steps */
                 fwhm /= 2.0;
@@ -447,12 +461,12 @@ main(int argc, char *argv[])
         
         output_values_any_format("u.txt", source->n_points, u, TYPE_DOUBLE);
         output_values_any_format("v.txt", source->n_points, v, TYPE_DOUBLE);
-        output_values_any_format("curv.txt", source->n_points, curv_target, TYPE_DOUBLE);
+        output_values_any_format("warped_curv.txt", source->n_points, curv_target, TYPE_DOUBLE);
 
         if (output_sphere_file != NULL) {
   
                 /* get a pointer to the surface */
-                *get_polygons_ptr(objects[0]) = *src_sphere;
+                *get_polygons_ptr(objects[0]) = *warped_src_sphere;
                 if (output_graphics_any_format(output_sphere_file, format,
                                                n_objects, objects) != OK)
                         exit(EXIT_FAILURE);
