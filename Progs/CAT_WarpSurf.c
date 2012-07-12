@@ -709,7 +709,7 @@ main(int argc, char *argv[])
                         /* some entries are equal */
                         prm[j].rtype = rtype;
                         prm[j].cycles = 3;
-                        prm[j].its = 3;
+                        prm[j].its = 1;
                         prm[j].code = code;
                         prm[j].lmreg = lmreg;
                 }

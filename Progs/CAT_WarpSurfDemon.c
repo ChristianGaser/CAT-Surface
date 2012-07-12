@@ -194,7 +194,7 @@ main(int argc, char *argv[])
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
         double           rot[3], *curv_target_tmp, *curv_target, *curv_source;
-        double           *curv_source_tmp, *dtheta, *dphi, *u, *v;
+        double           *curv_source_tmp, *dtheta, *dphi, *u, *v, *ux, *vy;
         struct           dartel_poly *dpoly;
         int              *n_neighbours, **neighbours;
 
@@ -362,24 +362,18 @@ main(int argc, char *argv[])
         dphi        = (double *) malloc(sizeof(double) * source->n_points);
         u           = (double *) malloc(sizeof(double) * source->n_points);
         v           = (double *) malloc(sizeof(double) * source->n_points);
+        ux          = (double *) malloc(sizeof(double) * source->n_points);
+        vy          = (double *) malloc(sizeof(double) * source->n_points);
         
-        get_all_polygon_point_neighbours(source, &n_neighbours, &neighbours);
-        get_polygon_vertex_curvatures_cg(source, n_neighbours, neighbours,
-                                         0.0, curvtype, curv_source);
-
-        get_all_polygon_point_neighbours(target, &n_neighbours, &neighbours);
-        get_polygon_vertex_curvatures_cg(target, n_neighbours, neighbours,
-                                         0.0, curvtype, curv_target_tmp);
-
-        /* resample curvature of target to source space */
-        resample_noscale(trg_sphere, src_sphere, curv_target_tmp, curv_target);
-                 
-        output_values_any_format("curv.txt", source->n_points, curv_target, TYPE_DOUBLE);
-
         init_dartel_poly(trg_sphere, dpoly);
 
         copy_polygons(src_sphere, warped_src_sphere);
 
+        for (i = 0; i < source->n_points; i++) {
+                u[i] = 0.0;
+                v[i] = 0.0;
+        }
+        
         for (step = 0; step < n_steps; step++) {
                 /* resample source and target surface */
                 copy_polygons(source, sm_source);
@@ -425,32 +419,52 @@ main(int argc, char *argv[])
                                                            3.0, 1.0, 0);
                 }
                 
-                gradient_poly(trg_sphere, dpoly, curv_target, dtheta, dphi);
+                get_all_polygon_point_neighbours(sm_target, &n_neighbours, &neighbours);
+                get_polygon_vertex_curvatures_cg(sm_target, n_neighbours, neighbours,
+                                         0.0, curvtype, curv_target_tmp);
+
+                get_all_polygon_point_neighbours(sm_source, &n_neighbours, &neighbours);
+                get_polygon_vertex_curvatures_cg(sm_source, n_neighbours, neighbours,
+                                         0.0, curvtype, curv_source);
+
+                /* resample curvature of target to source space */
+                resample_noscale(trg_sphere, src_sphere, curv_target_tmp, curv_target);
+
+                output_values_any_format("curv.txt", sm_source->n_points, curv_source, TYPE_DOUBLE);
+                output_values_any_format("curv_target.txt", sm_target->n_points, curv_target_tmp, TYPE_DOUBLE);
+                gradient_poly(src_sphere, dpoly, curv_target, dtheta, dphi);
                 
-                for (iter_demon = 0; iter_demon < 5; iter_demon++) {
+                for (iter_demon = 0; iter_demon < 10; iter_demon++) {
                         squared_diff = 0.0;
                         for (i = 0; i < source->n_points; i++) {
                                 idiff = curv_source[i] - curv_target[i];
                                 squared_diff += idiff*idiff;
-                                denom = -((dtheta[i]*dtheta[i] + dphi[i]*dphi[i]) + idiff*idiff)*45.0;
+                                denom = ((dtheta[i]*dtheta[i] + dphi[i]*dphi[i]) + idiff*idiff);
                                 if (denom == 0.0) {
-                                        u[i] = 0.0;
-                                        v[i] = 0.0;
+                                        ux[i] = 0.0;
+                                        vy[i] = 0.0;
                                 } else {
-                                        u[i] = idiff*dtheta[i]/denom;
-                                        v[i] = idiff*dphi[i]/denom;                        
+                                        ux[i] = idiff*dtheta[i]/denom*THETA/5.0;
+                                        vy[i] = idiff*dphi[i]/denom*PHI/5.0;   
                                 }
                         }
                         fprintf(stderr,"squared diff: %g\n",squared_diff);
                 
                         /* lowpass filter displacements */
-                        smooth_heatkernel(source, u, 10);
-                        smooth_heatkernel(source, v, 10);
+                        smooth_heatkernel(source, ux, 10);
+                        smooth_heatkernel(source, vy, 10);
 
+                        for (i = 0; i < source->n_points; i++) {
+                                u[i] += ux[i];
+                                v[i] += vy[i];
+                        }
+                        
                         apply_uv_warp(warped_src_sphere, src_sphere, u, v, 0);
 
-                        resample_noscale(src_sphere, warped_src_sphere, curv_target, curv_source_tmp);
-                        for (i = 0; i < source->n_points; i++) curv_target[i] = curv_source_tmp[i];
+                        get_polygon_vertex_curvatures_cg(sm_source, n_neighbours, neighbours,
+                                         0.0, curvtype, curv_source);
+                        resample_values(src_sphere, warped_src_sphere, curv_source, curv_source_tmp);
+                        for (i = 0; i < source->n_points; i++) curv_source[i] = curv_source_tmp[i];
                 
                 }
 
@@ -461,7 +475,7 @@ main(int argc, char *argv[])
         
         output_values_any_format("u.txt", source->n_points, u, TYPE_DOUBLE);
         output_values_any_format("v.txt", source->n_points, v, TYPE_DOUBLE);
-        output_values_any_format("warped_curv.txt", source->n_points, curv_target, TYPE_DOUBLE);
+        output_values_any_format("warped_curv.txt", source->n_points, curv_source, TYPE_DOUBLE);
 
         if (output_sphere_file != NULL) {
   

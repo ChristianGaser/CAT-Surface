@@ -18,7 +18,6 @@
 #include "CAT_Interpolate.h"
 #include "dartel/dartel.h"
 
-#define INVERSE_WARPING 0
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
 #define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
 
@@ -47,9 +46,9 @@ int n_steps     = 3;
 int debug       = 0;
 double murate   = 1.25;
 double lambda   = 0.0;
-double mu       = 0.25;
-double lmreg    = 0.0;
-double fwhm     = 10.0;
+double mu       = 0.125;
+double lmreg    = 1e-3;
+double fwhm     = 8.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
@@ -478,8 +477,8 @@ main(int argc, char *argv[])
                 for (j = 0; j < loop; j++) {
                         /* some entries are equal */
                         prm[j].rtype = rtype;
-                        prm[j].cycles = 1; //3;
-                        prm[j].its = 1; //3;
+                        prm[j].cycles = 3;
+                        prm[j].its = 1;
                         prm[j].code = code;
                         prm[j].lmreg = lmreg;
                 }
@@ -649,16 +648,9 @@ main(int argc, char *argv[])
                         for (it1 = 0; it1 < prm[it0].its; it1++) {
                                 it++;
                                 /* map target onto source */
-                                if (INVERSE_WARPING) {
-                                        dartel_poly2(src_sphere, dpoly, prm[it0],
-                                               inflow, map_source, map_target,
-                                               (double *)0, flow, ll, scratch);
-                                } else {
-                                        dartel_poly2(src_sphere, dpoly, prm[it0],
-                                               inflow, map_target, map_source,
-                                               (double *)0, flow, ll, scratch);
-                                }
-fprintf(stderr,"warpsurf (dartel): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m] = %f\n", inflow[0], flow[0], inflow[xy_size], flow[xy_size]);
+                                dartel_poly2(src_sphere, dpoly, prm[it0],
+                                        inflow, map_target, map_source,
+                                        (double *)0, flow, ll, scratch);
                                 fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];
@@ -697,54 +689,12 @@ printf("warpsurf (expdefdet): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow
         } else {
                 expdef_poly(src_sphere, dpoly, 10, inflow, flow, flow1,
                        (double *) 0, (double *) 0);
-printf("warpsurf (expdef): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m] = %f\n", inflow[0], flow[0], inflow[xy_size], flow[xy_size]);
+//printf("warpsurf (expdef): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m] = %f\n", inflow[0], flow[0], inflow[xy_size], flow[xy_size]);
         }
 
         free(flow1);
         free(inflow);
 
-/*
-        if (pgm_file != NULL) {
-                fprintf(stderr,"Warning: Inversion of deformation field is not prepared.\n");
-                for (i = 0; i < xy_size; i++) {
-                        x = (int) flow[i] - 1.0;
-                        y = (int) flow[i + xy_size] - 1.0;
-                        xp = flow[i] - x - 1.0;
-                        yp = flow[i + xy_size] - y - 1.0;
-                        xm = 1.0 - xp;
-                        ym = 1.0 - yp;
-                        H00 = map_source[bound(x,  y,  size_curv)];
-                        H01 = map_source[bound(x,  y+1,size_curv)];
-                        H10 = map_source[bound(x+1,y,  size_curv)];
-                        H11 = map_source[bound(x+1,y+1,size_curv)];
-
-                        map_warp[i] = ym * (xm * H00 + xp * H10) +
-		                      yp * (xm * H01 + xp * H11);
-                }
-                if (write_pgm(pgm_file, map_warp, size_curv[0],
-                              size_curv[1]) != 0)
-                        exit(EXIT_FAILURE);
-        } */
-/*
-        if (output_file != NULL) {
-                if (rotate) {
-                        rotation_to_matrix(rotation_matrix,
-                                           -rot[0], -rot[1], -rot[2]);
-                        rotate_polygons(source, NULL, rotation_matrix);
-                }
-                /* apply inverse deformations */ /*
-                if (INVERSE_WARPING)
-                        apply_poly_warp(source, src_sphere, flow, 1);
-                else 
-                        apply_poly_warp(source, src_sphere, flow, 0);
-  
-                /* get a pointer to the surface */ /*
-                *get_polygons_ptr(objects[0]) = *source;
-                if (output_graphics_any_format(output_file, format, n_objects,
-                                               objects) != OK)
-                        exit(EXIT_FAILURE);
-        }
-*/
 
         if (output_sphere_file != NULL) {
                 if (rotate) {
@@ -752,11 +702,7 @@ printf("warpsurf (expdef): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m]
                                            rot[0], rot[1], rot[2]);
                         rotate_polygons(src_sphere, NULL, rotation_matrix);
                 }
-                if (INVERSE_WARPING) {
-                        apply_poly_warp(src_sphere, src_sphere, flow, 0);
-                } else {
-                        apply_poly_warp(src_sphere, src_sphere, flow, 1);
-                }
+                apply_poly_warp(src_sphere, src_sphere, flow, 1);
   
                 /* get a pointer to the surface */
                 *get_polygons_ptr(objects[0]) = *src_sphere;

@@ -860,15 +860,26 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
     sc = 1.0/pow2(prm.k);
 
     expdef(dm, prm.k, v, t0, t1, J0, J1);
+write_pgm("t00.pgm", t0, dm[0], dm[1]);
+    
+    printf("expdef: v[0] = %f, v[m] = %f\n", v[0], v[m]);
+    printf("expdef: t0[0] = %f, t0[m] = %f\n", t0[0], t0[m]);
+    printf("expdef: t1[0] = %f, t1[m] = %f\n", t1[0], t1[m]);
+    printf("expdef: J0[0] = %f, J0[m] = %f\n", J0[0], J0[m]);
+    printf("expdef: J1[0] = %f, J1[m] = %f\n", J1[0], J1[m]);
+    
     jac_div_smalldef(dm, sc, v, J0);
     if (prm.code == 2)
         ssl = initialise_objfun_mn(dm, f, g, t0, J0, dj, b, A);
     else
         ssl = initialise_objfun(dm, f, g, t0, J0, dj, b, A);
+write_pgm("t01.pgm", t0, dm[0], dm[1]);
 
     smalldef_jac(dm, -sc, v, t0, J0);
+write_pgm("t02.pgm", t0, dm[0], dm[1]);
 
     squaring(dm, prm.k, prm.code==1, b, A, t0, t1, J0, J1);
+write_pgm("t03.pgm", t0, dm[0], dm[1]);
 
     if (prm.code == 1) {
         jac_div_smalldef(dm, -sc, v, J0);
@@ -878,6 +889,7 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
         for (j = 0; j < m*2; j++) b[j] -= b1[j];
         for (j = 0; j < m*3; j++) A[j] += A1[j];
     }
+write_pgm("t04.pgm", t0, dm[0], dm[1]);
 
     if (prm.rtype == 0)
         LtLf_le(dm, v, prm.rparam, t1);
@@ -886,6 +898,7 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
     else
         LtLf_be(dm, v, prm.rparam, t1);
 
+write_pgm("t1.pgm", t1, dm[0], dm[1]);
     ssp = 0.0;
     for (j = 0; j < 2*m; j++) {
         b[j] = b[j]*sc + t1[j];
@@ -896,6 +909,9 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
     for (j = 0; j < 3*m; j++) A[j] *= sc;
     for (j = 0; j < 2*m; j++) A[j] += prm.lmreg;
 
+write_pgm("A.pgm", A, dm[0], dm[1]);
+write_pgm("b.pgm", b, dm[0], dm[1]);
+write_pgm("v.pgm", v, dm[0], dm[1]);
     /* Solve equations for Levenberg-Marquardt update:
      * v = v - inv(H + L'*L + R)*(d + L'*L*v)
      *     v: velocity or flow field
@@ -905,7 +921,9 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
      *     d: vector of first derivatives
      */
  //cgs2(dm, A, b, prm.rtype, prm.rparam, 1e-8, 4000, sbuf, sbuf+2*m, sbuf+4*m, sbuf+6*m);
+write_pgm("sbuf0.pgm", sbuf, dm[0], dm[1]);
     fmg2(dm, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
+write_pgm("sbuf.pgm", sbuf, dm[0], dm[1]);
 
     for (j = 0; j < 2*m; j++) ov[j] = v[j] - sbuf[j];
     ll[0] = ssl;
