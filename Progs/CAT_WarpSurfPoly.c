@@ -21,7 +21,6 @@
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
 #define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
 
-
 /* defaults */
 char *param_file         = NULL;
 char *source_file        = NULL;
@@ -33,7 +32,7 @@ char *output_file        = NULL;
 char *output_sphere_file = NULL;
 char *pgm_file           = NULL;
 
-int rotate      = 1;
+int rotate      = 0;
 int code        = 1;
 int loop        = 6;
 int verbose     = 0;
@@ -478,7 +477,7 @@ main(int argc, char *argv[])
                         /* some entries are equal */
                         prm[j].rtype = rtype;
                         prm[j].cycles = 3;
-                        prm[j].its = 1;
+                        prm[j].its = 3;
                         prm[j].code = code;
                         prm[j].lmreg = lmreg;
                 }
@@ -689,6 +688,17 @@ printf("warpsurf (expdefdet): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow
         } else {
                 expdef_poly(src_sphere, dpoly, 10, inflow, flow, flow1,
                        (double *) 0, (double *) 0);
+
+/*                for (i = 0; i < src_sphere->n_points; i++) {
+                        if (fabs(flow[i]) > 0.1) flow[i] = 0.0;
+                        flow[i] -= dpoly->u[i];
+                        flow[i+src_sphere->n_points] -= dpoly->v[i];
+                        flow[i] *= THETA;
+                        flow[i+src_sphere->n_points] *= PHI;
+                }
+                */
+output_values_any_format("flowx.txt", src_sphere->n_points, flow, 1);
+output_values_any_format("flowy.txt", src_sphere->n_points, flow+src_sphere->n_points, 1);
 //printf("warpsurf (expdef): inflow[0] = %f, flow[0] = %f, inflow[m] = %f, flow[m] = %f\n", inflow[0], flow[0], inflow[xy_size], flow[xy_size]);
         }
 

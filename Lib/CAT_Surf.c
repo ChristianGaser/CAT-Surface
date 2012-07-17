@@ -533,9 +533,6 @@ apply_poly_warp(polygons_struct *polygons, polygons_struct *sphere,
 
         ALLOC(new_points, polygons->n_points);
   
-FILE *ufp, *vfp;
-ufp = fopen("u.txt","w");
-vfp = fopen("v.txt","w");
         for (p = 0; p < polygons->n_points; p++) {
                 map_point_to_unit_sphere(polygons, &polygons->points[p],
                                          &unit_sphere, &unit_point);
@@ -544,8 +541,6 @@ vfp = fopen("v.txt","w");
 
                 ux = flow[p] - u;
                 vy = flow[p + sphere->n_points] - v;
-fprintf(ufp, "%f\n", ux);
-fprintf(vfp, "%f\n", vy);
 
                 if (inverse) {
                         u -= ux;
@@ -579,7 +574,6 @@ fprintf(vfp, "%f\n", vy);
 
         compute_polygon_normals(polygons);
         free(new_points);
-fclose(ufp); fclose(vfp);
 }
 
 int

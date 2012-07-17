@@ -92,19 +92,8 @@ main(int argc, char *argv[])
         polygons = get_polygons_ptr(objects[0]);
         poly_src_sphere = get_polygons_ptr(objects_src_sphere[0]);
 
-        values_specified = get_string_argument(NULL, &input_values_file) &&
-                           get_string_argument(NULL, &output_values_file);
-
-        if (values_specified) {
-                ALLOC(input_values, polygons->n_points);
-                ALLOC(output_values, poly_dest_sphere->n_points);
-
-                if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
-                        fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
-    	               exit(EXIT_FAILURE);
-                }
-
-        }
+        values_specified = (get_string_argument(NULL, &input_values_file) &&
+                           get_string_argument(NULL, &output_values_file));
 
         /*
          * Determine radius for the output sphere.  The sphere is not always
@@ -140,6 +129,17 @@ main(int argc, char *argv[])
                                 ROUND((Real) poly_src_sphere->n_items * 0.5));
 
         ALLOC(new_points, poly_dest_sphere->n_points);
+
+        if (values_specified) {
+                ALLOC(input_values, polygons->n_points);
+                ALLOC(output_values, poly_dest_sphere->n_points);
+
+                if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
+                        fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
+    	               exit(EXIT_FAILURE);
+                }
+
+        }
 
         for (i = 0; i < poly_dest_sphere->n_points; i++) {
                 poly = find_closest_polygon_point(&poly_dest_sphere->points[i],

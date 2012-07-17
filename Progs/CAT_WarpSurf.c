@@ -521,6 +521,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 for (it = 0, it0 = 0; it0 < loop; it0++) {
                         it_scratch = dartel_scratchsize((int *)dm,
                                                          prm[it0].code);
+fprintf(stderr,"it_scratch: %d\n",it_scratch);
                         scratch = (double *) malloc(sizeof(double)*it_scratch);
                         for (it1 = 0; it1 < prm[it0].its; it1++) {
                                 it++;
@@ -709,7 +710,7 @@ main(int argc, char *argv[])
                         /* some entries are equal */
                         prm[j].rtype = rtype;
                         prm[j].cycles = 3;
-                        prm[j].its = 1;
+                        prm[j].its = 3;
                         prm[j].code = code;
                         prm[j].lmreg = lmreg;
                 }

@@ -32,6 +32,7 @@ bin_PROGRAMS = \
 	CAT_SurfConvert \
 	CAT_Surf2Sphere \
 	CAT_SeparateCluster \
+	CAT_SeparatePolygon \
 	CAT_ResampleSphericalSurf \
 	CAT_ResampleSurf \
 	CAT_AreaDistortion \
@@ -45,6 +46,7 @@ bin_PROGRAMS = \
 	CAT_WarpSurf \
 	CAT_WarpSurfPoly \
 	CAT_WarpSurfDemon \
+	CAT_WarpSurfpoly \
 	CAT_WarpSurfSPH \
 	CAT_ResampleSphericalSurfSPH \
 	CAT_ArealSmoothing \

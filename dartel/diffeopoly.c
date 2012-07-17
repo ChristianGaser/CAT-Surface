@@ -106,6 +106,8 @@ cgs2_poly(polygons_struct *sphere, struct dartel_poly *dpoly, double A[],
 
     nb      = tol*norm(m,b);
 
+//for (i = 0; i < m; i++) x[i] = 0.0;
+
     if (0) {
         /* Assuming starting estimates of zeros */
         /* x    = zeros(size(b)); */
@@ -126,11 +128,9 @@ cgs2_poly(polygons_struct *sphere, struct dartel_poly *dpoly, double A[],
 output_values_any_format("x.txt", sphere->n_points, x, 1);
 output_values_any_format("Ap.txt", sphere->n_points, Ap, 1);
 output_values_any_format("r.txt", sphere->n_points, r, 1);
-    /* rtr  = r'*r; */
-    rtr     = dotprod(m, r, r);
-    //printf("cgs2: r[0] = %f, rtr = %f\n", r[0], rtr);
 
-    /* p    = zeros(size(b)); */
+    rtr     = dotprod(m, r, r);
+
     for (i = 0; i < m; i++)
         p[i] = 0.0;
 
@@ -146,35 +146,29 @@ output_values_any_format("r.txt", sphere->n_points, r, 1);
         /* p      = r + beta*p; */
         for (i = 0; i < m; i++)
             p[i]  = r[i] + beta*p[i];
-    //printf("cgs2: p[0] = %f\n", p[0]);
 
         /* Ap     = A*p; */
         Atimesp_me_poly(sphere, dpoly, A, param, p, Ap);
-    //printf("cgs2: Ap[0] = %f\n", Ap[0]);
 
         /* alpha  = rtr/(p'*Ap); */
         alpha     = rtr/dotprod(m, p, Ap);
-    //printf("cgs2: alpha = %f\n", alpha);
 
         /* x      = x + alpha*p; */
         addscaled(m, x, p, alpha);
-    //printf("cgs2: x[0] = %f\n", x[0]);
 
         /* r      = r - alpha*Ap; */
         addscaled(m, r, Ap, -alpha);
-    //printf("cgs2: r[0] = %f\n", r[0]);
 
         /* rtrold = rtr; */
         rtrold = rtr;
 
         /* rtr    = r'*r; */
         rtr       = dotprod(m, r, r);
-    //printf("cgs2: rtr = %f\n", rtr);
 
         /* beta   = rtr/rtrold; */
         beta      = rtr/rtrold;
 
-//        printf("%d\t%g\t%g  %g %g\n",it, norm(m,r), nb/tol, alpha, beta);
+        printf("%d\t%g\t%g  %g %g\n",it, norm(m,r), nb/tol, alpha, beta);
     /* end; */
     }
     /* printf("Done after %d iterations (%g, %g).\n",it, norm(m,r), nb); */
@@ -781,7 +775,6 @@ dartel_poly2(polygons_struct *sphere, struct dartel_poly *dpoly,
     sc = 1.0/pow2(prm.k);
 
     expdef_poly(sphere, dpoly, prm.k, v, t0, t1, J0, J1);
-output_values_any_format("t00.txt", sphere->n_points, t0, 1);
 
     printf("expdef: v[0] = %f, v[m] = %f\n", v[0], v[m]);
     printf("expdef: t0[0] = %f, t0[m] = %f\n", t0[0], t0[m]);
@@ -790,18 +783,18 @@ output_values_any_format("t00.txt", sphere->n_points, t0, 1);
     printf("expdef: J1[0] = %f, J1[m] = %f\n", J1[0], J1[m]);
 
     jac_div_smalldef_poly(sphere, dpoly, sc, v, J0);
+output_values_any_format("J01.txt", sphere->n_points, J0, 1);
     
     ssl = init_objfun_poly(sphere, dpoly, f, g, t0, J0, dj, b, A);
-output_values_any_format("t01.txt", sphere->n_points, t0, 1);
     
     smalldef_jac_poly(sphere, dpoly, -sc, v, t0, J0);
-output_values_any_format("t02.txt", sphere->n_points, t0, 1);
     
+
     squaring_poly(sphere, dpoly, prm.k, prm.code==1, b, A, t0, t1, J0, J1);
-output_values_any_format("t03.txt", sphere->n_points, t0, 1);
     
     jac_div_smalldef_poly(sphere, dpoly, -sc, v, J0);
     
+
     ssl += init_objfun_poly(sphere, dpoly, g, f, t0, J0, (double *)0, b1, A1);
     
     smalldef_jac_poly(sphere, dpoly, sc, v, t0, J0);
@@ -811,10 +804,8 @@ output_values_any_format("t03.txt", sphere->n_points, t0, 1);
     for(j = 0; j < m*2; j++) b[j] -= b1[j];
     for(j = 0; j < m*3; j++) A[j] += A1[j];
 
-output_values_any_format("t04.txt", sphere->n_points, t0, 1);
     LtLf_me_poly(sphere, dpoly, v, prm.rparam, t1);
 
-output_values_any_format("t1.txt", sphere->n_points, t1, 1);
     ssp = 0.0;
     for(j = 0; j < 2*m; j++) {
         b[j] = b[j]*sc + t1[j];
@@ -827,7 +818,7 @@ output_values_any_format("t1.txt", sphere->n_points, t1, 1);
 
 output_values_any_format("b.txt", sphere->n_points, b, 1);
 output_values_any_format("A.txt", sphere->n_points, A, 1);
-output_values_any_format("v.txt", sphere->n_points, v, 1);
+output_values_any_format("v0.txt", sphere->n_points, v, 1);
     /* Solve equations for Levenberg-Marquardt update:
      * v = v - inv(H + L'*L + R)*(d + L'*L*v)
      *     v: velocity or flow field
@@ -836,8 +827,10 @@ output_values_any_format("v.txt", sphere->n_points, v, 1);
      *     R: Levenberg-Marquardt regularisation
      *     d: vector of first derivatives
      */
+output_values_any_format("J02.txt", sphere->n_points, J0, 1);
+output_values_any_format("J11.txt", sphere->n_points, J1, 1);
 output_values_any_format("sbuf0.txt", sphere->n_points, sbuf, 1);
-    cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-9, 2, sbuf, sbuf+2*m,
+    cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-9, 10, sbuf, sbuf+2*m,
               sbuf+4*m, sbuf+6*m);
     //fmg2(sphere, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
 
