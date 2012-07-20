@@ -118,8 +118,8 @@ main(int argc, char *argv[])
         warped_sphere = get_polygons_ptr(object2);
         copy_polygons(source,warped_sphere);
 
-        surf_to_sphere(warped, 3);
-        surf_to_sphere(warped_sphere, 3);
+        surf_to_sphere(warped, 3, 1);
+        surf_to_sphere(warped_sphere, 3, 1);
 
         translate_to_center_of_mass(warped);
         translate_to_center_of_mass(warped_sphere);

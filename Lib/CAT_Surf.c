@@ -1144,7 +1144,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 }
 
 void
-surf_to_sphere(polygons_struct *polygons, int stop_at)
+surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
 {
         BOOLEAN          enableFingerSmoothing = 1;
         int              fingerSmoothingIters;
@@ -1158,7 +1158,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
         inflate_surface_and_smooth_fingers(polygons,
                               /* cycles */ 1,
           /* regular smoothing strength */ 0.2,
-             /* regular smoothing iters */ 50,
+             /* regular smoothing iters */ factor*50,
                     /* inflation factor */ 1.0,
           /* finger comp/stretch thresh */ 3.0,
               /* finger smooth strength */ 1.0,
@@ -1174,7 +1174,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 inflate_surface_and_smooth_fingers(polygons,
                                       /* cycles */ 2,
                   /* regular smoothing strength */ 1.0,
-                     /* regular smoothing iters */ 30,
+                     /* regular smoothing iters */ factor*30,
                             /* inflation factor */ 1.4,
                   /* finger comp/stretch thresh */ 3.0,
                       /* finger smooth strength */ 1.0,
@@ -1188,7 +1188,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 4,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ 30,
+                  /*    regular smoothing iters */ factor*30,
                   /*           inflation factor */ 1.1,
                   /* finger comp/stretch thresh */ 3.0,
                   /*     finger smooth strength */ 1.0,
@@ -1205,7 +1205,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 6,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ 60,
+                  /*    regular smoothing iters */ factor*60,
                   /*           inflation factor */ 1.6,
                   /* finger comp/stretch thresh */ 3.0,
                   /*     finger smooth strength */ 1.0,
@@ -1219,7 +1219,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 6,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ 50,
+                  /*    regular smoothing iters */ factor*50,
                   /*           inflation factor */ 1.4,
                   /* finger comp/stretch thresh */ 4.0,
                   /*     finger smooth strength */ 1.0,

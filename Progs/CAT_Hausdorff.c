@@ -11,18 +11,14 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
-#include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"
 
 BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
-BOOLEAN point2point = 0; /* 0 - closest surface, 1 - closest mesh point */
 
 /* the argument table */
 ArgvInfo argTable[] = {
   { "-exact", ARGV_CONSTANT, (char *) 1, (char *) &exact,
     "Calculate the Hausdorff distance on a point-by-point basis.  Requires that both meshes are of the same brain with the same number of points." },
-  { "-point", ARGV_CONSTANT, (char *) 1, (char *) &point2point,
-    "Calculate the Hausdorff distance using only the mesh points.  Faster with a slight overestimation." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -91,87 +87,12 @@ calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 
                 if (revhd[i] > max_revhd)
                         max_revhd = revhd[i];
-                avg_hd += revhd[i];
+                avg_revhd += revhd[i];
         }
 
         avg_revhd /= p2->n_points;
         printf("Reverse Hausdorff distance: %f\n", max_revhd);
-        printf("Mean Reverse distance error: %f\n", avg_revhd);
-
-        return(max_hd);
-}
-
-/*
- * Calculate the general Hausdorff distance.  The two input meshes do
- * not need to be the same size.
- */
-double
-calc_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
-{
-        int i;
-        double max_hd, max_revhd;
-        double avg_hd, avg_revhd;
-        double *revhd;
-        double val;
-        struct octree *tree;
-        progress_struct progress;
-
-        /* find the forward hausdorff distances */
-        max_hd = 0; avg_hd = 0;
-        tree = build_octree(p2);
-        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
-
-        initialize_progress_report(&progress, FALSE, p->n_points,
-                                   "ForwardHausdorff");
-
-        for (i = 0; i < p->n_points; i++) {
-                hausdorff_distance(p->points[i], p2, tree, &hd[i]);
-
-                if (hd[i] > max_hd) {
-                        max_hd = hd[i];
-                }
-                avg_hd += hd[i];
-
-                update_progress_report(&progress, i);
-        }
-        terminate_progress_report(&progress);
-        delete_octree(tree);
-
-        avg_hd /= p->n_points;
-        printf("Hausdorff distance: %0.8f\n", max_hd);
-        printf("Mean distance error: %0.8f\n\n", avg_hd);
-
-        /* calculate the reverse Hausdorff distance */
-        revhd = (double *) malloc(sizeof(double) * p2->n_points);
-        max_revhd = 0; avg_revhd = 0;
-
-        tree = build_octree(p);
-        create_polygons_bintree(p, ROUND((double) p->n_items * 0.5));
-
-        initialize_progress_report(&progress, FALSE, p2->n_points,
-                                   "ReverseHausdorff");
-
-        for (i = 0; i < p2->n_points; i++) {
-                hausdorff_distance(p2->points[i], p, tree, &revhd[i]);
-
-                if (revhd[i] > max_revhd)
-                        max_revhd = revhd[i];
-                avg_revhd += revhd[i];
-
-                update_progress_report(&progress, i);
-        }
-        terminate_progress_report(&progress);
-
-        avg_revhd /= p2->n_points;
-        printf("Reverse Hausdorff distance: %0.8f\n", max_revhd);
-        printf("Mean Reverse distance error: %0.8f\n\n", avg_revhd);
-
-        printf("Mean(Fwd + Rev) Hausdorff distance: %f\n",
-               (max_revhd + max_hd)/2);
-        printf("Mean(Fwd + Rev) distance error: %f\n",
-               (avg_revhd + avg_hd)/2);
-
-        free(revhd);
+        printf("Mean reverse distance error: %f\n", avg_revhd);
 
         return(max_hd);
 }
@@ -191,7 +112,7 @@ main(int argc, char *argv[])
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
                 fprintf(stderr,"\nUsage: %s [options] object_file object_file2 output_file\n", argv[0]);
-                fprintf( stderr,"\nCalculate Hausdorff distance between two surfaces.\n");
+                fprintf( stderr,"\nCalculate Hausdorff distance between two surfaces on a point-by-point basis.\n");
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -238,12 +159,10 @@ main(int argc, char *argv[])
 
         ALLOC(hd, polygons->n_points);
 
-        if (exact) { /* O(n) time */
+        if ((polygons->n_items == polygons2->n_items && polygons->n_points == polygons2->n_points)) { /* exact method */
                 max_hd = calc_exact_hausdorff(polygons, polygons2, hd);
-        } else if (point2point) { /* O(n*log(m)) time */
+        } else { /* point-by-point method */
                 max_hd = calc_point_hausdorff(polygons, polygons2, hd);
-        } else { /* O(n*m) time */
-                max_hd = calc_hausdorff(polygons, polygons2, hd);
         }
 
         if (output_values_any_format(output_file, polygons->n_points,

@@ -19,14 +19,15 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj [stop_at]\n\n\
+Usage: %s surface.obj sphere.obj [stop_at] [increase_iterations_by_factor]\n\n\
      Maps a surface to a sphere using the caret inflating approach.\n\n\
      The inflating can be limited using stop_at (default 5), where\n\
        1 - Low smooth\n\
        2 - Inflating\n\
        3 - Very inflating\n\
        4 - High smoothing\n\
-       5 - Ellipsoid\n";
+       5 - Ellipsoid\n\n\
+     Number of iterations can be increased by an additional factor to deal with high resoluted surfaces.";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -35,7 +36,7 @@ int
 main(int argc, char *argv[])
 {
         char             *input_file, *output_file;
-        int              n_objects, i, stop_at;
+        int              n_objects, i, stop_at, increase_iterations_by_factor;
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
@@ -52,6 +53,7 @@ main(int argc, char *argv[])
         }
 
         get_int_argument(5, &stop_at);
+        get_int_argument(1, &increase_iterations_by_factor);
     
         if (input_graphics_any_format(input_file, &format, &n_objects,
                                       &object_list) != OK || n_objects != 1 ||
@@ -67,7 +69,7 @@ main(int argc, char *argv[])
                             input_file);
         }
         
-        surf_to_sphere(polygons, stop_at);
+        surf_to_sphere(polygons, stop_at, increase_iterations_by_factor);
      
         if(output_graphics_any_format(output_file, format, 1, 
                         object_list) != OK)
