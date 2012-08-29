@@ -36,7 +36,7 @@ main ()
 
 
 ########################################################
-# DumpCurv
+# Resample
 ########################################################
 preprocess ()
 {
@@ -74,10 +74,12 @@ preprocess ()
           if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
             echo $name will be not overwritten. Do not use -noclobber if you want to overwrite it.
           else
-            if [ ! -f $name ] || [ ! -f ${surfdir}/${i}.smoothwm ] || [ ! -f ${surfdir}/${i}.${reg} ] || [ ! -f ${targetdir}/${i}.sphere ]; then
-              echo Error: Some files for $subject_name were not found.
-              break      
-            fi
+            for files in ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere; do
+              if [ ! -f "$files" ]; then
+                echo File $files not found.
+                break
+              fi
+            done
             CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
             CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
             echo resample and smooth to $name          
@@ -92,10 +94,12 @@ preprocess ()
           if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
             echo $name will be not overwritten. Do not use -noclobber if you want to overwrite it.
           else
-            if [ ! -f $name ] || [ ! -f ${surfdir}/${i}.smoothwm ] || [ ! -f ${surfdir}/${i}.${reg} ] || [ ! -f ${targetdir}/${i}.sphere ]; then
-              echo Error: Some files for $subject_name were not found.
-              break      
-            fi
+            for files in ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere; do
+              if [ ! -f "$files" ]; then
+                echo File $files not found.
+                break
+              fi
+            done
             CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
             echo resample to $name
           fi
