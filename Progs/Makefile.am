@@ -46,7 +46,6 @@ bin_PROGRAMS = \
 	CAT_WarpSurf \
 	CAT_WarpSurfPoly \
 	CAT_WarpSurfDemon \
-	CAT_WarpSurfpoly \
 	CAT_WarpSurfSPH \
 	CAT_ResampleSphericalSurfSPH \
 	CAT_ArealSmoothing \
