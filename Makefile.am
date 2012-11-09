@@ -49,6 +49,7 @@ noinst_HEADERS = \
 	Include/CAT_Patch.h \
 	Include/CAT_Resample.h \
 	Include/CAT_Complexity.h \
+	Include/CAT_ConvexHull.h \
 	Include/CAT_Defect.h \
 	Include/CAT_Intersect.h \
 	include/CAT_Octree.h \
@@ -95,6 +96,7 @@ libCAT_la_SOURCES = \
 	Lib/CAT_Defect.c \
 	Lib/CAT_Patch.c \
 	Lib/CAT_Complexity.c \
+	Lib/CAT_ConvexHull.c \
 	Lib/CAT_Refine.c \
     Lib/CAT_Interpolate.c \
     Lib/CAT_LaplaceBeltrami.c \

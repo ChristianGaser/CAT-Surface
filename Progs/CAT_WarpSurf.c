@@ -711,6 +711,8 @@ main(int argc, char *argv[])
                         prm[j].rtype = rtype;
                         prm[j].cycles = 3;
                         prm[j].its = 3;
+prm[j].cycles = 1;
+prm[j].its = 2;
                         prm[j].code = code;
                         prm[j].lmreg = lmreg;
                 }

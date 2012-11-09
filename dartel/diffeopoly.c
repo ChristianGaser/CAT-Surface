@@ -59,6 +59,7 @@ LtLf_me_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
     int i, mm = sphere->n_points;
     double w00,w01,w10;
 
+printf("LtLf_me_poly\n");
     w00 = s[2] * (2*s[0]*s[0] + 2*s[1]*s[1]) + s[4];
     w01 = s[2] * (-s[1]*s[1]);
     w10 = s[2] * (-s[0]*s[0]);
@@ -86,6 +87,7 @@ Atimesp_me_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
 {
     int i, mm = sphere->n_points;
 
+printf("Atimesp_me_poly\n");
     LtLf_me_poly(sphere, dpoly, p, s, Ap);
 output_values_any_format("Ap0.txt", sphere->n_points, Ap, 1);
 
@@ -104,6 +106,7 @@ cgs2_poly(polygons_struct *sphere, struct dartel_poly *dpoly, double A[],
     int i, m = sphere->n_points*2, it;
     double rtr, nb, rtrold, alpha, beta;
 
+printf("cgs2_poly\n");
     nb      = tol*norm(m,b);
 
 //for (i = 0; i < m; i++) x[i] = 0.0;
@@ -181,6 +184,7 @@ composition_poly(polygons_struct *sphere, double *A, double *B, double *C)
     double *Ax, *Ay, *Bx, *By, *Cx, *Cy;
     int i, mm = sphere->n_points;
 
+printf("composition_poly\n");
     Ax = A;
     Ay = &A[mm];
     Bx = B;
@@ -209,6 +213,8 @@ composition_jacobian_poly(polygons_struct *sphere,
     double *Bx, *By, *JB00, *JB01, *JB10, *JB11, jb[2][2];
     double *Cx, *Cy, *JC00, *JC01, *JC10, *JC11;
     int i, mm = sphere->n_points;
+
+printf("composition_jacobian_poly: no Bx-correction!!!!!!!!!!\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     Ax   =   A;
     Ay   =  &A[mm];
     JA00 = &JA[mm*0];
@@ -260,6 +266,7 @@ composition_detjac_poly(polygons_struct *sphere, double *A, double *dA,
     double *Cx, *Cy;
     int i, mm = sphere->n_points;
 
+printf("composition_detjac_poly\n");
     Ax   =   A;
     Ay   =  &A[mm];
 
@@ -281,7 +288,6 @@ composition_detjac_poly(polygons_struct *sphere, double *A, double *dA,
         dC[i] = jb*dA[i];
     }
 }
-
 
 double
 samp_poly(polygons_struct *sphere, double f[], double x, double y)
@@ -307,17 +313,13 @@ expdef_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
     td = 1.0/td;
 
     if (J0 != (double *)0) {
+printf("expdef_poly: J= != 0\n");
         for (i = 0; i < m; i++) {
             Point pdx, ndx, pdy, ndy;
             double u, v, px, nx, py, ny;
 
             t0[i  ] = dpoly->u[i] + flow[i  ]*td;
             t0[i+m] = dpoly->v[i] + flow[i+m]*td;
-
-            //uv_to_point(u+THETA, v,     &pdx);
-            //uv_to_point(u-THETA, v,     &ndx);
-            //uv_to_point(u,       v+PHI, &pdy);
-            //uv_to_point(u,       v-PHI, &ndy);
 
             px   = interp_point_unit_sphere(sphere, flow, dpoly->ptheta[i]);
             nx   = interp_point_unit_sphere(sphere, flow, dpoly->ntheta[i]);
@@ -340,6 +342,7 @@ expdef_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
             tmpp = J0; J0   = J1; J1   = tmpp;
         }
     } else {
+printf("expdef_poly\n");
         for (i = 0; i < m; i++) {
             t0[i  ] = dpoly->u[i] + flow[i  ]*td;
             t0[i+m] = dpoly->v[i] + flow[i+m]*td;
@@ -372,6 +375,7 @@ expdefdet_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
     int m = dpoly->n_points;
     int i, j;
 
+printf("expdefdet_poly\n");
     optr = t0;
 
     td = 1;
@@ -386,11 +390,6 @@ expdefdet_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
 
         t0[i  ] = dpoly->u[i] + flow[i  ]*td;
         t0[i+m] = dpoly->v[i] + flow[i+m]*td;
-
-        //uv_to_point(u+THETA, v,     &pdx);
-        //uv_to_point(u-THETA, v,     &ndx);
-        //uv_to_point(u,       v+PHI, &pdy);
-        //uv_to_point(u,       v-PHI, &ndy);
 
         px   = interp_point_unit_sphere(sphere, flow, dpoly->ptheta[i]);
         nx   = interp_point_unit_sphere(sphere, flow, dpoly->ntheta[i]);
@@ -408,6 +407,7 @@ expdefdet_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
 
         J0[i]   = j00*j11 - j10*j01;
     }
+    
     for(i=0; i<k; i++) {
         double *tmpp;
         composition_detjac_poly(sphere, t0, J0, t0, J0, t1, J1);
@@ -434,14 +434,12 @@ jac_div_smalldef_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
     double sc2 = sc/2.0;
     double *v1 = v0+m;
 
+printf("jac_div_smalldef_poly\n");
     for(i = 0; i < m; i++) {
         double j00,j01, j10,j11;
         double t00,t01, t10,t11;
         Point om1, op1;
         double u, v, idt, km1, kp1;
-
-        //uv_to_point(u-THETA, v,     &om1);
-        //uv_to_point(u+THETA, v,     &op1);
 
         km1 = interp_point_unit_sphere(sphere, v0, dpoly->ntheta[i]);
         kp1 = interp_point_unit_sphere(sphere, v0, dpoly->ptheta[i]);
@@ -450,9 +448,6 @@ jac_div_smalldef_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
         kp1 = interp_point_unit_sphere(sphere, v1, dpoly->ptheta[i]);
         j01 = (kp1 - km1)*sc2;
 
-        //uv_to_point(u,       v-PHI, &om1);
-        //uv_to_point(u,       v+PHI, &op1);
-
         km1 = interp_point_unit_sphere(sphere, v0, dpoly->nphi[i]);
         kp1 = interp_point_unit_sphere(sphere, v0, dpoly->pphi[i]);
         j10 = (kp1 - km1)*sc2;
@@ -460,14 +455,6 @@ jac_div_smalldef_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
         kp1 = interp_point_unit_sphere(sphere, v1, dpoly->pphi[i]);
         j11 = (kp1 - km1)*sc2 + 1.0;
 
-        /*
-         * syms j00 j01 j10 j11
-         * syms t00 t01 t10 t11
-         * J1 = [j00 j01; j10 j11];
-         * J0 = [t00 t01; t10 t11];
-         * inv(J1)
-         * J1*J0
-         */
         idt = 1.0/(j00*j11 - j10*j01);
         t00 =  idt*j11;
         t01 = -idt*j10;
@@ -491,6 +478,7 @@ init_objfun_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
     int j, m = dpoly->n_points;
     double ssl = 0.0, dt = 1.0;
 
+printf("init_objfun_poly\n");
     for (j = 0; j < m; j++) {
         double x, y;
         int    ix, iy;
@@ -501,8 +489,6 @@ init_objfun_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
 
         x    = t0[j  ];
         y    = t0[j+m];
-        //ix   = (int)floor(x); dx1=x-ix; dx2=1.0-dx1;
-        //iy   = (int)floor(y); dy1=y-iy; dy2=1.0-dy1;
 
         k22   = interp_uv_unit_sphere(sphere, f, x, y);
         k12   = interp_uv_unit_sphere(sphere, f, x+UTHETA, y);
@@ -524,17 +510,6 @@ init_objfun_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
 
         b[j  ]   = dx*d*dt;
         b[j+m]   = dy*d*dt;
-if (j == 0) {
-/*        printf("t0 = %f %f\n", x, y);
-        printf("f = %f, k22 = %f, k12 = %f, k21 = %f\n", f[0], k22, k12, k21);
-
-        printf("d = %f, dx0 = %f, dy0 = %f\n", d, dx0, dy0);
-        printf("dx = %f, dy = %f\n", dx, dy);
-
-        printf("A = %f %f %f\n", A[j], A[j+m], A[j+2*m]);
-        printf("b = %f %f\n", b[j], b[j+m]);
-*/
-}
 
         ssl += d*d*dt;
     }
@@ -553,6 +528,7 @@ smalldef_jac_poly(polygons_struct *sphere, struct dartel_poly *dpoly, double sc,
     double sc2 = sc/2.0;
     double *v1 = v0+m;
 
+printf("smalldef_jac_poly\n");
     for(i = 0; i < m; i++) {
         Point om1, op1;
         double u, v, km1, kp1;
@@ -562,8 +538,6 @@ smalldef_jac_poly(polygons_struct *sphere, struct dartel_poly *dpoly, double sc,
         t0[i  ] = dpoly->u[i] + v0[i]*sc;
         t0[i+m] = dpoly->v[i] + v1[i]*sc;
 
-        //uv_to_point(u-THETA, v,     &om1);
-        //uv_to_point(u+THETA, v,     &op1);
         km1 = interp_point_unit_sphere(sphere, v0, dpoly->ntheta[i]);
         kp1 = interp_point_unit_sphere(sphere, v0, dpoly->ptheta[i]);
         J0[i    ] = (kp1 - km1)*sc2 + 1.0;
@@ -571,8 +545,6 @@ smalldef_jac_poly(polygons_struct *sphere, struct dartel_poly *dpoly, double sc,
         kp1 = interp_point_unit_sphere(sphere, v1, dpoly->ptheta[i]);
         J0[i+  m] = (kp1 - km1)*sc2;
 
-        //uv_to_point(u,       v-PHI, &om1);
-        //uv_to_point(u,       v+PHI, &op1);
         km1 = interp_point_unit_sphere(sphere, v0, dpoly->nphi[i]);
         kp1 = interp_point_unit_sphere(sphere, v0, dpoly->pphi[i]);
         J0[i+2*m] = (kp1 - km1)*sc2;
@@ -591,6 +563,7 @@ squaring_poly(polygons_struct *sphere, struct dartel_poly *dpoly, int k,
     int i, j, m = dpoly->n_points;
     double *ptr = t0;
 
+printf("squaring_poly\n");
     for(i=0; i<k; i++) {
         double *buf1, *buf2;
         buf1 = t1; /* Re-use some memory */
@@ -774,27 +747,39 @@ dartel_poly2(polygons_struct *sphere, struct dartel_poly *dpoly,
 
     sc = 1.0/pow2(prm.k);
 
+output_values_any_format("J00.txt", sphere->n_points, J0, 1);
+output_values_any_format("t00.txt", sphere->n_points, t0, 1);
+output_values_any_format("v.txt", sphere->n_points, v, 1);
     expdef_poly(sphere, dpoly, prm.k, v, t0, t1, J0, J1);
 
-    printf("expdef: v[0] = %f, v[m] = %f\n", v[0], v[m]);
-    printf("expdef: t0[0] = %f, t0[m] = %f\n", t0[0], t0[m]);
-    printf("expdef: t1[0] = %f, t1[m] = %f\n", t1[0], t1[m]);
-    printf("expdef: J0[0] = %f, J0[m] = %f\n", J0[0], J0[m]);
-    printf("expdef: J1[0] = %f, J1[m] = %f\n", J1[0], J1[m]);
+    printf("expdef: v[0] = %f, v[m/2] = %f, v[m] = %f\n", v[0], v[m/2], v[m]);
+    printf("expdef: t0[0] = %f, t0[m/2] = %f, t0[m] = %f\n", t0[0], t0[m/2], t0[m]);
+    printf("expdef: t1[0] = %f, t1[m/2] = %f,t1[m] = %f\n", t1[0], t1[m/2], t1[m]);
+    printf("expdef: J0[0] = %f, J0[m/2] = %f,J0[m] = %f\n", J0[0], J0[m/2], J0[m]);
+    printf("expdef: J1[0] = %f, J1[m/2] = %f,J1[m] = %f\n", J1[0], J1[m/2], J1[m]);
 
-    jac_div_smalldef_poly(sphere, dpoly, sc, v, J0);
 output_values_any_format("J01.txt", sphere->n_points, J0, 1);
+output_values_any_format("t01x.txt", sphere->n_points, t0, 1);
+output_values_any_format("t01y.txt", sphere->n_points, t0+m, 1);
+    jac_div_smalldef_poly(sphere, dpoly, sc, v, J0);
+output_values_any_format("J02.txt", sphere->n_points, J0, 1);
     
     ssl = init_objfun_poly(sphere, dpoly, f, g, t0, J0, dj, b, A);
+output_values_any_format("A0.txt", sphere->n_points, A, 1);
+output_values_any_format("b0x.txt", sphere->n_points, b, 1);
+output_values_any_format("b0y.txt", sphere->n_points, b+m, 1);
     
     smalldef_jac_poly(sphere, dpoly, -sc, v, t0, J0);
     
-
     squaring_poly(sphere, dpoly, prm.k, prm.code==1, b, A, t0, t1, J0, J1);
+output_values_any_format("A1.txt", sphere->n_points, A, 1);
+output_values_any_format("b1x.txt", sphere->n_points, b, 1);
+output_values_any_format("b1y.txt", sphere->n_points, b+m, 1);
+output_values_any_format("t02.txt", sphere->n_points, t0, 1);
+output_values_any_format("t10.txt", sphere->n_points, t1, 1);
     
     jac_div_smalldef_poly(sphere, dpoly, -sc, v, J0);
     
-
     ssl += init_objfun_poly(sphere, dpoly, g, f, t0, J0, (double *)0, b1, A1);
     
     smalldef_jac_poly(sphere, dpoly, sc, v, t0, J0);
@@ -816,8 +801,8 @@ output_values_any_format("J01.txt", sphere->n_points, J0, 1);
     for(j = 0; j < 3*m; j++) A[j] *= sc;
     for(j = 0; j < 2*m; j++) A[j] += prm.lmreg;
 
-output_values_any_format("b.txt", sphere->n_points, b, 1);
-output_values_any_format("A.txt", sphere->n_points, A, 1);
+output_values_any_format("b2.txt", sphere->n_points, b, 1);
+output_values_any_format("A2.txt", sphere->n_points, A, 1);
 output_values_any_format("v0.txt", sphere->n_points, v, 1);
     /* Solve equations for Levenberg-Marquardt update:
      * v = v - inv(H + L'*L + R)*(d + L'*L*v)
@@ -827,14 +812,17 @@ output_values_any_format("v0.txt", sphere->n_points, v, 1);
      *     R: Levenberg-Marquardt regularisation
      *     d: vector of first derivatives
      */
-output_values_any_format("J02.txt", sphere->n_points, J0, 1);
+output_values_any_format("J03.txt", sphere->n_points, J0, 1);
 output_values_any_format("J11.txt", sphere->n_points, J1, 1);
 output_values_any_format("sbuf0.txt", sphere->n_points, sbuf, 1);
-    cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-9, 10, sbuf, sbuf+2*m,
+    cgs2_poly(sphere, dpoly, A, b, prm.rparam, 1e-6, 100, sbuf, sbuf+2*m,
               sbuf+4*m, sbuf+6*m);
     //fmg2(sphere, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
 
 output_values_any_format("sbuf.txt", sphere->n_points, sbuf, 1);
+output_values_any_format("sbuf2.txt", sphere->n_points, sbuf+2*m, 1);
+output_values_any_format("sbuf4.txt", sphere->n_points, sbuf+4*m, 1);
+output_values_any_format("sbuf6.txt", sphere->n_points, sbuf+6*m, 1);
     for(j = 0; j < 2*m; j++) ov[j] = v[j] - sbuf[j];
      ll[0] = ssl;
     ll[1] = ssp*0.5;

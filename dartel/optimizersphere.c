@@ -401,6 +401,7 @@ Atimesp_me(int dm[], double A[], double s[], double p[], double Ap[])
     int i, m = dm[0]*dm[1];
 
     LtLf_me(dm, p, s, Ap);
+output_values_any_format("Ap0_image.txt", m, Ap, 1);
 
     for (i = 0; i < m; i++) {
         Ap[i  ] += A[i  ]*p[i  ] + A[i+2*m]*p[i+m];
@@ -680,7 +681,7 @@ solve22(double a[], double b[], double t,  double u[])
 }
 
 
-double
+/*double
 dotprod(int m, double a[], double b[])
 {
     int i;
@@ -714,7 +715,7 @@ norm(int m, double a[])
 
     return(sqrt(dp));
 }
-
+*/
 
 /*
 % Solve A*x = b by the conjugate gradient method
@@ -777,6 +778,10 @@ void cgs2(int dm[], double A[], double b[], int rtype, double param[],
         for (i = 0; i < m; i++)
             r[i] = b[i]-Ap[i];
     }
+
+output_values_any_format("x_image.txt", dm[0]*dm[1], x, 1);
+output_values_any_format("Ap_image.txt", dm[0]*dm[1], Ap, 1);
+output_values_any_format("r_image.txt", dm[0]*dm[1], r, 1);
 
     /* rtr  = r'*r; */
     rtr     = dotprod(m, r, r);
@@ -955,6 +960,7 @@ fmg2_scratchsize(int n0[])
     }
     return((2*n0[0]*n0[1] + n[0][0]*n[1][1] + 9*bs));
 }
+
 
 /* Full Multigrid solver.  See Numerical Recipes (2nd ed) for more info */
 void
