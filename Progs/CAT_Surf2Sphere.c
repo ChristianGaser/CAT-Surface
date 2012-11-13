@@ -27,7 +27,7 @@ Usage: %s surface.obj sphere.obj [stop_at] [increase_iterations_by_factor]\n\n\
        3 - Very inflating\n\
        4 - High smoothing\n\
        5 - Ellipsoid\n\n\
-     Number of iterations can be increased by an additional factor to deal with high resoluted surfaces.";
+     Number of iterations can be increased by an additional factor to deal with high resoluted surfaces.\n";
 
         fprintf(stderr, usage_str, executable);
 }
