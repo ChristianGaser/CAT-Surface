@@ -22,13 +22,11 @@ slope(double *x, double *y, int len)
         int i;
         double slope = 0;
 
-        for (i = 1; i < len; i++) {
+        for (i = 1; i < len; i++) 
                 slope += (y[i] - y[i-1]) / (x[i] - x[i-1]);
-        }
 
-        if (len > 1) {
+        if (len > 1) 
                 slope /= (len-1);
-        }
 
         return(slope);
 }
@@ -118,6 +116,7 @@ get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
         free(logy);
         free(pcount);
 }
+
 
 int
 min_triangles_update(int *base6, int *base8, int *base20)
@@ -423,7 +422,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
 
         fd = get_globalfd(bws, areas, SPH_ITERS);
 
-	free(rcx); free(rcy); free(rcz); 
+	    free(rcx); free(rcy); free(rcz); 
         free(icx); free(icy); free(icz); 
         free(lrcx); free(lrcy); free(lrcz);
         free(licx); free(licy); free(licz);
