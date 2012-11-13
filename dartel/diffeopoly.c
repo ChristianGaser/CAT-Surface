@@ -758,7 +758,7 @@ output_values_any_format("v.txt", sphere->n_points, v, 1);
     printf("expdef: J0[0] = %f, J0[m/2] = %f,J0[m] = %f\n", J0[0], J0[m/2], J0[m]);
     printf("expdef: J1[0] = %f, J1[m/2] = %f,J1[m] = %f\n", J1[0], J1[m/2], J1[m]);
 
-output_values_any_format("J01.txt", sphere->n_points, J0, 1);
+output_values_any_format("J02.txt", sphere->n_points, J0, 1);
 output_values_any_format("t01x.txt", sphere->n_points, t0, 1);
 output_values_any_format("t01y.txt", sphere->n_points, t0+m, 1);
     jac_div_smalldef_poly(sphere, dpoly, sc, v, J0);

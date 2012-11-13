@@ -144,9 +144,46 @@ private int get_surface_neighbours( polygons_struct * surface,
 
 }
 
+// -------------------------------------------------------------------
+// get normals and points of cortical surface.
+//
+// surface: polygon
+// n_points: the number of the vertices
+// points: (x,y,z) coordinates
+// normals: normal vectors
+// n_neighbours: number of vertices around each node
+// neighbours: the set of ordered triangle consisting of the vertices
+//
+private void get_surface_values( polygons_struct * surface,
+                              int * n_points,
+                              Point * points[],
+                              Vector * normals[],
+                              int * n_neighbours[],
+                              int ** neighbours[] ) {
+
+  int               i;
+
+  // Make a copy of the coordinates and the normals, since
+  // delete_object_list will destroy them.
+
+  *n_points = surface->n_points;
+  ALLOC( *points, surface->n_points );
+  ALLOC( *normals, surface->n_points );
+  for( i = 0; i < *n_points; i++ ) {
+    (*points)[i].coords[0] = surface->points[i].coords[0];
+    (*points)[i].coords[1] = surface->points[i].coords[1];
+    (*points)[i].coords[2] = surface->points[i].coords[2];
+    (*normals)[i].coords[0] = surface->normals[i].coords[0];
+    (*normals)[i].coords[1] = surface->normals[i].coords[1];
+    (*normals)[i].coords[2] = surface->normals[i].coords[2];
+  }
+
+  get_surface_neighbours( surface, n_neighbours, neighbours );
+}
+
 private  int  get_points_of_region(
-    polygons_struct *surface,
-    Point   points[] ) {
+    polygons_struct *  surface,
+    Point   *points[] ) {
 
     int     n_points;
 
@@ -158,45 +195,23 @@ private  int  get_points_of_region(
     int      n_convex = 0;
 
 
-    // Find the convex points for a surface.
-    // Make a copy of the coordinates and the normals, since
-    // delete_object_list will destroy them.
+    get_surface_values( surface, &n_points, &coords, &normals,
+                          &n_ngh, &ngh );
 
-fprintf(stderr,".");
-    n_points = surface->n_points;
-    ALLOC( points, surface->n_points );
-    ALLOC( normals, surface->n_points );
-fprintf(stderr,".");
     for( i = 0; i < n_points; i++ ) {
-      (points)[i].coords[0] = surface->points[i].coords[0];
-      (points)[i].coords[1] = surface->points[i].coords[1];
-      (points)[i].coords[2] = surface->points[i].coords[2];
-      (normals)[i].coords[0] = surface->normals[i].coords[0];
-      (normals)[i].coords[1] = surface->normals[i].coords[1];
-      (normals)[i].coords[2] = surface->normals[i].coords[2];
-    }
-
-fprintf(stderr,".");
-    get_surface_neighbours( surface, &n_ngh, &ngh );
-
-fprintf(stderr,".");
-    for( i = 0; i < n_points; i++ ) {
-fprintf(stderr,":");
       double plane_const = coords[i].coords[0] * normals[i].coords[0] +
-                           coords[i].coords[1] * normals[i].coords[1] +
-                           coords[i].coords[2] * normals[i].coords[2];
+                             coords[i].coords[1] * normals[i].coords[1] +
+                             coords[i].coords[2] * normals[i].coords[2];
       for( j = 0; j < n_ngh[i]; j++ ) {
-fprintf(stderr,"%d/%d ",i,j);
         double check = coords[ngh[i][j]].coords[0] * normals[i].coords[0] +
-                       coords[ngh[i][j]].coords[1] * normals[i].coords[1] +
-                       coords[ngh[i][j]].coords[2] * normals[i].coords[2];
+                         coords[ngh[i][j]].coords[1] * normals[i].coords[1] +
+                         coords[ngh[i][j]].coords[2] * normals[i].coords[2];
         if( check > plane_const ) break;
       }
       if( j == n_ngh[i] ) {
-        ADD_ELEMENT_TO_ARRAY( points, n_convex, coords[i], DEFAULT_CHUNK_SIZE);
+        ADD_ELEMENT_TO_ARRAY( *points, n_convex, coords[i], DEFAULT_CHUNK_SIZE);
       }
     }
-fprintf(stderr,".");
     if( coords ) FREE( coords );
     if( normals ) FREE( normals );
     if( n_ngh ) FREE( n_ngh );
@@ -204,9 +219,7 @@ fprintf(stderr,".");
       FREE( ngh[0] );   // this is ngh_array
       FREE( ngh );
     }
-fprintf(stderr,".");
     n_points = n_convex;
- 
     return( n_points );
 
 }
@@ -737,129 +750,96 @@ private  void  get_convex_hull(
 
 int
 calculate_convex_hull(
-    polygons_struct *surface)
+    polygons_struct  *surface,
+    polygons_struct  *sphere
+)
 {
 
-    int            n_points;
-    Point          *points;
-    object_struct  *object;
+    int             i, j, poly, n_points, n_done;
+    Point           point, *points, *new_points, poly_points[MAX_POINTS_PER_POLYGON], scaled_point, *length_points;
+    object_struct   *object, **object2;
+    polygons_struct *convex_sphere, *convex_surface, new_polygons;
+    double weights[MAX_POINTS_PER_POLYGON];
+    double               max_length = 5.0;
  
-    n_points = get_points_of_region( surface, points );
+    n_points = get_points_of_region( surface, &points );
     KeyFactor = n_points;
 
-    object = create_object( POLYGONS );
+    object = create_object(POLYGONS);
+    convex_surface = get_polygons_ptr(object);
+    copy_polygons(surface, convex_surface);
 
-    get_convex_hull( n_points, points, get_polygons_ptr(object) );
+    get_convex_hull( n_points, points, convex_surface );
+    
+    check_polygons_neighbours_computed( convex_surface );
+    
+(void) output_graphics_file( "test4.obj", ASCII_FORMAT, 1, &object );
 
-    check_polygons_neighbours_computed( get_polygons_ptr(object) );
+    SET_ARRAY_SIZE( length_points, 0, convex_surface->n_points, DEFAULT_CHUNK_SIZE );
+    for_less( i, 0, convex_surface->n_points )
+        length_points[i] = convex_surface->points[i];
 
-    (void) output_graphics_file( "test.obj", ASCII_FORMAT, 1, &object );
+    do
+    {
+        n_done = refine_mesh( &length_points, convex_surface, max_length,
+                              &new_polygons );
+
+        delete_polygons( convex_surface );
+        *convex_surface = new_polygons;
+    }
+    while( n_done > 0 );
+
+    print( "Resampled into %d polygons.\n", convex_surface->n_items );
+
+    smooth_heatkernel(convex_surface, NULL, 50);
+
+(void) output_graphics_file( "test3.obj", ASCII_FORMAT, 1, &object );
+
+
+    /* create sphere */
+    object = create_object(POLYGONS);
+    convex_sphere = get_polygons_ptr(object);
+    copy_polygons(convex_surface, convex_sphere);
+    surf_to_sphere(convex_sphere, 5, 1);
+
+    /* translate to center and scale to radius of 100 */
+    translate_to_center_of_mass(sphere);
+    for (i = 0; i < sphere->n_points; i++)
+            set_vector_length(&sphere->points[i], 100.0);
+
+    /* translate to center and scale to radius of 100 */
+    translate_to_center_of_mass(convex_sphere);
+    for (i = 0; i < convex_sphere->n_points; i++)
+            set_vector_length(&convex_sphere->points[i], 100.0);
+
+    create_polygons_bintree(sphere, ROUND((Real) sphere->n_items * 0.5));
+
+    new_points = (Point *) malloc(sizeof(Point) * sphere->n_points);
+
+    for (i = 0; i < sphere->n_points; i++) {
+      poly = find_closest_polygon_point(&sphere->points[i],
+                                            convex_sphere, &point);
+		
+      n_points = get_polygon_points(convex_sphere, poly,
+                                              poly_points);
+      get_polygon_interpolation_weights(&point, n_points, poly_points,
+                                                  weights);
+
+      if (get_polygon_points(convex_surface, poly, poly_points) != n_points)
+                        handle_internal_error("map_point_between_polygons");
+
+      fill_Point(new_points[i], 0.0, 0.0, 0.0);
+
+      for (j = 0; j < n_points; j++) {
+        SCALE_POINT(scaled_point, poly_points[j], weights[j]);
+        ADD_POINTS(new_points[i], new_points[i], scaled_point);
+      }
+    }
+
+    free(surface->points);
+    surface->points = new_points;
+    
+    compute_polygon_normals(surface);
 
     return( 0 );
-}
-
-double
-gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
-                      char *file, int n_triangles, polygons_struct *reparam,
-                      int smoothflag)
-{
-        polygons_struct *polygons;
-        object_struct **object;
-        double *rcx, *icx, *rcy, *icy, *rcz, *icz;
-        double *lrcx, *licx, *lrcy, *licy, *lrcz, *licz;
-        double *rdatax, *rdatay, *rdataz, *spectral_power;
-        double *areas, *orig_areas, gi, orig_area, **sph_areas, *local_gi;
-        int it, bw2, l, m, i;
-        char str[80];
-
-        bw2 = BW * BW;
-
-        rdatax = (double *) malloc(sizeof(double) * 4 * bw2);
-        rdatay = (double *) malloc(sizeof(double) * 4 * bw2);
-        rdataz = (double *) malloc(sizeof(double) * 4 * bw2);
-        rcx    = (double *) malloc(sizeof(double) * bw2);
-        rcy    = (double *) malloc(sizeof(double) * bw2);
-        rcz    = (double *) malloc(sizeof(double) * bw2);
-        icx    = (double *) malloc(sizeof(double) * bw2);
-        icy    = (double *) malloc(sizeof(double) * bw2);
-        icz    = (double *) malloc(sizeof(double) * bw2);
-        lrcx   = (double *) malloc(sizeof(double) * bw2);
-        lrcy   = (double *) malloc(sizeof(double) * bw2);
-        lrcz   = (double *) malloc(sizeof(double) * bw2);
-        licx   = (double *) malloc(sizeof(double) * bw2);
-        licy   = (double *) malloc(sizeof(double) * bw2);
-        licz   = (double *) malloc(sizeof(double) * bw2);
-
-        get_equally_sampled_coords_of_polygon(surface, sphere, BW,
-                                              rdatax, rdatay, rdataz);
-
-        get_sph_coeffs_of_realdata(rdatax, BW, DATAFORMAT, rcx, icx);
-        get_sph_coeffs_of_realdata(rdatay, BW, DATAFORMAT, rcy, icy);
-        get_sph_coeffs_of_realdata(rdataz, BW, DATAFORMAT, rcz, icz);
-
-        get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT, rcx, icx);
-        get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT, rcy, icy);
-        get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT, rcz, icz);
-
-        object = (object_struct **) malloc(sizeof(object_struct *));
-        *object = create_object(POLYGONS);
-        polygons = get_polygons_ptr(*object);
-
-        sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons,
-                               n_triangles, reparam, BW);
-
-        orig_areas = (double *) malloc(sizeof(double) * polygons->n_items);
-        orig_area = get_area_of_polygons(polygons, orig_areas);
-
-        delete_polygons(polygons);
-
-        areas = (double *) malloc(sizeof(double) * 10);
-        sph_areas = (double **) malloc(sizeof(double *) * 10);
-        for (i = 0; i < 10; i++) {
-                sph_areas[i] = (double *) malloc(sizeof(double) *
-                                                 polygons->n_items);
-        }
-
-        for (it = 0; it < 10; it++) {
-/*                limit_bandwidth(BW, (int) bws[it], rcx, lrcx);
-                limit_bandwidth(BW, (int) bws[it], rcy, lrcy);
-                limit_bandwidth(BW, (int) bws[it], rcz, lrcz);
-                limit_bandwidth(BW, (int) bws[it], icx, licx);
-                limit_bandwidth(BW, (int) bws[it], icy, licy);
-                limit_bandwidth(BW, (int) bws[it], icz, licz);
-*/
-                get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT,
-                                             lrcx, licx);
-                get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT,
-                                             lrcy, licy);
-                get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT,
-                                             lrcz, licz);
-
-                sample_sphere_from_sph(rdatax, rdatay, rdataz,
-                                       polygons, n_triangles, reparam, BW);
-
-                areas[it] = get_area_of_polygons(polygons, sph_areas[it]) /
-                            orig_area;
-                for (i = 0; i < polygons->n_items; i++) {
-                        if (orig_areas[i] != 0)
-                                sph_areas[it][i] /= orig_areas[i];
-                }
-
-                delete_polygons(polygons);
-        }
-
-        local_gi = (double *) malloc(sizeof(double) * reparam->n_points);
-//        get_localgi(reparam, bws, sph_areas, 10, local_gi, smoothflag);
-//        output_values_any_format(file, reparam->n_points, local_gi,
-//                                 TYPE_DOUBLE);
- 
-//        gi = get_globalgi(bws, areas, 10);
-
-        free(rcx); free(rcy); free(rcz); 
-        free(icx); free(icy); free(icz); 
-        free(lrcx); free(lrcy); free(lrcz);
-        free(licx); free(licy); free(licz);
-        free(rdatax); free(rdatay); free(rdataz);
-        
-        return gi;
 }

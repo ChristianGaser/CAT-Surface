@@ -57,6 +57,7 @@ noinst_HEADERS = \
 	Include/CAT_Refine.h \
 	Include/CAT_DeformPolygons.h \
 	Include/CAT_Separate.h \
+	Include/CAT_Octree.h \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
 	dartel/dartel.h \
@@ -102,6 +103,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_LaplaceBeltrami.c \
     Lib/CAT_Isometrics.c \
     Lib/CAT_Separate.c \
+    Lib/CAT_Octree.c \
     Lib/CAT_NiftiIO.c \
     MarchingCubes/MarchingCubes.c \
 	$(nl_SRC) \

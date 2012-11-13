@@ -33,11 +33,4 @@ typedef  QUEUE_STRUCT( queue_entry )  queue_struct;
 static int KeyFactor = 100000;
 
 int
-calculate_convex_hull(polygons_struct *);
-
-
-double
-gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
-                      char *file, int n_triangles, polygons_struct *reparam,
-                      int smoothflag);
-
+calculate_convex_hull(polygons_struct *, polygons_struct *);

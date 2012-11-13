@@ -53,9 +53,10 @@ main(int argc, char *argv[])
         char                 *surface_file, *sphere_file, *output_file;
         File_formats         format;
         int                  n_objects, i;
+        int                  *n_neighbours, **neighbours;
         polygons_struct      *surface, *sphere, *reparam;
         object_struct        **objects, **sphere_objects, **reparam_objects;
-        double               gi;
+        double               gi, *curv, *curv_convex;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
@@ -124,10 +125,27 @@ main(int argc, char *argv[])
         for (i = 0; i < reparam->n_points; i++)
                 set_vector_length(&reparam->points[i], 1.0);
 
-        calculate_convex_hull(surface);
+        curv = (double *) malloc(sizeof(double) * surface->n_points);
+        curv_convex = (double *) malloc(sizeof(double) * surface->n_points);
 
-//        gi = gyrification_index_sph(surface, sphere, output_file,
-//                                           n_triangles, reparam, smooth);
+        get_all_polygon_point_neighbours(surface, &n_neighbours, &neighbours);
+
+        get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
+                                         3.0, 0, curv);
+
+        calculate_convex_hull(surface, sphere);
+        
+        get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
+                                         3.0, 0, curv_convex);
+
+
+        for (i = 0; i < surface->n_points; i++)
+          curv[i] = fabs(curv[i]/curv_convex[i]);
+
+        output_values_any_format(output_file, surface->n_points,
+                                 curv_convex, TYPE_DOUBLE);
+
+        (void) output_graphics_file( "test2.obj", ASCII_FORMAT, 1, objects );
 
         printf("global GI: %f\n", gi);
 
