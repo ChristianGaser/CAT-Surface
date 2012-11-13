@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_ConvexHull.c 267 2012-06-21 14:57:59Z gaser $
+ * $Id$
  *
  */
 
