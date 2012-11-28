@@ -90,6 +90,22 @@ static ArgvInfo argTable[] = {
 };
 
 void
+scale_values(double values[], int n_values)
+{
+    int i;
+    double mn = FLT_MAX, mx = -FLT_MAX;
+
+    for (i = 0; i < n_values; i++) {
+        mn = MIN(values[i], mn);
+        mx = MAX(values[i], mx);
+    }
+
+    for (i = 0; i < n_values; i++) 
+        values[i] = (values[i] - mn)/(mx - mn);
+        
+}
+
+void
 gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
              double f[], double dtheta[], double dphi[])
 {
@@ -108,6 +124,73 @@ gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
     }
 
     if (polygons->bintree != NULL) delete_the_bintree(&polygons->bintree);
+}
+
+void
+laplace_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
+             double f[], double laplace[])
+{
+    int i, mm = polygons->n_points;
+    double kxm, kxp, kym, kyp;
+
+    for (i = 0; i < mm; i++) {
+
+        kxm   = interp_point_unit_sphere(polygons, f, dpoly->ntheta[i]);
+        kxp   = interp_point_unit_sphere(polygons, f, dpoly->ptheta[i]);
+        kym   = interp_point_unit_sphere(polygons, f, dpoly->nphi[i]);
+        kyp   = interp_point_unit_sphere(polygons, f, dpoly->pphi[i]);
+        laplace[i] = kxp + kxm + kyp + kym - 4*f[i];
+
+    }
+
+    if (polygons->bintree != NULL) delete_the_bintree(&polygons->bintree);
+}
+
+void
+gradient_vector_flow(polygons_struct *polygons, struct dartel_poly *dpoly, double f[], double dtheta[], double dphi[], double u[], double v[], double mu, int iterations)
+{
+    int i, j, mm = polygons->n_points;
+    double fmin = FLT_MAX, fmax = -FLT_MAX;
+    double *b, *c1, *c2, *Lu, *Lv;
+
+    b  = (double *) malloc(sizeof(double) * polygons->n_points);
+    c1 = (double *) malloc(sizeof(double) * polygons->n_points);
+    c2 = (double *) malloc(sizeof(double) * polygons->n_points);
+    Lu = (double *) malloc(sizeof(double) * polygons->n_points);
+    Lv = (double *) malloc(sizeof(double) * polygons->n_points);
+
+    for (i = 0; i < mm; i++) {
+        fmin = MIN(f[i], fmin);
+        fmax = MAX(f[i], fmax);
+    }
+
+    /* scale f to a range of 0..1 and initialize parameters */
+    for (i = 0; i < mm; i++) {
+        f[i]  = (f[i] - fmin)/(fmax - fmin);
+        u[i]  = dtheta[i];
+        v[i]  = dphi[i];
+        b[i]  = dtheta[i]*dtheta[i] + dphi[i]*dphi[i];
+        c1[i] = b[i]*dtheta[i];
+        c2[i] = b[i]*dphi[i];
+    }
+      
+    for (j = 0; j < iterations; j++) {
+        laplace_poly(polygons, dpoly, u, Lu);
+        laplace_poly(polygons, dpoly, v, Lv);
+
+        for (i = 0; i < mm; i++) {
+            u[i] = (1 - b[i])*u[i] + mu*Lu[i] + c1[i];
+            v[i] = (1 - b[i])*v[i] + mu*Lv[i] + c2[i];
+        }
+        
+        output_values_any_format("u.txt", polygons->n_points, u, TYPE_DOUBLE);
+        output_values_any_format("v.txt", polygons->n_points, v, TYPE_DOUBLE);
+        fprintf(stderr, "GVF iteration %d\n", j);
+    }
+    
+    free(b);
+    free(c1);
+    free(c2);
 }
 
 void
@@ -190,11 +273,11 @@ main(int argc, char *argv[])
         double           ll[3];
         static double    param[2] = {UTHETA, VPHI};
         int              iter_demon;
-        double           xp, yp, xm, ym, idiff, denom, squared_diff;
+        double           xp, yp, xm, ym, idiff, denom, denom2, squared_diff, old_squared_diff;
         double           H00, H01, H10, H11, rotation_matrix[9];
         struct           dartel_prm* prm;
         double           rot[3], *curv_target_tmp, *curv_target, *curv_source;
-        double           *curv_source_tmp, *dtheta, *dphi, *u, *v, *ux, *vy;
+        double           *curv_source_tmp, *dtheta, *dphi, *dtheta2, *dphi2, *u, *v, *ux, *vy;
         struct           dartel_poly *dpoly;
         int              *n_neighbours, **neighbours;
 
@@ -348,7 +431,6 @@ main(int argc, char *argv[])
         xy_size = source->n_points;
 
         dpoly = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
-        init_dartel_poly(src_sphere, dpoly);
 
         sm_source   = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_target   = (polygons_struct *) malloc(sizeof(polygons_struct));
@@ -360,12 +442,15 @@ main(int argc, char *argv[])
         curv_target = (double *) malloc(sizeof(double) * source->n_points);
         dtheta      = (double *) malloc(sizeof(double) * source->n_points);
         dphi        = (double *) malloc(sizeof(double) * source->n_points);
+        dtheta2     = (double *) malloc(sizeof(double) * source->n_points);
+        dphi2       = (double *) malloc(sizeof(double) * source->n_points);
         u           = (double *) malloc(sizeof(double) * source->n_points);
         v           = (double *) malloc(sizeof(double) * source->n_points);
         ux          = (double *) malloc(sizeof(double) * source->n_points);
         vy          = (double *) malloc(sizeof(double) * source->n_points);
         
-        init_dartel_poly(trg_sphere, dpoly);
+        init_dartel_poly(src_sphere, dpoly);
+//        init_dartel_poly(trg_sphere, dpoly);
 
         copy_polygons(src_sphere, warped_src_sphere);
 
@@ -430,42 +515,75 @@ main(int argc, char *argv[])
                 /* resample curvature of target to source space */
                 resample_noscale(trg_sphere, src_sphere, curv_target_tmp, curv_target);
 
-                output_values_any_format("curv.txt", sm_source->n_points, curv_source, TYPE_DOUBLE);
-                output_values_any_format("curv_target.txt", sm_target->n_points, curv_target_tmp, TYPE_DOUBLE);
-                gradient_poly(src_sphere, dpoly, curv_target, dtheta, dphi);
+                smooth_heatkernel(source, curv_source, 20);
+                smooth_heatkernel(source, curv_target, 20);
                 
+                /* scale values to a range of 0..1 */
+                scale_values(curv_source, source->n_points);
+                scale_values(curv_target, source->n_points);
+
+                output_values_any_format("curv.txt", sm_source->n_points, curv_source, TYPE_DOUBLE);
+                output_values_any_format("curv_target.txt", sm_target->n_points, curv_target, TYPE_DOUBLE);
+                gradient_poly(src_sphere, dpoly, curv_source, dtheta, dphi);
+                
+                double scalex = THETA, scaley = THETA;
+                old_squared_diff = 1e15;
+
+                double alpha = 5.0;
+
                 for (iter_demon = 0; iter_demon < 10; iter_demon++) {
+
+                        gradient_poly(trg_sphere, dpoly, curv_target, dtheta2, dphi2);
+//                        gradient_vector_flow(sm_source, dpoly, curv_source, dtheta, dphi, u, v, 0.2, 80);
+
+
                         squared_diff = 0.0;
                         for (i = 0; i < source->n_points; i++) {
                                 idiff = curv_source[i] - curv_target[i];
-                                squared_diff += idiff*idiff;
-                                denom = ((dtheta[i]*dtheta[i] + dphi[i]*dphi[i]) + idiff*idiff);
-                                if (denom == 0.0) {
+                                idiff = curv_target[i] - curv_source[i];
+                                double idiff2 = idiff*idiff;
+                                squared_diff += idiff2;
+                                denom  = ((dtheta[i]*dtheta[i]   + dphi[i]*dphi[i])   + alpha*alpha*idiff2);
+                                denom2 = ((dtheta2[i]*dtheta2[i] + dphi2[i]*dphi2[i]) + alpha*alpha*idiff2);
+                                if ((denom == 0.0) || (denom2 == 0.0)) {
                                         ux[i] = 0.0;
                                         vy[i] = 0.0;
                                 } else {
-                                        ux[i] = idiff*dtheta[i]/denom*THETA/5.0;
-                                        vy[i] = idiff*dphi[i]/denom*PHI/5.0;   
+                                        ux[i] =  idiff*dtheta[i]/denom*scalex;
+                                        vy[i] =  idiff*dphi[i]/denom*scaley;   
+                                        ux[i] += idiff*dtheta2[i]/denom2*scalex;
+                                        vy[i] += idiff*dphi2[i]/denom2*scaley;   
                                 }
                         }
+                        
                         fprintf(stderr,"squared diff: %g\n",squared_diff);
                 
                         /* lowpass filter displacements */
-                        smooth_heatkernel(source, ux, 10);
-                        smooth_heatkernel(source, vy, 10);
+                        smooth_heatkernel(source, ux, 20);
+                        smooth_heatkernel(source, vy, 20);
 
                         for (i = 0; i < source->n_points; i++) {
-                                u[i] += ux[i];
-                                v[i] += vy[i];
+                                u[i] = 3*ux[i];
+                                v[i] = 3*vy[i];
                         }
                         
+                output_values_any_format("u.txt", source->n_points, u, TYPE_DOUBLE);
+                output_values_any_format("v.txt", source->n_points, v, TYPE_DOUBLE);
+
                         apply_uv_warp(warped_src_sphere, src_sphere, u, v, 0);
 
-                        get_polygon_vertex_curvatures_cg(sm_source, n_neighbours, neighbours,
-                                         0.0, curvtype, curv_source);
                         resample_values(src_sphere, warped_src_sphere, curv_source, curv_source_tmp);
+                        
+                        scale_values(curv_source_tmp, source->n_points);
+        
                         for (i = 0; i < source->n_points; i++) curv_source[i] = curv_source_tmp[i];
-                
+output_values_any_format("warped_curv.txt", source->n_points, curv_source, TYPE_DOUBLE);
+char buffer[100];
+sprintf(buffer, "warped_curv_%02d.txt", iter_demon+1);
+//output_values_any_format(buffer, source->n_points, curv_source, TYPE_DOUBLE);
+if ((iter_demon > 5) && (old_squared_diff < squared_diff)) break;
+old_squared_diff = squared_diff;           
+
                 }
 
                 /* use smaller FWHM for next steps */

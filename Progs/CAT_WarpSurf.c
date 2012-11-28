@@ -89,7 +89,7 @@ static ArgvInfo argTable[] = {
      "Number of Dartel steps (max. 3):\n\t1 - Inflated surface\n\t2 - High smoothed surface\n\t3 - Low smoothed surface."},
   {"-runs", ARGV_INT, (char *) 1, (char *) &n_runs,
      "Number of runs (repetitions) for whole Dartel approach."},
-  {"-size", ARGV_INT, (char *) 2, (char *) &sz_map,
+  {"-size", ARGV_INT, (char *) 2, (char *) sz_map,
      "Size of curvature map for warping."},
   {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
      "Don't rotate input surface before warping."},
@@ -521,7 +521,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 for (it = 0, it0 = 0; it0 < loop; it0++) {
                         it_scratch = dartel_scratchsize((int *)dm,
                                                          prm[it0].code);
-fprintf(stderr,"it_scratch: %d\n",it_scratch);
+
                         scratch = (double *) malloc(sizeof(double)*it_scratch);
                         for (it1 = 0; it1 < prm[it0].its; it1++) {
                                 it++;
@@ -608,11 +608,6 @@ main(int argc, char *argv[])
         double           rot[3];
 
 
-        /* size of curvature map for warping */
-        dm[0] = sz_map[0];
-        dm[1] = sz_map[1];
-        dm[2] = 1;
-
         /* get the arguments from the command line */
         if (ParseArgv(&argc, argv, argTable, 0) ||
             source_file == NULL || target_file == NULL || 
@@ -622,6 +617,11 @@ main(int argc, char *argv[])
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
+
+        /* size of curvature map for warping */
+        dm[0] = sz_map[0];
+        dm[1] = sz_map[1];
+        dm[2] = 1;
 
         if (input_graphics_any_format(target_file, &format,
                                       &n_objects, &objects) != OK)
@@ -711,17 +711,13 @@ main(int argc, char *argv[])
                         prm[j].rtype = rtype;
                         prm[j].cycles = 3;
                         prm[j].its = 3;
-prm[j].cycles = 1;
-prm[j].its = 2;
                         prm[j].code = code;
                         prm[j].lmreg = lmreg;
-                }
-                for (i = 0; i < 24; i++) {
-                        prm[i].rparam[2] = mu;
-                        prm[i].rparam[3] = lambda;
-                        prm[i].rparam[4] = lambda/2.0;
-                        prm[i].k = i;
-                        if ((i+1) % muchange == 0) mu /= murate;
+                        prm[j].rparam[2] = mu;
+                        prm[j].rparam[3] = lambda;
+                        prm[j].rparam[4] = lambda/2.0;
+                        prm[j].k = j;
+                        if ((j+1) % muchange == 0) mu /= murate;
                         lambda /= 5.0;
                 }
         }

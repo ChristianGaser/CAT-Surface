@@ -7,7 +7,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Interpolate.h"
 
-double
+/*double
 dotprod(int m, double a[], double b[])
 {
     int i;
@@ -51,7 +51,7 @@ pow2(int k)
         td = td*2;
     return(td);
 }
-
+*/
 void
 LtLf_me_poly(polygons_struct *sphere, struct dartel_poly *dpoly,
              double f[], double s[], double g[])
@@ -318,15 +318,17 @@ printf("expdef_poly: J= != 0\n");
             Point pdx, ndx, pdy, ndy;
             double u, v, px, nx, py, ny;
 
-            t0[i  ] = dpoly->u[i] + flow[i  ]*td;
+/*            t0[i  ] = dpoly->u[i] + flow[i  ]*td;
             t0[i+m] = dpoly->v[i] + flow[i+m]*td;
+*/
+            t0[i  ] = flow[i  ]*td;
+            t0[i+m] = flow[i+m]*td;
 
             px   = interp_point_unit_sphere(sphere, flow, dpoly->ptheta[i]);
             nx   = interp_point_unit_sphere(sphere, flow, dpoly->ntheta[i]);
             py   = interp_point_unit_sphere(sphere, flow, dpoly->pphi[i]);
             ny   = interp_point_unit_sphere(sphere, flow, dpoly->nphi[i]);
             J0[i    ] = (px - nx)/(2*UTHETA)*td/2 + 1.0;
-            J0[i+2*m] = (py - ny)/(2*VPHI)*td/2;
 
             px   = interp_point_unit_sphere(sphere, flow + m, dpoly->ptheta[i]);
             nx   = interp_point_unit_sphere(sphere, flow + m, dpoly->ntheta[i]);
@@ -344,8 +346,11 @@ printf("expdef_poly: J= != 0\n");
     } else {
 printf("expdef_poly\n");
         for (i = 0; i < m; i++) {
-            t0[i  ] = dpoly->u[i] + flow[i  ]*td;
+/*            t0[i  ] = dpoly->u[i] + flow[i  ]*td;
             t0[i+m] = dpoly->v[i] + flow[i+m]*td;
+*/
+            t0[i  ] = flow[i  ]*td;
+            t0[i+m] = flow[i+m]*td;
         }
         for (i = 0; i < k; i++) {
             double *tmpp;
@@ -388,8 +393,11 @@ printf("expdefdet_poly\n");
         Point pdx, ndx, pdy, ndy;
         double u, v, px, nx, py, ny;
 
-        t0[i  ] = dpoly->u[i] + flow[i  ]*td;
+/*        t0[i  ] = dpoly->u[i] + flow[i  ]*td;
         t0[i+m] = dpoly->v[i] + flow[i+m]*td;
+*/
+        t0[i  ] = flow[i  ]*td;
+        t0[i+m] = flow[i+m]*td;
 
         px   = interp_point_unit_sphere(sphere, flow, dpoly->ptheta[i]);
         nx   = interp_point_unit_sphere(sphere, flow, dpoly->ntheta[i]);
@@ -535,8 +543,11 @@ printf("smalldef_jac_poly\n");
 
         //point_to_uv(&sphere->points[i], &u, &v);
 
-        t0[i  ] = dpoly->u[i] + v0[i]*sc;
+/*        t0[i  ] = dpoly->u[i] + v0[i]*sc;
         t0[i+m] = dpoly->v[i] + v1[i]*sc;
+*/
+        t0[i  ] = v0[i]*sc;
+        t0[i+m] = v1[i]*sc;
 
         km1 = interp_point_unit_sphere(sphere, v0, dpoly->ntheta[i]);
         kp1 = interp_point_unit_sphere(sphere, v0, dpoly->ptheta[i]);

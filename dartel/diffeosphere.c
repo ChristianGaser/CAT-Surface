@@ -367,7 +367,7 @@ expdefdet(int dm[], int k, double v[], double t0[], double t1[],
 }
 
 
-/*int
+int
 pow2(int k)
 {
     int j0, td = 1;
@@ -376,7 +376,7 @@ pow2(int k)
         td = td*2;
     return(td);
 }
-*/
+
 
 /*
  * J0 := J0*inv(I+diag(v0)*sc)
@@ -821,7 +821,7 @@ dartel_scratchsize(int dm[], int code)
     m1 = 15*m;
     if (code) m1 += 5*m;
 
-    m2 = 5*m+cgs2_scratchsize(dm);
+    m2 = 5*m+fmg2_scratchsize(dm);
     if (m1 > m2)
         return(m1);
     else
@@ -859,38 +859,18 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
 
     sc = 1.0/pow2(prm.k);
 
-output_values_any_format("J00_image.txt", m, J0, 1);
-output_values_any_format("t00_image.txt", m, t0, 1);
-output_values_any_format("v_image.txt", m, v, 1);
     expdef(dm, prm.k, v, t0, t1, J0, J1);
     
-    printf("expdef: v[0] = %f, v[m/2] = %f, v[m] = %f\n", v[0], v[m/2], v[m]);
-    printf("expdef: t0[0] = %f, t0[m/2] = %f, t0[m] = %f\n", t0[0], t0[m/2], t0[m]);
-    printf("expdef: t1[0] = %f, t1[m/2] = %f,t1[m] = %f\n", t1[0], t1[m/2], t1[m]);
-    printf("expdef: J0[0] = %f, J0[m/2] = %f,J0[m] = %f\n", J0[0], J0[m/2], J0[m]);
-    printf("expdef: J1[0] = %f, J1[m/2] = %f,J1[m] = %f\n", J1[0], J1[m/2], J1[m]);
-    
-output_values_any_format("J01_image.txt", m, J0, 1);
-output_values_any_format("t01x_image.txt", m, t0, 1);
-output_values_any_format("t01y_image.txt", m, t0+m, 1);
     jac_div_smalldef(dm, sc, v, J0);
-output_values_any_format("J02_image.txt", m, J0, 1);
+
     if (prm.code == 2)
         ssl = initialise_objfun_mn(dm, f, g, t0, J0, dj, b, A);
     else
         ssl = initialise_objfun(dm, f, g, t0, J0, dj, b, A);
-output_values_any_format("A0_image.txt", m, A, 1);
-output_values_any_format("b0x_image.txt", m, b, 1);
-output_values_any_format("b0y_image.txt", m, b+m, 1);
 
     smalldef_jac(dm, -sc, v, t0, J0);
 
     squaring(dm, prm.k, prm.code==1, b, A, t0, t1, J0, J1);
-output_values_any_format("A1_image.txt", m, A, 1);
-output_values_any_format("b1x_image.txt", m, b, 1);
-output_values_any_format("b1y_image.txt", m, b+m, 1);
-output_values_any_format("t02_image.txt", m, t0, 1);
-output_values_any_format("t10_image.txt", m, t1, 1);
 
     if (prm.code == 1) {
         jac_div_smalldef(dm, -sc, v, J0);
@@ -918,9 +898,6 @@ output_values_any_format("t10_image.txt", m, t1, 1);
     for (j = 0; j < 3*m; j++) A[j] *= sc;
     for (j = 0; j < 2*m; j++) A[j] += prm.lmreg;
 
-output_values_any_format("b2_image.txt", m, b, 1);
-output_values_any_format("A2_image.txt", m, A, 1);
-output_values_any_format("v0_image.txt", m, v, 1);
     /* Solve equations for Levenberg-Marquardt update:
      * v = v - inv(H + L'*L + R)*(d + L'*L*v)
      *     v: velocity or flow field
@@ -930,16 +907,7 @@ output_values_any_format("v0_image.txt", m, v, 1);
      *     d: vector of first derivatives
      */
  //cgs2(dm, A, b, prm.rtype, prm.rparam, 1e-8, 4000, sbuf, sbuf+2*m, sbuf+4*m, sbuf+6*m);
-output_values_any_format("J03_image.txt", m, J0, 1);
-output_values_any_format("J11_image.txt", m, J1, 1);
-output_values_any_format("sbuf0_image.txt", m, sbuf, 1);
-//    fmg2(dm, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
-    cgs2(dm, A, b, prm.rtype, prm.rparam, 1e-9, 500, sbuf, sbuf+2*m,
-              sbuf+4*m, sbuf+6*m);
-output_values_any_format("sbuf_image.txt", m, sbuf, 1);
-output_values_any_format("sbuf2_image.txt", m, sbuf+2*m, 1);
-output_values_any_format("sbuf4_image.txt", m, sbuf+4*m, 1);
-output_values_any_format("sbuf6_image.txt", m, sbuf+6*m, 1);
+    fmg2(dm, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
 
     for (j = 0; j < 2*m; j++) ov[j] = v[j] - sbuf[j];
     ll[0] = ssl;
