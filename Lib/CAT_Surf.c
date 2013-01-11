@@ -935,8 +935,8 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         double              *stretching, *area_values, *area_valuesIn;
         int                 *n_neighbours, **neighbours, *needSmoothing, nidx;
         object_struct       *out_object;
-        double              bounds[6], bounds2[6], xyz[3], nodept[3], nodeptIn[3];
-        double              diff_bound[3], diff_bound2[3];
+        double              bounds[6], xyz[3], nodept[3], nodeptIn[3];
+        double              diff_bound[3];
         double              dx, dy, dz, dist, distIn, ratio;
         double              x, y, z, r, k;
         double              SA, SA_ratio, inflatedSA;
@@ -1129,24 +1129,6 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                 }
         }
       
-        /* Get bounds of inflated surface to correct size */
-        get_bounds(polygonsIn, bounds2);
-
-        for (j = 0; j < 3; j++) 
-                diff_bound2[j] = bounds2[2*j+1] - bounds2[2*j];
-
-        /* Scale inflated surface */
-        for (i = 0; i < polygonsIn->n_points; i++)
-                for (j = 0; j < 3; j++)
-                        Point_coord(polygonsIn->points[i], j) *= diff_bound[j]/diff_bound2[j];
-
-        get_bounds(polygonsIn, bounds2);
-
-        /* Translate inflated surface */
-        for (i = 0; i < polygonsIn->n_points; i++)
-                for (j = 0; j < 3; j++)
-                        Point_coord(polygonsIn->points[i], j) += (bounds[2*j]-bounds2[2*j]);
-
         compute_polygon_normals(polygonsIn);
 
         FREE(area_values);

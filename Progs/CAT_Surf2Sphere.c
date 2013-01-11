@@ -19,7 +19,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj [stop_at] [increase_iterations_by_factor]\n\n\
+Usage: %s surface.obj sphere.obj [stop_at]\n\n\
      Maps a surface to a sphere using the caret inflating approach.\n\n\
      The inflating can be limited using stop_at (default 5), where\n\
        1 - Low smooth\n\
@@ -53,7 +53,6 @@ main(int argc, char *argv[])
         }
 
         get_int_argument(5, &stop_at);
-        get_int_argument(1, &increase_iterations_by_factor);
     
         if (input_graphics_any_format(input_file, &format, &n_objects,
                                       &object_list) != OK || n_objects != 1 ||
@@ -69,6 +68,12 @@ main(int argc, char *argv[])
                             input_file);
         }
         
+        if (polygons->n_items > 500000) {
+                increase_iterations_by_factor = round(polygons->n_items/350000.0);
+                fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %d.\n",
+                            increase_iterations_by_factor);
+        } else increase_iterations_by_factor = 1;
+
         surf_to_sphere(polygons, stop_at, increase_iterations_by_factor);
      
         if(output_graphics_any_format(output_file, format, 1, 
