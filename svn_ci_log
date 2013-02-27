@@ -4,6 +4,8 @@ oldrev=`svn info | grep 'Last Changed Rev'| cut -f2 -d':' | sed 's/[^[:digit:]]/
 newrev=`expr $oldrev + 1`
 date=`date "+%Y-%m-%d %H:%M:%S"`
 
+echo "VERSION=$newrev" > NEWS.txt
+
 echo "Changed paths:" > log2
 svn -q status >> log2
 echo >> CHANGES.txt
