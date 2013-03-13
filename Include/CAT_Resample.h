@@ -9,7 +9,7 @@
 
 #include <bicpl.h>
 
-#include "Cat_Surf.h"
+#include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Complexity.h"
 

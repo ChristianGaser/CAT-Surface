@@ -14,7 +14,7 @@
 #include <bicpl.h>
 #include <ParseArgv.h>
 
-#include "Cat_Surf.h"
+#include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 
 int level = 0; /* default: generate a normal tetrahedron */
