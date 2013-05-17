@@ -59,6 +59,7 @@ noinst_HEADERS = \
 	Include/CAT_Octree.h \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
+    MarchingCubes/genus0.h \
 	dartel/dartel.h \
     niftilib/analyze75.h \
 	niftilib/nifti1.h \
@@ -104,6 +105,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Octree.c \
     Lib/CAT_NiftiIO.c \
     MarchingCubes/MarchingCubes.c \
+    MarchingCubes/genus0.c \
 	$(nl_SRC) \
 	$(dartel_SRC) \
 	$(s2kit10_SRC)
