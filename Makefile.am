@@ -60,6 +60,7 @@ noinst_HEADERS = \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
     MarchingCubes/genus0.h \
+    MarchingCubes/tricases.h \
 	dartel/dartel.h \
     niftilib/analyze75.h \
 	niftilib/nifti1.h \
