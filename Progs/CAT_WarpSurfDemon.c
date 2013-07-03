@@ -19,76 +19,46 @@
 #include "dartel/dartel.h"
 
 /* defaults */
-char *param_file         = NULL;
-char *source_file        = NULL;
-char *source_sphere_file = NULL;
-char *target_file        = NULL;
-char *target_sphere_file = NULL;
+char *src_file        = NULL;
+char *sphere_src_file = NULL;
+char *trg_file        = NULL;
+char *sphere_trg_file = NULL;
 char *output_file        = NULL;
 char *output_sphere_file = NULL;
 
 int rotate      = 1;
-int code        = 1;
-int loop        = 6;
-int verbose     = 0;
-int rtype       = 1;
 int curvtype    = 3;
-int muchange    = 4;
-int n_triangles = 81920;
 int n_steps     = 1;
 int debug       = 0;
-double murate   = 1.25;
-double lambda   = 0.0;
-double mu       = 0.25;
-double lmreg    = 0.0;
-double fwhm     = 10.0;
+double fwhm     = 20.0;
 
 static ArgvInfo argTable[] = {
-  {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
+  {"-i", ARGV_STRING, (char *) 1, (char *) &src_file, 
      "Input file."},
-  {"-is", ARGV_STRING, (char *) 1, (char *) &source_sphere_file, 
+  {"-is", ARGV_STRING, (char *) 1, (char *) &sphere_src_file, 
      "Input sphere file."},
-  {"-t", ARGV_STRING, (char *) 1, (char *) &target_file, 
+  {"-t", ARGV_STRING, (char *) 1, (char *) &trg_file, 
      "Template file."},
-  {"-ts", ARGV_STRING, (char *) 1, (char *) &target_sphere_file, 
+  {"-ts", ARGV_STRING, (char *) 1, (char *) &sphere_trg_file, 
      "Template sphere file."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
      "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
      "Warped input sphere."},
-  {"-p", ARGV_STRING, (char *) 1, (char *) &param_file, 
-     "Parameter file."},
-  {"-code", ARGV_INT, (char *) 1, (char *) &code,
-     "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares; 2 - multinomial."},
-  {"-rtype", ARGV_INT, (char *) 1, (char *) &rtype,
-     "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
-  {"-mu", ARGV_FLOAT, (char *) 1, (char *) &mu,
-     "Regularization parameter mu."},
-  {"-muchange", ARGV_INT, (char *) TRUE, (char *) &muchange,
-     "Decrease mu after muchange loops."},
-  {"-murate", ARGV_FLOAT, (char *) TRUE, (char *) &murate,
-     "Divide mu after muchange loops with murate."},
-  {"-lambda", ARGV_FLOAT, (char *) 1, (char *) &lambda,
-     "Regularization parameter lambda."},
-  {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
-     "LM regularization."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
      "Filter size for curvature map in FWHM."},
-  {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
-     "Number of outer loops for default parameters (max. 6)."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
-     "Number of Dartel steps (max. 6)."},
+     "Number of multigrid steps."},
   {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
      "Don't rotate input surface before warping."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
      "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
-  {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
-     "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
      "Save debug files."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
+/* not used */
 void
 scale_values(double values[], int n_values)
 {
@@ -126,6 +96,7 @@ gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
     if (polygons->bintree != NULL) delete_the_bintree(&polygons->bintree);
 }
 
+/* not used */
 void
 laplace_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
              double f[], double laplace[])
@@ -146,6 +117,7 @@ laplace_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
     if (polygons->bintree != NULL) delete_the_bintree(&polygons->bintree);
 }
 
+/* not used */
 void
 gradient_vector_flow(polygons_struct *polygons, struct dartel_poly *dpoly, double f[], double dtheta[], double dphi[], double u[], double v[], double mu, int iterations)
 {
@@ -183,6 +155,9 @@ gradient_vector_flow(polygons_struct *polygons, struct dartel_poly *dpoly, doubl
             v[i] = (1 - b[i])*v[i] + mu*Lv[i] + c2[i];
         }
         
+        smooth_heatkernel(polygons, u, fwhm);
+        smooth_heatkernel(polygons, v, fwhm);
+
         output_values_any_format("u.txt", polygons->n_points, u, TYPE_DOUBLE);
         output_values_any_format("v.txt", polygons->n_points, v, TYPE_DOUBLE);
         fprintf(stderr, "GVF iteration %d\n", j);
@@ -262,42 +237,35 @@ int
 main(int argc, char *argv[])
 {
         File_formats     format;
-        FILE             *fp;
-        char             line[1024], buffer[1024];
-        polygons_struct  *source, *target, *src_sphere, *trg_sphere;
-        polygons_struct  *sm_source, *sm_target, *warped_src_sphere;
-        int              x, y, i, j, it, it0, it1, step;
-        int              n_objects, it_scratch, xy_size;
-        double           *values;
+        polygons_struct  *src, *trg, *sphere_src, *sphere_trg;
+        polygons_struct  *sm_src, *sm_trg, *warped_sphere_src;
+        int              i, step;
+        int              n_objects, xy_size;
         object_struct    **objects;
-        double           ll[3];
-        static double    param[2] = {UTHETA, VPHI};
-        int              iter_demon;
-        double           xp, yp, xm, ym, idiff, denom, denom2, squared_diff, old_squared_diff;
-        double           H00, H01, H10, H11, rotation_matrix[9];
-        struct           dartel_prm* prm;
-        double           rot[3], *curv_target_tmp, *curv_target, *curv_source;
-        double           *curv_source_tmp, *dtheta, *dphi, *dtheta2, *dphi2, *u, *v, *ux, *vy;
-        struct           dartel_poly *dpoly;
+        int              iter_demon, count_break;
+        double           idiff, denom_trg, denom_src, squared_diff, old_squared_diff;
+        double           *curv_trg_tmp, *curv_trg, *curv_src;
+        double           *curv_src_tmp, *dtheta_trg, *dphi_trg, *dtheta_src, *dphi_src, *u, *v, *Utheta, *Uphi;
+        struct           dartel_poly *dpoly_src, *dpoly_trg;
         int              *n_neighbours, **neighbours;
 
         /* get the arguments from the command line */
 
         if (ParseArgv(&argc, argv, argTable, 0) ||
-            source_file == NULL || target_file == NULL || 
-            source_sphere_file == NULL || target_sphere_file == NULL ||
+            src_file == NULL || trg_file == NULL || 
+            sphere_src_file == NULL || sphere_trg_file == NULL ||
             (output_file == NULL && output_sphere_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 
-        if (input_graphics_any_format(target_file, &format,
+        if (input_graphics_any_format(trg_file, &format,
                                       &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
 
         /* get a pointer to the surface */
-        target = get_polygons_ptr(objects[0]);
+        trg = get_polygons_ptr(objects[0]);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
@@ -305,12 +273,12 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (input_graphics_any_format(source_file, &format,
+        if (input_graphics_any_format(src_file, &format,
                                       &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
 
         /* get a pointer to the surface */
-        source = get_polygons_ptr(objects[0]);
+        src = get_polygons_ptr(objects[0]);
 
         /* check that the surface file contains a polyhedron */
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
@@ -319,293 +287,240 @@ main(int argc, char *argv[])
         }
   
         /* read sphere for input surface */
-        if (input_graphics_any_format(source_sphere_file, &format,
+        if (input_graphics_any_format(sphere_src_file, &format,
                               &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
-        src_sphere = get_polygons_ptr(objects[0]);
+        sphere_src = get_polygons_ptr(objects[0]);
 
         /* read sphere for template surface */
-        if (input_graphics_any_format(target_sphere_file, &format,
+        if (input_graphics_any_format(sphere_trg_file, &format,
                               &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
-        trg_sphere = get_polygons_ptr(objects[0]);
+        sphere_trg = get_polygons_ptr(objects[0]);
 
-        translate_to_center_of_mass(src_sphere);
-        for (i = 0; i < src_sphere->n_points; i++)
-                set_vector_length(&src_sphere->points[i], 1.0);
-        translate_to_center_of_mass(trg_sphere);
-        for (i = 0; i < trg_sphere->n_points; i++)
-                set_vector_length(&trg_sphere->points[i], 1.0);
+        translate_to_center_of_mass(sphere_src);
+        for (i = 0; i < sphere_src->n_points; i++)
+                set_vector_length(&sphere_src->points[i], 1.0);
+        translate_to_center_of_mass(sphere_trg);
+        for (i = 0; i < sphere_trg->n_points; i++)
+                set_vector_length(&sphere_trg->points[i], 1.0);
 
-        prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
+        xy_size = src->n_points;
+
+        dpoly_src         = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
+        dpoly_trg         = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
+
+        sm_src            = (polygons_struct *) malloc(sizeof(polygons_struct));
+        sm_trg            = (polygons_struct *) malloc(sizeof(polygons_struct));
+        warped_sphere_src = (polygons_struct *) malloc(sizeof(polygons_struct));
+
+        curv_trg_tmp      = (double *) malloc(sizeof(double) * trg->n_points);
+        curv_src_tmp      = (double *) malloc(sizeof(double) * src->n_points);
+        curv_src          = (double *) malloc(sizeof(double) * src->n_points);
+        curv_trg          = (double *) malloc(sizeof(double) * src->n_points);
+        dtheta_trg        = (double *) malloc(sizeof(double) * src->n_points);
+        dphi_trg          = (double *) malloc(sizeof(double) * src->n_points);
+        dtheta_src       = (double *) malloc(sizeof(double) * src->n_points);
+        dphi_src          = (double *) malloc(sizeof(double) * src->n_points);
+        u                 = (double *) malloc(sizeof(double) * src->n_points);
+        v                 = (double *) malloc(sizeof(double) * src->n_points);
+        Utheta            = (double *) malloc(sizeof(double) * src->n_points);
+        Uphi              = (double *) malloc(sizeof(double) * src->n_points);
         
-        /* first two entries of param are equal */
-        for (j = 0; j < loop; j++) {
-                for (i = 0; i < 2; i++)
-                        prm[j].rparam[i] = param[i];
-        }
+        init_dartel_poly(sphere_src, dpoly_src);
+        init_dartel_poly(sphere_trg, dpoly_trg);
 
-        /* read values from parameter file */
-        if (param_file != NULL) {
-                if ((fp = fopen(param_file, "r")) == 0) {
-                        fprintf(stderr, "Couldn't open parameter file %s.\n",
-                                param_file);
-                        exit(EXIT_FAILURE);
-                }
-    
-                loop = 0;
+        copy_polygons(sphere_src, warped_sphere_src);
 
-                fprintf(stderr, "Read parameters from %s\n", param_file);
-                while (fgets(line, sizeof(line), fp)) {
-                        /* check for 9 values in each line */
-                        if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
-                                   &prm[loop].rtype, &prm[loop].rparam[2],
-                                   &prm[loop].rparam[3], &prm[loop].rparam[4],
-                                   &prm[loop].lmreg, &prm[loop].cycles,
-                                   &prm[loop].its, &prm[loop].k,
-                                   &prm[loop].code) != 9)
-                                continue;
-                        loop++;
-                }
-                fclose(fp);
-
-                if (loop == 0) {
-                        fprintf(stderr, "Could not read parameter file %s. Check that each line contains 9 values\n", param_file);
-                        exit(EXIT_FAILURE);
-                }
-
-        } else { /* use predefined values */
-                for (j = 0; j < loop; j++) {
-                        /* some entries are equal */
-                        prm[j].rtype = rtype;
-                        prm[j].cycles = 1; //3;
-                        prm[j].its = 1; //3;
-                        prm[j].code = code;
-                        prm[j].lmreg = lmreg;
-                }
-                for (i = 0; i < 24; i++) {
-                        prm[i].rparam[2] = mu;
-                        prm[i].rparam[3] = lambda;
-                        prm[i].rparam[4] = lambda/2.0;
-                        prm[i].k = i;
-                        if ((i+1) % muchange == 0) mu /= murate;
-                        lambda /= 5.0;
-                }
-        }
-
-        if (verbose) {
-                fprintf(stderr, "___________________________________");
-                fprintf(stderr, "________________________________________\n");
-                fprintf(stderr, "Parameters\n");
-                fprintf(stderr, "___________________________________");
-                fprintf(stderr, "________________________________________\n");
-                fprintf(stderr, "Regularization (0 - elastic; 1 - membrane; ");
-                fprintf(stderr, "2 - bending):\t\t%d\n", prm[0].rtype);
-                fprintf(stderr, "Number of cycles for full multi grid (FMG):");
-                fprintf(stderr, "\t\t\t\t%d\n", prm[0].cycles);
-                fprintf(stderr, "Number of relaxation iterations in each ");
-                fprintf(stderr, "multigrid cycle:\t\t%d\n", prm[0].its);
-                fprintf(stderr, "Objective function (0 - sum of squares; ");
-                fprintf(stderr, "1 - sym. sum of squares):\t%d\n", prm[0].code);
-                fprintf(stderr, "Levenberg-Marquardt regularization:");
-                fprintf(stderr, "\t\t\t\t\t%g\n", prm[0].lmreg);
-                fprintf(stderr, "\n%d Iterative loops\n", loop);
-                fprintf(stderr, "\nRegularization parameter mu:\t\t");
-                for (i = 0; i < loop; i++)
-                        fprintf(stderr, "%8g\t", prm[i].rparam[2]);
-                fprintf(stderr,"\n");
-                fprintf(stderr, "Regularization parameter lambda:\t");
-                for (i = 0; i < loop; i++)
-                        fprintf(stderr, "%8g\t", prm[i].rparam[3]);
-                fprintf(stderr,"\n");
-                fprintf(stderr, "Regularization parameter id:\t\t");
-                for (i = 0; i < loop; i++)
-                        fprintf(stderr, "%8g\t", prm[i].rparam[4]);
-                fprintf(stderr,"\n");
-                fprintf(stderr, "Time steps for solving the PDE:\t\t");
-                for (i = 0; i < loop; i++)
-                        fprintf(stderr,"%8d\t",prm[i].k);
-                fprintf(stderr,"\n\n");
-        }
-    
-        xy_size = source->n_points;
-
-        dpoly = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
-
-        sm_source   = (polygons_struct *) malloc(sizeof(polygons_struct));
-        sm_target   = (polygons_struct *) malloc(sizeof(polygons_struct));
-        warped_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
-
-        curv_target_tmp = (double *) malloc(sizeof(double) * target->n_points);
-        curv_source_tmp = (double *) malloc(sizeof(double) * source->n_points);
-        curv_source = (double *) malloc(sizeof(double) * source->n_points);
-        curv_target = (double *) malloc(sizeof(double) * source->n_points);
-        dtheta      = (double *) malloc(sizeof(double) * source->n_points);
-        dphi        = (double *) malloc(sizeof(double) * source->n_points);
-        dtheta2     = (double *) malloc(sizeof(double) * source->n_points);
-        dphi2       = (double *) malloc(sizeof(double) * source->n_points);
-        u           = (double *) malloc(sizeof(double) * source->n_points);
-        v           = (double *) malloc(sizeof(double) * source->n_points);
-        ux          = (double *) malloc(sizeof(double) * source->n_points);
-        vy          = (double *) malloc(sizeof(double) * source->n_points);
-        
-        init_dartel_poly(src_sphere, dpoly);
-//        init_dartel_poly(trg_sphere, dpoly);
-
-        copy_polygons(src_sphere, warped_src_sphere);
-
-        for (i = 0; i < source->n_points; i++) {
+        for (i = 0; i < src->n_points; i++) {
                 u[i] = 0.0;
                 v[i] = 0.0;
         }
         
         for (step = 0; step < n_steps; step++) {
-                /* resample source and target surface */
-                copy_polygons(source, sm_source);
-                copy_polygons(target, sm_target);
+                /* resample src and trg surface */
+                copy_polygons(src, sm_src);
+                copy_polygons(trg, sm_trg);
 
                 /* initialization */
                 if (step == 0) {
                         /* inflate surfaces */
-                        inflate_surface_and_smooth_fingers(sm_source,
+                        inflate_surface_and_smooth_fingers(sm_src,
                                                            1, 0.2, 50, 1.0,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_target,
+                        inflate_surface_and_smooth_fingers(sm_trg,
                                                            1, 0.2, 50, 1.0,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_source,
+                        inflate_surface_and_smooth_fingers(sm_src,
                                                            2, 1.0, 30, 1.4,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_target,
+                        inflate_surface_and_smooth_fingers(sm_trg,
                                                            2, 1.0, 30, 1.4,
                                                            3.0, 1.0, 0);
                         
                 } else if (step == 1) {
-                        /* smooth surfaces */
-                        inflate_surface_and_smooth_fingers(sm_source,
+                        /* inflate and smooth surfaces */
+                        inflate_surface_and_smooth_fingers(sm_src,
                                                            1, 0.2, 30, 1.0,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_target,
+                        inflate_surface_and_smooth_fingers(sm_trg,
                                                            1, 0.2, 30, 1.0,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_source,
+                        inflate_surface_and_smooth_fingers(sm_src,
                                                            2, 1.0, 10, 1.4,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_target,
+                        inflate_surface_and_smooth_fingers(sm_trg,
                                                            2, 1.0, 10, 1.4,
                                                            3.0, 1.0, 0);
                 } else if (step == 2) {
-                        /* smooth surfaces */
-                        inflate_surface_and_smooth_fingers(sm_source,
+                        /* inflate and smooth surfaces */
+                        inflate_surface_and_smooth_fingers(sm_src,
                                                            1, 0.2, 20, 1.0,
                                                            3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_target,
+                        inflate_surface_and_smooth_fingers(sm_trg,
                                                            1, 0.2, 20, 1.0,
                                                            3.0, 1.0, 0);
                 }
                 
-                get_all_polygon_point_neighbours(sm_target, &n_neighbours, &neighbours);
-                get_polygon_vertex_curvatures_cg(sm_target, n_neighbours, neighbours,
-                                         0.0, curvtype, curv_target_tmp);
+                get_all_polygon_point_neighbours(sm_trg, &n_neighbours, &neighbours);
+                get_polygon_vertex_curvatures_cg(sm_trg, n_neighbours, neighbours,
+                                         0.0, curvtype, curv_trg_tmp);
 
-                get_all_polygon_point_neighbours(sm_source, &n_neighbours, &neighbours);
-                get_polygon_vertex_curvatures_cg(sm_source, n_neighbours, neighbours,
-                                         0.0, curvtype, curv_source);
+                get_all_polygon_point_neighbours(sm_src, &n_neighbours, &neighbours);
+                get_polygon_vertex_curvatures_cg(sm_src, n_neighbours, neighbours,
+                                         0.0, curvtype, curv_src);
 
-                /* resample curvature of target to source space */
-                resample_noscale(trg_sphere, src_sphere, curv_target_tmp, curv_target);
+                /* resample curvature of trg to src space */
+                resample_noscale(sphere_trg, sphere_src, curv_trg_tmp, curv_trg);
 
-                smooth_heatkernel(source, curv_source, 20);
-                smooth_heatkernel(source, curv_target, 20);
+                //smooth_heatkernel(src, curv_src, 10);
+                //smooth_heatkernel(src, curv_trg, 10);
                 
                 /* scale values to a range of 0..1 */
-                scale_values(curv_source, source->n_points);
-                scale_values(curv_target, source->n_points);
+//                scale_values(curv_src, src->n_points);
+//                scale_values(curv_trg, src->n_points);
 
-                output_values_any_format("curv.txt", sm_source->n_points, curv_source, TYPE_DOUBLE);
-                output_values_any_format("curv_target.txt", sm_target->n_points, curv_target, TYPE_DOUBLE);
-                gradient_poly(src_sphere, dpoly, curv_source, dtheta, dphi);
+                output_values_any_format("curv.txt", sm_src->n_points, curv_src, TYPE_DOUBLE);
+                output_values_any_format("curv_trg.txt", sm_trg->n_points, curv_trg, TYPE_DOUBLE);
                 
-                double scalex = THETA, scaley = THETA;
+                /* gradient of static image */
+                gradient_poly(sphere_trg, dpoly_trg, curv_trg, dtheta_trg, dphi_trg);
+                
+                /* scale with grid size of coordinate system */
+                double scale_theta = THETA, scale_phi = PHI;
                 old_squared_diff = 1e15;
 
                 double alpha = 5.0;
+                int method = 3;
+                /* method 1: Thirion J P 
+                   Image matching as a diffusion process: an analogy with Maxwell’s demons
+                   Med. Image Anal. 2 243–60, 1998 */
+                /* method 2: Wang H, Dong L, O’Daniel J, Mohan R, Garden A S, Ang K K, Kuban D A, Bonnen M, Chang J Y and Cheung R
+                   Validation of an accelerated ‘demons’ algorithm for deformable image registration in radiation therapy
+                   Phys. Med. Biol. 50 2887–905, 2005 */
+                /* method 3: Yang D, Li H, Low D A, Deasy J O and El Naqa I 
+                   A fast inverse consistent deformable image registration method based on symmetric optical flow computation 
+                   Phys. Med. Biol. 53 6143–65, 2008 */
+                
+                count_break = 0;
 
-                for (iter_demon = 0; iter_demon < 10; iter_demon++) {
+                for (iter_demon = 0; iter_demon < 1; iter_demon++) {
 
-                        gradient_poly(trg_sphere, dpoly, curv_target, dtheta2, dphi2);
-//                        gradient_vector_flow(sm_source, dpoly, curv_source, dtheta, dphi, u, v, 0.2, 80);
-
+                        /* gradient of moving image */
+                        if (method > 1)
+                                gradient_poly(sphere_src, dpoly_src, curv_src, dtheta_src, dphi_src);
 
                         squared_diff = 0.0;
-                        for (i = 0; i < source->n_points; i++) {
-                                idiff = curv_source[i] - curv_target[i];
-                                idiff = curv_target[i] - curv_source[i];
+                        for (i = 0; i < src->n_points; i++) {
+                                idiff = curv_src[i] - curv_trg[i];
                                 double idiff2 = idiff*idiff;
                                 squared_diff += idiff2;
-                                denom  = ((dtheta[i]*dtheta[i]   + dphi[i]*dphi[i])   + alpha*alpha*idiff2);
-                                denom2 = ((dtheta2[i]*dtheta2[i] + dphi2[i]*dphi2[i]) + alpha*alpha*idiff2);
-                                if ((denom == 0.0) || (denom2 == 0.0)) {
-                                        ux[i] = 0.0;
-                                        vy[i] = 0.0;
-                                } else {
-                                        ux[i] =  idiff*dtheta[i]/denom*scalex;
-                                        vy[i] =  idiff*dphi[i]/denom*scaley;   
-                                        ux[i] += idiff*dtheta2[i]/denom2*scalex;
-                                        vy[i] += idiff*dphi2[i]/denom2*scaley;   
-                                }
+                                
+                                if (method == 3) {
+                                        denom_trg  = (dtheta_trg[i]*dtheta_trg[i] + dphi_trg[i]*dphi_trg[i] + dtheta_src[i]*dtheta_src[i] + dphi_src[i]*dphi_src[i]) + alpha*alpha*idiff2;
+                                        if ((denom_trg == 0.0)) {
+                                                Utheta[i] = 0.0;
+                                                Uphi[i] = 0.0;
+                                        } else {
+                                                /* passive force */
+                                                Utheta[i] = idiff*dtheta_trg[i]*dtheta_src[i]/denom_trg*scale_theta;
+                                                Uphi[i]   = idiff*dphi_trg[i]*dphi_src[i]/denom_trg*scale_phi;   
+                                        }
+                                } else if (method < 3) {
+                                        /* denom for passive force */
+                                        denom_trg  = ((dtheta_trg[i]*dtheta_trg[i] + dphi_trg[i]*dphi_trg[i]) + alpha*alpha*idiff2);
+                                        /* denom for active force */
+                                        if (method == 2)
+                                                denom_src = ((dtheta_src[i]*dtheta_src[i] + dphi_src[i]*dphi_src[i]) + alpha*alpha*idiff2);
+                                        else denom_src = 1.0;
+                                
+                                        if ((denom_trg == 0.0) || (denom_src == 0.0)) {
+                                                Utheta[i] = 0.0;
+                                                Uphi[i] = 0.0;
+                                        } else {
+                                                /* passive force */
+                                                Utheta[i] = idiff*dtheta_trg[i]/denom_trg*scale_theta;
+                                                Uphi[i]   = idiff*dphi_trg[i]/denom_trg*scale_phi;  
+                                                 
+                                                /* active force */
+                                                if (method == 2) {
+                                                        Utheta[i] += idiff*dtheta_src[i]/denom_src*scale_theta;
+                                                        Uphi[i]   += idiff*dphi_src[i]/denom_src*scale_phi;   
+                                                }
+                                        }
+                                } 
                         }
                         
                         fprintf(stderr,"squared diff: %g\n",squared_diff);
                 
-                        /* lowpass filter displacements */
-                        smooth_heatkernel(source, ux, 20);
-                        smooth_heatkernel(source, vy, 20);
-
-                        for (i = 0; i < source->n_points; i++) {
-                                u[i] = 3*ux[i];
-                                v[i] = 3*vy[i];
+                        /* lowpass filtering of displacements */
+                        smooth_heatkernel(src, Utheta, fwhm);
+                        smooth_heatkernel(src, Uphi, fwhm);
+                        
+                        /* sum up deformations */
+                        for (i = 0; i < src->n_points; i++) {
+                                u[i] += Utheta[i];
+                                v[i] += Uphi[i];
                         }
                         
-                output_values_any_format("u.txt", source->n_points, u, TYPE_DOUBLE);
-                output_values_any_format("v.txt", source->n_points, v, TYPE_DOUBLE);
+                        apply_uv_warp(warped_sphere_src, sphere_src, u, v, 0);
 
-                        apply_uv_warp(warped_src_sphere, src_sphere, u, v, 0);
-
-                        resample_values(src_sphere, warped_src_sphere, curv_source, curv_source_tmp);
+                        resample_values(sphere_src, warped_sphere_src, curv_src, curv_src_tmp);
+                        for (i = 0; i < src->n_points; i++) curv_src[i] = curv_src_tmp[i];
                         
-                        scale_values(curv_source_tmp, source->n_points);
-        
-                        for (i = 0; i < source->n_points; i++) curv_source[i] = curv_source_tmp[i];
-output_values_any_format("warped_curv.txt", source->n_points, curv_source, TYPE_DOUBLE);
-char buffer[100];
-sprintf(buffer, "warped_curv_%02d.txt", iter_demon+1);
-//output_values_any_format(buffer, source->n_points, curv_source, TYPE_DOUBLE);
-if ((iter_demon > 5) && (old_squared_diff < squared_diff)) break;
-old_squared_diff = squared_diff;           
+                        if ((iter_demon > 4) && (old_squared_diff < squared_diff)) {
+                                count_break++;
+                                if (count_break > 0) break;
+
+                        }
+                        old_squared_diff = squared_diff;   
+                        
+                        /* use larger constrain with each step to limit max. deformations to 1/(2*alpha) */
+                        alpha += 5.0;        
 
                 }
 
                 /* use smaller FWHM for next steps */
-                fwhm /= 2.0;
+                //fwhm *= 0.5;
         }
         fprintf(stderr,"\n");
         
-        output_values_any_format("u.txt", source->n_points, u, TYPE_DOUBLE);
-        output_values_any_format("v.txt", source->n_points, v, TYPE_DOUBLE);
-        output_values_any_format("warped_curv.txt", source->n_points, curv_source, TYPE_DOUBLE);
+        if (debug) {
+                output_values_any_format("u.txt", src->n_points, u, TYPE_DOUBLE);
+                output_values_any_format("v.txt", src->n_points, v, TYPE_DOUBLE);
+                output_values_any_format("warped_curv.txt", src->n_points, curv_src, TYPE_DOUBLE);
+        }
 
         if (output_sphere_file != NULL) {
   
                 /* get a pointer to the surface */
-                *get_polygons_ptr(objects[0]) = *warped_src_sphere;
+                *get_polygons_ptr(objects[0]) = *warped_sphere_src;
                 if (output_graphics_any_format(output_sphere_file, format,
                                                n_objects, objects) != OK)
                         exit(EXIT_FAILURE);
         }
 
         delete_object_list(n_objects, objects);
-        free(prm);
 
         return(EXIT_SUCCESS);
 }
