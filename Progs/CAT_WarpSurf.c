@@ -407,7 +407,7 @@ void
 solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                   polygons_struct *trg, polygons_struct *trg_sphere,
                   struct dartel_prm *prm, int dm[3], int n_steps,
-                  double rot[3], double *flow)
+                  double rot[3], double *flow, int n_loops)
 {
         int              step, i, it, it0, it1, xy_size, it_scratch, curvtype0;
         polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
@@ -461,8 +461,8 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                         /* always use sulcal depth first */
                         curvtype0 = 5;
 
-                        /* initial rotation */
-                        if (rotate) {
+                        /* initial rotation if n_loops is zero */
+                        if (n_loops == 0) {
                                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                                                          sm_trg, sm_trg_sphere,
                                                          fwhm, curvtype0, rot);
@@ -518,7 +518,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                                                  dm, curvtype0);
 
                 /* go through dartel steps */
-                for (it = 0, it0 = 0; it0 < loop; it0++) {
+                for (it = 0, it0 = 0; it0 < n_loops; it0++) {
                         it_scratch = dartel_scratchsize((int *)dm,
                                                          prm[it0].code);
 
@@ -598,7 +598,7 @@ main(int argc, char *argv[])
         polygons_struct  *rsrc, *rs_sph, *rtrg, *rt_sph;
         polygons_struct  *as_sph;
         int              i, j, run;
-        int              n_objects, xy_size, prev_loop;
+        int              n_objects, xy_size;
         double           *flow, *flow2, *data;
         object_struct    **objects;
         static double    param[2] = {1.0, 1.0};
@@ -684,23 +684,23 @@ main(int argc, char *argv[])
                         exit(EXIT_FAILURE);
                 }
     
-                loop = 0;
+                j = 0;
 
                 fprintf(stderr, "Read parameters from %s\n", param_file);
                 while (fgets(line, sizeof(line), fp)) {
                         /* check for 9 values in each line */
                         if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
-                                   &prm[loop].rtype, &prm[loop].rparam[2],
-                                   &prm[loop].rparam[3], &prm[loop].rparam[4],
-                                   &prm[loop].lmreg, &prm[loop].cycles,
-                                   &prm[loop].its, &prm[loop].k,
-                                   &prm[loop].code) != 9)
+                                   &prm[j].rtype, &prm[j].rparam[2],
+                                   &prm[j].rparam[3], &prm[j].rparam[4],
+                                   &prm[j].lmreg, &prm[j].cycles,
+                                   &prm[j].its, &prm[j].k,
+                                   &prm[j].code) != 9)
                                 continue;
-                        loop++;
+                        j++;
                 }
                 fclose(fp);
 
-                if (loop == 0) {
+                if (j == 0) {
                         fprintf(stderr, "Could not read parameter file %s. Check that each line contains 9 values\n", param_file);
                         exit(EXIT_FAILURE);
                 }
@@ -780,11 +780,8 @@ main(int argc, char *argv[])
         
         /* estimate rotation only */
         if (rotate) {
-                prev_loop = loop;
-                loop = 0;
                 solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm,
-                                  n_steps, rot, flow);
-                loop = prev_loop;
+                                  n_steps, rot, flow, 0);
         }
         
         if (debug && rotate) {
@@ -798,8 +795,6 @@ main(int argc, char *argv[])
 
                 free(data);
         }
-
-        rotate = 0; /* do not rotate anymore */
 
         if (avg) {
                 flow2 = (double *) malloc(sizeof(double) * xy_size * 2);
@@ -817,7 +812,7 @@ main(int argc, char *argv[])
         /* run dartel */
         for (run = 0; run < n_runs; run++) {
                 solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
-                          rot, flow);
+                          rot, flow, loop);
 
                 /* solve again, but rotated to change pole location */
                 if (avg) {
@@ -826,7 +821,7 @@ main(int argc, char *argv[])
                         rotate_polygons(src_sphere, rs_sph, rotation_matrix);
 
                         solve_dartel_flow(rsrc, rs_sph, rtrg, rt_sph, prm,
-                                  dm, n_steps, rot, flow2);
+                                  dm, n_steps, rot, flow2, loop);
 
                         apply_warp(src_sphere, src_sphere, flow, dm, !INVERSE_WARPING);
                         apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 

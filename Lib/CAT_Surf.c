@@ -37,17 +37,6 @@ bound(int i, int j, int dm[])
                 else
                         j1 = j;
         }
-/*
-        if (j < 0) { /* flip to the other side */ /*
-                j1 = -j - 1;
-                i1 += dm[0] / 2; i1 = i1 % dm[0];
-        } else if (j >= dm[1]) {
-                j1 = 2*dm[1] - j - 1;
-                i1 += dm[0] / 2; i1 = i1 % dm[0];
-        } else {
-                j1 = j;
-        }
-*/
 
         return(i1 + dm[0]*j1);
 }
