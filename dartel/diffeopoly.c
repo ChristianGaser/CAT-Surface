@@ -6,6 +6,8 @@
 #include "dartel.h"
 #include "CAT_Surf.h"
 #include "CAT_Interpolate.h"
+#include "CAT_SurfaceIO.h"
+#include "CAT_Map.h"
 
 /*double
 dotprod(int m, double a[], double b[])

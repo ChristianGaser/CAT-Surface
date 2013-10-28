@@ -8,6 +8,7 @@
  */
 
 #include "CAT_Interpolate.h"
+#include "CAT_Map.h"
 
 double
 interp_point_unit_sphere(polygons_struct *sphere, double *values, Point pt)

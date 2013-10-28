@@ -43,6 +43,7 @@
 
 #include <bicpl.h>
 #include <float.h>
+#include "CAT_Surf.h"
 
 #include "nl/nl.h"
 

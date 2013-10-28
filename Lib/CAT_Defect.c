@@ -289,7 +289,7 @@ get_holes_handles(polygons_struct *surface, polygons_struct *sphere,
         }
 
         if (n_defects == 0) /* nothing to be done! */
-                return;
+                return(0);
 
         /* get the center of mass to locate the ventricle */
         for (p = 0; p < surface->n_points; p++) {

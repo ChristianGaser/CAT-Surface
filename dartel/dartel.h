@@ -109,7 +109,7 @@ double wt2(double x);
 
 void resize(int na[], double *a, int nc[], double *c, double *b);
 void rescale(int n, double *a, double s);
-void restrict(int n, int na[], double *a, int nc[], double *c, double *b);
+void restrict2(int n, int na[], double *a, int nc[], double *c, double *b);
 void prolong(int n, int na[], double *a, int nc[], double *c, double *b);
 
 static void zeros(int n, double *a);

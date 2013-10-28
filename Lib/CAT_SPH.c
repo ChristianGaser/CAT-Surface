@@ -11,6 +11,8 @@
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
+#include "CAT_Map.h"
+#include "CAT_Surf.h"
 
 #define DUMP_FILES 0
 #define _PI 3.14159265358979323846264338327510

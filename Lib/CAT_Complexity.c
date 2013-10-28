@@ -11,8 +11,10 @@
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Smooth.h"
 #include "CAT_Complexity.h"
 #include "CAT_Resample.h"
+#include "CAT_SPH.h"
 
 
 /* get the slope */

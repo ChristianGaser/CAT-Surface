@@ -12,6 +12,7 @@
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
 #include "CAT_Octree.h"
+#include "CAT_Defect.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Intersect.h"
 
@@ -357,7 +358,7 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
         FILE *fp;
 
         if (n_defects == 0)
-                 return; /* done! */
+                 return(0); /* done! */
 
         update_defects(surface, polydefects, defects);
 
@@ -476,6 +477,7 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
         n_defects = find_remaining_intersections(surface, defects, polydefects,
                                                  n_neighbours, neighbours);
 
+        return(n_defects);
         free(edgeflag);
 }
 

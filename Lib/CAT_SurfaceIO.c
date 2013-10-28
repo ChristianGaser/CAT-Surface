@@ -43,97 +43,6 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
   
 }
 
-Status
-input_values_any_format(char *file, int *n_values, double **values)
-{
-        Status status;
-
-        if (filename_extension_matches(file,"txt"))
-                status = input_texture_values(file, n_values, values);
-        else
-                status = input_freesurfer_curv(file, n_values, values);
-
-        return(status);
-}
-
-
-Status
-output_values_any_format(char *file, int n_values, void *values, int flag)
-{
-        Status status;
-        double *buffer;
-        double *d;
-        int i, *r;
-
-        buffer = (double *) malloc(sizeof(double) * n_values);
-
-        if (flag == TYPE_DOUBLE) {
-                d = (double *) values;
-                for (i = 0; i < n_values; i++)
-                        buffer[i] = (double) d[i];
-        } else if (flag == TYPE_INTEGER) {
-                r = (int *) values;
-                for (i = 0; i < n_values; i++)
-                        buffer[i] = (double) r[i];
-        }
-
-        if (filename_extension_matches(file, "txt"))
-                status = output_texture_values(file, ASCII_FORMAT, n_values,
-                                               buffer);
-        else
-                status = output_freesurfer_curv(file, n_values, buffer);
-
-        free(buffer);
-
-        return(status);
-}
-
-Status
-input_graphics_any_format(char *file, File_formats *format, int *n_objects,
-                          object_struct ***object_list)
-{
-        Status status;
-
-        if (filename_extension_matches(file, "obj")) {
-                status = input_graphics_file(file, format,
-                                             n_objects, object_list);
-        } else if (filename_extension_matches(file, "off")) {
-                status = input_oogl(file, format,
-                                    n_objects, object_list);
-        } else if (filename_extension_matches(file, "dfs")) {
-                status = input_dfs(file, format,
-                                   n_objects, object_list);
-        } else if (filename_extension_matches(file, "dx")) {
-                status = input_dx(file, format,
-                                  n_objects, object_list);
-        } else {
-                status = input_freesurfer(file, format,
-                                          n_objects, object_list);
-        }
-
-        return(status);
-}
-
-Status
-output_graphics_any_format(char *file, File_formats format, int n_objects,
-                           object_struct **object_list)
-{
-        Status     status;
-
-        if (filename_extension_matches(file, "obj")) {
-                status = output_graphics_file(file, format,
-                                              n_objects, object_list);
-        } else if (filename_extension_matches(file, "off")) {
-                status = output_oogl(file, format,
-                                     n_objects, object_list);
-        } else {
-                status = output_freesurfer(file, format,
-                                           n_objects, object_list);
-        }
-
-        return(status);
-}
-
 void
 swapFloat(float *n)
 {
@@ -828,3 +737,95 @@ write_pgm(char *file, double *data, int nx, int ny)
         fclose(fp);
         return(0);
 }
+
+Status
+input_values_any_format(char *file, int *n_values, double **values)
+{
+        Status status;
+
+        if (filename_extension_matches(file,"txt"))
+                status = input_texture_values(file, n_values, values);
+        else
+                status = input_freesurfer_curv(file, n_values, values);
+
+        return(status);
+}
+
+
+Status
+output_values_any_format(char *file, int n_values, void *values, int flag)
+{
+        Status status;
+        double *buffer;
+        double *d;
+        int i, *r;
+
+        buffer = (double *) malloc(sizeof(double) * n_values);
+
+        if (flag == TYPE_DOUBLE) {
+                d = (double *) values;
+                for (i = 0; i < n_values; i++)
+                        buffer[i] = (double) d[i];
+        } else if (flag == TYPE_INTEGER) {
+                r = (int *) values;
+                for (i = 0; i < n_values; i++)
+                        buffer[i] = (double) r[i];
+        }
+
+        if (filename_extension_matches(file, "txt"))
+                status = output_texture_values(file, ASCII_FORMAT, n_values,
+                                               buffer);
+        else
+                status = output_freesurfer_curv(file, n_values, buffer);
+
+        free(buffer);
+
+        return(status);
+}
+
+Status
+input_graphics_any_format(char *file, File_formats *format, int *n_objects,
+                          object_struct ***object_list)
+{
+        Status status;
+
+        if (filename_extension_matches(file, "obj")) {
+                status = input_graphics_file(file, format,
+                                             n_objects, object_list);
+        } else if (filename_extension_matches(file, "off")) {
+                status = input_oogl(file, format,
+                                    n_objects, object_list);
+        } else if (filename_extension_matches(file, "dfs")) {
+                status = input_dfs(file, format,
+                                   n_objects, object_list);
+        } else if (filename_extension_matches(file, "dx")) {
+                status = input_dx(file, format,
+                                  n_objects, object_list);
+        } else {
+                status = input_freesurfer(file, format,
+                                          n_objects, object_list);
+        }
+
+        return(status);
+}
+
+Status
+output_graphics_any_format(char *file, File_formats format, int n_objects,
+                           object_struct **object_list)
+{
+        Status     status;
+
+        if (filename_extension_matches(file, "obj")) {
+                status = output_graphics_file(file, format,
+                                              n_objects, object_list);
+        } else if (filename_extension_matches(file, "off")) {
+                status = output_oogl(file, format,
+                                     n_objects, object_list);
+        } else {
+                status = output_freesurfer(file, format,
+                                           n_objects, object_list);
+        }
+
+        return(status);
+}
+

@@ -13,6 +13,7 @@
 #include <float.h>
 
 #include "CAT_Curvature.h"
+#include "CAT_Smooth.h"
 
 #define PI2 0.6366197724    /* 2/pi */
 #define  MAX_NEIGHBOURS   1000
