@@ -1,9 +1,9 @@
 dnl $Id$
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(CAT, 0.1, Christian Gaser <christian.gaser@uni-jena.de>)
+AC_INIT(CAT, 0.9, Christian Gaser <christian.gaser@uni-jena.de>)
 
-AM_INIT_AUTOMAKE(CAT, 0.1, Christian Gaser <christian.gaser@uni-jena.de>)
+AM_INIT_AUTOMAKE(CAT, 0.9, Christian Gaser <christian.gaser@uni-jena.de>)
 
 AC_CONFIG_HEADER(config.h)
 
@@ -24,13 +24,13 @@ AC_CHECK_LIB(expat, XML_ParserCreate,, AC_MSG_ERROR(The expat library is require
 AC_CHECK_HEADERS(expat.h)
 AC_CHECK_HEADERS(fftw3.h)
 AC_CHECK_HEADERS(values.h malloc.h)
-AC_CHECK_HEADERS([zlib.h],[
-	AC_DEFINE(HAVE_ZLIB,1,[Define to enable Libz.])
-    CFLAGS="$CFLAGS -lz"
-    CXXFLAGS="$CXXFLAGS -lz"
-	CPPFLAGS="$CPPFLAGS -lz"
-	LDFLAGS="$LDFLAGS -lz"
-])
+#AC_CHECK_HEADERS([zlib.h],[
+#	AC_DEFINE(HAVE_ZLIB,1,[Define to enable Libz.])
+#    CFLAGS="$CFLAGS -lz"
+#    CXXFLAGS="$CXXFLAGS -lz"
+#	CPPFLAGS="$CPPFLAGS -lz"
+#	LDFLAGS="$LDFLAGS -lz"
+#])
 AC_CHECK_HEADERS()
 
 AC_CONFIG_FILES( Makefile Progs/Makefile)
