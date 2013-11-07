@@ -1,5 +1,12 @@
 /** \file nifti1.h
     \brief Official definition of the nifti1 header.  Written by Bob Cox, SSCC, NIMH.
+
+    HISTORY:
+
+        29 Nov 2007 [rickr]
+           - added DT_RGBA32 and NIFTI_TYPE_RGBA32
+           - added NIFTI_INTENT codes:
+                TIME_SERIES, NODE_INDEX, RGB_VECTOR, RGBA_VECTOR, SHAPE
  */
 
 #ifndef _NIFTI_HEADER_
@@ -284,8 +291,9 @@ typedef struct nifti1_extender nifti1_extender ;
     \brief Data structure defining the fields of a header extension.
  */
 struct nifti1_extension {
-   int esize , ecode ;
-   char *edata ;
+   int    esize ; /*!< size of extension, in bytes (must be multiple of 16) */
+   int    ecode ; /*!< extension code, one of the NIFTI_ECODE_ values       */
+   char * edata ; /*!< raw data, with no byte swapping (length is esize-8)  */
 } ;
 typedef struct nifti1_extension nifti1_extension ;
 
@@ -503,6 +511,7 @@ typedef struct nifti1_extension nifti1_extension ;
 #define DT_FLOAT128             1536     /* long double (128 bits)       */
 #define DT_COMPLEX128           1792     /* double pair (128 bits)       */
 #define DT_COMPLEX256           2048     /* long double pair (256 bits)  */
+#define DT_RGBA32               2304     /* 4 byte RGBA (32 bits/voxel)  */
 /* @} */
 
 
@@ -542,6 +551,8 @@ typedef struct nifti1_extension nifti1_extension ;
 #define NIFTI_TYPE_COMPLEX128   1792
                                        /*! 256 bit complex = 2 128 bit floats */
 #define NIFTI_TYPE_COMPLEX256   2048
+                                       /*! 4 8 bit bytes. */
+#define NIFTI_TYPE_RGBA32       2304
 /* @} */
 
                      /*-------- sample typedefs for complicated types ---*/
@@ -785,11 +796,18 @@ typedef struct { unsigned char r,g,b; } rgb_byte ;
 
 #define NIFTI_INTENT_PVAL       22
 
-  /*! Data is ln(p-value) (no params). */
+  /*! Data is ln(p-value) (no params).
+      To be safe, a program should compute p = exp(-abs(this_value)).
+      The nifti_stats.c library returns this_value
+      as positive, so that this_value = -log(p). */
+
 
 #define NIFTI_INTENT_LOGPVAL    23
 
-  /*! Data is log10(p-value) (no params). */
+  /*! Data is log10(p-value) (no params).
+      To be safe, a program should compute p = pow(10.,-abs(this_value)).
+      The nifti_stats.c library returns this_value
+      as positive, so that this_value = -log10(p). */
 
 #define NIFTI_INTENT_LOG10PVAL  24
 
@@ -896,6 +914,45 @@ typedef struct { unsigned char r,g,b; } rgb_byte ;
      the name of the parameter may be stored in intent_name.     */
 
 #define NIFTI_INTENT_DIMLESS    1011
+
+ /*---------- these values apply to GIFTI datasets ----------*/
+
+ /*! To signify that the value at each location is from a time series. */
+
+#define NIFTI_INTENT_TIME_SERIES  2001
+
+ /*! To signify that the value at each location is a node index, from
+     a complete surface dataset.                                       */
+
+#define NIFTI_INTENT_NODE_INDEX   2002
+
+ /*! To signify that the vector value at each location is an RGB triplet,
+     of whatever type.
+       - dataset must have a 5th dimension
+       - dim[0] = 5
+       - dim[1] = number of nodes
+       - dim[2] = dim[3] = dim[4] = 1
+       - dim[5] = 3
+    */
+
+#define NIFTI_INTENT_RGB_VECTOR   2003
+
+ /*! To signify that the vector value at each location is a 4 valued RGBA
+     vector, of whatever type.
+       - dataset must have a 5th dimension
+       - dim[0] = 5
+       - dim[1] = number of nodes
+       - dim[2] = dim[3] = dim[4] = 1
+       - dim[5] = 4
+    */
+
+#define NIFTI_INTENT_RGBA_VECTOR  2004
+
+ /*! To signify that the value at each location is a shape value, such
+     as the curvature.  */
+
+#define NIFTI_INTENT_SHAPE        2005
+
 /* @} */
 
 /*---------------------------------------------------------------------------*/
@@ -1284,10 +1341,12 @@ typedef struct { unsigned char r,g,b; } rgb_byte ;
                  if slice_duration is positive, indicates the timing
                  pattern of the slice acquisition.  The following codes
                  are defined:
-                   NIFTI_SLICE_SEQ_INC
-                   NIFTI_SLICE_SEQ_DEC
-                   NIFTI_SLICE_ALT_INC
-                   NIFTI_SLICE_ALT_DEC
+                   NIFTI_SLICE_SEQ_INC  == sequential increasing
+                   NIFTI_SLICE_SEQ_DEC  == sequential decreasing
+                   NIFTI_SLICE_ALT_INC  == alternating increasing
+                   NIFTI_SLICE_ALT_DEC  == alternating decreasing
+                   NIFTI_SLICE_ALT_INC2 == alternating increasing #2
+                   NIFTI_SLICE_ALT_DEC2 == alternating decreasing #2
   { slice_start } = Indicates the start and end of the slice acquisition
   { slice_end   } = pattern, when slice_code is nonzero.  These values
                     are present to allow for the possible addition of
@@ -1297,22 +1356,34 @@ typedef struct { unsigned char r,g,b; } rgb_byte ;
                     slice_end=dim[slice_dim]-1 are the correct values.
                     For these values to be meaningful, slice_start must
                     be non-negative and slice_end must be greater than
-                    slice_start.
+                    slice_start.  Otherwise, they should be ignored.
 
   The following table indicates the slice timing pattern, relative to
   time=0 for the first slice acquired, for some sample cases.  Here,
   dim[slice_dim]=7 (there are 7 slices, labeled 0..6), slice_duration=0.1,
   and slice_start=1, slice_end=5 (1 padded slice on each end).
 
-    slice
-    index   SEQ_INC SEQ_DEC ALT_INC ALT_DEC
-      6  --   n/a     n/a     n/a     n/a     n/a = not applicable
-      5  --   0.4     0.0     0.2     0.0           (slice time offset
-      4  --   0.3     0.1     0.4     0.3            doesn't apply to
-      3  --   0.2     0.2     0.1     0.1            slices outside range
-      2  --   0.1     0.3     0.3     0.4            slice_start..slice_end)
-      1  --   0.0     0.4     0.0     0.2
-      0  --   n/a     n/a     n/a     n/a
+  slice
+  index  SEQ_INC SEQ_DEC ALT_INC ALT_DEC ALT_INC2 ALT_DEC2
+    6  :   n/a     n/a     n/a     n/a    n/a      n/a    n/a = not applicable
+    5  :   0.4     0.0     0.2     0.0    0.4      0.2    (slice time offset
+    4  :   0.3     0.1     0.4     0.3    0.1      0.0     doesn't apply to
+    3  :   0.2     0.2     0.1     0.1    0.3      0.3     slices outside
+    2  :   0.1     0.3     0.3     0.4    0.0      0.1     the range
+    1  :   0.0     0.4     0.0     0.2    0.2      0.4     slice_start ..
+    0  :   n/a     n/a     n/a     n/a    n/a      n/a     slice_end)
+
+  The SEQ slice_codes are sequential ordering (uncommon but not unknown),
+  either increasing in slice number or decreasing (INC or DEC), as
+  illustrated above.
+
+  The ALT slice codes are alternating ordering.  The 'standard' way for
+  these to operate (without the '2' on the end) is for the slice timing
+  to start at the edge of the slice_start .. slice_end group (at slice_start
+  for INC and at slice_end for DEC).  For the 'ALT_*2' slice_codes, the
+  slice timing instead starts at the first slice in from the edge (at
+  slice_start+1 for INC2 and at slice_end-1 for DEC2).  This latter
+  acquisition scheme is found on some Siemens scanners.
 
   The fields freq_dim, phase_dim, slice_dim are all squished into the single
   byte field dim_info (2 bits each, since the values for each field are
@@ -1345,11 +1416,13 @@ typedef struct { unsigned char r,g,b; } rgb_byte ;
            of the slices
     @{
  */
-#define NIFTI_SLICE_UNKNOWN  0
-#define NIFTI_SLICE_SEQ_INC  1
-#define NIFTI_SLICE_SEQ_DEC  2
-#define NIFTI_SLICE_ALT_INC  3
-#define NIFTI_SLICE_ALT_DEC  4
+#define NIFTI_SLICE_UNKNOWN   0
+#define NIFTI_SLICE_SEQ_INC   1
+#define NIFTI_SLICE_SEQ_DEC   2
+#define NIFTI_SLICE_ALT_INC   3
+#define NIFTI_SLICE_ALT_DEC   4
+#define NIFTI_SLICE_ALT_INC2  5  /* 05 May 2005: RWCox */
+#define NIFTI_SLICE_ALT_DEC2  6  /* 05 May 2005: RWCox */
 /* @} */
 
 /*---------------------------------------------------------------------------*/

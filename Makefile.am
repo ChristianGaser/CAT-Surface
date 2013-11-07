@@ -10,6 +10,8 @@ lib_LTLIBRARIES = libCAT.la
 EXTRA_DIST = \
 	autogen.sh \
 	MarchingCubes/README \
+	gifticlib/LICENSE.gifti \
+	gifticlib/README.gifti \
 	$(m4_files)
 
 s2kit10_SRC = \
@@ -31,6 +33,15 @@ nl_SRC = \
 	nl/nl_preconditioners.c \
 	nl/nl_superlu.c
 	
+nifti_SRC = \
+	niftilib/nifti1_io.c \
+	niftilib/znzlib.c
+
+gifti_SRC = \
+	gifticlib/gifti_io.c \
+	gifticlib/gifti_tool.c \
+	gifticlib/gifti_xml.c
+
 dartel_SRC = \
 	dartel/diffeosphere.c \
 	dartel/diffeopoly.c \
@@ -51,7 +62,6 @@ noinst_HEADERS = \
 	Include/CAT_Complexity.h \
 	Include/CAT_Defect.h \
 	Include/CAT_Intersect.h \
-	include/CAT_Octree.h \
 	Include/CAT_FixTopology.h \
 	Include/CAT_Refine.h \
 	Include/CAT_DeformPolygons.h \
@@ -66,6 +76,11 @@ noinst_HEADERS = \
 	niftilib/nifti1.h \
 	niftilib/nifti1_io.h \
 	niftilib/nifti1_local.h \
+	niftilib/znzlib.h \
+	gifticlib/gifti_io.h \
+	gifticlib/gifti_test.h \
+	gifticlib/gifti_tool.h \
+	gifticlib/gifti_xml.h \
     s2kit10/FST_semi_fly.h \
 	s2kit10/naive_synthesis.h \
 	s2kit10/primitive.h \
@@ -103,11 +118,12 @@ libCAT_la_SOURCES = \
     Lib/CAT_LaplaceBeltrami.c \
     Lib/CAT_Isometrics.c \
     Lib/CAT_Separate.c \
-    Lib/CAT_Octree.c \
     Lib/CAT_NiftiIO.c \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
 	$(nl_SRC) \
+	$(nifti_SRC) \
+	$(gifti_SRC) \
 	$(dartel_SRC) \
 	$(s2kit10_SRC)
 

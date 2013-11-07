@@ -10,6 +10,7 @@
 #include <bicpl/deform.h>
 
 #include "CAT_DeformPolygons.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)

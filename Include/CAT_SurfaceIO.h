@@ -9,6 +9,10 @@
 
 #include <bicpl.h>
 #include <stdio.h>
+#include <string.h>
+#include "gifticlib/gifti_io.h"
+#include "niftilib/nifti1.h"
+#include "niftilib/nifti1_io.h"
 
 #define TRIANGLE_FILE_MAGIC_NUMBER  16777214
 #define QUAD_FILE_MAGIC_NUMBER      16777215
@@ -28,8 +32,13 @@ Status output_txt(char *, int, double *);
 int    input_oogl(char *, File_formats *, int *, object_struct  ***);
 int    output_oogl(char *, File_formats, int, object_struct * []);
 int    output_freesurfer(char *, File_formats, int, object_struct * []);
+int    output_freesurfer_curv(char *, int, double *);
 int    input_freesurfer(char *, File_formats *, int *, object_struct  ***);
 int    input_freesurfer_curv(char *, int *, double **);
+int    output_gifti(char *, File_formats, int, object_struct * []);
+int    output_gifti_curv(char *, int, double *);
+int    input_gifti(char *, File_formats *, int *, object_struct  ***);
+int    input_gifti_curv(char *, int *, double **);
 int    input_dx(char *, File_formats *, int *, object_struct  ***);
 int    input_dfs(char *, File_formats *, int *, object_struct  ***);
 double * read_pgm(char *, int *, int *);
