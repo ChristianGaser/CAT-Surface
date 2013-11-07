@@ -17,6 +17,7 @@ fwhm_surf=100
 method=0
 removestr=''
 noclobber=0
+gifti=0
 
 ########################################################
 # run main
@@ -87,7 +88,12 @@ get_outputname ()
     str=${fwhm}mm_${str}
   fi
 
-  outputname=${dn}/${str}_${bn}.txt
+  outputname=${dn}/${str}_${bn}
+  if [ "$gifti" == 1 ]; then
+    outputname=${name}.gii
+  else
+    outputname=${name}.txt
+  fi
 }
 
 ########################################################
@@ -116,6 +122,9 @@ parse_args ()
       optarg=`echo $optarg | sed 's,[^0-9],,g'`
       exit_if_empty "$optname" "$optarg"
       fwhm=$optarg
+      ;;
+    --g* | -g*)
+      gifti=1
       ;;
     --n* | -n*)
       noclobber=1
@@ -174,7 +183,7 @@ exit_if_empty ()
 usage ()
 {
 cat <<__EOM__
-USAGE: DumpGI_ui name [name2 name3 ... nameN] [-noclobber]  [-mc|-mc0|-cv|-si]
+USAGE: DumpGI_ui name [name2 name3 ... nameN] [-noclobber] [-mc|-mc0|-cv|-si] [-gifti]
         [-f=fwhm_in_mm] [-sf=surf_fwhm_in_mm] [-r=remove_str_from_ouputname]
     
 __EOM__
@@ -193,7 +202,7 @@ Calculate gyrification index (GI) using the ratio of local surface area and loca
 surface area. Local surface area can be approximated by use of different methods.
 
 USAGE:
-    CAT_DumpGI_ui name.obj [name2.obj ... nameN.obj] [-noclobber] [-mc|-mc0|-cv|-si]
+    CAT_DumpGI_ui name.obj [name2.obj ... nameN.obj] [-noclobber] [-mc|-mc0|-cv|-si] [-gifti]
         [-f=fwhm_in_mm] [-sf=surf_fwhm_in_mm] [-r=remove_str_from_ouputname]
     
 OPTIONS:
@@ -205,7 +214,8 @@ OPTIONS:
   -mc0       - calculate mean curvature                
   -cv        - calculate curvedness                
   -si        - calculate shape index                
-    -noclobber - do not overwrite existing file
+  -gifti     - save output as gifti file
+  -noclobber - do not overwrite existing file
     
 EXAMPLE:
     CAT_DumpGI_ui *.obj -mc -a -f=30 -r=cerebrum_a305_12p

@@ -20,6 +20,7 @@ fwhm=0
 ascii=0
 noclobber=0
 hemi="lh rh"
+gifti=0
 
 ########################################################
 # run main
@@ -67,8 +68,11 @@ preprocess ()
         if [ ! "$fwhm" == 0 ]; then
         
           name=${output_dir}/${fwhm}mm.${measure}.${i}.resample.${subject_name}
-          if [ "$ascii" == 1 ]; then
+          if [ "$gifti" == 1 ]; then
+            name=${name}.gii
+          else if [ "$ascii" == 1 ]; then
             name=${name}.txt
+          fi
           fi
         
           if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
@@ -87,8 +91,11 @@ preprocess ()
         
         else
           name=${output_dir}/${measure}.${i}.resample.${subject}
-          if [ "$ascii" == 1 ]; then
+          if [ "$gifti" == 1 ]; then
+            name=${name}.gii
+          else if [ "$ascii" == 1 ]; then
             name=${name}.txt
+          fi
           fi
         
           if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
@@ -141,6 +148,10 @@ parse_args ()
       ;;
     --a* | -a*)
       ascii=1
+      ;;
+    --g* | -g*)
+      gifti=1
+      ascii=0
       ;;
     --n* | -n*)
       noclobber=1
@@ -224,7 +235,7 @@ check_tools ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-lh|-rh]
+USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-lh|-rh] [-noclobber] [-gifti]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 __EOM__
@@ -243,7 +254,7 @@ Resample surface values to a parametric tetrahedral sphere. The resampled values
 optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
-        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-noclobber] [-lh|-rh]
+        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-noclobber] [-lh|-rh] [-gifti]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 OPTIONS:
@@ -254,6 +265,7 @@ OPTIONS:
   -m         - surface measure as input [default $measure]                 
   -r         - sperical surface for resampling [default $reg]                 
   -a         - save output as ascii (text) file
+  -gifti     - save output as gifti file
   -lh        - resample left hemisphere only
   -rh        - resample right hemisphere only
   -noclobber - do not overwrite existing file

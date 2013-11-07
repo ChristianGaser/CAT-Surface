@@ -15,6 +15,7 @@
 hemi="lh rh"
 ascii=0
 noclobber=0
+gifti=0
 
 ########################################################
 # run main
@@ -59,10 +60,13 @@ process ()
         done
         
         name=${surfdir}/${i}.fd
-        if [ "$ascii" == 1 ]; then
+        if [ "$gifti" == 1 ]; then
+          name=${name}.gii
+        else if [ "$ascii" == 1 ]; then
           name=${name}.txt
         fi
-        
+        fi
+
         if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
           echo $name will be not overwritten. Do not use -noclobber if you want to overwrite file.
         else
@@ -104,6 +108,10 @@ parse_args ()
       ;;
     --a* | -a*)
       ascii=1
+      ;;
+    --g* | -g*)
+      gifti=1
+      ascii=0
       ;;
     --n* | -n*)
       noclobber=1
@@ -171,7 +179,7 @@ check_tools ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_FractalDimensionFS_ui subject [subject2 .. subjectN] [-a] [-noclobber] [-lh|-rh]
+USAGE: CAT_FractalDimensionFS_ui subject [subject2 .. subjectN] [-a] [-noclobber] [-lh|-rh] [-gifti]
     
 __EOM__
 }
@@ -189,13 +197,14 @@ Calculate fractal dimension (FD) of central surface fo freesurfer surfaces. The 
 and resampled back to the original surface.
 
 USAGE:
-        CAT_FractalDimensionFS_ui subject [subject2 .. subjectN] [-a] [-noclobber] [-lh|rh]                      
+        CAT_FractalDimensionFS_ui subject [subject2 .. subjectN] [-a] [-noclobber] [-lh|rh] [-gifti]                      
     
 OPTIONS:
   subject    - one or more subject directories
   -a         - save output as ascii (text) file
   -lh        - resample left hemisphere only
   -rh        - resample right hemisphere only
+  -gifti     - save output as gifti file
   -noclobber - do not overwrite existing file
     
 EXAMPLE:

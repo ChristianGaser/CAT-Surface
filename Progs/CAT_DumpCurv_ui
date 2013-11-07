@@ -17,6 +17,7 @@ method=0
 fwhm=0
 removestr=''
 noclobber=0
+gifti=0
 
 ########################################################
 # run main
@@ -98,8 +99,11 @@ get_outputname ()
   bn1=`echo $bn | cut -f1 -d'.'`
   if [ "$bn1" == "lh" ] || [ "$bn1" == "rh" ]; then
     outputname=${dn}/${bn1}.${str}
+  else if [ "$gifti" == 1 ]; then
+    outputname=${dn}/${str}_${bn}.gii
   else
     outputname=${dn}/${str}_${bn}.txt
+  fi
   fi
 }
 
@@ -131,10 +135,13 @@ parse_args ()
     --n* | -n*)
       noclobber=1
       ;;
+    --gifti | -gifti)
+      gifti=1
+      ;;
     --mc | -mc)
       method=0
       ;;
-    --g* | -g*)
+    --gc* | -gc*)
       method=1
       ;;
     --c* | -c*)
@@ -192,7 +199,7 @@ usage ()
 {
 cat <<__EOM__
 USAGE: CAT_DumpCurv_ui name [name2 name3 ... nameN] [-noclobber] [-mc|-mc0|-gc|-cv|-si|-sd] [-a]
-        [-f=fwhm_in_mm] [-r=remove_str_from_outputname]
+        [-f=fwhm_in_mm] [-r=remove_str_from_outputname] [-gifti]
     
 __EOM__
 }
@@ -212,7 +219,7 @@ diffusion heat kernel and values can be saved as absolute values.
 
 USAGE:
     CAT_DumpCurv_ui name.obj [name2.obj ... nameN.obj] [-mc|-mc0|-gc|-cv|-si|-sd] [-a]
-        [-noclobber] [-f=fwhm_in_mm] [-r=remove_str_from_outputname]
+        [-noclobber] [-f=fwhm_in_mm] [-r=remove_str_from_outputname] [-gifti]
     
 OPTIONS:
   name.obj   - input obj-file(s)
@@ -225,6 +232,7 @@ OPTIONS:
   -cv        - calculate curvedness                
   -si        - calculate shape index                
   -sd        - calculate sulcal depth like estimator                
+  -gifti     - save output as gifti file
   -noclobber - do not overwrite existing file
     
 EXAMPLE:
