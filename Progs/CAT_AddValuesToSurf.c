@@ -59,7 +59,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        n_pts = get_object_points(object_list[1], &pts);
+        n_pts = get_object_points(object_list[0], &pts);
         if (n_pts != n_values) {
                 fprintf(stderr,"Number of points differs from number of values.\n");
                 exit(EXIT_FAILURE);

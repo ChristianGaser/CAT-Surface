@@ -87,8 +87,9 @@ preprocess ()
               CAT_AddValuesToSurf $tmp_name $name ${name}.gii
               echo resample and smooth to ${name}.gii          
               rm $name
-            fi
-            else echo resample and smooth to $name          
+            else 
+              echo resample and smooth to $name 
+            fi         
           fi
         
         else
@@ -109,10 +110,11 @@ preprocess ()
             CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
             if [ "$gifti" == 1 ]; then
               CAT_AddValuesToSurf $tmp_name $name ${name}.gii
-              echo resample and smooth to ${name}.gii          
+              echo resample to ${name}.gii          
               rm $name
+            else
+              echo resample to $name          
             fi
-            else echo resample and smooth to $name          
           fi
         
         fi
