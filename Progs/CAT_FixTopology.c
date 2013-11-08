@@ -7,6 +7,8 @@
  */
 
 #include "CAT_FixTopology.h"
+#include "CAT_NiftiIO.h"
+#include "CAT_SurfaceIO.h"
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -107,7 +109,7 @@ main(int argc, char *argv[])
         objects = fix_topology_sph(surface, sphere, n_triangles, volume, t1_file, bw, lim, reparam_file, max_refine_length);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
-                                       objects) != OK)
+                                       objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         /* clean up */

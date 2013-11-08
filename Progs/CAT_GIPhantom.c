@@ -14,6 +14,7 @@
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Surf.h"
 
 /* argument defaults */
 int ntheta = 4;
@@ -160,7 +161,7 @@ main(int argc, char *argv[])
         compute_polygon_normals(surface);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
-                                       objects) != OK)
+                                       objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         /* clean up */

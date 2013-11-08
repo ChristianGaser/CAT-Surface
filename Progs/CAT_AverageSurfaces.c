@@ -116,7 +116,7 @@ main(int argc, char *argv[])
                         compute_polygon_normals(get_polygons_ptr(out_object));
 
                 status = output_graphics_any_format(outfile, ASCII_FORMAT,
-                                            1, &out_object);
+                                            1, &out_object, NULL);
         }
         
         if (rms_file != NULL) {

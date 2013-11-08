@@ -54,7 +54,7 @@ main(int argc, char *argv[])
 
         compute_polygon_normals(polygons);
         if(output_graphics_any_format(output_filename, format, 1, 
-                        objects) != OK)
+                        objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);

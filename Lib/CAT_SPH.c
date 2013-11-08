@@ -561,7 +561,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
 
         if (DUMP_FILES) {
                 output_graphics_any_format("holesphere.obj", ASCII_FORMAT,
-                                           1, objects);
+                                           1, objects, NULL);
         }
 
         create_polygons_bintree(scaled_sphere,

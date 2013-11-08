@@ -178,7 +178,7 @@ input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
         compute_polygon_normals(poly_dest_sphere);
 
         if(output_graphics_any_format(output_file, format, 1,
-                                   &objects_dest_sphere) != OK)
+                                   &objects_dest_sphere, NULL) != OK)
                     exit(EXIT_FAILURE);
     
         if (values_specified) {

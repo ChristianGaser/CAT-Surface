@@ -14,6 +14,7 @@
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_SPH.h"
+#include "CAT_NiftiIO.h"
 
 /* argument defaults */
 int bandwidth = 256;
@@ -208,7 +209,7 @@ main(int argc, char *argv[])
                                polygons_output, n_triangles, NULL, bandwidth);
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
-                                       &objects_output) != OK)
+                                       &objects_output, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         /* clean up */

@@ -54,11 +54,6 @@ resample_tetrahedron(polygons_struct *surface, polygons_struct *sphere,
         create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0, n_triangles,
                                   platonic_solid);
 
-        char str[80];
-        sprintf(str, "base_%d.obj", n_triangles);
-        if (output_graphics_any_format(str, ASCII_FORMAT, 1, objects) != OK)
-                        exit(EXIT_FAILURE);
-
         create_polygons_bintree(sphere, ROUND((Real) sphere->n_items * 0.5));
 
         new_points = (Point *) malloc(sizeof(Point) * platonic_solid->n_points);
@@ -269,11 +264,6 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
         fill_Point(centre, 0.0, 0.0, 0.0);
         create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0, n_triangles,
                                   platonic_solid);
-
-        char str[80];
-        sprintf(str, "base_%d.obj", n_triangles);
-        if (output_graphics_any_format(str, ASCII_FORMAT, 1, objects) != OK)
-                        exit(EXIT_FAILURE);
 
         create_polygons_bintree(sphere, ROUND((Real) sphere->n_items * 0.5));
 

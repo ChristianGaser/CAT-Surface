@@ -10,6 +10,7 @@
 #include <bicpl.h>
 
 #include "CAT_Smooth.h"
+#include "CAT_SurfaceIO.h"
 
 int
 separate_cluster(polygons_struct *polygons, int desired_index, double *values);

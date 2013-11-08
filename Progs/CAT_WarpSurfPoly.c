@@ -16,6 +16,7 @@
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Interpolate.h"
+#include "CAT_Resample.h"
 #include "dartel/dartel.h"
 
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
@@ -719,7 +720,7 @@ output_values_any_format("flowy.txt", src_sphere->n_points, flow+src_sphere->n_p
                 /* get a pointer to the surface */
                 *get_polygons_ptr(objects[0]) = *src_sphere;
                 if (output_graphics_any_format(output_sphere_file, format,
-                                               n_objects, objects) != OK)
+                                               n_objects, objects, NULL) != OK)
                         exit(EXIT_FAILURE);
         }
 

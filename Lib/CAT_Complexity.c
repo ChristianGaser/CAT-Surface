@@ -198,11 +198,11 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                 if (debugflag) {
                         sprintf(str, "resamp_%d.obj", n_triangles);
                         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                       object) != OK)
+                                                       object, NULL) != OK)
                                 exit(EXIT_FAILURE);
                         sprintf(str, "reresamp_%d.obj", n_triangles);
                         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                       object2) != OK)
+                                                       object2, NULL) != OK)
                                 exit(EXIT_FAILURE);
                         sprintf(str, "areas_%d.txt", n_triangles);
                         if (output_values_any_format(str, sphere->n_items,
@@ -354,7 +354,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                                          TYPE_DOUBLE);
                 sprintf(str, "sph_%d.obj", BW);
                 if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                               object) != OK)
+                                               object, NULL) != OK)
                         exit(EXIT_FAILURE);
         }
         delete_polygons(polygons);
@@ -400,7 +400,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 if (debugflag) {
                         sprintf(str, "sph_%d.obj", (int) bws[it]);
                         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                       object) != OK)
+                                                       object, NULL) != OK)
                                 exit(EXIT_FAILURE);
 
                         sprintf(str, "area_%d.txt", (int) bws[it]);

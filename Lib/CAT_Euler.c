@@ -142,8 +142,6 @@ volume_euler_surface(char *filename, Volume volume, int righthemi)
         *objects = marching_cubes(filename, volume, min, max);
 
         surface = get_polygons_ptr(*objects);
-        output_graphics_any_format("test.obj", ASCII_FORMAT,
-                                           1, objects);
 
         euler = surface_euler(surface);
 

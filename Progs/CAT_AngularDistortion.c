@@ -11,6 +11,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 BOOLEAN PerPoly = 0; /* by default, generate angle distortion per point */
 

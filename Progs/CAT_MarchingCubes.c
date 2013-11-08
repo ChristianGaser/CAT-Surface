@@ -7,8 +7,11 @@
  *
  */
 
-#include  <bicpl/marching.h>
-#include  "CAT_Separate.h"
+#include <bicpl/marching.h>
+#include "CAT_Separate.h"
+#include "CAT_NiftiIO.h"
+#include "CAT_SurfaceIO.h"
+#include "CAT_Surf.h"
 
 #define  CHUNK_SIZE   1000000
 
@@ -145,7 +148,7 @@ int  main(
     
     fprintf(stderr, "Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
 
-    (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3 );
+    (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
     delete_volume( volume );
     delete_marching_cubes_table();

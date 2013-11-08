@@ -9,6 +9,7 @@
 
 #include <bicpl.h>
 #include <ParseArgv.h>
+#include <time.h>
 
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"

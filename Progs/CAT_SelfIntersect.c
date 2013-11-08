@@ -106,7 +106,7 @@ main(int argc, char** argv)
                                                              defects, i);
                         patch = get_polygons_ptr(objects[0]);
                         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                       patch_objects) != OK)
+                                                       patch_objects, NULL) != OK)
                                     exit(EXIT_FAILURE);
                         delete_object_list(1, patch_objects);
                 }

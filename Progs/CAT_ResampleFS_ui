@@ -68,11 +68,8 @@ preprocess ()
         if [ ! "$fwhm" == 0 ]; then
         
           name=${output_dir}/${fwhm}mm.${measure}.${i}.resample.${subject_name}
-          if [ "$gifti" == 1 ]; then
-            name=${name}.gii
-          else if [ "$ascii" == 1 ]; then
+          if [ "$ascii" == 1 ]; then
             name=${name}.txt
-          fi
           fi
         
           if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
@@ -86,16 +83,18 @@ preprocess ()
             done
             CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
             CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
-            echo resample and smooth to $name          
+            if [ "$gifti" == 1 ]; then
+              CAT_AddValuesToSurf $tmp_name $name ${name}.gii
+              echo resample and smooth to ${name}.gii          
+              rm $name
+            fi
+            else echo resample and smooth to $name          
           fi
         
         else
           name=${output_dir}/${measure}.${i}.resample.${subject}
-          if [ "$gifti" == 1 ]; then
-            name=${name}.gii
-          else if [ "$ascii" == 1 ]; then
+          if [ "$ascii" == 1 ]; then
             name=${name}.txt
-          fi
           fi
         
           if [ -f "${name}" ] && [ "$noclobber" == 1 ]; then
@@ -108,7 +107,12 @@ preprocess ()
               fi
             done
             CAT_ResampleSurf ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
-            echo resample to $name
+            if [ "$gifti" == 1 ]; then
+              CAT_AddValuesToSurf $tmp_name $name ${name}.gii
+              echo resample and smooth to ${name}.gii          
+              rm $name
+            fi
+            else echo resample and smooth to $name          
           fi
         
         fi

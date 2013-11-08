@@ -11,6 +11,7 @@
 
 #include "CAT_DeformPolygons.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_NiftiIO.h"
 
 void
 usage(char *executable)
@@ -163,7 +164,7 @@ main(int argc, char *argv[])
         end_time = current_cpu_seconds();
 
         if (output_graphics_any_format(output_file, ASCII_FORMAT,
-                                       n_objects, object_list) == ERROR)
+                                       n_objects, object_list, NULL) == ERROR)
                 exit(EXIT_FAILURE);
 
         if (deform.prev_movements != NULL)

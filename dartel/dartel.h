@@ -77,6 +77,7 @@ void unwrap(int dm[], double f[]);
 int dartel_scratchsize(int dm[], int code);
 void dartel(struct dartel_prm prm, int dm[], double v[], double g[],
             double f[], double dj[], double ov[], double ll[], double *buf);
+void init_dartel_poly(polygons_struct *, struct dartel_poly *);
 
 
 /* functions in optimizersphere.c */

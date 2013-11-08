@@ -8,8 +8,11 @@
  */
 
 #include <bicpl.h>
-#include  "MarchingCubes.h"
-#include  "CAT_Separate.h"
+#include "MarchingCubes.h"
+#include "CAT_Separate.h"
+#include "CAT_NiftiIO.h"
+#include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 static  STRING    dimension_names_3D[] = { MIzspace, MIyspace, MIxspace };
 static  STRING    dimension_names[] = { MIyspace, MIxspace };
@@ -147,7 +150,7 @@ int  main(
     
     fprintf(stderr, "Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
 
-    (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3 );
+    (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
     delete_volume( volume );
     delete_general_transform( &voxel_to_world_transform );

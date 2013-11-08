@@ -148,8 +148,8 @@ main(int argc, char *argv[])
                         SCALE_POINT(scaled_point, poly_points[k], weights[k]);
                         ADD_POINTS(new_points[i], new_points[i], scaled_point);
                         if (values_specified)
-                                output_values[i] += weights[k] *
-input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
+                                output_values[i] += weights[k] * 
+                                        input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
                 }
        }
 
@@ -163,7 +163,7 @@ input_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
         compute_polygon_normals(poly_target_sphere);
 
         if(output_graphics_any_format(output_file, format, 1,
-                                   objects_target_sphere) != OK)
+                                   objects_target_sphere, NULL) != OK)
                     exit(EXIT_FAILURE);
     
         if (values_specified) {

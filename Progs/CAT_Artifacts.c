@@ -15,6 +15,7 @@
 #include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Patch.h"
+#include "CAT_Defect.h"
 
 double dist = 5.0f; /* mm */
 

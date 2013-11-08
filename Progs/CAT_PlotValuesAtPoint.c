@@ -9,6 +9,8 @@
 
 #include <bicpl.h>
 
+#include "CAT_SurfaceIO.h"
+
 void
 usage(char *executable)
 {

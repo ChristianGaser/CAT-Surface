@@ -8,6 +8,7 @@
  */
 
 #include "CAT_Refine.h"
+#include "CAT_SurfaceIO.h"
 
 private  void  usage(
     STRING   executable )
@@ -67,7 +68,7 @@ int  main(
     print( "Resampled into %d polygons.\n", polygons->n_items );
 
     (void) output_graphics_any_format( output_filename, format, n_objects,
-                                 object_list );
+                                 object_list, NULL);
 
     return( 0 );
 }

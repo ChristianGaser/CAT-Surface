@@ -936,7 +936,7 @@ main(int argc, char** argv)
         }
 
         if(output_graphics_any_format(output_file, ASCII_FORMAT,
-                                      1, objects) != OK)
+                                      1, objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         delete_object_list(1, objects);

@@ -1,5 +1,5 @@
 /* Christian Gaser - christian.gaser@uni-jena.de
-/* Department of Psychiatry
+ * Department of Psychiatry
  * University of Jena
  *
  * most of the code is modified from
@@ -14,6 +14,7 @@
 #include <float.h>
 
 #include "CAT_Surf.h"
+#include "CAT_SurfaceIO.h"
 
 void
 usage(char *executable)
@@ -77,7 +78,7 @@ main(int argc, char *argv[])
         surf_to_sphere(polygons, stop_at, increase_iterations_by_factor);
      
         if(output_graphics_any_format(output_file, format, 1, 
-                        object_list) != OK)
+                        object_list, NULL) != OK)
                 exit(EXIT_FAILURE);
         return(EXIT_SUCCESS);
 }

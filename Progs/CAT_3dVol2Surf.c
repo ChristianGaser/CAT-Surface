@@ -12,6 +12,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_SurfaceIO.h"
+#include "CAT_NiftiIO.h"
 
 #define GET_grid_POINT(result, grid_origin, normal, length) \
 { \

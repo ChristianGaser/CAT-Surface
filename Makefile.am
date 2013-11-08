@@ -67,6 +67,7 @@ noinst_HEADERS = \
 	Include/CAT_DeformPolygons.h \
 	Include/CAT_Separate.h \
 	Include/CAT_Octree.h \
+	Include/CAT_NiftiIO.h \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
     MarchingCubes/genus0.h \

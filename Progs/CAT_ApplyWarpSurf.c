@@ -11,6 +11,9 @@
 #include <ParseArgv.h>
 
 #include "CAT_Map.h"
+#include "CAT_SurfaceIO.h"
+#include "CAT_Surf.h"
+#include "dartel/dartel.h"
 
 #define  BINTREE_FACTOR   0.5
 
@@ -94,7 +97,7 @@ main(int argc, char *argv[])
         apply_warp(polygons, sphere, flow, size_map, 0);  
 
         if (output_graphics_any_format(output_file, format, n_objects,
-                                       objects) != OK)
+                                       objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         free(flow);

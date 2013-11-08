@@ -8,6 +8,9 @@
  */
 
 #include <bicpl.h>
+#include "CAT_SurfaceIO.h"
+
+void find_conformal_map(polygons_struct *polygons);
 
 void
 usage(char *executable)
@@ -52,7 +55,7 @@ main(int argc, char** argv)
         find_conformal_map(polygons);
 
         if(output_graphics_any_format(output_file, format, 1, 
-                        objects) != OK)
+                        objects, NULL) != OK)
                     exit(EXIT_FAILURE);
         exit(EXIT_SUCCESS);
 }

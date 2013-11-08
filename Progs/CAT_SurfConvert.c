@@ -9,6 +9,8 @@
 
 #include <bicpl.h>
 
+#include "CAT_SurfaceIO.h"
+
 void
 usage(char *executable)
 {
@@ -51,7 +53,7 @@ main(int argc, char *argv[])
         }
 
         if (output_graphics_any_format(output_file, format,
-                                       n_objects, objects) != OK)
+                                       n_objects, objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);

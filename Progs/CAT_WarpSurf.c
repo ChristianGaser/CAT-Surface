@@ -15,6 +15,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Resample.h"
 #include "dartel/dartel.h"
 
 #define INVERSE_WARPING 0
@@ -850,7 +851,7 @@ main(int argc, char *argv[])
                 compute_polygon_normals(src_sphere);
                 *get_polygons_ptr(objects[0]) = *src_sphere;
                 if (output_graphics_any_format(output_sphere_file, format,
-                                               n_objects, objects) != OK)
+                                               n_objects, objects, NULL) != OK)
                         exit(EXIT_FAILURE);
         }
 

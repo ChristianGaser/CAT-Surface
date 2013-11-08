@@ -15,52 +15,9 @@
 #include "CAT_Octree.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Patch.h"
+#include "CAT_Defect.h"
 
 BOOLEAN dump_patch = FALSE; /* dump patches of defects */
-
-/* minimize the size of the defect */
-int
-test_minimize(polygons_struct *surface, int *defects, int *polydefects, int *n_neighbours, int **neighbours)
-{
-        int p, n, euler, n_euler, done, *n_defects, defect = 1;
-
-        for (n = 0; n < surface->n_items; n++) polydefects[n] = 1;
-        for (n = 0; n < surface->n_points; n++) defects[n] = 1;
-
-        euler = defect_euler(surface, defects, polydefects, 1,
-                             n_neighbours, neighbours);
-
-        /* delete triangles that don't change the euler number */
-        done = 0;
-        while (!done) {
-                done = 1;
-                for (p = 0; p < surface->n_points; p++) {
-                        if (defects[p] != defect)
-                                continue;
-
-                        //if (isedge(surface, defects, polydefects,
-                        //           n_neighbours, neighbours, p) == 0) {
-                        //        continue;
-                        //}
-                        //printf("poly %d is an edge\n", p);
-
-                        defects[p] = 0;
-                        update_polydefects(surface, defects, polydefects);
-                        n_euler = defect_euler(surface, defects,
-                                               polydefects, defect,
-                                               n_neighbours, neighbours);
-                        if (euler != n_euler) {
-                                printf("poly %d: %d != %d\n", p, n_euler, euler);
-                                defects[p] = defect;
-                                update_polydefects(surface, defects, polydefects);
-                        } else {
-                                printf("deleted point %d\n", p);
-                                done = 0;
-                        }
-                }
-        }
-        update_polydefects(surface, defects, polydefects);
-}
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -141,8 +98,6 @@ main(int argc, char *argv[])
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
 
-        //test_minimize(surface, defects, polydefects, n_neighbours, neighbours);
-
         printf("%d errors found\n", n_defects);
 
         output_values_any_format(out_file, sphere->n_points,
@@ -155,7 +110,7 @@ main(int argc, char *argv[])
                                                              defects, p);
                         patch = get_polygons_ptr(objects[0]);
                         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                      patch_objects) != OK)
+                                                      patch_objects, NULL) != OK)
                                     exit(EXIT_FAILURE);
                         delete_object_list(1, patch_objects);
                 }

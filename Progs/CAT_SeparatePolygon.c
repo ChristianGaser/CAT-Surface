@@ -10,6 +10,8 @@
 #include <bicpl.h>
 
 #include "CAT_Smooth.h"
+#include "CAT_SurfaceIO.h"
+#include "CAT_Separate.h"
 
 void
 usage(char *executable) {
@@ -60,7 +62,7 @@ main(int argc, char *argv[])
 	
         triangulate_polygons( get_polygons_ptr(object[0]), get_polygons_ptr(object2) );
     
-        (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object2 );
+        (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object2, NULL);
 
         return(EXIT_SUCCESS);
 }

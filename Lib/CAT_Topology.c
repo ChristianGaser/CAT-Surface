@@ -356,7 +356,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
         if (DUMP_FILES) {
                 output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1,
-                                           hbw_objects);
+                                           hbw_objects, NULL);
         }
 
         if (DEBUG) fprintf(stderr,"butterworth_filter...\n");
@@ -381,7 +381,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
         if (DUMP_FILES) {
                 output_graphics_any_format("lbw.obj", ASCII_FORMAT, 1,
-                                           lbw_objects);
+                                           lbw_objects, NULL);
         }
 
         free(rcx); free(rcy); free(rcz);

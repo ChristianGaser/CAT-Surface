@@ -16,6 +16,7 @@
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Interpolate.h"
+#include "CAT_Resample.h"
 #include "dartel/dartel.h"
 
 /* defaults */
@@ -438,7 +439,7 @@ main(int argc, char *argv[])
                                 
                                 if (method == 3) {
                                         denom_trg  = (dtheta_trg[i]*dtheta_trg[i] + dphi_trg[i]*dphi_trg[i] + dtheta_src[i]*dtheta_src[i] + dphi_src[i]*dphi_src[i]) + alpha*alpha*idiff2;
-                                        if ((denom_trg == 0.0)) {
+                                        if (denom_trg == 0.0) {
                                                 Utheta[i] = 0.0;
                                                 Uphi[i] = 0.0;
                                         } else {
@@ -516,7 +517,7 @@ main(int argc, char *argv[])
                 /* get a pointer to the surface */
                 *get_polygons_ptr(objects[0]) = *warped_sphere_src;
                 if (output_graphics_any_format(output_sphere_file, format,
-                                               n_objects, objects) != OK)
+                                               n_objects, objects, NULL) != OK)
                         exit(EXIT_FAILURE);
         }
 

@@ -12,6 +12,7 @@
 
 #include    "CAT_Surf.h"
 #include    "CAT_SPH.h"
+#include    "CAT_SurfaceIO.h"
     
 void
 usage(char *executable)
@@ -150,11 +151,11 @@ main(int argc, char *argv[])
                 set_vector_length(&warped_sphere->points[i], 1.0);
 
         if (output_graphics_any_format(warped_file, ASCII_FORMAT,
-                                       1, &object) != OK)
+                                       1, &object, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         if (output_graphics_any_format(warped_sphere_file, ASCII_FORMAT,
-                                       1, &object2) != OK)
+                                       1, &object2, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);

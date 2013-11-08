@@ -161,7 +161,7 @@ main(int argc, char *argv[])
                                n_triangles, NULL, bandwidth);
 
         if (output_graphics_any_format(surface_file, ASCII_FORMAT, 1,
-                                       &objects_sphere) != OK)
+                                       &objects_sphere, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         free(rcx);

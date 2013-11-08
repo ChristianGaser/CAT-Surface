@@ -15,6 +15,7 @@
 #include "CAT_Intersect.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Defect.h"
+#include "CAT_NiftiIO.h"
 
 
 void
