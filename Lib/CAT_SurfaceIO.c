@@ -586,7 +586,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
                   object_struct *object_list[], double *values)
 {
 
-        int k;
+        int j,k;
         polygons_struct   *polygons;
   
         gifti_image* image = (gifti_image *)calloc(1,sizeof(gifti_image));
@@ -608,30 +608,30 @@ output_gifti(char *fname, File_formats format, int n_objects,
         polygons = get_polygons_ptr(object_list[0]);
 
         /* Set its attributes. */
-        coords->intent = NIFTI_INTENT_POINTSET;
+        coords->intent   = NIFTI_INTENT_POINTSET;
         coords->datatype = NIFTI_TYPE_FLOAT32;
-        coords->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
-        coords->num_dim = 2;
-        coords->dims[0] = polygons->n_points; /* In highest first, dim0 = rows */
-        coords->dims[1] = 3;               /* In highest first, dim1 = cols */
+        coords->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
+        coords->num_dim  = 2;
+        coords->dims[0]  = polygons->n_points; /* In highest first, dim0 = rows */
+        coords->dims[1]  = 3;               /* In highest first, dim1 = cols */
         coords->encoding = GIFTI_ENCODING_B64BIN;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        coords->endian = GIFTI_ENDIAN_LITTLE;
+        coords->endian   = GIFTI_ENDIAN_LITTLE;
 #else
-        coords->endian = GIFTI_ENDIAN_BIG;
+        coords->endian   = GIFTI_ENDIAN_BIG;
 #endif
 
         gifti_add_empty_CS( coords );
-        coords->coordsys[0]->dataspace  = (char *) calloc(strlen("NIFTI_XFORM_UNKNOWN")+1,sizeof(char));;
+        coords->coordsys[0]->dataspace  = (char *) calloc(strlen("NIFTI_XFORM_UNKNOWN")  +1,sizeof(char));;
         coords->coordsys[0]->xformspace = (char *) calloc(strlen("NIFTI_XFORM_TALAIRACH")+1,sizeof(char));;
 
-        strcpy(coords->coordsys[0]->dataspace,"NIFTI_XFORM_UNKNOWN");
+        strcpy(coords->coordsys[0]->dataspace, "NIFTI_XFORM_UNKNOWN");
         strcpy(coords->coordsys[0]->xformspace,"NIFTI_XFORM_TALAIRACH");
         int r,c;
         for (r=1; r <= 4; r++)
                 for (c=1; c <= 4; c++)
-                        if((r==c) && (r<4)) coords->coordsys[0]->xform[r-1][c-1] = 1;
-                        else                coords->coordsys[0]->xform[r-1][c-1] = 0;
+                        if (r==c) coords->coordsys[0]->xform[r-1][c-1] = 1.0;
+                        else      coords->coordsys[0]->xform[r-1][c-1] = 0.0;
 
         coords->nvals = gifti_darray_nvals (coords);
         gifti_datatype_sizes (coords->datatype, &coords->nbyper, NULL);
@@ -671,20 +671,20 @@ output_gifti(char *fname, File_formats format, int n_objects,
         int numFaces = polygons->n_items;
 
         /* Set its attributes. */
-        faces->intent = NIFTI_INTENT_TRIANGLE;
+        faces->intent   = NIFTI_INTENT_TRIANGLE;
         faces->datatype = NIFTI_TYPE_INT32;
-        faces->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
-        faces->num_dim = 2;
-        faces->dims[0] = numFaces;    /* In highest first, dim0 = rows */
-        faces->dims[1] = 3;               /* In highest first, dim1 = cols */
+        faces->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
+        faces->num_dim  = 2;
+        faces->dims[0]  = numFaces;    /* In highest first, dim0 = rows */
+        faces->dims[1]  = 3;           /* In highest first, dim1 = cols */
         faces->encoding = GIFTI_ENCODING_B64BIN;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        faces->endian = GIFTI_ENDIAN_LITTLE;
+        faces->endian   = GIFTI_ENDIAN_LITTLE;
 #else
-        faces->endian = GIFTI_ENDIAN_BIG;
+        faces->endian   = GIFTI_ENDIAN_BIG;
 #endif
         faces->coordsys = NULL;
-        faces->nvals = gifti_darray_nvals (faces);
+        faces->nvals    = gifti_darray_nvals (faces);
         gifti_datatype_sizes (faces->datatype, &faces->nbyper, NULL);
 
         /* Allocate the data array. */
@@ -698,18 +698,13 @@ output_gifti(char *fname, File_formats format, int n_objects,
                 return -1;
         }
 
+
         /* Copy in all our face data */
-        int faceNum = 0;
         int face_index;
-        for (face_index = 0; face_index < polygons->n_items; face_index++) {
-                gifti_set_DA_value_2D (faces, faceNum, 0,
-                             polygons->indices[face_index]);
-                gifti_set_DA_value_2D (faces, faceNum, 1,
-                             polygons->indices[face_index]);
-                gifti_set_DA_value_2D (faces, faceNum, 2,
-                             polygons->indices[face_index]);
-                faceNum++;
-        }
+        for (face_index = 0; face_index < polygons->n_items; face_index++)
+                for (j = 0; j < 3; j++)
+                        gifti_set_DA_value_2D (faces, face_index, j,
+                                 polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]);
 
         /* standard meta data for surfaces */
         if (fname) {
@@ -759,7 +754,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
         /* 
          * Shape (textures)
          */
-        if ( values != NULL) {
+        if (values != NULL) {
 
                 giiDataArray* shape = gifti_alloc_and_add_darray (image);
                 if (NULL == shape) {
@@ -804,16 +799,16 @@ output_gifti(char *fname, File_formats format, int n_objects,
         /* check for compliance */
         int valid = gifti_valid_gifti_image (image, 1);
         if (valid == 0) {
-                        fprintf (stderr,"output_gifti_curv: GIFTI file %s is invalid!\n", fname);
-                        gifti_free_image (image);
-                        return(-1);
+                fprintf (stderr,"output_gifti_curv: GIFTI file %s is invalid!\n", fname);
+                gifti_free_image (image);
+                return(-1);
         }
 
         /* Write the file. */
         if (gifti_write_image (image, fname, 1)) {
-                        fprintf (stderr,"output_gifti_curv: couldn't write image\n");
-                        gifti_free_image (image);
-                        return(-1);
+                fprintf (stderr,"output_gifti_curv: couldn't write image\n");
+                gifti_free_image (image);
+                return(-1);
         }
 
         gifti_free_image (image);
@@ -844,20 +839,20 @@ output_gifti_curv(char *fname, int nvertices, double *data)
         }
 
         /* Set its attributes. */
-        shape->intent = NIFTI_INTENT_SHAPE;
+        shape->intent   = NIFTI_INTENT_SHAPE;
         shape->datatype = NIFTI_TYPE_FLOAT32;
-        shape->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
-        shape->num_dim = 1;
-        shape->dims[0] = nvertices;
-        shape->dims[1] = 0;
+        shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
+        shape->num_dim  = 1;
+        shape->dims[0]  = nvertices;
+        shape->dims[1]  = 0;
         shape->encoding = GIFTI_ENCODING_B64BIN; 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        shape->endian = GIFTI_ENDIAN_LITTLE;
+        shape->endian   = GIFTI_ENDIAN_LITTLE;
 #else
-        shape->endian = GIFTI_ENDIAN_BIG;
+        shape->endian   = GIFTI_ENDIAN_BIG;
 #endif
         shape->coordsys = NULL;
-        shape->nvals = gifti_darray_nvals (shape);
+        shape->nvals    = gifti_darray_nvals (shape);
         gifti_datatype_sizes (shape->datatype, &shape->nbyper, NULL);
 
         /* include some metadata describing this shape */

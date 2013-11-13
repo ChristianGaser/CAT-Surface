@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_SurfaceIO.h 304 2013-11-07 15:16:36Z gaser $
+ * $Id$
  *
 */
 
