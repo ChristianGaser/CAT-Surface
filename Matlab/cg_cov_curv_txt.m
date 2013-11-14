@@ -1,7 +1,7 @@
 function cg_cov_curv_txt
 %function to calculate cc between surface measures
 
-P = spm_select(Inf,'*','Select data');
+P = spm_select(Inf,'any','Select data');
 n = size(P,1);
 
 data = cg_read_curv_txt(deblank(P(1,:)));

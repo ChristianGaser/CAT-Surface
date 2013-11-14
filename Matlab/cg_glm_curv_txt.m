@@ -280,7 +280,7 @@ sGMsca   = sf_estrrep(sGMsca,[sF',D.sF']);
 
 %-Get filenames & factor indicies
 %-----------------------------------------------------------------------
-[P,I]    = cg_get_files(D.sF,D.n,D.b.aTime,'*');
+[P,I]    = cg_get_files(D.sF,D.n,D.b.aTime,'any');
 %[P,I]    = spm_spm_ui('Files&Indices',D.sF,D.n,D.b.aTime);
 nScan    = size(I,1);                                 %-#obs
 
@@ -478,12 +478,6 @@ spm_progress_bar('Init',nScan,'reading data...','subjects completed');
 Y = cg_read_curv_txt(deblank(char(P(1,:))));
 [pth, name, ext] = fileparts(deblank(char(P(1,:))));
 
-% only accept .txt as extension
-if ~strcmp(ext,'.txt')
-  name = [name ext];
-  ext = '';
-end
-
 spm_progress_bar('Set',1)
 for i=2:nScan
       tmp = cg_read_curv_txt(deblank(char(P(i,:))));
@@ -590,7 +584,7 @@ SCCSid  = '2.49';
 % - Get files and factor indices
 %=======================================================================
 % DbaTime=D.b.aTime; Dn=D.n; DsF=D.sF;
-if nargin<4, ext = '*'; else, ext = varargin{4}; end
+if nargin<4, ext = 'any'; else, ext = varargin{4}; end
 if nargin<3, DbaTime = 1; else, DbaTime = varargin{3}; end
 if nargin<2, Dn  = [Inf,Inf,Inf,Inf]; else, Dn=varargin{2}; end
 if nargin<1, DsF = {'Fac1','Fac2','Fac3','Fac4'}; else, DsF=varargin{1}; end

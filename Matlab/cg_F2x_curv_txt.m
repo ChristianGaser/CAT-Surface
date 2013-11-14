@@ -38,7 +38,7 @@ function cg_F2x_curv_txt
 % @(#)cg_f2x.m   1.22 Christian Gaser 2005/11/09
 
 
-P = spm_select(Inf,'^F.*','Select result image(s)');
+P = spm_select(Inf,'F.*','Select result image(s)');
 sel = spm_input('Convert F value to?',1,'m',...
 	'1-p|-log(1-p)|coefficient of determination R^2',[1 2 3], 2);
 

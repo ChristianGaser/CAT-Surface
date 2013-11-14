@@ -7,12 +7,14 @@ if nargin > 2
   error('Wrong number of arguments');
 end
 
-[pth, basename, ext] = fileparts(name);
+[pth, basename, ext] = spm_fileparts(name);
 
-% check for ascii or freesurfer format
+% check for ascii, gifti or freesurfer format
 if strcmp(ext,'.txt')
   eval(['save -ascii ' name  ' x']);
   
+elseif strcmp(ext,'.gii')
+  save(gifti(struct('cdata',x)),name);
 else
   write_curv(name, x);
 end

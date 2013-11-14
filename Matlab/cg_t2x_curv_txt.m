@@ -48,7 +48,7 @@ function r = cg_t2x_curv_txt
 n = 1;
 STAT = 'T';
 
-P = spm_select(Inf,'^T.*','Select result image(s)');
+P = spm_select(Inf,'T.','Select result image(s)');
 
 convert = spm_input('Convert t value to?',1,'m',...
     '1-p|-log(1-p)|correlation coefficient cc|effect size d|no conversion',[1 2 3 4 5], 2);
@@ -66,7 +66,7 @@ for i=1:size(P,1)
 
     T_threshold = 0;
     Res = deblank(P(i,:));
-    [pth,nm,xt,vr] = fileparts(Res);
+    [pth,nm,xt,vr] = spm_fileparts(Res);
     fprintf('%s: ',nm);
 
     SPM_name = fullfile(pth, ['SPM.mat' vr]);

@@ -11,7 +11,7 @@ P = spm_select(Inf,'.*','Select inult image(s)');
 for i=1:size(P,1)
 
     in = deblank(P(i,:));
-    [pth,nm,xt,vr] = fileparts(in);
+    [pth,nm,xt,vr] = spm_fileparts(in);
     fprintf('%s: \n',nm);
 
     values = cg_read_curv_txt(in);
