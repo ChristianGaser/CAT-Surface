@@ -81,6 +81,7 @@ get_surface_ratio(double r, polygons_struct *polygons)
         for (i = 0; i < polygons->n_items; i++) {
                 size = get_polygon_points(polygons, i, points);
                 area = get_polygon_surface_area(size, points);
+                if (isnan(area)) area = 0.0;
 
                 poly_size = GET_OBJECT_SIZE(*polygons, i);
 
@@ -165,6 +166,7 @@ get_area_of_points(polygons_struct *polygons, double *area_values)
         for (poly = 0; poly < polygons->n_items; poly++) {    
                 size = get_polygon_points(polygons, poly, points);
                 area = get_polygon_surface_area(size, points);
+                if (isnan(area)) area = 0.0;
                 surface_area += area;
 
                 poly_size = GET_OBJECT_SIZE(*polygons, poly);
@@ -197,6 +199,7 @@ get_area_of_polygons(polygons_struct *polygons, double *area_values)
         for (poly = 0; poly < polygons->n_items; poly++) {    
                 size = get_polygon_points(polygons, poly, points);
                 area_values[poly] = get_polygon_surface_area(size, points);
+                if (isnan(area_values[poly])) area_values[poly] = 0.0;
                 surface_area += area_values[poly];
         }
         return(surface_area);
@@ -445,48 +448,40 @@ apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
         polygons_struct   unit_sphere;
         double            u, v, x, y, z;
         double            indx, indy;
+        double            xo, yo, zo;
         int               i, p, ind;
 
         copy_polygons(sphere, &unit_sphere);
         
-        /* set radius to 1 */
-        for (i = 0; i < unit_sphere.n_points; i++) 
-                set_vector_length(&unit_sphere.points[i], 1.0);
-
         create_polygons_bintree(polygons, round((double) polygons->n_items *
                                                 BINTREE_FACTOR));
         create_polygons_bintree(&unit_sphere,
                                 round((double) unit_sphere.n_items *
                                       BINTREE_FACTOR));
 
-        ALLOC(new_points, polygons->n_points);
+        ALLOC(new_points, sphere->n_points);
   
         for (p = 0; p < polygons->n_points; p++) {
-                map_point_to_unit_sphere(polygons, &polygons->points[p],
-                                         &unit_sphere, &unit_point);
-
-                point_to_uv(&unit_point, &u, &v);
+                xo = Point_x(sphere->points[p]);
+                yo = Point_y(sphere->points[p]);
+                zo = Point_z(sphere->points[p]);
 
                 if (inverse) {
-                        u -= ux[p];
-                        v -= vy[p];
+                        u = -ux[p];
+                        v = -vy[p];
                 } else {
-                        u += ux[p];
-                        v += vy[p];
+                        u = ux[p];
+                        v = vy[p];
                 }
 
-                /* wrap borders */
-                while (u < 0.0)  u += 1.0;
-                while (u >= 1.0) u -= 1.0;
-                if (v < 0.0)     v = 0.0;
-                if (v > 1.0)     v = 1.0;
-
-                uv_to_point(u, v, &unit_point);
-
-                x = Point_x(unit_point);
-                y = Point_y(unit_point);
-                z = Point_z(unit_point);
-
+                x = xo * cos(u) + xo * cos(v)
+                  + yo * sin(v) + zo * sin(u) - xo;
+                y = xo * -sin(u) * sin(u) + yo * cos(u)
+                  + zo * cos(u) * sin(u) + xo * -sin(v)
+                  + yo * cos(v) - yo;
+                z = xo * -sin(u) * cos(u)
+                  + yo * -sin(u) + zo * cos(u) * cos(u);
+                  
                 fill_Point(trans_point, x, y, z);
 
                 map_unit_sphere_to_point(&unit_sphere, &trans_point,
@@ -497,7 +492,12 @@ apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
         for (p = 0; p < polygons->n_points; p++)
                 polygons->points[p] = new_points[p];
 
+        /* set radius to 1 */
+        for (i = 0; i < unit_sphere.n_points; i++) 
+                set_vector_length(&unit_sphere.points[i], 1.0);
+
         compute_polygon_normals(polygons);
+        free(new_points);
 }
 
 void
@@ -723,7 +723,7 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
         BOOLEAN smoothEdges, smoothIt;
         double invstr = 1.0 - strength;
         double radius = get_largest_dist(polygons);
-    
+
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
     
@@ -761,8 +761,12 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
                                 pts[1] = polygons->points[n1];
                                 pts[2] = polygons->points[n2];
                                 tileAreas[j] = get_polygon_surface_area(3, pts);
+                                
+                                if (isnan(tileAreas[j])) tileAreas[j] = 0.0;
+                                tileAreas[j] = MIN(tileAreas[j], 1.0);
+                                tileAreas[j] = MAX(tileAreas[j], 0.0);
                                 totalArea += tileAreas[j];
-                
+
                                 /* Save center of this tile */
                                 to_array(&polygons->points[i], pt1);
                                 to_array(&polygons->points[n1], pt2);
@@ -951,7 +955,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         translate_to_center_of_mass(polygonsIn);
 
         SA = get_polygons_surface_area(polygons);
-
+        
         ALLOC(avgCompStretch, polygons->n_points);
         ALLOC(maxLinDistort, polygons->n_points);
         ALLOC(avgArealComp, polygons->n_points);
@@ -963,9 +967,17 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         for (cycle = 0; cycle < (n_smoothingCycles + 1); cycle++) {
                 if (cycle < n_smoothingCycles) {
                         /* Step 6a: Apply Smoothing to AUX coord */
-                        areal_smoothing(polygonsIn, regSmoothStrength, 
+                        for (i = 0; i < polygons->n_points; i++) {
+                                to_array(&polygonsIn->points[i], xyz);
+                        }
+                        fprintf(stderr,"\n");
+                        distance_smoothing(polygonsIn, regSmoothStrength, 
                                         regSmoothIters, 1, NULL, 0);
 
+                        for (i = 0; i < polygons->n_points; i++) {
+                                to_array(&polygonsIn->points[i], xyz);
+                        }
+                        fprintf(stderr,"\n");
                         /* Step 6b: Incrementally inflate AUX surface by */
                         /*          Ellipsoidal Projection  */
                         for (i = 0; i < polygons->n_points; i++) {
@@ -990,7 +1002,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
       
                 /* Ratio of inflated and spherical surfaces */
                 SA_ratio = inflatedSA / SA;
-      
+
                 create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                                 &neighbours, NULL, NULL);
 
@@ -1059,9 +1071,6 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                                 }
 
                                 avgArealComp[i] += distort;
-                                /* arealComp[i] += distort; */
-                                /* optionally,  log(distort) / log2; */
-
                                 numNeighbors += 1.0;
                         }
 
@@ -1112,7 +1121,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 
                 if (cycle < n_smoothingCycles) {
                         /* Step 6f: Targeted smoothing */
-                        areal_smoothing(polygonsIn,
+                        distance_smoothing(polygonsIn,
                                         fingerSmoothStrength,
                                         fingerSmoothIters,
                                         1, needSmoothing, 0);

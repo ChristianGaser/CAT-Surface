@@ -84,7 +84,7 @@ interp_xyz_sphere(polygons_struct *sphere, double *values, double x, double y,
         Point pt;
 
         fill_Point(pt, x, y, z);
-        return(interp_point_unit_sphere(sphere, values, pt));
+        return(interp_point_sphere(sphere, values, pt));
 }
 
 

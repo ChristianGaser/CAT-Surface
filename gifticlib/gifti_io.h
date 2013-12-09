@@ -1,7 +1,9 @@
 #ifndef GIFTI_IO_H
 #define GIFTI_IO_H
 
+#ifdef HAVE_ZLIB
 #include <zlib.h>
+#endif
 #include <expat.h>
 #include <nifti1_io.h>
 /* also #include "gifti_xml.h", but at the end */
