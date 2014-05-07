@@ -183,7 +183,7 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                               orig_area;
 
                 /* resample back into the original object space */
-                object2 = resample_surface_sphere(polygons, sphere);
+                object2 = resample_surface_sphere(polygons, NULL, sphere);
                 resampled = get_polygons_ptr(*object2);
 
                 get_area_of_polygons(resampled, bc_areas[iter]);

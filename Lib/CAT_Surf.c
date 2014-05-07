@@ -970,14 +970,14 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                         for (i = 0; i < polygons->n_points; i++) {
                                 to_array(&polygonsIn->points[i], xyz);
                         }
-                        fprintf(stderr,"\n");
+
                         distance_smoothing(polygonsIn, regSmoothStrength, 
                                         regSmoothIters, 1, NULL, 0);
 
                         for (i = 0; i < polygons->n_points; i++) {
                                 to_array(&polygonsIn->points[i], xyz);
                         }
-                        fprintf(stderr,"\n");
+
                         /* Step 6b: Incrementally inflate AUX surface by */
                         /*          Ellipsoidal Projection  */
                         for (i = 0; i < polygons->n_points; i++) {

@@ -31,7 +31,7 @@ projectToPlane(Vector projected, Vector basis[2])
 
 
 Vector
-projection(Vector vector, Vector normal)
+projectionVector(Vector vector, Vector normal)
 {
         Vector xyz;
         const double t2 = DOT_VECTORS(vector, normal);
@@ -145,7 +145,7 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
                                     polygons->points[neighbours[i]],
                                     polygons->points[pidx]);
                 }
-                basis[0] = projection(deltaCoord[0],
+                basis[0] = projectionVector(deltaCoord[0],
                                       polygons->normals[pidx]);
                 NORMALIZE_VECTOR(basis[0], basis[0]);
                 fill_Vector(t1, 0.0, 0.0, 0.0);
@@ -155,11 +155,11 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
                 NORMALIZE_VECTOR(basis[1], basis[1]);
 
                 for (i = 0; i < n_neighbours; i++) {
-                        projected = projection(deltaNormal[i],
+                        projected = projectionVector(deltaNormal[i],
                                                polygons->normals[pidx]);
                         dn[i] = projectToPlane(projected, basis);
             
-                        projected = projection(deltaCoord[i],
+                        projected = projectionVector(deltaCoord[i],
                                                polygons->normals[pidx]);
                         dc[i] = projectToPlane(projected, basis);
                 }
@@ -237,7 +237,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
         
         /* for sulcal depth like estimator */
         if (curvtype == 5) {
-                polygonsIn = get_polygons_ptr(create_object(POLYGONS));
+                polygonsIn = (polygons_struct *) malloc(sizeof(polygons_struct));
                 copy_polygons(polygons, polygonsIn);
                 
                 /* use smoothing with FWHM of 25mm */
@@ -250,6 +250,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                          (Point_y(polygons->points[p]) - Point_y(polygonsIn->points[p]))*Point_y(polygons->normals[p]) +
                                          (Point_z(polygons->points[p]) - Point_z(polygonsIn->points[p]))*Point_z(polygons->normals[p]));
                 }
+                free(polygonsIn);
         } else {
 
                 initialize_progress_report(&progress, FALSE, polygons->n_items,

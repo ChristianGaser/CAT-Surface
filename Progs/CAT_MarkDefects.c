@@ -19,11 +19,17 @@
 
 BOOLEAN dump_patch = FALSE; /* dump patches of defects */
 
+int get_size = 0;
+int output_binary = 0;
+
 /* the argument table */
 ArgvInfo argTable[] = {
-  { "-patch", ARGV_CONSTANT, (char *) TRUE,
-    (char *) &dump_patch,
+  { "-patch", ARGV_CONSTANT, (char *) TRUE, (char *) &dump_patch,
     "Dump defect patches." },
+  {"-size", ARGV_CONSTANT, (char *) TRUE, (char *) &get_size,
+     "Use size of the defect in relation to surface size instead of differentiating between different defects."},
+  {"-binary", ARGV_CONSTANT, (char *) TRUE, (char *) &output_binary,
+     "Only mark defects instead of differentiating between different defects (0 - no defect, 1 - defect)."},
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -46,6 +52,7 @@ main(int argc, char *argv[])
         char                 *surface_file, *sphere_file, *out_file;
         File_formats         format;
         int                  p, n_objects, n_defects, *defects, *polydefects;
+        double               *defect_size;
         polygons_struct      *surface, *sphere, *patch;
         object_struct        **objects, **sphere_objects, **patch_objects;
         char                 str[80];
@@ -99,8 +106,19 @@ main(int argc, char *argv[])
                                              n_neighbours, neighbours);
 
         printf("%d errors found\n", n_defects);
+        
+        if (output_binary) 
+                for (p = 1; p <= n_defects; p++) 
+                        if(defects[p]>0)
+                                defects[p] = 1;
 
-        output_values_any_format(out_file, sphere->n_points,
+        if(get_size) {
+                defect_size = (double *) malloc(sizeof(double) * surface->n_points);
+                get_defect_size(surface, defects, n_defects, defect_size);
+                output_values_any_format(out_file, sphere->n_points,
+                                 defect_size, TYPE_DOUBLE);
+        } else                          
+                output_values_any_format(out_file, sphere->n_points,
                                  defects, TYPE_INTEGER);
 
         if (dump_patch == TRUE) {
@@ -119,6 +137,7 @@ main(int argc, char *argv[])
 
         /* clean up */
         free(defects);
+        if(get_size) free(defect_size);
 
         delete_polygon_point_neighbours(sphere, n_neighbours,
                                         neighbours, NULL, NULL);

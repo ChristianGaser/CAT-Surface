@@ -33,6 +33,7 @@ void update_defects(polygons_struct *, int *, int *);
 void update_polydefects(polygons_struct *, int *, int *);
 Point get_defect_center(polygons_struct *, int *, int);
 
+void get_defect_size(polygons_struct *, int *, int, double *);
 double get_holes_handles(polygons_struct *, polygons_struct *, int *, int,
                 int *, Volume, int *, int **);
 

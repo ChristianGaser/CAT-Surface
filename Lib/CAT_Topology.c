@@ -260,7 +260,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         double *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double *lrcx, *licx, *lrcy, *licy, *lrcz, *licz;
         double *rdatax, *rdatay, *rdataz;
-        int bw2, i, n_done;
+        int bw2, i, d, n_done;
         int *defects, *polydefects, *holes, n_defects, n_objects, p;
         int *n_neighbours, **neighbours;
         double t1_threshold;
@@ -281,6 +281,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
+        defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
         if (t1_file != NULL) {
                 t1_threshold = get_holes_handles(surface, sphere, defects,
                                                  n_defects, holes, volume,
@@ -293,11 +294,15 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                                                  TYPE_INTEGER);
                 }
         } else {
-                for (p = 0; p < sphere->n_points; p++)
-                        holes[p] = 2; /* always cut */
                 t1_threshold = -1;
+                for (d = 1; d <= n_defects; d++) {
+                        for (p = 0; p < surface->n_points; p++) {
+                                if (defects[p] == d) 
+                                        holes[p] = HOLE;
+                        }
+                }
         }
-
+        
         delete_polygon_point_neighbours(sphere, n_neighbours,
                                         neighbours, NULL, NULL);
 

@@ -13,95 +13,12 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Complexity.h"
 
-object_struct **
-resample_tetrahedron(polygons_struct *surface, polygons_struct *sphere,
-                     int n_triangles, double *invals, double *outvals)
-{
-        int i, j, t, poly, n_points;
-        Point point, scaled_point, centre;
-        Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
-        object_struct **objects, *scaled_objects;
-        polygons_struct *platonic_solid, *scaled_sphere;
-        double radius, r;
-        double weights[MAX_POINTS_PER_POLYGON];
-
-        /* Check tetrahedral topology. Best areal distribution of triangles
-         * is achieved for 20 edges
-         */ /*
-        t = n_triangles;
-        while (t != 20 && t > 8 && t % 4 == 0)
-                t /= 4;
-
-        if (t != 20) {
-                fprintf(stderr, "Warning: Number of triangles %d", n_triangles);
-                fprintf(stderr," is not recommended because\ntetrahedral ");
-                fprintf(stderr,"topology is not optimal.\n");
-                fprintf(stderr,"Please try 20*(4*x) triangles (e.g. 81920).\n");
-        } */
-
-        scaled_objects = create_object(POLYGONS);
-        scaled_sphere = get_polygons_ptr(scaled_objects);
-        copy_polygons(sphere, scaled_sphere);
-
-        translate_to_center_of_mass(scaled_sphere);
-        for (i = 0; i < scaled_sphere->n_points; i++)
-                set_vector_length(&scaled_sphere->points[i], 100.0);
-
-        objects = (object_struct **) malloc(sizeof(object_struct *));
-        *objects = create_object(POLYGONS);
-        platonic_solid = get_polygons_ptr(*objects);
-        fill_Point(centre, 0.0, 0.0, 0.0);
-        create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0, n_triangles,
-                                  platonic_solid);
-
-        create_polygons_bintree(sphere, ROUND((Real) sphere->n_items * 0.5));
-
-        new_points = (Point *) malloc(sizeof(Point) * platonic_solid->n_points);
-        if (invals != NULL) {
-                outvals = (double *) malloc(sizeof(double) *
-                                            platonic_solid->n_points);
-        }
-
-        for (i = 0; i < platonic_solid->n_points; i++) {
-                poly = find_closest_polygon_point(&platonic_solid->points[i],
-                                                  sphere, &point);
-		
-                n_points = get_polygon_points(sphere, poly, poly_points);
-                get_polygon_interpolation_weights(&point, n_points, poly_points,
-                                                  weights);
-
-                if (get_polygon_points(surface, poly, poly_points) != n_points)
-                        handle_internal_error("map_point_between_polygons");
-
-                fill_Point(new_points[i], 0.0, 0.0, 0.0);
-                if (invals != NULL)
-                        outvals[i] = 0.0;
-
-                for (j = 0; j < n_points; j++) {
-                        SCALE_POINT(scaled_point, poly_points[j], weights[j]);
-                        ADD_POINTS(new_points[i], new_points[i], scaled_point);
-                        if (invals != NULL) {
-                                outvals[i] += weights[j] *
-                                               invals[surface->indices[
-                                     POINT_INDEX(surface->end_indices,poly,j)]];
-                        }
-                }
-        }
-
-        free(platonic_solid->points);
-        platonic_solid->points = new_points;
-
-        compute_polygon_normals(platonic_solid);
-
-        return(objects);
-}
-
 void
 resample_noscale(polygons_struct *source, polygons_struct *target,
                double *invals, double *outvals)
 {
         int i, j, t, poly, n_points;
-        Point point, centre;
+        Point point, center;
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         double radius, r;
         double weights[MAX_POINTS_PER_POLYGON];
@@ -163,47 +80,67 @@ resample_values(polygons_struct *source, polygons_struct *target,
 /* resample back into the original object space... polygons has tetrahedral
  * topology as its sphere. */
 object_struct **
-resample_surface_sphere(polygons_struct *polygons, polygons_struct *sphere)
+resample_surface_sphere(polygons_struct *polygons, polygons_struct *polygons_sphere, polygons_struct *target_sphere)
 {
         int i, j, t, poly, n_points;
-        Point point, scaled_point, centre;
+        int              *n_neighbours, **neighbours;
+        Point point, scaled_point, center;
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct **objects, **scaled_objects;
-        polygons_struct *polygons_sphere, *scaled_sphere;
+        polygons_struct *scaled_target_sphere, *scaled_polygons_sphere;
         double weights[MAX_POINTS_PER_POLYGON];
+        double           bounds_dest[6], bounds_src[6];
 
         objects = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
-        polygons_sphere = get_polygons_ptr(*objects);
-        fill_Point(centre, 0.0, 0.0, 0.0);
-        create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0,
-                                  polygons->n_items, polygons_sphere);
-
+        scaled_polygons_sphere = get_polygons_ptr(*objects);
+        
+        if (polygons_sphere == NULL) {
+                fill_Point(center, 0.0, 0.0, 0.0);
+                create_tetrahedral_sphere(&center, 100.0, 100.0, 100.0,
+                                  polygons->n_items, scaled_polygons_sphere);
+        } else {
+                copy_polygons(polygons_sphere, scaled_polygons_sphere);
+                for (i = 0; i < scaled_polygons_sphere->n_points; i++)
+                        set_vector_length(&scaled_polygons_sphere->points[i], 100.0);
+        }
+        
         /* scale the re-parameterizing sphere... also the return object. */
         scaled_objects = (object_struct **) malloc(sizeof(object_struct *));
         *scaled_objects = create_object(POLYGONS);
-        scaled_sphere = get_polygons_ptr(*scaled_objects);
-        copy_polygons(sphere, scaled_sphere);
+        scaled_target_sphere = get_polygons_ptr(*scaled_objects);
+        copy_polygons(target_sphere, scaled_target_sphere);
 
-        translate_to_center_of_mass(scaled_sphere);
-        for (i = 0; i < scaled_sphere->n_points; i++)
-                set_vector_length(&scaled_sphere->points[i], 100.0);
+        for (i = 0; i < scaled_target_sphere->n_points; i++)
+                set_vector_length(&scaled_target_sphere->points[i], 100.0);
 
-        create_polygons_bintree(scaled_sphere,
-                                ROUND((Real) scaled_sphere->n_items * 0.5));
+        /* Calc. sphere center based on bounds of input (correct for shifts) */    
+        get_bounds(scaled_target_sphere, bounds_dest);
+        get_bounds(scaled_polygons_sphere, bounds_src);
+        fill_Point(center, bounds_src[0]-bounds_dest[0],
+                           bounds_src[2]-bounds_dest[2], bounds_src[4]-bounds_dest[4]);
 
-        new_points = (Point *) malloc(sizeof(Point) * scaled_sphere->n_points);
+        for (i = 0; i < scaled_polygons_sphere->n_points; i++) {
+                for (j = 0; j < 3; j++)
+                        Point_coord(scaled_polygons_sphere->points[i], j) -= Point_coord(center, j);
+        }
 
-        for (i = 0; i < scaled_sphere->n_points; i++) {
-                poly = find_closest_polygon_point(&scaled_sphere->points[i],
-                                                  polygons_sphere, &point);
+        create_polygons_bintree(scaled_polygons_sphere,
+                                ROUND((Real) scaled_polygons_sphere->n_items * 0.5));
+
+        new_points = (Point *) malloc(sizeof(Point) * scaled_target_sphere->n_points);
+
+        for (i = 0; i < scaled_target_sphere->n_points; i++) {
+                poly = find_closest_polygon_point(&scaled_target_sphere->points[i],
+                                                  scaled_polygons_sphere, &point);
 		
-                n_points = get_polygon_points(polygons_sphere, poly,
+                n_points = get_polygon_points(scaled_polygons_sphere, poly,
                                               poly_points);
                 get_polygon_interpolation_weights(&point, n_points, poly_points,
                                                   weights);
 
-                get_polygon_points(polygons, poly, poly_points);
+                if (get_polygon_points(polygons, poly, poly_points) != n_points)
+                        handle_internal_error("map_point_between_polygons");
 
                 fill_Point(new_points[i], 0.0, 0.0, 0.0);
 
@@ -213,11 +150,17 @@ resample_surface_sphere(polygons_struct *polygons, polygons_struct *sphere)
                 }
         }
 
-        free(scaled_sphere->points);
-        scaled_sphere->points = new_points;
+        free(scaled_target_sphere->points);
 
-        compute_polygon_normals(scaled_sphere);
+        create_polygon_point_neighbours(scaled_target_sphere, TRUE, &n_neighbours,
+                                        &neighbours, NULL, NULL);
 
+        for (i = 0; i < scaled_target_sphere->n_points; i++) 
+                scaled_target_sphere->points[i] = new_points[i];
+
+        compute_polygon_normals(scaled_target_sphere);
+
+        delete_the_bintree(&scaled_polygons_sphere->bintree);
         delete_object_list(1, objects);
 
         return(scaled_objects);
@@ -229,7 +172,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
                  int n_triangles, double *invals, double *outvals)
 {
         int i, j, t, poly, n_points;
-        Point point, scaled_point, centre;
+        Point point, scaled_point, center;
         Point *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct **objects, *scaled_objects;
         polygons_struct *platonic_solid, *scaled_sphere;
@@ -261,8 +204,8 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
         objects = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
         platonic_solid = get_polygons_ptr(*objects);
-        fill_Point(centre, 0.0, 0.0, 0.0);
-        create_tetrahedral_sphere(&centre, 100.0, 100.0, 100.0, n_triangles,
+        fill_Point(center, 0.0, 0.0, 0.0);
+        create_tetrahedral_sphere(&center, 100.0, 100.0, 100.0, n_triangles,
                                   platonic_solid);
 
         create_polygons_bintree(sphere, ROUND((Real) sphere->n_items * 0.5));

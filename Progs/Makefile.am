@@ -2,15 +2,18 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcd
 LDADD = ../libCAT.la -lm
 
 dist_bin_SCRIPTS = \
-	CAT_GLM_tmp \
 	CAT_DumpGI_ui \
 	CAT_DeformSurf_ui \
-	CAT_Obj2Neurolens \
 	CAT_ResampleFS_ui \
 	CAT_FractalDimensionFS_ui \
+	CAT_Resample_ui \
+	CAT_FractalDimension_ui \
 	CAT_DumpCurvL4FS_ui \
-	CAT_ReconSurf \
 	CAT_DumpCurv_ui
+	
+##	CAT_ReconSurf \
+##	CAT_GLM_tmp \
+##	CAT_Obj2Neurolens \
 
 bin_PROGRAMS = \
 	CAT_DeformSurf \
@@ -39,14 +42,11 @@ bin_PROGRAMS = \
 	CAT_AngularDistortion \
 	CAT_MetricDistortion \
 	CAT_AverageSurfaces \
-	CAT_GlmMath \
 	CAT_FixTopology \
 	CAT_Isometize \
 	CAT_LBConformalMap \
 	CAT_WarpSurf \
-	CAT_WarpSurfPoly \
 	CAT_WarpSurfDemon \
-	CAT_WarpSurfSPH \
 	CAT_ResampleSphericalSurfSPH \
 	CAT_ArealSmoothing \
 	CAT_GaussCurvSmoothing \
@@ -69,4 +69,8 @@ bin_PROGRAMS = \
 	CAT_MarchingCubesTopological \
 	CAT_AddValuesToSurf \
 	CAT_MarchingCubes
+	
+##	CAT_WarpSurfSPH \
+##	CAT_WarpSurfPoly \
+##	CAT_GlmMath \
 	

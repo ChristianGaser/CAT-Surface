@@ -11,6 +11,7 @@
 #include <bicpl.h>
 #include <float.h>
 #include <ParseArgv.h>
+#include <math.h>
 
 #include "CAT_Map.h"
 #include "CAT_Surf.h"

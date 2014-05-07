@@ -141,8 +141,9 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
            
         /* calculate n_iter with regard to fwhm */    
         sigma = 1.0;
-        n_iter = ceil(fwhm*fwhm*3/(8*log(2)));
-
+        /* 0.541011 equals to 3.0/(8.0*log(2.0)) */
+        n_iter = ceil(fwhm*fwhm*0.541011);
+        
         initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
                                    "Blurring");
         if (values != NULL) 

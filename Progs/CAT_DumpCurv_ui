@@ -98,7 +98,8 @@ get_outputname ()
   # and use different output name
   bn1=`echo $bn | cut -f1 -d'.'`
   if [ "$bn1" == "lh" ] || [ "$bn1" == "rh" ]; then
-    outputname=${dn}/${bn1}.${str}
+    bn=`basename $1|sed -e s,.obj,,g -e s,${removestr},,g -e s,lh.,,g -e s,rh.,,g`
+    outputname=${dn}/${bn1}.${str}.${bn}
   else if [ "$gifti" == 1 ]; then
     outputname=${dn}/${str}_${bn}.gii
   else

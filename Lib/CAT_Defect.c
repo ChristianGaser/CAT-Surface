@@ -268,6 +268,37 @@ get_defect_center(polygons_struct *surface, int *defects, int defect)
         return center;
 }
 
+/* returns size of detect in relation to overall surface size */
+void
+get_defect_size(polygons_struct *surface, int *defects, int n_defects, 
+                  double *defect_size)
+{
+        int i, p, d;
+        double *size;
+
+        size = (double *) malloc(sizeof(double) * n_defects);
+
+        memset(defect_size, 0, sizeof(double) * surface->n_points);
+
+        /* get size of defect */
+        for (d = 1; d <= n_defects; d++) {
+                size[d] = 0.0;
+                for (p = 0; p < surface->n_points; p++)
+                        if (defects[p] == d)
+                                size[d]++;
+        }
+
+        for (d = 1; d <= n_defects; d++)
+                size[d] /= (double)surface->n_points;
+
+        for (d = 1; d <= n_defects; d++)
+                for (p = 0; p < surface->n_points; p++)
+                        if (defects[p] == d) 
+                                    defect_size[p] = size[d];
+
+        free(size);
+}
+
 /* holes = 1, handles = 2, large errors = 3, ventricles = 4 */
 /* Uses the T1 data to determine whether the defect is a hole or handle.
  * Holes should be filled, handles and large errors with multiple defects

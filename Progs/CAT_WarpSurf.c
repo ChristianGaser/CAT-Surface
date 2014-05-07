@@ -15,6 +15,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Smooth.h"
 #include "CAT_Resample.h"
 #include "dartel/dartel.h"
 
@@ -42,14 +43,15 @@ int curvtype    = 2;
 int muchange    = 4;
 int sz_map[2]   = {512, 256};
 int n_triangles = 81920;
-int n_steps     = 3;
+int n_steps     = 2;
 int n_runs      = 2;
 int debug       = 0;
 double murate   = 1.25;
 double lambda   = 0;
 double mu       = 0.125;
 double lmreg    = 1e-3;
-double fwhm     = 8.0;
+double fwhm     = 5.0;
+double fwhm_surf     = 10.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
@@ -84,6 +86,8 @@ static ArgvInfo argTable[] = {
      "LM regularization."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
      "Filter size for curvature map in FWHM."},
+  {"-fwhm-surf", ARGV_FLOAT, (char *) 1, (char *) &fwhm_surf,
+     "Filter size for smoothing surface in FWHM."},
   {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
      "Number of outer Dartel loops for default parameters (max. 6)."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
@@ -310,6 +314,7 @@ rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
         }
 }
 
+
 /* This function uses the approach of the matlab function
  * SD_rotateAtlas2Sphere.m from the Spherical Demon software of Thomas Yeo
  * and Mert Sabuncu */
@@ -428,34 +433,22 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
         sm_trg        = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_trg_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
 
+        
         for (step = 0; step < n_steps; step++) {
                 /* resample source and target surface */
                 resample_spherical_surface(src, src_sphere, sm_src, NULL, NULL,
                                            n_triangles);
-                resample_spherical_surface(trg, trg_sphere,
-                                           sm_trg, NULL, NULL,
+                resample_spherical_surface(trg, trg_sphere, sm_trg, NULL, NULL,
                                            n_triangles);
 
                 /* initialization */
                 if (step == 0) {
-                        /* inflate surfaces */
-                        inflate_surface_and_smooth_fingers(sm_src,
-                                                           1, 0.2, 50, 1.0,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_trg,
-                                                           1, 0.2, 50, 1.0,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_src,
-                                                           2, 1.0, 30, 1.4,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_trg,
-                                                           2, 1.0, 30, 1.4,
-                                                           3.0, 1.0, 0);
-                        
-                        resample_spherical_surface(src_sphere, src_sphere,
+                       smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                       smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       resample_spherical_surface(src_sphere, src_sphere,
                                                    sm_src_sphere, NULL, NULL,
                                                    n_triangles);
-                        resample_spherical_surface(trg_sphere, trg_sphere,
+                       resample_spherical_surface(trg_sphere, trg_sphere,
                                                    sm_trg_sphere, NULL, NULL,
                                                    n_triangles);
 
@@ -483,32 +476,16 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                         for (i = 0; i < xy_size*2; i++)  inflow[i] = 0.0;
 
                 } else if (step == 1) {
-                        /* smooth surfaces */
-                        inflate_surface_and_smooth_fingers(sm_src,
-                                                           1, 0.2, 30, 1.0,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_trg,
-                                                           1, 0.2, 30, 1.0,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_src,
-                                                           2, 1.0, 10, 1.4,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_trg,
-                                                           2, 1.0, 10, 1.4,
-                                                           3.0, 1.0, 0);
+                       smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                       smooth_heatkernel(sm_trg, NULL, fwhm_surf);
                         /* always use sulcal depth first */
                         curvtype0 = 5;
                 } else if (step == 2) {
                         /* use default at final step */
                         curvtype0 = curvtype;
                         
-                        /* smooth surfaces */
-                        inflate_surface_and_smooth_fingers(sm_src,
-                                                           1, 0.2, 20, 1.0,
-                                                           3.0, 1.0, 0);
-                        inflate_surface_and_smooth_fingers(sm_trg,
-                                                           1, 0.2, 20, 1.0,
-                                                           3.0, 1.0, 0);
+                       smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                       smooth_heatkernel(sm_trg, NULL, fwhm_surf);
                 }
 
                 /* get curvatures */
@@ -517,7 +494,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 map_smoothed_curvature_to_sphere(sm_src, sm_src_sphere,
                                                  (double *)0, map_src, fwhm,
                                                  dm, curvtype0);
-
+                
                 /* go through dartel steps */
                 for (it = 0, it0 = 0; it0 < n_loops; it0++) {
                         it_scratch = dartel_scratchsize((int *)dm,
@@ -535,6 +512,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                                               map_src, NULL, flow, ll, scratch);
                                 }
                                 fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
+
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];
                         }
@@ -542,7 +520,8 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 }
 
                 /* use smaller FWHM for next steps */
-                fwhm /= 2.0;
+                fwhm /= 3.0;
+                fwhm_surf /= 3.0;
         }
         fprintf(stderr,"\n");
 
@@ -816,7 +795,7 @@ main(int argc, char *argv[])
                           rot, flow, loop);
 
                 /* solve again, but rotated to change pole location */
-                if (avg) {
+                if (avg && (run==(n_runs-1))) {
                         rotation_to_matrix(rotation_matrix, 0.0, PI/2.0, 0.0);
                         rotate_polygons(src, rsrc, rotation_matrix);
                         rotate_polygons(src_sphere, rs_sph, rotation_matrix);
