@@ -281,7 +281,6 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
-        defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
         if (t1_file != NULL) {
                 t1_threshold = get_holes_handles(surface, sphere, defects,
                                                  n_defects, holes, volume,
