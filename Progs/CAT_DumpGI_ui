@@ -90,9 +90,9 @@ get_outputname ()
 
   outputname=${dn}/${str}_${bn}
   if [ "$gifti" == 1 ]; then
-    outputname=${name}.gii
+    outputname=${outputname}.gii
   else
-    outputname=${name}.txt
+    outputname=${outputname}.txt
   fi
 }
 

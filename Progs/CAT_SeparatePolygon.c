@@ -52,17 +52,17 @@ main(int argc, char *argv[])
         }
 
         polygons = get_polygons_ptr(object_list[0]);
-        object2  = create_object( POLYGONS );
-
         check_polygons_neighbours_computed(polygons);
+
+        object2  = create_object( POLYGONS );
 
         n_out = separate_polygons( polygons, desired_index, &object );
 
-        if( n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
+        if( n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
 	
         triangulate_polygons( get_polygons_ptr(object[0]), get_polygons_ptr(object2) );
     
-        (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object2, NULL);
+        (void) output_graphics_any_format( output_filename, format, 1, &object2, NULL);
 
         return(EXIT_SUCCESS);
 }

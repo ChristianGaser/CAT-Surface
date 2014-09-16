@@ -5,15 +5,32 @@
  * Copyright Christian Gaser, University of Jena.
  * $Id$
  *
+ * Most of the basic input functions are from fio.c and machine.c from freesurfer
+ *
  */
 
 #include "CAT_SurfaceIO.h"
 
-#define TRIANGLE_FILE_MAGIC_NUMBER  16777214
-#define QUAD_FILE_MAGIC_NUMBER      16777215
-#define NEW_VERSION_MAGIC_NUMBER    16777215
+typedef int long32;
 
-void find_conformal_map(polygons_struct *polygons);
+typedef union
+{
+        short  s ;
+        char   buf[sizeof(short)] ;
+} SWAP_SHORT ;
+
+// Note that 32 bit architecture long is 32 bit
+//           64 bit architecture long is 64 bit!!!!!
+// the following works only for 32 bit architecture
+// double is always 64 bit and float is always 32 bit
+typedef union
+{
+        long32  l ;
+        float f ;
+        int   i ;
+        char  buf[4] ;
+        short s[2] ;
+} SWAP_LONG32 ;
 
 Status
 bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
@@ -45,158 +62,209 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
   
 }
 
-void
-swapFloat(float *n)
+/* ------------------------- */
+int byteswapbufdouble(void *buf, long int nbufbytes)
 {
-        char *by = (char *) n;
-        char sw[4] = {by[3], by[2], by[1], by[0]};
-  
-        *n =* (float *) sw;
+       register char *cbuf,c;
+       register long int n, nmax;
+
+       nmax = nbufbytes;
+       cbuf = (char *)buf;
+       for (n=0;n<nmax;n+=8) {
+              c = *cbuf;
+              *cbuf = *(cbuf+7);
+              *(cbuf+7) = c;
+
+              c = *(cbuf+1);
+              *(cbuf+1) = *(cbuf+6);
+              *(cbuf+6) = c;
+
+              c = *(cbuf+2);
+              *(cbuf+2) = *(cbuf+5);
+              *(cbuf+5) = c;
+
+              c = *(cbuf+3);
+              *(cbuf+3) = *(cbuf+4);
+              *(cbuf+4) = c;
+
+              cbuf += 8;
+       }
+       return(0);
 }
 
-void
-swapDouble(double *n)
+/* ------------------------- */
+int byteswapbuffloat(void *buf, long int nbufbytes)
 {
-        char *by = (char *) n;
-        char sw[4] = {by[3], by[2], by[1], by[0]};
-  
-        *n =* (double *) sw;
+       register char *cbuf,c;
+       register long int n, nmax;
+
+       nmax = nbufbytes;
+       cbuf = (char *)buf;
+       for (n=0;n<nmax;n+=4) {
+              c = *cbuf;
+              *cbuf = *(cbuf+3);
+              *(cbuf+3) = c;
+
+              c = *(cbuf+1);
+              *(cbuf+1) = *(cbuf+2);
+              *(cbuf+2) = c;
+
+              cbuf += 4;
+       }
+       return(0);
 }
 
-void
-swapInt(int *n)
+/* ------------------------- */
+int byteswapbufshort(void *buf, long int nbufbytes)
 {
-        char *by = (char *) n;
-        char sw[4] = {by[3], by[2], by[1], by[0]};
-  
-        *n =* (int *) sw;
+       register char *cbuf,c;
+       register long int n, nmax;
+
+       nmax = nbufbytes;
+       cbuf = (char *)buf;
+       for (n=0;n<nmax;n+=2) {
+              c = *cbuf;
+              *cbuf = *(cbuf+1);
+              *(cbuf+1) = c;
+              cbuf += 2;
+       }
+       return(0);
 }
 
-void
-swapShort(short *n)
+/*---------------------------------------------------------
+  Name: bf_getarchendian()
+  Determines the endianness of the current computer
+  architecture designated by either a 0 or 1, compatible with
+  the designation in the .hdr file 0 = non-PC, 1 = PC.
+  --------------------------------------------------------*/
+int bf_getarchendian(void)
 {
-        char *by = (char *) n;
-        char sw[2] = {by[1], by[0]};
-  
-        *n =* (short *) sw;
+       int endian;
+       short tmp = 1;
+       char *ctmp;
+
+       ctmp = (char *)(&tmp);
+       if (*(ctmp+1) == 1) endian = 0;
+       else                endian = 1;
+       return(endian);
+}
+
+short
+swapShort(short s)
+{
+        SWAP_SHORT ss ;
+        char       c ;
+
+        /* first swap bytes in word */
+        ss.s = s ;
+        c = ss.buf[0] ;
+        ss.buf[0] = ss.buf[1] ;
+        ss.buf[1] = c ;
+
+        return(ss.s) ;
+}
+
+int
+swapInt(int i)
+{
+        SWAP_LONG32  sl ;
+        short      s ;
+
+        /* first swap bytes in each word */
+        sl.i = i ;
+        sl.s[0] = swapShort(sl.s[0]) ;
+        sl.s[1] = swapShort(sl.s[1]) ;
+
+        /* now swap words */
+        s = sl.s[0] ;
+        sl.s[0] = sl.s[1] ;
+        sl.s[1] = s ;
+
+        return(sl.i) ;
 }
 
 int
 fwriteFloat(float f, FILE *fp)
 {
-
+       int ret;
+       char  buf[4];
+       memmove(buf,&f,4);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-       swapFloat(&f);  
+       byteswapbuffloat(buf,1);
 #endif
-       return(fwrite(&f, sizeof(float), 1, fp));
-}
-
-int
-fwriteDouble(double f, FILE *fp)
-{
-
-#if (BYTE_ORDER == LITTLE_ENDIAN)
-       swapDouble(&f);  
-#endif
-       return(fwrite(&f, sizeof(double), 1, fp));
+       ret = fwrite(buf,sizeof(float),1,fp);
+       return(ret);
 }
 
 int
 fwriteInt(int v, FILE *fp)
 {
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapInt(&v);
+        v = swapInt(v) ;
 #endif
-        return(fwrite(&v, sizeof(int), 1, fp));
+        return(fwrite(&v,sizeof(int),1,fp));
 }
 
 int
-fwrite2(int v, FILE *fp)
+fwriteInt2(int v, FILE *fp)
 {
-        short s ;
-
-        if (v > 0x7fff)    /* don't let it overflow */
-                v = 0x7fff ;
-        else if (v < -0x7fff)
-                v = -0x7fff ;
-        s = (short)v;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapShort(&s) ;
+//        v = swapInt(v) ;
 #endif
-        return(fwrite(&s, 2, 1, fp));
+        return(fwrite(&v,sizeof(int),1,fp));
 }
 
 int
 fwrite3(int v, FILE *fp)
 {
-        int i = (v << 8);
+        unsigned int i = (unsigned int)(v<<8);
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapInt(&i) ;
+        i = (unsigned int)swapInt(i) ;
 #endif
         return(fwrite(&i, 3, 1, fp));
 }
 
 int
-fwrite4(float v, FILE *fp)
-{
-#if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapFloat(&v);
-#endif
-        return(fwrite(&v, 4, 1, fp));
-}
-
-int
 freadInt(FILE *fp)
 {
-        int temp;
-        int count;
-  
-        count = fread(&temp, 4, 1, fp);
-#if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapInt(&temp);
-#endif
-        return(temp);
-}
+        int  i, nread ;
 
-double
-freadDouble(FILE *fp)
-{
-        double temp;
-        int count;
-  
-        count = fread(&temp, 4, 1, fp);
+        nread = fread(&i,sizeof(int),1,fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapDouble(&temp);
+        i = swapInt(i) ;
 #endif
-        return(temp);  
+        return(i) ;
 }
 
 float
 freadFloat(FILE *fp)
 {
-        float temp;
-        int count;
-  
-        count = fread(&temp, 4, 1, fp);
+        char  buf[4];
+        float f;
+        int   ret ;
+
+        ret = fread(buf,4,1,fp);
+        if (ret != 1) fprintf(stderr, "freadFloat: fread failed") ;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapFloat(&temp);
+        byteswapbuffloat(buf,1);
 #endif
-        return(temp);  
+        memcpy(&f,&buf,sizeof(float));
+        return(f) ;
 }
 
 int
 fread3(int *v, FILE *fp)
 {
-        int i = 0;
+        unsigned int i = 0;
         int  ret ;
 
-        ret = fread(&i, 3, 1, fp);
+        ret = fread(&i,3,1,fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapInt(&i) ;
+        i = (unsigned int)swapInt(i) ;
 #endif
-        *v = ((i >> 8) & 0xffffff);
-        return(ret);
+        *v = ((i>>8) & 0xffffff);
+        return(ret) ;
 }
 
 static giiDataArray* 
@@ -905,8 +973,119 @@ int
 input_gifti(char *file, File_formats *format, int *n_objects,
                  object_struct ***object_list)
 {
-        fprintf(stderr, "input_gifti: Not yet implemented.\n");
+/*        fprintf(stderr, "input_gifti: Not yet implemented.\n");
         return(-1);
+*/
+
+        int               i, j, k, valid, numDA;
+        polygons_struct   *polygons;
+        Point             point;
+        object_struct     *object;
+  
+        gifti_image* image = gifti_read_image (file, 1);
+        if (NULL == image) {
+                fprintf (stderr,"input_gifti: cannot read image\n");
+                return(-1);
+        }
+
+        valid = gifti_valid_gifti_image (image, 1);
+        if (valid == 0) {
+                fprintf (stderr,"input_gifti: GIFTI file %s is invalid!\n", file);
+                gifti_free_image (image);
+                return(-1);
+        }
+
+        /* prepare object and polygons */
+        *n_objects = 0;
+        object = create_object(POLYGONS);
+        add_object_to_list(n_objects, object_list, object);
+        polygons = get_polygons_ptr(object);
+        initialize_polygons(polygons, WHITE, NULL);
+        *format = ASCII_FORMAT;
+
+        giiDataArray* coords = NULL;
+        giiDataArray* faces  = NULL;
+
+        for (numDA = 0; numDA < image->numDA; numDA++) {
+                if (image->darray[numDA]->intent == NIFTI_INTENT_POINTSET) {
+                        coords = image->darray[numDA];
+                }
+                else if (image->darray[numDA]->intent == NIFTI_INTENT_TRIANGLE) {
+                        faces = image->darray[numDA];
+                }
+        }
+
+        if (coords && faces) {
+        
+                /* Check the number of vertices and faces. */
+                long long num_vertices = 0;
+                long long num_cols = 0;
+                if (coords->ind_ord == GIFTI_IND_ORD_ROW_MAJOR) // RowMajorOrder
+                        gifti_DA_rows_cols (coords, &num_vertices, &num_cols);
+                else // ColumnMajorOrder
+                        gifti_DA_rows_cols (coords, &num_cols, &num_vertices);
+
+                if (num_vertices <= 0 || num_cols != 3) {
+                        fprintf (stderr,"input_gifti: malformed coords data array in file "
+                                "%s: num_vertices=%d num_cols=%d\n",
+                                file, (int)num_vertices, (int)num_cols);
+                        gifti_free_image (image);
+                        return(-1);
+                }
+
+                long long num_faces = 0;
+                num_cols = 0;
+                if (faces->ind_ord == GIFTI_IND_ORD_ROW_MAJOR) // RowMajorOrder
+                        gifti_DA_rows_cols (faces, &num_faces, &num_cols);
+                else // ColumnMajorOrder
+                        gifti_DA_rows_cols (faces, &num_cols, &num_faces);
+
+                if (num_faces <= 0 || num_cols != 3) {
+                        fprintf (stderr,"mrisReadGIFTIfile: malformed faces data array in file "
+                                "%s: num_faces=%d num_cols=%d\n",
+                                file, (int)num_faces, (int)num_cols);
+                        gifti_free_image (image);
+                        return(-1);
+                }
+                
+                polygons->n_points = num_vertices;
+                polygons->n_items = num_faces;
+
+                ALLOC(polygons->points, polygons->n_points);
+                ALLOC(polygons->normals, polygons->n_points);
+                ALLOC(polygons->end_indices, polygons->n_items);
+                polygons->bintree = (bintree_struct_ptr) NULL;
+                for (i = 0; i < polygons->n_items; i++)
+                        polygons->end_indices[i] = (i + 1) * 3;
+                ALLOC(polygons->indices,
+                      polygons->end_indices[polygons->n_items-1]);
+
+                int vertex_index;
+                for (vertex_index = 0; vertex_index < polygons->n_points; vertex_index++) {
+                        Point_x(polygons->points[vertex_index]) = (float) gifti_get_DA_value_2D (coords, vertex_index, 0);
+                        Point_y(polygons->points[vertex_index]) = (float) gifti_get_DA_value_2D (coords, vertex_index, 1);
+                        Point_z(polygons->points[vertex_index]) = (float) gifti_get_DA_value_2D (coords, vertex_index, 2);
+                }
+
+                int face_index;
+                for (face_index = 0; face_index < polygons->n_items; face_index++)
+                        for (j = 0; j < 3; j++)
+                                polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)] = gifti_get_DA_value_2D (faces, face_index, j);
+
+                /* compute normals */
+                compute_polygon_normals(polygons);
+        }
+
+        for (numDA = 0; numDA < image->numDA; numDA++) {
+                giiDataArray* darray = image->darray[numDA];
+                
+                if (darray->intent == NIFTI_INTENT_SHAPE) 
+                        fprintf(stderr, "input_gifti: Reading of shape data not yet implemented.\n");
+        }
+
+
+        return(OK);
+
 }
 
 int
@@ -921,7 +1100,7 @@ output_freesurfer(char *file, File_formats format, int n_objects,
                   object_struct *object_list[])
 {
         FILE              *fp;
-        int               i;
+        int               i,n;
         unsigned char     buffer;
         polygons_struct   *polygons;
 
@@ -930,18 +1109,12 @@ output_freesurfer(char *file, File_formats format, int n_objects,
                         file);
                 return(-1);
         }
-
+        
         polygons = get_polygons_ptr(object_list[0]);
 
         /* write 3 byte magic number for triangle */
-        buffer = 255;
-        fwrite(&buffer, 1, 1, fp);
-        fwrite(&buffer, 1, 1, fp);
-        buffer = 254;
-        fwrite(&buffer, 1, 1, fp);
-
-        output_newline(fp); 
-        output_newline(fp); 
+        fwrite3(TRIANGLE_FILE_MAGIC_NUMBER,fp);
+        fprintf(fp, "created with CAT\n") ;
 
         /* # of vertices and faces */
         fwriteInt(polygons->n_points, fp);
@@ -955,8 +1128,9 @@ output_freesurfer(char *file, File_formats format, int n_objects,
         }
   
         /* write indices */
-        for (i = 0; i < 3*(polygons->n_items); i++)
-                fwriteInt(polygons->indices[i], fp);
+        for (i = 0 ; i < polygons->n_items ;i++) 
+                for (n = 0 ; n < 3 ; n++) 
+                        fwriteInt(polygons->indices[POINT_INDEX(polygons->end_indices, i, n)],fp);
 
         fclose(fp);
         return(OK);
@@ -1038,9 +1212,9 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
                         Point_z(point) = freadFloat(fp);
                         polygons->points[i] = point;
                 }
-                for (i = 0; i < 3*(polygons->n_items); i++) {
+                for (i = 0; i < 3*(polygons->n_items); i++) 
                         polygons->indices[i] = freadInt(fp);
-                }
+                
                 /* compute normals */
                 compute_polygon_normals(polygons);
         } else {

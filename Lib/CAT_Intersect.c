@@ -452,9 +452,9 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
                         }
                 }
                 update_defects(surface, polydefects, defects);
-                printf("iter %3d: %3d smoothed pts, %2d intersection(s) remaining\n",
+/*                printf("iter %3d: %3d smoothed pts, %2d intersection(s) remaining\n",
                        iter, npts, n_defects);
-
+*/
                 if (n_defects == 0)
                         break; /* all done! */
 

@@ -68,6 +68,8 @@ noinst_HEADERS = \
 	Include/CAT_Separate.h \
 	Include/CAT_Octree.h \
 	Include/CAT_NiftiIO.h \
+	Include/CAT_ConvexHull.h \
+	Include/CAT_Gyrification.h \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
     MarchingCubes/genus0.h \
@@ -120,6 +122,8 @@ libCAT_la_SOURCES = \
     Lib/CAT_Isometrics.c \
     Lib/CAT_Separate.c \
     Lib/CAT_NiftiIO.c \
+    Lib/CAT_ConvexHull.c \
+    Lib/CAT_Gyrification.c \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
 	$(nl_SRC) \
