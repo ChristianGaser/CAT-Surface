@@ -5,32 +5,12 @@
  * Copyright Christian Gaser, University of Jena.
  * $Id$
  *
- * Most of the basic input functions are from fio.c and machine.c from freesurfer
+ * Most of the basic input functions are from fio.c, machine.c
+ * and gifti_local.c from freesurfer
  *
  */
 
 #include "CAT_SurfaceIO.h"
-
-typedef int long32;
-
-typedef union
-{
-        short  s ;
-        char   buf[sizeof(short)] ;
-} SWAP_SHORT ;
-
-// Note that 32 bit architecture long is 32 bit
-//           64 bit architecture long is 64 bit!!!!!
-// the following works only for 32 bit architecture
-// double is always 64 bit and float is always 32 bit
-typedef union
-{
-        long32  l ;
-        float f ;
-        int   i ;
-        char  buf[4] ;
-        short s[2] ;
-} SWAP_LONG32 ;
 
 Status
 bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
@@ -62,165 +42,59 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
   
 }
 
-/* ------------------------- */
-int byteswapbufdouble(void *buf, long int nbufbytes)
+void
+swapFloat(float *n)
 {
-       register char *cbuf,c;
-       register long int n, nmax;
-
-       nmax = nbufbytes;
-       cbuf = (char *)buf;
-       for (n=0;n<nmax;n+=8) {
-              c = *cbuf;
-              *cbuf = *(cbuf+7);
-              *(cbuf+7) = c;
-
-              c = *(cbuf+1);
-              *(cbuf+1) = *(cbuf+6);
-              *(cbuf+6) = c;
-
-              c = *(cbuf+2);
-              *(cbuf+2) = *(cbuf+5);
-              *(cbuf+5) = c;
-
-              c = *(cbuf+3);
-              *(cbuf+3) = *(cbuf+4);
-              *(cbuf+4) = c;
-
-              cbuf += 8;
-       }
-       return(0);
+        char *by = (char *) n;
+        char sw[4] = {by[3], by[2], by[1], by[0]};
+  
+        *n =* (float *) sw;
 }
 
-/* ------------------------- */
-int byteswapbuffloat(void *buf, long int nbufbytes)
+void
+swapInt(int *n)
 {
-       register char *cbuf,c;
-       register long int n, nmax;
-
-       nmax = nbufbytes;
-       cbuf = (char *)buf;
-       for (n=0;n<nmax;n+=4) {
-              c = *cbuf;
-              *cbuf = *(cbuf+3);
-              *(cbuf+3) = c;
-
-              c = *(cbuf+1);
-              *(cbuf+1) = *(cbuf+2);
-              *(cbuf+2) = c;
-
-              cbuf += 4;
-       }
-       return(0);
+        char *by = (char *) n;
+        char sw[4] = {by[3], by[2], by[1], by[0]};
+  
+        *n =* (int *) sw;
 }
 
-/* ------------------------- */
-int byteswapbufshort(void *buf, long int nbufbytes)
+void
+swapShort(short *n)
 {
-       register char *cbuf,c;
-       register long int n, nmax;
-
-       nmax = nbufbytes;
-       cbuf = (char *)buf;
-       for (n=0;n<nmax;n+=2) {
-              c = *cbuf;
-              *cbuf = *(cbuf+1);
-              *(cbuf+1) = c;
-              cbuf += 2;
-       }
-       return(0);
-}
-
-/*---------------------------------------------------------
-  Name: bf_getarchendian()
-  Determines the endianness of the current computer
-  architecture designated by either a 0 or 1, compatible with
-  the designation in the .hdr file 0 = non-PC, 1 = PC.
-  --------------------------------------------------------*/
-int bf_getarchendian(void)
-{
-       int endian;
-       short tmp = 1;
-       char *ctmp;
-
-       ctmp = (char *)(&tmp);
-       if (*(ctmp+1) == 1) endian = 0;
-       else                endian = 1;
-       return(endian);
-}
-
-short
-swapShort(short s)
-{
-        SWAP_SHORT ss ;
-        char       c ;
-
-        /* first swap bytes in word */
-        ss.s = s ;
-        c = ss.buf[0] ;
-        ss.buf[0] = ss.buf[1] ;
-        ss.buf[1] = c ;
-
-        return(ss.s) ;
-}
-
-int
-swapInt(int i)
-{
-        SWAP_LONG32  sl ;
-        short      s ;
-
-        /* first swap bytes in each word */
-        sl.i = i ;
-        sl.s[0] = swapShort(sl.s[0]) ;
-        sl.s[1] = swapShort(sl.s[1]) ;
-
-        /* now swap words */
-        s = sl.s[0] ;
-        sl.s[0] = sl.s[1] ;
-        sl.s[1] = s ;
-
-        return(sl.i) ;
+        char *by = (char *) n;
+        char sw[2] = {by[1], by[0]};
+  
+        *n =* (short *) sw;
 }
 
 int
 fwriteFloat(float f, FILE *fp)
 {
-       int ret;
-       char  buf[4];
-       memmove(buf,&f,4);
+
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-       byteswapbuffloat(buf,1);
+       swapFloat(&f);  
 #endif
-       ret = fwrite(buf,sizeof(float),1,fp);
-       return(ret);
+       return(fwrite(&f, sizeof(float), 1, fp));
 }
 
 int
 fwriteInt(int v, FILE *fp)
 {
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        v = swapInt(v) ;
+        swapInt(&v);
 #endif
-        return(fwrite(&v,sizeof(int),1,fp));
-}
-
-int
-fwriteInt2(int v, FILE *fp)
-{
-#if (BYTE_ORDER == LITTLE_ENDIAN)
-//        v = swapInt(v) ;
-#endif
-        return(fwrite(&v,sizeof(int),1,fp));
+        return(fwrite(&v, sizeof(int), 1, fp));
 }
 
 int
 fwrite3(int v, FILE *fp)
 {
-        unsigned int i = (unsigned int)(v<<8);
+        int i = (v << 8);
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        i = (unsigned int)swapInt(i) ;
+        swapInt(&i) ;
 #endif
         return(fwrite(&i, 3, 1, fp));
 }
@@ -228,43 +102,41 @@ fwrite3(int v, FILE *fp)
 int
 freadInt(FILE *fp)
 {
-        int  i, nread ;
-
-        nread = fread(&i,sizeof(int),1,fp);
+        int temp;
+        int count;
+  
+        count = fread(&temp, 4, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        i = swapInt(i) ;
+        swapInt(&temp);
 #endif
-        return(i) ;
+        return(temp);
 }
 
 float
 freadFloat(FILE *fp)
 {
-        char  buf[4];
-        float f;
-        int   ret ;
-
-        ret = fread(buf,4,1,fp);
-        if (ret != 1) fprintf(stderr, "freadFloat: fread failed") ;
+        float temp;
+        int count;
+  
+        count = fread(&temp, 4, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        byteswapbuffloat(buf,1);
+        swapFloat(&temp);
 #endif
-        memcpy(&f,&buf,sizeof(float));
-        return(f) ;
+        return(temp);  
 }
 
 int
 fread3(int *v, FILE *fp)
 {
-        unsigned int i = 0;
+        int i = 0;
         int  ret ;
 
-        ret = fread(&i,3,1,fp);
+        ret = fread(&i, 3, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        i = (unsigned int)swapInt(i) ;
+        swapInt(&i) ;
 #endif
-        *v = ((i>>8) & 0xffffff);
-        return(ret) ;
+        *v = ((i >> 8) & 0xffffff);
+        return(ret);
 }
 
 static giiDataArray* 
@@ -973,9 +845,6 @@ int
 input_gifti(char *file, File_formats *format, int *n_objects,
                  object_struct ***object_list)
 {
-/*        fprintf(stderr, "input_gifti: Not yet implemented.\n");
-        return(-1);
-*/
 
         int               i, j, k, valid, numDA;
         polygons_struct   *polygons;
@@ -1074,11 +943,19 @@ input_gifti(char *file, File_formats *format, int *n_objects,
 
                 /* compute normals */
                 compute_polygon_normals(polygons);
+        } else {
+                fprintf (stderr,"input_gifti: GIFTI file %s does not contain vertices and faces!\n", file);
+                gifti_free_image (image);
+                return(-1);
         }
 
         for (numDA = 0; numDA < image->numDA; numDA++) {
                 giiDataArray* darray = image->darray[numDA];
                 
+                /* did these already */
+                if ((darray->intent == NIFTI_INTENT_POINTSET) ||
+                    (darray->intent == NIFTI_INTENT_TRIANGLE)) continue;
+
                 if (darray->intent == NIFTI_INTENT_SHAPE) 
                         fprintf(stderr, "input_gifti: Reading of shape data not yet implemented.\n");
         }
