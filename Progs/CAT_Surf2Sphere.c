@@ -63,11 +63,6 @@ main(int argc, char *argv[])
         }
 
         polygons = get_polygons_ptr(object_list[0]);
-
-        if (euler_characteristic(polygons) != 2) {
-                fprintf(stderr, "Euler characteristic of %s must be 2.\n",
-                            input_file);
-        }
         
         if (polygons->n_items > 500000) {
                 increase_iterations_by_factor = round(polygons->n_items/350000.0);

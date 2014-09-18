@@ -19,7 +19,7 @@
 #include "CAT_Refine.h"
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
-#define DEBUG 1
+#define DEBUG 0
 #define DUMP_FILES 0
 #define FLAG_MODIFY 0
 #define FLAG_PRESERVE 1
@@ -160,7 +160,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         }
 
         /* find remaining self-intersections */
-        fprintf(stderr,"Skip errornous find_selfintersections function\n");
+        if (DEBUG) fprintf(stderr,"Skip errornous find_selfintersections function\n");
 //        n_defects = find_selfintersections(hbw, hbw_defects, hbw_polydefects);
         n_defects = join_intersections(hbw, hbw_defects, hbw_polydefects,
                                        n_neighbours, neighbours);
@@ -277,7 +277,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
 
-        if (DEBUG) fprintf(stderr,"%d topological defects\n", n_defects);
+        fprintf(stderr,"%d topological defects\n", n_defects);
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);

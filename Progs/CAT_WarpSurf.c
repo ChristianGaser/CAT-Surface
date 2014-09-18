@@ -385,14 +385,14 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                                                 rot[0] = best_alpha;
                                                 rot[1] = best_beta;
                                                 rot[2] = best_gamma;
-                                                fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
-                                                        DEGREES(alpha),
-                                                        DEGREES(beta),
-                                                        DEGREES(gamma), sum_sq);
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                if (verbose) {
+                                                        fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
+                                                                DEGREES(alpha), DEGREES(beta), DEGREES(gamma), sum_sq);
+                                                        fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                        fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                        fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                        fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                }
                                         }
                                 }
                         }
@@ -403,7 +403,7 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                 curr_beta  = best_beta;
                 curr_gamma = best_gamma;
         }
-        fprintf(stderr,"\n");
+        if (verbose) fprintf(stderr,"\n");
         free(orig_trg);
         free(map_trg);
         free(map_src);
@@ -511,7 +511,8 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                                         dartel(prm[it0], dm, inflow, map_trg,
                                               map_src, NULL, flow, ll, scratch);
                                 }
-                                fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
+                                if (verbose) 
+                                        fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
 
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];
@@ -523,7 +524,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 fwhm /= 3.0;
                 fwhm_surf /= 3.0;
         }
-        fprintf(stderr,"\n");
+        if (verbose) fprintf(stderr,"\n");
 
         free(sm_src);
         free(sm_trg);

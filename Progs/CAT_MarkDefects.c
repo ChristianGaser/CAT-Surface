@@ -105,12 +105,12 @@ main(int argc, char *argv[])
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
 
-        printf("%d errors found\n", n_defects);
+        printf("%d topology defects marked.\n", n_defects);
         
-        if (output_binary) 
-                for (p = 1; p <= n_defects; p++) 
-                        if(defects[p]>0)
-                                defects[p] = 1;
+        if (output_binary) {
+                for (p = 0; p < sphere->n_points; p++) 
+                        if(defects[p]>0) defects[p] = 1;
+        }
 
         if(get_size) {
                 defect_size = (double *) malloc(sizeof(double) * surface->n_points);
@@ -133,7 +133,6 @@ main(int argc, char *argv[])
                         delete_object_list(1, patch_objects);
                 }
         }
-        return(EXIT_SUCCESS);
 
         /* clean up */
         free(defects);
