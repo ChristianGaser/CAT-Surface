@@ -26,28 +26,8 @@ AC_CHECK_HEADERS(expat.h)
 AC_CHECK_HEADERS(fftw3.h)
 AC_CHECK_HEADERS(values.h malloc.h)
 
-zlib_ok=yes
-AC_CHECK_HEADER([zlib.h],[
-  AC_CHECK_TYPE([gz_header],[],[zlib_ok=no],[#include <zlib.h>])],[
-  zlib_ok=no])
-AS_IF([test $zlib_ok = yes], [
-  AC_SEARCH_LIBS([deflateSetHeader],[z],[],[
-    zlib_ok=no
-  ])])
-AS_IF([test $zlib_ok = no], [
-  AC_SUBST(ZLIB_OBJS,[\${ZLIB_OBJS}])
-  AC_SUBST(ZLIB_SRCS,[\${ZLIB_SRCS}])
-  AC_SUBST(ZLIB_INCLUDE,[-I\${ZLIB_DIR}])
-])
-AC_DEFINE(HAVE_ZLIB, 1, [Is there an installed zlib?])
-
 AC_CHECK_HEADERS()
 
 AC_CONFIG_FILES( Makefile Progs/Makefile)
 AC_CONFIG_MACRO_DIR([m4])
 AC_OUTPUT
-
-if test "x$HAVE_ZLIB_TRUE" = "x#"
-then
- AC_MSG_NOTICE([NOTICE: zlib not found, zlib support disabled])
-fi

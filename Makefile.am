@@ -3,7 +3,7 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = check-news
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/niftilib
+AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/niftilib -I$(top_srcdir)/zlib
 
 lib_LTLIBRARIES = libCAT.la
 
@@ -33,6 +33,20 @@ nl_SRC = \
 	nl/nl_preconditioners.c \
 	nl/nl_superlu.c
 	
+zlib_SRC = \
+    zlib/adler32.c \
+    zlib/crc32.c \
+    zlib/gzio.c  \
+    zlib/inffast.c \
+    zlib/inftrees.c \
+    zlib/trees.c \
+    zlib/zutil.c \
+    zlib/compress.c \
+    zlib/deflate.c \
+    zlib/infback.c \
+    zlib/inflate.c \
+    zlib/uncompr.c
+
 nifti_SRC = \
 	niftilib/nifti1_io.c \
 	niftilib/znzlib.c
@@ -84,6 +98,16 @@ noinst_HEADERS = \
 	gifticlib/gifti_test.h \
 	gifticlib/gifti_tool.h \
 	gifticlib/gifti_xml.h \
+	zlib/crc32.h \
+	zlib/deflate.h \
+	zlib/inffast.h \
+	zlib/inffixed.h \
+	zlib/inflate.h \
+	zlib/inftrees.h \
+	zlib/trees.h \
+	zlib/zconf.h \
+	zlib/zlib.h \
+	zlib/zutil.h \
     s2kit10/FST_semi_fly.h \
 	s2kit10/naive_synthesis.h \
 	s2kit10/primitive.h \
@@ -126,6 +150,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Gyrification.c \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
+	$(zlib_SRC) \
 	$(nl_SRC) \
 	$(nifti_SRC) \
 	$(gifti_SRC) \
