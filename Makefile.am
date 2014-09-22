@@ -3,7 +3,7 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = check-news
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CPPFLAGS = -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/niftilib
+AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/niftilib
 
 lib_LTLIBRARIES = libCAT.la
 

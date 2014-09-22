@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir) -I$(top_srcdir)/niftilib
+AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir) -I$(top_srcdir)/niftilib
 LDADD = ../libCAT.la -lm
 
 dist_bin_SCRIPTS = \
