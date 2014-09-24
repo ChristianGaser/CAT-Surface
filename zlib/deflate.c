@@ -47,7 +47,7 @@
  *
  */
 
-/* @(#) $Id: deflate.c 162 2011-12-20 15:25:16Z gaser $ */
+/* @(#) $Id$ */
 
 #include "deflate.h"
 
