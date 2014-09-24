@@ -86,13 +86,13 @@ resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
 }
 
 void
-sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
-                int *polydefects, int n_defects, int *holes,
-                double t1_threshold, polygons_struct *hbw, polygons_struct *lbw, char *t1_file, Volume volume)
+sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects, 
+                int n_defects, int *holes, double t1_threshold, polygons_struct *hbw, 
+                polygons_struct *lbw, char *t1_file, Volume volume, int large_defect_found)
 {
         double *sharpness;
         int *n_neighbours, **neighbours;
-        int p, d, val, *flag;
+        int p, d, val, *flag, smooth_iters;
         int *hbw_defects, *hbw_polydefects, *hbw_holes;
         Point *pts;
         deform_struct deform;
@@ -175,10 +175,13 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         fprintf(stderr,"Post-patch: %d self intersection(s) remaining\n", n_defects);
 
         /* smooth out remaining self-intersections */
-        if (DEBUG) fprintf(stderr,"smooth_selfintersections...\n");
+        if (large_defect_found)
+                smooth_iters = 30;
+        else    smooth_iters = 200;
+        if (DEBUG) fprintf(stderr,"smooth_selfintersections with %d iterations...\n", smooth_iters);
         n_defects = smooth_selfintersections(hbw, hbw_defects, hbw_polydefects,
                                              n_defects, n_neighbours,
-                                             neighbours, 200);
+                                             neighbours, smooth_iters);
 
         /* correct modified points using original T1 image */
         if (t1_file != NULL) {
@@ -260,27 +263,35 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         double *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double *lrcx, *licx, *lrcy, *licy, *lrcz, *licz;
         double *rdatax, *rdatay, *rdataz;
-        int bw2, i, d, n_done;
+        int bw2, i, d, n_done, large_defect_found;
         int *defects, *polydefects, *holes, n_defects, n_objects, p;
         int *n_neighbours, **neighbours;
-        double t1_threshold;
+        double t1_threshold, *curvatures, *defect_size;
         File_formats format;
 
         /* find defects in original uncorrected surface */
         create_polygon_point_neighbours(sphere, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
 
-        defects = (int *) malloc(sizeof(int) * sphere->n_points);
+        defects     = (int *) malloc(sizeof(int) * sphere->n_points);
+        curvatures  = (double *) malloc(sizeof(double) * sphere->n_points);
+        defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
         polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
 
         if (DEBUG) fprintf(stderr,"(orig) find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
 
+        /* get defect size to consider issues with very large defects */
+        get_defect_size(surface, defects, n_defects, defect_size);
         fprintf(stderr,"%d topological defects\n", n_defects);
+
+        get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
+                                         3.0, 0, curvatures);
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
+        large_defect_found = 0;
         if (t1_file != NULL) {
                 t1_threshold = get_holes_handles(surface, sphere, defects,
                                                  n_defects, holes, volume,
@@ -294,10 +305,17 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                 }
         } else {
                 t1_threshold = -1;
-                for (d = 1; d <= n_defects; d++) {
-                        for (p = 0; p < surface->n_points; p++) {
-                                if (defects[p] == d) 
-                                        holes[p] = HOLE;
+                for (p = 0; p < surface->n_points; p++) {
+                        if (defects[p] > 0) {
+                                holes[p] = HOLE; /* always cut */
+                        
+                                /* keep only center of a large defect (>5% of overall size) 
+                                   center of defect is found be checking for large mean curvature */
+                                if ((curvatures[p] < 5.0) && (defect_size[p] > 0.05)) {
+                                        holes[p] = 0;
+                                        defects[p] = 0;
+                                        large_defect_found = 1;
+                                }
                         }
                 }
         }
@@ -395,7 +413,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(rdatax); free(rdatay); free(rdataz);
 
         sph_postcorrect(surface, sphere, defects, polydefects, n_defects, holes,
-                        t1_threshold, hbw, lbw, t1_file, volume);
+                        t1_threshold, hbw, lbw, t1_file, volume, large_defect_found);
 
         /* make refinement to guarantee small sized vertices */ 
         if (max_refine_length > 0.0) {
@@ -421,6 +439,8 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(defects);
         free(polydefects);
         free(holes);
+        free(curvatures);
+        free(defect_size);
 
         return hbw_objects;
 }

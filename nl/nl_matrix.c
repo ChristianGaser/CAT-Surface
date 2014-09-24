@@ -95,7 +95,7 @@ void nlRowColumnClear(NLRowColumn* c) {
     NL_DELETE_ARRAY(c->coeff) ;
 }
 
-static int nlCoeffCompare(void* p1, void* p2) {
+static int nlCoeffCompare(const void* p1, const void* p2) {
     return (((NLCoeff*)(p2))->index > ((NLCoeff*)(p1))->index) ;
 }
 
