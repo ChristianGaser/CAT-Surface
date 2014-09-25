@@ -19,7 +19,7 @@
 #include "CAT_Refine.h"
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
-#define DEBUG 0
+#define DEBUG 1
 #define DUMP_FILES 0
 #define FLAG_MODIFY 0
 #define FLAG_PRESERVE 1
@@ -278,6 +278,9 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
         polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
 
+        get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
+                                         3.0, 0, curvatures);
+
         if (DEBUG) fprintf(stderr,"(orig) find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
@@ -285,9 +288,6 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         /* get defect size to consider issues with very large defects */
         get_defect_size(surface, defects, n_defects, defect_size);
         fprintf(stderr,"%d topological defects\n", n_defects);
-
-        get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
-                                         3.0, 0, curvatures);
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
