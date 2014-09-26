@@ -176,8 +176,7 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
                         if (zintersect(node->bounds, tree->bounds[b]) == 0)
                                 continue;
 
-                        for (cur = tree->nodes[b];
-                             cur != NULL; cur = cur->next) {
+                        for (cur = tree->nodes[b]; cur != NULL; cur = cur->next) {
                                 if (tree->polyflag[cur->num] == 1)
                                         continue;
 

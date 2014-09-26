@@ -8,7 +8,7 @@
 */
 
 #define LEVEL 5
-#define NBOXES 4096 /* pow(8, level - 1) */
+#define NBOXES 4096 /* pow(8, LEVEL - 1) */
 #define YINC 2*2*2*2 /* pow(2, LEVEL - 1) */
 #define XINC YINC*YINC
 

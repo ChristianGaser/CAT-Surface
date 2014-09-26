@@ -214,11 +214,11 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                  int curvtype, double curvatures[])
 {
         int              size, pidx, vidx, p;
-        double             curvature, baselen;
+        double           curvature, baselen;
         signed char      *point_done;
         Point            centroid;
         Vector           normal;
-        double           *distances;
+        float            *distances;
         BOOLEAN          initialized;
         progress_struct  progress;
         polygons_struct  *polygonsIn;
@@ -241,14 +241,14 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                 copy_polygons(polygons, polygonsIn);
                 
                 /* use smoothing with FWHM of 25mm */
-                smooth_heatkernel(polygons, NULL, 25.0);
+                smooth_heatkernel(polygonsIn, NULL, 25.0);
 
-                compute_polygon_normals(polygons);
+                compute_polygon_normals(polygonsIn);
 
                 for (p = 0; p < polygons->n_points; p++) {
-                        curvatures[p] = ((Point_x(polygons->points[p]) - Point_x(polygonsIn->points[p]))*Point_x(polygons->normals[p]) +
-                                         (Point_y(polygons->points[p]) - Point_y(polygonsIn->points[p]))*Point_y(polygons->normals[p]) +
-                                         (Point_z(polygons->points[p]) - Point_z(polygonsIn->points[p]))*Point_z(polygons->normals[p]));
+                        curvatures[p] = ((Point_x(polygonsIn->points[p]) - Point_x(polygons->points[p]))*Point_x(polygonsIn->normals[p]) +
+                                         (Point_y(polygonsIn->points[p]) - Point_y(polygons->points[p]))*Point_y(polygonsIn->normals[p]) +
+                                         (Point_z(polygonsIn->points[p]) - Point_z(polygons->points[p]))*Point_z(polygonsIn->normals[p]));
                 }
                 free(polygonsIn);
         } else {
@@ -281,7 +281,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                                         neighbours,
                                                         p, vidx,
                                                         initialized,
-                                                        (float *) distances,
+                                                        distances,
                                                         smoothing_distance);
 
                                                 initialized = TRUE;
@@ -299,6 +299,8 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
 
         if (smoothing_distance > 0.0)
                 FREE(distances);
+                
+        FREE(point_done);
 }
 
 

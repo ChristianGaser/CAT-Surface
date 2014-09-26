@@ -19,7 +19,7 @@
 #include "CAT_Refine.h"
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
-#define DEBUG 1
+#define DEBUG 0
 #define DUMP_FILES 0
 #define FLAG_MODIFY 0
 #define FLAG_PRESERVE 1
@@ -274,24 +274,34 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                                         &neighbours, NULL, NULL);
 
         defects     = (int *) malloc(sizeof(int) * sphere->n_points);
-        curvatures  = (double *) malloc(sizeof(double) * sphere->n_points);
-        defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
         polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
 
-        get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
-                                         3.0, 0, curvatures);
-
-        if (DEBUG) fprintf(stderr,"(orig) find_topological_defects...\n");
+        if (DEBUG) fprintf(stderr,"find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
 
-        /* get defect size to consider issues with very large defects */
-        get_defect_size(surface, defects, n_defects, defect_size);
+        /* indicate large defect if euler number has large negative values */
+        update_polydefects(surface, defects, polydefects);
+        large_defect_found = 0;
+        for (d = 0; d < n_defects; d++) {
+                if (defect_euler(surface, defects, polydefects, d, n_neighbours, neighbours) <= -200)
+                        large_defect_found = 1;
+        }
+
+        if ( large_defect_found) {
+                if fprintf(stderr,"Large defects found: use only center of defect for correction.\n");
+                curvatures  = (double *) malloc(sizeof(double) * sphere->n_points);
+                defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
+                get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
+                                         3.0, 0, curvatures);
+                get_defect_size(surface, defects, n_defects, defect_size);
+        }
+        
         fprintf(stderr,"%d topological defects\n", n_defects);
 
         /* label defects as holes or handles */
         holes = (int *) malloc(sizeof(int) * sphere->n_points);
-        large_defect_found = 0;
+        
         if (t1_file != NULL) {
                 t1_threshold = get_holes_handles(surface, sphere, defects,
                                                  n_defects, holes, volume,
@@ -311,10 +321,11 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                         
                                 /* keep only center of a large defect (>5% of overall size) 
                                    center of defect is found be checking for large mean curvature */
-                                if ((curvatures[p] < 5.0) && (defect_size[p] > 0.05)) {
-                                        holes[p] = 0;
-                                        defects[p] = 0;
-                                        large_defect_found = 1;
+                                if (large_defect_found) {
+                                        if ((curvatures[p] < 5.0) && (defect_size[p] > 0.05)) {
+                                                holes[p] = 0;
+                                                defects[p] = 0;
+                                        }
                                 }
                         }
                 }
@@ -439,8 +450,10 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(defects);
         free(polydefects);
         free(holes);
-        free(curvatures);
-        free(defect_size);
+        if ( large_defect_found) {
+                free(curvatures);
+                free(defect_size);
+        }
 
         return hbw_objects;
 }
