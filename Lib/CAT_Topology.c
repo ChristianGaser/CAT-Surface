@@ -289,7 +289,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         }
 
         if ( large_defect_found) {
-                if fprintf(stderr,"Large defects found: use only center of defect for correction.\n");
+                fprintf(stderr,"Large defects found: use only center of defect for correction.\n");
                 curvatures  = (double *) malloc(sizeof(double) * sphere->n_points);
                 defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
                 get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
