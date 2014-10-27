@@ -478,6 +478,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 } else if (step == 1) {
                        smooth_heatkernel(sm_src, NULL, fwhm_surf);
                        smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       
                         /* always use sulcal depth first */
                         curvtype0 = 5;
                 } else if (step == 2) {
@@ -487,7 +488,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                        smooth_heatkernel(sm_src, NULL, fwhm_surf);
                        smooth_heatkernel(sm_trg, NULL, fwhm_surf);
                 }
-
+                
                 /* get curvatures */
                 map_smoothed_curvature_to_sphere(sm_trg, NULL, (double *)0,
                                                  map_trg, fwhm, dm, curvtype0);
@@ -719,6 +720,8 @@ main(int argc, char *argv[])
                 fprintf(stderr, "1 - sym. sum of squares):\t%d\n", prm[0].code);
                 fprintf(stderr, "Levenberg-Marquardt regularization:");
                 fprintf(stderr, "\t\t\t\t\t%g\n", prm[0].lmreg);
+                fprintf(stderr, "Curvature type:");
+                fprintf(stderr, "\t\t\t\t\t\t\t\t%d\n", curvtype);
                 fprintf(stderr, "\n%d Iterative loops\n", loop);
                 fprintf(stderr, "\nRegularization parameter mu:\t\t");
                 for (i = 0; i < loop; i++)
