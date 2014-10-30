@@ -32,9 +32,9 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] object_file output_file\n\n\
+"\nUsage: %s [options] surface_file output_surface_file\n\n\
     Find the number of self-intersections and mark the intersecting\n\
-    triangles in the output_file.\n\n";
+    triangles in the output_surface_file.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -63,7 +63,7 @@ main(int argc, char** argv)
         initialize_argument_processing(argc, argv);
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &out_file)) {
-                fprintf(stderr, "\nUsage: %s object_file output_file\n",
+                fprintf(stderr, "\nUsage: %s object_file output_surface_file\n",
                                 argv[0]);
                 exit(EXIT_FAILURE);
         }

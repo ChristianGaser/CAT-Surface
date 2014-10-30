@@ -30,7 +30,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  surface.obj FlowField output.obj\n\n";
+Usage: %s  surface_file FlowField_file output_surface_file\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -38,7 +38,7 @@ Usage: %s  surface.obj FlowField output.obj\n\n";
 int 
 main(int argc, char *argv[])
 {
-        char              *surface_file, *output_file, *flow_file;
+        char              *surface_file, *output_surface_file, *flow_file;
         FILE              *infp;
         File_formats      format;
         int               n_objects, i, xy_size, shift[2];
@@ -51,7 +51,7 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &flow_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -96,7 +96,7 @@ main(int argc, char *argv[])
 
         apply_warp(polygons, sphere, flow, size_map, 0);  
 
-        if (output_graphics_any_format(output_file, format, n_objects,
+        if (output_graphics_any_format(output_surface_file, format, n_objects,
                                        objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 

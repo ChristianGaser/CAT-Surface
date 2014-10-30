@@ -38,7 +38,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s  SPH.dat output.obj [bandwidth_limited n_points]\n\
+Usage: %s  SPH.txt output_surface_file [bandwidth_limited n_points]\n\
 Use spherical harmonic coefficients to create a surface.\n\n\n";
 
         fprintf(stderr, usage_str, executable);
@@ -55,6 +55,7 @@ main(int argc, char *argv[])
         int                  i, bandwidth2, n_dims;
         double               *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double               *rdatax, *rdatay, *rdataz;
+        float                rx,ix,ry,iy,rz,iz;
         polygons_struct      *polygons_sphere;
         object_struct        *objects_sphere;
    
@@ -105,29 +106,10 @@ main(int argc, char *argv[])
         icy = (double *) malloc(sizeof(double) * size);
         icz = (double *) malloc(sizeof(double) * size);
 
-        if (fread(rcx, sizeof(double), size, fp) != size) {
-                fprintf(stderr, "Error reading data.\n");
-                exit(EXIT_FAILURE);
-        }
-        if (fread(icx, sizeof(double), size, fp) != size) {
-                fprintf(stderr, "Error reading data.\n");
-                exit(EXIT_FAILURE);
-        }
-        if (fread(rcy, sizeof(double), size, fp) != size) {
-                fprintf(stderr, "Error reading data.\n");
-                exit(EXIT_FAILURE);
-        }
-        if (fread(icy, sizeof(double), size, fp) != size) {
-                fprintf(stderr, "Error reading data.\n");
-                exit(EXIT_FAILURE);
-        }
-        if (fread(rcz, sizeof(double), size, fp) != size) {
-                fprintf(stderr, "Error reading data.\n");
-                exit(EXIT_FAILURE);
-        }
-        if (fread(icz, sizeof(double), size, fp) != size) {
-                fprintf(stderr, "Error reading data.\n");
-                exit(EXIT_FAILURE);
+        for (i = 0; i < size; i++) {
+                fgets(line, 256, fp);
+                sscanf(line, "%f %f %f %f %f %f", &rx, &ix, &ry, &iy, &rz, &iz);
+                rcx[i] = rx; icx[i] = ix; rcy[i] = ry; icy[i] = iy; rcz[i] = rz; icz[i] = iz; 
         }
 
         fclose(fp);

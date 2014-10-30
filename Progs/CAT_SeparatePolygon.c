@@ -16,7 +16,7 @@
 void
 usage(char *executable) {
         char *usage_str = "\n\
-Usage: %s  input.obj output.obj index \n\n\
+Usage: %s  surface_file output_surface_file index \n\n\
      Separates polygons into its disjoint parts. Use a value of -1 for index to write the largest component.\n\n";
 
         fprintf(stderr, usage_str, executable);

@@ -15,7 +15,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  freesurfer_curv txt_file\n\n";
+Usage: %s  freesurfer_curv_file output_txt_file\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -23,7 +23,7 @@ Usage: %s  freesurfer_curv txt_file\n\n";
 int
 main(int argc, char *argv[])
 {
-        char                 *input_file, *output_file;
+        char                 *input_file, *output_surface_file;
         File_formats         format;
         FILE                 *fp;
         int                  n_values, i;
@@ -32,7 +32,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -42,7 +42,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
+        if (open_file(output_surface_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
                 exit(EXIT_FAILURE);
 
         for (i = 0; i < n_values; i++) {

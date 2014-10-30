@@ -44,7 +44,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s -surf surface.obj|-values values_file [-sphere sphere_file] output.pgm\n\n\
+Usage: %s -surf surface_file|-values values_file [-sphere sphere_file] output.pgm\n\n\
      Maps a surface to a flat sheet image. If values_file is not specified\n\
      then mean curvature is used as color. In this case you have to define\n\
      surface_file.  Sheet image will be saved as binary PGM-file (default\n\
@@ -56,7 +56,7 @@ Usage: %s -surf surface.obj|-values values_file [-sphere sphere_file] output.pgm
 int
 main(int argc, char *argv[])
 {
-        char                 *output_file;
+        char                 *output_surface_file;
         File_formats         format;
         polygons_struct      *polygons, *sphere;
         int                  i, n_objects, x, y;
@@ -77,7 +77,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (!get_string_argument(NULL, &output_file)) {
+        if (!get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -142,7 +142,7 @@ main(int argc, char *argv[])
         for (i = 0; i < sz_map[0]*sz_map[1]; i++) 
                 data[i] = 255.0 * (data[i] - mn) / (mx - mn);
 
-        if (write_pgm(output_file, data, sz_map[0], sz_map[1]) != 0)
+        if (write_pgm(output_surface_file, data, sz_map[0], sz_map[1]) != 0)
                 exit(EXIT_FAILURE);
 
         delete_object_list(n_objects, objects);

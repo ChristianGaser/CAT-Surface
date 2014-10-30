@@ -14,7 +14,7 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: %s  input.obj output.obj  max_length\n\n";
+Usage: %s  surface_file output_surface_file  max_length\n\n";
 
     print_error( usage_str, executable );
 }

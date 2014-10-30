@@ -94,39 +94,16 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
              double *icx, double *icy, double *icz)
 {
         FILE  *fp;
-        int bw2 = bandwidth * bandwidth;
+        int i, bw2 = bandwidth * bandwidth;
 
         /* output coefficients */
         fp = fopen(file, "w");
         fprintf(fp, "SPH\n%d %d %d\n", bandwidth, 3, 1);
-        if (fwrite(rcx, sizeof(double), bw2, fp) != bw2) {
-                fprintf(stderr, "Error writing data.\n");
-                return(1);
-        }
-        if (fwrite(icx, sizeof(double), bw2, fp) != bw2) {
-                fprintf(stderr, "Error writing data.\n");
-                return(1);
-        }
-        if (fwrite(rcy, sizeof(double), bw2, fp) != bw2) {
-                fprintf(stderr, "Error writing data.\n");
-                return(1);
-        }
-        if (fwrite(icy, sizeof(double), bw2, fp) != bw2) {
-                fprintf(stderr, "Error writing data.\n");
-                return(1);
-        }
-        if (fwrite(rcz, sizeof(double), bw2, fp) != bw2) {
-                fprintf(stderr, "Error writing data.\n");
-                return(1);
-        }
-        if (fwrite(icz, sizeof(double), bw2, fp) != bw2) {
-                fprintf(stderr, "Error writing data.\n");
-                return(1);
-        }
-
+        for (i = 0; i < bw2; i++) fprintf(fp,"%g %g %g %g %g %g\n",rcx[i],icx[i],rcy[i],icy[i],rcz[i],icz[i]);
+        fprintf(fp,"\n");
+        
         return(fclose(fp));
 }
-
 
 void
 sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,

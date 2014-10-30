@@ -100,7 +100,7 @@ calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *object2_file, *output_file;
+        char                 *object_file, *object2_file, *output_surface_file;
         FILE                 *fp;
         File_formats         format;
         int                  n_objects;
@@ -111,7 +111,7 @@ main(int argc, char *argv[])
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
-                fprintf(stderr,"\nUsage: %s [options] object_file object_file2 output_file\n", argv[0]);
+                fprintf(stderr,"\nUsage: %s [options] surface_file surface_file2 output_values_file\n", argv[0]);
                 fprintf( stderr,"\nCalculate Hausdorff distance between two surfaces on a point-by-point basis.\n");
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -121,9 +121,9 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &object_file) ||
             !get_string_argument(NULL, &object2_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 fprintf(stderr,
-                      "Usage: %s  object_file object_file2 output_file\n",
+                      "Usage: %s  object_file object_file2 output_surface_file\n",
                       argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -159,13 +159,13 @@ main(int argc, char *argv[])
 
         ALLOC(hd, polygons->n_points);
 
-        if ((polygons->n_items == polygons2->n_items && polygons->n_points == polygons2->n_points)) { /* exact method */
+        if (exact) { /* exact method */
                 max_hd = calc_exact_hausdorff(polygons, polygons2, hd);
         } else { /* point-by-point method */
                 max_hd = calc_point_hausdorff(polygons, polygons2, hd);
         }
 
-        if (output_values_any_format(output_file, polygons->n_points,
+        if (output_values_any_format(output_surface_file, polygons->n_points,
                                      hd, TYPE_DOUBLE) != OK) {
                 exit(EXIT_FAILURE);
         }

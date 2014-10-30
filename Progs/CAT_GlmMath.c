@@ -15,7 +15,7 @@ int
 main(int argc, char *argv[])
 {
         FILE             *fp;
-        char             *file, *output_file;
+        char             *file, *output_surface_file;
         int              counter, i, j, n_values, prev_n_values, n_plus;
         int              n_minus, n_infiles;
         double             *values, *result;
@@ -24,7 +24,7 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &output_file) || (argc < 3)) {
+        if (!get_string_argument(NULL, &output_surface_file) || (argc < 3)) {
                 printf("Usage: %s  output.txt file1 +|- file2 +|- file3 ..\n",
                       argv[0]);
                 exit(EXIT_FAILURE);
@@ -90,7 +90,7 @@ main(int argc, char *argv[])
                 }
         }
 
-        output_values_any_format(output_file, n_values, result, TYPE_DOUBLE);
+        output_values_any_format(output_surface_file, n_values, result, TYPE_DOUBLE);
 
         FREE(result);
         return(EXIT_SUCCESS);

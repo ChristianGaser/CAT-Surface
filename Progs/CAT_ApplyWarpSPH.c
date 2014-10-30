@@ -16,7 +16,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  sphere1.obj sphere2.obj input_values.txt output_values.txt [n_triangles]\n\
+Usage: %s  sphere_file1 sphere_file2 input_values_file output_values_file [n_triangles]\n\
 Resamples a spherical inflated surface to a sphere.\n\
 \n\n";
 

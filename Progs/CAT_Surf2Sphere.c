@@ -20,7 +20,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj [stop_at]\n\n\
+Usage: %s surface_file output_surface_file [stop_at]\n\n\
      Maps a surface to a sphere using the caret inflating approach.\n\n\
      The inflating can be limited using stop_at (default 5), where\n\
        1 - Low smooth\n\
@@ -36,7 +36,7 @@ Usage: %s surface.obj sphere.obj [stop_at]\n\n\
 int
 main(int argc, char *argv[])
 {
-        char             *input_file, *output_file;
+        char             *input_file, *output_surface_file;
         int              n_objects, i, stop_at, increase_iterations_by_factor;
         File_formats     format;
         object_struct    **object_list;
@@ -48,7 +48,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -72,7 +72,7 @@ main(int argc, char *argv[])
 
         surf_to_sphere(polygons, stop_at, increase_iterations_by_factor);
      
-        if(output_graphics_any_format(output_file, format, 1, 
+        if(output_graphics_any_format(output_surface_file, format, 1, 
                         object_list, NULL) != OK)
                 exit(EXIT_FAILURE);
         return(EXIT_SUCCESS);

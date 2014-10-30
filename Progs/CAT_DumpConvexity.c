@@ -17,7 +17,7 @@
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_file;
+        char                 *object_file, *output_surface_file;
         File_formats         format;
         int                  poly, n_objects, **neighbours, *n_neighbours;
         object_struct        **objects;
@@ -27,8 +27,8 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &output_file)) {
-                fprintf(stderr, "Usage: %s  object_file output_file\n",
+            !get_string_argument(NULL, &output_surface_file)) {
+                fprintf(stderr, "Usage: %s  surface_file output_values_file\n",
                         argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -52,7 +52,7 @@ main(int argc, char *argv[])
         ALLOC(convexity, polygons->n_points);
         calc_convexity(polygons, n_neighbours, neighbours, 1.0f, convexity);
     
-        output_values_any_format(output_file, polygons->n_points, convexity,
+        output_values_any_format(output_surface_file, polygons->n_points, convexity,
                                  TYPE_DOUBLE);
         
         delete_object_list(n_objects, objects);

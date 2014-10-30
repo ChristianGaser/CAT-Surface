@@ -25,7 +25,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  object_file output_file [curvtype] [fwhm] [use_abs_vals] [-1|1]\n\n\
+Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals] [-1|1]\n\n\
      Calculate different curvature parameters (default: mean curvature\n\
      averaged over 3mm) from a given obj file.  If smoothing filter [fwhm]\n\
      is defined (in FWHM) a diffusion heat kernel will be applied. Optionally\n\
@@ -45,7 +45,7 @@ Usage: %s  object_file output_file [curvtype] [fwhm] [use_abs_vals] [-1|1]\n\n\
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_file;
+        char                 *object_file, *output_surface_file;
         File_formats         format;
         int                  i, n_objects, curvtype, sign;
         int                  *n_neighbours, **neighbours, use_abs_values;
@@ -57,7 +57,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -129,7 +129,7 @@ main(int argc, char *argv[])
         if (smoothing)
                 smooth_heatkernel(polygons, curvatures, fwhm);
     
-        output_values_any_format(output_file, polygons->n_points,
+        output_values_any_format(output_surface_file, polygons->n_points,
                                  curvatures, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);

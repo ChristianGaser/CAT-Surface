@@ -22,7 +22,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj volume.mnc output.txt\n\
+Usage: %s surface_file sphere_file volume_file output_values_file\n\
 Find and label the holes (=1), handles (=2), and large errors (=3) of a surface.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
@@ -32,7 +32,7 @@ int
 main(int argc, char *argv[])
 {
         char                 *surface_file, *sphere_file;
-        char                 *volume_file, *output_file;
+        char                 *volume_file, *output_surface_file;
         File_formats         format;
         int                  n_objects;
         Volume               volume;
@@ -54,7 +54,7 @@ main(int argc, char *argv[])
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &sphere_file) ||
             !get_string_argument(NULL, &volume_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -116,7 +116,7 @@ main(int argc, char *argv[])
                 printf("t1 threshold = %f\n", t1_threshold);
         }
 
-        if (output_values_any_format(output_file, surface->n_points,
+        if (output_values_any_format(output_surface_file, surface->n_points,
                                      holes, TYPE_INTEGER) != OK) {
                 exit(EXIT_FAILURE);
         }

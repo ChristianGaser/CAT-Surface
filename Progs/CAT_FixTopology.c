@@ -35,7 +35,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj output.obj\n\
+Usage: %s surface_file sphere_file output_surface_file\n\
 Correct the topology of a brain surface.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
@@ -45,7 +45,7 @@ Correct the topology of a brain surface.\n\n\n";
 int
 main(int argc, char *argv[])
 {
-        char                 *surface_file, *sphere_file, *output_file;
+        char                 *surface_file, *sphere_file, *output_surface_file;
         File_formats         format;
         int                  n_objects;
         polygons_struct      *surface, *sphere;
@@ -62,7 +62,7 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &sphere_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -108,7 +108,7 @@ main(int argc, char *argv[])
 
         objects = fix_topology_sph(surface, sphere, n_triangles, volume, t1_file, bw, lim, reparam_file, max_refine_length);
 
-        if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
+        if (output_graphics_any_format(output_surface_file, ASCII_FORMAT, 1,
                                        objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 

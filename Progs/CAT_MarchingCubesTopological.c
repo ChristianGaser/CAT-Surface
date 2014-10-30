@@ -21,7 +21,7 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: marching_cubes  input.nii  output.obj  threshold\n\
+Usage: marching_cubes  input.nii  output_surface_file  threshold\n\
 \n\
      Creates a polygonal surface of either the thresholded volume, or the\n\
      boundary of the region of values between min and max threshold.\n\

@@ -16,7 +16,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s input.obj output.obj\n\n\
+Usage: %s surface_file output_surface_file\n\n\
      Generate the Laplace-Beltrami conformal map of the mesh specified in infile.\n\n\
      Results are saved in outfile.\n";
 
@@ -26,7 +26,7 @@ Usage: %s input.obj output.obj\n\n\
 int
 main(int argc, char** argv)
 {
-        char *input_file, *output_file;
+        char *input_file, *output_surface_file;
         object_struct **objects;
         int n_objects;
         File_formats format;
@@ -34,7 +34,7 @@ main(int argc, char** argv)
     
         initialize_argument_processing(argc, argv);
         if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -54,7 +54,7 @@ main(int argc, char** argv)
 
         find_conformal_map(polygons);
 
-        if(output_graphics_any_format(output_file, format, 1, 
+        if(output_graphics_any_format(output_surface_file, format, 1, 
                         objects, NULL) != OK)
                     exit(EXIT_FAILURE);
         exit(EXIT_SUCCESS);

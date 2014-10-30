@@ -28,7 +28,7 @@ char *src_file           = NULL;
 char *sphere_src_file    = NULL;
 char *trg_file           = NULL;
 char *sphere_trg_file    = NULL;
-char *output_file        = NULL;
+char *output_surface_file        = NULL;
 char *output_sphere_file = NULL;
 
 int rotate       = 1;
@@ -52,7 +52,7 @@ static ArgvInfo argTable[] = {
      "Template file."},
   {"-ts", ARGV_STRING, (char *) 1, (char *) &sphere_trg_file, 
      "Template sphere file."},
-  {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
+  {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file, 
      "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
      "Warped input sphere."},
@@ -262,9 +262,9 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                                         rotate_polygons(src_sphere,
                                                         &rot_src_sphere,
                                                         rotation_tmp);
-                                        resample_values(trg_sphere,
+                                        resample_values_sphere(trg_sphere,
                                                          &rot_src_sphere,
-                                                         orig_trg, map_trg);
+                                                         orig_trg, map_trg, 1);
 
                                         /* estimate squared difference between
                                          * rotated source map and target map */
@@ -552,13 +552,13 @@ WarpDemon(polygons_struct *src, polygons_struct *sphere_src, polygons_struct *tr
                 }
                         
                 apply_uv_warp(warped_sphere_src, warped_sphere_src, Utheta, Uphi, 1);
-                resample_values(sphere_src, warped_sphere_src, curv_src0, curv_src);                        
+                resample_values_sphere(sphere_src, warped_sphere_src, curv_src0, curv_src, 1);                        
                         
                 normalizeVector(curv_src, src->n_points);
 
                 if (method == 3) {
                         apply_uv_warp(warped_sphere_trg, warped_sphere_trg, Utheta, Uphi, 0);
-                        resample_values(sphere_trg, warped_sphere_trg, curv_trg0, curv_trg);                                   
+                        resample_values_sphere(sphere_trg, warped_sphere_trg, curv_trg0, curv_trg, 1);                                   
                         normalizeVector(curv_trg, src->n_points);
                 }
 
@@ -619,7 +619,7 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) ||
             src_file == NULL || trg_file == NULL || 
             sphere_src_file == NULL || sphere_trg_file == NULL ||
-            (output_file == NULL && output_sphere_file == NULL)) {
+            (output_surface_file == NULL && output_sphere_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -731,7 +731,7 @@ main(int argc, char *argv[])
                 WarpDemon(sm_src, sm_sphere_src, sm_trg, 
                          sm_sphere_trg, warped_sphere_src, dpoly_src, dpoly_trg, curvtype0);
 
-                objects = resample_surface_sphere(sm_sphere_src, warped_sphere_src, sphere_src);
+                objects = resample_surface_to_target_sphere(sm_sphere_src, warped_sphere_src, sphere_src, NULL, NULL);
                 sphere_src = get_polygons_ptr(objects[0]);
 
                 /* use smaller FWHM for next steps */

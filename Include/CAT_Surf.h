@@ -22,12 +22,14 @@ void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int);
 void apply_uv_warp(polygons_struct *, polygons_struct *, double *,
               double *, int );
 
+double get_area_of_points_normalized_to_sphere(polygons_struct *, polygons_struct *, double *);
 double * get_surface_ratio(double, polygons_struct *);
 double get_area_of_points(polygons_struct *, double *);
 double get_area_of_polygons(polygons_struct *, double *);
 void get_radius_of_points(polygons_struct *, double *);
 
 void translate_to_center_of_mass(polygons_struct *);
+void correct_bounds_to_target(polygons_struct *, polygons_struct *);
 double get_largest_dist(polygons_struct *);
 
 void set_vector_length(Point *, double);
@@ -43,5 +45,6 @@ void distance_smoothing(polygons_struct *, double, int, int, int *, int);
 void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
                                         const double, const int, const double,
                                         const double, const double, const int);
-void
-surf_to_sphere(polygons_struct *, int, int);
+                                        
+void surf_to_sphere(polygons_struct *, int, int);
+void get_sulcus_depth(polygons_struct *, polygons_struct *, double *);

@@ -19,7 +19,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s  surface.obj sphere.obj SPH.dat bandwidth\n\
+Usage: %s  surface_file sphere_file SPH.txt bandwidth\n\
         Extract spherical harmonic coefficients of a surface using\n\
         2*bandwidth x 2*bandwidth sample points.\n\
 \n\n";

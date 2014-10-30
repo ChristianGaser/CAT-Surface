@@ -29,7 +29,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s -avg average.obj|-rms rms_file.txt input1.obj input2.obj [... inputN.obj]\n\n\
+Usage: %s -avg average_surface|-rms rms_values_file surface_file1 surface_file2 [... surface_fileN]\n\n\
      Calculate average and root mean square error of surfaces.\n\n";
 
         fprintf(stderr, usage_str, executable);

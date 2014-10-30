@@ -55,11 +55,11 @@ double fwhm_surf     = 10.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
-     "Input file."},
+     "Input surface file."},
   {"-is", ARGV_STRING, (char *) 1, (char *) &source_sphere_file, 
      "Input sphere file."},
   {"-t", ARGV_STRING, (char *) 1, (char *) &target_file, 
-     "Template file."},
+     "Template surface file."},
   {"-ts", ARGV_STRING, (char *) 1, (char *) &target_sphere_file, 
      "Template sphere file."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
@@ -365,9 +365,9 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                                         rotate_polygons(src_sphere,
                                                         &rot_src_sphere,
                                                         rotation_tmp);
-                                        resample_noscale(trg_sphere,
+                                        resample_values_sphere(trg_sphere,
                                                          &rot_src_sphere,
-                                                         orig_trg, map_trg);
+                                                         orig_trg, map_trg, 0);
 
                                         /* estimate squared difference between
                                          * rotated source map and target map */

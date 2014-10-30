@@ -902,7 +902,7 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] outfile.obj\n\n\
+"\nUsage: %s [options] surface_file\n\n\
     Output a fractal surface (von Koch surface).  Specify the number of\n\
     subdivisions with the -level argument.\n\n";
 
@@ -912,7 +912,7 @@ usage(char *executable)
 int
 main(int argc, char** argv)
 {
-        char               *output_file;
+        char               *output_surface_file;
         object_struct      **objects;
         polygons_struct    *polygons;
         File_formats       format;
@@ -924,8 +924,8 @@ main(int argc, char** argv)
         }
 
         initialize_argument_processing(argc, argv);
-        if (!get_string_argument(NULL, &output_file)) {
-                fprintf(stderr, "\nUsage: %s [options] outfile.obj\n", argv[0]);
+        if (!get_string_argument(NULL, &output_surface_file)) {
+                fprintf(stderr, "\nUsage: %s [options] output_surface_file\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 
@@ -935,7 +935,7 @@ main(int argc, char** argv)
                 objects = create_von_koch_surface(level);
         }
 
-        if(output_graphics_any_format(output_file, ASCII_FORMAT,
+        if(output_graphics_any_format(output_surface_file, ASCII_FORMAT,
                                       1, objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 

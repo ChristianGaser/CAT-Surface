@@ -20,7 +20,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s input.txt ShiftField output.txt\n\n\
+Usage: %s input_values_file ShiftField_file output_values_file\n\n\
      Applies deformations of warping to surface values.\n\n";
 
         fprintf(stderr, usage_str, executable);
@@ -29,7 +29,7 @@ Usage: %s input.txt ShiftField output.txt\n\n\
 int
 main(int argc, char *argv[])
 {
-        char                 *output_file, *vector_file, *values_file;
+        char                 *output_surface_file, *vector_file, *values_file;
         FILE                 *infp;
         polygons_struct      unit_sphere;
         int                  i, j;
@@ -48,7 +48,7 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &values_file) ||
             !get_string_argument(NULL, &vector_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -141,7 +141,7 @@ main(int argc, char *argv[])
                 update_progress_report(&progress, i + 1);
         }
 
-        output_values_any_format(output_file, unit_sphere.n_points,
+        output_values_any_format(output_surface_file, unit_sphere.n_points,
                                  values, TYPE_DOUBLE);
 
         terminate_progress_report(&progress);

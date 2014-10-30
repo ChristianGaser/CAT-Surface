@@ -28,7 +28,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if(!get_string_argument(NULL, &object_filename) || (!get_string_argument(NULL, &output_filename))) {
-                printf("Usage: %s  object_file output_file [n_iters]\n", argv[0]);
+                printf("Usage: %s  surface_file output_surface_file [n_iters]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 

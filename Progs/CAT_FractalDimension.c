@@ -58,7 +58,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj out.txt\n\
+Usage: %s surface_file sphere_file output_values_file\n\
 Calculate the fractal dimension.  Output are local FD values.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
@@ -67,7 +67,7 @@ Calculate the fractal dimension.  Output are local FD values.\n\n\n";
 int
 main(int argc, char *argv[])
 {
-        char                 *surface_file, *sphere_file, *output_file;
+        char                 *surface_file, *sphere_file, *output_surface_file;
         File_formats         format;
         int                  n_objects, i;
         polygons_struct      *surface, *sphere, *reparam;
@@ -85,7 +85,7 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &sphere_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -142,11 +142,11 @@ main(int argc, char *argv[])
                 set_vector_length(&reparam->points[i], 1.0);
 
         if (sph) {
-                fd = fractal_dimension_sph(surface, sphere, output_file,
+                fd = fractal_dimension_sph(surface, sphere, output_surface_file,
                                            n_triangles, reparam, smooth, debug);
         } else {
                 fd = fractal_dimension(surface, sphere, maxiters,
-                                       output_file, smooth, debug);
+                                       output_surface_file, smooth, debug);
         }
 
         printf("global FD: %f\n", fd);

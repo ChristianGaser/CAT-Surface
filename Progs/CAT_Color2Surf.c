@@ -27,7 +27,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  src.obj values_file dest.obj\n\
+Usage: %s  surface_file values_file dest_surface_file\n\
            gray|hot|spectral|blue|green|red|user [user.map] [low high]\n\
            [under|BG] [over|BG] [opacity] [replace||add]\n\n";
 

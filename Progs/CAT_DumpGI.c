@@ -24,7 +24,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  object_file output_file fwhm [fwhm_surf] [curvtype]\n\n\
+Usage: %s  surface_file output_surface_file fwhm [fwhm_surf] [curvtype]\n\n\
      Calculate gyrification index using the ratio of local surface area\n\
      and local inflated surface area. Local surface area can be approximated\n\
      by use of different curve types (default: mean curvature averaged over\n\
@@ -40,7 +40,7 @@ Usage: %s  object_file output_file fwhm [fwhm_surf] [curvtype]\n\n\
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_file;
+        char                 *object_file, *output_surface_file;
         File_formats         format;
         int                  i, n_objects, curvtype;
         int                  *n_neighbours, **neighbours;
@@ -52,7 +52,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -107,7 +107,7 @@ main(int argc, char *argv[])
     
         smooth_heatkernel(polygons, GI, fwhm);
         
-        output_values_any_format(output_file, polygons->n_points,
+        output_values_any_format(output_surface_file, polygons->n_points,
                                  GI, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);

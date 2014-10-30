@@ -15,7 +15,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s object_file x y z values1.txt [values2.txt .. valuesn.txt]\n\n\
+Usage: %s surface_file x y z values1.txt [values2.txt .. valuesn.txt]\n\n\
      Plot values at coordinate x y z for each file. The object file is used to\n\
      link the coordinates at the surface model to the values.\n\n";
 

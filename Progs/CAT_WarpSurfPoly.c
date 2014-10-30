@@ -29,7 +29,7 @@ char *source_sphere_file = NULL;
 char *target_file        = NULL;
 char *target_sphere_file = NULL;
 char *jacdet_file        = NULL;
-char *output_file        = NULL;
+char *output_surface_file        = NULL;
 char *output_sphere_file = NULL;
 char *pgm_file           = NULL;
 
@@ -59,7 +59,7 @@ static ArgvInfo argTable[] = {
      "Template file."},
   {"-ts", ARGV_STRING, (char *) 1, (char *) &target_sphere_file, 
      "Template sphere file."},
-  {"-w", ARGV_STRING, (char *) 1, (char *) &output_file, 
+  {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file, 
      "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
      "Warped input sphere."},
@@ -379,7 +379,7 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) ||
             source_file == NULL || target_file == NULL || 
             source_sphere_file == NULL || target_sphere_file == NULL ||
-            (jacdet_file == NULL && output_file == NULL &&
+            (jacdet_file == NULL && output_surface_file == NULL &&
              pgm_file == NULL && output_sphere_file == NULL)) {
                 fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
                 fprintf(stderr, "     %s -help\n\n", argv[0]);

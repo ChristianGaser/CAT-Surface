@@ -68,6 +68,7 @@ bin_PROGRAMS = \
 	CAT_MarchingCubesGenus0 \
 	CAT_MarchingCubesTopological \
 	CAT_AddValuesToSurf \
+	CAT_SulcusDepth \
 	CAT_MarchingCubes
 	
 ##	CAT_WarpSurfSPH \

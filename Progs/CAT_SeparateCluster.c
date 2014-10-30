@@ -18,7 +18,7 @@ separate_cluster(polygons_struct *polygons, int desired_index, double *values);
 void
 usage(char *executable) {
         char *usage_str = "\n\
-Usage: %s  input.obj input.txt output_prefix [which] \n\n\
+Usage: %s  surface_file input.txt output_prefix [which] \n\n\
      Separates polygons into its disjoint parts.\n\n";
 
         fprintf(stderr, usage_str, executable);

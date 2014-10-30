@@ -24,7 +24,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s object_file output_file fwhm [gausscurv_threshold]\n\n\
+Usage: %s surface_file output_surface_file fwhm [gausscurv_threshold]\n\n\
      Diffusion smoothing of surface points w.r.t. gaussian curvature using\n\
      heat kernel.\n\n";
 
@@ -34,7 +34,7 @@ Usage: %s object_file output_file fwhm [gausscurv_threshold]\n\n\
 int
 main(int argc, char *argv[])
 {
-        char             *input_file, *output_file;
+        char             *input_file, *output_surface_file;
         int              n_objects;
         int              *n_neighbours, **neighbours;
         File_formats     format;
@@ -46,7 +46,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -74,7 +74,7 @@ main(int argc, char *argv[])
         
         compute_polygon_normals(polygons);
 
-        if(output_graphics_any_format(output_file, format, 1, 
+        if(output_graphics_any_format(output_surface_file, format, 1, 
                         object_list, NULL) != OK)
                 exit(EXIT_FAILURE);
         

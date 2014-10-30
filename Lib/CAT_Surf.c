@@ -15,6 +15,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
+#include "CAT_ConvexHull.h"
 
 #define _PI 3.14159265358979323846264338327510
 
@@ -151,6 +152,50 @@ get_surface_ratio(double r, polygons_struct *polygons)
 
 /* assign each point the average of area values for neighboring polygons */
 double
+get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_struct *sphere, double *area_values)
+{
+        double          area, *area_values_resampled, *areas_sphere, area_sum = 0.0;
+        int             i, n_points;
+        object_struct   **object;
+        polygons_struct *resampled, *resampled_sphere;
+        Point           center;
+        
+        n_points = 81920;
+        
+        object = resample_surface(polygons, sphere, n_points, NULL, NULL);
+        resampled = get_polygons_ptr(*object);
+        
+        /* create tetrahedral sphere according to resampled surface */
+        resampled_sphere = get_polygons_ptr(create_object(POLYGONS));
+        fill_Point(center, 0.0, 0.0, 0.0);
+        create_tetrahedral_sphere(&center, 100.0, 100.0, 100.0,
+                                  resampled->n_items, resampled_sphere);
+
+        area_values_resampled = (double *) malloc(sizeof(double) * resampled->n_points);
+        areas_sphere          = (double *) malloc(sizeof(double) * resampled->n_points);
+
+        area = get_area_of_points(resampled_sphere, areas_sphere);
+        area = get_area_of_points(resampled, area_values_resampled);
+        
+        /* normalize values to local sphere areas */
+        for (i = 0; i < resampled->n_points; i++) 
+                area_values_resampled[i] /= areas_sphere[i];
+
+        resample_values_sphere(resampled_sphere, sphere, area_values_resampled, area_values, 1);
+        
+        /* normalize values to overall area */
+        for (i = 0; i < polygons->n_points; i++) 
+                area_sum += area_values[i];
+        for (i = 0; i < polygons->n_points; i++) 
+                area_values[i] *= area/area_sum;
+
+        free(area_values_resampled);
+        
+        return(area);
+}
+
+/* assign each point the average of area values for neighboring polygons */
+double
 get_area_of_points(polygons_struct *polygons, double *area_values)
 {
         int             *pcount;
@@ -180,10 +225,10 @@ get_area_of_points(polygons_struct *polygons, double *area_values)
                 }
         }
 
-        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
+        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) 
                 if (pcount[ptidx] > 0)
                         area_values[ptidx] /= pcount[ptidx];
-        }
+    
 
         FREE(pcount);
         return(surface_area);
@@ -205,6 +250,26 @@ get_area_of_polygons(polygons_struct *polygons, double *area_values)
         return(surface_area);
 }
 
+
+void
+correct_bounds_to_target(polygons_struct *polygons, polygons_struct *target)
+{
+        int    i, j;
+        double bounds_dest[6], bounds_src[6];
+        Point  center;
+
+        /* Calc. sphere center based on bounds of input (correct for shifts) */    
+        get_bounds(polygons, bounds_src);
+        get_bounds(target,   bounds_dest);
+        
+        fill_Point(center, bounds_src[0]-bounds_dest[0],
+                           bounds_src[2]-bounds_dest[2], 
+                           bounds_src[4]-bounds_dest[4]);
+
+        for (i = 0; i < polygons->n_points; i++) 
+                for (j = 0; j < 3; j++)
+                        Point_coord(polygons->points[i], j) -= Point_coord(center, j);
+}
 
 void
 translate_to_center_of_mass(polygons_struct *polygons)
@@ -1228,4 +1293,32 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
         fprintf(stderr, "Done                \n");
 
         compute_polygon_normals(polygons);
+}
+
+void
+get_sulcus_depth(polygons_struct *surface, polygons_struct *sphere, double *depth)
+{
+        polygons_struct *convex;
+        object_struct **object;
+        Point closest;
+        int i, poly;
+
+        object = (object_struct **) malloc(sizeof(object_struct *));
+        *object = create_object(POLYGONS);
+        
+        /* get convex hull */
+        object = surface_get_convex_hull(surface, sphere);
+        convex = get_polygons_ptr(*object);
+
+        if (convex->bintree == NULL) 
+                create_polygons_bintree(convex, ROUND((double) convex->n_items * 0.5));
+
+        /* find closest (euclidian) distance between convex hull and surface */
+        for (i = 0; i < surface->n_points; i++) {
+                poly  = find_closest_polygon_point(&surface->points[i], convex, &closest);
+                depth[i] = distance_between_points(&surface->points[i], &closest);
+        }
+
+        delete_the_bintree(&convex->bintree);
+
 }

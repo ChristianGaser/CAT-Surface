@@ -38,7 +38,7 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] surface_file sphere_file output_file\n\n\
+"\nUsage: %s [options] surface_file sphere_file output_values_file\n\n\
     Locate and mark topological errors using a spherical mapping.  Output is a text file.\n\n";
 
         fprintf(stderr, usage_str, executable);

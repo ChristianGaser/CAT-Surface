@@ -17,6 +17,7 @@ usage(char *executable)
         char *usage_str = "\n\
 Usage: %s  input.ext output.ext\n\n\
     The surface format will be recognized by the file extension:\n\
+       .gii - gifti object\n\
        .obj - BIC object\n\
        .off - Geomview OOGL\n\
     or otherwise Freesurfer\n\
@@ -28,7 +29,7 @@ Usage: %s  input.ext output.ext\n\n\
 int
 main(int argc, char *argv[])
 {
-        char                 *input_file, *output_file;
+        char                 *input_file, *output_surface_file;
         File_formats         format;
         int                  status, n_objects;
         object_struct        **objects;
@@ -38,7 +39,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &input_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -52,7 +53,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (output_graphics_any_format(output_file, format,
+        if (output_graphics_any_format(output_surface_file, format,
                                        n_objects, objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 

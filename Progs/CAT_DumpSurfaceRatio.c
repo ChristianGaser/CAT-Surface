@@ -16,7 +16,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s  surface.obj output_values.txt [radius]\n\
+Usage: %s  surface_file output_values_file [radius]\n\
     Computes surface ratio based on the method of Toro et al. 2008.\n\
     A default radius of 20mm is used.\n\
 \n\n";
@@ -27,7 +27,7 @@ Usage: %s  surface.obj output_values.txt [radius]\n\
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_file;
+        char                 *object_file, *output_surface_file;
         File_formats         format;
         int                  n_objects;
         object_struct        **objects;
@@ -38,7 +38,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -58,7 +58,7 @@ main(int argc, char *argv[])
 
         area_values = get_surface_ratio(radius, polygons);
     
-        output_values_any_format(output_file, polygons->n_points,
+        output_values_any_format(output_surface_file, polygons->n_points,
                                  area_values, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);

@@ -31,7 +31,7 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] surf_with_artifacts surf_wo_artifacts output_file\n\n\
+"\nUsage: %s [options] surface_with_artifacts surface_wo_artifacts output_values_file\n\n\
     Locate and mark artifacts, using (usually) a smoothed surface for the second argument.  Output is a text file.\n\n";
 
         fprintf(stderr, usage_str, executable);

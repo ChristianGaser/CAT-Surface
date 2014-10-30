@@ -46,7 +46,7 @@ Calculate the gyrification index (GI) using convex hull of the surface.  Output 
 int
 main(int argc, char *argv[])
 {
-        char                 *surface_file, *sphere_file, *output_file;
+        char                 *surface_file, *sphere_file, *output_values_file;
         File_formats         format;
         int                  n_objects, i;
         polygons_struct      *surface, *sphere, *reparam;
@@ -64,7 +64,7 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &sphere_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_values_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -120,7 +120,7 @@ main(int argc, char *argv[])
         for (i = 0; i < reparam->n_points; i++)
                 set_vector_length(&reparam->points[i], 1.0);
 
-                gi = gyrification_index_sph(surface, sphere, output_file,
+        gi = gyrification_index_sph(surface, sphere, output_values_file,
                                            n_triangles, reparam);
         
         /* clean up */

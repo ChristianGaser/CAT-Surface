@@ -62,7 +62,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s output.obj\n\
+Usage: %s output_surface_file\n\
 Generate a GI phantom with oscillations along theta and/or phi.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
@@ -71,7 +71,7 @@ Generate a GI phantom with oscillations along theta and/or phi.\n\n\n";
 int
 main(int argc, char *argv[])
 {
-        char                 *output_file;
+        char                 *output_surface_file;
         File_formats         format;
         int                  n_objects, n_polygons, p;
         polygons_struct      *surface;
@@ -89,7 +89,7 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &output_file)) {
+        if (!get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -160,7 +160,7 @@ main(int argc, char *argv[])
 
         compute_polygon_normals(surface);
 
-        if (output_graphics_any_format(output_file, ASCII_FORMAT, 1,
+        if (output_graphics_any_format(output_surface_file, ASCII_FORMAT, 1,
                                        objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 

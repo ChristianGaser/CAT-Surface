@@ -16,9 +16,9 @@
 void
 usage(char *executable)
 {
-        fprintf(stderr, "%s  volume_filename\n", executable);
-        fprintf(stderr, "   activity_filename|none   nx ny nz\n");
-        fprintf(stderr, "   input_polygons output_polygons\n");
+        fprintf(stderr, "%s  volume_fil\n", executable);
+        fprintf(stderr, "   activity_file|none   nx ny nz\n");
+        fprintf(stderr, "   input_surface_file output_surface_file\n");
         fprintf(stderr, "   original_positions|none max_distance\n");
         fprintf(stderr, "   n_models\n");
         fprintf(stderr, "   up_to_n_points model_weight model_file|avg|none\n");
@@ -36,16 +36,16 @@ int
 main(int argc, char *argv[])
 {
         Status            status;
-        double              start_time, end_time;
+        double            start_time, end_time;
         char              *volume_file = NULL, *activity_file = NULL;
-        char              *input_file = NULL, *output_file = NULL;
+        char              *input_file = NULL, *output_surface_file = NULL;
         char              *model_file = NULL, *original_file = NULL;
         char              *normal_direction = NULL;
-        double              min_isovalue, max_isovalue, gradient_thresh;
-        double              model_weight, min_curv_offset, max_curv_offset;
-        double              angle, tolerance, max_dist = 0;
-        double              separations[N_DIMENSIONS];
-        double              xfilt_width = 0, yfilt_width = 0, zfilt_width = 0;
+        double            min_isovalue, max_isovalue, gradient_thresh;
+        double            model_weight, min_curv_offset, max_curv_offset;
+        double            angle, tolerance, max_dist = 0;
+        double            separations[N_DIMENSIONS];
+        double            xfilt_width = 0, yfilt_width = 0, zfilt_width = 0;
         int               i, n_models = 0, up_to_n_points;
         deform_struct     deform;
         File_formats      file_format;
@@ -66,7 +66,7 @@ main(int argc, char *argv[])
             get_real_argument(0.0, &yfilt_width) == 0 ||
             get_real_argument(0.0, &zfilt_width) == 0 ||
             get_string_argument("", &input_file) == 0 ||
-            get_string_argument("", &output_file) == 0 ||
+            get_string_argument("", &output_surface_file) == 0 ||
             get_string_argument("", &original_file) == 0 ||
             get_real_argument(0.0, &max_dist) == 0 ||
             get_int_argument(1, &n_models) == 0) {
@@ -163,7 +163,7 @@ main(int argc, char *argv[])
 
         end_time = current_cpu_seconds();
 
-        if (output_graphics_any_format(output_file, ASCII_FORMAT,
+        if (output_graphics_any_format(output_surface_file, ASCII_FORMAT,
                                        n_objects, object_list, NULL) == ERROR)
                 exit(EXIT_FAILURE);
 

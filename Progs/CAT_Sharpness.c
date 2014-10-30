@@ -16,7 +16,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  object_file output_file\n\n\
+Usage: %s  surface_file output_values_file\n\n\
      Dump the sharpness values.\n";
 
         fprintf(stderr, usage_str, executable);
@@ -25,7 +25,7 @@ Usage: %s  object_file output_file\n\n\
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_file;
+        char                 *object_file, *output_surface_file;
         FILE                 *fp;
         File_formats         format;
         int                  n_objects;
@@ -37,7 +37,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -57,7 +57,7 @@ main(int argc, char *argv[])
         ALLOC(sharpness, polygons->n_points);
         compute_local_sharpness(polygons, n_neighbours, neighbours, sharpness);
 
-        output_values_any_format(output_file, polygons->n_points,
+        output_values_any_format(output_surface_file, polygons->n_points,
                                  sharpness, TYPE_DOUBLE);
 
         delete_object_list(n_objects, objects);

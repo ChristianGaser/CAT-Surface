@@ -31,10 +31,10 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n\n\
+"\nUsage: %s [options] surface_file conformalmap_file output_surface_file\n\n\
     Adjust a spherical map to be more isometric (area preserving).\n\
-    The original mesh is infile.obj and the conformal map of the mesh is\n\
-    conformalmap.obj.  Results are saved in outfile.obj.\n\n";
+    The original mesh is surfcae_file and the conformal map of the mesh is\n\
+    conformalmap_file.  Results are saved in output_surface_file.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -42,7 +42,7 @@ usage(char *executable)
 int
 main(int argc, char** argv)
 {
-        char               *input_file, *cmap_file, *output_file;
+        char               *input_file, *cmap_file, *output_surface_file;
         object_struct      **objects;
         polygons_struct    *polygons, *map;
         struct metricdata  *brain;
@@ -60,8 +60,8 @@ main(int argc, char** argv)
         initialize_argument_processing(argc, argv);
         if (!get_string_argument(NULL, &input_file) ||
             !get_string_argument(NULL, &cmap_file) ||
-            !get_string_argument(NULL, &output_file)) {
-                fprintf(stderr, "\nUsage: %s [options] infile.obj conformalmap.obj outfile.obj\n", argv[0]);
+            !get_string_argument(NULL, &output_surface_file)) {
+                fprintf(stderr, "\nUsage: %s [options] surface_file conformalmap_file output_surface_file\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 
@@ -139,7 +139,7 @@ main(int argc, char** argv)
         }
 
         compute_polygon_normals(map);
-        if(output_graphics_any_format(output_file, format, 1, 
+        if(output_graphics_any_format(output_surface_file, format, 1, 
                        objects, NULL) != OK)
                 exit(EXIT_FAILURE);
 

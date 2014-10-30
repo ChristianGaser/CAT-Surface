@@ -24,7 +24,7 @@ Usage: %s values_ref.txt output_values.txt values1.txt [values2.txt .. valuesn.t
 int
 main(int argc, char *argv[])
 {
-        char                 *values_file, *input_file, *output_file;
+        char                 *values_file, *input_file, *output_surface_file;
         FILE                 *infp, *outfp;
         File_formats         format;
         int                  n_files, n_values, i, j, max_index;
@@ -33,7 +33,7 @@ main(int argc, char *argv[])
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &values_file) ||
-            !get_string_argument(NULL, &output_file)) {
+            !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -57,7 +57,7 @@ main(int argc, char *argv[])
         fprintf(stderr, "Maximum value of %3.2f found at line %d.\n",
                 max_value, max_index);
     
-        if (open_file(output_file, WRITE_FILE, ASCII_FORMAT, &outfp) != OK)
+        if (open_file(output_surface_file, WRITE_FILE, ASCII_FORMAT, &outfp) != OK)
     	        exit(EXIT_FAILURE);
 
         for (i = 0; i < n_files; i++) {

@@ -311,6 +311,7 @@ solver_to_mesh(polygons_struct *polygons)
                 Point_y(polygons->points[p]) = y;
                 Point_z(polygons->points[p]) = z;
         }
+
 }
 
 /**
@@ -342,6 +343,7 @@ findPointP(polygons_struct *polygons)
                         max_z = Point_z(polygons->points[i]);
                 }
         }
+
         return(zpt);
 }
 

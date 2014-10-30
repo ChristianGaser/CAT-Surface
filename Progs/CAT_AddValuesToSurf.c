@@ -17,7 +17,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  src.obj values_file dest.gii\n\n";
+Usage: %s  surface_file values_file dest.gii\n\n";
 
         fprintf(stderr, usage_str, executable);
 }

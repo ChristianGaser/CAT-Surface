@@ -42,9 +42,9 @@ void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] object_file sphericalmap_file output_file\n\n\
+"\nUsage: %s [options] surface_file sphere_file output_values_file\n\n\
     Calculate the metric distortion between a brain surface and its\n\
-    spherical map.  Results are saved in the text file output_file.\n\n";
+    spherical map.  Results are saved in the text file output_surface_file.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -184,7 +184,7 @@ main(int argc, char** argv)
         if (!get_string_argument(NULL, &in_file) ||
             !get_string_argument(NULL, &map_file) ||
             !get_string_argument(NULL, &out_file)) {
-                fprintf(stderr, "\nUsage: %s [options] object_file sphericalmap_file output_file\n", argv[0]);
+                fprintf(stderr, "\nUsage: %s [options] object_file sphericalmap_file output_surface_file\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 

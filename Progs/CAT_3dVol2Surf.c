@@ -157,7 +157,7 @@ int
 main(int argc, char *argv[])
 {
         char                 *volume_file, *volume_file2, *object_file;
-        char                 *output_file, *output_file2;
+        char                 *output_surface_file, *output_file2;
         File_formats         format;
         Volume               volume, volume2;
         int                  i, j, index, n_values, n_objects;
@@ -170,7 +170,7 @@ main(int argc, char *argv[])
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || ((argc != 4) && (argc != 6))) {
-                fprintf(stderr, "\nUsage2: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
+                fprintf(stderr, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
                 fprintf(stderr, "Map data from a minc volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
@@ -179,8 +179,8 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &object_file) ||
             !get_string_argument(NULL, &volume_file) ||
-            !get_string_argument(NULL, &output_file)) {
-                fprintf(stderr, "\nUsage: %s [options] <object.obj> <volume.mnc> <output.txt> [<volume2.mnc> <output2.txt>]\n\n", argv[0]);
+            !get_string_argument(NULL, &output_surface_file)) {
+                fprintf(stderr, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     
@@ -305,7 +305,7 @@ main(int argc, char *argv[])
                 }
         }
 
-        output_values_any_format(output_file, polygons->n_points,
+        output_values_any_format(output_surface_file, polygons->n_points,
                                  values, TYPE_DOUBLE);
 
         if (output_file2 != NULL) {  
