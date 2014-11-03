@@ -1004,8 +1004,8 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         int                 numDistortionAboveThresh;
         double              maxDistort, minDistort, distort;
     
-        /* Copy the fiducial surface since it will be modified */
-        /* (translated to center of mass) */
+        /* Copy the fiducial surface since it will be modified 
+           (translated to center of mass) */
         out_object = create_object(POLYGONS);
         polygons = get_polygons_ptr(out_object);
         copy_polygons(polygonsIn, polygons);
@@ -1032,16 +1032,8 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         for (cycle = 0; cycle < (n_smoothingCycles + 1); cycle++) {
                 if (cycle < n_smoothingCycles) {
                         /* Step 6a: Apply Smoothing to AUX coord */
-                        for (i = 0; i < polygons->n_points; i++) {
-                                to_array(&polygonsIn->points[i], xyz);
-                        }
-
                         distance_smoothing(polygonsIn, regSmoothStrength, 
                                         regSmoothIters, 1, NULL, 0);
-
-                        for (i = 0; i < polygons->n_points; i++) {
-                                to_array(&polygonsIn->points[i], xyz);
-                        }
 
                         /* Step 6b: Incrementally inflate AUX surface by */
                         /*          Ellipsoidal Projection  */
@@ -1166,8 +1158,8 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                         }
                 }
 
-                /* Step 6e: Flag highly compressed/stretched nodes for */
-                /* targeted smoothing */
+                /* Step 6e: Flag highly compressed/stretched nodes for 
+                   targeted smoothing */
                 numDistortionAboveThresh = 0;
                 maxDistort = -FLT_MAX;
                 minDistort =  FLT_MAX;
@@ -1206,13 +1198,20 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 }
 
 void
-surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
+surf_to_sphere(polygons_struct *polygons, int stop_at)
 {
         BOOLEAN          enableFingerSmoothing = 1;
         int              fingerSmoothingIters;
-        double           surfarea;
+        double           surfarea, factor;
         
         surfarea = get_polygons_surface_area(polygons);
+
+        /* use more iterations for larger surfaces */
+        if (polygons->n_items > 350000) {
+                factor = (double)polygons->n_items/350000.0;
+                fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n",
+                            factor);
+        } else factor = 1.0;
 
         /* low smooth */
         fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
@@ -1220,7 +1219,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
         inflate_surface_and_smooth_fingers(polygons,
                               /* cycles */ 1,
           /* regular smoothing strength */ 0.2,
-             /* regular smoothing iters */ factor*50,
+             /* regular smoothing iters */ round(factor*50),
                     /* inflation factor */ 1.0,
           /* finger comp/stretch thresh */ 3.0,
               /* finger smooth strength */ 1.0,
@@ -1236,7 +1235,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
                 inflate_surface_and_smooth_fingers(polygons,
                                       /* cycles */ 2,
                   /* regular smoothing strength */ 1.0,
-                     /* regular smoothing iters */ factor*30,
+                     /* regular smoothing iters */ round(factor*30),
                             /* inflation factor */ 1.4,
                   /* finger comp/stretch thresh */ 3.0,
                       /* finger smooth strength */ 1.0,
@@ -1250,7 +1249,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 4,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ factor*30,
+                  /*    regular smoothing iters */ round(factor*30),
                   /*           inflation factor */ 1.1,
                   /* finger comp/stretch thresh */ 3.0,
                   /*     finger smooth strength */ 1.0,
@@ -1267,7 +1266,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 6,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ factor*60,
+                  /*    regular smoothing iters */ round(factor*60),
                   /*           inflation factor */ 1.6,
                   /* finger comp/stretch thresh */ 3.0,
                   /*     finger smooth strength */ 1.0,
@@ -1281,7 +1280,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int factor)
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 6,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ factor*50,
+                  /*    regular smoothing iters */ round(factor*50),
                   /*           inflation factor */ 1.4,
                   /* finger comp/stretch thresh */ 4.0,
                   /*     finger smooth strength */ 1.0,
@@ -1307,11 +1306,11 @@ get_sulcus_depth(polygons_struct *surface, polygons_struct *sphere, double *dept
         *object = create_object(POLYGONS);
         
         /* get convex hull */
-        object = surface_get_convex_hull(surface, sphere);
+        object = surface_get_convex_hull(surface, NULL);
         convex = get_polygons_ptr(*object);
 
         if (convex->bintree == NULL) 
-                create_polygons_bintree(convex, ROUND((double) convex->n_items * 0.5));
+                create_polygons_bintree(convex, round((double) convex->n_items * 0.5));
 
         /* find closest (euclidian) distance between convex hull and surface */
         for (i = 0; i < surface->n_points; i++) {

@@ -37,7 +37,7 @@ int
 main(int argc, char *argv[])
 {
         char             *input_file, *output_surface_file;
-        int              n_objects, i, stop_at, increase_iterations_by_factor;
+        int              n_objects, i, stop_at;
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
@@ -64,13 +64,7 @@ main(int argc, char *argv[])
 
         polygons = get_polygons_ptr(object_list[0]);
         
-        if (polygons->n_items > 500000) {
-                increase_iterations_by_factor = round(polygons->n_items/350000.0);
-                fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %d.\n",
-                            increase_iterations_by_factor);
-        } else increase_iterations_by_factor = 1;
-
-        surf_to_sphere(polygons, stop_at, increase_iterations_by_factor);
+        surf_to_sphere(polygons, stop_at);
      
         if(output_graphics_any_format(output_surface_file, format, 1, 
                         object_list, NULL) != OK)

@@ -42,7 +42,7 @@ output_graphics_any_format( "convex0.obj", ASCII_FORMAT, 1, object, NULL);
         /* get sphere of convex hull */
         convex_sphere = get_polygons_ptr(create_object(POLYGONS));
         copy_polygons(convex, convex_sphere);
-        surf_to_sphere(convex_sphere, 6, 1);
+        surf_to_sphere(convex_sphere, 6);
 
         convex_areas = (double *) malloc(sizeof(double) * surface->n_points);
         convex_area = get_area_of_points_normalized_to_sphere(convex, convex_sphere, convex_areas);

@@ -51,6 +51,8 @@ surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_s
         /* do resampling to original sphere if defined */
         if (polygons_sphere != NULL) {
         
+                fprintf(stderr,"Warning: Laplace-Beltrami approach results in rotated sphere and link to original surface is lost\n");
+        
                 /* get sphere of convex hull using Laplace Beltrami approach */
                 sphere_convex = get_polygons_ptr(create_object(POLYGONS));
                 copy_polygons(convex_polygons, sphere_convex);
