@@ -17,15 +17,14 @@
 /* argument defaults */
 
 char *sphere_file = NULL;
-int use_log = 0;
+BOOLEAN use_log = 0;
 
 /* the argument table */
 ArgvInfo argTable[] = {
   {"-sphere", ARGV_STRING, (char *) 1, (char *) &sphere_file,
      "If a sphere is given the local surface area is based on a re-parameterized tetrahedral sphere."},
-  { "-log", ARGV_INT, (char *) 1,
-    (char *) &use_log,
-    "Obtain log10-scaled surface area." },
+  { "-log", ARGV_CONSTANT, (char *) 1, (char *) &use_log,
+    "Obtain log10-transformed surface area to render data more normally distributed." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -34,7 +33,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s surface_file output_values_file\n\
+Usage: %s surface_file output_values_file [-log]\n\
 Calculate local surface area. If a sphere is given the local surface area is based on a re-parameterized tetrahedral sphere.\n\n\n";
 
        fprintf(stderr, usage_str, executable);

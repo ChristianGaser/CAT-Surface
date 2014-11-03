@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_Gyrification.c 312 2014-05-07 14:28:54Z gaser $
+ * $Id$
  *
  */
 
