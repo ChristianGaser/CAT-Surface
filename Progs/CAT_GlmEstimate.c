@@ -36,9 +36,9 @@ DESCRIPTION\n\
     to the corresponding column of the design matrix. Additionally the\n\
     residual standard deviation is saved in a file ResSD_xxxx.\n\
 \n\
-    The input files can be either in minc-format (using the extension\n\
-    .mnc) or in ascii-format (using .txt as extension) and the respective\n\
-    result files are saved in the same format and with the same extension.\n\
+    The input files can be either in freesurfer-format, gifti-format (using .gii)\n\
+    or in ascii-format (using .txt as extension) and the respective\n\
+    result files are always saved in ascii-format.\n\
     The basic model at each element of the input files is of the form\n\
     Y = X*B + e, for data Y, design matrix X, (unknown) parameters B, and\n\
     residual errors e. The errors are assumed to have normal distribution.\n\
@@ -92,14 +92,14 @@ estimate(char **infiles, char *arg_string, int argc)
         int                  i, j, k, n_subj, n_vals, n_tmp, prev_n_vals;
         int                  n_beta, rank, erdf, counter, *idx;
         int                  n_cov;
-        double                 **vals, *tmpvals, *data, **indata;
-        double                 **G, *v, **inv_G, **transp_G, **pinv_GG;
-        double                 **beta, *beta0, **estimates, **resSD, sum, *result;
+        double               **vals, *tmpvals, *data, **indata;
+        double               **G, *v, **inv_G, **transp_G, **pinv_GG;
+        double               **beta, *beta0, **estimates, **resSD, sum, *result;
         progress_struct      progress;
 
         counter = 0;
-        n_beta = 1;
-        n_cov = 0;
+        n_beta  = 1;
+        n_cov   = 0;
     
         ALLOC(idx, argc-1);
 
@@ -171,6 +171,7 @@ estimate(char **infiles, char *arg_string, int argc)
                                        infiles[i]);
                                 exit(EXIT_FAILURE);
                         }
+
                         if (i == 0) {
                                 ALLOC2D(vals, n_subj, n_vals);
                         } else {

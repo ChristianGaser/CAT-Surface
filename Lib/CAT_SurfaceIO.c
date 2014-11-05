@@ -968,8 +968,33 @@ input_gifti(char *file, File_formats *format, int *n_objects,
 int
 input_gifti_curv(char *file, int *vnum, double **input_values)
 {
-        fprintf(stderr, "input_gifti_curv: Not yet implemented.\n");
-        return(-1);
+        int k, valid, numDA;
+  
+        gifti_image* image = gifti_read_image (file, 1);
+        if (NULL == image) {
+                fprintf (stderr,"input_gifti_curv: cannot read image\n");
+                return(-1);
+        }
+
+        valid = gifti_valid_gifti_image (image, 1);
+        if (valid == 0) {
+                fprintf (stderr,"input_gifti_curv: GIFTI file %s is invalid!\n", file);
+                gifti_free_image (image);
+                return(-1);
+        }
+
+        for (numDA = 0; numDA < image->numDA; numDA++) {
+
+                if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE) {
+                        *vnum = image->darray[numDA]->dims[0];
+                        ALLOC(*input_values, image->darray[numDA]->dims[0]);
+
+                        for (k = 0; k < image->darray[numDA]->dims[0]; k++)
+                                (*input_values)[k] = (double) gifti_get_DA_value_2D (image->darray[numDA], k, 0);
+                }
+        }
+
+        return(OK);
 }
 
 int

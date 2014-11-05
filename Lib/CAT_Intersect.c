@@ -173,38 +173,33 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
                                 b += YINC - 1;
                                 continue;
                         }
-                        if (zintersect(node->bounds, tree->bounds[b]) == 0)
+                        if (zintersect(node->bounds, tree->bounds[b]) == 0) 
                                 continue;
 
                         for (cur = tree->nodes[b]; cur != NULL; cur = cur->next) {
-                                if (tree->polyflag[cur->num] == 1)
-                                        continue;
+                        
+                                if (cur->num <= p) 
+                                        break;
 
-                                if (cur->num <= p)
-                                        continue;
-
-                                tree->polyflag[cur->num] = 1;
-
-                                if (intersect(node->bounds, cur->bounds) == 0)
+                                if (intersect(node->bounds, cur->bounds) == 0) 
                                         continue;
 
                                 if (intersect_triangle_triangle(node->pts,
                                                                 cur->pts,
-                                                                surface) == 0)
+                                                                surface) == 0) 
                                         continue;
 
                                 n_intersects++;
                                 polydefects[node->num] = n_intersects;
                                 polydefects[cur->num] = n_intersects;
                         }
-
                 }
                 update_progress_report(&progress, p);
         }
 
         terminate_progress_report(&progress);
 
-        delete_octree(tree);
+/*        delete_octree(tree); */
 
         update_defects(surface, polydefects, defects);
 
