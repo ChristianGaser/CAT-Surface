@@ -780,9 +780,9 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
         int     *n_neighbours, **neighbours;
         double  *area_values;
         Point   pts[1000];
-        double tileAreas[32], tileCenters[32*3];
-        double xyz[3], pt1[3], pt2[3], pt3[3];
-        double totalArea, weight;
+        double  tileAreas[32], tileCenters[32*3];
+        double  xyz[3], pt1[3], pt2[3], pt3[3];
+        double  totalArea, weight;
 
         BOOLEAN smoothSubsetOfNodes = 0;
         BOOLEAN smoothEdges, smoothIt;
@@ -864,7 +864,7 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
                         from_array(pt1, &polygons->points[i]);
                 }
         
-                // If the surface should be projected to a sphere
+                /* If the surface should be projected to a sphere */
                 if (projectToSphereEveryXIters > 0) {
                         if ((k % projectToSphereEveryXIters) == 0) {
                                 for (i = 0; i < polygons->n_points; i++) {
@@ -1201,7 +1201,7 @@ void
 surf_to_sphere(polygons_struct *polygons, int stop_at)
 {
         BOOLEAN          enableFingerSmoothing = 1;
-        int              fingerSmoothingIters;
+        int              fingerSmoothingIters, arealSmoothingIters;
         double           surfarea, factor;
         
         surfarea = get_polygons_surface_area(polygons);
@@ -1289,6 +1289,13 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                                                               surfarea);
         }
     
+        if (stop_at > 5) {
+                /* areal smoothing */
+                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
+                        "Areal smoothing...   ");
+                arealSmoothingIters = 1000*(stop_at - 5);
+                areal_smoothing(polygons, 1.0, arealSmoothingIters, 1, NULL, 1000);
+        }
         fprintf(stderr, "Done                \n");
 
         compute_polygon_normals(polygons);
