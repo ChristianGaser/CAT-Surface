@@ -223,7 +223,7 @@ private  int   make_connected_components(
 
     n_components = 0;
 
-    not_done = (Smallest_int) 255;
+    not_done = (Smallest_int) 999;
 
     for_less( poly, 0, polygons->n_items )
         polygon_classes[poly] = not_done;
@@ -233,7 +233,7 @@ private  int   make_connected_components(
         if( polygon_classes[poly] != not_done )
             continue;
 
-        if( n_components == 255 )
+        if( n_components == 999 )
         {
             ++n_components;
             break;
@@ -284,8 +284,8 @@ int   separate_polygons(
     polygons_struct    *new_poly;
 
     ALLOC( poly_classes, polygons->n_items );
-    ALLOC( n_in_class, 256 );
-    ALLOC( ordered, 256 );
+    ALLOC( n_in_class, 1000 );
+    ALLOC( ordered, 1000 );
 
     n_components = make_connected_components( polygons, poly_classes,
                                               n_in_class );

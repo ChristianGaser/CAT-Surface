@@ -10,7 +10,7 @@
 #include <bicpl/deform.h>
 
 #include "CAT_DeformPolygons.h"
-    
+
 void
 deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
 {
@@ -104,6 +104,7 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
                        deform_parms->prev_movements,
                        &stats);
 
+#ifdef DEBUG
         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
@@ -111,9 +112,11 @@ one_iter_polygons(polygons_struct *polygons, deform_struct *deform_parms,
         printf("Iteration %d:\t",iter);
         printf("avg: %3.4f\tmax: %3.4f",
                stats.average/polygons->n_points, stats.maximum);
+
         /* print_deform_stats(&stats, polygons->n_points); */
         if (iter % 20 == 0)
                 flush_file(stdout);
+#endif
 
         check_polygons_shape_integrity(polygons, new_pts);
 
