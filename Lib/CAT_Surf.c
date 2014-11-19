@@ -1295,6 +1295,8 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                         "Areal smoothing...   ");
                 arealSmoothingIters = 1000*(stop_at - 5);
                 areal_smoothing(polygons, 1.0, arealSmoothingIters, 1, NULL, 1000);
+                convert_ellipsoid_to_sphere_with_surface_area(polygons,
+                                                              surfarea);
         }
         fprintf(stderr, "Done                \n");
 

@@ -12,7 +12,7 @@
 # global parameters
 ########################################################
 
-output_dir="."
+output_dir=""
 reg=sphere.reg
 template=$FREESURFER_HOME/subjects/fsaverage
 fwhm=0
@@ -41,9 +41,11 @@ main ()
 preprocess ()
 {
 
-  if [ ! -d "$output_dir" ]; then
-    echo Create directory ${output_dir}.
-    mkdir -p $output_dir
+  if [ ! "$output_dir" == "" ]; then
+    if [ ! -d "$output_dir" ]; then
+      echo Create directory ${output_dir}.
+      mkdir -p $output_dir
+    fi
   fi
   
   if [ -n "$ARGV_list" ]
@@ -68,6 +70,10 @@ preprocess ()
       sphere=`basename $subject|sed 's,.'${measure}'.,.'${reg}'.,g'`
       central=${central}.gii
       sphere=${sphere}.gii
+      
+      if [ ! "$output_dir" == "" ]; then
+        output_dir=$surf_dir
+      fi
       
       if [ ! "$hemi" == "lh" ] && [ ! "$hemi" == "rh" ]; then
         echo File $subject should beging with lh or rh.
