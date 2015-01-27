@@ -12,6 +12,8 @@
 
 /* the argument table */
 ArgvInfo argTable[] = {
+  {"-deform", ARGV_CONSTANT, (char *) TRUE, (char *) &do_surface_deform,
+     "Deform corrected surface to its uncorrected version in aeras where topology correction was made."},
   { "-bw", ARGV_INT, (char *) 1, 
     (char *) &bw,
     "Bandwidth of coefficients for spherical harmonic expansion." },
@@ -23,9 +25,6 @@ ArgvInfo argTable[] = {
     "Number of triangles for sampled surface." },
   {"-refine_length", ARGV_FLOAT, (char *) TRUE, (char *) &max_refine_length,
      "Maximal length of vertex side after refinement (use negative values for no refinement)."},
-  {"-t1", ARGV_STRING, (char *) 1,
-    (char *) &t1_file,
-    "Optional T1-image for post-harmonic topology correction."},
   {"-sphere", ARGV_STRING, (char *) 1, (char *) &reparam_file,
      "Sphere object for reparameterization."},
   { NULL, ARGV_END, NULL, NULL, NULL }
@@ -67,15 +66,6 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (t1_file != NULL) {
-                if (input_volume_all(t1_file, 3, File_order_dimension_names,
-                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0, TRUE,
-                                     &volume, NULL) == ERROR) {
-                        fprintf(stderr, "Error opening T1 file: %s\n", t1_file);
-                        exit(EXIT_FAILURE);
-                }
-        }
-
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &surf_objects) != OK)
                 exit(EXIT_FAILURE);
@@ -106,7 +96,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        objects = fix_topology_sph(surface, sphere, n_triangles, volume, t1_file, bw, lim, reparam_file, max_refine_length);
+        objects = fix_topology_sph(surface, sphere, n_triangles, bw, lim, reparam_file, max_refine_length, do_surface_deform);
 
         if (output_graphics_any_format(output_surface_file, ASCII_FORMAT, 1,
                                        objects, NULL) != OK)
@@ -118,8 +108,5 @@ main(int argc, char *argv[])
         delete_object_list(1, sphere_objects);
         delete_object_list(1, objects);
 
-        if (t1_file != NULL)
-                delete_volume(volume);
-    
         return(EXIT_SUCCESS);    
 }

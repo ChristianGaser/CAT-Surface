@@ -45,5 +45,4 @@ unsigned char point_in_bounds(Point, double [6]);
 
 struct octree * build_octree(polygons_struct *);
 void delete_octree(struct octree *);
-void hausdorff_distance(Point, polygons_struct *, struct octree *, double *);
 

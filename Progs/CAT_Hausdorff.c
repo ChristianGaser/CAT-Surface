@@ -22,80 +22,6 @@ ArgvInfo argTable[] = {
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
-/*
- * Calculate the exact Hausdorff distance.  This assumes that the two
- * input meshes are the same size and of the same brain.
- */
-double
-calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
-{
-        int i;
-        double max_hd = 0.0, avg_hd = 0.0;
-
-        /* walk through the points */
-        for (i = 0; i < p->n_points; i++) {
-                hd[i] = distance_between_points(&p->points[i], &p2->points[i]);
-
-                if (hd[i] > max_hd)
-                        max_hd = hd[i];
-                avg_hd += hd[i];
-        }
-
-        avg_hd /= p->n_points;
-        printf("Hausdorff distance: %f\n", max_hd);
-        printf("Mean distance error: %f\n", avg_hd);
-
-        return(max_hd);
-}
-
-/*
- * Calculate the Hausdorff distance using mesh points only.
- */
-double
-calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
-{
-        int i, poly;
-        double *revhd;
-        double max_hd = 0.0, avg_hd = 0.0;
-        double max_revhd = 0.0, avg_revhd = 0.0;
-        Point closest;
-
-        create_polygons_bintree(p, ROUND((double) p->n_items * 0.5));
-        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
-
-        /* walk through the points */
-        for (i = 0; i < p->n_points; i++) {
-                poly = find_closest_polygon_point(&p->points[i], p2, &closest);
-                hd[i] = distance_between_points(&p->points[i], &closest);
-
-                if (hd[i] > max_hd)
-                        max_hd = hd[i];
-                avg_hd += hd[i];
-        }
-
-        avg_hd /= p->n_points;
-        printf("Hausdorff distance: %f\n", max_hd);
-        printf("Mean distance error: %f\n", avg_hd);
-
-        /* Calculate the reverse Hausdorff */
-
-        revhd = (double *) malloc(sizeof(double) * p2->n_points);
-
-        for (i = 0; i < p2->n_points; i++) {
-                poly = find_closest_polygon_point(&p2->points[i], p, &closest);
-                revhd[i] = distance_between_points(&p2->points[i], &closest);
-
-                if (revhd[i] > max_revhd)
-                        max_revhd = revhd[i];
-                avg_revhd += revhd[i];
-        }
-
-        avg_revhd /= p2->n_points;
-        printf("Reverse Hausdorff distance: %f\n", max_revhd);
-        printf("Mean reverse distance error: %f\n", avg_revhd);
-
-        return(max_hd);
-}
 
 int
 main(int argc, char *argv[])
@@ -157,7 +83,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        ALLOC(hd, polygons->n_points);
+        hd = (double *) malloc(sizeof(double) * polygons->n_points);
 
         if (exact) { /* exact method */
                 max_hd = calc_exact_hausdorff(polygons, polygons2, hd);

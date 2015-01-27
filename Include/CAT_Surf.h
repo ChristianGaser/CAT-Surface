@@ -35,6 +35,10 @@ double get_largest_dist(polygons_struct *);
 void set_vector_length(Point *, double);
 int count_edges(polygons_struct *, int [], int *[]);
 
+double calc_point_hausdorff(polygons_struct *, polygons_struct *, double *);
+double calc_exact_hausdorff(polygons_struct *, polygons_struct *p, double *);
+void calc_point_distance(polygons_struct *, polygons_struct *, double *);
+
 int euler_characteristic(polygons_struct *);
 void convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *, double);
 

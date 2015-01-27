@@ -386,6 +386,99 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
         return(n_edges);
 }
 
+/*
+ * Calculate the exact Hausdorff distance.  This assumes that the two
+ * input meshes are the same size and of the same brain.
+ */
+double
+calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+{
+        int i;
+        double max_hd = 0.0, avg_hd = 0.0;
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+                hd[i] = distance_between_points(&p->points[i], &p2->points[i]);
+
+                if (hd[i] > max_hd)
+                        max_hd = hd[i];
+                avg_hd += hd[i];
+        }
+
+        avg_hd /= p->n_points;
+        printf("Hausdorff distance: %f\n", max_hd);
+        printf("Mean distance error: %f\n", avg_hd);
+
+        return(max_hd);
+}
+
+/*
+ * Calculate the Hausdorff distance using mesh points only.
+ */
+double
+calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+{
+        int i, poly;
+        double *revhd;
+        double max_hd = 0.0, avg_hd = 0.0;
+        double max_revhd = 0.0, avg_revhd = 0.0;
+        Point closest;
+
+        create_polygons_bintree(p, ROUND((double) p->n_items * 0.5));
+        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+                poly = find_closest_polygon_point(&p->points[i], p2, &closest);
+                hd[i] = distance_between_points(&p->points[i], &closest);
+
+                if (hd[i] > max_hd)
+                        max_hd = hd[i];
+                avg_hd += hd[i];
+        }
+
+        avg_hd /= p->n_points;
+        printf("Hausdorff distance: %f\n", max_hd);
+        printf("Mean distance error: %f\n", avg_hd);
+
+        /* Calculate the reverse Hausdorff */
+
+        revhd = (double *) malloc(sizeof(double) * p2->n_points);
+
+        for (i = 0; i < p2->n_points; i++) {
+                poly = find_closest_polygon_point(&p2->points[i], p, &closest);
+                revhd[i] = distance_between_points(&p2->points[i], &closest);
+
+                if (revhd[i] > max_revhd)
+                        max_revhd = revhd[i];
+                avg_revhd += revhd[i];
+        }
+
+        avg_revhd /= p2->n_points;
+        printf("Reverse Hausdorff distance: %f\n", max_revhd);
+        printf("Mean reverse distance error: %f\n", avg_revhd);
+
+        return(max_hd);
+}
+
+/*
+ * Calculate the closest distance using mesh points only.
+ */
+void
+calc_point_distance(polygons_struct *p, polygons_struct *p2, double *hd)
+{
+        int i, poly;
+        Point closest;
+
+        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+                poly = find_closest_polygon_point(&p->points[i], p2, &closest);
+                hd[i] = distance_between_points(&p->points[i], &closest);
+        }
+}
+
 void
 apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
            int *dm, int inverse)

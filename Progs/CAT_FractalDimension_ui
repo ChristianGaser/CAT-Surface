@@ -43,7 +43,7 @@ process ()
     do
 
       sphere=`echo $surface | sed 's,.central.,.sphere.,g'`      
-      name=`echo $surface | sed 's,.central.,.fractaldimension.,g'`
+      name=`echo $surface | sed -e 's,.central.,.fractaldimension.,g' -e 's,.gii,,g'`
             
       if [ ! -f "$sphere" ]; then
         echo File $sphere not found.

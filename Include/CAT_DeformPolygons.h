@@ -7,6 +7,8 @@
  *
  */
 
+#include <bicpl.h>
+#include <bicpl/deform.h>
 #define  MAX_NEIGHBOURS  2000
 
 void perturb_points(polygons_struct *, Point [], Real, Real, Real, int,
@@ -20,5 +22,5 @@ double one_iter_polygons(polygons_struct *, deform_struct *, int);
 double one_iter_polygons_points(polygons_struct *, deform_struct *, int, int *);
 void check_polygons_shape_integrity(polygons_struct *, Point []);
 void check_shape_integrity_points(polygons_struct *, Point [], int *);
-void deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
-                       int *flag);
+void deform_polygons_points(polygons_struct *, deform_struct *, int *);
+void deform_surf2object(polygons_struct *, object_struct *);

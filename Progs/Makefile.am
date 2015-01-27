@@ -9,8 +9,8 @@ dist_bin_SCRIPTS = \
 	CAT_Resample_ui \
 	CAT_FractalDimension_ui \
 	CAT_DumpCurvL4FS_ui \
-        CAT_DumpSurfArea_ui \
-        CAT_SulcusDepth_ui \
+    CAT_DumpSurfArea_ui \
+    CAT_SulcusDepth_ui \
 	CAT_DumpCurv_ui
 	
 ##	CAT_ReconSurf \
@@ -71,6 +71,7 @@ bin_PROGRAMS = \
 	CAT_MarchingCubesTopological \
 	CAT_AddValuesToSurf \
 	CAT_SulcusDepth \
+	CAT_Surf2Surf \
 	CAT_MarchingCubes
 	
 ##	CAT_WarpSurfSPH \

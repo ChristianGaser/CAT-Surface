@@ -21,8 +21,90 @@
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 #define DEBUG 0
 #define DUMP_FILES 0
-#define FLAG_MODIFY 0
-#define FLAG_PRESERVE 1
+
+#define index(A,B,C,DIM) ((C)*DIM[0]*DIM[1] + (B)*DIM[0] + (A))
+
+#ifndef MIN
+#define MIN(A,B) ((A) > (B) ? (B) : (A))
+#endif
+
+#ifndef MAX
+#define MAX(A,B) ((A) > (B) ? (A) : (B))
+#endif
+
+
+/* based on caret code for TFCE calculation in BrainModelVolumeTFCE.cxx */
+void get_cluster_size(unsigned int *bw, int dims[3])
+{
+        unsigned int valToAdd, *bw2;
+        int i, j, k, ti, tj, tk, maxi, maxj, maxk, mini, minj, mink, ind, ind1, growingInd, growingCur;
+        int numVoxels = dims[0] * dims[1] * dims[2];
+        char *flagUsed;
+        short *growing;
+         
+        bw2 = (unsigned int*) malloc(numVoxels*sizeof(unsigned int));
+        flagUsed = (char*) malloc(numVoxels*sizeof(char));
+        growing  = (short*)malloc(numVoxels*3*sizeof(short));
+
+        for (i = 0; i < numVoxels; ++i) flagUsed[i] = 0;
+                
+        for (k = 0; k < dims[2]; ++k) for (j = 0; j < dims[1]; ++j) for (i = 0; i < dims[0]; ++i)
+        {
+                ind = k*(dims[0]*dims[1]) + (j*dims[0]) + i;
+                                                
+                if (!flagUsed[ind] && bw[ind] > 0)
+                {
+                        flagUsed[ind] = 1;
+                        growingInd = 3;
+                        growingCur = 0;
+                        growing[0] = i;
+                        growing[1] = j;
+                        growing[2] = k;
+                        
+                        while (growingCur < growingInd)
+                        {
+                                maxi = MIN(dims[0], growing[growingCur          ] + 2);
+                                maxj = MIN(dims[1], growing[growingCur + 1] + 2);
+                                maxk = MIN(dims[2], growing[growingCur + 2] + 2);
+                                
+                                mini = MAX(0, growing[growingCur                ] - 1);
+                                minj = MAX(0, growing[growingCur + 1] - 1);
+                                mink = MAX(0, growing[growingCur + 2] - 1);
+                                
+                                for (tk = mink; tk < maxk; ++tk) for (tj = minj; tj < maxj; ++tj) for (ti = mini; ti < maxi; ++ti)
+                                {
+                                        ind1 = tk*(dims[0]*dims[1]) + (tj*dims[0]) + ti;
+                                        
+                                        if (!flagUsed[ind1] && bw[ind1] > 0)
+                                        {
+                                                flagUsed[ind1] = 1;
+                                                growing[growingInd              ] = ti;
+                                                growing[growingInd + 1] = tj;
+                                                growing[growingInd + 2] = tk;
+                                                growingInd += 3;
+                                        }
+                                }
+                                growingCur += 3;
+                        }
+                        
+                        growingCur = 0;
+                        valToAdd = (unsigned int)(growingInd / 3.0);
+
+                        while (growingCur < growingInd)
+                        {
+                                bw2[growing[growingCur + 2]*(dims[0]*dims[1])+(growing[growingCur + 1]*dims[0])+growing[growingCur]] = valToAdd;
+                                growingCur += 3;
+                        }
+                }                
+        }
+         
+        /* copy cluster size values to input */
+        for (i = 0; i < numVoxels; ++i) bw[i] = bw2[i];
+
+        free(flagUsed);
+        free(growing);
+        free(bw2);
+}
 
 void
 add_neighbours(polygons_struct *surface, polygons_struct *lbw,
@@ -86,23 +168,220 @@ resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
 }
 
 void
-sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects, 
-                int n_defects, int *holes, double t1_threshold, polygons_struct *hbw, 
-                polygons_struct *lbw, char *t1_file, Volume volume, int large_defect_found)
+changed_voxels_between_surfaces(object_struct *object1, object_struct *object2, double *changes)
 {
+        Volume    label_volume1, volume1, label_volume2;        
+        int       i, label, sizes[3], x, y, z;
+        int       range_changed[2][3], value[3];
+        int       *n_neighbours, **neighbours, *flag;
+        double    separations[3], voxel[3], world[3];
+        double    bounds[6], value1, value2;
+        unsigned int *cluster;
+        
+        /* create volume inside surface bounds */
+        get_bounds(get_polygons_ptr(object1), bounds);
+        volume1  = create_volume( 3, XYZ_dimension_names, NC_BYTE, FALSE,
+                            0.0, 255.0 );
+        
+        /* prepare volume parameters */
+        for (i=0; i<3; i++) {
+                separations[i] = 0.75;
+                voxel[i] = -0.5;
+                world[i] = bounds[2*i] - separations[i];
+                value[i] = 2.0;
+                sizes[i] = ROUND((bounds[2*i+1] - bounds[2*i]) / separations[i]) + 2;
+        }
+
+        cluster = (unsigned int *) malloc(sizeof(unsigned int) * sizes[0]*sizes[1]*sizes[2]);
+
+        set_volume_separations( volume1, separations );    
+        set_volume_sizes( volume1, sizes );
+        set_volume_voxel_range( volume1, 0.0, 255.0 );
+        set_volume_real_range( volume1, 0, 255.0 );
+        set_volume_translation( volume1, voxel, world );
+
+        alloc_volume_data( volume1 );
+        
+        /* label volume according to surface */
+        label_volume1 = create_label_volume( volume1, NC_SHORT );
+        label_volume2 = create_label_volume( volume1, NC_SHORT );
+        scan_object_to_volume( object1, volume1, label_volume1, 1, 0.0 );
+        fill_connected_voxels( volume1, label_volume1, EIGHT_NEIGHBOURS,
+                           value, 0, 0, 1, 0.0, -1.0, range_changed );
+        scan_object_to_volume( object2, volume1, label_volume2, 1, 0.0 );
+        fill_connected_voxels( volume1, label_volume2, EIGHT_NEIGHBOURS,
+                           value, 0, 0, 1, 0.0, -1.0, range_changed );
+
+        if (DUMP_FILES) { 
+                (void) output_volume( "label_volume1.mnc", NC_SHORT, TRUE,
+                          0.0, 0.0,
+                          label_volume1, "label1\n", NULL );
+
+                (void) output_volume( "label_volume2.mnc", NC_SHORT, TRUE,
+                          0.0, 0.0,
+                          label_volume2, "label2\n", NULL );
+        }
+        
+        for (x = 0; x < sizes[0]; x++)
+          for (y = 0; y < sizes[1]; y++)
+            for (z = 0; z < sizes[2]; z++) {
+        
+                value1 = get_volume_real_value( label_volume1, x, y, z, 0, 0 );
+                value2 = get_volume_real_value( label_volume2, x, y, z, 0, 0 );
+
+                if (value1 != value2) 
+                        cluster[index(x,y,z,sizes)] = 255;
+                else    cluster[index(x,y,z,sizes)] = 0;
+        }
+
+        get_cluster_size(cluster, sizes);
+
+        for (x = 0; x < sizes[0]; x++)
+          for (y = 0; y < sizes[1]; y++)
+            for (z = 0; z < sizes[2]; z++) {
+                        set_volume_real_value( label_volume1, x, y, z, 0, 0, (double)cluster[index(x,y,z,sizes)]);
+        }
+
+        for (i = 0; i < get_polygons_ptr(object1)->n_points; i++) {
+                evaluate_volume_in_world(label_volume1,
+                                         RPoint_x(get_polygons_ptr(object1)->points[i]),
+                                         RPoint_y(get_polygons_ptr(object1)->points[i]),
+                                         RPoint_z(get_polygons_ptr(object1)->points[i]),
+                                         0, FALSE, 0.0, &value1,
+                                         NULL, NULL, NULL, NULL, NULL,
+                                         NULL, NULL, NULL, NULL);
+                changes[i] = value1;
+        }
+
+        if (DUMP_FILES) 
+                (void) output_volume( "cluster.mnc", NC_SHORT, TRUE,
+                          0.0, 0.0,
+                          label_volume1, "diff\n", NULL );
+
+        
+        delete_volume( volume1 );
+        delete_volume( label_volume1 );
+        delete_volume( label_volume2 );
+        free(cluster);
+}
+
+void
+surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
+{
+        Volume    volume, label_volume, tmp;        
+        int       i, label, sizes[3];
+        int       range_changed[2][3], value[3];
+        int       *n_neighbours, **neighbours, *flag;
+        double    separations[3], voxel[3], world[3];
+        double    bounds[6], label_val, threshold;
+        deform_struct deform;
+        polygons_struct *hbw_restore;
+        
+        if (hbw_defects != NULL) {
+                hbw_restore = (polygons_struct *) malloc(sizeof(polygons_struct));
+                copy_polygons(hbw, hbw_restore);
+        }
+        
+        /* create volume inside surface bounds */
+        get_bounds(get_polygons_ptr(object), bounds);
+        volume = create_volume( 3, XYZ_dimension_names, NC_BYTE, FALSE,
+                            0.0, 255.0 );
+        
+        /* prepare volume parameters */
+        for (i=0; i<3; i++) {
+                separations[i] = 0.75;
+                voxel[i] = -0.5;
+                world[i] = bounds[2*i] - separations[i];
+                value[i] = 2.0;
+                sizes[i] = ROUND((bounds[2*i+1] - bounds[2*i]) / separations[i]) + 2;
+        }
+
+        set_volume_separations( volume, separations );    
+        set_volume_sizes( volume, sizes );
+        set_volume_voxel_range( volume, 0.0, 255.0 );
+        set_volume_real_range( volume, 0, 255.0 );
+        set_volume_translation( volume, voxel, world );
+
+        alloc_volume_data( volume );
+        
+        /* label volume according to surface */
+        label_val = 127.0;
+        label_volume = create_label_volume( volume, NC_BYTE );
+        scan_object_to_volume( object, volume, label_volume, (int) label_val, 0.0 );
+        
+        /* fill inside volume */
+        fill_connected_voxels( volume, label_volume, EIGHT_NEIGHBOURS,
+                           value, 0, 0, label_val*2.0, 0.0, -1.0, range_changed );
+                           
+                tmp = create_box_filtered_volume(label_volume, NC_BYTE, FALSE,
+                                                 0.0, 0.0, 2, 2, 2);
+
+                delete_volume(label_volume);
+                label_volume = tmp;
+
+        initialize_deformation_parameters(&deform);
+        deform.fractional_step = 0.1;
+        deform.max_step = 0.1;
+        deform.max_search_distance = 5;
+        deform.degrees_continuity = 0;
+        deform.max_iterations = 100;
+        deform.movement_threshold = 0.01;
+        deform.stop_threshold = 0.0;
+        deform.deform_data.type = VOLUME_DATA;
+        deform.deform_data.volume = label_volume;
+        deform.deform_data.label_volume = (Volume) NULL;
+
+        if (add_deformation_model(&deform.deformation_model, -1, 0.5, "avg", -0.1, 0.1) != OK)
+                exit(EXIT_FAILURE);
+
+        threshold = 0.75*label_val;
+        set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
+
+        if (DEBUG) fprintf(stderr,"deform_polygons_points...\n");
+        deform_polygons(hbw, &deform);
+
+        if (hbw_defects != NULL) {
+                flag = (int *) malloc(sizeof(int) * hbw->n_points);
+                memset(flag, 0, sizeof(int) * hbw->n_points);
+                create_polygon_point_neighbours(hbw, TRUE, &n_neighbours,
+                                        &neighbours, NULL, NULL);
+                for (i = 0; i < hbw->n_points; i++) {
+                        if  (hbw_defects[i] != 0) {
+                                flag[i] = 1; /* patch this one */
+                                add_neighbours(hbw, hbw_restore, neighbours, n_neighbours, i,
+                                       flag, 1);
+                        }
+                }
+
+                /* combine the surfaces based on the modify flag */
+                for (i = 0; i < hbw->n_points; i++) {
+                        if (flag[i] == 0)
+                                hbw->points[i] = hbw_restore->points[i]; /* restore */
+                }
+                free(flag);
+                free(hbw_restore);
+        }
+        
+        delete_volume( volume );
+        delete_volume( label_volume );
+}
+
+void
+sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects, 
+                int n_defects, int *holes, polygons_struct *hbw, polygons_struct *lbw, int do_surface_deform)
+{
+        object_struct *surface_object;
         double *sharpness;
         int *n_neighbours, **neighbours;
-        int p, d, val, *flag, smooth_iters;
+        int p, d, val, poly, *flag, smooth_iters;
         int *hbw_defects, *hbw_polydefects, *hbw_holes;
-        Point *pts;
-        deform_struct deform;
 
         /* remap the defects onto the spherical harmonic reconstruction */
         create_polygon_point_neighbours(hbw, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
 
         if (DEBUG) fprintf(stderr,"resample_defects_sph...\n");
-        hbw_defects = (int *) malloc(sizeof(int) * hbw->n_points);
+        hbw_defects =     (int *) malloc(sizeof(int) * hbw->n_points);
         hbw_polydefects = (int *) malloc(sizeof(int) * hbw->n_items);
         resample_defects_sph(sphere, defects, polydefects,
                              hbw_defects, hbw_polydefects, hbw->n_items);
@@ -111,6 +390,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 
         /* remap the hole flags */
         hbw_holes = (int *) malloc(sizeof(int) * hbw->n_points);
+        memset(hbw_holes, 0, sizeof(int) * hbw->n_points);
         for (d = 1; d <= n_defects; d++) {
                 for (p = 0; p < sphere->n_points; p++) {
                         if (defects[p] == d && holes[p] != 0) {
@@ -130,11 +410,6 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                 output_values_any_format("hbw_defects.txt", hbw->n_points,
                                          hbw_defects, TYPE_INTEGER);
         }
-
-        /* preserve original points */
-        pts = (Point *) malloc(sizeof(Point) * hbw->n_points);
-        for (p = 0; p < hbw->n_points; p++)
-                pts[p] = hbw->points[p];
 
         if (DEBUG) fprintf(stderr,"compute_local_sharpness...\n");
         sharpness = (double *) malloc(sizeof(double) * hbw->n_points);
@@ -174,71 +449,22 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         fprintf(stderr,"Post-patch: %d self intersection(s) remaining\n", n_defects);
 
         /* smooth out remaining self-intersections */
-        if (large_defect_found)
-                smooth_iters = 30;
-        else    smooth_iters = 200;
+        smooth_iters = 200;
         if (DEBUG) fprintf(stderr,"smooth_selfintersections with %d iterations...\n", smooth_iters);
         n_defects = smooth_selfintersections(hbw, hbw_defects, hbw_polydefects,
                                              n_defects, n_neighbours,
                                              neighbours, smooth_iters);
 
-        /* correct modified points using original T1 image */
-        if (t1_file != NULL) {
-                initialize_deformation_parameters(&deform);
-
-                deform.fractional_step = 0.1;
-                deform.max_step = 0.1;
-                deform.max_search_distance = 15;
-                deform.degrees_continuity = 0;
-                deform.max_iterations = 40;
-                deform.movement_threshold = 0.01;
-                deform.stop_threshold = 0.0;
-
-                deform.deform_data.type = VOLUME_DATA;
-
-                deform.deform_data.volume = volume;
-                deform.deform_data.label_volume = (Volume) NULL;
-
-                if (add_deformation_model(&deform.deformation_model,
-                                          -1, 0.5, "avg", -0.1, 0.1) != OK)
-                        exit(EXIT_FAILURE);
-
-                set_boundary_definition(&deform.boundary_definition,
-                                        t1_threshold, t1_threshold,
-                                        0, 0, 'n', 0);
-
-                memset(flag, FLAG_MODIFY, sizeof(int) * hbw->n_points);
-                for (p = 0; p < hbw->n_points; p++) {
-                        if (hbw_holes[p] == VENTRICLE ||
-                            (hbw_holes[p] == 0 &&
-                             EQUAL_POINTS(hbw->points[p], pts[p])))
-                                flag[p] = FLAG_PRESERVE;
-                }
-
-                if (DEBUG) fprintf(stderr,"deform_polygons_points...\n");
-                deform_polygons_points(hbw, &deform, flag);
-
-                n_defects = find_selfintersections(hbw, hbw_defects,
-                                                   hbw_polydefects);
-
-                fprintf(stderr,"%d intersection(s) to repair\n", n_defects);
-                n_defects = join_intersections(hbw, hbw_defects,
-                                               hbw_polydefects,
-                                               n_neighbours, neighbours);
-                fprintf(stderr,"%d intersection(s) to repair\n", n_defects);
-
-                /* smooth out remaining self-intersections */
-                if (DEBUG) fprintf(stderr,"smooth_selfintersections...\n");
-                n_defects = smooth_selfintersections(hbw, hbw_defects,
-                                                     hbw_polydefects,
-                                                     n_defects, n_neighbours,
-                                                     neighbours, 200);
-
-        }
 
         if (DUMP_FILES) { 
                 output_values_any_format("hbw_modpts.txt", hbw->n_points, flag,
                                  TYPE_INTEGER);
+        }
+
+        if ( do_surface_deform ) {
+                surface_object = create_object(POLYGONS);
+                copy_polygons(surface, get_polygons_ptr(surface_object));
+                surface_deform(surface_object, hbw, hbw_holes);
         }
 
         if (DEBUG) fprintf(stderr,"compute_polygon_normals...\n");
@@ -249,90 +475,67 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         free(hbw_defects);
         free(hbw_polydefects);
         free(hbw_holes);
-        free(pts);
 }
 
 object_struct **
-fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, Volume volume, char *t1_file, int bw, int lim, 
-        char *reparam_file, double max_refine_length)
+fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, int bw, int lim, 
+        char *reparam_file, double max_refine_length, int do_surface_deform)
 {
-        object_struct **hbw_objects, **lbw_objects, **reparam_objects;
+        object_struct **hbw_objects, **lbw_objects, **reparam_objects, *surface_object;
         polygons_struct *hbw, *lbw, *reparam, refined;
         Point *length_points;
         double *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double *lrcx, *licx, *lrcy, *licy, *lrcz, *licz;
         double *rdatax, *rdatay, *rdataz;
-        int bw2, i, d, n_done, large_defect_found;
-        int *defects, *polydefects, *holes, n_defects, n_objects, p;
+        int bw2, i, p, d, n_done;
+        int *defects, *polydefects, *holes, n_defects, n_objects;
         int *n_neighbours, **neighbours;
-        double t1_threshold, *curvatures, *defect_size;
+        double *change_hole, *change_handle;
+        double sum_change_handle, sum_change_hole;
         File_formats format;
+
+        defects     = (int *) malloc(sizeof(int) * surface->n_points);
+        holes       = (int *) malloc(sizeof(int) * surface->n_points);
+        polydefects = (int *) malloc(sizeof(int) * surface->n_items);
+        change_handle   = (double *) malloc(sizeof(double) * surface->n_points);
+        change_hole     = (double *) malloc(sizeof(double) * surface->n_points);
+        hbw_objects = (object_struct **) malloc(sizeof(object_struct *));
 
         /* find defects in original uncorrected surface */
         create_polygon_point_neighbours(sphere, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
 
-        defects     = (int *) malloc(sizeof(int) * sphere->n_points);
-        polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
-
         if (DEBUG) fprintf(stderr,"find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
-
-        /* indicate large defect if euler number has large negative values */
-        update_polydefects(surface, defects, polydefects);
-        large_defect_found = 0;
-        for (d = 0; d < n_defects; d++) {
-                if (defect_euler(surface, defects, polydefects, d, n_neighbours, neighbours) <= -200)
-                        large_defect_found = 1;
-        }
-
-        if ( large_defect_found) {
-                fprintf(stderr,"Large defects found: use only center of defect for correction.\n");
-                curvatures  = (double *) malloc(sizeof(double) * sphere->n_points);
-                defect_size = (double *) malloc(sizeof(double) * sphere->n_points);
-                get_polygon_vertex_curvatures_cg(sphere, n_neighbours, neighbours,
-                                         3.0, 0, curvatures);
-                get_defect_size(surface, defects, n_defects, defect_size);
-        }
-        
         fprintf(stderr,"%d topological defects\n", n_defects);
 
-        /* label defects as holes or handles */
-        holes = (int *) malloc(sizeof(int) * sphere->n_points);
-        
-        if (t1_file != NULL) {
-                t1_threshold = get_holes_handles(surface, sphere, defects,
-                                                 n_defects, holes, volume,
-                                                 n_neighbours, neighbours);
+        update_polydefects(surface, defects, polydefects);
 
-                if (DEBUG) fprintf(stderr,"T1 threshold = %f\n", t1_threshold);
-                if (DUMP_FILES) { 
-                        output_values_any_format("orig_holes.txt",
-                                                 sphere->n_points, holes,
-                                                 TYPE_INTEGER);
-                }
-        } else {
-                t1_threshold = -1;
-                for (p = 0; p < surface->n_points; p++) {
-                        if (defects[p] > 0) {
-                                holes[p] = HOLE; /* always cut */
-                        
-                                /* keep only center of a large defect (>5% of overall size) 
-                                   center of defect is found be checking for large mean curvature */
-                                if (large_defect_found) {
-                                        if ((curvatures[p] < 5.0) && (defect_size[p] > 0.05)) {
-                                                holes[p] = 0;
-                                                defects[p] = 0;
-                                        }
-                                }
-                        }
-                }
+        /* label defects first always as handles and in the 2nd step as holes */
+        for (p = 0; p < surface->n_points; p++) {
+                if (defects[p] > 0) 
+                        holes[p] = HANDLE; 
+                else    holes[p] = 0;
         }
         
-        delete_polygon_point_neighbours(sphere, n_neighbours,
-                                        neighbours, NULL, NULL);
+        if (reparam_file != NULL) {
+                if (input_graphics_any_format(reparam_file, &format, &n_objects,
+                                              &reparam_objects) != OK)
+                        exit(EXIT_FAILURE);
 
+                /* check that the surface file contains a polyhedron */
+                if (n_objects != 1 ||
+                    get_object_type(reparam_objects[0]) != POLYGONS) {
+                        fprintf(stderr,"Reparam sphere file must contain 1 polygons object.\n");
+                        exit(EXIT_FAILURE);
+                }
+                reparam = get_polygons_ptr(reparam_objects[0]);
+                for (p = 0; p < reparam->n_points; p++)
+                        set_vector_length(&reparam->points[p], 1.0);
+                n_triangles = reparam->n_items;
+        } else reparam = NULL;
+        
         bw2 = bw * bw;
 
         rdatax = (double *) malloc(sizeof(double) * 4 * bw2);
@@ -351,45 +554,113 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes...\n");
+        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (handles)...\n");
         get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
                                          holes, bw, rdatax, rdatay, rdataz);
 
-        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (hbw)...\n");
+        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (handles)...\n");
         get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
 
-        hbw_objects = (object_struct **) malloc(sizeof(object_struct *));
+        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (handles)...\n");
         *hbw_objects = create_object(POLYGONS);
         hbw = get_polygons_ptr(*hbw_objects);
-
-        if (reparam_file != NULL) {
-                if (input_graphics_any_format(reparam_file, &format, &n_objects,
-                                              &reparam_objects) != OK)
-                        exit(EXIT_FAILURE);
-
-                /* check that the surface file contains a polyhedron */
-                if (n_objects != 1 ||
-                    get_object_type(reparam_objects[0]) != POLYGONS) {
-                        fprintf(stderr,"Reparam sphere file must contain 1 polygons object.\n");
-                        exit(EXIT_FAILURE);
-                }
-                reparam = get_polygons_ptr(reparam_objects[0]);
-                for (p = 0; p < reparam->n_points; p++)
-                        set_vector_length(&reparam->points[p], 1.0);
-                n_triangles = reparam->n_items;
-        } else {
-                reparam = NULL;
-        }
-        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (hbw)...\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
                                n_triangles, reparam, bw);
 
+        surface_object = create_object(POLYGONS);
+        copy_polygons(surface, get_polygons_ptr(surface_object));
+
+        /* calculate change between SPH-reparameterized and original surface in voxel space*/ 
+        changed_voxels_between_surfaces(surface_object, hbw_objects[0], change_handle);
+
         if (DUMP_FILES) {
+                output_graphics_any_format("hbw_handle.obj", ASCII_FORMAT, 1,
+                                           hbw_objects, NULL);
+                output_values_any_format("change_handle.txt", surface->n_points,
+                                         change_handle, TYPE_DOUBLE);
+        }
+
+        /* label all defects as holes */
+        for (p = 0; p < surface->n_points; p++) {
+                if (defects[p] > 0) 
+                        holes[p] = HOLE; 
+                else    holes[p] = 0;
+        }
+    
+        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (holes)...\n");
+        get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
+                                         holes, bw, rdatax, rdatay, rdataz);
+
+        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata  (holes)...\n");
+        get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
+        get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
+        get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
+
+        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph  (holes)...\n");
+        *hbw_objects = create_object(POLYGONS);
+        hbw = get_polygons_ptr(*hbw_objects);
+        sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
+                               n_triangles, reparam, bw);
+
+        /* calculate change between SPH-reparameterized and original surface in voxel space*/ 
+        changed_voxels_between_surfaces(surface_object, hbw_objects[0], change_hole);
+
+        if (DUMP_FILES) {
+                output_graphics_any_format("hbw_hole.obj", ASCII_FORMAT, 1,
+                                           hbw_objects, NULL);
+                output_values_any_format("change_hole.txt", surface->n_points,
+                                         change_hole, TYPE_DOUBLE);
+        }
+        
+        /* label defects as handles or holes depending on thier minimal hausdorff distance inside the defect */ 
+        for (d = 1; d < n_defects+1; d++) {
+                sum_change_handle = 0.0;
+                sum_change_hole   = 0.0;
+                int defect_size = 0.0;
+                for (p = 0; p < surface->n_points; p++) {
+                        if (defects[p] == d) {
+                                if (change_handle[p] > sum_change_handle) sum_change_handle = change_handle[p];
+                                if (change_hole[p] > sum_change_hole) sum_change_hole = change_hole[p];
+                                defect_size++;
+                        }
+                } 
+                if (DEBUG) fprintf(stderr,"%d %d %g %g\n",d,defect_size,sum_change_handle,sum_change_hole);
+                for (p = 0; p < surface->n_points; p++) {
+                        if (defects[p] == d) {
+                                /* use handle or holes depending on minimal (hausdorff) 
+                                   distance between surfaces */
+                                if (sum_change_handle > sum_change_hole)
+                                        holes[p] = HOLE;
+                                else    holes[p] = HANDLE;
+                        }
+                }
+        }
+        
+        if (DUMP_FILES) {
+                output_values_any_format("defects.txt", surface->n_points,
+                                         holes, TYPE_INTEGER);
+        }
+
+        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (final)...\n");
+        get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
+                                         holes, bw, rdatax, rdatay, rdataz);
+
+        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (final)...\n");
+        get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
+        get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
+        get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
+        
+        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (final)...\n");
+        *hbw_objects = create_object(POLYGONS);
+        hbw = get_polygons_ptr(*hbw_objects);
+        sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
+                               n_triangles, reparam, bw);
+
+        if (DUMP_FILES) 
                 output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1,
                                            hbw_objects, NULL);
-        }
 
         if (DEBUG) fprintf(stderr,"butterworth_filter...\n");
         butterworth_filter(bw, lim, rcx, lrcx);
@@ -411,19 +682,19 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
                                lbw, n_triangles, reparam, bw);
 
-        if (DUMP_FILES) {
+        if (DUMP_FILES) 
                 output_graphics_any_format("lbw.obj", ASCII_FORMAT, 1,
                                            lbw_objects, NULL);
-        }
 
-        free(rcx); free(rcy); free(rcz);
-        free(icx); free(icy); free(icz);
+        free(rcx);  free(rcy);  free(rcz);
+        free(icx);  free(icy);  free(icz);
         free(lrcx); free(lrcy); free(lrcz);
         free(licx); free(licy); free(licz);
         free(rdatax); free(rdatay); free(rdataz);
 
+        /* make post correction */
         sph_postcorrect(surface, sphere, defects, polydefects, n_defects, holes,
-                        t1_threshold, hbw, lbw, t1_file, volume, large_defect_found);
+                        hbw, lbw, do_surface_deform);
 
         /* make refinement to guarantee small sized vertices */ 
         if (max_refine_length > 0.0) {
@@ -431,15 +702,13 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                 for_less( i, 0, hbw->n_points )
                         length_points[i] = hbw->points[i];
 
-                do
-                {
+                do {
                         n_done = refine_mesh( &length_points, hbw, max_refine_length,
                               &refined );
 
-                delete_polygons( hbw );
-                *hbw = refined;
-                }
-                while( n_done > 0 );
+                        delete_polygons( hbw );
+                        *hbw = refined;
+                } while( n_done > 0 );
 
                 print( "Resampled into %d polygons.\n", hbw->n_items );
         
@@ -449,10 +718,8 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(defects);
         free(polydefects);
         free(holes);
-        if ( large_defect_found) {
-                free(curvatures);
-                free(defect_size);
-        }
+        free(change_handle);
+        free(change_hole);
 
         return hbw_objects;
 }

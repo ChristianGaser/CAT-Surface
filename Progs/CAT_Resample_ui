@@ -12,7 +12,7 @@
 # global parameters
 ########################################################
 
-output_dir=""
+outputdir=""
 reg=sphere.reg
 template=$FREESURFER_HOME/subjects/fsaverage
 fwhm=0
@@ -41,10 +41,10 @@ main ()
 preprocess ()
 {
 
-  if [ ! "$output_dir" == "" ]; then
-    if [ ! -d "$output_dir" ]; then
-      echo Create directory ${output_dir}.
-      mkdir -p $output_dir
+  if [ ! "$outputdir" == "" ]; then
+    if [ ! -d "$outputdir" ]; then
+      echo Create directory ${outputdir}.
+      mkdir -p $outputdir
     fi
   fi
   
@@ -71,10 +71,10 @@ preprocess ()
       central=${central}.gii
       sphere=${sphere}.gii
       
-      if [ ! "$output_dir" == "" ]; then
-        output_dir=$surf_dir
+      if [ "${outputdir}" == "" ]; then
+        outputdir=$surfdir
       fi
-      
+
       if [ ! "$hemi" == "lh" ] && [ ! "$hemi" == "rh" ]; then
         echo File $subject should beging with lh or rh.
         exit    
@@ -85,7 +85,7 @@ preprocess ()
       for i in $hemi; do
         if [ ! "$fwhm" == 0 ]; then
         
-          name=${output_dir}/s${fwhm}mm.${i}.${measure}.resampled.${subject_name}
+          name=${outputdir}/s${fwhm}mm.${i}.${measure}.resampled.${subject_name}
           if [ "$gifti" == 1 ]; then
             output=${name}.gii
           else
@@ -114,7 +114,7 @@ preprocess ()
           fi
         
         else
-          name=${output_dir}/${i}.${measure}.resampled.${subject_name}
+          name=${outputdir}/${i}.${measure}.resampled.${subject_name}
 
           if [ "$gifti" == 1 ]; then
             output=${name}.gii
@@ -188,7 +188,7 @@ parse_args ()
       ;;
     --o* | -o*)
       exit_if_empty "$optname" "$optarg"
-      output_dir=$optarg
+      outputdir=$optarg
       ;;
     --r* | -r*)
       exit_if_empty "$optname" "$optarg"
@@ -252,7 +252,7 @@ usage ()
 {
 cat <<__EOM__
 USAGE: CAT_Resample_ui measure [measure2 .. measureN] [-f=fwhm_in_mm] [-a] [-noclobber] [-nogifti]
-                          [-o=output_directory] [-r=surfreg] [-t=fsaverage_directory]                      
+                          [-o=outputdirectory] [-r=surfreg] [-t=fsaverage_directory]                      
     
 __EOM__
 }
@@ -271,13 +271,13 @@ optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
         CAT_Resample_ui measure [measure2 .. measureN] [-f=fwhm_in_mm] [-noclobber] [-nogifti]
-                          [-o=output_directory] [-r=surfreg] [-t=fsaverage_directory]                      
+                          [-o=outputdirectory] [-r=surfreg] [-t=fsaverage_directory]                      
     
 OPTIONS:
   subject    - one or more subject
   -f         - diffusion heat kernel smoothing defined in fwhm in mm [default $fwhm]
   -t         - target surface directory for resampling [default $template]
-  -o         - output directory (created if neccessary) [default $output_dir]                
+  -o         - output directory (created if neccessary) [default $outputdir]                
   -r         - sperical surface for resampling [default $reg]                 
   -nogifti   - save output not as gifti file
   -noclobber - do not overwrite existing file

@@ -7,9 +7,79 @@
  *
  */
 
-#include <bicpl/deform.h>
-
 #include "CAT_DeformPolygons.h"
+#include "CAT_Surf.h"
+
+void
+deform_surf2object(polygons_struct *surface, object_struct *object)
+{
+        Volume    volume, label_volume;        
+        int       i, label, sizes[3];
+        int       range_changed[2][3], value[3];
+        int       *n_neighbours, **neighbours, *flag;
+        double    separations[3],voxel[3],world[3];
+        double    bounds[6], label_val, threshold;
+        deform_struct deform;
+        
+        /* create volume inside surface bounds */
+        get_bounds(get_polygons_ptr(object), bounds);
+        volume = create_volume( 3, XYZ_dimension_names, NC_BYTE, FALSE,
+                            0.0, 255.0 );
+        
+        /* prepare volume parameters */
+        for (i=0; i<3; i++) {
+                separations[i] = 0.75;
+                voxel[i] = -0.5;
+                world[i] = bounds[2*i] - separations[i];
+                value[i] = 2.0;
+                sizes[i] = ROUND((bounds[2*i+1] - bounds[2*i]) / separations[i]) + 2;
+        }
+
+        set_volume_separations( volume, separations );    
+        set_volume_sizes( volume, sizes );
+        set_volume_voxel_range( volume, 0.0, 255.0 );
+        set_volume_real_range( volume, 0, 255.0 );
+        set_volume_translation( volume, voxel, world );
+
+        alloc_volume_data( volume );
+        
+        /* label volume according to surface */
+        label_val = 127.0;
+        label_volume = create_label_volume( volume, NC_BYTE );
+        scan_object_to_volume( object, volume, label_volume, (int) label_val, 0.0 );
+        
+        /* fill inside volume */
+        fill_connected_voxels( volume, label_volume, EIGHT_NEIGHBOURS,
+                           value, 0, 0, label_val*2.0, 0.0, -1.0, range_changed );
+                           
+        initialize_deformation_parameters(&deform);
+        deform.fractional_step = 0.1;
+        deform.max_step = 0.1;
+        deform.max_search_distance = 5;
+        deform.degrees_continuity = 0;
+        deform.max_iterations = 100;
+        deform.movement_threshold = 0.01;
+        deform.stop_threshold = 0.0;
+        deform.deform_data.type = VOLUME_DATA;
+        deform.deform_data.volume = label_volume;
+        deform.deform_data.label_volume = (Volume) NULL;
+
+        if (add_deformation_model(&deform.deformation_model, -1, 0.5, "avg", -0.15, 0.15) != OK)
+                exit(EXIT_FAILURE);
+        threshold = label_val;
+        set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
+        deform_polygons(surface, &deform);
+
+        if (add_deformation_model(&deform.deformation_model, -1, 0.5, "avg", -0.025, 0.025) != OK)
+                exit(EXIT_FAILURE);
+        threshold = 1.75*label_val;
+        set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
+        deform_polygons(surface, &deform);
+                
+        delete_volume( volume );
+        delete_volume( label_volume );
+
+}
 
 void
 deform_polygons(polygons_struct *polygons, deform_struct *deform_parms)
@@ -436,10 +506,7 @@ perturb_points(polygons_struct *polygons, Point new_points[],
 }
 
 
-#define FLAG_MODIFY 0
-#define FLAG_PRESERVE 1
-
-/* only modify point if flag[point] = FLAG_MODIFY */
+/* only modify point if flag[point] != 0 */
 void
 deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
                        int *flag)
@@ -474,7 +541,7 @@ deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
 
                 prev_avg_err = avg_err;
                 for (p = 0; p < polygons->n_points; p++) {
-                        if (flag[p] == FLAG_PRESERVE)
+                        if (flag[p] == 0)
                                 polygons->points[p] = pts[p]; /* restore */
                 }
                 pts[p] = polygons->points[p];
