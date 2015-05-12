@@ -68,8 +68,8 @@ preprocess ()
       subject_name=`basename $subject|cut -f3 -d'.'`
       central=`basename $subject|sed 's,.'${measure}'.,.central.,g'`
       sphere=`basename $subject|sed 's,.'${measure}'.,.'${reg}'.,g'`
-      central=${central}.gii
-      sphere=${sphere}.gii
+      central=`echo ${central}.gii|sed 's,.gii.gii,.gii,g'`
+      sphere=`echo ${sphere}.gii|sed 's,.gii.gii,.gii,g'`
       
       if [ "${outputdir}" == "" ]; then
         outputdir=$surfdir
@@ -176,10 +176,10 @@ parse_args ()
       exit_if_empty "$optname" "$optarg"
       fwhm=$optarg
       ;;
-    --nogifti* | -ng*)
+    --nogifti* | -nog*)
       gifti=0
       ;;
-    --noclobber* | -nc*)
+    --noclobber* | -noc*)
       noclobber=1
       ;;
     --t* | -t*)
