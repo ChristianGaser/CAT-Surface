@@ -23,10 +23,11 @@
 
 #define F_AVERAGE 0
 #define F_RANGE   1
-#define F_MAX     2
-#define F_MIN     3
-#define F_EXP     4
-#define F_SUM     5
+#define F_MAXABS  2
+#define F_MAX     3
+#define F_MIN     4
+#define F_EXP     5
+#define F_SUM     6
 
 #define LOG05     -0.69314718
 #define MAX_N_ARRAY 250
@@ -61,22 +62,25 @@ ArgvInfo argTable[] = {
         "Use cubic interpolation." },
    {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Mapping function options:"},
-  { "-average", ARGV_CONSTANT, (char *) 0, 
+  { "-average", ARGV_CONSTANT, (char *) F_AVERAGE, 
     (char *) &map_func,
     "Use average for mapping along normals." },
-  { "-range", ARGV_FLOAT, (char *) 2, 
+  { "-range", ARGV_FLOAT, (char *) F_RANGE, 
     (char *) range,
     "Count number of values in range for mapping along normals. If any value is out of range \n\t\tvalues will be counted only until this point" },
-  { "-max", ARGV_CONSTANT, (char *) 2, 
+  { "-maxabs", ARGV_CONSTANT, (char *) F_MAXABS, 
+    (char *) &map_func,
+    "Use absolute maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined to output its value at the maximum value of the 1st volume." },
+  { "-max", ARGV_CONSTANT, (char *) F_MAX, 
     (char *) &map_func,
     "Use maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined to output its value at the maximum value of the 1st volume." },
-  { "-min", ARGV_CONSTANT, (char *) 3, 
+  { "-min", ARGV_CONSTANT, (char *) F_MIN, 
     (char *) &map_func,
     "Use minimum value for mapping along normals. Optionally a 2nd volume can be defined to output its value at the minimum value of the 1st volume." },
-  { "-exp", ARGV_FLOAT, (char *) 1, 
+  { "-exp", ARGV_FLOAT, (char *) F_EXP, 
     (char *) &exp_half,
     "Use exponential average of values for mapping along normals. The argument defines the \n\t\tdistance in mm where values are decayed to 50% (recommended value is 10mm)." },
-  { "-sum", ARGV_CONSTANT, (char *) 5, 
+  { "-sum", ARGV_CONSTANT, (char *) F_SUM, 
     (char *) &map_func,
     "Use sum of values for mapping along normals." },
   { NULL, ARGV_END, NULL, NULL, NULL }
@@ -119,6 +123,15 @@ evaluate_function(double val_array[], int n_val, int map_func, double exp_array[
                         if (in_range)
                                 result += grid_res;
                 }
+                break;
+        case F_MAXABS:
+                result = 0;
+                for (i = 0; i < n_val; i++) {
+                        if (fabs(val_array[i]) > fabs(result)) {
+                                result = val_array[i];
+                                index[0] = i;
+                        }
+                } 
                 break;
         case F_MAX:
                 result = -FLT_MAX;
@@ -250,7 +263,7 @@ main(int argc, char *argv[])
         if (output_file2 != NULL) {  
                 /* check that optional 2nd volume was used either with min
                  * or max mapping function */
-                if ((map_func != F_MAX) && (map_func != F_MIN)) {
+                if ((map_func != F_MAX) && (map_func != F_MIN) && (map_func != F_MAXABS)) {
                         fprintf(stderr, "For 2nd volume only min/max is allowed as mapping function.\n");
                         exit(EXIT_FAILURE);
                 }
