@@ -1,6 +1,6 @@
 SUBDIRS = . Progs
 
-AUTOMAKE_OPTIONS = check-news
+AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
 AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/niftilib -I$(top_srcdir)/zlib
