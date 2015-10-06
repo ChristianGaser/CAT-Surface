@@ -33,23 +33,26 @@
 #define MAX_N_ARRAY 250
 
 /* argument defaults */
-int  degrees_continuity = -1; /* interpolation - default: nearest neighbour */
-int  map_func = F_MAX;        /* default mapping function: maximum value */
+int  degrees_continuity = 0;    /* interpolation - default: linear */
+int  map_func = F_MAX;          /* default mapping function: maximum value */
 double grid_res = 1.0;          /* resolution of grid along normals in mm */
-double grid_length = 10.0;      /* length of grid along normals */
+double grid_length = 5.0;       /* length of grid along normals */
 double grid_origin = 0.0;       /* origin of grid along normals */
 double range[2] = {FLT_MAX, FLT_MAX};
 double exp_half = FLT_MAX;
+char *thickness_file = NULL;    /* thickness file for restricting mapping inside defined thickness */
 
 /* the argument table */
 ArgvInfo argTable[] = {
-   {"-res", ARGV_FLOAT, (char *) 1, (char *) &grid_res,
-       "Resolution of grid along normals [mm]."},
-   {"-origin", ARGV_FLOAT, (char *) 1, (char *) &grid_origin,
-       "Origin (start point) of grid along normals [mm]. Give negative values for \n\t\torigin outside the surface."},
-   {"-length", ARGV_FLOAT, (char *) 1, (char *) &grid_length,
-       "Lenght of grid along normals [mm]."},
-   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
+  {"-res", ARGV_FLOAT, (char *) 1, (char *) &grid_res,
+       "Resolution of grid along normals [mm].\n\t\tIf thickness is used to define mapping the grid resolution is considered as normalized value according to the cortical thickness."},
+  {"-origin", ARGV_FLOAT, (char *) 1, (char *) &grid_origin,
+       "Origin (start point) of grid along normals [mm]. Give negative values for \n\t\torigin outside the surface.\n\t\tIf thickness is used to define mapping the grid resolution is considered as normalized value according the cortical thickness."},
+  {"-length", ARGV_FLOAT, (char *) 1, (char *) &grid_length,
+       "Length of grid along normals [mm]."},
+  {"-thickness", ARGV_STRING, (char *) 1, (char *) &thickness_file, 
+     "Additional thickness file for mapping inside defined normalized cortical thickness of GM.\n\t\tIf this option is used then -origin, -res and -length will be handled as normalized (relative) values:\n\t\te.g. origin=-0.5, res=0.2 and length=1.0 will map all values inside the GM-band (-0.5:0.2:0.5) that is defined using the normalized cortical thickness."},
+  {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Interpolation options:"},
   { "-linear", ARGV_CONSTANT, (char *) 0, 
     (char *) &degrees_continuity,
@@ -62,7 +65,7 @@ ArgvInfo argTable[] = {
         "Use cubic interpolation." },
    {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Mapping function options:"},
-  { "-average", ARGV_CONSTANT, (char *) F_AVERAGE, 
+  { "-avg", ARGV_CONSTANT, (char *) F_AVERAGE, 
     (char *) &map_func,
     "Use average for mapping along normals." },
   { "-range", ARGV_FLOAT, (char *) F_RANGE, 
@@ -170,46 +173,39 @@ int
 main(int argc, char *argv[])
 {
         char                 *volume_file, *volume_file2, *object_file;
-        char                 *output_surface_file, *output_file2;
+        char                 *output_values_file, *output_file2;
         File_formats         format;
         Volume               volume, volume2;
-        int                  i, j, index, n_values, n_objects;
+        int                  i, j, index, n_values, n_thickness_values, n_objects;
         object_struct        **objects;
         polygons_struct      *polygons;
-        double                 value, value2, *values, *values2, voxel[N_DIMENSIONS];
-        double                 val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
-        double                 exp_sum, exp_array[MAX_N_ARRAY];
+        double               value, value2, *values, *values2, *thickness, voxel[N_DIMENSIONS];
+        double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
+        double               exp_sum, exp_array[MAX_N_ARRAY];
         Vector               normal;
 
         /* Call ParseArgv */
-        if (ParseArgv(&argc, argv, argTable, 0) || ((argc != 4) && (argc != 6))) {
+        if (ParseArgv(&argc, argv, argTable, 0)) {
                 fprintf(stderr, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
-                fprintf(stderr, "Map data from a minc volume to a surface.\n");
+                fprintf(stderr, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &volume_file) ||
-            !get_string_argument(NULL, &output_surface_file)) {
+        if (!get_string_argument(NULL, &object_file) || !get_string_argument(NULL, &volume_file) || !get_string_argument(NULL, &output_values_file)) {
                 fprintf(stderr, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
+                fprintf(stderr, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
-    
+
         /* get optional arguments for 2nd volume and output */ 
         get_string_argument(NULL, &volume_file2);
         get_string_argument(NULL, &output_file2);
         
         /* calculate number of values needed to subdivide grid along normals */ 
         n_values = (grid_length/grid_res) + 1;
-    
-        /* check minimum number of values */
-        if (n_values < 2) {
-                fprintf(stderr, "Resolution of grid is too low.\n");
-                exit(EXIT_FAILURE);
-        }
-    
+        
         /* .. and also check maximum number of values */
         if (n_values > MAX_N_ARRAY) {
                 fprintf(stderr, "Resolution of grid is too high.\n");
@@ -231,10 +227,18 @@ main(int argc, char *argv[])
         }
 
         /* initialize values for lengths (starting with origin) */
-        fprintf(stderr, "Calculate values along:\n");
+        if (thickness_file == NULL)
+                fprintf(stderr, "Calculate values along absolute positions [mm]:\n");
+        else {
+                if (input_values_any_format(thickness_file, &n_thickness_values, &thickness) != OK)
+                        exit(EXIT_FAILURE);
+
+                fprintf(stderr, "Calculate values along relative position using thickness:\n");
+        }
         for (j = 0; j < n_values; j++) {
-                length_array[j] = grid_origin +
-                                  ((Real)j / (Real)(n_values-1) * grid_length);
+                length_array[j] = grid_origin;
+                /* only use grid calculation if more than 1 value is given */
+                if (n_values > 1) length_array[j] += ((Real)j / (Real)(n_values-1) * grid_length);
                 fprintf(stderr,"%3.2f ",length_array[j]);
         }
         fprintf(stderr, "\n");
@@ -282,6 +286,14 @@ main(int argc, char *argv[])
 
         polygons = get_polygons_ptr(objects[0]);
 
+        /* check whether # of thickness values filts to surface */
+        if (thickness_file != NULL) {
+                if (polygons->n_points != n_thickness_values) {
+                        fprintf(stderr,"Number of surface points differs from number of thickness values.\n");
+                        exit(EXIT_FAILURE);
+                }
+        }
+
         compute_polygon_normals(polygons);
 
         ALLOC(values, polygons->n_points);
@@ -291,8 +303,13 @@ main(int argc, char *argv[])
                 SCALE_VECTOR(normal, polygons->normals[i], -1.0);
                 for (j = 0; j < n_values; j++) {
                         /* get point from origin in normal direction */
-                        GET_grid_POINT(voxel, polygons->points[i],
+                        if (thickness_file == NULL) {
+                                GET_grid_POINT(voxel, polygons->points[i],
                                        normal, length_array[j]);
+                        } else { /* relate grid position to thickness values */
+                                GET_grid_POINT(voxel, polygons->points[i],
+                                       normal, length_array[j]*thickness[j]);
+                        }
                         evaluate_volume_in_world(volume, voxel[X], voxel[Y],
                                                  voxel[Z], degrees_continuity, 
                                                  FALSE, 0.0, &value, NULL,
@@ -307,8 +324,13 @@ main(int argc, char *argv[])
                 
                 /* get optional values for 2nd volume according to index of 1st volume */
                 if (output_file2 != NULL) {
-                        GET_grid_POINT(voxel, polygons->points[i],
+                        if (thickness_file == NULL) {
+                                GET_grid_POINT(voxel, polygons->points[i],
                                        normal, length_array[index]);
+                        } else {
+                                GET_grid_POINT(voxel, polygons->points[i],
+                                       normal, length_array[index]*thickness[j]);
+                        }
                         evaluate_volume_in_world(volume2, voxel[X], voxel[Y],
                                                  voxel[Z], degrees_continuity, 
                                                  FALSE, 0.0, &value2, NULL,
@@ -318,7 +340,7 @@ main(int argc, char *argv[])
                 }
         }
 
-        output_values_any_format(output_surface_file, polygons->n_points,
+        output_values_any_format(output_values_file, polygons->n_points,
                                  values, TYPE_DOUBLE);
 
         if (output_file2 != NULL) {  
