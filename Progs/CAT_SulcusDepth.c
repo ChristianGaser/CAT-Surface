@@ -11,6 +11,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
+#include "CAT_SurfParameters.h"
 #include "CAT_SurfaceIO.h"
     
 BOOLEAN use_log = 0;
@@ -77,7 +78,7 @@ main(int argc, char *argv[])
         sphere = get_polygons_ptr(objects[0]);
 
         depth_values = (double *) malloc(sizeof(double) * polygons->n_points);
-        get_sulcus_depth(polygons, sphere, depth_values);
+        compute_sulcus_depth(polygons, sphere, depth_values);
     
         if (use_log) {
                 /* guarantee a minimum log-values of -1 by ignoring all values < 0.1 */

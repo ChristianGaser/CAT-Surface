@@ -86,9 +86,9 @@ main(int argc, char *argv[])
         hd = (double *) malloc(sizeof(double) * polygons->n_points);
 
         if (exact) { /* exact method */
-                max_hd = calc_exact_hausdorff(polygons, polygons2, hd);
+                max_hd = compute_exact_hausdorff(polygons, polygons2, hd);
         } else { /* point-by-point method */
-                max_hd = calc_point_hausdorff(polygons, polygons2, hd);
+                max_hd = compute_point_hausdorff(polygons, polygons2, hd);
         }
 
         if (output_values_any_format(output_surface_file, polygons->n_points,

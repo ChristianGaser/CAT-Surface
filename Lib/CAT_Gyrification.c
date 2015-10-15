@@ -17,7 +17,7 @@
 #include "CAT_SPH.h"
 #include "CAT_ConvexHull.h"
 
-
+/* experimental, not finished (local areas should be better estimated */
 double
 gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
                       char *file, int n_triangles, polygons_struct *reparam)
@@ -38,7 +38,6 @@ gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
         object = surface_get_convex_hull(surface, sphere);
         convex = get_polygons_ptr(*object);
 
-output_graphics_any_format( "convex0.obj", ASCII_FORMAT, 1, object, NULL);
         /* get sphere of convex hull */
         convex_sphere = get_polygons_ptr(create_object(POLYGONS));
         copy_polygons(convex, convex_sphere);

@@ -19,5 +19,3 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *, int [], int *[],
 
 void get_smoothed_curvatures(polygons_struct *, double *,
                              double, int);
-void compute_local_sharpness(polygons_struct *, int [], int * [], double *);
-void calc_convexity(polygons_struct *, int [], int *[], double, double *);

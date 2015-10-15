@@ -11,6 +11,7 @@
 
 #include "CAT_Smooth.h"
 #include "CAT_Surf.h"
+#include "CAT_SurfParameters.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Curvature.h"
     
@@ -50,7 +51,7 @@ main(int argc, char *argv[])
                                         &neighbours, NULL, NULL);
 
         ALLOC(convexity, polygons->n_points);
-        calc_convexity(polygons, n_neighbours, neighbours, 1.0f, convexity);
+        compute_convexity(polygons, n_neighbours, neighbours, 1.0f, convexity);
     
         output_values_any_format(output_surface_file, polygons->n_points, convexity,
                                  TYPE_DOUBLE);

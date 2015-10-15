@@ -35,9 +35,9 @@ double get_largest_dist(polygons_struct *);
 void set_vector_length(Point *, double);
 int count_edges(polygons_struct *, int [], int *[]);
 
-double calc_point_hausdorff(polygons_struct *, polygons_struct *, double *);
-double calc_exact_hausdorff(polygons_struct *, polygons_struct *p, double *);
-void calc_point_distance(polygons_struct *, polygons_struct *, double *);
+double compute_point_hausdorff(polygons_struct *, polygons_struct *, double *);
+double compute_exact_hausdorff(polygons_struct *, polygons_struct *p, double *);
+void compute_point_distance(polygons_struct *, polygons_struct *, double *);
 
 int euler_characteristic(polygons_struct *);
 void convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *, double);
@@ -51,4 +51,3 @@ void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
                                         const double, const double, const int);
                                         
 void surf_to_sphere(polygons_struct *, int);
-void get_sulcus_depth(polygons_struct *, polygons_struct *, double *);

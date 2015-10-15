@@ -9,6 +9,7 @@
 #include <bicpl.h>
 
 #include "CAT_Smooth.h"
+#include "CAT_SurfParameters.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
 

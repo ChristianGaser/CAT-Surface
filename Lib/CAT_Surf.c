@@ -15,7 +15,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
-#include "CAT_ConvexHull.h"
+#include "CAT_Resample.h"
 
 #define _PI 3.14159265358979323846264338327510
 
@@ -391,7 +391,7 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
  * input meshes are the same size and of the same brain.
  */
 double
-calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 {
         int i;
         double max_hd = 0.0, avg_hd = 0.0;
@@ -416,7 +416,7 @@ calc_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
  * Calculate the Hausdorff distance using mesh points only.
  */
 double
-calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
 {
         int i, poly;
         double *revhd;
@@ -465,7 +465,7 @@ calc_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
  * Calculate the closest distance using mesh points only.
  */
 void
-calc_point_distance(polygons_struct *p, polygons_struct *p2, double *hd)
+compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd)
 {
         int i, poly;
         Point closest;
@@ -1394,32 +1394,4 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
         fprintf(stderr, "Done                \n");
 
         compute_polygon_normals(polygons);
-}
-
-void
-get_sulcus_depth(polygons_struct *surface, polygons_struct *sphere, double *depth)
-{
-        polygons_struct *convex;
-        object_struct **object;
-        Point closest;
-        int i, poly;
-
-        object = (object_struct **) malloc(sizeof(object_struct *));
-        *object = create_object(POLYGONS);
-        
-        /* get convex hull */
-        object = surface_get_convex_hull(surface, NULL);
-        convex = get_polygons_ptr(*object);
-
-        if (convex->bintree == NULL) 
-                create_polygons_bintree(convex, round((double) convex->n_items * 0.5));
-
-        /* find closest (euclidian) distance between convex hull and surface */
-        for (i = 0; i < surface->n_points; i++) {
-                poly  = find_closest_polygon_point(&surface->points[i], convex, &closest);
-                depth[i] = distance_between_points(&surface->points[i], &closest);
-        }
-
-        delete_the_bintree(&convex->bintree);
-
 }

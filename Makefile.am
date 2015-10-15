@@ -84,6 +84,7 @@ noinst_HEADERS = \
 	Include/CAT_NiftiIO.h \
 	Include/CAT_ConvexHull.h \
 	Include/CAT_Gyrification.h \
+	Include/CAT_SurfParameters.h \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
     MarchingCubes/genus0.h \
@@ -148,6 +149,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_NiftiIO.c \
     Lib/CAT_ConvexHull.c \
     Lib/CAT_Gyrification.c \
+	Lib/CAT_SurfParameters.c \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
 	$(zlib_SRC) \
