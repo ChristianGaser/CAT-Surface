@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_FixTopology.c 325 2014-10-30 15:39:48Z gaser $
+ * $Id$
  */
 
 #include "CAT_NiftiIO.h"

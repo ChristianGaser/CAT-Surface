@@ -72,6 +72,7 @@ bin_PROGRAMS = \
 	CAT_AddValuesToSurf \
 	CAT_SulcusDepth \
 	CAT_Surf2Surf \
+	CAT_DumpDepthPotential \
 	CAT_MarchingCubes
 	
 ##	CAT_WarpSurfSPH \

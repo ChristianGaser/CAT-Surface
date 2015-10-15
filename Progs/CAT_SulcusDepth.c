@@ -11,7 +11,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
-#include "CAT_SurfParameters.h"
+#include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
     
 BOOLEAN use_log = 0;

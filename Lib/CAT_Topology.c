@@ -11,7 +11,6 @@
 
 #include "CAT_SPH.h"
 #include "CAT_Surf.h"
-#include "CAT_SurfParameters.h"
 #include "CAT_Intersect.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Curvature.h"
