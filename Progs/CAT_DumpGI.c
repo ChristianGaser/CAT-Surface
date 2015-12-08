@@ -51,6 +51,8 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
+        fprintf(stderr,"Experimental function that is not yet working.\n");
+
         if (!get_string_argument(NULL, &object_file) ||
             !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);

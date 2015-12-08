@@ -73,6 +73,8 @@ bin_PROGRAMS = \
 	CAT_SulcusDepth \
 	CAT_Surf2Surf \
 	CAT_DumpDepthPotential \
+	CAT_Central2Pial \
+	CAT_DumpGyrificationIndex \
 	CAT_MarchingCubes
 	
 ##	CAT_WarpSurfSPH \
