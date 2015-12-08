@@ -9,7 +9,7 @@
 
 #include "CAT_DeformPolygons.h"
 #include "CAT_Surf.h"
-
+//#define DEBUG 1
 void
 deform_surf2object(polygons_struct *surface, object_struct *object)
 {

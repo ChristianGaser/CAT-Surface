@@ -73,7 +73,7 @@ ArgvInfo argTable[] = {
     "Count number of values in range for mapping along normals. If any value is out of range \n\t\tvalues will be counted only until this point" },
   { "-maxabs", ARGV_CONSTANT, (char *) F_MAXABS, 
     (char *) &map_func,
-    "Use absolute maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined to output its value at the maximum value of the 1st volume." },
+    "Use absolute maximum value for mapping along normals. Optionally a 2nd volume can be defined to output its value at the maximum value of the 1st volume." },
   { "-max", ARGV_CONSTANT, (char *) F_MAX, 
     (char *) &map_func,
     "Use maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined to output its value at the maximum value of the 1st volume." },

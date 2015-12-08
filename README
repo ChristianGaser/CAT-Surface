@@ -3,6 +3,13 @@ CAT: Cortex Analysis Tools
 Christian Gaser (christian.gaser@uni-jena.de), University of Jena, Germany.
 --------------------------------------------------------------------------------
 
+The following libraries are necessary to compile CAT:
+--------------------------------------------------------------------------------
+netcdf-4.2
+minc-1.5.1
+bicp-1.4.6
+fftw-3.3.2
+expat-2..0
 
 CAT_3dVol2Surf
 --------------------------------------------------------------------------------
