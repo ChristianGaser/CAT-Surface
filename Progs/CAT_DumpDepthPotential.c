@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_DumpDepthPotential.c 343 2015-10-15 11:23:53Z gaser $
+ * $Id$
  *
  *   References:
  *
