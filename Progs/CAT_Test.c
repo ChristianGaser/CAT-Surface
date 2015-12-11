@@ -1,131 +1,65 @@
-/* Rachel Yotter - rachel.yotter@uni-jena.de
- * Department of Psychiatry
- * University of Jena
- *
- * Copyright Christian Gaser, University of Jena.
- * $Id$
- *
- */
 
-/* Calculate the fractal dimension. */
+#include  <volume_io/internal_volume_io.h>
+#include  <bicpl.h>
+#include "CAT_NiftiIO.h"
 
-#include <bicpl.h>
-#include <ParseArgv.h>
-
-#include "CAT_Map.h"
-#include "CAT_Surf.h"
-#include "CAT_SPH.h"
-#include "CAT_Intersect.h"
-#include "CAT_SurfaceIO.h"
-#include "CAT_Gyrification.h"
-
-/* argument defaults */
-int n_triangles = 327680; /* # of triangles */
-char *reparam_file = NULL;
-
-/* the argument table */
-ArgvInfo argTable[] = {
-  {"-sphere", ARGV_STRING, (char *) 1, (char *) &reparam_file,
-     "Sphere object for reparameterization."},
-  { "-n", ARGV_INT, (char *) 1,
-    (char *) &n_triangles,
-    "Number of triangles for sampled surface." },
-  { NULL, ARGV_END, NULL, NULL, NULL }
-};
-
-void
-usage(char *executable)
+int  main(
+    int   argc,
+    char  *argv[] )
 {
-        static char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj out.txt\n\
-Calculate the gyrification index (GI) using convex hull of the surface.  Output are local GI values.\n\n\n";
+    STRING     input_filename;
+    double       x, y, z, value, voxel[3];
+    Volume     volume;
+    BOOLEAN   interpolating_dimensions[MAX_DIMENSIONS];
+    int d,axis;
 
-       fprintf(stderr, usage_str, executable);
-}
+    initialize_argument_processing( argc, argv );
 
-int
-main(int argc, char *argv[])
-{
-        char                 *surface_file, *sphere_file, *output_values_file;
-        File_formats         format;
-        int                  n_objects, i;
-        polygons_struct      *surface, *sphere, *reparam;
-        object_struct        **objects, **sphere_objects, **reparam_objects;
-        double               gi;
+    if( !get_string_argument( "", &input_filename ) )
+    {
+        return( 1 );
+    }
+ 
+    if( input_volume_all( input_filename, 3, XYZ_dimension_names,
+                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                      TRUE, &volume, (minc_input_options *) NULL ) != OK )
+        return( 1 );
 
-        /* Call ParseArgv */
-        if (ParseArgv(&argc, argv, argTable, 0) || argc != 4) {
-                usage(argv[0]);
-                fprintf(stderr, "       %s -help\n\n", argv[0]);
-                exit(EXIT_FAILURE);
+    for_less( d, 0, N_DIMENSIONS )
+    {
+        axis = volume->spatial_axes[d];
+        if( axis < 0 )
+        {
+            print_error(
+                  "evaluate_volume_in_world(): must have 3 spatial axes.\n" );
+            return(1);
         }
 
-        initialize_argument_processing(argc, argv);
+        interpolating_dimensions[axis] = TRUE;
+    }
 
-        if (!get_string_argument(NULL, &surface_file) ||
-            !get_string_argument(NULL, &sphere_file) ||
-            !get_string_argument(NULL, &output_values_file)) {
-                usage(argv[0]);
-                exit(EXIT_FAILURE);
-        }
+    while( get_real_argument( 0.0, &x ) &&
+           get_real_argument( 0.0, &y ) &&
+           get_real_argument( 0.0, &z ) )
+    {
+        evaluate_volume_in_world( volume, x, y, z, -1, FALSE, 0.0,
+                                  &value,
+                                  NULL, NULL, NULL,
+                                  NULL, NULL, NULL, NULL, NULL, NULL );
+                        convert_world_to_voxel( volume, x,y,z, voxel );
+                        printf("%f %f %f %f %f %f\t%f\n",x,y,z,voxel[X],voxel[Y],voxel[Z],value);
 
-        if (input_graphics_any_format(surface_file, &format,
-                                      &n_objects, &objects) != OK)
-                exit(EXIT_FAILURE);
+        print( "%g\n", value );
 
-        /* check that the surface file contains a polyhedron */
-        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-                fprintf(stderr,"Surface file must contain 1 polygons object.\n");
-                exit(EXIT_FAILURE);
-        }
+voxel[X] = x;
+voxel[Y] = y;
+voxel[Z] = z;
+        evaluate_volume( volume, voxel, interpolating_dimensions, 0, FALSE, 0.0,
+                                  &value,
+                                  NULL, NULL );
 
-        /* get a pointer to the surface */
-        surface = get_polygons_ptr(objects[0]);
-    
-        if (input_graphics_any_format(sphere_file, &format,
-                                      &n_objects, &sphere_objects) != OK)
-                exit(EXIT_FAILURE);
+        print( "%g\n", value );
+    }
 
-        /* check that the surface file contains a polyhedron */
-        if (n_objects != 1 || get_object_type(sphere_objects[0]) != POLYGONS) {
-                fprintf(stderr,"Surface file must contain 1 polygons object.\n");
-                exit(EXIT_FAILURE);
-        }
-
-        /* get a pointer to the surface */
-        sphere = get_polygons_ptr(sphere_objects[0]);
-
-        /* check that surface and sphere are same size */
-        if (surface->n_items != sphere->n_items) {
-                fprintf(stderr,"Surface and sphere must have same size.\n");
-                exit(EXIT_FAILURE);
-        }
-        if (reparam_file != NULL) {
-                if (input_graphics_any_format(reparam_file, &format, &n_objects,
-                                              &reparam_objects) != OK)
-                        exit(EXIT_FAILURE);
-                reparam = get_polygons_ptr(*reparam_objects);
-                n_triangles = reparam->n_items;
-        } else {
-                reparam_objects = (object_struct **)
-                                  malloc(sizeof(object_struct *));
-                *reparam_objects = create_object(POLYGONS);
-                reparam = get_polygons_ptr(*reparam_objects);
-                copy_polygons(sphere, reparam);
-                compute_polygon_normals(reparam);
-        }
-
-        /* center and scale the reparameterizing sphere */
-        translate_to_center_of_mass(reparam);
-        for (i = 0; i < reparam->n_points; i++)
-                set_vector_length(&reparam->points[i], 1.0);
-
-        gi = gyrification_index_sph(surface, sphere, output_values_file,
-                                           n_triangles, reparam);
-        
-        /* clean up */
-        delete_object_list(1, objects);
-        delete_object_list(1, sphere_objects);
-
-        return(EXIT_SUCCESS);
+    return( 0 );
 }

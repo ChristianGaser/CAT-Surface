@@ -2,6 +2,8 @@
  * Department of Psychiatry
  * University of Jena
  *
+ * Most of the functions are used from nii2mnc.c
+ *
  * Copyright Christian Gaser, University of Jena.
  * $Id$
  *
@@ -82,7 +84,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         double mnc_srange[2];       /* MINC image min/max */
         double mnc_time_step;
         double mnc_time_start;
-        int mnc_spatial_axes[MAX_NII_DIMS];
+        int mnc_spatial_axes[MAX_NII_DIMS], dims[MAX_VAR_DIMS];;
         double mnc_starts[MAX_SPACE_DIMS];
         double mnc_steps[MAX_SPACE_DIMS];
         double mnc_dircos[MAX_SPACE_DIMS][MAX_SPACE_DIMS];
@@ -421,7 +423,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
 
         *volume = create_volume(n_dimensions, mnc_ordered_dim_names,
                                 mnc_vtype, mnc_msign,
-                                mnc_srange[0], mnc_srange[1]);
+                                mnc_vrange[0], mnc_vrange[1]);
 
         for (d = 0; d < n_dimensions; d++) {
                 (*volume)->spatial_axes[d] = mnc_spatial_axes[d];
@@ -433,10 +435,19 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         }     
 
         set_volume_starts(*volume, mnc_starts);
+        set_volume_real_range(*volume, mnc_srange[0], mnc_srange[1]);
+        
+        /* set scaling and offset */
+        (*volume)->real_value_scale = nii_ptr->scl_slope;
+        (*volume)->real_value_translation = nii_ptr->scl_inter;
+        
         if (nii_ptr->sform_code != NIFTI_XFORM_UNKNOWN)
                 set_voxel_to_world_transform(*volume, &mnc_linear_xform);
 
-        set_volume_sizes(*volume, nii_ptr->dim + 1);
+        for (d = 0; d < n_dimensions; d++)
+                dims[d] = nii_ptr->dim[mnc_spatial_axes[d]+1];
+                
+        set_volume_sizes(*volume, dims);
         alloc_volume_data(*volume);
 
         GET_VOXEL_PTR(voxels, *volume, 0, 0, 0, 0, 0);
