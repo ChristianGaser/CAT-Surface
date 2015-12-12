@@ -18,8 +18,8 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s  surface_file values_file output_surface_file [-1]\n\
-Estimate pial surface from central surface using cortical thickness. If you add -1 as last parameter the white matter surface will be estimated.\n\n\n";
+Usage: %s  surface_file thickness_file output_surface_file [extent]\n\
+Estimate pial surface from central surface using cortical thickness values. Optionally you can define to which extent the thickness values are used. In order to estimate the pial surface an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.\n\n\n";
 
        fprintf(stderr, usage_str, executable);
 }
@@ -27,10 +27,10 @@ Estimate pial surface from central surface using cortical thickness. If you add 
 int
 main(int argc, char *argv[])
 {
-        double               value, *values;
+        double               value, *values, extent;
         Status               status;
         char                 *src_file, *out_file, *values_file;
-        int                  i, p, n_steps, scale, n_objects, n_values, direction;
+        int                  i, p, n_steps, scale, n_objects, n_values;
         File_formats         format;
         polygons_struct      *polygons, *tmp_polygon;
         Point                *new_pts;
@@ -44,7 +44,7 @@ main(int argc, char *argv[])
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
-        get_int_argument(1, &direction);
+        get_real_argument(0.5, &extent);
         
         if (input_graphics_any_format(src_file, &format, &n_objects,
                                       &object_list) != OK)
@@ -74,15 +74,14 @@ main(int argc, char *argv[])
         
         /* use 10 steps to add thickness values to central surface and check in each step shape integrity */
         n_steps = 10;
-        if (direction < 0) scale = -1*n_steps; else scale = n_steps; 
         for (i = 0; i < n_steps; i++) {
                 copy_polygons(polygons, tmp_polygon);
 
-                /* add half of thickness value in normal direction */ 
+                /* add half of thickness value in normal extent */ 
                 for (p = 0; p < polygons->n_points; p++) {
-                        Point_x(tmp_polygon->points[p]) += 0.5/scale*values[p]*Point_x(polygons->normals[p]);
-                        Point_y(tmp_polygon->points[p]) += 0.5/scale*values[p]*Point_y(polygons->normals[p]);
-                        Point_z(tmp_polygon->points[p]) += 0.5/scale*values[p]*Point_z(polygons->normals[p]);
+                        Point_x(tmp_polygon->points[p]) += extent/(double)n_steps*values[p]*Point_x(polygons->normals[p]);
+                        Point_y(tmp_polygon->points[p]) += extent/(double)n_steps*values[p]*Point_y(polygons->normals[p]);
+                        Point_z(tmp_polygon->points[p]) += extent/(double)n_steps*values[p]*Point_z(polygons->normals[p]);
                 }
                 /* get new points and check shape integrity */
                 new_pts = tmp_polygon->points;
