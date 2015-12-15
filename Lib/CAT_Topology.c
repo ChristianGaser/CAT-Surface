@@ -604,7 +604,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
                                n_triangles, reparam, bw);
 
-        /* calculate change between SPH-reparameterized and original surface in voxel space*/ 
+        /* calculate change between SPH-reparameterized and original surface in voxel space */ 
         changed_voxels_between_surfaces(surface_object, hbw_objects[0], change_hole);
 
         if (DUMP_FILES) {
@@ -614,7 +614,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                                          change_hole, TYPE_DOUBLE);
         }
         
-        /* label defects as handles or holes depending on thier minimal hausdorff distance inside the defect */ 
+        /* label defects as handles or holes depending on their minimal hausdorff distance inside the defect */ 
         for (d = 1; d < n_defects+1; d++) {
                 sum_change_handle = 0.0;
                 sum_change_hole   = 0.0;

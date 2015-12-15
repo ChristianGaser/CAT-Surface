@@ -16,12 +16,12 @@
 void
 usage(char *executable)
 {
-        fprintf(stderr, "%s  volume_fil\n", executable);
+        fprintf(stderr, "%s volume_file\n", executable);
         fprintf(stderr, "   activity_file|none   nx ny nz\n");
         fprintf(stderr, "   input_surface_file output_surface_file\n");
         fprintf(stderr, "   original_positions|none max_distance\n");
         fprintf(stderr, "   n_models\n");
-        fprintf(stderr, "   up_to_n_points model_weight model_file|avg|none\n");
+        fprintf(stderr, "   up_to_n_points model_weight model_file|avg|flat|parametric\n");
         fprintf(stderr, "   min_curvature max_curvature\n");
         fprintf(stderr, "   [up_to_n_points model_weight model_file|avg|none\n");
         fprintf(stderr, "   min_curvature max_curvature]\n");
