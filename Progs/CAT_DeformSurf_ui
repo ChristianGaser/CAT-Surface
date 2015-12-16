@@ -31,12 +31,12 @@ else
 fi
 
 # parameters for deforming WM
-step="0.1 0.1 $dist 0 $th1 $th1 n 0 0 0"
+step="0.1 0.1 $dist 0 $th $th n 0 0 0"
 
-iters=250
+iters=150
 model="-1 0.1 avg -0.01 0.01"
-CAT_DeformSurf $image none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
 
-iters=250
-model="-1 .5 avg -$curv $curv"
-CAT_DeformSurf $image none 0 0 0 $3 $3 none 0 1 $model $step $iters 0.01 0.0
+iters=150
+model="-1 0.5 avg -$curv $curv"
+CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
