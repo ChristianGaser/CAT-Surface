@@ -13,6 +13,7 @@
 ########################################################
 
 outputdir=""
+mask=""
 reg=sphere.reg
 template=$FREESURFER_HOME/subjects/fsaverage
 fwhm=0
@@ -71,6 +72,13 @@ preprocess ()
       central=`echo ${central}.gii|sed 's,.gii.gii,.gii,g'`
       sphere=`echo ${sphere}.gii|sed 's,.gii.gii,.gii,g'`
       
+      if [ ! "${mask}" == "" ]; then
+        if [ ! -f "$mask" ]; then
+          echo Masking file $mask not found.
+          exit
+        fi
+      fi
+
       if [ "${outputdir}" == "" ]; then
         outputdir=$surfdir
       fi
@@ -83,69 +91,46 @@ preprocess ()
       tmp_name=/tmp/$$_resample
 
       for i in $hemi; do
+      
         if [ ! "$fwhm" == 0 ]; then
-        
           name=${outputdir}/s${fwhm}mm.${i}.${measure}.resampled.${subject_name}
-          if [ "$gifti" == 1 ]; then
-            output=${name}.gii
-          else
-            output=${name}
-          fi
-        
-          if [ -f "${output}" ] && [ "$noclobber" == 1 ]; then
-            echo $output will be not overwritten. Do not use -noclobber if you want to overwrite it.
-          else
-            for files in ${surfdir}/${central} ${surfdir}/${sphere} ${targetdir}/${i}.sphere; do
-              if [ ! -f "$files" ]; then
-                echo File $files not found.
-                exit
-              fi
-            done
-            
-            CAT_ResampleSurf ${surfdir}/${central} ${surfdir}/${sphere} ${targetdir}/${i}.sphere $tmp_name ${subject} ${tmp_name}.txt
-            CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
-            if [ "$gifti" == 1 ]; then
-              CAT_AddValuesToSurf $tmp_name $name ${output}
-              echo resample and smooth to ${output}        
-              rm $name
-            else 
-              echo resample and smooth to $name 
-            fi         
-          fi
-        
         else
           name=${outputdir}/${i}.${measure}.resampled.${subject_name}
-
-          if [ "$gifti" == 1 ]; then
-            output=${name}.gii
-          else
-            output=${name}
-          fi
-
-          if [  -f "${output}" ] && [ "$noclobber" == 1 ]; then
-            echo $output will be not overwritten. Do not use -noclobber if you want to overwrite it.
-          else
-            for files in ${surfdir}/${central} ${surfdir}/${sphere} ${targetdir}/${i}.sphere; do
-              if [ ! -f "$files" ]; then
-                echo File $files not found.
-                exit
-              fi
-            done
-            CAT_ResampleSurf ${surfdir}/${central} ${surfdir}/${sphere} ${targetdir}/${i}.sphere $tmp_name ${subject} $name
-            if [ "$gifti" == 1 ]; then
-              CAT_AddValuesToSurf $tmp_name $name ${output}
-              echo resample to ${output}       
-              rm $name
-            else
-              echo resample to $name          
-            fi
-          fi
-        
         fi
+        
+        if [ "$gifti" == 1 ]; then
+          output=${name}.gii
+        else
+          output=${name}
+        fi
+        
+        if [ -f "${output}" ] && [ "$noclobber" == 1 ]; then
+          echo $output will be not overwritten. Do not use -noclobber if you want to overwrite it.
+        else
+          for files in ${surfdir}/${central} ${surfdir}/${sphere} ${targetdir}/${i}.sphere; do
+            if [ ! -f "$files" ]; then
+              echo File $files not found.
+              exit
+            fi
+          done
+            
+          CAT_ResampleSurf ${surfdir}/${central} ${surfdir}/${sphere} ${targetdir}/${i}.sphere $tmp_name ${subject} ${tmp_name}.txt
+          CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt ${mask}
+          if [ "$gifti" == 1 ]; then
+            CAT_AddValuesToSurf $tmp_name $name ${output}
+            echo resample and smooth to ${output}        
+            rm $name
+          else 
+            echo resample and smooth to $name 
+          fi         
+        fi
+          
       done
+    
       if [ -f ${tmp_name}.txt ]; then
         rm ${tmp_name}*
       fi
+    
     done
   else
     echo "No arguments given."
@@ -189,6 +174,10 @@ parse_args ()
     --o* | -o*)
       exit_if_empty "$optname" "$optarg"
       outputdir=$optarg
+      ;;
+    --m* | -m*)
+      exit_if_empty "$optname" "$optarg"
+      mask=$optarg
       ;;
     --r* | -r*)
       exit_if_empty "$optname" "$optarg"
@@ -252,7 +241,7 @@ usage ()
 {
 cat <<__EOM__
 USAGE: CAT_Resample_ui measure [measure2 .. measureN] [-f=fwhm_in_mm] [-a] [-noclobber] [-nogifti]
-                          [-o=outputdirectory] [-r=surfreg] [-t=fsaverage_directory]                      
+                          [-o=outputdirectory] [-r=surfreg] [-t=fsaverage_directory] [-m=mask]                     
     
 __EOM__
 }
@@ -271,7 +260,7 @@ optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
         CAT_Resample_ui measure [measure2 .. measureN] [-f=fwhm_in_mm] [-noclobber] [-nogifti]
-                          [-o=outputdirectory] [-r=surfreg] [-t=fsaverage_directory]                      
+                          [-o=outputdirectory] [-r=surfreg] [-t=fsaverage_directory] [-m=mask]                    
     
 OPTIONS:
   subject    - one or more subject
@@ -279,6 +268,7 @@ OPTIONS:
   -t         - target surface directory for resampling [default $template]
   -o         - output directory (created if neccessary) [default $outputdir]                
   -r         - sperical surface for resampling [default $reg]                 
+  -m         - soptional mask to set NaNs in areas where mask=0                 
   -nogifti   - save output not as gifti file
   -noclobber - do not overwrite existing file
     
