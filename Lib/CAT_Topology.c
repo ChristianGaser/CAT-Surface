@@ -313,11 +313,11 @@ surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
         fill_connected_voxels( volume, label_volume, EIGHT_NEIGHBOURS,
                            value, 0, 0, label_val*2.0, 0.0, -1.0, range_changed );
                            
-                tmp = create_box_filtered_volume(label_volume, NC_BYTE, FALSE,
+        tmp = create_box_filtered_volume(label_volume, NC_BYTE, FALSE,
                                                  0.0, 0.0, 2, 2, 2);
 
-                delete_volume(label_volume);
-                label_volume = tmp;
+        delete_volume(label_volume);
+        label_volume = tmp;
 
         initialize_deformation_parameters(&deform);
         deform.fractional_step = 0.1;

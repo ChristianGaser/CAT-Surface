@@ -9,6 +9,17 @@
 
 #include <bicpl.h>
 
+#ifndef isnan
+#define isnan(a) ((a)!=(a)) 
+#endif
+
+#ifdef _MSC_VER
+  static const unsigned long __nan[2] = {0xffffffff, 0x7fffffff};
+  #define FNAN (*(const float *) __nan)
+#else
+  #define FNAN 0.0f/0.0f
+#endif
+
 void
 get_all_polygon_point_neighbours(polygons_struct *polygons,
                                  int *n_point_neighbours_ptr[],
@@ -72,7 +83,7 @@ get_all_polygon_point_neighbours(polygons_struct *polygons,
         *point_neighbours_ptr = neighbours;
 }
 
-Real
+double
 evaluate_heatkernel(double x, double sigma)
 {
     return(exp(-x / (2.0 * sigma * sigma)));
@@ -108,14 +119,17 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
                 weight = evaluate_heatkernel(point_dist, sigma);
 
                 if (values != NULL) {
-                        sum[0] += weight * values[neigh];
+                        /* only consider values that are not NaN */
+                        if (!isnan(values[neigh])) {
+                                sum[0] += weight * values[neigh];
+                                sum_weight += weight;
+                        }
                 } else {
                         for (c = 0; c < N_DIMENSIONS; c++)
-                                sum[c] += weight * (Real)
+                                sum[c] += weight * (double)
                                           Point_coord(polygon_pts[neigh], c);
+                        sum_weight += weight;
                 }
-
-                sum_weight += weight;
         }
 
         if (values != NULL) {
@@ -159,9 +173,11 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
                                                n_neighbours[i], neighbours[i],
                                                i, sigma, &point, &value);
 
-                        if (values != NULL)
-                                smooth_values[i] = value;
-                        else    smooth_pts[i] = point;
+                        if (values != NULL) {
+                                if(!isnan(values[i]))
+                                        smooth_values[i] = value;
+                                else    smooth_values[i] = FNAN;
+                        } else    smooth_pts[i] = point;
 
                 }
                 for (i = 0; i < polygons->n_points; i++) {

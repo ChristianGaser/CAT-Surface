@@ -212,18 +212,18 @@ void  triangulate_polygons(
 
 private  int   make_connected_components(
     polygons_struct    *polygons,
-    Smallest_int       polygon_classes[],
+    int                polygon_classes[],
     int                n_in_class[] )
 {
     int                poly, current_poly, edge, size;
     int                neigh;
     int                n_components;
-    Smallest_int       not_done;
+    int                not_done;
     QUEUE_STRUCT(int)  queue;
 
     n_components = 0;
 
-    not_done = (Smallest_int) 999;
+    not_done = 9999;
 
     for_less( poly, 0, polygons->n_items )
         polygon_classes[poly] = not_done;
@@ -233,7 +233,7 @@ private  int   make_connected_components(
         if( polygon_classes[poly] != not_done )
             continue;
 
-        if( n_components == 999 )
+        if( n_components == 9999 )
         {
             ++n_components;
             break;
@@ -241,7 +241,7 @@ private  int   make_connected_components(
 
         INITIALIZE_QUEUE( queue );
         INSERT_IN_QUEUE( queue, poly );
-        polygon_classes[poly] = (Smallest_int) n_components;
+        polygon_classes[poly] = n_components;
         n_in_class[n_components] = 1;
 
         while( !IS_QUEUE_EMPTY(queue) )
@@ -256,7 +256,7 @@ private  int   make_connected_components(
                 if( neigh >= 0 &&
                     polygon_classes[neigh] == not_done )
                 {
-                    polygon_classes[neigh] = (Smallest_int) n_components;
+                    polygon_classes[neigh] = n_components;
                     ++n_in_class[n_components];
                     INSERT_IN_QUEUE( queue, neigh );
                 }
@@ -279,13 +279,13 @@ int   separate_polygons(
     int                point, ind, p_ind, poly, vertex, size, i, j, tmp;
     int                point_index, *new_point_ids, n_objects, comp, c;
     int                biggest;
-    Smallest_int       *poly_classes;
+    int                *poly_classes;
     int                n_components, *n_in_class, *ordered;
     polygons_struct    *new_poly;
 
     ALLOC( poly_classes, polygons->n_items );
-    ALLOC( n_in_class, 1000 );
-    ALLOC( ordered, 1000 );
+    ALLOC( n_in_class, 10009 );
+    ALLOC( ordered, 10000 );
 
     n_components = make_connected_components( polygons, poly_classes,
                                               n_in_class );
@@ -336,7 +336,7 @@ int   separate_polygons(
 
             for_less( poly, 0, polygons->n_items )
             {
-                if( poly_classes[poly] != (Smallest_int) comp )
+                if( poly_classes[poly] != comp )
                     continue;
                 size = GET_OBJECT_SIZE( *polygons, poly );
                 ++new_poly->n_items;
@@ -369,7 +369,7 @@ int   separate_polygons(
             ind = 0;
             for_less( poly, 0, polygons->n_items )
             {
-                if( poly_classes[poly] != (Smallest_int) comp )
+                if( poly_classes[poly] != comp )
                     continue;
 
                 size = GET_OBJECT_SIZE( *polygons, poly );
@@ -391,7 +391,7 @@ int   separate_polygons(
             ind = 0;
             for_less( poly, 0, polygons->n_items )
             {
-                if( poly_classes[poly] != (Smallest_int) comp )
+                if( poly_classes[poly] != comp )
                     continue;
 
                 size = GET_OBJECT_SIZE( *polygons, poly );

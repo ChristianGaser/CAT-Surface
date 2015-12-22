@@ -43,7 +43,7 @@
 /* This list is in the order in which dimension lengths and sample
  * widths are stored in the NIfTI-1 structure.
  */
-/*static const char *dimnames[MAX_NII_DIMS] = {
+static const char *dimnames[MAX_NII_DIMS] = {
     MIvector_dimension,
     MItime,
     MIzspace,
@@ -53,7 +53,7 @@
     NULL,
     NULL
 };
-*/
+
 /* Map dimension index from the actual mapping of the data array to the 
  * "internal header array order".
  *
@@ -77,9 +77,9 @@ static const int dimmap[MAX_NII_DIMS] = {
 
 /* Names of MINC spatial dimensions, in our "standard" world ordering.
  */
-/*static const char *mnc_spatial_names[MAX_SPACE_DIMS] = {
+static const char *mnc_spatial_names[MAX_SPACE_DIMS] = {
     MIxspace,
     MIyspace,
     MIzspace
 };
-*/
+

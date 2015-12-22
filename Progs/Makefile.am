@@ -75,6 +75,7 @@ bin_PROGRAMS = \
 	CAT_DumpDepthPotential \
 	CAT_Central2Pial \
 	CAT_DumpGyrificationIndex \
+	CAT_Surf2Vol \
 	CAT_MarchingCubes
 	
 ##	CAT_WarpSurfSPH \

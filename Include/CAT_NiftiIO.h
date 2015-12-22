@@ -17,3 +17,6 @@
 
 Status input_volume_all(char *, int, char **, nc_type, BOOLEAN,
                  double, double, BOOLEAN, Volume *, minc_input_options *);
+
+Status output_volume_all(char *, nc_type, BOOLEAN, double, double, Volume,
+                 char *, minc_output_options *);
