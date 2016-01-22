@@ -14,12 +14,12 @@
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
     
-BOOLEAN use_log = 0;
+BOOLEAN use_sqrt = 0;
 
 /* the argument table */
 ArgvInfo argTable[] = {
-  { "-log", ARGV_CONSTANT, (char *) 1, (char *) &use_log,
-    "Obtain log10-transformed values to render data more normally distributed." },
+  { "-sqrt", ARGV_CONSTANT, (char *) 1, (char *) &use_sqrt,
+    "Obtain sqrt-transformed values to render data more normally distributed." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -27,7 +27,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  surface_file sphere_file output_values_file [-log]\n\n\
+Usage: %s  surface_file sphere_file output_values_file [-sqrt]\n\n\
      Calculate sulcus depth based on the euclidian distance between the central surface\n\
      and its convex hull.\n\n";
 
@@ -80,10 +80,9 @@ main(int argc, char *argv[])
         depth_values = (double *) malloc(sizeof(double) * polygons->n_points);
         compute_sulcus_depth(polygons, sphere, depth_values);
     
-        if (use_log) {
-                /* guarantee a minimum log-values of -1 by ignoring all values < 0.1 */
+        if (use_sqrt) {
                 for(i=0; i<polygons->n_points; i++) 
-                        depth_values[i] = log10(depth_values[i]+1e-1);
+                        depth_values[i] = sqrt(depth_values[i]);
         }
 
         output_values_any_format(output_surface_file, polygons->n_points,
