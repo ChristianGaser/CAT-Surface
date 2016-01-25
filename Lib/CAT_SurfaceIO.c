@@ -538,6 +538,8 @@ output_gifti(char *fname, File_formats format, int n_objects,
         image->version = (char *) calloc(strlen(GIFTI_XML_VERSION)+1,sizeof(char));;
         strcpy(image->version,GIFTI_XML_VERSION);
 
+        gifti_add_to_meta( &image->meta, "Name", fname, 1 );
+
         giiDataArray* coords = gifti_alloc_and_add_darray (image);
         if (NULL == coords) {
                 fprintf (stderr,"output_gifti: couldn't allocate giiDataArray\n");
@@ -770,6 +772,8 @@ output_gifti_curv(char *fname, int nvertices, double *data)
 
         image->version = (char *) calloc(strlen(GIFTI_XML_VERSION)+1,sizeof(char));;
         strcpy(image->version,GIFTI_XML_VERSION);
+
+        gifti_add_to_meta( &image->meta, "Name", fname, 1 );
 
         giiDataArray* shape = gifti_alloc_and_add_darray (image);
         if (NULL == shape) {
