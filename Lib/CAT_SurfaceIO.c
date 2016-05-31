@@ -1276,7 +1276,8 @@ input_dfs(char *file, File_formats *format, int *n_objects,
           object_struct ***object_list)
 {
         FILE              *fp;
-        int               i, hdr_size;
+        int               i, hdr_size, mdoffset, pdoffset, nStrips, stripSize, normals;
+        int               uvStart, vcoffset, labelOffset, vertexAttributes;
         char              dummy[256];
         polygons_struct   *polygons;
         Point             *point;
@@ -1300,13 +1301,20 @@ input_dfs(char *file, File_formats *format, int *n_objects,
         fread(&dummy, sizeof(char), 12, fp);
         fprintf(stderr, "%s\n", dummy);
         fread(&hdr_size, 4, 1, fp);
-        fread(&dummy, sizeof(char), 8, fp);
-
-        fseek(fp, 24, 0);
-        fread(&polygons->n_points, sizeof(int), 1, fp);
-        fread(&polygons->n_items, sizeof(int), 1, fp);
+        fread(&mdoffset, 4, 1, fp);
+        fread(&pdoffset, 4, 1, fp);
+        fread(&polygons->n_points, 4, 1, fp);
+        fread(&polygons->n_items, 4, 1, fp);
         fprintf(stderr, "%s %d %d %d\n", dummy, hdr_size,
                 polygons->n_points, polygons->n_items);
+        fread(&nStrips, 4, 1, fp);
+        fread(&stripSize, 4, 1, fp);
+        fread(&normals, 4, 1, fp);
+        fread(&uvStart, 4, 1, fp);
+        fread(&vcoffset, 4, 1, fp);
+        fread(&labelOffset, 4, 1, fp);
+        fread(&vertexAttributes, 4, 1, fp);
+
         fseek(fp, hdr_size, -1); 
 
         polygons->bintree = (bintree_struct_ptr) NULL;

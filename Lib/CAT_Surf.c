@@ -103,9 +103,7 @@ get_surface_ratio(double r, polygons_struct *polygons)
         for (i = 0; i < polygons->n_points; i++) {
                 if (i % 100 == 0) {
                         sprintf(str, "%i/%i", i, polygons->n_points);
-                        printf("%s",str);
-                        for (j = 0; j < strlen(str); j++)
-                                printf("\b");
+                        printf("%s\n",str);
                         fflush(stdout);
                 }
 
@@ -1307,8 +1305,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
         } else factor = 1.0;
 
         /* low smooth */
-        fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                "Low smoothing...    ");
         inflate_surface_and_smooth_fingers(polygons,
                               /* cycles */ 1,
           /* regular smoothing strength */ 0.2,
@@ -1323,8 +1319,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 fingerSmoothingIters = 0;
                 if (enableFingerSmoothing)
                         fingerSmoothingIters = 30;
-	            fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Inflating...        ");
                 inflate_surface_and_smooth_fingers(polygons,
                                       /* cycles */ 2,
                   /* regular smoothing strength */ 1.0,
@@ -1337,8 +1331,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     
         if (stop_at > 2) {
                 /* very inflated */
-                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Very inflating...   ");
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 4,
                   /* regular smoothing strength */ 1.0,
@@ -1354,8 +1346,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 fingerSmoothingIters = 0;
                 if (enableFingerSmoothing)
                         fingerSmoothingIters = 60;
-                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "High smoothing...   ");
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 6,
                   /* regular smoothing strength */ 1.0,
@@ -1368,8 +1358,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
 
         if (stop_at > 4) {
                 /* ellipsoid */
-                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Ellipsoid...        ");
                 inflate_surface_and_smooth_fingers(polygons,
                   /*                     cycles */ 6,
                   /* regular smoothing strength */ 1.0,
@@ -1384,8 +1372,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     
         if (stop_at > 5) {
                 /* areal smoothing */
-                fprintf(stderr, "%20s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",
-                        "Areal smoothing...   ");
                 arealSmoothingIters = 1000*(stop_at - 5);
                 areal_smoothing(polygons, 1.0, arealSmoothingIters, 1, NULL, 1000);
                 convert_ellipsoid_to_sphere_with_surface_area(polygons,
