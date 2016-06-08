@@ -270,6 +270,33 @@ correct_bounds_to_target(polygons_struct *polygons, polygons_struct *target)
 }
 
 void
+correct_bounds_to_target_with_scaling(polygons_struct *polygons, polygons_struct *target)
+{
+        int    i, j;
+        double bounds_dest[6], bounds_src[6];
+        Point  center;
+
+        /* Calc. sphere center based on bounds of input (correct for shifts) */    
+        get_bounds(polygons, bounds_src);
+        get_bounds(target,   bounds_dest);
+        
+        for (i = 0; i < polygons->n_points; i++) 
+                for (j = 0; j < 3; j++)
+                        Point_coord(polygons->points[i], j) /= (bounds_src[2*j+1]-bounds_src[2*j])/(bounds_dest[2*j+1]-bounds_dest[2*j]);
+
+        get_bounds(polygons, bounds_src);
+        fill_Point(center, bounds_src[0]-bounds_dest[0],
+                           bounds_src[2]-bounds_dest[2], 
+                           bounds_src[4]-bounds_dest[4]);
+
+
+        for (i = 0; i < polygons->n_points; i++) 
+                for (j = 0; j < 3; j++)
+                        Point_coord(polygons->points[i], j) -= Point_coord(center, j);
+
+}
+
+void
 translate_to_center_of_mass(polygons_struct *polygons)
 {
         int i, j;
@@ -414,7 +441,7 @@ compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
  * Calculate the Hausdorff distance using mesh points only.
  */
 double
-compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
 {
         int i, poly;
         double *revhd;
@@ -436,9 +463,11 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
         }
 
         avg_hd /= p->n_points;
-        printf("Hausdorff distance: %f\n", max_hd);
-        printf("Mean distance error: %f\n", avg_hd);
-
+        if (verbose) {
+                printf("Hausdorff distance: %f\n", max_hd);
+                printf("Mean distance error: %f\n", avg_hd);
+        }
+        
         /* Calculate the reverse Hausdorff */
 
         revhd = (double *) malloc(sizeof(double) * p2->n_points);
@@ -453,9 +482,10 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
         }
 
         avg_revhd /= p2->n_points;
-        printf("Reverse Hausdorff distance: %f\n", max_revhd);
-        printf("Mean reverse distance error: %f\n", avg_revhd);
-
+        if (verbose) {
+                printf("Reverse Hausdorff distance: %f\n", max_revhd);
+                printf("Mean reverse distance error: %f\n", avg_revhd);
+        }
         return(max_hd);
 }
 

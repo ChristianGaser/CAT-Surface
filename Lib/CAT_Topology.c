@@ -490,15 +490,16 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         int bw2, i, p, d, n_done;
         int *defects, *polydefects, *holes, n_defects, n_objects;
         int *n_neighbours, **neighbours;
-        double *change_hole, *change_handle;
-        double sum_change_handle, sum_change_hole;
+        double *HD_hole, *HD_handle, *curv;
+        double sum_HD_handle, sum_HD_hole;
         File_formats format;
 
         defects     = (int *) malloc(sizeof(int) * surface->n_points);
         holes       = (int *) malloc(sizeof(int) * surface->n_points);
         polydefects = (int *) malloc(sizeof(int) * surface->n_items);
-        change_handle   = (double *) malloc(sizeof(double) * surface->n_points);
-        change_hole     = (double *) malloc(sizeof(double) * surface->n_points);
+        HD_handle   = (double *) malloc(sizeof(double) * surface->n_points);
+        HD_hole     = (double *) malloc(sizeof(double) * surface->n_points);
+        curv        = (double *) malloc(sizeof(double) * surface->n_points);
         hbw_objects = (object_struct **) malloc(sizeof(object_struct *));
 
         /* find defects in original uncorrected surface */
@@ -572,14 +573,21 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         surface_object = create_object(POLYGONS);
         copy_polygons(surface, get_polygons_ptr(surface_object));
 
-        /* calculate change between SPH-reparameterized and original surface in voxel space*/ 
-        changed_voxels_between_surfaces(surface_object, hbw_objects[0], change_handle);
+        get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
+                                         3.0, 0, curv);
+
+        /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
+        compute_point_hausdorff(surface, hbw, HD_handle, 0);
+        
+        /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
+        for (p = 0; p < surface->n_points; p++) 
+                HD_handle[p] *= curv[p];        
 
         if (DUMP_FILES) {
                 output_graphics_any_format("hbw_handle.obj", ASCII_FORMAT, 1,
                                            hbw_objects, NULL);
-                output_values_any_format("change_handle.txt", surface->n_points,
-                                         change_handle, TYPE_DOUBLE);
+                output_values_any_format("HD_handle.txt", surface->n_points,
+                                         HD_handle, TYPE_DOUBLE);
         }
 
         /* label all defects as holes */
@@ -604,36 +612,40 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
                                n_triangles, reparam, bw);
 
-        /* calculate change between SPH-reparameterized and original surface in voxel space */ 
-        changed_voxels_between_surfaces(surface_object, hbw_objects[0], change_hole);
+        /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
+        compute_point_hausdorff(surface, hbw, HD_hole, 0);
+
+        /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
+        for (p = 0; p < surface->n_points; p++) 
+                HD_hole[p] *= curv[p];
 
         if (DUMP_FILES) {
                 output_graphics_any_format("hbw_hole.obj", ASCII_FORMAT, 1,
                                            hbw_objects, NULL);
-                output_values_any_format("change_hole.txt", surface->n_points,
-                                         change_hole, TYPE_DOUBLE);
+                output_values_any_format("HD_hole.txt", surface->n_points,
+                                         HD_hole, TYPE_DOUBLE);
         }
         
-        /* label defects as handles or holes depending on their minimal hausdorff distance inside the defect */ 
+        /* label defects as handles or holes depending on their hausdorff distance multiplied by curvature inside the defect */ 
         for (d = 1; d < n_defects+1; d++) {
-                sum_change_handle = 0.0;
-                sum_change_hole   = 0.0;
+                sum_HD_handle = 0.0;
+                sum_HD_hole   = 0.0;
                 int defect_size = 0.0;
                 for (p = 0; p < surface->n_points; p++) {
                         if (defects[p] == d) {
-                                if (change_handle[p] > sum_change_handle) sum_change_handle = change_handle[p];
-                                if (change_hole[p] > sum_change_hole) sum_change_hole = change_hole[p];
+                                sum_HD_handle += HD_handle[p];
+                                sum_HD_hole   += HD_hole[p];
                                 defect_size++;
                         }
                 } 
-                if (DEBUG) fprintf(stderr,"%d %d %g %g\n",d,defect_size,sum_change_handle,sum_change_hole);
+                if (DEBUG) fprintf(stderr,"%d %d %g %g\n",d,defect_size,sum_HD_handle,sum_HD_hole);
                 for (p = 0; p < surface->n_points; p++) {
                         if (defects[p] == d) {
-                                /* use handle or holes depending on minimal (hausdorff) 
-                                   distance between surfaces */
-                                if (sum_change_handle > sum_change_hole)
-                                        holes[p] = HOLE;
-                                else    holes[p] = HANDLE;
+                                /* use handles or holes depending on hausdorff 
+                                   distance multiplied by curvature between surfaces */
+                                if (sum_HD_handle >= sum_HD_hole)
+                                        holes[p] = HANDLE;
+                                else    holes[p] = HOLE;
                         }
                 }
         }
@@ -718,8 +730,9 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(defects);
         free(polydefects);
         free(holes);
-        free(change_handle);
-        free(change_hole);
+        free(HD_handle);
+        free(HD_hole);
+        free(curv);
 
         return hbw_objects;
 }

@@ -35,7 +35,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s surface.obj sphere.obj out.txt\n\
+Usage: %s surface_file sphere_file output_values_file\n\
 Calculate the gyrification index (GI) using convex hull of the surface.  Output are local GI values.\n\n\n";
 
        fprintf(stderr, usage_str, executable);

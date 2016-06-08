@@ -8,6 +8,7 @@
 
 #include "CAT_NiftiIO.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Surf.h"
 #include "CAT_DeformPolygons.h"
 
 void

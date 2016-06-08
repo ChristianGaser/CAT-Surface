@@ -53,7 +53,7 @@ gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
         for (i = 0; i < surface->n_points; i++)
                 areas[i] /= convex_areas[i];
 
-        output_values_any_format("gi.txt", surface->n_points, areas,
+        output_values_any_format(file, surface->n_points, areas,
                                  TYPE_DOUBLE);
 
         free(convex_areas);
