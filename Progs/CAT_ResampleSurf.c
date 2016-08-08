@@ -56,15 +56,18 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (input_graphics_any_format(sphere_file, &format,
-                                      &n_objects,
-                                      &objects_src_sphere) != OK ||
-            n_objects != 1 ||
-            get_object_type(objects_src_sphere[0]) != POLYGONS ) {
-                fprintf(stderr, "File %s must contain 1 polygons object.\n",
+        if (strcmp(sphere_file,"NULL")) {
+                if (input_graphics_any_format(sphere_file, &format,
+                    &n_objects,
+                    &objects_src_sphere) != OK ||
+                    n_objects != 1 ||
+                    get_object_type(objects_src_sphere[0]) != POLYGONS ) {
+                        fprintf(stderr, "File %s must contain 1 polygons object.\n",
                         sphere_file);
-                exit(EXIT_FAILURE);
-        }
+                        exit(EXIT_FAILURE);
+                }
+                polygons_sphere = get_polygons_ptr(objects_src_sphere[0]);
+        } else  polygons_sphere = NULL;
 
         if (input_graphics_any_format(target_sphere_file, &format,
                                       &n_objects,
@@ -77,7 +80,6 @@ main(int argc, char *argv[])
         }
 
         polygons        = get_polygons_ptr(objects[0]);
-        polygons_sphere = get_polygons_ptr(objects_src_sphere[0]);
         target_sphere   = get_polygons_ptr(objects_target_sphere[0]);
 
         values_specified = get_string_argument(NULL, &input_values_file) &&
