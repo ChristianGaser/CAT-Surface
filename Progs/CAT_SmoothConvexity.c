@@ -20,13 +20,20 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Curvature.h"
 
+#ifndef MIN
+#define MIN(A,B) ((A) > (B) ? (B) : (A))
+#endif
+
+#ifndef MAX
+#define MAX(A,B) ((A) > (B) ? (A) : (B))
+#endif
+
 void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s surface_file output_surface_file fwhm [gausscurv_threshold]\n\n\
-     Diffusion smoothing of surface points w.r.t. gaussian curvature using\n\
-     heat kernel.\n\n";
+Usage: %s surface_file output_surface_file fwhm\n\n\
+     Diffusion smoothing of surface points w.r.t. neg. convexity.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -37,11 +44,12 @@ main(int argc, char *argv[])
         char             *input_file, *output_surface_file;
         int              n_objects;
         int              *n_neighbours, **neighbours;
+        int              p, k;
         File_formats     format;
         object_struct    **object_list;
-        polygons_struct  *polygons;
-        double             fwhm;
-        double           *gc_strength, gc_threshold;
+        polygons_struct  *polygons, *smoothed_polygons;
+        double           fwhm, min, max;
+        double           *convexity;
 
         initialize_argument_processing(argc, argv);
 
@@ -52,7 +60,6 @@ main(int argc, char *argv[])
         }
 
         get_real_argument(25.0, &fwhm);
-        get_real_argument(0.01, &gc_threshold);
 
         if (input_graphics_any_format(input_file, &format, &n_objects,
                                       &object_list) != OK ||
@@ -63,22 +70,45 @@ main(int argc, char *argv[])
 
         polygons = get_polygons_ptr(object_list[0]);
 
-        gc_strength = (double *)malloc(sizeof(double)*polygons->n_points);
+        convexity = (double *)malloc(sizeof(double)*polygons->n_points);
             
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
-                                         0.0, 1, gc_strength);
-
-        smooth_heatkernel(polygons, NULL, fwhm);
+        compute_convexity(polygons, n_neighbours, neighbours, convexity);
         
+        /* use squared inverted convexity as weighting for aeras with neg. convexity */
+        min = 0.0; max = 0.0;
+        for (p = 0; p < polygons->n_points; p++) {
+                convexity[p] *= -1;
+                /* use only pos. inverted convexity */
+                if (convexity[p] < 0) convexity[p] = 0.0;
+                /* and use srq to locally change weighting */
+                convexity[p] = (convexity[p])*(convexity[p]);
+                min = MIN(convexity[p], min);
+                max = MAX(convexity[p], max);
+        }
+
+        /* scale weighting to 0..1 */
+        for (p = 0; p < polygons->n_points; p++)
+                convexity[p] = ((convexity[p] - min)/(max - min));
+
+        smoothed_polygons = get_polygons_ptr(create_object(POLYGONS));
+        copy_polygons(polygons, smoothed_polygons);
+        smooth_heatkernel(smoothed_polygons, NULL, fwhm);
+        
+        /* weighted averaging between unsmoothed and smoothed surface */
+        for (p = 0; p < polygons->n_points; p++) {
+                for (k = 0; k < 3; k++) 
+                        Point_coord(polygons->points[p], k) = convexity[p]*Point_coord(smoothed_polygons->points[p], k) + ((1-convexity[p])*Point_coord(polygons->points[p], k));
+        }
+
         compute_polygon_normals(polygons);
 
         if(output_graphics_any_format(output_surface_file, format, 1, 
                         object_list, NULL) != OK)
                 exit(EXIT_FAILURE);
         
-        free(gc_strength);
+        free(convexity);
 
         return(EXIT_SUCCESS);
 }

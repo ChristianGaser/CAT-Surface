@@ -21,4 +21,4 @@ void get_smoothed_curvatures(polygons_struct *, double *,
                                       double, int);
 void compute_sulcus_depth(polygons_struct *, polygons_struct *, double *);
 void compute_local_sharpness(polygons_struct *, int [], int * [], double *);
-void compute_convexity(polygons_struct *, int [], int *[], double, double *);
+void compute_convexity(polygons_struct *, int [], int *[], double *);

@@ -11,4 +11,5 @@ void get_all_polygon_point_neighbours(polygons_struct *, int *[], int **[]);
 void heatkernel_blur_points(int, Point [], double [], int, int *, int, Real,
                             Point *, double *);
 void smooth_heatkernel(polygons_struct *, double *, double);
+void smooth_heatkernel_sharpness(polygons_struct *, double *, double, double);
 

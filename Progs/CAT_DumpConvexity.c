@@ -50,7 +50,7 @@ main(int argc, char *argv[])
                                         &neighbours, NULL, NULL);
 
         ALLOC(convexity, polygons->n_points);
-        compute_convexity(polygons, n_neighbours, neighbours, 1.0f, convexity);
+        compute_convexity(polygons, n_neighbours, neighbours, convexity);
     
         output_values_any_format(output_surface_file, polygons->n_points, convexity,
                                  TYPE_DOUBLE);

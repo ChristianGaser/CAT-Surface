@@ -38,7 +38,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s  SPH.txt output_surface_file [bandwidth_limited n_points]\n\
+Usage: %s  SPH.txt output_surface_file [-bw bandwith -lim bandwidth_limited -n n_points]\n\
 Use spherical harmonic coefficients to create a surface.\n\n\n";
 
         fprintf(stderr, usage_str, executable);

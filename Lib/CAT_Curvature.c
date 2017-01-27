@@ -402,7 +402,7 @@ compute_local_sharpness(polygons_struct *polygons, int n_neighbours[],
 
 void
 compute_convexity(polygons_struct *polygons, int n_neighbours[],
-               int *neighbours[], double l_convex, double *convexity)
+               int *neighbours[], double *convexity)
 {
         int              p, n;
         double nx, ny, nz, x, y, z, sx, sy, sz, nc;

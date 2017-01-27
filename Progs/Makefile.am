@@ -51,7 +51,7 @@ bin_PROGRAMS = \
 	CAT_WarpSurfDemon \
 	CAT_ResampleSphericalSurfSPH \
 	CAT_ArealSmoothing \
-	CAT_GaussCurvSmoothing \
+	CAT_SmoothConvexity \
 	CAT_Surf2SPH \
 	CAT_ApplyWarpSPH \
 	CAT_SPH2Surf \
