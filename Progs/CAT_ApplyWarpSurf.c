@@ -47,6 +47,13 @@ main(int argc, char *argv[])
         double            *inflow, *flow, *flow1;
         int               size_map[2];
 
+        /* get the arguments from the command line */
+        if (ParseArgv(&argc, argv, argTable, 0) || argc < 4) {
+                usage(argv[0]);
+                fprintf(stderr, "     %s -help\n\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &surface_file) ||
@@ -91,6 +98,7 @@ main(int argc, char *argv[])
         fclose(infp);
 
         expdef(size_map, 10, inflow, flow, flow1, (double *)0, (double *)0);  
+        
         free(flow1);
         free(inflow);
 
