@@ -76,6 +76,7 @@ bin_PROGRAMS = \
 	CAT_Central2Pial \
 	CAT_DumpGyrificationIndex \
 	CAT_Surf2Vol \
+	CAT_Surf2ConvexHull \
 	CAT_MarchingCubes
 	
 ##	CAT_WarpSurfSPH \

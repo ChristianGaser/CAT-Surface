@@ -9,10 +9,12 @@
 #include "CAT_FixTopology.h"
 #include "CAT_NiftiIO.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_Defect.h"
 
 /* the argument table */
 ArgvInfo argTable[] = {
-  {"-deform", ARGV_CONSTANT, (char *) TRUE, (char *) &do_surface_deform,
+  {"-deform", ARGV_CONSTANT, (char *) TRUE, 
+     (char *) &do_surface_deform,
      "Deform corrected surface to its uncorrected version in aeras where topology correction was made."},
   { "-bw", ARGV_INT, (char *) 1, 
     (char *) &bw,
@@ -27,6 +29,12 @@ ArgvInfo argTable[] = {
      "Maximal length of vertex side after refinement (use negative values for no refinement)."},
   {"-sphere", ARGV_STRING, (char *) 1, (char *) &reparam_file,
      "Sphere object for reparameterization."},
+  { "-holes", ARGV_CONSTANT, (char *) TRUE, 
+    (char *) &holes,
+     "Force to assume holes as topology artefacts"},
+  { "-handles", ARGV_CONSTANT, (char *) TRUE, 
+    (char *) &handles,
+     "Force to assume handles as topology artefacts"},
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -46,7 +54,7 @@ main(int argc, char *argv[])
 {
         char                 *surface_file, *sphere_file, *output_surface_file;
         File_formats         format;
-        int                  n_objects;
+        int                  n_objects, force;
         polygons_struct      *surface, *sphere;
         object_struct        **surf_objects, **sphere_objects, **objects;
 
@@ -75,6 +83,13 @@ main(int argc, char *argv[])
                 fprintf(stderr,"Surface file must contain 1 polygons object.\n");
                 exit(EXIT_FAILURE);
         }
+
+        /* check that the surface file contains a polyhedron */
+        if (handles== 1 && holes==1) {
+                fprintf(stderr,"Use either -holes or -handles as option.\n");
+                exit(EXIT_FAILURE);
+        }
+
         /* get a pointer to the surface */
         surface = get_polygons_ptr(surf_objects[0]);
     
@@ -96,7 +111,12 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        objects = fix_topology_sph(surface, sphere, n_triangles, bw, lim, reparam_file, max_refine_length, do_surface_deform);
+        /* force to either to assume holes, handles or estimate automated */
+        force = 0;
+        if (holes)   force = HOLE;
+        if (handles) force = HANDLE;
+        
+        objects = fix_topology_sph(surface, sphere, n_triangles, bw, lim, reparam_file, max_refine_length, do_surface_deform, force);
 
         if (output_graphics_any_format(output_surface_file, ASCII_FORMAT, 1,
                                        objects, NULL) != OK)

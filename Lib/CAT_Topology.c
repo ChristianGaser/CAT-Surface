@@ -479,7 +479,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 
 object_struct **
 fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, int bw, int lim, 
-        char *reparam_file, double max_refine_length, int do_surface_deform)
+        char *reparam_file, double max_refine_length, int do_surface_deform, int force)
 {
         object_struct **hbw_objects, **lbw_objects, **reparam_objects, *surface_object;
         polygons_struct *hbw, *lbw, *reparam, refined;
@@ -513,13 +513,6 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
         update_polydefects(surface, defects, polydefects);
 
-        /* label defects first always as handles and in the 2nd step as holes */
-        for (p = 0; p < surface->n_points; p++) {
-                if (defects[p] > 0) 
-                        holes[p] = HANDLE; 
-                else    holes[p] = 0;
-        }
-        
         if (reparam_file != NULL) {
                 if (input_graphics_any_format(reparam_file, &format, &n_objects,
                                               &reparam_objects) != OK)
@@ -555,101 +548,119 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (handles)...\n");
-        get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
-                                         holes, bw, rdatax, rdatay, rdataz);
-
-        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (handles)...\n");
-        get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
-        get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
-        get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
-
-        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (handles)...\n");
-        *hbw_objects = create_object(POLYGONS);
-        hbw = get_polygons_ptr(*hbw_objects);
-        sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
-                               n_triangles, reparam, bw);
-
-        surface_object = create_object(POLYGONS);
-        copy_polygons(surface, get_polygons_ptr(surface_object));
-
-        get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
-                                         3.0, 0, curv);
-
-        /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
-        compute_point_hausdorff(surface, hbw, HD_handle, 0);
-        
-        /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
-        for (p = 0; p < surface->n_points; p++) 
-                HD_handle[p] *= curv[p];        
-
-        if (DUMP_FILES) {
-                output_graphics_any_format("hbw_handle.obj", ASCII_FORMAT, 1,
-                                           hbw_objects, NULL);
-                output_values_any_format("HD_handle.txt", surface->n_points,
-                                         HD_handle, TYPE_DOUBLE);
-        }
-
-        /* label all defects as holes */
-        for (p = 0; p < surface->n_points; p++) {
-                if (defects[p] > 0) 
-                        holes[p] = HOLE; 
-                else    holes[p] = 0;
-        }
+        if (!force) {
+            /* label defects first always as handles and in the 2nd step as holes */
+            for (p = 0; p < surface->n_points; p++) {
+                    if (defects[p] > 0) 
+                            holes[p] = HANDLE; 
+                    else    holes[p] = 0;
+            }
+            
+            if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (handles)...\n");
+            get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
+                                             holes, bw, rdatax, rdatay, rdataz);
     
-        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (holes)...\n");
-        get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
-                                         holes, bw, rdatax, rdatay, rdataz);
-
-        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata  (holes)...\n");
-        get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
-        get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
-        get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
-
-        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph  (holes)...\n");
-        *hbw_objects = create_object(POLYGONS);
-        hbw = get_polygons_ptr(*hbw_objects);
-        sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
-                               n_triangles, reparam, bw);
-
-        /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
-        compute_point_hausdorff(surface, hbw, HD_hole, 0);
-
-        /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
-        for (p = 0; p < surface->n_points; p++) 
-                HD_hole[p] *= curv[p];
-
-        if (DUMP_FILES) {
-                output_graphics_any_format("hbw_hole.obj", ASCII_FORMAT, 1,
-                                           hbw_objects, NULL);
-                output_values_any_format("HD_hole.txt", surface->n_points,
-                                         HD_hole, TYPE_DOUBLE);
-        }
+            if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (handles)...\n");
+            get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
+            get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
+            get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
+    
+            if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (handles)...\n");
+            *hbw_objects = create_object(POLYGONS);
+            hbw = get_polygons_ptr(*hbw_objects);
+            sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
+                                   n_triangles, reparam, bw);
+    
+            surface_object = create_object(POLYGONS);
+            copy_polygons(surface, get_polygons_ptr(surface_object));
+    
+            get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
+                                             3.0, 0, curv);
+    
+            /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
+            compute_point_hausdorff(surface, hbw, HD_handle, 0);
+            
+            /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
+            for (p = 0; p < surface->n_points; p++) 
+                    HD_handle[p] *= curv[p];        
+    
+            if (DUMP_FILES) {
+                    output_graphics_any_format("hbw_handle.obj", ASCII_FORMAT, 1,
+                                               hbw_objects, NULL);
+                    output_values_any_format("HD_handle.txt", surface->n_points,
+                                             HD_handle, TYPE_DOUBLE);
+            }
+    
+            /* label all defects as holes */
+            for (p = 0; p < surface->n_points; p++) {
+                    if (defects[p] > 0) 
+                            holes[p] = HOLE; 
+                    else    holes[p] = 0;
+            }
         
-        /* label defects as handles or holes depending on their hausdorff distance multiplied by curvature inside the defect */ 
-        for (d = 1; d < n_defects+1; d++) {
-                sum_HD_handle = 0.0;
-                sum_HD_hole   = 0.0;
-                int defect_size = 0.0;
-                for (p = 0; p < surface->n_points; p++) {
-                        if (defects[p] == d) {
-                                sum_HD_handle += HD_handle[p];
-                                sum_HD_hole   += HD_hole[p];
-                                defect_size++;
-                        }
-                } 
-                if (DEBUG) fprintf(stderr,"%d %d %g %g\n",d,defect_size,sum_HD_handle,sum_HD_hole);
-                for (p = 0; p < surface->n_points; p++) {
-                        if (defects[p] == d) {
-                                /* use handles or holes depending on hausdorff 
-                                   distance multiplied by curvature between surfaces */
-                                if (sum_HD_handle >= sum_HD_hole)
-                                        holes[p] = HANDLE;
-                                else    holes[p] = HOLE;
-                        }
-                }
+            if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (holes)...\n");
+            get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
+                                             holes, bw, rdatax, rdatay, rdataz);
+    
+            if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata  (holes)...\n");
+            get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
+            get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
+            get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
+    
+            if (DEBUG) fprintf(stderr,"sample_sphere_from_sph  (holes)...\n");
+            *hbw_objects = create_object(POLYGONS);
+            hbw = get_polygons_ptr(*hbw_objects);
+            sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
+                                   n_triangles, reparam, bw);
+    
+            /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
+            compute_point_hausdorff(surface, hbw, HD_hole, 0);
+    
+            /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
+            for (p = 0; p < surface->n_points; p++) 
+                    HD_hole[p] *= curv[p];
+    
+            if (DUMP_FILES) {
+                    output_graphics_any_format("hbw_hole.obj", ASCII_FORMAT, 1,
+                                               hbw_objects, NULL);
+                    output_values_any_format("HD_hole.txt", surface->n_points,
+                                             HD_hole, TYPE_DOUBLE);
+            }
+            
+            /* label defects as handles or holes depending on their hausdorff distance multiplied by curvature inside the defect */ 
+            for (d = 1; d < n_defects+1; d++) {
+                    sum_HD_handle = 0.0;
+                    sum_HD_hole   = 0.0;
+                    int defect_size = 0.0;
+                    for (p = 0; p < surface->n_points; p++) {
+                            if (defects[p] == d) {
+                                    sum_HD_handle += HD_handle[p];
+                                    sum_HD_hole   += HD_hole[p];
+                                    defect_size++;
+                            }
+                    } 
+                    if (DEBUG) fprintf(stderr,"%d %d %g %g\n",d,defect_size,sum_HD_handle,sum_HD_hole);
+                    for (p = 0; p < surface->n_points; p++) {
+                            if (defects[p] == d) {
+                                    /* use handles or holes depending on hausdorff 
+                                       distance multiplied by curvature between surfaces */
+                                    if (sum_HD_handle >= sum_HD_hole)
+                                            holes[p] = HANDLE;
+                                    else    holes[p] = HOLE;
+                            }
+                    }
+            }
+            
+        } else {
+            /* label defects according to force parameter to either use 
+                holes or handles by default */
+            for (p = 0; p < surface->n_points; p++) {
+                    if (defects[p] > 0) 
+                            holes[p] = force; 
+                    else    holes[p] = 0;
+            }
         }
-        
+
         if (DUMP_FILES) {
                 output_values_any_format("defects.txt", surface->n_points,
                                          holes, TYPE_INTEGER);

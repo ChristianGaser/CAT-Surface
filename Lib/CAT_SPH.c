@@ -585,7 +585,6 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         free(bisected);
 }
 
-
 object_struct **
 create_equally_sampled_unit_sphere(int n_theta, int n_phi)
 {
