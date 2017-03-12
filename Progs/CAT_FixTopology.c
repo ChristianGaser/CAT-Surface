@@ -25,16 +25,20 @@ ArgvInfo argTable[] = {
   { "-n", ARGV_INT, (char *) 1, 
     (char *) &n_triangles,
     "Number of triangles for sampled surface." },
-  {"-refine_length", ARGV_FLOAT, (char *) TRUE, (char *) &max_refine_length,
+  {"-refine_length", ARGV_FLOAT, (char *) TRUE, 
+    (char *) &max_refine_length,
      "Maximal length of vertex side after refinement (use negative values for no refinement)."},
   {"-sphere", ARGV_STRING, (char *) 1, (char *) &reparam_file,
      "Sphere object for reparameterization."},
-  { "-holes", ARGV_CONSTANT, (char *) TRUE, 
+  { "-fill", ARGV_CONSTANT, (char *) TRUE, 
     (char *) &holes,
-     "Force to assume holes as topology artefacts"},
-  { "-handles", ARGV_CONSTANT, (char *) TRUE, 
+     "Force filling topology errors."},
+  { "-cut", ARGV_CONSTANT, (char *) TRUE, 
     (char *) &handles,
-     "Force to assume handles as topology artefacts"},
+     "Force cutting topology errors."},
+  { "-laplace", ARGV_FLOAT, (char *) 1, 
+    (char *) &laplace_thresh,
+    "Apply 2D laplace filter to minimize irregularities in coordinate maps for SPH. Use 0 for no filtering." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -116,7 +120,8 @@ main(int argc, char *argv[])
         if (holes)   force = HOLE;
         if (handles) force = HANDLE;
         
-        objects = fix_topology_sph(surface, sphere, n_triangles, bw, lim, reparam_file, max_refine_length, do_surface_deform, force);
+        objects = fix_topology_sph(surface, sphere, n_triangles, bw, lim, reparam_file, max_refine_length, 
+            do_surface_deform, force, laplace_thresh);
 
         if (output_graphics_any_format(output_surface_file, ASCII_FORMAT, 1,
                                        objects, NULL) != OK)

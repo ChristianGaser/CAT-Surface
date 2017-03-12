@@ -479,7 +479,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 
 object_struct **
 fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, int bw, int lim, 
-        char *reparam_file, double max_refine_length, int do_surface_deform, int force)
+        char *reparam_file, double max_refine_length, int do_surface_deform, int force, double laplace_thresh)
 {
         object_struct **hbw_objects, **lbw_objects, **reparam_objects, *surface_object;
         polygons_struct *hbw, *lbw, *reparam, refined;
@@ -669,6 +669,13 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (final)...\n");
         get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
                                          holes, bw, rdatax, rdatay, rdataz);
+
+        /* apply lapace filter to minimize irregularities in corrdinate maps */
+        if (laplace_thresh > 0.000001 && laplace_thresh < 0.5) {
+                rdatax = laplace2d(rdatax, NULL, 2*bw, 2*bw, laplace_thresh);
+                rdatay = laplace2d(rdatay, NULL, 2*bw, 2*bw, laplace_thresh);
+                rdataz = laplace2d(rdataz, NULL, 2*bw, 2*bw, laplace_thresh);
+        }
 
         if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (final)...\n");
         get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);

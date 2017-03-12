@@ -16,10 +16,11 @@ int bw = 512;
 int lim = 128;
 int n_triangles = 81920;
 double max_refine_length = 2;
+double laplace_thresh = 0.45;
 char *reparam_file = NULL;
 int do_surface_deform = 0;
 int holes = 0;
 int handles = 0;
 
 object_struct **
-fix_topology_sph(polygons_struct *, polygons_struct *, int, int, int, char *, double, int, int);
+fix_topology_sph(polygons_struct *, polygons_struct *, int, int, int, char *, double, int, int, double);

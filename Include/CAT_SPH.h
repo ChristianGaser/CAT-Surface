@@ -42,3 +42,5 @@ void get_equally_sampled_coords_holes(polygons_struct *, polygons_struct *,
                                       double [], double []);
 
 object_struct ** create_equally_sampled_unit_sphere(int, int);
+
+double * laplace2d(double *, unsigned char *, int, int, double);

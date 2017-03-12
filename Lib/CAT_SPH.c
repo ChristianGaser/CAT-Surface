@@ -6,6 +6,7 @@
  * $Id$
  *
  */
+#include <float.h>
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_SPH.h"
@@ -29,7 +30,7 @@ read_SPHxyz(char *file, int bandwidth, double **rcx, double **rcy, double **rcz,
         int   dataformat;
 
         /* read coefficients */
-        if ((fp = fopen(file, "rb")) == NULL) {
+        if ((fp = fopen(file, "rb"))  == NULL) {
                 fprintf(stderr, "Error opening file %s.\n", file);
                 return(1);
         }
@@ -42,12 +43,12 @@ read_SPHxyz(char *file, int bandwidth, double **rcx, double **rcy, double **rcz,
         fgets(line, 256, fp);
         sscanf(line, "%d %d %d", &bandwidth, &n_dims, &dataformat);
 
-        if (dataformat != 1) {
+        if (dataformat !=  1) {
                 fprintf(stderr, "Wrong dataformat: Data should be real and not complex.\n");
                 return(1);
         }
 
-        if (n_dims != 3) {
+        if (n_dims !=  3) {
                 fprintf(stderr, "Data dimension should be 3.\n");
                 return(1);
         }
@@ -61,27 +62,27 @@ read_SPHxyz(char *file, int bandwidth, double **rcx, double **rcy, double **rcz,
         *icy = (double *) malloc(sizeof(double) * bw2);
         *icz = (double *) malloc(sizeof(double) * bw2);
 
-        if (fread(*rcx, sizeof(double), bw2, fp) != bw2) {
+        if (fread(*rcx, sizeof(double), bw2, fp) !=  bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(*icx, sizeof(double), bw2, fp) != bw2) {
+        if (fread(*icx, sizeof(double), bw2, fp) !=  bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(*rcy, sizeof(double), bw2, fp) != bw2) {
+        if (fread(*rcy, sizeof(double), bw2, fp) !=  bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(*icy, sizeof(double), bw2, fp) != bw2) {
+        if (fread(*icy, sizeof(double), bw2, fp) !=  bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(*rcz, sizeof(double), bw2, fp) != bw2) {
+        if (fread(*rcz, sizeof(double), bw2, fp) !=  bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
-        if (fread(*icz, sizeof(double), bw2, fp) != bw2) {
+        if (fread(*icz, sizeof(double), bw2, fp) !=  bw2) {
                 fprintf(stderr, "Error reading data.\n");
                 return(1);
         }
@@ -117,16 +118,16 @@ sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
 
         bandwidth2 = bandwidth*2;
     
-        if (reparam == NULL) {
+        if (reparam  == NULL) {
                 /* check tetrahedral topology */
                 /* best areal distribution is achieved for 20 edges */
                 n_polygons = n_triangles;
         
-                while (n_polygons % 4 == 0)
-                        n_polygons /= 4;
+                while (n_polygons % 4  == 0)
+                        n_polygons /=  4;
 
-                if (n_polygons != 5 && n_polygons != 2 &&
-                    n_polygons != 6 && n_polygons != 1) { /* 20, 8, 6, 4 */
+                if (n_polygons !=  5 && n_polygons !=  2 &&
+                    n_polygons !=  6 && n_polygons !=  1) { /* 20, 8, 6, 4 */
                         fprintf(stderr,"Warning: Number of triangles %d is",
                                        n_triangles);
                         fprintf(stderr," not recommend because\ntetrahedral");
@@ -220,10 +221,10 @@ shape_description(int bandwidth, double *rcx, double *rcy, double *rcz,
                 shape_desc[l] = 0;
                 for (m = -l; m < l+1; m++) {
                         k = seanindex(m, l, bandwidth);
-                        shape_desc[l] += (rcx[k] * rcx[k]) +
+                        shape_desc[l] +=  (rcx[k] * rcx[k]) +
                                          (rcy[k] * rcy[k]) +
                                          (rcz[k] * rcz[k]);
-                        shape_desc[l] += (icx[k] * icx[k]) +
+                        shape_desc[l] +=  (icx[k] * icx[k]) +
                                          (icy[k] * icy[k]) +
                                          (icz[k] * icz[k]);
                 }
@@ -243,7 +244,7 @@ butterworth_filter(int bandwidth, int bandwidth_limited,
 
         for (l = 0; l < bandwidth; l++) {
                 coeffs[l] = l;
-                coeffs[l] /= bandwidth_limited;
+                coeffs[l] /=  bandwidth_limited;
                 coeffs[l] = 1/sqrt(1 + pow(coeffs[l], order));
        }
 
@@ -266,7 +267,7 @@ bandpass_bandwidth(int bandwidth, int bw_lo, int bw_hi,
         for (l = 0; l < bandwidth; l++) {
                 for (m = -l; m < l+1; m++) {
                         i = seanindex(m, l, bandwidth);
-                        if (l >= bw_lo && l <= bw_hi && l < bandwidth) {
+                        if (l >=  bw_lo && l <=  bw_hi && l < bandwidth) {
                                 coeffs_new[i] = coeffs_old[i];
                         } else coeffs_new[i] = 0;
                 }
@@ -437,7 +438,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
          */
         translate_to_center_of_mass(scaled_sphere);
         for (i = 0; i < scaled_sphere->n_points; i++) 
-                set_vector_length(&scaled_sphere->points[i], 1.01);
+                set_vector_length(&scaled_sphere->points[i], 1.0);
 
         create_polygons_bintree(scaled_sphere,
                                 round((double) scaled_sphere->n_items *
@@ -465,7 +466,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                                                           weights);
 
                         if (get_polygon_points(polygons, poly,
-                                               poly_points) != size)
+                                               poly_points) !=  size)
                                 handle_internal_error("map_point_between_polygons");
                 
                         fill_Point(new_point, 0.0, 0.0, 0.0);
@@ -478,8 +479,8 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                         ycoord[x + (bandwidth2*y)] = Point_y(new_point);
                         zcoord[x + (bandwidth2*y)] = Point_z(new_point);
                 }
-
         }
+
 }
 
 
@@ -524,7 +525,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                                 break;
                         case LARGE_DEFECT: /* large defect, cut */
                         case HANDLE: /* handle, cut */
-                                r = 1.01;
+                                r = 1.05;
                                 break;
                         case HOLE: /* hole, fill */
                                 r = 0.95;
@@ -567,7 +568,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                                                           weights);
 
                         if (get_polygon_points(polygons, poly,
-                                               poly_points) != size)
+                                               poly_points) !=  size)
                                 handle_internal_error("map_point_between_polygons");
                 
                         fill_Point(new_point, 0.0, 0.0, 0.0);
@@ -583,6 +584,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
 
         }
         free(bisected);
+
 }
 
 object_struct **
@@ -608,7 +610,7 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
         sphere->end_indices = (int *) malloc(sizeof(int) * sphere->n_items);
 
         p = 0;
-        for (phi = 0; phi <= n_phi; phi++) {
+        for (phi = 0; phi <=  n_phi; phi++) {
                 v = (double) phi / (double) n_phi;
                 for (theta = 0; theta < n_theta; theta++) {
                         u = (double) theta / (double) n_theta;
@@ -616,7 +618,7 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
                         uv_to_point(u, v, &sphere->points[p]);
                         p++;
 
-                        if (phi == 0 || phi == n_phi) break; // pole
+                        if (phi  == 0 || phi  == n_phi) break; // pole
                 }
         }
 
@@ -629,7 +631,7 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
                 sphere->indices[p++] = 0;
                 sphere->indices[p++] = theta + 1;
                 sphere->indices[p++] = theta + 2;
-                if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                if (theta  == n_theta-1) sphere->indices[p-1] -=  n_theta;
         }
 
         /* longitudinal rows */
@@ -638,13 +640,13 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
                         sphere->indices[p++] = (phi-1)*n_theta + theta + 1;
                         sphere->indices[p++] = phi*n_theta + theta + 1;
                         sphere->indices[p++] = phi*n_theta + theta + 2;
-                        if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                        if (theta  == n_theta-1) sphere->indices[p-1] -=  n_theta;
 
                         sphere->indices[p++] = (phi-1)*n_theta + theta + 1;
                         sphere->indices[p++] = phi*n_theta + theta + 2;
-                        if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                        if (theta  == n_theta-1) sphere->indices[p-1] -=  n_theta;
                         sphere->indices[p++] = (phi-1)*n_theta + theta + 2;
-                        if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                        if (theta  == n_theta-1) sphere->indices[p-1] -=  n_theta;
                 }
         }
 
@@ -652,10 +654,103 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
         for (theta = 0; theta < n_theta; theta++) {
                 sphere->indices[p++] = (n_phi-2)*n_theta + theta + 1;
                 sphere->indices[p++] = (n_phi-2)*n_theta + theta + 2;
-                if (theta == n_theta-1) sphere->indices[p-1] -= n_theta;
+                if (theta  == n_theta-1) sphere->indices[p-1] -=  n_theta;
                 sphere->indices[p++] = (n_theta * (n_phi-1)) + 1;
         }
         compute_polygon_normals(sphere);
   
         return object;
+}
+
+/* estimate x,y,z position of index i in an array size sx,sxy = sx*sy... */
+void 
+ind2sub(int i,int *x,int *y, int *z, int sxy, int sy) {
+          *z = (int)floor( i / (double)sxy ) +1; 
+           i = i % (sxy);
+          *y = (int)floor( i / (double)sy ) +1;        
+          *x = i % sy + 1;
+}
+
+/* 2D laplace filter */
+double *
+laplace2d(double *im, unsigned char *msk, int x, int y, double TH)
+{
+
+        int xy = x*y;
+        double *L1, *L2;
+        unsigned char *LN;
+        const int NI[]  = { -1, 1, -x, x, -xy, xy};  
+        const int sN = sizeof(NI)/4;    
+        int i, n;
+        unsigned char * msk2;
+  
+        if ( TH>= 0.5 || TH<0.000001 ) {
+                fprintf(stderr,"ERROR:laplace2d: threshold must be >0.000001 and smaller than 0.5\n");
+                return(NULL);
+        }
+    
+        /* output data */
+        L1  = (double *)malloc(xy * sizeof(double));
+        L2  = (double *)malloc(xy * sizeof(double));
+        LN  = (unsigned char *)malloc(xy * sizeof(unsigned char));
+  
+        msk2  = (unsigned char *)malloc(xy * sizeof(unsigned char));
+  
+        if (msk  == NULL)
+                for (i = 0; i<xy; i++) msk2[i] = 1;
+        else    for (i = 0; i<xy; i++) msk2[i] = msk[i];
+        
+        /* intitialisiation */
+        for (i = 0; i<xy; i++) {
+                if ( isnan(im[i]) ) L1[i] = FLT_MAX; else L1[i] = im[i];
+                L2[i] = L1[i];
+                LN[i] = msk2[i];
+        }
+
+        int u,v,w,nu,nv,nw,ni,iter = 0,maxiter = 2000;
+        double Nn, diff, maxdiffi, maxdiff = 1;
+
+        while (maxdiff > TH && iter < maxiter) {
+                maxdiffi = 0; iter++;
+                for (i = 0; i<xy; i++) {
+                        if ( msk2[i] && LN[i] ) {  
+                                ind2sub(i,&u,&v,&w,xy,x);
+
+                                /* read neighbor values */
+                                L2[i] = 0; Nn = 0;
+                                for (n = 0; n<sN; n++) {
+                                        ni = i + NI[n]; 
+                                        ind2sub(ni,&nu,&nv,&nw,xy,x);
+                                        if (((ni<0) || (ni>= xy) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni] == -FLT_MAX) || 
+                                           (L1[ni] == FLT_MAX)) == 0) {
+                                                L2[i] = L2[i] + L1[ni];
+                                                Nn++;
+                                        }
+                                }
+                                if (Nn>0) {L2[i]/= Nn;} else {L2[i] = L1[i];}
+        
+                                diff  = fabs( L1[i] - L2[i] );
+                                if ( diff>(TH/10) ) { 
+                                        for (n = 0; n<sN; n++) {
+                                                ni = i + NI[n]; ind2sub(ni,&nu,&nv,&nw,xy,x);
+                                                if (((ni<0) || (ni>= xy) || (abs(nu-u)>1) || (abs(nw-w)>1) || (abs(nv-v)>1) || (L1[ni] == -FLT_MAX) || 
+                                                    (L1[ni] == FLT_MAX) ) == 0) LN[ni] = 1; /* if i change his neigbors has to be recalculated */
+                                        }
+                                }
+      
+                                LN[i] = 0;
+                                if (maxdiffi<diff) maxdiffi = diff; 
+                        }
+                }
+                maxdiff = maxdiffi;
+
+                /* update of L1 */
+                for (i = 0; i<xy; i++) L1[i] = L2[i];
+        }
+  
+        free(L2);
+        free(LN);
+        free(msk2);
+
+        return(L1);
 }
