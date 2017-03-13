@@ -301,7 +301,7 @@ get_sph_coeffs_of_realdata(double *rdata, int bandwidth, int dataformat,
         int                  rank, howmany_rank, n_objects, bandwidth2;
         fftw_plan            dctPlan;
         fftw_plan            fftPlan;
-        fftw_iodim           dims[1], howmany_dims[1];
+        fftw_iodim           dims[1], howmany_dimx[1];
 
         bandwidth2 = bandwidth*2;
     
@@ -322,13 +322,13 @@ get_sph_coeffs_of_realdata(double *rdata, int bandwidth, int dataformat,
         dims[0].is = 1;
         dims[0].os = bandwidth2;
         howmany_rank = 1;
-        howmany_dims[0].n = bandwidth2;
-        howmany_dims[0].is = bandwidth2;
-        howmany_dims[0].os = 1;
+        howmany_dimx[0].n = bandwidth2;
+        howmany_dimx[0].is = bandwidth2;
+        howmany_dimx[0].os = 1;
 
         /* forward fft */
         fftPlan = fftw_plan_guru_split_dft(rank, dims,
-                                           howmany_rank, howmany_dims,
+                                           howmany_rank, howmany_dimx,
                                            rdata, idata,
                                            workspace,
                                            workspace+(4*bandwidth*bandwidth),
@@ -363,7 +363,7 @@ get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
         int          rank, howmany_rank, n_objects, bandwidth2;
         fftw_plan    idctPlan;
         fftw_plan    ifftPlan;
-        fftw_iodim   dims[1], howmany_dims[1];
+        fftw_iodim   dims[1], howmany_dimx[1];
 
         bandwidth2 = bandwidth*2;
     
@@ -381,13 +381,13 @@ get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
         dims[0].is = bandwidth2;
         dims[0].os = 1;
         howmany_rank = 1;
-        howmany_dims[0].n = bandwidth2;
-        howmany_dims[0].is = 1;
-        howmany_dims[0].os = bandwidth2;
+        howmany_dimx[0].n = bandwidth2;
+        howmany_dimx[0].is = 1;
+        howmany_dimx[0].os = bandwidth2;
 
         /* forward fft */
         ifftPlan = fftw_plan_guru_split_dft(rank, dims,
-                                            howmany_rank, howmany_dims,
+                                            howmany_rank, howmany_dimx,
                                             rc, ic, workspace,
                                             workspace+(4*bandwidth*bandwidth),
                                             FFTW_ESTIMATE);
@@ -552,7 +552,6 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                 for (y = 0; y < bandwidth2; y++) {
                         u = ((double) x) / (double) (bandwidth2 - 1);
                         v = ((double) y) / (double) (bandwidth2 - 1);
-  
                         uv_to_point(u, v, &unit_point);
             
                         poly = find_closest_polygon_point(&unit_point,
@@ -664,25 +663,27 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
 
 /* estimate x,y,z position of index i in an array size sx,sxy = sx*sy... */
 void 
-ind2sub(int i,int *x,int *y, int *z, int sxy, int sy) {
-          *z = (int)floor( i / (double)sxy ) +1; 
+ind2sub(int i, int *x, int *y, int sxy, int sy) {
            i = i % (sxy);
-          *y = (int)floor( i / (double)sy ) +1;        
-          *x = i % sy + 1;
+          *y = (int)floor( i / (double)sy );        
+          *x = i % sy;
 }
 
 /* 2D laplace filter */
 double *
-laplace2d(double *im, unsigned char *msk, int x, int y, double TH)
+laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
 {
 
-        int xy = x*y;
+        int xy = dimx*dimy;
         double *L1, *L2;
         unsigned char *LN;
-        const int NI[]  = { -1, 1, -x, x, -xy, xy};  
+        const int NI[]  = { -1, 1, -dimx, dimx};  
         const int sN = sizeof(NI)/4;    
         int i, n;
         unsigned char * msk2;
+
+        int u,v,nu,nv,ni,iter = 0, maxiter = 2000;
+        double Nn, diff, maxdiffi, maxdiff = 1;
   
         if ( TH>= 0.5 || TH<0.000001 ) {
                 fprintf(stderr,"ERROR:laplace2d: threshold must be >0.000001 and smaller than 0.5\n");
@@ -706,35 +707,36 @@ laplace2d(double *im, unsigned char *msk, int x, int y, double TH)
                 L2[i] = L1[i];
                 LN[i] = msk2[i];
         }
-
-        int u,v,w,nu,nv,nw,ni,iter = 0,maxiter = 2000;
-        double Nn, diff, maxdiffi, maxdiff = 1;
-
+                                        
         while (maxdiff > TH && iter < maxiter) {
                 maxdiffi = 0; iter++;
                 for (i = 0; i<xy; i++) {
                         if ( msk2[i] && LN[i] ) {  
-                                ind2sub(i,&u,&v,&w,xy,x);
+                                ind2sub(i,&u,&v,xy,dimx);
 
                                 /* read neighbor values */
                                 L2[i] = 0; Nn = 0;
                                 for (n = 0; n<sN; n++) {
                                         ni = i + NI[n]; 
-                                        ind2sub(ni,&nu,&nv,&nw,xy,x);
-                                        if (((ni<0) || (ni>= xy) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni] == -FLT_MAX) || 
-                                           (L1[ni] == FLT_MAX)) == 0) {
+                                        ind2sub(ni,&nu,&nv,xy,dimx);
+                                        if (ni < 0) ni += dimx;
+                                        if (ni >= xy) ni -= dimx;
+                                        if (((ni<0) || (ni>= xy) || (L1[ni] == -FLT_MAX) || (L1[ni] == FLT_MAX)) == 0) {
                                                 L2[i] = L2[i] + L1[ni];
                                                 Nn++;
                                         }
                                 }
-                                if (Nn>0) {L2[i]/= Nn;} else {L2[i] = L1[i];}
+                                if (Nn>0) L2[i]/= Nn; else L2[i] = L1[i];
         
                                 diff  = fabs( L1[i] - L2[i] );
                                 if ( diff>(TH/10) ) { 
                                         for (n = 0; n<sN; n++) {
-                                                ni = i + NI[n]; ind2sub(ni,&nu,&nv,&nw,xy,x);
-                                                if (((ni<0) || (ni>= xy) || (abs(nu-u)>1) || (abs(nw-w)>1) || (abs(nv-v)>1) || (L1[ni] == -FLT_MAX) || 
-                                                    (L1[ni] == FLT_MAX) ) == 0) LN[ni] = 1; /* if i change his neigbors has to be recalculated */
+                                                ni = i + NI[n]; 
+                                                ind2sub(ni,&nu,&nv,xy,dimx);
+                                                if (ni < 0) ni += dimx;
+                                                if (ni >= xy) ni -= dimx;
+                                                if (((ni<0) || (ni>= xy) || (L1[ni] == -FLT_MAX) || (L1[ni] == FLT_MAX) ) == 0) 
+                                                        LN[ni] = 1; /* if i changes his neigbors has to be recalculated */
                                         }
                                 }
       
@@ -753,4 +755,56 @@ laplace2d(double *im, unsigned char *msk, int x, int y, double TH)
         free(msk2);
 
         return(L1);
+}
+
+/* 2D gradient magnitude with larger neighbourhood */
+double *
+gradient_magnitude(double *im, int dimx, int dimy)
+{
+
+        int xy = dimx*dimy;
+        int x, y, x2, y2, i, ind;
+        double * mag;
+        double gx, gy;
+        
+        /* output data */
+        mag  = (double *)malloc(xy * sizeof(double));
+        for (i = 0; i<xy; i++) mag[i] = 0.0;
+
+        for (y = 0; y<dimy; y++) {
+                for (x = 0; x<dimx; x++) {
+                        
+                        /* deal with borders */
+                        if (x>0) x2 = x; else x2 = x + dimx;
+                        if (y>0) y2 = y; else y2 = y + dimy;
+                        if (x<dimx-1) x2 = x; else x2 = x - dimx;
+                        if (y<dimy-1) y2 = y; else y2 = y - dimy;
+                        
+		  		        ind = (y2*dimx) + x2;
+		  		        gx = (im[ind+1] - im[ind-1])/2;
+		  		        gy = (im[((y2+1)*dimx)+x2] - im[((y2-1)*dimx)+x2])/2;
+		  		        mag[ind] = sqrt(gx*gx + gy*gy);       
+                }
+        }
+        return(mag);
+}
+
+/* threshold 2D image */
+unsigned char *
+threshold_image(double *im, int dimx, int dimy, double threshold)
+{
+
+        int xy = dimx*dimy;
+        int i;
+        unsigned char * im_thresholded;
+        
+        /* output data */
+        im_thresholded  = (unsigned char *)malloc(xy * sizeof(unsigned char));
+        
+        for (i = 0; i<xy; i++) {
+                if (im[i] > threshold) im_thresholded[i] = 1;
+                else                   im_thresholded[i] = 0;
+        }
+
+        return(im_thresholded);
 }

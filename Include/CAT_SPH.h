@@ -44,3 +44,5 @@ void get_equally_sampled_coords_holes(polygons_struct *, polygons_struct *,
 object_struct ** create_equally_sampled_unit_sphere(int, int);
 
 double * laplace2d(double *, unsigned char *, int, int, double);
+double * gradient_magnitude(double *, int, int);
+unsigned char * threshold_image(double *, int, int, double);

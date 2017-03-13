@@ -490,8 +490,9 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         int bw2, i, p, d, n_done;
         int *defects, *polydefects, *holes, n_defects, n_objects;
         int *n_neighbours, **neighbours;
-        double *HD_hole, *HD_handle, *curv;
+        double *HD_hole, *HD_handle, *curv, *tmp_vol;
         double sum_HD_handle, sum_HD_hole;
+        unsigned char *mask;
         File_formats format;
 
         defects     = (int *) malloc(sizeof(int) * surface->n_points);
@@ -670,11 +671,37 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
                                          holes, bw, rdatax, rdatay, rdataz);
 
-        /* apply lapace filter to minimize irregularities in corrdinate maps */
         if (laplace_thresh > 0.000001 && laplace_thresh < 0.5) {
-                rdatax = laplace2d(rdatax, NULL, 2*bw, 2*bw, laplace_thresh);
-                rdatay = laplace2d(rdatay, NULL, 2*bw, 2*bw, laplace_thresh);
-                rdataz = laplace2d(rdataz, NULL, 2*bw, 2*bw, laplace_thresh);
+
+                tmp_vol = laplace2d(rdatax, NULL, 2*bw, 2*bw, 0.49);
+                for (i = 0; i < 4*bw2; i++) tmp_vol[i] -= rdatax[i];
+                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
+                rdatax = laplace2d(rdatax, mask, 2*bw, 2*bw, laplace_thresh);
+
+                tmp_vol = gradient_magnitude(rdatax, 2*bw, 2*bw);
+                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
+                rdatax = laplace2d(rdatax, mask, 2*bw, 2*bw, laplace_thresh);
+
+                tmp_vol = laplace2d(rdatay, NULL, 2*bw, 2*bw, 0.49);
+                for (i = 0; i < 4*bw2; i++) tmp_vol[i] -= rdatay[i];
+                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
+                rdatay = laplace2d(rdatay, mask, 2*bw, 2*bw, laplace_thresh);
+
+                tmp_vol = gradient_magnitude(rdatay, 2*bw, 2*bw);
+                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
+                rdatay = laplace2d(rdatay, mask, 2*bw, 2*bw, laplace_thresh);
+
+                tmp_vol = laplace2d(rdataz, NULL, 2*bw, 2*bw, 0.49);
+                for (i = 0; i < 4*bw2; i++) tmp_vol[i] = (rdataz[i] - tmp_vol[i]);
+                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
+                rdataz = laplace2d(rdataz, mask, 2*bw, 2*bw, laplace_thresh);
+
+                tmp_vol = gradient_magnitude(rdataz, 2*bw, 2*bw);
+                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
+                rdataz = laplace2d(rdataz, mask, 2*bw, 2*bw, laplace_thresh);
+
+free(tmp_vol);
+
         }
 
         if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (final)...\n");
@@ -751,6 +778,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(HD_handle);
         free(HD_hole);
         free(curv);
+        free(mask);
 
         return hbw_objects;
 }
