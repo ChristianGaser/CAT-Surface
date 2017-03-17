@@ -14,6 +14,8 @@
 
 #include "CAT_ConvexHull.h"
 
+#define DEBUG 1
+
 object_struct **
 surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_sphere)
 {
@@ -51,12 +53,13 @@ surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_s
         /* do resampling to original sphere if defined */
         if (polygons_sphere != NULL) {
         
-                fprintf(stderr,"Warning: Laplace-Beltrami approach results in rotated sphere and link to original surface is lost\n");
         
-                /* get sphere of convex hull using Laplace Beltrami approach */
+                /* get sphere of convex hull (using Laplace Beltrami approach) */
                 sphere_convex = get_polygons_ptr(create_object(POLYGONS));
                 copy_polygons(convex_polygons, sphere_convex);
-                find_conformal_map(sphere_convex);
+//                fprintf(stderr,"Warning: Laplace-Beltrami approach results in rotated sphere and link to original surface is lost\n");
+//                find_conformal_map(sphere_convex);
+                surf_to_sphere(sphere_convex,5);
 
                 object = resample_surface_to_target_sphere(convex_polygons, sphere_convex, polygons_sphere, NULL, NULL);
         }
@@ -306,10 +309,8 @@ add_edge_to_list(
         if( lookup_in_hash_table( edge_table, key, NULL ) ) {
                 /* This is quite convoluted, but it works. CL */
                 remove_from_hash_table( edge_table, key, (void *) &edge_ptr );
-                if( edge_ptr.ref_count == 2 ) {
+                if(( edge_ptr.ref_count == 2 ) && dbg)
                         printf( " bad count for edge %d %d\n", key/KeyFactor, key%KeyFactor );
-                        // exit(1);
-                }
                 edge_ptr.ref_count++;
                 insert_in_hash_table( edge_table, key, (void *) &edge_ptr );
         } else {
@@ -565,7 +566,8 @@ get_convex_hull(
         n_edges = 0;
         while( get_next_hash_entry( &edge_table, &hash_ptr, (void *) &edge_ptr ) ) {
                 if( edge_ptr.ref_count != 2 ) {
-                        printf( "bad ref_count is %d for edge %d\n", edge_ptr.ref_count, n_edges );
+                        if (dbg)
+                                printf( "bad ref_count is %d for edge %d\n", edge_ptr.ref_count, n_edges );
                         ++n_bad_ref_count;
                 }
                 ++n_edges;
@@ -573,7 +575,7 @@ get_convex_hull(
 
         delete_hash_table( &edge_table );
 
-        if( n_bad_ref_count > 0 )
+        if(( n_bad_ref_count > 0 ) && dbg)
                 print( "N ref counts != 2: %d/%d\n", n_bad_ref_count, n_edges );
 
         // Renumber the vertices of the convex hull locally.

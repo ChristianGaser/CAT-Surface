@@ -6,7 +6,7 @@
  * caret/caret_brain_set/BrainModelSurface.cxx.
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_Surf2ConvexHull.c 330 2014-11-06 13:13:05Z gaser $
+ * $Id$
  *
  */
 

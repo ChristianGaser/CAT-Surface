@@ -419,9 +419,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         flag = (int *) malloc(sizeof(int) * hbw->n_points);
         memset(flag, 0, sizeof(int) * hbw->n_points);
         for (p = 0; p < hbw->n_points; p++) {
-                if (hbw_holes[p] == VENTRICLE || hbw_holes[p] == LARGE_DEFECT) {
-                        flag[p] = 1;
-                } else if (sharpness[p] > 60 && hbw_defects[p] != 0) {
+                if (sharpness[p] > 60 && hbw_defects[p] != 0) {
                         flag[p] = 1; /* patch this one */
                         add_neighbours(hbw, lbw, neighbours, n_neighbours, p,
                                        flag, 1);
@@ -449,7 +447,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         fprintf(stderr,"Post-patch: %d self intersection(s) remaining\n", n_defects);
 
         /* smooth out remaining self-intersections */
-        smooth_iters = 200;
+        smooth_iters = 50;
         if (DEBUG) fprintf(stderr,"smooth_selfintersections with %d iterations...\n", smooth_iters);
         n_defects = smooth_selfintersections(hbw, hbw_defects, hbw_polydefects,
                                              n_defects, n_neighbours,
@@ -549,110 +547,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        if (!force) {
-            /* label defects first always as handles and in the 2nd step as holes */
-            for (p = 0; p < surface->n_points; p++) {
-                    if (defects[p] > 0) 
-                            holes[p] = HANDLE; 
-                    else    holes[p] = 0;
-            }
-            
-            if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (handles)...\n");
-            get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
-                                             holes, bw, rdatax, rdatay, rdataz);
-    
-            if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (handles)...\n");
-            get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
-            get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
-            get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
-    
-            if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (handles)...\n");
-            *hbw_objects = create_object(POLYGONS);
-            hbw = get_polygons_ptr(*hbw_objects);
-            sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
-                                   n_triangles, reparam, bw);
-    
-            surface_object = create_object(POLYGONS);
-            copy_polygons(surface, get_polygons_ptr(surface_object));
-    
-            get_polygon_vertex_curvatures_cg(surface, n_neighbours, neighbours,
-                                             3.0, 0, curv);
-    
-            /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
-            compute_point_hausdorff(surface, hbw, HD_handle, 0);
-            
-            /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
-            for (p = 0; p < surface->n_points; p++) 
-                    HD_handle[p] *= curv[p];        
-    
-            if (DUMP_FILES) {
-                    output_graphics_any_format("hbw_handle.obj", ASCII_FORMAT, 1,
-                                               hbw_objects, NULL);
-                    output_values_any_format("HD_handle.txt", surface->n_points,
-                                             HD_handle, TYPE_DOUBLE);
-            }
-    
-            /* label all defects as holes */
-            for (p = 0; p < surface->n_points; p++) {
-                    if (defects[p] > 0) 
-                            holes[p] = HOLE; 
-                    else    holes[p] = 0;
-            }
-        
-            if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (holes)...\n");
-            get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
-                                             holes, bw, rdatax, rdatay, rdataz);
-    
-            if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata  (holes)...\n");
-            get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
-            get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
-            get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
-    
-            if (DEBUG) fprintf(stderr,"sample_sphere_from_sph  (holes)...\n");
-            *hbw_objects = create_object(POLYGONS);
-            hbw = get_polygons_ptr(*hbw_objects);
-            sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
-                                   n_triangles, reparam, bw);
-    
-            /* calculate Hausdorff distance between SPH-reparameterized and original surface */ 
-            compute_point_hausdorff(surface, hbw, HD_hole, 0);
-    
-            /* multiply Hausdorff distance and curvature to differentiate between gyri and sulci */
-            for (p = 0; p < surface->n_points; p++) 
-                    HD_hole[p] *= curv[p];
-    
-            if (DUMP_FILES) {
-                    output_graphics_any_format("hbw_hole.obj", ASCII_FORMAT, 1,
-                                               hbw_objects, NULL);
-                    output_values_any_format("HD_hole.txt", surface->n_points,
-                                             HD_hole, TYPE_DOUBLE);
-            }
-            
-            /* label defects as handles or holes depending on their hausdorff distance multiplied by curvature inside the defect */ 
-            for (d = 1; d < n_defects+1; d++) {
-                    sum_HD_handle = 0.0;
-                    sum_HD_hole   = 0.0;
-                    int defect_size = 0.0;
-                    for (p = 0; p < surface->n_points; p++) {
-                            if (defects[p] == d) {
-                                    sum_HD_handle += HD_handle[p];
-                                    sum_HD_hole   += HD_hole[p];
-                                    defect_size++;
-                            }
-                    } 
-                    if (DEBUG) fprintf(stderr,"%d %d %g %g\n",d,defect_size,sum_HD_handle,sum_HD_hole);
-                    for (p = 0; p < surface->n_points; p++) {
-                            if (defects[p] == d) {
-                                    /* use handles or holes depending on hausdorff 
-                                       distance multiplied by curvature between surfaces */
-                                    if (sum_HD_handle >= sum_HD_hole)
-                                            holes[p] = HANDLE;
-                                    else    holes[p] = HOLE;
-                            }
-                    }
-            }
-            
-        } else {
+        if (force) {
             /* label defects according to force parameter to either use 
                 holes or handles by default */
             for (p = 0; p < surface->n_points; p++) {
@@ -667,49 +562,52 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                                          holes, TYPE_INTEGER);
         }
 
-        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes (final)...\n");
+        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes...\n");
         get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
-                                         holes, bw, rdatax, rdatay, rdataz);
+                                         holes, bw, rdatax, rdatay, rdataz, force);
 
+        if (DEBUG) fprintf(stderr,"laplace2d...\n");
         if (laplace_thresh > 0.000001 && laplace_thresh < 0.5) {
-
-                tmp_vol = laplace2d(rdatax, NULL, 2*bw, 2*bw, 0.49);
-                for (i = 0; i < 4*bw2; i++) tmp_vol[i] -= rdatax[i];
+        
+                /* obtain a filtered map */
+                tmp_vol = laplace2d(rdataz, NULL, 2*bw, 2*bw, 0.49);
+                
+                /* estimate mask by using the difference between orignal and filtered map */
+                for (i = 0; i < 4*bw2; i++) tmp_vol[i] = (rdataz[i] - tmp_vol[i]);
                 mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
-                rdatax = laplace2d(rdatax, mask, 2*bw, 2*bw, laplace_thresh);
+                
+                /* filter inside mask which now defines areas with local deviations that are not continuous */
+                rdataz = laplace2d(rdataz, mask, 2*bw, 2*bw, laplace_thresh);
 
-                tmp_vol = gradient_magnitude(rdatax, 2*bw, 2*bw);
-                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
-                rdatax = laplace2d(rdatax, mask, 2*bw, 2*bw, laplace_thresh);
-
+                /* do the same for y-coordinates */
                 tmp_vol = laplace2d(rdatay, NULL, 2*bw, 2*bw, 0.49);
                 for (i = 0; i < 4*bw2; i++) tmp_vol[i] -= rdatay[i];
                 mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
                 rdatay = laplace2d(rdatay, mask, 2*bw, 2*bw, laplace_thresh);
 
-                tmp_vol = gradient_magnitude(rdatay, 2*bw, 2*bw);
+                /* and finally run filtering twice for x-coordinates because we have to consider both
+                   hemisphere where the x-coordinates are flipped */
+                tmp_vol = laplace2d(rdatax, NULL, 2*bw, 2*bw, 0.49);
+                for (i = 0; i < 4*bw2; i++) tmp_vol[i] -= rdatax[i];
                 mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
-                rdatay = laplace2d(rdatay, mask, 2*bw, 2*bw, laplace_thresh);
+                rdatax = laplace2d(rdatax, mask, 2*bw, 2*bw, laplace_thresh);
 
-                tmp_vol = laplace2d(rdataz, NULL, 2*bw, 2*bw, 0.49);
-                for (i = 0; i < 4*bw2; i++) tmp_vol[i] = (rdataz[i] - tmp_vol[i]);
+                tmp_vol = laplace2d(rdatax, NULL, 2*bw, 2*bw, 0.49);
+                for (i = 0; i < 4*bw2; i++) tmp_vol[i] = (rdatax[i] - tmp_vol[i]);
                 mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
-                rdataz = laplace2d(rdataz, mask, 2*bw, 2*bw, laplace_thresh);
+                rdatax = laplace2d(rdatax, mask, 2*bw, 2*bw, laplace_thresh);
 
-                tmp_vol = gradient_magnitude(rdataz, 2*bw, 2*bw);
-                mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
-                rdataz = laplace2d(rdataz, mask, 2*bw, 2*bw, laplace_thresh);
-
-free(tmp_vol);
+                free(tmp_vol);
+                free(mask);
 
         }
 
-        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata (final)...\n");
+        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata...\n");
         get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
         
-        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (final)...\n");
+        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph...\n");
         *hbw_objects = create_object(POLYGONS);
         hbw = get_polygons_ptr(*hbw_objects);
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
@@ -778,7 +676,6 @@ free(tmp_vol);
         free(HD_handle);
         free(HD_hole);
         free(curv);
-        free(mask);
 
         return hbw_objects;
 }

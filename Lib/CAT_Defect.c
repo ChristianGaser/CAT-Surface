@@ -11,6 +11,8 @@
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
+#include "CAT_Surf.h"
+#include "CAT_Curvature.h"
 
 Vector
 defect_direction(polygons_struct *surface, int *defects, int defect)
@@ -299,115 +301,53 @@ get_defect_size(polygons_struct *surface, int *defects, int n_defects,
         free(size);
 }
 
-/* holes = 1, handles = 2, large errors = 3, ventricles = 4 */
-/* Uses the T1 data to determine whether the defect is a hole or handle.
- * Holes should be filled, handles and large errors with multiple defects
- * should be cut. Returns the brain t1 threshold. */
-double
-get_holes_handles(polygons_struct *surface, polygons_struct *sphere,
-                  int *defects, int n_defects, int *holes, Volume volume,
-                  int *n_neighbours, int **neighbours)
-{
-        double val, t1_threshold, t1_defect;
-        int i, d, p, npts;
-        int *polydefects, *dtype;
-        Point center;
-        double com[3] = {0.0, 0.0, 0.0};
-
-        if (volume == NULL) {
-                printf("ERROR: Volume is not loaded, exiting...\n");
-                exit(EXIT_FAILURE);
-        }
-
-        if (n_defects == 0) /* nothing to be done! */
-                return(0);
-
-        /* get the center of mass to locate the ventricle */
-        for (p = 0; p < surface->n_points; p++) {
-                com[0] += Point_x(surface->points[p]);
-                com[1] += Point_y(surface->points[p]);
-                com[2] += Point_z(surface->points[p]);
-        }
-
-        com[0] /= surface->n_points;
-        com[1] /= surface->n_points;
-        com[2] /= surface->n_points;
-
-        polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
-        update_polydefects(sphere, defects, polydefects);
-        dtype = (int *) malloc(sizeof(int) * (n_defects + 1));
-
-        /* estimate the threshold based on the unmodified points */
-        t1_threshold = 0; npts = 0;
-        for (p = 0; p < surface->n_points; p++) {
-                evaluate_volume_in_world(volume,
-                                         RPoint_x(surface->points[p]),
-                                         RPoint_y(surface->points[p]),
-                                         RPoint_z(surface->points[p]),
-                                         0, FALSE, 0.0, &val,
-                                         NULL, NULL, NULL, NULL, NULL,
-                                         NULL, NULL, NULL, NULL);
-                if (defects[p] == 0) {
-                        t1_threshold += val;
-                        npts++;
-                }
-        }
-        t1_threshold = t1_threshold/npts * 0.99;
-
-        memset(holes, 0, sizeof(int) * surface->n_points);
-        for (d = 1; d <= n_defects; d++) {
-                center = get_defect_center(surface, defects, d);
-
-                evaluate_volume_in_world(volume,
-                                         RPoint_x(center),
-                                         RPoint_y(center),
-                                         RPoint_z(center),
-                                         0, FALSE, 0.0, &t1_defect,
-                                         NULL, NULL, NULL, NULL, NULL,
-                                         NULL, NULL, NULL, NULL);
-
-                if (fabs(Point_x(center)) < fabs(com[0]) - 5 &&
-                    Point_y(center) < com[1] + 20 &&
-                    Point_y(center) > com[1] - 20 &&
-                    Point_z(center) < com[2] + 10 &&
-                    Point_z(center) > com[2] - 10)
-                        dtype[d] = VENTRICLE; /* ventricle */
-                else if (defect_euler(surface, defects,
-                                      polydefects, d, n_neighbours,
-                                      neighbours) <= -10) {
-                        dtype[d] = LARGE_DEFECT; /* cut it */
-                } else if (t1_defect < t1_threshold) {
-                        dtype[d] = HANDLE; /* cut it */
-                } else {
-                        dtype[d] = HOLE; /* fill it */
-                }
-
-                for (p = 0; p < surface->n_points; p++) {
-                        if (defects[p] == d)
-                                holes[p] = dtype[d];
-                }
-        }
-        free(polydefects);
-        free(dtype);
-
-        return(t1_threshold);
-}
-
-
-/* cut defects in half, saving top half of holes and bottom half of handles */
+/* cut defects in half, saving top half of holes and bottom half of handles based on sulcal depth of inflated surface */
 void
-bisect_defects(polygons_struct *surface, int *defects, int n_defects,
-               int *holes, int *bisected)
+bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, int n_defects,
+               int *holes, int *bisected, int detect_euler)
 {
-        int p, d, i, fillflag;
-        int npts, maxpts, *pts;
+        int p, d, i, fillflag, euler;
+        int npts, maxpts, *pts, *polydefects;
+        int     *n_neighbours, **neighbours;
         Vector dir;
-        double *dist;
+        double *depth, avg, sum;
+        polygons_struct *inflated_surface;
 
         memset(bisected, 0, sizeof(int) * surface->n_points);
 
         pts = (int *) malloc(sizeof(int) * surface->n_points);
-        dist = (double *) malloc(sizeof(double) * surface->n_points);
+        depth = (double *) malloc(sizeof(double) * surface->n_points);
+
+        /* inflate surface roughly to an ellopsoid where holes and handles are still visible and have
+           different height/depth on the surface */
+        inflated_surface = get_polygons_ptr(create_object(POLYGONS));
+        copy_polygons(surface, inflated_surface);
+        inflate_surface_with_topology_defects(inflated_surface);
+
+        /* estimate sulcal depth of inflated surface to identify holes and handles sue to their different
+           height/depth */
+        memset(depth, 0, sizeof(double) * surface->n_points);
+        compute_sulcus_depth(inflated_surface, depth);
+
+        /* estimate overall depth to check whether estimation was correct */
+        sum = 0.0;
+        for (p = 0; p < surface->n_points; p++)  
+                sum += depth[p];
+                
+        /* use Hausdorff distance if sulcal depth estimation fails */
+        if (sum == 0.0) {
+                fprintf(stderr,"WARNING: Hausdorff distance is used for bisectioning the defects because estimation of sulcal depth failed.\n");
+                compute_point_hausdorff(inflated_surface, sphere, depth, 0);
+        }
+
+        /* prepare calculation of euler number to decide whether we have a handle or hole */
+        if (detect_euler) {
+                create_polygon_point_neighbours(sphere, FALSE, &n_neighbours,
+                                        &neighbours, NULL, NULL);
+
+                polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
+                update_polydefects(sphere, defects, polydefects);
+        }
 
         for (d = 1; d <= n_defects; d++) {
                 npts = 0;
@@ -418,57 +358,96 @@ bisect_defects(polygons_struct *surface, int *defects, int n_defects,
                         }
                 }
 
-                /* get the direction of the defect */
-                fill_Vector(dir, 0.0, 0.0, 0.0);
-                for (p = 0; p < npts; p++)
-                        ADD_POINT_VECTOR(dir, dir, surface->normals[pts[p]]);
-                NORMALIZE_VECTOR(dir, dir);
+                /* estimate mean sulcal depth inside defect */
+                avg = 0.0;
+                for (p = 0; p < npts; p++)  avg += depth[pts[p]];
+                avg /= (double)npts;
 
-                /* get distance based on direction axis */
-                for (p = 0; p < npts; p++)
-                        dist[p] = DOT_POINT_VECTOR(surface->points[pts[p]],dir);
+                /* we can use euler number to automatically decide whether we have a handle or hole */
+                if (detect_euler) {
+                        euler = defect_euler(surface, defects, polydefects, d,
+                                     n_neighbours, neighbours);
+                        fillflag = (euler < 1) ? HOLE : HANDLE;
+                } else fillflag = holes[pts[0]]; /* otherwise use predefined decision */
 
-                fillflag = holes[pts[0]];
-                switch (fillflag) {
-                        case VENTRICLE: /* ventricle, fill */
-                                maxpts = floor(0.5*npts);
-                                break;
-                        case LARGE_DEFECT: /* large defect, cut */
-                                maxpts = floor(0.75*npts);
-                                break;
-                        case HANDLE: /* handle, cut */
-                                maxpts = floor(0.5*npts);
-                                break;
-                        case HOLE: /* hole, fill */
-                                maxpts = floor(0.5*npts);
-                }
-
-                while (npts > maxpts) {
-                        i = 0;
-                        for (p = 1; p < npts; p++) {
-                                if ((fillflag == VENTRICLE ||
-                                     fillflag == HOLE) &&
-                                    dist[i] < dist[p])
-                                        i = p; /* get min dist for fill */
-                                else if ((fillflag == LARGE_DEFECT ||
-                                          fillflag == HANDLE) &&
-                                         dist[i] > dist[p])
-                                        i = p; /* get max dist for cut */
-                        }
-
-                        /* remove i from the list */
-                        npts--;
-                        dist[i] = dist[npts];
-                        pts[i] = pts[npts];
-                }
+                /* indicate "bottom" (ground) of defect only as either hole or handle */
                 for (p = 0; p < npts; p++) {
-                        bisected[pts[p]] = fillflag;
+                        if ((fillflag == HOLE) & (depth[pts[p]] > avg))
+                                bisected[pts[p]] = fillflag;
+                        if ((fillflag == HANDLE) & (depth[pts[p]] < avg))
+                                bisected[pts[p]] = fillflag;
                 }
         }
         free(pts);
-        free(dist);
+        free(depth);
+        if (detect_euler) free(polydefects);
+
 }
 
+void
+inflate_surface_with_topology_defects(polygons_struct *polygons)
+{
+        BOOLEAN          enableFingerSmoothing = 1;
+        int              fingerSmoothingIters, arealSmoothingIters, i;
+        double           factor;
+        
+
+        /* use more iterations for larger surfaces */
+        if (polygons->n_items > 350000) {
+                factor = (double)polygons->n_items/350000.0;
+                fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n",
+                            factor);
+        } else factor = 1.0;
+
+        /* low smooth */
+        inflate_surface_and_smooth_fingers(polygons,
+                  /*                     cycles */ 1,
+                  /* regular smoothing strength */ 0.2,
+                  /*    regular smoothing iters */ round(factor*50),
+                  /*           inflation factor */ 1.0,
+                  /* finger comp/stretch thresh */ 3.0,
+                  /*     finger smooth strength */ 1.0,
+                  /*        finger smooth iters */ 0);
+
+                /* inflated */
+        inflate_surface_and_smooth_fingers(polygons,
+                  /*                     cycles */ 2,
+                  /* regular smoothing strength */ 1.0,
+                  /*    regular smoothing iters */ round(factor*30),
+                  /*           inflation factor */ 1.4,
+                  /* finger comp/stretch thresh */ 3.0,
+                  /*     finger smooth strength */ 1.0,
+                  /*        finger smooth iters */ 0);
+
+                /* very inflated */
+        inflate_surface_and_smooth_fingers(polygons,
+                  /*                     cycles */ 4,
+                  /* regular smoothing strength */ 1.0,
+                  /*    regular smoothing iters */ round(factor*30),
+                  /*           inflation factor */ 1.1,
+                  /* finger comp/stretch thresh */ 3.0,
+                  /*     finger smooth strength */ 1.0,
+                  /*        finger smooth iters */ 0);
+
+               /* high smooth */
+        inflate_surface_and_smooth_fingers(polygons,
+                  /*                     cycles */ 4,
+                  /* regular smoothing strength */ 1.0,
+                  /*    regular smoothing iters */ round(factor*50),
+                  /*           inflation factor */ 1.6,
+                  /* finger comp/stretch thresh */ 3.0,
+                  /*     finger smooth strength */ 1.0,
+                  /*        finger smooth iters */ 60);
+
+        /* add some noise to the surface because of difficulties with the subsequent convex hull approach */
+        for (i = 0; i < polygons->n_points; i++) {
+                Point_x(polygons->points[i]) += (double) (rand() % 10)/20.0;
+                Point_y(polygons->points[i]) += (double) (rand() % 10)/20.0;
+                Point_z(polygons->points[i]) += (double) (rand() % 10)/20.0;        
+        }
+        
+        compute_polygon_normals(polygons);
+}
 
 /* remap topological defects from the original spherical mapping to a new
  * spherical mapping

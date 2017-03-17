@@ -123,7 +123,7 @@ main(int argc, char *argv[])
 
         if (dump_patch == TRUE) {
                 for (p = 1; p <= n_defects; p++) {
-                        sprintf(str, "patch_%d.obj\n", p);
+                        sprintf(str, "patch_%d.obj", p);
                         patch_objects = extract_patch_points(surface,
                                                              defects, p);
                         patch = get_polygons_ptr(objects[0]);

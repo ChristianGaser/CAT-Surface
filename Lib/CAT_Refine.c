@@ -197,10 +197,6 @@ int refine_mesh(
     for_less( poly, 0, polygons->n_items )
     {
         size = GET_OBJECT_SIZE( *polygons, poly );
-        if( size != 3 )
-        {
-            fprintf(stderr, "Skip non-triangles.\n" );
-        }
 
         for_less( edge, 0, size )
         {

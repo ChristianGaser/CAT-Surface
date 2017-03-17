@@ -338,7 +338,7 @@ get_smoothed_curvatures(polygons_struct *polygons,
 }
 
 void
-compute_sulcus_depth(polygons_struct *surface, polygons_struct *sphere, double *depth)
+compute_sulcus_depth(polygons_struct *surface, double *depth)
 {
         polygons_struct *convex;
         object_struct **object;

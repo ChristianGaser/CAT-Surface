@@ -39,7 +39,7 @@ void get_equally_sampled_coords_of_polygon(polygons_struct *,
                                            double [], double []);
 void get_equally_sampled_coords_holes(polygons_struct *, polygons_struct *,
                                       int *, int, int *, int, double [],
-                                      double [], double []);
+                                      double [], double [], int);
 
 object_struct ** create_equally_sampled_unit_sphere(int, int);
 

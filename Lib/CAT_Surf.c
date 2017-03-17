@@ -1336,13 +1336,13 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
 
         /* low smooth */
         inflate_surface_and_smooth_fingers(polygons,
-                              /* cycles */ 1,
-          /* regular smoothing strength */ 0.2,
-             /* regular smoothing iters */ round(factor*50),
-                    /* inflation factor */ 1.0,
-          /* finger comp/stretch thresh */ 3.0,
-              /* finger smooth strength */ 1.0,
-                 /* finger smooth iters */ 0);
+                  /*                     cycles */ 1,
+                  /* regular smoothing strength */ 0.2,
+                  /*    regular smoothing iters */ round(factor*50),
+                  /*           inflation factor */ 1.0,
+                  /* finger comp/stretch thresh */ 3.0,
+                  /*     finger smooth strength */ 1.0,
+                  /*        finger smooth iters */ 0);
 
         if (stop_at > 1) {
                 /* inflated */
@@ -1350,13 +1350,13 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 if (enableFingerSmoothing)
                         fingerSmoothingIters = 30;
                 inflate_surface_and_smooth_fingers(polygons,
-                                      /* cycles */ 2,
+                  /*                     cycles */ 2,
                   /* regular smoothing strength */ 1.0,
-                     /* regular smoothing iters */ round(factor*30),
-                            /* inflation factor */ 1.4,
+                  /*    regular smoothing iters */ round(factor*30),
+                  /*           inflation factor */ 1.4,
                   /* finger comp/stretch thresh */ 3.0,
-                      /* finger smooth strength */ 1.0,
-                         /* finger smooth iters */ fingerSmoothingIters);
+                  /*     finger smooth strength */ 1.0,
+                  /*        finger smooth iters */ fingerSmoothingIters);
         }                                             
     
         if (stop_at > 2) {
@@ -1407,7 +1407,6 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
                 convert_ellipsoid_to_sphere_with_surface_area(polygons,
                                                               surfarea);
         }
-        fprintf(stderr, "Done                \n");
 
         compute_polygon_normals(polygons);
 }

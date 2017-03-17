@@ -60,7 +60,6 @@ bin_PROGRAMS = \
 	CAT_SelfIntersect \
 	CAT_MarkDefects \
 	CAT_Artifacts \
-	CAT_LabelHoles \
 	CAT_FractalSurface \
 	CAT_FractalDimension \
 	CAT_RefineMesh \

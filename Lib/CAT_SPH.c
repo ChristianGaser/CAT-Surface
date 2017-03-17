@@ -15,7 +15,7 @@
 #include "CAT_Map.h"
 #include "CAT_Surf.h"
 
-#define DUMP_FILES 0
+#define DUMP_FILES 1
 #define _PI 3.14159265358979323846264338327510
 
 
@@ -489,7 +489,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                                  polygons_struct *sphere, int *defects,
                                  int n_defects, int *holes, int bandwidth,
                                  double xcoord[], double ycoord[],
-                                 double zcoord[])
+                                 double zcoord[], int force)
 {
         int i, j, x, y, *bisected;
         double value, u, v, r;
@@ -510,7 +510,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         /* cut holes and handles in half, saving the correct half 
          * for cutting/filling */
         bisected = (int *) malloc(sizeof(int) * polygons->n_points);
-        bisect_defects(polygons, defects, n_defects, holes, bisected);
+        bisect_defects(polygons, sphere, defects, n_defects, holes, bisected, (!force));
         if (DUMP_FILES) {
                 output_values_any_format("orig_bisected.txt",
                                          polygons->n_points, bisected,
@@ -520,10 +520,6 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         /* Set centre and radius */
         for (i = 0; i < scaled_sphere->n_points; i++) {
                 switch (bisected[i]) {
-                        case VENTRICLE: /* ventricle, fill */
-                                r = 0.99;
-                                break;
-                        case LARGE_DEFECT: /* large defect, cut */
                         case HANDLE: /* handle, cut */
                                 r = 1.05;
                                 break;
@@ -669,7 +665,7 @@ ind2sub(int i, int *x, int *y, int sxy, int sy) {
           *x = i % sy;
 }
 
-/* 2D laplace filter */
+/* 2D laplace filter for continuous boundaries (e.g. longitude and latitude coordinates) */
 double *
 laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
 {
@@ -757,22 +753,21 @@ laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
         return(L1);
 }
 
-/* 2D gradient magnitude with larger neighbourhood */
+/* 2D gradient magnitude for continuous boundaries (e.g. longitude and latitude coordinates) */
 double *
 gradient_magnitude(double *im, int dimx, int dimy)
 {
-
         int xy = dimx*dimy;
-        int x, y, x2, y2, i, ind;
+        int x, y, x2, y2, ind;
         double * mag;
         double gx, gy;
         
         /* output data */
         mag  = (double *)malloc(xy * sizeof(double));
-        for (i = 0; i<xy; i++) mag[i] = 0.0;
+        memset(mag, 0, sizeof(double) * xy);
 
-        for (y = 0; y<dimy; y++) {
-                for (x = 0; x<dimx; x++) {
+        for (y = 1; y<dimy; y++) {
+                for (x = 1; x<dimx; x++) {
                         
                         /* deal with borders */
                         if (x>0) x2 = x; else x2 = x + dimx;
@@ -781,6 +776,7 @@ gradient_magnitude(double *im, int dimx, int dimy)
                         if (y<dimy-1) y2 = y; else y2 = y - dimy;
                         
 		  		        ind = (y2*dimx) + x2;
+		  		        if ((ind < 1) | (ind > xy-1)) continue;
 		  		        gx = (im[ind+1] - im[ind-1])/2;
 		  		        gy = (im[((y2+1)*dimx)+x2] - im[((y2-1)*dimx)+x2])/2;
 		  		        mag[ind] = sqrt(gx*gx + gy*gy);       
@@ -802,8 +798,7 @@ threshold_image(double *im, int dimx, int dimy, double threshold)
         im_thresholded  = (unsigned char *)malloc(xy * sizeof(unsigned char));
         
         for (i = 0; i<xy; i++) {
-                if (im[i] > threshold) im_thresholded[i] = 1;
-                else                   im_thresholded[i] = 0;
+                im_thresholded[i] = (im[i] < threshold) ? 0 : 1;
         }
 
         return(im_thresholded);
