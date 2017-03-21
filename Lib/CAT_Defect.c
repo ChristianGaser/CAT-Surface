@@ -13,6 +13,9 @@
 #include "CAT_Defect.h"
 #include "CAT_Surf.h"
 #include "CAT_Curvature.h"
+#include "CAT_SurfaceIO.h"
+
+#define DUMP_FILES 0
 
 Vector
 defect_direction(polygons_struct *surface, int *defects, int defect)
@@ -312,6 +315,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
         Vector dir;
         double *depth, avg, sum;
         polygons_struct *inflated_surface;
+        object_struct **objects;
 
         memset(bisected, 0, sizeof(int) * surface->n_points);
 
@@ -320,7 +324,9 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 
         /* inflate surface roughly to an ellopsoid where holes and handles are still visible and have
            different height/depth on the surface */
-        inflated_surface = get_polygons_ptr(create_object(POLYGONS));
+        objects = (object_struct **) malloc(sizeof(object_struct *));
+        *objects = create_object(POLYGONS);
+        inflated_surface = get_polygons_ptr(*objects);
         copy_polygons(surface, inflated_surface);
         inflate_surface_with_topology_defects(inflated_surface);
 
@@ -329,6 +335,13 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
         memset(depth, 0, sizeof(double) * surface->n_points);
         compute_sulcus_depth(inflated_surface, depth);
 
+        if (DUMP_FILES) {
+                output_values_any_format("depth.txt", surface->n_points, 
+                                           depth, TYPE_DOUBLE);
+                output_graphics_any_format("inflated.obj", ASCII_FORMAT,
+                                           1, objects, NULL);
+        }
+        
         /* estimate overall depth to check whether estimation was correct */
         sum = 0.0;
         for (p = 0; p < surface->n_points; p++)  
@@ -372,9 +385,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 
                 /* indicate "bottom" (ground) of defect only as either hole or handle */
                 for (p = 0; p < npts; p++) {
-                        if ((fillflag == HOLE) & (depth[pts[p]] > avg))
-                                bisected[pts[p]] = fillflag;
-                        if ((fillflag == HANDLE) & (depth[pts[p]] < avg))
+                        if (((fillflag == HOLE) & (depth[pts[p]] > avg)) | ((fillflag == HANDLE) & (depth[pts[p]] < avg)))
                                 bisected[pts[p]] = fillflag;
                 }
         }
@@ -387,8 +398,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 void
 inflate_surface_with_topology_defects(polygons_struct *polygons)
 {
-        BOOLEAN          enableFingerSmoothing = 1;
-        int              fingerSmoothingIters, arealSmoothingIters, i;
+        int              i;
         double           factor;
         
 
@@ -431,10 +441,10 @@ inflate_surface_with_topology_defects(polygons_struct *polygons)
 
                /* high smooth */
         inflate_surface_and_smooth_fingers(polygons,
-                  /*                     cycles */ 4,
+                  /*                     cycles */ 3,
                   /* regular smoothing strength */ 1.0,
-                  /*    regular smoothing iters */ round(factor*50),
-                  /*           inflation factor */ 1.6,
+                  /*    regular smoothing iters */ round(factor*40),
+                  /*           inflation factor */ 1.4,
                   /* finger comp/stretch thresh */ 3.0,
                   /*     finger smooth strength */ 1.0,
                   /*        finger smooth iters */ 60);

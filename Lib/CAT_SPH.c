@@ -15,8 +15,7 @@
 #include "CAT_Map.h"
 #include "CAT_Surf.h"
 
-#define DUMP_FILES 1
-#define _PI 3.14159265358979323846264338327510
+#define DUMP_FILES 0
 
 
 // not yet working (pointers!!!)
@@ -511,11 +510,9 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
          * for cutting/filling */
         bisected = (int *) malloc(sizeof(int) * polygons->n_points);
         bisect_defects(polygons, sphere, defects, n_defects, holes, bisected, (!force));
-        if (DUMP_FILES) {
-                output_values_any_format("orig_bisected.txt",
-                                         polygons->n_points, bisected,
-                                         TYPE_INTEGER);
-        }
+        if (DUMP_FILES) 
+                output_values_any_format("orig_bisected.txt", polygons->n_points, 
+                    bisected, TYPE_INTEGER);
 
         /* Set centre and radius */
         for (i = 0; i < scaled_sphere->n_points; i++) {
