@@ -87,7 +87,7 @@ main(int argc, char *argv[])
         fill_connected_voxels( volume, label_volume, EIGHT_NEIGHBOURS,
                            value, 0, 0, 1, 0.0, -1.0, range_changed );
                            
-        /* label is inverse, correct thgis */
+        /* label is inverse, correct this */
         for (x = 0; x < sizes[0]; x++)
           for (y = 0; y < sizes[1]; y++)
             for (z = 0; z < sizes[2]; z++)

@@ -141,14 +141,14 @@ int  main(
 
     /* set some parameters/options */
     for(j= 0; j <N_DIMENSIONS; j++ ) g0->dims[j] = sizes[j];
-    g0->cut_loops = 0;
-    g0->connectivity = 18;
     g0->connected_component = 1;
     g0->input = input;
+    g0->cut_loops = 0;
+    g0->connectivity = 6;
     g0->value = 1;
-    g0->alt_value=2;
-    g0->contour_value=3;
-    g0->alt_contour_value=4;
+    g0->alt_value=1;
+    g0->contour_value=1;
+    g0->alt_contour_value=1;
     g0->any_genus = 0;
     g0->biggest_component = 1;
     g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
@@ -160,6 +160,20 @@ int  main(
     /* call the function! */
     if (genus0(g0)) return(1); /* check for error */
 
+    /* save results as next input */
+    for (i = 0; i < sizes[0]*sizes[1]*sizes[2]; i++)
+            input[i] = (unsigned int)g0->output[i];
+
+    /* call genus0 a 2nd time with other parameters */
+    g0->cut_loops = 1;
+    g0->connectivity = 18;
+    g0->value = 1;
+    g0->alt_value=0;
+    g0->contour_value=1;
+    g0->alt_contour_value=0;
+
+    if (genus0(g0)) return(1); 
+
     free(input);
 
     for (i = 0; i < sizes[0]; i++) {
@@ -170,7 +184,6 @@ int  main(
         }
     }
 
-    
     extract_isosurface( volume,
                         min_label, max_label,
                         spatial_axes,
