@@ -2,7 +2,6 @@ AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes 
 LDADD = ../libCAT.la -lm
 
 dist_bin_SCRIPTS = \
-	CAT_DumpGI_ui \
 	CAT_DeformSurf_ui \
 	CAT_ResampleFS_ui \
 	CAT_FractalDimensionFS_ui \
@@ -13,6 +12,7 @@ dist_bin_SCRIPTS = \
     CAT_SulcusDepth_ui \
 	CAT_DumpCurv_ui
 	
+##	CAT_DumpGI_ui \
 ##	CAT_ReconSurf \
 ##	CAT_GLM_tmp \
 ##	CAT_Obj2Neurolens \
@@ -23,7 +23,6 @@ bin_PROGRAMS = \
 	CAT_Sheet2Surf \
 	CAT_3dVol2Surf \
 	CAT_DumpCurv \
-	CAT_DumpGI \
 	CAT_ApplyWarpSurf \
 	CAT_ApplyWarpValues \
 	CAT_Color2Surf \
@@ -53,7 +52,6 @@ bin_PROGRAMS = \
 	CAT_ArealSmoothing \
 	CAT_SmoothConvexity \
 	CAT_Surf2SPH \
-	CAT_ApplyWarpSPH \
 	CAT_SPH2Surf \
 	CAT_Hausdorff \
 	CAT_Sharpness \
@@ -65,7 +63,6 @@ bin_PROGRAMS = \
 	CAT_RefineMesh \
 	CAT_GIPhantom \
 	CAT_DumpConvexity \
-	CAT_Test \
 	CAT_MarchingCubesGenus0 \
 	CAT_MarchingCubesTopological \
 	CAT_AddValuesToSurf \
@@ -73,11 +70,15 @@ bin_PROGRAMS = \
 	CAT_Surf2Surf \
 	CAT_DumpDepthPotential \
 	CAT_Central2Pial \
-	CAT_DumpGyrificationIndex \
 	CAT_Surf2Vol \
 	CAT_Surf2ConvexHull \
 	CAT_MarchingCubes
-	
+
+# experimental code, not yet working or for testing only!
+##	CAT_Test \
+##	CAT_DumpGI \
+##	CAT_DumpGyrificationIndex \	
+##	CAT_ApplyWarpSPH \
 ##	CAT_WarpSurfSPH \
 ##	CAT_WarpSurfPoly \
 ##	CAT_GlmMath \

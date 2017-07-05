@@ -17,7 +17,7 @@
 #include "CAT_SPH.h"
 #include "CAT_ConvexHull.h"
 
-/* experimental, not finished (local areas should be better estimated */
+/* experimental, not finished (local areas should be better estimated) */
 double
 gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
                       char *file, int n_triangles, polygons_struct *reparam)

@@ -330,7 +330,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
         copy_polygons(surface, inflated_surface);
         inflate_surface_with_topology_defects(inflated_surface);
 
-        /* estimate sulcal depth of inflated surface to identify holes and handles sue to their different
+        /* estimate sulcal depth of inflated surface to identify holes and handles due to their different
            height/depth */
         memset(depth, 0, sizeof(double) * surface->n_points);
         compute_sulcus_depth(inflated_surface, depth);
