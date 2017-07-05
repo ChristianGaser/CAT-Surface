@@ -113,7 +113,6 @@ add_neighbours(polygons_struct *surface, polygons_struct *lbw,
         int n, idx;
         double dist;
 
-        if (DEBUG) fprintf(stderr, "add_neighbours1...\n");
         if (level == 0) {
                 for (n = 0; n < n_neighbours[p]; n++) {
                         idx = neighbours[p][n];
@@ -132,7 +131,6 @@ add_neighbours(polygons_struct *surface, polygons_struct *lbw,
                 return;
         }
 
-        if (DEBUG) fprintf(stderr, "add_neighbours2...\n");
         for (n = 0; n < n_neighbours[p]; n++) {
                 idx = neighbours[p][n];
 
