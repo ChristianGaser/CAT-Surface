@@ -51,7 +51,6 @@ surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_s
         /* do resampling to original sphere if defined */
         if (polygons_sphere != NULL) {
         
-        
                 /* get sphere of convex hull (using Laplace Beltrami approach) */
                 sphere_convex = get_polygons_ptr(create_object(POLYGONS));
                 copy_polygons(convex_polygons, sphere_convex);
@@ -76,6 +75,7 @@ get_points_of_region(polygons_struct *polygons, Point   *points[] )
         Vector * normals;            // normal vectors
         int    * n_ngh = NULL;       // node neighbours (inverse connectivity)
         int    ** ngh = NULL;
+        double plane_const, check;
 
         if( get_surface_point_normals( polygons, &n_points, &coords, &normals,
                           &n_ngh, &ngh ) == OK ) {
@@ -85,18 +85,19 @@ get_points_of_region(polygons_struct *polygons, Point   *points[] )
                 int      n_convex = 0;
 
                 for( i = 0; i < n_points; i++ ) {
-                        double plane_const = coords[i].coords[0] * normals[i].coords[0] +
+                        plane_const  = coords[i].coords[0] * normals[i].coords[0] +
                              coords[i].coords[1] * normals[i].coords[1] +
                              coords[i].coords[2] * normals[i].coords[2];
                         for( j = 0; j < n_ngh[i]; j++ ) {
-                                double check = coords[ngh[i][j]].coords[0] * normals[i].coords[0] +
-                                        coords[ngh[i][j]].coords[1] * normals[i].coords[1] +
-                                        coords[ngh[i][j]].coords[2] * normals[i].coords[2];
-                                if( check > plane_const ) break;
+                                if (ngh[i][j] < n_points) {
+                                        check = coords[ngh[i][j]].coords[0] * normals[i].coords[0] +
+                                                coords[ngh[i][j]].coords[1] * normals[i].coords[1] +
+                                                coords[ngh[i][j]].coords[2] * normals[i].coords[2];
+                                        if( check > plane_const ) break;
+                                }
                         }
-                        if( j == n_ngh[i] ) {
+                        if( j == n_ngh[i] ) 
                                 ADD_ELEMENT_TO_ARRAY( *points, n_convex, coords[i], DEFAULT_CHUNK_SIZE);
-                        }
                 }
                 if( coords ) FREE( coords );
                 if( normals ) FREE( normals );

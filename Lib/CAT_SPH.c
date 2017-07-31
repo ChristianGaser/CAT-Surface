@@ -439,7 +439,8 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
         for (i = 0; i < scaled_sphere->n_points; i++) 
                 set_vector_length(&scaled_sphere->points[i], 1.0);
 
-        create_polygons_bintree(scaled_sphere,
+        if (scaled_sphere->bintree == NULL) 
+                create_polygons_bintree(scaled_sphere,
                                 round((double) scaled_sphere->n_items *
                                       BINTREE_FACTOR));
 
@@ -479,6 +480,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                         zcoord[x + (bandwidth2*y)] = Point_z(new_point);
                 }
         }
+        delete_the_bintree(&scaled_sphere->bintree);
 
 }
 
@@ -502,7 +504,6 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
         objects = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
         scaled_sphere = get_polygons_ptr(*objects);
-        initialize_polygons(scaled_sphere, WHITE, NULL);
         copy_polygons(sphere, scaled_sphere);
         translate_to_center_of_mass(scaled_sphere);
 
@@ -535,7 +536,8 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                                            1, objects, NULL);
         }
 
-        create_polygons_bintree(scaled_sphere,
+        if (scaled_sphere->bintree == NULL) 
+                create_polygons_bintree(scaled_sphere,
                                 round((double) scaled_sphere->n_items *
                                       BINTREE_FACTOR));
 
@@ -576,6 +578,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
 
         }
         free(bisected);
+        delete_the_bintree(&scaled_sphere->bintree);
 
 }
 
