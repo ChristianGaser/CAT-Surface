@@ -65,7 +65,7 @@ make_connected_components_values(polygons_struct *polygons, int point_classes[],
                         }
                 }
             
-                fprintf(stderr, "%d: %d\n", point, point_classes[point]);
+                printf("%d: %d\n", point, point_classes[point]);
         }
 
         return(n_parts);
@@ -150,10 +150,10 @@ main(int argc, char *argv[])
         check_polygons_neighbours_computed(polygons);
 
         n_out = separate_cluster(polygons, desired_index, values);
-        fprintf(stderr,"%d\n",n_out);
+        printf("%d\n",n_out);
 
         for (i = 0; i < n_out; i++) {
-                fprintf(stderr,"%d\n",i);
+                printf("%d\n",i);
         }
 
         return(EXIT_SUCCESS);

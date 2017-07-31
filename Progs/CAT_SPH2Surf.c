@@ -121,7 +121,7 @@ main(int argc, char *argv[])
         rdataz   = (double *) malloc(sizeof(double) * bandwidth2*bandwidth2);
 
         if (bandwidth_limited > 0 && bandwidth_limited < bandwidth) {
-                fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
+                printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
                 limit_bandwidth(bandwidth, bandwidth_limited, rcx, rcx);
                 limit_bandwidth(bandwidth, bandwidth_limited, rcy, rcy);
                 limit_bandwidth(bandwidth, bandwidth_limited, rcz, rcz);
@@ -131,14 +131,14 @@ main(int argc, char *argv[])
         }
     
         dataformat = 1;
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");
+        printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");
         get_realdata_from_sph_coeffs(rdatax, bandwidth, dataformat, rcx, icx);
         get_realdata_from_sph_coeffs(rdatay, bandwidth, dataformat, rcy, icy);
         get_realdata_from_sph_coeffs(rdataz, bandwidth, dataformat, rcz, icz);
 
         objects_sphere = create_object( POLYGONS );
         polygons_sphere = get_polygons_ptr(objects_sphere);
-        fprintf(stderr,"%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
+        printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons_sphere,
                                n_triangles, NULL, bandwidth);
 
@@ -156,7 +156,7 @@ main(int argc, char *argv[])
         free(rdatay);
         free(rdataz);
     
-        fprintf(stderr,"%30s\n","Done                          ");
+        printf("%30s\n","Done                          ");
 
         return(EXIT_SUCCESS);    
 }

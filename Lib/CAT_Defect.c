@@ -349,7 +349,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
                 
         /* use Hausdorff distance if sulcal depth estimation fails */
         if (sum == 0.0) {
-                fprintf(stderr,"WARNING: Hausdorff distance is used for bisectioning the defects because estimation of sulcal depth failed.\n");
+                printf("WARNING: Hausdorff distance is used for bisectioning the defects because estimation of sulcal depth failed.\n");
                 compute_point_hausdorff(inflated_surface, sphere, depth, 0);
         }
 
@@ -405,7 +405,7 @@ inflate_surface_with_topology_defects(polygons_struct *polygons)
         /* use more iterations for larger surfaces */
         if (polygons->n_items > 350000) {
                 factor = (double)polygons->n_items/350000.0;
-                fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n",
+                printf("Large number polygons -> Increase # of iterations by factor %g.\n",
                             factor);
         } else factor = 1.0;
 

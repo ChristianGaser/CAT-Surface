@@ -95,14 +95,14 @@ main(int argc, char *argv[])
         icy      = (double *) malloc(sizeof(double) * bandwidth*bandwidth);
         icz      = (double *) malloc(sizeof(double) * bandwidth*bandwidth);
 
-        fprintf(stderr, "%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", "Sample spherical coordinates..");
+        printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", "Sample spherical coordinates..");
         get_equally_sampled_coords_of_polygon(polygons, polygons_sphere,
                                               bandwidth, 
                                               rdatax, rdatay, rdataz);
 
         /* dataformat indicates real data */
         dataformat = 1;
-        fprintf(stderr, "%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", "Forward SPH transform...      ");
+        printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", "Forward SPH transform...      ");
         get_sph_coeffs_of_realdata(rdatax, bandwidth, dataformat, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, bandwidth, dataformat, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, bandwidth, dataformat, rcz, icz);
@@ -122,7 +122,7 @@ main(int argc, char *argv[])
         free(rdatay);
         free(rdataz);
 
-        fprintf(stderr, "%30s\n", "Done                          ");
+        printf("%30s\n", "Done                          ");
 
         return(EXIT_SUCCESS);
 }

@@ -146,7 +146,7 @@ int  main(
 	
     triangulate_polygons( get_polygons_ptr(object2[0]), get_polygons_ptr(object3) );
     
-    fprintf(stderr, "Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
+    printf("Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
 
     (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3, NULL);
 

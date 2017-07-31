@@ -467,10 +467,10 @@ void process_cube( MCB *mcb)
 {
   int   v12 = -1 ;
   /* print_cube(mcb) ; 
-  fprintf (stderr,"_case=%d\n", mcb->_case);
-  fprintf (stderr,"N=%d\n", mcb->N[mcb->_case]);*/
+  printf("_case=%d\n", mcb->_case);
+  printf("N=%d\n", mcb->N[mcb->_case]);*/
   if (mcb->_case >= N_MAX) {
-   fprintf (stderr,"Unexpected _case value of %d\nResetting to 0.\n",mcb->_case);
+   printf("Unexpected _case value of %d\nResetting to 0.\n",mcb->_case);
    mcb->_case = 0; 
   }
   mcb->N[mcb->_case]++ ;
@@ -1257,7 +1257,7 @@ void compute_data( MCB mc , int obj_type)
   FILE *fid = NULL;
   
   if (obj_type < 0 || obj_type > 9) {
-   fprintf(stderr,"Bad obj_type. Value must be between 0 and 9\n");
+   printf("Bad obj_type. Value must be between 0 and 9\n");
    return;
   }
   
@@ -1358,13 +1358,13 @@ void z_compute_data( MCB mc , char *fname)
    v = (float *)malloc(sizeof(float)*nv);
    fid = fopen(fname, "r");
    if (!fid) {
-      fprintf(stderr,"Failed to open file\n");
+      printf("Failed to open file\n");
       exit(1);
    }
    for (cnt=0; cnt < nv; ++cnt) {
       fscanf(fid, "%d %d %d %f\n", &ir, &jr, &kr, &(v[cnt]));
       #if 0
-         fprintf(stderr, "%d %d %d %f\n", ir, jr, kr, (v[cnt]));
+         printf( "%d %d %d %f\n", ir, jr, kr, (v[cnt]));
       #endif
       set_data( &mc, v[cnt], ir, jr, kr); 
    }

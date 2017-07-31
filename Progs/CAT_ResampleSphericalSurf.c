@@ -65,10 +65,10 @@ main(int argc, char *argv[])
                 n_polygons /= 4;
 
         if (n_polygons != 20) {
-                fprintf(stderr, "Warning: Number of triangles %d", n_triangles);
-                fprintf(stderr," is not recommended because\ntetrahedral ");
-                fprintf(stderr,"topology is not optimal.\n");
-                fprintf(stderr,"Please try 20*(4*x) triangles (e.g. 81920).\n");
+                printf("Warning: Number of triangles %d", n_triangles);
+                printf(" is not recommended because\ntetrahedral ");
+                printf("topology is not optimal.\n");
+                printf("Please try 20*(4*x) triangles (e.g. 81920).\n");
         }
 	
         if (input_graphics_any_format(surface_file, &format,

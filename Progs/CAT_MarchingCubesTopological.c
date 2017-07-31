@@ -144,11 +144,11 @@ int  main(
     check_polygons_neighbours_computed( polygons );
     n_out = separate_polygons( polygons, -1, &object2 );
 
-	if( n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
+	if( n_out > 2) printf("Extract largest of %d components.\n",n_out);
 	
     triangulate_polygons( get_polygons_ptr(object2[0]), get_polygons_ptr(object3) );
     
-    fprintf(stderr, "Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
+    printf( "Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
 
     (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3, NULL);
 

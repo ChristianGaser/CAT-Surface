@@ -161,7 +161,7 @@ resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
 
         memset(remap_defects, 0, sizeof(int) * remap->n_points);
 
-        if (DEBUG) fprintf(stderr, "remap_defect...\n");
+        if (DEBUG) printf("remap_defect...\n");
         remap_defect(sphere, defects, polydefects, remap, remap_defects,
                      remap_polydefects);
 
@@ -306,17 +306,17 @@ surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
         alloc_volume_data( volume );
         
         /* label volume according to surface */
-        if (DEBUG) fprintf(stderr, "scan_object_to_volume...\n");
+        if (DEBUG) printf("scan_object_to_volume...\n");
         label_val = 127.0;
         label_volume = create_label_volume( volume, NC_BYTE );
         scan_object_to_volume( object, volume, label_volume, (int) label_val, 0.0 );
         
         /* fill inside volume */
-        if (DEBUG) fprintf(stderr, "fill_connected_voxels...\n");
+        if (DEBUG) printf("fill_connected_voxels...\n");
         fill_connected_voxels( volume, label_volume, EIGHT_NEIGHBOURS,
                            value, 0, 0, label_val*2.0, 0.0, -1.0, range_changed );
                            
-        if (DEBUG) fprintf(stderr, "create_box_filtered_volume...\n");
+        if (DEBUG) printf("create_box_filtered_volume...\n");
         tmp = create_box_filtered_volume(label_volume, NC_BYTE, FALSE,
                                                  0.0, 0.0, 2, 2, 2);
 
@@ -335,17 +335,17 @@ surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
         deform.deform_data.volume = label_volume;
         deform.deform_data.label_volume = (Volume) NULL;
 
-        if (DEBUG) fprintf(stderr, "add_deformation_model...\n");
+        if (DEBUG) printf("add_deformation_model...\n");
         if (add_deformation_model(&deform.deformation_model, -1, 0.5, "avg", -0.1, 0.1) != OK)
                 exit(EXIT_FAILURE);
 
         threshold = 0.75*label_val;
         set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
 
-        if (DEBUG) fprintf(stderr,"deform_polygons_points...\n");
+        if (DEBUG) printf("deform_polygons_points...\n");
         deform_polygons(hbw, &deform);
 
-        if (DEBUG) fprintf(stderr, "add_neighbours...\n");
+        if (DEBUG) printf("add_neighbours...\n");
         if (hbw_defects != NULL) {
                 flag = (int *) malloc(sizeof(int) * hbw->n_points);
                 memset(flag, 0, sizeof(int) * hbw->n_points);
@@ -383,16 +383,16 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         int *hbw_defects, *hbw_polydefects, *hbw_holes;
 
         /* remap the defects onto the spherical harmonic reconstruction */
-        if (DEBUG) fprintf(stderr,"create_polygon_point_neighbours...\n");
+        if (DEBUG) printf("create_polygon_point_neighbours...\n");
         create_polygon_point_neighbours(hbw, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
 
-        if (DEBUG) fprintf(stderr,"resample_defects_sph...\n");
+        if (DEBUG) printf("resample_defects_sph...\n");
         hbw_defects =     (int *) malloc(sizeof(int) * hbw->n_points);
         hbw_polydefects = (int *) malloc(sizeof(int) * hbw->n_items);
         resample_defects_sph(sphere, defects, polydefects,
                              hbw_defects, hbw_polydefects, hbw->n_items);
-        if (DEBUG) fprintf(stderr,"expand_defects...\n");
+        if (DEBUG) printf("expand_defects...\n");
         expand_defects(hbw, hbw_defects, hbw_polydefects, 0, 2,
                        n_neighbours, neighbours);
 
@@ -419,11 +419,11 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                                          hbw_defects, TYPE_INTEGER);
         }
 
-        if (DEBUG) fprintf(stderr,"compute_local_sharpness...\n");
+        if (DEBUG) printf("compute_local_sharpness...\n");
         sharpness = (double *) malloc(sizeof(double) * hbw->n_points);
         compute_local_sharpness(hbw, n_neighbours, neighbours, sharpness);
 
-        if (DEBUG) fprintf(stderr,"patch_points...\n");
+        if (DEBUG) printf("patch_points...\n");
         flag = (int *) malloc(sizeof(int) * hbw->n_points);
         memset(flag, 0, sizeof(int) * hbw->n_points);
         for (p = 0; p < hbw->n_points; p++) {
@@ -441,23 +441,23 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
         }
 
         /* find remaining self-intersections */
-        if (DEBUG) fprintf(stderr,"find_selfintersections...\n");
+        if (DEBUG) printf("find_selfintersections...\n");
         n_defects = find_selfintersections(hbw, hbw_defects, hbw_polydefects);
         n_defects = join_intersections(hbw, hbw_defects, hbw_polydefects,
                                        n_neighbours, neighbours);
 
-        fprintf(stderr,"%d self intersection(s) to repair\n", n_defects);
+        printf("%d self intersection(s) to repair\n", n_defects);
 
         /* patch self-intersections first */
-        if (DEBUG) fprintf(stderr, "patch_selfintersections...\n");
+        if (DEBUG) printf("patch_selfintersections...\n");
         n_defects = patch_selfintersections(hbw, lbw, hbw_defects,
                                             hbw_polydefects, n_defects,
                                             n_neighbours, neighbours);
-        fprintf(stderr,"Post-patch: %d self intersection(s) remaining\n", n_defects);
+        printf("Post-patch: %d self intersection(s) remaining\n", n_defects);
 
         /* smooth out remaining self-intersections */
         smooth_iters = 50;
-        if (DEBUG) fprintf(stderr,"smooth_selfintersections with %d iterations...\n", smooth_iters);
+        if (DEBUG) printf("smooth_selfintersections with %d iterations...\n", smooth_iters);
         n_defects = smooth_selfintersections(hbw, hbw_defects, hbw_polydefects,
                                              n_defects, n_neighbours,
                                              neighbours, smooth_iters);
@@ -468,14 +468,14 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                                  TYPE_INTEGER);
         }
 
-        if (DEBUG) fprintf(stderr, "do_surface_deform...\n");
+        if (DEBUG) printf("do_surface_deform...\n");
         if ( do_surface_deform ) {
                 surface_object = create_object(POLYGONS);
                 copy_polygons(surface, get_polygons_ptr(surface_object));
                 surface_deform(surface_object, hbw, hbw_holes);
         }
 
-        if (DEBUG) fprintf(stderr,"compute_polygon_normals...\n");
+        if (DEBUG) printf("compute_polygon_normals...\n");
         compute_polygon_normals(hbw);
 
         free(sharpness);
@@ -515,12 +515,12 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         create_polygon_point_neighbours(sphere, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
 
-        if (DEBUG) fprintf(stderr,"find_topological_defects...\n");
+        if (DEBUG) printf("find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
-        fprintf(stderr,"%d topological defects\n", n_defects);
+        printf("%d topological defects\n", n_defects);
 
-        if (DEBUG) fprintf(stderr,"update_polydefects...\n");
+        if (DEBUG) printf("update_polydefects...\n");
         update_polydefects(surface, defects, polydefects);
 
         if (reparam_file != NULL) {
@@ -573,11 +573,11 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                                          holes, TYPE_INTEGER);
         }
 
-        if (DEBUG) fprintf(stderr,"get_equally_sampled_coords_holes...\n");
+        if (DEBUG) printf("get_equally_sampled_coords_holes...\n");
         get_equally_sampled_coords_holes(surface, sphere, defects, n_defects,
                                          holes, bw, rdatax, rdatay, rdataz, force);
 
-        if (DEBUG) fprintf(stderr,"laplace2d...\n");
+        if (DEBUG) printf("laplace2d...\n");
         if (laplace_thresh > 0.000001 && laplace_thresh < 0.5) {
         
                 /* obtain a filtered map */
@@ -613,12 +613,12 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
         }
 
-        if (DEBUG) fprintf(stderr,"get_sph_coeffs_of_realdata...\n");
+        if (DEBUG) printf("get_sph_coeffs_of_realdata...\n");
         get_sph_coeffs_of_realdata(rdatax, bw, DATAFORMAT, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, bw, DATAFORMAT, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, bw, DATAFORMAT, rcz, icz);
         
-        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph...\n");
+        if (DEBUG) printf("sample_sphere_from_sph...\n");
         *hbw_objects = create_object(POLYGONS);
         hbw = get_polygons_ptr(*hbw_objects);
         sample_sphere_from_sph(rdatax, rdatay, rdataz, hbw,
@@ -628,7 +628,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
                 output_graphics_any_format("hbw.obj", ASCII_FORMAT, 1,
                                            hbw_objects, NULL);
 
-        if (DEBUG) fprintf(stderr,"butterworth_filter...\n");
+        if (DEBUG) printf("butterworth_filter...\n");
         butterworth_filter(bw, lim, rcx, lrcx);
         butterworth_filter(bw, lim, rcy, lrcy);
         butterworth_filter(bw, lim, rcz, lrcz);
@@ -636,7 +636,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         butterworth_filter(bw, lim, icy, licy);
         butterworth_filter(bw, lim, icz, licz);
     
-        if (DEBUG) fprintf(stderr,"get_realdata_from_sph_coeffs (lbw)...\n");
+        if (DEBUG) printf("get_realdata_from_sph_coeffs (lbw)...\n");
         get_realdata_from_sph_coeffs(rdatax, bw, DATAFORMAT, lrcx, licx);
         get_realdata_from_sph_coeffs(rdatay, bw, DATAFORMAT, lrcy, licy);
         get_realdata_from_sph_coeffs(rdataz, bw, DATAFORMAT, lrcz, licz);
@@ -645,7 +645,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         *lbw_objects = create_object(POLYGONS);
         lbw = get_polygons_ptr(*lbw_objects);
         
-        if (DEBUG) fprintf(stderr,"sample_sphere_from_sph (lbw)...\n");
+        if (DEBUG) printf("sample_sphere_from_sph (lbw)...\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz,
                                lbw, n_triangles, reparam, bw);
 
@@ -660,12 +660,12 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         free(rdatax); free(rdatay); free(rdataz);
 
         /* make post correction */
-        if (DEBUG) fprintf(stderr,"sph_postcorrect...\n");
+        if (DEBUG) printf("sph_postcorrect...\n");
         sph_postcorrect(surface, sphere, defects, polydefects, n_defects, holes,
                         hbw, lbw, do_surface_deform);
 
         /* make refinement to guarantee small sized vertices */ 
-        if (DEBUG) fprintf(stderr,"refine_mesh...\n");
+        if (DEBUG) printf("refine_mesh...\n");
         if (max_refine_length > 0.0) {
                 SET_ARRAY_SIZE( length_points, 0, hbw->n_points, DEFAULT_CHUNK_SIZE );
                 for_less( i, 0, hbw->n_points )

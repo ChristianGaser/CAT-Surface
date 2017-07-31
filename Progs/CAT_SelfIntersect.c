@@ -102,7 +102,7 @@ main(int argc, char** argv)
         n_intersects = patch_selfintersections(polygons, polygons, defects,
                                             polydefects, n_intersects,
                                             n_neighbours, neighbours);
-        fprintf(stderr,"Post-patch: %d self intersection(s) remaining\n", n_intersects);
+        printf("Post-patch: %d self intersection(s) remaining\n", n_intersects);
 
 
         if (dump_patch == TRUE) {

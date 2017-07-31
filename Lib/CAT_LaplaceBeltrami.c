@@ -578,17 +578,17 @@ void find_conformal_map(polygons_struct *polygons) {
 
         int eulerNum = euler_characteristic(polygons);
         if (eulerNum != 2) {
-                fprintf(stderr, "WARNING: Euler characteristics is %d, not 2!  Not genus 0 surface...\n", eulerNum);
+                printf("WARNING: Euler characteristics is %d, not 2!  Not genus 0 surface...\n", eulerNum);
         }
 
         nlNewContext();
         if (nlInitExtension("SUPERLU")) {
                 nlSolverParameteri(NL_SOLVER, NL_PERM_SUPERLU_EXT);
-                fprintf(stderr, "Using SuperLU, cool !\n");
+                printf("Using SuperLU, cool !\n");
         } else {
                 nlSolverParameteri(NL_SOLVER, NL_CG);
                 nlSolverParameteri(NL_PRECONDITIONER, NL_PRECOND_NONE);
-                fprintf(stderr, "Using conjugate gradient\n");
+                printf("Using conjugate gradient\n");
         }
         nlSolverParameteri(NL_NB_VARIABLES, 2*polygons->n_points);
         nlSolverParameteri(NL_LEAST_SQUARES, NL_FALSE);
@@ -605,12 +605,12 @@ void find_conformal_map(polygons_struct *polygons) {
         nlEnd(NL_MATRIX);
         nlEnd(NL_SYSTEM);
 
-        fprintf(stderr, "Solving ...\n");
+        printf("Solving ...\n");
         nlSolve();
         solver_to_mesh(polygons);
 
         nlGetDoublev(NL_ELAPSED_TIME, &time);
-        fprintf(stderr, "Solver time: %f\n", time);
+        printf("Solver time: %f\n", time);
         nlDeleteContext(nlGetCurrent());
 
         compute_polygon_normals(polygons);

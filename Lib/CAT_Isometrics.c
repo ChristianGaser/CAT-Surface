@@ -127,7 +127,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
                 newpts[p] = map->points[p];
 
         metric = areadistortion(brain, map);
-        fprintf(stderr, "  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
+        printf("  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
 
         stepsize = 100;
         for (it = 1; it <= maxiters; it++) {
@@ -234,12 +234,12 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
                                 } else if (metric - newmetric < tolerance) {
                                         metric = newmetric;
                                         newpts = oldpts;
-                                        fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                        printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                         break;
                                 } else {
                                         metric = newmetric;
                                         newpts = oldpts;
-                                        fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                        printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                         if (count == 0) break;
                                         for (p = 0; p < map->n_points; p++)
                                                 newpts[p] = map->points[p];
@@ -247,7 +247,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
                         } else {
                                 metric = newmetric;
                                 newpts = oldpts;
-                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                 for (p = 0; p < map->n_points; p++)
                                         newpts[p] = map->points[p];
                         }
@@ -290,7 +290,7 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
                 newpts[p] = map->points[p];
 
         metric = areadistortion(brain, map);
-        fprintf(stderr, "  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
+        printf("  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
 
         stepsize = 100;
         for (it = 1; it <= maxiters; it++) {
@@ -396,12 +396,12 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
                         } else if (metric - newmetric < tolerance) {
                                 metric = newmetric;
                                 newpts = oldpts;
-                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                 break;
                         } else {
                                 metric = newmetric;
                                 newpts = oldpts;
-                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                 if (count == 0) break;
                                 for (p = 0; p < map->n_points; p++)
                                         newpts[p] = map->points[p];
@@ -463,7 +463,7 @@ stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
                 newpts[p] = map->points[p];
 
         metric = areadistortion(brain, map);
-        fprintf(stderr, "  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
+        printf("  0: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", metric);
 
         stepsize = 10;
         for (it = 1; it <= maxiters; it++) {
@@ -592,12 +592,12 @@ stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
                         } else if (metric - newmetric < tolerance) {
                                 metric = newmetric;
                                 newpts = oldpts;
-                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                 break;
                         } else {
                                 metric = newmetric;
                                 newpts = oldpts;
-                                fprintf(stderr, "%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
+                                printf("%d: %f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it, metric);
                                 if (count == 0) break;
                                 for (p = 0; p < map->n_points; p++)
                                         newpts[p] = map->points[p];

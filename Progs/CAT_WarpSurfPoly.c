@@ -327,14 +327,14 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *src_sphere,
                                                 rot[0] = best_alpha;
                                                 rot[1] = best_beta;
                                                 rot[2] = best_gamma;
-                                                fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
+                                                printf("alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
                                                         DEGREES(alpha),
                                                         DEGREES(beta),
                                                         DEGREES(gamma), sum_sq);
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
                                         }
                                 }
                         }
@@ -345,7 +345,7 @@ rotate_polygons_to_atlas(polygons_struct *source, polygons_struct *src_sphere,
                 curr_beta  = best_beta;
                 curr_gamma = best_gamma;
         }
-        fprintf(stderr,"\n");
+        printf("\n");
         free(orig_target);
         free(map_target);
         free(map_source);
@@ -454,7 +454,7 @@ main(int argc, char *argv[])
     
                 loop = 0;
 
-                fprintf(stderr, "Read parameters from %s\n", param_file);
+                printf( "Read parameters from %s\n", param_file);
                 while (fgets(line, sizeof(line), fp)) {
                         /* check for 9 values in each line */
                         if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
@@ -495,35 +495,35 @@ prm[j].its = 2;
         }
 
         if (verbose) {
-                fprintf(stderr, "___________________________________");
-                fprintf(stderr, "________________________________________\n");
-                fprintf(stderr, "Parameters\n");
-                fprintf(stderr, "___________________________________");
-                fprintf(stderr, "________________________________________\n");
-                fprintf(stderr, "Regularization (0 - elastic; 1 - membrane; ");
-                fprintf(stderr, "2 - bending):\t\t%d\n", prm[0].rtype);
-                fprintf(stderr, "Number of cycles for full multi grid (FMG):");
-                fprintf(stderr, "\t\t\t\t%d\n", prm[0].cycles);
-                fprintf(stderr, "Number of relaxation iterations in each ");
-                fprintf(stderr, "multigrid cycle:\t\t%d\n", prm[0].its);
-                fprintf(stderr, "Objective function (0 - sum of squares; ");
-                fprintf(stderr, "1 - sym. sum of squares):\t%d\n", prm[0].code);
-                fprintf(stderr, "Levenberg-Marquardt regularization:");
-                fprintf(stderr, "\t\t\t\t\t%g\n", prm[0].lmreg);
-                fprintf(stderr, "\n%d Iterative loops\n", loop);
-                fprintf(stderr, "\nRegularization parameter mu:\t\t");
+                printf( "___________________________________");
+                printf("________________________________________\n");
+                printf("Parameters\n");
+                printf("___________________________________");
+                printf("________________________________________\n");
+                printf("Regularization (0 - elastic; 1 - membrane; ");
+                printf("2 - bending):\t\t%d\n", prm[0].rtype);
+                printf("Number of cycles for full multi grid (FMG):");
+                printf("\t\t\t\t%d\n", prm[0].cycles);
+                printf("Number of relaxation iterations in each ");
+                printf("multigrid cycle:\t\t%d\n", prm[0].its);
+                printf("Objective function (0 - sum of squares; ");
+                printf("1 - sym. sum of squares):\t%d\n", prm[0].code);
+                printf("Levenberg-Marquardt regularization:");
+                printf("\t\t\t\t\t%g\n", prm[0].lmreg);
+                printf("\n%d Iterative loops\n", loop);
+                printf("\nRegularization parameter mu:\t\t");
                 for (i = 0; i < loop; i++)
-                        fprintf(stderr, "%8g\t", prm[i].rparam[2]);
+                        printf("%8g\t", prm[i].rparam[2]);
                 fprintf(stderr,"\n");
-                fprintf(stderr, "Regularization parameter lambda:\t");
+                printf("Regularization parameter lambda:\t");
                 for (i = 0; i < loop; i++)
-                        fprintf(stderr, "%8g\t", prm[i].rparam[3]);
+                        printf("%8g\t", prm[i].rparam[3]);
                 fprintf(stderr,"\n");
-                fprintf(stderr, "Regularization parameter id:\t\t");
+                printf("Regularization parameter id:\t\t");
                 for (i = 0; i < loop; i++)
-                        fprintf(stderr, "%8g\t", prm[i].rparam[4]);
+                        printf("%8g\t", prm[i].rparam[4]);
                 fprintf(stderr,"\n");
-                fprintf(stderr, "Time steps for solving the PDE:\t\t");
+                printf("Time steps for solving the PDE:\t\t");
                 for (i = 0; i < loop; i++)
                         fprintf(stderr,"%8d\t",prm[i].k);
                 fprintf(stderr,"\n\n");
@@ -653,7 +653,7 @@ prm[j].its = 2;
                                 dartel_poly2(src_sphere, dpoly, prm[it0],
                                         inflow, map_target, map_source,
                                         (double *)0, flow, ll, scratch);
-                                fprintf(stderr, "%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
+                                printf("%02d-%02d: %8.2f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", step+1, it, ll[0]);
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];
                         }

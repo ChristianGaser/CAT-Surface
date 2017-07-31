@@ -300,11 +300,11 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        if (debugflag) fprintf(stderr,"Samp SPH coords..");
+        if (debugflag) printf("Samp SPH coords..");
         get_equally_sampled_coords_of_polygon(surface, sphere, BW,
                                               rdatax, rdatay, rdataz);
 
-        if (debugflag) fprintf(stderr,"Fwd SPH xform..");
+        if (debugflag) printf("Fwd SPH xform..");
         get_sph_coeffs_of_realdata(rdatax, BW, DATAFORMAT, rcx, icx);
         get_sph_coeffs_of_realdata(rdatay, BW, DATAFORMAT, rcy, icy);
         get_sph_coeffs_of_realdata(rdataz, BW, DATAFORMAT, rcz, icz);
@@ -329,7 +329,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 free(spectral_power);
         }
 
-        if (debugflag) fprintf(stderr,"Inv SPH xform..");
+        if (debugflag) printf("Inv SPH xform..");
         get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT, rcx, icx);
         get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT, rcy, icy);
         get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT, rcz, icz);
@@ -338,7 +338,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         *object = create_object(POLYGONS);
         polygons = get_polygons_ptr(*object);
 
-        if (debugflag) fprintf(stderr,"Resamp surf.\n");
+        if (debugflag) printf("Resamp surf.\n");
         sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons,
                                n_triangles, reparam, BW);
 
@@ -364,9 +364,9 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         }
 
         for (it = 0; it < SPH_ITERS; it++) {
-                if (debugflag) fprintf(stderr, "BW %d: ", (int) bws[it]);
+                if (debugflag) printf("BW %d: ", (int) bws[it]);
 
-                if (debugflag) fprintf(stderr,"Samp SPH coords..");
+                if (debugflag) printf("Samp SPH coords..");
                 limit_bandwidth(BW, (int) bws[it], rcx, lrcx);
                 limit_bandwidth(BW, (int) bws[it], rcy, lrcy);
                 limit_bandwidth(BW, (int) bws[it], rcz, lrcz);
@@ -374,7 +374,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 limit_bandwidth(BW, (int) bws[it], icy, licy);
                 limit_bandwidth(BW, (int) bws[it], icz, licz);
 
-                if (debugflag) fprintf(stderr,"Inv SPH xform..");
+                if (debugflag) printf("Inv SPH xform..");
                 get_realdata_from_sph_coeffs(rdatax, BW, DATAFORMAT,
                                              lrcx, licx);
                 get_realdata_from_sph_coeffs(rdatay, BW, DATAFORMAT,
@@ -382,7 +382,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                 get_realdata_from_sph_coeffs(rdataz, BW, DATAFORMAT,
                                              lrcz, licz);
 
-                if (debugflag) fprintf(stderr,"Resamp surf.\n");
+                if (debugflag) printf("Resamp surf.\n");
                 sample_sphere_from_sph(rdatax, rdatay, rdataz,
                                        polygons, n_triangles, reparam, BW);
 

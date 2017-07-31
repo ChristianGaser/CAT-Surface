@@ -113,7 +113,7 @@ expfield(double vx[], double vy[], int n_values)
                 n = MAX(n,0); /* avoid null values */
         }
                 
-fprintf(stderr,"%g %g %g\n",n,mx_normv2,log2(2.0*mx_normv2));
+printf("%g %g %g\n",n,mx_normv2,log2(2.0*mx_normv2));
         if (n != 0) {         
                 for (i = 0; i < n_values; i++) {
                         vx[i] *= pow(2,-n);
@@ -282,14 +282,14 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                                                 rot[0] = best_alpha;
                                                 rot[1] = best_beta;
                                                 rot[2] = best_gamma;
-                                                fprintf(stderr,"alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
+                                                printf("alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f",
                                                         DEGREES(alpha),
                                                         DEGREES(beta),
                                                         DEGREES(gamma), sum_sq);
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                fprintf(stderr, "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                                                printf( "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
 
                                         }
                                 }
@@ -301,7 +301,7 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                 curr_beta  = best_beta;
                 curr_gamma = best_gamma;
         }
-        fprintf(stderr,"\n");
+        printf("\n");
         free(orig_trg);
         free(map_trg);
         free(map_src);
@@ -564,7 +564,7 @@ WarpDemon(polygons_struct *src, polygons_struct *sphere_src, polygons_struct *tr
 
                 cc = Correlation(curv_src, curv_trg, src->n_points);
 //                fprintf(stderr, "%02d: CC=%5.4f diff=%g\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b", it+1, cc, sum_diff2);
-                fprintf(stderr, "%02d: CC=%5.4f diff=%g alpha=%g fwhm-flow=%g\n", it+1, cc, sum_diff2,alpha,fwhm_flow);
+                printf( "%02d: CC=%5.4f diff=%g alpha=%g fwhm-flow=%g\n", it+1, cc, sum_diff2,alpha,fwhm_flow);
 
                 /* use at least 5 iterations */
                 if ((it >= 5) && (cc/old_cc < 1.0025)) {
@@ -676,7 +676,7 @@ main(int argc, char *argv[])
 //        n_points = 20480;
 
         if (n_steps > 1)
-                fprintf(stderr,"Warning: Multistep approach is not yet working!\n");
+                printf("Warning: Multistep approach is not yet working!\n");
 
         for (step = 0; step < n_steps; step++) {
 
@@ -692,7 +692,7 @@ main(int argc, char *argv[])
                 init_dartel_poly(sm_sphere_src, dpoly_src);
                 init_dartel_poly(sm_sphere_trg, dpoly_trg);
                 
-                fprintf(stderr,"Resample surfaces to %d points\n",sm_src->n_points);
+                printf("Resample surfaces to %d points\n",sm_src->n_points);
 
                 /* initialization */
                 if (step == 0) {
@@ -737,7 +737,7 @@ main(int argc, char *argv[])
                 /* use smaller FWHM for next steps */
                 fwhm_flow *= rate;
         }
-        fprintf(stderr,"\n");
+        printf("\n");
         
         if (output_sphere_file != NULL) {
   
