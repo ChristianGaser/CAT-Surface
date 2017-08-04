@@ -523,7 +523,9 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         static char *mnc_ordered_dim_names[MAX_SPACE_DIMS];
 
         /* Other stuff */
-        int i, j, d;
+        int i, j, k, d;
+        long ind;
+        float tmp;
         static int oflag = DIMORDER_XYZ;
         static int flip[MAX_SPACE_DIMS] = {0, 0, 0}; /* not used */
         void *voxels;
@@ -879,11 +881,53 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         set_volume_sizes(*volume, dims);
         alloc_volume_data(*volume);
 
-        GET_VOXEL_PTR(voxels, *volume, 0, 0, 0, 0, 0);
+        if (! (*volume)->is_cached_volume) {
+                GET_VOXEL_PTR(voxels, *volume, 0, 0, 0, 0, 0);
 
-        memcpy(voxels, nii_ptr->data,
-               (size_t) get_volume_total_n_voxels(*volume) *
-               (size_t) get_type_size(get_volume_data_type(*volume)));
+                memcpy(voxels, nii_ptr->data,
+                      (size_t) get_volume_total_n_voxels(*volume) *
+                      (size_t) get_type_size(get_volume_data_type(*volume)));
+        } else {
+                ind = 0;
+                for (i=0; i<dims[0]; i++) for (j=0; j<dims[1]; j++) for (k=0; k<dims[2]; k++) { 
+                        switch (nii_ptr->datatype) {
+                        case DT_INT8:
+                                tmp = (float)((char *)nii_ptr->data)[ind];
+                                break;
+                        case DT_UINT8:
+                                tmp = (float)((unsigned char *)nii_ptr->data)[ind];
+                                break;
+                        case DT_INT16:
+                                tmp = (float)((short *)nii_ptr->data)[ind];
+                                break;
+                        case DT_UINT16:
+                                tmp = (float)((unsigned short *)nii_ptr->data)[ind];
+                                break;
+                        case DT_INT32:
+                                tmp = (float)((long *)nii_ptr->data)[ind];
+                                break;
+                        case DT_UINT32:
+                                tmp = (float)((unsigned long *)nii_ptr->data)[ind];
+                                break;
+                        case DT_FLOAT32:
+                                tmp = (float)((float *)nii_ptr->data)[ind];
+                                break;
+                        case DT_FLOAT64:
+                                tmp = (float)((double *)nii_ptr->data)[ind];
+                                break;
+                        default:
+                                fprintf(stderr, "Data type %d not handled\n",nii_ptr->datatype);
+                                break;
+                        }
+                        ind++;
+                        /* check whether scaling is needed */
+                        if (nii_ptr->scl_slope == 0)
+                                set_volume_real_value( *volume, i, j, k, 0, 0, tmp);
+                        else
+                                set_volume_real_value( *volume, i, j, k, 0, 0, (nii_ptr->scl_slope * tmp) + nii_ptr->scl_inter);
+
+                }
+        }
 
         nifti_image_free(nii_ptr);
 
