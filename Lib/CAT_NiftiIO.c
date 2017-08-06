@@ -125,28 +125,28 @@ find_data_range(int datatype, long nvox, void *data, double range[2])
         for (i = 0; i < nvox; i++) {
                 switch (datatype) {
                 case DT_INT8:
-                        tmp = (double) ((char *)data)[i];
+                        tmp = (float) ((char *)data)[i];
                         break;
                 case DT_UINT8:
-                        tmp = (double) ((unsigned char *)data)[i];
+                        tmp = (float) ((unsigned char *)data)[i];
                         break;
                 case DT_INT16:
-                        tmp = (double) ((short *)data)[i];
+                        tmp = (float) ((short *)data)[i];
                         break;
                 case DT_UINT16:
-                        tmp = (double) ((unsigned short *)data)[i];
+                        tmp = (float) ((unsigned short *)data)[i];
                         break;
                 case DT_INT32:
-                        tmp = (double) ((int *)data)[i];
+                        tmp = (float) ((int *)data)[i];
                         break;
                 case DT_UINT32:
-                        tmp = (double) ((unsigned int *)data)[i];
+                        tmp = (float) ((unsigned int *)data)[i];
                         break;
                 case DT_FLOAT32:
-                        tmp = (double) ((float *)data)[i];
+                        tmp = (float) ((float *)data)[i];
                         break;
                 case DT_FLOAT64:
-                        tmp = (double) ((double *)data)[i];
+                        tmp = (float) ((double *)data)[i];
                         break;
                 default:
                         fprintf(stderr, "Data type %d not handled\n", datatype);
@@ -535,6 +535,11 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         /* Read in the entire NIfTI file. */
         nii_ptr = nifti_image_read(filename, 1);
 
+        if(nii_ptr == NULL) {
+                fprintf(stderr,"input_nifti: Error reading %s.\n", filename);
+                return(NULL);
+        }
+
         if (nii_ptr->nifti_type == 0) { /* Analyze file!!! */
                 FILE *fp;
                 int ss, must_swap;
@@ -867,6 +872,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
 
         set_volume_starts(*volume, mnc_starts);
         set_volume_real_range(*volume, mnc_srange[0], mnc_srange[1]);
+        set_volume_separations(*volume, mnc_steps);
         
         /* set scaling and offset */
         (*volume)->real_value_scale = nii_ptr->scl_slope;
@@ -892,28 +898,28 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                 for (i=0; i<dims[0]; i++) for (j=0; j<dims[1]; j++) for (k=0; k<dims[2]; k++) { 
                         switch (nii_ptr->datatype) {
                         case DT_INT8:
-                                tmp = (float)((char *)nii_ptr->data)[ind];
+                                tmp = (float) ((char *)nii_ptr->data)[ind];
                                 break;
                         case DT_UINT8:
-                                tmp = (float)((unsigned char *)nii_ptr->data)[ind];
+                                tmp = (float) ((unsigned char *)nii_ptr->data)[ind];
                                 break;
                         case DT_INT16:
-                                tmp = (float)((short *)nii_ptr->data)[ind];
+                                tmp = (float) ((short *)nii_ptr->data)[ind];
                                 break;
                         case DT_UINT16:
-                                tmp = (float)((unsigned short *)nii_ptr->data)[ind];
+                                tmp = (float) ((unsigned short *)nii_ptr->data)[ind];
                                 break;
                         case DT_INT32:
-                                tmp = (float)((long *)nii_ptr->data)[ind];
+                                tmp = (float) ((long *)nii_ptr->data)[ind];
                                 break;
                         case DT_UINT32:
-                                tmp = (float)((unsigned long *)nii_ptr->data)[ind];
+                                tmp = (float) ((unsigned long *)nii_ptr->data)[ind];
                                 break;
                         case DT_FLOAT32:
-                                tmp = (float)((float *)nii_ptr->data)[ind];
+                                tmp = (float) ((float *)nii_ptr->data)[ind];
                                 break;
                         case DT_FLOAT64:
-                                tmp = (float)((double *)nii_ptr->data)[ind];
+                                tmp = (float) ((double *)nii_ptr->data)[ind];
                                 break;
                         default:
                                 fprintf(stderr, "Data type %d not handled\n",nii_ptr->datatype);
@@ -923,8 +929,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                         /* check whether scaling is needed */
                         if (nii_ptr->scl_slope == 0)
                                 set_volume_real_value( *volume, i, j, k, 0, 0, tmp);
-                        else
-                                set_volume_real_value( *volume, i, j, k, 0, 0, (nii_ptr->scl_slope * tmp) + nii_ptr->scl_inter);
+                        else    set_volume_real_value( *volume, i, j, k, 0, 0, (float)(nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter);
 
                 }
         }
