@@ -21,22 +21,21 @@ fi
 if [ $# -eq 5 ]; then
     curv=$5
 else
-    curv=0.1
+    curv=0.5
 fi
 
 if [ $# -eq 6 ]; then
     dist=$6
 else
-    dist=15
+    dist=5
 fi
-
-# parameters for deforming WM
-step="0.1 0.1 $dist 0 $th $th n 0 0 0"
 
 iters=150
 model="-1 0.1 avg -0.01 0.01"
+step="0.2 0.1 $dist 0 $th $th n 0 0 0"
 CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
 
-iters=150
-model="-1 0.5 avg -$curv $curv"
+iters=50
+model="-1 0.1 flat -0.15 0.15"
+step="0.5 0.1 $dist 0 $th $th n 0 0 0"
 CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
