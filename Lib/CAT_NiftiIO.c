@@ -537,7 +537,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
 
         if(nii_ptr == NULL) {
                 fprintf(stderr,"input_nifti: Error reading %s.\n", filename);
-                return;
+                return(-1);
         }
 
         if (nii_ptr->nifti_type == 0) { /* Analyze file!!! */
