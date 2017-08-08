@@ -46,10 +46,10 @@ char *offset_file = NULL;       /* thickness file for defining offset to (centra
 
 /* the argument table */
 ArgvInfo argTable[] = {
-  {"-steps", ARGV_INT, (char *) 1, (char *) &grid_steps,
-       "Number of grid steps."},
   {"-start", ARGV_FLOAT, (char *) 1, (char *) &grid_start,
        "Start point (origin) of grid along normals [mm]. Give negative values for a start point\n\t\t     outside of the surface (outwards).\n\t\t     If thickness is used to define mapping the grid resolution is considered\n\t\t     as normalized value according to the cortical thickness."},
+  {"-steps", ARGV_INT, (char *) 1, (char *) &grid_steps,
+       "Number of grid steps."},
   {"-end", ARGV_FLOAT, (char *) 1, (char *) &grid_end,
        "End point of the grid along the surface normals (pointing inwards) in mm."},
   {"-thickness", ARGV_STRING, (char *) 1, (char *) &thickness_file, 
