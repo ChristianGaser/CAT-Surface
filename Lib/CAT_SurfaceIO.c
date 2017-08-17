@@ -1277,12 +1277,16 @@ input_dfs(char *file, File_formats *format, int *n_objects,
 {
         FILE              *fp;
         int               i, hdr_size, mdoffset, pdoffset, nStrips, stripSize, normals;
-        int               uvStart, vcoffset, labelOffset, vertexAttributes;
-        char              dummy[256];
+        int               uvStart, vcoffset, labelOffset, vertexAttributes, tmp;
+        char              dummy[256], pad2[124];
+        float             tmp2;
         polygons_struct   *polygons;
-        Point             *point;
+        Point             point;
         object_struct     *object;
       
+        fprintf(stderr,"Input of DFS data not working.\n");        
+        return(-1);
+        
         /* prepare object and polygons */
         *n_objects = 0;
         object = create_object(POLYGONS);
@@ -1299,12 +1303,11 @@ input_dfs(char *file, File_formats *format, int *n_objects,
         }
 
         fread(&dummy, sizeof(char), 12, fp);
-        fprintf(stderr, "%s\n", dummy);
         fread(&hdr_size, 4, 1, fp);
         fread(&mdoffset, 4, 1, fp);
         fread(&pdoffset, 4, 1, fp);
-        fread(&polygons->n_points, 4, 1, fp);
-        fread(&polygons->n_items, 4, 1, fp);
+        fread(&polygons->n_points, 4, 1, fp); /* Number of triangles */
+        fread(&polygons->n_items, 4, 1, fp);  /* Number of vertices */
         fprintf(stderr, "%s %d %d %d\n", dummy, hdr_size,
                 polygons->n_points, polygons->n_items);
         fread(&nStrips, 4, 1, fp);
@@ -1315,18 +1318,32 @@ input_dfs(char *file, File_formats *format, int *n_objects,
         fread(&labelOffset, 4, 1, fp);
         fread(&vertexAttributes, 4, 1, fp);
 
+        fread(&pad2, sizeof(char), 124, fp);
+
         fseek(fp, hdr_size, -1); 
 
         polygons->bintree = (bintree_struct_ptr) NULL;
 
+        ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
+
         for (i = 0; i < polygons->n_items; i++)
                 polygons->end_indices[i] = (i + 1) * 3;
 
         ALLOC(polygons->indices, polygons->end_indices[polygons->n_items-1]);
-        for (i = 0; i < 3*(polygons->n_items); i++)
-                fread(&polygons->indices[i], 4, 1, fp);
+
+        for (i = 0; i < 3*(polygons->n_items); i++) {
+                fread(&tmp, 4, 1, fp);
+                polygons->indices[i] = tmp;
+        }
+        
+        for (i = 0; i < polygons->n_points; i++) {
+                fread(&tmp2, 4, 1, fp); Point_x(point) = tmp2;
+                fread(&tmp2, 4, 1, fp); Point_y(point) = tmp2;
+                fread(&tmp2, 4, 1, fp); Point_z(point) = tmp2;
+                polygons->points[i] = point;
+        }
 
         /* compute normals */
         compute_polygon_normals(polygons);
