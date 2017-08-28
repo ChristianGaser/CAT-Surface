@@ -173,9 +173,6 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
     nifti_image *nii_ptr;
     nifti_image nii_rec;
     int nii_dimids[MAX_NII_DIMS];
-    int nii_dir[MAX_NII_DIMS];
-    int nii_map[MAX_NII_DIMS];
-    unsigned long nii_lens[MAX_NII_DIMS];
     int nii_ndims;
     static int nifti_filetype;
     static int nifti_datatype;
@@ -186,8 +183,6 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
     nc_type mnc_type;           /* MINC data type as read */
     int mnc_ndims;              /* MINC image dimension count */
     int mnc_dimids[MAX_VAR_DIMS]; /* MINC image dimension identifiers */
-    long mnc_dlen;              /* MINC dimension length value */
-    double mnc_dstep;           /* MINC dimension step value */
     int mnc_icv;                /* MINC image conversion variable */
     int mnc_vid;                /* MINC Image variable ID */
     long mnc_start[MAX_VAR_DIMS]; /* MINC data starts */
@@ -198,8 +193,9 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
 
     /* Other stuff */
     char att_str[1024];         /* Big string for attribute values */
-    int i;                      /* Generic loop counter the first */
-    int j;                      /* Generic loop counter the second */
+    int i, j;                      
+    int  dims[MAX_VAR_DIMS];   /* dimensions */
+    double steps[MAX_VAR_DIMS];
     char *str_ptr;              /* Generic ASCIZ string pointer */
     int r;                      /* Result code. */
     static int qflag = 0;       /* Quiet flag (default is non-quiet) */
@@ -247,7 +243,12 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
 
     mnc_ndims = 3;
     mnc_dimids[0] = 0; mnc_dimids[1] = 1; mnc_dimids[2] = 2;
-
+    nii_ndims = 3;
+    get_volume_sizes(volume, dims);
+    get_volume_separations(volume, steps);
+/*    get_volume_real_range(volume, mnc_rrange);
+    get_volume_voxel_range(volume, mnc_vrange);
+*/
     /* Initialize the NIfTI structure 
      */
     nii_ptr = &nii_rec;
@@ -273,9 +274,6 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
 
     nifti_filetype = FT_NIFTI_SINGLE;
 
-    miget_image_range(mnc_fd, mnc_rrange); /* Get real range */
-    miget_valid_range(mnc_fd, mnc_vid, mnc_vrange); /* Get voxel range */
-
     if (mnc_vrange[1] != mnc_vrange[0] && mnc_rrange[1] != mnc_rrange[0]) {
         nii_ptr->scl_slope = ((mnc_rrange[1] - mnc_rrange[0]) / 
                               (mnc_vrange[1] - mnc_vrange[0]));
@@ -292,65 +290,26 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
      * a map for restructuring the data according to the normal rules
      * of NIfTI-1.
      */
-    nii_ndims = 0;
+
     for (i = 0; i < MAX_NII_DIMS; i++) {
-        if (dimnames[i] == NULL) {
-            nii_dimids[nii_ndims] = -1;
-            continue;
-        }
 
-        nii_dimids[nii_ndims] = ncdimid(mnc_fd, dimnames[i]);
-        if (nii_dimids[nii_ndims] == -1) {
-            continue;
-        }
-
-        /* Make sure the dimension is actually used to define the image.
-         */
-        for (j = 0; j < mnc_ndims; j++) {
-            if (nii_dimids[nii_ndims] == mnc_dimids[j]) {
-                nii_map[nii_ndims] = j;
-                break;
-            }
-        }
-
-        if (j < mnc_ndims) {
-            mnc_dlen = 1;
-            mnc_dstep = 0;
-
-            ncdiminq(mnc_fd, nii_dimids[nii_ndims], NULL, &mnc_dlen);
-            ncattget(mnc_fd, ncvarid(mnc_fd, dimnames[i]), MIstep, &mnc_dstep);
-
-            if (mnc_dstep < 0) {
-                nii_dir[nii_ndims] = -1;
-                mnc_dstep = -mnc_dstep;
-            }
-            else {
-                nii_dir[nii_ndims] = 1;
-            }
-
-            nii_lens[nii_ndims] = mnc_dlen;
-            nii_ndims++;
-        }
-
-        nii_ptr->dim[dimmap[i]] = (int) mnc_dlen;
-        nii_ptr->nvox *= mnc_dlen;
-
-        nii_ptr->pixdim[dimmap[i]] = (float) mnc_dstep;
+        nii_ptr->dim[i] = dims[i];
+        nii_ptr->nvox *=  dims[i];
+        nii_ptr->pixdim[i] = (float) steps[i];
     }
 
     nii_ptr->ndim = nii_ndims; /* Total number of dimensions in file */
     nii_ptr->nx = nii_ptr->dim[0];
     nii_ptr->ny = nii_ptr->dim[1];
     nii_ptr->nz = nii_ptr->dim[2];
-    nii_ptr->nt = nii_ptr->dim[3];
-    nii_ptr->nu = nii_ptr->dim[4];
+    nii_ptr->nt = 1;
+    nii_ptr->nu = 1;
 
     nii_ptr->dx = nii_ptr->pixdim[0];
     nii_ptr->dy = nii_ptr->pixdim[1];
     nii_ptr->dz = nii_ptr->pixdim[2];
-    nii_ptr->dt = nii_ptr->pixdim[3];
+    nii_ptr->dt = 1;
     nii_ptr->du = 1; /* MINC files don't define a sample size for a vector_dimension */
-
     nii_ptr->nifti_type = nifti_filetype;
 
     if (nifti_datatype == DT_UNKNOWN) {
@@ -378,8 +337,7 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
             continue;
         }
 
-        /* Set default values */
-        start = 0.0;
+/*        start = 0.0;
         step = 1.0;
         dircos[DIM_X] = dircos[DIM_Y] = dircos[DIM_Z] = 0.0;
         dircos[i] = 1.0;
@@ -406,16 +364,13 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
 
         miattgetstr(mnc_fd, id, MIspacetype, sizeof(att_str), att_str);
 
-        /* Try to set the S-transform code correctly.  It is unclear that
-         * this is the right way to do it.
-         */
         if (!strcmp(att_str, MI_NATIVE)) {
             nii_ptr->sform_code = NIFTI_XFORM_SCANNER_ANAT;
         }
         if (!strcmp(att_str, MI_TALAIRACH)) {
             nii_ptr->sform_code = NIFTI_XFORM_TALAIRACH;
         }
-        /* TODO: Anything for MI_CALLOSAL? */
+*/
     }
 
     /* So the last row is right... */
@@ -473,15 +428,6 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
     miicv_detach(mnc_icv);
     miicv_free(mnc_icv);
     miclose(mnc_fd);
-
-    /* Rearrange the data to correspond to the NIfTI dimension ordering.
-     */
-    restructure_array(nii_ndims,
-                      nii_ptr->data,
-                      nii_lens,
-                      nii_ptr->nbyper,
-                      nii_map,
-                      nii_dir);
 
     nifti_image_write(nii_ptr);
 

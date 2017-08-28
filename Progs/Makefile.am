@@ -75,6 +75,7 @@ bin_PROGRAMS = \
 	CAT_MarchingCubes
 
 # experimental code, not yet working or for testing only!
+##	CAT_VolConvert \
 ##	CAT_Test \
 ##	CAT_DumpGI \
 ##	CAT_DumpGyrificationIndex \	

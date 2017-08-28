@@ -8,7 +8,7 @@
 #
 
 if [ $# -lt 4 ]; then
-	echo "Usage $0 WM.mnc WM.obj Wmout.obj [threshold] [curv] [max_search_distance]"
+	echo "Usage $0 volume_file surface_file output_surface_file [threshold] [curv] [max_search_distance]"
 	exit
 fi
 
@@ -21,7 +21,7 @@ fi
 if [ $# -eq 5 ]; then
     curv=$5
 else
-    curv=0.5
+    curv=0.15
 fi
 
 if [ $# -eq 6 ]; then
@@ -36,6 +36,6 @@ step="0.2 0.1 $dist 0 $th $th n 0 0 0"
 CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
 
 iters=50
-model="-1 0.1 flat -0.15 0.15"
+model="-1 0.1 flat -${curv} ${curv}"
 step="0.5 0.1 $dist 0 $th $th n 0 0 0"
 CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0

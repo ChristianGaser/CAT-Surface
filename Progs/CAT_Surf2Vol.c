@@ -94,7 +94,7 @@ main(int argc, char *argv[])
             set_volume_real_value( label_volume, x, y, z, 0, 0, (1 - get_volume_real_value( label_volume, x, y, z, 0, 0 )));
                 
 
-        output_volume(output_volume_file, NC_BYTE, 0, 0.0, 0.0, label_volume, "Surf2Vol\n", NULL); 
+        output_volume_all(output_volume_file, NC_BYTE, 0, 0.0, 0.0, label_volume, "Surf2Vol\n", NULL); 
 
         delete_volume( volume );
         delete_volume( label_volume );
