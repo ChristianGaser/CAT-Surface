@@ -508,13 +508,13 @@ compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd)
 }
 
 void
-apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
+apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
            int *dm, int inverse)
 {
         Point             centre, unit_point, *new_points;
         polygons_struct   unit_sphere;
         double            xm, ym, xp, yp, x0, x1, y0, y1, weight;
-        double            *uflow, *vflow, u, v, *ux, *vy;
+        double            *udeform, *vdeform, u, v, *ux, *vy;
         int               i, j, p, x, y, m = dm[0]*dm[1];
 
         if (sphere == NULL) {
@@ -538,8 +538,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
 
         ALLOC(new_points, polygons->n_points);
 
-        uflow = (double *) malloc(sizeof(double) * m);
-        vflow = (double *) malloc(sizeof(double) * m);
+        udeform = (double *) malloc(sizeof(double) * m);
+        vdeform = (double *) malloc(sizeof(double) * m);
 
         for (i = 0; i < dm[0]; i++) {
                 for (j = 0; j < dm[1]; j++) {
@@ -547,16 +547,16 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
                         v = (double)j / (double)dm[1];
                         weight = 1.0 - pow(2.0*v - 1.0, 8.0);
 
-                        uflow[p] = (flow[p  ] - i - 1.0) / (double)dm[0];
-                        vflow[p] = (flow[p+m] - j - 1.0) / (double)dm[1];
-                        if (uflow[p] >=  1.0) uflow[p] -= floor(uflow[p]);
-                        if (uflow[p] <= -1.0) uflow[p] += floor(-uflow[p]);
-                        if (uflow[p] >=  0.5) uflow[p] -= 1.0;
-                        if (uflow[p] <= -0.5) uflow[p] += 1.0;
-                        if (vflow[p] >=  1.0) vflow[p] -= floor(uflow[p]);
-                        if (vflow[p] <= -1.0) vflow[p] += floor(-uflow[p]);
-                        uflow[p] *= weight;
-                        vflow[p] *= weight;
+                        udeform[p] = (deform[p  ] - (double)i - 1.0) / (double)dm[0];
+                        vdeform[p] = (deform[p+m] - (double)j - 1.0) / (double)dm[1];
+                        if (udeform[p] >=  1.0) udeform[p] -= floor(udeform[p]);
+                        if (udeform[p] <= -1.0) udeform[p] += floor(-udeform[p]);
+                        if (udeform[p] >=  0.5) udeform[p] -= 1.0;
+                        if (udeform[p] <= -0.5) udeform[p] += 1.0;
+                        if (vdeform[p] >=  1.0) vdeform[p] -= floor(udeform[p]);
+                        if (vdeform[p] <= -1.0) vdeform[p] += floor(-udeform[p]);
+                        udeform[p] *= weight;
+                        vdeform[p] *= weight;
                 }
         }
 
@@ -575,10 +575,10 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
                 x = (int) floor(xp); xp -= x; xm = 1.0 - xp;
                 y = (int) floor(yp); yp -= y; ym = 1.0 - yp;
 
-                x0 = uflow[bound(x,  y,  dm)];
-                x1 = uflow[bound(x+1,y,  dm)];
-                y0 = uflow[bound(x,  y+1,dm)];
-                y1 = uflow[bound(x+1,y+1,dm)];
+                x0 = udeform[bound(x,  y,  dm)];
+                x1 = udeform[bound(x+1,y,  dm)];
+                y0 = udeform[bound(x,  y+1,dm)];
+                y1 = udeform[bound(x+1,y+1,dm)];
 
                 ux[p] = ((xm*x0 + xp*x1)*ym + (xm*y0 + xp*y1)*yp);
                 if (ux[p] >=  1.0) ux[p] -= floor(ux[p]);
@@ -586,10 +586,10 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *flow,
                 if (ux[p] <  -0.5) ux[p] += 1.0;
                 if (ux[p] >   0.5) ux[p] -= 1.0;
 
-                x0 = vflow[bound(x,  y,  dm)];
-                x1 = vflow[bound(x+1,y,  dm)];
-                y0 = vflow[bound(x,  y+1,dm)];
-                y1 = vflow[bound(x+1,y+1,dm)];
+                x0 = vdeform[bound(x,  y,  dm)];
+                x1 = vdeform[bound(x+1,y,  dm)];
+                y0 = vdeform[bound(x,  y+1,dm)];
+                y1 = vdeform[bound(x+1,y+1,dm)];
                 vy[p] = ((xm*x0 + xp*x1)*ym + (xm*y0 + xp*y1)*yp);
                 if (vy[p] >=  1.0) vy[p] -= floor(vy[p]);
                 if (vy[p] <= -1.0) vy[p] += floor(-vy[p]);

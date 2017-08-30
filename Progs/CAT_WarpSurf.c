@@ -432,7 +432,6 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
         sm_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_trg        = (polygons_struct *) malloc(sizeof(polygons_struct));
         sm_trg_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
-
         
         for (step = 0; step < n_steps; step++) {
                 /* resample source and target surface */
@@ -455,8 +454,8 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                         /* always use sulcal depth first */
                         curvtype0 = 5;
 
-                        /* initial rotation if n_loops is zero */
-                        if (n_loops == 0) {
+                        /* initial rotation if n_loops < 0 */
+                        if (n_loops < 0) {
                                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                                                          sm_trg, sm_trg_sphere,
                                                          fwhm, curvtype0, rot);
@@ -765,7 +764,7 @@ main(int argc, char *argv[])
         /* estimate rotation only */
         if (rotate) {
                 solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm,
-                                  n_steps, rot, flow, 0);
+                                  n_steps, rot, flow, -1);
         }
         
         if (debug && rotate) {

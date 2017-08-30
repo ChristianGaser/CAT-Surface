@@ -17,12 +17,11 @@
 
 #define  BINTREE_FACTOR   0.5
 
-/* defaults */
-char *sphere_file = NULL;
+int deform = 0;
 
 static ArgvInfo argTable[] = {
-  {"-sphere", ARGV_STRING, (char *) 1, (char *) &sphere_file, 
-     "Sphere for input surface."},
+  {"-deform", ARGV_CONSTANT, (char *) TRUE, (char *) &deform,
+     "Expect deformation field instead of flow field."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -30,7 +29,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  surface_file FlowField_file output_surface_file\n\n";
+Usage: %s  sphere_file FlowField_file output_sphere_file\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -41,11 +40,11 @@ main(int argc, char *argv[])
         char              *surface_file, *output_surface_file, *flow_file;
         FILE              *infp;
         File_formats      format;
-        int               n_objects, i, xy_size, shift[2];
-        polygons_struct   *polygons, *sphere;
+        int               n_objects, i, xy_size;
+        polygons_struct   *sphere;
         object_struct     **objects;
         double            *inflow, *flow, *flow1;
-        int               size_map[2];
+        int               size_map[2], shift[2];
 
         /* get the arguments from the command line */
         if (ParseArgv(&argc, argv, argTable, 0) || argc < 4) {
@@ -71,16 +70,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        polygons = get_polygons_ptr(objects[0]);
-
-        /* read sphere for input surface */
-        if (sphere_file != NULL) {
-                if (input_graphics_any_format(sphere_file, &format,
-                                      &n_objects, &objects) != OK)
-                        exit(EXIT_FAILURE);
-                sphere = get_polygons_ptr(objects[0]);
-        } else 
-                sphere = (polygons_struct *) 0;
+        sphere = get_polygons_ptr(objects[0]);
 
         if ((infp = fopen(flow_file, "rb")) == NULL) {
                 fprintf(stderr, "Error: Couldn't read file %s.\n", flow_file);
@@ -97,18 +87,20 @@ main(int argc, char *argv[])
         fread(inflow, xy_size*2, sizeof(double), infp);
         fclose(infp);
 
-        expdef(size_map, 10, inflow, flow, flow1, (double *)0, (double *)0);  
-        
+        if (deform) {
+                apply_warp(sphere, sphere, inflow, size_map, 0);  
+        } else {
+                expdef(size_map, 10, inflow, flow, flow1, (double *)0, (double *)0);  
+                apply_warp(sphere, sphere, flow, size_map, 0);  
+        }
+
+        free(flow);
         free(flow1);
         free(inflow);
-
-        apply_warp(polygons, sphere, flow, size_map, 0);  
 
         if (output_graphics_any_format(output_surface_file, format, n_objects,
                                        objects, NULL) != OK)
                 exit(EXIT_FAILURE);
-
-        free(flow);
 
         return(EXIT_SUCCESS);
 }
