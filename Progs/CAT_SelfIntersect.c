@@ -17,24 +17,13 @@
 #include "CAT_Patch.h"
 #include "CAT_Intersect.h"
 
-BOOLEAN dump_patch = FALSE; /* dump patches of defects */
-
-/* the argument table */
-ArgvInfo argTable[] = {
-  { "-patch", ARGV_CONSTANT, (char *) TRUE,
-    (char *) &dump_patch,
-    "Dump defect patches." },
-  { NULL, ARGV_END, NULL, NULL, NULL }
-};
-
-
 void
 usage(char *executable)
 {
         char *usage_str =
-"\nUsage: %s [options] surface_file output_surface_file\n\n\
+"\nUsage: %s [options] surface_file output_values_file\n\n\
     Find the number of self-intersections and mark the intersecting\n\
-    triangles in the output_surface_file.\n\n";
+    triangles in the output_values_file.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -44,8 +33,8 @@ int
 main(int argc, char** argv)
 {
         char               *surface_file, *out_file;
-        object_struct      **objects, **patch_objects;
-        polygons_struct    *polygons, *patch;
+        object_struct      **objects;
+        polygons_struct    *polygons;
         int                *n_neighbours, **neighbours;
         int                *defects, *polydefects;
         File_formats       format;
@@ -53,12 +42,6 @@ main(int argc, char** argv)
         char               str[80];
         progress_struct    progress;
         FILE               *fp;
-
-        if (ParseArgv(&argc, argv, argTable, 0) || argc != 3) {
-                usage(argv[0]);
-                fprintf(stderr, "       %s -help\n\n", argv[0]);
-                exit(EXIT_FAILURE);
-        }
 
         initialize_argument_processing(argc, argv);
         if (!get_string_argument(NULL, &surface_file) ||
@@ -103,20 +86,6 @@ main(int argc, char** argv)
                                             polydefects, n_intersects,
                                             n_neighbours, neighbours);
         printf("Post-patch: %d self intersection(s) remaining\n", n_intersects);
-
-
-        if (dump_patch == TRUE) {
-                for (i = 1; i <= n_intersects; i++) {
-                        sprintf(str, "patch_%d.obj\n", i);
-                        patch_objects = extract_patch_points(polygons,
-                                                             defects, i);
-                        patch = get_polygons_ptr(objects[0]);
-                        if (output_graphics_any_format(str, ASCII_FORMAT, 1,
-                                                       patch_objects, NULL) != OK)
-                                    exit(EXIT_FAILURE);
-                        delete_object_list(1, patch_objects);
-                }
-        }
 
         free(defects);
         free(polydefects);

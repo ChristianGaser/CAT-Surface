@@ -6,7 +6,7 @@
  * caret/caret_brain_set/BrainModelSurface.cxx.
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_Surf2Vol.c 368 2017-04-21 13:21:02Z gaser $
+ * $Id$
  *
  */
 
