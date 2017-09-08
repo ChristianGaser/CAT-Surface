@@ -207,6 +207,10 @@ output_nifti(char *filename, nc_type volume_nc_data_type,
     nifti_filetype = FT_UNSPECIFIED;
     nifti_datatype = DT_UNKNOWN;
 
+    /* still experimental */
+    fprintf(stderr, "Function output_nifti not yet working.\n");
+    return (-1);
+
     if (!nifti_signed) {
         switch (nifti_datatype) {
         case DT_INT8:
