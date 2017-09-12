@@ -192,9 +192,9 @@ unwrap_sheet2d(double *wdata, int *wdm, int wrap, double *data)
 
 
 void
-map_smoothed_curvature_to_sphere(polygons_struct *polygons,
-                                 polygons_struct *sphere, double *values,
-                                 double *data, double fwhm, int *dm,
+map_sphere_values_to_sheet(polygons_struct *polygons,
+                                 polygons_struct *sphere, double *sphere_values,
+                                 double *mapped_data, double fwhm, int *dm,
                                  int curvtype)
 {
         polygons_struct   unit_sphere;
@@ -207,13 +207,13 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
         int               x, y;
         int               poly, size, ind;
 
-        /* if values is empty calculate curvature */
-        if (values == (double *)0) {
-                values = (double *) malloc(sizeof(double) * polygons->n_points);
-                get_smoothed_curvatures(polygons, values, fwhm,
+        /* if sphere_values is empty calculate curvature */
+        if (sphere_values == (double *)0) {
+                sphere_values = (double *) malloc(sizeof(double) * polygons->n_points);
+                get_smoothed_curvatures(polygons, sphere_values, fwhm,
                                         curvtype);
         } else if (fwhm > 0) {
-                smooth_heatkernel(polygons, values, fwhm);
+                smooth_heatkernel(polygons, sphere_values, fwhm);
         }
         
         if (sphere == NULL) {
@@ -254,21 +254,21 @@ map_smoothed_curvature_to_sphere(polygons_struct *polygons,
                                 ind = unit_sphere.indices[
                                       POINT_INDEX(unit_sphere.end_indices,
                                                   poly, i)];
-                                value += weights[i] * values[ind];
+                                value += weights[i] * sphere_values[ind];
                         }
-                        data[x + (dm[0]*y)] = value;
+                        mapped_data[x + (dm[0]*y)] = value;
                 }
         }
 
-        /* scale data to uint8 range */
+        /* scale mapped_data to uint8 range */
         mn = FLT_MAX; mx = -FLT_MAX;
         for (i = 0; i < dm[0]*dm[1]; i++) {
-            if (data[i] > mx) mx = data[i];
-            if (data[i] < mn) mn = data[i];
+            if (mapped_data[i] > mx) mx = mapped_data[i];
+            if (mapped_data[i] < mn) mn = mapped_data[i];
         }
     
         for (i = 0; i < dm[0]*dm[1]; i++) 
-                data[i] = (data[i] - mn)/(mx - mn);
+                mapped_data[i] = (mapped_data[i] - mn)/(mx - mn);
         
         delete_the_bintree(&unit_sphere.bintree);
         delete_polygons(&unit_sphere);

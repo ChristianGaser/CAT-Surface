@@ -489,9 +489,9 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 }
                 
                 /* get curvatures */
-                map_smoothed_curvature_to_sphere(sm_trg, NULL, (double *)0,
+                map_sphere_values_to_sheet(sm_trg, NULL, (double *)0,
                                                  map_trg, fwhm, dm, curvtype0);
-                map_smoothed_curvature_to_sphere(sm_src, sm_src_sphere,
+                map_sphere_values_to_sheet(sm_src, sm_src_sphere,
                                                  (double *)0, map_src, fwhm,
                                                  dm, curvtype0);
                 
@@ -743,13 +743,13 @@ main(int argc, char *argv[])
         if (debug) {
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
-                map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
+                map_sphere_values_to_sheet(src, src_sphere, (double *)0,
                                                  data, 0.0, dm, curvtype);
 
                 if (write_pgm("source.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
 
-                map_smoothed_curvature_to_sphere(trg, trg_sphere, (double *)0,
+                map_sphere_values_to_sheet(trg, trg_sphere, (double *)0,
                                                  data, 0.0, dm, curvtype);
 
                 if (write_pgm("target.pgm", data, dm[0], dm[1]) != 0)
@@ -770,7 +770,7 @@ main(int argc, char *argv[])
         if (debug && rotate) {
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
-                map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
+                map_sphere_values_to_sheet(src, src_sphere, (double *)0,
                                                  data, 0.0, dm, curvtype);
 
                 if (write_pgm("source_rotated.pgm", data, dm[0], dm[1]) != 0)
@@ -840,7 +840,7 @@ main(int argc, char *argv[])
         if (pgm_file != NULL) {
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
-                map_smoothed_curvature_to_sphere(src, src_sphere, (double *)0,
+                map_sphere_values_to_sheet(src, src_sphere, (double *)0,
                                                  data, 0.0, dm, curvtype);
 
                 if (write_pgm(pgm_file, data, dm[0], dm[1]) != 0)

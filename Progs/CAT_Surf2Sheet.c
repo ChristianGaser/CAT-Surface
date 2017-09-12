@@ -128,9 +128,9 @@ main(int argc, char *argv[])
         data = (double *) malloc(sizeof(double) * sz_map[0] * sz_map[1]);
         
         if (values_file == NULL)
-                map_smoothed_curvature_to_sphere(polygons, sphere, values, data, fwhm, sz_map, curvtype);
+                map_sphere_values_to_sheet(polygons, sphere, values, data, fwhm, sz_map, curvtype);
         else
-                map_smoothed_curvature_to_sphere(sphere, sphere, values, data, fwhm, sz_map, curvtype);
+                map_sphere_values_to_sheet(sphere, sphere, values, data, fwhm, sz_map, curvtype);
 
         /* scale data to uint8 range */
         mn = FLT_MAX; mx = -FLT_MAX;
