@@ -17,12 +17,12 @@
 #include "CAT_Surf.h"
 
 /* argument defaults */
-int ntheta = 4;
-int gtheta = 0;
-int nphi = 0;
-int gphi = 0;
-double amplitude = 0.05;
-double radius = 65.0;
+int ntheta = 8;
+int gtheta = 2;
+int nphi = 8;
+int gphi = 2;
+double amplitude = 0.1;
+double radius = 100.0;
 BOOLEAN gamp = 0;
 int n_triangles = 327680;
 
