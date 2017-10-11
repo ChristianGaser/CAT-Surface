@@ -21,13 +21,14 @@
         (result)[Z] = RPoint_z(grid_start) + offset + length * Vector_z(normal); \
 }
 
-#define F_AVERAGE 0
-#define F_RANGE   1
-#define F_MAXABS  2
-#define F_MAX     3
-#define F_MIN     4
-#define F_EXP     5
-#define F_SUM     6
+#define F_AVERAGE  0
+#define F_RANGE    1
+#define F_MAXABS   2
+#define F_MAX      3
+#define F_MIN      4
+#define F_EXP      5
+#define F_SUM      6
+#define F_WAVERAGE 7
 
 #define LOG05     -0.69314718
 #define MAX_N_ARRAY 250
@@ -74,15 +75,18 @@ ArgvInfo argTable[] = {
   { "-avg", ARGV_CONSTANT, (char *) F_AVERAGE, 
     (char *) &map_func,
     "Use average for mapping along normals." },
+  { "-weighted_avg", ARGV_CONSTANT, (char *) F_WAVERAGE, 
+    (char *) &map_func,
+    "Use weighted average with gaussian kernel for mapping along normals.\n\t\t     The kernel is so defined that values at the boundary are weighted with 50% while center is weighted with 100%" },
   { "-range", ARGV_FLOAT, (char *) F_RANGE, 
     (char *) frange,
     "Count number of values in range for mapping along normals. If any value is out of range \n\t\t     values will be counted only until this point" },
   { "-maxabs", ARGV_CONSTANT, (char *) F_MAXABS, 
     (char *) &map_func,
-    "Use absolute maximum value for mapping along normals. Optionally a 2nd volume can be defined\n\t\t     to output its value at the maximum value of the 1st volume." },
+    "Use absolute maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined\n\t\t     to output its value at the maximum value of the 1st volume." },
   { "-max", ARGV_CONSTANT, (char *) F_MAX, 
     (char *) &map_func,
-    "Use maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined\n\t\t     to output its value at the maximum value of the 1st volume." },
+    "Use maximum value for mapping along normals. Optionally a 2nd volume can be defined\n\t\t     to output its value at the maximum value of the 1st volume." },
   { "-min", ARGV_CONSTANT, (char *) F_MIN, 
     (char *) &map_func,
     "Use minimum value for mapping along normals. Optionally a 2nd volume can be defined to\n\t\t     output its value at the minimum value of the 1st volume." },
@@ -97,7 +101,7 @@ ArgvInfo argTable[] = {
 
 
 Real
-evaluate_function(double val_array[], int n_val, int map_func, double exp_array[], int index[])
+evaluate_function(double val_array[], int n_val, int map_func, double kernel[], int index[])
 {
         int   i, in_range;
         double  result;
@@ -110,6 +114,11 @@ evaluate_function(double val_array[], int n_val, int map_func, double exp_array[
                 for (i = 0; i < n_val; i++)
                         result += val_array[i]; 
                 result /= (Real) n_val;
+                break;
+        case F_WAVERAGE:
+                result = 0.0;
+                for (i = 0; i < n_val; i++)
+                        result += val_array[i]*kernel[i];
                 break;
         case F_RANGE:
                 /*
@@ -164,7 +173,7 @@ evaluate_function(double val_array[], int n_val, int map_func, double exp_array[
                 /* exponential average */
                 result = 0.0;
                 for (i = 0; i < n_val; i++)
-                        result += val_array[i]*exp_array[i];
+                        result += val_array[i]*kernel[i];
                 break;
         case F_SUM:
                 result = 0.0;
@@ -187,7 +196,7 @@ main(int argc, char *argv[])
         polygons_struct      *polygons;
         double               value, value2, *values, *values2, *thickness, voxel[N_DIMENSIONS];
         double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
-        double               exp_sum, exp_array[MAX_N_ARRAY];
+        double               sum, x, fwhm, kernel[MAX_N_ARRAY];
         Vector               normal;
 
         /* Call ParseArgv */
@@ -270,16 +279,32 @@ main(int argc, char *argv[])
 
         /* calculate exponential decay if exp function is defined */
         if (exp_half != FLT_MAX) {
-                exp_sum = 0.0;
+                sum = 0.0;
                 for (j = 0; j < grid_steps; j++) {
-                        exp_array[j] = exp(LOG05 / exp_half * length_array[j]);
-                        exp_sum += exp_array[j];
+                        kernel[j] = exp(LOG05 / exp_half * length_array[j]);
+                        sum += kernel[j];
                 }
                 /* scale sum of exponential function to 1 */
                 for (j = 0; j < grid_steps; j++)
-                        exp_array[j] /= exp_sum;
+                        kernel[j] /= sum;
         }
     
+        /* calculate gaussian kernel if weighted average function is defined */
+        if (map_func == F_WAVERAGE) {
+                sum = 0.0;
+                fwhm = sqrt((double)grid_steps/2.5); /* fwhm is approximated that extreme values at the border are weighted with 50% and 
+                                center with 100% */
+                for (i = 0; i < grid_steps; i++) {
+                        x = ((double)i+1) - ((double)grid_steps + 1.0)/2.0;
+                        kernel[i] = (1.0/sqrt(6.28*fwhm))*exp(-(x*x)/(2.0*fwhm));
+                        sum += kernel[i];
+                }
+                
+                /* scale sum of gaussian kernel to 1 */
+                for (i = 0; i < grid_steps; i++)
+                        kernel[i] /= sum;
+        }
+
         if (input_volume_all(volume_file, 3, File_order_dimension_names,
                              NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                              TRUE, &volume, NULL) != OK)
@@ -344,7 +369,7 @@ main(int argc, char *argv[])
                 }
                 /* evaluate function */
                 value = evaluate_function(val_array, grid_steps,
-                                          map_func, exp_array, &index);
+                                          map_func, kernel, &index);
                 values[i] = value;
                 
                 /* get optional values for 2nd volume according to index of 1st volume */
