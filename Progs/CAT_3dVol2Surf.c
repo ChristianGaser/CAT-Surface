@@ -14,11 +14,11 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_NiftiIO.h"
 
-#define GET_grid_POINT(result, grid_start, normal, length, offset) \
+#define GET_grid_POINT(result, grid_start, normal, length) \
 { \
-        (result)[X] = RPoint_x(grid_start) + offset + length * Vector_x(normal); \
-        (result)[Y] = RPoint_y(grid_start) + offset + length * Vector_y(normal); \
-        (result)[Z] = RPoint_z(grid_start) + offset + length * Vector_z(normal); \
+        (result)[X] = RPoint_x(grid_start) + length * Vector_x(normal); \
+        (result)[Y] = RPoint_y(grid_start) + length * Vector_y(normal); \
+        (result)[Z] = RPoint_z(grid_start) + length * Vector_z(normal); \
 }
 
 #define F_AVERAGE  0
@@ -34,16 +34,16 @@
 #define MAX_N_ARRAY 250
 
 /* argument defaults */
-int  degrees_continuity = 0;    /* interpolation - default: linear */
-int  map_func = F_MAXABS;       /* default mapping function: (absolute) maximum value */
-int  grid_steps = 10;           /* number of grid steps */
-double grid_start = 0.0;        /* start point (origin) of grid along normals */
-double grid_end = 5.0;          /* end point of grid along normals */
-double offset_value = 0.0;      /* offset according to thickness that is given with offset option */
-double frange[2] = {FLT_MAX, FLT_MAX};
-double exp_half = FLT_MAX;
-char *thickness_file = NULL;    /* thickness file for restricting mapping inside defined thickness */
-char *offset_file = NULL;       /* thickness file for defining offset to (central) surface */
+int  degrees_continuity = 0;        /* interpolation - default: linear */
+int  grid_steps         = 10;       /* number of grid steps */
+double grid_start       = 0.0;      /* start point (origin) of grid along normals */
+double grid_end         = 5.0;      /* end point of grid along normals */
+double offset_value     = 0.0;      /* offset according to thickness that is given with offset option */
+int  map_func           = F_MAXABS; /* default mapping function: (absolute) maximum value */
+double frange[2]        = {FLT_MAX, FLT_MAX};
+double exp_half         = FLT_MAX;
+char *thickness_file    = NULL;     /* thickness file for restricting mapping inside defined thickness */
+char *offset_file       = NULL;     /* thickness file for defining offset to (central) surface */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -58,15 +58,15 @@ ArgvInfo argTable[] = {
   {"-offset", ARGV_STRING, (char *) 1, (char *) &offset_file, 
      "Additional thickness file defining an offset according to the given surface.\n\t\t     If this option is used then also use the option -offset_value to define the offset (default 0)."},
   {"-offset_value", ARGV_FLOAT, (char *) 1, (char *) &offset_value,
-       "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t     pial surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t     A negative value of -0.5 can be used to define the WM surface."},
+       "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t     WM surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t     A negative value of -0.5 can be used to define the pial surface."},
   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Interpolation options:"},
   { "-linear", ARGV_CONSTANT, (char *) 0, 
     (char *) &degrees_continuity,
-    "Use linear interpolation." },
+    "Use linear interpolation (Default)." },
   { "-nearest_neighbour", ARGV_CONSTANT, (char *) -1, 
     (char *) &degrees_continuity,
-    "Use nearest neighbour interpolation (Default)." },
+    "Use nearest neighbour interpolation." },
   { "-cubic", ARGV_CONSTANT, (char *) 2,
     (char *) &degrees_continuity,
         "Use cubic interpolation." },
@@ -77,7 +77,7 @@ ArgvInfo argTable[] = {
     "Use average for mapping along normals." },
   { "-weighted_avg", ARGV_CONSTANT, (char *) F_WAVERAGE, 
     (char *) &map_func,
-    "Use weighted average with gaussian kernel for mapping along normals.\n\t\t     The kernel is so defined that values at the boundary are weighted with 50% while center is weighted with 100%" },
+    "Use weighted average with gaussian kernel for mapping along normals.\n\t\t     The kernel is so defined that values at the boundary are weighted with 50% while the center is weighted with 100%" },
   { "-range", ARGV_FLOAT, (char *) F_RANGE, 
     (char *) frange,
     "Count number of values in range for mapping along normals. If any value is out of range \n\t\t     values will be counted only until this point" },
@@ -201,19 +201,19 @@ main(int argc, char *argv[])
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0)) {
-                fprintf(stderr, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
-                fprintf(stderr, "Map data from a volume to a surface.\n");
+                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
+                fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &object_file) || !get_string_argument(NULL, &volume_file) || !get_string_argument(NULL, &output_values_file)) {
-                fprintf(stderr, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
-                fprintf(stderr, "Map data from a volume to a surface.\n");
+                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
+                fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
-
+        
         /* get optional arguments for 2nd volume and output */ 
         get_string_argument(NULL, &volume_file2);
         get_string_argument(NULL, &output_file2);
@@ -240,31 +240,30 @@ main(int argc, char *argv[])
 
         /* initialize values for lengths (starting with origin) */
         if (thickness_file == NULL)
-                fprintf(stderr, "Calculate values along absolute positions [mm]:\n");
+                fprintf(stdout, "Calculate values along absolute positions [mm]:\n");
         else {
+                /* set offset_value to 0 if thickness flag is defined too */
+                if (offset_value != 0.0) {
+                        offset_value = 0.0;
+                        fprintf(stdout, "Offset value can only be defined together with offset flag.\n");
+                }
                 if (input_values_any_format(thickness_file, &n_thickness_values, &thickness) != OK)
                         exit(EXIT_FAILURE);
 
-                fprintf(stderr, "Calculate values along relative position using thickness:\n");
-        }
-
-        /* use offset file to get other surfaces */
-        if ((offset_file != NULL) && (thickness_file != NULL)) {
-                fprintf(stderr, "Calculate values along absolute positions [mm]:\n");
-                exit(EXIT_FAILURE);
+                fprintf(stdout, "Calculate values along relative position using thickness:\n");
         }
         
         /* use offset file to get other surfaces */
         if (offset_file != NULL) {
                 /* check that not both thickness and offset are defined */
                 if (thickness_file != NULL) {
-                        fprintf(stderr, "Please only define thickness or offset.\n");
+                        fprintf(stderr, "Please only define either thickness or offset.\n");
                         exit(EXIT_FAILURE);
                 }
                 if (input_values_any_format(offset_file, &n_thickness_values, &thickness) != OK)
                         exit(EXIT_FAILURE);
 
-                fprintf(stderr, "Use offset of %g of thickness to the surface:\n", offset_value);
+                fprintf(stdout, "Use relative offset of %g of thickness to the surface:\n", offset_value);
         }
 
         for (j = 0; j < grid_steps; j++) {
@@ -273,9 +272,9 @@ main(int argc, char *argv[])
                 /* only use grid calculation if more than 1 value is given */
                 if (grid_steps > 1) length_array[j] += ((Real)j / (Real)(grid_steps-1) * (grid_end - grid_start));
                 
-                fprintf(stderr,"%3.2f ",length_array[j]);
+                fprintf(stdout,"%3.2f ",length_array[j]);
         }
-        fprintf(stderr, "\n");
+        fprintf(stdout, "\n");
 
         /* calculate exponential decay if exp function is defined */
         if (exp_half != FLT_MAX) {
@@ -292,7 +291,7 @@ main(int argc, char *argv[])
         /* calculate gaussian kernel if weighted average function is defined */
         if (map_func == F_WAVERAGE) {
                 sum = 0.0;
-                fwhm = sqrt((double)grid_steps/2.5); /* fwhm is approximated that extreme values at the border are weighted with 50% and 
+                fwhm = sqrt((double)grid_steps/2.5); /* fwhm is approximated that extreme values at the borders are weighted with 50% and 
                                 center with 100% */
                 for (i = 0; i < grid_steps; i++) {
                         x = ((double)i+1) - ((double)grid_steps + 1.0)/2.0;
@@ -326,7 +325,7 @@ main(int argc, char *argv[])
                                      File_order_dimension_names,
                                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                                      TRUE, &volume2, NULL) != OK)
-                exit(EXIT_FAILURE);
+                        exit(EXIT_FAILURE);
                 ALLOC(values2, polygons->n_points);
         }
 
@@ -337,7 +336,7 @@ main(int argc, char *argv[])
         polygons = get_polygons_ptr(objects[0]);
 
         /* check whether # of thickness values fits to surface */
-        if ((thickness_file != NULL) || (offset_file != NULL)) {
+        if ((thickness_file != NULL) || (offset_file != NULL)) {        
                 if (polygons->n_points != n_thickness_values) {
                         fprintf(stderr,"Number of surface points differs from number of thickness values.\n");
                         exit(EXIT_FAILURE);
@@ -349,17 +348,26 @@ main(int argc, char *argv[])
         ALLOC(values, polygons->n_points);
 
         for (i = 0; i < polygons->n_points; i++) {
+        
                 /* look only for inward normals */
                 SCALE_VECTOR(normal, polygons->normals[i], -1.0);
+                
                 for (j = 0; j < grid_steps; j++) {
+                
                         /* get point from origin in normal direction */
                         if (thickness_file == NULL) {
-                                GET_grid_POINT(voxel, polygons->points[i],
-                                       normal, length_array[j], offset_value); 
+                                if (offset_file != NULL) {
+                                        GET_grid_POINT(voxel, polygons->points[i],
+                                                normal, length_array[j] + (offset_value*thickness[i])); 
+                                } else {
+                                        GET_grid_POINT(voxel, polygons->points[i],
+                                                normal, length_array[j]); 
+                                }
                         } else { /* relate grid position to thickness values */
                                 GET_grid_POINT(voxel, polygons->points[i],
-                                       normal, length_array[j]*thickness[j], 0);
+                                       normal, length_array[j]*thickness[i]);
                         }
+                        
                         evaluate_volume_in_world(volume, voxel[X], voxel[Y],
                                                  voxel[Z], degrees_continuity, 
                                                  FALSE, 0.0, &value, NULL,
@@ -368,19 +376,26 @@ main(int argc, char *argv[])
                         val_array[j] = value;
                 }
                 /* evaluate function */
-                value = evaluate_function(val_array, grid_steps,
+                values[i] = evaluate_function(val_array, grid_steps,
                                           map_func, kernel, &index);
-                values[i] = value;
                 
                 /* get optional values for 2nd volume according to index of 1st volume */
                 if (output_file2 != NULL) {
+                
+                        /* get point from origin in normal direction */
                         if (thickness_file == NULL) {
+                                if (offset_file != NULL) {
+                                        GET_grid_POINT(voxel, polygons->points[i],
+                                                normal, length_array[index] + (offset_value*thickness[i])); 
+                                } else {
+                                        GET_grid_POINT(voxel, polygons->points[i],
+                                                normal, length_array[index]); 
+                                }
+                        } else { /* relate grid position to thickness values */
                                 GET_grid_POINT(voxel, polygons->points[i],
-                                       normal, length_array[index], offset_value);
-                        } else {
-                                GET_grid_POINT(voxel, polygons->points[i],
-                                       normal, length_array[index]*thickness[j], 0);
+                                       normal, length_array[index]*thickness[i]);
                         }
+
                         evaluate_volume_in_world(volume2, voxel[X], voxel[Y],
                                                  voxel[Z], degrees_continuity, 
                                                  FALSE, 0.0, &value2, NULL,
