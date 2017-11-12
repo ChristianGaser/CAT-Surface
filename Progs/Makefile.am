@@ -72,6 +72,7 @@ bin_PROGRAMS = \
 	CAT_Central2Pial \
 	CAT_Surf2Vol \
 	CAT_Surf2ConvexHull \
+	CAT_Test \
 	CAT_MarchingCubes
 
 # experimental code, not yet working or for testing only!

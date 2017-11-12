@@ -7,6 +7,9 @@
  *
 */
 
+#ifndef CAT_SURFACEIO_H
+#define CAT_SURFACEIO_H
+
 #include <bicpl.h>
 #include <stdio.h>
 #include <string.h>
@@ -90,6 +93,14 @@
 #endif /* BYTE_ORDER */
 ///////////////////////////////////////////////////
 
+typedef struct
+{
+  int    r, g, b ;
+  int    annotation ;
+  char   name[1000] ;
+}
+ATABLE ;
+
 Status bicpl_to_facevertexdata(polygons_struct *, double **, double **);
 Status input_values_any_format(char *, int *, double **);
 Status input_values_integer(char *, int *, int **);
@@ -111,3 +122,6 @@ int    input_dx(char *, File_formats *, int *, object_struct  ***);
 int    input_dfs(char *, File_formats *, int *, object_struct  ***);
 double * read_pgm(char *, int *, int *);
 int    write_pgm(char *, double *, int, int);
+int    read_annotation_table(char *, int *, int **, int *, ATABLE **);
+
+#endif

@@ -13,6 +13,40 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Complexity.h"
 
+/* correct shifting and scaling of source sphere w.r.t. target sphere */
+void
+correct_shift_scale_sphere(polygons_struct *source_sphere, polygons_struct *target_sphere,
+                polygons_struct **out_source_sphere, polygons_struct **out_target_sphere)
+{
+        int i;
+        
+        object_struct **source_sphere_objects, **target_sphere_objects;
+        polygons_struct *scaled_source_sphere, *scaled_target_sphere;
+
+        source_sphere_objects = (object_struct **) malloc(sizeof(object_struct *));
+        *source_sphere_objects = create_object(POLYGONS);
+        scaled_source_sphere = get_polygons_ptr(*source_sphere_objects);
+        copy_polygons(source_sphere, scaled_source_sphere);
+        for (i = 0; i < scaled_source_sphere->n_points; i++)
+                set_vector_length(&scaled_source_sphere->points[i], 100.0);
+
+        target_sphere_objects = (object_struct **) malloc(sizeof(object_struct *));
+        *target_sphere_objects = create_object(POLYGONS);
+        scaled_target_sphere = get_polygons_ptr(*target_sphere_objects);
+        copy_polygons(target_sphere, scaled_target_sphere);
+        for (i = 0; i < scaled_target_sphere->n_points; i++)
+                set_vector_length(&scaled_target_sphere->points[i], 100.0);
+                
+        correct_bounds_to_target(scaled_source_sphere, scaled_target_sphere);
+
+        *out_source_sphere = scaled_source_sphere;
+        *out_target_sphere = scaled_target_sphere;
+
+        delete_object_list(1, source_sphere_objects);
+        delete_object_list(1, target_sphere_objects);
+
+}
+
 void
 resample_values_sphere_noscale(polygons_struct *source_sphere, polygons_struct *target_sphere,
                double *invals, double *outvals)
@@ -51,33 +85,15 @@ resample_values_sphere(polygons_struct *source_sphere, polygons_struct *target_s
                 double *invals, double *outvals, int scale_and_shift)
 {
         int i;
+        polygons_struct *scaled_source_sphere, *scaled_target_sphere;
         
         if (scale_and_shift) { /* correct shifts and vector length */
-                object_struct **source_sphere_objects, **target_sphere_objects;
-                polygons_struct *scaled_source_sphere, *scaled_target_sphere;
-
-                source_sphere_objects = (object_struct **) malloc(sizeof(object_struct *));
-                *source_sphere_objects = create_object(POLYGONS);
-                scaled_source_sphere = get_polygons_ptr(*source_sphere_objects);
-                copy_polygons(source_sphere, scaled_source_sphere);
-                for (i = 0; i < scaled_source_sphere->n_points; i++)
-                        set_vector_length(&scaled_source_sphere->points[i], 100.0);
-
-                target_sphere_objects = (object_struct **) malloc(sizeof(object_struct *));
-                *target_sphere_objects = create_object(POLYGONS);
-                scaled_target_sphere = get_polygons_ptr(*target_sphere_objects);
-                copy_polygons(target_sphere, scaled_target_sphere);
-                for (i = 0; i < scaled_target_sphere->n_points; i++)
-                        set_vector_length(&scaled_target_sphere->points[i], 100.0);
-                        
-                correct_bounds_to_target(scaled_source_sphere, scaled_target_sphere);
+                correct_shift_scale_sphere(source_sphere, target_sphere, &scaled_source_sphere,
+                        &scaled_target_sphere);
 
                 resample_values_sphere_noscale(scaled_source_sphere, scaled_target_sphere, 
                         invals, outvals);
                 
-                delete_object_list(1, source_sphere_objects);
-                delete_object_list(1, target_sphere_objects);
-
         } else  resample_values_sphere_noscale(source_sphere, target_sphere, invals, outvals);
 
 

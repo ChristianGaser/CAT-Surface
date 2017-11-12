@@ -30,7 +30,7 @@ void get_radius_of_points(polygons_struct *, double *);
 
 void translate_to_center_of_mass(polygons_struct *);
 void correct_bounds_to_target(polygons_struct *, polygons_struct *);
-double get_largest_dist(polygons_struct *);
+double get_sphere_radius(polygons_struct *);
 
 void set_vector_length(Point *, double);
 int count_edges(polygons_struct *, int [], int *[]);

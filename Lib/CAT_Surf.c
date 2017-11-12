@@ -317,7 +317,7 @@ translate_to_center_of_mass(polygons_struct *polygons)
 }
 
 double
-get_largest_dist(polygons_struct *polygons)
+get_sphere_radius(polygons_struct *polygons)
 {
         int i, j;
         double radius = 0.0, dist = 0.0;
@@ -836,7 +836,7 @@ linear_smoothing(polygons_struct *polygons, double strength, int iters,
 
         BOOLEAN smoothSubsetOfNodes = 0;
         const double invstr = 1.0 - strength;
-        double radius = get_largest_dist(polygons);
+        double radius = get_sphere_radius(polygons);
     
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
@@ -908,7 +908,7 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
         BOOLEAN smoothSubsetOfNodes = 0;
         BOOLEAN smoothEdges, smoothIt;
         double invstr = 1.0 - strength;
-        double radius = get_largest_dist(polygons);
+        double radius = get_sphere_radius(polygons);
 
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
@@ -1011,7 +1011,7 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
         BOOLEAN smoothSubsetOfNodes = 0;
 
         invstr = 1.0 - strength;
-        radius = get_largest_dist(polygons);
+        radius = get_sphere_radius(polygons);
     
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);

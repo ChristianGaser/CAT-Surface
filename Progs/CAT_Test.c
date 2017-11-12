@@ -1,65 +1,86 @@
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ * $Id$
+ *
+ */
 
-#include  <volume_io/internal_volume_io.h>
-#include  <bicpl.h>
-#include "CAT_NiftiIO.h"
+#include "CAT_SurfaceIO.h"
 
-int  main(
-    int   argc,
-    char  *argv[] )
+void
+usage(char *executable)
 {
-    STRING     input_filename;
-    double       x, y, z, value, voxel[3];
-    Volume     volume;
-    BOOLEAN   interpolating_dimensions[MAX_DIMENSIONS];
-    int d,axis;
+        char *usage_str = "\n\
+Usage: %s  surface_file sphere_file target_sphere_file annot_file\n\
+Text.\n\
+\n\n";
 
-    initialize_argument_processing( argc, argv );
+        fprintf(stderr, usage_str, executable);
+}
 
-    if( !get_string_argument( "", &input_filename ) )
-    {
-        return( 1 );
-    }
- 
-    if( input_volume_all( input_filename, 3, XYZ_dimension_names,
-                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                      TRUE, &volume, (minc_input_options *) NULL ) != OK )
-        return( 1 );
-
-    for_less( d, 0, N_DIMENSIONS )
-    {
-        axis = volume->spatial_axes[d];
-        if( axis < 0 )
-        {
-            print_error(
-                  "evaluate_volume_in_world(): must have 3 spatial axes.\n" );
-            return(1);
+int  main(int   argc, char  *argv[])
+{
+        char             *sphere_file, *target_sphere_file, *annot_filename, *input_values_file;
+        File_formats     format;
+        int              i, *array, num_table, num_array;
+        int              n_objects, n_values;
+        char             **struct_names;
+        double           *input_values;
+        object_struct    **objects_src_sphere, **objects_target_sphere;
+        polygons_struct  *polygons_sphere, *target_sphere;
+        ATABLE           *atable;
+    
+        initialize_argument_processing( argc, argv );
+    
+        if (!get_string_argument(NULL, &sphere_file) ||
+            !get_string_argument(NULL, &target_sphere_file) ||
+            !get_string_argument(NULL, &annot_filename) ||
+            !get_string_argument(NULL, &input_values_file)) {
+                usage(argv[0]);
+                exit(EXIT_FAILURE);
         }
 
-        interpolating_dimensions[axis] = TRUE;
-    }
+        if (input_graphics_any_format(sphere_file, &format,
+                                      &n_objects, &objects_src_sphere) != OK ||
+            n_objects != 1 || get_object_type(objects_src_sphere[0]) != POLYGONS) {
+                fprintf(stderr, "File %s must contain 1 polygons object.\n",
+                        sphere_file);
+                exit(EXIT_FAILURE);
+        }
 
-    while( get_real_argument( 0.0, &x ) &&
-           get_real_argument( 0.0, &y ) &&
-           get_real_argument( 0.0, &z ) )
-    {
-        evaluate_volume_in_world( volume, x, y, z, -1, FALSE, 0.0,
-                                  &value,
-                                  NULL, NULL, NULL,
-                                  NULL, NULL, NULL, NULL, NULL, NULL );
-                        convert_world_to_voxel( volume, x,y,z, voxel );
-                        printf("%f %f %f %f %f %f\t%f\n",x,y,z,voxel[X],voxel[Y],voxel[Z],value);
+        if (input_graphics_any_format(target_sphere_file, &format,
+                                      &n_objects,
+                                      &objects_target_sphere) != OK ||
+            n_objects != 1 || get_object_type(objects_target_sphere[0]) != POLYGONS ) {
+                fprintf(stderr, "File %s must contain 1 polygons object.\n",
+                        target_sphere_file);
+                exit(EXIT_FAILURE);
+        }
 
-        print( "%g\n", value );
+        target_sphere   = get_polygons_ptr(objects_target_sphere[0]);
+        polygons_sphere = get_polygons_ptr(objects_src_sphere[0]);
 
-voxel[X] = x;
-voxel[Y] = y;
-voxel[Z] = z;
-        evaluate_volume( volume, voxel, interpolating_dimensions, 0, FALSE, 0.0,
-                                  &value,
-                                  NULL, NULL );
+        input_values  = (double *) malloc(sizeof(double) * polygons_sphere->n_points);
 
-        print( "%g\n", value );
-    }
+        if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
+                fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
+               exit(EXIT_FAILURE);
+        }
 
-    return( 0 );
+        read_annotation_table(annot_filename, &num_array, &array, &num_table, &atable);
+
+        if(target_sphere->n_points != num_array) {
+                    fprintf(stderr,"Annotation file and target sphere have different dimensions.\n");
+                    exit(EXIT_FAILURE);
+        }
+
+        for (i = 0 ; i < num_table ; i++) 
+            printf("%d %s\n",atable[i].annotation,atable[i].name);
+    
+    /*    for (i = 0 ; i < n ; i++) 
+    printf("%d %d\n",i,array[i]);
+      */  
+        return( 0 );
 }

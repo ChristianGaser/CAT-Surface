@@ -5,8 +5,8 @@
  * Copyright Christian Gaser, University of Jena.
  * $Id$
  *
- * Most of the basic input functions are from fio.c, machine.c
- * and gifti_local.c from freesurfer
+ * Most of the basic input functions are from fio.c, machine.c,
+ * annotations.c and gifti_local.c from freesurfer
  *
  */
 
@@ -1357,7 +1357,7 @@ read_pgm(char *file, int *nx, int *ny)
 {
         FILE          *fp;
         int           i, size, max_val;
-        char          line[256];
+        char          line[1000];
         unsigned char *data_char;
         double          *data;
             
@@ -1550,5 +1550,89 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
         }
 
         return(status);
+}
+
+int
+read_annotation_table(char *file, int *num_array, int **out_array, int *num_labels, ATABLE **out_atable)
+{
+        FILE    *fp ;
+        char    *cp, annot_name[1000], **struct_names;
+        int     i, flag, label, len, vno, tag, *array;
+        int     version, structure;
+        ATABLE *atable;
+
+        fp = fopen(file, "r") ;
+        if (!fp)
+        {
+                fprintf(stderr, "Could not open annotation file %s\n", file) ;
+                return(-1);
+        }
+
+        *num_array = freadInt(fp);
+
+        array = (int*) calloc (*num_array, sizeof(int));
+
+        for (i = 0 ; i < *num_array ; i++) 
+        {
+                vno = freadInt(fp) ;
+                label = freadInt(fp) ;
+                if (vno >= *num_array || vno < 0) {
+                        fprintf(stderr, "Vertex index out of range\n");
+                        return(-1) ;
+                } else  array[vno] = label;
+        }
+
+        *out_array = array;
+        
+        tag = freadInt (fp);
+        if (feof(fp)) {
+                fclose(fp);
+                fprintf(stderr, "No colortable found\n") ;
+                return(OK);
+        }
+        
+        *num_labels = freadInt(fp);
+        
+        if (*num_labels > 0) {
+                atable = (ATABLE*) malloc(*num_labels * sizeof(ATABLE));
+                len = freadInt(fp);
+                fread(&annot_name, sizeof(char), len, fp);
+                for (i = 0 ; i < *num_labels ; i++) {
+                        len = freadInt(fp);
+                        fread(&atable[i].name, sizeof(char), len, fp);
+                        atable[i].r = freadInt(fp);
+                        atable[i].g = freadInt(fp);
+                        atable[i].b = freadInt(fp);
+                        flag = freadInt(fp);
+                        atable[i].annotation = atable[i].r+atable[i].g*256+atable[i].b*65536;
+                }
+        } else {
+                version = -(*num_labels);
+                if (feof(fp)) {
+                        fclose(fp);
+                        fprintf(stderr, "Does not handle version %d\n",version) ;
+                        return(OK);
+                }
+                *num_labels = freadInt(fp);
+                len = freadInt(fp);
+                fread(&annot_name, sizeof(char), len, fp);
+                *num_labels = freadInt(fp);
+                atable = (ATABLE*) malloc(*num_labels * sizeof(ATABLE));
+                for (i = 0 ; i < *num_labels ; i++) {
+                        structure = freadInt(fp) + 1;
+                        len = freadInt(fp);
+                        fread(&atable[i].name, sizeof(char), len, fp);
+                        atable[i].r = freadInt(fp);
+                        atable[i].g = freadInt(fp);
+                        atable[i].b = freadInt(fp);
+                        flag = freadInt(fp);
+                        atable[i].annotation = atable[i].r+atable[i].g*256+atable[i].b*65536;
+                }
+        }
+        *out_atable = atable;
+        
+        fclose(fp);
+
+        return(OK) ;
 }
 
