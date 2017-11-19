@@ -123,5 +123,6 @@ int    input_dfs(char *, File_formats *, int *, object_struct  ***);
 double * read_pgm(char *, int *, int *);
 int    write_pgm(char *, double *, int, int);
 int    read_annotation_table(char *, int *, int **, int *, ATABLE **);
+int    write_annotation_table(char *, int, int *, int, ATABLE *);
 
 #endif

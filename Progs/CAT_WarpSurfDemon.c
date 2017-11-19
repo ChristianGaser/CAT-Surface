@@ -731,7 +731,7 @@ main(int argc, char *argv[])
                 WarpDemon(sm_src, sm_sphere_src, sm_trg, 
                          sm_sphere_trg, warped_sphere_src, dpoly_src, dpoly_trg, curvtype0);
 
-                objects = resample_surface_to_target_sphere(sm_sphere_src, warped_sphere_src, sphere_src, NULL, NULL);
+                objects = resample_surface_to_target_sphere(sm_sphere_src, warped_sphere_src, sphere_src, NULL, NULL, 0);
                 sphere_src = get_polygons_ptr(objects[0]);
 
                 /* use smaller FWHM for next steps */

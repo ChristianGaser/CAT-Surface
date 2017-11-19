@@ -1553,30 +1553,27 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
 }
 
 int
-read_annotation_table(char *file, int *num_array, int **out_array, int *num_labels, ATABLE **out_atable)
+read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, ATABLE **out_atable)
 {
         FILE    *fp ;
-        char    *cp, annot_name[1000], **struct_names;
+        char    annot_name[1000], **struct_names;
         int     i, flag, label, len, vno, tag, *array;
         int     version, structure;
         ATABLE *atable;
 
         fp = fopen(file, "r") ;
-        if (!fp)
-        {
+        if (!fp) {
                 fprintf(stderr, "Could not open annotation file %s\n", file) ;
                 return(-1);
         }
 
-        *num_array = freadInt(fp);
+        *n_array = freadInt(fp);
+        array = (int*) calloc (*n_array, sizeof(int));
 
-        array = (int*) calloc (*num_array, sizeof(int));
-
-        for (i = 0 ; i < *num_array ; i++) 
-        {
+        for (i = 0 ; i < *n_array ; i++) {
                 vno = freadInt(fp) ;
                 label = freadInt(fp) ;
-                if (vno >= *num_array || vno < 0) {
+                if (vno >= *n_array || vno < 0) {
                         fprintf(stderr, "Vertex index out of range\n");
                         return(-1) ;
                 } else  array[vno] = label;
@@ -1591,13 +1588,13 @@ read_annotation_table(char *file, int *num_array, int **out_array, int *num_labe
                 return(OK);
         }
         
-        *num_labels = freadInt(fp);
+        *n_labels = freadInt(fp);
         
-        if (*num_labels > 0) {
-                atable = (ATABLE*) malloc(*num_labels * sizeof(ATABLE));
+        if (*n_labels > 0) {
+                atable = (ATABLE*) malloc(*n_labels * sizeof(ATABLE));
                 len = freadInt(fp);
                 fread(&annot_name, sizeof(char), len, fp);
-                for (i = 0 ; i < *num_labels ; i++) {
+                for (i = 0 ; i < *n_labels ; i++) {
                         len = freadInt(fp);
                         fread(&atable[i].name, sizeof(char), len, fp);
                         atable[i].r = freadInt(fp);
@@ -1607,18 +1604,18 @@ read_annotation_table(char *file, int *num_array, int **out_array, int *num_labe
                         atable[i].annotation = atable[i].r+atable[i].g*256+atable[i].b*65536;
                 }
         } else {
-                version = -(*num_labels);
+                version = -(*n_labels);
                 if (feof(fp)) {
                         fclose(fp);
                         fprintf(stderr, "Does not handle version %d\n",version) ;
                         return(OK);
                 }
-                *num_labels = freadInt(fp);
+                *n_labels = freadInt(fp);
                 len = freadInt(fp);
                 fread(&annot_name, sizeof(char), len, fp);
-                *num_labels = freadInt(fp);
-                atable = (ATABLE*) malloc(*num_labels * sizeof(ATABLE));
-                for (i = 0 ; i < *num_labels ; i++) {
+                *n_labels = freadInt(fp);
+                atable = (ATABLE*) malloc(*n_labels * sizeof(ATABLE));
+                for (i = 0 ; i < *n_labels ; i++) {
                         structure = freadInt(fp) + 1;
                         len = freadInt(fp);
                         fread(&atable[i].name, sizeof(char), len, fp);
@@ -1636,3 +1633,45 @@ read_annotation_table(char *file, int *num_array, int **out_array, int *num_labe
         return(OK) ;
 }
 
+int
+write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE *atable)
+{
+        FILE    *fp ;
+        char    **struct_names;
+        int     i, flag, label, len, vno, tag;
+        int     version, structure;
+
+        fp = fopen(file, "w") ;
+        if (!fp) {
+                fprintf(stderr, "Could not open annotation file %s\n", file) ;
+                return(-1);
+        }
+
+        fwriteInt(n_array, fp);
+
+        for (i = 0 ; i < n_array ; i++) {
+                fwriteInt(i, fp) ;
+                fwriteInt(array[i], fp) ;
+        }
+        
+        fwriteInt (1, fp);        
+        fwriteInt(-2, fp);        
+        fwriteInt(n_labels, fp);        
+        fwriteInt(22, fp);        
+        fwrite("write_annotation_table", sizeof(char), 22, fp);
+        fwriteInt(n_labels, fp);        
+        
+        for (i = 0 ; i < n_labels ; i++) {
+                fwriteInt(i, fp);
+                fwriteInt(strlen(atable[i].name)+1, fp);
+                fwrite(strcat(atable[i].name," "), sizeof(char), strlen(atable[i].name), fp);
+                fwriteInt(atable[i].r, fp);
+                fwriteInt(atable[i].g, fp);
+                fwriteInt(atable[i].b, fp);
+                fwriteInt(0, fp);
+        }
+
+        fclose(fp);
+
+        return(OK) ;
+}

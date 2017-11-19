@@ -13,7 +13,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  surface_file sphere_file target_sphere_file annot_file\n\
+Usage: %s  sphere_file target_sphere_file annot_file input_values_file\n\
 Text.\n\
 \n\n";
 
@@ -24,7 +24,7 @@ int  main(int   argc, char  *argv[])
 {
         char             *sphere_file, *target_sphere_file, *annot_filename, *input_values_file;
         File_formats     format;
-        int              i, *array, num_table, num_array;
+        int              i, *array, n_table, n_array;
         int              n_objects, n_values;
         char             **struct_names;
         double           *input_values;
@@ -69,14 +69,15 @@ int  main(int   argc, char  *argv[])
                exit(EXIT_FAILURE);
         }
 
-        read_annotation_table(annot_filename, &num_array, &array, &num_table, &atable);
+        read_annotation_table(annot_filename, &n_array, &array, &n_table, &atable);
+        write_annotation_table("test.annot", n_array, array, n_table, atable);
 
-        if(target_sphere->n_points != num_array) {
+        if(target_sphere->n_points != n_array) {
                     fprintf(stderr,"Annotation file and target sphere have different dimensions.\n");
                     exit(EXIT_FAILURE);
         }
 
-        for (i = 0 ; i < num_table ; i++) 
+        for (i = 0 ; i < n_table ; i++) 
             printf("%d %s\n",atable[i].annotation,atable[i].name);
     
     /*    for (i = 0 ; i < n ; i++) 
