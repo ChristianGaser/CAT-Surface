@@ -17,6 +17,8 @@
 #define  BINTREE_FACTOR   0.5
 #define  NEW_COORDINATE_SYSTEM   1
 
+/* to print out fsavg.index2D_256x128.txt */
+//#define DEBUG 1
 
 double
 compute_clockwise_rotation2(double x, double y)
@@ -232,8 +234,13 @@ map_sphere_values_to_sheet(polygons_struct *polygons,
                                 ROUND((double) unit_sphere.n_items *
                                       BINTREE_FACTOR));
 
+#ifdef DEBUG
+        for (y = 0; y < dm[1]; y++) {
+                for (x = 0; x < dm[0]; x++) {
+#else
         for (x = 0; x < dm[0]; x++) {
                 for (y = 0; y < dm[1]; y++) {
+#endif
                         u = ((double) x + 0.5)/(double) (dm[0]);
                         v = ((double) y + 0.5)/(double) (dm[1]);
                         uv_to_point(u, v, &unit_point);
@@ -249,6 +256,9 @@ map_sphere_values_to_sheet(polygons_struct *polygons,
                                                           size, poly_points,
                                                           weights);
 
+#ifdef DEBUG
+                        fprintf(stdout,"%d\n",unit_sphere.indices[POINT_INDEX(unit_sphere.end_indices,poly, 0)]+1);
+#endif
                         value = 0.0;
                         for (i = 0; i < size; i++) {
                                 ind = unit_sphere.indices[
