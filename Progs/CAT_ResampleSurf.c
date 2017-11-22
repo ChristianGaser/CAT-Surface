@@ -8,10 +8,19 @@
  */
 
 #include <bicpl.h>
+#include <ParseArgv.h>
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Resample.h"
+
+int nn_interpolation = 0;
+
+static ArgvInfo argTable[] = {
+  {"-nearest", ARGV_CONSTANT, (char *) TRUE, (char *) &nn_interpolation,
+     "Use nearest neighbour interpolation (i.e. for labeled atlas data)."},
+   {NULL, ARGV_END, NULL, NULL, NULL}
+};
 
 void
 usage(char *executable)
@@ -31,7 +40,7 @@ main(int argc, char *argv[])
         char             *input_values_file, *output_values_file;
         File_formats     format;
         int              n_objects;
-        int              i, nearest_neighbour_interpolation = 0;
+        int              i;
         int              n_points, n_values, n_table, *out_annot, *in_annot;
         object_struct    **objects, **objects_src_sphere, **objects_target_sphere;
         polygons_struct  *polygons, *polygons_sphere, *target_sphere;
@@ -41,11 +50,13 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &surface_file    ) ||
-            !get_string_argument(NULL, &sphere_file     ) ||
-            !get_string_argument(NULL, &target_sphere_file     ) ||
+        if (ParseArgv(&argc, argv, argTable, 0) ||
+            !get_string_argument(NULL, &surface_file) ||
+            !get_string_argument(NULL, &sphere_file) ||
+            !get_string_argument(NULL, &target_sphere_file) ||
             !get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);
+                fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
 
@@ -97,7 +108,7 @@ main(int argc, char *argv[])
                                         output_values_file);
                                 exit(EXIT_FAILURE);
                         }
-                        nearest_neighbour_interpolation = 1;
+                        nn_interpolation = 1;
                         read_annotation_table(input_values_file, &n_values, &in_annot, &n_table, &atable);
                         for (i = 0 ; i < polygons_sphere->n_points ; i++) 
                                 input_values[i] = (double)in_annot[i];
@@ -110,7 +121,7 @@ main(int argc, char *argv[])
         }
         
         objects_target_sphere = resample_surface_to_target_sphere(polygons, polygons_sphere, 
-                target_sphere, input_values, output_values, nearest_neighbour_interpolation);
+                target_sphere, input_values, output_values, nn_interpolation);
 
         /* skip writing resampled surface file if output name is NULL */
         if (strcmp(output_surface_file, "NULL" )) {
