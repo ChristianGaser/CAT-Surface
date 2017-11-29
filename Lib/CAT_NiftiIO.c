@@ -473,7 +473,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         static char *mnc_ordered_dim_names[MAX_SPACE_DIMS];
 
         /* Other stuff */
-        int i, j, k, d;
+        int i, j, k, l, d;
         long ind;
         float tmp;
         static int oflag = DIMORDER_XYZ;
@@ -481,6 +481,8 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         void *voxels;
 
         mnc_vtype = NC_NAT;
+        
+        if(n_dimensions == -1) n_dimensions = 3;
 
         /* Read in the entire NIfTI file. */
         nii_ptr = nifti_image_read(filename, 1);
@@ -664,10 +666,14 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
         mnc_ndims = 0;
 
         if (nii_ptr->nt > 1) {
+
+                fprintf(stderr, "ERROR: Input of 4D data is not yet supported!\n");
+                return (-1);
+                
                 mnc_start[mnc_ndims] = 0;
                 mnc_count[mnc_ndims] = nii_ptr->nt;
                 mnc_ndims++;
-
+        
                 switch (nii_ptr->time_units) {
                 case NIFTI_UNITS_UNKNOWN:
                 case NIFTI_UNITS_SEC:
@@ -688,6 +694,10 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                                         nii_ptr->time_units);
                         break;
                 }
+                
+                /* increase dimensions and add 4th dimension */
+                n_dimensions++;
+                nii_ptr->dim[mnc_spatial_axes[3]+1] = nii_ptr->nt;
         }
 
         if (nii_ptr->nz > 1) {
@@ -845,7 +855,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                       (size_t) get_type_size(get_volume_data_type(*volume)));
         } else {
                 ind = 0;
-                for (i=0; i<dims[0]; i++) for (j=0; j<dims[1]; j++) for (k=0; k<dims[2]; k++) { 
+                for (i=0; i<dims[0]; i++) for (j=0; j<dims[1]; j++) for (k=0; k<dims[2]; k++) for (l=0; l<dims[3]; l++) { 
                         switch (nii_ptr->datatype) {
                         case DT_INT8:
                                 tmp = (float) ((char *)nii_ptr->data)[ind];
@@ -878,8 +888,8 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                         ind++;
                         /* check whether scaling is needed */
                         if (nii_ptr->scl_slope == 0)
-                                set_volume_real_value( *volume, i, j, k, 0, 0, tmp);
-                        else    set_volume_real_value( *volume, i, j, k, 0, 0, (float)(nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter);
+                                set_volume_real_value( *volume, i, j, k, l, 0, tmp);
+                        else    set_volume_real_value( *volume, i, j, k, l, 0, (float)(nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter);
 
                 }
         }
