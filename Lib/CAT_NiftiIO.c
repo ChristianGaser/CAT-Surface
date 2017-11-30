@@ -849,7 +849,6 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
 
         if (! (*volume)->is_cached_volume) {
                 GET_VOXEL_PTR(voxels, *volume, 0, 0, 0, 0, 0);
-
                 memcpy(voxels, nii_ptr->data,
                       (size_t) get_volume_total_n_voxels(*volume) *
                       (size_t) get_type_size(get_volume_data_type(*volume)));
