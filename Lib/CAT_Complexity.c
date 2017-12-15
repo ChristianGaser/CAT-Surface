@@ -253,7 +253,7 @@ void
 get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 {
         int i, j, n_iter;
-        double sigma, *sm_values;
+        double *sm_values;
         int *n_neighbours, **neighbours;
         Point point;
 

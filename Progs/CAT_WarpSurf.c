@@ -51,7 +51,7 @@ double lambda    = 0;
 double mu        = 0.125;
 double lmreg     = 1e-3;
 double fwhm      = 5.0;
-double fwhm_surf = 10.0;
+double fwhm_surf = 20.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 

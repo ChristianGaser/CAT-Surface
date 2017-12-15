@@ -241,9 +241,9 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
         if (curvtype == 5) {
                 polygonsIn = (polygons_struct *) malloc(sizeof(polygons_struct));
                 copy_polygons(polygons, polygonsIn);
-                
-                /* use smoothing with FWHM of 25mm */
-                smooth_heatkernel(polygonsIn, NULL, 25.0);
+
+                /* use smoothing with FWHM of 50mm */
+                smooth_heatkernel(polygonsIn, NULL, 50.0);
 
                 compute_polygon_normals(polygonsIn);
 

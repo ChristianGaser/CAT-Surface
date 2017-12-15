@@ -63,7 +63,7 @@ from_array(double *xyz, Point *p) {
 }
 
 double *
-get_surface_ratio(double r, polygons_struct *polygons)
+get_surface_ratio(double radius, polygons_struct *polygons)
 {
         int      i, j, x, y, z, a, b, c, nan = 0;
         double   *lf, *avol;
@@ -108,10 +108,10 @@ get_surface_ratio(double r, polygons_struct *polygons)
                 }
 
                 asum = 0;
-                for (x = -r; x <= r; x++) {
-                        for (y = -r; y <= r; y++) {
-                                for (z = -r; z <= r; z++) {
-                                        if (x*x + y*y + z*z < r*r) {
+                for (x = -radius; x <= radius; x++) {
+                        for (y = -radius; y <= radius; y++) {
+                                for (z = -radius; z <= radius; z++) {
+                                        if (x*x + y*y + z*z < radius*radius) {
                                                 *points = polygons->points[i];
                                                 a = x + 128 +
                                                     (int) Point_x(*points);
@@ -135,7 +135,7 @@ get_surface_ratio(double r, polygons_struct *polygons)
                  * will be accounted proportionally to the number of vertices
                  * of vertices inside the sphere.
                  */
-                lf[i] = asum / (_PI*r*r) / 3.0;
+                lf[i] = asum / (_PI*radius*radius) / 3.0;
                 
                 if (lf[i] != lf[i])
                         nan++;

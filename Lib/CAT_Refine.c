@@ -200,8 +200,8 @@ int refine_mesh(
 
         for_less( edge, 0, size )
         {
-            p1 =polygons->indices[POINT_INDEX(polygons->end_indices,poly,edge)];
-            p2 =polygons->indices[POINT_INDEX(polygons->end_indices,poly,
+            p1 = polygons->indices[POINT_INDEX(polygons->end_indices,poly,edge)];
+            p2 = polygons->indices[POINT_INDEX(polygons->end_indices,poly,
                                  (edge+1)%size)];
 
             normalized_length = distance_between_points( &(*length_points)[p1],

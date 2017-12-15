@@ -86,7 +86,7 @@ get_all_polygon_point_neighbours(polygons_struct *polygons,
 double
 evaluate_heatkernel(double x, double sigma)
 {
-    return(exp(-x / (2.0 * sigma * sigma)));
+    return(exp(-(x * x) / (2.0 * sigma * sigma)));
 }
 
 void
@@ -107,57 +107,88 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
     	        *value = 1.0;
 
         for (i = 0; i < n_neighbours+1; i++) {
-                if (i > 0) {
+                if (i > 0) {    /* neighbouring points */
                         neigh = neighbours[i-1];
                         point_dist = distance_between_points(
                                         &polygon_pts[ptidx],
                                         &polygon_pts[neigh]);
-                } else {
+                } else {        /* center point */
                         point_dist = 0.0;
                         neigh = ptidx;
                 }
-                weight = evaluate_heatkernel(point_dist, sigma);
-
+                
                 if (values != NULL) {
+                        /* use Gaussian kernel for values */
+                        weight = evaluate_heatkernel(point_dist, sigma);
+                        
                         /* only consider values that are not NaN */
                         if (!isnan(values[neigh])) {
                                 sum[0] += weight * values[neigh];
                                 sum_weight += weight;
                         }
                 } else {
+                        /* this is rather based on empirically estimated values to be 
+                           compatible to older versions */
+                        if (i > 0) weight = 0.25;
+                        else weight = 1.0;
+                        
                         for (c = 0; c < N_DIMENSIONS; c++)
                                 sum[c] += weight * (double)
                                           Point_coord(polygon_pts[neigh], c);
                         sum_weight += weight;
                 }
         }
-
-        if (values != NULL) {
+        
+        if (values != NULL)
                 *value = sum[0] / sum_weight;
-        } else {
+        else {
                 for (c = 0; c < N_DIMENSIONS; c++)
-                        Point_coord(*smooth_point, c) = (Point_coord_type)
-                                                        (sum[c] / sum_weight);
+                        Point_coord(*smooth_point, c) = (Point_coord_type)(sum[c] / sum_weight);
         }
 }
 
 void
 smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
 {
-        double           sigma, value, *smooth_values;
+        double           sigma, value, point_dist, sum_dist, *smooth_values;
         Point            point, *smooth_pts;
-        int              n_iter, i, j;
+        int              n_iter, i, j, size, p1, p2, n;
         int              *n_neighbours, **neighbours;
         BOOLEAN          values_present;
         progress_struct  progress;
         
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
            
-        /* calculate n_iter with regard to fwhm */    
-        sigma = 1.0;
-        /* 0.541011 equals to 3.0/(8.0*log(2.0)) */
-        n_iter = ceil(fwhm*fwhm*0.541011);
+        /* estimate mean distance between the points to define optimal sigma */
+        n = 0;
+        sum_dist = 0.0;
+        for (i = 0; i < polygons->n_items; i++) {
+                size = GET_OBJECT_SIZE( *polygons, i );
+    
+                for (j = 0; j < size; j++) {
+                        p1 = polygons->indices[POINT_INDEX(polygons->end_indices,i,j)];
+                        p2 = polygons->indices[POINT_INDEX(polygons->end_indices,i,(j+1)%size)];
+
+                        point_dist = distance_between_points(
+                                                &polygons->points[p1],
+                                                &polygons->points[p2]);
+                        n++;
+                        sum_dist += point_dist;
+                }
+        }
         
+        /* use mean distance as sigma */
+        sigma = sum_dist/(double)n;
+        
+        /* calculate n_iter with regard to fwhm   
+           0.541011 equals to 3.0/(8.0*log(2.0))
+           see SurfStatSmooth.m in surfstat from Keith Worsley */
+        n_iter = ceil(fwhm*fwhm*0.541011/(sigma*sigma));
+        if (n_iter < 1) n_iter = 1;
+        
+        /* recalibrate sigma to ensure integer numbers for iterations */
+        sigma = (fwhm*0.7355345)/sqrt((double)n_iter);
+
         initialize_progress_report(&progress, FALSE, n_iter*polygons->n_points,
                                    "Blurring");
         if (values != NULL) 
