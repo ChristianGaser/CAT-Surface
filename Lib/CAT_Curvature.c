@@ -16,6 +16,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Smooth.h"
 #include "CAT_ConvexHull.h"
+#include "CAT_DepthPotential.h"
 
 #define PI2 0.6366197724    /* 2/pi */
 #define  MAX_NEIGHBOURS   1000
@@ -216,7 +217,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                  int curvtype, double curvatures[])
 {
         int              size, pidx, vidx, p;
-        double           curvature, baselen;
+        double           curvature, baselen, alpha;
         signed char      *point_done;
         Point            centroid;
         Vector           normal;
@@ -237,8 +238,12 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                 initialized = FALSE;
         }
         
-        /* for sulcal depth like estimator */
-        if (curvtype == 5) {
+        /* depth potential */
+        if (curvtype > 5) {
+                /* looks weird, but we need a way to define the small values alpha << 1 */
+                alpha = 1/(double)curvtype;
+                curvatures = compute_depth_potential( polygons, alpha); 
+        } else if (curvtype == 5) {
                 polygonsIn = (polygons_struct *) malloc(sizeof(polygons_struct));
                 copy_polygons(polygons, polygonsIn);
 

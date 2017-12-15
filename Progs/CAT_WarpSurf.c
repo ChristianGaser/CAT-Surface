@@ -39,7 +39,9 @@ int code         = 1;
 int loop         = 6;
 int verbose      = 0;
 int rtype        = 1;
-int curvtype     = 2;
+int curvtype0    = 5;
+int curvtype1    = 5;
+int curvtype2    = 2;
 int muchange     = 4;
 int sz_map[2]    = {512, 256};
 int n_triangles  = 81920;
@@ -85,9 +87,9 @@ static ArgvInfo argTable[] = {
   {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
      "LM regularization."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
-     "Filter size for curvature map in FWHM."},
+     "Filter size for curvature map in FWHM. This filter size is decreased by factor 3 with each step."},
   {"-fwhm-surf", ARGV_FLOAT, (char *) 1, (char *) &fwhm_surf,
-     "Filter size for smoothing surface in FWHM."},
+     "Filter size for smoothing surface in FWHM. This filter size is decreased by factor 3 with each step."},
   {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
      "Number of outer Dartel loops for default parameters (max. 6)."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
@@ -100,7 +102,11 @@ static ArgvInfo argTable[] = {
      "Don't rotate input surface before warping."},
   {"-avg", ARGV_CONSTANT, (char *) TRUE, (char *) &avg,
      "Average together two weighted DARTEL solutions into final mesh."},
-  {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
+  {"-type0", ARGV_INT, (char *) 1, (char *) &curvtype0,
+     "Curvature type for 1st step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+  {"-type1", ARGV_INT, (char *) 1, (char *) &curvtype1,
+     "Curvature type for the 2nd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+  {"-type", ARGV_INT, (char *) 1, (char *) &curvtype2,
      "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
@@ -415,7 +421,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                   struct dartel_prm *prm, int dm[3], int n_steps,
                   double rot[3], double *flow, int n_loops)
 {
-        int              step, i, it, it0, it1, xy_size, it_scratch, curvtype0;
+        int              step, i, it, it0, it1, xy_size, it_scratch, curvtype;
         polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
         double           rotation_matrix[9];
         double           *flow1, *inflow, *map_src, *map_trg;
@@ -442,17 +448,17 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
 
                 /* initialization */
                 if (step == 0) {
-                       smooth_heatkernel(sm_src, NULL, fwhm_surf);
-                       smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       curvtype = curvtype0;
+                       if (fwhm_surf > 0) {
+                               smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                               smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       }
                        resample_spherical_surface(src_sphere, src_sphere,
                                                    sm_src_sphere, NULL, NULL,
                                                    n_triangles);
                        resample_spherical_surface(trg_sphere, trg_sphere,
                                                    sm_trg_sphere, NULL, NULL,
                                                    n_triangles);
-
-                        /* always use sulcal depth first */
-                        curvtype0 = 5;
 
                         /* initial rotation if n_loops < 0 */
                         if (n_loops < 0) {
@@ -475,25 +481,27 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                         for (i = 0; i < xy_size*2; i++)  inflow[i] = 0.0;
 
                 } else if (step == 1) {
-                       smooth_heatkernel(sm_src, NULL, fwhm_surf);
-                       smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       curvtype = curvtype1;
+                       if (fwhm_surf > 0) {
+                               smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                               smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       }
                        
-                        /* always use sulcal depth first */
-                        curvtype0 = 5;
                 } else if (step == 2) {
-                        /* use default at final step */
-                        curvtype0 = curvtype;
+                       curvtype = curvtype2;
                         
-                       smooth_heatkernel(sm_src, NULL, fwhm_surf);
-                       smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       if (fwhm_surf > 0) {
+                               smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                               smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       }
                 }
-                
+
                 /* get curvatures */
                 map_sphere_values_to_sheet(sm_trg, NULL, (double *)0,
-                                                 map_trg, fwhm, dm, curvtype0);
+                                                 map_trg, fwhm, dm, curvtype);
                 map_sphere_values_to_sheet(sm_src, sm_src_sphere,
                                                  (double *)0, map_src, fwhm,
-                                                 dm, curvtype0);
+                                                 dm, curvtype);
                 
                 /* go through dartel steps */
                 for (it = 0, it0 = 0; it0 < n_loops; it0++) {
@@ -714,13 +722,14 @@ main(int argc, char *argv[])
                 printf("Number of cycles for full multi grid (FMG):");
                 printf("\t\t\t\t%d\n", prm[0].cycles);
                 printf("Number of relaxation iterations in each ");
-                printf("multigrid cycle:\t\t%d\n", prm[0].its);
+                printf("Multigrid cycle:\t\t%d\n", prm[0].its);
                 printf("Objective function (0 - sum of squares; ");
                 printf("1 - sym. sum of squares):\t%d\n", prm[0].code);
                 printf("Levenberg-Marquardt regularization:");
                 printf("\t\t\t\t\t%g\n", prm[0].lmreg);
-                printf("Curvature type:");
-                printf("\t\t\t\t\t\t\t\t%d\n", curvtype);
+                printf("Curvature types:\t\t\t\t\t\t\t%d", curvtype0);
+                if (n_steps > 1) printf("/%d",curvtype1);
+                if (n_steps > 2) printf("/%d",curvtype2);
                 printf("\n%d Iterative loops\n", loop);
                 printf("\nRegularization parameter mu:\t\t");
                 for (i = 0; i < loop; i++)
@@ -744,13 +753,13 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_sphere_values_to_sheet(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm("source.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
 
                 map_sphere_values_to_sheet(trg, trg_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm("target.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
@@ -771,7 +780,7 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_sphere_values_to_sheet(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm("source_rotated.pgm", data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
@@ -841,7 +850,7 @@ main(int argc, char *argv[])
                 data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
                 map_sphere_values_to_sheet(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype);
+                                                 data, 0.0, dm, curvtype0);
 
                 if (write_pgm(pgm_file, data, dm[0], dm[1]) != 0)
                         exit(EXIT_FAILURE);
