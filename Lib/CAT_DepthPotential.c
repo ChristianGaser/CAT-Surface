@@ -56,7 +56,7 @@ compute_depth_potential( polygons_struct *polygons, double alpha)
   int    * n_neighbours = NULL;       // node neighbours (inverse connectivity)
   int   ** neighbours = NULL;
   double SOR = 1.90;       // this value works best with alpha=0.0015
-  int lambda = 2;
+  int lambda = 2, i;
 
   struct csr_matrix laplacian; // the laplacian matrix operator
 
@@ -65,6 +65,7 @@ compute_depth_potential( polygons_struct *polygons, double alpha)
   normals = (Vector *) malloc(sizeof(Vector) * polygons->n_points);
 
   create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
+
   stable_normals( polygons->n_points, polygons->points, normals, n_neighbours, neighbours );
   areas = compute_areas( polygons->n_points, polygons->points, n_neighbours, neighbours, lambda );
   init_csr_matrix( polygons->n_points, n_neighbours, neighbours, &laplacian );
@@ -175,6 +176,7 @@ compute_areas( int n_points, Point coords[], int * n_ngh,
         }
       }
     }
+    if ((isnan(areas[i])) || (areas[i] == 0.0)) areas[i] = 1.0;
   }
   return( areas );
 }
@@ -211,6 +213,7 @@ compute_mean_curvature( int n_points, Point coords[], double * areas,
       vv.coords[2] += mat->A[j] * coords[mat->ja[j]].coords[2];
     }
     mc[i] = 0.5 * vec_dot_product( vv, normals[i] ) / areas[i];
+    if (isnan(mc[i])) mc[i] = 0.0;
   }
   return( mc );
 }
@@ -259,7 +262,8 @@ cot_laplacian_operator( int n_points, Point coords[], struct csr_matrix * mat,
 
         vec_cross( v1, v2, cross );
         area_tri = sqrt( vec_dot_product( cross, cross ) );
-
+        
+        if (area_tri == 0) area_tri = 1.0;
         double dot23 = vec_dot_product( v2, v3 ) / area_tri;
         double dot13 = vec_dot_product( v1, v3 ) / area_tri;
         double dot12 = vec_dot_product( v1, v2 ) / area_tri;
@@ -480,7 +484,7 @@ assemble( double val, int row, int col, struct csr_matrix * mat ) {
 */
 private void 
 stable_normals( int n_points, Point coords[], Vector normals[], 
-                             int * n_ngh, int ** ngh ) {
+                             int * n_ngh, int ** ngh) {
 
   int     i, j, n1, n2, nn;
   double    mag1, mag2, mag3, mag3x1, mag1x2, mag2x3, w1, w2, w3;
