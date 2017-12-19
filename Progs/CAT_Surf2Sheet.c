@@ -32,7 +32,7 @@ static ArgvInfo argTable[] = {
   {"-sphere", ARGV_STRING, (char *) 1, (char *) &sphere_file, 
      "Sphere for surface."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype,
-     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)."},
+     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
      "Filter size for curvature map in FWHM."},
   {"-sz", ARGV_INT, (char *) 2, (char *) &sz_map,

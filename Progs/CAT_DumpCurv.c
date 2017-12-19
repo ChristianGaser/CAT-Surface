@@ -37,7 +37,8 @@ Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals] [-1|
                 2 - curvedness\n\
                 3 - shape index\n\
                 4 - mean curvature (in radians)\n\
-                5 - sulcal depth like estimator\n\n";
+                5 - sulcal depth like estimator\n\
+              >5 - depth potential with alpha = 1/curvtype (recommended value curvtype=650)\n\n";
 
         fprintf(stderr, usage_str, executable);
 }

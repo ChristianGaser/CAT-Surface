@@ -53,7 +53,7 @@ double lambda    = 0;
 double mu        = 0.125;
 double lmreg     = 1e-3;
 double fwhm      = 5.0;
-double fwhm_surf = 20.0;
+double fwhm_surf = 0.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
@@ -107,7 +107,7 @@ static ArgvInfo argTable[] = {
   {"-type1", ARGV_INT, (char *) 1, (char *) &curvtype1,
      "Curvature type for the 2nd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-type", ARGV_INT, (char *) 1, (char *) &curvtype2,
-     "Curvature type\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
+     "Curvature type for the 3rd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
@@ -497,12 +497,18 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 }
 
                 /* get curvatures */
-                map_sphere_values_to_sheet(sm_trg, NULL, (double *)0,
+                map_sphere_values_to_sheet(sm_trg, sm_trg_sphere, (double *)0,
                                                  map_trg, fwhm, dm, curvtype);
-                map_sphere_values_to_sheet(sm_src, sm_src_sphere,
-                                                 (double *)0, map_src, fwhm,
-                                                 dm, curvtype);
+                map_sphere_values_to_sheet(sm_src, sm_src_sphere, (double *)0, 
+                                                 map_src, fwhm, dm, curvtype);
                 
+                if (debug) {
+                        if (write_pgm("source.pgm", map_src, dm[0], dm[1]) != 0)
+                                exit(EXIT_FAILURE);
+                        if (write_pgm("target.pgm", map_trg, dm[0], dm[1]) != 0)
+                                exit(EXIT_FAILURE);
+                }
+
                 /* go through dartel steps */
                 for (it = 0, it0 = 0; it0 < n_loops; it0++) {
                         it_scratch = dartel_scratchsize((int *)dm,
@@ -749,24 +755,6 @@ main(int argc, char *argv[])
                 printf("\n\n");
         }
     
-        if (debug) {
-                data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
-
-                map_sphere_values_to_sheet(src, src_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype0);
-
-                if (write_pgm("source.pgm", data, dm[0], dm[1]) != 0)
-                        exit(EXIT_FAILURE);
-
-                map_sphere_values_to_sheet(trg, trg_sphere, (double *)0,
-                                                 data, 0.0, dm, curvtype0);
-
-                if (write_pgm("target.pgm", data, dm[0], dm[1]) != 0)
-                        exit(EXIT_FAILURE);
-
-                free(data);
-        }
-
         xy_size = dm[0] * dm[1];
         flow    = (double *) malloc(sizeof(double) * xy_size * 2);
         

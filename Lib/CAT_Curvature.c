@@ -217,7 +217,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                  int curvtype, double curvatures[])
 {
         int              size, pidx, vidx, p;
-        double           curvature, baselen, alpha;
+        double           curvature, *values, baselen, alpha;
         signed char      *point_done;
         Point            centroid;
         Vector           normal;
@@ -242,7 +242,9 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
         if (curvtype > 5) {
                 /* looks weird, but we need a way to define the small values alpha << 1 */
                 alpha = 1/(double)curvtype;
-                curvatures = compute_depth_potential( polygons, alpha); 
+                values = compute_depth_potential( polygons, alpha);
+                for (pidx = 0; pidx < polygons->n_points; pidx++) curvatures[pidx] = values[pidx];
+
         } else if (curvtype == 5) {
                 polygonsIn = (polygons_struct *) malloc(sizeof(polygons_struct));
                 copy_polygons(polygons, polygonsIn);
