@@ -30,8 +30,11 @@
 #define F_SUM      6
 #define F_WAVERAGE 7
 
-#define LOG05     -0.69314718
+#define LOG05       -0.69314718
+#define PI2         6.28319
 #define MAX_N_ARRAY 250
+
+//#define DEBUG 1
 
 /* argument defaults */
 int  degrees_continuity = 0;        /* interpolation - default: linear */
@@ -100,7 +103,7 @@ ArgvInfo argTable[] = {
 };
 
 
-Real
+double
 evaluate_function(double val_array[], int n_val, int map_func, double kernel[], int index[])
 {
         int   i, in_range;
@@ -113,7 +116,7 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
                 result = 0.0;
                 for (i = 0; i < n_val; i++)
                         result += val_array[i]; 
-                result /= (Real) n_val;
+                result /= (double) n_val;
                 break;
         case F_WAVERAGE:
                 result = 0.0;
@@ -191,12 +194,13 @@ main(int argc, char *argv[])
         char                 *output_values_file, *output_file2;
         File_formats         format;
         Volume               volume, volume2;
-        int                  i, j, index, n_thickness_values, n_objects;
+        int                  i, j, index, n_thickness_values, n_objects, grid_steps1, grid_increase;
         object_struct        **objects;
         polygons_struct      *polygons;
         double               value, value2, *values, *values2, *thickness, voxel[N_DIMENSIONS];
         double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
-        double               sum, x, fwhm, kernel[MAX_N_ARRAY];
+        double               sum, x, sigma, kernel[MAX_N_ARRAY];
+        double               grid_start1, grid_end1, step_size;
         Vector               normal;
 
         /* Call ParseArgv */
@@ -208,7 +212,8 @@ main(int argc, char *argv[])
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &object_file) || !get_string_argument(NULL, &volume_file) || !get_string_argument(NULL, &output_values_file)) {
+        if (!get_string_argument(NULL, &object_file) || !get_string_argument(NULL, &volume_file) 
+            || !get_string_argument(NULL, &output_values_file)) {
                 fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
                 fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
@@ -218,8 +223,29 @@ main(int argc, char *argv[])
         get_string_argument(NULL, &volume_file2);
         get_string_argument(NULL, &output_file2);
         
+        /* we need larger values because gaussian kernel exceeds defined grid-values */
+        if (map_func == F_WAVERAGE) {
+                grid_increase = round(2.0*(grid_steps - 1.0)/3.0);
+                step_size = (grid_end - grid_start)/((double)grid_steps - 1.0);
+                
+                /* force even numbers */
+                if (grid_increase % 2) grid_increase++;
+                
+                /* extend grid values to cover almost a whole gaussian curve */
+                grid_steps1 = grid_steps + grid_increase;
+                grid_start1 = grid_start - (double)grid_increase * step_size / 2.0;
+                grid_end1   = grid_end   + (double)grid_increase * step_size / 2.0;
+#ifdef DEBUG
+                printf("grid_increase: %d\tgrid_start: %3.3f\tgrid_end: %3.3f\n",grid_increase,grid_start1,grid_end1);
+#endif
+        } else {
+                grid_steps1 = grid_steps;
+                grid_start1 = grid_start;
+                grid_end1   = grid_end;
+        }
+
         /* check maximum number of values */
-        if (grid_steps > MAX_N_ARRAY) {
+        if (grid_steps1 > MAX_N_ARRAY) {
                 fprintf(stderr, "Resolution of grid is too high.\n");
                 exit(EXIT_FAILURE);
         }
@@ -265,43 +291,57 @@ main(int argc, char *argv[])
 
                 fprintf(stdout, "Use relative offset of %g of thickness to the surface:\n", offset_value);
         }
-
-        for (j = 0; j < grid_steps; j++) {
-                length_array[j] = grid_start;
+        
+        for (j = 0; j < grid_steps1; j++) {
+                length_array[j] = grid_start1;
 
                 /* only use grid calculation if more than 1 value is given */
-                if (grid_steps > 1) length_array[j] += ((Real)j / (Real)(grid_steps-1) * (grid_end - grid_start));
+                if (grid_steps1 > 1) length_array[j] += ((double)j / (double)(grid_steps1-1) * (grid_end1 - grid_start1));
                 
-                fprintf(stdout,"%3.2f ",length_array[j]);
+                if ((length_array[j] >= grid_start) && ((length_array[j] - grid_end) < 1e-10))
+                        fprintf(stdout,"%3.2f ",length_array[j]);
         }
         fprintf(stdout, "\n");
 
         /* calculate exponential decay if exp function is defined */
         if (exp_half != FLT_MAX) {
                 sum = 0.0;
-                for (j = 0; j < grid_steps; j++) {
+                for (j = 0; j < grid_steps1; j++) {
                         kernel[j] = exp(LOG05 / exp_half * length_array[j]);
                         sum += kernel[j];
                 }
                 /* scale sum of exponential function to 1 */
-                for (j = 0; j < grid_steps; j++)
+                for (j = 0; j < grid_steps1; j++) {
                         kernel[j] /= sum;
+#ifdef DEBUG
+                        printf("%g ",kernel[j]);
+#endif
+                }
+#ifdef DEBUG
+                printf("\n");
+#endif
         }
     
         /* calculate gaussian kernel if weighted average function is defined */
         if (map_func == F_WAVERAGE) {
                 sum = 0.0;
-                fwhm = sqrt((double)grid_steps/2.5); /* fwhm is approximated that extreme values at the borders are weighted with 50% and 
-                                center with 100% */
-                for (i = 0; i < grid_steps; i++) {
-                        x = ((double)i+1) - ((double)grid_steps + 1.0)/2.0;
-                        kernel[i] = (1.0/sqrt(6.28*fwhm))*exp(-(x*x)/(2.0*fwhm));
+                sigma = -1.0/(2.0 * LOG05); 
+                for (i = 0; i < grid_steps1; i++) {
+                        x = ((2.0*(double)i) / ((double)grid_steps - 1.0)) - ((double)grid_steps1 - 1.0)/((double)grid_steps - 1.0);
+                        kernel[i] = (1.0/sqrt(PI2*sigma))*exp(-(x*x)/(2.0*sigma));
                         sum += kernel[i];
                 }
                 
                 /* scale sum of gaussian kernel to 1 */
-                for (i = 0; i < grid_steps; i++)
-                        kernel[i] /= sum;
+                for (j = 0; j < grid_steps1; j++) {
+                        kernel[j] /= sum;
+#ifdef DEBUG
+                        printf("%g ",kernel[j]);
+#endif
+                }
+#ifdef DEBUG
+                printf("\n");
+#endif
         }
 
         if (input_volume_all(volume_file, 3, File_order_dimension_names,
@@ -352,7 +392,7 @@ main(int argc, char *argv[])
                 /* look only for inward normals */
                 SCALE_VECTOR(normal, polygons->normals[i], -1.0);
                 
-                for (j = 0; j < grid_steps; j++) {
+                for (j = 0; j < grid_steps1; j++) {
                 
                         /* get point from origin in normal direction */
                         if (thickness_file == NULL) {
@@ -373,10 +413,11 @@ main(int argc, char *argv[])
                                                  FALSE, 0.0, &value, NULL,
                                                  NULL, NULL, NULL, NULL, NULL,
                                                  NULL, NULL, NULL);
+                        if (isnan(value)) fprintf(stderr,"NaN\n");
                         val_array[j] = value;
                 }
                 /* evaluate function */
-                values[i] = evaluate_function(val_array, grid_steps,
+                values[i] = evaluate_function(val_array, grid_steps1,
                                           map_func, kernel, &index);
                 
                 /* get optional values for 2nd volume according to index of 1st volume */
