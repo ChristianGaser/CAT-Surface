@@ -18,7 +18,9 @@ usage(char *executable)
         static char *usage_str = "\n\
 Usage: %s  surface_file output_values_file [radius]\n\
     Computes surface ratio based on the method of Toro et al. 2008.\n\
-    A default radius of 20mm is used.\n\
+    You can either define the radius or use negative values to automatical estimate the optimal\n\
+    radius. This radius will result in a global (mean) surface ratio that is equal to the \n\
+    global gyrification index.\n\
 \n\n";
 
         fprintf(stderr, usage_str, executable);
@@ -33,7 +35,7 @@ main(int argc, char *argv[])
         object_struct        **objects;
         polygons_struct      *polygons;
         double               *area_values;
-        double                 radius;
+        double               radius;
 
         initialize_argument_processing(argc, argv);
 
@@ -43,7 +45,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        get_real_argument(20.0, &radius);
+        get_real_argument(-1, &radius);
 
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects) != OK)

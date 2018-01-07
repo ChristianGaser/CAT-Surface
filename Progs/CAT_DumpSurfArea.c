@@ -80,7 +80,7 @@ main(int argc, char *argv[])
 
         area_values = (double *) malloc(sizeof(double) * polygons->n_points);
         
-       if (sphere_file != NULL) {
+        if (sphere_file != NULL) {
                 if (input_graphics_any_format(sphere_file, &format, &n_objects,
                                               &sphere_objects) != OK)
                         exit(EXIT_FAILURE);

@@ -68,9 +68,10 @@ get_surface_ratio(double radius, polygons_struct *polygons)
         int      i, j, x, y, z, a, b, c, nan = 0;
         double   *lf, *avol;
         int      size, poly_size;
-        double   area, asum;
+        double   area, asum, total_area, mean_surface_ratio;
         char     str[512];
         Point    points[MAX_POINTS_PER_POLYGON];
+        progress_struct progress;
         
         avol = (double *) calloc(256*256*256, sizeof(double));
 
@@ -79,10 +80,12 @@ get_surface_ratio(double radius, polygons_struct *polygons)
         for (i = 0; i < 256*256*256; i++)
                 avol[i] = 0.0;
 
+        total_area = 0.0;
         for (i = 0; i < polygons->n_items; i++) {
                 size = get_polygon_points(polygons, i, points);
                 area = get_polygon_surface_area(size, points);
                 if (isnan(area)) area = 0.0;
+                total_area += area;
 
                 poly_size = GET_OBJECT_SIZE(*polygons, i);
 
@@ -100,12 +103,19 @@ get_surface_ratio(double radius, polygons_struct *polygons)
                 }
         }
         
+        /* negative radius value force to automatically estimate surface ration independent from surface area */
+        if (radius < 0) {
+                /* this was empirically estimated using global gyrification index and surface rations using
+                   different ranges of radii */
+                radius = 0.0000471*total_area + 7.456;
+                printf("Estimated radius: %3.1f\n", radius);
+        }
+        
+        initialize_progress_report( &progress, FALSE, polygons->n_points,
+                                "Estimating surface ratio" );
+
+        mean_surface_ratio = 0.0;
         for (i = 0; i < polygons->n_points; i++) {
-                if (i % 100 == 0) {
-                        sprintf(str, "%i/%i", i, polygons->n_points);
-                        printf("%s\n",str);
-                        fflush(stdout);
-                }
 
                 asum = 0;
                 for (x = -radius; x <= radius; x++) {
@@ -139,8 +149,15 @@ get_surface_ratio(double radius, polygons_struct *polygons)
                 
                 if (lf[i] != lf[i])
                         nan++;
+
+                mean_surface_ratio += lf[i];
+                update_progress_report( &progress, i );
         }
+
+        terminate_progress_report( &progress );
         free(avol);
+        
+        printf("Mean surface ratio: %3.3f\n",mean_surface_ratio/polygons->n_points);
         
         if (nan)
                 printf("ERROR: there are %i NaN\n", nan);
