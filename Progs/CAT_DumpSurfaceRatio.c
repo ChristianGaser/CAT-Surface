@@ -20,6 +20,7 @@ Usage: %s  surface_file output_values_file [radius]\n\
     Computes (normalized) surface ratio based on the method of Toro et al. 2008.\n\
     In addition to Toros approach the radius is normalized for individual surface area so that the approach is scaling invariant\n\
     As reference total surface area the template mesh from CAT12 is used with a surface area of 90000mm^2\n\
+    As default a radius of 20mm is used\n\
 \n\n";
 
         fprintf(stderr, usage_str, executable);
@@ -44,7 +45,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        get_real_argument(-1, &radius);
+        get_real_argument(20, &radius);
 
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects) != OK)
