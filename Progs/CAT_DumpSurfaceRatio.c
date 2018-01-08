@@ -17,10 +17,9 @@ usage(char *executable)
 {
         static char *usage_str = "\n\
 Usage: %s  surface_file output_values_file [radius]\n\
-    Computes surface ratio based on the method of Toro et al. 2008.\n\
-    You can either define the radius or use negative values to automatical estimate the optimal\n\
-    radius. This radius will result in a global (mean) surface ratio that is equal to the \n\
-    global gyrification index.\n\
+    Computes (normalized) surface ratio based on the method of Toro et al. 2008.\n\
+    In addition to Toros approach the radius is normalized for individual surface area so that the approach is scaling invariant\n\
+    As reference total surface area the template mesh from CAT12 is used with a surface area of 90000mm^2\n\
 \n\n";
 
         fprintf(stderr, usage_str, executable);

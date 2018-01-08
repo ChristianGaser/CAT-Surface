@@ -122,6 +122,8 @@ main(int argc, char *argv[])
 
         gi = gyrification_index_sph(surface, sphere, output_values_file,
                                            n_triangles, reparam);
+                                           
+//        printf("Total gyrification index: %g\n", gi);
         
         /* clean up */
         delete_object_list(1, objects);

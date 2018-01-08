@@ -33,8 +33,9 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s surface_file output_values_file [-log]\n\
-Calculate local surface area. If a sphere is given the local surface area is based on a re-parameterized tetrahedral sphere.\n\n\n";
+Usage: %s surface_file [output_values_file] [-log]\n\
+Calculate local surface area. If a sphere is given the local surface area is based on a re-parameterized tetrahedral sphere.\n\
+If no output values file is given only the total surface area is printed.\n\n";
 
        fprintf(stderr, usage_str, executable);
 }
@@ -60,8 +61,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (!get_string_argument(NULL, &surface_file) ||
-            !get_string_argument(NULL, &output_values_file)) {
+        if (!get_string_argument(NULL, &surface_file)) {
                 usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -98,8 +98,10 @@ main(int argc, char *argv[])
                 for(i=0; i<polygons->n_points; i++)
                         area_values[i] = log10(area_values[i]);
 
-        output_values_any_format(output_values_file, polygons->n_points,
+        if (get_string_argument(NULL, &output_values_file)) {
+                output_values_any_format(output_values_file, polygons->n_points,
                                          area_values, TYPE_DOUBLE);
+        }
         
         if (use_log) 
                 printf("Total log. surface area: %g\n", log10(surface_area));
