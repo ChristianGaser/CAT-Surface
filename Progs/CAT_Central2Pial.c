@@ -8,18 +8,33 @@
  */
 
 #include <bicpl.h>
+#include <ParseArgv.h>
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Smooth.h"
-#include "CAT_DeformPolygons.h"
+
+/* argument defaults */
+int   equivol = 0;
+double weight = 1.0;
+
+/* the argument table */
+static ArgvInfo argTable[] = {
+  {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
+     "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014)."},
+  {"-weight", ARGV_FLOAT, (char *) TRUE, (char *) &weight,
+     "Weight between equi-volume model (1.0) and original data (0.0)."},
+   {NULL, ARGV_END, NULL, NULL, NULL}
+};
 
 void
 usage(char *executable)
 {
         static char *usage_str = "\n\
 Usage: %s  surface_file thickness_file output_surface_file [extent]\n\
-Estimate pial surface from central surface using cortical thickness values. Optionally you can define to which extent the thickness values are used. In order to estimate the pial surface an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.\n\n\n";
+Estimate pial or white surface from central surface using cortical thickness values. In order to estimate the pial surface an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.\n\
+The equi-volume model optionally allows to correct the position of the surface around gyri and sulci. The area of the inner (white) and outer (pial) surface is used for this correction.\n\
+Furthermore, you can weight the extent of equi-volume correction which is helpful to correct the initial central surface in CAT12 in heavily folded areas with high mean curvature.\n\n";
 
        fprintf(stderr, usage_str, executable);
 }
@@ -27,23 +42,32 @@ Estimate pial surface from central surface using cortical thickness values. Opti
 int
 main(int argc, char *argv[])
 {
-        double               value, *values, extent;
+        double               *values, *area_inner, *area_outer, *extents;
+        double               extent, value, surface_area, pos;
         Status               status;
         char                 *src_file, *out_file, *values_file;
-        int                  i, p, n_steps, scale, n_objects, n_values;
+        int                  p, n_objects, n_values;
         File_formats         format;
-        polygons_struct      *polygons, *tmp_polygon;
-        Point                *new_pts;
-        object_struct        **object_list, **objects;
+        polygons_struct      *polygons, *polygons_out;
+        object_struct        **object_list, **objects_out;
+
+        /* get the arguments from the command line */
+        if (ParseArgv(&argc, argv, argTable, 0)) {
+                usage(argv[0]);
+                fprintf(stderr, "     %s -help\n\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
 
         initialize_argument_processing(argc, argv);
-
+        
         if (!get_string_argument( NULL, &src_file) ||
             !get_string_argument( NULL, &values_file) ||
             !get_string_argument( NULL, &out_file)) {
                 usage(argv[0]);
+                fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
+
         get_real_argument(0.5, &extent);
         
         if (input_graphics_any_format(src_file, &format, &n_objects,
@@ -65,39 +89,49 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        compute_polygon_normals(polygons);
-        check_polygons_neighbours_computed(polygons);
+        extents = (double *) malloc(sizeof(double) * polygons->n_points);
+                
+        if ((equivol) && (extent > -0.5) && (extent < 0.5)) {
+                area_inner = (double *) malloc(sizeof(double) * polygons->n_points);
+                area_outer = (double *) malloc(sizeof(double) * polygons->n_points);
+                
+                /* pial (outer) surface */
+                for (p = 0; p < polygons->n_points; p++) extents[p] = 0.5;
+                objects_out = central_to_new_pial(polygons, values, extents);
+                polygons_out = get_polygons_ptr(objects_out[0]);
+                surface_area = get_area_of_points(polygons_out, area_outer);
 
-        objects  = (object_struct **) malloc(sizeof(object_struct *));
-        *objects = create_object(POLYGONS);
-        tmp_polygon = get_polygons_ptr(*objects);
-        
-        /* use 10 steps to add thickness values to central surface and check in each step shape integrity */
-        n_steps = 10;
-        for (i = 0; i < n_steps; i++) {
-                copy_polygons(polygons, tmp_polygon);
-
-                /* add half of thickness value in normal extent */ 
+                /* white (inner) surface */
+                for (p = 0; p < polygons->n_points; p++) extents[p] = -0.5;
+                objects_out = central_to_new_pial(polygons, values, extents);
+                polygons_out = get_polygons_ptr(objects_out[0]);
+                surface_area = get_area_of_points(polygons_out, area_inner);
+                
+                /* get relative position inside cortical band */
+                pos = extent + 0.5;
+                
                 for (p = 0; p < polygons->n_points; p++) {
-                        Point_x(tmp_polygon->points[p]) += extent/(double)n_steps*values[p]*Point_x(polygons->normals[p]);
-                        Point_y(tmp_polygon->points[p]) += extent/(double)n_steps*values[p]*Point_y(polygons->normals[p]);
-                        Point_z(tmp_polygon->points[p]) += extent/(double)n_steps*values[p]*Point_z(polygons->normals[p]);
+                        /* no change needed if inner and outer area are equal */
+                        if (area_outer[p] == area_inner[p])
+                                extents[p] = extent;
+                        else {
+                                /* eq. 10 from Waehnert et al. 2014 */
+                                extents[p] = (1.0/(area_outer[p]-area_inner[p]))*
+                                             (sqrt((pos*area_outer[p]*area_outer[p]) + ((1.0-pos)*area_inner[p]*area_inner[p]))-area_inner[p]);
+                                extents[p] -= 0.5; /* subtract offset of 0.5 that was added to pos */            
+                                extents[p] = weight*extents[p] + (1.0-weight)*extent;            
+                        }                
                 }
-                /* get new points and check shape integrity */
-                new_pts = tmp_polygon->points;
-                check_polygons_shape_integrity(polygons, new_pts);
-                polygons->points = new_pts;
+                
+        } else {
+                for (p = 0; p < polygons->n_points; p++)
+                        extents[p] = extent;
         }
+        
+        objects_out = central_to_new_pial(polygons, values, extents);
 
-        /* smooth final surface */
-        smooth_heatkernel(polygons, NULL, 1);
-
-        compute_polygon_normals(polygons);
-
-        if(output_graphics_any_format(out_file, format, 1, object_list, NULL) != OK)
+        if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
                 exit(EXIT_FAILURE);
                 
-        delete_object_list(1, objects);
-
         return(status != OK);
 }

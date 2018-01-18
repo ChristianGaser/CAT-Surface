@@ -854,7 +854,7 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                       (size_t) get_type_size(get_volume_data_type(*volume)));
         } else {
                 ind = 0;
-                for (i=0; i<dims[0]; i++) for (j=0; j<dims[1]; j++) for (k=0; k<dims[2]; k++) for (l=0; l<dims[3]; l++) { 
+                for (i=0; i<dims[0]; i++) for (j=0; j<dims[1]; j++) for (k=0; k<dims[2]; k++) { 
                         switch (nii_ptr->datatype) {
                         case DT_INT8:
                                 tmp = (float) ((char *)nii_ptr->data)[ind];
@@ -887,8 +887,8 @@ input_nifti(char *filename, int n_dimensions, char *dim_names[],
                         ind++;
                         /* check whether scaling is needed */
                         if (nii_ptr->scl_slope == 0)
-                                set_volume_real_value( *volume, i, j, k, l, 0, tmp);
-                        else    set_volume_real_value( *volume, i, j, k, l, 0, (float)(nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter);
+                                set_volume_real_value( *volume, i, j, k, 0, 0, tmp);
+                        else    set_volume_real_value( *volume, i, j, k, 0, 0, (float)(nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter);
 
                 }
         }

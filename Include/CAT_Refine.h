@@ -9,4 +9,4 @@
 
 #include <bicpl.h>
 
-int  refine_mesh(Point *[], polygons_struct *, double, polygons_struct *);
+int  refine_mesh(Point **, polygons_struct *, double, polygons_struct *);

@@ -13,15 +13,15 @@
 #include "CAT_SurfaceIO.h"
 
 void correct_shift_scale_sphere(polygons_struct *, polygons_struct *,
-                polygons_struct **, polygons_struct **);
-
+            polygons_struct **, polygons_struct **);
 object_struct ** resample_tetrahedron(polygons_struct *, polygons_struct *,
-                                int, double *, double *);
+            int, double *, double *);
 object_struct ** resample_surface(polygons_struct *, polygons_struct *,
-                                int, double *, double *);
-object_struct ** resample_surface_to_target_sphere(polygons_struct *, polygons_struct *, 
-                                polygons_struct *, double *, double *, int);
-void resample_values_sphere_noscale(polygons_struct *, polygons_struct *, double *, double *);
+            int, double *, double *);
+object_struct ** resample_surface_to_target_sphere(polygons_struct *, 
+            polygons_struct *, polygons_struct *, double *, double *, int);
+void resample_values_sphere_noscale(polygons_struct *, polygons_struct *, 
+            double *, double *);
 void resample_values_sphere(polygons_struct *, polygons_struct *, double *, 
-                                double *, int);
+            double *, int);
 

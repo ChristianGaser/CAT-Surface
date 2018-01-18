@@ -28,7 +28,7 @@ usage(char *executable)
 {
         char *usage_str = "\n\
 Usage: %s  surface_file sphere_file output_values_file [-sqrt]\n\n\
-     Calculate sulcus depth based on the euclidian distance between the central surface\n\
+     Calculate sulcus depth based on the euclidean distance between the central surface\n\
      and its convex hull.\n\n";
 
         fprintf(stderr, usage_str, executable);

@@ -296,7 +296,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
         Point            *centroids;
         Vector           normal;
         progress_struct  progress;
-        double             base_length, curv_factor;
+        double           base_length, curv_factor;
         int              n_nb, neighbours[MAX_NEIGHBOURS];
         BOOLEAN          interior_flag;
         signed char      *point_error;

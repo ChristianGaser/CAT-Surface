@@ -15,11 +15,9 @@
 double slope(double *, double *, int);
 double get_globalfd(double *, double *, int);
 void get_localfd(polygons_struct *, double *, double **, int, double *, int);
-
 int min_triangles_update(int *, int *, int *);
 double fractal_dimension(polygons_struct *, polygons_struct *, int, char *,
                          int, int);
-
 void get_smoothed_values(polygons_struct *, double *, double);
 double fractal_dimension_sph(polygons_struct *, polygons_struct *, char *, int,
                              polygons_struct *, int, int);

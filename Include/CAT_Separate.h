@@ -9,11 +9,5 @@
 
 #include <bicpl.h>
 
-int   separate_polygons(
-    polygons_struct    *polygons,
-    int                desired_index,
-    object_struct      **out[] );
-
-void  triangulate_polygons(
-    polygons_struct  *polygons,
-    polygons_struct  *triangles );
+int separate_polygons(polygons_struct *, int, object_struct ***);
+void  triangulate_polygons(polygons_struct *, polygons_struct *);

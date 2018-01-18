@@ -16,6 +16,7 @@
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
+#include "CAT_DeformPolygons.h"
 
 #define _PI 3.14159265358979323846264338327510
 
@@ -1430,4 +1431,73 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
         }
 
         compute_polygon_normals(polygons);
+}
+
+
+/*
+ * Calls central_to_pial, but creates a new surface object and does not modify the original surface
+ * The direct implementation into central_to_pial was not working because of issues with the function 
+ * check_polygons_shape_integrity.
+ */
+object_struct **
+central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents)
+{
+        polygons_struct      *polygons_out;
+        object_struct        **objects_out;
+        
+        objects_out  = (object_struct **) malloc(sizeof(object_struct *));
+        *objects_out = create_object(POLYGONS);
+        polygons_out = get_polygons_ptr(*objects_out);
+        
+        copy_polygons(polygons, polygons_out);
+        central_to_pial(polygons_out, thickness_values, extents);
+        
+        return(objects_out);
+
+
+}
+
+/*
+ * Estimate pial surface from central surface using cortical thickness values. In order to estimate the pial surface 
+ * an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.
+ */
+void
+central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents)
+{
+        int                  i, p, n_steps;
+        polygons_struct      *polygons_out;
+        Point                *new_pts, *old_pts;
+        object_struct        **objects_out;
+
+        compute_polygon_normals(polygons);
+        check_polygons_neighbours_computed(polygons);
+
+        objects_out  = (object_struct **) malloc(sizeof(object_struct *));
+        *objects_out = create_object(POLYGONS);
+        polygons_out = get_polygons_ptr(*objects_out);
+        
+        copy_polygons(polygons, polygons_out);
+
+        /* use 10 steps to add thickness values to central surface and check in each step shape integrity */
+        n_steps = 10;
+        for (i = 0; i < n_steps; i++) {
+                copy_polygons(polygons, polygons_out);
+
+                /* add fraction of thickness value in normal direction */ 
+                for (p = 0; p < polygons->n_points; p++) {
+                        Point_x(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_x(polygons->normals[p]);
+                        Point_y(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_y(polygons->normals[p]);
+                        Point_z(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_z(polygons->normals[p]);
+                }
+                /* get new points and check shape integrity */
+                new_pts = polygons_out->points;
+                check_polygons_shape_integrity(polygons, new_pts);
+                polygons->points = new_pts;
+        }
+
+        /* smooth final surface slightly */
+        smooth_heatkernel(polygons, NULL, 1);
+
+        compute_polygon_normals(polygons);
+
 }

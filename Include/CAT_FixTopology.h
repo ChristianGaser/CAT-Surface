@@ -22,5 +22,5 @@ int do_surface_deform = 0;
 int holes = 0;
 int handles = 0;
 
-object_struct **
-fix_topology_sph(polygons_struct *, polygons_struct *, int, int, int, char *, double, int, int, double);
+object_struct ** fix_topology_sph(polygons_struct *, polygons_struct *, int,
+                int, int, char *, double, int, int, double);

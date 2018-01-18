@@ -23,7 +23,7 @@
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
 #define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
 
-/* defaults */
+/* argument defaults */
 char *param_file         = NULL;
 char *source_file        = NULL;
 char *source_sphere_file = NULL;
