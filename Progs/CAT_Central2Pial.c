@@ -34,7 +34,7 @@ usage(char *executable)
 Usage: %s  surface_file thickness_file output_surface_file [extent]\n\
 Estimate pial or white surface from central surface using cortical thickness values. In order to estimate the pial surface an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.\n\
 The equi-volume model optionally allows to correct the position of the surface around gyri and sulci. The area of the inner (white) and outer (pial) surface is used for this correction.\n\
-Furthermore, you can weight the extent of equi-volume correction which is helpful to correct the initial central surface in CAT12 in heavily folded areas with high mean curvature.\n\n";
+Furthermore, you can weight the extent of equi-volume correction which is helpful to correct the initial central surface in CAT12 in highly folded areas with high mean curvature.\n\n";
 
        fprintf(stderr, usage_str, executable);
 }

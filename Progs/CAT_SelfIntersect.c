@@ -46,7 +46,7 @@ main(int argc, char** argv)
         initialize_argument_processing(argc, argv);
         if (!get_string_argument(NULL, &surface_file) ||
             !get_string_argument(NULL, &out_file)) {
-                fprintf(stderr, "\nUsage: %s object_file output_surface_file\n",
+                fprintf(stderr, "\nUsage: %s surface_file output_values_file\n",
                                 argv[0]);
                 exit(EXIT_FAILURE);
         }

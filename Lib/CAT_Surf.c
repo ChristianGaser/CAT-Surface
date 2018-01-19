@@ -1495,9 +1495,6 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                 polygons->points = new_pts;
         }
 
-        /* smooth final surface slightly */
-        smooth_heatkernel(polygons, NULL, 1);
-
         compute_polygon_normals(polygons);
 
 }
