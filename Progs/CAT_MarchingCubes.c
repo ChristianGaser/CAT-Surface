@@ -56,12 +56,15 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: marching_cubes  input.nii  output_surface_file  threshold\n\
-       marching_cubes  input.nii  output_surface_file  min_threshold max_threshold\n\
+Usage: marching_cubes  input.nii  output_surface_file  min_threshold [max_threshold] [method]\n\
 \n\
      Creates a polygonal surface of either the thresholded volume, or the\n\
-     boundary of the region of values between min and max threshold.\n\
-     and extracts the largest component\n\n";
+     boundary of the region of values between min and max threshold\n\
+     and extracts the largest component\n\n\
+     The following methods can be used:\n\
+       0 - marching cubes\n\
+       1 - marching cubes without holes (default)\n\
+       2 - marching tetra\n\n";
 
     print_error( usage_str, executable );
 }
@@ -72,9 +75,9 @@ int  main(
 {
     STRING               input_filename, output_filename;
     Volume               volume;
-    double                 min_threshold, max_threshold;
-    double                 min_label, max_label;
-    double                 valid_low, valid_high;
+    double               min_threshold, max_threshold;
+    double               min_label, max_label;
+    double               valid_low, valid_high;
     BOOLEAN              binary_flag;
     int                  i, c, spatial_axes[N_DIMENSIONS];
     int                  int_method, n_out;

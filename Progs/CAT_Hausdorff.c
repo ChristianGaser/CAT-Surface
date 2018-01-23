@@ -14,11 +14,14 @@
 #include "CAT_SurfaceIO.h"
 
 BOOLEAN exact = 0; /* 0 - find the closest point, 1 - match point-for-point */
+BOOLEAN closest = 0; /* find the closest distance */
 
 /* the argument table */
 ArgvInfo argTable[] = {
   { "-exact", ARGV_CONSTANT, (char *) 1, (char *) &exact,
     "Calculate the Hausdorff distance on a point-by-point basis.  Requires that both meshes are of the same brain with the same number of points." },
+  { "-closest", ARGV_CONSTANT, (char *) 1, (char *) &closest,
+    "Calculate the closest distance (and not the Hausdorff distance) on a point-by-point basis." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -88,7 +91,10 @@ main(int argc, char *argv[])
         if (exact) { /* exact method */
                 max_hd = compute_exact_hausdorff(polygons, polygons2, hd);
         } else { /* point-by-point method */
-                max_hd = compute_point_hausdorff(polygons, polygons2, hd, 1);
+                if (closest)
+                        max_hd = compute_point_distance(polygons, polygons2, hd, 1);
+                else
+                        max_hd = compute_point_hausdorff(polygons, polygons2, hd, 1);
         }
 
         if (output_values_any_format(output_surface_file, polygons->n_points,

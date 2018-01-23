@@ -514,10 +514,11 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int
 /*
  * Calculate the closest distance using mesh points only.
  */
-void
-compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd)
+double
+compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
 {
         int i, poly;
+        double avg_dist = 0.0;
         Point closest;
 
         create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
@@ -526,7 +527,14 @@ compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd)
         for (i = 0; i < p->n_points; i++) {
                 poly = find_closest_polygon_point(&p->points[i], p2, &closest);
                 hd[i] = distance_between_points(&p->points[i], &closest);
+                avg_dist += hd[i];
         }
+
+        avg_dist /= p2->n_points;
+        if (verbose) 
+                printf("Mean of closest distance: %f\n", avg_dist);
+                
+        return(avg_dist);
 }
 
 void

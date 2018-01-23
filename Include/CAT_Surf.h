@@ -32,7 +32,7 @@ void set_vector_length(Point *, double);
 int count_edges(polygons_struct *, int [], int *[]);
 double compute_point_hausdorff(polygons_struct *, polygons_struct *, double *, int);
 double compute_exact_hausdorff(polygons_struct *, polygons_struct *p, double *);
-void compute_point_distance(polygons_struct *, polygons_struct *, double *);
+double compute_point_distance(polygons_struct *, polygons_struct *, double *, int);
 int euler_characteristic(polygons_struct *);
 void convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *, double);
 void linear_smoothing(polygons_struct *, double, int, int, int *, int);

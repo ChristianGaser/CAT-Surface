@@ -60,8 +60,12 @@ private  void  usage(
 Usage: marching_cubes  input.nii  output_surface_file  threshold [method]\n\
 \n\
      Creates a polygonal surface of either the thresholded volume, or the\n\
-     boundary of the region of values between min and max threshold.\n\
-     and extracts the largest component\n\n";
+     boundary of the region of values between min and max threshold\n\
+     and extracts the largest component.\n\n\
+     The following methods can be used:\n\
+       0 - marching cubes\n\
+       1 - marching cubes without holes (default)\n\
+       2 - marching tetra\n\n";
 
     print_error( usage_str, executable );
 }
