@@ -13,6 +13,7 @@
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_NiftiIO.h"
+#include "CAT_Surf.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length) \
 { \
@@ -38,9 +39,10 @@
 
 /* argument defaults */
 int  degrees_continuity = 0;        /* interpolation - default: linear */
-int  grid_steps         = 10;       /* number of grid steps */
-double grid_start       = 0.0;      /* start point (origin) of grid along normals */
-double grid_end         = 5.0;      /* end point of grid along normals */
+int  grid_steps         = 7;        /* number of grid steps */
+int   equivol           = 0;        /* sse equi-volume model by Bok */
+double grid_start       = -0.5;     /* start point (origin) of grid along normals */
+double grid_end         = 0.5;      /* end point of grid along normals */
 double offset_value     = 0.0;      /* offset according to thickness that is given with offset option */
 int  map_func           = F_MAXABS; /* default mapping function: (absolute) maximum value */
 double frange[2]        = {FLT_MAX, FLT_MAX};
@@ -57,11 +59,13 @@ ArgvInfo argTable[] = {
   {"-end", ARGV_FLOAT, (char *) 1, (char *) &grid_end,
        "End point of the grid along the surface normals (pointing inwards) in mm."},
   {"-thickness", ARGV_STRING, (char *) 1, (char *) &thickness_file, 
-     "Additional thickness file for mapping inside defined normalized cortical thickness of GM.\n\t\t     If this option is used then -start and -end will be handled as normalized (relative) values:\n\t\t     e.g. start=-0.5, steps=11 and end=0.5 for a central surface will map all values inside the GM-band (-0.5:0.1:0.5)\n\t\t     that is defined using the normalized cortical thickness."},
+     "Additional thickness file for mapping inside defined normalized cortical thickness of GM.\n\t\t     If this option is used then -start and -end will be handled as normalized (relative) values:\n\t\t     e.g. start=-0.5, steps=7 and end=0.5 for a central surface will map all values inside the GM-band (-0.5:1/6:0.5)\n\t\t     that is defined using the normalized cortical thickness."},
   {"-offset", ARGV_STRING, (char *) 1, (char *) &offset_file, 
      "Additional thickness file defining an offset according to the given surface.\n\t\t     If this option is used then also use the option -offset_value to define the offset (default 0)."},
   {"-offset_value", ARGV_FLOAT, (char *) 1, (char *) &offset_value,
        "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t     WM surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t     A negative value of -0.5 can be used to define the pial surface."},
+  {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
+       "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     Using this option the mappings for each defined step are saved separately and\n\t\t     no special mapping functions will be used. \n\t\t     This option can only be used if a thickness file is defined."},
   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Interpolation options:"},
   { "-linear", ARGV_CONSTANT, (char *) 0, 
@@ -190,22 +194,24 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
 int
 main(int argc, char *argv[])
 {
-        char                 *volume_file, *volume_file2, *object_file;
-        char                 *output_values_file, *output_file2;
+        char                 *volume_file, *object_file;
+        char                 *output_values_file;
+        char                 *tmp_string, ext[5];
         File_formats         format;
         Volume               volume, volume2;
         int                  i, j, index, n_thickness_values, n_objects, grid_steps1, grid_increase;
         object_struct        **objects;
         polygons_struct      *polygons;
-        double               value, value2, *values, *values2, *thickness, voxel[N_DIMENSIONS];
+        double               value, value2, voxel[N_DIMENSIONS];
+        double               *area_inner, *area_outer, *values, **values2, *thickness;
         double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
         double               sum, x, sigma, kernel[MAX_N_ARRAY];
-        double               grid_start1, grid_end1, step_size;
+        double               grid_start1, grid_end1, step_size, pos;
         Vector               normal;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0)) {
-                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
+                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file\n\n", argv[0]);
                 fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
@@ -214,15 +220,11 @@ main(int argc, char *argv[])
 
         if (!get_string_argument(NULL, &object_file) || !get_string_argument(NULL, &volume_file) 
             || !get_string_argument(NULL, &output_values_file)) {
-                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file [volume_file2 output_values_file2]\n\n", argv[0]);
+                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file\n\n", argv[0]);
                 fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
-        
-        /* get optional arguments for 2nd volume and output */ 
-        get_string_argument(NULL, &volume_file2);
-        get_string_argument(NULL, &output_file2);
-        
+                
         /* we need larger values because gaussian kernel exceeds defined grid-values */
         if (map_func == F_WAVERAGE) {
                 grid_increase = round(2.0*(grid_steps - 1.0)/3.0);
@@ -242,6 +244,12 @@ main(int argc, char *argv[])
                 grid_steps1 = grid_steps;
                 grid_start1 = grid_start;
                 grid_end1   = grid_end;
+        }
+
+        /* check that the option for equivolume is used together with the thickness option */
+        if ((equivol)  && (thickness_file == NULL)) {
+                fprintf(stderr, "You have to define a thickness file for the equivolume model.\n");
+                exit(EXIT_FAILURE);
         }
 
         /* check maximum number of values */
@@ -271,7 +279,7 @@ main(int argc, char *argv[])
                 /* set offset_value to 0 if thickness flag is defined too */
                 if (offset_value != 0.0) {
                         offset_value = 0.0;
-                        fprintf(stdout, "Offset value can only be defined together with offset flag.\n");
+                        fprintf(stdout, "Offset value can only be defined together with offset flag and cannot be combined with thickness flag.\n");
                 }
                 if (input_values_any_format(thickness_file, &n_thickness_values, &thickness) != OK)
                         exit(EXIT_FAILURE);
@@ -353,22 +361,6 @@ main(int argc, char *argv[])
                                       &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
 
-        if (output_file2 != NULL) {  
-                /* check that optional 2nd volume was used either with min
-                 * or max mapping function */
-                if ((map_func != F_MAX) && (map_func != F_MIN) && (map_func != F_MAXABS)) {
-                        fprintf(stderr, "For 2nd volume only min/max is allowed as mapping function.\n");
-                        exit(EXIT_FAILURE);
-                }
-                
-                if (input_volume_all(volume_file2, 3,
-                                     File_order_dimension_names,
-                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                                     TRUE, &volume2, NULL) != OK)
-                        exit(EXIT_FAILURE);
-                ALLOC(values2, polygons->n_points);
-        }
-
         if (n_objects != 1)
                 printf("Warning, more than one object in file: %s\n",
                       object_file);
@@ -386,6 +378,18 @@ main(int argc, char *argv[])
         compute_polygon_normals(polygons);
 
         ALLOC(values, polygons->n_points);
+        
+        if (equivol) {
+                ALLOC2D(values2, polygons->n_points, grid_steps1);
+
+                /* get point area of pial (outer) surface */
+                area_outer = (double *) malloc(sizeof(double) * polygons->n_points);
+                get_area_of_points_central_to_pial(polygons, area_outer, thickness, 0.5);
+
+                /* get point area of white (inner) surface */
+                area_inner = (double *) malloc(sizeof(double) * polygons->n_points);
+                get_area_of_points_central_to_pial(polygons, area_inner, thickness, -0.5);
+        }
 
         for (i = 0; i < polygons->n_points; i++) {
         
@@ -393,69 +397,74 @@ main(int argc, char *argv[])
                 SCALE_VECTOR(normal, polygons->normals[i], -1.0);
                 
                 for (j = 0; j < grid_steps1; j++) {
-                
+
                         /* get point from origin in normal direction */
                         if (thickness_file == NULL) {
                                 if (offset_file != NULL) {
-                                        GET_grid_POINT(voxel, polygons->points[i],
-                                                normal, length_array[j] + (offset_value*thickness[i])); 
+                                        pos = length_array[j] + (offset_value*thickness[i]); 
                                 } else {
-                                        GET_grid_POINT(voxel, polygons->points[i],
-                                                normal, length_array[j]); 
+                                        pos = length_array[j]; 
                                 }
                         } else { /* relate grid position to thickness values */
-                                GET_grid_POINT(voxel, polygons->points[i],
-                                       normal, length_array[j]*thickness[i]);
+                                
+                                if (equivol) {
+                                        /* get relative position inside cortical band */
+                                        pos = length_array[j] + 0.5;
+                                        /* eq. 10 from Waehnert et al. 2014 */
+                                        pos = (1.0/(area_outer[i]-area_inner[i]))*
+                                                     (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
+                                        pos = (pos - 0.5)*thickness[i]; /* subtract offset of 0.5 that was added to pos */            
+                                } else pos = length_array[j]*thickness[i];
                         }
                         
+                        GET_grid_POINT(voxel, polygons->points[i], normal, pos);
+
                         evaluate_volume_in_world(volume, voxel[X], voxel[Y],
                                                  voxel[Z], degrees_continuity, 
                                                  FALSE, 0.0, &value, NULL,
                                                  NULL, NULL, NULL, NULL, NULL,
                                                  NULL, NULL, NULL);
-                        if (isnan(value)) fprintf(stderr,"NaN\n");
+                                                 
+                        if (isnan(value)) value = 0.0;
+                        if (equivol) values2[i][j] = value;
+                        
                         val_array[j] = value;
                 }
-                /* evaluate function */
-                values[i] = evaluate_function(val_array, grid_steps1,
-                                          map_func, kernel, &index);
-                
-                /* get optional values for 2nd volume according to index of 1st volume */
-                if (output_file2 != NULL) {
-                
-                        /* get point from origin in normal direction */
-                        if (thickness_file == NULL) {
-                                if (offset_file != NULL) {
-                                        GET_grid_POINT(voxel, polygons->points[i],
-                                                normal, length_array[index] + (offset_value*thickness[i])); 
-                                } else {
-                                        GET_grid_POINT(voxel, polygons->points[i],
-                                                normal, length_array[index]); 
-                                }
-                        } else { /* relate grid position to thickness values */
-                                GET_grid_POINT(voxel, polygons->points[i],
-                                       normal, length_array[index]*thickness[i]);
-                        }
 
-                        evaluate_volume_in_world(volume2, voxel[X], voxel[Y],
-                                                 voxel[Z], degrees_continuity, 
-                                                 FALSE, 0.0, &value2, NULL,
-                                                 NULL, NULL, NULL, NULL, NULL,
-                                                 NULL, NULL, NULL);
-                        values2[i] = value2;
-                }
+                if (equivol==0)
+                        /* evaluate function */
+                        values[i] = evaluate_function(val_array, grid_steps1,
+                                          map_func, kernel, &index);
         }
 
-        output_values_any_format(output_values_file, polygons->n_points,
+        if (equivol) {
+                ALLOC(tmp_string, string_length(output_values_file)+3);
+                
+                /* remove potential extension for output name */
+                strcpy(tmp_string,output_values_file);
+                if (filename_extension_matches(output_values_file,"txt")) {
+                        output_values_file[string_length(output_values_file)-4] = '\0';
+                        strcpy(ext,".txt");
+                } else  strcpy(ext,"");
+
+                /* prepare numbered output name and write values */
+                for (j = 0; j < grid_steps1; j++) {
+                        (void) sprintf(tmp_string,"%s_%d%s",output_values_file,j+1,ext);
+                        for (i = 0; i < polygons->n_points; i++) values[i] = values2[i][j];
+
+                        output_values_any_format(tmp_string, polygons->n_points,
+                                 values, TYPE_DOUBLE);
+                }
+                free(values2);
+                free(area_inner);
+                free(area_outer);
+                        
+        } else  output_values_any_format(output_values_file, polygons->n_points,
                                  values, TYPE_DOUBLE);
 
-        if (output_file2 != NULL) {  
-                output_values_any_format(output_file2, polygons->n_points,
-                                         values2, TYPE_DOUBLE);
-                FREE(values2);
-        }
-
-        FREE(values);
+        free(values);
+        
         delete_object_list(n_objects, objects);
         return(EXIT_SUCCESS);
 }
+

@@ -1506,3 +1506,27 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         compute_polygon_normals(polygons);
 
 }
+
+/*
+ * Estimate area for each point of a surface that is shifted along normals by thickness extent 
+ * Extent of 0.5 for a central surface results in pial surface while -0.5 leads to a white surface
+ */
+double
+get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, double *thickness_values, double extent)
+{
+        double               surface_area, *extents;
+        int                  p;
+        polygons_struct      *polygons_transformed;
+        object_struct        **objects_transformed;
+
+        extents = (double *) malloc(sizeof(double) * polygons->n_points);                                
+        for (p = 0; p < polygons->n_points; p++) extents[p] = extent;
+
+        objects_transformed = central_to_new_pial(polygons, thickness_values, extents);
+        polygons_transformed = get_polygons_ptr(objects_transformed[0]);
+        surface_area = get_area_of_points(polygons_transformed, area);
+        
+        free(extents);
+
+        return(surface_area);
+}

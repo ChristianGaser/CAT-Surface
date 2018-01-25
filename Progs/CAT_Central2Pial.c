@@ -42,13 +42,13 @@ Furthermore, you can weight the extent of equi-volume correction which is helpfu
 int
 main(int argc, char *argv[])
 {
-        double               *values, *area_inner, *area_outer, *extents;
+        double               *thickness_values, *area_inner, *area_outer, *extents;
         double               extent, value, surface_area, pos;
         Status               status;
         char                 *src_file, *out_file, *values_file;
         int                  p, n_objects, n_values;
         File_formats         format;
-        polygons_struct      *polygons, *polygons_out;
+        polygons_struct      *polygons;
         object_struct        **object_list, **objects_out;
 
         /* get the arguments from the command line */
@@ -74,7 +74,7 @@ main(int argc, char *argv[])
                                       &object_list) != OK)
                 exit(EXIT_FAILURE);
 
-        if (input_values_any_format(values_file, &n_values, &values) != OK)
+        if (input_values_any_format(values_file, &n_values, &thickness_values) != OK)
                 exit(EXIT_FAILURE);
       
         if (n_objects > 1) {
@@ -96,16 +96,10 @@ main(int argc, char *argv[])
                 area_outer = (double *) malloc(sizeof(double) * polygons->n_points);
                 
                 /* pial (outer) surface */
-                for (p = 0; p < polygons->n_points; p++) extents[p] = 0.5;
-                objects_out = central_to_new_pial(polygons, values, extents);
-                polygons_out = get_polygons_ptr(objects_out[0]);
-                surface_area = get_area_of_points(polygons_out, area_outer);
+                surface_area = get_area_of_points_central_to_pial(polygons, area_outer, thickness_values, 0.5);
 
                 /* white (inner) surface */
-                for (p = 0; p < polygons->n_points; p++) extents[p] = -0.5;
-                objects_out = central_to_new_pial(polygons, values, extents);
-                polygons_out = get_polygons_ptr(objects_out[0]);
-                surface_area = get_area_of_points(polygons_out, area_inner);
+                surface_area = get_area_of_points_central_to_pial(polygons, area_inner, thickness_values, -0.5);
                 
                 /* get relative position inside cortical band */
                 pos = extent + 0.5;
@@ -122,16 +116,19 @@ main(int argc, char *argv[])
                                 extents[p] = weight*extents[p] + (1.0-weight)*extent;            
                         }                
                 }
-                
+                free(area_inner);
+                free(area_outer);
         } else {
                 for (p = 0; p < polygons->n_points; p++)
                         extents[p] = extent;
         }
         
-        objects_out = central_to_new_pial(polygons, values, extents);
+        objects_out = central_to_new_pial(polygons, thickness_values, extents);
 
         if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
                 exit(EXIT_FAILURE);
                 
+        free(extents);
+        
         return(status != OK);
 }
