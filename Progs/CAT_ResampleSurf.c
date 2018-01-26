@@ -18,7 +18,7 @@ int nn_interpolation = 0;
 
 static ArgvInfo argTable[] = {
   {"-nearest", ARGV_CONSTANT, (char *) TRUE, (char *) &nn_interpolation,
-     "Use nearest neighbour interpolation (i.e. for labeled atlas data)."},
+     "Use nearest neighbour interpolation (i.e. for labeled atlas data). This option is automatically used for .annot (label) files."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 

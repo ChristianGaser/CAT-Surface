@@ -22,14 +22,7 @@
         (result)[Z] = RPoint_z(grid_start) + length * Vector_z(normal); \
 }
 
-#define F_AVERAGE  0
-#define F_RANGE    1
-#define F_MAXABS   2
-#define F_MAX      3
-#define F_MIN      4
-#define F_EXP      5
-#define F_SUM      6
-#define F_WAVERAGE 7
+enum { F_AVERAGE, F_RANGE, F_MAXABS, F_MAX, F_MIN, F_EXP, F_SUM, F_WAVERAGE, F_MULTI };
 
 #define LOG05       -0.69314718
 #define PI2         6.28319
@@ -40,7 +33,7 @@
 /* argument defaults */
 int  degrees_continuity = 0;        /* interpolation - default: linear */
 int  grid_steps         = 7;        /* number of grid steps */
-int   equivol           = 0;        /* sse equi-volume model by Bok */
+int   equivol           = 0;        /* use equi-volume approach by Bok, otherwise an equi-distance approach is used */
 double grid_start       = -0.5;     /* start point (origin) of grid along normals */
 double grid_end         = 0.5;      /* end point of grid along normals */
 double offset_value     = 0.0;      /* offset according to thickness that is given with offset option */
@@ -65,7 +58,7 @@ ArgvInfo argTable[] = {
   {"-offset_value", ARGV_FLOAT, (char *) 1, (char *) &offset_value,
        "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t     WM surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t     A negative value of -0.5 can be used to define the pial surface."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
-       "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     Using this option the mappings for each defined step are saved separately and\n\t\t     no special mapping functions will be used. \n\t\t     This option can only be used if a thickness file is defined."},
+       "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Interpolation options:"},
   { "-linear", ARGV_CONSTANT, (char *) 0, 
@@ -103,6 +96,9 @@ ArgvInfo argTable[] = {
   { "-sum", ARGV_CONSTANT, (char *) F_SUM, 
     (char *) &map_func,
     "Use sum of values for mapping along normals." },
+  { "-multi", ARGV_CONSTANT, (char *) F_MULTI, 
+    (char *) &map_func,
+    "Map data for each grid step separately and save file with indicated grid value. Please note that this option is intended for high-resolution (f)MRI data only." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -248,7 +244,7 @@ main(int argc, char *argv[])
 
         /* check that the option for equivolume is used together with the thickness option */
         if ((equivol)  && (thickness_file == NULL)) {
-                fprintf(stderr, "You have to define a thickness file for the equivolume model.\n");
+                fprintf(stderr, "You have to define a thickness file for the equi-volume approach.\n");
                 exit(EXIT_FAILURE);
         }
 
@@ -273,9 +269,11 @@ main(int argc, char *argv[])
         }
 
         /* initialize values for lengths (starting with origin) */
-        if (thickness_file == NULL)
-                fprintf(stdout, "Calculate values along absolute positions [mm]:\n");
-        else {
+        if (thickness_file == NULL) {
+                if (map_func == F_MULTI)
+                        fprintf(stdout, "Save values for absolute positions [mm]:\n");
+                else    fprintf(stdout, "Calculate values along absolute positions [mm]:\n");
+        } else {
                 /* set offset_value to 0 if thickness flag is defined too */
                 if (offset_value != 0.0) {
                         offset_value = 0.0;
@@ -284,7 +282,9 @@ main(int argc, char *argv[])
                 if (input_values_any_format(thickness_file, &n_thickness_values, &thickness) != OK)
                         exit(EXIT_FAILURE);
 
-                fprintf(stdout, "Calculate values along relative position using thickness:\n");
+                if (map_func == F_MULTI)
+                        fprintf(stdout, "Save values for relative position using thickness:\n");
+                else    fprintf(stdout, "Calculate values along relative position using thickness:\n");
         }
         
         /* use offset file to get other surfaces */
@@ -379,7 +379,7 @@ main(int argc, char *argv[])
 
         ALLOC(values, polygons->n_points);
         
-        if (equivol) {
+        if (map_func == F_MULTI) {
                 ALLOC2D(values2, polygons->n_points, grid_steps1);
 
                 /* get point area of pial (outer) surface */
@@ -410,10 +410,13 @@ main(int argc, char *argv[])
                                 if (equivol) {
                                         /* get relative position inside cortical band */
                                         pos = length_array[j] + 0.5;
+                                        
                                         /* eq. 10 from Waehnert et al. 2014 */
                                         pos = (1.0/(area_outer[i]-area_inner[i]))*
                                                      (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
-                                        pos = (pos - 0.5)*thickness[i]; /* subtract offset of 0.5 that was added to pos */            
+                                                     
+                                        /* subtract offset of 0.5 that was added to pos and invert value because we have inverted normals*/
+                                        pos = (0.5 - pos)*thickness[i];             
                                 } else pos = length_array[j]*thickness[i];
                         }
                         
@@ -426,18 +429,18 @@ main(int argc, char *argv[])
                                                  NULL, NULL, NULL);
                                                  
                         if (isnan(value)) value = 0.0;
-                        if (equivol) values2[i][j] = value;
+                        if (map_func == F_MULTI) values2[i][j] = value;
                         
                         val_array[j] = value;
                 }
 
-                if (equivol==0)
+                if (map_func != F_MULTI)
                         /* evaluate function */
                         values[i] = evaluate_function(val_array, grid_steps1,
                                           map_func, kernel, &index);
         }
 
-        if (equivol) {
+        if (map_func == F_MULTI) {
                 ALLOC(tmp_string, string_length(output_values_file)+3);
                 
                 /* remove potential extension for output name */
@@ -449,7 +452,7 @@ main(int argc, char *argv[])
 
                 /* prepare numbered output name and write values */
                 for (j = 0; j < grid_steps1; j++) {
-                        (void) sprintf(tmp_string,"%s_%d%s",output_values_file,j+1,ext);
+                        (void) sprintf(tmp_string,"%s%g%s",output_values_file,length_array[j],ext);
                         for (i = 0; i < polygons->n_points; i++) values[i] = values2[i][j];
 
                         output_values_any_format(tmp_string, polygons->n_points,
