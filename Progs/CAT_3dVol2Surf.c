@@ -452,7 +452,9 @@ main(int argc, char *argv[])
 
                 /* prepare numbered output name and write values */
                 for (j = 0; j < grid_steps1; j++) {
-                        (void) sprintf(tmp_string,"%s%g%s",output_values_file,length_array[j],ext);
+                        if (equivol)
+                                (void) sprintf(tmp_string,"%s_ev%g%s",output_values_file,length_array[j],ext);
+                        else    (void) sprintf(tmp_string,"%s_ed%g%s",output_values_file,length_array[j],ext);
                         for (i = 0; i < polygons->n_points; i++) values[i] = values2[i][j];
 
                         output_values_any_format(tmp_string, polygons->n_points,
