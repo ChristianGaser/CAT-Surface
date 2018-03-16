@@ -82,11 +82,6 @@ main(int argc, char** argv)
         output_values_any_format(out_file, polygons->n_points,
                                  defects, TYPE_INTEGER);
 
-        n_intersects = patch_selfintersections(polygons, polygons, defects,
-                                            polydefects, n_intersects,
-                                            n_neighbours, neighbours);
-        printf("Post-patch: %d self intersection(s) remaining\n", n_intersects);
-
         free(defects);
         free(polydefects);
 

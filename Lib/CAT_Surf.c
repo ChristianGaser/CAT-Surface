@@ -17,6 +17,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
 #include "CAT_DeformPolygons.h"
+#include "CAT_Intersect.h"
 
 #define _PI 3.14159265358979323846264338327510
 
@@ -1448,7 +1449,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
  * check_polygons_shape_integrity.
  */
 object_struct **
-central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents)
+central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
         polygons_struct      *polygons_out;
         object_struct        **objects_out;
@@ -1458,7 +1459,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
         polygons_out = get_polygons_ptr(*objects_out);
         
         copy_polygons(polygons, polygons_out);
-        central_to_pial(polygons_out, thickness_values, extents);
+        central_to_pial(polygons_out, thickness_values, extents, check_intersects);
         
         return(objects_out);
 
@@ -1470,12 +1471,14 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
  * an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.
  */
 void
-central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents)
+central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
         int                  i, p, n_steps;
         polygons_struct      *polygons_out;
         Point                *new_pts, *old_pts;
         object_struct        **objects_out;
+        int                  *defects, *polydefects, n_intersects;
+        int                  *n_neighbours, **neighbours;
 
         compute_polygon_normals(polygons);
         check_polygons_neighbours_computed(polygons);
@@ -1485,6 +1488,13 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         polygons_out = get_polygons_ptr(*objects_out);
         
         copy_polygons(polygons, polygons_out);
+        
+        if (check_intersects) {
+                defects = (int *) malloc(sizeof(int) * polygons->n_points);
+                polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
+                create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                                        &neighbours, NULL, NULL);
+        }
 
         /* use 10 steps to add thickness values to central surface and check in each step shape integrity */
         n_steps = 10;
@@ -1497,13 +1507,38 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                         Point_y(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_y(polygons->normals[p]);
                         Point_z(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_z(polygons->normals[p]);
                 }
-                /* get new points and check shape integrity */
-                new_pts = polygons_out->points;
-                check_polygons_shape_integrity(polygons, new_pts);
-                polygons->points = new_pts;
+                
+                /* check self intersections after 1st iteration */
+                if ((check_intersects) & (i > 0)) {
+                        n_intersects = find_selfintersections(polygons_out, defects, polydefects);            
+                        n_intersects = join_intersections(polygons_out, defects, polydefects,
+                                          n_neighbours, neighbours);
+                        if (n_intersects > 0) {
+                                for (p = 0; p < polygons->n_points; p++) {
+                                        if (defects[p] == 0) {
+                                                Point_x(polygons->points[p]) = Point_x(polygons_out->points[p]);
+                                                Point_y(polygons->points[p]) = Point_y(polygons_out->points[p]);
+                                                Point_z(polygons->points[p]) = Point_z(polygons_out->points[p]);
+                                        } 
+                                }
+                        } 
+                        check_polygons_shape_integrity(polygons, new_pts);
+                } else {
+                        /* get new points and check shape integrity */
+                        new_pts = polygons_out->points;
+                        check_polygons_shape_integrity(polygons, new_pts);
+                        polygons->points = new_pts;
+                }
+
         }
 
         compute_polygon_normals(polygons);
+        if (check_intersects) {
+                free(defects);
+                free(polydefects);
+                delete_polygon_point_neighbours(polygons, n_neighbours,
+                                        neighbours, NULL, NULL);
+        }
 
 }
 
@@ -1522,7 +1557,7 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
         extents = (double *) malloc(sizeof(double) * polygons->n_points);                                
         for (p = 0; p < polygons->n_points; p++) extents[p] = extent;
 
-        objects_transformed = central_to_new_pial(polygons, thickness_values, extents);
+        objects_transformed = central_to_new_pial(polygons, thickness_values, extents, 0);
         polygons_transformed = get_polygons_ptr(objects_transformed[0]);
         surface_area = get_area_of_points(polygons_transformed, area);
         

@@ -441,7 +441,7 @@ main(int argc, char *argv[])
         }
 
         if (map_func == F_MULTI) {
-                ALLOC(tmp_string, string_length(output_values_file)+3);
+                ALLOC(tmp_string, string_length(output_values_file)+10);
                 
                 /* remove potential extension for output name */
                 strcpy(tmp_string,output_values_file);

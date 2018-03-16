@@ -15,6 +15,7 @@
 #include "CAT_Smooth.h"
 
 /* argument defaults */
+int   check_intersect = 0;
 int   equivol = 0;
 double weight = 1.0;
 
@@ -24,6 +25,8 @@ static ArgvInfo argTable[] = {
      "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014)."},
   {"-weight", ARGV_FLOAT, (char *) TRUE, (char *) &weight,
      "Weight between equi-volume model (1.0) and original data (0.0)."},
+  {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
+     "Prevent self intersections"},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -123,7 +126,7 @@ main(int argc, char *argv[])
                         extents[p] = extent;
         }
         
-        objects_out = central_to_new_pial(polygons, thickness_values, extents);
+        objects_out = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
 
         if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
                 exit(EXIT_FAILURE);
