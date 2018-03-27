@@ -1468,17 +1468,18 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
 
 /*
  * Estimate pial surface from central surface using cortical thickness values. In order to estimate the pial surface 
- * an extent of 0.5 (default) should be used, while an extent of -0.5 results in the estimation of the white matter surface.
+ * an extent of 0.5 should be used, while an extent of -0.5 results in the estimation of the white matter surface.
  */
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
-        int                  i, p, n_steps;
+        int                  i, p, n_steps, debug = 0;
         polygons_struct      *polygons_out;
-        Point                *new_pts, *old_pts;
+        Point                *new_pts;
         object_struct        **objects_out;
         int                  *defects, *polydefects, n_intersects;
         int                  *n_neighbours, **neighbours;
+        double               length;
 
         compute_polygon_normals(polygons);
         check_polygons_neighbours_computed(polygons);
@@ -1496,40 +1497,46 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                                         &neighbours, NULL, NULL);
         }
 
-        /* use 10 steps to add thickness values to central surface and check in each step shape integrity */
+        /* use 10 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
         n_steps = 10;
+        length = 1.0;
         for (i = 0; i < n_steps; i++) {
                 copy_polygons(polygons, polygons_out);
+                
+                /* decrease length of change for each step by factor 2 to achieve large changes
+                   in the first step which will get smaller from step to step */
+                length /= 2.0;
 
                 /* add fraction of thickness value in normal direction */ 
                 for (p = 0; p < polygons->n_points; p++) {
-                        Point_x(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_x(polygons->normals[p]);
-                        Point_y(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_y(polygons->normals[p]);
-                        Point_z(polygons_out->points[p]) += extents[p]/(double)n_steps*thickness_values[p]*Point_z(polygons->normals[p]);
+                        Point_x(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_x(polygons->normals[p]);
+                        Point_y(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_y(polygons->normals[p]);
+                        Point_z(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_z(polygons->normals[p]);
                 }
                 
                 /* check self intersections after 1st iteration */
-                if ((check_intersects) & (i > 0)) {
+                if ((check_intersects)) {
                         n_intersects = find_selfintersections(polygons_out, defects, polydefects);            
                         n_intersects = join_intersections(polygons_out, defects, polydefects,
                                           n_neighbours, neighbours);
+
+                        if (debug)
+                                printf("Step %02d/%02d Length %g: %d intersections\n",i+1, n_steps, length, n_intersects);
                         if (n_intersects > 0) {
                                 for (p = 0; p < polygons->n_points; p++) {
                                         if (defects[p] == 0) {
                                                 Point_x(polygons->points[p]) = Point_x(polygons_out->points[p]);
                                                 Point_y(polygons->points[p]) = Point_y(polygons_out->points[p]);
                                                 Point_z(polygons->points[p]) = Point_z(polygons_out->points[p]);
-                                        } 
+                                        }
                                 }
+                        new_pts = polygons->points;
                         } 
-                        check_polygons_shape_integrity(polygons, new_pts);
-                } else {
-                        /* get new points and check shape integrity */
-                        new_pts = polygons_out->points;
-                        check_polygons_shape_integrity(polygons, new_pts);
-                        polygons->points = new_pts;
-                }
-
+                } else  new_pts = polygons_out->points;
+                
+                /* check polygon integrity of new points */
+                check_polygons_shape_integrity(polygons, new_pts);
+                polygons->points = new_pts;
         }
 
         compute_polygon_normals(polygons);
@@ -1539,7 +1546,6 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                 delete_polygon_point_neighbours(polygons, n_neighbours,
                                         neighbours, NULL, NULL);
         }
-
 }
 
 /*
