@@ -199,13 +199,40 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
 
         terminate_progress_report(&progress);
 
-/*        delete_octree(tree); */
-
         update_defects(surface, polydefects, defects);
 
         return n_intersects;
 }
 
+
+int
+correct_simple_selfintersections(polygons_struct *surface, int *defects, int *polydefects, int *n_neighbours, int **neighbours)
+{
+        int                i, n, p, n_intersections = 1;
+        double             extent = 0.05;
+
+        for (p = 0; p < surface->n_points; p++)
+                if (defects[p] > 0) n_intersections++;
+        
+        n = 0;
+        while (n_intersections != 0) {
+                i = 0;
+                n++;
+                for (p = 0; p < surface->n_points; p++) {
+                        if (defects[p] == 0) continue;
+                        i++;
+                        Point_x(surface->points[p]) += extent*Point_x(surface->normals[p]);
+                        Point_y(surface->points[p]) += extent*Point_y(surface->normals[p]);
+                        Point_z(surface->points[p]) += extent*Point_z(surface->normals[p]);
+                }
+                n_intersections = find_remaining_intersections(surface, defects, polydefects,
+                                            n_neighbours, neighbours);
+                printf("%03d: %04d Remaining self intersections %d\n",n,i,n_intersections);
+                if (n==40) n_intersections = 0;
+        }
+
+        return 0;
+}
 
 /* consolidate neighboring self-intersections */
 int

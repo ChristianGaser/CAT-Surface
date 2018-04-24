@@ -270,7 +270,7 @@ void
 surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
 {
         Volume    volume, label_volume, tmp;        
-        int       i, label, sizes[3];
+        int       i, label, sizes[3], check_every_iteration;
         int       range_changed[2][3], value[3];
         int       *n_neighbours, **neighbours, *flag;
         double    separations[3], voxel[3], world[3];
@@ -334,6 +334,7 @@ surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
         deform.deform_data.type = VOLUME_DATA;
         deform.deform_data.volume = label_volume;
         deform.deform_data.label_volume = (Volume) NULL;
+        check_every_iteration = 25; /* check for self intersections every 25 iterations */
 
         if (DEBUG) printf("add_deformation_model...\n");
         if (add_deformation_model(&deform.deformation_model, -1, 0.5, "avg", -0.1, 0.1) != OK)
@@ -342,8 +343,8 @@ surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
         threshold = 0.75*label_val;
         set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
 
-        if (DEBUG) printf("deform_polygons_points...\n");
-        deform_polygons(hbw, &deform);
+        if (DEBUG) printf("deform_polygons...\n");
+        deform_polygons_check_selfintersection(hbw, &deform, check_every_iteration);
 
         if (DEBUG) printf("add_neighbours...\n");
         if (hbw_defects != NULL) {

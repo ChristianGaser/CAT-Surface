@@ -9,7 +9,10 @@
 
 #include "CAT_DeformPolygons.h"
 #include "CAT_Surf.h"
+#include "CAT_Intersect.h"
+
 //#define DEBUG 1
+
 void
 deform_surf2object(polygons_struct *surface, object_struct *object)
 {
@@ -506,16 +509,20 @@ perturb_points(polygons_struct *polygons, Point new_points[],
 }
 
 
-/* only modify point if flag[point] != 0 */
+/* deform polygons and check for self intersections every check_every_iteration */
 void
-deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
-                       int *flag)
+deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct *deform_parms,
+                       int check_every_iteration)
 {
-        int                iter, countdown, countdown2, p;
-        double               avg_err, prev_avg_err, rate;
+        int                iter, countdown, countdown2, p, n_intersects;
+        int                *defects, *polydefects;
+        double             avg_err, prev_avg_err, rate;
         Point              *pts;
 
-        pts = (Point *) malloc(sizeof(Point) * polygons->n_points);
+        pts         = (Point *) malloc(sizeof(Point) * polygons->n_points);
+        defects     = (int *) malloc(sizeof(int) * polygons->n_points);
+        polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
+
         for (p = 0; p < polygons->n_points; p++)
                 pts[p] = polygons->points[p];
 
@@ -529,6 +536,23 @@ deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
                 iter++;
 
                 avg_err = one_iter_polygons(polygons, deform_parms, iter);
+
+                if (iter % check_every_iteration == 0) {
+                
+                    n_intersects = find_selfintersections(polygons, defects, polydefects);
+                    
+                    if (n_intersects > 0) {
+                            printf("%d self intersections found at iteration %d\n", n_intersects, iter);
+                            for (p = 0; p < polygons->n_points; p++) {
+                                    if (defects[p] > 0)
+                                            polygons->points[p] = pts[p]; /* restore */
+                    }
+                    
+                    /* save points for next check */
+                    for (p = 0; p < polygons->n_points; p++)
+                            pts[p] = polygons->points[p];
+                }
+                
                 rate = (prev_avg_err - avg_err) / (prev_avg_err + avg_err);
 
                 if (rate < deform_parms->stop_threshold) {
@@ -540,11 +564,8 @@ deform_polygons_points(polygons_struct *polygons, deform_struct *deform_parms,
                 } else countdown2 = 0;
 
                 prev_avg_err = avg_err;
-                for (p = 0; p < polygons->n_points; p++) {
-                        if (flag[p] == 0)
-                                polygons->points[p] = pts[p]; /* restore */
                 }
-                pts[p] = polygons->points[p];
+
         } while ((countdown < 4 || countdown2 < 4) && countdown < 10 &&
                  iter < deform_parms->max_iterations);
 
