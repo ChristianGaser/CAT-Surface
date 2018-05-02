@@ -14,11 +14,13 @@
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_SPH.h"
+#include "CAT_Surf.h"
 
 /* argument defaults */
 int bandwidth = 256;
 int bandwidth_limited = 0;
 int n_triangles = 81920;
+int correct_bb = 0;
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -28,6 +30,9 @@ ArgvInfo argTable[] = {
   { "-lim", ARGV_INT, (char *) 1, 
     (char *) &bandwidth_limited,
     "Limit bandwidth of spherical harmonic expansion." },
+  { "-correct", ARGV_CONSTANT, (char *) TRUE, 
+    (char *) &correct_bb,
+    "Correct bounding box according to unlimited spherical harmonic expansion. This accounts for the smaller bounding box after applying bandwidth limitation." },
   { "-n", ARGV_INT, (char *) 1, 
     (char *) &n_triangles,
     "Number of triangles for sampled surface." },
@@ -38,7 +43,7 @@ void
 usage(char *executable)
 {
         static char *usage_str = "\n\
-Usage: %s  SPH.txt output_surface_file [-bw bandwith -lim bandwidth_limited -n n_points]\n\
+Usage: %s  SPH.txt output_surface_file [-bw bandwith -lim bandwidth_limited -correct -n n_points]\n\
 Use spherical harmonic coefficients to create a surface.\n\n\n";
 
         fprintf(stderr, usage_str, executable);
@@ -56,8 +61,8 @@ main(int argc, char *argv[])
         double               *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double               *rdatax, *rdatay, *rdataz;
         float                rx,ix,ry,iy,rz,iz;
-        polygons_struct      *polygons_sphere;
-        object_struct        *objects_sphere;
+        polygons_struct      *polygons_bw, *polygons_full;
+        object_struct        *objects_polygon_bw, *objects_polygon_full;
    
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) || argc != 3) {
@@ -114,11 +119,26 @@ main(int argc, char *argv[])
 
         fclose(fp);
 
+        dataformat = 1;
         bandwidth2 = 2*bandwidth;
 
         rdatax   = (double *) malloc(sizeof(double) * bandwidth2*bandwidth2);
         rdatay   = (double *) malloc(sizeof(double) * bandwidth2*bandwidth2);
         rdataz   = (double *) malloc(sizeof(double) * bandwidth2*bandwidth2);
+        
+        if (correct_bb) {
+                printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform full...      ");
+                get_realdata_from_sph_coeffs(rdatax, bandwidth, dataformat, rcx, icx);
+                get_realdata_from_sph_coeffs(rdatay, bandwidth, dataformat, rcy, icy);
+                get_realdata_from_sph_coeffs(rdataz, bandwidth, dataformat, rcz, icz);
+        
+                objects_polygon_full = create_object( POLYGONS );
+                polygons_full = get_polygons_ptr(objects_polygon_full);
+                printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample full surface...           ");
+                sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons_full,
+                                       n_triangles, NULL, bandwidth);
+        
+        }
 
         if (bandwidth_limited > 0 && bandwidth_limited < bandwidth) {
                 printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Limit bandwidth...            ");
@@ -130,20 +150,24 @@ main(int argc, char *argv[])
                 limit_bandwidth(bandwidth, bandwidth_limited, icz, icz);
         }
     
-        dataformat = 1;
         printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Inverse SPH transform...      ");
         get_realdata_from_sph_coeffs(rdatax, bandwidth, dataformat, rcx, icx);
         get_realdata_from_sph_coeffs(rdatay, bandwidth, dataformat, rcy, icy);
         get_realdata_from_sph_coeffs(rdataz, bandwidth, dataformat, rcz, icz);
 
-        objects_sphere = create_object( POLYGONS );
-        polygons_sphere = get_polygons_ptr(objects_sphere);
+        objects_polygon_bw = create_object( POLYGONS );
+        polygons_bw = get_polygons_ptr(objects_polygon_bw);
         printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Resample surface...           ");
-        sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons_sphere,
+        sample_sphere_from_sph(rdatax, rdatay, rdataz, polygons_bw,
                                n_triangles, NULL, bandwidth);
 
+        if (correct_bb) {
+                printf("%30s\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b","Correct bounding box...           ");
+                correct_bounds_to_target_with_scaling(polygons_bw, polygons_full);
+        }
+        
         if (output_graphics_any_format(surface_file, ASCII_FORMAT, 1,
-                                       &objects_sphere, NULL) != OK)
+                                       &objects_polygon_bw, NULL) != OK)
                 exit(EXIT_FAILURE);
 
         free(rcx);
