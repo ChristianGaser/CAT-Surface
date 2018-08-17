@@ -30,6 +30,7 @@ usage(char *executable)
         fprintf(stderr, "   min_isovalue max_isovalue +/-/n\n");
         fprintf(stderr, "   gradient_threshold angle tolerance\n");
         fprintf(stderr, "   max_iterations  movement_threshold stop_threshold\n");
+        fprintf(stderr, "   force_no_selfintersections\n");
 }
 
 int
@@ -49,7 +50,7 @@ main(int argc, char *argv[])
         int               i, n_models = 0, up_to_n_points;
         deform_struct     deform;
         File_formats      file_format;
-        int               n_objects;
+        int               n_objects, check_every_iteration, force_no_selfintersections;
         object_struct     **object_list;
         Volume            volume, label_volume, tmp;
         polygons_struct   *polygons;
@@ -104,7 +105,8 @@ main(int argc, char *argv[])
             get_real_argument(0.0, &tolerance) == 0 ||
             get_int_argument(0, &deform.max_iterations) == 0 ||
             get_real_argument(0.0, &deform.movement_threshold) == 0 ||
-            get_real_argument(0.0, &deform.stop_threshold) == 0) {
+            get_real_argument(0.0, &deform.stop_threshold) == 0 ||
+            get_int_argument(0.0, &force_no_selfintersections) == 0) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -159,7 +161,8 @@ main(int argc, char *argv[])
         start_time = current_cpu_seconds();
         
         /* check every 50 iterations for self interactions */
-        deform_polygons_check_selfintersection(polygons, &deform, 50);
+        check_every_iteration = 50;
+        deform_polygons_check_selfintersection(polygons, &deform, check_every_iteration, force_no_selfintersections);
 
         compute_polygon_normals(polygons);
 

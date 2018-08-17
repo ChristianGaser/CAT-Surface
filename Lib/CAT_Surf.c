@@ -20,6 +20,7 @@
 #include "CAT_Intersect.h"
 
 #define _PI 3.14159265358979323846264338327510
+//#define DEBUG 1
 
 int
 bound(int i, int j, int dm[])
@@ -1473,13 +1474,13 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
-        int                  i, p, n_steps, debug = 0;
+        int                  i, p, n_steps;
         polygons_struct      *polygons_out;
         Point                *new_pts;
         object_struct        **objects_out;
         int                  *defects, *polydefects, n_intersects;
         int                  *n_neighbours, **neighbours;
-        double               length;
+        double               length, overall_length;
 
         compute_polygon_normals(polygons);
         check_polygons_neighbours_computed(polygons);
@@ -1487,7 +1488,7 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         objects_out  = (object_struct **) malloc(sizeof(object_struct *));
         *objects_out = create_object(POLYGONS);
         polygons_out = get_polygons_ptr(*objects_out);
-        
+                
         copy_polygons(polygons, polygons_out);
         
         if (check_intersects) {
@@ -1500,12 +1501,17 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         /* use 10 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
         n_steps = 10;
         length = 1.0;
+        overall_length = 0.0;
+        
         for (i = 0; i < n_steps; i++) {
                 copy_polygons(polygons, polygons_out);
                 
-                /* decrease length of change for each step by factor 2 to achieve large changes
+                /* decrease length of change for each step by factor 2 to achieve larger changes
                    in the first step which will get smaller from step to step */
-                length /= 2.0;
+                if ((i+1) < n_steps)
+                        length /= 2.0;
+
+                overall_length += length;
 
                 /* add fraction of thickness value in normal direction */ 
                 for (p = 0; p < polygons->n_points; p++) {
@@ -1514,14 +1520,15 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                         Point_z(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_z(polygons->normals[p]);
                 }
                 
-                /* check self intersections after 1st iteration */
+                /* check self intersections */
                 if ((check_intersects)) {
                         n_intersects = find_selfintersections(polygons_out, defects, polydefects);            
                         n_intersects = join_intersections(polygons_out, defects, polydefects,
                                           n_neighbours, neighbours);
 
-                        if (debug)
+#ifdef DEBUG
                                 printf("Step %02d/%02d Length %g: %d intersections\n",i+1, n_steps, length, n_intersects);
+#endif
                         if (n_intersects > 0) {
                                 for (p = 0; p < polygons->n_points; p++) {
                                         if (defects[p] == 0) {
@@ -1530,8 +1537,8 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                                                 Point_z(polygons->points[p]) = Point_z(polygons_out->points[p]);
                                         }
                                 }
-                        new_pts = polygons->points;
-                        } 
+                                new_pts = polygons->points;
+                        }
                 } else  new_pts = polygons_out->points;
                 
                 /* check polygon integrity of new points */

@@ -344,7 +344,7 @@ surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
         set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
 
         if (DEBUG) printf("deform_polygons...\n");
-        deform_polygons_check_selfintersection(hbw, &deform, check_every_iteration);
+        deform_polygons_check_selfintersection(hbw, &deform, check_every_iteration, 1);
 
         if (DEBUG) printf("add_neighbours...\n");
         if (hbw_defects != NULL) {

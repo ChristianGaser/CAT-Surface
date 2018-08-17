@@ -496,8 +496,8 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
         n_defects = find_remaining_intersections(surface, defects, polydefects,
                                                  n_neighbours, neighbours);
 
-        return(n_defects);
         free(edgeflag);
+        return(n_defects);
 }
 
 
