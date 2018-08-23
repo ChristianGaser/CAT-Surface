@@ -41,7 +41,7 @@ surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_s
 
         do {
                 n_done = refine_mesh( &length_points, convex_polygons, 3.0,
-                              &new_polygons );
+                              &new_polygons, 0.0 );
 
                 delete_polygons( convex_polygons );
                 *convex_polygons = new_polygons;

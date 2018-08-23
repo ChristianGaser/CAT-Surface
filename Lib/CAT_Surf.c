@@ -1463,8 +1463,6 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
         central_to_pial(polygons_out, thickness_values, extents, check_intersects);
         
         return(objects_out);
-
-
 }
 
 /*

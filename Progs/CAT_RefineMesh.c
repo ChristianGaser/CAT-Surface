@@ -14,7 +14,10 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: %s  surface_file output_surface_file  max_length\n\n";
+Usage: %s  surface_file output_surface_file  max_length [weight_curvatures]\n\
+  Refine mesh so that max_length is the largest distance between two points. If curvature\n\
+  weighting is used regions in sulci and gyri with large absolute mean curvature values\n\n
+  will result in a smaller max_length to allow better surface deforming.\n\n";
 
     print_error( usage_str, executable );
 }
@@ -29,7 +32,7 @@ int  main(
     object_struct      **object_list;
     polygons_struct    *polygons, new_polygons;
     Point              *length_points;
-    double               max_length;
+    double             max_length, weight_curvatures;
 
     initialize_argument_processing( argc, argv );
 
@@ -40,6 +43,8 @@ int  main(
         usage( argv[0] );
         return( 1 );
     }
+
+    get_real_argument( 0.0, &weight_curvatures );
 
     if( input_graphics_any_format( input_filename, &format, &n_objects,
                              &object_list ) != OK ||
@@ -58,7 +63,7 @@ int  main(
     do
     {
         n_done = refine_mesh( &length_points, polygons, max_length,
-                              &new_polygons );
+                              &new_polygons, weight_curvatures );
 
         delete_polygons( polygons );
         *polygons = new_polygons;

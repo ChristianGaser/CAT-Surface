@@ -674,7 +674,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
 
                 do {
                         n_done = refine_mesh( &length_points, hbw, max_refine_length,
-                              &refined );
+                              &refined, 0.0 );
 
                         delete_polygons( hbw );
                         *hbw = refined;

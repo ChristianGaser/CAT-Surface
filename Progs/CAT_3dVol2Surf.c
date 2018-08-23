@@ -194,11 +194,11 @@ main(int argc, char *argv[])
         char                 *output_values_file;
         char                 *tmp_string, ext[5];
         File_formats         format;
-        Volume               volume, volume2;
+        Volume               volume;
         int                  i, j, index, n_thickness_values, n_objects, grid_steps1, grid_increase;
         object_struct        **objects;
         polygons_struct      *polygons;
-        double               value, value2, voxel[N_DIMENSIONS];
+        double               value, voxel[N_DIMENSIONS];
         double               *area_inner, *area_outer, *values, **values2, *thickness;
         double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
         double               sum, x, sigma, kernel[MAX_N_ARRAY];

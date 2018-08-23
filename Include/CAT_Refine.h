@@ -9,4 +9,8 @@
 
 #include <bicpl.h>
 
-int  refine_mesh(Point **, polygons_struct *, double, polygons_struct *);
+#ifndef MAX
+#define MAX(x,y) (((x) > (y)) ? (x) : (y)) 
+#endif
+
+int  refine_mesh(Point **, polygons_struct *, double, polygons_struct *, double);

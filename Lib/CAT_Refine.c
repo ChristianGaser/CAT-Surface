@@ -9,6 +9,9 @@
 
 #include <bicpl.h>
 
+#include "CAT_Curvature.h"
+#include "CAT_Smooth.h"
+
 private  BOOLEAN  lookup_edge_midpoint(
     hash2_table_struct    *edge_lookup,
     int                   p0,
@@ -174,13 +177,44 @@ private  void  add_polygons(
 int refine_mesh(
     Point              *length_points[],
     polygons_struct    *polygons,
-    double               max_length,
-    polygons_struct    *new_polygons )
+    double             max_length,
+    polygons_struct    *new_polygons,
+    double             weight_curvature )
 {
-    int                  n_indices, p1, p2, size, point, edge, midpoint, poly;
-    double                 normalized_length;
+    int                  n_indices, i, p1, p2, size, point, edge, midpoint, poly;
+    int                  *n_neighbours, **neighbours;
+    double               normalized_length, *curvatures, max_length_weighted;
+    double               mean_curv, max_curv, sum_curv;
     hash2_table_struct   edge_lookup;
 
+    /* estimate (scaled) absolute mean curvature if weighting is defined */
+    if (weight_curvature > 0.0) {
+            ALLOC(curvatures, polygons->n_points);
+            get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+            get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                         3.0, 0, curvatures);
+                                         
+            /* get absolute value, transform data to more normally distributed data 
+               with x^0.4 and finally get maximum */
+            max_curv = 0.0; 
+            for (i = 0; i < polygons->n_points; i++) {
+                    curvatures[i] = pow(fabs(curvatures[i]), 0.4);
+                    max_curv = MAX(curvatures[i], max_curv);
+            }
+            
+            /* scale curvature to range (0..1) */
+            sum_curv = 0.0;
+            for (i = 0; i < polygons->n_points; i++) {
+                    curvatures[i] = curvatures[i]/max_curv;
+                    sum_curv += curvatures[i];
+            }
+                    
+            /* force mean of 0 and add 1 to ensure that mean curvature vales are weighted with 1 */
+            mean_curv = sum_curv/(double)polygons->n_points;
+            for (i = 0; i < polygons->n_points; i++) 
+                    curvatures[i] = curvatures[i] - mean_curv + 1.0;
+    }
+    
     initialize_polygons( new_polygons, WHITE, NULL );
 
     SET_ARRAY_SIZE( new_polygons->points, 0, polygons->n_points,
@@ -203,10 +237,13 @@ int refine_mesh(
             p1 = polygons->indices[POINT_INDEX(polygons->end_indices,poly,edge)];
             p2 = polygons->indices[POINT_INDEX(polygons->end_indices,poly,
                                  (edge+1)%size)];
-
+            
+            if (weight_curvature > 0.0) {
+                    max_length_weighted = max_length/pow(curvatures[p1],weight_curvature);
+            } else  max_length_weighted = max_length;
+            
             normalized_length = distance_between_points( &(*length_points)[p1],
-                                                         &(*length_points)[p2])/
-                                  max_length;
+                                &(*length_points)[p2])/max_length_weighted;
 
             if( normalized_length > 1.0 &&
                 !lookup_edge_midpoint( &edge_lookup, p1, p2, &midpoint ) )
@@ -234,6 +271,7 @@ int refine_mesh(
     compute_polygon_normals( new_polygons );
 
     delete_hash2_table( &edge_lookup );
+    if (weight_curvature > 0.0) FREE(curvatures);
 
     return( new_polygons->n_items - polygons->n_items );
 }
