@@ -16,7 +16,7 @@ private  void  usage(
     STRING  usage_str = "\n\
 Usage: %s  surface_file output_surface_file  max_length [weight_curvatures]\n\
   Refine mesh so that max_length is the largest distance between two points. If curvature\n\
-  weighting is used regions in sulci and gyri with large absolute mean curvature values\n\n
+  weighting is used regions in sulci and gyri with large absolute mean curvature values\n\
   will result in a smaller max_length to allow better surface deforming.\n\n";
 
     print_error( usage_str, executable );
