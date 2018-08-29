@@ -11,7 +11,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Intersect.h"
 
-//#define DEBUG 1
+/* #define DEBUG 1 */
 
 void
 deform_surf2object(polygons_struct *surface, object_struct *object)
@@ -593,11 +593,11 @@ deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct 
                                                   n_neighbours, neighbours);
                         
                         if (n_intersects > 0) {
-                                printf("%d self intersections found that will be corrcted.\n", n_intersects);
+                                printf("%d self intersections found that will be corrected.\n", n_intersects);
         
                                 n_intersects = smooth_selfintersections(polygons, defects, polydefects,
                                              n_intersects, n_neighbours,
-                                             neighbours, 50*counter);
+                                             neighbours, 50);
 
                         } else printf("All self intersections corrected.\n");
                 } while (n_intersects > 0 && counter < 10);

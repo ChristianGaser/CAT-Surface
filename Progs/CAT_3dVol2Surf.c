@@ -379,9 +379,10 @@ main(int argc, char *argv[])
 
         ALLOC(values, polygons->n_points);
         
-        if (map_func == F_MULTI) {
+        if (map_func == F_MULTI) 
                 ALLOC2D(values2, polygons->n_points, grid_steps1);
 
+        if (equivol) {
                 /* get point area of pial (outer) surface */
                 area_outer = (double *) malloc(sizeof(double) * polygons->n_points);
                 get_area_of_points_central_to_pial(polygons, area_outer, thickness, 0.5);
@@ -408,15 +409,18 @@ main(int argc, char *argv[])
                         } else { /* relate grid position to thickness values */
                                 
                                 if (equivol) {
-                                        /* get relative position inside cortical band */
-                                        pos = length_array[j] + 0.5;
-                                        
-                                        /* eq. 10 from Waehnert et al. 2014 */
-                                        pos = (1.0/(area_outer[i]-area_inner[i]))*
-                                                     (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
-                                                     
-                                        /* subtract offset of 0.5 that was added to pos and invert value because we have inverted normals*/
-                                        pos = (0.5 - pos)*thickness[i];             
+                                        /* check that inner and outer surface area are not equal */
+                                        if ((area_outer[i]-area_inner[i]) != 0) {
+                                                /* get relative position inside cortical band */
+                                                pos = length_array[j] + 0.5;
+        
+                                                /* eq. 10 from Waehnert et al. 2014 */
+                                                pos = (1.0/(area_outer[i]-area_inner[i]))*
+                                                             (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
+                                                             
+                                                /* subtract offset of 0.5 that was added to pos and invert value because we have inverted normals*/
+                                                pos = (0.5 - pos)*thickness[i];     
+                                        } else  pos = length_array[j]*thickness[i];        
                                 } else pos = length_array[j]*thickness[i];
                         }
                         
@@ -461,13 +465,15 @@ main(int argc, char *argv[])
                                  values, TYPE_DOUBLE);
                 }
                 free(values2);
-                free(area_inner);
-                free(area_outer);
                         
         } else  output_values_any_format(output_values_file, polygons->n_points,
                                  values, TYPE_DOUBLE);
 
         free(values);
+        if (equivol) {
+                free(area_inner);
+                free(area_outer);
+        }
         
         delete_object_list(n_objects, objects);
         return(EXIT_SUCCESS);
