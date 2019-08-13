@@ -89,7 +89,7 @@ main(int argc, char *argv[])
         hd = (double *) malloc(sizeof(double) * polygons->n_points);
 
         if (exact) { /* exact method */
-                max_hd = compute_exact_hausdorff(polygons, polygons2, hd);
+                max_hd = compute_exact_hausdorff(polygons, polygons2, hd, 1);
         } else { /* point-by-point method */
                 if (closest)
                         max_hd = compute_point_distance(polygons, polygons2, hd, 1);

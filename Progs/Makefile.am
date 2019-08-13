@@ -74,6 +74,7 @@ bin_PROGRAMS = \
 	CAT_CorrectSelfIntersections \
 	CAT_Surf2Vol \
 	CAT_Surf2ConvexHull \
+	CAT_SurfDistance \
 	CAT_Test \
 	CAT_MarchingCubes
 

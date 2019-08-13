@@ -436,11 +436,54 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
 }
 
 /*
+ * Calculate the mean of the closest distances between mesh1 and mesh2 and vice versa (Tfs).
+ */
+double
+compute_point_distance_mean(polygons_struct *p, polygons_struct *p2, double *dist, int verbose)
+{
+        int i, poly;
+        Point closest, closest2;
+        double avg_dist = 0.0, dist_tmp;
+
+        if (p->n_points != p2->n_points) {
+                printf("ERROR: Sizes of surfaces don't match\n");
+                return(avg_dist);
+        }
+        
+        create_polygons_bintree(p,  ROUND((double)  p->n_items * 0.5));
+        create_polygons_bintree(p2, ROUND((double) p2->n_items * 0.5));
+
+        /* walk through the points */
+        for (i = 0; i < p->n_points; i++) {
+	              dist_tmp = 0.0;
+	              
+	              /* find closest distance between mesh1 and mesh2 and vice versa */
+                poly = find_closest_polygon_point(&p->points[i], p2, &closest);
+                poly = find_closest_polygon_point(&p2->points[i], p, &closest2);
+                dist_tmp += distance_between_points(&p->points[i],  &closest);
+                dist_tmp += distance_between_points(&p2->points[i], &closest2);
+                
+                /* calculate average of both distances */
+                dist[i] = dist_tmp/2.0;
+                if (i<10) printf("%g %g %g\n",distance_between_points(&p->points[i],  &closest),distance_between_points(&p2->points[i], &closest2),dist[i]);
+                avg_dist += dist[i];
+        }
+
+        avg_dist /= p2->n_points;
+        if (verbose) 
+                printf("Mean of closest distance: %f\n", avg_dist);
+                
+        delete_the_bintree(&p->bintree);
+        delete_the_bintree(&p2->bintree);
+        return(avg_dist);
+}
+
+/*
  * Calculate the exact Hausdorff distance.  This assumes that the two
  * input meshes are the same size and of the same brain.
  */
 double
-compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
+compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
 {
         int i;
         double max_hd = 0.0, avg_hd = 0.0;
@@ -454,9 +497,11 @@ compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd)
                 avg_hd += hd[i];
         }
 
-        avg_hd /= p->n_points;
-        printf("Hausdorff distance: %f\n", max_hd);
-        printf("Mean distance error: %f\n", avg_hd);
+        if (verbose) {
+                avg_hd /= p->n_points;
+                printf("Hausdorff distance: %f\n", max_hd);
+                printf("Mean distance error: %f\n", avg_hd);
+        }
 
         return(max_hd);
 }
@@ -510,11 +555,14 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int
                 printf("Reverse Hausdorff distance: %f\n", max_revhd);
                 printf("Mean reverse distance error: %f\n", avg_revhd);
         }
+
+        delete_the_bintree(&p->bintree);
+        delete_the_bintree(&p2->bintree);
         return(max_hd);
 }
 
 /*
- * Calculate the closest distance using mesh points only.
+ * Calculate the closest distance using mesh points only from mesh1 to mesh2.
  */
 double
 compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
