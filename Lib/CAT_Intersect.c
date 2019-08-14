@@ -373,7 +373,7 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
                          int *n_neighbours, int **neighbours, int maxiter)
 {
         int p, i, iter, d, n, n2, npts;
-        int *edgeflag;
+        int *edgeflag, n_prev_defects, count;
         Point tp[3];
         double areas[128], centers[384], xyz[3], weight, t_area;
         FILE *fp;
@@ -387,6 +387,9 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
 
         /* smooth defect areas.. increase defect area every 5th iter */
         iter = 0;
+        n_prev_defects = n_defects;
+	      count = 0;
+        
         while (n_defects != 0) {
                 iter++;
                 if (iter == maxiter)
@@ -484,13 +487,28 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
                                                                  polydefects,
                                                                  n_neighbours,
                                                                  neighbours);
-                        printf("defects remapped, %d defect(s) remaining\n",
-                               n_defects);
+	                      /* increase counter if number of defects is unchanged */
+	                      if (n_defects == n_prev_defects) count++; else count = 0;
+	                      
+                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+                        printf("defects remapped, %3d defect(s) remaining",n_defects);
+                        flush_file(stdout);
+                        
+                        /* expand remaining defects if no improvement can be found */
+                        if (count > 2) 
+	                              expand_defects(surface, defects, polydefects,
+                                       0, 1, n_neighbours, neighbours);
+                        /* or stop if expanding does not help either */
+                        if (count > 3) break; 
                 } else if (iter % 5 == 0) {
                         /* expand remaining defects every 5th iteration */
                         expand_defects(surface, defects, polydefects,
                                        0, 1, n_neighbours, neighbours);
                 }
+                n_prev_defects = n_defects;
         }
 
         n_defects = find_remaining_intersections(surface, defects, polydefects,
