@@ -465,7 +465,6 @@ compute_point_distance_mean(polygons_struct *p, polygons_struct *p2, double *dis
                 
                 /* calculate average of both distances */
                 dist[i] = dist_tmp/2.0;
-                if (i<10) printf("%g %g %g\n",distance_between_points(&p->points[i],  &closest),distance_between_points(&p2->points[i], &closest2),dist[i]);
                 avg_dist += dist[i];
         }
 

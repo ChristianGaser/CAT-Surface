@@ -24,9 +24,9 @@ static ArgvInfo argTable[] = {
   {"-thickness", ARGV_STRING, (char *) 1, (char *) &thickness_file, 
      "Additional thickness file for internally estimating inner and outer surface based on central surface and thickness."},
   {"-mean", ARGV_CONSTANT, (char *) Tfs, (char *) &dist_func,
-     "Calculate mean of closest distance between surface 1 and 2 and vice versa (default)." },
+     "Calculate mean of closest distance between surface 1 and 2 and vice versa (Tfs, default)." },
   {"-link", ARGV_CONSTANT, (char *) Tlink, (char *) &dist_func,
-     "Calculate the linked (exact) distance between both surfaces." },
+     "Calculate the linked (exact) distance between both surfaces (Tlink)." },
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -37,7 +37,8 @@ usage(char *executable)
 Usage: %s [options] surface_file surface_file2 output_values_file\n\n\
    or: %s [options] -thickness thickness_file surface_file output_values_file\n\
      Calculate linked or Freesurfer distance between two surfaces (i.e. inner and outer surface) on a point-by-point basis.\n\
-     Instead of defining two surfaces you can also use the thickness flag and the central surface to obtain inner and outer surface.\n\n";
+     Instead of defining two surfaces you can also use the thickness flag and the central surface to internally create inner and outer surface.\n\
+     This function is primarily thought to estimate the Tfs-distance from Freesurfer for already existing Tpbt-distances from CAT12.\n\n";
 
         fprintf(stderr, usage_str, executable);
 }
