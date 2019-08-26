@@ -51,147 +51,44 @@ compute_clockwise_rotation2(double x, double y)
 void
 point_to_uv(Point *point, double *u, double *v)
 {
-        double x, y, z, theta, phi;
+        double x, y, z, phi, theta;
 
         x = (double) Point_x(*point);
         y = (double) Point_y(*point);
         z = (double) Point_z(*point);
 
-        phi = acos(z);
+        theta = acos(z);
         if (NEW_COORDINATE_SYSTEM) {
-                theta = compute_clockwise_rotation(y, x) + PI/2.0;
-                *u = theta / (PI * 2.0);
+                phi = compute_clockwise_rotation(y, x) + PI/2.0;
+                *u = phi / (PI * 2.0);
                 if (*u > 1.0) *u -= 1.0;
         } else {
-                theta = compute_clockwise_rotation2(y, x);
-                *u = theta / (PI * 2.0);
+                phi = compute_clockwise_rotation2(y, x);
+                *u = phi / (PI * 2.0);
         }
-        *v = phi / PI;
+        *v = theta / PI;
 }
 
 void
 uv_to_point(double u, double v, Point *point)
 {
-        double x, y, z, theta, phi, cos_u;
-        double sin_u, cos_v, sin_v;
+        double x, y, z, phi, theta;
     
         if (NEW_COORDINATE_SYSTEM) {
-                theta = u * PI * 2.0;
+                phi = u * PI * 2.0;
         } else {
-                /* shift theta by 90 degree to obtain correct position of midline */    
-                theta = u * PI * 2.0 + PI/2.0;
+                /* shift phi by 90 degree to obtain correct position of midline */    
+                phi = u * PI * 2.0 + PI/2.0;
         }
-        phi = v * PI;
- 
-        cos_u = cos(theta);
-        sin_u = sin(theta);
-        cos_v = cos(phi);
-        sin_v = sin(phi);
-
-        z = cos_v;
-        x = sin_v * cos_u;
-        y = sin_v * sin_u;
+        
+				theta = v * PI;
+          
+        z = cos(theta);
+        x = sin(theta) * cos(phi);
+        y = sin(theta) * sin(phi);
 
         fill_Point(*point, x, y, z);
 }
-
-
-void
-wrap_sheet2d(double *data, int *dm, int wrap, double *wdata)
-{
-        int x, y, x0, y0, wdm[2];
-
-        wdm[0] = dm[0] + 2*wrap;
-        wdm[1] = dm[1] + 2*wrap;
-
-        for (x = 0; x < dm[0]; x++) {
-                for (y = 0; y < dm[1]; y++) {
-                        x0 = x + wrap;
-                        y0 = y + wrap;
-                        wdata[x0 + (wdm[0]*y0)] = data[x + (dm[0]*y)];
-                }
-        }
-
-        for (y = 0; y < wrap; y++) {
-                for (x = wrap; x < wdm[0] - wrap; x++) {
-                        x0 = (int) ((x - wrap + dm[0]/2) % dm[0]) + wrap;
-                        y0 = 2*wrap - y - 1;
-                        wdata[x + wdm[0]*y] = wdata[x0 + wdm[0]*y0];
-                        y0 = wdm[1] - 2*wrap + y;
-                        wdata[x + wdm[0]*(wdm[1] - y - 1)] =
-                                                          wdata[x0 + wdm[0]*y0];
-                }
-        }
-
-        for (x = 0; x < wrap; x++) {
-                for (y = 0; y < wdm[1]; y++) {
-                        x0 = wdm[0] - 2*wrap + x;
-                        wdata[x + wdm[0]*y] = wdata[x0 + wdm[0]*y];
-                        x0 = wrap + x;
-                        wdata[x + wdm[0] - wrap + wdm[0]*y] =
-                                                          wdata[x0 + wdm[0]*y];
-                }
-        }
-}
-
-
-void
-unwrap_sheet2d(double *wdata, int *wdm, int wrap, double *data)
-{
-        int x, y, x0, y0, dm[2];
-
-        dm[0] = wdm[0] - 2*wrap;
-        dm[1] = wdm[1] - 2*wrap;
-
-        for (x = 0; x < dm[0]; x++) {
-                for (y = 0; y < dm[1]; y++) {
-                        x0 = x + wrap;
-                        y0 = y + wrap;
-                        data[x + dm[0]*y] = wdata[x0 + wdm[0]*y0];
-                }
-        }
-
-        for (y = 0; y < wrap; y++) {
-                for (x = wrap; x < wdm[0] - wrap; x++) {
-                        x0 = (int) ((x - wrap + dm[0]/2) % dm[0]);
-                        y0 = wrap - y - 1;
-                        data[x0 + dm[0]*y0] += wdata[x + wdm[0]*y];
-                        if (x0 > wrap - 1 && x0 < dm[0] - wrap)
-                                data[x0 + dm[0]*y0] /= 2;
-                        y0 = dm[1] - wrap + y;
-                        data[x0 + dm[0]*y0] += wdata[x + wdm[0]*(wdm[1] - y-1)];
-                        if (x0 > wrap - 1 && x0 < dm[0] - wrap)
-                                data[x0 + dm[0]*y0] /= 2;
-                }
-        }
-
-        for (x = 0; x < wrap; x++) {
-                for (y = 0; y < dm[1]; y++) {
-                        data[x + dm[0]*y] += wdata[x + wdm[0] - wrap +
-                                                   wdm[0]*(y + wrap)];
-                        x0 = dm[0] - x - 1;
-                        data[x0 + dm[0]*y] += wdata[wrap - x  - 1 +
-                                                    wdm[0]*(y + wrap)];
-                        if (y > wrap - 1 && y < dm[1] - wrap) {
-                                data[x + dm[0]*y] /= 2;
-                                data[x0 + dm[0]*y] /= 2;
-                        }
-                }
-        }
-
-
-        for (x = 0; x < wrap; x++) {
-                for (y = 0; y < wrap; y++) {
-                        x0 = dm[0] - x - 1;
-                        y0 = dm[1] - y - 1;
-                        data[x  + dm[0]*y ] /= 3;
-                        data[x0 + dm[0]*y ] /= 3;
-                        data[x  + dm[0]*y0] /= 3;
-                        data[x0 + dm[0]*y0] /= 3;
-                }
-        }
-}
-
 
 void
 map_sphere_values_to_sheet(polygons_struct *polygons,
@@ -381,43 +278,4 @@ map_sheet2d_to_unit_sphere(double *sheet2d, double *values,
         
         }
         delete_the_bintree(&sphere->bintree);
-}
-
-/* smooth the sheet such that diff between neighbours <= tol */
-void
-smooth_sheet2d(double *data, int dm[2], double tol)
-{
-        int x, y, i, done;
-        double x0, x1, y0, y1, *buf;
-
-        buf = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
-
-        done = 0;
-        while (!done) {
-                done = 1;
-                for (x = 0; x < dm[0]; x++) {
-                        for (y = 0; y < dm[1]; y++) {
-                                i = x + dm[0]*y;
-                                buf[i] = data[i];
-
-                                x0 = data[bound(x-1,y-1,dm)];
-                                x1 = data[bound(x+1,y-1,dm)];
-                                y0 = data[bound(x-1,y+1,dm)];
-                                y1 = data[bound(x+1,y+1,dm)];
-
-                                if (fabs(x0 - data[i]) > tol ||
-                                    fabs(x1 - data[i]) > tol ||
-                                    fabs(y0 - data[i]) > tol ||
-                                    fabs(y1 - data[i]) > tol) {
-                                        buf[i] = data[i]/2.0 + (x0+x1)/8.0 +
-                                                 (y0+y1)/8.0;
-                                        done = 0;
-                                }
-                        }
-                }
-                for (x = 0; x < dm[0]*dm[1]; x++) {
-                        data[x] = buf[x];
-                }
-        }
-        free(buf);
 }
