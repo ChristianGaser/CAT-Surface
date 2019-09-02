@@ -160,8 +160,8 @@ main(int argc, char *argv[])
 
         start_time = current_cpu_seconds();
         
-        /* check every 20 iterations for self interactions */
-        check_every_iteration = 20;
+        /* check every 100 iterations for self interactions */
+        check_every_iteration = 100;
         deform_polygons_check_selfintersection(polygons, &deform, check_every_iteration, force_no_selfintersections);
 
         compute_polygon_normals(polygons);

@@ -521,7 +521,7 @@ deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct 
         int                *defects, *polydefects;
         int                *n_neighbours, **neighbours;
         double             avg_err, prev_avg_err, rate;
-        Point              *pts, *pts0;
+        Point              *pts;
 
         pts         = (Point *) malloc(sizeof(Point) * polygons->n_points);
         defects     = (int *) malloc(sizeof(int) * polygons->n_points);
@@ -533,12 +533,6 @@ deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct 
         for (p = 0; p < polygons->n_points; p++)
                 pts[p]  = polygons->points[p];
         
-        if (force_no_selfintersections) {
-                pts0 = (Point *) malloc(sizeof(Point) * polygons->n_points);
-                for (p = 0; p < polygons->n_points; p++)
-                        pts0[p] = polygons->points[p];
-        }
-
         iter = 0;
         prev_avg_err = 1e10;
         countdown = 0;
@@ -553,11 +547,12 @@ deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct 
 
                 avg_err = one_iter_polygons(polygons, deform_parms, iter);
 
-                if (iter % check_every_iteration == 0) {
+                if ((check_every_iteration > 0) && (((iter % check_every_iteration) == 0) || (iter == 1))) {
                 
                         n_intersects = find_selfintersections(polygons, defects, polydefects);
                         n_intersects = join_intersections(polygons, defects, polydefects,
                                               n_neighbours, neighbours);
+                                              
                         if (n_intersects > 0) {
                                 printf("%d self intersections found at iteration %d\n", n_intersects, iter);
                                 for (p = 0; p < polygons->n_points; p++)
@@ -584,6 +579,9 @@ deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct 
 
         } while ((countdown < 4 || countdown2 < 4) && countdown < 10 &&
                  iter < deform_parms->max_iterations);
+                 
+        if (iter < deform_parms->max_iterations)
+                printf("Stopped after %d iterations\n", iter);
 
         if (force_no_selfintersections) {
                 do {
@@ -601,7 +599,6 @@ deform_polygons_check_selfintersection(polygons_struct *polygons, deform_struct 
 
                         } else printf("All self intersections corrected.\n");
                 } while (n_intersects > 0 && counter < 10);
-                free(pts0);
         }
         printf("\n\n");
         free(pts);
