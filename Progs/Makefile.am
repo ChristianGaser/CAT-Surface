@@ -76,9 +76,9 @@ bin_PROGRAMS = \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
     CAT_Test \
-    CAT_MarchingCubesSphere \
-    CAT_FixSelfIntersect \
     CAT_MarchingCubes
+##    CAT_FixSelfIntersect \
+##    CAT_MarchingCubesSphere \
 
 # experimental code, not yet working or for testing only!
 ##  CAT_VolConvert \

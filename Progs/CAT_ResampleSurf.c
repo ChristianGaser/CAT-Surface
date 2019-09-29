@@ -14,11 +14,11 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Resample.h"
 
-int nn_interpolation = 0;
+int label_interpolation = 0;
 
 static ArgvInfo argTable[] = {
-  {"-nearest", ARGV_CONSTANT, (char *) TRUE, (char *) &nn_interpolation,
-     "Use nearest neighbour interpolation (i.e. for labeled atlas data). This option is automatically used for .annot (label) files."},
+  {"-label", ARGV_CONSTANT, (char *) TRUE, (char *) &label_interpolation,
+     "Use labelinterpolation (i.e. for labeled atlas data). This option is automatically used for .annot (label) files."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -26,7 +26,7 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s  surface_file sphere_file|NULL target_sphere_file resampled_output_surface_file [input_values|input_annot output_values|output_annot]\n\
+Usage: %s  surface_file|NULL sphere_file|NULL target_sphere_file resampled_output_surface_file|NULL [input_values|input_annot output_values|output_annot]\n\
 Resamples a spherical inflated surface to an external defined sphere.\n\
 \n\n";
 
@@ -68,6 +68,17 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
+        if ((!strcmp(sphere_file,"NULL")) && (!strcmp(surface_file,"NULL"))) {
+	        fprintf(stderr,"%s\n%s\n",sphere_file,surface_file);
+                fprintf(stderr, "You have to define either surface or sphere.\n");
+                exit(EXIT_FAILURE);
+        }
+        
+        if ((strcmp(output_surface_file,"NULL")) && (!strcmp(surface_file,"NULL"))) {
+                fprintf(stderr, "You have to define surface if resampled mesh should be written.\n");
+                exit(EXIT_FAILURE);
+        }
+
         if (strcmp(sphere_file,"NULL")) {
                 if (input_graphics_any_format(sphere_file, &format,
                     &n_objects,
@@ -102,15 +113,9 @@ main(int argc, char *argv[])
                 output_values = (double *) malloc(sizeof(double) * target_sphere->n_points);
 
                 if (filename_extension_matches(input_values_file, "annot")) {
-                        /* check that output values file has right extension */
-                        if (!filename_extension_matches(output_values_file, "annot")) {
-                                fprintf(stderr, "Output values file %s does not have .annot extension.\n",
-                                        output_values_file);
-                                exit(EXIT_FAILURE);
-                        }
-                        nn_interpolation = 1;
+                        label_interpolation = 1;
                         read_annotation_table(input_values_file, &n_values, &in_annot, &n_table, &atable);
-                        for (i = 0 ; i < polygons_sphere->n_points ; i++) 
+                        for (i = 0 ; i < n_values ; i++) 
                                 input_values[i] = (double)in_annot[i];
                 } else {
                     if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
@@ -121,7 +126,7 @@ main(int argc, char *argv[])
         }
         
         objects_target_sphere = resample_surface_to_target_sphere(polygons, polygons_sphere, 
-                target_sphere, input_values, output_values, nn_interpolation);
+                target_sphere, input_values, output_values, label_interpolation);
 
         /* skip writing resampled surface file if output name is NULL */
         if (strcmp(output_surface_file, "NULL" )) {
@@ -131,7 +136,7 @@ main(int argc, char *argv[])
         }
     
         if (values_specified) {
-                if (filename_extension_matches(input_values_file, "annot")) {
+                if (filename_extension_matches(output_values_file, "annot")) {
                         out_annot  = (int *) malloc(sizeof(int) * target_sphere->n_points);
                         for (i = 0 ; i < target_sphere->n_points ; i++) 
                                 out_annot[i] = (int)round(output_values[i]);

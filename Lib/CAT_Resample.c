@@ -64,7 +64,7 @@ resample_values_sphere_noscale(polygons_struct *source_sphere, polygons_struct *
         for (i = 0; i < target_sphere->n_points; i++) {
                 poly = find_closest_polygon_point(&target_sphere->points[i],
                                                   source_sphere, &point);
-		
+    
                 n_points = get_polygon_points(source_sphere, poly, poly_points);
                 get_polygon_interpolation_weights(&point, n_points, poly_points,
                                                   weights);
@@ -95,27 +95,36 @@ resample_values_sphere(polygons_struct *source_sphere, polygons_struct *target_s
                         invals, outvals);
                 
         } else  resample_values_sphere_noscale(source_sphere, target_sphere, invals, outvals);
-
-
 }
 
 /* resample surface and values to space defined by target sphere */
 object_struct **
 resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *polygons_sphere, polygons_struct *target_sphere, 
-                                  double *input_values, double *output_values, int nearest_neighbour_interpolation)
+                                  double *input_values, double *output_values, int label_interpolation)
 {
-        int             i, j, t, poly, n_points;
+        int             i, j, k, poly, n_points;
+        int             min_val = 32767, max_val = 0;
         int             *n_neighbours, **neighbours;
         Point           point, scaled_point, center;
         Point           *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct   **objects, **scaled_objects;
         polygons_struct *scaled_target_sphere, *scaled_polygons_sphere;
-        double          weights[MAX_POINTS_PER_POLYGON];
+        double          max_prob, val, weights[MAX_POINTS_PER_POLYGON];
 
         objects  = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
         scaled_polygons_sphere = get_polygons_ptr(*objects);
         
+        /* get maximum value for label interpolation */
+        if (label_interpolation) {
+                for (i = 0; i < polygons_sphere->n_points; i++) {
+                        if (min_val > (int)input_values[i])
+                                min_val = (int)input_values[i];
+                        if (max_val < (int)input_values[i])
+                                max_val = (int)input_values[i];
+                }
+        }
+
         /* if no source sphere is defined a tetrahedral topology of the surface is assumed
            where the corresponding sphere can be simply estimated by its tetrahedral topology */
         if (polygons_sphere == NULL) {
@@ -149,29 +158,48 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                 poly = find_closest_polygon_point(&scaled_target_sphere->points[i],
                                                   scaled_polygons_sphere, &point);
                                                   
-                if(nearest_neighbour_interpolation) {
+								n_points = get_polygon_points(scaled_polygons_sphere, poly, poly_points);
+								get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
-                        n_points = get_polygon_points(polygons, poly, poly_points);
-                        new_points[i] = poly_points[0];
-                        
-                        if (input_values != NULL)
-                                output_values[i] = input_values[scaled_polygons_sphere->indices[
-                                                        POINT_INDEX(scaled_polygons_sphere->end_indices,poly,0)]];
+								if (polygons != NULL) 
+									      if (get_polygon_points(polygons, poly, poly_points) != n_points)
+												        handle_internal_error("map_point_between_polygons");
+
+								fill_Point(new_points[i], 0.0, 0.0, 0.0);
+								
+								if (input_values != NULL) output_values[i] = 0.0;
+								
+
+                /* resample mesh if defined */
+								if (polygons != NULL) {
+												for (j = 0; j < n_points; j++) {
+																SCALE_POINT(scaled_point, poly_points[j], weights[j]);
+																ADD_POINTS(new_points[i], new_points[i], scaled_point);
+												}
+								}
+ 
+                /* apply interpolation for each ROI label seperately */
+                if (label_interpolation) {
+
+                        if (input_values != NULL) {
+                                max_prob = 0.0;
+                                for (k = min_val; k < max_val+1; k++) {
+                                        val = 0.0;
+                                        for (j = 0; j < n_points; j++) {
+                                                if (k == (int)input_values[scaled_polygons_sphere->indices[
+                                                        POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)]])
+                                                        val += weights[j];
+                                        }
+																				if (max_prob < val) {
+																								max_prob = val;
+																								output_values[i] = (double)k;
+																				}
+                                }
+                        }
                 } else {
-		
-                        n_points = get_polygon_points(scaled_polygons_sphere, poly, poly_points);
-                        get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
-        
-                        if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                                handle_internal_error("map_point_between_polygons");
-        
-                        fill_Point(new_points[i], 0.0, 0.0, 0.0);
-                        
-                        if (input_values != NULL) output_values[i] = 0.0;
-        
+                            
+                        if (input_values != NULL) output_values[i] = 0.0;        
                         for (j = 0; j < n_points; j++) {
-                                SCALE_POINT(scaled_point, poly_points[j], weights[j]);
-                                ADD_POINTS(new_points[i], new_points[i], scaled_point);
                                 if (input_values != NULL)
                                         output_values[i] += weights[j] * input_values[scaled_polygons_sphere->indices[
                                                         POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)]];
@@ -179,8 +207,10 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                 }
         }
 
-        free(scaled_target_sphere->points);
-        scaled_target_sphere->points = new_points;
+        if (polygons != NULL) {
+								free(scaled_target_sphere->points);
+								scaled_target_sphere->points = new_points;
+        }
 
         compute_polygon_normals(scaled_target_sphere);
 
@@ -228,7 +258,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
         for (i = 0; i < output_surface->n_points; i++) {
                 poly = find_closest_polygon_point(&output_surface->points[i],
                                                   sphere, &point);
-		
+    
                 n_points = get_polygon_points(sphere, poly, poly_points);
                 get_polygon_interpolation_weights(&point, n_points, poly_points,
                                                   weights);

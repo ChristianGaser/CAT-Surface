@@ -133,7 +133,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Smooth.c \
     Lib/CAT_SPH.c \
     Lib/CAT_Pinv.c \
-    Lib/CAT_SelfIntersect.c \
+##    Lib/CAT_SelfIntersect.c \
     Lib/CAT_Intersect.c \
     Lib/CAT_Octree.c \
     Lib/CAT_Resample.c \
