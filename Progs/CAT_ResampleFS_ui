@@ -21,7 +21,7 @@ ascii=0
 noclobber=0
 hemi="lh rh"
 gifti=0
-nearest=""
+label=""
 
 ########################################################
 # run main
@@ -82,7 +82,7 @@ preprocess ()
                 break
               fi
             done
-            CAT_ResampleSurf ${nearest} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
+            CAT_ResampleSurf ${label} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
             CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
             if [ "$gifti" == 1 ]; then
               CAT_AddValuesToSurf $tmp_name $name ${name}.gii
@@ -108,7 +108,7 @@ preprocess ()
                 break
               fi
             done
-            CAT_ResampleSurf ${nearest} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
+            CAT_ResampleSurf ${label} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
             if [ "$gifti" == 1 ]; then
               CAT_AddValuesToSurf $tmp_name $name ${name}.gii
               echo resample to ${name}.gii          
@@ -169,8 +169,8 @@ parse_args ()
     --rh* | -rh*)
       hemi=rh
       ;;
-    --nearest | -nearest)
-      nearest=" -nearest "
+    --label | -label)
+      label=" -label "
       ;;
     --m* | -m*)
       exit_if_empty "$optname" "$optarg"
@@ -245,7 +245,7 @@ check_tools ()
 usage ()
 {
 cat <<__EOM__
-USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-lh|-rh] [-noclobber] [-gifti] [-nearest]
+USAGE: CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-lh|-rh] [-noclobber] [-gifti] [-label]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 __EOM__
@@ -264,7 +264,7 @@ Resample surface values to a parametric tetrahedral sphere. The resampled values
 optionally smoothed on the target surface using a diffusion heat kernel.
 
 USAGE:
-        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-noclobber] [-lh|-rh] [-gifti] [-nearest]
+        CAT_ResampleFS_ui subject [subject2 .. subjectN] [-f=fwhm_in_mm] [-a] [-noclobber] [-lh|-rh] [-gifti] [-label]
                           [-o=output_directory] [-m=measure] [-r=surfreg] [-t=target_surface]                      
     
 OPTIONS:
@@ -279,7 +279,7 @@ OPTIONS:
   -lh        - resample left hemisphere only
   -rh        - resample right hemisphere only
   -noclobber - do not overwrite existing file
-  -nearest   - use nearest neighbour interpolation (i.e. for labeled atlas data)
+  -label     - use label interpolation (i.e. for labeled atlas data)
     
 EXAMPLE:
     CAT_ResampleFS_ui ${SUBJECTS_DIR}/[a-d]* -f=20 -t=fsaverage -o=~/data -m=thickness

@@ -60,12 +60,14 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (input_graphics_any_format(surface_file, &format,
-                                      &n_objects, &objects) != OK ||
-            n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-                fprintf(stderr, "File %s must contain 1 polygons object.\n",
-                        surface_file);
-                exit(EXIT_FAILURE);
+        if (strcmp(surface_file,"NULL")) {
+								if (input_graphics_any_format(surface_file, &format,
+																							&n_objects, &objects) != OK ||
+										n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+												fprintf(stderr, "File %s must contain 1 polygons object.\n",
+																surface_file);
+												exit(EXIT_FAILURE);
+								}
         }
 
         if ((!strcmp(sphere_file,"NULL")) && (!strcmp(surface_file,"NULL"))) {
@@ -102,14 +104,17 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        polygons        = get_polygons_ptr(objects[0]);
+        if (strcmp(surface_file,"NULL")) {
+                polygons = get_polygons_ptr(objects[0]);
+        } else  polygons = NULL;
+        
         target_sphere   = get_polygons_ptr(objects_target_sphere[0]);
 
         values_specified = get_string_argument(NULL, &input_values_file) &&
                            get_string_argument(NULL, &output_values_file);
 
         if (values_specified) {                
-                input_values  = (double *) malloc(sizeof(double) * polygons->n_points);
+                input_values  = (double *) malloc(sizeof(double) * polygons_sphere->n_points);
                 output_values = (double *) malloc(sizeof(double) * target_sphere->n_points);
 
                 if (filename_extension_matches(input_values_file, "annot")) {
