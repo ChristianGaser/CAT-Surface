@@ -57,15 +57,9 @@ main(int argc, char *argv[])
         double               *extents, *distance, *thickness_values;
 
         /* Call ParseArgv */
-        if (ParseArgv(&argc, argv, argTable, 0)) {
-                usage(argv[0]);
-                fprintf(stderr, "       %s -help\n\n", argv[0]);
-                exit(EXIT_FAILURE);
-        }
-
-        if (((argc < 4) && (thickness_file == NULL)) ||
+        if (ParseArgv(&argc, argv, argTable, 0) ||
+            ((argc < 4) && (thickness_file == NULL)) ||
             ((argc < 3) && (thickness_file != NULL))) {
-                usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }

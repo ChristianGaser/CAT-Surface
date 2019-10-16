@@ -15,7 +15,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_FixSelfIntersect.c 409 2018-03-16 13:26:50Z gaser $
+ * $Id$
  *
  */
 
