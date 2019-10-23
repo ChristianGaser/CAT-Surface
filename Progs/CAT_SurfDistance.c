@@ -34,11 +34,14 @@ void
 usage(char *executable)
 {
         char *usage_str = "\n\
-Usage: %s [options] surface_file surface_file2 output_values_file\n\n\
-   or: %s [options] -thickness thickness_file surface_file output_values_file\n\
-     Calculate linked or Freesurfer distance between two surfaces (i.e. inner and outer surface) on a point-by-point basis.\n\
-     Instead of defining two surfaces you can also use the thickness flag and the central surface to internally create inner and outer surface.\n\
-     This function is primarily thought to estimate the Tfs-distance from Freesurfer for already existing Tpbt-distances from CAT12.\n\n";
+Usage: CAT_SurfDistance [options] surface_file surface_file2 output_values_file\n\n\
+   or: CAT_SurfDistance [options] -thickness thickness_file surface_file output_values_file\n\
+     Calculate linked or Freesurfer distance between two surfaces with the same number of \n\
+     vertices (i.e. inner and outer surface) on a point-by-point basis.\n\
+     Instead of defining two surfaces you can also use the thickness flag and the central \n\
+     surface to internally create inner and outer surface.\n\
+     This function is primarily thought to estimate the Tfs-distance from Freesurfer for \n\
+     already existing Tpbt-distances from CAT12.\n";
 
         fprintf(stderr, usage_str, executable);
 }
@@ -60,6 +63,7 @@ main(int argc, char *argv[])
         if (ParseArgv(&argc, argv, argTable, 0) ||
             ((argc < 4) && (thickness_file == NULL)) ||
             ((argc < 3) && (thickness_file != NULL))) {
+                usage(argv[0]);
                 fprintf(stderr, "       %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
