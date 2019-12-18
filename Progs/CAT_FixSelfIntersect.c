@@ -39,7 +39,7 @@ private  int compute_triangle_normal( Point, Point, Point, Real [3] );
 
 private  void  usage( char   executable_name[] ) {
     STRING  usage_format = "\
-Usage: %s surface.obj [-fix fixed.obj] [distance.txt]\n\n\
+Usage: %s surface.obj fixed.obj [stop_at]\n\n\
 Copyright Alan C. Evans\n\
 Professor of Neurology\n\
 McGill University\n\n";
@@ -172,15 +172,13 @@ int main( int argc, char * argv[] ) {
 
     STRING               arg;
     STRING               input_filename = NULL;
-    STRING               output_filename = NULL;
     STRING               output_obj = NULL;
-    int                  p1, point;
+    int                  p1, point, j, stop_at;
     Deform_struct        deform;
     one_surface_struct   surf;
     surface_struct       surface;
 
     n_surfaces_read = 0;
-    int fix_self_inter = 0;
 
     deform.n_surfaces = 0;
     deform.n_inter_surfaces = 0;
@@ -194,34 +192,13 @@ int main( int argc, char * argv[] ) {
 
     initialize_argument_processing( argc, argv );
 
-    while( get_string_argument( NULL, &arg ) ) {
-      if( equal_strings( arg, "-fix" ) ) {
-        if( !get_string_argument( NULL, &output_obj ) ) {
-          print_error( "Error in %s arguments.\n", argv[0] );
-          usage( argv[0] );
+		if (!get_string_argument(NULL, &input_filename) ||
+				!get_string_argument(NULL, &output_obj)) {
+					usage(argv[0]);
           return( 1 );
-        }
-        fix_self_inter = 1;
-        continue;
-      } 
-      if( !input_filename ) {
-        input_filename = arg;
-        continue;
-      }
-      if( !output_filename ) {
-        output_filename = arg;
-        continue;
-      }
-      print_error( "Error in %s arguments.\n", argv[0] );
-      usage( argv[0] );
-      return( 1 );
-    }
+		}
 
-    if( !input_filename ) {
-      print_error( "Error in %s arguments.\n", argv[0] );
-      usage( argv[0] );
-      return( 1 );
-    }
+    get_int_argument(10, &stop_at);
 
     if( input_surface( input_filename, FALSE,
                        &surface.n_points, &surface.points,
@@ -285,10 +262,6 @@ int main( int argc, char * argv[] ) {
 
     get_line_lookup( &line_lookup, &deform, n_parameters,
                      parameters, derivative );
-    FREE( derivative );
-    FREE( parameters );
-    FREE( start_parameter );
-
     self_intersect_lookup_struct * si_lookup = &line_lookup.si_lookups[0][0];
     int n_candidates = get_n_self_intersect_candidate( si_lookup );
 
@@ -301,215 +274,217 @@ int main( int argc, char * argv[] ) {
     printf( "Self-intersection distance = %f\n", line_lookup.closest_dist );
     printf( "Number of self-intersecting triangles = %d\n", bad_count );
 
-    if( bad_count && fix_self_inter && output_obj ) {
+    if( bad_count ) {
+
       printf( "Will now smooth surface locally to remove self-intersections.\n" );
-      // get list of vertices affected by self-intersections.
-      short * node_flags = NULL;
-      ALLOC( node_flags, deform.surfaces[0].surface.n_points );
-      Real * new_points = NULL;
-      ALLOC( new_points, 3 * deform.surfaces[0].surface.n_points );
 
-      for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-        node_flags[s] = 0;
+			// get list of vertices affected by self-intersections.
+			short * node_flags = NULL;
+			ALLOC( node_flags, deform.surfaces[0].surface.n_points );
+			Real * new_points = NULL;
+			ALLOC( new_points, 3 * deform.surfaces[0].surface.n_points );
+
+      while(bad_count > stop_at) {
+
+				for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+					node_flags[s] = 0;
+				}
+				int * triangles = deform.surfaces[0].surface.triangles;
+				for( s = 0; s < n_candidates; s++ ) {
+					Real dist = sqrt( si_lookup->min_line_dists[s] );
+					if( dist <= 1.0e-04 ) {
+						int poly1 = si_lookup->p1s[s];
+						int poly2 = si_lookup->p2s[s];
+						node_flags[triangles[3*poly1]] = 1;
+						node_flags[triangles[3*poly1+1]] = 1;
+						node_flags[triangles[3*poly1+2]] = 1;
+						node_flags[triangles[3*poly2]] = 1;
+						node_flags[triangles[3*poly2+1]] = 1;
+						node_flags[triangles[3*poly2+2]] = 1;
+					}
+				}   
+				// Dilate one connectivity layer.
+				int layer;
+				for( layer = 1; layer <= 2; layer++ ) {
+					for( s = 0; s < deform.surfaces[0].surface.n_polygons; s++ ) {
+						if( node_flags[triangles[3*s]] == 1 ||
+								node_flags[triangles[3*s+1]] == 1 ||
+								node_flags[triangles[3*s+2]] == 1 ) {
+							if( node_flags[triangles[3*s]] == 0 ) node_flags[triangles[3*s]] = 2;
+							if( node_flags[triangles[3*s+1]] == 0 ) node_flags[triangles[3*s+1]] = 2;
+							if( node_flags[triangles[3*s+2]] == 0 ) node_flags[triangles[3*s+2]] = 2;
+						}
+					}
+					for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+						if( node_flags[s] == 2 ) node_flags[s] = 1;
+					}
+				}
+	
+				Real alpha = 0.4;
+				int iter, i, j;
+				for( iter = 1; iter > 0; iter-- ) {
+					for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+						if( !node_flags[s] ) continue;
+						Real xc = 0.0, yc = 0.0, zc = 0.0;
+						Real weight = 0.0;
+						for( i = 0; i < deform.surfaces[0].surface.n_neighbours[s]; i++ ) {
+							int ii = deform.surfaces[0].surface.neighbours[s][i];
+							Real area = 0.0;
+							Real dx, dy, dz;
+							for( j = 0; j < deform.surfaces[0].surface.n_neighbours[ii]; j++ ) {
+								int j1 = deform.surfaces[0].surface.neighbours[ii][j];
+								int jj = ( j + 1 ) % deform.surfaces[0].surface.n_neighbours[ii];
+								int j2 = deform.surfaces[0].surface.neighbours[ii][jj];
+	
+								dx = deform.surfaces[0].surface.points[ii].coords[0] -
+										 deform.surfaces[0].surface.points[j1].coords[0];
+								dy = deform.surfaces[0].surface.points[ii].coords[1] -
+										 deform.surfaces[0].surface.points[j1].coords[1];
+								dz = deform.surfaces[0].surface.points[ii].coords[2] -
+										 deform.surfaces[0].surface.points[j1].coords[2];
+								Real e0 = sqrt( dx * dx + dy * dy + dz * dz );
+	
+								dx = deform.surfaces[0].surface.points[j2].coords[0] -
+										 deform.surfaces[0].surface.points[j1].coords[0];
+								dy = deform.surfaces[0].surface.points[j2].coords[1] -
+										 deform.surfaces[0].surface.points[j1].coords[1];
+								dz = deform.surfaces[0].surface.points[j2].coords[2] -
+										 deform.surfaces[0].surface.points[j1].coords[2];
+								Real e1 = sqrt( dx * dx + dy * dy + dz * dz );
+	
+								dx = deform.surfaces[0].surface.points[ii].coords[0] -
+										 deform.surfaces[0].surface.points[j2].coords[0];
+								dy = deform.surfaces[0].surface.points[ii].coords[1] -
+										 deform.surfaces[0].surface.points[j2].coords[1];
+								dz = deform.surfaces[0].surface.points[ii].coords[2] -
+										 deform.surfaces[0].surface.points[j2].coords[2];
+								Real e2 = sqrt( dx * dx + dy * dy + dz * dz );
+	
+								Real s = 0.5 * ( e0 + e1 + e2 );
+								area += sqrt( fabs( s * ( s - e0 ) * ( s - e1 ) * ( s - e2 ) ) + 1.0e-10 );
+							}
+							weight += area;
+							xc += area * deform.surfaces[0].surface.points[ii].coords[0];
+							yc += area * deform.surfaces[0].surface.points[ii].coords[1];
+							zc += area * deform.surfaces[0].surface.points[ii].coords[2];
+						}
+
+						xc /= weight;
+						yc /= weight;
+						zc /= weight;
+						new_points[3*s+0] = alpha * xc + ( 1.0 - alpha ) *
+																deform.surfaces[0].surface.points[s].coords[0];
+						new_points[3*s+1] = alpha * yc + ( 1.0 - alpha ) *
+																deform.surfaces[0].surface.points[s].coords[1];
+						new_points[3*s+2] = alpha * zc + ( 1.0 - alpha ) *
+																deform.surfaces[0].surface.points[s].coords[2];
+					}
+					for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+						if( node_flags[s] ) {
+							deform.surfaces[0].surface.points[s].coords[0] = new_points[3*s+0];
+							deform.surfaces[0].surface.points[s].coords[1] = new_points[3*s+1];
+							deform.surfaces[0].surface.points[s].coords[2] = new_points[3*s+2];
+						}
+					}
+				}
+				for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+					node_flags[s] = 0;
+				}
+				
+				for_less( point, 0, deform.surfaces[0].surface.n_points ) {
+						parameters[start_parameter[0]+IJ(point,0,3)] =
+									 RPoint_x(deform.surfaces[0].surface.points[point]);
+						parameters[start_parameter[0]+IJ(point,1,3)] =
+									 RPoint_y(deform.surfaces[0].surface.points[point]);
+						parameters[start_parameter[0]+IJ(point,2,3)] =
+									 RPoint_z(deform.surfaces[0].surface.points[point]);
+				}
+		
+				for_less( p1, 0, n_parameters ) {
+						derivative[p1] = 1.0;
+				}
+				get_line_lookup( &line_lookup, &deform, n_parameters,
+												 parameters, derivative );
+		
+				self_intersect_lookup_struct * si_lookup = &line_lookup.si_lookups[0][0];
+				n_candidates = get_n_self_intersect_candidate( si_lookup );
+		
+				bad_count = 0; 
+				for( s = 0; s < n_candidates; s++ ) {
+					Real dist = sqrt( si_lookup->min_line_dists[s] );
+					if( dist <= 1.0e-08 ) bad_count++;
+				}   
+		
+				printf( "Number of self-intersecting triangles = %d\n", bad_count );
+				// Quick and dirty output into .obj format.
+				FILE * fp = fopen( output_obj, "w" );
+				fprintf( fp, "P 0.3 0.3 0.4 10 1 %d\n", 
+								 deform.surfaces[0].surface.n_points );
+	
+				// print the coords
+				for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+					fprintf( fp, "%g %g %g\n", 
+									 deform.surfaces[0].surface.points[s].coords[0],
+									 deform.surfaces[0].surface.points[s].coords[1],
+									 deform.surfaces[0].surface.points[s].coords[2] );
+				}
+				fprintf( fp, "\n" );
+	
+				// print the normals
+				for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
+					Real xc = 0.0, yc = 0.0, zc = 0.0, norm[3];
+					for( i = 0; i < deform.surfaces[0].surface.n_neighbours[s]; i++ ) {
+						int j1 = deform.surfaces[0].surface.neighbours[s][i];
+						int i2 = (i+1)%deform.surfaces[0].surface.n_neighbours[s];
+						int j2 = deform.surfaces[0].surface.neighbours[s][i2];
+						if( compute_triangle_normal( deform.surfaces[0].surface.points[s],
+																				 deform.surfaces[0].surface.points[j1],
+																				 deform.surfaces[0].surface.points[j2],
+																				 norm ) ) {
+							xc += norm[0];
+							yc += norm[1];
+							zc += norm[2];
+						}
+					}
+					Real mag = sqrt( xc * xc + yc * yc + zc * zc );
+					if( mag > 1.0e-10 ) {
+						xc /= mag;
+						yc /= mag;
+						zc /= mag;
+					} else {
+						xc = 0.0;
+						yc = 0.0;
+						zc = 0.0;
+					}
+					fprintf( fp, "%g %g %g\n", xc, yc, zc );
+				}
+	
+				// print the connectivity
+				fprintf( fp, "\n" );
+				fprintf( fp, "%d\n", deform.surfaces[0].surface.n_polygons );
+				fprintf( fp, "0 1 1 1 1\n\n" );
+	
+				for( i = 1; i <= deform.surfaces[0].surface.n_polygons; i++ ) {
+					fprintf( fp, "%d ", 3*i );
+					if( i%8 == 0 ) fprintf( fp, "\n" );
+				}
+	
+				for( i = 0; i < 3*deform.surfaces[0].surface.n_polygons; i++ ) {
+					if( i%8 == 0 ) fprintf( fp, "\n" );
+					fprintf( fp, "%d ", triangles[i] );
+				}
+				fclose( fp );
       }
-      int * triangles = deform.surfaces[0].surface.triangles;
-      for( s = 0; s < n_candidates; s++ ) {
-        Real dist = sqrt( si_lookup->min_line_dists[s] );
-        if( dist <= 1.0e-04 ) {
-          int poly1 = si_lookup->p1s[s];
-          int poly2 = si_lookup->p2s[s];
-          node_flags[triangles[3*poly1]] = 1;
-          node_flags[triangles[3*poly1+1]] = 1;
-          node_flags[triangles[3*poly1+2]] = 1;
-          node_flags[triangles[3*poly2]] = 1;
-          node_flags[triangles[3*poly2+1]] = 1;
-          node_flags[triangles[3*poly2+2]] = 1;
-        }
-      }   
-      // Dilate one connectivity layer.
-      int layer;
-      for( layer = 1; layer <= 2; layer++ ) {
-        for( s = 0; s < deform.surfaces[0].surface.n_polygons; s++ ) {
-          if( node_flags[triangles[3*s]] == 1 ||
-              node_flags[triangles[3*s+1]] == 1 ||
-              node_flags[triangles[3*s+2]] == 1 ) {
-            if( node_flags[triangles[3*s]] == 0 ) node_flags[triangles[3*s]] = 2;
-            if( node_flags[triangles[3*s+1]] == 0 ) node_flags[triangles[3*s+1]] = 2;
-            if( node_flags[triangles[3*s+2]] == 0 ) node_flags[triangles[3*s+2]] = 2;
-          }
-        }
-        for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-          if( node_flags[s] == 2 ) node_flags[s] = 1;
-        }
-      }
 
-      Real alpha = 0.4;
-      int iter, i, j;
-      for( iter = 1; iter > 0; iter-- ) {
-        for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-          if( !node_flags[s] ) continue;
-          Real xc = 0.0, yc = 0.0, zc = 0.0;
-#if 0
-          for( i = 0; i < deform.surfaces[0].surface.n_neighbours[s]; i++ ) {
-            j = deform.surfaces[0].surface.neighbours[s][i];
-            xc += deform.surfaces[0].surface.points[j].coords[0];
-            yc += deform.surfaces[0].surface.points[j].coords[1];
-            zc += deform.surfaces[0].surface.points[j].coords[2];
-          }
-          Real weight = (Real)deform.surfaces[0].surface.n_neighbours[s];
-#else
-          Real weight = 0.0;
-          for( i = 0; i < deform.surfaces[0].surface.n_neighbours[s]; i++ ) {
-            int ii = deform.surfaces[0].surface.neighbours[s][i];
-            Real area = 0.0;
-            Real dx, dy, dz;
-            for( j = 0; j < deform.surfaces[0].surface.n_neighbours[ii]; j++ ) {
-              int j1 = deform.surfaces[0].surface.neighbours[ii][j];
-              int jj = ( j + 1 ) % deform.surfaces[0].surface.n_neighbours[ii];
-              int j2 = deform.surfaces[0].surface.neighbours[ii][jj];
-
-              dx = deform.surfaces[0].surface.points[ii].coords[0] -
-                   deform.surfaces[0].surface.points[j1].coords[0];
-              dy = deform.surfaces[0].surface.points[ii].coords[1] -
-                   deform.surfaces[0].surface.points[j1].coords[1];
-              dz = deform.surfaces[0].surface.points[ii].coords[2] -
-                   deform.surfaces[0].surface.points[j1].coords[2];
-              Real e0 = sqrt( dx * dx + dy * dy + dz * dz );
-
-              dx = deform.surfaces[0].surface.points[j2].coords[0] -
-                   deform.surfaces[0].surface.points[j1].coords[0];
-              dy = deform.surfaces[0].surface.points[j2].coords[1] -
-                   deform.surfaces[0].surface.points[j1].coords[1];
-              dz = deform.surfaces[0].surface.points[j2].coords[2] -
-                   deform.surfaces[0].surface.points[j1].coords[2];
-              Real e1 = sqrt( dx * dx + dy * dy + dz * dz );
-
-              dx = deform.surfaces[0].surface.points[ii].coords[0] -
-                   deform.surfaces[0].surface.points[j2].coords[0];
-              dy = deform.surfaces[0].surface.points[ii].coords[1] -
-                   deform.surfaces[0].surface.points[j2].coords[1];
-              dz = deform.surfaces[0].surface.points[ii].coords[2] -
-                   deform.surfaces[0].surface.points[j2].coords[2];
-              Real e2 = sqrt( dx * dx + dy * dy + dz * dz );
-
-              Real s = 0.5 * ( e0 + e1 + e2 );
-              area += sqrt( fabs( s * ( s - e0 ) * ( s - e1 ) * ( s - e2 ) ) + 1.0e-10 );
-            }
-            weight += area;
-            xc += area * deform.surfaces[0].surface.points[ii].coords[0];
-            yc += area * deform.surfaces[0].surface.points[ii].coords[1];
-            zc += area * deform.surfaces[0].surface.points[ii].coords[2];
-          }
-#endif
-          xc /= weight;
-          yc /= weight;
-          zc /= weight;
-          new_points[3*s+0] = alpha * xc + ( 1.0 - alpha ) *
-                              deform.surfaces[0].surface.points[s].coords[0];
-          new_points[3*s+1] = alpha * yc + ( 1.0 - alpha ) *
-                              deform.surfaces[0].surface.points[s].coords[1];
-          new_points[3*s+2] = alpha * zc + ( 1.0 - alpha ) *
-                              deform.surfaces[0].surface.points[s].coords[2];
-        }
-        for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-          if( node_flags[s] ) {
-            deform.surfaces[0].surface.points[s].coords[0] = new_points[3*s+0];
-            deform.surfaces[0].surface.points[s].coords[1] = new_points[3*s+1];
-            deform.surfaces[0].surface.points[s].coords[2] = new_points[3*s+2];
-          }
-        }
-      }
       FREE( node_flags );
       FREE( new_points );
 
-      // Quick and dirty output into .obj format.
-      FILE * fp = fopen( output_obj, "w" );
-      fprintf( fp, "P 0.3 0.3 0.4 10 1 %d\n", 
-               deform.surfaces[0].surface.n_points );
-
-      // print the coords
-      for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-        fprintf( fp, "%g %g %g\n", 
-                 deform.surfaces[0].surface.points[s].coords[0],
-                 deform.surfaces[0].surface.points[s].coords[1],
-                 deform.surfaces[0].surface.points[s].coords[2] );
-      }
-      fprintf( fp, "\n" );
-
-      // print the normals
-      for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-        Real xc = 0.0, yc = 0.0, zc = 0.0, norm[3];
-        for( i = 0; i < deform.surfaces[0].surface.n_neighbours[s]; i++ ) {
-          int j1 = deform.surfaces[0].surface.neighbours[s][i];
-          int i2 = (i+1)%deform.surfaces[0].surface.n_neighbours[s];
-          int j2 = deform.surfaces[0].surface.neighbours[s][i2];
-          if( compute_triangle_normal( deform.surfaces[0].surface.points[s],
-                                       deform.surfaces[0].surface.points[j1],
-                                       deform.surfaces[0].surface.points[j2],
-                                       norm ) ) {
-            xc += norm[0];
-            yc += norm[1];
-            zc += norm[2];
-          }
-        }
-        Real mag = sqrt( xc * xc + yc * yc + zc * zc );
-        if( mag > 1.0e-10 ) {
-          xc /= mag;
-          yc /= mag;
-          zc /= mag;
-        } else {
-          xc = 0.0;
-          yc = 0.0;
-          zc = 0.0;
-        }
-        fprintf( fp, "%g %g %g\n", xc, yc, zc );
-      }
-
-      // print the connectivity
-      fprintf( fp, "\n" );
-      fprintf( fp, "%d\n", deform.surfaces[0].surface.n_polygons );
-      fprintf( fp, "0 1 1 1 1\n\n" );
-
-      for( i = 1; i <= deform.surfaces[0].surface.n_polygons; i++ ) {
-        fprintf( fp, "%d ", 3*i );
-        if( i%8 == 0 ) fprintf( fp, "\n" );
-      }
-
-      for( i = 0; i < 3*deform.surfaces[0].surface.n_polygons; i++ ) {
-        if( i%8 == 0 ) fprintf( fp, "\n" );
-        fprintf( fp, "%d ", triangles[i] );
-      }
-      fclose( fp );
     }
 
-    // Output the distances from self-intersection at the vertices.
-    if( output_filename ) {
-      Real * nodal_distance = NULL;
-      ALLOC( nodal_distance, deform.surfaces[0].surface.n_points );
-      for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-        nodal_distance[s] = si_step;
-      }
+    FREE( derivative );
+    FREE( parameters );
+    FREE( start_parameter );
 
-      int * triangles = deform.surfaces[0].surface.triangles;
-      for( s = 0; s < n_candidates; s++ ) {
-        int poly1 = si_lookup->p1s[s];
-        int poly2 = si_lookup->p2s[s];
-        Real dist = sqrt( si_lookup->min_line_dists[s] );
-        nodal_distance[triangles[3*poly1]] = MIN( nodal_distance[triangles[3*poly1]], dist );
-        nodal_distance[triangles[3*poly1+1]] = MIN( nodal_distance[triangles[3*poly1+1]], dist );
-        nodal_distance[triangles[3*poly1+2]] = MIN( nodal_distance[triangles[3*poly1+2]], dist );
-        nodal_distance[triangles[3*poly2]] = MIN( nodal_distance[triangles[3*poly2]], dist );
-        nodal_distance[triangles[3*poly2+1]] = MIN( nodal_distance[triangles[3*poly2+1]], dist );
-        nodal_distance[triangles[3*poly2+2]] = MIN( nodal_distance[triangles[3*poly2+2]], dist );
-      }   
-
-      FILE * fp = fopen( output_filename, "wt" );
-      for( s = 0; s < deform.surfaces[0].surface.n_points; s++ ) {
-        fprintf( fp, "%f\n", nodal_distance[s] );
-      }
-      fclose( fp );
-      FREE( nodal_distance );
-    }
 
     delete_surface_neighbours();
     delete_line_lookup( &line_lookup, &deform );

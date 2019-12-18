@@ -1,5 +1,18 @@
 ------------------------------------------------------------------------
-r428 | gaser | 2019-12-17 22:17:57
+r429 | gaser | 2019-12-18 01:12:10
+
+Changed paths:
+M       CHANGES.txt
+M       Lib/CAT_SelfIntersect.c
+M       Makefile.am
+M       Progs/CAT_FixSelfIntersect.c
+
+(1) Changed: Updated CAT_FixSelfIntersect.c to iteratively minimize self-
+    intersections.
+(2) Chnaged: Added subfunction for fixing self-intersections to 
+    CAT_SelfIntersect.c
+------------------------------------------------------------------------
+r428 | gaser | 2019-12-17 22:18:26 +0100 (Di, 17 Dez 2019) | 11 lines
 
 Changed paths:
 A       CHANGES.txt
@@ -10,6 +23,7 @@ M       depcomp
 M       mkinstalldirs
 
 Added: CHANGES.txt
+
 
 ------------------------------------------------------------------------
 r427 | gaser | 2019-10-23 10:19:42 +0200 (Mi, 23 Okt 2019) | 6 lines

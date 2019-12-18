@@ -8,11 +8,49 @@
 
 #define  MAX_THRESHOLD_N_POLYGONS   200
 #define  THRESHOLD_N_POLYGONS   60
+#define  TOLERANCE_FACTOR   1.0e-10
 
 #ifdef PRINT_DIST
 #define PRINT_DIST
 static Real sum_dist;
 #endif
+
+#define  SUB( d, a, b ) \
+          { GLUE(d,x) = GLUE(a,x) - GLUE(b,x); \
+            GLUE(d,y) = GLUE(a,y) - GLUE(b,y); \
+            GLUE(d,z) = GLUE(a,z) - GLUE(b,z); }
+
+#define  CROSS( d, a, b ) \
+          { GLUE(d,x) = GLUE(a,y) * GLUE(b,z) - GLUE(a,z) * GLUE(b,y); \
+            GLUE(d,y) = GLUE(a,z) * GLUE(b,x) - GLUE(a,x) * GLUE(b,z); \
+            GLUE(d,z) = GLUE(a,x) * GLUE(b,y) - GLUE(a,y) * GLUE(b,x); }
+
+#define  DOT( a, b ) \
+            (GLUE(a,x) * GLUE(b,x) + GLUE(a,y) * GLUE(b,y) + \
+             GLUE(a,z) * GLUE(b,z))
+
+#define MIN_AND_MAX3( min, max, t1, t2, t3 ) \
+    if( (t1) < (t2) ) {                                             \
+        if( (t3) > (t2) ) {                                         \
+            (min) = (t1);                                           \
+            (max) = (t3);                                           \
+        } else if( (t3) > (t1) ) {                                  \
+            (min) = (t1);                                           \
+            (max) = (t2);                                           \
+        } else {                                                    \
+            (min) = (t3);                                           \
+            (max) = (t2);                                           \
+        }                                                           \
+    } else if( (t3) > (t1) ) {                                      \
+        (min) = (t2);                                               \
+        (max) = (t3);                                               \
+    } else if( (t3) > (t2) ) {                                      \
+        (min) = (t2);                                               \
+        (max) = (t1);                                               \
+    } else {                                                        \
+        (min) = (t3);                                               \
+        (max) = (t1);                                               \
+    }
 
 #define  A0  (1 << 0)
 #define  A1  (1 << 1)
@@ -803,4 +841,1212 @@ public  void   get_self_intersect_deriv(
     deriv[IJ(n22,0,3)] += factor * tri_tri_deriv[5][0];
     deriv[IJ(n22,1,3)] += factor * tri_tri_deriv[5][1];
     deriv[IJ(n22,2,3)] += factor * tri_tri_deriv[5][2];
+}
+
+// Test if two triangles are close enough. We already know that
+// the bounding boxes for (a0,a1,a2) and (b0,b1,b2) intersect
+// within fl_search_distance.
+
+public  BOOLEAN sq_triangle_triangle_dist_estimate(
+    Real    a0[],
+    Real    a1[],
+    Real    a2[],
+    Real    b0[],
+    Real    b1[],
+    Real    b2[],
+    Real    search_distance_sq ) {
+
+    Real   a0x, a0y, a0z, a1x, a1y, a1z, a2x, a2y, a2z;
+    Real   b0x, b0y, b0z, b1x, b1y, b1z, b2x, b2y, b2z;
+    Real   a01x, a01y, a01z, a20x, a20y, a20z, a12x, a12y, a12z;
+    Real   b01x, b01y, b01z, b20x, b20y, b20z, b12x, b12y, b12z;
+    Real   nx, ny, nz, vx, vy, vz, dot0, dot1, dot2;
+    Real   min_dir2, max_dir2, min_dir3;
+    Real   dist, delta, mag_dir, min_b, max_b, min_a, max_a;
+    Real   dist0, dist1, dist2, dist3;
+
+    a0x = a0[0];
+    a0y = a0[1];
+    a0z = a0[2];
+    a1x = a1[0];
+    a1y = a1[1];
+    a1z = a1[2];
+    a2x = a2[0];
+    a2y = a2[1];
+    a2z = a2[2];
+
+    b0x = b0[0];
+    b0y = b0[1];
+    b0z = b0[2];
+    b1x = b1[0];
+    b1y = b1[1];
+    b1z = b1[2];
+    b2x = b2[0];
+    b2y = b2[1];
+    b2z = b2[2];
+
+    /*--- test a to b */
+
+    a01x = a1x - a0x;
+    a01y = a1y - a0y;
+    a01z = a1z - a0z;
+
+    a12x = a2x - a1x;
+    a12y = a2y - a1y;
+    a12z = a2z - a1z;
+
+    a20x = a0x - a2x;
+    a20y = a0y - a2y;
+    a20z = a0z - a2z;
+
+    // This is the equation of the plane for triangle (a0,a1,a2):
+    //            nx*x + ny*y + nz*z = min_dir3
+
+    nx = a01y * (-a20z) - a01z * (-a20y);
+    ny = a01z * (-a20x) - a01x * (-a20z);
+    nz = a01x * (-a20y) - a01y * (-a20x);
+    min_dir3 = a0x * nx + a0y * ny + a0z * nz;
+
+    /*--- do dir3 distance */
+    // dist3 is the distance between planes parallel to (a0,a1,a2)
+    // but passing through the points b0, b1, b2. This distance is
+    // meaningful only if the 3 points of b are on the same side
+    // (all above or all below) of triangle a.
+
+    dot0 = b0x * nx + b0y * ny + b0z * nz;
+    dot1 = b1x * nx + b1y * ny + b1z * nz;
+    dot2 = b2x * nx + b2y * ny + b2z * nz;
+
+    MIN_AND_MAX3( min_b, max_b, dot0, dot1, dot2 );
+
+    if( min_b > min_dir3 ) {
+        delta = min_b - min_dir3;
+        mag_dir = nx * nx + ny * ny + nz * nz;
+        dist3 = delta * delta / mag_dir;
+    } else if( max_b < min_dir3 ) {
+        delta = min_dir3 - max_b;
+        mag_dir = nx * nx + ny * ny + nz * nz;
+        dist3 = delta * delta / mag_dir;
+    } else {
+        dist3 = 0.0;
+    }
+
+    if( dist3 >= search_distance_sq ) return( TRUE );
+
+    /*--- get dist0 */
+    // We now look at the distance between the edge (a0,a1) and the
+    // 3 points of the triangle b. We look away from the edge (a0,a1),
+    // in a plane tangent to the normal of triangle (a0,a1,a2) and 
+    // the given edge, to see if the parallel planes going through 
+    // the points of b all lie on the same side. We also look at
+    // the plane away from node a2 too.
+
+    dist0 = dist3;
+
+    vx = ny * a01z - nz * a01y;
+    vy = nz * a01x - nx * a01z;
+    vz = nx * a01y - ny * a01x;
+
+    min_dir2 = a0x * vx + a0y * vy + a0z * vz;
+    max_dir2 = a2x * vx + a2y * vy + a2z * vz;
+
+    dot0 = b0x * vx + b0y * vy + b0z * vz;
+    dot1 = b1x * vx + b1y * vy + b1z * vz;
+    dot2 = b2x * vx + b2y * vy + b2z * vz;
+
+    MIN_AND_MAX3( min_b, max_b, dot0, dot1, dot2 );
+
+    if( min_b > max_dir2 ) {
+        delta = min_b - max_dir2;
+        mag_dir = vx * vx + vy * vy + vz * vz;
+        dist0 += delta * delta / mag_dir;
+        if( dist0 >= search_distance_sq ) return( TRUE );
+    } else if( max_b < min_dir2 ) {
+        delta = min_dir2 - max_b;
+        mag_dir = vx * vx + vy * vy + vz * vz;
+        dist0 += delta * delta / mag_dir;
+        if( dist0 >= search_distance_sq ) return( TRUE );
+    }
+
+    /*--- get dist1 */
+    // Same as above, but with edge (a1,a2).
+
+    dist1 = dist3;
+
+    vx = ny * a12z - nz * a12y;
+    vy = nz * a12x - nx * a12z;
+    vz = nx * a12y - ny * a12x;
+
+    min_dir2 = a1x * vx + a1y * vy + a1z * vz;
+    max_dir2 = a0x * vx + a0y * vy + a0z * vz;
+
+    dot0 = b0x * vx + b0y * vy + b0z * vz;
+    dot1 = b1x * vx + b1y * vy + b1z * vz;
+    dot2 = b2x * vx + b2y * vy + b2z * vz;
+
+    MIN_AND_MAX3( min_b, max_b, dot0, dot1, dot2 );
+
+    if( min_b > max_dir2 ) {
+        delta = min_b - max_dir2;
+        mag_dir = vx * vx + vy * vy + vz * vz;
+        dist1 += delta * delta / mag_dir;
+        if( dist1 >= search_distance_sq ) return( TRUE );
+    } else if( max_b < min_dir2 ) {
+        delta = min_dir2 - max_b;
+        mag_dir = vx * vx + vy * vy + vz * vz;
+        dist1 += delta * delta / mag_dir;
+        if( dist1 >= search_distance_sq ) return( TRUE );
+    }
+
+    /*--- get dist2 */
+    // Same as above, but with edge (a2,a0).
+
+    dist2 = dist3;
+
+    vx = ny * a20z - nz * a20y;
+    vy = nz * a20x - nx * a20z;
+    vz = nx * a20y - ny * a20x;
+
+    min_dir2 = a2x * vx + a2y * vy + a2z * vz;
+    max_dir2 = a1x * vx + a1y * vy + a1z * vz;
+
+    dot0 = b0x * vx + b0y * vy + b0z * vz;
+    dot1 = b1x * vx + b1y * vy + b1z * vz;
+    dot2 = b2x * vx + b2y * vy + b2z * vz;
+
+    MIN_AND_MAX3( min_b, max_b, dot0, dot1, dot2 );
+
+    if( min_b > max_dir2 ) {
+        delta = min_b - max_dir2;
+        mag_dir = vx * vx + vy * vy + vz * vz;
+        dist2 += delta * delta / mag_dir;
+        if( dist2 >= search_distance_sq ) return( TRUE );
+    } else if( max_b < min_dir2 ) {
+        delta = min_dir2 - max_b;
+        mag_dir = vx * vx + vy * vy + vz * vz;
+        dist2 += delta * delta / mag_dir;
+        if( dist2 >= search_distance_sq ) return( TRUE );
+    }
+
+    /*--- test b to a */
+    // This is the same dir3 test as the first test above, but
+    // with a and b inverted.
+
+    b01x = b1x - b0x;
+    b01y = b1y - b0y;
+    b01z = b1z - b0z;
+
+    b12x = b2x - b1x;
+    b12y = b2y - b1y;
+    b12z = b2z - b1z;
+
+    b20x = b0x - b2x;
+    b20y = b0y - b2y;
+    b20z = b0z - b2z;
+
+    nx = b01y * (-b20z) - b01z * (-b20y);
+    ny = b01z * (-b20x) - b01x * (-b20z);
+    nz = b01x * (-b20y) - b01y * (-b20x);
+    min_dir3 = b0x * nx + b0y * ny + b0z * nz;
+
+    /*--- do dir3 distance */
+
+    dot0 = a0x * nx + a0y * ny + a0z * nz;
+    dot1 = a1x * nx + a1y * ny + a1z * nz;
+    dot2 = a2x * nx + a2y * ny + a2z * nz;
+
+    MIN_AND_MAX3( min_a, max_a, dot0, dot1, dot2 );
+
+    if( min_a > min_dir3 ) {
+        delta = min_a - min_dir3;
+        mag_dir = nx * nx + ny * ny + nz * nz;
+        dist3 = delta * delta / mag_dir;
+        if( dist3 >= search_distance_sq ) return( TRUE );
+    } else if( max_a < min_dir3 ) {
+        delta = min_dir3 - max_a;
+        mag_dir = nx * nx + ny * ny + nz * nz;
+        dist3 = delta * delta / mag_dir;
+        if( dist3 >= search_distance_sq ) return( TRUE );
+    }
+
+    return( FALSE );
+}
+
+private  Real  sq_triangle_triangle_dist_unknown_case(
+    Real            a0[],
+    Real            a1[],
+    Real            a2[],
+    Real            b0[],
+    Real            b1[],
+    Real            b2[],
+    unsigned char  *tri_case ) {
+
+    Real      a0x, a0y, a0z, a1x, a1y, a1z, a2x, a2y, a2z;
+    Real      b0x, b0y, b0z, b1x, b1y, b1z, b2x, b2y, b2z;
+    Real      da0x, da0y, da0z, da1x, da1y, da1z, da2x, da2y, da2z;
+    Real      db0x, db0y, db0z, db1x, db1y, db1z, db2x, db2y, db2z;
+    Real      anx, any, anz, bnx, bny, bnz;
+    Real      x_dot_y, x_dot_v, y_dot_v;
+    Real      bottom, x_pos, y_pos;
+    Real      dx, dy, dz;
+    Real      s, t, c, d, f;
+    Real      denom;
+    Real      dist;
+    Real      len_an, len_bn;
+    Real      v_da0, v_da1, v_da2, v_ea0, v_ea1, v_ea2;
+    Real      v_eb0, v_eb1, v_eb2;
+    Real      v_db0, v_db1, v_db2;
+    BOOLEAN   outside_ea0, outside_ea1, outside_ea2;
+    BOOLEAN   outside_eb0, outside_eb1, outside_eb2;
+    Real      a0_dot_db0, a1_dot_db0, a2_dot_db0;
+    Real      a0_dot_db1, a1_dot_db1, a2_dot_db1;
+    Real      a0_dot_db2, a1_dot_db2, a2_dot_db2;
+    Real      b0_dot_da0, b1_dot_da0, b2_dot_da0;
+    Real      b0_dot_da1, b1_dot_da1, b2_dot_da1;
+    Real      b0_dot_da2, b1_dot_da2, b2_dot_da2;
+    Real      ea0x, ea0y, ea0z, ea1x, ea1y, ea1z, ea2x, ea2y, ea2z;
+    Real      eb0x, eb0y, eb0z, eb1x, eb1y, eb1z, eb2x, eb2y, eb2z;
+    Real      a0_dot_ea0, a1_dot_ea1, a2_dot_ea2;
+    Real      b0_dot_eb0, b1_dot_eb1, b2_dot_eb2;
+    Real      a0_dot_da0, a1_dot_da1, a2_dot_da2;
+    Real      b0_dot_db0, b1_dot_db1, b2_dot_db2;
+    Real      a0_dot_an;
+    Real      b0_dot_bn;
+    Real      len_da0, len_da1, len_da2, len_db0, len_db1, len_db2;
+    Real      db0_dot_an, db1_dot_an, db2_dot_an;
+    Real      da0_dot_bn, da1_dot_bn, da2_dot_bn;
+    Real      px, py, pz;
+    Real      characteristic_length, tolerance;
+
+    a0x = a0[X];     a0y = a0[Y];     a0z = a0[Z];
+    a1x = a1[X];     a1y = a1[Y];     a1z = a1[Z];
+    a2x = a2[X];     a2y = a2[Y];     a2z = a2[Z];
+
+    b0x = b0[X];     b0y = b0[Y];     b0z = b0[Z];
+    b1x = b1[X];     b1y = b1[Y];     b1z = b1[Z];
+    b2x = b2[X];     b2y = b2[Y];     b2z = b2[Z];
+
+    SUB( da0, a1, a0 );
+    SUB( da1, a2, a1 );
+    SUB( da2, a0, a2 );
+
+    SUB( db0, b1, b0 );
+    SUB( db1, b2, b1 );
+    SUB( db2, b0, b2 );
+
+    CROSS( an, da2, da0 );
+    CROSS( bn, db2, db0 );
+
+    CROSS( ea0, an, da0 );
+    CROSS( ea1, an, da1 );
+    CROSS( ea2, an, da2 );
+
+    CROSS( eb0, bn, db0 );
+    CROSS( eb1, bn, db1 );
+    CROSS( eb2, bn, db2 );
+
+    b0_dot_da0 = DOT( b0, da0 );
+    b1_dot_da0 = DOT( b1, da0 );
+    b2_dot_da0 = DOT( b2, da0 );
+    b0_dot_da1 = DOT( b0, da1 );
+    b1_dot_da1 = DOT( b1, da1 );
+    b2_dot_da1 = DOT( b2, da1 );
+    b0_dot_da2 = DOT( b0, da2 );
+    b1_dot_da2 = DOT( b1, da2 );
+    b2_dot_da2 = DOT( b2, da2 );
+
+    a0_dot_db0 = DOT( a0, db0 );
+    a1_dot_db0 = DOT( a1, db0 );
+    a2_dot_db0 = DOT( a2, db0 );
+    a0_dot_db1 = DOT( a0, db1 );
+    a1_dot_db1 = DOT( a1, db1 );
+    a2_dot_db1 = DOT( a2, db1 );
+    a0_dot_db2 = DOT( a0, db2 );
+    a1_dot_db2 = DOT( a1, db2 );
+    a2_dot_db2 = DOT( a2, db2 );
+
+    a0_dot_ea0 = DOT( a0, ea0 );
+    a1_dot_ea1 = DOT( a1, ea1 );
+    a2_dot_ea2 = DOT( a2, ea2 );
+
+    b0_dot_eb0 = DOT( b0, eb0 );
+    b1_dot_eb1 = DOT( b1, eb1 );
+    b2_dot_eb2 = DOT( b2, eb2 );
+
+    a0_dot_da0 = DOT( a0, da0 );
+    a1_dot_da1 = DOT( a1, da1 );
+    a2_dot_da2 = DOT( a2, da2 );
+
+    a0_dot_an = DOT( a0, an );
+
+    b0_dot_db0 = DOT( b0, db0 );
+    b1_dot_db1 = DOT( b1, db1 );
+    b2_dot_db2 = DOT( b2, db2 );
+
+    b0_dot_bn = DOT( b0, bn );
+
+    len_da0 = DOT( da0, da0 );
+    len_da1 = DOT( da1, da1 );
+    len_da2 = DOT( da2, da2 );
+
+    len_db0 = DOT( db0, db0 );
+    len_db1 = DOT( db1, db1 );
+    len_db2 = DOT( db2, db2 );
+
+    characteristic_length = (len_da0 + len_da1 + len_da2 +
+                             len_db0 + len_db1 + len_db2) / 6.0;
+    tolerance = characteristic_length * TOLERANCE_FACTOR;
+
+    len_an = DOT( an, an );
+    len_bn = DOT( bn, bn );
+
+    db0_dot_an = DOT( db0, an );
+    db1_dot_an = DOT( db1, an );
+    db2_dot_an = DOT( db2, an );
+
+    da0_dot_bn = DOT( da0, bn );
+    da1_dot_bn = DOT( da1, bn );
+    da2_dot_bn = DOT( da2, bn );
+
+    /*--- test b0 against the triangle a0, a1, a2 */
+
+    v_da0 = b0_dot_da0 - a0_dot_da0;
+    v_da1 = b0_dot_da1 - a1_dot_da1;
+    v_da2 = b0_dot_da2 - a2_dot_da2;
+
+    v_ea0 = DOT( b0, ea0 ) - a0_dot_ea0;
+    v_ea1 = DOT( b0, ea1 ) - a1_dot_ea1;
+    v_ea2 = DOT( b0, ea2 ) - a2_dot_ea2;
+
+    outside_ea0 = (v_ea0 <= 0.0);
+    outside_ea1 = (v_ea1 <= 0.0);
+    outside_ea2 = (v_ea2 <= 0.0);
+
+    // when b0 is located outside 'a' triangular prism
+    if( !outside_ea0 && !outside_ea1 && !outside_ea2 )
+    {
+        d = DOT( b0, an ) - a0_dot_an;
+        if( d * db0_dot_an >= -tolerance && d * db2_dot_an <= tolerance ) {
+            x_dot_y = DOT( a2, da0 ) - a0_dot_da0;
+
+            bottom = len_da0 * len_da2 - x_dot_y * x_dot_y;
+
+            if( bottom != 0.0 ) {
+                dist = d * d / len_an;
+                *tri_case = A0 | A1 | A2 | B0;
+                return( dist );
+            }
+        }
+    }
+    // when b0 is located outside line of a1-a0
+    else if( outside_ea0 && v_da0 > 0.0 && v_da0 < len_da0 )
+    {
+        d = v_da0 / len_da0;
+        px = a0x + d * da0x;
+        py = a0y + d * da0y;
+        pz = a0z + d * da0z;
+        SUB( d, b0, p );
+
+        if( DOT( d, db0 ) >= -tolerance && DOT( d, db2 ) <= tolerance ) {
+            dist = DOT( d, d );
+            *tri_case = A0 | A1 | B0;
+            return( dist );
+        }
+    }
+    else if( outside_ea1 && v_da1 > 0.0 && v_da1 < len_da1 )
+    {
+        d = v_da1 / len_da1;
+        px = a1x + d * da1x;
+        py = a1y + d * da1y;
+        pz = a1z + d * da1z;
+        SUB( d, b0, p );
+
+        if( DOT( d, db0 ) >= -tolerance && DOT( d, db2 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A1 | A2 | B0;
+            return( dist );
+        }
+    }
+    else if( outside_ea2 && v_da2 > 0.0 && v_da2 < len_da2 )
+    {
+        d = v_da2 / len_da2;
+        px = a2x + d * da2x;
+        py = a2y + d * da2y;
+        pz = a2z + d * da2z;
+        SUB( d, b0, p );
+
+        if( DOT( d, db0 ) >= -tolerance && DOT( d, db2 ) <= tolerance ) {
+            dist = DOT( d, d );
+            *tri_case = A0 | A2 | B0;
+            return( dist );
+        }
+    }
+    else if( v_da0 <= 0.0 && v_da2 >= len_da2 )
+    {
+        if( b0_dot_db0 - a0_dot_db0 >= -tolerance &&
+            DOT( b0, db2 ) - a0_dot_db2 <= tolerance ) {
+            SUB( d, b0, a0 );
+            dist = DOT( d, d );
+            *tri_case = A0 | B0;
+            return( dist );
+        }
+    }
+    else if( v_da1 <= 0.0 && v_da0 >= len_da0 )
+    {
+        if( b0_dot_db0 - a1_dot_db0 >= -tolerance &&
+            DOT( b0, db2 ) - a1_dot_db2 <= tolerance ) {
+            SUB( d, b0, a1 );
+            dist = DOT( d, d );
+            *tri_case = A1 | B0;
+            return( dist );
+        }
+    }
+    else
+    {
+        if( b0_dot_db0 - a2_dot_db0 >= -tolerance &&
+            DOT( b0, db2 ) - a2_dot_db2 <= tolerance )
+        {
+            SUB( d, b0, a2 );
+            dist = DOT( d, d );
+            *tri_case = A2 | B0;
+            return( dist );
+        }
+    }
+
+    /*--- test b1 against the triangle a0, a1, a2 */
+
+    v_da0 = b1_dot_da0 - a0_dot_da0;
+    v_da1 = b1_dot_da1 - a1_dot_da1;
+    v_da2 = b1_dot_da2 - a2_dot_da2;
+
+    v_ea0 = DOT( b1, ea0 ) - a0_dot_ea0;
+    v_ea1 = DOT( b1, ea1 ) - a1_dot_ea1;
+    v_ea2 = DOT( b1, ea2 ) - a2_dot_ea2;
+
+    outside_ea0 = (v_ea0 <= 0.0);
+    outside_ea1 = (v_ea1 <= 0.0);
+    outside_ea2 = (v_ea2 <= 0.0);
+
+    if( !outside_ea0 && !outside_ea1 && !outside_ea2 )
+    {
+        d = DOT( b1, an ) - a0_dot_an;
+        if( d * db1_dot_an >= -tolerance && d * db0_dot_an <= tolerance )
+        {
+            x_dot_y = DOT( a2, da0 ) - a0_dot_da0;
+
+            bottom = len_da0 * len_da2 - x_dot_y * x_dot_y;
+
+            if( bottom != 0.0 ) {
+                dist = d * d / len_an;
+                *tri_case = A0 | A1 | A2 | B1;
+                return( dist );
+            }
+        }
+    }
+    else if( outside_ea0 && v_da0 > 0.0 && v_da0 < len_da0 )
+    {
+        d = v_da0 / len_da0;
+        px = a0x + d * da0x;
+        py = a0y + d * da0y;
+        pz = a0z + d * da0z;
+        SUB( d, b1, p );
+
+        if( DOT( d, db1 ) >= -tolerance && DOT( d, db0 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A0 | A1 | B1;
+            return( dist );
+        }
+    }
+    else if( outside_ea1 && v_da1 > 0.0 && v_da1 < len_da1 )
+    {
+        d = v_da1 / len_da1;
+        px = a1x + d * da1x;
+        py = a1y + d * da1y;
+        pz = a1z + d * da1z;
+        SUB( d, b1, p );
+
+        if( DOT( d, db1 ) >= -tolerance && DOT( d, db0 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A1 | A2 | B1;
+            return( dist );
+        }
+    }
+    else if( outside_ea2 && v_da2 > 0.0 && v_da2 < len_da2 )
+    {
+        d = v_da2 / len_da2;
+        px = a2x + d * da2x;
+        py = a2y + d * da2y;
+        pz = a2z + d * da2z;
+        SUB( d, b1, p );
+
+        if( DOT( d, db1 ) >= -tolerance && DOT( d, db0 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A0 | A2 | B1;
+            return( dist );
+        }
+    }
+    else if( v_da0 <= 0.0 && v_da2 >= len_da2 )
+    {
+        if( b1_dot_db1 - a0_dot_db1 >= -tolerance &&
+            DOT( b1, db0 ) - a0_dot_db0 <= tolerance )
+        {
+            SUB( d, b1, a0 );
+            dist = DOT( d, d );
+            *tri_case = A0 | B1;
+            return( dist );
+        }
+    }
+    else if( v_da1 <= 0.0 && v_da0 >= len_da0 )
+    {
+        if( b1_dot_db1 - a1_dot_db1 >= -tolerance &&
+            DOT( b1, db0 ) - a1_dot_db0 <= tolerance )
+        {
+            SUB( d, b1, a1 );
+            dist = DOT( d, d );
+            *tri_case = A1 | B1;
+            return( dist );
+        }
+    }
+    else
+    {
+        if( b1_dot_db1 - a2_dot_db1 >= -tolerance &&
+            DOT( b1, db0 ) - a2_dot_db0 <= tolerance )
+        {
+            SUB( d, b1, a2 );
+            dist = DOT( d, d );
+            *tri_case = A2 | B1;
+            return( dist );
+        }
+    }
+
+    /*--- test b2 against the triangle a0, a1, a2 */
+
+    v_da0 = b2_dot_da0 - a0_dot_da0;
+    v_da1 = b2_dot_da1 - a1_dot_da1;
+    v_da2 = b2_dot_da2 - a2_dot_da2;
+
+    v_ea0 = DOT( b2, ea0 ) - a0_dot_ea0;
+    v_ea1 = DOT( b2, ea1 ) - a1_dot_ea1;
+    v_ea2 = DOT( b2, ea2 ) - a2_dot_ea2;
+
+    outside_ea0 = (v_ea0 <= 0.0);
+    outside_ea1 = (v_ea1 <= 0.0);
+    outside_ea2 = (v_ea2 <= 0.0);
+
+    if( !outside_ea0 && !outside_ea1 && !outside_ea2 )
+    {
+        d = DOT( b2, an ) - a0_dot_an;
+        if( d * db2_dot_an >= -tolerance && d * db1_dot_an <= tolerance )
+        {
+            x_dot_y = DOT( a2, da0 ) - a0_dot_da0;
+
+            bottom = len_da0 * len_da2 - x_dot_y * x_dot_y;
+
+            if( bottom != 0.0 ) {
+                dist = d * d / len_an;
+                *tri_case = A0 | A1 | A2 | B2;
+                return( dist );
+            }
+        }
+    }
+    else if( outside_ea0 && v_da0 > 0.0 && v_da0 < len_da0 )
+    {
+        d = v_da0 / len_da0;
+        px = a0x + d * da0x;
+        py = a0y + d * da0y;
+        pz = a0z + d * da0z;
+        SUB( d, b2, p );
+
+        if( DOT( d, db2 ) >= -tolerance && DOT( d, db1 ) <= tolerance ) {
+            dist = DOT( d, d );
+            *tri_case = A0 | A1 | B2;
+            return( dist );
+        }
+    }
+    else if( outside_ea1 && v_da1 > 0.0 && v_da1 < len_da1 )
+    {
+        d = v_da1 / len_da1;
+        px = a1x + d * da1x;
+        py = a1y + d * da1y;
+        pz = a1z + d * da1z;
+        SUB( d, b2, p );
+
+        if( DOT( d, db2 ) >= -tolerance && DOT( d, db1 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A1 | A2 | B2;
+            return( dist );
+        }
+    }
+    else if( outside_ea2 && v_da2 > 0.0 && v_da2 < len_da2 )
+    {
+        d = v_da2 / len_da2;
+        px = a2x + d * da2x;
+        py = a2y + d * da2y;
+        pz = a2z + d * da2z;
+        SUB( d, b2, p );
+
+        if( DOT( d, db2 ) >= -tolerance && DOT( d, db1 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A0 | A2 | B2;
+            return( dist );
+        }
+    }
+    else if( v_da0 <= 0.0 && v_da2 >= len_da2 )
+    {
+        if( b2_dot_db2 - a0_dot_db2 >= -tolerance &&
+            DOT( b2, db1 ) - a0_dot_db1 <= tolerance )
+        {
+            SUB( d, b2, a0 );
+            dist = DOT( d, d );
+            *tri_case = A0 | B2;
+            return( dist );
+        }
+    }
+    else if( v_da1 <= 0.0 && v_da0 >= len_da0 )
+    {
+        if( b2_dot_db2 - a1_dot_db2 >= -tolerance &&
+            DOT( b2, db1 ) - a1_dot_db1 <= tolerance )
+        {
+            SUB( d, b2, a1 );
+            dist = DOT( d, d );
+            *tri_case = A1 | B2;
+            return( dist );
+        }
+    }
+    else
+    {
+        if( b2_dot_db2 - a2_dot_db2 >= -tolerance &&
+            DOT( b2, db1 ) - a2_dot_db1 <= tolerance )
+        {
+            SUB( d, b2, a2 );
+            dist = DOT( d, d );
+            *tri_case = A2 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- test a0 against the triangle b0, b1, b2 */
+
+    v_db0 = a0_dot_db0 - b0_dot_db0;
+    v_db1 = a0_dot_db1 - b1_dot_db1;
+    v_db2 = a0_dot_db2 - b2_dot_db2;
+
+    v_eb0 = DOT( a0, eb0 ) - b0_dot_eb0;
+    v_eb1 = DOT( a0, eb1 ) - b1_dot_eb1;
+    v_eb2 = DOT( a0, eb2 ) - b2_dot_eb2;
+
+    outside_eb0 = (v_eb0 <= 0.0);
+    outside_eb1 = (v_eb1 <= 0.0);
+    outside_eb2 = (v_eb2 <= 0.0);
+
+    if( !outside_eb0 && !outside_eb1 && !outside_eb2 )
+    {
+        d = DOT( a0, bn ) - b0_dot_bn;
+        if( d * da0_dot_bn >= -tolerance && d * da2_dot_bn <= tolerance )
+        {
+            x_dot_y = DOT( b2, db0 ) - b0_dot_db0;
+
+            bottom = len_db0 * len_db2 - x_dot_y * x_dot_y;
+
+            if( bottom != 0.0 ) {
+                dist = d * d / len_bn;
+                *tri_case = A0 | B0 | B1 | B2;
+                return( dist );
+            }
+        }
+    }
+    else if( outside_eb0 && v_db0 > 0.0 && v_db0 < len_db0 )
+    {
+        d = v_db0 / len_db0;
+        px = b0x + d * db0x;
+        py = b0y + d * db0y;
+        pz = b0z + d * db0z;
+        SUB( d, a0, p );
+
+        if( DOT( d, da0 ) >= -tolerance && DOT( d, da2 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A0 | B0 | B1;
+            return( dist );
+        }
+    }
+    else if( outside_eb1 && v_db1 > 0.0 && v_db1 < len_db1 )
+    {
+        d = v_db1 / len_db1;
+        px = b1x + d * db1x;
+        py = b1y + d * db1y;
+        pz = b1z + d * db1z;
+        SUB( d, a0, p );
+
+        if( DOT( d, da0 ) >= -tolerance && DOT( d, da2 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A0 | B1 | B2;
+            return( dist );
+        }
+    }
+    else if( outside_eb2 && v_db2 > 0.0 && v_db2 < len_db2 )
+    {
+        d = v_db2 / len_db2;
+        px = b2x + d * db2x;
+        py = b2y + d * db2y;
+        pz = b2z + d * db2z;
+        SUB( d, a0, p );
+
+        if( DOT( d, da0 ) >= -tolerance && DOT( d, da2 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A0 | B0 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- test a1 against the triangle b0, b1, b2 */
+
+    v_db0 = a1_dot_db0 - b0_dot_db0;
+    v_db1 = a1_dot_db1 - b1_dot_db1;
+    v_db2 = a1_dot_db2 - b2_dot_db2;
+
+    v_eb0 = DOT( a1, eb0 ) - b0_dot_eb0;
+    v_eb1 = DOT( a1, eb1 ) - b1_dot_eb1;
+    v_eb2 = DOT( a1, eb2 ) - b2_dot_eb2;
+
+    outside_eb0 = (v_eb0 <= 0.0);
+    outside_eb1 = (v_eb1 <= 0.0);
+    outside_eb2 = (v_eb2 <= 0.0);
+
+    if( !outside_eb0 && !outside_eb1 && !outside_eb2 )
+    {
+        d = DOT( a1, bn ) - b0_dot_bn;
+        if( d * da1_dot_bn >= -tolerance && d * da0_dot_bn <= tolerance )
+        {
+            x_dot_y = DOT( b2, db0 ) - b0_dot_db0;
+
+            bottom = len_db0 * len_db2 - x_dot_y * x_dot_y;
+
+            if( bottom != 0.0 ) {
+                dist = d * d / len_bn;
+                *tri_case = A1 | B0 | B1 | B2;
+                return( dist );
+            }
+        }
+    }
+    else if( outside_eb0 && v_db0 > 0.0 && v_db0 < len_db0 )
+    {
+        d = v_db0 / len_db0;
+        px = b0x + d * db0x;
+        py = b0y + d * db0y;
+        pz = b0z + d * db0z;
+        SUB( d, a1, p );
+
+        if( DOT( d, da1 ) >= -tolerance && DOT( d, da0 ) <= tolerance ) {
+            dist = DOT( d, d );
+            *tri_case = A1 | B0 | B1;
+            return( dist );
+        }
+    } else if( outside_eb1 && v_db1 > 0.0 && v_db1 < len_db1 ) {
+        d = v_db1 / len_db1;
+        px = b1x + d * db1x;
+        py = b1y + d * db1y;
+        pz = b1z + d * db1z;
+        SUB( d, a1, p );
+
+        if( DOT( d, da1 ) >= -tolerance && DOT( d, da0 ) <= tolerance ) {
+            dist = DOT( d, d );
+            *tri_case = A1 | B1 | B2;
+            return( dist );
+        }
+    } else if( outside_eb2 && v_db2 > 0.0 && v_db2 < len_db2 ) {
+        d = v_db2 / len_db2;
+        px = b2x + d * db2x;
+        py = b2y + d * db2y;
+        pz = b2z + d * db2z;
+        SUB( d, a1, p );
+
+        if( DOT( d, da1 ) >= -tolerance && DOT( d, da0 ) <= tolerance ) {
+            dist = DOT( d, d );
+            *tri_case = A1 | B0 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- test a2 against the triangle b0, b1, b2 */
+
+    v_db0 = a2_dot_db0 - b0_dot_db0;
+    v_db1 = a2_dot_db1 - b1_dot_db1;
+    v_db2 = a2_dot_db2 - b2_dot_db2;
+
+    v_eb0 = DOT( a2, eb0 ) - b0_dot_eb0;
+    v_eb1 = DOT( a2, eb1 ) - b1_dot_eb1;
+    v_eb2 = DOT( a2, eb2 ) - b2_dot_eb2;
+
+    outside_eb0 = (v_eb0 <= 0.0);
+    outside_eb1 = (v_eb1 <= 0.0);
+    outside_eb2 = (v_eb2 <= 0.0);
+
+    if( !outside_eb0 && !outside_eb1 && !outside_eb2 )
+    {
+        d = DOT( a2, bn ) - b0_dot_bn;
+        if( d * da2_dot_bn >= -tolerance && d * da1_dot_bn <= tolerance )
+        {
+            x_dot_y = DOT( b2, db0 ) - b0_dot_db0;
+
+            bottom = len_db0 * len_db2 - x_dot_y * x_dot_y;
+
+            if( bottom != 0.0 ) {
+                dist = d * d / len_bn;
+                *tri_case = A2 | B0 | B1 | B2;
+                return( dist );
+            }
+        }
+    }
+    else if( outside_eb0 && v_db0 > 0.0 && v_db0 < len_db0 )
+    {
+        d = v_db0 / len_db0;
+        px = b0x + d * db0x;
+        py = b0y + d * db0y;
+        pz = b0z + d * db0z;
+        SUB( d, a2, p );
+
+        if( DOT( d, da2 ) >= -tolerance && DOT( d, da1 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A2 | B0 | B1;
+            return( dist );
+        }
+    }
+    else if( outside_eb1 && v_db1 > 0.0 && v_db1 < len_db1 )
+    {
+        d = v_db1 / len_db1;
+        px = b1x + d * db1x;
+        py = b1y + d * db1y;
+        pz = b1z + d * db1z;
+        SUB( d, a2, p );
+
+        if( DOT( d, da2 ) >= -tolerance && DOT( d, da1 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A2 | B1 | B2;
+            return( dist );
+        }
+    }
+    else if( outside_eb2 && v_db2 > 0.0 && v_db2 < len_db2 )
+    {
+        d = v_db2 / len_db2;
+        px = b2x + d * db2x;
+        py = b2y + d * db2y;
+        pz = b2z + d * db2z;
+        SUB( d, a2, p );
+
+        if( DOT( d, da2 ) >= -tolerance && DOT( d, da1 ) <= tolerance )
+        {
+            dist = DOT( d, d );
+            *tri_case = A2 | B0 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- a0-a1 vs b0-b1 */
+
+    c = a0_dot_da0 - b0_dot_da0;
+    d = a1_dot_db0 - a0_dot_db0;
+    f = a0_dot_db0 - b0_dot_db0;
+
+    denom = d * d - len_da0 * len_db0;
+    s = len_db0 * c - f * d;
+    t = d * c - len_da0 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b0x + t * db0x - (a0x + s * da0x);
+        dy = b0y + t * db0y - (a0y + s * da0y);
+        dz = b0z + t * db0z - (a0z + s * da0z);
+
+        if( DOT( d, ea0 ) <= tolerance && DOT( d, eb0 ) >= -tolerance ) {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A0 | A1 | B0 | B1;
+            return( dist );
+        }
+    }
+
+    /*--- a0-a1 vs b1-b2 */
+
+    c = a0_dot_da0 - b1_dot_da0;
+    d = a1_dot_db1 - a0_dot_db1;
+    f = a0_dot_db1 - b1_dot_db1;
+
+    denom = d * d - len_da0 * len_db1;
+    s = len_db1 * c - f * d;
+    t = d * c - len_da0 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b1x + t * db1x - (a0x + s * da0x);
+        dy = b1y + t * db1y - (a0y + s * da0y);
+        dz = b1z + t * db1z - (a0z + s * da0z);
+
+        if( DOT( d, ea0 ) <= tolerance && DOT( d, eb1 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A0 | A1 | B1 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- a0-a1 vs b2-b0 */
+
+    c = a0_dot_da0 - b2_dot_da0;
+    d = a1_dot_db2 - a0_dot_db2;
+    f = a0_dot_db2 - b2_dot_db2;
+
+    denom = d * d - len_da0 * len_db2;
+    s = len_db2 * c - f * d;
+    t = d * c - len_da0 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b2x + t * db2x - (a0x + s * da0x);
+        dy = b2y + t * db2y - (a0y + s * da0y);
+        dz = b2z + t * db2z - (a0z + s * da0z);
+
+        if( DOT( d, ea0 ) <= tolerance && DOT( d, eb2 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A0 | A1 | B0 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- a1-a2 vs b0-b1 */
+
+    c = a1_dot_da1 - b0_dot_da1;
+    d = a2_dot_db0 - a1_dot_db0;
+    f = a1_dot_db0 - b0_dot_db0;
+
+    denom = d * d - len_da1 * len_db0;
+    s = len_db0 * c - f * d;
+    t = d * c - len_da1 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b0x + t * db0x - (a1x + s * da1x);
+        dy = b0y + t * db0y - (a1y + s * da1y);
+        dz = b0z + t * db0z - (a1z + s * da1z);
+
+        if( DOT( d, ea1 ) <= tolerance && DOT( d, eb0 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A1 | A2 | B0 | B1;
+            return( dist );
+        }
+    }
+
+    /*--- a1-a2 vs b1-b2 */
+
+    c = a1_dot_da1 - b1_dot_da1;
+    d = a2_dot_db1 - a1_dot_db1;
+    f = a1_dot_db1 - b1_dot_db1;
+
+    denom = d * d - len_da1 * len_db1;
+    s = len_db1 * c - f * d;
+    t = d * c - len_da1 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b1x + t * db1x - (a1x + s * da1x);
+        dy = b1y + t * db1y - (a1y + s * da1y);
+        dz = b1z + t * db1z - (a1z + s * da1z);
+
+        if( DOT( d, ea1 ) <= tolerance && DOT( d, eb1 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A1 | A2 | B1 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- a1-a2 vs b2-b0 */
+
+    c = a1_dot_da1 - b2_dot_da1;
+    d = a2_dot_db2 - a1_dot_db2;
+    f = a1_dot_db2 - b2_dot_db2;
+
+    denom = d * d - len_da1 * len_db2;
+    s = len_db2 * c - f * d;
+    t = d * c - len_da1 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b2x + t * db2x - (a1x + s * da1x);
+        dy = b2y + t * db2y - (a1y + s * da1y);
+        dz = b2z + t * db2z - (a1z + s * da1z);
+
+        if( DOT( d, ea1 ) <= tolerance && DOT( d, eb2 ) >= -tolerance ) {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A1 | A2 | B0 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- a2-a0 vs b0-b1 */
+
+    c = a2_dot_da2 - b0_dot_da2;
+    d = a0_dot_db0 - a2_dot_db0;
+    f = a2_dot_db0 - b0_dot_db0;
+
+    denom = d * d - len_da2 * len_db0;
+    s = len_db0 * c - f * d;
+    t = d * c - len_da2 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b0x + t * db0x - (a2x + s * da2x);
+        dy = b0y + t * db0y - (a2y + s * da2y);
+        dz = b0z + t * db0z - (a2z + s * da2z);
+
+        if( DOT( d, ea2 ) <= tolerance && DOT( d, eb0 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A0 | A2 | B0 | B1;
+            return( dist );
+        }
+    }
+
+    /*--- a2-a0 vs b1-b2 */
+
+    c = a2_dot_da2 - b1_dot_da2;
+    d = a0_dot_db1 - a2_dot_db1;
+    f = a2_dot_db1 - b1_dot_db1;
+
+    denom = d * d - len_da2 * len_db1;
+    s = len_db1 * c - f * d;
+    t = d * c - len_da2 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b1x + t * db1x - (a2x + s * da2x);
+        dy = b1y + t * db1y - (a2y + s * da2y);
+        dz = b1z + t * db1z - (a2z + s * da2z);
+
+        if( DOT( d, ea2 ) <= tolerance && DOT( d, eb1 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A0 | A2 | B1 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- a2-a0 vs b2-b0 */
+
+    c = a2_dot_da2 - b2_dot_da2;
+    d = a0_dot_db2 - a2_dot_db2;
+    f = a2_dot_db2 - b2_dot_db2;
+
+    denom = d * d - len_da2 * len_db2;
+    s = len_db2 * c - f * d;
+    t = d * c - len_da2 * f;
+
+    if( denom > 0.0 && s > 0.0 && s < denom && t > 0.0 && t < denom ||
+        denom < 0.0 && s < 0.0 && s > denom && t < 0.0 && t > denom )
+    {
+        s /= denom;
+        t /= denom;
+
+        dx = b2x + t * db2x - (a2x + s * da2x);
+        dy = b2y + t * db2y - (a2y + s * da2y);
+        dz = b2z + t * db2z - (a2z + s * da2z);
+
+        if( DOT( d, ea2 ) <= tolerance && DOT( d, eb2 ) >= -tolerance )
+        {
+            dist = dx * dx + dy * dy + dz * dz;
+            *tri_case = A0 | A2 | B0 | B2;
+            return( dist );
+        }
+    }
+
+    /*--- otherwise, they must intersect */
+
+    *tri_case = 0;
+
+    return( 0.0 );
+}
+
+#ifdef STATS
+static  int  vv = 0;
+static  int  ve = 0;
+static  int  ee = 0;
+static  int  vp = 0;
+static  int  other = 0;
+static  int  count = 0;
+#endif  /* STATS */
+
+
+public  Real  sq_triangle_triangle_dist(
+    Real   a0[],
+    Real   a1[],
+    Real   a2[],
+    Real   b0[],
+    Real   b1[],
+    Real   b2[],
+    unsigned char * which_case ) {
+
+    int   i;
+    unsigned char  tri_case;
+    Real  dist;
+
+    if( which_case != NULL ) {
+      if( *which_case > 0 ) {
+        if( test_distance_with_known_case( a0, a1, a2, b0, b1, b2, *which_case,
+                                           &dist ) ) {
+          return( dist );
+        }
+      }
+    }
+
+    dist = sq_triangle_triangle_dist_unknown_case( a0, a1, a2, b0, b1, b2,
+                                                   &tri_case );
+
+    if( which_case != NULL ) {
+      *which_case = tri_case;
+    }
+
+    return( dist );
 }
