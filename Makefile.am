@@ -23,16 +23,6 @@ s2kit10_SRC = \
     s2kit10/naive_synthesis.c \
     s2kit10/primitive.c
     
-nl_SRC = \
-    nl/nl_api.c \
-    nl/nl_blas.c \
-    nl/nl_context.c \
-    nl/nl_iterative_solvers.c \
-    nl/nl_matrix.c \
-    nl/nl_os.c \
-    nl/nl_preconditioners.c \
-    nl/nl_superlu.c
-    
 zlib_SRC = \
     zlib/adler32.c \
     zlib/crc32.c \
@@ -115,15 +105,7 @@ noinst_HEADERS = \
     s2kit10/cospmls.h \
     s2kit10/makeweights.h \
     s2kit10/pmls.h \
-    s2kit10/seminaive.h \
-    nl/nl.h \
-    nl/nl_context.h \
-    nl/nl_matrix.h \
-    nl/nl_private.h \
-    nl/nl_blas.h \
-    nl/nl_iterative_solvers.h \
-    nl/nl_preconditioners.h \
-    nl/nl_superlu.h
+    s2kit10/seminaive.h
 
 libCAT_la_SOURCES = \
     Lib/CAT_Surf.c \
@@ -133,7 +115,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_Smooth.c \
     Lib/CAT_SPH.c \
     Lib/CAT_Pinv.c \
-    Lib/CAT_SelfIntersect.c \
     Lib/CAT_Intersect.c \
     Lib/CAT_Octree.c \
     Lib/CAT_Resample.c \
@@ -144,7 +125,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_Complexity.c \
     Lib/CAT_Refine.c \
     Lib/CAT_Interpolate.c \
-    Lib/CAT_LaplaceBeltrami.c \
     Lib/CAT_Isometrics.c \
     Lib/CAT_Separate.c \
     Lib/CAT_NiftiIO.c \
@@ -154,7 +134,6 @@ libCAT_la_SOURCES = \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
     $(zlib_SRC) \
-    $(nl_SRC) \
     $(nifti_SRC) \
     $(gifti_SRC) \
     $(dartel_SRC) \

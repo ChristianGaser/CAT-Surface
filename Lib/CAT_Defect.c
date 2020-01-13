@@ -311,7 +311,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 {
         int p, d, i, fillflag, euler;
         int npts, maxpts, *pts, *polydefects;
-        int     *n_neighbours, **neighbours;
+        int *n_neighbours, **neighbours;
         Vector dir;
         double *depth, avg, sum;
         polygons_struct *inflated_surface;
@@ -384,13 +384,14 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
                 } else fillflag = holes[pts[0]]; /* otherwise use predefined decision */
 
                 /* indicate "bottom" (ground) of defect only as either hole or handle */
-                for (p = 0; p < npts; p++) {
-                        if (((fillflag == HOLE) & (depth[pts[p]] > avg)) | ((fillflag == HANDLE) & (depth[pts[p]] < avg)))
+                for (p = 0; p < npts; p++)
+                        if (((fillflag == HOLE) & (depth[pts[p]] >= avg)) | ((fillflag == HANDLE) & (depth[pts[p]] < avg)))
                                 bisected[pts[p]] = fillflag;
-                }
+                       
         }
         free(pts);
         free(depth);
+        free(objects);
         if (detect_euler) free(polydefects);
 
 }
@@ -449,13 +450,6 @@ inflate_surface_with_topology_defects(polygons_struct *polygons)
                   /*     finger smooth strength */ 1.0,
                   /*        finger smooth iters */ 60);
 
-        /* add some noise to the surface because of difficulties with the subsequent convex hull approach */
-        for (i = 0; i < polygons->n_points; i++) {
-                Point_x(polygons->points[i]) += (double) (rand() % 10)/20.0;
-                Point_y(polygons->points[i]) += (double) (rand() % 10)/20.0;
-                Point_z(polygons->points[i]) += (double) (rand() % 10)/20.0;        
-        }
-        
         compute_polygon_normals(polygons);
 }
 

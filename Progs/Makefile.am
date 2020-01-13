@@ -45,7 +45,6 @@ bin_PROGRAMS = \
     CAT_AverageSurfaces \
     CAT_FixTopology \
     CAT_Isometize \
-    CAT_LBConformalMap \
     CAT_WarpSurf \
     CAT_WarpSurfDemon \
     CAT_ResampleSphericalSurfSPH \
@@ -76,9 +75,7 @@ bin_PROGRAMS = \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
     CAT_Test \
-    CAT_MarchingCubes \
-    CAT_FixSelfIntersect
-##    CAT_MarchingCubesSphere \
+    CAT_MarchingCubes
 
 # experimental code, not yet working or for testing only!
 ##  CAT_VolConvert \

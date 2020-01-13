@@ -519,7 +519,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         if (DEBUG) printf("find_topological_defects...\n");
         n_defects = find_topological_defects(surface, sphere, defects,
                                              n_neighbours, neighbours);
-        printf("%d topological defects\n", n_defects);
+        printf("%d topological defect(s)\n", n_defects);
 
         if (DEBUG) printf("update_polydefects...\n");
         update_polydefects(surface, defects, polydefects);
@@ -559,7 +559,8 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         licy   = (double *) malloc(sizeof(double) * bw2);
         licz   = (double *) malloc(sizeof(double) * bw2);
 
-        if (force) {
+        memset(holes, 0, sizeof(int) * surface->n_points);
+        if (force ) {
             /* label defects according to force parameter to either use 
                 holes or handles by default */
             for (p = 0; p < surface->n_points; p++) {
