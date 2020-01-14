@@ -322,7 +322,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
         pts = (int *) malloc(sizeof(int) * surface->n_points);
         depth = (double *) malloc(sizeof(double) * surface->n_points);
 
-        /* inflate surface roughly to an ellopsoid where holes and handles are still visible and have
+        /* inflate surface roughly to an ellipsoid where holes and handles are still visible and have
            different height/depth on the surface */
         objects = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
@@ -391,7 +391,7 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
         }
         free(pts);
         free(depth);
-        free(objects);
+        delete_object_list(1, objects);
         if (detect_euler) free(polydefects);
 
 }

@@ -128,6 +128,7 @@ main(int argc, char *argv[])
         /* clean up */
         delete_object_list(1, objects);
         delete_object_list(1, sphere_objects);
+        if (reparam_file == NULL) delete_object_list(1, reparam_objects);
 
         return(EXIT_SUCCESS);
 }

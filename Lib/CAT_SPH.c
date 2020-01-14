@@ -578,7 +578,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
 
         }
         free(bisected);
-        free(objects);
+        delete_object_list(1, objects);
         delete_the_bintree(&scaled_sphere->bintree);
 
 }

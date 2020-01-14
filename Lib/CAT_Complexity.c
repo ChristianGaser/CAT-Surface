@@ -421,11 +421,12 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
 
         fd = get_globalfd(bws, areas, SPH_ITERS);
 
-	    free(rcx); free(rcy); free(rcz); 
+        free(rcx); free(rcy); free(rcz); 
         free(icx); free(icy); free(icz); 
         free(lrcx); free(lrcy); free(lrcz);
         free(licx); free(licy); free(licz);
         free(rdatax); free(rdatay); free(rdataz);
+        delete_object_list(1, object);
         
         return fd;
 }

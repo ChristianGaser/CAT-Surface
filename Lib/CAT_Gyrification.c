@@ -58,7 +58,7 @@ gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
 
         free(convex_areas);
         free(areas);
-        free(object);
+        delete_object_list(1, object);
 
         return area/convex_area;
 }

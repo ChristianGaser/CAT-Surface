@@ -368,7 +368,7 @@ compute_sulcus_depth(polygons_struct *surface, double *depth)
                 depth[i] = distance_between_points(&surface->points[i], &closest);
         }
 
-        free(object);
+        delete_object_list(1, object);
         delete_the_bintree(&convex->bintree);
 
 }
