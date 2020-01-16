@@ -385,9 +385,10 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 
                 /* indicate "bottom" (ground) of defect only as either hole or handle */
                 for (p = 0; p < npts; p++) {
-                        if (((fillflag == HOLE) & (depth[pts[p]] == avg)) | ((fillflag == HANDLE) & (depth[pts[p]] < avg)))
+                        if (((fillflag == HOLE) & (depth[pts[p]] > avg)) | ((fillflag == HANDLE) & (depth[pts[p]] < avg)))
                                 bisected[pts[p]] = fillflag;
                 }
+                       
         }
         free(pts);
         free(depth);

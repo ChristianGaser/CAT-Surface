@@ -3,7 +3,7 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id: CAT_MarchingCubes.c 405 2018-01-23 09:06:48Z gaser $
+ * $Id$
  *
  */
 
