@@ -418,12 +418,11 @@ main(int argc, char *argv[])
                                                 pos = (1.0/(area_outer[i]-area_inner[i]))*
                                                              (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
                                                              
-                                                /* subtract offset of 0.5 that was added to pos and invert value because we have inverted normals*/
-                                                pos = (0.5 - pos)*thickness[i];     
+                                                /* subtract offset of 0.5 that was added to pos */
+                                                pos = (pos - 0.5)*thickness[i];     
                                         } else  pos = length_array[j]*thickness[i];        
                                 } else pos = length_array[j]*thickness[i];
                         }
-                        
                         GET_grid_POINT(voxel, polygons->points[i], normal, pos);
 
                         evaluate_volume_in_world(volume, voxel[X], voxel[Y],
@@ -457,8 +456,8 @@ main(int argc, char *argv[])
                 /* prepare numbered output name and write values */
                 for (j = 0; j < grid_steps1; j++) {
                         if (equivol)
-                                (void) sprintf(tmp_string,"%s_ev%g%s",output_values_file,length_array[j],ext);
-                        else    (void) sprintf(tmp_string,"%s_ed%g%s",output_values_file,length_array[j],ext);
+                                (void) sprintf(tmp_string,"%s_ev%3.2f%s",output_values_file,length_array[j],ext);
+                        else    (void) sprintf(tmp_string,"%s_ed%3.2f%s",output_values_file,length_array[j],ext);
                         for (i = 0; i < polygons->n_points; i++) values[i] = values2[i][j];
 
                         output_values_any_format(tmp_string, polygons->n_points,

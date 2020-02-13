@@ -1,5 +1,17 @@
 ------------------------------------------------------------------------
-r433 | gaser | 2020-01-16 22:40:16
+r434 | gaser | 2020-02-13 10:54:16
+
+Changed paths:
+M       CHANGES.txt
+M       Progs/CAT_3dVol2Surf.c
+M       dartel/diffeosphere.c
+M       dartel/optimizersphere.c
+!       stamp-h1
+
+(1) Changed: Added some OpenMP-code snippets to 2D dartel registration.
+(2) Fixed: Direction of equivolume mapping for CAT_3dVol2Surf.c was inverted.
+------------------------------------------------------------------------
+r433 | gaser | 2020-01-16 22:40:29 +0100 (Do, 16 Jan 2020) | 8 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -8,6 +20,7 @@ MM      not_used_anymore/CAT_MarchingCubesSphere.c
  M      not_used_anymore/conjugate.h
 
 Changed: Corrected use of delete_object_list.
+
 ------------------------------------------------------------------------
 r432 | gaser | 2020-01-16 22:29:02 +0100 (Do, 16 Jan 2020) | 9 lines
 

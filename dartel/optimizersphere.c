@@ -1,9 +1,13 @@
-/* $Id$ */
-/* (c) John Ashburner (2007) */
+/* $Id$ 
+   largely modified version of optimizer2d.c from John Ashburner 
+   (c) John Ashburner (2007) */
 
 #include<math.h>
 #include "dartel.h"
 #include <stdio.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #define S 1.0000000001
 
@@ -122,6 +126,7 @@ LtLf_le(int dm[], double f[], double s[], double g[])
     pfx = f;
     pfy = f + dm[0]*dm[1];
 
+#   pragma omp parallel for collapse(2) private(i)
     for (j = 0; j < dm[1]; j++) {
         for (i = 0; i < dm[0]; i++) {
             int ij;
@@ -240,6 +245,7 @@ Atimesp_le(int dm[], double A[], double s[], double p[], double Ap[])
     int i, m = dm[0]*dm[1];
 
     LtLf_le(dm, p, s, Ap);
+#   pragma omp parallel for
     for (i = 0; i < m; i++) {
         Ap[i  ] += A[i  ]*p[i  ] + A[i+2*m]*p[i+m];
         Ap[i+m] += A[i+m]*p[i+m] + A[i+2*m]*p[i  ];
@@ -303,6 +309,7 @@ LtLf_me(int dm[], double f[], double s[], double g[])
     w01 = s[2]*(-s[1]*s[1]);
     w10 = s[2]*(-s[0]*s[0]);
 
+#   pragma omp parallel for collapse(2) private(i)
     for (j = 0; j < dm[1]; j++) {
         for (i = 0; i < dm[0]; i++) {
             int ij;
@@ -402,6 +409,7 @@ Atimesp_me(int dm[], double A[], double s[], double p[], double Ap[])
 
     LtLf_me(dm, p, s, Ap);
 
+#   pragma omp parallel for
     for (i = 0; i < m; i++) {
         Ap[i  ] += A[i  ]*p[i  ] + A[i+2*m]*p[i+m];
         Ap[i+m] += A[i+m]*p[i+m] + A[i+2*m]*p[i  ];
@@ -502,6 +510,7 @@ LtLf_be(int dm[], double f[], double s[], double g[])
     w11 = s[2]*( 2*s[0]*s[0]*s[1]*s[1]);
     w20 = s[2]*(   s[0]*s[0]*s[0]*s[0]);
 
+#   pragma omp parallel for collapse(2) private(i)
     for (j = 0; j < dm[1]; j++) {
         pgx = g + dm[0]*j;
         pgy = g + dm[0]*(j + dm[1]);

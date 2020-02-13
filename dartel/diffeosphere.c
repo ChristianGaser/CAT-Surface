@@ -1,11 +1,15 @@
-/* %Id$ */
-/* (c) John Ashburner (2007) */
-
+/* $Id$ 
+   largely modified version of diffeo2d.c from John Ashburner 
+   (c) John Ashburner (2007) */
+   
 #include <math.h>
 #include <stdio.h>
 #include "dartel.h"
 #include "CAT_Surf.h"
 #include "CAT_Interpolate.h"
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #define LOG(x) (((x)>0) ? log(x+0.001): -6.9078)
 #define WRAP(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
