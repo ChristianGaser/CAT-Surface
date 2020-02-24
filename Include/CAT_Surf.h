@@ -21,7 +21,7 @@ void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int);
 void apply_uv_warp(polygons_struct *, polygons_struct *, double *,
               double *, int );
 double get_area_of_points_normalized_to_sphere(polygons_struct *, polygons_struct *, double *);
-double * get_surface_ratio(double, polygons_struct *);
+double * get_surface_ratio(double, polygons_struct *, int);
 double get_area_of_points(polygons_struct *, double *);
 double get_area_of_polygons(polygons_struct *, double *);
 void get_radius_of_points(polygons_struct *, double *);

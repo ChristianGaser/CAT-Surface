@@ -1,5 +1,19 @@
 ------------------------------------------------------------------------
-r434 | gaser | 2020-02-13 10:54:16
+r435 | gaser | 2020-02-24 11:46:09
+
+Changed paths:
+M       CHANGES.txt
+M       Include/CAT_Surf.h
+M       Lib/CAT_Surf.c
+M       Progs/CAT_DumpSurfaceRatio.c
+!       stamp-h1
+
+(1) Changed: Added option to switch off normalization for surface ratio 
+    estimation.
+(2) Changed: Added normalization for automatically estimated radius for surface
+    ratio.
+------------------------------------------------------------------------
+r434 | gaser | 2020-02-13 10:54:29 +0100 (Do, 13 Feb 2020) | 10 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -10,6 +24,7 @@ M       dartel/optimizersphere.c
 
 (1) Changed: Added some OpenMP-code snippets to 2D dartel registration.
 (2) Fixed: Direction of equivolume mapping for CAT_3dVol2Surf.c was inverted.
+
 ------------------------------------------------------------------------
 r433 | gaser | 2020-01-16 22:40:29 +0100 (Do, 16 Jan 2020) | 8 lines
 

@@ -66,7 +66,7 @@ from_array(double *xyz, Point *p) {
 }
 
 double *
-get_surface_ratio(double radius, polygons_struct *polygons)
+get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
 {
         int      i, j, x, y, z, a, b, c, nan = 0;
         double   *lf, *avol;
@@ -107,17 +107,18 @@ get_surface_ratio(double radius, polygons_struct *polygons)
         }
         
         if (radius < 0) {
-                /* this was empirically estimated using global gyrification index and surface rations using
+                /* this was empirically estimated using global gyrification index and surface ratios using
                    different ranges of radii */
                 radius = 0.0000471*total_area + 7.456;
-                printf("Estimated radius: %3.1f\n", radius);
-        } else {
+        }
+        
+        if (normalize) {
                 /* the individual surface area is related to the total surface area of the template meshes
                    ?h.central.Template_T1_IXI555_MNI152_GS.gii from CAT12 */
                 radius = radius*sqrt(total_area/90000.0);
-                printf("Estimated radius: %3.1f\n", radius);        
+                printf("Estimated radius: %3.1f\n", radius);
         }
-        
+
         initialize_progress_report( &progress, FALSE, polygons->n_points,
                                 "Estimating surface ratio" );
 
