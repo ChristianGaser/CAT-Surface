@@ -1,5 +1,15 @@
 ------------------------------------------------------------------------
-r435 | gaser | 2020-02-24 11:46:09
+r436 | gaser | 2020-05-15 12:50:11
+
+Changed paths:
+M       CHANGES.txt
+M       Lib/CAT_Resample.c
+
+Changed: Updated label interpolation in CAT_Resample to increase speed for 
+very large and sparse label entries.
+
+------------------------------------------------------------------------
+r435 | gaser | 2020-02-24 11:46:23 +0100 (Mo, 24 Feb 2020) | 12 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -12,6 +22,7 @@ M       Progs/CAT_DumpSurfaceRatio.c
     estimation.
 (2) Changed: Added normalization for automatically estimated radius for surface
     ratio.
+
 ------------------------------------------------------------------------
 r434 | gaser | 2020-02-13 10:54:29 +0100 (Do, 13 Feb 2020) | 10 lines
 

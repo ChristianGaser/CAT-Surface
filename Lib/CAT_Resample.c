@@ -102,9 +102,10 @@ object_struct **
 resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *polygons_sphere, polygons_struct *target_sphere, 
                                   double *input_values, double *output_values, int label_interpolation)
 {
-        int             i, j, k, poly, n_points;
-        int             min_val = 32767, max_val = 0;
-        int             *n_neighbours, **neighbours;
+        int             i, j, k, poly, n_points, intval;
+        int             min_val = HUGE, max_val = -HUGE;
+        int             label_values[65536], n_labels;
+        int             *n_neighbours, **neighbours, *histo;
         Point           point, scaled_point, center;
         Point           *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct   **objects, **scaled_objects;
@@ -115,13 +116,30 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
         *objects = create_object(POLYGONS);
         scaled_polygons_sphere = get_polygons_ptr(*objects);
         
-        /* get maximum value for label interpolation */
         if (label_interpolation) {
+                /* get maximum and minimum (!=0) value for label interpolation */
                 for (i = 0; i < polygons_sphere->n_points; i++) {
-                        if (min_val > (int)input_values[i])
-                                min_val = (int)input_values[i];
-                        if (max_val < (int)input_values[i])
-                                max_val = (int)input_values[i];
+                        intval = (int)input_values[i];
+                        if ((min_val > intval) && (intval != 0))
+                                min_val = intval;
+                        if (max_val < intval)
+                                max_val = intval;
+                }
+
+                /* build histogram of label values which is necessary for large and sparse label entries */
+                histo = (int *) malloc(sizeof(int) * (max_val + 1 - min_val));
+                memset(histo, 0, sizeof(int) * (max_val + 1 - min_val));
+                for (i = 0; i < polygons_sphere->n_points; i++) {
+                        intval = (int)input_values[i];
+                        if (intval == 0) continue;
+                        histo[intval - min_val]++;
+                }
+                /* collect label values */
+                n_labels = 0;
+                for (i = 0; i < (max_val + 2 - min_val); i++) {
+                        if (histo[i] == 0) continue;
+                        label_values[n_labels] = i + min_val;
+                        n_labels++;
                 }
         }
 
@@ -137,7 +155,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                         set_vector_length(&scaled_polygons_sphere->points[i], 100.0);
         }
         
-        /* scale the re-parameterizing sphere... also the return object. */
+        /* scale the re-parameterizing sphere... also the returned object. */
         scaled_objects = (object_struct **) malloc(sizeof(object_struct *));
         *scaled_objects = create_object(POLYGONS);
         scaled_target_sphere = get_polygons_ptr(*scaled_objects);
@@ -178,21 +196,21 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
 												}
 								}
  
-                /* apply interpolation for each ROI label seperately */
+                /* apply interpolation for each ROI label separately */
                 if (label_interpolation) {
 
                         if (input_values != NULL) {
                                 max_prob = 0.0;
-                                for (k = min_val; k < max_val+1; k++) {
+                                for (k = 0; k < n_labels; k++) {
                                         val = 0.0;
                                         for (j = 0; j < n_points; j++) {
-                                                if (k == (int)input_values[scaled_polygons_sphere->indices[
+                                                if (label_values[k] == (int)input_values[scaled_polygons_sphere->indices[
                                                         POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)]])
                                                         val += weights[j];
                                         }
 																				if (max_prob < val) {
 																								max_prob = val;
-																								output_values[i] = (double)k;
+																								output_values[i] = (double)label_values[k];
 																				}
                                 }
                         }
@@ -212,6 +230,8 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
 								scaled_target_sphere->points = new_points;
         }
 
+        if (label_interpolation) free(histo);
+								
         compute_polygon_normals(scaled_target_sphere);
 
         delete_the_bintree(&scaled_polygons_sphere->bintree);
