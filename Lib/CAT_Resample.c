@@ -7,11 +7,8 @@
  *
  */
 
-#include <bicpl.h>
+#include "CAT_Resample.h"
 
-#include "CAT_Surf.h"
-#include "CAT_SurfaceIO.h"
-#include "CAT_Complexity.h"
 
 /* correct shifting and scaling of source sphere w.r.t. target sphere */
 void
@@ -102,10 +99,10 @@ object_struct **
 resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *polygons_sphere, polygons_struct *target_sphere, 
                                   double *input_values, double *output_values, int label_interpolation)
 {
-        int             i, j, k, poly, n_points, intval;
-        int             min_val = HUGE, max_val = -HUGE;
+        int             i, j, k, poly, n_points;
         int             label_values[65536], n_labels;
         int             *n_neighbours, **neighbours, *histo;
+        signed long     min_val = ULONG_MAX, max_val = -ULONG_MAX, longval;
         Point           point, scaled_point, center;
         Point           *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct   **objects, **scaled_objects;
@@ -119,20 +116,20 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
         if (label_interpolation) {
                 /* get maximum and minimum (!=0) value for label interpolation */
                 for (i = 0; i < polygons_sphere->n_points; i++) {
-                        intval = (int)input_values[i];
-                        if ((min_val > intval) && (intval != 0))
-                                min_val = intval;
-                        if (max_val < intval)
-                                max_val = intval;
+                        longval = (signed long)input_values[i];
+                        if ((min_val > longval) && (longval != 0))
+                                min_val = longval;
+                        if (max_val < longval)
+                                max_val = longval;
                 }
 
                 /* build histogram of label values which is necessary for large and sparse label entries */
                 histo = (int *) malloc(sizeof(int) * (max_val + 1 - min_val));
                 memset(histo, 0, sizeof(int) * (max_val + 1 - min_val));
                 for (i = 0; i < polygons_sphere->n_points; i++) {
-                        intval = (int)input_values[i];
-                        if (intval == 0) continue;
-                        histo[intval - min_val]++;
+                        longval = (signed long)input_values[i];
+                        if (longval == 0) continue;
+                        histo[longval - min_val]++;
                 }
                 /* collect label values */
                 n_labels = 0;

@@ -8,6 +8,7 @@
  */
 
 #include <bicpl.h>
+#include <limits.h>
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
