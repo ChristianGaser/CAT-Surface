@@ -996,8 +996,13 @@ static void find_component(int level)
               {
               qqpni=qqp+nbrs0[i]; /* for each nbr */
               if (status[qqpni]>10) /* if part of a component */
+                {
                 if (truecmvx(qqpni)!=nc) /* if not the same component as qqp */
-                  cm[status[qqpni]]=status[qqpni]=nc;
+                  {
+                  cm[status[qqpni]]=nc;
+                  status[qqpni]=nc;
+                  }
+                }
               }
             }
           /* add nbrs to que, if level ok, etc. */

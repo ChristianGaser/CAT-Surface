@@ -1,5 +1,16 @@
 ------------------------------------------------------------------------
-r437 | gaser | 2020-05-15 13:11:19
+r438 | gaser | 2020-09-17 12:08:05
+
+Changed paths:
+M       CHANGES.txt
+M       INSTALL
+M       MarchingCubes/genus0.c
+!       depcomp
+M       mkinstalldirs
+
+(1) Changed: Updated MarchingCubes/genus0.c with the newest changes from CAT12.
+------------------------------------------------------------------------
+r437 | gaser | 2020-05-15 13:11:22 +0200 (Fr, 15 Mai 2020) | 9 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -9,6 +20,7 @@ M       Lib/CAT_Resample.c
 
 (1) Fixed: Changed data type in CAT_ResampleSurf.c to prevent overflow.
 (2) Changed: Updated header information for CAT_ResampleSurf.?
+
 ------------------------------------------------------------------------
 r436 | gaser | 2020-05-15 12:50:37 +0200 (Fr, 15 Mai 2020) | 8 lines
 
