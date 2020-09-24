@@ -14,6 +14,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_NiftiIO.h"
 #include "CAT_Surf.h"
+#include "CAT_Resample.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length) \
 { \
@@ -42,6 +43,9 @@ double frange[2]        = {FLT_MAX, FLT_MAX};
 double exp_half         = FLT_MAX;
 char *thickness_file    = NULL;     /* thickness file for restricting mapping inside defined thickness */
 char *offset_file       = NULL;     /* thickness file for defining offset to (central) surface */
+char *sphere_src_file   = NULL;     /* source sphere for resampling */
+char *sphere_trg_file   = NULL;     /* target source for resampling */
+char *annot_file        = NULL;     /* annotation atlas file */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -57,6 +61,12 @@ ArgvInfo argTable[] = {
      "Additional thickness file defining an offset according to the given surface.\n\t\t     If this option is used then also use the option -offset_value to define the offset (default 0)."},
   {"-offset_value", ARGV_FLOAT, (char *) 1, (char *) &offset_value,
        "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t     WM surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t     A negative value of -0.5 can be used to define the pial surface."},
+  {"-annot", ARGV_STRING, (char *) 1, (char *) &annot_file, 
+     "Annotation atlas file for ROI partitioning."},
+  {"-sphere_src", ARGV_STRING, (char *) 1, (char *) &sphere_src_file, 
+     "Source sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
+  {"-sphere_trg", ARGV_STRING, (char *) 1, (char *) &sphere_trg_file, 
+     "Target sphere file for resampling of annotation file. This is usually the sphere of the input surface file."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
        "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
@@ -83,13 +93,13 @@ ArgvInfo argTable[] = {
     "Count number of values in range for mapping along normals. If any value is out of range \n\t\t     values will be counted only until this point" },
   { "-maxabs", ARGV_CONSTANT, (char *) F_MAXABS, 
     (char *) &map_func,
-    "Use absolute maximum value for mapping along normals (Default). Optionally a 2nd volume can be defined\n\t\t     to output its value at the maximum value of the 1st volume." },
+    "Use absolute maximum value for mapping along normals (Default)." },
   { "-max", ARGV_CONSTANT, (char *) F_MAX, 
     (char *) &map_func,
-    "Use maximum value for mapping along normals. Optionally a 2nd volume can be defined\n\t\t     to output its value at the maximum value of the 1st volume." },
+    "Use maximum value for mapping along normals." },
   { "-min", ARGV_CONSTANT, (char *) F_MIN, 
     (char *) &map_func,
-    "Use minimum value for mapping along normals. Optionally a 2nd volume can be defined to\n\t\t     output its value at the minimum value of the 1st volume." },
+    "Use minimum value for mapping along normals." },
   { "-exp", ARGV_FLOAT, (char *) F_EXP, 
     (char *) &exp_half,
     "Use exponential average of values for mapping along normals. The argument defines the \n\t\t     distance in mm where values are decayed to 50% (recommended value is 10mm)." },
@@ -190,37 +200,59 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
 int
 main(int argc, char *argv[])
 {
-        char                 *volume_file, *object_file;
+        char                 **volume_file, *object_file;
         char                 *output_values_file;
         char                 *tmp_string, ext[5];
         File_formats         format;
         Volume               volume;
-        int                  i, j, index, n_thickness_values, n_objects, grid_steps1, grid_increase;
-        object_struct        **objects;
-        polygons_struct      *polygons;
-        double               value, voxel[N_DIMENSIONS];
-        double               *area_inner, *area_outer, *values, **values2, *thickness;
+        int                  i, j, k, index, n_thickness_values, grid_steps1, grid_increase;
+        int                  n_objects, n_arrays, n_labels, *in_annot;
+        object_struct        **objects, **objects_src_sphere, **objects_trg_sphere;
+        polygons_struct      *polygons, *src_sphere, *trg_sphere;
+        double               value, voxel[N_DIMENSIONS], *values_atlas;
+        double               *area_inner, *area_outer, *values, **values2d, *thickness;
         double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
         double               sum, x, sigma, kernel[MAX_N_ARRAY];
         double               grid_start1, grid_end1, step_size, pos;
+        double               *input_values, *resampled_values;
         Vector               normal;
+        ATABLE               *atable;
+        FILE                 *fp;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0)) {
-                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file\n\n", argv[0]);
+                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file(s) output_values_file\n\n", argv[0]);
                 fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &object_file) || !get_string_argument(NULL, &volume_file) 
-            || !get_string_argument(NULL, &output_values_file)) {
-                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file output_values_file\n\n", argv[0]);
+        if (!get_string_argument(NULL, &object_file) || argc < 4) {
+                fprintf(stdout, "\nUsage: %s [options] surface_file volume_file(s) output_values_file\n\n", argv[0]);
                 fprintf(stdout, "Map data from a volume to a surface.\n");
                 exit(EXIT_FAILURE);
         }
                 
+        volume_file = &argv[1];
+        output_values_file = volume_file[argc-2];
+
+        if (map_func == F_MULTI && argc > 4) {
+                fprintf(stdout, "Multiple volumes cannot be used with multi-grid option.\n");
+                exit(EXIT_FAILURE);
+        }
+        
+        if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
+                if ((filename_extension_matches(output_values_file,"txt") != 1) &&
+                    (filename_extension_matches(output_values_file,"csv") != 1)) {
+                        fprintf(stdout, "Extension of output files for ROI partitioning has to be csv or txt.\n");
+                        exit(EXIT_FAILURE);
+                }
+        } else if (argc > 4) {
+                fprintf(stdout, "Multiple volumes can only be used in conjunction with atlas annotations.\n");
+                exit(EXIT_FAILURE);
+        }        
+
         /* we need larger values because gaussian kernel exceeds defined grid-values */
         if (map_func == F_WAVERAGE) {
                 grid_increase = round(2.0*(grid_steps - 1.0)/3.0);
@@ -245,6 +277,14 @@ main(int argc, char *argv[])
         /* check that the option for equivolume is used together with the thickness option */
         if ((equivol)  && (thickness_file == NULL)) {
                 fprintf(stderr, "You have to define a thickness file for the equi-volume approach.\n");
+                exit(EXIT_FAILURE);
+        }
+
+        if ((sphere_src_file != NULL  && (sphere_trg_file == NULL || annot_file == NULL)) ||
+            (sphere_trg_file != NULL  && (sphere_src_file == NULL || annot_file == NULL)) ||
+            (annot_file != NULL  && (sphere_trg_file == NULL || sphere_src_file == NULL)) ) {
+                fprintf(stderr, "You have to define all three files for using annotation files:\n\
+                        sphere_src_file, sphere_trg_file and annot_file.\n");
                 exit(EXIT_FAILURE);
         }
 
@@ -352,11 +392,6 @@ main(int argc, char *argv[])
 #endif
         }
 
-        if (input_volume_all(volume_file, 3, File_order_dimension_names,
-                             NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                             TRUE, &volume, NULL) != OK)
-                exit(EXIT_FAILURE);
-
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects) != OK)
                 exit(EXIT_FAILURE);
@@ -376,11 +411,10 @@ main(int argc, char *argv[])
         }
 
         compute_polygon_normals(polygons);
-
         ALLOC(values, polygons->n_points);
         
-        if (map_func == F_MULTI) 
-                ALLOC2D(values2, polygons->n_points, grid_steps1);
+        if (map_func == F_MULTI)
+                ALLOC2D(values2d, polygons->n_points, grid_steps1);
 
         if (equivol) {
                 /* get point area of pial (outer) surface */
@@ -392,89 +426,173 @@ main(int argc, char *argv[])
                 get_area_of_points_central_to_pial(polygons, area_inner, thickness, -0.5);
         }
 
-        for (i = 0; i < polygons->n_points; i++) {
-        
-                /* look only for inward normals */
-                SCALE_VECTOR(normal, polygons->normals[i], -1.0);
-                
-                for (j = 0; j < grid_steps1; j++) {
+        /* read source and target sphere and annotation file if defined */
+        if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
 
-                        /* get point from origin in normal direction */
-                        if (thickness_file == NULL) {
-                                if (offset_file != NULL) {
-                                        pos = length_array[j] + (offset_value*thickness[i]); 
-                                } else {
-                                        pos = length_array[j]; 
-                                }
-                        } else { /* relate grid position to thickness values */
-                                
-                                if (equivol) {
-                                        /* check that inner and outer surface area are not equal */
-                                        if ((area_outer[i]-area_inner[i]) != 0) {
-                                                /* get relative position inside cortical band */
-                                                pos = length_array[j] + 0.5;
-        
-                                                /* eq. 10 from Waehnert et al. 2014 */
-                                                pos = (1.0/(area_outer[i]-area_inner[i]))*
-                                                             (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
-                                                             
-                                                /* subtract offset of 0.5 that was added to pos */
-                                                pos = (pos - 0.5)*thickness[i];     
-                                        } else  pos = length_array[j]*thickness[i];        
-                                } else pos = length_array[j]*thickness[i];
+                if (map_func == F_MULTI) {
+                        fprintf(stderr, "No multiple grid mapping possible for atlas annotation files.\n");
+                        exit(EXIT_FAILURE);
+                }
+
+                if (filename_extension_matches(annot_file, "annot")) {
+                        read_annotation_table(annot_file, &n_arrays, &in_annot, &n_labels, &atable);
+
+                        if ((fp = fopen(output_values_file, "w")) == 0) {
+                                fprintf(stderr, "output_values_file: Couldn't open file %s.\n",
+                                        output_values_file);
+                                return(EXIT_FAILURE);
                         }
-                        GET_grid_POINT(voxel, polygons->points[i], normal, pos);
 
-                        evaluate_volume_in_world(volume, voxel[X], voxel[Y],
-                                                 voxel[Z], degrees_continuity, 
-                                                 FALSE, 0.0, &value, NULL,
-                                                 NULL, NULL, NULL, NULL, NULL,
-                                                 NULL, NULL, NULL);
-                                                 
-                        if (isnan(value)) value = 0.0;
-                        if (map_func == F_MULTI) values2[i][j] = value;
+                        fprintf(fp,"%s",atable[0].name);
+                        for (i = 1 ; i < n_labels ; i++) 
+                                fprintf(fp,",%s",atable[i].name);
+                        fprintf(fp,"\n");
+
+                        input_values  = (double *) malloc(sizeof(double) * polygons->n_points);
                         
-                        val_array[j] = value;
+                        for (i = 0 ; i < polygons->n_points ; i++) 
+                                input_values[i] = (double)in_annot[i];
+                                
+                        fprintf(fp,"%d",atable[0].annotation);
+                        for (i = 1 ; i < n_labels ; i++) 
+                                fprintf(fp,",%d",atable[i].annotation);
+                        fprintf(fp,"\n");
+
+                } else {
+                        fprintf(stderr, "Only annotation files accepted.\n");
+                        exit(EXIT_FAILURE);
                 }
 
-                if (map_func != F_MULTI)
-                        /* evaluate function */
-                        values[i] = evaluate_function(val_array, grid_steps1,
-                                          map_func, kernel, &index);
-        }
+                if (input_graphics_any_format(sphere_src_file, &format, &n_objects,
+                    &objects_src_sphere) != OK || n_objects != 1 ||
+                    get_object_type(objects_src_sphere[0]) != POLYGONS ) {
+                        fprintf(stderr, "File %s must contain 1 polygons object.\n",
+                        sphere_src_file);
+                        exit(EXIT_FAILURE);
+                }
+                src_sphere = get_polygons_ptr(objects_src_sphere[0]);
+        
+                if (input_graphics_any_format(sphere_trg_file, &format, &n_objects,
+                    &objects_trg_sphere) != OK || n_objects != 1 ||
+                    get_object_type(objects_trg_sphere[0]) != POLYGONS ) {
+                        fprintf(stderr, "File %s must contain 1 polygons object.\n",
+                        sphere_trg_file);
+                        exit(EXIT_FAILURE);
+                }
+                trg_sphere = get_polygons_ptr(objects_trg_sphere[0]);
+                resampled_values = (double *) malloc(sizeof(double) * trg_sphere->n_points);
+                values_atlas = (double *) malloc(sizeof(double) * n_labels);
 
-        if (map_func == F_MULTI) {
-                ALLOC(tmp_string, string_length(output_values_file)+10);
+                objects_trg_sphere = resample_surface_to_target_sphere(src_sphere, src_sphere, 
+                        trg_sphere, input_values, resampled_values, 1);
+        } 
+
+        for (k = 0; k < argc-3; k++) {
+
+                if (input_volume_all(volume_file[k+1], 3, File_order_dimension_names,
+                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0,
+                                     TRUE, &volume, NULL) != OK)
+                        exit(EXIT_FAILURE);
+
+                for (i = 0; i < polygons->n_points; i++) {
                 
-                /* remove potential extension for output name */
-                strcpy(tmp_string,output_values_file);
-                if (filename_extension_matches(output_values_file,"txt")) {
-                        output_values_file[string_length(output_values_file)-4] = '\0';
-                        strcpy(ext,".txt");
-                } else  strcpy(ext,"");
-
-                /* prepare numbered output name and write values */
-                for (j = 0; j < grid_steps1; j++) {
-                        if (equivol)
-                                (void) sprintf(tmp_string,"%s_ev%3.2f%s",output_values_file,length_array[j],ext);
-                        else    (void) sprintf(tmp_string,"%s_ed%3.2f%s",output_values_file,length_array[j],ext);
-                        for (i = 0; i < polygons->n_points; i++) values[i] = values2[i][j];
-
-                        output_values_any_format(tmp_string, polygons->n_points,
-                                 values, TYPE_DOUBLE);
-                }
-                free(values2);
+                        /* look only for inward normals */
+                        SCALE_VECTOR(normal, polygons->normals[i], -1.0);
                         
-        } else  output_values_any_format(output_values_file, polygons->n_points,
-                                 values, TYPE_DOUBLE);
-
+                        for (j = 0; j < grid_steps1; j++) {
+        
+                                /* get point from origin in normal direction */
+                                if (thickness_file == NULL) {
+                                        if (offset_file != NULL) {
+                                                pos = length_array[j] + (offset_value*thickness[i]); 
+                                        } else {
+                                                pos = length_array[j]; 
+                                        }
+                                } else { /* relate grid position to thickness values */
+                                        
+                                        if (equivol) {
+                                                /* check that inner and outer surface area are not equal */
+                                                if ((area_outer[i]-area_inner[i]) != 0) {
+                                                        /* get relative position inside cortical band */
+                                                        pos = length_array[j] + 0.5;
+                
+                                                        /* eq. 10 from Waehnert et al. 2014 */
+                                                        pos = (1.0/(area_outer[i]-area_inner[i]))*
+                                                                     (sqrt((pos*area_outer[i]*area_outer[i]) + ((1.0-pos)*area_inner[i]*area_inner[i]))-area_inner[i]);
+                                                                     
+                                                        /* subtract offset of 0.5 that was added to pos */
+                                                        pos = (pos - 0.5)*thickness[i];     
+                                                } else  pos = length_array[j]*thickness[i];        
+                                        } else pos = length_array[j]*thickness[i];
+                                }                                
+                                GET_grid_POINT(voxel, polygons->points[i], normal, pos);
+        
+                                evaluate_volume_in_world(volume, voxel[X], voxel[Y],
+                                                         voxel[Z], degrees_continuity, 
+                                                         FALSE, 0.0, &value, NULL,
+                                                         NULL, NULL, NULL, NULL, NULL,
+                                                         NULL, NULL, NULL);
+                                                         
+                                if (isnan(value)) value = 0.0;
+                                if (map_func == F_MULTI) values2d[i][j] = value;
+                                
+                                val_array[j] = value;
+                        }
+        
+                        if (map_func != F_MULTI)
+                                /* evaluate function */
+                                values[i] = evaluate_function(val_array, grid_steps1,
+                                                  map_func, kernel, &index);
+                }
+        
+                /* read source and target sphere and annotation file if defined */
+                if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
+                
+                        output_values_any_format(output_values_file, n_labels,
+                                         values, TYPE_DOUBLE);
+                                         
+                } else if (map_func == F_MULTI) {
+                        ALLOC(tmp_string, string_length(output_values_file)+10);
+                        
+                        /* remove potential extension for output name */
+                        strcpy(tmp_string,output_values_file);
+                        if (filename_extension_matches(output_values_file,"txt")) {
+                                output_values_file[string_length(output_values_file)-4] = '\0';
+                                strcpy(ext,".txt");
+                        } else  strcpy(ext,"");
+        
+                        /* prepare numbered output name and write values */
+                        for (j = 0; j < grid_steps1; j++) {
+                                if (equivol)
+                                        (void) sprintf(tmp_string,"%s_ev%3.2f%s",output_values_file,length_array[j],ext);
+                                else    (void) sprintf(tmp_string,"%s_ed%3.2f%s",output_values_file,length_array[j],ext);
+                                for (i = 0; i < polygons->n_points; i++) values[i] = values2d[i][j];
+        
+                                output_values_any_format(tmp_string, polygons->n_points,
+                                         values, TYPE_DOUBLE);
+                        }
+                        free(values2d);
+                        free(tmp_string);
+                                
+                } else  output_values_any_format(output_values_file, polygons->n_points,
+                                         values, TYPE_DOUBLE);
+        
+        }
+        
+        if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
+                free(input_values);
+                free(resampled_values);
+                free(values_atlas);
+                fclose(fp);
+        }
+        
         free(values);
         if (equivol) {
                 free(area_inner);
                 free(area_outer);
         }
-        
         delete_object_list(n_objects, objects);
+
         return(EXIT_SUCCESS);
 }
 

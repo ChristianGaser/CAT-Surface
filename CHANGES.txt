@@ -1,5 +1,16 @@
 ------------------------------------------------------------------------
-r438 | gaser | 2020-09-17 12:08:05
+r439 | gaser | 2020-09-24 17:47:34
+
+Changed paths:
+M       CHANGES.txt
+M       INSTALL
+M       Progs/CAT_3dVol2Surf.c
+M       mkinstalldirs
+
+Changed: Added preliminary handling of annotation files to CAT_3dVol2Surf.c
+         which does not work yet.
+------------------------------------------------------------------------
+r438 | gaser | 2020-09-17 12:08:10 +0200 (Do, 17 Sep 2020) | 9 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -9,6 +20,7 @@ M       MarchingCubes/genus0.c
 M       mkinstalldirs
 
 (1) Changed: Updated MarchingCubes/genus0.c with the newest changes from CAT12.
+
 ------------------------------------------------------------------------
 r437 | gaser | 2020-05-15 13:11:22 +0200 (Fr, 15 Mai 2020) | 9 lines
 
