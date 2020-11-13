@@ -11,9 +11,6 @@
 #include <omp.h>
 #endif
 
-#define LOG(x) (((x)>0) ? log(x+0.001): -6.9078)
-#define WRAP(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
-
 extern double floor();
 
 
@@ -437,94 +434,12 @@ jac_div_smalldef(int dm[], double sc, double v0[], double J0[])
 }
 
 
-/* Similar purpose to objfun, but uses a logistic regression model */
-double
-initialise_objfun2(int dm[], double f[], double g[], double t0[], double J0[],
-                    double dj[], double b[], double A[])
-{
-    int j, m = dm[0]*dm[1];
-    double ssl = 0.0, dt = 1.0;
-
-    for (j = 0; j < m; j++) {
-        double x, y;
-        int    ix, iy, k;
-        double k11, k12, k21, k22;
-        int o11, o12, o21, o22;
-        double dx0, dx1, dx2, dy0, dy1, dy2;
-        double Ya[128], dx[128], dy[128], sY;
-        double ta11, ta12, ta22, tb1, tb2, tss;
-
-        x    = t0[j  ]-1.0;
-        y    = t0[j+m]-1.0;
-        ix   = (int)floor(x); dx1=x-ix; dx2=1.0-dx1;
-        iy   = (int)floor(y); dy1=y-iy; dy2=1.0-dy1;
-
-        o22   = bound(ix,  iy,  dm);
-        o12   = bound(ix+1,iy,  dm);
-        o21   = bound(ix,  iy+1,dm);
-        o11   = bound(ix+1,iy+1,dm);
-
-        sY   = 0.0;
-        for (k = 0; k < dm[2]; k++) {
-            k22   = f[o22 + m*k];
-            k12   = f[o12 + m*k];
-            k21   = f[o21 + m*k];
-            k11   = f[o11 + m*k];
-
-            Ya[k]  = exp((k11*dx1 + k21*dx2)*dy1 + (k12*dx1 + k22*dx2)*dy2);
-            dx0   =    ((k11     - k21    )*dy1 + (k12     - k22    )*dy2);
-            dy0   =    ((k11*dx1 + k21*dx2)     - (k12*dx1 + k22*dx2)    );
-            sY   += Ya[k];
-            dx[k] = J0[j    ]*dx0 + J0[j+  m]*dy0;
-            dy[k] = J0[j+2*m]*dx0 + J0[j+3*m]*dy0;
-        }
-        ta11 = ta22 = ta12 = 0.0;
-        tb1  = tb2  = 0.0;
-        tss  = 0.0;
-        for (k = 0; k < dm[2]; k++) {
-            double T = g[j + m*k], wt;
-            int k1;
-            Ya[k] /= sY;
-            tss  += log(Ya[k])*T;
-            tb1  += (Ya[k] - T)*dx[k];
-            tb2  += (Ya[k] - T)*dy[k];
-
-            for (k1 = 0; k1 < k; k1++) {
-                wt    = -Ya[k]*Ya[k1];
-                ta11 += wt* dx[k]*dx[k1]*2.0;
-                ta22 += wt* dy[k]*dy[k1]*2.0;
-                ta12 += wt*(dx[k]*dy[k1] + dx[k1]*dy[k]);
-            }
-            wt    = Ya[k]*(1.0 - Ya[k]);
-            ta11 += wt*dx[k]*dx[k];
-            ta22 += wt*dy[k]*dy[k];
-            ta12 += wt*dx[k]*dy[k];
-        }
-        if (dj != (double *) 0)
-            dt = dj[j];
-
-        A[j    ] = ta11*dt;
-        A[j+  m] = ta22*dt;
-        A[j+2*m] = ta12*dt;
-        b[j  ]   = tb1*dt;
-        b[j+m]   = tb2*dt;
-        ssl     -= tss*dt;
-    }
-    return(ssl);
-}
-
-
 double
 initialise_objfun(int dm[], double f[], double g[], double t0[], double J0[],
                   double dj[], double b[], double A[])
 {
     int j, m = dm[0]*dm[1];
     double ssl = 0.0, dt = 1.0;
-
-    if (dm[2] > 1) {
-        ssl = initialise_objfun2(dm, f, g, t0, J0, dj, b, A);
-        return(ssl);
-    }
 
     for (j = 0; j < m; j++) {
         double x, y;
@@ -570,7 +485,6 @@ initialise_objfun(int dm[], double f[], double g[], double t0[], double J0[],
     }
     return(0.5*ssl);
 }
-
 
 double
 initialise_objfun_mn(int dm[], double f[], double g[], double t0[],
@@ -743,9 +657,6 @@ squaring(int dm[], int k, int save_transf, double b[], double A[],
             j21 = J0[j+m]; j22 = J0[j+3*m];
             dt  = j11*j22 - j12*j21;
 
-         /* if (dt < 1e-9) dt = 1e-9;
-            if (dt > 1e9 ) dt = 1e9; */
-
             tmp1      = samp(dm,b  ,x,y);
             tmp2      = samp(dm,b+m,x,y);
 
@@ -760,9 +671,6 @@ squaring(int dm[], int k, int save_transf, double b[], double A[],
             tmp2  = tmp01*j11+tmp11*j21;
             tmp3  = tmp00*j12+tmp01*j22;
             tmp4  = tmp01*j12+tmp11*j22;
-
-         /* if (dt < 1e-9) dt = 1e-9; */
-         /* if (dt > 1e9 ) dt = 1e9; */
 
             buf2[j    ] = dt*(tmp1*j11+tmp2*j21);
             buf2[j+  m] = dt*(tmp3*j12+tmp4*j22);
@@ -832,7 +740,6 @@ dartel_scratchsize(int dm[], int code)
         return(m2);
 }
 
-
 void
 dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
        double dj[], double ov[], double ll[], double *buf)
@@ -842,8 +749,9 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
     double *t0, *t1, *J0, *J1;
     double sc;
     double ssl, ssp;
-    double normb;
-    int j, m = dm[0]*dm[1];
+    double normb, wphi;
+    static double param[5] = {1.0,1.0,1.0,0.0,0.0};
+    int i, j, k, m = dm[0]*dm[1];
 
     /*
         Allocate memory.
@@ -885,12 +793,16 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
         for (j = 0; j < m*3; j++) A[j] += A1[j];
     }
 
+    param[2] = prm.rparam[2];
+    param[3] = prm.rparam[3];
+    param[4] = prm.rparam[4];
+
     if (prm.rtype == 0)
-        LtLf_le(dm, v, prm.rparam, t1);
+        LtLf_le(dm, v, param, t1);
     else if (prm.rtype == 1)
-        LtLf_me(dm, v, prm.rparam, t1);
+        LtLf_me(dm, v, param, t1);
     else
-        LtLf_be(dm, v, prm.rparam, t1);
+        LtLf_be(dm, v, param, t1);
 
     ssp = 0.0;
     for (j = 0; j < 2*m; j++) {
@@ -900,20 +812,35 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
     normb = norm(2*m,b);
 
     for (j = 0; j < 3*m; j++) A[j] *= sc;
-    for (j = 0; j < 2*m; j++) A[j] += prm.lmreg;
 
     /* Solve equations for Levenberg-Marquardt update:
-     * v = v - inv(H + L'*L + R)*(d + L'*L*v)
-     *     v: velocity or flow field
-     *     H: matrix of second derivatives
-     *     L: regularisation (L'*L is the inverse of the prior covariance)
-     *     R: Levenberg-Marquardt regularisation
-     *     d: vector of first derivatives
+       v = v - inv(H + L'*L + R)*(d + L'*L*v)
+          v: velocity or flow field
+          H: matrix of second derivatives
+          L: regularisation (L'*L is the inverse of the prior covariance)
+          R: Levenberg-Marquardt regularisation
+          d: vector of first derivatives
      */
- //cgs2(dm, A, b, prm.rtype, prm.rparam, 1e-8, 4000, sbuf, sbuf+2*m, sbuf+4*m, sbuf+6*m);
-    fmg2(dm, A, b, prm.rtype, prm.rparam, prm.cycles, prm.its, sbuf, sbuf+2*m);
+     
+    if (prm.lmreg>0.0) param[4] = param[4] + prm.lmreg;
 
-    for (j = 0; j < 2*m; j++) ov[j] = v[j] - sbuf[j];
+    fmg2(dm, A, b, prm.rtype, param, prm.cycles, prm.its, sbuf, sbuf+2*m);
+
+    /* update and locally weight velocity field: pole regions are weighted less 
+       due to distortions from sphere to cartesian grid 
+       See also Cheng et al. (2020) Cortical surface registration using unsupervised learning, Neuroimage */
+    k = 0;
+    for (j = 0; j < dm[1]; j++) {
+        wphi = sin(_PI*(j+1)/(dm[1]));
+/* weighting currently not used */
+        wphi = 1.0;
+        for (i = 0; i < dm[0]; i++) {
+          ov[k  ] = v[k  ] - wphi*sbuf[k  ];
+          ov[k+m] = v[k+m] - wphi*sbuf[k+m];
+          k++;
+        }
+    }
+
     ll[0] = ssl;
     ll[1] = ssp*0.5;
     ll[2] = normb;

@@ -40,9 +40,9 @@ main(int argc, char *argv[])
         Point            *new_points;
         object_struct    **objects, **objects_src_sphere, *objects_target_sphere;
         polygons_struct  *polygons, *polygons_sphere, *target_sphere;
-        double             *input_values, *output_values, dist;
+        double           *input_values, *output_values, dist;
         BOOLEAN          values_specified;
-        double             weights[MAX_POINTS_PER_POLYGON];
+        double           weights[MAX_POINTS_PER_POLYGON];
         double           sphereRadius, r, bounds[6];
 
         initialize_argument_processing(argc, argv);
@@ -70,7 +70,7 @@ main(int argc, char *argv[])
                 printf("topology is not optimal.\n");
                 printf("Please try 20*(4*x) triangles (e.g. 81920).\n");
         }
-	
+
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &objects) != OK ||
             n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
@@ -93,15 +93,14 @@ main(int argc, char *argv[])
         polygons_sphere = get_polygons_ptr(objects_src_sphere[0]);
 
         values_specified = (get_string_argument(NULL, &input_values_file) &&
-                           get_string_argument(NULL, &output_values_file));
+                            get_string_argument(NULL, &output_values_file));
 
         if (values_specified) {
                 ALLOC(input_values, polygons->n_points);
-                ALLOC(output_values, target_sphere->n_points);
 
                 if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
-    	               exit(EXIT_FAILURE);
+                     exit(EXIT_FAILURE);
                 }
 
         }
@@ -136,6 +135,9 @@ main(int argc, char *argv[])
         create_tetrahedral_sphere(&center, sphereRadius, sphereRadius,
                                   sphereRadius, n_triangles, target_sphere);
 
+        if (values_specified)
+                ALLOC(output_values, target_sphere->n_points);
+
         create_polygons_bintree(polygons_sphere,
                                 ROUND((Real) polygons_sphere->n_items * 0.5));
 
@@ -144,8 +146,7 @@ main(int argc, char *argv[])
         for (i = 0; i < target_sphere->n_points; i++) {
                 poly = find_closest_polygon_point(&target_sphere->points[i],
                                                   polygons_sphere,
-                                                  &point_on_src_sphere);
-		
+                                                  &point_on_src_sphere); 
                 n_points = get_polygon_points(polygons_sphere, poly,
                                               poly_points_src);
                 get_polygon_interpolation_weights(&point_on_src_sphere,
@@ -174,7 +175,7 @@ main(int argc, char *argv[])
         for (i = 0; i < target_sphere->n_points; i++) {
                 target_sphere->points[i] = new_points[i];
         }
-		
+
         compute_polygon_normals(target_sphere);
 
         if(output_graphics_any_format(output_surface_file, format, 1,

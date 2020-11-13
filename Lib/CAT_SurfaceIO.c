@@ -1473,7 +1473,8 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
         Status status;
         double *buffer;
         double *d;
-        int i, *r;
+        int    i, *r;
+        FILE   *fp;
 
         buffer = (double *) malloc(sizeof(double) * n_values);
 
@@ -1487,10 +1488,19 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
                         buffer[i] = (double) r[i];
         }
 
-        if (filename_extension_matches(file, "txt"))
-                status = output_texture_values(file, ASCII_FORMAT, n_values,
-                                               buffer);
-        else if (filename_extension_matches(file, "gii"))
+        if (filename_extension_matches(file, "txt")) {
+                if ((fp = fopen(file, "w")) == 0) {
+                        fprintf(stderr, "write_txt: Couldn't open file %s.\n", file);
+                        return(-1);
+                }
+                for (i = 0; i < n_values; i++) {
+                        if (flag == TYPE_DOUBLE)
+                                fprintf(fp, "%f\n",d[i]);
+                        else    fprintf(fp, "%d\n",r[i]);
+                }
+                        
+                fclose(fp);
+        } else if (filename_extension_matches(file, "gii"))
                 status = output_gifti_curv(file, n_values, buffer);
         else
                 status = output_freesurfer_curv(file, n_values, buffer);

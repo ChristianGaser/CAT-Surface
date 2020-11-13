@@ -169,7 +169,7 @@ resample_spherical_surface(polygons_struct *polygons,
                 poly = find_closest_polygon_point(&resampled_source->points[i],
                                                   poly_src_sphere,
                                                   &point_on_src_sphere);
-		
+    
                 n_points = get_polygon_points(poly_src_sphere, poly,
                                               poly_points_src);
                 get_polygon_interpolation_weights(&point_on_src_sphere,
@@ -199,7 +199,7 @@ resample_spherical_surface(polygons_struct *polygons,
         for (i = 0; i < resampled_source->n_points; i++) {
                 resampled_source->points[i] = new_points[i];
         }
-		
+    
         compute_polygon_normals(resampled_source);
         free(new_points);
         delete_the_bintree(&poly_src_sphere->bintree);
@@ -299,7 +299,7 @@ rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
                            -sin(gamma), cos(gamma), 0.0,
                            0.0,         0.0,        1.0}; 
 
-        /* combine x and y r tation */
+        /* combine x and y rotation */
         for (i = 0; i < 3; i++) {
                 for (j = 0; j < 3; j++) {
                         sum = 0.0;
@@ -394,11 +394,13 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                                                 if (verbose) {
                                                         printf("alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",
                                                                 DEGREES(alpha), DEGREES(beta), DEGREES(gamma), sum_sq);
-/*                                                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+/*
                                                         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
                                                         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
                                                         printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-*/                                                }
+                                                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+*/
+                                                }
                                         }
                                 }
                         }

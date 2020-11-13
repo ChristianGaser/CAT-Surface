@@ -9,46 +9,43 @@
 #include <omp.h>
 #endif
 
-#define S 1.0000000001
-
-
 static int
 bound(int i, int j, int dm[])
 {
-        int i1, j1;
-        int m2;
+    int i1, j1;
+    int m2;
 
-        /* circulant boundary condition for x-coordinates */
-        i1 = (i >= 0 ? (i % dm[0]) : (dm[0] + (i % dm[0])) % dm[0]);
+    /* circulant boundary condition for x-coordinates */
+    i1 = (i >= 0 ? (i % dm[0]) : (dm[0] + (i % dm[0])) % dm[0]);
 
-        /* Neumann boundary condition for y-coordinates */ 
-        if (dm[1] == 1) {
-                j1 = 0;
-        } else {
-                m2 = dm[1] * 2;
-                j = (j < 0) ? (-j - m2*(-j / m2) - 1) : (j - m2*(j / m2));
-                if (dm[1] <= j)
-                        j1 = m2 - j - 1;
-                else
-                        j1 = j;
-        } 
-        return(i1 + dm[0]*j1);
+    /* Neumann boundary condition for y-coordinates */ 
+    if (dm[1] == 1) {
+        j1 = 0;
+    } else {
+        m2 = dm[1] * 2;
+        j = (j < 0) ? (-j - m2*(-j / m2) - 1) : (j - m2*(j / m2));
+        if (dm[1] <= j)
+            j1 = m2 - j - 1;
+        else
+            j1 = j;
+    } 
+    return(i1 + dm[0]*j1);
 }
 
 /* Neumann boundary conditions */
 static int
 neumann(int i, int m)
 {
-	if (m==1)
-		return(0);
-	else {
-		int m2 = m*2;
-		i = (i < 0) ? (-i - m2*((-i)/m2) - 1) : (i - m2*(i/m2));
-		if (m <= i)
-			return(m2 - i - 1);
-		else
-			return(i);
-	}
+  if (m==1)
+    return(0);
+  else {
+    int m2 = m*2;
+    i = (i < 0) ? (-i - m2*((-i)/m2) - 1) : (i - m2*(i/m2));
+    if (m <= i)
+      return(m2 - i - 1);
+    else
+      return(i);
+  }
 }
 #    define BOUNDY(i,m) neumann(i,m)
 #    define BOUNDX(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
@@ -194,7 +191,7 @@ relax_le(int dm[], double a[], double b[], double s[], int nit, double u[])
             paxy = a + dm[0]*(j + dm[1]*2);
 
             jm1 = (BOUNDY(j-1,dm[1]) - j)*dm[0];
-    	    jp1 = (BOUNDY(j+1,dm[1]) - j)*dm[0];
+            jp1 = (BOUNDY(j+1,dm[1]) - j)*dm[0];
 
             istart = (jstart == (j%2));
 
@@ -203,8 +200,8 @@ relax_le(int dm[], double a[], double b[], double s[], int nit, double u[])
                 double *px = pux+i, *py = puy+i;
 
                 im1 = BOUNDX(i-1,dm[0]) - i;
-    	        ip1 = BOUNDX(i+1,dm[0]) - i;
-	    
+                ip1 = BOUNDX(i+1,dm[0]) - i;
+      
                 sux = pbx[i] - ((wx0 + paxx[i])*px[0] + paxy[i]*py[0] +
                                 wy2*(px[jm1] + px[jp1]) +
                                 wx1*(px[im1] + px[ip1]) +
@@ -297,8 +294,6 @@ sumsq_me(int dm[], double a[], double b[], double s[], double u[])
     return(ss);
 }
 
-#define _PI 3.14159265358979323846264338327510
-
 void
 LtLf_me(int dm[], double f[], double s[], double g[])
 {
@@ -361,17 +356,17 @@ relax_me(int dm[], double a[], double b[], double s[], int nit, double u[])
 
         jstart = it%2;
         for (j = 0; j < dm[1]; j++) {
-
+           
             istart = (jstart == (j%2));
             for (i = istart; i < dm[0]; i+=2) {
                 double sux, suy, axx, ayy, axy, idt;
                 int ij, jm1, jp1, im1, ip1;
 
                 im1 = bound(i-1,j  ,dm);
-    	        ip1 = bound(i+1,j  ,dm);
+                ip1 = bound(i+1,j  ,dm);
                 jm1 = bound(i  ,j-1,dm);
-    	        jp1 = bound(i  ,j+1,dm);
-    	        ij = bound(i,j,dm);
+                jp1 = bound(i  ,j+1,dm);
+                ij  = bound(i,j,dm);
 
                 sux = pbx[ij] -
                       (w01*(pux[jm1] + pux[jp1]) +
@@ -962,7 +957,7 @@ fmg2_scratchsize(int n0[])
         if (n[j][0] < 2 && n[j][1] < 2)
             break;
     }
-    return((2*n0[0]*n0[1] + n[0][0]*n[1][1] + 9*bs));
+    return((2*n0[0]*n0[1] + n[0][0]*n[1][1] + 10*bs));
 }
 
 /* Full Multigrid solver.  See Numerical Recipes (2nd ed) for more info */
@@ -1033,34 +1028,66 @@ fmg2(int n0[], double *a0, double *b0, int rtype, double param0[], int c,
         param[j][4] = param[0][4];
 
         restrict2(2, n[j-1], bo[j-1], n[j], bo[j], rbuf);
-        restrict2(3, n[j-1], a[j-1],  n[j], a[j],  rbuf);
+        restrict2(4, n[j-1], a[j-1],  n[j], a[j],  rbuf);
     }
 
-    solve22(a[ng-1], bo[ng-1], param0[4], u[ng-1]);
+    if (u[0][0]==0)
+    {
+      solve22(a[ng-1], bo[ng-1],param0[4], u[ng-1]);
+      relax(n[ng-1], a[ng-1], b[ng-1], param[ng-1], nit, u[ng-1]);
 
-    for (j = ng-2; j >= 0; j--) {
+      for (j = ng-2; j >= 0; j--) {
+          int jc;
+  
+          prolong(2, n[j+1], u[j+1], n[j], u[j], rbuf);
+          if (j > 0) copy(2*m[j], bo[j], b[j]);
+          for (jc = 0; jc < c; jc++) {
+              int jj;
+              for (jj = j; jj < ng-1; jj++) {
+                  relax(n[jj], a[jj], b[jj], param[jj], nit, u[jj]);
+                  Atimesp(n[jj], a[jj], param[jj], u[jj], res);
+                  for (i = 0; i < 2*m[jj]; i++)
+                      res[i] = b[jj][i] - res[i];
+  
+                  restrict2(2, n[jj], res, n[jj+1], b[jj+1], rbuf);
+                  zeros(2*m[jj+1], u[jj+1]);
+              }
+              relax(n[ng-1], a[ng-1], b[ng-1], param[ng-1], nit, u[ng-1]);
+              for (jj = ng-2; jj >= j; jj--) {
+                  prolong(2, n[jj+1], u[jj+1], n[jj], res, rbuf);
+                  addto(2*m[jj], u[jj], res);
+                  relax(n[jj], a[jj], b[jj], param[jj], nit, u[jj]);
+              }
+          }
+      }
+    
+    } else
+    {
         int jc;
+        for(j=1; j<ng; j++)
+            restrict2(2,n[j-1],u[j-1],n[j],u[j],rbuf);
 
-        prolong(2, n[j+1], u[j+1], n[j], u[j], rbuf);
-        if (j > 0) copy(2*m[j], bo[j], b[j]);
-        for (jc = 0; jc < c; jc++) {
+        for(jc=0; jc<c; jc++)
+        {
             int jj;
-            for (jj = j; jj < ng-1; jj++) {
+            for(jj=0; jj<ng-1; jj++)
+            {
                 relax(n[jj], a[jj], b[jj], param[jj], nit, u[jj]);
                 Atimesp(n[jj], a[jj], param[jj], u[jj], res);
-                for (i = 0; i < 2*m[jj]; i++)
+                for(i=0; i<2*m[jj]; i++)
                     res[i] = b[jj][i] - res[i];
-
-                restrict2(2, n[jj], res, n[jj+1], b[jj+1], rbuf);
-                zeros(2*m[jj+1], u[jj+1]);
+                restrict2(2,n[jj],res,n[jj+1],b[jj+1],rbuf);
+                zeros(2*m[jj+1],u[jj+1]);
             }
-            solve22(a[ng-1], b[ng-1], param0[4], u[ng-1]);
-            for (jj = ng-2; jj >= j; jj--) {
-                prolong(2, n[jj+1], u[jj+1], n[jj], res, rbuf);
+            relax(n[ng-1], a[ng-1], b[ng-1], param[ng-1], nit, u[ng-1]);
+            for(jj=ng-2; jj>=0; jj--)
+            {
+                prolong(2,n[jj+1],u[jj+1],n[jj],res,rbuf);
                 addto(2*m[jj], u[jj], res);
                 relax(n[jj], a[jj], b[jj], param[jj], nit, u[jj]);
             }
         }
+
     }
 }
 

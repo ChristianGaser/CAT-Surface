@@ -1,5 +1,35 @@
 ------------------------------------------------------------------------
-r439 | gaser | 2020-09-24 17:47:34
+r440 | gaser | 2020-11-13 17:53:44
+
+Changed paths:
+M       CHANGES.txt
+M       Lib/CAT_Resample.c
+M       Lib/CAT_SurfaceIO.c
+M       Progs/CAT_ResampleSphericalSurf.c
+M       Progs/CAT_ResampleSurf.c
+M       Progs/CAT_Test.c
+M       Progs/CAT_WarpSurf.c
+M       Progs/CAT_WarpSurfDemon.c
+M       dartel/dartel.h
+M       dartel/diffeosphere.c
+M       dartel/optimizersphere.c
+!       stamp-h1
+
+(1) Changed: Adapted optimizersphere.c to newer changes in optimizer2d.c.
+(2) Changed: Added preliminary support for weighting output deformations w.r.t.
+             distance to pole regions (not yileding better results).
+(3) Changed: Updated multi-step support for CAT_WarpDemon.c
+(4) Fixed:   Corrected output and handling for label interpolation.
+(5) Fixed:   Disapled resampling of annotazion files which is not yet working
+             for Windows systems.
+(6) Fixed:   Corrected allocation in CAT_ResampleSphericalSurf.c which was in 
+             wrong order. 
+(7) Fixed:   Corrected output of txt-files for double and integer format, which 
+             is now using starighforward fprintf function.
+(8) Fixed:   ULONG_MAX was not correctly defined and caused wrong estimation of 
+             minimum values in resample_surface_to_target_sphere function.
+------------------------------------------------------------------------
+r439 | gaser | 2020-09-24 17:47:46 +0200 (Do, 24 Sep 2020) | 9 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -9,6 +39,7 @@ M       mkinstalldirs
 
 Changed: Added preliminary handling of annotation files to CAT_3dVol2Surf.c
          which does not work yet.
+
 ------------------------------------------------------------------------
 r438 | gaser | 2020-09-17 12:08:10 +0200 (Do, 17 Sep 2020) | 9 lines
 

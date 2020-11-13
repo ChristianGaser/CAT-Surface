@@ -6,6 +6,7 @@
 #define WRAP(i,m) (((i)>=0) ? (i)%(m) : ((m)+(i)%(m))%m)
 
 #define S 1.0000000001
+#define _PI 3.14159265358979323846264338327510
 
 #define THETA 0.0175 /* theta step.. 1 degree */
 #define PHI 0.0175 /* phi step 1 degree */

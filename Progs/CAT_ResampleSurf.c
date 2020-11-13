@@ -18,7 +18,7 @@ int label_interpolation = 0;
 
 static ArgvInfo argTable[] = {
   {"-label", ARGV_CONSTANT, (char *) TRUE, (char *) &label_interpolation,
-     "Use labelinterpolation (i.e. for labeled atlas data). This option is automatically used for .annot (label) files."},
+     "Use label (categorical) interpolation (i.e. for labeled atlas data). This option is automatically used for annot (label) files."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -61,17 +61,17 @@ main(int argc, char *argv[])
         }
 
         if (strcmp(surface_file,"NULL")) {
-								if (input_graphics_any_format(surface_file, &format,
-																							&n_objects, &objects) != OK ||
-										n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-												fprintf(stderr, "File %s must contain 1 polygons object.\n",
-																surface_file);
-												exit(EXIT_FAILURE);
-								}
+                if (input_graphics_any_format(surface_file, &format,
+                                              &n_objects, &objects) != OK ||
+                    n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                        fprintf(stderr, "File %s must contain 1 polygons object.\n",
+                                surface_file);
+                        exit(EXIT_FAILURE);
+                }
         }
 
         if ((!strcmp(sphere_file,"NULL")) && (!strcmp(surface_file,"NULL"))) {
-	        fprintf(stderr,"%s\n%s\n",sphere_file,surface_file);
+          fprintf(stderr,"%s\n%s\n",sphere_file,surface_file);
                 fprintf(stderr, "You have to define either surface or sphere.\n");
                 exit(EXIT_FAILURE);
         }
@@ -118,6 +118,10 @@ main(int argc, char *argv[])
                 output_values = (double *) malloc(sizeof(double) * target_sphere->n_points);
 
                 if (filename_extension_matches(input_values_file, "annot")) {
+                        /* this is not yet working under Windows */
+                        fprintf(stderr, "Resampling of annotation files not yet working.\n");
+                        exit(EXIT_FAILURE);
+
                         label_interpolation = 1;
                         read_annotation_table(input_values_file, &n_values, &in_annot, &n_table, &atable);
                         for (i = 0 ; i < n_values ; i++) 
@@ -141,15 +145,27 @@ main(int argc, char *argv[])
         }
     
         if (values_specified) {
-                if (filename_extension_matches(output_values_file, "annot")) {
+                if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation)) {
                         out_annot  = (int *) malloc(sizeof(int) * target_sphere->n_points);
                         for (i = 0 ; i < target_sphere->n_points ; i++) 
                                 out_annot[i] = (int)round(output_values[i]);
+                }
+                
+                if (filename_extension_matches(output_values_file, "annot")) {
                         write_annotation_table(output_values_file, target_sphere->n_points, out_annot, n_table, atable);
-                } else
-                        output_values_any_format(output_values_file,
+                } else {
+                        if (label_interpolation)
+                                output_values_any_format(output_values_file,
+                                         target_sphere->n_points,
+                                         out_annot, TYPE_INTEGER);
+                        else
+                                output_values_any_format(output_values_file,
                                          target_sphere->n_points,
                                          output_values, TYPE_DOUBLE);
+                }
+                        
+                if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation))
+                        FREE(out_annot);
                 FREE(input_values);
                 FREE(output_values);
         }
