@@ -1,5 +1,15 @@
 ------------------------------------------------------------------------
-r440 | gaser | 2020-11-13 17:53:44
+r441 | gaser | 2020-11-23 10:21:05
+
+Changed paths:
+M       CHANGES.txt
+M       Lib/CAT_SurfaceIO.c
+
+Fixed: Replcaed input_texture_values MNI function with own function for reading
+       txt-files, because of issues with opening files under Windows systems.
+
+------------------------------------------------------------------------
+r440 | gaser | 2020-11-13 17:53:59 +0100 (Fr, 13 Nov 2020) | 28 lines
 
 Changed paths:
 M       CHANGES.txt
@@ -28,6 +38,7 @@ M       dartel/optimizersphere.c
              is now using starighforward fprintf function.
 (8) Fixed:   ULONG_MAX was not correctly defined and caused wrong estimation of 
              minimum values in resample_surface_to_target_sphere function.
+
 ------------------------------------------------------------------------
 r439 | gaser | 2020-09-24 17:47:46 +0200 (Do, 24 Sep 2020) | 9 lines
 

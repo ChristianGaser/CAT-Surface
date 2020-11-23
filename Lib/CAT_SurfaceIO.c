@@ -1452,12 +1452,42 @@ write_pgm(char *file, double *data, int nx, int ny)
 }
 
 Status
+input_txt_values(
+        STRING         filename,
+        int            *n_values,
+        Real           *values[] )
+{
+        FILE           *fp;
+        Status         status;
+        Real           value;
+    
+    
+        if ((fp = fopen(filename, "r")) == 0) {
+                fprintf(stderr, "input_txt_values: Couldn't open file %s.\n", filename);
+                return(-1);
+        }
+    
+        *n_values = 0;
+        *values = NULL;
+    
+        while( input_real( fp, &value ) == OK )
+                ADD_ELEMENT_TO_ARRAY( *values, *n_values, value, DEFAULT_CHUNK_SIZE );
+    
+        (void) close_file( fp );
+    
+    
+        return( OK );
+}
+
+
+Status
 input_values_any_format(char *file, int *n_values, double **values)
 {
         Status status;
+        FILE   *fp;
 
         if (filename_extension_matches(file,"txt"))
-                status = input_texture_values(file, n_values, values);
+                status = input_txt_values(file, n_values, values);
         else if (filename_extension_matches(file,"gii"))
                 status = input_gifti_curv(file, n_values, values);
         else
