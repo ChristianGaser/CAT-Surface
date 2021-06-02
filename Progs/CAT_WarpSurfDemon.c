@@ -426,7 +426,7 @@ void sort(double arr[], int beg, int end)
 double
 median(double *data, int length)
 {
-        double *data_sort;
+        double *data_sort, median_value;
         int i;
     
         data_sort = (double *) malloc(sizeof(double) * length);
@@ -435,7 +435,10 @@ median(double *data, int length)
                data_sort[i] = data[i];
  
         sort(data_sort, 0, length);
-        return data_sort[(int)(length/2)];
+        
+        median_value = data_sort[(int)(length/2)];
+        free(data_sort);
+        return median_value;
 }
 
 double

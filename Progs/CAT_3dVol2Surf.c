@@ -23,7 +23,7 @@
         (result)[Z] = RPoint_z(grid_start) + length * Vector_z(normal); \
 }
 
-enum { F_AVERAGE, F_RANGE, F_MAXABS, F_MAX, F_MIN, F_EXP, F_SUM, F_WAVERAGE, F_MULTI };
+enum { F_AVERAGE, F_MEDIAN, F_RANGE, F_MAXABS, F_MAX, F_MIN, F_EXP, F_SUM, F_WAVERAGE, F_MULTI };
 
 #define LOG05       -0.69314718
 #define PI2         6.28319
@@ -85,6 +85,9 @@ ArgvInfo argTable[] = {
   { "-avg", ARGV_CONSTANT, (char *) F_AVERAGE, 
     (char *) &map_func,
     "Use average for mapping along normals." },
+  { "-median", ARGV_CONSTANT, (char *) F_MEDIAN, 
+    (char *) &map_func,
+    "Use median for mapping along normals." },
   { "-weighted_avg", ARGV_CONSTANT, (char *) F_WAVERAGE, 
     (char *) &map_func,
     "Use weighted average with gaussian kernel for mapping along normals.\n\t\t     The kernel is so defined that values at the boundary are weighted with 50% while the center is weighted with 100%" },
@@ -113,11 +116,37 @@ ArgvInfo argTable[] = {
 };
 
 
+/* qicksort */
+void swap(double *a, double *b)
+{
+  double t=*a; *a=*b; *b=t;
+}
+
+void sort(double arr[], int beg, int end)
+{
+  if (end > beg + 1)
+  {
+    double piv = arr[beg];
+    int l = beg + 1, r = end;
+    while (l < r)
+    {
+      if (arr[l] <= piv)
+        l++;
+      else
+        swap(&arr[l], &arr[--r]);
+    }
+    swap(&arr[--l], &arr[beg]);
+    sort(arr, beg, l);
+    sort(arr, r, end);
+  }
+}
+
 double
 evaluate_function(double val_array[], int n_val, int map_func, double kernel[], int index[])
 {
         int   i, in_range;
         double  result;
+        double *data_sort;
         
         index[0] = 0;
     
@@ -127,6 +156,15 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
                 for (i = 0; i < n_val; i++)
                         result += val_array[i]; 
                 result /= (double) n_val;
+                break;
+        case F_MEDIAN:
+                data_sort = (double *) malloc(sizeof(double) * n_val);
+                for (i = 0; i < n_val; i++) 
+                       data_sort[i] = val_array[i];
+         
+                sort(data_sort, 0, n_val);
+                result = data_sort[(int)(n_val/2)];
+                free(data_sort);
                 break;
         case F_WAVERAGE:
                 result = 0.0;
