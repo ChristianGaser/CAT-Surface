@@ -1614,8 +1614,9 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
                 vno = freadInt(fp) ;
                 label = freadInt(fp) ;
                 if (vno >= *n_array || vno < 0) {
-                        fprintf(stderr, "Vertex index out of range\n");
-                        return(-1) ;
+                        fprintf(stderr, "Vertex index out of range: "
+                            "%d i=%8.8X, array_size=%d\n",
+                            vno,label,*n_array);
                 } else  array[vno] = label;
         }
 

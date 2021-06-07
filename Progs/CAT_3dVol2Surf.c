@@ -64,9 +64,9 @@ ArgvInfo argTable[] = {
   {"-annot", ARGV_STRING, (char *) 1, (char *) &annot_file, 
      "Annotation atlas file for ROI partitioning."},
   {"-sphere_src", ARGV_STRING, (char *) 1, (char *) &sphere_src_file, 
-     "Source sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
+     "Source sphere file for resampling of annotation file. This is usually the sphere of the input surface file."},
   {"-sphere_trg", ARGV_STRING, (char *) 1, (char *) &sphere_trg_file, 
-     "Target sphere file for resampling of annotation file. This is usually the sphere of the input surface file."},
+     "Target sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
        "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
@@ -244,7 +244,7 @@ main(int argc, char *argv[])
         File_formats         format;
         Volume               volume;
         int                  i, j, k, index, n_thickness_values, grid_steps1, grid_increase;
-        int                  n_objects, n_arrays, n_labels, *in_annot;
+        int                  n_objects, n_arrays, n_labels, *in_annot, n_values;
         object_struct        **objects, **objects_src_sphere, **objects_trg_sphere;
         polygons_struct      *polygons, *src_sphere, *trg_sphere;
         double               value, voxel[N_DIMENSIONS], *values_atlas;
@@ -252,7 +252,7 @@ main(int argc, char *argv[])
         double               val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
         double               sum, x, sigma, kernel[MAX_N_ARRAY];
         double               grid_start1, grid_end1, step_size, pos;
-        double               *input_values, *resampled_values;
+        double               *input_values, *resampled_values, *roi_values;
         Vector               normal;
         ATABLE               *atable;
         FILE                 *fp;
@@ -322,7 +322,7 @@ main(int argc, char *argv[])
             (sphere_trg_file != NULL  && (sphere_src_file == NULL || annot_file == NULL)) ||
             (annot_file != NULL  && (sphere_trg_file == NULL || sphere_src_file == NULL)) ) {
                 fprintf(stderr, "You have to define all three files for using annotation files:\n\
-                        sphere_src_file, sphere_trg_file and annot_file.\n");
+                        -sphere_src, -sphere_trg and -annot.\n");
                 exit(EXIT_FAILURE);
         }
 
@@ -472,6 +472,15 @@ main(int argc, char *argv[])
                         exit(EXIT_FAILURE);
                 }
 
+                if (input_graphics_any_format(sphere_trg_file, &format, &n_objects,
+                    &objects_trg_sphere) != OK || n_objects != 1 ||
+                    get_object_type(objects_trg_sphere[0]) != POLYGONS ) {
+                        fprintf(stderr, "File %s must contain 1 polygons object.\n",
+                        sphere_trg_file);
+                        exit(EXIT_FAILURE);
+                }
+
+
                 if (filename_extension_matches(annot_file, "annot")) {
                         read_annotation_table(annot_file, &n_arrays, &in_annot, &n_labels, &atable);
 
@@ -481,21 +490,21 @@ main(int argc, char *argv[])
                                 return(EXIT_FAILURE);
                         }
 
-                        fprintf(fp,"%s",atable[0].name);
-                        for (i = 1 ; i < n_labels ; i++) 
+                        trg_sphere = get_polygons_ptr(objects_trg_sphere[0]);
+                        resampled_values = (double *) malloc(sizeof(double) * polygons->n_points);
+                        values_atlas     = (double *) malloc(sizeof(double) * n_labels);
+                        input_values     = (double *) malloc(sizeof(double) * trg_sphere->n_points);
+                        roi_values       = (double *) malloc(sizeof(double) * n_labels);
+                        
+                        fprintf(fp,"File");
+                        for (i = 0 ; i < n_labels ; i++) 
                                 fprintf(fp,",%s",atable[i].name);
                         fprintf(fp,"\n");
 
-                        input_values  = (double *) malloc(sizeof(double) * polygons->n_points);
                         
-                        for (i = 0 ; i < polygons->n_points ; i++) 
+                        for (i = 0 ; i < trg_sphere->n_points ; i++) 
                                 input_values[i] = (double)in_annot[i];
                                 
-                        fprintf(fp,"%d",atable[0].annotation);
-                        for (i = 1 ; i < n_labels ; i++) 
-                                fprintf(fp,",%d",atable[i].annotation);
-                        fprintf(fp,"\n");
-
                 } else {
                         fprintf(stderr, "Only annotation files accepted.\n");
                         exit(EXIT_FAILURE);
@@ -510,23 +519,12 @@ main(int argc, char *argv[])
                 }
                 src_sphere = get_polygons_ptr(objects_src_sphere[0]);
         
-                if (input_graphics_any_format(sphere_trg_file, &format, &n_objects,
-                    &objects_trg_sphere) != OK || n_objects != 1 ||
-                    get_object_type(objects_trg_sphere[0]) != POLYGONS ) {
-                        fprintf(stderr, "File %s must contain 1 polygons object.\n",
-                        sphere_trg_file);
-                        exit(EXIT_FAILURE);
-                }
-                trg_sphere = get_polygons_ptr(objects_trg_sphere[0]);
-                resampled_values = (double *) malloc(sizeof(double) * trg_sphere->n_points);
-                values_atlas = (double *) malloc(sizeof(double) * n_labels);
-
-                objects_trg_sphere = resample_surface_to_target_sphere(src_sphere, src_sphere, 
-                        trg_sphere, input_values, resampled_values, 1);
+                objects_trg_sphere = resample_surface_to_target_sphere(trg_sphere, trg_sphere, 
+                        src_sphere, input_values, resampled_values, 1);
+                        
         } 
 
         for (k = 0; k < argc-3; k++) {
-
                 if (input_volume_all(volume_file[k+1], 3, File_order_dimension_names,
                                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                                      TRUE, &volume, NULL) != OK)
@@ -576,18 +574,37 @@ main(int argc, char *argv[])
                                 
                                 val_array[j] = value;
                         }
-        
+                                
                         if (map_func != F_MULTI)
                                 /* evaluate function */
                                 values[i] = evaluate_function(val_array, grid_steps1,
                                                   map_func, kernel, &index);
                 }
+                
+                if (annot_file != NULL) {
+                        for (j = 0; j < n_labels; j++) {
+                                roi_values[j] = 0.0;
+                                n_values = 0;
+                                for (i = 0; i < polygons->n_points; i++) {
+                                        if (round(resampled_values[i]) == atable[j].annotation) {
+                                                roi_values[j] += values[i]; 
+                                                n_values++;
+                                        }
+                                }
+                                roi_values[j] /= (double) n_values;
+                        }
+                        fprintf(fp,"%s",volume_file[k+1]);
+                        for (j = 0 ; j < n_labels ; j++) 
+                                fprintf(fp,",%g",roi_values[j]);
+                        fprintf(fp,"\n");
+                }
+
         
                 /* read source and target sphere and annotation file if defined */
                 if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
                 
                         output_values_any_format(output_values_file, n_labels,
-                                         values, TYPE_DOUBLE);
+                                         roi_values, TYPE_DOUBLE);
                                          
                 } else if (map_func == F_MULTI) {
                         ALLOC(tmp_string, string_length(output_values_file)+10);
@@ -621,6 +638,7 @@ main(int argc, char *argv[])
                 free(input_values);
                 free(resampled_values);
                 free(values_atlas);
+                free(roi_values);
                 fclose(fp);
         }
         
