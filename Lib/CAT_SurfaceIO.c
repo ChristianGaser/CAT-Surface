@@ -253,6 +253,13 @@ gifti_get_DA_value_2D (giiDataArray* da, int row, int col)
                         return (double)*((float*) (da->data) + dim0_index + (dim1_index*dims_0));
                 break;
         }
+        case NIFTI_TYPE_FLOAT64: {
+                if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
+                        return (double)*((double*) (da->data) + (dim0_index*dims_1) + dim1_index);
+                else
+                        return (double)*((double*) (da->data) + dim0_index + (dim1_index*dims_0));
+                break;
+        }
         case NIFTI_TYPE_INT8: {
                 if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
                         return (double)*((char*) (da->data) + (dim0_index*dims_1) + dim1_index);
@@ -987,16 +994,11 @@ input_gifti_curv(char *file, int *vnum, double **input_values)
                 return(-1);
         }
 
-        for (numDA = 0; numDA < image->numDA; numDA++) {
+        *vnum = image->darray[0]->dims[0];
+        ALLOC(*input_values, image->darray[0]->dims[0]);
 
-                if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE) {
-                        *vnum = image->darray[numDA]->dims[0];
-                        ALLOC(*input_values, image->darray[numDA]->dims[0]);
-
-                        for (k = 0; k < image->darray[numDA]->dims[0]; k++)
-                                (*input_values)[k] = (double) gifti_get_DA_value_2D (image->darray[numDA], k, 0);
-                }
-        }
+        for (k = 0; k < image->darray[0]->dims[0]; k++)
+                (*input_values)[k] = (double) gifti_get_DA_value_2D (image->darray[0], k, 0);
 
         return(OK);
 }

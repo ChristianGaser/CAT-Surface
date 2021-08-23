@@ -72,15 +72,14 @@ main(int argc, char *argv[])
         polygons = get_polygons_ptr(object_list[0]);
 
         if (values_present) {
-                ALLOC(values, polygons->n_points);
 
                 if (input_values_any_format(values_file, &n_values, &values) != OK) {
                         fprintf(stderr, "Cannot read values in %s.\n", values_file);
-    	                exit(EXIT_FAILURE);
+                      exit(EXIT_FAILURE);
                 }
                 if (n_values != polygons->n_points) {
-                        fprintf(stderr, "Number of values in %s differs from surface.\n", values_file);
-    	                exit(EXIT_FAILURE);
+                        fprintf(stderr, "Number of values (n=%d) in %s differs from surface (n=%d).\n", n_values, values_file, polygons->n_points);
+                      exit(EXIT_FAILURE);
                 }
                 
                 /* if mask exists set all values to NaN where mask is zero */
@@ -89,11 +88,11 @@ main(int argc, char *argv[])
 
                         if (input_values_any_format(mask_file, &n_mask, &mask) != OK) {
                                 fprintf(stderr, "Cannot read values in %s.\n", mask_file);
-    	                        exit(EXIT_FAILURE);
+                              exit(EXIT_FAILURE);
                         }
                         if (n_mask != polygons->n_points) {
                                 fprintf(stderr, "Number of mask values in %s differs from surface.\n", mask_file);
-    	                        exit(EXIT_FAILURE);
+                              exit(EXIT_FAILURE);
                         }
                         for (i=0; i<n_mask; i++) 
                                 if(mask[i]==0) values[i] = FNAN;
