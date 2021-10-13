@@ -94,7 +94,7 @@ ArgvInfo argTable[] = {
     "Use weighted average with gaussian kernel for mapping along normals.\n\t\t     The kernel is so defined that values at the boundary are weighted with 50% while the center is weighted with 100%" },
   { "-range-count", ARGV_FLOAT, (char *) 2, 
     (char *) frange_count,
-    "Assign a value of 1 if at least one value is in the range for assignment along the normal, 0 otherwise." },
+    "Count number of values in range for mapping along normals. If any value is out of range \n\t\t     values will be counted only until this point" },
   { "-range", ARGV_FLOAT, (char *) 2, 
     (char *) frange,
     "Assign a value of 1 if at least one value is in the range for assignment along the normal, 0 otherwise." },
