@@ -24,7 +24,7 @@ int  main(int   argc, char  *argv[])
 {
         char             *sphere_file, *target_sphere_file, *annot_filename, *annot_out_file;
         File_formats     format;
-        int              i, *array, n_table, n_array;
+        int              i, *array, n_labels, n_array;
         int              n_objects, n_values;
         char             **struct_names;
         double           *input_values;
@@ -40,12 +40,13 @@ int  main(int   argc, char  *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        read_annotation_table(annot_filename, &n_array, &array, &n_table, &atable);
-        printf("%d\n",n_table);
-        for (i = 0 ; i < n_table ; i++) 
-            printf("%d %s\n",atable[i].annotation,atable[i].name);
+        read_annotation_table(annot_filename, &n_array, &array, &n_labels, &atable);
 
-        write_annotation_table("test.annot", n_array, array, n_table, atable);
+        printf("%d %d\n",n_labels, n_array);
+        for (i = 0 ; i < n_labels ; i++) 
+            printf("%d (%d %d %d) %s\n",atable[i].annotation,atable[i].r,atable[i].g,atable[i].b,atable[i].name);
+
+        write_annotation_table(annot_out_file, n_array, array, n_labels, atable);
     
         return( 0 );
 }

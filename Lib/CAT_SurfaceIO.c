@@ -94,7 +94,7 @@ fwrite3(int v, FILE *fp)
         int i = (v << 8);
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapInt(&i) ;
+        swapInt(&i);
 #endif
         return(fwrite(&i, 3, 1, fp));
 }
@@ -129,11 +129,11 @@ int
 fread3(int *v, FILE *fp)
 {
         int i = 0;
-        int  ret ;
+        int  ret;
 
         ret = fread(&i, 3, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        swapInt(&i) ;
+        swapInt(&i);
 #endif
         *v = ((i >> 8) & 0xffffff);
         return(ret);
@@ -1022,7 +1022,7 @@ output_freesurfer(char *file, File_formats format, int n_objects,
 
         /* write 3 byte magic number for triangle */
         fwrite3(TRIANGLE_FILE_MAGIC_NUMBER,fp);
-        fprintf(fp, "created with CAT\n") ;
+        fprintf(fp, "created with CAT\n");
 
         /* # of vertices and faces */
         fwriteInt(polygons->n_points, fp);
@@ -1036,8 +1036,8 @@ output_freesurfer(char *file, File_formats format, int n_objects,
         }
   
         /* write indices */
-        for (i = 0 ; i < polygons->n_items ;i++) 
-                for (n = 0 ; n < 3 ; n++) 
+        for (i = 0; i < polygons->n_items;i++) 
+                for (n = 0; n < 3; n++) 
                         fwriteInt(polygons->indices[POINT_INDEX(polygons->end_indices, i, n)],fp);
 
         fclose(fp);
@@ -1597,24 +1597,24 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
 int
 read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, ATABLE **out_atable)
 {
-        FILE    *fp ;
+        FILE    *fp;
         char    annot_name[1000], **struct_names;
         int     i, flag, label, len, vno, tag, *array;
         int     version, structure;
         ATABLE *atable;
 
-        fp = fopen(file, "r") ;
+        fp = fopen(file, "r");
         if (!fp) {
-                fprintf(stderr, "Could not open annotation file %s\n", file) ;
+                fprintf(stderr, "Could not open annotation file %s\n", file);
                 return(-1);
         }
 
         *n_array = freadInt(fp);
         array = (int*) calloc (*n_array, sizeof(int));
 
-        for (i = 0 ; i < *n_array ; i++) {
-                vno = freadInt(fp) ;
-                label = freadInt(fp) ;
+        for (i = 0; i < *n_array; i++) {
+                vno = freadInt(fp);
+                label = freadInt(fp);
                 if (vno >= *n_array || vno < 0) {
                         fprintf(stderr, "Vertex index out of range: "
                             "%d i=%8.8X, array_size=%d\n",
@@ -1627,7 +1627,7 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
         tag = freadInt (fp);
         if (feof(fp)) {
                 fclose(fp);
-                fprintf(stderr, "No colortable found\n") ;
+                fprintf(stderr, "No colortable found\n");
                 return(OK);
         }
         
@@ -1637,7 +1637,7 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
                 atable = (ATABLE*) malloc(*n_labels * sizeof(ATABLE));
                 len = freadInt(fp);
                 fread(&annot_name, sizeof(char), len, fp);
-                for (i = 0 ; i < *n_labels ; i++) {
+                for (i = 0; i < *n_labels; i++) {
                         len = freadInt(fp);
                         fread(&atable[i].name, sizeof(char), len, fp);
                         atable[i].r = freadInt(fp);
@@ -1650,7 +1650,7 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
                 version = -(*n_labels);
                 if (feof(fp)) {
                         fclose(fp);
-                        fprintf(stderr, "Does not handle version %d\n",version) ;
+                        fprintf(stderr, "Does not handle version %d\n",version);
                         return(OK);
                 }
                 *n_labels = freadInt(fp);
@@ -1658,7 +1658,7 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
                 fread(&annot_name, sizeof(char), len, fp);
                 *n_labels = freadInt(fp);
                 atable = (ATABLE*) malloc(*n_labels * sizeof(ATABLE));
-                for (i = 0 ; i < *n_labels ; i++) {
+                for (i = 0; i < *n_labels; i++) {
                         structure = freadInt(fp) + 1;
                         len = freadInt(fp);
                         fread(&atable[i].name, sizeof(char), len, fp);
@@ -1673,28 +1673,28 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
         
         fclose(fp);
 
-        return(OK) ;
+        return(OK);
 }
 
 int
 write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE *atable)
 {
-        FILE    *fp ;
+        FILE    *fp;
         char    **struct_names;
         int     i, flag, label, len, vno, tag;
         int     version, structure;
 
-        fp = fopen(file, "w") ;
+        fp = fopen(file, "w");
         if (!fp) {
-                fprintf(stderr, "Could not open annotation file %s\n", file) ;
+                fprintf(stderr, "Could not open annotation file %s\n", file);
                 return(-1);
         }
 
         fwriteInt(n_array, fp);
 
-        for (i = 0 ; i < n_array ; i++) {
-                fwriteInt(i, fp) ;
-                fwriteInt(array[i], fp) ;
+        for (i = 0; i < n_array; i++) {
+                fwriteInt(i, fp);
+                fwriteInt(array[i], fp);
         }
         
         fwriteInt (1, fp);        
@@ -1704,7 +1704,7 @@ write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE
         fwrite("write_annotation_table", sizeof(char), 22, fp);
         fwriteInt(n_labels, fp);        
         
-        for (i = 0 ; i < n_labels ; i++) {
+        for (i = 0; i < n_labels; i++) {
                 fwriteInt(i, fp);
                 fwriteInt(strlen(atable[i].name)+1, fp);
                 fwrite(strcat(atable[i].name," "), sizeof(char), strlen(atable[i].name), fp);
@@ -1716,5 +1716,5 @@ write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE
 
         fclose(fp);
 
-        return(OK) ;
+        return(OK);
 }

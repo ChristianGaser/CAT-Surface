@@ -23,7 +23,7 @@
         (result)[Z] = RPoint_z(grid_start) + length * Vector_z(normal); \
 }
 
-enum { F_AVERAGE, F_MEDIAN, F_RANGE, F_MAXABS, F_MAX, F_MIN, F_EXP, F_SUM, F_WAVERAGE, F_MULTI };
+enum { F_AVERAGE, F_MEDIAN, F_RANGE, F_COUNT, F_MAXABS, F_MAX, F_MIN, F_EXP, F_SUM, F_WAVERAGE, F_MULTI };
 
 #define LOG05       -0.69314718
 #define PI2         6.28319
@@ -39,7 +39,8 @@ double grid_start       = -0.5;     /* start point (origin) of grid along normal
 double grid_end         = 0.5;      /* end point of grid along normals */
 double offset_value     = 0.0;      /* offset according to thickness that is given with offset option */
 int  map_func           = F_MAXABS; /* default mapping function: (absolute) maximum value */
-double frange[2]        = {FLT_MAX, FLT_MAX};
+double frange[2]        = {-FLT_MAX, FLT_MAX};
+double frange_count[2]  = {-FLT_MAX, FLT_MAX};
 double exp_half         = FLT_MAX;
 char *thickness_file    = NULL;     /* thickness file for restricting mapping inside defined thickness */
 char *offset_file       = NULL;     /* thickness file for defining offset to (central) surface */
@@ -91,9 +92,12 @@ ArgvInfo argTable[] = {
   { "-weighted_avg", ARGV_CONSTANT, (char *) F_WAVERAGE, 
     (char *) &map_func,
     "Use weighted average with gaussian kernel for mapping along normals.\n\t\t     The kernel is so defined that values at the boundary are weighted with 50% while the center is weighted with 100%" },
-  { "-range", ARGV_FLOAT, (char *) F_RANGE, 
+  { "-range-count", ARGV_FLOAT, (char *) 2, 
+    (char *) frange_count,
+    "Assign a value of 1 if at least one value is in the range for assignment along the normal, 0 otherwise." },
+  { "-range", ARGV_FLOAT, (char *) 2, 
     (char *) frange,
-    "Count number of values in range for mapping along normals. If any value is out of range \n\t\t     values will be counted only until this point" },
+    "Assign a value of 1 if at least one value is in the range for assignment along the normal, 0 otherwise." },
   { "-maxabs", ARGV_CONSTANT, (char *) F_MAXABS, 
     (char *) &map_func,
     "Use absolute maximum value for mapping along normals (Default)." },
@@ -103,7 +107,7 @@ ArgvInfo argTable[] = {
   { "-min", ARGV_CONSTANT, (char *) F_MIN, 
     (char *) &map_func,
     "Use minimum value for mapping along normals." },
-  { "-exp", ARGV_FLOAT, (char *) F_EXP, 
+  { "-exp", ARGV_FLOAT, (char *) 1, 
     (char *) &exp_half,
     "Use exponential average of values for mapping along normals. The argument defines the \n\t\t     distance in mm where values are decayed to 50% (recommended value is 10mm)." },
   { "-sum", ARGV_CONSTANT, (char *) F_SUM, 
@@ -173,6 +177,17 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
                 break;
         case F_RANGE:
                 /*
+                 * set to 1 if at least one value is in range, 0 otherwise
+                 */
+                result = 0.0;
+                for (i = 0; i < n_val; i++) {
+                        /* are values in range? */
+                        if (val_array[i] > frange[0] && val_array[i] < frange[1])
+                                result = 1.0;
+                }
+                break;
+        case F_COUNT:
+                /*
                  * count only if values are in range
                  * until any value is out of range
                  */
@@ -181,12 +196,12 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
                 for (i = 0; i < n_val; i++) {
                         /* stop counting if values are leaving range */
                         if (in_range == 1 &&
-                            (val_array[i] < frange[0] ||
-                             val_array[i] > frange[1]))
+                            (val_array[i] < frange_count[0] ||
+                             val_array[i] > frange_count[1]))
                                 break;
                         /* are values for the first time in range? */
-                        if (val_array[i] >= frange[0] &&
-                            val_array[i] <= frange[1])
+                        if (val_array[i] > frange_count[0] &&
+                            val_array[i] < frange_count[1])
                                 in_range = 1;
                         /* count values in range */
                         if (in_range)
@@ -245,6 +260,7 @@ main(int argc, char *argv[])
         Volume               volume;
         int                  i, j, k, index, n_thickness_values, grid_steps1, grid_increase;
         int                  n_objects, n_arrays, n_labels, *in_annot, n_values;
+        int                  *out_annot;
         object_struct        **objects, **objects_src_sphere, **objects_trg_sphere;
         polygons_struct      *polygons, *src_sphere, *trg_sphere;
         double               value, voxel[N_DIMENSIONS], *values_atlas;
@@ -337,15 +353,24 @@ main(int argc, char *argv[])
                 map_func = F_EXP;
 
         /* if range is given use range mapping function */
-        if (frange[0] != FLT_MAX && frange[1] != FLT_MAX)
+        if (frange[0] != -FLT_MAX || frange[1] != FLT_MAX) {
                 map_func = F_RANGE;
-        
-        /* check range values */
-        if (frange[0] > frange[1]) {
-                fprintf(stderr, "First range value is larger than second.\n");
-                exit(EXIT_FAILURE);
+                /* check range values */
+                if (frange[0] > frange[1]) {
+                        fprintf(stderr, "First range value is larger than second.\n");
+                        exit(EXIT_FAILURE);
+                }
         }
-
+                
+        /* if range is given use range mapping function */
+        if (frange_count[0] != -FLT_MAX || frange_count[1] != FLT_MAX) {
+                map_func = F_COUNT;
+                /* check range values */
+                if (frange_count[0] > frange_count[1]) {
+                        fprintf(stderr, "First range value is larger than second.\n");
+                        exit(EXIT_FAILURE);
+                }
+        }
         /* initialize values for lengths (starting with origin) */
         if (thickness_file == NULL) {
                 if (map_func == F_MULTI)
@@ -629,9 +654,35 @@ main(int argc, char *argv[])
                         free(values2d);
                         free(tmp_string);
                                 
-                } else  output_values_any_format(output_values_file, polygons->n_points,
-                                         values, TYPE_DOUBLE);
-        
+                } else  {
+                        if (filename_extension_matches(output_values_file, "annot")) {
+                                n_arrays = polygons->n_points;
+                                out_annot  = (int *) malloc(n_arrays * sizeof(int));
+                                
+                                n_labels = 0;
+                                for (i = 0 ; i < n_arrays ; i++) {
+                                        out_annot[i] = (int)round(values[i]);
+                                        n_labels = MAX(n_labels, out_annot[i]);
+                                }
+
+                                atable = (ATABLE*) malloc(n_labels * sizeof(ATABLE));
+                                for (i = 0 ; i < n_labels ; i++) {
+                                        sprintf(atable[i].name,"Label %d",i+1);
+                                        atable[i].annotation = i+1;
+                                        /* g/b colors should be set to 0 because annotation label is built on 
+                                           atable[i].annotation = atable[i].r+atable[i].g*256+atable[i].b*65536 */
+                                        atable[i].r = i+1;
+                                        atable[i].g = 0;
+                                        atable[i].b = 0;
+                                }
+
+                                write_annotation_table(output_values_file, n_arrays, out_annot, n_labels, atable);
+                                
+                                free(atable);
+                                free(out_annot);
+                        } else  output_values_any_format(output_values_file, polygons->n_points,
+                                                 values, TYPE_DOUBLE);
+                }
         }
         
         if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
