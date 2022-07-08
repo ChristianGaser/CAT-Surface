@@ -1,12 +1,14 @@
 # CAT: Cortex Analysis Tools
 Christian Gaser (christian.gaser@uni-jena.de), University of Jena, Germany.
 
+These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for almost all of the surfaced-based functions.
+
 ## The following libraries are necessary to compile CAT:
-- netcdf-4.2
-- minc-1.5.1
-- bicp-1.4.6
-- fftw-3.3.2
-- expat-2.0
+- [netcdf-4.2](https://github.com/Unidata/netcdf-c)
+- [minc-1.5.1](https://github.com/BIC-MNI/minc)
+- [bicp-1.4.6](https://github.com/BIC-MNI/minc)
+- [fftw-3.3.2](https://github.com/FFTW/fftw3)
+- [expat-2.0](https://github.com/libexpat/libexpat)
 
 ## CAT_3dVol2Surf
 Map values form 3D volume to surface
