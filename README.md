@@ -1,5 +1,5 @@
 # CAT: Cortex Analysis Tools
-Christian Gaser (christian.gaser@uni-jena.de), University of Jena, Germany.
+Christian Gaser (christian.gaser@uni-jena.de), Jena University Hospital, Germany.
 
 These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for almost all of the surfaced-based functions.
 
