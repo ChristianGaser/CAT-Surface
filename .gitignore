@@ -1,0 +1,13 @@
+autom4te.cache
+aclocal.m4
+config.*
+m4
+Progs/.deps
+Makefile.in
+Progs/Makefile.in
+compile
+configure
+install-sh
+ltmain.sh
+missing
+stamp-h1

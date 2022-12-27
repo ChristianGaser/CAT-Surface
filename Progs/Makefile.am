@@ -69,8 +69,6 @@ bin_PROGRAMS = \
     CAT_Surf2Surf \
     CAT_DumpDepthPotential \
     CAT_Central2Pial \
-    CAT_Central2Pial_new \
-    CAT_CorrectSelfIntersections \
     CAT_Surf2Vol \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
