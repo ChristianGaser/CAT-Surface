@@ -54,7 +54,7 @@ intersect_triangle_triangle(int pidx0[3], int pidx1[3],
                 pts[i] = surface->points[pidx0[i]];
 
         pts[3] = surface->points[pidx0[0]];
-
+        
         for (i = 1; i < 4; i++) {
                 result = intersect_segment_triangle(pts[i-1], pts[i], pidx1,
                                                     surface);
@@ -388,7 +388,7 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
         /* smooth defect areas.. increase defect area every 5th iter */
         iter = 0;
         n_prev_defects = n_defects;
-	      count = 0;
+        count = 0;
         
         while (n_defects != 0) {
                 iter++;
@@ -487,19 +487,12 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
                                                                  polydefects,
                                                                  n_neighbours,
                                                                  neighbours);
-	                      /* increase counter if number of defects is unchanged */
-	                      if (n_defects == n_prev_defects) count++; else count = 0;
-	                      
-                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                        printf("defects remapped, %3d defect(s) remaining",n_defects);
-                        flush_file(stdout);
-                        
+                        /* increase counter if number of defects is unchanged */
+                        if (n_defects == n_prev_defects) count++; else count = 0;
+                                                
                         /* expand remaining defects if no improvement can be found */
                         if (count > 2) 
-	                              expand_defects(surface, defects, polydefects,
+                                expand_defects(surface, defects, polydefects,
                                        0, 1, n_neighbours, neighbours);
                         /* or stop if expanding does not help either */
                         if (count > 3) break; 

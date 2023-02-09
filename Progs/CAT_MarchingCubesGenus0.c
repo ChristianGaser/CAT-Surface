@@ -18,37 +18,39 @@
 
 private  void  extract_isosurface(
     Volume            volume,
-    double              min_label,
-    double              max_label,
+    double            min_label,
+    double            max_label,
     int               spatial_axes[],
     General_transform *voxel_to_world_transform,
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    double              min_threshold,
-    double              max_threshold,
-    double              valid_low,
-    double              valid_high,
+    double            min_threshold,
+    double            max_threshold,
+    double            valid_low,
+    double            valid_high,
     polygons_struct   *polygons );
     
 private  void  extract_surface(
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    double              min_threshold,
-    double              max_threshold,
-    double              valid_low,
-    double              valid_high,
+    double            min_threshold,
+    double            max_threshold,
+    double            valid_low,
+    double            valid_high,
     int               x_size,
     int               y_size,
-    double              ***slices,
-    double              min_label,
-    double              max_label,
-    double              ***label_slices,
+    double            ***slices,
+    double            min_label,
+    double            max_label,
+    double            ***label_slices,
     int               slice_index,
     BOOLEAN           right_handed,
     int               spatial_axes[],
     General_transform *voxel_to_world_transform,
     int               ***point_ids[],
     polygons_struct   *polygons );
+
+void distopen_ushort(unsigned short *vol, int dims[3], double voxelsize[3], int niter, double th);
 
 static  STRING    dimension_names_3D[] = { MIzspace, MIyspace, MIxspace };
 static  STRING    dimension_names[] = { MIyspace, MIxspace };
@@ -57,7 +59,7 @@ private  void  usage(
     STRING   executable )
 {
     STRING  usage_str = "\n\
-Usage: marching_cubes  input.nii  output_surface_file  threshold [method]\n\
+Usage: CAT_MArchingCubesGenus0  input.nii  output_surface_file  threshold [method] [force_genus0] [n_opening]\n\
 \n\
      Creates a polygonal surface of either the thresholded volume, or the\n\
      boundary of the region of values between min and max threshold\n\
@@ -65,7 +67,8 @@ Usage: marching_cubes  input.nii  output_surface_file  threshold [method]\n\
      The following methods can be used:\n\
        0 - marching cubes\n\
        1 - marching cubes without holes (default)\n\
-       2 - marching tetra\n\n";
+       2 - marching tetra\n\n\
+     The option force_genus0 is enabled by default and allows to switch off genus0-functionality by setting to 0.\n\n";
 
     print_error( usage_str, executable );
 }
@@ -81,10 +84,11 @@ int  main(
     double               valid_low, valid_high, val;
     int                  i, j, k, c, spatial_axes[N_DIMENSIONS];
     int                  int_method, n_out, sizes[MAX_DIMENSIONS];
+    int                  force_genus0, n_opening;
     Marching_cubes_methods  method;
     object_struct        *object, **object2, *object3;
     General_transform    voxel_to_world_transform;
-    polygons_struct		 *polygons;
+    polygons_struct		   *polygons;
     unsigned short       *input;
 
     initialize_argument_processing( argc, argv );
@@ -98,24 +102,25 @@ int  main(
 
     (void) get_real_argument( 0.5, &min_threshold );
     (void) get_int_argument( (int) MARCHING_NO_HOLES,  &int_method );
+    (void) get_int_argument( 1,  &force_genus0 );
+    (void) get_int_argument( 0,  &n_opening );
+    
     method = (Marching_cubes_methods) int_method;
 
-    (void) get_real_argument( 0.0, &valid_low );
-    (void) get_real_argument( -1.0, &valid_high );
-
-    min_label = 0.0;
-    max_label = -1.0;
+    valid_low  =  0.0;
+    valid_high = -1.0;
+    min_label  = 0.0;
+    max_label  = -1.0;
 
     if (input_volume_all(input_filename, 3, dimension_names_3D,
                                      NC_UNSPECIFIED, FALSE, 0.0, 0.0,
                                      TRUE, &volume, NULL) != OK)
-        return( 0 );
+        return( 1 );
 
-    get_volume_sizes( volume, sizes );
     copy_general_transform( get_voxel_to_world_transform(volume),
                             &voxel_to_world_transform );
 
-    for_less( c, 0, N_DIMENSIONS )
+    for (c = 0; c < N_DIMENSIONS; c++)
         spatial_axes[c] = volume->spatial_axes[c];
 
    /* It is really weird, but only this combination worked */
@@ -126,85 +131,92 @@ int  main(
     object  = create_object( POLYGONS );
     object3 = create_object( POLYGONS );
 
-    input = (unsigned short *)calloc(sizes[0]*sizes[1]*sizes[2],sizeof(unsigned short));  
+    if (force_genus0) {
+        get_volume_sizes( volume, sizes );
+        input = (unsigned short *)calloc(sizes[0]*sizes[1]*sizes[2],sizeof(unsigned short));  
+    
+        for (i = 0; i < sizes[0]; i++) {
+            for (j = 0; j < sizes[1]; j++) {
+                for (k = 0; k < sizes[2]; k++) {
+                    val = get_volume_real_value( volume, i, j, k, 0, 0);
+                    if (val > min_threshold)
+                        input[i + j*sizes[0] + k*sizes[0]*sizes[1]] = 1;
+                    else input[i + j*sizes[0] + k*sizes[0]*sizes[1]] = 0;
+                }
+            }
+        }
+    
+        double voxelsize[3] = {1.0,1.0,1.0};
+        
+        /* We have to use a threshold of 0 because of data tpye (short) */
+	      if( n_opening > 0) fprintf(stderr,"Number of morphological openings: %d\n",n_opening);
+        distopen_ushort(input, sizes, voxelsize, n_opening, 0);
 
-    for (i = 0; i < sizes[0]; i++) {
-        for (j = 0; j < sizes[1]; j++) {
-            for (k = 0; k < sizes[2]; k++) {
-                val = get_volume_real_value( volume, i, j, k, 0, 0);
-                if (val > min_threshold)
-                    input[i + j*sizes[0] + k*sizes[0]*sizes[1]] = 1;
-                else input[i + j*sizes[0] + k*sizes[0]*sizes[1]] = 0;
+        genus0parameters g0[1];  /* need an instance of genus0parameters */
+    
+        genus0init(g0);  /* initialize the instance, set default parameters */
+    
+        /* set some parameters/options */
+        for(j= 0; j <N_DIMENSIONS; j++ ) g0->dims[j] = sizes[j];
+        g0->connected_component = 1;
+        g0->input = input;
+        g0->cut_loops = 0;
+        g0->connectivity = 6;
+        g0->value = 1;
+        g0->alt_value=1;
+        g0->contour_value=1;
+        g0->alt_contour_value=1;
+        g0->any_genus = 0;
+        g0->biggest_component = 1;
+        g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
+        g0->ijk2ras = NULL;
+        g0->verbose = 1;
+        g0->return_surface = 0;
+        g0->extraijkscale[2] = 1;
+    
+        /* call the function! */
+        if (genus0(g0)) return(1); /* check for error */
+    
+        /* save results as next input */
+        for (i = 0; i < sizes[0]*sizes[1]*sizes[2]; i++)
+                input[i] = (unsigned int)g0->output[i];
+    
+        /* call genus0 a 2nd time with other parameters */
+        g0->cut_loops = 1;
+        g0->connectivity = 18;
+        g0->value = 1;
+        g0->alt_value=0;
+        g0->contour_value=1;
+        g0->alt_contour_value=0;
+    
+        if (genus0(g0)) return(1); 
+    
+        free(input);
+    
+        for (i = 0; i < sizes[0]; i++) {
+            for (j = 0; j < sizes[1]; j++) {
+                for (k = 0; k < sizes[2]; k++) {
+                    set_volume_real_value( volume, i, j, k, 0, 0, g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
+                }
             }
         }
     }
-
-    genus0parameters g0[1];  /* need an instance of genus0parameters */
-
-    genus0init(g0);  /* initialize the instance, set default parameters */
-
-    /* set some parameters/options */
-    for(j= 0; j <N_DIMENSIONS; j++ ) g0->dims[j] = sizes[j];
-    g0->connected_component = 1;
-    g0->input = input;
-    g0->cut_loops = 0;
-    g0->connectivity = 6;
-    g0->value = 1;
-    g0->alt_value=1;
-    g0->contour_value=1;
-    g0->alt_contour_value=1;
-    g0->any_genus = 0;
-    g0->biggest_component = 1;
-    g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
-    g0->ijk2ras = NULL;
-    g0->verbose = 1;
-    g0->return_surface = 0;
-    g0->extraijkscale[2] = 1;
-
-    /* call the function! */
-    if (genus0(g0)) return(1); /* check for error */
-
-    /* save results as next input */
-    for (i = 0; i < sizes[0]*sizes[1]*sizes[2]; i++)
-            input[i] = (unsigned int)g0->output[i];
-
-    /* call genus0 a 2nd time with other parameters */
-    g0->cut_loops = 1;
-    g0->connectivity = 18;
-    g0->value = 1;
-    g0->alt_value=0;
-    g0->contour_value=1;
-    g0->alt_contour_value=0;
-
-    if (genus0(g0)) return(1); 
-
-    free(input);
-
-    for (i = 0; i < sizes[0]; i++) {
-        for (j = 0; j < sizes[1]; j++) {
-            for (k = 0; k < sizes[2]; k++) {
-                set_volume_real_value( volume, i, j, k, 0, 0, g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
-            }
-        }
-    }
-
     extract_isosurface( volume,
                         min_label, max_label,
                         spatial_axes,
                         &voxel_to_world_transform,
                         method, FALSE,
                         0.5, 0.5,
-                        valid_low, valid_high, get_polygons_ptr(object) );
+                        valid_low, valid_high, get_polygons_ptr(object));
 
-    polygons = get_polygons_ptr( object );
-    check_polygons_neighbours_computed( polygons );
-    n_out = separate_polygons( polygons, -1, &object2 );
+    check_polygons_neighbours_computed( get_polygons_ptr(object) );
+    n_out = separate_polygons( get_polygons_ptr(object), -1, &object2 );
 
-	if( n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
+	  if( n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
 	
     triangulate_polygons( get_polygons_ptr(object2[0]), get_polygons_ptr(object3) );
     
-    printf("Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
+    fprintf(stderr,"Euler characteristics is %d...\n", euler_characteristic(get_polygons_ptr(object3)));
 
     (void) output_graphics_any_format( output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
@@ -215,6 +227,181 @@ int  main(
     return( 0 );
 }
 
+/* estimate minimum of A and its index in A */
+void
+pmin(float A[], int sA, float *minimum, int *index)
+{
+  int i; 
+  *minimum = FLT_MAX; *index = 0;
+  for (i=0; i<sA; i++) {
+    if ((A[i]>0.0) && (*minimum>A[i]))
+    { 
+      *minimum = A[i]; 
+      *index   = i;
+    }
+  }
+}
+
+/* estimate x,y,z position of index i in an array size sx,sxy=sx*sy... */
+void
+ind2sub(int i,int *x,int *y, int *z, int sxy, int sy) {
+  *z = (int)floor( (double)i / (double)sxy ) +1; 
+   i = i % (sxy);
+  *y = (int)floor( (double)i / (double)sy ) +1;       
+  *x = i % sy + 1;
+}
+
+void
+vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize) 
+{
+  
+  /* main information about input data (size, dimensions, ...) */
+  const int     nvol = dims[0]*dims[1]*dims[2];
+  const int     x  = dims[0];
+  const int     y  = dims[1];
+  const int     xy = x*y;
+
+  float s1 = fabs((float)voxelsize[0]);
+  float s2 = fabs((float)voxelsize[1]);
+  float s3 = fabs((float)voxelsize[2]);
+  const float   s12  = (float) sqrt( (double)  s1*s1  + s2*s2); /* xy - voxel size */
+  const float   s13  = (float) sqrt( (double)  s1*s1  + s3*s3); /* xz - voxel size */
+  const float   s23  = (float) sqrt( (double)  s2*s2  + s3*s3); /* yz - voxel size */
+  const float   s123 = (float) sqrt( (double) s12*s12 + s3*s3); /* xyz - voxel size */
+  
+  /* indices of the neighbor Ni (index distance) and euclidean distance NW */
+  const int   NI[] = { 0, -1,-x+1, -x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1}; 
+  const float ND[] = {0.0, s1, s12, s2, s12, s13, s3,  s13, s123, s23, s123, s123, s23, s123};
+  const int   sN = sizeof(NI)/4; /* division by 4 to get from the number of bytes to the number of elements */ 
+  float DN[sN];
+  float DNm = FLT_MAX;
+  int   i, n, ni, DNi;
+
+  /* data */
+  float         *D;
+  unsigned int  *I;
+  
+  D = (float *)malloc(sizeof(float)*nvol);
+  I = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
+  
+  /* initialisation */
+  for (i=0; i<nvol; i++) 
+  {
+    if ((V[i]==0.0) || isnan(V[i])) D[i]=FLT_MAX; else D[i]=0.0; 
+    I[i]=(unsigned int)i;
+  }
+
+  int u,v,w,nu,nv,nw; 
+  /* forward direction that consider all points smaller than i */
+  for (i=0; i<nvol; i++) 
+  {
+    if (D[i]>0) 
+    {
+      ind2sub(i,&u,&v,&w,xy,x);
+      
+      /* read neighbor values */
+      for (n=0;n<sN;n++)
+      {
+        ni = i + NI[n];
+        ind2sub(ni,&nu,&nv,&nw,xy,x);
+        if ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) ) ni=i;
+        DN[n] = D[ni] + ND[n];
+      }
+
+      /* find minimum distance within the neighborhood */
+      pmin(DN,sN,&DNm,&DNi);
+
+      /* update values */
+      if (DNi>0) {
+        I[i] = (unsigned int)  I[i+NI[DNi]];
+        D[i] = DNm; 
+        ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
+        D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
+      }
+    }
+  }
+  
+  /* backward direction that consider all points larger than i */
+  for (i=nvol-1;i>=0;i--)
+  {
+    if (D[i]>0)
+    {
+      ind2sub(i,&u,&v,&w,xy,x);
+
+      /* read neighbour values */
+      for (n=0;n<sN;n++)
+      {
+        ni = i - NI[n];
+        ind2sub(ni,&nu,&nv,&nw,xy,x);
+        if ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) ) ni=i;
+        DN[n] = D[ni] + ND[n];
+      }
+
+      /* find minimum distance within the neighborhood */
+      pmin(DN,sN,&DNm,&DNi);
+
+      /* update values */
+      if (DNi>0) {
+        I[i] = (unsigned int)  I[i-NI[DNi]];
+        D[i] = DNm; 
+        ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
+        D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
+      }
+    }
+  }
+
+  for (i=0; i<nvol; i++) {
+    V[i] = D[i];
+    if (IO!=NULL) IO[i] = I[i] + 0;
+  }
+    
+  free(D);
+  free(I);
+}
+
+void
+distopen_ushort(unsigned short *vol, int dims[3], double voxelsize[3], int niter, double th)
+{
+  float *buffer;
+  int i,j;
+  unsigned short max_vol;
+  int nvol = dims[0]*dims[1]*dims[2];
+  
+  if (niter < 1) return;
+
+  for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+  th *= (double)max_vol;
+  
+  buffer = (float *)malloc(sizeof(float)*nvol);
+
+  if(buffer == NULL) {
+    fprintf(stderr,"Memory allocation error\n");
+    exit(EXIT_FAILURE);
+  }
+  
+  /* threshold input */
+  for (i=0; i<nvol; i++)
+    buffer[i] = 1.0 - (float)((double)vol[i]>th);
+
+        
+  vbdist(buffer, NULL, dims, voxelsize);
+
+  for (i=0; i<nvol; i++)
+    buffer[i] = buffer[i] > (float)niter;
+
+
+  vbdist(buffer, NULL, dims, voxelsize);
+  for (i=0; i<nvol; i++)
+    buffer[i] = buffer[i] < (float)niter;
+
+
+  /* return image */
+  for (i=0; i<nvol; i++)
+    vol[i] = (unsigned short)buffer[i];
+
+  free(buffer);
+}
+
 private  void  clear_slice(
     Volume            volume,
     double              **slice )
@@ -223,8 +410,8 @@ private  void  clear_slice(
 
     get_volume_sizes( volume, sizes );
 
-    for_less( x, 0, sizes[0] )
-    for_less( y, 0, sizes[1] )
+    for (x = 0; x < sizes[0]; x++)
+      for (y = 0; y < sizes[1]; y++)
         slice[x][y] = 0.0;
 }
 
@@ -237,8 +424,8 @@ private  void  input_slice(
 
     get_volume_sizes( volume, sizes );
 
-    for_less( x, 0, sizes[0] )
-    for_less( y, 0, sizes[1] )
+    for (x = 0; x < sizes[0]; x++)
+      for (y = 0; y < sizes[1]; y++)
         slice[x][y] = get_volume_real_value( volume, x, y, z, 0, 0);
 }
 
@@ -264,11 +451,11 @@ private  void  clear_points(
 {
     int    x, y, edge;
 
-    for_less( x, 0, x_size+2 )
+    for (x = 0; x < x_size+2; x++)
     {
-        for_less( y, 0, y_size+2 )
+        for (y = 0; y < y_size+2; y++)
         {
-            for_less( edge, 0, max_edges )
+            for (edge = 0; edge < max_edges; edge++)
                 point_ids[x][y][edge] = -1;
         }
     }
@@ -290,7 +477,7 @@ private  void   get_world_point(
     real_voxel[1] = x;
     real_voxel[2] = y;
 
-    for_less( c, 0, N_DIMENSIONS )
+    for (c = 0; c < N_DIMENSIONS; c++)
     {
         if( spatial_axes[c] >= 0 )
             voxel_pos[c] = real_voxel[spatial_axes[c]];
@@ -307,28 +494,28 @@ private  void   get_world_point(
 
 private  void  extract_isosurface(
     Volume            volume,
-    double              min_label,
-    double              max_label,
+    double            min_label,
+    double            max_label,
     int               spatial_axes[],
     General_transform *voxel_to_world_transform,
     Marching_cubes_methods  method,
     BOOLEAN           binary_flag,
-    double              min_threshold,
-    double              max_threshold,
-    double              valid_low,
-    double              valid_high,
+    double            min_threshold,
+    double            max_threshold,
+    double            valid_low,
+    double            valid_high,
     polygons_struct   *polygons )
 {
-    int             n_slices, sizes[MAX_DIMENSIONS], x_size, y_size, slice;
-    int             ***point_ids[2], ***tmp_point_ids;
-    int             max_edges;
+    int               n_slices, sizes[MAX_DIMENSIONS], x_size, y_size, slice;
+    int               ***point_ids[2], ***tmp_point_ids;
+    int               max_edges;
     double            **slices[2], **tmp_slices;
     double            **label_slices[2];
-    progress_struct progress;
-    Surfprop        spr;
-    Point           point000, point100, point010, point001;
-    Vector          v100, v010, v001, perp;
-    BOOLEAN         right_handed;
+    progress_struct   progress;
+    Surfprop          spr;
+    Point             point000, point100, point010, point001;
+    Vector            v100, v010, v001, perp;
+    BOOLEAN           right_handed;
 
     get_world_point( 0.0, 0.0, 0.0, spatial_axes, voxel_to_world_transform,
                      &point000 );
@@ -374,7 +561,7 @@ private  void  extract_isosurface(
     initialize_progress_report( &progress, FALSE, n_slices+1,
                                 "Extracting Surface" );
 
-    for_less( slice, -1, n_slices )
+    for (slice = 0; slice < n_slices; slice++)
     {
         tmp_slices = slices[0];
         slices[0] = slices[1];
@@ -491,14 +678,14 @@ private  void  extract_surface(
     double               corners[2][2][2], label;
     BOOLEAN            valid;
 
-    for_less( x, -1, x_size )
+    for (x = -1; x < x_size; x++)
     {
-        for_less( y, -1, y_size )
+        for (y = -1; y < y_size; y++)
         {
             valid = TRUE;
-            for_less( tx, 0, 2 )
-            for_less( ty, 0, 2 )
-            for_less( tz, 0, 2 )
+            for (tx = 0; tx < 2; tx++)
+            for (ty = 0; ty < 2; ty++)
+            for (tz = 0; tz < 2; tz++)
             {
                 corners[tx][ty][tz] = get_slice_value( slices, x_size, y_size,
                                                        tz, x + tx, y + ty );
@@ -533,9 +720,9 @@ private  void  extract_surface(
 int   ind, i;
 print( "Okay %d %d: \n", x, y );
 ind = 0;
-for_less( poly, 0, n_polys )
+for (poly = 0; poly < n_polys; poly++)
 {
-    for_less( i, 0, sizes[poly] )
+    for (i = 0; i < sizes[poly]; i++)
     {
         print( "%d %d %d : %d\n", points[ind].coord[0],
                points[ind].coord[1],
@@ -560,7 +747,7 @@ for_less( poly, 0, n_polys )
                 dir = -1;
             }
 
-            for_less( poly, 0, n_polys )
+            for (poly = 0; poly < n_polys; poly++)
             {
                 size = sizes[poly];
 
@@ -568,7 +755,7 @@ for_less( poly, 0, n_polys )
 
                 /*--- orient polygons properly */
 
-                for_less( p, 0, size )
+                for (p = 0; p < size; p++)
                 {
                     ind = start_points + p * dir;
                     point_index = get_point_index( x, y, slice_index,

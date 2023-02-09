@@ -54,15 +54,19 @@ main(int argc, char *argv[])
         polygons = get_polygons_ptr(object_list[0]);
         check_polygons_neighbours_computed(polygons);
 
-        object2  = create_object( POLYGONS );
-
         n_out = separate_polygons( polygons, desired_index, &object );
 
         if( n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
 	
-        triangulate_polygons( get_polygons_ptr(object[0]), get_polygons_ptr(object2) );
-    
+	
+/*
+Don't know whether this makes trouble or not, but sometimes this tool crashes for no reasons
+
+        object2  = create_object( POLYGONS );
+        triangulate_polygons( get_polygons_ptr(object[0]), get_polygons_ptr(object2) );  
         (void) output_graphics_any_format( output_filename, format, 1, &object2, NULL);
+*/
+        (void) output_graphics_any_format( output_filename, format, 1, &object[0], NULL);
 
         return(EXIT_SUCCESS);
 }

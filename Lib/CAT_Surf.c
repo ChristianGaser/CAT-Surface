@@ -1520,13 +1520,13 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
-        int                  i, p, n_steps;
+        int                  i, p, n_steps, counter;
         polygons_struct      *polygons_out;
         Point                *new_pts;
         object_struct        **objects_out;
         int                  *defects, *polydefects, n_intersects;
         int                  *n_neighbours, **neighbours;
-        double               length, overall_length;
+        double               length;
 
         compute_polygon_normals(polygons);
         check_polygons_neighbours_computed(polygons);
@@ -1547,17 +1547,14 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         /* use 10 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
         n_steps = 10;
         length = 1.0;
-        overall_length = 0.0;
         
         for (i = 0; i < n_steps; i++) {
                 copy_polygons(polygons, polygons_out);
                 
-                /* decrease length of change for each step by factor 2 to achieve larger changes
-                   in the first step which will get smaller from step to step */
+                /* decrease length of change for each step by ratio of 2 to achieve larger changes
+                   in the first steps which will get smaller from step to step */
                 if ((i+1) < n_steps)
                         length /= 2.0;
-
-                overall_length += length;
 
                 /* add fraction of thickness value in normal direction */ 
                 for (p = 0; p < polygons->n_points; p++) {
@@ -1567,24 +1564,26 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                 }
                 
                 /* check self intersections */
-                if ((check_intersects)) {
+                if ((check_intersects)) {                                          
+
                         n_intersects = find_selfintersections(polygons_out, defects, polydefects);            
                         n_intersects = join_intersections(polygons_out, defects, polydefects,
                                           n_neighbours, neighbours);
-
-#ifdef DEBUG
-                                printf("Step %02d/%02d Length %g: %d intersections\n",i+1, n_steps, length, n_intersects);
-#endif
-                        if (n_intersects > 0) {
-                                for (p = 0; p < polygons->n_points; p++) {
-                                        if (defects[p] == 0) {
-                                                Point_x(polygons->points[p]) = Point_x(polygons_out->points[p]);
-                                                Point_y(polygons->points[p]) = Point_y(polygons_out->points[p]);
-                                                Point_z(polygons->points[p]) = Point_z(polygons_out->points[p]);
-                                        }
+                        counter = 0;
+                        do {
+                                counter++;
+                                
+                                if (n_intersects > 0) {
+                                        printf("%3d self intersections found that will be corrected.\n", n_intersects);
+                
+                                        n_intersects = smooth_selfintersections(polygons_out, defects, polydefects,
+                                                     n_intersects, n_neighbours,
+                                                     neighbours, 50);
+        
                                 }
-                                new_pts = polygons->points;
-                        }
+                        } while (n_intersects > 0 && counter < 10);
+
+                        new_pts = polygons_out->points;
                 } else  new_pts = polygons_out->points;
                 
                 /* check polygon integrity of new points */
@@ -1592,6 +1591,29 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                 polygons->points = new_pts;
         }
 
+
+        /* final check and correction for self intersections */
+        if ((check_intersects)) {                                          
+
+                counter = 0;
+                n_intersects = find_selfintersections(polygons, defects, polydefects);            
+                n_intersects = join_intersections(polygons, defects, polydefects,
+                                  n_neighbours, neighbours);
+                do {
+                        counter++;
+                        
+                        if (n_intersects > 0) {
+                                printf("%3d self intersections found that will be corrected.\n", n_intersects);
+        
+                                n_intersects = smooth_selfintersections(polygons, defects, polydefects,
+                                             n_intersects, n_neighbours,
+                                             neighbours, 50);
+
+                        }
+                } while (n_intersects > 0 && counter < 10);
+
+        } 
+        
         compute_polygon_normals(polygons);
         if (check_intersects) {
                 free(defects);

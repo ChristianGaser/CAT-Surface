@@ -104,7 +104,7 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
         sum[0] = sum[1] = sum[2] = sum_weight = 0.0;
     
         for (i = 0; i < n_neighbours+1; i++)
-    	        *value = 1.0;
+                *value = 1.0;
 
         for (i = 0; i < n_neighbours+1; i++) {
                 if (i > 0) {    /* neighbouring points */
@@ -185,7 +185,7 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
            see SurfStatSmooth.m in surfstat from Keith Worsley */
         n_iter = ceil(fwhm*fwhm*0.541011/(sigma*sigma));
         if (n_iter < 1) n_iter = 1;
-        
+
         /* recalibrate sigma to ensure integer numbers for iterations */
         sigma = (fwhm*0.7355345)/sqrt((double)n_iter);
 

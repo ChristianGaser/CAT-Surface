@@ -8,34 +8,34 @@
 #
 
 if [ $# -lt 4 ]; then
-	echo "Usage $0 volume_file surface_file output_surface_file [threshold] [curv] [max_search_distance]"
-	exit
+  echo "Usage $0 volume_file surface_file output_surface_file [threshold] [curv] [max_search_distance]"
+  exit
 fi
 
-if [ $# -eq 4 ]; then
-    th=$4
-else
+if [ $# -lt 4 ]; then
     th=0.5
+else
+    th=$4
 fi
 
-if [ $# -eq 5 ]; then
-    curv=$5
-else
+if [ $# -lt 5 ]; then
     curv=0.05
+else
+    curv=$5
 fi
 
-if [ $# -eq 6 ]; then
-    dist=$6
-else
+if [ $# -lt 6 ]; then
     dist=5
+else
+    dist=$6
 fi
 
 iters=150
 model="-1 0.1 avg -0.01 0.01"
-step="0.2 0.1 $dist 0 $th $th n 0 0 0"
-CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0
+step="0.2 0.1 $dist 0 $th $th - 0 0 0"
+CAT_DeformSurf $1 none 0 0 0 $2 $3 none 0 1 $model $step $iters 0.01 0.0 1
 
 iters=50
 model="-1 0.1 avg -${curv} ${curv}"
-step="0.1 0.1 $dist 0 $th $th n 0 0 0"
-CAT_DeformSurf $1 none 0 0 0 $3 $3 none 0 1 $model $step $iters 0.01 0.0
+step="0.1 0.1 $dist 0 $th $th - 0 0 0"
+CAT_DeformSurf $1 none 0 0 0 $3 $3 none 0 1 $model $step $iters 0.01 0.0 1

@@ -22,5 +22,6 @@ double one_iter_polygons(polygons_struct *, deform_struct *, int);
 double one_iter_polygons_points(polygons_struct *, deform_struct *, int, int *);
 void check_polygons_shape_integrity(polygons_struct *, Point []);
 void check_shape_integrity_points(polygons_struct *, Point [], int *);
+void deform_polygons_check_selfintersection_old(polygons_struct *, deform_struct *, int, int);
 void deform_polygons_check_selfintersection(polygons_struct *, deform_struct *, int, int);
 void deform_surf2object(polygons_struct *, object_struct *);

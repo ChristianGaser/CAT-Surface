@@ -119,7 +119,7 @@ find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
                 euler = defect_euler(surface, defects, polydefects, d,
                                      n_neighbours, neighbours);
 
-                if (euler == 1) { /* not a defect, delete it */
+                if (euler == 2) { /* not a defect, delete it */
                         for (p = 0; p < sphere->n_points; p++) {
                                 if (defects[p] == d)
                                         defects[p] = 0;
