@@ -1,7 +1,7 @@
 dnl $Id$
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([Cortex Analysis Tools],[0.9],[Christian Gaser <christian.gaser@uni-jena.de>])
+AC_INIT([Cortex Analysis Tools],[1.0],[Christian Gaser <christian.gaser@uni-jena.de>])
 AM_INIT_AUTOMAKE
 
 AC_CONFIG_HEADER(config.h)

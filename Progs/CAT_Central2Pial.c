@@ -26,7 +26,7 @@ static ArgvInfo argTable[] = {
   {"-weight", ARGV_FLOAT, (char *) TRUE, (char *) &weight,
      "Weight between equi-volume model (1.0) and original data (0.0)."},
   {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
-     "Prevent self intersections"},
+     "Check and correct self intersections at each step (1, very slow) or only after final step (2)."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 

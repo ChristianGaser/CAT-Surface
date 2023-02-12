@@ -109,9 +109,11 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
         for (i = 0; i < n_neighbours+1; i++) {
                 if (i > 0) {    /* neighbouring points */
                         neigh = neighbours[i-1];
-                        point_dist = distance_between_points(
-                                        &polygon_pts[ptidx],
-                                        &polygon_pts[neigh]);
+                        if (values != NULL) {
+                                point_dist = distance_between_points(
+                                                &polygon_pts[ptidx],
+                                                &polygon_pts[neigh]);
+                        }
                 } else {        /* center point */
                         point_dist = 0.0;
                         neigh = ptidx;
@@ -129,7 +131,7 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
                 } else {
                         /* this is rather based on empirically estimated values to be 
                            compatible to older versions */
-                        if (i > 0) weight = 0.25;
+                        if (i > 0) weight = 1.0/N_DIMENSIONS;
                         else weight = 1.0;
                         
                         for (c = 0; c < N_DIMENSIONS; c++)
@@ -176,7 +178,7 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
                         sum_dist += point_dist;
                 }
         }
-        
+
         /* use mean distance as sigma */
         sigma = sum_dist/(double)n;
         

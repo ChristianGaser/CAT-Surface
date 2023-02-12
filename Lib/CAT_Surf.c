@@ -1563,8 +1563,8 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                         Point_z(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_z(polygons->normals[p]);
                 }
                 
-                /* check self intersections */
-                if ((check_intersects)) {                                          
+                /* only check self intersections for each step for method 1 */
+                if (check_intersects == 1) {                                          
 
                         n_intersects = find_selfintersections(polygons_out, defects, polydefects);            
                         n_intersects = join_intersections(polygons_out, defects, polydefects,

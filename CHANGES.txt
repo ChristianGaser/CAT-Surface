@@ -1,4 +1,25 @@
 ------------------------------------------------------------------------
+r455 | gaser | 2023-02-12 16:48:46
+
+Changed paths:
+ M .gitignore
+ M CHANGES.txt
+ M Lib/CAT_Refine.c
+ M Lib/CAT_Smooth.c
+ M Lib/CAT_Surf.c
+ M Progs/CAT_Central2Pial.c
+ M Progs/CAT_SurfDistance.c
+ M configure.ac
+?? CHANGES2.txt
+?? configure~
+
+Changes: Added new option for checking self intersections to CAT_Central2Pial.c
+         that allow to limit correction only after final step, which is much
+         faster.
+Changes: Added option for correction of self intersections
+Changes: Changed weighting of averaging in CAT_Smooth.c zo correct number of 3
+         neighbours.
+------------------------------------------------------------------------
 r446 | gaser | 2021-10-13 19:13:23
 
 Changed paths:

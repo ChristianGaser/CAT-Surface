@@ -275,3 +275,4 @@ int refine_mesh(
 
     return( new_polygons->n_items - polygons->n_items );
 }
+

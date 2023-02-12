@@ -18,3 +18,5 @@ depcomp
 libtool
 Makefile
 .libs
+build*
+log*

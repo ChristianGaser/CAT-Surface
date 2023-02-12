@@ -18,6 +18,7 @@ enum { Tfs, Tlink};
 /* argument defaults */
 int  dist_func        = Tfs;     /* default distance function: Freesurfer method */
 char *thickness_file  = NULL;    /* thickness file for estimating inner and outer surface from central surface */
+int   check_intersect = 0;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -27,6 +28,8 @@ static ArgvInfo argTable[] = {
      "Calculate mean of closest distance between surface 1 and 2 and vice versa (Tfs, default)." },
   {"-link", ARGV_CONSTANT, (char *) Tlink, (char *) &dist_func,
      "Calculate the linked (exact) distance between both surfaces (Tlink)." },
+  {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
+     "Check and correct self intersections if you use thickness file for internally estimating inner and outer surface at each step (1, very slow) or only after final step (2)."},
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -92,24 +95,24 @@ main(int argc, char *argv[])
         polygons  = get_polygons_ptr(objects[0]);
 
         if (thickness_file == NULL) { /* two surfaces defined */ 
-								if (input_graphics_any_format(object2_file, &format,
-																							&n_objects, &objects2) != OK) {
-												exit(EXIT_FAILURE);
-								}
-				} else { /* thickness flag and one surface defined */
+                if (input_graphics_any_format(object2_file, &format,
+                                              &n_objects, &objects2) != OK) {
+                        exit(EXIT_FAILURE);
+                }
+        } else { /* thickness flag and one surface defined */
                 extents = (double *) malloc(sizeof(double) * polygons->n_points);
                 
                 /* obtain pial surface */
                 for (i = 0; i < polygons->n_points; i++) extents[i] = 0.5;
-                objects2 = central_to_new_pial(polygons, thickness_values, extents, 0);
+                objects2 = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
                 
                 /* obtain white surface */
                 for (i = 0; i < polygons->n_points; i++) extents[i] = -0.5;
-                objects = central_to_new_pial(polygons, thickness_values, extents, 0);
+                objects = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
                 polygons = get_polygons_ptr(objects[0]);
 
                 free(extents);
-				}
+        }
 
         polygons2 = get_polygons_ptr(objects2[0]);
         
@@ -126,10 +129,10 @@ main(int argc, char *argv[])
 
         distance = (double *) malloc(sizeof(double) * polygons->n_points);
 
-				if (dist_func == Tfs) /* mean of both distances */
-								max_distance = compute_point_distance_mean(polygons, polygons2, distance, 0);
-				else                  /* linked distance */
-								max_distance = compute_point_distance(polygons, polygons2, distance, 0);
+        if (dist_func == Tfs) /* mean of both distances */
+                max_distance = compute_point_distance_mean(polygons, polygons2, distance, 0);
+        else                  /* linked distance */
+                max_distance = compute_point_distance(polygons, polygons2, distance, 0);
 
         if (output_values_any_format(output_surface_file, polygons->n_points,
                                      distance, TYPE_DOUBLE) != OK) {
