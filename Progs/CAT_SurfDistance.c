@@ -29,7 +29,7 @@ static ArgvInfo argTable[] = {
   {"-link", ARGV_CONSTANT, (char *) Tlink, (char *) &dist_func,
      "Calculate the linked (exact) distance between both surfaces (Tlink)." },
   {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
-     "Check and correct self intersections if you use thickness file for internally estimating inner and outer surface at each step (1, very slow) or only after final step (2)."},
+     "Correct self intersections if you use thickness file for internally estimating inner and outer surface."},
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 

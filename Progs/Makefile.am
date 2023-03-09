@@ -72,7 +72,9 @@ bin_PROGRAMS = \
     CAT_Surf2Vol \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
-    CAT_Test
+    CAT_Test \
+    CAT_SmoothDiffusion \
+    CAT_DeformMesh 
 
 # experimental code, not yet working or for testing only!
 ##  CAT_VolConvert \

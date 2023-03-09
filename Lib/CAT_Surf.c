@@ -18,9 +18,9 @@
 #include "CAT_Resample.h"
 #include "CAT_DeformPolygons.h"
 #include "CAT_Intersect.h"
+#include "CAT_Curvature.h"
 
 #define _PI 3.14159265358979323846264338327510
-//#define DEBUG 1
 
 int
 bound(int i, int j, int dm[])
@@ -47,7 +47,7 @@ bound(int i, int j, int dm[])
 }
 
 
-/* helper functions -- copy Point values to/from double array of length 3 */
+/* copy Point values to/from double array of length 3 */
 void
 to_array(Point *p, double *xyz) {
         int i;
@@ -456,9 +456,9 @@ compute_point_distance_mean(polygons_struct *p, polygons_struct *p2, double *dis
 
         /* walk through the points */
         for (i = 0; i < p->n_points; i++) {
-	              dist_tmp = 0.0;
-	              
-	              /* find closest distance between mesh1 and mesh2 and vice versa */
+                dist_tmp = 0.0;
+                
+                /* find closest distance between mesh1 and mesh2 and vice versa */
                 poly = find_closest_polygon_point(&p->points[i], p2, &closest);
                 poly = find_closest_polygon_point(&p2->points[i], p, &closest2);
                 dist_tmp += distance_between_points(&p->points[i],  &closest);
@@ -1534,15 +1534,15 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         objects_out  = (object_struct **) malloc(sizeof(object_struct *));
         *objects_out = create_object(POLYGONS);
         polygons_out = get_polygons_ptr(*objects_out);
-                
-        copy_polygons(polygons, polygons_out);
-        
+                        
         if (check_intersects) {
                 defects = (int *) malloc(sizeof(int) * polygons->n_points);
                 polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
                 create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                                         &neighbours, NULL, NULL);
         }
+
+        copy_polygons(polygons, polygons_out);
 
         /* use 10 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
         n_steps = 10;
@@ -1563,9 +1563,8 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                         Point_z(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_z(polygons->normals[p]);
                 }
                 
-                /* only check self intersections for each step for method 1 */
-                if (check_intersects == 1) {                                          
-
+                /* takes too long, don't use it anymore */
+                if (check_intersects) {                                          
                         n_intersects = find_selfintersections(polygons_out, defects, polydefects);            
                         n_intersects = join_intersections(polygons_out, defects, polydefects,
                                           n_neighbours, neighbours);
@@ -1593,8 +1592,7 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
 
 
         /* final check and correction for self intersections */
-        if ((check_intersects)) {                                          
-
+        if ((check_intersects)) {   
                 counter = 0;
                 n_intersects = find_selfintersections(polygons, defects, polydefects);            
                 n_intersects = join_intersections(polygons, defects, polydefects,
@@ -1611,7 +1609,6 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
 
                         }
                 } while (n_intersects > 0 && counter < 10);
-
         } 
         
         compute_polygon_normals(polygons);
@@ -1645,4 +1642,130 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
         free(extents);
 
         return(surface_area);
+}
+
+/* objective function for finding the minimum of the difference to either a defined 
+ * isovalue in a volume or to a reference mesh
+*/
+double
+get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygons_reference, Volume volume, 
+        double isovalue, double *curvatures, double weight)
+{
+        double          distance = 0.0, val, x, y, z;
+        int             p;
+        Point           point;
+
+        for (p = 0; p < polygons->n_points; p++) {
+                x = Point_x(polygons->points[p]) + weight*curvatures[p]*Point_x(polygons->normals[p]);
+                y = Point_y(polygons->points[p]) + weight*curvatures[p]*Point_y(polygons->normals[p]);
+                z = Point_z(polygons->points[p]) + weight*curvatures[p]*Point_z(polygons->normals[p]);
+                                        
+                /* if volume is defined then use squared difference between isovalue and real value at surface border
+                   otherwise use distance between the mesh points */
+                if (volume != NULL) {
+                        evaluate_volume_in_world(volume, 
+                                      x,y,z,
+                                      0, FALSE, 0.0, &val, NULL,
+                                      NULL, NULL, NULL, NULL, NULL,
+                                      NULL, NULL, NULL);
+                        if (!isnan(val)) distance += (val-isovalue)*(val-isovalue);
+                } else {
+                        point = polygons->points[p];
+                        Point_x(point) += weight*curvatures[p]*Point_x(polygons->normals[p]);
+                        Point_y(point) += weight*curvatures[p]*Point_y(polygons->normals[p]);
+                        Point_z(point) += weight*curvatures[p]*Point_z(polygons->normals[p]);
+                        
+                        val = distance_between_points(&point,&polygons_reference->points[p]);
+                        if (!isnan(val)) distance  += val;
+                }
+        }
+        return(distance);
+}
+
+/*
+ * Correct mesh in folded areas to compensate for the averaging effect in gyri and sulci.
+ * We use a folding measure (i.e. mean curvature averaged) to estimate the compensation. The amount
+ * of compensation is automatically estimated using the difference to either a defined 
+ * isovalue in a volume or to a reference mesh.
+*/
+int
+correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_reference, Volume volume, double isovalue)
+{
+        int             curvtype = 0; /* mean curvature averaged over 3mm, in degrees */
+        double          distance, eps = 1e-6, fwhm = 2.0;
+        double          a, b, f1, f2, *curvatures;
+        double          weight = 0.0, weight1, weight2, avg;
+        int             *n_neighbours, **neighbours, p;
+        const double    phi = (1.0 + sqrt(5.0))/2.0; /* Golden ratio constant */
+        
+        if (polygons_reference == NULL && volume == NULL) {
+                printf("ERROR: You have to define polygons_reference or volume.\n");
+                exit(EXIT_FAILURE);
+        }
+        
+        /* for curvtype 0 (mean curvature in degrees) use average around point */
+        if (curvtype == 0) avg = 3.0; else avg = 0.0;
+        
+        ALLOC(curvatures, polygons->n_points);
+        compute_polygon_normals(polygons);
+        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                 avg, curvtype, curvatures);
+        
+        /* smooth curvature values to minimize noisy meshes */
+        smooth_heatkernel(polygons, curvatures, fwhm);
+        
+        /* for curvtype 0 (mean curvature in degrees) we have to transform to radians */
+        if (curvtype == 0) {
+                for (p = 0; p < polygons->n_points; p++)
+                        curvatures[p] /= 57.3;
+        }
+        
+        /* define lower and upper bound */
+        a = -2.0; b = 2.0;
+        
+        weight1 = b - (b - a) / phi;
+        f1 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+                    isovalue, curvatures, weight1);
+    
+        weight2 = a + (b - a) / phi;
+        f2 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+                    isovalue, curvatures, weight2);
+    
+        /* Golden Ratio method for finding minimum */
+        while (fabs(b - a) > eps) {
+            if (f1 < f2) {
+                b = weight2;
+                weight2 = weight1;
+                f2 = f1;
+                weight1 = b - (b - a) / phi;
+                f1 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+                            isovalue, curvatures, weight1);
+            } else {
+                a = weight1;
+                weight1 = weight2;
+                f1 = f2;
+                weight2 = a + (b - a) / phi;
+                f2 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+                            isovalue, curvatures, weight2);
+            }
+        }
+    
+        /* estimate weight using the new bounds */
+        weight = (a + b)/2.0;                  
+        
+        /* additionally smooth curvature values w.r.t. estimated weight to 
+           minimize noisy meshes for larger weights */
+        smooth_heatkernel(polygons, curvatures, fabs(2.0*weight));
+        
+        /* finally aplly the optimized weighting to original mesh */
+        for (p = 0; p < polygons->n_points; p++) {
+                Point_x(polygons->points[p]) += weight*curvatures[p]*Point_x(polygons->normals[p]);
+                Point_y(polygons->points[p]) += weight*curvatures[p]*Point_y(polygons->normals[p]);
+                Point_z(polygons->points[p]) += weight*curvatures[p]*Point_z(polygons->normals[p]);                
+        }
+
+        FREE(curvatures);
+        
+        return(EXIT_SUCCESS);
 }

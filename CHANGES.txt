@@ -1,4 +1,33 @@
 ------------------------------------------------------------------------
+r456 | gaser | 2023-03-09 23:21:39
+
+Changed paths:
+ M CHANGES.txt
+ M Include/CAT_Smooth.h
+ M Include/CAT_Surf.h
+ M Lib/CAT_Intersect.c
+ M Lib/CAT_Smooth.c
+ M Lib/CAT_Surf.c
+ M Progs/CAT_3dVol2Surf.c
+ M Progs/CAT_Central2Pial.c
+ M Progs/CAT_DumpCurv.c
+ M Progs/CAT_MarchingCubesGenus0.c
+A  Progs/CAT_SmoothDiffusion.c
+ M Progs/CAT_SurfDistance.c
+ M Progs/Makefile.am
+?? CHANGES2.txt
+?? Progs/CAT_DeformMesh.c
+
+Added:   Added new smoothing tool CAT_SmoothDiffusion.c which offers similar 
+         functionality such as CAT_BlurSurfHK.c but by using flags for the many
+         options.
+Changes: Added function to correct meshes in folded areas to compensate for the 
+         averaging effect in gyri and sulci.
+Changes: Use the new mesh correction in CAT_SmoothDiffusion.c and 
+         CAT_MarchingCubesGenus0.c.
+Changes: Moved some definitions for smoothing to header file.
+Changes: Some edits in help text.
+------------------------------------------------------------------------
 r455 | gaser | 2023-02-12 16:48:46
 
 Changed paths:

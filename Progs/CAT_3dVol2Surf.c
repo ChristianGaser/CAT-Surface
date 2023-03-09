@@ -585,7 +585,7 @@ main(int argc, char *argv[])
                                                         pos = (pos - 0.5)*thickness[i];     
                                                 } else  pos = length_array[j]*thickness[i];        
                                         } else pos = length_array[j]*thickness[i];
-                                }                                
+                                }
                                 GET_grid_POINT(voxel, polygons->points[i], normal, pos);
         
                                 evaluate_volume_in_world(volume, voxel[X], voxel[Y],
