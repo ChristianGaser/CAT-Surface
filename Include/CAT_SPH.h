@@ -39,3 +39,4 @@ object_struct ** create_equally_sampled_unit_sphere(int, int);
 double * laplace2d(double *, unsigned char *, int, int, double);
 double * gradient_magnitude(double *, int, int);
 unsigned char * threshold_image(double *, int, int, double);
+void ind2sub2D(int i, int *x, int *y, int sxy, int sy);

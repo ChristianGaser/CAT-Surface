@@ -15,21 +15,7 @@
 #include "CAT_Defect.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Intersect.h"
-#include <pthread.h>
 
-typedef struct
-{
-  polygons_struct **surface;
-  int *defects;
-  int *edgeflag;
-  int *n_neighbours;
-  int **neighbours;
-  int *npts;
-  int start;
-  int end;
-} myargument;
-
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int
 intersect_poly_poly(int poly0, int poly1, polygons_struct *surface)
@@ -348,7 +334,6 @@ find_remaining_intersections(polygons_struct *surface, int *defects,
                         defects[idx] = polydefects[p];
                 }
         }
-
         return(join_intersections(surface, defects, polydefects,
                                   n_neighbours, neighbours));
 }
@@ -381,137 +366,6 @@ patch_selfintersections(polygons_struct *surface, polygons_struct *patch,
 }
 
 
-void
-*ThreadFunc(void *pArguments)
-{
-        myargument arg;
-        arg =      *(myargument *)pArguments;
-        double     areas[128], centers[384], t_area, weight, xyz[3];
-        Point      tp[3];
-        int        n, n2, i, p, nz, start, end, *npts;
-
-        polygons_struct **surface;
-        int *defects, *polydefects, n_defects;
-        int *n_neighbours, **neighbours, *edgeflag, maxiter;
-
-        surface = arg.surface;
-        defects = arg.defects;
-        edgeflag = arg.edgeflag;
-        n_neighbours = arg.n_neighbours;
-        neighbours = arg.neighbours;
-        npts = arg.npts;
-        start = arg.start;
-        end = arg.end;
-
-        /* smooth out self-intersections */
-        for (p = start; p < end; p++) {
-                if (defects[p] == 0 || edgeflag[p] != 0)
-                        continue; /* skip */
-
-                t_area = 0;
-                tp[0] = surface[0]->points[p];
-                for (n = 0; n < n_neighbours[p]; n++) {
-                        n2 = (n + 1) % n_neighbours[p];
-        
-                        /* area of the triangle */
-                        tp[1] = surface[0]->points[neighbours[p][n]];
-                        tp[2] = surface[0]->points[neighbours[p][n2]];
-                        areas[n] = get_polygon_surface_area(3, tp);
-        
-                        t_area += areas[n];
-        
-                        /* Save center of this tile */
-                        centers[n*3    ] = (Point_x(tp[0]) +
-                                            Point_x(tp[1]) +
-                                            Point_x(tp[2])) / 3.0;
-                        centers[n*3 + 1] = (Point_y(tp[0]) +
-                                            Point_y(tp[1]) +
-                                            Point_y(tp[2])) / 3.0;
-                        centers[n*3 + 2] = (Point_z(tp[0]) +
-                                            Point_z(tp[1]) +
-                                            Point_z(tp[2])) / 3.0;
-                }
-                if (t_area <= 0)
-                        continue; /* skip */
-
-                /* Area Smoothing */
-                xyz[0] = xyz[1] = xyz[2] = 0.0;
-                for (n = 0; n <  n_neighbours[p]; n++) {
-                        weight = areas[n] / t_area;
-                        for (i = 0; i < 3; i++)
-                                xyz[i] += weight * centers[n*3 + i];
-                }
-                fill_Point(surface[0]->points[p], xyz[0], xyz[1], xyz[2]);
-  
-                pthread_mutex_lock(&mutex);
-                arg.npts[0]++;
-                pthread_mutex_unlock(&mutex);
-        }
-        
-        arg.surface = surface;
-        pthread_exit((void *)0); 
-}
-
-
-void
-smooth_selfintersections_innerloop(polygons_struct *surface, int *defects,
-                         int *edgeflag, int *n_neighbours, int **neighbours, 
-                         int *npts)
-{
-
-  int i;
-  int Nthreads, start, end;
-  myargument *ThreadArgs;  
-  pthread_t *ThreadList;
-  
-  Nthreads = surface->n_points<48?surface->n_points:48;
-  if (Nthreads<1) Nthreads=1;
-  
-  /* Reserve room for handles of threads in ThreadList*/
-  ThreadList = (pthread_t *)calloc(Nthreads, sizeof(pthread_t));
-  ThreadArgs = (myargument *)calloc(Nthreads, sizeof(myargument));
-  if (pthread_mutex_init(&mutex, NULL) != 0)
-  {
-    printf("\n mutex init failed\n");
-    exit(1);
-  }
-  
-  for (i = 0; i < Nthreads; i++)
-  {
-    /* Make Thread Structure   */
-    start = (i*surface->n_points)/Nthreads;
-    end = ((i+1)*surface->n_points)/Nthreads;  
-
-    ThreadArgs[i].surface = (&surface);
-    ThreadArgs[i].defects = defects;
-    ThreadArgs[i].edgeflag = edgeflag;
-    ThreadArgs[i].n_neighbours = n_neighbours;
-    ThreadArgs[i].neighbours = neighbours;
-    ThreadArgs[i].npts = npts;
-    ThreadArgs[i].start = start;
-    ThreadArgs[i].end = end;
-  }
-
-  for (i = 0; i < Nthreads; i++)
-  {
-    if (pthread_create(&(ThreadList[i]), NULL, ThreadFunc, &ThreadArgs[i]))
-    {
-      printf("Threads cannot be created\n");
-      exit(1);
-    }    
-  }
-
-  for (i = 0; i < Nthreads; i++) {
-    pthread_join(ThreadList[i], NULL);
-  }
-  
-  pthread_mutex_destroy(&mutex);
-
-  free(ThreadList);
-  free(ThreadArgs);
-  
-}
-  
 /* smooth out self-intersections until they're repaired */
 int
 smooth_selfintersections(polygons_struct *surface, int *defects,
@@ -526,9 +380,6 @@ smooth_selfintersections(polygons_struct *surface, int *defects,
 
         if (n_defects == 0)
                  return(0); /* done! */
-
-int multi_threaded = 0;
-
 
         update_defects(surface, polydefects, defects);
 
@@ -560,13 +411,6 @@ int multi_threaded = 0;
                         }
                 }
 
-  fprintf(stderr,"smooth %d defects\n",n_defects);
-if (multi_threaded) {
-smooth_selfintersections_innerloop(surface, defects,
-                         edgeflag, n_neighbours, neighbours, 
-                         &npts);
-
-} else {
                 /* smooth out self-intersections */
                 for (p = 0; p < surface->n_points; p++) {
                         if (defects[p] == 0 || edgeflag[p] != 0)
@@ -608,8 +452,7 @@ smooth_selfintersections_innerloop(surface, defects,
                         fill_Point(surface->points[p], xyz[0], xyz[1], xyz[2]);
                         npts++;
                 }
-}
-  fprintf(stderr,"expand\n");
+
                 if (npts == 0) { /* nothing done, expand defects & restart */
                         expand_defects(surface, defects, polydefects,
                                        0, 1, n_neighbours, neighbours);
@@ -617,7 +460,6 @@ smooth_selfintersections_innerloop(surface, defects,
                         continue;
                 }
 
-  fprintf(stderr,"has_selfintersections\n");
                 /* test if self-intersections repaired */
                 for (d = 1; d <= n_defects; d++) {
                         if (has_selfintersections(surface, polydefects,
@@ -633,13 +475,11 @@ smooth_selfintersections_innerloop(surface, defects,
                                 d--;
                         }
                 }
-  fprintf(stderr,"update_defects\n");
                 update_defects(surface, polydefects, defects);
 
                 if (n_defects == 0)
                         break; /* all done! */
 
-  fprintf(stderr,"find_remaining_intersections\n");
                 if (npts > 100) {
                         /* remap defects to limit # of affected points */
                         n_defects = find_remaining_intersections(surface,
@@ -664,7 +504,6 @@ smooth_selfintersections_innerloop(surface, defects,
                 n_prev_defects = n_defects;
         }
 
-  fprintf(stderr,"find_remaining_intersections\n");
         n_defects = find_remaining_intersections(surface, defects, polydefects,
                                                  n_neighbours, neighbours);
 
@@ -678,7 +517,7 @@ int
 has_selfintersections(polygons_struct *polygons, int *polydefects, int defect)
 {
         int p, p2, i, t[3], t2[3];
-fprintf(stderr,"start..");
+
         for (p = 0; p < polygons->n_items; p++) {
                 if (polydefects[p] != defect)
                         continue; /* skip */
@@ -699,6 +538,5 @@ fprintf(stderr,"start..");
                                 return 1;
                 }
         }
-fprintf(stderr,"..end\n");
         return 0;
 }

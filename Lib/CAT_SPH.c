@@ -658,9 +658,9 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
         return object;
 }
 
-/* estimate x,y,z position of index i in an array size sx,sxy = sx*sy... */
+/* estimate x,y position of index i in an array size sx,sxy = sx*sy... */
 void 
-ind2sub(int i, int *x, int *y, int sxy, int sy) {
+ind2sub2D(int i, int *x, int *y, int sxy, int sy) {
            i = i % (sxy);
           *y = (int)floor( i / (double)sy );        
           *x = i % sy;
@@ -709,13 +709,13 @@ laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
                 maxdiffi = 0; iter++;
                 for (i = 0; i<xy; i++) {
                         if ( msk2[i] && LN[i] ) {  
-                                ind2sub(i,&u,&v,xy,dimx);
+                                ind2sub2D(i,&u,&v,xy,dimx);
 
                                 /* read neighbor values */
                                 L2[i] = 0; Nn = 0;
                                 for (n = 0; n<sN; n++) {
                                         ni = i + NI[n]; 
-                                        ind2sub(ni,&nu,&nv,xy,dimx);
+                                        ind2sub2D(ni,&nu,&nv,xy,dimx);
                                         if (ni < 0) ni += dimx;
                                         if (ni >= xy) ni -= dimx;
                                         if (((ni<0) || (ni>= xy) || (L1[ni] == -FLT_MAX) || (L1[ni] == FLT_MAX)) == 0) {
@@ -729,7 +729,7 @@ laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
                                 if ( diff>(TH/10) ) { 
                                         for (n = 0; n<sN; n++) {
                                                 ni = i + NI[n]; 
-                                                ind2sub(ni,&nu,&nv,xy,dimx);
+                                                ind2sub2D(ni,&nu,&nv,xy,dimx);
                                                 if (ni < 0) ni += dimx;
                                                 if (ni >= xy) ni -= dimx;
                                                 if (((ni<0) || (ni>= xy) || (L1[ni] == -FLT_MAX) || (L1[ni] == FLT_MAX) ) == 0) 
@@ -776,11 +776,11 @@ gradient_magnitude(double *im, int dimx, int dimy)
                         if (x<dimx-1) x2 = x; else x2 = x - dimx;
                         if (y<dimy-1) y2 = y; else y2 = y - dimy;
                         
-		  		        ind = (y2*dimx) + x2;
-		  		        if ((ind < 1) | (ind > xy-1)) continue;
-		  		        gx = (im[ind+1] - im[ind-1])/2;
-		  		        gy = (im[((y2+1)*dimx)+x2] - im[((y2-1)*dimx)+x2])/2;
-		  		        mag[ind] = sqrt(gx*gx + gy*gy);       
+                  ind = (y2*dimx) + x2;
+                  if ((ind < 1) | (ind > xy-1)) continue;
+                  gx = (im[ind+1] - im[ind-1])/2;
+                  gy = (im[((y2+1)*dimx)+x2] - im[((y2-1)*dimx)+x2])/2;
+                  mag[ind] = sqrt(gx*gx + gy*gy);       
                 }
         }
         return(mag);

@@ -50,6 +50,7 @@ bin_PROGRAMS = \
     CAT_ResampleSphericalSurfSPH \
     CAT_ArealSmoothing \
     CAT_SmoothConvexity \
+    CAT_SmoothSharpness \
     CAT_Surf2SPH \
     CAT_SPH2Surf \
     CAT_Hausdorff \

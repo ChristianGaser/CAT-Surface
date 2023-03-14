@@ -16,6 +16,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
+#include "CAT_Vol.h"
 
 #define   CHUNK_SIZE      1000000
 
@@ -53,31 +54,23 @@ private void extract_surface(
         int                    ***point_ids[],
         polygons_struct        *polygons);
 
-void distopen_ushort(unsigned short *vol, int dims[3], double voxelsize[3], int niter, double th);
-
 static char *dimension_names_3D[] = { MIzspace, MIyspace, MIxspace };
 static char *dimension_names[] = { MIyspace, MIxspace };
 
 /* argument defaults */
 double min_threshold = 0.5;
 double fwhm = 3.0;
-int    int_method = 1;
-int    force_genus0 = 1;
-int    n_opening = 0;
+double dist = 0.6;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
     {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
-          "Marching cubes method: \n\t\t0 - marching cubes\n\t\t1 - marching cubes without holes\n\t\t2 - marching tetra"},
-    {"-method", ARGV_INT, (char *) TRUE, (char *) &int_method,
-          "Marching cubes method: \n\t\t0 - marching cubes\n\t\t1 - marching cubes without holes\n\t\t2 - marching tetra"},
-    {"-force_genus0", ARGV_INT, (char *) TRUE, (char *) &force_genus0,
-          "Allows to switch off genus0 functionality by setting to 0."},
+          "Volume threshold (i.e. isovalue)."},
     {"-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &fwhm,
           "Create a slightly smoothed surface that is corrected folded areas to compensate for the averaging effect in gyri and sulci.\n\
-          Do not use smoothing sizes > 3 mm because that compensation only works reliably for smaller smoothing."},
-    {"-n_opening", ARGV_INT, (char *) TRUE, (char *) &n_opening,
-          "Additional number of opening iterations to prevent glued gyri."},
+           Do not use smoothing sizes > 3 mm because that compensation only works reliably for smaller smoothing."},
+    {"-dist", ARGV_FLOAT, (char *) TRUE, (char *) &dist,
+          "Additional distance criteri for morphological opening to prevent glued gyri."},
       {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -89,7 +82,7 @@ usage(
         char *usage_str = "\n\
 Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file threshold\n\
 \n\
-          Creates a polygonal surface of either the thresholded volume\n\
+          Creates a s mesh with Euler number 2 (genus0) of the thresholded volume\n\
           and extracts the largest component.\n\n";
 
         print_error(usage_str, executable);
@@ -102,15 +95,19 @@ main(
 {
         char                      *input_filename, *output_filename;
         Volume                    volume;
-        double                    min_label, max_label;
-        double                    valid_low, valid_high, val;
+        double                    dist0, min_label, max_label;
+        double                    valid_low, valid_high;
+        double                    voxelsize[N_DIMENSIONS];
         int                       i, j, k, c, spatial_axes[N_DIMENSIONS];
         int                       n_out, sizes[MAX_DIMENSIONS];
+        int                       nvol;
         Marching_cubes_methods    method;
         object_struct             *object, **object2, *object3;
         General_transform         voxel_to_world_transform;
         polygons_struct           *polygons;
         unsigned short            *input;
+        unsigned char             *input_uint8;
+        float                     *input_float;
 
         /* get the arguments from the command line */
         if (ParseArgv(&argc, argv, argTable, 0)) {
@@ -129,10 +126,11 @@ main(
                 return(1);
         }
         
-        method = (Marching_cubes_methods) int_method;
+        /* marching cubes without holes */
+        method = (Marching_cubes_methods) 1;
 
         valid_low   =  0.0;
-        valid_high =  -1.0;
+        valid_high  = -1.0;
         min_label   =  0.0;
         max_label   = -1.0;
 
@@ -151,79 +149,112 @@ main(
         spatial_axes[1] = 2;
         spatial_axes[2] = 1;
 
+        /* get voxel size for optional morphological opening */
+        get_volume_separations(volume, voxelsize);
+
         object  = create_object(POLYGONS);
         object3 = create_object(POLYGONS);
+        
+        /* prevent that dist is zero if not defined */
+        if (dist == 0.0)
+                dist0 = 1.0;
+        else    dist0 = dist;
+        
+        get_volume_sizes(volume, sizes);
+        nvol = sizes[0]*sizes[1]*sizes[2];
 
-        if (force_genus0) {
-                get_volume_sizes(volume, sizes);
-                input = (unsigned short *)calloc(sizes[0]*sizes[1]*sizes[2],sizeof(unsigned short));    
-        
-                for (i = 0; i < sizes[0]; i++) {
-                        for (j = 0; j < sizes[1]; j++) {
-                                for (k = 0; k < sizes[2]; k++) {
-                                        val = get_volume_real_value(volume, i, j, k, 0, 0);
-                                        if (val > min_threshold)
-                                                input[i + j*sizes[0] + k*sizes[0]*sizes[1]] = 1;
-                                        else input[i + j*sizes[0] + k*sizes[0]*sizes[1]] = 0;
-                                }
-                        }
-                }
-        
-                double voxelsize[3] = {1.0,1.0,1.0};
-                
-                /* We have to use a threshold of 0 because of data tpye (short) */
-                if(n_opening > 0) fprintf(stderr,"Number of morphological openings: %d\n",n_opening);
-                distopen_ushort(input, sizes, voxelsize, n_opening, 0);
-
-                genus0parameters g0[1];   /* need an instance of genus0parameters */
-        
-                genus0init(g0);   /* initialize the instance, set default parameters */
-        
-                /* set some parameters/options */
-                for(j= 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
-                g0->connected_component = 1;
-                g0->input = input;
-                g0->cut_loops = 0;
-                g0->connectivity = 6;
-                g0->value = 1;
-                g0->alt_value=1;
-                g0->contour_value=1;
-                g0->alt_contour_value=1;
-                g0->any_genus = 0;
-                g0->biggest_component = 1;
-                g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
-                g0->ijk2ras = NULL;
-                g0->verbose = 0;
-                g0->return_surface = 0;
-                g0->extraijkscale[2] = 1;
-        
-                /* call the function! */
-                if (genus0(g0)) return(1); /* check for error */
-        
-                /* save results as next input */
-                for (i = 0; i < sizes[0]*sizes[1]*sizes[2]; i++)
-                        input[i] = (unsigned int)g0->output[i];
-        
-                /* call genus0 a 2nd time with other parameters */
-                g0->cut_loops = 1;
-                g0->connectivity = 18;
-                g0->value = 1;
-                g0->alt_value=0;
-                g0->contour_value=1;
-                g0->alt_contour_value=0;
-        
-                if (genus0(g0)) return(1); 
-        
-                free(input);
-        
-                for (i = 0; i < sizes[0]; i++) {
-                        for (j = 0; j < sizes[1]; j++) {
-                                for (k = 0; k < sizes[2]; k++) {
-                                        set_volume_real_value(volume, i, j, k, 0, 0, g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
-                                }
+        input_float  = (float *)calloc(nvol,sizeof(float));
+        for (i = 0; i < sizes[0]; i++) {
+                for (j = 0; j < sizes[1]; j++) {
+                        for (k = 0; k < sizes[2]; k++) {
+                                input_float[i + j*sizes[0] + k*sizes[0]*sizes[1]] = get_volume_real_value(volume, i, j, k, 0, 0);
                         }
                 }
         }
+                
+        input_uint8 = (unsigned char *) calloc(nvol,sizeof(unsigned char));    
+
+        /* we first apply a slightly lower threshold (i.e. dist0 < 1) for initial mask 
+           to allow to control amount of morphological opening */
+        for (i = 0; i < nvol; i++) {
+                if (input_float[i] >= dist0*min_threshold)
+                        input_uint8[i] = 1;
+                else    input_uint8[i] = 0;
+        }
+                
+        input  = (unsigned short *)calloc(nvol,sizeof(unsigned short));    
+
+        /* optional morphological opening with distance criteria (distopen) */
+        if(dist > 0.0) {
+                fprintf(stderr,"Distance criteria for morphological openings: %g\n",dist);
+                /* use fixed dist because we control strength with dist0 */
+                dist = 1.5;
+                distopen_uint8(input_uint8, sizes, voxelsize, dist, 0.0);
+
+                for (i = 0; i < nvol; i++) {                        
+                        if (input_float[i] >= min_threshold) {
+                                if (input_uint8[i] == 0)
+                                        input_uint8[i] = 0;
+                                else    input_uint8[i] = 1;
+                        } else input_uint8[i] = 0;
+                }
+        }
+        free(input_float);
+
+        genus0parameters g0[1];   /* need an instance of genus0parameters */
+
+        genus0init(g0);   /* initialize the instance, set default parameters */
+
+        /* we need uint16 for genus0 approac */
+        for (i = 0; i < nvol; i++)
+                input[i] = (unsigned short)input_uint8[i];
+        free(input_uint8);
+
+        /* set some parameters/options */
+        for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
+        g0->connected_component = 1;
+        g0->input = input;
+        g0->cut_loops = 0;
+        g0->connectivity = 6;
+        g0->value = 1;
+        g0->alt_value=1;
+        g0->contour_value=1;
+        g0->alt_contour_value=1;
+        g0->any_genus = 0;
+        g0->biggest_component = 1;
+        g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
+        g0->ijk2ras = NULL;
+        g0->verbose = 0;
+        g0->return_surface = 0;
+        g0->extraijkscale[2] = 1;
+
+        /* call the function! */
+        if (genus0(g0)) return(1); /* check for error */
+
+        /* save results as next input */
+        for (i = 0; i < nvol; i++)
+                input[i] = g0->output[i];
+
+        /* call genus0 a 2nd time with other parameters */
+        g0->cut_loops = 1;
+        g0->connectivity = 18;
+        g0->value = 1;
+        g0->alt_value=0;
+        g0->contour_value=1;
+        g0->alt_contour_value=0;
+
+        free(input);
+
+        if (genus0(g0)) return(1); 
+
+        for (i = 0; i < sizes[0]; i++) {
+                for (j = 0; j < sizes[1]; j++) {
+                        for (k = 0; k < sizes[2]; k++) {
+                                set_volume_real_value(volume, i, j, k, 0, 0, g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
+                        }
+                }
+        }
+        
         extract_isosurface(volume,
                             min_label, max_label,
                             spatial_axes,
@@ -260,172 +291,6 @@ main(
         return(0);
 }
 
-/* estimate minimum of A and its index in A */
-void
-pmin(float A[], int sA, float *minimum, int *index)
-{
-        int i; 
-        *minimum = FLT_MAX; *index = 0;
-        for (i=0; i<sA; i++) {
-                if ((A[i]>0.0) && (*minimum>A[i])) { 
-                        *minimum = A[i]; 
-                        *index      = i;
-                }
-        }
-}
-
-/* estimate x,y,z position of index i in an array size sx,sxy=sx*sy... */
-void
-ind2sub(int i,int *x,int *y, int *z, int sxy, int sy) {
-        *z = (int)floor((double)i / (double)sxy) +1; 
-        i = i % (sxy);
-        *y = (int)floor((double)i / (double)sy) +1;             
-        *x = i % sy + 1;
-}
-
-void
-vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize) 
-{
-    
-        /* main information about input data (size, dimensions, ...) */
-        const int         nvol = dims[0]*dims[1]*dims[2];
-        const int         x   = dims[0];
-        const int         y   = dims[1];
-        const int         xy = x*y;
-    
-        float s1 = fabs((float)voxelsize[0]);
-        float s2 = fabs((float)voxelsize[1]);
-        float s3 = fabs((float)voxelsize[2]);
-        const float     s12   = (float) sqrt((double)    s1*s1   + s2*s2); /* xy - voxel size */
-        const float     s13   = (float) sqrt((double)    s1*s1   + s3*s3); /* xz - voxel size */
-        const float     s23   = (float) sqrt((double)    s2*s2   + s3*s3); /* yz - voxel size */
-        const float     s123 = (float) sqrt((double) s12*s12 + s3*s3); /* xyz - voxel size */
-        
-        /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-        const int     NI[] = { 0, -1,-x+1, -x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1}; 
-        const float   ND[] = {0.0, s1, s12, s2, s12, s13, s3,   s13, s123, s23, s123, s123, s23, s123};
-        const int     sN = sizeof(NI)/4; /* division by 4 to get from the number of bytes to the number of elements */ 
-        float DN[sN];
-        float DNm = FLT_MAX;
-        int   i, n, ni, DNi;
-    
-        /* data */
-        float        *D;
-        unsigned int *I;
-        
-        D = (float *)malloc(sizeof(float)*nvol);
-        I = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
-        
-        /* initialisation */
-        for (i=0; i<nvol; i++) {
-                if ((V[i]==0.0) || isnan(V[i])) D[i]=FLT_MAX; else D[i]=0.0; 
-                I[i]=(unsigned int)i;
-        }
-    
-        int u,v,w,nu,nv,nw; 
-        /* forward direction that consider all points smaller than i */
-        for (i=0; i<nvol; i++) {
-            if (D[i]>0) {
-                    ind2sub(i,&u,&v,&w,xy,x);
-                    
-                    /* read neighbor values */
-                    for (n=0;n<sN;n++){
-                            ni = i + NI[n];
-                            ind2sub(ni,&nu,&nv,&nw,xy,x);
-                            if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
-                            DN[n] = D[ni] + ND[n];
-                    }
-        
-                    /* find minimum distance within the neighborhood */
-                    pmin(DN,sN,&DNm,&DNi);
-        
-                    /* update values */
-                    if (DNi>0) {
-                            I[i] = (unsigned int)   I[i+NI[DNi]];
-                            D[i] = DNm; 
-                            ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
-                            D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
-                    }
-              }
-        }
-        
-        /* backward direction that consider all points larger than i */
-        for (i=nvol-1;i>=0;i--) {
-                if (D[i]>0) {
-                        ind2sub(i,&u,&v,&w,xy,x);
-            
-                        /* read neighbour values */
-                        for (n=0;n<sN;n++) {
-                                ni = i - NI[n];
-                                ind2sub(ni,&nu,&nv,&nw,xy,x);
-                                if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
-                                DN[n] = D[ni] + ND[n];
-                        }
-            
-                        /* find minimum distance within the neighborhood */
-                        pmin(DN,sN,&DNm,&DNi);
-            
-                        /* update values */
-                        if (DNi>0) {
-                                I[i] = (unsigned int)   I[i-NI[DNi]];
-                                D[i] = DNm; 
-                                ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
-                                D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
-                        }
-                }
-        }
-    
-        for (i=0; i<nvol; i++) {
-                V[i] = D[i];
-                if (IO!=NULL) IO[i] = I[i] + 0;
-        }
-            
-        free(D);
-        free(I);
-}
-
-void
-distopen_ushort(unsigned short *vol, int dims[3], double voxelsize[3], int niter, double th)
-{
-        float *buffer;
-        int i,j;
-        unsigned short max_vol;
-        int nvol = dims[0]*dims[1]*dims[2];
-        
-        if (niter < 1) return;
-    
-        for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-        th *= (double)max_vol;
-        
-        buffer = (float *)malloc(sizeof(float)*nvol);
-    
-        if(buffer == NULL) {
-                fprintf(stderr,"Memory allocation error\n");
-                exit(EXIT_FAILURE);
-        }
-        
-        /* threshold input */
-        for (i=0; i<nvol; i++)
-                buffer[i] = 1.0 - (float)((double)vol[i]>th);
-    
-                    
-        vbdist(buffer, NULL, dims, voxelsize);
-    
-        for (i=0; i<nvol; i++)
-                buffer[i] = buffer[i] > (float)niter;
-    
-    
-        vbdist(buffer, NULL, dims, voxelsize);
-        for (i=0; i<nvol; i++)
-                buffer[i] = buffer[i] < (float)niter;
-    
-    
-        /* return image */
-        for (i=0; i<nvol; i++)
-                vol[i] = (unsigned short)buffer[i];
-    
-        free(buffer);
-}
 
 private void 
 clear_slice(

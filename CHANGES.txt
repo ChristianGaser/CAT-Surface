@@ -1,4 +1,28 @@
 ------------------------------------------------------------------------
+r457 | gaser | 2023-03-14 07:41:33
+
+Changed paths:
+ M CHANGES.txt
+ M Include/CAT_SPH.h
+AM Include/CAT_Vol.h
+ M Lib/CAT_Intersect.c
+ M Lib/CAT_SPH.c
+AM Lib/CAT_Vol.c
+ M Makefile.am
+ M Progs/CAT_MarchingCubesGenus0.c
+ M Progs/Makefile.am
+?? CHANGES2.txt
+?? Lib/CAT_Intersect_pthreads.c
+?? Progs/CAT_DeformMesh.c
+?? Progs/CAT_SmoothSharpness.c
+
+Added:   Added CAT_Vaol.c with vollib functions from amap.
+Added:   Added very preliminary CAT_DeformMesh.c.
+Added:   Added CAT_SmoothSharpness that weights diffusion smoothing w.r.t.
+         local sharpness values.
+Changes: Removed vollib functions from CAT_MarchingCubesGenus0 and added new
+         dist-flag that controls amount of morphological openings.
+------------------------------------------------------------------------
 r456 | gaser | 2023-03-09 23:21:39
 
 Changed paths:
