@@ -20,3 +20,4 @@ Makefile
 .libs
 build*
 log*
+configure~

@@ -1,4 +1,22 @@
 ------------------------------------------------------------------------
+r458 | gaser | 2023-03-14 16:17:25
+
+Changed paths:
+ M .gitignore
+ M CHANGES.txt
+ M INSTALL
+ M Lib/CAT_Vol.c
+A  Progs/CAT_DeformMesh.c
+ M Progs/CAT_DeformSurf.c
+?? CHANGES2.txt
+?? Lib/CAT_Intersect_pthreads.c
+?? Progs/CAT_SmoothSharpness.c
+
+Changed: Added flag for correcting mesh to cat_DeformSurf.c that allows to 
+         correct mesh w.r.t. local folding to better fit to isovalue.
+Fixed:   Replaced HUGE by 1e15 in CAT_Vol.c
+Added:   New CAT_SmoothSharpness.ca nd CAT_DeformMesh.c.
+------------------------------------------------------------------------
 r457 | gaser | 2023-03-14 07:41:33
 
 Changed paths:

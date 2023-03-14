@@ -13,7 +13,7 @@ void
 get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros)
 {
   double mn_thresh, mx_thresh;
-  double min_src = HUGE, max_src = -HUGE;
+  double min_src = 1e15, max_src = -1e15;
   int *cumsum, *histo;
   int i, sz_histo = 10000, nvol = dims[0]*dims[1]*dims[2];
   
@@ -1638,7 +1638,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
   int dimsr[3];
   float *volr, *buffer, *TAr;
   double voxelsizer[3];
-  float min_vol = HUGE, max_vol = -HUGE;
+  float min_vol = 1e15, max_vol = -1e15;
   unsigned int *MIr;
   unsigned char *BMr, *BMr2;
   double threshold[2], prctile[2] = {5,95};

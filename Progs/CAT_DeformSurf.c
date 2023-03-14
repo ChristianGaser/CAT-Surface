@@ -12,6 +12,7 @@
 #include "CAT_DeformPolygons.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_NiftiIO.h"
+#include "CAT_Surf.h"
 
 void
 usage(char *executable)
@@ -31,6 +32,7 @@ usage(char *executable)
         fprintf(stderr, "   gradient_threshold angle tolerance\n");
         fprintf(stderr, "   max_iterations  movement_threshold stop_threshold\n");
         fprintf(stderr, "   force_no_selfintersections\n");
+        fprintf(stderr, "   correct_mesh\n");
 }
 
 int
@@ -47,7 +49,7 @@ main(int argc, char *argv[])
         double            angle, tolerance, max_dist = 0;
         double            separations[N_DIMENSIONS];
         double            xfilt_width = 0, yfilt_width = 0, zfilt_width = 0;
-        int               i, n_models = 0, up_to_n_points;
+        int               i, n_models = 0, up_to_n_points, correct_mesh;
         deform_struct     deform;
         File_formats      file_format;
         int               n_objects, check_every_iteration, force_no_selfintersections;
@@ -105,12 +107,14 @@ main(int argc, char *argv[])
             get_real_argument(0.0, &tolerance) == 0 ||
             get_int_argument(0, &deform.max_iterations) == 0 ||
             get_real_argument(0.0, &deform.movement_threshold) == 0 ||
-            get_real_argument(0.0, &deform.stop_threshold) == 0 ||
-            get_int_argument(0.0, &force_no_selfintersections) == 0) {
+            get_real_argument(0.0, &deform.stop_threshold) == 0) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
         }
 
+        get_int_argument(0, &force_no_selfintersections);
+        get_int_argument(0, &correct_mesh);
+        
         set_boundary_definition(&deform.boundary_definition, min_isovalue,
                                 max_isovalue, gradient_thresh, angle,
                                 normal_direction[0], tolerance);
@@ -169,6 +173,10 @@ main(int argc, char *argv[])
                 check_every_iteration = 100;
                 deform_polygons_check_selfintersection_old(polygons, &deform, check_every_iteration, force_no_selfintersections);
         }
+
+        /* optionally correct mesh w.r.t. folding to achieve better fit to isovolue */
+        if (correct_mesh)
+                correct_mesh_folding(polygons, NULL, volume, min_isovalue);
 
         compute_polygon_normals(polygons);
 
