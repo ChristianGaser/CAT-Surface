@@ -1,4 +1,15 @@
 ------------------------------------------------------------------------
+r462 | gaser | 2023-04-17 23:12:30
+
+Changed paths:
+ M CHANGES.txt
+A  Include/niilib.h
+A  Lib/niilib.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Added:   Created new niilib.c and niilib.h for additional nifti functions.
+------------------------------------------------------------------------
 r461 | gaser | 2023-04-17 23:04:09
 
 Changed paths:
