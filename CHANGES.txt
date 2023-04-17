@@ -1,4 +1,74 @@
 ------------------------------------------------------------------------
+r461 | gaser | 2023-04-17 23:04:09
+
+Changed paths:
+ M CHANGES.txt
+ M Include/CAT_NiftiIO.h
+ M Include/CAT_SurfaceIO.h
+ M Makefile.am
+D  Matlab/cg_F2x_curv_txt.m
+D  Matlab/cg_cov_curv_txt.m
+D  Matlab/cg_get_aparc_data.m
+D  Matlab/cg_glm_curv_txt.m
+D  Matlab/cg_icc_curv_txt.m
+D  Matlab/cg_invert_values_curv_txt.m
+D  Matlab/cg_mgh2abs.m
+D  Matlab/cg_read_curv_txt.m
+D  Matlab/cg_t2x_curv_txt.m
+D  Matlab/cg_write_curv_txt.m
+D  Matlab/create_mean_image_of_each_twinpair_cg.m
+D  Matlab/load_mgh.m
+D  Matlab/read_curv.m
+D  Matlab/save_mgh.m
+D  Matlab/write_curv.m
+ M Progs/CAT_DeformMesh.c
+ M Progs/CAT_MarchingCubesGenus0.c
+R  not_used_anymore/CAT_FixSelfIntersect.c -> deprecated/CAT_FixSelfIntersect.c
+R  not_used_anymore/CAT_LBConformalMap.c -> deprecated/CAT_LBConformalMap.c
+R  not_used_anymore/CAT_LaplaceBeltrami.c -> deprecated/CAT_LaplaceBeltrami.c
+R  not_used_anymore/CAT_MarchingCubesSphere.c -> deprecated/CAT_MarchingCubesSphere.c
+R  not_used_anymore/CAT_SelfIntersect.c -> deprecated/CAT_SelfIntersect.c
+R  not_used_anymore/conjugate.h -> deprecated/conjugate.h
+R  not_used_anymore/fit_3d.h -> deprecated/fit_3d.h
+R  not_used_anymore/fit_3d_prototypes.h -> deprecated/fit_3d_prototypes.h
+R  not_used_anymore/nl/nl.h -> deprecated/nl/nl.h
+R  not_used_anymore/nl/nl_api.c -> deprecated/nl/nl_api.c
+R  not_used_anymore/nl/nl_blas.c -> deprecated/nl/nl_blas.c
+R  not_used_anymore/nl/nl_blas.h -> deprecated/nl/nl_blas.h
+R  not_used_anymore/nl/nl_context.c -> deprecated/nl/nl_context.c
+R  not_used_anymore/nl/nl_context.h -> deprecated/nl/nl_context.h
+R  not_used_anymore/nl/nl_iterative_solvers.c -> deprecated/nl/nl_iterative_solvers.c
+R  not_used_anymore/nl/nl_iterative_solvers.h -> deprecated/nl/nl_iterative_solvers.h
+R  not_used_anymore/nl/nl_matrix.c -> deprecated/nl/nl_matrix.c
+R  not_used_anymore/nl/nl_matrix.h -> deprecated/nl/nl_matrix.h
+R  not_used_anymore/nl/nl_os.c -> deprecated/nl/nl_os.c
+R  not_used_anymore/nl/nl_preconditioners.c -> deprecated/nl/nl_preconditioners.c
+R  not_used_anymore/nl/nl_preconditioners.h -> deprecated/nl/nl_preconditioners.h
+R  not_used_anymore/nl/nl_private.h -> deprecated/nl/nl_private.h
+R  not_used_anymore/nl/nl_superlu.c -> deprecated/nl/nl_superlu.c
+R  not_used_anymore/nl/nl_superlu.h -> deprecated/nl/nl_superlu.h
+ M gifticlib/gifti_io.h
+R  niftilib/analyze75.h -> nifti/analyze75.h
+R  niftilib/nifti1.h -> nifti/nifti1.h
+R  niftilib/nifti1_io.c -> nifti/nifti1_io.c
+RM niftilib/nifti1_io.h -> nifti/nifti1_io.h
+RM niftilib/nifti1_local.h -> nifti/nifti1_local.h
+R  niftilib/znzlib.c -> nifti/znzlib.c
+R  niftilib/znzlib.h -> nifti/znzlib.h
+?? CHANGES2.txt
+?? Include/niilib.h
+?? Lib/niilib.c
+?? Progs/NamesNew.txt
+
+Changed: Added automatical estimation of dist parameter to
+         CAT_MarchingCubesGenus0.c. 
+Changed: Updated help text for CAT_MarchingCubesGenus0.c and changed some 
+         options.
+Changed: Renamed folder not_used_anymore to deprecated.
+Changed: Renamed folder niftilib to nifti.
+Deleted: Deleted Matlab folder that is not necessary anymore.
+Added:   Created new niilib.c and niilib.h for additional nifti functions.
+------------------------------------------------------------------------
 r458 | gaser | 2023-03-14 16:17:25
 
 Changed paths:

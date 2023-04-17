@@ -60,17 +60,17 @@ static char *dimension_names[] = { MIyspace, MIxspace };
 /* argument defaults */
 double min_threshold = 0.5;
 double fwhm = 3.0;
-double dist = 0.6;
+int distopen = 1;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
     {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
           "Volume threshold (i.e. isovalue)."},
     {"-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &fwhm,
-          "Create a slightly smoothed surface that is corrected folded areas to compensate for the averaging effect in gyri and sulci.\n\
-           Do not use smoothing sizes > 3 mm because that compensation only works reliably for smaller smoothing."},
-    {"-dist", ARGV_FLOAT, (char *) TRUE, (char *) &dist,
-          "Additional distance criteri for morphological opening to prevent glued gyri."},
+          "Create a slightly smoothed surface that is corrected in folded areas to compensate for the averaging effect in gyri and sulci.\n\
+           Do not use smoothing sizes > 3 mm because that compensation only works reliably for smaller smoothing sizes."},
+    {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &distopen,
+          "Disable additional morphological opening."},
       {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -82,11 +82,36 @@ usage(
         char *usage_str = "\n\
 Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file threshold\n\
 \n\
-          Creates a s mesh with Euler number 2 (genus0) of the thresholded volume\n\
-          and extracts the largest component.\n\n";
+          This method creates a mesh with Euler number 2 (genus 0) of the\n\
+          thresholded volume. Here are the steps involved:\n\
+            1. Appliy additional morphological opening (dist) to prevent glued gyri\n\
+               and minimizes locl artifacts caused by small vessels or\n\
+               mis-segmentations. The strength of the opening is automatically\n\
+               estimated by analyzing the impact of different dist values\n\
+               and tracking the changes in RSME between these values.\n\
+            2. Extract largest component.\n\
+            3. Smooth the resulting mesh.\n\
+            4. Correct mesh in folded areas to compensate for the averaging effect\n\
+               in gyri and sulci. We use a folding measure (i.e. mean curvature\n\
+               averaged) to estimate the compensation. The amount of compensation\n\
+               is automatically estimated using the difference to the defined\n\
+               isovalue.\n\n";
 
         print_error(usage_str, executable);
 }
+
+/* convert subscripts to linear index */
+static int 
+sub2ind(
+        int horiz, 
+        int vert, 
+        int depth, 
+        int img_horiz, 
+        int img_vert)
+{  
+        return(horiz+(vert+depth*img_vert)*img_horiz);
+}
+
 
 int   
 main(
@@ -95,18 +120,18 @@ main(
 {
         char                      *input_filename, *output_filename;
         Volume                    volume;
-        double                    dist0, min_label, max_label;
-        double                    valid_low, valid_high;
+        double                    dist, min_label, max_label;
+        double                    valid_low, valid_high, val, RMSE, sum_RMSE;
         double                    voxelsize[N_DIMENSIONS];
         int                       i, j, k, c, spatial_axes[N_DIMENSIONS];
         int                       n_out, sizes[MAX_DIMENSIONS];
-        int                       nvol;
+        int                       nvol, ind, count, stop_distopen;
         Marching_cubes_methods    method;
         object_struct             *object, **object2, *object3;
         General_transform         voxel_to_world_transform;
         polygons_struct           *polygons;
         unsigned short            *input;
-        unsigned char             *input_uint8;
+        unsigned char             *input_uint8, *ref_uint8;
         float                     *input_float;
 
         /* get the arguments from the command line */
@@ -154,12 +179,7 @@ main(
 
         object  = create_object(POLYGONS);
         object3 = create_object(POLYGONS);
-        
-        /* prevent that dist is zero if not defined */
-        if (dist == 0.0)
-                dist0 = 1.0;
-        else    dist0 = dist;
-        
+                
         get_volume_sizes(volume, sizes);
         nvol = sizes[0]*sizes[1]*sizes[2];
 
@@ -167,48 +187,98 @@ main(
         for (i = 0; i < sizes[0]; i++) {
                 for (j = 0; j < sizes[1]; j++) {
                         for (k = 0; k < sizes[2]; k++) {
-                                input_float[i + j*sizes[0] + k*sizes[0]*sizes[1]] = get_volume_real_value(volume, i, j, k, 0, 0);
+                                ind = sub2ind(i,j,k,sizes[0],sizes[1]);
+                                input_float[ind]  = get_volume_real_value(volume, i, j, k, 0, 0);
                         }
                 }
         }
-                
-        input_uint8 = (unsigned char *) calloc(nvol,sizeof(unsigned char));    
+        
+        input       = (unsigned short *) calloc(nvol,sizeof(unsigned short));    
+        input_uint8 = (unsigned char  *) calloc(nvol,sizeof(unsigned char));    
+        ref_uint8   = (unsigned char  *) calloc(nvol,sizeof(unsigned char));    
 
-        /* we first apply a slightly lower threshold (i.e. dist0 < 1) for initial mask 
-           to allow to control amount of morphological opening */
-        for (i = 0; i < nvol; i++) {
-                if (input_float[i] >= dist0*min_threshold)
-                        input_uint8[i] = 1;
-                else    input_uint8[i] = 0;
-        }
-                
-        input  = (unsigned short *)calloc(nvol,sizeof(unsigned short));    
+        sum_RMSE = 0.0;
+        count    = 0;
+        
+        /* We analyze the impact of different dist values ranging from 1.8 to 0.5 
+           using distopen. By doing so, we can track the changes in RSME (Root Mean 
+           Square Error) between these values. When using large dist values, the 
+           changes in RSME are relatively significant and stable because they affect 
+           the whole image resulting in smaller gyri and wider sulci. In contrast, 
+           using smaller dist values results in only local changes that are much 
+           smaller since only regions with artifacts such as vessels or poor skull-
+           stripping are affected. The optimal dist value is determined by identifying 
+           the point where the RSME decreases significantly, indicating successful 
+           artifact removal while maintaining global gyri and sulci characteristics. 
+        */
+        stop_distopen = 0;
+        for (dist = 1.8; dist > 0.4; dist -= 0.1) {
+          
+                /* skip morphological opening if distopen is disabled */
+                if (!distopen) dist = 1.0;
+          
+                /* we first apply a slightly lower threshold for initial mask 
+                   to allow to control amount of morphological opening */
+                for (i = 0; i < nvol; i++) {                        
+                        if ((double)input_float[i] >= dist*min_threshold)
+                                input_uint8[i] = 1;
+                        else    input_uint8[i] = 0;
+                }
+        
+                /* interrupt here if distopen is disabled */
+                if (!distopen) break;
 
-        /* optional morphological opening with distance criteria (distopen) */
-        if(dist > 0.0) {
-                fprintf(stderr,"Distance criteria for morphological openings: %g\n",dist);
-                /* use fixed dist because we control strength with dist0 */
-                dist = 1.5;
-                distopen_uint8(input_uint8, sizes, voxelsize, dist, 0.0);
+                /* optional morphological opening with distance criteria (distopen)
+                   use fixed dist of 1.5 because we control strength with the 
+                   previous step above. */
+                distopen_uint8(input_uint8, sizes, voxelsize, 1.5, 0.0);
 
                 for (i = 0; i < nvol; i++) {                        
-                        if (input_float[i] >= min_threshold) {
+                        if ((double)input_float[i] >= min_threshold) {
                                 if (input_uint8[i] == 0)
                                         input_uint8[i] = 0;
                                 else    input_uint8[i] = 1;
                         } else input_uint8[i] = 0;
                 }
+                
+                /* stop after one additional iteration */
+                if (stop_distopen > 0) break;
+                
+                /* Calulate RMSE between actual and previous distopen and stop if
+                   chamges in RMSE are getting much smaller to obtain the optimal 
+                   dist parameter */
+                if (count) {
+                        RMSE = 0.0;
+                        for (i = 0; i < nvol; i++) {
+                                val = (double)input_uint8[i] - (double)ref_uint8[i];  
+                                RMSE += val*val;
+                        }   
+                        RMSE = sqrt(RMSE/(double)nvol);
+                        sum_RMSE += RMSE;
+                        
+                        /* indicate stop if changes are getting smaller by a factor of 1.5 */
+                        if (sum_RMSE/RMSE/(double)count > 1.5) break;
+                        fprintf(stderr,"%g\t%g\t%g\n",dist,sum_RMSE/RMSE/(double)count,RMSE);                                           
+                }
+                
+                /* save previous image after distopen */ 
+                for (i = 0; i < nvol; i++) ref_uint8[i] = input_uint8[i];     
+
+                count++;                
+
         }
+
         free(input_float);
 
-        genus0parameters g0[1];   /* need an instance of genus0parameters */
+        genus0parameters g0[1];      /* need an instance of genus0 parameters */
 
-        genus0init(g0);   /* initialize the instance, set default parameters */
+        genus0init(g0);    /* initialize the instance, set default parameters */
 
-        /* we need uint16 for genus0 approac */
+        /* we need uint16 for genus0 approach */
         for (i = 0; i < nvol; i++)
                 input[i] = (unsigned short)input_uint8[i];
         free(input_uint8);
+        free(ref_uint8);
 
         /* set some parameters/options */
         for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
@@ -217,8 +287,8 @@ main(
         g0->cut_loops = 0;
         g0->connectivity = 6;
         g0->value = 1;
-        g0->alt_value=1;
-        g0->contour_value=1;
+        g0->alt_value = 1;
+        g0->contour_value = 1;
         g0->alt_contour_value=1;
         g0->any_genus = 0;
         g0->biggest_component = 1;
@@ -242,7 +312,6 @@ main(
         g0->alt_value=0;
         g0->contour_value=1;
         g0->alt_contour_value=0;
-
         free(input);
 
         if (genus0(g0)) return(1); 
@@ -250,7 +319,8 @@ main(
         for (i = 0; i < sizes[0]; i++) {
                 for (j = 0; j < sizes[1]; j++) {
                         for (k = 0; k < sizes[2]; k++) {
-                                set_volume_real_value(volume, i, j, k, 0, 0, g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
+                                set_volume_real_value(volume, i, j, k, 0, 0, 
+                                    g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
                         }
                 }
         }

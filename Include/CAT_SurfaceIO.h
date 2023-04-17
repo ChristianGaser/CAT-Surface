@@ -14,8 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "gifticlib/gifti_io.h"
-#include "niftilib/nifti1.h"
-#include "niftilib/nifti1_io.h"
+#include "nifti/nifti1.h"
+#include "nifti/nifti1_io.h"
 
 #define QUAD_FILE_MAGIC_NUMBER      (-1 & 0x00ffffff)
 #define TRIANGLE_FILE_MAGIC_NUMBER  (-2 & 0x00ffffff)

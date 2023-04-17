@@ -11,9 +11,9 @@
 #include <limits.h>
 #include <float.h>
 
-#include "niftilib/nifti1_io.h"
-#include "niftilib/nifti1_local.h"
-#include "niftilib/analyze75.h"
+#include "nifti/nifti1_io.h"
+#include "nifti/nifti1_local.h"
+#include "nifti/analyze75.h"
 
 Status input_volume_all(char *, int, char **, nc_type, BOOLEAN,
                  double, double, BOOLEAN, Volume *, minc_input_options *);

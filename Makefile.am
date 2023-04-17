@@ -3,7 +3,7 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/niftilib -I$(top_srcdir)/zlib
+AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/nifti -I$(top_srcdir)/zlib
 
 lib_LTLIBRARIES = libCAT.la
 
@@ -38,8 +38,8 @@ zlib_SRC = \
     zlib/uncompr.c
 
 nifti_SRC = \
-    niftilib/nifti1_io.c \
-    niftilib/znzlib.c
+    nifti/nifti1_io.c \
+    nifti/znzlib.c
 
 gifti_SRC = \
     gifticlib/gifti_io.c \
@@ -81,11 +81,11 @@ noinst_HEADERS = \
     MarchingCubes/genus0.h \
     MarchingCubes/tricases.h \
     dartel/dartel.h \
-    niftilib/analyze75.h \
-    niftilib/nifti1.h \
-    niftilib/nifti1_io.h \
-    niftilib/nifti1_local.h \
-    niftilib/znzlib.h \
+    nifti/analyze75.h \
+    nifti/nifti1.h \
+    nifti/nifti1_io.h \
+    nifti/nifti1_local.h \
+    nifti/znzlib.h \
     gifticlib/gifti_io.h \
     gifticlib/gifti_test.h \
     gifticlib/gifti_tool.h \

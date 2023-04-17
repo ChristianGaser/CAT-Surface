@@ -82,4 +82,3 @@ static const char *mnc_spatial_names[MAX_SPACE_DIMS] = {
     MIyspace,
     MIzspace
 };
-
