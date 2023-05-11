@@ -61,6 +61,7 @@ static char *dimension_names[] = { MIyspace, MIxspace };
 double min_threshold = 0.5;
 double fwhm = 3.0;
 int distopen = 1;
+int any_genus = 0;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -71,6 +72,8 @@ static ArgvInfo argTable[] = {
            Do not use smoothing sizes > 3 mm because that compensation only works reliably for smaller smoothing sizes."},
     {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &distopen,
           "Disable additional morphological opening."},
+    {"-no_genus0", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
+          "Allows to switch off genus0 functionality."},
       {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -88,7 +91,7 @@ Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file threshold\n\
                and minimizes locl artifacts caused by small vessels or\n\
                mis-segmentations. The strength of the opening is automatically\n\
                estimated by analyzing the impact of different dist values\n\
-               and tracking the changes in RSME between these values.\n\
+               and tracking the changes in RMSE between these values.\n\
             2. Extract largest component.\n\
             3. Smooth the resulting mesh.\n\
             4. Correct mesh in folded areas to compensate for the averaging effect\n\
@@ -201,17 +204,18 @@ main(
         count    = 0;
         
         /* We analyze the impact of different dist values ranging from 1.8 to 0.5 
-           using distopen. By doing so, we can track the changes in RSME (Root Mean 
+           using distopen. By doing so, we can track the changes in RMSE (Root Mean 
            Square Error) between these values. When using large dist values, the 
-           changes in RSME are relatively significant and stable because they affect 
+           changes in RMSE are relatively significant and stable because they affect 
            the whole image resulting in smaller gyri and wider sulci. In contrast, 
            using smaller dist values results in only local changes that are much 
            smaller since only regions with artifacts such as vessels or poor skull-
            stripping are affected. The optimal dist value is determined by identifying 
-           the point where the RSME decreases significantly, indicating successful 
+           the point where the RMSE decreases significantly, indicating successful 
            artifact removal while maintaining global gyri and sulci characteristics. 
         */
         stop_distopen = 0;
+        fprintf(stderr,"%5s\t%5s\t%5s\n","Dist","avgRMSE","RMSE");                                           
         for (dist = 1.8; dist > 0.4; dist -= 0.1) {
           
                 /* skip morphological opening if distopen is disabled */
@@ -258,7 +262,7 @@ main(
                         
                         /* indicate stop if changes are getting smaller by a factor of 1.5 */
                         if (sum_RMSE/RMSE/(double)count > 1.5) break;
-                        fprintf(stderr,"%g\t%g\t%g\n",dist,sum_RMSE/RMSE/(double)count,RMSE);                                           
+                        fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",dist,sum_RMSE/RMSE/(double)count,RMSE);                                           
                 }
                 
                 /* save previous image after distopen */ 
@@ -290,7 +294,7 @@ main(
         g0->alt_value = 1;
         g0->contour_value = 1;
         g0->alt_contour_value=1;
-        g0->any_genus = 0;
+        g0->any_genus = any_genus;
         g0->biggest_component = 1;
         g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
         g0->ijk2ras = NULL;
