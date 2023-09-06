@@ -15,7 +15,7 @@
 /*
  Replaced original lookup table dated 13/07/2002 by new 
  corrected tables from 12/08/2002 and used adapted code
- by Chris Rordan:
+ by Chris Rorden:
  https://github.com/neurolabusc/LewinerMarchingCubes
 */
 

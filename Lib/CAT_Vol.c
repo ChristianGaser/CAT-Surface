@@ -669,9 +669,10 @@ laplace3(float *SEG, int dims[3], int maxiter)
   float *L1 = (float *)malloc(sizeof(float)*nvol);
   float *L2 = (float *)malloc(sizeof(float)*nvol);
   unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+  int i, n;
   
   /* initialisiation */
-  for (int i=0; i<nvol; i++) {
+  for (i=0; i<nvol; i++) {
     if ( isnan(SEG[i]) )
       L1[i] = FLT_MAX; else L1[i] = SEG[i];
     L2[i] = L1[i];
@@ -683,13 +684,13 @@ laplace3(float *SEG, int dims[3], int maxiter)
   float Nn;
   while ( iter < maxiter) {
     iter++;
-    for (int i=0; i<nvol; i++) {
+    for (i=0; i<nvol; i++) {
       if ((SEG[i] == 0) && LN[i]) {
         ind2sub(i,&u,&v,&w,xy,x);
 
         /* read neighbor values */
         L2[i]=0.0; Nn=0.0;
-        for (int n=0;n<sN;n++) {
+        for (n=0;n<sN;n++) {
           ni = i + NI[n];
           ind2sub(ni,&nu,&nv,&nw,xy,x);
           if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) {
@@ -699,7 +700,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
         }
         if (Nn>0) {L2[i]/=(float)Nn;} else {L2[i]=L1[i];}
         
-        for (int n=0;n<sN;n++) {
+        for (n=0;n<sN;n++) {
           ni = i + NI[n];
           ind2sub(ni,&nu,&nv,&nw,xy,x);
           if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) 
@@ -710,12 +711,12 @@ laplace3(float *SEG, int dims[3], int maxiter)
     }
     
     /* update of L1 */
-    for (int i=0; i<nvol; i++) 
+    for (i=0; i<nvol; i++) 
       L1[i] = L2[i];
     
   }
   
-  for (int i=0; i<nvol; i++) 
+  for (i=0; i<nvol; i++) 
     SEG[i] = L1[i];
 
   free(L1);
@@ -752,9 +753,10 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
   float *L1 = (float *)malloc(sizeof(float)*nvol);
   float *L2 = (float *)malloc(sizeof(float)*nvol);
   unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+  int i,n;
   
   /* initialisiation */
-  for (int i=0; i<nvol; i++) {
+  for (i=0; i<nvol; i++) {
     if ( isnan(SEG[i]) )
       L1[i] = FLT_MAX; else L1[i] = SEG[i];
     L2[i] = L1[i];
@@ -765,13 +767,13 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
   float Nn, diff, maxdiffi, maxdiff=1.0;
   while ( maxdiff > TH && iter < maxiter) {
     maxdiffi=0; iter++;
-    for (int i=0; i<nvol; i++) {
+    for (i=0; i<nvol; i++) {
       if ( M[i] && LN[i] ) {  
         ind2sub(i,&u,&v,&w,xy,x);
 
         /* read neighbor values */
         L2[i]=0.0; Nn=0.0;
-        for (int n=0;n<sN;n++) {
+        for (n=0;n<sN;n++) {
           ni = i + NI[n];
           ind2sub(ni,&nu,&nv,&nw,xy,x);
           if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) {
@@ -783,7 +785,7 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
         
         diff  = fabs( L1[i] - L2[i] ); 
         if ( diff>(TH/10.0) ) { 
-          for (int n=0;n<sN;n++) {
+          for (n=0;n<sN;n++) {
             ni = i + NI[n];
             ind2sub(ni,&nu,&nv,&nw,xy,x);
             if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) 
@@ -797,12 +799,12 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
     maxdiff = maxdiffi;
     
     /* update of L1 */
-    for (int i=0; i<nvol; i++) 
+    for (i=0; i<nvol; i++) 
       L1[i] = L2[i];
     
   }
   
-  for (int i=0; i<nvol; i++) 
+  for (i=0; i<nvol; i++) 
     SEG[i] = L1[i];
 
   free(L1);

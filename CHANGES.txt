@@ -1,4 +1,18 @@
 ------------------------------------------------------------------------
+r465 | gaser | 2023-09-07 00:11:31
+
+Changed paths:
+ M CHANGES.txt
+ M Lib/CAT_NiftiIO.c
+ M Lib/CAT_Vol.c
+ M MarchingCubes/MarchingCubes.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+?? test.txt
+
+Fixed: Skip use of cached volume in CAT_NiftiIO.c
+Fixed: Removed initialization of variables in for loop in CAT_Vol.c.
+------------------------------------------------------------------------
 r462 | gaser | 2023-04-17 23:12:30
 
 Changed paths:
