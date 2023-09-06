@@ -1,4 +1,15 @@
 ------------------------------------------------------------------------
+r468 | gaser | 2023-09-07 00:24:33
+
+Changed paths:
+ M CHANGES.txt
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+?? test.txt
+
+Fixed: Skip use of cached volume in CAT_NiftiIO.c
+Fixed: Removed initialization of variables in for loop in CAT_Vol.c.
+------------------------------------------------------------------------
 r467 | gaser | 2023-09-07 00:23:20
 
 Changed paths:
