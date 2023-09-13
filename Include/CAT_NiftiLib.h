@@ -1,16 +1,18 @@
-/*
- * Christian Gaser
- * $Id: niilib.h 191 2012-07-31 15:41:36Z gaser $ 
+/* Christian Gaser - christian.gaser@uni-jena.de
+ * Department of Psychiatry
+ * University of Jena
+ *
+ * Copyright Christian Gaser, University of Jena.
+ * $Id$
  *
  */
 
-#ifndef _NIILIB_H_
-#define _NIILIB_H_
+#ifndef _CAT_NIFTILIB_H_
+#define _CAT_NIFTILIB_H_
 
 #include <stdlib.h>
 
 #include "nifti/nifti1_io.h"
-#include "nifti/nifti1_local.h"
 
 #include <float.h>
 
@@ -24,6 +26,9 @@
 
 int
 equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2);
+
+void
+init_nifti_header(nifti_image *nii_ptr);
 
 int
 write_nifti_double( const char *output_filename, double image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr);

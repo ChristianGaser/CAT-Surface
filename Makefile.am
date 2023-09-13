@@ -76,6 +76,8 @@ noinst_HEADERS = \
     Include/CAT_Gyrification.h \
     Include/CAT_DepthPotential.h \
     Include/CAT_Vol.h \
+    Include/CAT_Amap.h \
+    Include/CAT_NiftiLib.h \
     MarchingCubes/MarchingCubes.h \
     MarchingCubes/LookUpTable.h \
     MarchingCubes/genus0.h \
@@ -133,6 +135,8 @@ libCAT_la_SOURCES = \
     Lib/CAT_Gyrification.c \
     Lib/CAT_DepthPotential.c \
     Lib/CAT_Vol.c \
+    Lib/CAT_Amap.c \
+    Lib/CAT_NiftiLib.c \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
     $(zlib_SRC) \

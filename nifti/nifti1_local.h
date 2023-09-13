@@ -1,3 +1,5 @@
+#include  <bicpl.h>
+
 /* Additional things we define for the NIfTI-1 format.  Some of these
  * should probably be included in the header files.
  */
@@ -39,20 +41,6 @@
 #define DIMORDER_XYZ 3
 #define DIMORDER_ZXY 4
 #define DIMORDER_YXZ 5
-
-/* This list is in the order in which dimension lengths and sample
- * widths are stored in the NIfTI-1 structure.
- */
-static const char *dimnames[MAX_NII_DIMS] = {
-    MIvector_dimension,
-    MItime,
-    MIzspace,
-    MIyspace,
-    MIxspace,
-    NULL,
-    NULL,
-    NULL
-};
 
 /* Map dimension index from the actual mapping of the data array to the 
  * "internal header array order".

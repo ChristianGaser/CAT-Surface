@@ -9,6 +9,7 @@
  *
 */
 
+#include "CAT_NiftiLib.h"
 #include "CAT_NiftiIO.h"
 
 /* private function from from libminc2.  This function is private partially
@@ -22,96 +23,6 @@ extern void restructure_array(int ndims,
                               int el_size,
                               const int *map,
                               const int *dir);
-
-/* Explicitly set all of the fields of the NIfTI I/O header structure to
- * something reasonable. Right now this is overkill since a simple memset() 
- * would do the same job, but I want this function to help me keep track
- * of all of the header fields and to allow me to easily override a default
- * if it becomes useful.
- */
-void
-init_nifti_header(nifti_image *nii_ptr)
-{
-        int i, j;
-
-        nii_ptr->ndim = 0;
-
-        nii_ptr->nx = nii_ptr->ny = nii_ptr->nz = nii_ptr->nt = nii_ptr->nu = 
-                nii_ptr->nv = nii_ptr->nw = 0;
-
-        for (i = 0; i < MAX_NII_DIMS; i++) {
-                /* Fix suggested by Hyun-Pil Kim (hpkim@ihanyang.ac.kr):
-                Use 1 as the default, not zero */
-                nii_ptr->dim[i] = 1;
-        }
-
-        nii_ptr->nvox = 0;
-        nii_ptr->nbyper = 0;
-        nii_ptr->datatype = DT_UNKNOWN;
-
-        nii_ptr->dx = nii_ptr->dy = nii_ptr->dz = nii_ptr->dt = nii_ptr->du = 
-                nii_ptr->dv = nii_ptr->dw = 0.0;
-    
-        for (i = 0; i < MAX_NII_DIMS; i++) 
-                nii_ptr->pixdim[i] = 0.0;
-
-        nii_ptr->scl_slope = 0.0;
-        nii_ptr->scl_inter = 0.0;
-        nii_ptr->cal_min = 0.0;
-        nii_ptr->cal_max = 0.0;
-
-        nii_ptr->qform_code = NIFTI_XFORM_UNKNOWN;
-        nii_ptr->sform_code = NIFTI_XFORM_UNKNOWN;
-
-        nii_ptr->freq_dim = 0;
-        nii_ptr->phase_dim = 0;
-        nii_ptr->slice_dim = 0;
-
-        nii_ptr->slice_code = 0;
-        nii_ptr->slice_start = 0;
-        nii_ptr->slice_end = 0;
-        nii_ptr->slice_duration = 0.0;
-
-        nii_ptr->quatern_b = 0.0;
-        nii_ptr->quatern_c = 0.0;
-        nii_ptr->quatern_d = 0.0;
-        nii_ptr->qoffset_x = 0.0;
-        nii_ptr->qoffset_y = 0.0;
-        nii_ptr->qoffset_z = 0.0;
-        nii_ptr->qfac = 0.0;
-
-        nii_ptr->toffset = 0.0;
-
-        nii_ptr->xyz_units = NIFTI_UNITS_MM; /* Default spatial units */
-        nii_ptr->time_units = NIFTI_UNITS_SEC; /* Default time units */
-
-        nii_ptr->nifti_type = FT_ANALYZE;
-        nii_ptr->intent_code = 0;
-        nii_ptr->intent_p1 = 0.0;
-        nii_ptr->intent_p2 = 0.0;
-        nii_ptr->intent_p3 = 0.0;
-        memset(nii_ptr->intent_name, 0, sizeof (nii_ptr->intent_name));
-
-        memset(nii_ptr->descrip, 0, sizeof (nii_ptr->descrip));
-
-        memset(nii_ptr->aux_file, 0, sizeof (nii_ptr->aux_file));
-    
-        nii_ptr->fname = NULL;
-        nii_ptr->iname = NULL;
-        nii_ptr->iname_offset = 0;
-        nii_ptr->swapsize = 0;
-        nii_ptr->byteorder = 1; /* Use LSB first by default. */
-        nii_ptr->data = NULL;
-
-        for (i = 0; i < 4; i++) {
-                for (j = 0; j < 4; j++) {
-                        nii_ptr->qto_xyz.m[i][j] = 0.0;
-                        nii_ptr->qto_ijk.m[i][j] = 0.0;
-                        nii_ptr->sto_xyz.m[i][j] = 0.0;
-                        nii_ptr->sto_ijk.m[i][j] = 0.0;
-                }
-        }
-}    
 
 static void
 find_data_range(int datatype, long nvox, void *data, double range[2])

@@ -75,6 +75,9 @@ bin_PROGRAMS = \
     CAT_SurfDistance \
     CAT_Test \
     CAT_SmoothDiffusion \
+    CAT_VolAmap \
+    CAT_VolAverage \
+    CAT_VolSmooth \
     CAT_DeformMesh 
 
 # experimental code, not yet working or for testing only!

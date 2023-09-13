@@ -1,4 +1,30 @@
 ------------------------------------------------------------------------
+r469 | gaser | 2023-09-13 02:25:36
+
+Changed paths:
+ M CHANGES.txt
+ M INSTALL
+AM Include/CAT_Amap.h
+ M Include/CAT_NiftiIO.h
+RM Include/niilib.h -> Include/CAT_NiftiLib.h
+AM Lib/CAT_Amap.c
+ M Lib/CAT_NiftiIO.c
+RM Lib/niilib.c -> Lib/CAT_NiftiLib.c
+ M Makefile.am
+AM Progs/CAT_VolAmap.c
+AM Progs/CAT_VolAverage.c
+AM Progs/CAT_VolSmooth.c
+ M Progs/Makefile.am
+ M nifti/nifti1_local.h
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Changed: Added some tools from amap repository:
+         CAT_VolAmap
+         CAT_VolAverage
+         CAT_VolSmooth
+Changed: Added necessary libraries and headers to the new tools.
+Changed: Renames niilib.c to CAT_NiftiLib------------------------------------------------------------------------
 r468 | gaser | 2023-09-07 00:24:33
 
 Changed paths:

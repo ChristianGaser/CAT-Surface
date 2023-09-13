@@ -7,7 +7,7 @@
  *
 */
 
-#include  <bicpl.h>
+#include <bicpl.h>
 #include <limits.h>
 #include <float.h>
 
