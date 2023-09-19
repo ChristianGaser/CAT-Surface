@@ -188,6 +188,7 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
 {
         int i, j, k, x, y, z;
         int fi, fj;
+        int verb = 0;
         long color[MAX_NC][7][7][7][7];
         long area;
 
@@ -238,10 +239,10 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
         }
 
         /* evaluate alphas */
-        printf("MRF priors: alpha ");
+        if (verb) printf("MRF priors: alpha ");
         for (i = 0; i < n_classes; i++) {
                 if (init == 0) alpha[i] /= n; else alpha[i] = 1.0;
-                printf("%3.3f ", alpha[i]);
+                if (verb) printf("%3.3f ", alpha[i]);
         }
 
         /* compute beta */
@@ -275,7 +276,7 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
         /* weighting of beta was empirically estimated using brainweb data with different noise levels
            because old beta estimation was not working */
         beta[0] = XX/YY;
-        printf("\t beta %3.3f\n", beta[0]);
+        if (verb) printf("\t beta %3.3f\n", beta[0]);
         fflush(stdout);
 }
 
@@ -756,6 +757,10 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
         double min_src = HUGE, max_src = -HUGE;
         int cumsum[65536];
         struct point *r;
+        
+        /* ICM is not needed if we skip MRF approach */
+        if (weight_MRF == 0)
+                niters_ICM = 0;
                         
         area = dims[0]*dims[1];
         vol = area*dims[2];

@@ -17,7 +17,7 @@
 char *label_filename = NULL;
 int n_pure_classes = 3;
 int iters_amap = 200;
-int subsample = 32;
+int subsample = 96;
 int iters_ICM = 50;
 int pve = 5;
 int write_seg[3] = {0, 1, 0};
@@ -27,25 +27,25 @@ double weight_MRF = 0.15;
 
 static ArgvInfo argTable[] = {
         {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
-                         "Segmentation label for initialization."},
+                 "Segmentation label for initialization."},
         {"-iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
-                         "Number of iterations to end."},
+                 "Number of iterations to end."},
         {"-sub", ARGV_INT, (char *) 1, (char *) &subsample,
-                         "Subsampling for Amap approach."},
+                 "Subsampling for Amap approach."},
         {"-iters_icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
-                         "Number of iterations for Iterative Conditional Mode (ICM)."},
+                 "Number of iterations for Iterative Conditional Mode (ICM)."},
         {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
-                         "Weight of MRF prior (0..1)."},
+                 "Weight of MRF prior (0..1)."},
         {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
-                         "Use Partial Volume Estimation with 5 classes (5), 6 classes (6) or do not use PVE (0)."},
+                 "Use Partial Volume Estimation with 5 classes (5), 6 classes (6) or do not use PVE (0)."},
         {"-write_seg", ARGV_INT, (char *) 3, (char *) &write_seg,
-                         "Write fuzzy segmentations as separate images. Three numbers should be given, while a '1' indicates that this tissue class should be saved. Order is CSF/GM/WM."},
+                 "Write fuzzy segmentations as separate images. Three numbers should be given, while a '1' indicates that this tissue class should be saved. Order is CSF/GM/WM."},
         {"-write_label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
-                         "Write label image (default)."},
+                 "Write label image (default)."},
         {"-nowrite_label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
-                         "Do not write label image."},
+                 "Do not write label image."},
         {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
-                         "Print debug information."},
+                 "Print debug information."},
          {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -53,8 +53,8 @@ static ArgvInfo argTable[] = {
 static int usage(void)
 {
         static const char msg[] = {
-                        "CAT_VolAmap: Segmentation with adaptive MAP\n"
-                        "usage: CAT_VolAmap [options] in.nii [out.nii]\n"
+                 "CAT_VolAmap: Segmentation with adaptive MAP\n"
+                 "usage: CAT_VolAmap [options] in.nii [out.nii]\n"
         };
         fprintf(stderr, "%s", msg);
         exit(EXIT_FAILURE);
@@ -74,6 +74,8 @@ main( int argc, char **argv )
         float         *src, *buffer_vol;
         double        slope;
         double        offset, val, max_vol, min_vol, voxelsize[3];
+        
+        char *label_arr[] = {"CSF", "GM", "WM"};
 
         /* Get arguments */
         if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
@@ -231,7 +233,8 @@ main( int argc, char **argv )
 
                 for (j = 0; j < n_pure_classes; j++) {
                         if (write_seg[j]) {
-                                (void) sprintf( buffer, "%s_prob%d%s",basename,j,extension); 
+                                //(void) sprintf( buffer, "%s_prob%d%s",basename,j,extension); 
+                                (void) sprintf( buffer, "%s_label-%s_probseg%s",basename,label_arr[j],extension); 
                                 
                                 for (i = 0; i < src_ptr->nvox; i++)
                                         src[i] = prob[i+(j*src_ptr->nvox)];

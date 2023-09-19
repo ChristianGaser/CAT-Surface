@@ -1,4 +1,19 @@
 ------------------------------------------------------------------------
+r470 | gaser | 2023-09-19 23:18:05
+
+Changed paths:
+ M CHANGES.txt
+ M Lib/CAT_Amap.c
+ M Progs/CAT_VolAmap.c
+ M Progs/CAT_VolAverage.c
+ M Progs/CAT_VolSmooth.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Changed: Set ICM iterations to 0 if mrf is also zero in CAT_Amap.c.
+Changed: Changed tissue names to BIDS-conforming names in CAT_VolAmap.c.
+Changed: reformatted CAT_VolSmooth.c and CAT_VolAverage.c.
+------------------------------------------------------------------------
 r469 | gaser | 2023-09-13 02:25:36
 
 Changed paths:
@@ -24,7 +39,8 @@ Changed: Added some tools from amap repository:
          CAT_VolAverage
          CAT_VolSmooth
 Changed: Added necessary libraries and headers to the new tools.
-Changed: Renames niilib.c to CAT_NiftiLib------------------------------------------------------------------------
+Changed: Renames niilib.c to CAT_NiftiLib
+------------------------------------------------------------------------
 r468 | gaser | 2023-09-07 00:24:33
 
 Changed paths:
