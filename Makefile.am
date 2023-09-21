@@ -137,6 +137,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Vol.c \
     Lib/CAT_Amap.c \
     Lib/CAT_NiftiLib.c \
+    Lib/CAT_Sanlm.c \
     MarchingCubes/MarchingCubes.c \
     MarchingCubes/genus0.c \
     $(zlib_SRC) \
