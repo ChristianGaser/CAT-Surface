@@ -79,6 +79,7 @@ bin_PROGRAMS = \
     CAT_VolAverage \
     CAT_VolSmooth \
     CAT_VolSanlm \
+    CAT_VolThicknessPbt \
     CAT_DeformMesh 
 
 # experimental code, not yet working or for testing only!

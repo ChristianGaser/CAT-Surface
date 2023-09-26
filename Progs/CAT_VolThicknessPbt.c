@@ -9,36 +9,35 @@
 
 #include <float.h>
 #include <stdlib.h>
+
 #if !defined(_WIN32)
-        #include <libgen.h>
+#include <libgen.h>
 #endif
 
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
+#include "CAT_Vol.h"
 
-int rician = 0;
+int verbose = 0;
 
-static
-ArgvInfo argTable[] = {
-        {"-rician", ARGV_CONSTANT, (char *) 1, (char *) &rician,
-                 "Use Rician noise estimation. MRIs can have Gaussian or Rician distributed noise with uniform or nonuniform variance across the image. If SNR is high enough (>3) noise can be well approximated by Gaussian noise in the foreground. However, for SENSE reconstruction or DTI data a Rician distribution is expected. Please note that the Rician noise estimation is sensitive for large signals in the neighbourhood and can lead to artefacts (e.g. cortex can be affected by very high values in the scalp or in blood vessels."},
+extern int ParseArgv(int *argcPtr, char **argv, ArgvInfo *argTable, int flags);
+
+static ArgvInfo argTable[] = {
+        {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
+                  "Be verbose."},
          {NULL, ARGV_END, NULL, NULL, NULL}
 };
-
-void anlm(float* ima, int v, int f, int rician, const int* dims);
-
-/* Main program */
 
 int main(int argc, char *argv[])
 {
         char *infile, outfile[1024];
         int i, j, dims[3];
-        float *input;
+        float F, *input;
         double separations[3];
         nifti_image *nii_ptr;
         
         if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
-                 (void) fprintf(stderr, "\nUsage: %s [options] in.nii [out.nii]\nSpatial adaptive non-local means denoising filter.\n\n", argv[0]);
+                 (void) fprintf(stderr, "\nUsage: %s [options] in.nii [out.nii]\nProjection-based thickness estimation\n\n", argv[0]);
                  (void) fprintf(stderr, "         %s -help\n\n", argv[0]);
          exit(EXIT_FAILURE);
         }
@@ -53,7 +52,7 @@ int main(int argc, char *argv[])
                         (void) sprintf(outfile, "%s/n%s", dirname(infile), basename(infile)); 
                 #else
                         fprintf(stderr,"\n\Usage: %s input.nii output.nii\n\n\
-                            Spatial adaptive non-local means denoising filter.\n\n", argv[0]);
+                Projection-based thickness estimation.\n\n", argv[0]);
                         return( 1 );
                 #endif
         }
@@ -71,10 +70,21 @@ int main(int argc, char *argv[])
         dims[0] = nii_ptr->nx;
         dims[1] = nii_ptr->ny;
         dims[2] = nii_ptr->nz;
-        
-        
-        anlm(input, 3, 1, rician, dims);
 
+        /* 
+
+    % estimate thickness with PBT approach
+    Ygmt1 = cat_vol_pbtp(round(Ymf),Ywmd,Ycsfd);  
+    Ygmt2 = cat_vol_pbtp(round(4-Ymf),Ycsfd,Ywmd);
+
+    % avoid meninges !
+    Ygmt1 = min(Ygmt1,Ycsfd+Ywmd);
+    Ygmt2 = min(Ygmt2,Ycsfd+Ywmd); 
+
+    Ygmt  = min(cat(4,Ygmt1,Ygmt2),[],4); %clear Ygmt1 Ygmt2; 
+            
+        */        
+        
         if (!write_nifti_float( outfile, input, DT_FLOAT32, 1.0, dims, separations, nii_ptr)) 
                 exit(EXIT_FAILURE);
 

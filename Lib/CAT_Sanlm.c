@@ -525,7 +525,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
         slice = dims[0]*dims[1];
         vol = dims[0]*dims[1]*dims[2];
 
-        /*Allocate memory */
+        /* Allocate memory */
         means = (float*)malloc(vol*sizeof(float));
         variances = (float*)malloc(vol*sizeof(float));
         Estimate = (float*)malloc(vol*sizeof(float));
@@ -606,12 +606,10 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
         Nthreads = dims[2]<8?dims[2]:8;
         if(Nthreads<1) Nthreads=1;
 
-        printf("Using %d processors\n",Nthreads);fflush(stdout);
-
 
 #if defined(_WIN32)
 
-        printf("Windows system detected\n");fflush(stdout);
+        /* printf("Windows system detected\n");fflush(stdout); */
 
         /* Reserve room for handles of threads in ThreadList*/
         ThreadList = (HANDLE*) malloc(Nthreads*sizeof( HANDLE ));

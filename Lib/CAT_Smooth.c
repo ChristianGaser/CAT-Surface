@@ -76,7 +76,7 @@ get_all_polygon_point_neighbours(polygons_struct *polygons,
 double
 evaluate_heatkernel(double x, double sigma)
 {
-    return(exp(-(x * x) / (2.0 * sigma * sigma)));
+        return(exp(-(x * x) / (2.0 * sigma * sigma)));
 }
 
 void
