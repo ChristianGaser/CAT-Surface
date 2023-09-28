@@ -31,7 +31,7 @@ static ArgvInfo argTable[] = {
         {"-iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
                  "Number of iterations to end."},
         {"-sub", ARGV_INT, (char *) 1, (char *) &subsample,
-                 "Subsampling for Amap approach."},
+                 "Subsampling for Amap approach (will be internally scaled by voxel size)."},
         {"-iters_icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
                  "Number of iterations for Iterative Conditional Mode (ICM)."},
         {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
@@ -113,6 +113,11 @@ main( int argc, char **argv )
                 exit(EXIT_FAILURE);
         }
 
+        if (subsample < 20) {
+                fprintf(stderr,"Parameter subsample hast to be >= 20.\n");
+                exit(EXIT_FAILURE);
+        }
+
         switch(pve) {
         case 0:
                 n_classes = 3;
@@ -134,7 +139,7 @@ main( int argc, char **argv )
         }
 
         label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
-        prob    = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
+        prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
         
         if ((label == NULL) || (prob == NULL)) {
                 fprintf(stderr,"Memory allocation error\n");

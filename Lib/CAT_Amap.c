@@ -752,11 +752,15 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
         int area, nvol, vol;
         int histo[65536];
         int n[MAX_NC], j;
-        double var[MAX_NC];
+        double var[MAX_NC], mean_voxelsize;
         double thresh[2], beta[1];
         double min_src = HUGE, max_src = -HUGE;
         int cumsum[65536];
         struct point *r;
+        
+        /* we have to make sub independent from voxel size */
+        mean_voxelsize = (voxelsize[0] + voxelsize[1] + voxelsize[2])/3.0;
+        sub = ROUND((double)sub/mean_voxelsize);
         
         /* ICM is not needed if we skip MRF approach */
         if (weight_MRF == 0)
@@ -791,7 +795,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
         niy = (int) ceil((dims[1]-1)/((double) sub))+1;
         niz = (int) ceil((dims[2]-1)/((double) sub))+1; 
         nvol    = nix*niy*niz;
-
+        
         r = (struct point*)malloc(sizeof(struct point)*MAX_NC*nvol);
         if (r == NULL) {
                 printf("Memory allocation error\n");
