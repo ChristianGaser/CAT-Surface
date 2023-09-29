@@ -262,9 +262,10 @@ main(
                         sum_RMSE += RMSE;
                         
                         /* indicate stop if changes are getting smaller by a factor of 1.5 */
-                       if (sum_RMSE/RMSE/(double)count > 1.5) {
-                        fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",dist,sum_RMSE/RMSE/(double)count,RMSE);    
-                        break;                        
+                        if (sum_RMSE/RMSE/(double)count > 1.5) {
+                                fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",dist,sum_RMSE/RMSE/(double)count,RMSE);    
+                                break;    
+                        }                    
                 }
                 
                 /* save previous image after distopen */ 
