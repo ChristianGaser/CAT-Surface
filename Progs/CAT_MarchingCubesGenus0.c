@@ -87,7 +87,7 @@ Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file\n\
 \n\
           This method creates a mesh with Euler number 2 (genus 0) of the\n\
           thresholded volume. Here are the steps involved:\n\
-            1. Appliy additional morphological opening (dist) to prevent glued gyri\n\
+            1. Apply additional morphological opening (dist) to prevent glued gyri\n\
                and minimizes locl artifacts caused by small vessels or\n\
                mis-segmentations. The strength of the opening is automatically\n\
                estimated by analyzing the impact of different dist values\n\
@@ -199,7 +199,7 @@ main(
         input       = (unsigned short *) calloc(nvol,sizeof(unsigned short));    
         input_uint8 = (unsigned char  *) calloc(nvol,sizeof(unsigned char));    
         ref_uint8   = (unsigned char  *) calloc(nvol,sizeof(unsigned char));    
-        
+
         /* We analyze the impact of different dist values ranging from 1.8 to 0.5 
            using distopen. By doing so, we can track the changes in RMSE (Root Mean 
            Square Error) between these values. When using large dist values, the 
@@ -262,16 +262,15 @@ main(
                         sum_RMSE += RMSE;
                         
                         /* indicate stop if changes are getting smaller by a factor of 1.5 */
-                        if (sum_RMSE/RMSE/(double)count > 1.5) {
+                       if (sum_RMSE/RMSE/(double)count > 1.5) {
                         fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",dist,sum_RMSE/RMSE/(double)count,RMSE);    
-                        break;
-                        }                                       
+                        break;                        
                 }
                 
                 /* save previous image after distopen */ 
                 for (i = 0; i < nvol; i++) ref_uint8[i] = input_uint8[i];     
 
-                count++;       
+                count++;                
 
         }
 
@@ -308,6 +307,21 @@ main(
         /* call the function! */
         if (genus0(g0)) return(1); /* check for error */
 
+        /* save results as next input */
+        for (i = 0; i < nvol; i++)
+                input[i] = g0->output[i];
+
+        /* call genus0 a 2nd time with other parameters */
+        g0->cut_loops = 1;
+        g0->connectivity = 18;
+        g0->value = 1;
+        g0->alt_value=0;
+        g0->contour_value=1;
+        g0->alt_contour_value=0;
+        free(input);
+
+        if (genus0(g0)) return(1); 
+
         for (i = 0; i < sizes[0]; i++) {
                 for (j = 0; j < sizes[1]; j++) {
                         for (k = 0; k < sizes[2]; k++) {
@@ -333,57 +347,8 @@ main(
         triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
         polygons = get_polygons_ptr(object3);
         
-        int ec = euler_characteristic(polygons);
+        fprintf(stderr,"Euler characteristics is %d...\n", euler_characteristic(polygons));
 
-        /* repeat genus0 approach with different parameters if EC is not 2 */
-        if ( ec != 2) {
-
-                fprintf(stderr,"Repeat genus0 method with different parameters because Euler characteristics is %d\n", ec);
-                /* save results as next input */
-                for (i = 0; i < nvol; i++)
-                        input[i] = g0->output[i];
-        
-                /* call genus0 a 2nd time with other parameters */
-                g0->cut_loops = 1;
-                g0->connectivity = 18;
-                g0->value = 1;
-                g0->alt_value=0;
-                g0->contour_value=1;
-                g0->alt_contour_value=0;
-                free(input);
-        
-                if (genus0(g0)) return(1); 
-        
-                for (i = 0; i < sizes[0]; i++) {
-                        for (j = 0; j < sizes[1]; j++) {
-                                for (k = 0; k < sizes[2]; k++) {
-                                        set_volume_real_value(volume, i, j, k, 0, 0, 
-                                            g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
-                                }
-                        }
-                }
-                
-                extract_isosurface(volume,
-                                    min_label, max_label,
-                                    spatial_axes,
-                                    &voxel_to_world_transform,
-                                    method, FALSE,
-                                    0.5, 0.5,
-                                    valid_low, valid_high, get_polygons_ptr(object));
-        
-                check_polygons_neighbours_computed(get_polygons_ptr(object));
-                n_out = separate_polygons(get_polygons_ptr(object), -1, &object2);
-        
-                if(n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
-            
-                triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
-                polygons = get_polygons_ptr(object3);
-                
-                int ec = euler_characteristic(polygons);
-                fprintf(stderr,"Euler characteristics is %d...\n", ec);
-
-        } else fprintf(stderr,"Euler characteristics is %d...\n", ec);
-        
         /* Correct mesh in folded areas to compensate for the averaging effect in gyri and sulci.
            We use a folding measure (i.e. mean curvature averaged) to estimate the compensation. 
            The amount of compensation is automatically estimated using the difference to the defined 
