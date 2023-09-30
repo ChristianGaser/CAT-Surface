@@ -56,6 +56,14 @@
 #define SKULL2 4
 #define SKULL3 5
 
+/* structure for PBT */
+struct opt_type {
+    int CSFD;                          /* use CSFD */
+    int PVE;                           /* 0=no, 1=fast, 2=exact */
+    float LB, HB, LLB, HLB, LHB, HHB;  /* boundary */
+    int sL[3];
+} opt;
+
 void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros);
 void watershed3d(unsigned char *img, unsigned char *marker, int flag_dilate, int *dims);
 void morph_erode_uint8(unsigned char *vol, int dims[3], int niter, double th);
@@ -85,5 +93,6 @@ void distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double
 void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
 void vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
+void PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, double *voxelsize);
 
 #endif

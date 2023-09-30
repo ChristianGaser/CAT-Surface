@@ -9,11 +9,74 @@
 
 #include "CAT_Vol.h"
 
+/* estimate minimum of A and its index in A */
+void
+pmin(float A[], int sA, float *minimum, int *index)
+{
+    int i; 
+    *minimum = FLT_MAX; *index = 0;
+    for (i=0; i<sA; i++) {
+        if ((A[i]>0.0) && (*minimum>A[i])) { 
+            *minimum = A[i]; 
+            *index   = i;
+        }
+    }
+}
+
+/* subfunction for SBT to get all values of the voxels which are in WMD-range (children of this voxel) */
+float
+pMAX(const float GMT[], const float RPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
+    float n=0.0, maximum=WMD;
+    int i;
+
+    /* the pure maximum */
+    /* (GMT[i]<FLT_MAX) && (maximum < GMT[i]) && ((RPM[i]-ND[i]*1.25)<=WMD) && ((RPM[i]-ND[i]*0.5)>WMD) && (SEGI)>=SEG[i] && SEG[i]>1 && SEGI>1.66) */
+    for (i=0; i<=sA; i++) {
+        if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbors should be larger */
+                (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) &&       /* projection range */
+                (((RPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
+                (((RPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) && /* lower boundary - minimum distance - corrected values outside */
+                ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) /* for high values will project data over sulcal gaps */
+        {
+            maximum = GMT[i];
+        }
+    }
+
+    
+    /* the mean of the highest values */
+    float maximum2=maximum; float m2n=0.0; 
+    for (i=0; i<=sA; i++) {
+        if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) && 
+                 (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) && 
+                 (((RPM[i] - ND[i] * 1.2) <= WMD)) && 
+                 (((RPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) &&
+                 ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) {
+            maximum2 = maximum2 + GMT[i]; 
+            m2n++;
+        } 
+    }
+    if (m2n > 0.0)
+        maximum = (maximum2 - maximum) / m2n;
+
+    return maximum;
+}
+
+/* estimate x,y,z position of index i in an array size sx,sxy=sx*sy... */
+void
+ind2sub(int i,int *x,int *y, int *z, int sxy, int sx)
+{
+    int j = i % sxy;
+
+    *z = (int)floor((double)i / (double)sxy); 
+    *y = (int)floor((double)j / (double)sx);   
+    *x = j % sx;
+}
+
 void 
 get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros)
 {
     double mn_thresh, mx_thresh;
-    double min_src = 1e15, max_src = -1e15;
+    double min_src = FLT_MAX, max_src = -FLT_MAX;
     int *cumsum, *histo;
     int i, sz_histo = 10000, nvol = dims[0]*dims[1]*dims[2];
     
@@ -332,27 +395,127 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
     return(0);
 }
 
-/* estimate minimum of A and its index in A */
+/* 
+    [Ygmt,Ypp] = cat_vol_pbtp(round(Yp0), dist_WM, dist_CSF); 
+ */
 void
-pmin(float A[], int sA, float *minimum, int *index)
-{
-    int i; 
-    *minimum = FLT_MAX; *index = 0;
-    for (i=0; i<sA; i++) {
-        if ((A[i]>0.0) && (*minimum>A[i])) { 
-            *minimum = A[i]; 
-            *index   = i;
+PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, double *voxelsize) 
+{     
+    /* main information about input data (size, dimensions, ...) */
+    const int   nvol = dims[0]*dims[1]*dims[2];
+    const int   x  = dims[0];
+    const int   y  = dims[1];
+    const int   xy = x*y;
+    const float s2 = sqrt(2.0);
+    const float s3 = sqrt(3.0);
+    
+    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
+    const int   NI[] = {0,-1, -x+1,-x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1};    
+    const float ND[] = {0.0,1.0, s2,1.0,s2, s2,1.0,s2, s3,s2,s3, s3,s2,s3};
+    const int   sN = sizeof(NI)/4; /* division by 4 to get from the number of bytes to the number of elements */ 
+    float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
+    
+    float du, dv, dw, dnu, dnv, dnw, d, dcf, WMu, WMv, WMw;
+    float GMu, GMv, GMw, SEGl, SEGu, tmpfloat;
+    int   i,n,ni,u,v,w,nu,nv,nw, tmpint, WMC=0, CSFC=0;
+        
+    if((GMT == NULL) || (RPM == NULL)) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    opt.CSFD = 1; opt.PVE = 2; opt.LB = 1.5; opt.HB = 2.5;
+    opt.LLB = floor(opt.LB); opt.HLB=ceil(opt.LB); opt.LHB=floor(opt.HB); opt.HHB=ceil(opt.HB);
+        
+    /* initialisiation */
+    for (i=0;i<nvol;i++) {
+        GMT[i] = WMD[i];
+        RPM[i] = WMD[i];
+        /* proof distance input */
+        if ( SEG[i]>=opt.HB ) WMC++;
+        if ( SEG[i]<=opt.LB ) CSFC++;
+    }
+    if (WMC==0)  {
+        fprintf(stderr,"ERROR: no WM voxels\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (CSFC==0) opt.CSFD = 0;
+    
+    
+    /* thickness calculation
+     ======================================================================= */
+    for (i=0;i<nvol;i++) {
+        if (SEG[i]>opt.LLB && SEG[i]<opt.HHB) {
+            ind2sub(i,&u,&v,&w,xy,x);
+            
+            /* read neighbour values */
+            for (n=0;n<sN;n++) {
+                ni = i + NI[n];
+                ind2sub(ni,&nu,&nv,&nw,xy,x);
+                if ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
+                GMTN[n] = GMT[ni]; WMDN[n] = RPM[ni]; SEGN[n] = SEG[ni];
+            }
+
+            /* find minimum distance within the neighborhood */
+            DNm = pMAX(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
+            GMT[i] = DNm;
         }
     }
-}
+    
+    for (i=nvol-1;i>=0;i--) {
+        if (SEG[i]>opt.LLB && SEG[i]<opt.HHB) {
+            ind2sub(i,&u,&v,&w,xy,x);
+            
+            /* read neighbour values */
+            for (n=0;n<sN;n++) {
+                ni = i - NI[n];
+                ind2sub(ni,&nu,&nv,&nw,xy,x);
+                if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
+                GMTN[n] = GMT[ni]; WMDN[n] = RPM[ni]; SEGN[n] = SEG[ni];
+            }
 
-/* estimate x,y,z position of index i in an array size sx,sxy=sx*sy... */
-void
-ind2sub(int i,int *x,int *y, int *z, int sxy, int sy) {
-    *z = (int)floor( (double)i / (double)sxy ) + 1; 
-     i = i % (sxy);
-    *y = (int)floor( (double)i / (double)sy ) + 1;           
-    *x = i % sy + 1;
+            /* find minimum distance within the neighborhood */
+            DNm = pMAX(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
+            if ((GMT[i] < DNm) && (DNm > 0)) GMT[i] = DNm;
+        }
+    }
+    
+    for (i=0;i<nvol;i++)
+        if (SEG[i]<opt.LB || SEG[i]>opt.HB)
+            GMT[i]=0; 
+    
+
+
+    /* final settings...
+     ======================================================================= */
+    float CSFDc = 0, GMTi, CSFDi; /* 0.125 */
+    for (int i=0;i<nvol;i++) { 
+        if (SEG[i]>=opt.LB && SEG[i]<=opt.LB) {
+            GMTi = CSFD[i] + WMD[i];    
+            CSFDi = GMT[i] - WMD[i];
+        
+            if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;                    
+            else GMT[i]  = GMTi;
+        }
+    }
+
+ 
+    /* estimate RPM
+     ======================================================================= */
+    for (int i=0;i<nvol;i++) {
+        if ( SEG[i]>=opt.HB )       
+            RPM[i] = 1.0; 
+        else {
+            if ( SEG[i]<=opt.LB || GMT[i]==0.0 ) 
+                RPM[i] = 0.0;
+            else {
+                RPM[i] = (GMT[i] - WMD[i]) / GMT[i];
+                if (RPM[i]>1.0) RPM[i] = 1.0;
+                if (RPM[i]<0.0) RPM[i] = 0.0; 
+            }
+        } 
+    }    
 }
 
 void
@@ -413,7 +576,7 @@ vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize)
     
             /* update values */
             if (DNi>0) {
-                I[i] = (unsigned int)    I[i+NI[DNi]];
+                I[i] = (unsigned int) I[i+NI[DNi]];
                 D[i] = DNm; 
                 ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
                 D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
@@ -489,7 +652,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
     
     /* initialisiation */
     for (i=0; i<nvol; i++) {
-        if ( isnan(SEG[i]) )
+        if (isnan(SEG[i]))
             L1[i] = FLT_MAX; else L1[i] = SEG[i];
         L2[i] = L1[i];
         if (SEG[i] == 0)
@@ -498,7 +661,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
 
     int u,v,w,nu,nv,nw,ni,iter=0;
     float Nn;
-    while ( iter < maxiter) {
+    while (iter < maxiter) {
         iter++;
         for (i=0; i<nvol; i++) {
             if ((SEG[i] == 0) && LN[i]) {
@@ -509,7 +672,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
                 for (n=0;n<sN;n++) {
                     ni = i + NI[n];
                     ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) {
+                    if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
                         L2[i] += L1[ni];
                         Nn++;
                     }
@@ -519,7 +682,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
                 for (n=0;n<sN;n++) {
                     ni = i + NI[n];
                     ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) 
+                    if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
                         LN[ni] = 1; /* if I change his neigbors it has to be recalculated */
                     }
                 LN[i] = 0;
@@ -573,7 +736,7 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
     
     /* initialisiation */
     for (i=0; i<nvol; i++) {
-        if ( isnan(SEG[i]) )
+        if (isnan(SEG[i]))
             L1[i] = FLT_MAX; else L1[i] = SEG[i];
         L2[i] = L1[i];
         LN[i] = M[i];
@@ -581,10 +744,10 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
 
     int u,v,w,nu,nv,nw,ni,iter=0,maxiter=2000;
     float Nn, diff, maxdiffi, maxdiff=1.0;
-    while ( maxdiff > TH && iter < maxiter) {
+    while (maxdiff > TH && iter < maxiter) {
         maxdiffi=0; iter++;
         for (i=0; i<nvol; i++) {
-            if ( M[i] && LN[i] ) {  
+            if (M[i] && LN[i]) {  
                 ind2sub(i,&u,&v,&w,xy,x);
 
                 /* read neighbor values */
@@ -592,24 +755,24 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
                 for (n=0;n<sN;n++) {
                     ni = i + NI[n];
                     ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) {
+                    if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
                         L2[i] += L1[ni];
                         Nn++;
                     }
                 }
                 if (Nn>0) L2[i] /= (float)Nn; else L2[i] = L1[i];
                 
-                diff    = fabs( L1[i] - L2[i] ); 
-                if ( diff>(TH/10.0) ) { 
+                diff    = fabs(L1[i] - L2[i]); 
+                if (diff>(TH/10.0)) { 
                     for (n=0;n<sN;n++) {
                         ni = i + NI[n];
                         ind2sub(ni,&nu,&nv,&nw,xy,x);
-                        if ( ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX) )==0) 
+                        if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
                             LN[ni] = 1; /* if I change his neigbors it has to be recalculated */
                     }
                 }
                 LN[i] = 0;
-                if ( maxdiffi<diff ) maxdiffi = diff; 
+                if (maxdiffi<diff) maxdiffi = diff; 
             }
         }
         maxdiff = maxdiffi;
@@ -1456,7 +1619,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     int dimsr[3];
     float *volr, *buffer, *TAr;
     double voxelsizer[3];
-    float min_vol = 1e15, max_vol = -1e15;
+    float min_vol = FLT_MAX, max_vol = -FLT_MAX;
     unsigned int *MIr;
     unsigned char *BMr, *BMr2;
     double threshold[2], prctile[2] = {5,95};
@@ -1608,7 +1771,7 @@ initial_cleanup(unsigned char *probs, unsigned char *label, int *dims, double *v
     if(remove_sinus) {
         /* remove sinus sagittalis */
         for (i = 0; i < nvol; i++)
-            sum[i] = sum[i] && ( label[i] < 4 );
+            sum[i] = sum[i] && (label[i] < 4);
     }
 
     distclose_float(sum, dims, voxelsize, round(scale*2), 0.5);
@@ -1616,7 +1779,7 @@ initial_cleanup(unsigned char *probs, unsigned char *label, int *dims, double *v
     for (i = 0; i < nvol; ++i)
         if(remove_sinus) {
             label[i] = (unsigned char)(label[i] < 4)*label[i]*sum[i];
-            probs[i] = (label[i] < 4) * (sum[i] > 0 ) * probs[i];
+            probs[i] = (label[i] < 4) * (sum[i] > 0) * probs[i];
         } else
             label[i] = label[i]*(unsigned char)sum[i];
     
@@ -1661,12 +1824,12 @@ cleanup_orig(unsigned char *probs, unsigned char *mask, int *dims, double *voxel
     for (iter=0; iter < niter; iter++) {
 
         /*  start with 2 iterations of erosions*/
-        if( iter < 2 ) th = th_erode;
+        if(iter < 2) th = th_erode;
         else th = th_dilate;
         
         /* mask = (mask>th).*(white+gray) */
         for (i = 0; i < nvol; ++i) {
-            if( mask[i] > th ) {
+            if(mask[i] > th) {
                 sum[i] = (float)probs[i] + (float)probs[i + WM*nvol];
                 mask[i] = (unsigned char)MIN(sum[i], 255.0);
             } else  mask[i] = 0;             
@@ -1740,12 +1903,12 @@ cleanup(unsigned char *probs, unsigned char *mask, int *dims, double *voxelsize,
         
         fprintf(stderr,"."); 
         /*  start with 2 iterations of erosions */
-        if( iter < 2 ) th = th_erode;
+        if(iter < 2) th = th_erode;
         else th = th_dilate;
         
         /* b = (b>th).*(white+gray) */
         for (i = 0; i < nvol; ++i) {
-            if( b[i] > th ) {
+            if(b[i] > th) {
                 bp = (float)probs[i] + (float)probs[i + WM*nvol];
                 b[i] = (unsigned char)MIN(round(bp), 255.0);
             } else b[i] = 0;               
@@ -1775,7 +1938,7 @@ cleanup(unsigned char *probs, unsigned char *mask, int *dims, double *voxelsize,
     
     th = 13; /* 0.05*255 */
     for (i = 0; i < nvol; ++i) {
-        if(( b[i] < th ) || (((float)probs[i] + (float)probs[i + WM*nvol]) < th)) {
+        if((b[i] < th) || (((float)probs[i] + (float)probs[i + WM*nvol]) < th)) {
             probs[i] = 0;
             probs[i + WM*nvol] = 0;
         }        
@@ -1783,7 +1946,7 @@ cleanup(unsigned char *probs, unsigned char *mask, int *dims, double *voxelsize,
     
     if (gmwm_only == 0) {
         for (i = 0; i < nvol; ++i) {
-            if(( c[i] < th ) || (((float)probs[i] + (float)probs[i + WM*nvol] + (float)probs[i + CSF*nvol]) < th)) {
+            if((c[i] < th) || (((float)probs[i] + (float)probs[i + WM*nvol] + (float)probs[i + CSF*nvol]) < th)) {
                 probs[i + CSF*nvol] = 0;
             }        
         }
@@ -1850,10 +2013,10 @@ median3_uint8(unsigned char *D, int *dims)
         /* go through all elements in a 3x3x3 box */
         for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
             /* check borders */ 
-            if ( ((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
+            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
                 ni = index(x+i,y+j,z+k,dims);
                 /* check masks and NaN or Infinities */
-                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX ) ni = ind;
+                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
                 NV[n] = D[ni];
                 n++;
             }
@@ -1918,10 +2081,10 @@ median3_float(float *D, int *dims)
         /* go through all elements in a 3x3x3 box */
         for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
             /* check borders */ 
-            if ( ((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
+            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
                 ni = index(x+i,y+j,z+k,dims);
                 /* check masks and NaN or Infinities */
-                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX ) ni = ind;
+                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
                 NV[n] = D[ni];
                 n++;
             }
