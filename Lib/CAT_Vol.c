@@ -28,17 +28,16 @@ pmin(float *A, int sA, float *minimum, int *index)
 
 /* subfunction for SBT to get all values of the voxels which are in WMD-range (children of this voxel) */
 float
-pmax(const float GMT[], const float RPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
+pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
     float n=0.0, maximum=WMD;
     int i;
 
     /* the pure maximum */
-    /* (GMT[i]<FLT_MAX) && (maximum < GMT[i]) && ((RPM[i]-ND[i]*1.25)<=WMD) && ((RPM[i]-ND[i]*0.5)>WMD) && (SEGI)>=SEG[i] && SEG[i]>1 && SEGI>1.66) */
     for (i=0; i<=sA; i++) {
         if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbors should be larger */
                 (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) &&       /* projection range */
-                (((RPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
-                (((RPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) && /* lower boundary - minimum distance - corrected values outside */
+                (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
+                (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) && /* lower boundary - minimum distance - corrected values outside */
                 ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) /* for high values will project data over sulcal gaps */
         {
             maximum = GMT[i];
@@ -51,8 +50,8 @@ pmax(const float GMT[], const float RPM[], const float SEG[], const float ND[], 
     for (i=0; i<=sA; i++) {
         if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) && 
                  (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) && 
-                 (((RPM[i] - ND[i] * 1.2) <= WMD)) && 
-                 (((RPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) &&
+                 (((PPM[i] - ND[i] * 1.2) <= WMD)) && 
+                 (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) &&
                  ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) {
             maximum2 += GMT[i]; 
             m2n++;
@@ -66,13 +65,70 @@ pmax(const float GMT[], const float RPM[], const float SEG[], const float ND[], 
 
 /* estimate x,y,z position of index i in an array size sx,sxy=sx*sy... */
 void
-ind2sub(int i,int *x,int *y, int *z, int sxy, int sx)
+ind2sub(int i, int *x, int *y, int *z, int sxy, int sx)
 {
     int j = i % sxy;
 
     *z = (int)floor((double)i / (double)sxy); 
     *y = (int)floor((double)j / (double)sx);   
     *x = j % sx;
+}
+
+/* 
+ * Estimate index i of a voxel x,y,z in an array size s.
+ * See also for ind2sub.
+ */
+int
+sub2ind(int x, int y, int z, int s[]) {
+    /* handling on boundaries */
+    if (x<0) x=0; if (x>s[0]-1) x=s[0]-1; 
+    if (y<0) y=0; if (y>s[1]-1) y=s[1]-1; 
+    if (z<0) z=0; if (z>s[2]-1) z=s[2]-1; 
+  
+    /*   z * (number of voxels within a slice) 
+       + y * (number of voxels in a column)  
+       + x   (position within the column)   
+    */   
+    return z*s[0]*s[1] + y*s[0] + x;
+}
+
+
+/* 
+ * Read out the linear interpolated value of a volume SEG with the size
+ * s on the position x,y,z (c-notation). See also ind2sub for details of
+ * the c-notation.
+ */
+float
+isoval(float vol[], float x, float y, float z, int s[]){
+
+    int i;
+    float seg=0.0, n=0.0;
+    float fx = floor(x),   fy = floor(y),   fz = floor(z);
+    float cx = floor(x+1), cy = floor(y+1), cz = floor(z+1);
+    
+    float wfx = cx-x, wfy = cy-y, wfz = cz-z;
+    float wcx = x-fx, wcy = y-fy, wcz = z-fz;
+    float N[8], W[8];  
+    
+    /* value of the 8 neighbors and there distance weight */
+    N[0] = vol[sub2ind((int)fx,(int)fy,(int)fz,s)];  W[0] = wfx * wfy * wfz; 
+    N[1] = vol[sub2ind((int)cx,(int)fy,(int)fz,s)];  W[1] = wcx * wfy * wfz;
+    N[2] = vol[sub2ind((int)fx,(int)cy,(int)fz,s)];  W[2] = wfx * wcy * wfz;
+    N[3] = vol[sub2ind((int)cx,(int)cy,(int)fz,s)];  W[3] = wcx * wcy * wfz;
+    N[4] = vol[sub2ind((int)fx,(int)fy,(int)cz,s)];  W[4] = wfx * wfy * wcz;
+    N[5] = vol[sub2ind((int)cx,(int)fy,(int)cz,s)];  W[5] = wcx * wfy * wcz;
+    N[6] = vol[sub2ind((int)fx,(int)cy,(int)cz,s)];  W[6] = wfx * wcy * wcz; 
+    N[7] = vol[sub2ind((int)cx,(int)cy,(int)cz,s)];  W[7] = wcx * wcy * wcz;
+    
+    for (i=0; i<8; i++) {
+        if (!isnan(N[i]) && isfinite(N[i])) {
+            seg = seg + (N[i] * W[i]);
+            n+= W[i];
+        }
+    }
+     
+    if (n>0.0) return seg/n; 
+    else return FNAN;
 }
 
 void 
@@ -399,79 +455,89 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
 }
 
 /* 
-    [Ygmt,Ypp] = projection_based_thickness(round(Yp0), dist_WM, dist_CSF); 
+    [Ygmt,Ypp] = projection_based_thickness(Yp0, dist_WM, dist_CSF); 
  */
 void
-projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int dims[3], double *voxelsize) 
+projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize) 
 {     
     /* main information about input data (size, dimensions, ...) */
     const int   nvol = dims[0]*dims[1]*dims[2];
     const int   x  = dims[0];
     const int   y  = dims[1];
     const int   xy = x*y;
+    
     const float s2 = sqrt(2.0);
     const float s3 = sqrt(3.0);
     
     /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    const int   NI[] = {0,-1, -x+1,-x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1};    
-    const float ND[] = {0.0,1.0, s2,1.0,s2, s2,1.0,s2, s3,s2,s3, s3,s2,s3};
+    const int   NI[] = {0, -1, -x+1,- x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1};    
+    const float ND[] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3};
+    
     const int   sN = sizeof(NI)/sizeof(NI[0]); /* division by 4 to get from the number of bytes to the number of elements */ 
     float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
     
-    float du, dv, dw, dnu, dnv, dnw, d, dcf, WMu, WMv, WMw;
-    float GMu, GMv, GMw, SEGl, SEGu, tmpfloat;
-    float value_CGM = 1.5, value_GWM = 2.5, value_CSF = 1.0, value_WM = 3.0;
-    int   i,n,ni,u,v,w,nu,nv,nw, tmpint, count_WM=0, count_CSF=0;
+    int   i,n,ni,u,v,w,nu,nv,nw, count_WM=0, count_CSF=0;
         
     /* initialisiation */
     for (i=0; i<nvol; i++) {
         GMT[i] = WMD[i] + 0.0;
-        RPM[i] = WMD[i] + 0.0;
         
         /* proof distance input */
-        if (SEG[i]>=value_GWM) count_WM++;
-        if (SEG[i]<=value_CGM) count_CSF++;
+        if (SEG[i] >= GWM) count_WM++;
+        if (SEG[i] <= CGM) count_CSF++;
     }
 
-    if (count_WM==0) {
+    if (count_WM == 0) {
         fprintf(stderr,"ERROR: no WM voxels\n");
         exit(EXIT_FAILURE);
     }    
-    if (count_CSF==0) {
+    if (count_CSF == 0) {
         fprintf(stderr,"ERROR: no CSF voxels\n");
         exit(EXIT_FAILURE);
     }    
     
     /* thickness calculation
      ======================================================================= */
-    for (i=0; i<nvol; i++) {
-        if (SEG[i]>value_CSF && SEG[i]<value_WM) {
-            ind2sub(i,&u,&v,&w,xy,x);
-            
+    for (i = 0; i < nvol; i++) {
+        if (SEG[i] > CSF && SEG[i] < WM) {
+            ind2sub(i, &u, &v, &w, xy, x);
+
             /* read neighbour values */
-            for (n=0; n<sN; n++) {
+            for (n = 0; n < sN; n++) {
                 ni = i + NI[n];
-                ind2sub(ni,&nu,&nv,&nw,xy,x);
-                if ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
-                GMTN[n] = GMT[ni]; WMDN[n] = RPM[ni]; SEGN[n] = SEG[ni];
+                ind2sub(ni, &nu, &nv, &nw, xy, x);
+
+                if ((ni < 0) || (ni >= nvol) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                    ni = i;
+
+                GMTN[n] = GMT[ni];
+                WMDN[n] = WMD[ni];
+                SEGN[n] = SEG[ni];
             }
 
             /* find minimum distance within the neighborhood */
-            DNm = pmax(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
+            DNm = pmax(GMTN, WMDN, SEGN, ND, WMD[i], SEG[i], sN);
             GMT[i] = DNm;
         }
     }
-    
-    for (i=nvol-1;i>=0;i--) {
-        if (SEG[i]>value_CSF && SEG[i]<value_WM) {
-            ind2sub(i,&u,&v,&w,xy,x);
-            
+
+    for (i = nvol - 1; i >= 0; i--) {
+        if (SEG[i] > CSF && SEG[i] < WM) {
+            ind2sub(i, &u, &v, &w, xy, x);
+
+            float GMTN[sN], WMDN[sN], SEGN[sN];
+
             /* read neighbour values */
-            for (n=0; n<sN; n++) {
+            for (n = 0; n < sN; n++) {
                 ni = i - NI[n];
-                ind2sub(ni,&nu,&nv,&nw,xy,x);
-                if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
-                GMTN[n] = GMT[ni]; WMDN[n] = RPM[ni]; SEGN[n] = SEG[ni];
+                ind2sub(ni, &nu, &nv, &nw, xy, x);
+
+                if ((ni < 0) || (ni >= nvol) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                    ni = i;
+
+                GMTN[n] = GMT[ni];
+                WMDN[n] = WMD[ni];
+                SEGN[n] = SEG[ni];
             }
 
             /* find minimum distance within the neighborhood */
@@ -479,40 +545,23 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, floa
             if ((GMT[i] < DNm) && (DNm > 0)) GMT[i] = DNm;
         }
     }
-    
-    for (i=0; i<nvol; i++) if (SEG[i]<value_CGM|| SEG[i]>value_GWM) GMT[i]=0.0; 
-    
-    /* final settings...
-     ======================================================================= */
+
+    for (i = 0; i < nvol; i++) {
+        if (SEG[i] < CGM || SEG[i] > GWM)
+            GMT[i] = 0.0;
+    }
+
     float GMTi, CSFDi;
-    for (i=0; i<nvol; i++) { 
-        if (SEG[i]>=value_CGM&& SEG[i]<=value_GWM) {
-            GMTi = CSFD[i] + WMD[i];    
+    for (i = 0; i < nvol; i++) {
+        if (SEG[i] >= CGM && SEG[i] <= GWM) {
+            GMTi = CSFD[i] + WMD[i];
             CSFDi = GMT[i] - WMD[i];
-        
-            if (CSFD[i]<=CSFDi) GMT[i]  = GMTi;
+
+            if (CSFD[i] <= CSFDi)
+                GMT[i] = GMTi;
         }
     }
-    
-    /* estimate RPM
-     ======================================================================= */
-    for (i=0; i<nvol; i++) {
-        if ( SEG[i]>=value_GWM)       
-            RPM[i] = 1.0; 
-        else {
-            if ( SEG[i]<=value_CGM|| GMT[i]==0.0 ) 
-                RPM[i] = 0.0;
-            else {
-                RPM[i] = (GMT[i] - WMD[i]) / GMT[i];
-                if (RPM[i]>1.0) RPM[i] = 1.0;
-                if (RPM[i]<0.0) RPM[i] = 0.0; 
-            }
-        } 
-    }
-    median3_float(RPM, dims);
-
 }
-
 
 void
 vbdist(float *V, unsigned int *M, int dims[3], double *voxelsize) 
@@ -1300,8 +1349,8 @@ subsample_double(double *in, double *out, int dim_in[3], int dim_out[3], int off
     int off1, off2, xcoord, ycoord, zcoord;
 
     for (i=0; i<3; i++) {
-        if(dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
-        else                                             samp[i] = 1.0/(ceil((double)dim_in[i]/(double)dim_out[i]));
+        if (dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
+        else samp[i] = 1.0/(ceil((double)dim_in[i]/(double)dim_out[i]));
     }
     
     for (z=0; z<dim_out[2]; z++) {
@@ -1341,7 +1390,7 @@ void subsample_uint8(unsigned char *in, float *out, int dim_in[3], int dim_out[3
     int off1, off2, xcoord, ycoord, zcoord;
 
     for (i=0; i<3; i++) {
-        if(dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
+        if (dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
         else samp[i] = 1.0/(ceil((double)dim_in[i]/(double)dim_out[i]));
     }
     
@@ -1382,7 +1431,7 @@ void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int o
     int off1, off2, xcoord, ycoord, zcoord;
         
     for (i=0; i<3; i++) {
-        if(dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
+        if (dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
         else samp[i] = 1.0/(ceil((double)dim_in[i]/(double)dim_out[i]));
     }
     
@@ -1773,7 +1822,7 @@ initial_cleanup(unsigned char *probs, unsigned char *label, int dims[3], double 
 
     /* build a first rough mask to remove noisy parts */
     for (i = 0; i < nvol; ++i)
-        sum[i] = (float)probs[i]*sum[i] + (float)probs[i + WM*nvol];
+        sum[i] = (float)probs[i]*sum[i] + (float)probs[i + (int)WM*nvol];
 
     morph_open_float(sum, dims, n_initial_openings, 0.1);
     morph_dilate_float(sum, dims, round(scale*1), 0.5);
@@ -1817,18 +1866,18 @@ cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
 
     /* build a first rough mask to remove noisy parts */
     for (i = 0; i < nvol; ++i)
-        sum[i] = (float)probs[i] + (float)probs[i + WM*nvol];
+        sum[i] = (float)probs[i] + (float)probs[i + (int)WM*nvol];
 
     morph_open_float(sum, dims, n_initial_openings, 0.25);
     
     /* init mask with WM values that are larger than GM and CSF and threshold for erosion */
     for (i = 0; i < nvol; ++i)
-        if ((probs[i + WM*nvol] > probs[i]) && (probs[i + WM*nvol] > probs[i + CSF*nvol]) && (probs[i + WM*nvol] > th_erode) && (sum[i] > 0))
-            mask[i] = probs[i + WM*nvol];
+        if ((probs[i + (int)WM*nvol] > probs[i]) && (probs[i + (int)WM*nvol] > probs[i + (int)CSF*nvol]) && (probs[i + (int)WM*nvol] > th_erode) && (sum[i] > 0))
+            mask[i] = probs[i + (int)WM*nvol];
         else mask[i] = 0;
 
     /* use masked WM image for all subsequent operations */
-    for (i = 0; i < nvol; ++i) probs[i + WM*nvol] = mask[i];
+    for (i = 0; i < nvol; ++i) probs[i + (int)WM*nvol] = mask[i];
     
     /* mask computed from gm and wm */
     /* erosions and conditional dilations */
@@ -1841,7 +1890,7 @@ cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
         /* mask = (mask>th).*(white+gray) */
         for (i = 0; i < nvol; ++i) {
             if(mask[i] > th) {
-                sum[i] = (float)probs[i] + (float)probs[i + WM*nvol];
+                sum[i] = (float)probs[i] + (float)probs[i + (int)WM*nvol];
                 mask[i] = (unsigned char)MIN(sum[i], 255.0);
             } else  mask[i] = 0;             
         }
@@ -1906,7 +1955,7 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
 
     /* init with WM */
     for (i = 0; i < nvol; ++i)
-        b[i] = probs[i + WM*nvol];
+        b[i] = probs[i + (int)WM*nvol];
     
     /* mask computed from gm and wm */
     /* erosions and conditional dilations */
@@ -1920,7 +1969,7 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
         /* b = (b>th).*(white+gray) */
         for (i = 0; i < nvol; ++i) {
             if(b[i] > th) {
-                bp = (float)probs[i] + (float)probs[i + WM*nvol];
+                bp = (float)probs[i] + (float)probs[i + (int)WM*nvol];
                 b[i] = (unsigned char)MIN(round(bp), 255.0);
             } else b[i] = 0;               
         }
@@ -1949,16 +1998,16 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
     
     th = 13; /* 0.05*255 */
     for (i = 0; i < nvol; ++i) {
-        if((b[i] < th) || (((float)probs[i] + (float)probs[i + WM*nvol]) < th)) {
+        if((b[i] < th) || (((float)probs[i] + (float)probs[i + (int)WM*nvol]) < th)) {
             probs[i] = 0;
-            probs[i + WM*nvol] = 0;
+            probs[i + (int)WM*nvol] = 0;
         }        
     }
     
     if (gmwm_only == 0) {
         for (i = 0; i < nvol; ++i) {
-            if((c[i] < th) || (((float)probs[i] + (float)probs[i + WM*nvol] + (float)probs[i + CSF*nvol]) < th)) {
-                probs[i + CSF*nvol] = 0;
+            if((c[i] < th) || (((float)probs[i] + (float)probs[i + (int)WM*nvol] + (float)probs[i + (int)CSF*nvol]) < th)) {
+                probs[i + (int)CSF*nvol] = 0;
             }        
         }
     }
@@ -1969,7 +2018,7 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
             tot += (float)probs[i + j*nvol];
         for (j = 0; j < 3; ++j)
             probs[i + j*nvol] = (unsigned char)(round((float)probs[i + j*nvol]/tot*255.0));
-        mask[i] = probs[i] + probs[i + WM*nvol];
+        mask[i] = probs[i] + probs[i + (int)WM*nvol];
     }
 
     free(b);

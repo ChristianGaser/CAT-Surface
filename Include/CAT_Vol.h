@@ -48,11 +48,20 @@
 #define isnan(a) ((a)!=(a)) 
 #endif
 
+#ifdef _MSC_VER
+  static const unsigned long __nan[2] = {0xffffffff, 0x7fffffff};
+  #define FNAN (*(const float *) __nan)
+#else
+  #define FNAN 0.0f/0.0f
+#endif
+
 #define index(A,B,C,DIM) ((C)*DIM[0]*DIM[1] + (B)*DIM[0] + (A))
 
-#define CSF    1
-#define GM     2
-#define WM     3
+#define CSF    1.0
+#define CGM    1.5
+#define GM     2.0
+#define GWM    2.5
+#define WM     3.0
 
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode_uint8(unsigned char *vol, int dims[3], int niter, double th);
@@ -81,6 +90,6 @@ void distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double
 void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
 void vbdist(float *V, unsigned int *IO, int dims[3], double *voxelsize);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
-void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int dims[3], double *voxelsize);
+void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 
 #endif
