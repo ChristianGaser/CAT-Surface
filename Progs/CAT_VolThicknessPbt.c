@@ -30,7 +30,7 @@ static ArgvInfo argTable[] = {
 
 int main(int argc, char *argv[])
 {
-    char *infile, out_GMT[1024], out_PPM[1024], out_CSFD[1024], out_WMD[1024];
+    char *infile, out_GMT[1024], out_PPM[1024];
     int i, j, dims[3];
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *PPM;
     float mean_vx_size;
@@ -68,6 +68,8 @@ int main(int argc, char *argv[])
         return(EXIT_FAILURE);
     }
 
+    out_ptr = nifti_copy_nim_info(src_ptr);
+
     /* get dimensions and voxel size */
     separations[0] = src_ptr->dx;
     separations[1] = src_ptr->dy;
@@ -102,11 +104,6 @@ int main(int argc, char *argv[])
     vbdist(input, mask, dims, separations);
     for (i = 0; i < src_ptr->nvox; i++)
         dist_CSF[i] = input[i] + 0.0;
-
-    out_ptr = nifti_copy_nim_info(src_ptr);
-    (void) sprintf(out_CSFD, "%s/dist_CSF_%s", dirname(infile), basename(infile)); 
-    if (!write_nifti_float(out_CSFD, dist_CSF, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
-        exit(EXIT_FAILURE);
             
     /* prepare map outside WM and mask to obtain distance map */
     for (i = 0; i < src_ptr->nvox; i++) {
@@ -119,10 +116,6 @@ int main(int argc, char *argv[])
     vbdist(input, mask, dims, separations);
     for (i = 0; i < src_ptr->nvox; i++)
         dist_WM[i] = input[i] + 0.0;
-
-    (void) sprintf(out_WMD, "%s/dist_WM_%s", dirname(infile), basename(infile)); 
-    if (!write_nifti_float(out_WMD, dist_WM, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
-        exit(EXIT_FAILURE);
     
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
     projection_based_thickness(src, dist_WM, dist_CSF, GMT, dims, separations); 
