@@ -59,10 +59,10 @@ static char *dimension_names[] = { MIyspace, MIxspace };
 
 /* argument defaults */
 double min_threshold = 0.5;
-double fwhm = 3.0;
-int distopen = 1;
+double fwhm   = 3.0;
+int distopen  = 1;
 int any_genus = 0;
-double dist = -1;
+double dist   = -1;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -229,7 +229,7 @@ main(
     sum_RMSE = 0.0;
     count  = 0;
 
-    fprintf(stderr,"%5s\t%5s\t%5s\n","Dist","avgRMSE","RMSE");                       
+    if (!distopen) fprintf(stderr,"%5s\t%5s\t%5s\n","Dist","avgRMSE","RMSE");                       
     for (dist = start_dist; dist > 0.4; dist -= 0.1) {
       
         /* skip morphological opening if distopen is disabled */
@@ -314,10 +314,9 @@ main(
     g0->return_surface = 0;
     g0->extraijkscale[2] = 1;
     
-    i = 1;
+    count = 0;
     EC = -1;
     while (EC != 2) {
-        fprintf(stderr,"Iteration #%d for surface extraction\n",i);
         /* call genus0 for the 1st time */
         g0->cut_loops = 0;
         g0->connectivity = 6;
@@ -367,11 +366,11 @@ main(
         triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
         polygons = get_polygons_ptr(object3);
         EC = euler_characteristic(polygons);
-        i++;
+        count++;
     }
     
     if(n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
-    fprintf(stderr,"Euler characteristics is %d...\n", EC);
+    fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
     /* Correct mesh in folded areas to compensate for the averaging effect in gyri and sulci.
        We use a folding measure (i.e. mean curvature averaged) to estimate the compensation. 
