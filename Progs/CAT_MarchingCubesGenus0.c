@@ -277,9 +277,9 @@ main(
 
         free(input_float);
 
-        genus0parameters g0[1];      /* need an instance of genus0 parameters */
+        genus0parameters g0[1]; /* need an instance of genus0 parameters */
 
-        genus0init(g0);    /* initialize the instance, set default parameters */
+        genus0init(g0); /* initialize the instance, set default parameters */
 
         /* we need uint16 for genus0 approach */
         for (i = 0; i < nvol; i++)
@@ -287,7 +287,7 @@ main(
         free(input_uint8);
         free(ref_uint8);
 
-        /* set some parameters/options */
+        /* set some parameters/options for the firt iteration */
         for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
         g0->connected_component = 1;
         g0->input = input;
@@ -315,13 +315,25 @@ main(
         /* call genus0 a 2nd time with other parameters */
         g0->cut_loops = 1;
         g0->connectivity = 18;
-        g0->value = 1;
         g0->alt_value=0;
-        g0->contour_value=1;
         g0->alt_contour_value=0;
-        free(input);
 
         if (genus0(g0)) return(1); 
+
+        /* save results as next input */
+        for (i = 0; i < nvol; i++)
+                input[i] = g0->output[i];
+
+        /* and call it again a 3rd time with parameters from 1st run */
+        g0->cut_loops = 0;
+        g0->connectivity = 6;
+        g0->value = 1;
+        g0->alt_value=1;
+        g0->alt_contour_value=1;
+
+        free(input);
+        if (genus0(g0)) return(1); 
+
 
         for (i = 0; i < sizes[0]; i++) {
                 for (j = 0; j < sizes[1]; j++) {

@@ -15,6 +15,7 @@
 #include <math.h>
 #include <memory.h>
 #include <float.h>
+#include <limits.h>
 
 #define SQRT2PI 2.506628
 
@@ -49,23 +50,11 @@
 
 #define index(A,B,C,DIM) ((C)*DIM[0]*DIM[1] + (B)*DIM[0] + (A))
 
-#define GM     0
-#define WM     1
-#define CSF    2
-#define SKULL1 3
-#define SKULL2 4
-#define SKULL3 5
+#define CSF    1
+#define GM     2
+#define WM     3
 
-/* structure for PBT */
-struct opt_type {
-    int CSFD;                          /* use CSFD */
-    int PVE;                           /* 0=no, 1=fast, 2=exact */
-    float LB, HB, LLB, HLB, LHB, HHB;  /* boundary */
-    int sL[3];
-} opt;
-
-void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros);
-void watershed3d(unsigned char *img, unsigned char *marker, int flag_dilate, int *dims);
+void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode_uint8(unsigned char *vol, int dims[3], int niter, double th);
 void morph_dilate_uint8(unsigned char *vol, int dims[3], int niter, double th);
 void morph_close_uint8(unsigned char *vol, int dims[3], int niter, double th);
@@ -82,17 +71,16 @@ void smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], doub
 void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp);
 void initial_cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int remove_sinus);
 void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int gmwm_only);
-void median3_uint8(unsigned char *D, int *dims);
-void median3_float(float *D, int *dims);
-void get_largest_component(unsigned char *bw, int dim[3]);
+void median3_uint8(unsigned char *D, int dims[3]);
+void median3_float(float *D, int dims[3]);
 void laplace3(float *SEG, int dims[3], int maxiter);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void distclose_uint8(unsigned char *vol, int dims[3], double voxelsize[3], int niter, double th);
 void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th);
 void distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th);
 void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
-void vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize);
+void vbdist(float *V, unsigned int *IO, int dims[3], double *voxelsize);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
-void PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, double *voxelsize);
+void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int dims[3], double *voxelsize);
 
 #endif

@@ -30,13 +30,13 @@ static ArgvInfo argTable[] = {
 
 int main(int argc, char *argv[])
 {
-    char *infile, out_GMT[1024], out_RPM[1024];
+    char *infile, out_GMT[1024], out_RPM[1024], out_CSFD[1024], out_WMD[1024];
     int i, j, dims[3];
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *RPM;
     float mean_vx_size;
     unsigned int *mask;
     double separations[3];
-    nifti_image *src_ptr;
+    nifti_image *src_ptr, *out_ptr;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
          (void) fprintf(stderr, "\nUsage: %s [options] in.nii [out.nii]\nProjection-based thickness estimation\n", argv[0]);
@@ -85,32 +85,46 @@ int main(int argc, char *argv[])
     RPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     /* check for memory faults */
-    if ((input == NULL) || (mask == NULL) || (dist_CSF == NULL) || (dist_WM == NULL)) {
+    if ((input == NULL) || (mask == NULL) || (dist_CSF == NULL) ||
+           (dist_WM == NULL) || (GMT == NULL) || (RPM == NULL)) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
     
     /* prepare map outside CSF and mask to obtain distance map */
     for (i = 0; i < src_ptr->nvox; i++) {
-        input[i] = (src[i] < 1.5) ? 1.0 : 0.0;
-        mask[i]  = (src[i] < 3.0) ? 1 : 0;
+        input[i] = (src[i] < 1.5) ? 1.0f : 0.0f;
+        mask[i]  = (src[i] < 3.0) ? 1   : 0;
+        mask[i] = 1;
     }    
 
     /* obtain CSF distance map */
     vbdist(input, mask, dims, separations);
-    memcpy(dist_CSF, input, sizeof(float)*src_ptr->nvox);
-    
+    for (i = 0; i < src_ptr->nvox; i++)
+        dist_CSF[i] = input[i] + 0.0;
+
+    out_ptr = nifti_copy_nim_info(src_ptr);
+    (void) sprintf(out_CSFD, "%s/dist_CSF_%s", dirname(infile), basename(infile)); 
+    if (!write_nifti_float(out_CSFD, dist_CSF, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
+        exit(EXIT_FAILURE);
+            
     /* prepare map outside WM and mask to obtain distance map */
     for (i = 0; i < src_ptr->nvox; i++) {
-        input[i] = (src[i] > 2.5) ? 1.0 : 0.0;
-        mask[i]  = (src[i] > 1.0) ? 1 : 0;
+        input[i] = (src[i] > 2.5) ? 1.0f : 0.0f;
+        mask[i]  = (src[i] > 1.0) ? 1   : 0;
+        mask[i] = 1;
     }    
 
     /* obtain WM distance map */
     vbdist(input, mask, dims, separations);
-    memcpy(dist_WM, input, sizeof(float)*src_ptr->nvox);
+    for (i = 0; i < src_ptr->nvox; i++)
+        dist_WM[i] = input[i] + 0.0;
+
+    (void) sprintf(out_WMD, "%s/dist_WM_%s", dirname(infile), basename(infile)); 
+    if (!write_nifti_float(out_WMD, dist_WM, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
+        exit(EXIT_FAILURE);
     
-    PBT(src, dist_CSF, dist_WM, GMT, RPM, dims, separations); 
+    projection_based_thickness(src, dist_WM, dist_CSF, GMT, RPM, dims, separations); 
 
     /* Because dist_CSF and dist_WM measure a grid-based distance (defined as the 
        center of a voxel), we have to correct by 1 voxel, and finally correct
@@ -120,10 +134,9 @@ int main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++)
         GMT[i] = (GMT[i] - 1.0)*mean_vx_size;
        
-    
-    if (!write_nifti_float(out_GMT, GMT, DT_FLOAT32, 1.0, dims, separations, src_ptr)) 
+    if (!write_nifti_float(out_GMT, GMT, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
         exit(EXIT_FAILURE);
-    if (!write_nifti_float(out_RPM, RPM, DT_FLOAT32, 1.0, dims, separations, src_ptr)) 
+    if (!write_nifti_float(out_RPM, RPM, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
         exit(EXIT_FAILURE);
 
     free(mask);
@@ -131,8 +144,7 @@ int main(int argc, char *argv[])
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
-    free(RPM);
-    
+    free(RPM);    
     
     return(EXIT_SUCCESS);
 

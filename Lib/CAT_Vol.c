@@ -11,12 +11,15 @@
 
 /* estimate minimum of A and its index in A */
 void
-pmin(float A[], int sA, float *minimum, int *index)
+pmin(float *A, int sA, float *minimum, int *index)
 {
     int i; 
-    *minimum = FLT_MAX; *index = 0;
+    
+    *minimum = FLT_MAX;
+    *index = 0;
+    
     for (i=0; i<sA; i++) {
-        if ((A[i]>0.0) && (*minimum>A[i])) { 
+        if ((A[i] > 0.0) && (*minimum > A[i])) { 
             *minimum = A[i]; 
             *index   = i;
         }
@@ -25,7 +28,7 @@ pmin(float A[], int sA, float *minimum, int *index)
 
 /* subfunction for SBT to get all values of the voxels which are in WMD-range (children of this voxel) */
 float
-pMAX(const float GMT[], const float RPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
+pmax(const float GMT[], const float RPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
     float n=0.0, maximum=WMD;
     int i;
 
@@ -51,7 +54,7 @@ pMAX(const float GMT[], const float RPM[], const float SEG[], const float ND[], 
                  (((RPM[i] - ND[i] * 1.2) <= WMD)) && 
                  (((RPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) &&
                  ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) {
-            maximum2 = maximum2 + GMT[i]; 
+            maximum2 += GMT[i]; 
             m2n++;
         } 
     }
@@ -193,7 +196,7 @@ convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     double *oVol, int dims[3])
 {
-    double *tmp, *buff, **sortedv, *obuf;
+    double *tmp = NULL, *buff = NULL, **sortedv = NULL, *obuf;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
 
@@ -260,7 +263,7 @@ convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     float *oVol, int dims[3])
 {
-    float *tmp, *buff, **sortedv, *obuf;
+    float *tmp = NULL, *buff = NULL, **sortedv = NULL, *obuf;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
 
@@ -327,7 +330,7 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     unsigned char *oVol, int dims[3])
 {
-    double *tmp, *buff, **sortedv;
+    double *tmp = NULL, *buff = NULL, **sortedv = NULL;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
     double tmp2;
@@ -396,10 +399,10 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
 }
 
 /* 
-    [Ygmt,Ypp] = cat_vol_pbtp(round(Yp0), dist_WM, dist_CSF); 
+    [Ygmt,Ypp] = projection_based_thickness(round(Yp0), dist_WM, dist_CSF); 
  */
 void
-PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, double *voxelsize) 
+projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int dims[3], double *voxelsize) 
 {     
     /* main information about input data (size, dimensions, ...) */
     const int   nvol = dims[0]*dims[1]*dims[2];
@@ -412,45 +415,41 @@ PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, doub
     /* indices of the neighbor Ni (index distance) and euclidean distance NW */
     const int   NI[] = {0,-1, -x+1,-x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1};    
     const float ND[] = {0.0,1.0, s2,1.0,s2, s2,1.0,s2, s3,s2,s3, s3,s2,s3};
-    const int   sN = sizeof(NI)/4; /* division by 4 to get from the number of bytes to the number of elements */ 
+    const int   sN = sizeof(NI)/sizeof(NI[0]); /* division by 4 to get from the number of bytes to the number of elements */ 
     float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
     
     float du, dv, dw, dnu, dnv, dnw, d, dcf, WMu, WMv, WMw;
     float GMu, GMv, GMw, SEGl, SEGu, tmpfloat;
-    int   i,n,ni,u,v,w,nu,nv,nw, tmpint, WMC=0, CSFC=0;
-        
-    if((GMT == NULL) || (RPM == NULL)) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    opt.CSFD = 1; opt.PVE = 2; opt.LB = 1.5; opt.HB = 2.5;
-    opt.LLB = floor(opt.LB); opt.HLB=ceil(opt.LB); opt.LHB=floor(opt.HB); opt.HHB=ceil(opt.HB);
+    float value_CGM = 1.5, value_GWM = 2.5, value_CSF = 1.0, value_WM = 3.0;
+    int   i,n,ni,u,v,w,nu,nv,nw, tmpint, count_WM=0, count_CSF=0;
         
     /* initialisiation */
-    for (i=0;i<nvol;i++) {
-        GMT[i] = WMD[i];
-        RPM[i] = WMD[i];
+    for (i=0; i<nvol; i++) {
+        GMT[i] = WMD[i] + 0.0;
+        RPM[i] = WMD[i] + 0.0;
+        
         /* proof distance input */
-        if ( SEG[i]>=opt.HB ) WMC++;
-        if ( SEG[i]<=opt.LB ) CSFC++;
-    }
-    if (WMC==0)  {
-        fprintf(stderr,"ERROR: no WM voxels\n");
-        exit(EXIT_FAILURE);
+        if (SEG[i]>=value_GWM) count_WM++;
+        if (SEG[i]<=value_CGM) count_CSF++;
     }
 
-    if (CSFC==0) opt.CSFD = 0;
-    
+    if (count_WM==0) {
+        fprintf(stderr,"ERROR: no WM voxels\n");
+        exit(EXIT_FAILURE);
+    }    
+    if (count_CSF==0) {
+        fprintf(stderr,"ERROR: no CSF voxels\n");
+        exit(EXIT_FAILURE);
+    }    
     
     /* thickness calculation
      ======================================================================= */
-    for (i=0;i<nvol;i++) {
-        if (SEG[i]>opt.LLB && SEG[i]<opt.HHB) {
+    for (i=0; i<nvol; i++) {
+        if (SEG[i]>value_CSF && SEG[i]<value_WM) {
             ind2sub(i,&u,&v,&w,xy,x);
             
             /* read neighbour values */
-            for (n=0;n<sN;n++) {
+            for (n=0; n<sN; n++) {
                 ni = i + NI[n];
                 ind2sub(ni,&nu,&nv,&nw,xy,x);
                 if ( (ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
@@ -458,17 +457,17 @@ PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, doub
             }
 
             /* find minimum distance within the neighborhood */
-            DNm = pMAX(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
+            DNm = pmax(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
             GMT[i] = DNm;
         }
     }
     
     for (i=nvol-1;i>=0;i--) {
-        if (SEG[i]>opt.LLB && SEG[i]<opt.HHB) {
+        if (SEG[i]>value_CSF && SEG[i]<value_WM) {
             ind2sub(i,&u,&v,&w,xy,x);
             
             /* read neighbour values */
-            for (n=0;n<sN;n++) {
+            for (n=0; n<sN; n++) {
                 ni = i - NI[n];
                 ind2sub(ni,&nu,&nv,&nw,xy,x);
                 if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
@@ -476,38 +475,32 @@ PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, doub
             }
 
             /* find minimum distance within the neighborhood */
-            DNm = pMAX(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
+            DNm = pmax(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
             if ((GMT[i] < DNm) && (DNm > 0)) GMT[i] = DNm;
         }
     }
     
-    for (i=0;i<nvol;i++)
-        if (SEG[i]<opt.LB || SEG[i]>opt.HB)
-            GMT[i]=0; 
+    for (i=0; i<nvol; i++) if (SEG[i]<value_CGM|| SEG[i]>value_GWM) GMT[i]=0.0; 
     
-
-
     /* final settings...
      ======================================================================= */
-    float CSFDc = 0, GMTi, CSFDi; /* 0.125 */
-    for (int i=0;i<nvol;i++) { 
-        if (SEG[i]>=opt.LB && SEG[i]<=opt.LB) {
+    float GMTi, CSFDi;
+    for (i=0; i<nvol; i++) { 
+        if (SEG[i]>=value_CGM&& SEG[i]<=value_GWM) {
             GMTi = CSFD[i] + WMD[i];    
             CSFDi = GMT[i] - WMD[i];
         
-            if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;                    
-            else GMT[i]  = GMTi;
+            if (CSFD[i]<=CSFDi) GMT[i]  = GMTi;
         }
     }
-
- 
+    
     /* estimate RPM
      ======================================================================= */
-    for (int i=0;i<nvol;i++) {
-        if ( SEG[i]>=opt.HB )       
+    for (i=0; i<nvol; i++) {
+        if ( SEG[i]>=value_GWM)       
             RPM[i] = 1.0; 
         else {
-            if ( SEG[i]<=opt.LB || GMT[i]==0.0 ) 
+            if ( SEG[i]<=value_CGM|| GMT[i]==0.0 ) 
                 RPM[i] = 0.0;
             else {
                 RPM[i] = (GMT[i] - WMD[i]) / GMT[i];
@@ -515,22 +508,25 @@ PBT(float *SEG, float *WMD, float *CSFD, float *GMT, float *RPM, int *dims, doub
                 if (RPM[i]<0.0) RPM[i] = 0.0; 
             }
         } 
-    }    
+    }
+    median3_float(RPM, dims);
+
 }
 
+
 void
-vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize) 
+vbdist(float *V, unsigned int *M, int dims[3], double *voxelsize) 
 {
     
     /* main information about input data (size, dimensions, ...) */
     const int nvol = dims[0]*dims[1]*dims[2];
     const int x    = dims[0];
     const int y    = dims[1];
-    const int xy = x*y;
+    const int xy   = x*y;
     
-    float s1 = fabs((float)voxelsize[0]);
-    float s2 = fabs((float)voxelsize[1]);
-    float s3 = fabs((float)voxelsize[2]);
+    float s1 = (float)fabs(voxelsize[0]);
+    float s2 = (float)fabs(voxelsize[1]);
+    float s3 = (float)fabs(voxelsize[2]);
     const float s12  = (float) sqrt((double)s1*s1   + s2*s2); /* xy - voxel size */
     const float s13  = (float) sqrt((double)s1*s1   + s3*s3); /* xz - voxel size */
     const float s23  = (float) sqrt((double)s2*s2   + s3*s3); /* yz - voxel size */
@@ -546,25 +542,37 @@ vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize)
     int  u,v,w,nu,nv,nw; 
     
     /* data */
-    float       *D;
-    unsigned int *I;
+    float        *D = NULL;
+    unsigned int *I = NULL;
     
     D = (float *)malloc(sizeof(float)*nvol);
     I = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
     
-    /* initialisation */
+    if ((D == NULL) || (I == NULL)) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Initiaize mask with ones if not defined */
+    if (M == NULL) {
+        M = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
+        for (i=0; i<nvol; i++)
+            M[i] = 1.0;
+    }
+    
+    /* initialisation of D and I */
     for (i=0; i<nvol; i++) {
-        if ((V[i]==0.0) || isnan(V[i])) D[i]=FLT_MAX; else D[i]=0.0; 
-        I[i]=(unsigned int)i;
+        if ((round(V[i])<0.5) || isnan(V[i])) D[i] = FLT_MAX; else D[i] = 0.0; 
+        I[i] = (unsigned int)i;
     }
     
     /* forward direction that consider all points smaller than i */
     for (i=0; i<nvol; i++) {
-        if (D[i]>0) {
+        if ((D[i]>0) && (M[i]>0)) {
             ind2sub(i,&u,&v,&w,xy,x);
             
             /* read neighbor values */
-            for (n=0;n<sN;n++){
+            for (n=0; n<sN; n++) {
                 ni = i + NI[n];
                 ind2sub(ni,&nu,&nv,&nw,xy,x);
                 if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
@@ -579,18 +587,18 @@ vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize)
                 I[i] = (unsigned int) I[i+NI[DNi]];
                 D[i] = DNm; 
                 ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
-                D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
+                D[i] = (float)sqrt(pow((double)(u-nu),2) + pow((double)(v-nv),2) + pow((double)(w-nw),2));
             }
          }
     }
     
     /* backward direction that consider all points larger than i */
     for (i=nvol-1;i>=0;i--) {
-        if (D[i]>0) {
+        if ((D[i]>0) && (M[i]>0)) {
             ind2sub(i,&u,&v,&w,xy,x);
         
             /* read neighbour values */
-            for (n=0;n<sN;n++) {
+            for (n=0; n<sN; n++) {
                 ni = i - NI[n];
                 ind2sub(ni,&nu,&nv,&nw,xy,x);
                 if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
@@ -602,22 +610,25 @@ vbdist(float *V, unsigned int *IO, int *dims, double *voxelsize)
         
             /* update values */
             if (DNi>0) {
-                I[i] = (unsigned int)    I[i-NI[DNi]];
+                I[i] = (unsigned int) I[i-NI[DNi]];
                 D[i] = DNm; 
                 ind2sub((int)I[i],&nu,&nv,&nw,xy,x); 
-                D[i] = sqrt(pow((float)(u-nu)*s1,2) + pow((float)(v-nv)*s2,2) + pow((float)(w-nw)*s3,2));
+                D[i] = (float)sqrt(pow((double)(u-nu),2) + pow((double)(v-nv),2) + pow((double)(w-nw),2));
             }
         }
     }
-    
+
+    /* finally return output to original variables V and M */
     for (i=0; i<nvol; i++) {
-        V[i] = D[i];
-        if (IO!=NULL) IO[i] = I[i] + 0;
+        if ((M[i]==0) || (D[i] == FLT_MAX))
+            V[i] = 0.0; else V[i] = D[i];
+        M[i] = I[i];
     }
         
     free(D);
     free(I);
 }
+
 
 /* laplace calculation
  * ________________________________________________________________________
@@ -794,7 +805,7 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
 void
 distclose_uint8(unsigned char *vol, int dims[3], double voxelsize[3], int niter, double th)
 {
-    float *buffer;
+    float *buffer = NULL;
     int i,x,y,z,j,band,dims2[3];
     unsigned char max_vol;
     int nvol2,nvol = dims[0]*dims[1]*dims[2];
@@ -811,7 +822,7 @@ distclose_uint8(unsigned char *vol, int dims[3], double voxelsize[3], int niter,
 
     buffer = (float *)malloc(sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -840,7 +851,7 @@ distclose_uint8(unsigned char *vol, int dims[3], double voxelsize[3], int niter,
 void
 distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th)
 {
-    float *buffer;
+    float *buffer = NULL;
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
     int nvol2,nvol = dims[0]*dims[1]*dims[2];
@@ -857,7 +868,7 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
 
     buffer = (float *)malloc(sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -886,7 +897,7 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
 void
 distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
-    float *buffer;
+    float *buffer = NULL;
     int i,j;
     unsigned char max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
@@ -898,7 +909,7 @@ distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist
     
     buffer = (float *)malloc(sizeof(float)*nvol);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -925,7 +936,7 @@ distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist
 void
 distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
-    float *buffer;
+    float *buffer = NULL;
     int i,j;
     float max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
@@ -937,7 +948,7 @@ distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double
     
     buffer = (float *)malloc(sizeof(float)*nvol);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1015,7 +1026,7 @@ morph_dilate_uint8(unsigned char *vol, int dims[3], int niter, double th)
     double filt[3]={1,1,1};
     int i,x,y,z,j,band,dims2[3];
     unsigned char max_vol;
-    unsigned char *buffer;
+    unsigned char *buffer = NULL;
     int nvol = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
@@ -1029,7 +1040,7 @@ morph_dilate_uint8(unsigned char *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1060,7 +1071,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
     double filt[3]={1,1,1};
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
-    unsigned char *buffer;
+    unsigned char *buffer = NULL;
     int nvol = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
@@ -1074,7 +1085,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1103,7 +1114,7 @@ void
 morph_close_uint8(unsigned char *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
-    unsigned char *buffer;
+    unsigned char *buffer = NULL;
     int i,x,y,z,j,band,dims2[3];
     unsigned char max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
@@ -1119,7 +1130,7 @@ morph_close_uint8(unsigned char *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1155,7 +1166,7 @@ void
 morph_close_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
-    unsigned char *buffer;
+    unsigned char *buffer = NULL;
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
@@ -1171,7 +1182,7 @@ morph_close_float(float *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1239,7 +1250,7 @@ morph_open_uint8(unsigned char *vol, int dims[3], int niter, double th)
 void
 morph_open_float(float *vol, int dims[3], int niter, double th)
 {
-    unsigned char *buffer;
+    unsigned char *buffer = NULL;
     double filt[3]={1,1,1};
     int i, j, nvol;
     float max_vol;
@@ -1252,7 +1263,7 @@ morph_open_float(float *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
 
-    if(buffer == NULL) {
+    if (buffer == NULL) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1428,7 +1439,7 @@ smooth_double(double *vol, int dims[3], double voxelsize[3], double s0[3], int u
     
     /* build mask for masked smoothing */
     if(use_mask) {
-        mask    = (double *) malloc(sizeof(double)*nvol);
+        mask  = (double *) malloc(sizeof(double)*nvol);
         mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvol);
         sum_mask = 0;
         for (i=0; i<nvol; i++) {
@@ -1510,7 +1521,7 @@ smooth_float(float *vol, int dims[3], double voxelsize[3], double s0[3], int use
     
     /* build mask for masked smoothing */
     if(use_mask) {
-        mask    = (float *) malloc(sizeof(float)*nvol);
+        mask  = (float *) malloc(sizeof(float)*nvol);
         mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvol);
         sum_mask = 0;
         for (i=0; i<nvol; i++) {
@@ -1578,9 +1589,9 @@ smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], double s[
     for (i=0; i<3; i++) dims_samp[i] = (int) ceil((dims[i]-1)/((double) samp))+1;
     for (i=0; i<3; i++) voxelsize_samp[i] = voxelsize[i]*((double)dims[i]/(double)dims_samp[i]);
 
-    nvol    = dims[0]*dims[1]*dims[2];
-    nvol_samp    = dims_samp[0]*dims_samp[1]*dims_samp[2];
-    vol_samp    = (double *)malloc(sizeof(double)*nvol_samp);
+    nvol      = dims[0]*dims[1]*dims[2];
+    nvol_samp = dims_samp[0]*dims_samp[1]*dims_samp[2];
+    vol_samp  = (double *)malloc(sizeof(double)*nvol_samp);
 
     subsample_double(vol, vol_samp, dims, dims_samp, 0, 0);     
     smooth_double(vol_samp, dims_samp, voxelsize_samp, s, use_mask);
@@ -1601,9 +1612,9 @@ smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3]
     for (i=0; i<3; i++) dims_samp[i] = (int) ceil((dims[i]-1)/((double) samp))+1;
     for (i=0; i<3; i++) voxelsize_samp[i] = voxelsize[i]*((double)dims[i]/(double)dims_samp[i]);
 
-    nvol    = dims[0]*dims[1]*dims[2];
-    nvol_samp    = dims_samp[0]*dims_samp[1]*dims_samp[2];
-    vol_samp    = (float *)malloc(sizeof(float)*nvol_samp);
+    nvol      = dims[0]*dims[1]*dims[2];
+    nvol_samp = dims_samp[0]*dims_samp[1]*dims_samp[2];
+    vol_samp  = (float *)malloc(sizeof(float)*nvol_samp);
 
     subsample_float(vol, vol_samp, dims, dims_samp, 0, 0);   
     smooth_float(vol_samp, dims_samp, voxelsize_samp, s, use_mask);
@@ -1741,7 +1752,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 }
 
 void
-initial_cleanup(unsigned char *probs, unsigned char *label, int *dims, double *voxelsize, int strength, int remove_sinus)
+initial_cleanup(unsigned char *probs, unsigned char *label, int dims[3], double *voxelsize, int strength, int remove_sinus)
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -1787,7 +1798,7 @@ initial_cleanup(unsigned char *probs, unsigned char *label, int *dims, double *v
 }
 
 void
-cleanup_orig(unsigned char *probs, unsigned char *mask, int *dims, double *voxelsize, int strength)
+cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsize, int strength)
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -1867,7 +1878,7 @@ if (0) {
 }
 
 void
-cleanup(unsigned char *probs, unsigned char *mask, int *dims, double *voxelsize, int strength, int gmwm_only)
+cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsize, int strength, int gmwm_only)
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -1995,7 +2006,7 @@ sort_uint8(unsigned char arr[], int start, int end)
 
 /* simple median function for uint8 */
 void 
-median3_uint8(unsigned char *D, int *dims)
+median3_uint8(unsigned char *D, int dims[3])
 {
     /* indices of the neighbor Ni (index distance) and euclidean distance NW */
     unsigned char NV[27];
@@ -2063,7 +2074,7 @@ sort_float(float arr[], int start, int end)
 
 /* simple median function for float */
 void 
-median3_float(float *D, int *dims)
+median3_float(float *D, int dims[3])
 {
     /* indices of the neighbor Ni (index distance) and euclidean distance NW */
     float NV[27];
