@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
                 #if !defined(_WIN32)
                         (void) sprintf(outfile, "%s/n%s", dirname(infile), basename(infile)); 
                 #else
-                        fprintf(stderr,"\n\Usage: %s input.nii output.nii\n\n\
+                        fprintf(stderr,"\nUsage: %s input.nii output.nii\n\n\
                             Spatial adaptive non-local means denoising filter.\n\n", argv[0]);
                         return( 1 );
                 #endif

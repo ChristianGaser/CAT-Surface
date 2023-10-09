@@ -70,7 +70,7 @@ main( int argc, char **argv )
         int           i, j, dims[3];
         int           x, y, z, z_area, y_dims;
         char          *arg_string, buffer[1024];
-        unsigned char *label, *prob;
+        unsigned char *label = NULL, *prob = NULL;
         float         *src, *buffer_vol;
         double        slope;
         double        offset, val, max_vol, min_vol, voxelsize[3];
@@ -114,7 +114,7 @@ main( int argc, char **argv )
         }
 
         if (subsample < 20) {
-                fprintf(stderr,"Parameter subsample hast to be >= 20.\n");
+                fprintf(stderr,"Parameter subsample has to be >= 20.\n");
                 exit(EXIT_FAILURE);
         }
 
@@ -252,7 +252,7 @@ main( int argc, char **argv )
                 }                
         }
         
-        free(src);
+        //free(src);
         free(prob);
         free(label);
         

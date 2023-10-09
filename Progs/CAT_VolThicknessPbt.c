@@ -39,7 +39,8 @@ int main(int argc, char *argv[])
     nifti_image *src_ptr, *out_ptr;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
-         (void) fprintf(stderr, "\nUsage: %s [options] in.nii [GMT.nii PPM.nii]\nProjection-based thickness estimation\n", argv[0]);
+         (void) fprintf(stderr, "\nUsage: %s [options] in.nii [GMT.nii PPM.nii]\n", argv[0]);
+         (void) fprintf(stderr, "         Projection-based thickness estimation\n");
          (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
      exit(EXIT_FAILURE);
     }
@@ -55,8 +56,7 @@ int main(int argc, char *argv[])
             (void) sprintf(out_GMT, "%s/gmt_%s", dirname(infile), basename(infile)); 
             (void) sprintf(out_PPM, "%s/ppi_%s", dirname(infile), basename(infile)); 
         #else
-            fprintf(stderr,"\nUsage: %s input.nii GMT.nii PPM.nii\n
-        Projection-based thickness estimation.\n\n", argv[0]);
+            fprintf(stderr,"\nUsage: %s input.nii GMT.nii PPM.nii\n\n", argv[0]);
             return( 1 );
         #endif
     }

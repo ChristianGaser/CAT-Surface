@@ -3,7 +3,13 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/nifti -I$(top_srcdir)/zlib
+if OSX
+  AM_CFLAGS = -pthread
+endif
+if LINUX
+  AM_CFLAGS = -pthread
+endif
+AM_CPPFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir)/nifti -I$(top_srcdir)/zlib
 
 lib_LTLIBRARIES = libCAT.la
 

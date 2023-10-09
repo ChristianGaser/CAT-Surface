@@ -316,7 +316,8 @@ main(
     
     count = 0;
     EC = -1;
-    while (EC != 2) {
+    /* repeat until EC is 2 or max. count is reached */
+    while ((EC != 2) && (count <= 5)) {
         /* call genus0 for the 1st time */
         g0->cut_loops = 0;
         g0->connectivity = 6;

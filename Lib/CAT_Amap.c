@@ -288,7 +288,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
         int zsub2, ysub2;
         int nix, niy, niz, k, l, m, z, y, x, label_value;
         double val;
-        struct ipoint *ir;
+        struct ipoint *ir = NULL;
         int label_value_BG;
 
         area = dims[0]*dims[1];
@@ -756,7 +756,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
         double thresh[2], beta[1];
         double min_src = HUGE, max_src = -HUGE;
         int cumsum[65536];
-        struct point *r;
+        struct point *r = NULL;
         
         /* we have to make sub independent from voxel size */
         mean_voxelsize = (voxelsize[0] + voxelsize[1] + voxelsize[2])/3.0;

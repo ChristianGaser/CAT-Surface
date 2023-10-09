@@ -17,6 +17,33 @@ AC_DISABLE_SHARED
 smr_WITH_BUILD_PATH
 mni_REQUIRE_BICPL
 
+AC_CANONICAL_HOST
+
+build_linux=no
+build_windows=no
+build_mac=no
+
+# Detect the target system
+case "${host_os}" in
+    linux*)
+        build_linux=yes
+        ;;
+    cygwin*|mingw*)
+        build_windows=yes
+        ;;
+    darwin*)
+        build_mac=yes
+        ;;
+    *)
+        AC_MSG_ERROR(["OS $host_os is not supported"])
+        ;;
+esac
+
+# Pass the conditionals to automake
+AM_CONDITIONAL([LINUX], [test "$build_linux" = "yes"])
+AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
+AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
+
 AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
 AC_CHECK_LIB(expat, XML_ParserCreate,, AC_MSG_ERROR(The expat library is required.))
 
