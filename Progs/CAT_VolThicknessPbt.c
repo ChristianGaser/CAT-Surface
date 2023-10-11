@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 {
     char *infile, out_GMT[1024], out_PPM[1024];
     int i, j, dims[3];
-    float *input, *src, *dist_CSF, *dist_WM, *GMT, *PPM;
+    float *input, *src, *dist_CSF, *dist_WM, *GMT, *PPM, *PPM_filtered;
     float mean_vx_size;
     unsigned int *mask;
     double separations[3];
@@ -85,10 +85,11 @@ int main(int argc, char *argv[])
 
     GMT = (float *)malloc(sizeof(float)*src_ptr->nvox);
     PPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    PPM_filtered = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     /* check for memory faults */
     if ((input == NULL) || (mask == NULL) || (dist_CSF == NULL) ||
-           (dist_WM == NULL) || (GMT == NULL) || (PPM == NULL)) {
+           (dist_WM == NULL) || (GMT == NULL) || (PPM == NULL) || (PPM_filtered == NULL)) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -149,7 +150,14 @@ int main(int argc, char *argv[])
     }
     
     /* finally minimize outliers in the PPM using median-filter */
-    median3_float(PPM, dims);
+    for (i = 0; i < src_ptr->nvox; i++)
+        PPM_filtered[i] = PPM[i];
+    median3_float(PPM_filtered, dims);
+    
+    /* protect values in sulci and only replace other areas with median-filtered values */
+    for (i = 0; i < src_ptr->nvox; i++)
+        if (PPM[i] > 0.25)
+            PPM[i] = PPM_filtered[i];
 
     /* Because dist_CSF and dist_WM measure a grid-based distance (defined as the 
        center of a voxel), we have to correct by 1 voxel, and finally correct

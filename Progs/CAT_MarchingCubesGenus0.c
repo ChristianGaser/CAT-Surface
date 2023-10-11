@@ -24,7 +24,7 @@ private void extract_isosurface(
     Volume           volume,
     double           min_label,
     double           max_label,
-    int            spatial_axes[],
+    int              spatial_axes[],
     General_transform    *voxel_to_world_transform,
     Marching_cubes_methods method,
     BOOLEAN          binary_flag,
@@ -32,7 +32,7 @@ private void extract_isosurface(
     double           max_threshold,
     double           valid_low,
     double           valid_high,
-    polygons_struct      *polygons);
+    polygons_struct  *polygons);
     
 private void extract_surface(
     Marching_cubes_methods method,
@@ -41,18 +41,18 @@ private void extract_surface(
     double           max_threshold,
     double           valid_low,
     double           valid_high,
-    int            x_size,
-    int            y_size,
+    int              x_size,
+    int              y_size,
     double           ***slices,
     double           min_label,
     double           max_label,
     double           ***label_slices,
-    int            slice_index,
+    int              slice_index,
     BOOLEAN          right_handed,
-    int            spatial_axes[],
+    int              spatial_axes[],
     General_transform    *voxel_to_world_transform,
-    int            ***point_ids[],
-    polygons_struct      *polygons);
+    int              ***point_ids[],
+    polygons_struct  *polygons);
 
 static char *dimension_names_3D[] = { MIzspace, MIyspace, MIxspace };
 static char *dimension_names[] = { MIyspace, MIxspace };
@@ -288,8 +288,6 @@ main(
 
     }
 
-    free(input_float);
-
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
 
     genus0init(g0); /* initialize the instance, set default parameters */
@@ -297,13 +295,11 @@ main(
     /* we need uint16 for genus0 approach */
     for (i = 0; i < nvol; i++)
         input[i] = (unsigned short)input_uint8[i];
-    free(input_uint8);
     free(ref_uint8);
 
     /* set some parameters/options for the firt iteration */
     for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
     g0->connected_component = 1;
-    g0->input = input;
     g0->value = 1;
     g0->contour_value = 1;
     g0->any_genus = any_genus;
@@ -314,11 +310,13 @@ main(
     g0->return_surface = 0;
     g0->extraijkscale[2] = 1;
     
+    int area_correction = 0;
     count = 0;
     EC = -1;
     /* repeat until EC is 2 or max. count is reached */
-    while ((EC != 2) && (count <= 5)) {
+    while ((EC != 2) && (count < 10)) {        
         /* call genus0 for the 1st time */
+        g0->input = input;
         g0->cut_loops = 0;
         g0->connectivity = 6;
         g0->alt_value = 1;
@@ -332,6 +330,7 @@ main(
             input[i] = g0->output[i];
             
         /* call genus0 a 2nd time with other parameters */
+        g0->input = input;
         g0->cut_loops = 1;
         g0->connectivity = 18;
         g0->alt_value = 0;
@@ -343,15 +342,62 @@ main(
         for (i = 0; i < nvol; i++)
             input[i] = g0->output[i];
     
+        if (area_correction) {
+            /* save previous output */
+            for (i = 0; i < nvol; i++) 
+                    input_float[i] = (float)g0->output[i];
+            
+            /* use smoothing filter for values > 1, otherwise median filter */
+            if (area_correction > 1) {
+                double s[] = {area_correction, area_correction, area_correction};
+                smooth_float(input_float, sizes, voxelsize, s, 0);
+            } else median3_float(input_float, sizes);
+
+            /* replace areas with topology errors with its filtered version */
+            for (i = 0; i < nvol; i++) {
+                if (((float)g0->output[i] - (float)input_uint8[i]) != 0)
+                    input[i] = (unsigned short)round(input_float[i]);
+            }
+
+            /* call genus0 for the 1st time */
+            g0->input = input;
+            g0->cut_loops = 0;
+            g0->connectivity = 6;
+            g0->alt_value = 1;
+            g0->alt_contour_value = 1;
+        
+            /* call the function! */
+            if (genus0(g0)) return(1); /* check for error */
+        
+            /* save results as next input */
+            for (i = 0; i < nvol; i++)
+                input[i] = g0->output[i];
+                
+            /* call genus0 a 2nd time with other parameters */
+            g0->input = input;
+            g0->cut_loops = 1;
+            g0->connectivity = 18;
+            g0->alt_value = 0;
+            g0->alt_contour_value = 0;
+        
+            if (genus0(g0)) return(1); 
+        
+            /* save results as next input */
+            for (i = 0; i < nvol; i++)
+                input[i] = g0->output[i];
+        }
+        
+        
         for (i = 0; i < sizes[0]; i++) {
             for (j = 0; j < sizes[1]; j++) {
                 for (k = 0; k < sizes[2]; k++) {
-                    set_volume_real_value(volume, i, j, k, 0, 0, 
-                      g0->output[i + j*sizes[0] + k*sizes[0]*sizes[1]]);
+                    ind = sub2ind(i,j,k,sizes[0],sizes[1]);
+                    set_volume_real_value(volume, i, j, k, 0, 0, g0->output[ind]);                    
                 }
             }
         }
         
+
         /* extract surface to check euler number */
         extract_isosurface(volume,
                   min_label, max_label,
@@ -369,6 +415,9 @@ main(
         EC = euler_characteristic(polygons);
         count++;
     }
+
+    free(input_uint8);
+    free(input_float);
     
     if(n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
     fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
