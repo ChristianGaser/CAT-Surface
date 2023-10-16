@@ -60,9 +60,10 @@ static char *dimension_names[] = { MIyspace, MIxspace };
 /* argument defaults */
 double min_threshold = 0.5;
 double fwhm   = 3.0;
+double dist   = -1;
+int median_correction  = 1;
 int distopen  = 1;
 int any_genus = 0;
-double dist   = -1;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -73,9 +74,11 @@ static ArgvInfo argTable[] = {
        Do not use smoothing sizes > 3 mm because that compensation only works reliably for smaller smoothing sizes."},
   {"-dist", ARGV_FLOAT, (char *) TRUE, (char *) &dist,
       "Manually define threshold for morphological opening (default -1 for automatic estimation)."},
+  {"-no-median", ARGV_CONSTANT, (char *) FALSE, (char *) &median_correction,
+      "Disable median filter that is used outside sulcal areas."},
   {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &distopen,
       "Disable additional morphological opening."},
-  {"-no_genus0", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
+  {"-no-genus0", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
       "Allows to switch off genus0 functionality."},
     {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -291,7 +294,7 @@ main(
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
 
     genus0init(g0); /* initialize the instance, set default parameters */
-
+    
     /* we need uint16 for genus0 approach */
     for (i = 0; i < nvol; i++)
         input[i] = (unsigned short)input_uint8[i];
@@ -309,10 +312,12 @@ main(
     g0->verbose = 0;
     g0->return_surface = 0;
     g0->extraijkscale[2] = 1;
+        
+    /* don't call loop if genus0 is not forced */
+    if (any_genus) count = 10; else count = 0;
     
-    int area_correction = 0;
-    count = 0;
     EC = -1;
+    
     /* repeat until EC is 2 or max. count is reached */
     while ((EC != 2) && (count < 10)) {        
         /* call genus0 for the 1st time */
@@ -338,55 +343,20 @@ main(
     
         if (genus0(g0)) return(1); 
     
-        /* save results as next input */
-        for (i = 0; i < nvol; i++)
-            input[i] = g0->output[i];
-    
-        if (area_correction) {
-            /* save previous output */
-            for (i = 0; i < nvol; i++) 
-                    input_float[i] = (float)g0->output[i];
+        /* apply median-correction after 2nd iteration */
+        if ((median_correction) && (count > 1)) {
+            /* use previous output for filtering */
+            for (i = 0; i < nvol; i++)
+                    input_uint8[i] = (unsigned char)g0->output[i];
             
-            /* use smoothing filter for values > 1, otherwise median filter */
-            if (area_correction > 1) {
-                double s[] = {area_correction, area_correction, area_correction};
-                smooth_float(input_float, sizes, voxelsize, s, 0);
-            } else median3_float(input_float, sizes);
+            median3_uint8(input_uint8, sizes);
 
-            /* replace areas with topology errors with its filtered version */
+            /* replace with its median filtered version outside sulcal areas */
             for (i = 0; i < nvol; i++) {
-                if (((float)g0->output[i] - (float)input_uint8[i]) != 0)
-                    input[i] = (unsigned short)round(input_float[i]);
+                if (input_float[i] > min_threshold/1.0)
+                    g0->output[i] = (unsigned short)input_uint8[i];
             }
-
-            /* call genus0 for the 1st time */
-            g0->input = input;
-            g0->cut_loops = 0;
-            g0->connectivity = 6;
-            g0->alt_value = 1;
-            g0->alt_contour_value = 1;
-        
-            /* call the function! */
-            if (genus0(g0)) return(1); /* check for error */
-        
-            /* save results as next input */
-            for (i = 0; i < nvol; i++)
-                input[i] = g0->output[i];
-                
-            /* call genus0 a 2nd time with other parameters */
-            g0->input = input;
-            g0->cut_loops = 1;
-            g0->connectivity = 18;
-            g0->alt_value = 0;
-            g0->alt_contour_value = 0;
-        
-            if (genus0(g0)) return(1); 
-        
-            /* save results as next input */
-            for (i = 0; i < nvol; i++)
-                input[i] = g0->output[i];
         }
-        
         
         for (i = 0; i < sizes[0]; i++) {
             for (j = 0; j < sizes[1]; j++) {
@@ -396,7 +366,6 @@ main(
                 }
             }
         }
-        
 
         /* extract surface to check euler number */
         extract_isosurface(volume,
@@ -414,6 +383,11 @@ main(
         polygons = get_polygons_ptr(object3);
         EC = euler_characteristic(polygons);
         count++;
+
+        /* save results as next input */
+        for (i = 0; i < nvol; i++)
+            input[i] = g0->output[i];
+    
     }
 
     free(input_uint8);

@@ -80,6 +80,7 @@ void smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], doub
 void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp);
 void initial_cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int remove_sinus);
 void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int gmwm_only);
+void median3_ushort(unsigned short *D, int dims[3]);
 void median3_uint8(unsigned char *D, int dims[3]);
 void median3_float(float *D, int dims[3]);
 void laplace3(float *SEG, int dims[3], int maxiter);

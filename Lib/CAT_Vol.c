@@ -2028,74 +2028,6 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
 
 /* qicksort */
 void
-swap_uint8(unsigned char *a, unsigned char *b)
-{
-    unsigned char t=*a;
-    *a=*b;
-    *b=t;
-}
-
-void
-sort_uint8(unsigned char arr[], int start, int end)
-{
-    if (end > start + 1)
-    {
-        unsigned char piv = arr[start];
-        int l = start + 1, r = end;
-        while (l < r)
-        {
-            if (arr[l] <= piv) l++;
-            else swap_uint8(&arr[l], &arr[--r]);
-        }
-        swap_uint8(&arr[--l], &arr[start]);
-        sort_uint8(arr, start, l);
-        sort_uint8(arr, r, end);
-    }
-}
-
-/* simple median function for uint8 */
-void 
-median3_uint8(unsigned char *D, int dims[3])
-{
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    unsigned char NV[27];
-    int i,j,k,ind,ni,x,y,z,n;
-    unsigned char *M;
-    int nvol = dims[0]*dims[1]*dims[2];
-                
-    /* output */
-    M = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
-
-    /* filter process */
-    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
-        ind = index(x,y,z,dims);
-        n = 0;
-        /* go through all elements in a 3x3x3 box */
-        for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
-            /* check borders */ 
-            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
-                ni = index(x+i,y+j,z+k,dims);
-                /* check masks and NaN or Infinities */
-                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
-                NV[n] = D[ni];
-                n++;
-            }
-        }
-        /* get correct n */
-        n--;
-        /* sort and get the median by finding the element in the middle of the sorting */
-        sort_uint8(NV,0,n);
-        M[ind] = NV[(int)(n/2)];
-    }
-     
-    for (i=0; i<nvol; i++) D[i] = M[i];
-    
-    free(M);
-    
-}
-
-/* qicksort */
-void
 swap_float(float *a, float *b)
 {
     float t=*a;
@@ -2119,6 +2051,88 @@ sort_float(float arr[], int start, int end)
         sort_float(arr, start, l);
         sort_float(arr, r, end);
     }
+}
+
+/* simple median function for uint8 */
+void 
+median3_uint8(unsigned char *D, int dims[3])
+{
+    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
+    float NV[27];
+    int i,j,k,ind,ni,x,y,z,n;
+    unsigned char *M;
+    int nvol = dims[0]*dims[1]*dims[2];
+                
+    /* output */
+    M = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+
+    /* filter process */
+    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
+        ind = index(x,y,z,dims);
+        n = 0;
+        /* go through all elements in a 3x3x3 box */
+        for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
+            /* check borders */ 
+            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
+                ni = index(x+i,y+j,z+k,dims);
+                /* check masks and NaN or Infinities */
+                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
+                NV[n] = (float)D[ni];
+                n++;
+            }
+        }
+        /* get correct n */
+        n--;
+        /* sort and get the median by finding the element in the middle of the sorting */
+        sort_float(NV,0,n);
+        M[ind] = (unsigned char)NV[(int)(n/2)];
+    }
+     
+    for (i=0; i<nvol; i++) D[i] = M[i];
+    
+    free(M);
+    
+}
+
+/* simple median function for unsigned short */
+void 
+median3_short(unsigned short *D, int dims[3])
+{
+    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
+    float NV[27];
+    int i,j,k,ind,ni,x,y,z,n;
+    unsigned short *M;
+    int nvol = dims[0]*dims[1]*dims[2];
+                
+    /* output */
+    M = (unsigned short *)malloc(sizeof(unsigned short)*nvol);
+
+    /* filter process */
+    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
+        ind = index(x,y,z,dims);
+        n = 0;
+        /* go through all elements in a 3x3x3 box */
+        for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
+            /* check borders */ 
+            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
+                ni = index(x+i,y+j,z+k,dims);
+                /* check masks and NaN or Infinities */
+                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
+                NV[n] = (float)D[ni];
+                n++;
+            }
+        }
+        /* get correct n */
+        n--;
+        /* sort and get the median by finding the element in the middle of the sorting */
+        sort_float(NV,0,n);
+        M[ind] = (unsigned short)NV[(int)(n/2)];
+    }
+     
+    for (i=0; i<nvol; i++) D[i] = M[i];
+    
+    free(M);
+    
 }
 
 /* simple median function for float */
