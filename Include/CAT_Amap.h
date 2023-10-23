@@ -26,10 +26,6 @@
 #define NULL ((void *) 0)
 #endif
 
-#define NOPVE 0
-#define KMEANS 1
-
-#define BKGCSFLABEL 0
 #define CSFLABEL    1
 #define GMCSFLABEL  2
 #define GMLABEL     3
@@ -50,10 +46,6 @@
 
 #ifndef ROUND
 #define ROUND( x ) ((long) ((x) + ( ((x) >= 0) ? 0.5 : (-0.5) ) ))
-#endif
-
-#ifndef MIN3
-#define MIN3(a,b,c) (MIN(a,MIN(b,c)))
 #endif
 
 #include <math.h>

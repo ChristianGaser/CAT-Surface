@@ -116,10 +116,8 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (pve)
-        n_classes = 5;
-    else
-        n_classes = 3;
+    if (pve) n_classes = 5;
+    else     n_classes = 3;
     
     /* read data */
     src_ptr = read_nifti_float(input_filename, &src, 0);
