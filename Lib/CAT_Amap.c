@@ -91,86 +91,6 @@ void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, i
         }        
 }
 
-void Pve6(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims)
-{
-        int x,y,z,i,z_area,y_dims,ind,mxi;
-        double w, mx;
-        unsigned char new_val[MAX_NC];
-        
-        int area = dims[0]*dims[1];
-        int vol = area*dims[2];
-                
-        for (z = 1; z < dims[2]-1; z++) {
-                z_area = z*area;
-                for (y = 1; y < dims[1]-1; y++) {
-                        y_dims = y*dims[0];
-                        for (x = 1; x < dims[0]-1; x++) {
-                                ind = z_area + y_dims + x;
-
-                                switch(label[ind]) {
-                                case 0: /* BG */
-                                        new_val[CSFLABEL] = 0;
-                                        new_val[GMLABEL]  = 0;
-                                        new_val[WMLABEL]  = 0;
-                                        break;
-                                case CSFLABEL+1: /* CSF */
-                                        new_val[CSFLABEL] = 255;
-                                        new_val[GMLABEL]  = 0;
-                                        new_val[WMLABEL]  = 0;
-                                        label[ind] = (unsigned char) ROUND(255.0/3.0);
-                                        break;
-                                case GMLABEL+1: /* GM */
-                                        new_val[CSFLABEL] = 0;
-                                        new_val[GMLABEL]  = 255;
-                                        new_val[WMLABEL]  = 0;
-                                        label[ind] = (unsigned char) ROUND(2.0*255.0/3.0);
-                                        break;
-                                case WMLABEL+1: /* WM */
-                                        new_val[CSFLABEL] = 0;
-                                        new_val[GMLABEL]  = 0;
-                                        new_val[WMLABEL]  = 255;
-                                        label[ind] = 255;
-                                        break;
-                                case BKGCSFLABEL+1: /* BKGCSF */
-                                        w = (double)src[ind]/mean[CSFLABEL];
-                                        if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
-                                        new_val[CSFLABEL] = (unsigned char) ROUND(255.0*w);
-                                        new_val[GMLABEL]  = 0;
-                                        new_val[WMLABEL]  = 0;
-                                        label[ind] = ROUND(255.0/3.0*w);
-                                        break;
-                                case GMCSFLABEL+1: /* GMCSF */
-                                        w = ((double)src[ind] - mean[CSFLABEL])/(mean[GMLABEL]-mean[CSFLABEL]);
-                                        if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
-                                        new_val[CSFLABEL] = (unsigned char) ROUND(255.0*(1-w));
-                                        new_val[GMLABEL]  = (unsigned char) ROUND(255.0*w);
-                                        new_val[WMLABEL]  = 0;
-                                        label[ind] = ROUND(255.0/3.0*(1.0 + w));
-                                        break;
-                                case WMGMLABEL+1: /* WMGM */
-                                        w = ((double)src[ind] - mean[GMLABEL])/(mean[WMLABEL]-mean[GMLABEL]);
-                                        if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
-                                        new_val[CSFLABEL] = 0;
-                                        new_val[GMLABEL]  = (unsigned char) ROUND(255.0*(1-w));
-                                        new_val[WMLABEL]  = (unsigned char) ROUND(255.0*w);
-                                        label[ind] = ROUND(255.0/3.0*(2.0 + w));
-                                        break;
-                                }
-
-                                prob[          ind] = new_val[CSFLABEL-1];
-                                prob[vol     + ind] = new_val[GMLABEL-1];
-                                prob[(2*vol) + ind] = new_val[WMLABEL-1];
-                                
-                                /* set old probabilities for mixed classes to zero */
-                                prob[(3*vol) + ind] = 0;
-                                prob[(4*vol) + ind] = 0;
-                                prob[(5*vol) + ind] = 0;
-                                
-                        }
-                }
-        }        
-}
-
 /* This code is a substantially modified version of MrfPrior.C 
  * from Jagath C. Rajapakse
  * 
@@ -463,9 +383,8 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
         narea = nix*niy;
         nvol = nix*niy*niz;
         
-        /* use 5 or 6 classes */
-        if (pve == 6) off = 1;
-        else             off = 0;
+        /* use 5classes */
+        if (pve == 5) off = 0;
         
         /* loop over image points */
         for(z = 1; z < dims[2]-1; z++) {
@@ -513,14 +432,6 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
                                                 var[GMLABEL+off-1], var[CSFLABEL+off-1], 100 );
                                 } else d_pve[GMCSFLABEL+off-1] = HUGE;
                                 
-                                /* BKGCSF only for 6 classes */
-                                if (pve == 6) {
-                                        if (fabs(mean[CSFLABEL+off-1]) > TINY) {
-                                                d_pve[BKGCSFLABEL+off-1] = ComputeMarginalizedLikelihood(val, 0.0, mean[CSFLABEL+off-1],
-                                                        0.1*MIN3(var[CSFLABEL+off-1],var[GMLABEL+off-1],var[WMLABEL+off-1]), var[CSFLABEL+off-1], 100 );
-                                        } else d_pve[BKGCSFLABEL+off-1] = HUGE;
-                                }
-
                                 Normalize(d_pve, n_pure_classes+2+off);
                                 
                                 for(i = 0; i < n_pure_classes+2+off; i++) 

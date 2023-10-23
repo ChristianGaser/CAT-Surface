@@ -19,7 +19,7 @@ int n_pure_classes = 3;
 int iters_amap = 200;
 int subsample = 96;
 int iters_ICM = 50;
-int pve = 5;
+int pve = 1;
 int write_seg[3] = {0, 1, 0};
 int write_label = 1;
 int debug = 0;
@@ -38,7 +38,7 @@ static ArgvInfo argTable[] = {
     {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
          "Weight of MRF prior (0..1)."},
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
-         "Use Partial Volume Estimation with 5 classes (5), 6 classes (6) or do not use PVE (0)."},
+         "Use Partial Volume Estimation with 5 classes (1) or do not use PVE (0)."},
     {"-cleanup", ARGV_INT, (char *) 1, (char *) &iters_amap,
          "Cleanup segmentations (0 - no cleanup, 1 - slight cleanup, 2 - strong cleanup)."},
     {"-write_seg", ARGV_INT, (char *) 3, (char *) &write_seg,
@@ -111,27 +111,15 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     
-    if ((pve != 0) && (pve != 5) && (pve != 6)) {
-        fprintf(stderr,"Value for pve can be either 0 (no PVE), 5 or 6 (5 or 6 classes).\n");
-        exit(EXIT_FAILURE);
-    }
-
     if (subsample < 20) {
         fprintf(stderr,"Parameter subsample has to be >= 20.\n");
         exit(EXIT_FAILURE);
     }
 
-    switch(pve) {
-    case 0:
-        n_classes = 3;
-        break;
-    case 5:
+    if (pve)
         n_classes = 5;
-        break;
-    case 6:
-        n_classes = 6;
-        break;
-    }
+    else
+        n_classes = 3;
     
     /* read data */
     src_ptr = read_nifti_float(input_filename, &src, 0);
@@ -210,10 +198,7 @@ main(int argc, char **argv)
     /* PVE */
     if (pve) {
         fprintf(stdout,"Calculate Partial Volume Estimate.\n");
-        if (pve==6)
-            Pve6(src, prob, label, mean, dims);
-        else
-            Pve5(src, prob, label, mean, dims);
+        Pve5(src, prob, label, mean, dims);
     }
         
     /* write labeled volume */
