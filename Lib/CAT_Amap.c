@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "CAT_Amap.h"
+#include "CAT_Vol.h"
 
 /* This PVE calculation is a modified version from
  * the PVE software bundle:
@@ -384,7 +385,7 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
     nvol = nix*niy*niz;
     
     /* use 5classes */
-    if (pve == 5) off = 0;
+    if (pve) off = 0;
     
     /* loop over image points */
     for(z = 1; z < dims[2]-1; z++) {
@@ -537,7 +538,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
     printf("\n");
 } 
 
-void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, struct point *r, double *mean, double *var, int n_classes, int niters, int sub, int *dims, double *thresh, double *beta, double offset)
+void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, struct point *r, double *mean, double *var, int n_classes, int niters, int sub, int *dims, double *voxelsize, double *thresh, double *beta, double offset, double bias_fwhm)
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
@@ -547,12 +548,16 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     int nix, niy, niz, iters, count_change;
     int x, y, z, label_value, xBG;
     int ix, iy, iz, ind2;
-    double ll, ll_old, change_ll;
-
+    double ll, ll_old, change_ll, corr;
+    float *meanresidual, *meaninvcov, tempf;
+        
     MrfPrior(label, n_classes, alpha, beta, 0, dims);        
 
     area = dims[0]*dims[1];
     vol = area*dims[2];
+
+    meaninvcov = (float *)malloc(sizeof(float)*vol);
+    meanresidual = (float *)malloc(sizeof(float)*vol);
 
     /* find grid point conversion factor */
     sub_1 = 1.0/((double) sub);
@@ -574,6 +579,12 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
             
         ll = 0.0;
         
+        /* set mean residual and mean inverse covariance to zero */
+        for(i = 0; i < vol; i++) {
+            meaninvcov[i] = 0.0;
+            meanresidual[i] = 0.0;
+        }
+
         /* get means for grid points */
         GetMeansVariances(src, label, n_classes, r, sub, dims, thresh);      
 
@@ -604,6 +615,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                         }
                     }
                     
+                    
                     /* compute energy at each point */
                     dmin = HUGE; xBG = 1; 
                     psum = 0.0;
@@ -613,6 +625,14 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                             d[i] = 0.5*(SQR(val-mean[i])/var[i]+log_var[i])-log_alpha[i];
                             pvalue[i] = exp(-d[i])/SQRT2PI;
                             psum += pvalue[i];
+                            
+                            /* estimate mean residual and mean inverse covariance for bias correction  */
+                            if (bias_fwhm > 0) {
+                                tempf = (float)(pvalue[i]/var[i]);
+                                meaninvcov[index] += tempf;
+                                meanresidual[index] += tempf*(float)(val - mean[i]);
+                            }
+                            
                         } else d[i] = HUGE;
                         if ( d[i] < dmin) {
                             dmin = d[i];
@@ -636,6 +656,20 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
             }
         }
 
+        if (bias_fwhm > 0) {
+            corr = sqrt((double)(iters+1));
+            
+            /* FWHM should be at least 8 */
+            if ((bias_fwhm/corr) < 8.0) corr = bias_fwhm/8.0;
+            double fwhm[] = {bias_fwhm/corr, bias_fwhm/corr, bias_fwhm/corr};
+            smooth_subsample_float(meaninvcov, dims, voxelsize, fwhm, 0, 4);
+            smooth_subsample_float(meanresidual, dims, voxelsize, fwhm, 0, 4);
+    
+            for(i = 0; i < vol; i++)
+                if (label[i] > 0)
+                    src[i] -= (meanresidual[i]/meaninvcov[i]);            
+        }
+        
         ll /= (double)vol;
         change_ll = (ll_old - ll)/fabs(ll);
 #if !defined(_WIN32)
@@ -652,12 +686,15 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     printf("\nFinal Mean*Std: "); 
     for(i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i]-offset,sqrt(var[i])); 
     printf("\n"); 
+    
+    free(meanresidual);
+    free(meaninvcov);
 
 }
 
 
 /* perform adaptive MAP on given src and initial segmentation label */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset)
+void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset, double bias_fwhm)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -714,13 +751,13 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     }
         
     /* estimate 3 classes before PVE */
-    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, thresh, beta, offset);
+    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, thresh, beta, offset, bias_fwhm);
     
     /* Use marginalized likelihood to estimate initial 5 or 6 classes */
     if (pve) {
 
         ComputeInitialPveLabel(src, label, prob, r, n_classes, sub, dims, pve);
-        n_classes = pve;
+        n_classes = 5;
         
         /* recalculate means for pure and mixed classes */
         for(j = 0; j < n_classes; j++) {

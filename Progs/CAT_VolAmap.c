@@ -25,6 +25,7 @@ int write_label = 1;
 int debug = 0;
 int cleanup = 1;
 double weight_MRF = 0.15;
+double bias_fwhm = 25.0;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -36,6 +37,8 @@ static ArgvInfo argTable[] = {
     {"-iters_icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
          "Number of iterations for Iterative Conditional Mode (ICM)."},
     {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
+         "Weight of MRF prior (0..1)."},
+    {"-bias_fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
          "Weight of MRF prior (0..1)."},
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Use Partial Volume Estimation with 5 classes (1) or do not use PVE (0)."},
@@ -191,7 +194,7 @@ main(int argc, char **argv)
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
 
-    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset);
+    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
 
     /* PVE */
     if (pve) {

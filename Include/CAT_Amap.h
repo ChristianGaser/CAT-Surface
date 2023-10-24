@@ -50,7 +50,7 @@
 
 #include <math.h>
 
-extern void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int nc, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset);
+extern void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int nc, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset, double bias_fwhm);
 extern void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims);
 extern void MrfPrior(unsigned char *label, int nc, double *alpha, double *beta, int init, int *dims);
 
