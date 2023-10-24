@@ -22,8 +22,8 @@ int iters_ICM = 50;
 int pve = 1;
 int write_seg[3] = {0, 1, 0};
 int write_label = 1;
+int write_corr = 1;
 int debug = 0;
-int cleanup = 1;
 double weight_MRF = 0.15;
 double bias_fwhm = 25.0;
 
@@ -42,14 +42,16 @@ static ArgvInfo argTable[] = {
          "Weight of MRF prior (0..1)."},
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Use Partial Volume Estimation with 5 classes (1) or do not use PVE (0)."},
-    {"-cleanup", ARGV_INT, (char *) 1, (char *) &iters_amap,
-         "Cleanup segmentations (0 - no cleanup, 1 - slight cleanup, 2 - strong cleanup)."},
     {"-write_seg", ARGV_INT, (char *) 3, (char *) &write_seg,
-         "Write fuzzy segmentations as separate images. Three numbers should be given, while a '1' indicates that this tissue class should be saved. Order is CSF/GM/WM."},
+         "Write segmentations as separate images. Three numbers should be given, while a '1' indicates that this tissue class should be saved. Order is CSF/GM/WM."},
     {"-write_label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
          "Write label image (default)."},
+    {"-write_corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
+         "Write nu-corrected image (default)."},
     {"-nowrite_label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
          "Do not write label image."},
+    {"-nowrite_corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
+         "Do not write nu-corrected image."},
     {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
          "Print debug information."},
      {NULL, ARGV_END, NULL, NULL, NULL}
@@ -60,7 +62,7 @@ static int usage(void)
 {
     static const char msg[] = {
          "CAT_VolAmap: Segmentation with adaptive MAP\n"
-         "usage: CAT_VolAmap [options] in.nii [out.nii]\n"
+         "usage: CAT_VolAmap [options] in.nii [out.nii] []\n"
     };
     fprintf(stderr, "%s", msg);
     exit(EXIT_FAILURE);
@@ -78,8 +80,7 @@ main(int argc, char **argv)
     char      *arg_string, buffer[1024];
     unsigned char *label = NULL, *prob = NULL;
     float     *src, *buffer_vol;
-    double      slope;
-    double      offset, val, max_vol, min_vol, voxelsize[3];
+    double    slope, offset, val, max_vol, min_vol, voxelsize[3];
     
     char *label_arr[] = {"CSF", "GM", "WM"};
 
@@ -93,7 +94,7 @@ main(int argc, char **argv)
     input_filename  = argv[1];
 
     /* if not defined use original name as basename for output */
-    if (argc == 3)
+    if (argc > 2)
         output_filename = argv[2];
     else  output_filename = argv[1];
     
@@ -183,10 +184,11 @@ main(int argc, char **argv)
     }
 
     /* add offset to ensure that CSF values are much larger than background noise */
+    /*
     offset = 0.2*max_vol;  
     for (i = 0; i < src_ptr->nvox; i++)
         if (label[i] > 0) src[i] += (float)offset;
-
+    */
     voxelsize[0] = src_ptr->dx;
     voxelsize[1] = src_ptr->dy;
     voxelsize[2] = src_ptr->dz;
@@ -202,6 +204,16 @@ main(int argc, char **argv)
         Pve5(src, prob, label, mean, dims);
     }
         
+    /* write nu-corrected volume */
+    if (write_corr) {
+
+        slope = 1.0;
+        sprintf(buffer, "%s_corr%s",basename,extension);
+        if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
+                        dims, voxelsize, src_ptr))
+            exit(EXIT_FAILURE);
+    }
+
     /* write labeled volume */
     if (write_label) {
 
@@ -212,12 +224,10 @@ main(int argc, char **argv)
         for (i = 0; i < src_ptr->nvox; i++)
             src[i] = (float)label[i];
 
-        (void) sprintf(buffer, "%s_seg%s",basename,extension); 
-
+        sprintf(buffer, "%s_seg%s",basename,extension);
         if (!write_nifti_float(buffer, src, DT_UINT8, slope, 
                         dims, voxelsize, src_ptr))
-            exit(EXIT_FAILURE);
-        
+            exit(EXIT_FAILURE);   
     }
     
     /* write fuzzy segmentations for each class */
@@ -227,8 +237,8 @@ main(int argc, char **argv)
 
         for (j = 0; j < n_pure_classes; j++) {
             if (write_seg[j]) {
-                //(void) sprintf(buffer, "%s_prob%d%s",basename,j,extension); 
-                (void) sprintf(buffer, "%s_label-%s_probseg%s",basename,label_arr[j],extension); 
+
+                sprintf(buffer, "%s_label-%s_probseg%s",basename,label_arr[j],extension); 
                 
                 for (i = 0; i < src_ptr->nvox; i++)
                     src[i] = prob[i+(j*src_ptr->nvox)];
@@ -236,7 +246,6 @@ main(int argc, char **argv)
                 if (!write_nifti_float(buffer, src, DT_UINT8, slope, 
                                 dims, voxelsize, src_ptr))
                     exit(EXIT_FAILURE);
-            
             }
         }        
     }
