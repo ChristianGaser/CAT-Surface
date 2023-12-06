@@ -16,9 +16,9 @@ equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2) {
         if((nii_ptr->nx != nii_ptr2->nx) ||
                  (nii_ptr->ny != nii_ptr2->ny) ||
                  (nii_ptr->nz != nii_ptr2->nz) ||
-                 (nii_ptr->dx != nii_ptr2->dx) ||
-                 (nii_ptr->dy != nii_ptr2->dy) ||
-                 (nii_ptr->dz != nii_ptr2->dz)) {
+                 (fabs(nii_ptr->dx - nii_ptr2->dx) > 0.001) ||
+                 (fabs(nii_ptr->dy - nii_ptr2->dy) > 0.001) ||
+                 (fabs(nii_ptr->dz - nii_ptr2->dz) > 0.001)) {
                 fprintf(stderr,"Warning: Image %s and image %s differ.\n",nii_ptr->fname, nii_ptr2->fname);
                 if(nii_ptr->nx != nii_ptr2->nx) fprintf(stderr,"nx: %d vs. %d.\n",nii_ptr->nx, nii_ptr2->nx);
                 if(nii_ptr->ny != nii_ptr2->ny) fprintf(stderr,"ny: %d vs. %d.\n",nii_ptr->ny, nii_ptr2->ny);

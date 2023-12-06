@@ -24,7 +24,7 @@ int write_seg[3] = {0, 1, 0};
 int write_label = 1;
 int write_corr = 1;
 int debug = 0;
-double weight_MRF = 0.15;
+double weight_MRF = 0.0;
 double bias_fwhm = 25.0;
 
 static ArgvInfo argTable[] = {
@@ -39,7 +39,7 @@ static ArgvInfo argTable[] = {
     {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
          "Weight of MRF prior (0..1)."},
     {"-bias_fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
-         "Weight of MRF prior (0..1)."},
+         "FWHM of bias correction."},
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Use Partial Volume Estimation with 5 classes (1) or do not use PVE (0)."},
     {"-write_seg", ARGV_INT, (char *) 3, (char *) &write_seg,
@@ -62,7 +62,7 @@ static int usage(void)
 {
     static const char msg[] = {
          "CAT_VolAmap: Segmentation with adaptive MAP\n"
-         "usage: CAT_VolAmap [options] in.nii [out.nii] []\n"
+         "usage: CAT_VolAmap [options] -label label.nii in.nii [out.nii] []\n"
     };
     fprintf(stderr, "%s", msg);
     exit(EXIT_FAILURE);
@@ -86,7 +86,7 @@ main(int argc, char **argv)
 
     /* Get arguments */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
-        (void) fprintf(stderr, "\nUsage: %s [options] in.nii [out.nii]\n", argv[0]);
+        (void) fprintf(stderr, "\nUsage: %s [options] -label label.nii in.nii [out.nii]\n", argv[0]);
         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
@@ -207,7 +207,7 @@ main(int argc, char **argv)
     /* write nu-corrected volume */
     if (write_corr) {
 
-        slope = 1.0;
+        slope = 1.0/65535.0;
         sprintf(buffer, "%s_corr%s",basename,extension);
         if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
                         dims, voxelsize, src_ptr))
