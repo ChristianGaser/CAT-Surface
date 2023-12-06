@@ -1,28 +1,29 @@
 ------------------------------------------------------------------------
+r497 | gaser | 2023-12-06 11:19:15
+
+Changed paths:
+ M CHANGES.txt
+ M Progs/CAT_Test.c
+ M Progs/CAT_VolSanlm.c
+
+Updated CAT_Test.c
+
+------------------------------------------------------------------------
 r496 | gaser | 2023-12-06 11:17:52
 
 Changed paths:
  M CHANGES.txt
  M Lib/CAT_Amap.c
- M Progs/CAT_Test.c
  M Progs/CAT_VolAmap.c
- M Progs/CAT_VolSanlm.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
 
 Changed defaults and method for bias correction in CAT_VolAmap.c
 
 ------------------------------------------------------------------------
-r496 | gaser | 2023-12-06 11:17:41
+r495 | gaser | 2023-12-06 11:17:41
 
 Changed paths:
  M CHANGES.txt
- M Lib/CAT_Amap.c
- M Progs/CAT_Test.c
- M Progs/CAT_VolAmap.c
- M Progs/CAT_VolSanlm.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
+ M Progs/CAT_VolThicknessPbt.c
 
 Changed: Added option to CAT_VolThicknessPbt.c to skip use of two thickness 
          measures from sulci and gyri and estimate minimum, but use the simpler 
@@ -31,59 +32,6 @@ Changed: Added option to CAT_VolThicknessPbt.c define number of averages
          for estimating WM and CSF distance by shifting the border between 
          GM/WM and GM/CSF to obtain a less noisy measure.
 
-------------------------------------------------------------------------
-r496 | gaser | 2023-12-06 11:16:28
-
-Changed paths:
- M CHANGES.txt
- M Lib/CAT_Amap.c
- M Progs/CAT_Test.c
- M Progs/CAT_VolAmap.c
- M Progs/CAT_VolSanlm.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-
-Changed: Added option to CAT_VolThicknessPbt.c to skip use of two thickness 
-         measures from sulci and gyri and estimate minimum, but use the simpler 
-         approach based on sulci only.
-Changed: Added option to CAT_VolThicknessPbt.c define number of averages 
-         for estimating WM and CSF distance by shifting the border between 
-         GM/WM and GM/CSF to obtain a less noisy measure.
-
-------------------------------------------------------------------------
-r493 | gaser | 2023-12-06 11:13:53
-
-Changed paths:
- M CHANGES.txt
- M Lib/CAT_Amap.c
- M Lib/CAT_NiftiLib.c
- M Progs/CAT_Test.c
- M Progs/CAT_VolAmap.c
- M Progs/CAT_VolSanlm.c
- M Progs/CAT_VolThicknessPbt.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-
-Changed: Added some morphological functions to CAT_Vol.h.
-Changed: Added initial function to get largest cluster to CAT_Vol.c.
-------------------------------------------------------------------------
-r492 | gaser | 2023-12-06 11:12:05
-
-Changed paths:
- M CHANGES.txt
- M Include/CAT_Vol.h
- M Lib/CAT_Amap.c
- M Lib/CAT_NiftiLib.c
- M Lib/CAT_Vol.c
- M Progs/CAT_Test.c
- M Progs/CAT_VolAmap.c
- M Progs/CAT_VolSanlm.c
- M Progs/CAT_VolThicknessPbt.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-
-Changed: Added some morphological functions to CAT_Vol.h.
-Changed: Added initial function to get largest cluster to CAT_Vol.c.
 ------------------------------------------------------------------------
 r470 | gaser | 2023-09-19 23:18:05
 
@@ -93,8 +41,6 @@ Changed paths:
  M Progs/CAT_VolAmap.c
  M Progs/CAT_VolAverage.c
  M Progs/CAT_VolSmooth.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
 
 Changed: Set ICM iterations to 0 if mrf is also zero in CAT_Amap.c.
 Changed: Changed tissue names to BIDS-conforming names in CAT_VolAmap.c.
@@ -117,8 +63,6 @@ AM Progs/CAT_VolAverage.c
 AM Progs/CAT_VolSmooth.c
  M Progs/Makefile.am
  M nifti/nifti1_local.h
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
 
 Changed: Added some tools from amap repository:
          CAT_VolAmap
@@ -131,9 +75,6 @@ r468 | gaser | 2023-09-07 00:24:33
 
 Changed paths:
  M CHANGES.txt
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-?? test.txt
 
 Fixed: Skip use of cached volume in CAT_NiftiIO.c
 Fixed: Removed initialization of variables in for loop in CAT_Vol.c.
@@ -142,9 +83,6 @@ r467 | gaser | 2023-09-07 00:23:20
 
 Changed paths:
  M CHANGES.txt
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-?? test.txt
 
 Fixed: Skip use of cached volume in CAT_NiftiIO.c
 Fixed: Removed initialization of variables in for loop in CAT_Vol.c.
@@ -153,9 +91,6 @@ r466 | gaser | 2023-09-07 00:22:58
 
 Changed paths:
  M CHANGES.txt
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-?? test.txt
 
 Fixed: Skip use of cached volume in CAT_NiftiIO.c
 Fixed: Removed initialization of variables in for loop in CAT_Vol.c.
@@ -167,9 +102,6 @@ Changed paths:
  M Lib/CAT_NiftiIO.c
  M Lib/CAT_Vol.c
  M MarchingCubes/MarchingCubes.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
-?? test.txt
 
 Fixed: Skip use of cached volume in CAT_NiftiIO.c
 Fixed: Removed initialization of variables in for loop in CAT_Vol.c.
@@ -180,8 +112,6 @@ Changed paths:
  M CHANGES.txt
 A  Include/niilib.h
 A  Lib/niilib.c
-?? CHANGES2.txt
-?? Progs/NamesNew.txt
 
 Added:   Created new niilib.c and niilib.h for additional nifti functions.
 ------------------------------------------------------------------------
@@ -241,10 +171,6 @@ RM niftilib/nifti1_io.h -> nifti/nifti1_io.h
 RM niftilib/nifti1_local.h -> nifti/nifti1_local.h
 R  niftilib/znzlib.c -> nifti/znzlib.c
 R  niftilib/znzlib.h -> nifti/znzlib.h
-?? CHANGES2.txt
-?? Include/niilib.h
-?? Lib/niilib.c
-?? Progs/NamesNew.txt
 
 Changed: Added automatical estimation of dist parameter to
          CAT_MarchingCubesGenus0.c. 
@@ -264,9 +190,6 @@ Changed paths:
  M Lib/CAT_Vol.c
 A  Progs/CAT_DeformMesh.c
  M Progs/CAT_DeformSurf.c
-?? CHANGES2.txt
-?? Lib/CAT_Intersect_pthreads.c
-?? Progs/CAT_SmoothSharpness.c
 
 Changed: Added flag for correcting mesh to cat_DeformSurf.c that allows to 
          correct mesh w.r.t. local folding to better fit to isovalue.
@@ -285,10 +208,6 @@ AM Lib/CAT_Vol.c
  M Makefile.am
  M Progs/CAT_MarchingCubesGenus0.c
  M Progs/Makefile.am
-?? CHANGES2.txt
-?? Lib/CAT_Intersect_pthreads.c
-?? Progs/CAT_DeformMesh.c
-?? Progs/CAT_SmoothSharpness.c
 
 Added:   Added CAT_Vaol.c with vollib functions from amap.
 Added:   Added very preliminary CAT_DeformMesh.c.
@@ -313,8 +232,6 @@ Changed paths:
 A  Progs/CAT_SmoothDiffusion.c
  M Progs/CAT_SurfDistance.c
  M Progs/Makefile.am
-?? CHANGES2.txt
-?? Progs/CAT_DeformMesh.c
 
 Added:   Added new smoothing tool CAT_SmoothDiffusion.c which offers similar 
          functionality such as CAT_BlurSurfHK.c but by using flags for the many
@@ -337,8 +254,6 @@ Changed paths:
  M Progs/CAT_Central2Pial.c
  M Progs/CAT_SurfDistance.c
  M configure.ac
-?? CHANGES2.txt
-?? configure~
 
 Changes: Added new option for checking self intersections to CAT_Central2Pial.c
          that allow to limit correction only after final step, which is much
