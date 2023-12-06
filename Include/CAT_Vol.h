@@ -65,9 +65,7 @@
 
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode_uint8(unsigned char *vol, int dims[3], int niter, double th);
-void morph_erode_float(float *vol, int dims[3], int niter, double th);
 void morph_dilate_uint8(unsigned char *vol, int dims[3], int niter, double th);
-void morph_dilate_float(float *vol, int dims[3], int niter, double th);
 void morph_close_uint8(unsigned char *vol, int dims[3], int niter, double th);
 void morph_open_uint8(unsigned char *vol, int dims[3], int niter, double th);
 void morph_close_float(float *vol, int dims[3], int niter, double th);
@@ -94,6 +92,5 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
 void vbdist(float *V, unsigned int *IO, int dims[3], double *voxelsize);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
-void get_largest_cluster(float *inData, double thresh, const int *dims);
 
 #endif

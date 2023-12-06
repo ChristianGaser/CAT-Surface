@@ -258,8 +258,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
                                 val = (double)src[zsub2 + ysub2 + xsub];
                                         
                                 /* exclude values out of quartile 1-99% */
-//                                if ((val < thresh[0]) || (val > thresh[1])) continue;
-                                if ((val < thresh[0])) continue;
+                                if ((val < thresh[0]) || (val > thresh[1])) continue;
                                 ind = ((label_value_BG)*nvol)+yoffset+x;
                                 ir[ind].n++;
                                 ir[ind].s += val; ir[ind].ss += val*val;
@@ -293,7 +292,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
 double ComputeGaussianLikelihood(double value, double mean , double var)
 
 { 
-    return(exp(-(SQR(value - mean))/(2.0 * var))/SQRT2PI/sqrt(var));
+    return(exp(-(SQR(value - mean))/(2 * var))/SQRT2PI/sqrt(var));
 }
 
 /* -------------------------------------------------------------------
@@ -317,7 +316,7 @@ double ComputeMarginalizedLikelihood(double value, double mean1 , double mean2,
     double lh, tmean, tvar, delta, step;
     
     step = 1.0 / (double) nof_intervals;
-    lh = 0.0;
+    lh = 0;
     
     for(delta = 0.0; delta <= 1.0; delta += step) {
         tmean = delta * mean1 + ( 1 - delta ) * mean2;
@@ -437,7 +436,7 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
                 Normalize(d_pve, n_pure_classes+2+off);
                 
                 for(i = 0; i < n_pure_classes+2+off; i++) 
-                    prob[(vol*i) + index] = (unsigned char)ROUND(255.0*d_pve[i]);
+                    prob[(vol*i) + index] = (unsigned char)ROUND(255*d_pve[i]);
 
                 label[index] = (unsigned char) MaxArg(d_pve, n_pure_classes+2+off);
             }
@@ -487,7 +486,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
 {
     
     int i, iter, x, y, z, z_area, y_dims, index, sum_voxel;
-    long area, vol;
+    int area, vol;
     double rel_changed, mrf_probability[MAX_NC], voxelsize_squared[3];
     double exponent[MAX_NC], sum_voxelsize = 0.0;
     unsigned char new_label;
@@ -628,7 +627,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                             psum += pvalue[i];
                             
                             /* estimate mean residual and mean inverse covariance for bias correction  */
-                            if ((bias_fwhm > 0) && (label[index] > 0)) {
+                            if (bias_fwhm > 0) {
                                 tempf = (float)(pvalue[i]/var[i]);
                                 meaninvcov[index] += tempf;
                                 meanresidual[index] += tempf*(float)(val - mean[i]);
@@ -651,34 +650,24 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                         prob[(vol*i) + index] = (unsigned char)ROUND(255*pvalue[i]);
                  
                     /* if the class has changed modify the label */
-//                    if ((xBG + 1 != label_value) && ((iters > 10) || (bias_fwhm == 0) || (count_change>0))) label[index] = (unsigned char) (xBG + 1); 
                     if (xBG + 1 != label_value) label[index] = (unsigned char) (xBG + 1); 
-//                    if ((xBG + 1 != label_value) && (bias_fwhm == 0)) label[index] = (unsigned char) (xBG + 1); 
                  
                 }
             }
         }
 
-        if ((bias_fwhm > 0)) {
+        if (bias_fwhm > 0) {
             corr = sqrt((double)(iters+1));
-            corr = 1.0;
             
-            /* FWHM should be at least 20 */
-            //if ((bias_fwhm/corr) < 20.0) corr = bias_fwhm/20.0;
+            /* FWHM should be at least 8 */
+            if ((bias_fwhm/corr) < 8.0) corr = bias_fwhm/8.0;
             double fwhm[] = {bias_fwhm/corr, bias_fwhm/corr, bias_fwhm/corr};
-            
-            for(i = 0; i < vol; i++) {
-                if (label[i] > 0)
-                    meanresidual[i] /= meaninvcov[i];
-                else
-                    meanresidual[i] = 0.0;
-            }        
-
+            smooth_subsample_float(meaninvcov, dims, voxelsize, fwhm, 0, 4);
             smooth_subsample_float(meanresidual, dims, voxelsize, fwhm, 0, 4);
     
             for(i = 0; i < vol; i++)
                 if (label[i] > 0)
-                    src[i] -= meanresidual[i];            
+                    src[i] -= (meanresidual[i]/meaninvcov[i]);            
         }
         
         ll /= (double)vol;
@@ -691,7 +680,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* break if log-likelihood has not changed significantly two iterations */
         if (change_ll < TH_CHANGE) count_change++;
-        if ((count_change > 2) && (iters > 9)) break;      
+        if (count_change > 1) break;      
     }
 
     printf("\nFinal Mean*Std: "); 
