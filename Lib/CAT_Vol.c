@@ -1729,7 +1729,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     subsample_float(vol, volr, dims, dimsr, 0, 0);
 
     /* create mask by closing holes */ 
-    for (i = 0; i < nvol; ++i) BMr[i] = volr[i] > 0;
+    for (i = 0; i < nvolr; ++i) BMr[i] = volr[i] > 0;
     morph_close_uint8(BMr, dimsr, 20, 0);
 
     /* vbdist to fill values in background with neighbours */
@@ -2174,4 +2174,76 @@ median3_float(float *D, int dims[3])
     
     free(M);
     
+}
+
+void
+get_largest_cluster(float *inData, double thresh, const int *dims)
+{
+    float valToAdd;
+    float *outData;
+    int i, j, k, ti, tj, tk, maxi, maxj, maxk, mini, minj, mink, ind, ind1, growingInd, growingCur;
+    int numVoxels = dims[0] * dims[1] * dims[2];
+    char *flagUsed;
+    short *growing;
+
+    flagUsed = (char*)  malloc(numVoxels*sizeof(char));
+    growing  = (short*) malloc(numVoxels*3*sizeof(short));
+    outData  = (float*) malloc(numVoxels*sizeof(float));
+
+    for (i = 0; i < numVoxels; ++i) flagUsed[i] = 0;
+
+    for (k = 0; k < dims[2]; ++k) for (j = 0; j < dims[1]; ++j) for (i = 0; i < dims[0]; ++i)
+    {
+        ind = k*(dims[0]*dims[1]) + (j*dims[0]) + i;
+
+        if (!flagUsed[ind] && inData[ind] >= thresh)
+        {
+            flagUsed[ind] = 1;
+            growingInd = 3;
+            growingCur = 0;
+            growing[0] = i;
+            growing[1] = j;
+            growing[2] = k;
+
+            while (growingCur < growingInd)
+            {
+                maxi = MIN(dims[0], growing[growingCur      ] + 2);
+                maxj = MIN(dims[1], growing[growingCur + 1] + 2);
+                maxk = MIN(dims[2], growing[growingCur + 2] + 2);
+
+                mini = MAX(0, growing[growingCur        ] - 1);
+                minj = MAX(0, growing[growingCur + 1] - 1);
+                mink = MAX(0, growing[growingCur + 2] - 1);
+
+                for (tk = mink; tk < maxk; ++tk) for (tj = minj; tj < maxj; ++tj) for (ti = mini; ti < maxi; ++ti)
+                {
+                    ind1 = tk*(dims[0]*dims[1]) + (tj*dims[0]) + ti;
+
+                    if (!flagUsed[ind1] && inData[ind1] >= thresh)
+                    {
+                        flagUsed[ind1] = 1;
+                        growing[growingInd      ] = ti;
+                        growing[growingInd + 1] = tj;
+                        growing[growingInd + 2] = tk;
+                        growingInd += 3;
+                    }
+                }
+                growingCur += 3;
+            }
+
+            growingCur = 0;
+            valToAdd = (float)growingInd;
+
+            while (growingCur < growingInd)
+            {
+                outData[growing[growingCur + 2]*(dims[0]*dims[1])+(growing[growingCur + 1]*dims[0])+growing[growingCur]] += valToAdd;
+                growingCur += 3;
+            }
+        }
+    }
+
+    for (i = 0; i < numVoxels; ++i) inData[i] = outData[i];
+
+    free(flagUsed);
+    free(growing);
 }
