@@ -1,4 +1,20 @@
 ------------------------------------------------------------------------
+r493 | gaser | 2023-12-06 11:13:53
+
+Changed paths:
+ M CHANGES.txt
+ M Lib/CAT_Amap.c
+ M Lib/CAT_NiftiLib.c
+ M Progs/CAT_Test.c
+ M Progs/CAT_VolAmap.c
+ M Progs/CAT_VolSanlm.c
+ M Progs/CAT_VolThicknessPbt.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Changed: Added some morphological functions to CAT_Vol.h.
+Changed: Added initial function to get largest cluster to CAT_Vol.c.
+------------------------------------------------------------------------
 r492 | gaser | 2023-12-06 11:12:05
 
 Changed paths:
