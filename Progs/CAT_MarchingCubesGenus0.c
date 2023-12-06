@@ -281,7 +281,7 @@ main(
             if (sum_RMSE/RMSE/(double)count > 1.5) {
                 fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",dist,sum_RMSE/RMSE/(double)count,RMSE);    
                 break;    
-            }          
+            }
         }
         
         /* save previous image after distopen */ 

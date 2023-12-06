@@ -7,13 +7,13 @@
  *
  */
 
-#include <bicpl.h>
 #include <float.h>
 #include <ParseArgv.h>
 
 #include "CAT_SurfaceIO.h"
-#include "CAT_NiftiIO.h"
+#include "CAT_NiftiLib.h"
 #include "CAT_Surf.h"
+#include "CAT_Vol.h"
 #include "CAT_Resample.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length) \
@@ -32,7 +32,6 @@ enum { F_AVERAGE, F_MEDIAN, F_RANGE, F_COUNT, F_MAXABS, F_MAX, F_MIN, F_EXP, F_S
 //#define DEBUG 1
 
 /* argument defaults */
-int  degrees_continuity = 0;        /* interpolation - default: linear */
 int  grid_steps         = 7;        /* number of grid steps */
 int   equivol           = 0;        /* use equi-volume approach by Bok, otherwise an equi-distance approach is used */
 double grid_start       = -0.5;     /* start point (origin) of grid along normals */
@@ -70,17 +69,6 @@ ArgvInfo argTable[] = {
      "Target sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
        "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
-  {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
-       "Interpolation options:"},
-  { "-linear", ARGV_CONSTANT, (char *) 0, 
-    (char *) &degrees_continuity,
-    "Use linear interpolation (Default)." },
-  { "-nearest_neighbour", ARGV_CONSTANT, (char *) -1, 
-    (char *) &degrees_continuity,
-    "Use nearest neighbour interpolation." },
-  { "-cubic", ARGV_CONSTANT, (char *) 2,
-    (char *) &degrees_continuity,
-        "Use cubic interpolation." },
    {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
        "Mapping function options:"},
   { "-avg", ARGV_CONSTANT, (char *) F_AVERAGE, 
@@ -257,9 +245,9 @@ main(int argc, char *argv[])
         char                 *output_values_file;
         char                 *tmp_string, ext[5];
         File_formats         format;
-        Volume               volume;
+        float                *input;
         int                  i, j, k, index, n_thickness_values, grid_steps1, grid_increase;
-        int                  n_objects, n_arrays, n_labels, *in_annot, n_values;
+        int                  n_objects, n_arrays, n_labels, *in_annot, n_values, dims[3];
         int                  *out_annot;
         object_struct        **objects, **objects_src_sphere, **objects_trg_sphere;
         polygons_struct      *polygons, *src_sphere, *trg_sphere;
@@ -269,6 +257,7 @@ main(int argc, char *argv[])
         double               sum, x, sigma, kernel[MAX_N_ARRAY];
         double               grid_start1, grid_end1, step_size, pos;
         double               *input_values, *resampled_values, *roi_values;
+        nifti_image          *nii_ptr;
         Vector               normal;
         ATABLE               *atable;
         FILE                 *fp;
@@ -550,10 +539,16 @@ main(int argc, char *argv[])
         } 
 
         for (k = 0; k < argc-3; k++) {
-                if (input_volume_all(volume_file[k+1], 3, File_order_dimension_names,
-                                     NC_UNSPECIFIED, FALSE, 0.0, 0.0,
-                                     TRUE, &volume, NULL) != OK)
-                        exit(EXIT_FAILURE);
+          
+                /* read image  */
+                nii_ptr = read_nifti_float(volume_file[k+1], &input, 0);
+                if(nii_ptr == NULL) {
+                        fprintf(stderr,"Error reading %s.\n", volume_file[k+1]);
+                        return(EXIT_FAILURE);
+                }
+                dims[0] = nii_ptr->nx;
+                dims[1] = nii_ptr->ny;
+                dims[2] = nii_ptr->nz;
 
                 for (i = 0; i < polygons->n_points; i++) {
                 
@@ -587,13 +582,9 @@ main(int argc, char *argv[])
                                         } else pos = length_array[j]*thickness[i];
                                 }
                                 GET_grid_POINT(voxel, polygons->points[i], normal, pos);
-        
-                                evaluate_volume_in_world(volume, voxel[X], voxel[Y],
-                                                         voxel[Z], degrees_continuity, 
-                                                         FALSE, 0.0, &value, NULL,
-                                                         NULL, NULL, NULL, NULL, NULL,
-                                                         NULL, NULL, NULL);
-                                                         
+                                        
+                                value = isoval(input, voxel[X], voxel[Y], voxel[Z], dims, nii_ptr);
+                                                                                         
                                 if (isnan(value)) value = 0.0;
                                 if (map_func == F_MULTI) values2d[i][j] = value;
                                 

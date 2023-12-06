@@ -94,31 +94,47 @@ sub2ind(int x, int y, int z, int s[]) {
 
 
 /* 
- * Read out the linear interpolated value of a volume SEG with the size
+ * Read out the linear interpolated value of a volume vol with the size
  * s on the position x,y,z (c-notation). See also ind2sub for details of
  * the c-notation.
+ * If nii_ptr is not NULL, the positions are transformed from world to voxel 
+ * space.
  */
 float
-isoval(float vol[], float x, float y, float z, int s[]){
+isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
+{
 
     int i;
     float seg=0.0, n=0.0;
+    float world_coords[4] = {x, y, z, 1.0}; /* Define world coordinates (in mm) */
+
+    /* convert from world to voxel space if nifti-pointer is defined */
+    if (nii_ptr != NULL) {
+        mat44 mat = nii_ptr->sto_xyz; /* Transformation matrix */
+        mat44 inverse_mat = nifti_mat44_inverse(mat); /* Inverse transformation matrix */
+    
+        /* Convert world coordinates to voxel coordinates */
+        x = world_coords[0] * inverse_mat.m[0][0] + world_coords[1] * inverse_mat.m[0][1] + world_coords[2] * inverse_mat.m[0][2] + inverse_mat.m[0][3];
+        y = world_coords[0] * inverse_mat.m[1][0] + world_coords[1] * inverse_mat.m[1][1] + world_coords[2] * inverse_mat.m[1][2] + inverse_mat.m[1][3];
+        z = world_coords[0] * inverse_mat.m[2][0] + world_coords[1] * inverse_mat.m[2][1] + world_coords[2] * inverse_mat.m[2][2] + inverse_mat.m[2][3];
+    }
+    
     float fx = floor(x),   fy = floor(y),   fz = floor(z);
     float cx = floor(x+1), cy = floor(y+1), cz = floor(z+1);
     
     float wfx = cx-x, wfy = cy-y, wfz = cz-z;
     float wcx = x-fx, wcy = y-fy, wcz = z-fz;
-    float N[8], W[8];  
-    
+    float N[8], W[8];
+        
     /* value of the 8 neighbors and there distance weight */
-    N[0] = vol[sub2ind((int)fx,(int)fy,(int)fz,s)];  W[0] = wfx * wfy * wfz; 
-    N[1] = vol[sub2ind((int)cx,(int)fy,(int)fz,s)];  W[1] = wcx * wfy * wfz;
-    N[2] = vol[sub2ind((int)fx,(int)cy,(int)fz,s)];  W[2] = wfx * wcy * wfz;
-    N[3] = vol[sub2ind((int)cx,(int)cy,(int)fz,s)];  W[3] = wcx * wcy * wfz;
-    N[4] = vol[sub2ind((int)fx,(int)fy,(int)cz,s)];  W[4] = wfx * wfy * wcz;
-    N[5] = vol[sub2ind((int)cx,(int)fy,(int)cz,s)];  W[5] = wcx * wfy * wcz;
-    N[6] = vol[sub2ind((int)fx,(int)cy,(int)cz,s)];  W[6] = wfx * wcy * wcz; 
-    N[7] = vol[sub2ind((int)cx,(int)cy,(int)cz,s)];  W[7] = wcx * wcy * wcz;
+    N[0] = vol[sub2ind((int)fx,(int)fy,(int)fz,dims)];  W[0] = wfx * wfy * wfz; 
+    N[1] = vol[sub2ind((int)cx,(int)fy,(int)fz,dims)];  W[1] = wcx * wfy * wfz;
+    N[2] = vol[sub2ind((int)fx,(int)cy,(int)fz,dims)];  W[2] = wfx * wcy * wfz;
+    N[3] = vol[sub2ind((int)cx,(int)cy,(int)fz,dims)];  W[3] = wcx * wcy * wfz;
+    N[4] = vol[sub2ind((int)fx,(int)fy,(int)cz,dims)];  W[4] = wfx * wfy * wcz;
+    N[5] = vol[sub2ind((int)cx,(int)fy,(int)cz,dims)];  W[5] = wcx * wfy * wcz;
+    N[6] = vol[sub2ind((int)fx,(int)cy,(int)cz,dims)];  W[6] = wfx * wcy * wcz; 
+    N[7] = vol[sub2ind((int)cx,(int)cy,(int)cz,dims)];  W[7] = wcx * wcy * wcz;
     
     for (i=0; i<8; i++) {
         if (!isnan(N[i]) && isfinite(N[i])) {
@@ -126,7 +142,7 @@ isoval(float vol[], float x, float y, float z, int s[]){
             n+= W[i];
         }
     }
-     
+    
     if (n>0.0) return seg/n; 
     else return FNAN;
 }

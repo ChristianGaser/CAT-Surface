@@ -16,6 +16,7 @@
 #include <memory.h>
 #include <float.h>
 #include <limits.h>
+#include "CAT_NiftiLib.h"
 
 #define SQRT2PI 2.506628
 
@@ -95,5 +96,6 @@ void vbdist(float *V, unsigned int *IO, int dims[3], double *voxelsize);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void get_largest_cluster(float *inData, double thresh, const int *dims);
+float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 
 #endif
