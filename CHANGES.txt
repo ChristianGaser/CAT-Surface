@@ -1,4 +1,56 @@
 ------------------------------------------------------------------------
+r496 | gaser | 2023-12-06 11:17:52
+
+Changed paths:
+ M CHANGES.txt
+ M Lib/CAT_Amap.c
+ M Progs/CAT_Test.c
+ M Progs/CAT_VolAmap.c
+ M Progs/CAT_VolSanlm.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Changed defaults and method for bias correction in CAT_VolAmap.c
+
+------------------------------------------------------------------------
+r496 | gaser | 2023-12-06 11:17:41
+
+Changed paths:
+ M CHANGES.txt
+ M Lib/CAT_Amap.c
+ M Progs/CAT_Test.c
+ M Progs/CAT_VolAmap.c
+ M Progs/CAT_VolSanlm.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Changed: Added option to CAT_VolThicknessPbt.c to skip use of two thickness 
+         measures from sulci and gyri and estimate minimum, but use the simpler 
+         approach based on sulci only.
+Changed: Added option to CAT_VolThicknessPbt.c define number of averages 
+         for estimating WM and CSF distance by shifting the border between 
+         GM/WM and GM/CSF to obtain a less noisy measure.
+
+------------------------------------------------------------------------
+r496 | gaser | 2023-12-06 11:16:28
+
+Changed paths:
+ M CHANGES.txt
+ M Lib/CAT_Amap.c
+ M Progs/CAT_Test.c
+ M Progs/CAT_VolAmap.c
+ M Progs/CAT_VolSanlm.c
+?? CHANGES2.txt
+?? Progs/NamesNew.txt
+
+Changed: Added option to CAT_VolThicknessPbt.c to skip use of two thickness 
+         measures from sulci and gyri and estimate minimum, but use the simpler 
+         approach based on sulci only.
+Changed: Added option to CAT_VolThicknessPbt.c define number of averages 
+         for estimating WM and CSF distance by shifting the border between 
+         GM/WM and GM/CSF to obtain a less noisy measure.
+
+------------------------------------------------------------------------
 r493 | gaser | 2023-12-06 11:13:53
 
 Changed paths:
