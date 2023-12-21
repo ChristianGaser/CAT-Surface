@@ -161,6 +161,10 @@ int main(int argc, char *argv[])
             input[i] = 4.0 - src[i];
             
         GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
+        if (GMT2 == NULL) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
         
         /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
         projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, separations); 
@@ -174,7 +178,7 @@ int main(int argc, char *argv[])
         /* finally use minimum of both thickness measures */
         for (i = 0; i < src_ptr->nvox; i++)
             GMT[i] = MIN(GMT[i], GMT2[i]);
-
+            
         free(GMT2);
     }
         
@@ -232,9 +236,10 @@ int main(int argc, char *argv[])
     free(dist_WM);
     free(GMT);
     free(PPM);    
+    free(PPM_filtered);    
     free(mask);
     free(input);
-    
+
     return(EXIT_SUCCESS);
 
 }

@@ -115,11 +115,6 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     
-    if (subsample < 20) {
-        fprintf(stderr,"Parameter subsample has to be >= 20.\n");
-        exit(EXIT_FAILURE);
-    }
-
     if (pve) n_classes = 5;
     else     n_classes = 3;
     
@@ -250,7 +245,6 @@ main(int argc, char **argv)
         }        
     }
     
-    //free(src);
     free(prob);
     free(label);
     

@@ -687,7 +687,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* break if log-likelihood has not changed significantly two iterations */
         if (change_ll < TH_CHANGE) count_change++;
-        if ((count_change > 2) && (iters > 9)) break;      
+        if ((count_change > 2) && (iters > 6)) break;      
     }
 
     printf("\nFinal Mean*Std: "); 

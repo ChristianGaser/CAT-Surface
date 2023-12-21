@@ -8,29 +8,29 @@
  *
  *
  * This code is a modified version of MABONLM3D.c 
- * Jose V. Manjon - jmanjon@fis.upv.es                                                                                                                                           
+ * Jose V. Manjon - jmanjon@fis.upv.es
  * Pierrick Coupe - pierrick.coupe@gmail.com                                                                                                                     
- * Brain Imaging Center, Montreal Neurological Institute.                                                                        
+ * Brain Imaging Center, Montreal Neurological Institute.
  * Mc Gill University                                                                                                                                                                                                                    
  *                                                                                                                                                                                                                                                                                               
  * Copyright (C) 2010 Jose V. Manjon and Pierrick Coupe                                                                          
 
  ***************************************************************************
- * Adaptive Non-Local Means Denoising of MR Images *                                               
- * With Spatially Varying Noise Levels                                                                                              *
+ * Adaptive Non-Local Means Denoising of MR Images 
+ * With Spatially Varying Noise Levels
  *                                                                                                                                                                                                                                                                                               * 
- * Jose V. Manjon, Pierrick Coupe, Luis Marti-Bonmati, *
- * D. Louis Collins and Montserrat Robles                                                                           *
+ * Jose V. Manjon, Pierrick Coupe, Luis Marti-Bonmati,
+ * D. Louis Collins and Montserrat Robles
  ***************************************************************************
  *
  * Details on SANLM filter                                                                                          
  ***************************************************************************
- *      The SANLM filter is described in:                                                                                                                                                        *
+ *      The SANLM filter is described in:
  *                                                                                                                                                                                                                                                                                               *
- *      Jose V. Manjon, Pierrick Coupe, Luis Marti-Bonmati, Montserrat Robles *
- *      and D. Louis Collins.                                                                                                                                                                                                    *
- *      Adaptive Non-Local Means Denoising of MR Images with Spatially Varying *
- *      Noise Levels. Journal of Magnetic Resonance Imaging, 31,192-203, 2010. *                                                                                                                                                                                                                         
+ *      Jose V. Manjon, Pierrick Coupe, Luis Marti-Bonmati, Montserrat Robles
+ *      and D. Louis Collins.
+ *      Adaptive Non-Local Means Denoising of MR Images with Spatially Varying
+ *      Noise Levels. Journal of Magnetic Resonance Imaging, 31,192-203, 2010.                                                                                                                                                                                                                    
  *                                                                                                                                                                                                                                                                                               *
  ***************************************************************************/
 
