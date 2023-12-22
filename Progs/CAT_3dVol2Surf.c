@@ -46,6 +46,7 @@ char *offset_file       = NULL;     /* thickness file for defining offset to (ce
 char *sphere_src_file   = NULL;     /* source sphere for resampling */
 char *sphere_trg_file   = NULL;     /* target source for resampling */
 char *annot_file        = NULL;     /* annotation atlas file */
+int  degrees_continuity = 1000;       /* interpolation */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -68,9 +69,20 @@ ArgvInfo argTable[] = {
   {"-sphere_trg", ARGV_STRING, (char *) 1, (char *) &sphere_trg_file, 
      "Target sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
-       "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
-   {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
-       "Mapping function options:"},
+     "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
+  {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
+     "Interpolation options:"},
+  { "-linear", ARGV_CONSTANT, (char *) 0, 
+    (char *) &degrees_continuity,
+    "Not supported anymore!." },
+  { "-nearest_neighbour", ARGV_CONSTANT, (char *) -1, 
+    (char *) &degrees_continuity,
+    "Not supported anymore!." },
+  { "-cubic", ARGV_CONSTANT, (char *) 2,
+    (char *) &degrees_continuity,
+    "Not supported anymore!." },
+  {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, 
+    "Mapping function options:"},
   { "-avg", ARGV_CONSTANT, (char *) F_AVERAGE, 
     (char *) &map_func,
     "Use average for mapping along normals." },
@@ -280,11 +292,16 @@ main(int argc, char *argv[])
         volume_file = &argv[1];
         output_values_file = volume_file[argc-2];
 
+        /* give warning if interpolation options are still used */
+        if (degrees_continuity != 1000) {
+                fprintf(stderr, "WARNING: Interpolation options are not supported anymore.\n");
+        }
+        
         if (map_func == F_MULTI && argc > 4) {
                 fprintf(stdout, "Multiple volumes cannot be used with multi-grid option.\n");
                 exit(EXIT_FAILURE);
         }
-        
+
         if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
                 if ((filename_extension_matches(output_values_file,"txt") != 1) &&
                     (filename_extension_matches(output_values_file,"csv") != 1)) {
