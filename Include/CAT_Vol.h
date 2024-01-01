@@ -64,15 +64,18 @@
 #define GWM    2.5
 #define WM     3.0
 
+#define MAX_NC 6
+
+void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th);
+double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
+double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
-void morph_erode_uint8(unsigned char *vol, int dims[3], int niter, double th);
-void morph_erode_float(float *vol, int dims[3], int niter, double th);
-void morph_dilate_uint8(unsigned char *vol, int dims[3], int niter, double th);
-void morph_dilate_float(float *vol, int dims[3], int niter, double th);
-void morph_close_uint8(unsigned char *vol, int dims[3], int niter, double th);
-void morph_open_uint8(unsigned char *vol, int dims[3], int niter, double th);
-void morph_close_float(float *vol, int dims[3], int niter, double th);
-void morph_open_float(float *vol, int dims[3], int niter, double th);
+void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
+void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
+void morph_close(void *vol, int dims[3], int niter, double th, int datatype);
+void morph_open(void *vol, int dims[3], int niter, double th, int datatype);
+void distclose(void *vol, int dims[3], double voxelsize[3], int niter, double th, int datatype);
+void distopen(void *vol, int dims[3], double voxelsize[3], int niter, double th, int datatype);
 void subsample_double(double *in, double *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
 void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
 void subsample_uint8(unsigned char *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
@@ -83,16 +86,10 @@ void smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], doub
 void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp);
 void initial_cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int remove_sinus);
 void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int gmwm_only);
-void median3_ushort(unsigned short *D, int dims[3]);
-void median3_uint8(unsigned char *D, int dims[3]);
-void median3_float(float *D, int dims[3]);
+void median3(void *D, int dims[3], int datatype);
 void laplace3(float *SEG, int dims[3], int maxiter);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
-void distclose_uint8(unsigned char *vol, int dims[3], double voxelsize[3], int niter, double th);
-void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th);
-void distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th);
-void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
-void vbdist(float *V, unsigned int *IO, int dims[3], double *voxelsize);
+void vbdist(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void get_largest_cluster(float *inData, double thresh, const int *dims);

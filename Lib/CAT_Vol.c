@@ -9,6 +9,212 @@
 
 #include "CAT_Vol.h"
 
+void
+convert_input_type(void *data, float *buffer, int nvox, int datatype)
+{
+    int i;
+    float tmp;
+    
+    /* check success of memory allocation */
+    if (buffer == NULL) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    for (i = 0; i < nvox; i++) {
+        switch (datatype) {
+        case DT_INT8:
+            tmp = (float) ((char *)data)[i];
+            break;
+        case DT_UINT8:
+            tmp = (float) ((unsigned char *)data)[i];
+            break;
+        case DT_INT16:
+            tmp = (float) ((short *)data)[i];
+            break;
+        case DT_UINT16:
+            tmp = (float) ((unsigned short *)data)[i];
+            break;
+        case DT_INT32:
+            tmp = (float) ((int *)data)[i];
+            break;
+        case DT_UINT32:
+            tmp = (float) ((unsigned int *)data)[i];
+            break;
+        case DT_FLOAT32:
+            tmp = (float) ((float *)data)[i];
+            break;
+        case DT_FLOAT64:
+            tmp = (float) ((double *)data)[i];
+            break;
+        default:
+            fprintf(stderr, "Data type %d not handled\n", datatype);
+            break;
+        }
+        buffer[i] = tmp;
+    }
+}
+
+void
+convert_output_type(void *data, float *buffer, int nvox, int datatype)
+{
+    int i;
+
+    for (i = 0; i < nvox; i++) {
+        switch (datatype) {
+        case DT_INT8:
+            ((char*)data)[i] = (char) roundf(buffer[i]);
+            break;
+        case DT_UINT8:
+            ((unsigned char*)data)[i] = (unsigned char) roundf(buffer[i]);
+            break;
+        case DT_INT16:
+            ((short*)data)[i] = (short) roundf(buffer[i]);
+            break;
+        case DT_UINT16:
+            ((unsigned short*)data)[i] = (unsigned short) roundf(buffer[i]);
+            break;
+        case DT_INT32:
+            ((int*)data)[i] = (int) roundf(buffer[i]);
+            break;
+        case DT_UINT32:
+            ((unsigned int *)data)[i] = (unsigned int ) roundf(buffer[i]);
+            break;
+        case DT_FLOAT32:
+            ((float*)data)[i] = (float) roundf(buffer[i]);
+            break;
+        case DT_FLOAT64:
+            ((double*)data)[i] = (double) roundf(buffer[i]);
+            break;
+        default:
+            fprintf(stderr, "Data type %d not handled\n", datatype);
+            break;
+        }
+    }
+}
+
+void
+correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
+{
+    int i, j, vol, n[MAX_NC], n_classes = 0, replace = 1;
+    unsigned char *mask;
+    double mean_label[MAX_NC], mean_bias;
+    float *meanresidual;
+    
+    vol = dims[0]*dims[1]*dims[2];
+
+    meanresidual = (float *)malloc(sizeof(float)*vol);
+    mask = (unsigned char *)malloc(sizeof(unsigned char)*vol);
+    if ((mask == NULL) || (meanresidual == NULL)) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* get number of classes by checking maximum label value */
+    for (i = 0; i < vol; i++)
+        n_classes = MAX((int)label[i], n_classes);
+
+    /* calculate means for pure classes */
+    for (i = 0; i < n_classes; i++) {
+        n[i] = 0;
+        mean_label[i] = 0.0;
+    }
+    
+    /* estimate mean for each label clöass */
+    for (i = 0; i < vol; i++) {
+        if (label[i] == 0) continue;
+        n[label[i]-1]++;
+        mean_label[label[i]-1] += (double)src[i];
+    }
+    for (i = 0; i < n_classes; i++) mean_label[i] /= (double)n[i];
+
+    for (i = 0; i < vol; i++)
+        meanresidual[i] = 0.0;
+
+    for (i = 0; i < vol; i++)
+        if (label[i] > 0)
+            for (j = 0; j < n_classes; j++)
+                meanresidual[i] += (src[i] / (float)mean_label[j]);
+
+    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
+    fprintf(stderr,"Bias correction\n");
+
+    /* only use WM for bias estimation */
+    for (i = 0; i < vol; i++) {
+        if (label[i] > label_th) 
+            mask[i] = 1;
+        else {
+            meanresidual[i] = 0.0;
+            mask[i] = 0;
+        }
+    }
+    
+    /* we need a tight brainmask without remaining small parts that are only
+       connected by a few voxels
+    */
+    morph_open(mask, dims, 1, 0, DT_UINT8);
+    morph_erode(mask, dims, 1, 0, DT_UINT8);
+
+    /* invert mask because we need to estimate dist outside the original mask */
+    for (i = 0; i < vol; i++)
+        mask[i] = 1 - mask[i];
+
+    vbdist(meanresidual, mask, dims, voxelsize, replace);
+    smooth_subsample_float(meanresidual, dims, voxelsize, fwhm, 0, 4);
+
+    /* estimate mean of bias filed inside label for mean-correction */
+    mean_bias = get_masked_mean_array_float(meanresidual, vol, label);
+
+    for (i = 0; i < vol; i++)
+        if ((label[i] > 0) && (meanresidual[i] != 0))
+            src[i] /= (meanresidual[i]/mean_bias);
+
+    free(mask);
+    free(meanresidual);
+}
+
+double
+get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
+{
+    double sum = 0.0;
+    int n = 0;
+    
+    /* Calculate mean */
+    for(int i = 0; i < size; i++) {
+        if (!isnan(arr[i]) && ((mask != NULL && mask[i] > 0) || (mask == NULL))) {
+            sum += arr[i];
+            n++;
+        }
+    }
+    return sum / (double)n;
+}
+
+double
+get_masked_std_array_float(float arr[], int size, unsigned char mask[])
+{
+    double mean = 0.0, variance = 0.0;
+    int n = 0;
+
+    /* Calculate mean */
+    for(int i = 0; i < size; i++) {
+        if (!isnan(arr[i]) && ((mask != NULL && mask[i] > 0) || (mask == NULL))) {
+            mean += arr[i];
+            n++;
+        }
+    }
+    mean = mean / (double)n;
+
+    /* Calculate variance */
+    for(int i = 0; i < size; i++)
+        if (!isnan(arr[i]) && ((mask != NULL && mask[i] > 0) || (mask == NULL)))
+            variance += pow(arr[i] - mean, 2);
+    variance /= (double)n;
+
+    /* Calculate standard deviation */
+    return sqrt(variance);
+}
+
+
 /* estimate minimum of A and its index in A */
 void
 pmin(float *A, int sA, float *minimum, int *index)
@@ -579,8 +785,25 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
     }
 }
 
+/* Calculates the euclidean distance without PVE to an object in V with a 
+   boundary of 0.5 for all voxels within a given mask M that should define
+   a convex hull with direct connection between object and estimation 
+   voxels.
+
+   vbdist(V, M, dims, voxelsize, replace)
+
+   V         input image with zero for non-elements 
+   M         mask to limit the distance calculation
+   dims      image dimension
+   voxelsize voxelsize in mm
+   replace   replace/fill values inside mask with its neighbouring values
+   
+   V returns the distance if replace == 0, otherwise the V contains the original
+   values outside the mask and inside the mask the values are replaced/filled 
+   with its neighbouring values
+*/
 void
-vbdist(float *V, unsigned int *M, int dims[3], double *voxelsize) 
+vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace) 
 {
     
     /* main information about input data (size, dimensions, ...) */
@@ -607,22 +830,28 @@ vbdist(float *V, unsigned int *M, int dims[3], double *voxelsize)
     int  u,v,w,nu,nv,nw; 
     
     /* data */
-    float        *D = NULL;
-    unsigned int *I = NULL;
+    float        *D, *buffer;
+    unsigned int *I;
     
-    D = (float *)malloc(sizeof(float)*nvol);
     I = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
+    D = (float *)malloc(sizeof(float)*nvol);
     
-    if ((D == NULL) || (I == NULL)) {
+    /* save original input in buffer if we want to replace values */
+    if (replace > 0) {
+        buffer = (float *)malloc(sizeof(float)*nvol);
+        memcpy(buffer,V,nvol*sizeof(float));  
+    }
+    
+    if ((D == NULL) || (I == NULL) || ((replace > 0) && (buffer == NULL))) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
     /* Initiaize mask with ones if not defined */
     if (M == NULL) {
-        M = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
+        M = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
         for (i=0; i<nvol; i++)
-            M[i] = 1.0;
+            M[i] = 1;
     }
     
     /* initialisation of D and I */
@@ -683,11 +912,17 @@ vbdist(float *V, unsigned int *M, int dims[3], double *voxelsize)
         }
     }
 
-    /* finally return output to original variables V and M */
+    /* finally return output to original variable V */
     for (i=0; i<nvol; i++) {
         if ((M[i]==0) || (D[i] == FLT_MAX))
             V[i] = 0.0; else V[i] = D[i];
-        M[i] = I[i];
+    }
+
+    /* finally replace values inside mask */
+    if (replace > 0) {
+        for (i = 0; i < nvol; ++i)
+            V[i] = buffer[I[i]];
+        free(buffer);
     }
         
     free(D);
@@ -784,7 +1019,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
  * Filter SEG within the intensity range of low and high until the changes
  * are below TH. 
  *
- * L = laplace3(SEG,TH)
+ * L = laplace3R(SEG,TH)
  *
  * SEG  = 3d single input matrix
  * TH       = threshold to control the number of iterations
@@ -868,56 +1103,10 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
 }
 
 void
-distclose_uint8(unsigned char *vol, int dims[3], double voxelsize[3], int niter, double th)
-{
-    float *buffer = NULL;
-    int i,x,y,z,j,band,dims2[3];
-    unsigned char max_vol;
-    int nvol2,nvol = dims[0]*dims[1]*dims[2];
-    
-    if (niter < 1) return;
-
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-
-    /* add band with zeros to image to avoid clipping */    
-    band = niter;
-    for (i=0;i<3;i++) dims2[i] = dims[i] + 2*band;
-    nvol2 = dims2[0]*dims2[1]*dims2[2];
-
-    buffer = (float *)malloc(sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
-
-    if (buffer == NULL) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    memset(buffer,0,sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
-    
-    /* threshold input */
-    for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
-        buffer[index(x+band,y+band,z+band,dims2)] = (float)((double)vol[index(x,y,z,dims)]>th);
-                
-    vbdist(buffer, NULL, dims2, voxelsize);
-    for (i=0;i<nvol2;i++)
-        buffer[i] = buffer[i] > (float)niter;
-
-    vbdist(buffer, NULL, dims2, voxelsize);
-    for (i=0;i<nvol2;i++)
-        buffer[i] = buffer[i] > (float)niter;
-
-    /* return image */
-    for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
-        vol[index(x,y,z,dims)] = (unsigned char)buffer[index(x+band,y+band,z+band,dims2)];
-        
-    free(buffer);
-}
-
-void
 distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th)
 {
     float *buffer = NULL;
-    int i,x,y,z,j,band,dims2[3];
+    int i,x,y,z,j,band,dims2[3], replace = 0;
     float max_vol;
     int nvol2,nvol = dims[0]*dims[1]*dims[2];
     
@@ -944,11 +1133,11 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
         buffer[index(x+band,y+band,z+band,dims2)] = (vol[index(x,y,z,dims)]>(float)th);
                 
-    vbdist(buffer, NULL, dims2, voxelsize);
+    vbdist(buffer, NULL, dims2, voxelsize, replace);
     for (i=0;i<nvol2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
-    vbdist(buffer, NULL, dims2, voxelsize);
+    vbdist(buffer, NULL, dims2, voxelsize, replace);
     for (i=0;i<nvol2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
@@ -960,41 +1149,24 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
 }
 
 void
-distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th)
+distclose(void *data, int dims[3], double voxelsize[3], int niter, double th, int datatype)
 {
-    float *buffer = NULL;
-    int i,j;
-    unsigned char max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
     
-    if (dist == 0.0) return;
-
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-    
-    buffer = (float *)malloc(sizeof(float)*nvol);
-
+    /* check success of memory allocation */
     if (buffer == NULL) {
-        fprintf(stderr,"Memory allocation error\n");
+        printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    distclose_float(buffer, dims, voxelsize, niter, th);
+    convert_output_type(data, buffer, nvox, datatype);
     
-    /* threshold input */
-    for (i=0; i<nvol; i++)
-        buffer[i] = (float)((double)vol[i] <= th);
-                
-    vbdist(buffer, NULL, dims, voxelsize);
-    for (i=0; i<nvol; i++)
-        buffer[i] = buffer[i] > (float)dist;
-
-    vbdist(buffer, NULL, dims, voxelsize);
-    for (i=0; i<nvol; i++)
-        buffer[i] = buffer[i] <= (float)dist;
-
-    /* return image */
-    for (i=0; i<nvol; i++)
-        vol[i] = (unsigned char)buffer[i];
-
     free(buffer);
 }
 
@@ -1002,7 +1174,7 @@ void
 distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer = NULL;
-    int i,j;
+    int i, j, replace = 0;
     float max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
     
@@ -1022,11 +1194,11 @@ distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double
     for (i=0; i<nvol; i++)
         buffer[i] = 1.0 - ((float)vol[i]>th);
                 
-    vbdist(buffer, NULL, dims, voxelsize);
+    vbdist(buffer, NULL, dims, voxelsize, replace);
     for (i=0; i<nvol; i++)
         buffer[i] = buffer[i] > (float)dist;
 
-    vbdist(buffer, NULL, dims, voxelsize);
+    vbdist(buffer, NULL, dims, voxelsize, replace);
     for (i=0; i<nvol; i++)
         buffer[i] = buffer[i] <= (float)dist;
 
@@ -1038,27 +1210,25 @@ distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double
 }
 
 void
-morph_erode_uint8(unsigned char *vol, int dims[3], int niter, double th)
+distopen(void *data, int dims[3], double voxelsize[3], int niter, double th, int datatype)
 {
-    double filt[3]={1,1,1};
-    int i,j;
-    unsigned char max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
     
-    if (niter < 1) return;
-
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-    
-    /* threshold input */
-    for (j=0;j<nvol;j++)
-        vol[j] = (unsigned char)((double)vol[j]>th);
-
-    for (i=0;i<niter;i++) {
-        convxyz_uint8(vol,filt,filt,filt,3,3,3,-1,-1,-1,vol,dims);
-        for (j=0;j<nvol;j++)
-            vol[j] = (vol[j]>=9);
+    /* check success of memory allocation */
+    if (buffer == NULL) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
     }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    distopen_float(buffer, dims, voxelsize, niter, th);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
 }
 
 void
@@ -1086,48 +1256,25 @@ morph_erode_float(float *vol, int dims[3], int niter, double th)
 }
 
 void
-morph_dilate_uint8(unsigned char *vol, int dims[3], int niter, double th)
+morph_erode(void *data, int dims[3], int niter, double th, int datatype)
 {
-    double filt[3]={1,1,1};
-    int i,x,y,z,j,band,dims2[3];
-    unsigned char max_vol;
-    unsigned char *buffer = NULL;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
     
-    if (niter < 1) return;
-
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-
-    /* add band with zeros to image to avoid clipping */    
-    band = niter;
-    for (i=0;i<3;i++) dims2[i] = dims[i] + 2*band;
-
-    buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
-
+    /* check success of memory allocation */
     if (buffer == NULL) {
-        fprintf(stderr,"Memory allocation error\n");
+        printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    morph_erode_float(buffer, dims, niter, th);
+    convert_output_type(data, buffer, nvox, datatype);
     
-    memset(buffer,0,sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
-    
-    /* threshold input */
-    for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        buffer[index(x+band,y+band,z+band,dims2)] = (unsigned char)((double)vol[index(x,y,z,dims)]>th);
-
-    for (i=0;i<niter;i++) {
-        convxyz_uint8(buffer,filt,filt,filt,3,3,3,-1,-1,-1,buffer,dims2);
-        for (j=0; j<dims2[0]*dims2[1]*dims2[2]; j++) 
-            buffer[j] = buffer[j]>0;
-    }
-
-    /* return image */
-    for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        vol[index(x,y,z,dims)] = buffer[index(x+band,y+band,z+band,dims2)];
-        
     free(buffer);
-    
 }
 
 void
@@ -1176,54 +1323,24 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
 }
 
 void
-morph_close_uint8(unsigned char *vol, int dims[3], int niter, double th)
+morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
 {
-    double filt[3]={1,1,1};
-    unsigned char *buffer = NULL;
-    int i,x,y,z,j,band,dims2[3];
-    unsigned char max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
-    
-    if (niter < 1) return;
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
 
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-
-    /* add band with zeros to image to avoid clipping */    
-    band = niter;
-    for (i=0;i<3;i++) dims2[i] = dims[i] + 2*band;
-
-    buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
-
+    /* check success of memory allocation */
     if (buffer == NULL) {
-        fprintf(stderr,"Memory allocation error\n");
+        printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    morph_dilate_float(buffer, dims, niter, th);
+    convert_output_type(data, buffer, nvox, datatype);
     
-    memset(buffer,0,sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
-    
-    /* threshold input */
-    for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        buffer[index(x+band,y+band,z+band,dims2)] = (unsigned char)((double)vol[index(x,y,z,dims)]>th);
-
-    /* dilate */
-    for (i=0;i<niter;i++) {
-        convxyz_uint8(buffer,filt,filt,filt,3,3,3,-1,-1,-1,buffer,dims2);
-        for (j=0; j<dims2[0]*dims2[1]*dims2[2]; j++) 
-            buffer[j] = (buffer[j]>0);
-    }
-
-    /* erode */
-    for (i=0;i<niter;i++) {
-        convxyz_uint8(buffer,filt,filt,filt,3,3,3,-1,-1,-1,buffer,dims2);
-        for (j=0; j<dims2[0]*dims2[1]*dims2[2]; j++) 
-            buffer[j] = (buffer[j]>=9);
-    }
-
-    /* return image */
-    for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        vol[index(x,y,z,dims)] = buffer[index(x+band,y+band,z+band,dims2)];
-        
     free(buffer);
 }
 
@@ -1280,36 +1397,25 @@ morph_close_float(float *vol, int dims[3], int niter, double th)
 }
 
 void
-morph_open_uint8(unsigned char *vol, int dims[3], int niter, double th)
+morph_close(void *data, int dims[3], int niter, double th, int datatype)
 {
-    double filt[3]={1,1,1};
-    int i, j, nvol;
-    unsigned char max_vol;
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (buffer == NULL) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    morph_close_float(buffer, dims, niter, th);
+    convert_output_type(data, buffer, nvox, datatype);
     
-    if (niter < 1) return;
-
-    nvol = dims[0]*dims[1]*dims[2];
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-
-    /* threshold input */
-    for (j=0;j<nvol;j++)
-        vol[j] = (unsigned char)(vol[j]>th);
-
-    for (i=0;i<niter;i++) {
-        convxyz_uint8(vol,filt,filt,filt,3,3,3,-1,-1,-1,vol,dims);
-        for (j=0;j<nvol;j++)
-            vol[j] = (vol[j]>=9);
-    }
-    for (i=0;i<niter;i++) {
-        convxyz_uint8(vol,filt,filt,filt,3,3,3,-1,-1,-1,vol,dims);
-        for (j=0; j<nvol; j++) 
-            vol[j] = (vol[j]>0);
-    }
-
-    for (j=0;j<nvol;j++)
-        vol[j] = 255*vol[j];
-
+    free(buffer);
 }
 
 void
@@ -1352,6 +1458,28 @@ morph_open_float(float *vol, int dims[3], int niter, double th)
     for (i=0; i<nvol; i++)
         vol[i] = (float)buffer[i];
         
+    free(buffer);
+}
+
+void
+morph_open(void *data, int dims[3], int niter, double th, int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (buffer == NULL) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    morph_open_float(buffer, dims, niter, th);
+    convert_output_type(data, buffer, nvox, datatype);
+    
     free(buffer);
 }
 
@@ -1691,12 +1819,11 @@ smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3]
 void
 vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 {
-    int i, nvolr, nvol;
+    int i, nvolr, nvol, replace = 1;
     int dimsr[3];
     float *volr, *buffer, *TAr;
     double voxelsizer[3];
     float min_vol = FLT_MAX, max_vol = -FLT_MAX;
-    unsigned int *MIr;
     unsigned char *BMr, *BMr2;
     double threshold[2], prctile[2] = {5,95};
         
@@ -1711,7 +1838,6 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     volr   = (float *)malloc(sizeof(float)*nvolr);
     buffer = (float *)malloc(sizeof(float)*nvolr);
     TAr    = (float *)malloc(sizeof(float)*nvolr);
-    MIr    = (unsigned int *)malloc(sizeof(unsigned int)*nvolr);
     BMr    = (unsigned char *)malloc(sizeof(unsigned char)*nvolr);
     BMr2   = (unsigned char *)malloc(sizeof(unsigned char)*nvolr);
 
@@ -1746,16 +1872,13 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 
     /* create mask by closing holes */ 
     for (i = 0; i < nvolr; ++i) BMr[i] = volr[i] > 0;
-    morph_close_uint8(BMr, dimsr, 20, 0);
+    morph_close(BMr, dimsr, 20, 0, DT_UINT8);
 
     /* vbdist to fill values in background with neighbours */
     memcpy(buffer,volr,nvolr*sizeof(float));    
-    vbdist(buffer, MIr, dimsr, voxelsizer);
-    for (i = 0; i < nvolr; ++i) {
-        if (volr[i] != 0) buffer[i] = volr[i];
-        else buffer[i] = volr[MIr[i]];
+    vbdist(buffer, NULL, dimsr, voxelsizer, replace);
+    for (i = 0; i < nvolr; ++i)
         TAr[i] = buffer[i];
-    }
     
     /* smooth values outside mask */
     double s[3] = {20,20,20};
@@ -1770,7 +1893,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     }
     
     laplace3R(TAr, BMr, dimsr, 0.4);
-    median3_float(TAr, dimsr);
+    median3(TAr, dimsr, DT_FLOAT32);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
     /* only keep TAr inside (closed) mask */
@@ -1778,12 +1901,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
         if ((BMr2[i] == 0) && (vol[i] == 0)) TAr[i] = 0.0;
 
     /* again apply vbdist to fill values in background with neighbours */
-    memcpy(buffer,TAr,nvolr*sizeof(float));  
-    vbdist(buffer, MIr, dimsr, voxelsizer);
-    for (i = 0; i < nvolr; ++i)
-        buffer[i] = TAr[MIr[i]];
-    for (i = 0; i < nvolr; ++i)
-        TAr[i] = buffer[i];
+    vbdist(TAr, NULL, dimsr, voxelsizer, replace);
 
     for (i = 0; i < 3; ++i) s[i] *= 2.0;
     smooth_float(buffer, dimsr, voxelsizer, s, 0);
@@ -1794,7 +1912,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
         BMr[i] = (BMr2[i] == 0);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
-    median3_float(TAr, dimsr);
+    median3(TAr, dimsr, DT_FLOAT32);
 
     for (i = 0; i < nvolr; ++i)
         BMr[i] = (volr[i] == 0);
@@ -1810,7 +1928,6 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 
     free(volr);
     free(buffer);
-    free(MIr);
     free(BMr);
     free(BMr2);
     free(TAr);
@@ -1919,8 +2036,8 @@ cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
         sum[i] = (float)mask[i];
 
     /* use copy of mask to erode and fill holes */
-    morph_erode_float(sum, dims, round(scale*4), 0.5);
-    morph_close_float(sum, dims, round(scale*20), 0.5);
+    morph_erode(sum, dims, round(scale*4), 0.5, DT_FLOAT32);
+    morph_close(sum, dims, round(scale*20), 0.5, DT_FLOAT32);
 
 
     /* use either original mask or new eroded and filled mask */
@@ -1928,8 +2045,8 @@ cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
         sum[i] = (sum[i] > 0) || (mask[i] > 0);
 
     /* fill remaining CSF spaces */
-    distclose_float(sum, dims, voxelsize, round(scale*2), 0.5);
-    distclose_uint8(mask, dims, voxelsize, round(scale*4), 0.5);
+    distclose(sum, dims, voxelsize, round(scale*2), 0.5, DT_FLOAT32);
+    distclose(mask, dims, voxelsize, round(scale*4), 0.5, DT_UINT8);
 
 if (0) {
     for (i = 0; i < nvol; ++i) {
@@ -1995,21 +2112,21 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
     }
     fprintf(stderr,"\n");
     
-    morph_open_uint8(b, dims, n_initial_openings, 0.05);
+    morph_open(b, dims, n_initial_openings, 0.05, DT_UINT8);
 
     if (gmwm_only == 0) {
         for (i = 0; i < nvol; ++i)
             c[i] = b[i];
             
         /* use copy of mask to fill holes */
-        morph_close_uint8(c, dims, round(scale*20), 0.5);
+        morph_close(c, dims, round(scale*20), 0.5, DT_UINT8);
     
         /* use either original mask or new eroded and filled mask */
         for (i = 0; i < nvol; ++i)
             c[i] = (c[i] > 0) ||    (b[i] > 0);
     
         /* fill remaining CSF spaces */
-        distclose_uint8(c, dims, voxelsize, round(scale*4), 0.5);
+        distclose(c, dims, voxelsize, round(scale*4), 0.5, DT_UINT8);
     }
     
     th = 13; /* 0.05*255 */
@@ -2069,88 +2186,6 @@ sort_float(float arr[], int start, int end)
     }
 }
 
-/* simple median function for uint8 */
-void 
-median3_uint8(unsigned char *D, int dims[3])
-{
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    float NV[27];
-    int i,j,k,ind,ni,x,y,z,n;
-    unsigned char *M;
-    int nvol = dims[0]*dims[1]*dims[2];
-                
-    /* output */
-    M = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
-
-    /* filter process */
-    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
-        ind = index(x,y,z,dims);
-        n = 0;
-        /* go through all elements in a 3x3x3 box */
-        for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
-            /* check borders */ 
-            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
-                ni = index(x+i,y+j,z+k,dims);
-                /* check masks and NaN or Infinities */
-                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
-                NV[n] = (float)D[ni];
-                n++;
-            }
-        }
-        /* get correct n */
-        n--;
-        /* sort and get the median by finding the element in the middle of the sorting */
-        sort_float(NV,0,n);
-        M[ind] = (unsigned char)NV[(int)(n/2)];
-    }
-     
-    for (i=0; i<nvol; i++) D[i] = M[i];
-    
-    free(M);
-    
-}
-
-/* simple median function for unsigned short */
-void 
-median3_short(unsigned short *D, int dims[3])
-{
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    float NV[27];
-    int i,j,k,ind,ni,x,y,z,n;
-    unsigned short *M;
-    int nvol = dims[0]*dims[1]*dims[2];
-                
-    /* output */
-    M = (unsigned short *)malloc(sizeof(unsigned short)*nvol);
-
-    /* filter process */
-    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
-        ind = index(x,y,z,dims);
-        n = 0;
-        /* go through all elements in a 3x3x3 box */
-        for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
-            /* check borders */ 
-            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
-                ni = index(x+i,y+j,z+k,dims);
-                /* check masks and NaN or Infinities */
-                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
-                NV[n] = (float)D[ni];
-                n++;
-            }
-        }
-        /* get correct n */
-        n--;
-        /* sort and get the median by finding the element in the middle of the sorting */
-        sort_float(NV,0,n);
-        M[ind] = (unsigned short)NV[(int)(n/2)];
-    }
-     
-    for (i=0; i<nvol; i++) D[i] = M[i];
-    
-    free(M);
-    
-}
-
 /* simple median function for float */
 void 
 median3_float(float *D, int dims[3])
@@ -2190,6 +2225,28 @@ median3_float(float *D, int dims[3])
     
     free(M);
     
+}
+
+void
+median3(void *data, int dims[3], int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (buffer == NULL) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    median3_float(buffer, dims);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
 }
 
 void
@@ -2263,3 +2320,45 @@ get_largest_cluster(float *inData, double thresh, const int *dims)
     free(flagUsed);
     free(growing);
 }
+
+void
+distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th)
+{
+    float *buffer = NULL;
+    int i,j;
+    unsigned char max_vol;
+    int nvol = dims[0]*dims[1]*dims[2];
+
+    
+    if (dist == 0.0) return;
+
+    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    th *= (double)max_vol;
+    
+    buffer = (float *)malloc(sizeof(float)*nvol);
+
+    if (buffer == NULL) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+ /* threshold input */
+    for (i=0; i<nvol; i++)
+        buffer[i] = (float)((double)vol[i] <= th);
+                
+    vbdist(buffer, NULL, dims, voxelsize, 0);
+    for (i=0; i<nvol; i++)
+        buffer[i] = buffer[i] > (float)dist;
+
+    vbdist(buffer, NULL, dims, voxelsize, 0);
+    for (i=0; i<nvol; i++)
+        buffer[i] = buffer[i] <= (float)dist;
+
+    /* return image */
+    for (i=0; i<nvol; i++)
+        vol[i] = (unsigned char)buffer[i];
+
+    free(buffer);
+}
+
+

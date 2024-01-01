@@ -37,10 +37,10 @@ static ArgvInfo argTable[] = {
 int main(int argc, char *argv[])
 {
     char *infile, out_GMT[1024], out_PPM[1024];
-    int i, j, dims[3];
+    int i, j, dims[3], replace = 0;
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM_filtered;
     float mean_vx_size;
-    unsigned int *mask;
+    unsigned char *mask;
     double separations[3], add_value;
     nifti_image *src_ptr, *out_ptr;
     
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
     
-    mask   = (unsigned int *)malloc(sizeof(unsigned int)*src_ptr->nvox);
+    mask   = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
     input  = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_WM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
     
         /* obtain CSF distance map */
         if (verbose) fprintf(stderr,"Estimate CSF distance map.\n");
-        vbdist(input, mask, dims, separations);
+        vbdist(input, mask, dims, separations, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_CSF[i] += input[i];
                 
@@ -132,7 +132,7 @@ int main(int argc, char *argv[])
     
         /* obtain WM distance map */
         if (verbose) fprintf(stderr,"Estimate WM distance map.\n");
-        vbdist(input, mask, dims, separations);
+        vbdist(input, mask, dims, separations, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_WM[i] += input[i];
     }
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
     /* finally minimize outliers in the PPM using median-filter */
     for (i = 0; i < src_ptr->nvox; i++)
         PPM_filtered[i] = PPM[i];
-    median3_float(PPM_filtered, dims);
+    median3(PPM_filtered, dims, DT_FLOAT32);
     
     /* protect values in sulci and only replace other areas with median-filtered values */
     for (i = 0; i < src_ptr->nvox; i++)

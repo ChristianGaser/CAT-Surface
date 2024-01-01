@@ -13,6 +13,7 @@
 #include "ParseArgv.h"
 #include "CAT_Amap.h"
 #include "CAT_NiftiLib.h"
+#include "CAT_Vol.h"
 
 char *label_filename = NULL;
 int n_pure_classes = 3;
@@ -25,7 +26,7 @@ int write_label = 1;
 int write_corr = 1;
 int debug = 0;
 double weight_MRF = 0.0;
-double bias_fwhm = 25.0;
+double bias_fwhm = 10.0;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -126,6 +127,12 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    /* read label and check for same size */
+    if (label_filename == NULL) {
+        fprintf(stderr,"Label image has to be defined\n");
+        exit(EXIT_FAILURE);
+    }
+            
     label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
     prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
     
@@ -134,29 +141,26 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    /* read label and check for same size */
-    if (label_filename == NULL) {
-        fprintf(stderr,"Label image has to be defined\n");
-        exit(EXIT_FAILURE);
-    }
-            
     /* read volume */
     label_ptr = read_nifti_float(label_filename, &buffer_vol, 0);
     if (label_ptr == NULL) {
         fprintf(stderr,"Error reading %s.\n", label_filename);
+        free(label);
+        free(prob);
         return(EXIT_FAILURE);
     }
     
-    /* check size */ 
+    /* check size */
     if (!equal_image_dimensions(src_ptr, label_ptr)) {     
         fprintf(stderr,"Label and source image have different size\n");
+        free(label);
+        free(prob);
         exit(EXIT_FAILURE);
     }
     
     /* scale label image to a range 0..3 */
-    for (i = 0; i < label_ptr->nvox; i++) 
+    for (i = 0; i < src_ptr->nvox; i++) 
         label[i] = (unsigned char) round(buffer_vol[i]);
-
 
     double mean[n_classes], mu[n_pure_classes], var[n_pure_classes];
     for (i = 0; i < n_pure_classes; i++)
@@ -178,18 +182,15 @@ main(int argc, char **argv)
             src[i] = src[i] - (float)min_vol;
     }
 
-    /* add offset to ensure that CSF values are much larger than background noise */
-    /*
-    offset = 0.2*max_vol;  
-    for (i = 0; i < src_ptr->nvox; i++)
-        if (label[i] > 0) src[i] += (float)offset;
-    */
     voxelsize[0] = src_ptr->dx;
     voxelsize[1] = src_ptr->dy;
     voxelsize[2] = src_ptr->dz;
     dims[0] = src_ptr->nx;
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
+
+    if (bias_fwhm > 0)
+        correct_bias(src, label, dims, voxelsize, bias_fwhm, 2);
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
 
@@ -202,11 +203,15 @@ main(int argc, char **argv)
     /* write nu-corrected volume */
     if (write_corr) {
 
-        slope = 1.0/65535.0;
+        slope = 0.0;
         sprintf(buffer, "%s_corr%s",basename,extension);
         if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
                         dims, voxelsize, src_ptr))
+        {
+            free(label);
+            free(prob);
             exit(EXIT_FAILURE);
+        }
     }
 
     /* write labeled volume */
@@ -222,7 +227,7 @@ main(int argc, char **argv)
         sprintf(buffer, "%s_seg%s",basename,extension);
         if (!write_nifti_float(buffer, src, DT_UINT8, slope, 
                         dims, voxelsize, src_ptr))
-            exit(EXIT_FAILURE);   
+            exit(EXIT_FAILURE);
     }
     
     /* write fuzzy segmentations for each class */

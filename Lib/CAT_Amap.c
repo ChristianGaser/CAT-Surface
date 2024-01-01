@@ -3,7 +3,6 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id$
  *
  */
 
@@ -208,7 +207,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
     int area, narea, nvol, zsub, ysub, xsub, yoffset, zoffset;
     int zsub2, ysub2;
     int nix, niy, niz, k, l, m, z, y, x, label_value;
-    double val;
+    double val, mean[n_classes];
     struct ipoint *ir = NULL;
     int label_value_BG;
 
@@ -227,8 +226,8 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
         exit(EXIT_FAILURE);
     }
 
-    for(i = 0; i < n_classes; i++) {
-        for(j = 0; j < nvol; j++) {
+    for (i = 0; i < n_classes; i++) {
+        for (j = 0; j < nvol; j++) {
             ind = (i*nvol)+j; 
             ir[ind].n = 0;
             ir[ind].s = 0.0;
@@ -238,18 +237,18 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
     
 
     /* loop over neighborhoods of the grid points */
-    for(k=-sub; k<=sub; k++) for(l=-sub; l<=sub; l++) for(m=-sub; m<=sub; m++) 
-        for(z = 0; z < niz; z++) {
+    for (k=-sub; k<=sub; k++) for (l=-sub; l<=sub; l++) for (m=-sub; m<=sub; m++) 
+        for (z = 0; z < niz; z++) {
             zsub = z*sub + k;
             if ((zsub >= 0) && (zsub < dims[2])) {
                 zsub2 = zsub*area;
                 zoffset = z*narea;
-                for(y = 0; y < niy; y++) {
+                for (y = 0; y < niy; y++) {
                     ysub = y*sub + l;
                     if ((ysub >= 0) && (ysub < dims[1])) {
                         ysub2 = ysub*dims[0];
                         yoffset = zoffset + y*nix;
-                        for(x = 0; x < nix; x++) {
+                        for (x = 0; x < nix; x++) {
                             xsub = x*sub + m;
                             if ((xsub >= 0) && (xsub < dims[0])) {
                                 label_value = (int)label[zsub2 + ysub2 + xsub];
@@ -272,8 +271,8 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
 
 
     /* find means and standard deviations */
-    for(i = 0; i < n_classes; i++) {
-        for(j = 0; j < nvol; j++) {
+    for (i = 0; i < n_classes; i++) {
+        for (j = 0; j < nvol; j++) {
             ind = (i*nvol)+j;
             if (ir[ind].n > G) {
                 r[ind].mean = ir[ind].s/ir[ind].n;
@@ -319,7 +318,7 @@ double ComputeMarginalizedLikelihood(double value, double mean1 , double mean2,
     step = 1.0 / (double) nof_intervals;
     lh = 0.0;
     
-    for(delta = 0.0; delta <= 1.0; delta += step) {
+    for (delta = 0.0; delta <= 1.0; delta += step) {
         tmean = delta * mean1 + ( 1 - delta ) * mean2;
         tvar = SQR(delta) * var1 + SQR(1 - delta) * var2;
         lh += ComputeGaussianLikelihood(value, tmean, tvar)*step;
@@ -338,7 +337,7 @@ unsigned char MaxArg(double *val, unsigned char n)
     maximum = val[0];
     index = 1;
     
-    for(i = 1; i < n; i++) {
+    for (i = 1; i < n; i++) {
         if (val[i] > maximum) {
             index = i + 1;
             maximum = val[i];
@@ -353,11 +352,11 @@ void Normalize(double* val, char n)
     double sum_val = 0.0;
     int i;
 
-    for(i = 0; i < n; i++) 
+    for (i = 0; i < n; i++) 
         sum_val += val[i];
  
     if (fabs(sum_val) > TINY) {    /* To avoid divisions by zero */
-        for(i = 0; i < n; i++) {
+        for (i = 0; i < n; i++) {
             val[i] /= sum_val;
         }
     }
@@ -389,11 +388,11 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
     if (pve) off = 0;
     
     /* loop over image points */
-    for(z = 1; z < dims[2]-1; z++) {
+    for (z = 1; z < dims[2]-1; z++) {
         z_area=z*area;
-        for(y = 1; y < dims[1]-1; y++) {
+        for (y = 1; y < dims[1]-1; y++) {
             y_dims=y*dims[0];
-            for(x = 1; x < dims[0]-1; x++)  {
+            for (x = 1; x < dims[0]-1; x++)  {
          
                 index = x + y_dims + z_area;
                 label_value = (int)label[index];
@@ -404,7 +403,7 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
                 ix = (int)(sub_1*x), iy = (int)(sub_1*y), iz = (int)(sub_1*z);
                 ind = iz*narea + iy*nix + ix;
                     
-                for(i = 0; i < n_pure_classes; i++) {
+                for (i = 0; i < n_pure_classes; i++) {
                     ind2 = (i*nvol) + ind;                      
                     if (r[ind2].mean > 0.0) {
                         mean[off+i*2] = r[ind2].mean;
@@ -436,7 +435,7 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
                 
                 Normalize(d_pve, n_pure_classes+2+off);
                 
-                for(i = 0; i < n_pure_classes+2+off; i++) 
+                for (i = 0; i < n_pure_classes+2+off; i++) 
                     prob[(vol*i) + index] = (unsigned char)ROUND(255.0*d_pve[i]);
 
                 label[index] = (unsigned char) MaxArg(d_pve, n_pure_classes+2+off);
@@ -458,15 +457,15 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
     
     /* To determine if it's possible to get out of image limits. 
          If not true (as it usually is) this saves the trouble calculating this 27 times */
-    for(label1 = 0; label1 < n_classes; label1++)
+    for (label1 = 0; label1 < n_classes; label1++)
         exponent[label1] = 0;
     
-    for(i = -1; i < 2; i++) for(j = -1; j < 2; j++) for(k = -1; k < 2; k++) 
+    for (i = -1; i < 2; i++) for (j = -1; j < 2; j++) for (k = -1; k < 2; k++) 
         if ( i != 0 || j != 0 || k != 0 ) {
                      
             label2 = label[(x+i)+dims[0]*(y+j)+dims[0]*dims[1]*(z+k)];
                              
-            for(label1 = 1; label1 < n_classes+1; label1++) { 
+            for (label1 = 1; label1 < n_classes+1; label1++) { 
                 if (label1 == label2) similarity_value = same;
                 else if (abs(label1 - label2) < 2) similarity_value = similar;
                 else similarity_value = different;
@@ -477,7 +476,7 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
             }
         }       
 
-    for(label1 = 0; label1 < n_classes; label1++)
+    for (label1 = 0; label1 < n_classes; label1++)
         mrf_probability[label1] = exp(-(beta*exponent[label1])); 
     
 } 
@@ -496,20 +495,20 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
     vol = area*dims[2];
     
     /* normalize voxelsize to a sum of 3 and calculate its squared value */
-    for(i = 0; i < 3; i++) sum_voxelsize += voxelsize[i];
-    for(i = 0; i < 3; i++) voxelsize_squared[i] = SQR(3.0*voxelsize[i]/sum_voxelsize);
+    for (i = 0; i < 3; i++) sum_voxelsize += voxelsize[i];
+    for (i = 0; i < 3; i++) voxelsize_squared[i] = SQR(3.0*voxelsize[i]/sum_voxelsize);
     
         
-    for(iter=0; iter < iterations; iter++) {
+    for (iter=0; iter < iterations; iter++) {
         sum_voxel = 0;
         rel_changed = 0.0;
         
         /* loop over image points */
-        for(z = 1; z < dims[2]-1; z++) {
+        for (z = 1; z < dims[2]-1; z++) {
             z_area=z*area;
-            for(y = 1; y < dims[1]-1; y++) {
+            for (y = 1; y < dims[1]-1; y++) {
                 y_dims=y*dims[0];
-                for(x = 1; x < dims[0]-1; x++)  {
+                for (x = 1; x < dims[0]-1; x++)  {
          
                     index = x + y_dims + z_area;
                     if (label[index] == 0) continue;
@@ -517,7 +516,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
                     sum_voxel++;
                     ComputeMrfProbability(mrf_probability, exponent, label, x, y, z, dims, n_classes, beta, voxelsize_squared);
                     
-                    for(i = 0; i < n_classes; i++)
+                    for (i = 0; i < n_classes; i++)
                         mrf_probability[i] *= (double)prob[index+i*vol];
 
                     new_label = (unsigned char) MaxArg(mrf_probability, n_classes);
@@ -548,17 +547,13 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     double pvalue[MAX_NC], psum;
     int nix, niy, niz, iters, count_change;
     int x, y, z, label_value, xBG;
-    int ix, iy, iz, ind2;
-    double ll, ll_old, change_ll, corr;
-    float *meanresidual, *meaninvcov, tempf;
+    int ix, iy, iz, ind2, replace = 1;
+    double ll, ll_old, change_ll;
         
     MrfPrior(label, n_classes, alpha, beta, 0, dims);        
 
     area = dims[0]*dims[1];
     vol = area*dims[2];
-
-    meaninvcov = (float *)malloc(sizeof(float)*vol);
-    meanresidual = (float *)malloc(sizeof(float)*vol);
 
     /* find grid point conversion factor */
     sub_1 = 1.0/((double) sub);
@@ -571,30 +566,24 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     narea = nix*niy;
     nvol = nix*niy*niz;
 
-    for(i = 0; i < n_classes; i++) log_alpha[i] = log(alpha[i]);
+    for (i = 0; i < n_classes; i++) log_alpha[i] = log(alpha[i]);
         
     ll_old = HUGE;
     count_change = 0;
             
-    for(iters = 0; iters < niters; iters++)  {
+    for (iters = 0; iters < niters; iters++) {
             
         ll = 0.0;
         
-        /* set mean residual and mean inverse covariance to zero */
-        for(i = 0; i < vol; i++) {
-            meaninvcov[i] = 0.0;
-            meanresidual[i] = 0.0;
-        }
-
         /* get means for grid points */
         GetMeansVariances(src, label, n_classes, r, sub, dims, thresh);      
 
         /* loop over image points */
-        for(z = 1; z < dims[2]-1; z++) {
+        for (z = 1; z < dims[2]-1; z++) {
             z_area=z*area;
-            for(y = 1; y < dims[1]-1; y++) {
+            for (y = 1; y < dims[1]-1; y++) {
                 y_dims=y*dims[0];
-                for(x = 1; x < dims[0]-1; x++)  {
+                for (x = 1; x < dims[0]-1; x++)  {
          
                     index = x + y_dims + z_area;
                     label_value = (int) label[index];
@@ -607,7 +596,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                     iz = (int)(sub_1*z);
                     ind = iz*narea + iy*nix + ix;
                     
-                    for(i = 0; i < n_classes; i++) {
+                    for (i = 0; i < n_classes; i++) {
                         ind2 = (i*nvol) + ind;  
                         if (r[ind2].mean > TINY) {
                             mean[i] = r[ind2].mean;
@@ -616,22 +605,15 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                         }
                     }
                     
-                    
                     /* compute energy at each point */
                     dmin = HUGE; xBG = 1; 
                     psum = 0.0;
 
-                    for(i = 0; i < n_classes; i++) {
+                    for (i = 0; i < n_classes; i++) {
                         if (fabs(mean[i]) > TINY) {
                             d[i] = 0.5*(SQR(val-mean[i])/var[i]+log_var[i])-log_alpha[i];
                             pvalue[i] = exp(-d[i])/SQRT2PI;
                             psum += pvalue[i];
-                            
-                            /* estimate mean residual and mean inverse covariance for bias correction  */
-                            if ((bias_fwhm > 0) && (label[index] > 0)) {                               tempf = (float)(pvalue[i]/var[i]);
-                                meaninvcov[index] += tempf;
-                                meanresidual[index] += tempf*(float)(val - mean[i]);
-                            }
                             
                         } else d[i] = HUGE;
                         if ( d[i] < dmin) {
@@ -642,11 +624,11 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                              
                     /* scale p-values to a sum of 1 */
                     if (psum > TINY) {
-                        for(i = 0; i < n_classes; i++) pvalue[i] /= psum;
+                        for (i = 0; i < n_classes; i++) pvalue[i] /= psum;
                         ll -= log(psum);
-                    } else for(i = 0; i < n_classes; i++) pvalue[i] = 0.0;
+                    } else for (i = 0; i < n_classes; i++) pvalue[i] = 0.0;
                  
-                    for(i = 0; i < n_classes; i++)
+                    for (i = 0; i < n_classes; i++)
                         prob[(vol*i) + index] = (unsigned char)ROUND(255*pvalue[i]);
                  
                     /* if the class has changed modify the label */
@@ -656,27 +638,6 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
             }
         }
 
-        if ((bias_fwhm > 0)) {
-            corr = 1.0;
-
-            /* FWHM should be at least 20 */
-            //if ((bias_fwhm/corr) < 20.0) corr = bias_fwhm/20.0;
-            double fwhm[] = {bias_fwhm/corr, bias_fwhm/corr, bias_fwhm/corr};
-
-            for(i = 0; i < vol; i++) {
-                if (label[i] > 0)
-                    meanresidual[i] /= meaninvcov[i];
-                else
-                    meanresidual[i] = 0.0;
-            }        
-
-            smooth_subsample_float(meanresidual, dims, voxelsize, fwhm, 0, 4);
-
-            for(i = 0; i < vol; i++)
-                if (label[i] > 0)
-                    src[i] -= meanresidual[i];            
-        }        
-        
         ll /= (double)vol;
         change_ll = (ll_old - ll)/fabs(ll);
 #if !defined(_WIN32)
@@ -687,16 +648,13 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* break if log-likelihood has not changed significantly two iterations */
         if (change_ll < TH_CHANGE) count_change++;
-        if ((count_change > 2) && (iters > 6)) break;      
+        if ((count_change > 2) && (iters > 5)) break;      
     }
 
     printf("\nFinal Mean*Std: "); 
-    for(i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i]-offset,sqrt(var[i])); 
+    for (i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i]-offset,sqrt(var[i])); 
     printf("\n"); 
     
-    free(meanresidual);
-    free(meaninvcov);
-
 }
 
 
@@ -705,12 +663,9 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
-    int histo[65536];
     int n[MAX_NC], j;
     double var[MAX_NC], mean_voxelsize;
     double thresh[2], beta[1];
-    double min_src = HUGE, max_src = -HUGE;
-    int cumsum[65536];
     struct point *r = NULL;
     
     /* we have to make sub independent from voxel size */
@@ -724,26 +679,8 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     area = dims[0]*dims[1];
     vol = area*dims[2];
  
-    for(i = 0; i < vol; i++) {
-        min_src = MIN((double)src[i], min_src);
-        max_src = MAX((double)src[i], max_src);
-    }
-    
-    /* build histogram */
-    for(i = 0; i < 65536; i++) histo[i] = 0;
-    for(i = 0; i < vol; i++) {
-        if (label[i] == 0) continue;
-        histo[(int)ROUND(65535.0*((double)src[i]-min_src)/(max_src-min_src))]++;
-    }
-
-    /* find values between 1% and 99% quartile */
-    cumsum[0] = histo[0];
-    for(i = 1; i < 65536; i++) cumsum[i] = cumsum[i-1] + histo[i];
-    for(i = 0; i < 65536; i++) cumsum[i] = (int) ROUND(1000.0*(double)cumsum[i]/(double)cumsum[65535]);
-    for(i = 0; i < 65536; i++) if (cumsum[i] >= 10) break;
-    thresh[0] = (double)i/65535.0*(max_src-min_src);
-    for(i = 65535; i > 0; i--) if (cumsum[i] <= 990) break;
-    thresh[1] = (double)i/65535.0*(max_src-min_src);
+    double prctile[2] = {1,99};
+    get_prctile(src, dims, thresh, prctile, 1);  
  
     /* define grid dimensions */
     nix = (int) ceil((dims[0]-1)/((double) sub))+1;
@@ -767,16 +704,16 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
         n_classes = 5;
         
         /* recalculate means for pure and mixed classes */
-        for(j = 0; j < n_classes; j++) {
+        for (j = 0; j < n_classes; j++) {
             n[j] = 0;
             mean[j] = 0.0;
         }
-        for(i = 0; i < vol; i++) {
+        for (i = 0; i < vol; i++) {
             if (label[i] == 0) continue;
             n[label[i]-1]++;
             mean[label[i]-1] += (double)src[i];
         }
-        for(j = 0; j < n_classes; j++) mean[j] /= n[j];
+        for (j = 0; j < n_classes; j++) mean[j] /= n[j];
     }
     
     /* use much smaller beta for if no pve is selected */

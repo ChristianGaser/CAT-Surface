@@ -63,7 +63,7 @@ double fwhm = 3.0;
 double pre_fwhm = 2.0;
 double scl_open = -1;
 int median_correction = 1;
-int distopen = 1;
+int use_distopen = 1;
 int any_genus = 0;
 int verbose = 0;
 int use_thickness = 1;
@@ -93,7 +93,7 @@ static ArgvInfo argTable[] = {
   {"-no-median", ARGV_CONSTANT, (char *) FALSE, (char *) &median_correction,
     "Disable the median filter typically used outside sulcal areas."},
   
-  {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &distopen,
+  {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
     "Turn off the additional morphological opening feature."},
   
   {"-no-genus0", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
@@ -178,14 +178,13 @@ main(
     double          voxelsize[N_DIMENSIONS];
     int             i, j, k, c, spatial_axes[N_DIMENSIONS];
     int             n_out, EC, sizes[MAX_DIMENSIONS];
-    int             nvol, ind, count, stop_distopen;
+    int             nvol, ind, count, stop_distopen, replace = 0;
     Marching_cubes_methods    method;
     object_struct       *object, **object2, *object3;
     General_transform   voxel_to_world_transform;
     polygons_struct     *polygons;
     unsigned short      *input;
     unsigned char       *input_uint8, *ref_uint8;
-    unsigned int        *input_uint16;
     float               *input_float, *input_filtered, *dist_CSF, *dist_WM, *GMT;
 
     /* get the arguments from the command line */
@@ -194,6 +193,7 @@ main(
             fprintf(stderr, "     %s -help\n\n", argv[0]);
             exit(EXIT_FAILURE);
     }
+
 
     initialize_argument_processing(argc, argv);
 
@@ -318,11 +318,10 @@ main(
 
         
     /* estimate cortical thickness for local correction of intensities for morphological opening */
-    if (distopen && use_thickness && 0) {
+    if (use_distopen && use_thickness && 0) {
         dist_CSF = (float *)malloc(sizeof(float)*nvol);
         dist_WM  = (float *)malloc(sizeof(float)*nvol);
         GMT      = (float *)malloc(sizeof(float)*nvol);
-        input_uint16 = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
         
         /* check for memory faults */
         if ((dist_CSF == NULL) || (dist_WM == NULL) || (GMT == NULL)) {
@@ -339,7 +338,7 @@ main(
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < nvol; i++) {
             GMT[i] = (input_float[i] < 0.001) ? 1.0f : 0.0f;
-            input_uint16[i]  = (input_float[i] < 1.0) ? 1 : 0;
+            input_uint8[i]  = (input_float[i] < 1.0) ? 1 : 0;
         }
         
         for (i = 0; i < sizes[0]; i++)
@@ -352,7 +351,7 @@ main(
         output_volume_all("test.nii", NC_FLOAT, 0, 0.0, 100000.0, volume, "test\n", NULL);
 
         /* obtain CSF distance map */
-        vbdist(GMT, input_uint16, sizes, voxelsize);
+        vbdist(GMT, input_uint8, sizes, voxelsize, replace);
         for (i = 0; i < nvol; i++)
             dist_CSF[i] = GMT[i];
 
@@ -368,11 +367,11 @@ main(
         /* prepare map outside WM and mask to obtain distance map for WM */
         for (i = 0; i < nvol; i++) {
             GMT[i] = (input_float[i] > 0.999) ? 1.0f : 0.0f;
-            input_uint16[i]  = (input_float[i] > 0.0) ? 1 : 0;
+            input_uint8[i]  = (input_float[i] > 0.0) ? 1 : 0;
         }
 
         /* obtain WM distance map */
-        vbdist(GMT, input_uint16, sizes, voxelsize);
+        vbdist(GMT, input_uint8, sizes, voxelsize, replace);
         for (i = 0; i < nvol; i++)
             dist_WM[i] = GMT[i];
 
@@ -393,7 +392,7 @@ main(
     {
       
         /* Skip morphological opening if distopen is disabled */
-        if (!distopen) scl_open = 1.0;
+        if (!use_distopen) scl_open = 1.0;
       
         /* We first apply a slightly different threshold for initial mask 
            to allow to control amount of morphological opening */
@@ -401,12 +400,12 @@ main(
             input_uint8[i] = (double)input_float[i] >= scl_open*min_threshold ? 1 : 0;
     
         /* Interrupt here if distopen is disabled and use default scl_open value */
-        if (!distopen) break;
+        if (!use_distopen) break;
 
         /* Optional morphological opening with distance criteria (distopen)
            Additionaly adapt dist parameter w.r.t. scl_open  */
         dist = 0.75/(scl_open*min_threshold);
-        distopen_uint8(input_uint8, sizes, voxelsize, dist, 0.0);
+        distopen(input_uint8, sizes, voxelsize, dist, 0.0, DT_UINT8);
 
         /* Apply threshold to original input image, but keep any changes from 
            the above distopen. This ensures correct position using the original
@@ -448,11 +447,10 @@ main(
 
     }
 
-    if (distopen && use_thickness && 0) {
+    if (use_distopen && use_thickness && 0) {
         free(GMT);
         free(dist_CSF);
         free(dist_WM);
-        free(input_uint16);
     }
     
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
@@ -513,7 +511,7 @@ main(
             for (i = 0; i < nvol; i++)
                     input_uint8[i] = (unsigned char)g0->output[i];
             
-            median3_uint8(input_uint8, sizes);
+            median3(input_uint8, sizes, DT_UINT8);
 
             /* replace with its median filtered version outside sulcal areas */
             for (i = 0; i < nvol; i++)

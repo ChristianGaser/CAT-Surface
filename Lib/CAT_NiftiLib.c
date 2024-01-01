@@ -144,7 +144,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
                 return(0);
         }
         
-        if(in_ptr == NULL) {
+        if (in_ptr == NULL) {
                 nii_ptr = &nii_rec;
                 init_nifti_header(nii_ptr);
         } else nii_ptr = in_ptr;
@@ -339,14 +339,14 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         (void) sprintf( buffer, "%s%s",output_filename,extension);
 
         nii_ptr->iname = NULL;
-        nii_ptr->iname = malloc(strlen(buffer));
+        nii_ptr->iname = malloc(strlen(buffer)+8);
         strcpy(nii_ptr->iname, buffer);
 
         if ((nii_ptr->nifti_type == 0) || (nii_ptr->nifti_type == 2)) {
                 (void) sprintf( buffer, "%s%s",output_filename,".hdr");
         }
         nii_ptr->fname = NULL;
-        nii_ptr->fname = malloc(strlen(buffer));
+        nii_ptr->fname = malloc(strlen(buffer)+8);
         strcpy(nii_ptr->fname, buffer);
 
         nifti_image_write(nii_ptr);
@@ -570,15 +570,13 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
                 
         (void) sprintf( buffer, "%s%s",output_filename,extension);
 
-        nii_ptr->iname = NULL;
-        nii_ptr->iname = malloc(strlen(buffer));
+        nii_ptr->iname = malloc(strlen(buffer)+8);
         strcpy(nii_ptr->iname, buffer);
 
         if ((nii_ptr->nifti_type == 0) || (nii_ptr->nifti_type == 2)) {
                 (void) sprintf( buffer, "%s%s",output_filename,".hdr");
         }
-        nii_ptr->fname = NULL;
-        nii_ptr->fname = malloc(strlen(buffer));
+        nii_ptr->fname = malloc(strlen(buffer)+8);
         strcpy(nii_ptr->fname, buffer);
 
         nifti_image_write(nii_ptr);
