@@ -15,12 +15,13 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 
-char *label_filename = NULL;
+char *label_filename;
 int n_pure_classes = 3;
 int iters_amap = 200;
 int subsample = 96;
 int iters_ICM = 50;
 int pve = 1;
+int las = 1;
 int write_seg[3] = {0, 1, 0};
 int write_label = 1;
 int write_corr = 1;
@@ -29,31 +30,33 @@ double weight_MRF = 0.0;
 double bias_fwhm = 10.0;
 
 static ArgvInfo argTable[] = {
-    {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
+    {"--label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
          "Segmentation label for initialization."},
-    {"-iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
+    {"--iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
          "Number of iterations to end."},
-    {"-sub", ARGV_INT, (char *) 1, (char *) &subsample,
+    {"--sub", ARGV_INT, (char *) 1, (char *) &subsample,
          "Subsampling for Amap approach (will be internally scaled by voxel size)."},
-    {"-iters_icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
+    {"--iters-icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
          "Number of iterations for Iterative Conditional Mode (ICM)."},
-    {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
+    {"--mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
          "Weight of MRF prior (0..1)."},
-    {"-bias_fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
+    {"--bias-fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
          "FWHM of bias correction."},
-    {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
+    {"--pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Use Partial Volume Estimation with 5 classes (1) or do not use PVE (0)."},
-    {"-write_seg", ARGV_INT, (char *) 3, (char *) &write_seg,
+    {"--write-seg", ARGV_INT, (char *) 3, (char *) &write_seg,
          "Write segmentations as separate images. Three numbers should be given, while a '1' indicates that this tissue class should be saved. Order is CSF/GM/WM."},
-    {"-write_label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
+    {"--write-label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
          "Write label image (default)."},
-    {"-write_corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
+    {"--write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
          "Write nu-corrected image (default)."},
-    {"-nowrite_label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
+    {"--nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
          "Do not write label image."},
-    {"-nowrite_corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
+    {"--nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
          "Do not write nu-corrected image."},
-    {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
+    {"--no-las", ARGV_CONSTANT, (char *) 0, (char *) &las,
+         "Do not apply local adaptive segmentation (LAS)."},
+    {"--debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
          "Print debug information."},
      {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -63,7 +66,7 @@ static int usage(void)
 {
     static const char msg[] = {
          "CAT_VolAmap: Segmentation with adaptive MAP\n"
-         "usage: CAT_VolAmap [options] -label label.nii in.nii [out.nii] []\n"
+         "usage: CAT_VolAmap [options] --label label.nii in.nii [out.nii] []\n"
     };
     fprintf(stderr, "%s", msg);
     exit(EXIT_FAILURE);
@@ -79,7 +82,7 @@ main(int argc, char **argv)
     int       i, j, dims[3];
     int       x, y, z, z_area, y_dims;
     char      *arg_string, buffer[1024];
-    unsigned char *label = NULL, *prob = NULL;
+    unsigned char *label, *prob;
     float     *src, *buffer_vol;
     double    slope, offset, val, max_vol, min_vol, voxelsize[3];
     
@@ -87,7 +90,7 @@ main(int argc, char **argv)
 
     /* Get arguments */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
-        (void) fprintf(stderr, "\nUsage: %s [options] -label label.nii in.nii [out.nii]\n", argv[0]);
+        (void) fprintf(stderr, "\nUsage: %s [options] --label label.nii in.nii [out.nii]\n", argv[0]);
         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
@@ -95,9 +98,7 @@ main(int argc, char **argv)
     input_filename  = argv[1];
 
     /* if not defined use original name as basename for output */
-    if (argc > 2)
-        output_filename = argv[2];
-    else  output_filename = argv[1];
+    output_filename = (argc > 2) ? argv[2] : argv[1];
     
     /* get basename */
     basename = nifti_makebasename(output_filename);
@@ -106,7 +107,7 @@ main(int argc, char **argv)
     extension = nifti_find_file_extension(output_filename);
     
     /* if no valid extension was found use .nii */
-    if (extension == NULL) {
+    if (!extension) {
         fprintf(stdout,"Use .nii as extension for %s.\n",output_filename);
         strcpy(extension, ".nii");
     }
@@ -122,13 +123,13 @@ main(int argc, char **argv)
     /* read data */
     src_ptr = read_nifti_float(input_filename, &src, 0);
     
-    if (src_ptr == NULL) {
+    if (!src_ptr) {
         fprintf(stderr,"Error reading %s.\n",input_filename);
         exit(EXIT_FAILURE);
     }
 
     /* read label and check for same size */
-    if (label_filename == NULL) {
+    if (!label_filename) {
         fprintf(stderr,"Label image has to be defined\n");
         exit(EXIT_FAILURE);
     }
@@ -136,14 +137,14 @@ main(int argc, char **argv)
     label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
     prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
     
-    if ((label == NULL) || (prob == NULL)) {
+    if (!label || !prob) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
     /* read volume */
     label_ptr = read_nifti_float(label_filename, &buffer_vol, 0);
-    if (label_ptr == NULL) {
+    if (!label_ptr) {
         fprintf(stderr,"Error reading %s.\n", label_filename);
         free(label);
         free(prob);
@@ -193,7 +194,7 @@ main(int argc, char **argv)
        smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0) {
         fprintf(stderr,"Bias correction\n");
-        correct_bias(src, label, dims, voxelsize, bias_fwhm, 1);
+        correct_bias(src, label, dims, voxelsize, bias_fwhm, las);
     }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);

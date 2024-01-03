@@ -355,7 +355,7 @@ get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
     
     /* Calculate mean */
     for(int i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || (!mask))) {
+        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             sum += arr[i];
             n++;
         }
@@ -371,7 +371,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate mean */
     for(int i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || (!mask))) {
+        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             mean += arr[i];
             n++;
         }
@@ -380,7 +380,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate variance */
     for(int i = 0; i < size; i++)
-        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || (!mask)))
+        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask))
             variance += pow(arr[i] - mean, 2);
     variance /= (double)n;
 
@@ -660,7 +660,7 @@ convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
     buff = (double *)malloc(sizeof(double)*((ydim>xdim) ? ydim : xdim));
     sortedv = (double **)malloc(sizeof(double *)*fzdim);
 
-    if((!tmp) || (!buff) || (!sortedv)) {
+    if(!tmp || !buff || !sortedv) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -727,7 +727,7 @@ convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     buff = (float *)malloc(sizeof(float)*((ydim>xdim) ? ydim : xdim));
     sortedv = (float **)malloc(sizeof(float *)*fzdim);
 
-    if((!tmp) || (!buff) || (!sortedv)) {
+    if(!tmp || !buff || !sortedv) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -796,7 +796,7 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
     buff = (double *)malloc(sizeof(double)*((ydim>xdim) ? ydim : xdim));
     sortedv = (double **)malloc(sizeof(double *)*fzdim);
 
-    if((!tmp) || (!buff) || (!sortedv)) {
+    if(!tmp || !buff || !sortedv) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1016,7 +1016,7 @@ vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
         memcpy(buffer,V,nvol*sizeof(float));  
     }
     
-    if ((!D) || (!I) || ((replace > 0) && (!buffer))) {
+    if (!D || !I || ((replace > 0) && !buffer)) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
