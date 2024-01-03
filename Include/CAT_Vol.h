@@ -66,7 +66,7 @@
 
 #define MAX_NC 6
 
-void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th);
+void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int do_las);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);

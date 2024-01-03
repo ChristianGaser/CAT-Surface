@@ -9,6 +9,33 @@
 
 #include "CAT_Vol.h"
 
+/**
+ * convert_input_type - Converts various data types to a floating point array.
+ *
+ * This function is designed to convert a data array of various types into an array
+ * of floats. This is useful for standardizing data input types for functions that 
+ * are specifically defined to work with floating point data, especially in contexts 
+ * like image processing where data might come in various formats.
+ *
+ * @data: Pointer to the input data array. The actual data type of this array is
+ *        determined by the 'datatype' parameter.
+ *
+ * @buffer: Pointer to the output float array where the converted data will be stored.
+ *          This array should be pre-allocated with enough space to hold 'nvox' elements.
+ *          The function fills this array with the converted float values.
+ *
+ * @nvox: Integer representing the number of elements in the input data array.
+ *
+ * @datatype: Integer that specifies the type of data in the input array. This parameter
+ *            uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.) to represent
+ *            different data types like char, unsigned char, short, unsigned short, etc.
+ *
+ * The function iterates over the input array, converting each element to a float based
+ * on the specified datatype, and stores the result in the output float array. This 
+ * facilitates the use of functions that require floating point input by providing a 
+ * uniform data format.
+ *
+ */
 void
 convert_input_type(void *data, float *buffer, int nvox, int datatype)
 {
@@ -16,7 +43,7 @@ convert_input_type(void *data, float *buffer, int nvox, int datatype)
     float tmp;
     
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -55,6 +82,33 @@ convert_input_type(void *data, float *buffer, int nvox, int datatype)
     }
 }
 
+/**
+ * convert_output_type - Converts a floating point array back to various data types.
+ *
+ * This function reverses the operation performed by `convert_input_type`. It converts
+ * an array of floats (typically after some processing) back to a specified data type.
+ * This is useful in contexts like image processing where data needs to be restored to
+ * its original format after processing.
+ *
+ * @data: Pointer to the output data array where the converted data will be stored.
+ *        The actual data type of this array is determined by the 'datatype' parameter.
+ *        This array should be pre-allocated with enough space to hold 'nvox' elements.
+ *
+ * @buffer: Pointer to the input float array containing the data to be converted.
+ *          This array contains 'nvox' elements of type float.
+ *
+ * @nvox: Integer representing the number of elements in the input float array.
+ *
+ * @datatype: Integer that specifies the desired output data type for the 'data' array.
+ *            This parameter uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.)
+ *            to represent different data types like char, unsigned char, short, etc.
+ *
+ * The function iterates over the input float array, converting each float element back 
+ * to the specified data type using rounding (via `roundf` function) and stores the 
+ * result in the output array. This allows for the processed data to be converted back 
+ * to its original or a different format as needed.
+ *
+ */
 void
 convert_output_type(void *data, float *buffer, int nvox, int datatype)
 {
@@ -93,84 +147,204 @@ convert_output_type(void *data, float *buffer, int nvox, int datatype)
     }
 }
 
+/**
+ * correct_bias_label - Performs bias correction on MRI images based on specified labels.
+ *
+ * This function applies a bias correction process to an MRI image dataset. The correction
+ * is performed based on the label values assigned to each voxel, allowing different
+ * treatments for different tissue types (e.g., white matter, gray matter).
+ *
+ * @src: Pointer to the source image data (float array).
+ *       This array is modified in place with the bias-corrected values.
+ *
+ * @label: Pointer to the label array (unsigned char array) indicating different
+ *         tissue types in the MRI scan. Different values in this array represent
+ *         different tissues such as white matter, gray matter, etc.
+ *
+ * @dims: Pointer to an integer array of size 3, indicating the dimensions of the
+ *        MRI volume (e.g., [width, height, depth]).
+ *
+ * @voxelsize: Pointer to a double array of size 3, indicating the size of each
+ *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
+ *
+ * @bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
+ *             the Gaussian kernel used for smoothing in the bias correction
+ *             process.
+ *
+ * @label_th: An integer specifying the threshold label value for selecting
+ *            specific tissues for bias correction. For example, using label_th = 2
+ *            may focus the correction on white matter only.
+ *
+ * The function first calculates the mean intensity for each label class and then
+ * estimates a bias field based on the ratio between actual voxel values and their
+ * respective label class means. Morphological operations are used to refine the 
+ * brain mask for the bias estimation. The bias field is then used to adjust the 
+ * voxel intensities in the source image.
+ *
+ */
 void
-correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
+correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
 {
-    int i, j, vol, n[MAX_NC], n_classes = 0, replace = 1;
+    int i, j, nvol, n[MAX_NC], n_classes = 0, replace;
     unsigned char *mask;
+    float *biasfield;
     double mean_label[MAX_NC], mean_bias;
-    float *meanresidual;
+    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
     
-    vol = dims[0]*dims[1]*dims[2];
+    nvol = dims[0]*dims[1]*dims[2];
 
-    meanresidual = (float *)malloc(sizeof(float)*vol);
-    mask = (unsigned char *)malloc(sizeof(unsigned char)*vol);
-    if ((mask == NULL) || (meanresidual == NULL)) {
+    biasfield = (float *)malloc(sizeof(float)*nvol);
+    mask = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+    if ((!mask) || (!biasfield)) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
     /* get number of classes by checking maximum label value */
-    for (i = 0; i < vol; i++)
+    for (i = 0; i < nvol; i++)
         n_classes = MAX((int)label[i], n_classes);
 
-    /* calculate means for pure classes */
+    /* initialize parameters */
     for (i = 0; i < n_classes; i++) {
         n[i] = 0;
         mean_label[i] = 0.0;
     }
     
-    /* estimate mean for each label clöass */
-    for (i = 0; i < vol; i++) {
+    /* estimate mean for each label class */
+    for (i = 0; i < nvol; i++) {
         if (label[i] == 0) continue;
         n[label[i]-1]++;
         mean_label[label[i]-1] += (double)src[i];
     }
     for (i = 0; i < n_classes; i++) mean_label[i] /= (double)n[i];
 
-    for (i = 0; i < vol; i++)
-        meanresidual[i] = 0.0;
+    for (i = 0; i < nvol; i++)
+        biasfield[i] = 0.0;
 
-    for (i = 0; i < vol; i++)
+    /* get bias field by ratio between actual values and respective mean of label class */
+    for (i = 0; i < nvol; i++)
         if (label[i] > 0)
-            for (j = 0; j < n_classes; j++)
-                meanresidual[i] += (src[i] / (float)mean_label[j]);
+            biasfield[i] += (src[i] / (float)mean_label[label[i]-1]);
 
-    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
-    fprintf(stderr,"Bias correction\n");
-
-    /* only use WM for bias estimation */
-    for (i = 0; i < vol; i++) {
-        if (label[i] > label_th) 
-            mask[i] = 1;
-        else {
-            meanresidual[i] = 0.0;
-            mask[i] = 0;
-        }
-    }
+    /* only use defined labels (i.e. using label_th) for bias estimation 
+       use label_th = 2 for focussing on WM only */
+    for (i = 0; i < nvol; i++)
+        mask[i] = (label[i] >= label_th) ? 1 : 0;
     
     /* we need a tight brainmask without remaining small parts that are only
-       connected by a few voxels
-    */
-    morph_open(mask, dims, 1, 0, DT_UINT8);
+       connected by a few voxels */
+    morph_open(mask,  dims, 1, 0, DT_UINT8);
     morph_erode(mask, dims, 1, 0, DT_UINT8);
 
     /* invert mask because we need to estimate dist outside the original mask */
-    for (i = 0; i < vol; i++)
+    for (i = 0; i < nvol; i++) {
+        if (mask[i] == 0) biasfield[i] = 0.0;
         mask[i] = 1 - mask[i];
+    }
 
-    vbdist(meanresidual, mask, dims, voxelsize, replace);
-    smooth_subsample_float(meanresidual, dims, voxelsize, fwhm, 0, 4);
+    replace = 1;
+    vbdist(biasfield, mask, dims, voxelsize, replace);
+    smooth_subsample_float(biasfield, dims, voxelsize, fwhm, 0, 4);
 
-    /* estimate mean of bias filed inside label for mean-correction */
-    mean_bias = get_masked_mean_array_float(meanresidual, vol, label);
+    /* estimate mean of bias field inside label for mean-correction */
+    mean_bias = get_masked_mean_array_float(biasfield, nvol, label);
 
-    for (i = 0; i < vol; i++)
-        if ((label[i] > 0) && (meanresidual[i] != 0))
-            src[i] /= (meanresidual[i]/mean_bias);
+    for (i = 0; i < nvol; i++)
+        if ((label[i] > 0) && (biasfield[i] != 0))
+            src[i] /= (biasfield[i]/mean_bias);
 
     free(mask);
-    free(meanresidual);
+    free(biasfield);
+}
+
+/**
+ * correct_bias - Applies bias correction to MRI data.
+ *
+ * This function performs bias correction on MRI images, specifically focusing on
+ * white matter (WM) and, if specified, on gray matter (GM) as well. It uses a
+ * local adaptive segmentation approach for additional GM correction.
+ *
+ * @src: Pointer to the source image data (float array).
+ *       This array is modified in place with the bias-corrected values.
+ *
+ * @label: Pointer to the label array (unsigned char array) indicating different
+ *         tissue types in the MRI scan. Typically, different values in this array
+ *         represent different tissues such as WM, GM, and CSF.
+ *
+ * @dims: Pointer to an integer array of size 3, indicating the dimensions of the
+ *        MRI volume (e.g., [width, height, depth]).
+ *
+ * @voxelsize: Pointer to a double array of size 3, indicating the size of each
+ *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
+ *
+ * @bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
+ *             the Gaussian kernel used for smoothing in the bias correction
+ *             process. This parameter is primarily used for WM correction.
+ *
+ * @do_las: An integer indicating whether local adaptive segmentation (LAS) should
+ *          be applied for additional GM correction. If non-zero, LAS is applied.
+ *
+ * The function first applies WM bias correction. If `do_las` is non-zero, it then
+ * performs GM correction with a small smoothing factor, creates a distance map 
+ * for subcortical regions, and applies a weighted average to optimize the bias 
+ * correction in these areas. The function modifies the `src` array in place with 
+ * the corrected values.
+ *
+ */
+
+void
+correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int do_las)
+{
+    int i, nvol, replace;
+    unsigned char *mask;
+    float *src_subcortical, *dist, max_dist = -FLT_MAX;
+
+    nvol = dims[0]*dims[1]*dims[2];
+
+    /* apply bias correction for WM only */
+    correct_bias_label(src, label, dims, voxelsize, bias_fwhm, WM);
+    
+    /* use local adaptive segmentation (LAS) and apply additional GM correction with
+       very small smoothing */
+    if (do_las) {
+        src_subcortical = (float *)malloc(sizeof(float)*nvol);
+        dist = (float *)malloc(sizeof(float)*nvol);
+        if (!src_subcortical || !dist) {
+            printf("Memory allocation error\n");
+            free(src_subcortical); // Free in case only one allocation failed
+            free(dist);
+            return; 
+        }
+
+        /* apply bias correction for WM and GM */
+        for (i = 0; i < nvol; i++) src_subcortical[i] = src[i];
+        bias_fwhm = 3.0;
+        correct_bias_label(src_subcortical, label, dims, voxelsize, bias_fwhm, GM);
+
+        /* prepare mask for distance map */
+        for (i = 0; i < nvol; i++) dist[i] = (label[i] > 0) ? 0.0 : 1.0;
+        
+        /* get distance to background */
+        replace = 0;
+        vbdist(dist, NULL, dims, voxelsize, replace);
+
+        /* scale distance values to 0..1  */
+        for (i=0; i < nvol; i++) max_dist = MAX(dist[i], max_dist);
+        for (i=0; i < nvol; i++) dist[i] /= max_dist;
+        
+        /* use squared distance weights to weight central regions (i.e. subcortical
+           structures) more */
+        for (i=0; i < nvol; i++) dist[i] *= dist[i];
+
+        /* apply weighted average (with squared weights) to maximize weighting 
+           for subcortical regions with large distances, otherwise WM-bias 
+           correction is more weighted */
+        for (i = 0; i < nvol; i++)
+            src[i] = dist[i]*src_subcortical[i] + (1.0 - dist[i])*src[i];
+        
+        free(dist);
+        free(src_subcortical);
+    }
 }
 
 double
@@ -181,7 +355,7 @@ get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
     
     /* Calculate mean */
     for(int i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && ((mask != NULL && mask[i] > 0) || (mask == NULL))) {
+        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || (!mask))) {
             sum += arr[i];
             n++;
         }
@@ -197,7 +371,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate mean */
     for(int i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && ((mask != NULL && mask[i] > 0) || (mask == NULL))) {
+        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || (!mask))) {
             mean += arr[i];
             n++;
         }
@@ -206,7 +380,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate variance */
     for(int i = 0; i < size; i++)
-        if (!isnan(arr[i]) && ((mask != NULL && mask[i] > 0) || (mask == NULL)))
+        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || (!mask)))
             variance += pow(arr[i] - mean, 2);
     variance /= (double)n;
 
@@ -315,7 +489,7 @@ isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
     float world_coords[4] = {x, y, z, 1.0}; /* Define world coordinates (in mm) */
 
     /* convert from world to voxel space if nifti-pointer is defined */
-    if (nii_ptr != NULL) {
+    if (nii_ptr) {
         mat44 mat = nii_ptr->sto_xyz; /* Transformation matrix */
         mat44 inverse_mat = nifti_mat44_inverse(mat); /* Inverse transformation matrix */
     
@@ -474,7 +648,7 @@ convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     double *oVol, int dims[3])
 {
-    double *tmp = NULL, *buff = NULL, **sortedv = NULL, *obuf;
+    double *tmp, *buff, **sortedv, *obuf;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
 
@@ -486,7 +660,7 @@ convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
     buff = (double *)malloc(sizeof(double)*((ydim>xdim) ? ydim : xdim));
     sortedv = (double **)malloc(sizeof(double *)*fzdim);
 
-    if((tmp == NULL) || (buff == NULL) || (sortedv == NULL)) {
+    if((!tmp) || (!buff) || (!sortedv)) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -541,7 +715,7 @@ convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     float *oVol, int dims[3])
 {
-    float *tmp = NULL, *buff = NULL, **sortedv = NULL, *obuf;
+    float *tmp, *buff, **sortedv, *obuf;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
 
@@ -553,7 +727,7 @@ convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     buff = (float *)malloc(sizeof(float)*((ydim>xdim) ? ydim : xdim));
     sortedv = (float **)malloc(sizeof(float *)*fzdim);
 
-    if((tmp == NULL) || (buff == NULL) || (sortedv == NULL)) {
+    if((!tmp) || (!buff) || (!sortedv)) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -608,7 +782,7 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     unsigned char *oVol, int dims[3])
 {
-    double *tmp = NULL, *buff = NULL, **sortedv = NULL;
+    double *tmp, *buff, **sortedv;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
     double tmp2;
@@ -622,7 +796,7 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
     buff = (double *)malloc(sizeof(double)*((ydim>xdim) ? ydim : xdim));
     sortedv = (double **)malloc(sizeof(double *)*fzdim);
 
-    if((tmp == NULL) || (buff == NULL) || (sortedv == NULL)) {
+    if((!tmp) || (!buff) || (!sortedv)) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -842,13 +1016,13 @@ vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
         memcpy(buffer,V,nvol*sizeof(float));  
     }
     
-    if ((D == NULL) || (I == NULL) || ((replace > 0) && (buffer == NULL))) {
+    if ((!D) || (!I) || ((replace > 0) && (!buffer))) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
     /* Initiaize mask with ones if not defined */
-    if (M == NULL) {
+    if (!M) {
         M = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
         for (i=0; i<nvol; i++)
             M[i] = 1;
@@ -1105,8 +1279,8 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
 void
 distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th)
 {
-    float *buffer = NULL;
-    int i,x,y,z,j,band,dims2[3], replace = 0;
+    float *buffer;
+    int i,x,y,z,j,band,dims2[3], replace;
     float max_vol;
     int nvol2,nvol = dims[0]*dims[1]*dims[2];
     
@@ -1122,7 +1296,7 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
 
     buffer = (float *)malloc(sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
 
-    if (buffer == NULL) {
+    if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1132,7 +1306,8 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
     /* threshold input */
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
         buffer[index(x+band,y+band,z+band,dims2)] = (vol[index(x,y,z,dims)]>(float)th);
-                
+
+    replace = 0;
     vbdist(buffer, NULL, dims2, voxelsize, replace);
     for (i=0;i<nvol2;i++)
         buffer[i] = buffer[i] > (float)niter;
@@ -1158,7 +1333,7 @@ distclose(void *data, int dims[3], double voxelsize[3], int niter, double th, in
     buffer = (float *)malloc(sizeof(float)*nvox);
     
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1173,8 +1348,8 @@ distclose(void *data, int dims[3], double voxelsize[3], int niter, double th, in
 void
 distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
-    float *buffer = NULL;
-    int i, j, replace = 0;
+    float *buffer;
+    int i, j, replace;
     float max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
     
@@ -1185,7 +1360,7 @@ distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double
     
     buffer = (float *)malloc(sizeof(float)*nvol);
 
-    if (buffer == NULL) {
+    if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1193,7 +1368,8 @@ distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double
     /* threshold input */
     for (i=0; i<nvol; i++)
         buffer[i] = 1.0 - ((float)vol[i]>th);
-                
+
+    replace = 0;
     vbdist(buffer, NULL, dims, voxelsize, replace);
     for (i=0; i<nvol; i++)
         buffer[i] = buffer[i] > (float)dist;
@@ -1219,7 +1395,7 @@ distopen(void *data, int dims[3], double voxelsize[3], int niter, double th, int
     buffer = (float *)malloc(sizeof(float)*nvox);
     
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1265,7 +1441,7 @@ morph_erode(void *data, int dims[3], int niter, double th, int datatype)
     buffer = (float *)malloc(sizeof(float)*nvox);
     
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1283,7 +1459,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
     double filt[3]={1,1,1};
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
-    unsigned char *buffer = NULL;
+    unsigned char *buffer;
     int nvol = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
@@ -1297,7 +1473,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
 
-    if (buffer == NULL) {
+    if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1332,7 +1508,7 @@ morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
     buffer = (float *)malloc(sizeof(float)*nvox);
 
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1348,7 +1524,7 @@ void
 morph_close_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
-    unsigned char *buffer = NULL;
+    unsigned char *buffer;
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
@@ -1364,7 +1540,7 @@ morph_close_float(float *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*dims2[0]*dims2[1]*dims2[2]);
 
-    if (buffer == NULL) {
+    if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1406,7 +1582,7 @@ morph_close(void *data, int dims[3], int niter, double th, int datatype)
     buffer = (float *)malloc(sizeof(float)*nvox);
 
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1421,7 +1597,7 @@ morph_close(void *data, int dims[3], int niter, double th, int datatype)
 void
 morph_open_float(float *vol, int dims[3], int niter, double th)
 {
-    unsigned char *buffer = NULL;
+    unsigned char *buffer;
     double filt[3]={1,1,1};
     int i, j, nvol;
     float max_vol;
@@ -1434,7 +1610,7 @@ morph_open_float(float *vol, int dims[3], int niter, double th)
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
 
-    if (buffer == NULL) {
+    if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1471,7 +1647,7 @@ morph_open(void *data, int dims[3], int niter, double th, int datatype)
     buffer = (float *)malloc(sizeof(float)*nvox);
 
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -2237,7 +2413,7 @@ median3(void *data, int dims[3], int datatype)
     buffer = (float *)malloc(sizeof(float)*nvox);
 
     /* check success of memory allocation */
-    if (buffer == NULL) {
+    if (!buffer) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -2324,7 +2500,7 @@ get_largest_cluster(float *inData, double thresh, const int *dims)
 void
 distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
-    float *buffer = NULL;
+    float *buffer;
     int i,j;
     unsigned char max_vol;
     int nvol = dims[0]*dims[1]*dims[2];
@@ -2337,7 +2513,7 @@ distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist
     
     buffer = (float *)malloc(sizeof(float)*nvol);
 
-    if (buffer == NULL) {
+    if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }

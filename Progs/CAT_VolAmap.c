@@ -189,8 +189,12 @@ main(int argc, char **argv)
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
 
-    if (bias_fwhm > 0)
-        correct_bias(src, label, dims, voxelsize, bias_fwhm, 2);
+    /* apply bias correction first for GM+WM and subsequently for WM only with less
+       smoothing to emphasize subcortical structures */
+    if (bias_fwhm > 0) {
+        fprintf(stderr,"Bias correction\n");
+        correct_bias(src, label, dims, voxelsize, bias_fwhm, 1);
+    }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
 
