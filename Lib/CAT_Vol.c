@@ -8,6 +8,7 @@
  */
 
 #include "CAT_Vol.h"
+#include "CAT_Kmeans.h"
 
 /**
  * convert_input_type - Converts various data types to a floating point array.
@@ -344,6 +345,43 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
         free(dist);
         free(src_subcortical);
     }
+}
+
+void
+remove_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize, int erosion_steps)
+{
+    int i, nvol;
+    float *outer_rim;
+    double mu[3], threshold;
+
+    nvol = dims[0]*dims[1]*dims[2];
+
+    outer_rim = (float *)malloc(sizeof(float)*nvol);
+    if (!outer_rim) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* create initial outer_rim for label */
+    for (i = 0; i < nvol; i++) outer_rim[i] = (label[i] > 0) ? 1.0 : 0.0;
+
+    /* estimate outer rim of CSF that changed by erosion steps and fill it with
+       input values inside that mask */
+    morph_erode(outer_rim, dims, erosion_steps, 0, DT_FLOAT32);
+    /* fill with original values if it's CSF and was removed by erosion */
+    for (i = 0; i < nvol; i++) outer_rim[i] = ((label[i] == CSF) && (outer_rim[i] == 0)) ? src[i] : 0.0;
+
+    double max_src = Kmeans(outer_rim, NULL, NULL, 25, 3, mu, voxelsize, dims, 0, 0);
+    threshold = (mu[1] + mu[2])/2.0;
+        
+    fprintf(stderr,"%g %g %g\n",mu[0], mu[1], mu[2]);
+
+    /* assume that larger values in outer rim should be rather CSF and don't have that high
+     * intensities and set these therefore to zero */
+    for (i = 0; i < nvol; i++) src[i] = (outer_rim[i] > threshold) ? 0.0 : src[i];
+    
+    free(outer_rim);
+    
 }
 
 /**

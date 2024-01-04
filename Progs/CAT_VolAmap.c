@@ -3,7 +3,6 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id$
  *
  */
 
@@ -99,7 +98,7 @@ main(int argc, char *argv[])
     nifti_image   *src_ptr, *label_ptr;
     int       n_classes;
     char      *input_filename, *output_filename, *basename, *extension;
-    int       i, j, dims[3];
+    int       i, j, dims[3], erosion_steps;
     int       x, y, z, z_area, y_dims;
     char      *arg_string, buffer[1024];
     unsigned char *label, *prob;
@@ -125,8 +124,6 @@ main(int argc, char *argv[])
     /* if not defined use original name as basename for output */
     if (!get_string_argument(NULL, &output_filename))
         output_filename = argv[1];
-
-    fprintf(stderr,"%d %s %s\n", argc, input_filename, output_filename);
         
     /* get basename */
     basename = nifti_makebasename(output_filename);
@@ -224,6 +221,10 @@ main(int argc, char *argv[])
         fprintf(stderr,"Bias correction\n");
         correct_bias(src, label, dims, voxelsize, bias_fwhm, las);
     }
+
+    /* normalize erosion steps by voxelsize */
+    erosion_steps = round(6.0*(voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0);
+    remove_outer_rim(src, label, dims, voxelsize, erosion_steps);
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
 

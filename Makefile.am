@@ -82,6 +82,7 @@ noinst_HEADERS = \
     Include/CAT_Gyrification.h \
     Include/CAT_DepthPotential.h \
     Include/CAT_Vol.h \
+    Include/CAT_Kmeans.h \
     Include/CAT_Amap.h \
     Include/CAT_NiftiLib.h \
     MarchingCubes/MarchingCubes.h \
@@ -141,6 +142,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Gyrification.c \
     Lib/CAT_DepthPotential.c \
     Lib/CAT_Vol.c \
+    Lib/CAT_Kmeans.c \
     Lib/CAT_Amap.c \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \

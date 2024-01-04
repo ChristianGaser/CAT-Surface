@@ -103,6 +103,9 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    for (i = 0; i < src_ptr->nvox; i++)
+        if (src[i] == 0) src[i] = 1.0;
+
     /* initialize distances */
     for (i = 0; i < src_ptr->nvox; i++) {
         dist_CSF[i] = 0.0;
@@ -144,6 +147,12 @@ int main(int argc, char *argv[])
             dist_WM[i]  /= (float) n_avgs;
         }
     }
+
+    if (!write_nifti_float("dist_CSF.nii", dist_CSF, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
+        exit(EXIT_FAILURE);
+
+    if (!write_nifti_float("dist_WM.nii", dist_WM, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
+        exit(EXIT_FAILURE);
 
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
     /* first reconstruct sulci */

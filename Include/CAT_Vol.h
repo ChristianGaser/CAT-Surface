@@ -69,6 +69,7 @@
 void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int do_las);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
+void remove_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize, int erosion_steps);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
