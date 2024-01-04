@@ -13,19 +13,19 @@
 int
 equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2) {
 
-    if((nii_ptr->nx != nii_ptr2->nx) ||
+    if ((nii_ptr->nx != nii_ptr2->nx) ||
          (nii_ptr->ny != nii_ptr2->ny) ||
          (nii_ptr->nz != nii_ptr2->nz) ||
          (fabs(nii_ptr->dx - nii_ptr2->dx) > 0.001) ||
          (fabs(nii_ptr->dy - nii_ptr2->dy) > 0.001) ||
          (fabs(nii_ptr->dz - nii_ptr2->dz) > 0.001)) {
         fprintf(stderr,"Warning: Image %s and image %s differ.\n",nii_ptr->fname, nii_ptr2->fname);
-        if(nii_ptr->nx != nii_ptr2->nx) fprintf(stderr,"nx: %d vs. %d.\n",nii_ptr->nx, nii_ptr2->nx);
-        if(nii_ptr->ny != nii_ptr2->ny) fprintf(stderr,"ny: %d vs. %d.\n",nii_ptr->ny, nii_ptr2->ny);
-        if(nii_ptr->nz != nii_ptr2->nz) fprintf(stderr,"nz: %d vs. %d.\n",nii_ptr->nz, nii_ptr2->nz);
-        if(nii_ptr->dx != nii_ptr2->dx) fprintf(stderr,"dx: %g vs. %g.\n",nii_ptr->dx, nii_ptr2->dx);
-        if(nii_ptr->dy != nii_ptr2->dy) fprintf(stderr,"dy: %g vs. %g.\n",nii_ptr->dy, nii_ptr2->dy);
-        if(nii_ptr->dz != nii_ptr2->dz) fprintf(stderr,"dz: %g vs. %g.\n",nii_ptr->dz, nii_ptr2->dz);
+        if (nii_ptr->nx != nii_ptr2->nx) fprintf(stderr,"nx: %d vs. %d.\n",nii_ptr->nx, nii_ptr2->nx);
+        if (nii_ptr->ny != nii_ptr2->ny) fprintf(stderr,"ny: %d vs. %d.\n",nii_ptr->ny, nii_ptr2->ny);
+        if (nii_ptr->nz != nii_ptr2->nz) fprintf(stderr,"nz: %d vs. %d.\n",nii_ptr->nz, nii_ptr2->nz);
+        if (nii_ptr->dx != nii_ptr2->dx) fprintf(stderr,"dx: %g vs. %g.\n",nii_ptr->dx, nii_ptr2->dx);
+        if (nii_ptr->dy != nii_ptr2->dy) fprintf(stderr,"dy: %g vs. %g.\n",nii_ptr->dy, nii_ptr2->dy);
+        if (nii_ptr->dz != nii_ptr2->dz) fprintf(stderr,"dz: %g vs. %g.\n",nii_ptr->dz, nii_ptr2->dz);
         return(0);        
     }
     return(1);
@@ -124,14 +124,14 @@ init_nifti_header(nifti_image *nii_ptr)
 
 
 int
-write_nifti_double( const char *output_filename, double image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
+write_nifti_double(const char *output_filename, double image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
     char *extension, buffer[1024];
     int i;
     double img_range[2], dt_range[2], val;
     
-    if((data_type != DT_UINT8) && 
+    if ((data_type != DT_UINT8) && 
          (data_type != DT_INT8) && 
          (data_type != DT_UINT16) && 
          (data_type != DT_INT16) && 
@@ -144,7 +144,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         return(0);
     }
     
-    if (in_ptr == NULL) {
+    if (!in_ptr) {
         nii_ptr = &nii_rec;
         init_nifti_header(nii_ptr);
     } else nii_ptr = in_ptr;
@@ -152,7 +152,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
     extension = nifti_find_file_extension(output_filename);
     
     /* if no valid extension was found use .nii */
-    if (extension == NULL) {
+    if (!extension) {
         fprintf(stderr,"No valid extension found for output filename %s.\n",output_filename);
         return(0);
     }
@@ -239,7 +239,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 1;
         nii_ptr->data = (unsigned char *)malloc(sizeof(unsigned char)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -254,7 +254,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 1;
         nii_ptr->data = (signed char *)malloc(sizeof(signed char)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -269,7 +269,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 2;
         nii_ptr->data = (unsigned short *)malloc(sizeof(unsigned short)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -284,7 +284,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 2;
         nii_ptr->data = (signed short *)malloc(sizeof(signed short)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -299,7 +299,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 4;
         nii_ptr->data = (unsigned int *)malloc(sizeof(unsigned int)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -314,7 +314,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 4;
         nii_ptr->data = (signed int *)malloc(sizeof(signed int)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -329,7 +329,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 8;
         nii_ptr->data = (long long *)malloc(sizeof(long long)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -344,7 +344,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 4;
         nii_ptr->data = (float *)malloc(sizeof(float)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -359,7 +359,7 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         nii_ptr->nbyper = 8;
         nii_ptr->data = (double *)malloc(sizeof(double)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -372,14 +372,14 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
         break;
     }
         
-    (void) sprintf( buffer, "%s%s",output_filename,extension);
+    (void) sprintf(buffer, "%s%s",output_filename,extension);
 
     nii_ptr->iname = NULL;
     nii_ptr->iname = malloc(strlen(buffer)+8);
     strcpy(nii_ptr->iname, buffer);
 
     if ((nii_ptr->nifti_type == 0) || (nii_ptr->nifti_type == 2)) {
-        (void) sprintf( buffer, "%s%s",output_filename,".hdr");
+        (void) sprintf(buffer, "%s%s",output_filename,".hdr");
     }
     nii_ptr->fname = NULL;
     nii_ptr->fname = malloc(strlen(buffer)+8);
@@ -393,14 +393,14 @@ write_nifti_double( const char *output_filename, double image[], int data_type, 
 }
 
 int
-write_nifti_float( const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
+write_nifti_float(const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
     char *extension, buffer[1024];
     int i;
     double img_range[2], dt_range[2], val;
     
-    if((data_type != DT_UINT8) && 
+    if ((data_type != DT_UINT8) && 
          (data_type != DT_INT8) && 
          (data_type != DT_UINT16) && 
          (data_type != DT_INT16) && 
@@ -413,7 +413,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         return(0);
     }
     
-    if(in_ptr == NULL) {
+    if (!in_ptr) {
         nii_ptr = &nii_rec;
         init_nifti_header(nii_ptr);
     } else nii_ptr = in_ptr;
@@ -421,7 +421,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
     extension = nifti_find_file_extension(output_filename);
     
     /* if no valid extension was found use .nii */
-    if (extension == NULL) {
+    if (!extension) {
         fprintf(stderr,"No valid extension found for output filename %s.\n",output_filename);
         return(0);
     }
@@ -507,7 +507,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 1;
         nii_ptr->data = (unsigned char *)malloc(sizeof(unsigned char)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -522,7 +522,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 1;
         nii_ptr->data = (signed char *)malloc(sizeof(signed char)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -537,7 +537,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 2;
         nii_ptr->data = (unsigned short *)malloc(sizeof(unsigned short)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -552,7 +552,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 2;
         nii_ptr->data = (signed short *)malloc(sizeof(signed short)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -567,7 +567,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 4;
         nii_ptr->data = (unsigned int *)malloc(sizeof(unsigned int)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -582,7 +582,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 4;
         nii_ptr->data = (signed int *)malloc(sizeof(signed int)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -597,7 +597,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 8;
         nii_ptr->data = (long long *)malloc(sizeof(long long)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -612,7 +612,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 4;
         nii_ptr->data = (float *)malloc(sizeof(float)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -627,7 +627,7 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         nii_ptr->nbyper = 8;
         nii_ptr->data = (double *)malloc(sizeof(double)*nii_ptr->nvox);
         /* check for memory */
-        if(nii_ptr->data == NULL) {
+        if (!nii_ptr->data) {
             fprintf(stderr,"Memory allocation error\n");
             return(0);
         }
@@ -640,13 +640,13 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
         break;
     }
         
-    (void) sprintf( buffer, "%s%s",output_filename,extension);
+    (void) sprintf(buffer, "%s%s",output_filename,extension);
 
     nii_ptr->iname = malloc(strlen(buffer)+8);
     strcpy(nii_ptr->iname, buffer);
 
     if ((nii_ptr->nifti_type == 0) || (nii_ptr->nifti_type == 2)) {
-        (void) sprintf( buffer, "%s%s",output_filename,".hdr");
+        (void) sprintf(buffer, "%s%s",output_filename,".hdr");
     }
     nii_ptr->fname = malloc(strlen(buffer)+8);
     strcpy(nii_ptr->fname, buffer);
@@ -659,14 +659,14 @@ write_nifti_float( const char *output_filename, float image[], int data_type, do
 }
 
 nifti_image
-*read_nifti_double( const char *input_filename, double *image[], int read_data)
+*read_nifti_double(const char *input_filename, double *image[], int read_data)
 {
     nifti_image *nii_ptr;
     double tmp;
     int i;
     
     nii_ptr = nifti_image_read(input_filename, 1);
-    if(nii_ptr == NULL) {
+    if (!nii_ptr) {
         fprintf(stderr,"read_nifti_double: Error reading %s.\n", input_filename);
         return(NULL);
     }
@@ -675,7 +675,7 @@ nifti_image
     *image = (double *)malloc(sizeof(double)*nii_ptr->nvox*nii_ptr->nt);
     
     /* check for memory */
-    if(image == NULL) {
+    if (!image) {
         fprintf(stderr,"read_nifti_double: Memory allocation error\n");
         return(NULL);
     }
@@ -727,20 +727,20 @@ nifti_image
             nii_ptr->dim[0] = nii_ptr->ndim = 4;
         }
         
-        if(!read_data) free(nii_ptr->data);
+        if (!read_data) free(nii_ptr->data);
 
         return(nii_ptr);
 }
 
 nifti_image
-*read_nifti_float( const char *input_filename, float *image[], int read_data)
+*read_nifti_float(const char *input_filename, float *image[], int read_data)
 {
     nifti_image *nii_ptr;
     float tmp;
     int i;
     
     nii_ptr = nifti_image_read(input_filename, 1);
-    if(nii_ptr == NULL) {
+    if (!nii_ptr) {
         fprintf(stderr,"read_nifti_float: Error reading %s.\n", input_filename);
         return(NULL);
     }
@@ -749,7 +749,7 @@ nifti_image
     *image = (float *)malloc(sizeof(float)*nii_ptr->nvox*nii_ptr->nt);
     
     /* check for memory */
-    if(image == NULL) {
+    if (!image) {
         fprintf(stderr,"read_nifti_float: Memory allocation error\n");
         return(NULL);
     }
@@ -801,7 +801,7 @@ nifti_image
             nii_ptr->dim[0] = nii_ptr->ndim = 4;
         }
         
-        if(!read_data) free(nii_ptr->data);
+        if (!read_data) free(nii_ptr->data);
         
         return(nii_ptr);
 }
