@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     
     /* read source image */
     src_ptr = read_nifti_float(infile, &src, 0);
-    if(src_ptr == NULL) {
+    if (!src_ptr) {
         fprintf(stderr,"Error reading %s.\n", infile);
         return(EXIT_FAILURE);
     }
@@ -97,8 +97,7 @@ int main(int argc, char *argv[])
     PPM_filtered = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     /* check for memory faults */
-    if ((input == NULL) || (mask == NULL) || (dist_CSF == NULL) ||
-           (dist_WM == NULL) || (GMT == NULL) || (PPM == NULL) || (PPM_filtered == NULL)) {
+    if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !PPM || !PPM_filtered) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -161,7 +160,7 @@ int main(int argc, char *argv[])
             input[i] = 4.0 - src[i];
             
         GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-        if (GMT2 == NULL) {
+        if (!GMT2) {
             fprintf(stderr,"Memory allocation error\n");
             exit(EXIT_FAILURE);
         }

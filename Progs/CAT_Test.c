@@ -8,156 +8,238 @@
  */
 
 #include <float.h>
-#include <math.h>
+#include <stdlib.h>
+
+#if !defined(_WIN32)
+#include <libgen.h>
+#endif
 
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 
-typedef  enum  { PDw, T1w, T2w, Unknown } Modality ;
-                 
-char *label_filename = NULL;
+int verbose = 0;
+int no_minimum_thickness = 0;
+int n_avgs = 4;
+
+extern int ParseArgv(int *argcPtr, char **argv, ArgvInfo *argTable, int flags);
 
 static ArgvInfo argTable[] = {
-    {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
-         "Segmentation label for initialization."},
+    {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
+          "Be verbose."},
+    {"-n_avgs", ARGV_INT, (char *) 1, (char *) &n_avgs,
+          "Number of averages for estimating WM and CSF distance by shifting the border between GM/WM and GM/CSF to obtain a less noisy measure."},
+    {"-no_min_thickness", ARGV_CONSTANT, (char *) 1, (char *) &no_minimum_thickness,
+          "Don't use two thickness measures from sulci and gyri and estimate minimum, but use the simpler approach based on sulci only."},
      {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
-
-static int usage(void)
+int main(int argc, char *argv[])
 {
-    static const char msg[] = {
-         "CAT_Test: Test\n"
-         "usage: CAT_Test [options] -label label.nii in.nii [out.nii] []\n"
-    };
-    fprintf(stderr, "%s", msg);
-    exit(EXIT_FAILURE);
-}
-
-int
-main(int argc, char **argv)
-{
-    /* NIFTI stuff */
-    nifti_image   *src_ptr, *label_ptr;
-    char      *input_filename, *output_filename, *basename, *extension;
-    int       i, j, count, dims[3], nvox;
-    int       x, y, z, z_area, y_dims, modality;
-    char      *arg_string, buffer[1024];
-    unsigned char *label = NULL;
-    float     *src, *buffer_vol;
-    double    mu[3], std, min_mu, slope, voxelsize[3];
+    char *infile, out_GMT[1024], out_PPM[1024];
+    int i, j, dims[3], replace = 0;
+    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM_filtered;
+    float mean_vx_size;
+    unsigned char *mask;
+    double separations[3], add_value;
+    nifti_image *src_ptr, *out_ptr;
     
-    /* Get arguments */
-    if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
-        (void) fprintf(stderr, "\nUsage: %s [options] -label label.nii in.nii [out.nii]\n", argv[0]);
-        (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
-        exit(EXIT_FAILURE);
+    if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
+         (void) fprintf(stderr, "\nUsage: %s [options] in.nii [GMT.nii PPM.nii]\n", argv[0]);
+         (void) fprintf(stderr, "         Projection-based thickness estimation based on PVE label image, where background\n");
+         (void) fprintf(stderr, "         has value 1, gray matter 2, and white matter 3 and there are two additional PVE classes (CGM/GWM).\n");
+         (void) fprintf(stderr, "         A voxel-wise thickness and percentage position map are saved.\n");
+         (void) fprintf(stderr, "         If no output names are defined the input name will be prepended by gmt_ and ppm_\n");
+         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
+     exit(EXIT_FAILURE);
     }
     
-    input_filename  = argv[1];
+    infile  = argv[1];
 
     /* if not defined use original name as basename for output */
-    if (argc > 2)
-        output_filename = argv[2];
-    else  output_filename = argv[1];
-    
-    /* get basename */
-    basename = nifti_makebasename(output_filename);
-
-    /* deal with extension */
-    extension = nifti_find_file_extension(output_filename);
-    
-    /* if no valid extension was found use .nii */
-    if (extension == NULL) {
-        fprintf(stdout,"Use .nii as extension for %s.\n",output_filename);
-        strcpy(extension, ".nii");
+    if(argc == 4) {
+        (void) sprintf(out_GMT, "%s", argv[2]); 
+        (void) sprintf(out_PPM, "%s", argv[3]); 
+    } else {
+        #if !defined(_WIN32)
+            (void) sprintf(out_GMT, "%s/gmt_%s", dirname(infile), basename(infile)); 
+            (void) sprintf(out_PPM, "%s/ppm_%s", dirname(infile), basename(infile)); 
+        #else
+            fprintf(stderr,"\nUsage: %s input.nii GMT.nii PPM.nii\n\n", argv[0]);
+            return( 1 );
+        #endif
     }
-
-    /* read data */
-    src_ptr = read_nifti_float(input_filename, &src, 0);
     
-    if (src_ptr == NULL) {
-        fprintf(stderr,"Error reading %s.\n",input_filename);
-        exit(EXIT_FAILURE);
-    }
-
-    nvox = src_ptr->nvox;
-    label = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
-    
-    if (label == NULL) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* read label and check for same size */
-    if (label_filename == NULL) {
-        fprintf(stderr,"Label image has to be defined\n");
-        exit(EXIT_FAILURE);
-    }
-            
-    /* read volume */
-    label_ptr = read_nifti_float(label_filename, &buffer_vol, 0);
-    if (label_ptr == NULL) {
-        fprintf(stderr,"Error reading %s.\n", label_filename);
+    /* read source image */
+    src_ptr = read_nifti_float(infile, &src, 0);
+    if(src_ptr == NULL) {
+        fprintf(stderr,"Error reading %s.\n", infile);
         return(EXIT_FAILURE);
     }
-    
-    /* check size */ 
-    if (!equal_image_dimensions(src_ptr, label_ptr)) {     
-        fprintf(stderr,"Label and source image have different size\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    /* estimate mean for each label class */
-    for (j = 0; j < 3; j++) {
-        for (i = 0; i < nvox; i++)
-            label[i] = (unsigned char) (round(buffer_vol[i]) == (j+1));
-        mu[j] = get_masked_mean_array_float(src, nvox, label);
-    }
 
-    /* estimate image contrast (T1w/T2w/PDw) */
-    if (mu[0] < mu[1] && mu[1] < mu[2]) {
-        modality = 1; // T1w
-    } else if (mu[0] > mu[1] && mu[1] > mu[2]) {
-        modality = 2; // T2w
-    } else if (mu[0] < mu[2] && mu[1] < mu[2]) {
-        modality = 0; // PDw - WM is maximum
-    } else {
-        modality = 3; // PDw - WM is minimum or other conditions
-    }
-    
-    /* get mean for WM normalized by std */
-    for (i = 0; i < nvox; i++)
-        label[i] = (unsigned char) (round(buffer_vol[i]) == 3);
-    min_mu = MIN(fabs(mu[2] - mu[1]), fabs(mu[1] - mu[0]));
-    std = get_masked_std_array_float(src, nvox, label) / min_mu;
-    fprintf(stderr, "%g\n", std);
-    
-    for (i = 0; i < nvox; i++) {    
-        if (label[i] == 3)
-            src[i] -= mu[2];
-        else src[i] = 0.0;
-    }
+    out_ptr = nifti_copy_nim_info(src_ptr);
 
-    voxelsize[0] = src_ptr->dx;
-    voxelsize[1] = src_ptr->dy;
-    voxelsize[2] = src_ptr->dz;
+    /* get dimensions and voxel size */
+    separations[0] = src_ptr->dx;
+    separations[1] = src_ptr->dy;
+    separations[2] = src_ptr->dz;
     dims[0] = src_ptr->nx;
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
-        
-    /* write nu-corrected volume */
-    if (1) {
+    
+    mask   = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
+    input  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    dist_WM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
 
-        slope = 2.0/65535.0;
-        sprintf(buffer, "%s_corr%s",basename,extension);
-        if (!write_nifti_float(buffer, src, DT_INT16, slope, 
-                        dims, voxelsize, src_ptr))
-            exit(EXIT_FAILURE);
+    GMT  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    PPM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    PPM_filtered = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    
+    /* check for memory faults */
+    if ((input == NULL) || (mask == NULL) || (dist_CSF == NULL) ||
+           (dist_WM == NULL) || (GMT == NULL) || (PPM == NULL) || (PPM_filtered == NULL)) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
     }
     
-    free(label);
+    /* initialize distances */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        dist_CSF[i] = 0.0;
+        dist_WM[i]  = 0.0;
+    }
     
+    for (j = 0; j < n_avgs; j++) {
+        /* estimate value for shifting the border to obtain a less noisy measure by averaging distances */
+        add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
+        /* prepare map outside CSF and mask to obtain distance map for CSF */
+        for (i = 0; i < src_ptr->nvox; i++) {
+            input[i] = (src[i] < (CGM+add_value)) ? 1.0f : 0.0f;
+            mask[i]  = (src[i] < WM) ? 1 : 0;
+        }    
+    
+        /* obtain CSF distance map */
+        if (verbose) fprintf(stderr,"Estimate CSF distance map.\n");
+        vbdist(input, mask, dims, separations, replace);
+        for (i = 0; i < src_ptr->nvox; i++)
+            dist_CSF[i] += input[i];
+                
+        /* prepare map outside WM and mask to obtain distance map for WN */
+        for (i = 0; i < src_ptr->nvox; i++) {
+            input[i] = (src[i] > (GWM+add_value)) ? 1.0f : 0.0f;
+            mask[i]  = (src[i] > CSF) ? 1 : 0;
+        }    
+    
+        /* obtain WM distance map */
+        if (verbose) fprintf(stderr,"Estimate WM distance map.\n");
+        vbdist(input, mask, dims, separations, replace);
+        for (i = 0; i < src_ptr->nvox; i++)
+            dist_WM[i] += input[i];
+    }
+    
+    /* estimate average */
+    if (n_avgs > 1) {
+        for (i = 0; i < src_ptr->nvox; i++) {
+            dist_CSF[i] /= (float) n_avgs;
+            dist_WM[i]  /= (float) n_avgs;
+        }
+    }
+
+    if (verbose) fprintf(stderr,"Estimate thickness map.\n");
+    /* first reconstruct sulci */
+    projection_based_thickness(src, dist_WM, dist_CSF, GMT, dims, separations); 
+
+    /* only use reconstruction of sulci */
+    if (no_minimum_thickness) {
+        /* use minimum to reduce issues with meninges */
+        for (i = 0; i < src_ptr->nvox; i++)
+            GMT[i]  = MIN(GMT[i],  dist_WM[i]+dist_CSF[i]);
+    } else { /* use both reconstruction of sulci as well as gyri and use minimum of both */
+      
+        /* we need the inverse of src: 4 - src */
+        for (i = 0; i < src_ptr->nvox; i++)
+            input[i] = 4.0 - src[i];
+            
+        GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
+        if (GMT2 == NULL) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
+        projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, separations); 
+    
+        /* use minimum for each measure to reduce issues with meninges */
+        for (i = 0; i < src_ptr->nvox; i++) {
+            GMT[i]  = MIN(GMT[i],  dist_WM[i]+dist_CSF[i]);
+            GMT2[i] = MIN(GMT2[i], dist_WM[i]+dist_CSF[i]);
+        }
+        
+        /* finally use minimum of both thickness measures */
+        for (i = 0; i < src_ptr->nvox; i++)
+            GMT[i] = MIN(GMT[i], GMT2[i]);
+            
+        free(GMT2);
+    }
+        
+    /* use masked smoothing for thickness map
+       this should be probably replaced by simple_approx */
+    if (verbose) fprintf(stderr,"Correct thickness map.\n");
+    double s[] = {1.0, 1.0, 1.0};
+    //smooth_float(GMT, dims, separations, s, 1);
+
+    /* init PPM */
+    for (i = 0; i < src_ptr->nvox; i++)
+        PPM[i] = (src[i] >= GWM) ? 1.0f : 0.0f;
+
+    /* Estimate percentage position map (PPM)
+       We first create a corrected CSF distance map with reconstructed sulci.
+       If gyri were reconstructed too than also the dist_WM have to be
+       corrected to avoid underestimation of the position map with surfaces 
+       running to close to the WM. */
+    if (verbose) fprintf(stderr,"Correct percentage position map.\n");
+    for (i = 0; i < src_ptr->nvox; i++) {
+        if ((src[i] >= (CGM+add_value)) && (src[i] < (GWM+add_value)) && GMT[i] > 1e-15) {
+            PPM[i] = MIN(dist_CSF[i], GMT[i]-dist_WM[i]) / GMT[i];
+        }
+        if (PPM[i] < 0.0) PPM[i] = 0.0;
+    }
+    
+    /* finally minimize outliers in the PPM using median-filter */
+    for (i = 0; i < src_ptr->nvox; i++)
+        PPM_filtered[i] = PPM[i];
+    median3(PPM_filtered, dims, DT_FLOAT32);
+    
+    /* protect values in sulci and only replace other areas with median-filtered values */
+    for (i = 0; i < src_ptr->nvox; i++)
+        if (PPM[i] > 0.25)
+            PPM[i] = PPM_filtered[i];
+
+    /* we have to correct for the isotropic size of our voxel-grid */
+    mean_vx_size = (separations[0]+separations[1]+separations[2])/3.0;
+    for (i = 0; i < src_ptr->nvox; i++) 
+        GMT[i] *= mean_vx_size;
+    
+    /* apply (masked) smoothing */
+    if (verbose) fprintf(stderr,"Final correction\n");
+    s[0] = s[1] = s[2] = 0.9;
+    //smooth_float(GMT, dims, separations, s, 0);
+    //smooth_float(PPM, dims, separations, s, 0);
+    
+    /* save GMT and PPM image */
+    if (!write_nifti_float(out_GMT, GMT, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
+        exit(EXIT_FAILURE);
+    if (!write_nifti_float(out_PPM, PPM, DT_FLOAT32, 1.0, dims, separations, out_ptr)) 
+        exit(EXIT_FAILURE);
+
+    free(dist_CSF);
+    free(dist_WM);
+    free(GMT);
+    free(PPM);    
+    free(PPM_filtered);    
+    free(mask);
+    free(input);
+
     return(EXIT_SUCCESS);
+
 }

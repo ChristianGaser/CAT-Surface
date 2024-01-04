@@ -346,6 +346,34 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
     }
 }
 
+/**
+ * get_masked_mean_array_float - Calculates the mean of an array with an optional mask.
+ *
+ * This function computes the mean value of elements in a floating point array, optionally
+ * considering only those elements that are flagged by a mask array. The mask allows for 
+ * selective inclusion of elements in the mean calculation, which can be useful in 
+ * situations where only specific parts of data (like certain regions in an image) are of 
+ * interest.
+ *
+ * @arr: Pointer to the float array whose mean is to be calculated.
+ *       The array should contain 'size' elements.
+ *
+ * @size: Integer representing the number of elements in the 'arr' array.
+ *
+ * @mask: Pointer to an unsigned char array that serves as the mask. If the mask is not
+ *        NULL, only elements of 'arr' at positions where 'mask' has a non-zero value are
+ *        included in the mean calculation. If 'mask' is NULL, all elements of 'arr' are
+ *        considered.
+ *
+ * The function iterates through the 'arr' array, summing up elements that are not NaN
+ * and are flagged by the 'mask' array (if provided). It then calculates and returns the
+ * mean of these elements. This is particularly useful in data processing tasks where
+ * certain elements need to be excluded from calculations based on some criteria.
+ *
+ * Return: The function returns the mean of the selected elements as a double. If no
+ *         elements are selected (e.g., due to all being NaN or masked out), the behavior
+ *         is not defined (potential division by zero).
+ */
 double
 get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
 {
@@ -362,6 +390,35 @@ get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
     return sum / (double)n;
 }
 
+/**
+ * get_masked_std_array_float - Calculates the standard deviation of an array with an optional mask.
+ *
+ * This function computes the standard deviation of elements in a floating point array, 
+ * optionally considering only those elements that are flagged by a mask array. The mask 
+ * allows for selective inclusion of elements in the standard deviation calculation, which 
+ * can be useful in situations where variability of specific parts of data (like certain 
+ * regions in an image or dataset) is of interest.
+ *
+ * @arr: Pointer to the float array whose standard deviation is to be calculated.
+ *       The array should contain 'size' elements.
+ *
+ * @size: Integer representing the number of elements in the 'arr' array.
+ *
+ * @mask: Pointer to an unsigned char array that serves as the mask. If the mask is not
+ *        NULL, only elements of 'arr' at positions where 'mask' has a non-zero value are
+ *        included in the standard deviation calculation. If 'mask' is NULL, all elements
+ *        of 'arr' are considered.
+ *
+ * The function first calculates the mean of the selected elements in the array. It then
+ * iterates through the array a second time to compute the variance of the selected 
+ * elements. Finally, the standard deviation is calculated as the square root of the 
+ * variance. This method is useful in statistical analysis and data processing tasks 
+ * where understanding the dispersion or variability of data is important.
+ *
+ * Return: The function returns the standard deviation of the selected elements as a double. 
+ *         If no elements are selected (e.g., due to all being NaN or masked out), the 
+ *         behavior is not defined (potential division by zero).
+ */
 double
 get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 {
@@ -388,7 +445,30 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 }
 
 
-/* estimate minimum of A and its index in A */
+/**
+ * pmin - Finds the minimum positive value in an array and its index.
+ *
+ * This function iterates through a given array of floats to find the minimum positive
+ * value and the index at which this value occurs. It is specifically designed to ignore
+ * non-positive values (i.e., values less than or equal to zero).
+ *
+ * @A: Pointer to the float array in which the minimum positive value is to be searched.
+ *     The array should contain 'sA' elements.
+ *
+ * @sA: Integer representing the size of the 'A' array.
+ *
+ * @minimum: Pointer to a float where the minimum positive value found in the array will be stored.
+ *           If no positive value is found, it will store FLT_MAX.
+ *
+ * @index: Pointer to an integer where the index of the minimum positive value found in the array
+ *         will be stored. If no positive value is found, it will store 0.
+ *
+ * The function initializes 'minimum' to the maximum float value (FLT_MAX) and 'index' to 0.
+ * It then iterates through the array, updating 'minimum' and 'index' whenever it finds a
+ * new minimum positive value. This is useful for tasks where identifying the smallest
+ * positive element of an array and its position is required.
+ *
+ */
 void
 pmin(float *A, int sA, float *minimum, int *index)
 {
