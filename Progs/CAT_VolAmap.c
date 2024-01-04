@@ -223,8 +223,8 @@ main(int argc, char *argv[])
     }
 
     /* normalize erosion steps by voxelsize */
-    erosion_steps = round(6.0*(voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0);
-    remove_outer_rim(src, label, dims, voxelsize, erosion_steps);
+    erosion_steps = (int)round(6.0*(voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0);
+    correct_outer_rim(src, label, dims, voxelsize, erosion_steps);
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
 

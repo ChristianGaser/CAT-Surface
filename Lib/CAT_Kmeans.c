@@ -83,7 +83,6 @@ double EstimateKmeans(float *src, unsigned char *label, unsigned char *mask, int
                  xnorm += histo[j];
                  sum +=  j * histo[j];
              }
-            //sum = (xnorm > 0) ? sum /= xnorm : 0.0;
             if (xnorm > 0) sum /= xnorm;
             else sum = 0.0;
             dx = sum - mean[i];
@@ -179,7 +178,7 @@ double Kmeans(float *src, unsigned char *label, unsigned char *mask, int NI, int
     double e, emin, eps, val, sum;
     double max_src = -HUGE;
     long n[n_clusters];
-    double var[n_clusters],  mu[n_clusters],  Mu[n_clusters];
+    double var[MAX_NC],  mu[MAX_NC],  Mu[MAX_NC];
     int n_classes;
     long vol;
 
@@ -248,7 +247,7 @@ double Kmeans(float *src, unsigned char *label, unsigned char *mask, int NI, int
     for (i = 0; i < vol; i++)
         max_src = MAX((double)src[i], max_src);
 
-    for (i = 0; i < n_classes; i++) mean[i] = mu[i];       
+    for (i = 0; i < n_classes; i++) mean[i] = max_src*mu[i]/255.0;       
     
     return(max_src);        
 }

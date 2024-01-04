@@ -348,11 +348,11 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
 }
 
 void
-remove_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize, int erosion_steps)
+correct_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize, int erosion_steps)
 {
     int i, nvol;
     float *outer_rim;
-    double mu[3], threshold;
+    double mu[MAX_NC], threshold;
 
     nvol = dims[0]*dims[1]*dims[2];
 
@@ -371,17 +371,17 @@ remove_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize,
     /* fill with original values if it's CSF and was removed by erosion */
     for (i = 0; i < nvol; i++) outer_rim[i] = ((label[i] == CSF) && (outer_rim[i] == 0)) ? src[i] : 0.0;
 
-    double max_src = Kmeans(outer_rim, NULL, NULL, 25, 3, mu, voxelsize, dims, 0, 0);
-    threshold = (mu[1] + mu[2])/2.0;
-        
-    fprintf(stderr,"%g %g %g\n",mu[0], mu[1], mu[2]);
-
+    //double max_src = Kmeans(outer_rim, NULL, NULL, 25, 3, mu, voxelsize, dims, 0, 0);
+    threshold = (mu[0] + mu[1])/2.0;
+    threshold = 1000;
+fprintf(stderr,"%g\n",threshold);
     /* assume that larger values in outer rim should be rather CSF and don't have that high
      * intensities and set these therefore to zero */
-    for (i = 0; i < nvol; i++) src[i] = (outer_rim[i] > threshold) ? 0.0 : src[i];
-    
+    //for (i = 0; i < nvol; i++) src[i] = (outer_rim[i] > threshold) ? 0.0 : src[i];
+    for (i = 0; i < nvol; i++) if (outer_rim[i] > threshold) src[i] = 0.0;
+
     free(outer_rim);
-    
+
 }
 
 /**
