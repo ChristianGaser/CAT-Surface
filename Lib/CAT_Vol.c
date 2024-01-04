@@ -195,7 +195,7 @@ correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsiz
 
     biasfield = (float *)malloc(sizeof(float)*nvol);
     mask = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
-    if ((!mask) || (!biasfield)) {
+    if (!mask || !biasfield) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -227,12 +227,12 @@ correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsiz
             biasfield[i] += (src[i] / (float)mean_label[label[i]-1]);
 
     /* only use defined labels (i.e. using label_th) for bias estimation 
-       use label_th = 2 for focussing on WM only */
+     * use label_th = 2 for focussing on WM only */
     for (i = 0; i < nvol; i++)
         mask[i] = (label[i] >= label_th) ? 1 : 0;
     
     /* we need a tight brainmask without remaining small parts that are only
-       connected by a few voxels */
+     * connected by a few voxels */
     morph_open(mask,  dims, 1, 0, DT_UINT8);
     morph_erode(mask, dims, 1, 0, DT_UINT8);
 
@@ -291,7 +291,6 @@ correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsiz
  * the corrected values.
  *
  */
-
 void
 correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int do_las)
 {
@@ -305,7 +304,7 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
     correct_bias_label(src, label, dims, voxelsize, bias_fwhm, WM);
     
     /* use local adaptive segmentation (LAS) and apply additional GM correction with
-       very small smoothing */
+     * very small smoothing */
     if (do_las) {
         src_subcortical = (float *)malloc(sizeof(float)*nvol);
         dist = (float *)malloc(sizeof(float)*nvol);
@@ -337,8 +336,8 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
         for (i=0; i < nvol; i++) dist[i] *= dist[i];
 
         /* apply weighted average (with squared weights) to maximize weighting 
-           for subcortical regions with large distances, otherwise WM-bias 
-           correction is more weighted */
+         * for subcortical regions with large distances, otherwise WM-bias 
+         * correction is more weighted */
         for (i = 0; i < nvol; i++)
             src[i] = dist[i]*src_subcortical[i] + (1.0 - dist[i])*src[i];
         
@@ -2518,7 +2517,7 @@ distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist
         exit(EXIT_FAILURE);
     }
 
- /* threshold input */
+    /* threshold input */
     for (i=0; i<nvol; i++)
         buffer[i] = (float)((double)vol[i] <= th);
                 

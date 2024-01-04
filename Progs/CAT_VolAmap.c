@@ -10,7 +10,8 @@
 #include <float.h>
 #include <math.h>
 
-#include "ParseArgv.h"
+#include <bicpl.h>
+#include <ParseArgv.h>
 #include "CAT_Amap.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
@@ -30,50 +31,69 @@ double weight_MRF = 0.0;
 double bias_fwhm = 10.0;
 
 static ArgvInfo argTable[] = {
-    {"--label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
-         "Segmentation label for initialization."},
-    {"--iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
-         "Number of iterations to end."},
-    {"--sub", ARGV_INT, (char *) 1, (char *) &subsample,
-         "Subsampling for Amap approach (will be internally scaled by voxel size)."},
-    {"--iters-icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
-         "Number of iterations for Iterative Conditional Mode (ICM)."},
-    {"--mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
-         "Weight of MRF prior (0..1)."},
-    {"--bias-fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
-         "FWHM of bias correction."},
-    {"--pve", ARGV_INT, (char *) 1, (char *) &pve,
-         "Use Partial Volume Estimation with 5 classes (1) or do not use PVE (0)."},
-    {"--write-seg", ARGV_INT, (char *) 3, (char *) &write_seg,
-         "Write segmentations as separate images. Three numbers should be given, while a '1' indicates that this tissue class should be saved. Order is CSF/GM/WM."},
-    {"--write-label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
-         "Write label image (default)."},
-    {"--write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
-         "Write nu-corrected image (default)."},
-    {"--nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
-         "Do not write label image."},
-    {"--nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
-         "Do not write nu-corrected image."},
-    {"--no-las", ARGV_CONSTANT, (char *) 0, (char *) &las,
-         "Do not apply local adaptive segmentation (LAS)."},
-    {"--debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
-         "Print debug information."},
-     {NULL, ARGV_END, NULL, NULL, NULL}
+    {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
+         "File containing segmentation labels for initialization."},
+         
+    {"-iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
+         "Specifies the number of iterations for the Amap approach to terminate."},
+         
+    {"-sub", ARGV_INT, (char *) 1, (char *) &subsample,
+         "Defines the subsampling factor for Amap approach, which will be scaled\n\
+         internally by voxel size."},
+         
+    {"-iters-icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
+         "Sets the number of iterations for the Iterative Conditional Mode (ICM)\n\
+         algorithm."},
+         
+    {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
+         "Determines the weight of the Markov Random Field (MRF) prior, a value\n\
+         between 0 and 1."},
+         
+    {"-bias-fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
+         "Specifies the Full Width Half Maximum (FWHM) value for the bias correction\n\
+         smoothing kernel."},
+         
+    {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
+         "Option to use Partial Volume Estimation with 5 classes (1) or not (0)."},
+         
+    {"-write-seg", ARGV_INT, (char *) 3, (char *) &write_seg,
+         "Option to write segmentation results as separate images. Requires three integers\n\
+         indicating whether to save each tissue class (CSF/GM/WM) with '1' for yes."},
+         
+    {"-write-label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
+         "Enable writing the label image. This is the default setting."},
+         
+    {"-write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
+         "Enable writing the nu-corrected image. This is the default setting."},
+         
+    {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
+         "Disable writing the label image."},
+         
+    {"-nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
+         "Disable writing the nu-corrected image."},
+         
+    {"-no-las", ARGV_CONSTANT, (char *) 0, (char *) &las,
+         "Disable the application of local adaptive segmentation (LAS)."},
+         
+    {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
+         "Enable debug mode to print additional debug information."},
+         
+    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
 
-static int usage(void)
+private void
+usage(
+    char *executable)
 {
-    static const char msg[] = {
-         "CAT_VolAmap: Segmentation with adaptive MAP\n"
-         "usage: CAT_VolAmap [options] --label label.nii in.nii [out.nii] []\n"
-    };
-    fprintf(stderr, "%s", msg);
-    exit(EXIT_FAILURE);
+     char *usage_str = "\n\
+        CAT_VolAmap: Segmentation with adaptive MAP\n\
+         usage: CAT_VolAmap [options] -label label.nii in.nii [out.nii]\n\n";
+    print_error(usage_str, executable);
 }
 
 int
-main(int argc, char **argv)
+main(int argc, char *argv[])
 {
     /* NIFTI stuff */
     nifti_image   *src_ptr, *label_ptr;
@@ -84,22 +104,30 @@ main(int argc, char **argv)
     char      *arg_string, buffer[1024];
     unsigned char *label, *prob;
     float     *src, *buffer_vol;
-    double    slope, offset, val, max_vol, min_vol, voxelsize[3];
-    
+    double    slope, offset, val, max_vol, min_vol, voxelsize[3];    
     char *label_arr[] = {"CSF", "GM", "WM"};
 
     /* Get arguments */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
-        (void) fprintf(stderr, "\nUsage: %s [options] --label label.nii in.nii [out.nii]\n", argv[0]);
-        (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
+        usage(argv[0]);
+        fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     
-    input_filename  = argv[1];
+    initialize_argument_processing(argc, argv);
+
+    if (!get_string_argument(NULL, &input_filename)) {
+        usage(argv[0]);
+        fprintf(stderr, "     %s -help\n\n", argv[0]);
+        return(1);
+    }
 
     /* if not defined use original name as basename for output */
-    output_filename = (argc > 2) ? argv[2] : argv[1];
-    
+    if (!get_string_argument(NULL, &output_filename))
+        output_filename = argv[1];
+
+    fprintf(stderr,"%d %s %s\n", argc, input_filename, output_filename);
+        
     /* get basename */
     basename = nifti_makebasename(output_filename);
 
@@ -191,7 +219,7 @@ main(int argc, char **argv)
     dims[2] = src_ptr->nz;
 
     /* apply bias correction first for GM+WM and subsequently for WM only with less
-       smoothing to emphasize subcortical structures */
+     * smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0) {
         fprintf(stderr,"Bias correction\n");
         correct_bias(src, label, dims, voxelsize, bias_fwhm, las);
