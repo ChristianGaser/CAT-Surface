@@ -14,25 +14,86 @@
 #include <libgen.h>
 #endif
 
-#include "ParseArgv.h"
+#include <bicpl.h>
+#include <ParseArgv.h>
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 
 int verbose = 0;
 int no_minimum_thickness = 0;
 int n_avgs = 4;
+double fwhm = 2.0;
 
-extern int ParseArgv(int *argcPtr, char **argv, ArgvInfo *argTable, int flags);
+//extern int ParseArgv(int *argcPtr, char **argv, ArgvInfo *argTable, int flags);
 
 static ArgvInfo argTable[] = {
-    {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
-          "Be verbose."},
-    {"-n_avgs", ARGV_INT, (char *) 1, (char *) &n_avgs,
-          "Number of averages for estimating WM and CSF distance by shifting the border between GM/WM and GM/CSF to obtain a less noisy measure."},
-    {"-no_min_thickness", ARGV_CONSTANT, (char *) 1, (char *) &no_minimum_thickness,
-          "Don't use two thickness measures from sulci and gyri and estimate minimum, but use the simpler approach based on sulci only."},
-     {NULL, ARGV_END, NULL, NULL, NULL}
+  {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
+    "Enable verbose mode. Provides detailed output during processing for debugging\n\
+    and monitoring."},
+
+  {"-n-avgs", ARGV_INT, (char *) 1, (char *) &n_avgs,
+    "Specify the number of averages for distance estimation. Used for averaging\n\
+    the distances in White Matter (WM) and Cerebrospinal Fluid (CSF) to obtain a\n\
+    less noisy measure. A higher number results in smoother but potentially less\n\
+    accurate measures."},
+
+  {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
+    "Set the Full Width Half Maximum (FWHM) value for final thickness smoothing.\n\
+    This value determines the extent of smoothing applied, using a mask to prevent\n\
+    smearing values outside the Gray Matter (GM) areas."},
+
+  {"-no-min_thickness", ARGV_CONSTANT, (char *) 1, (char *) &no_minimum_thickness,
+    "Disable the use of two thickness measures (from sulci and gyri) for minimum\n\
+    thickness estimation. Instead, use a simpler approach based on sulci only,\n\
+    which may be faster but less accurate."},
+
+  {NULL, ARGV_END, NULL, NULL, NULL}
 };
+
+private void usage(char *executable)
+{
+    char *usage_str = "\n\
+Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii]\n\
+\n\
+    This program performs projection-based cortical thickness estimation and\n\
+    percentage position mapping (PPM) from a given PVE label image described in:\n\
+        Dahnke R, Yotter RA, Gaser C.\n\
+        Cortical thickness and central surface estimation.\n\
+        Neuroimage. 2013 Jan 15;65:336-48.\n\
+    \n\
+    The process involves:\n\
+    \n\
+    1. **Distance Estimation:**\n\
+       - Estimating distances in White Matter (WM) and Cerebrospinal Fluid (CSF)\n\
+         by shifting the border between Gray Matter (GM)/WM and GM/CSF.\n\
+       - Averaging distances over a specified number of iterations (n-avgs) to\n\
+         obtain a less noisy measure.\n\
+    \n\
+    2. **Thickness Estimation:**\n\
+       - Reconstructing sulci and optionally gyri to estimate cortical thickness.\n\
+       - Using minimum thickness measures from sulci and gyri for more accurate\n\
+         representation, unless the simpler sulci-based approach is specified.\n\
+    \n\
+    3. **PPM Calculation:**\n\
+       - Estimating the percentage position map (PPM), representing the relative\n\
+         position within the cortical ribbon.\n\
+       - Applying median filtering to minimize outliers in the PPM.\n\
+    \n\
+    4. **Final Correction and Smoothing:**\n\
+       - Correcting for isotropic voxel size and applying masked smoothing\n\
+         to the thickness map based on the specified Full Width Half Maximum (FWHM).\n\
+\n\
+Options:\n\
+    -verbose           Enable verbose mode for detailed output during processing.\n\
+    -n-avgs <int>      Set the number of averages for distance estimation.\n\
+    -fwhm <float>      Define FWHM for final thickness smoothing.\n\
+    -no-min_thickness  Use a simpler thickness estimation approach based on sulci only.\n\
+\n\
+Example:\n\
+    %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
+
+    print_error(usage_str, executable, executable);
+}
 
 int main(int argc, char *argv[])
 {
@@ -45,18 +106,16 @@ int main(int argc, char *argv[])
     nifti_image *src_ptr, *out_ptr;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
-         (void) fprintf(stderr, "\nUsage: %s [options] in.nii [GMT.nii PPM.nii]\n", argv[0]);
-         (void) fprintf(stderr, "         Projection-based thickness estimation based on PVE label image, where background\n");
-         (void) fprintf(stderr, "         has value 1, gray matter 2, and white matter 3 and there are two additional PVE classes (CGM/GWM).\n");
-         (void) fprintf(stderr, "         A voxel-wise thickness and percentage position map are saved.\n");
-         (void) fprintf(stderr, "         If no output names are defined the input name will be prepended by gmt_ and ppm_\n");
-         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
-     exit(EXIT_FAILURE);
+        usage(argv[0]);
+        fprintf(stderr, "     %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
     }
     
+    initialize_argument_processing(argc, argv);
+
     infile  = argv[1];
 
-    /* if not defined use original name as basename for output */
+    /* Determine output filenames based on input filename or command-line arguments */
     if(argc == 4) {
         (void) sprintf(out_GMT, "%s", argv[2]); 
         (void) sprintf(out_PPM, "%s", argv[3]); 
@@ -77,9 +136,10 @@ int main(int argc, char *argv[])
         return(EXIT_FAILURE);
     }
 
+    /* Prepare output NIfTI images */
     out_ptr = nifti_copy_nim_info(src_ptr);
 
-    /* get dimensions and voxel size */
+    /* Retrieve dimensions and voxel size from source image */
     voxelsize[0] = src_ptr->dx;
     voxelsize[1] = src_ptr->dy;
     voxelsize[2] = src_ptr->dz;
@@ -102,12 +162,13 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    /* initialize distances */
+    /* Initialize distances for CSF and WM */
     for (i = 0; i < src_ptr->nvox; i++) {
         dist_CSF[i] = 0.0;
         dist_WM[i]  = 0.0;
     }
     
+    /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
         /* estimate value for shifting the border to obtain a less noisy measure by averaging distances */
         add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
@@ -139,7 +200,7 @@ int main(int argc, char *argv[])
     
     free(mask);
     
-    /* estimate average */
+    /* Calculate average distances if n_avgs > 1 */
     if (n_avgs > 1) {
         for (i = 0; i < src_ptr->nvox; i++) {
             dist_CSF[i] /= (float) n_avgs;
@@ -148,7 +209,7 @@ int main(int argc, char *argv[])
     }
 
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
-    /* first reconstruct sulci */
+    /* Estimate cortical thickness (first using sulci measures */
     projection_based_thickness(src, dist_WM, dist_CSF, GMT, dims, voxelsize); 
 
     /* only use reconstruction of sulci */
@@ -185,7 +246,7 @@ int main(int argc, char *argv[])
         free(GMT2);
     }
 
-    /* init PPM */
+    /* Initialize and estimate percentage position map (PPM) */
     for (i = 0; i < src_ptr->nvox; i++)
         PPM[i] = (src[i] >= GWM) ? 1.0f : 0.0f;
 
@@ -201,7 +262,7 @@ int main(int argc, char *argv[])
         if (PPM[i] < 0.0) PPM[i] = 0.0;
     }
     
-    /* finally minimize outliers in the PPM using median-filter */
+    /* fFnally minimize outliers in the PPM using median-filter */
     for (i = 0; i < src_ptr->nvox; i++) PPM_filtered[i] = PPM[i];
     median3(PPM_filtered, dims, DT_FLOAT32);
     
@@ -210,15 +271,17 @@ int main(int argc, char *argv[])
         if (PPM[i] > 0.25)
             PPM[i] = PPM_filtered[i];
 
-    /* we have to correct for the isotropic size of our voxel-grid */
+    /* Apply isotropic voxel size correction */
     mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
     for (i = 0; i < src_ptr->nvox; i++) 
         GMT[i] *= mean_vx_size;
     
-    /* apply (masked) smoothing */
-    if (verbose) fprintf(stderr,"Final correction\n");
-    double s[3] = {2.0, 2.0, 2.0};
-    smooth_float(GMT, dims, voxelsize, s, 1);
+    /* Apply (masked) smoothing */
+    if (fwhm > 0.0) {
+        if (verbose) fprintf(stderr,"Final correction\n");
+        double s[3] = {fwhm, fwhm, fwhm};
+        smooth_float(GMT, dims, voxelsize, s, 1);
+    }
     
     /* save GMT and PPM image */
     slope = 1.0;
