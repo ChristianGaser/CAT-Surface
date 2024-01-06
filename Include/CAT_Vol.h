@@ -66,10 +66,10 @@
 
 #define MAX_NC 6
 
-void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int do_las);
+void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
-void correct_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize, int erosion_steps);
+void correct_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
@@ -93,7 +93,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void vbdist(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
-void get_largest_cluster(float *inData, double thresh, const int *dims);
+void keep_largest_cluster(void *inData, double thresh, const int *dims, int datatype, int min_size);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 
 #endif

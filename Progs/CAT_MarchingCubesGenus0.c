@@ -189,9 +189,9 @@ main(
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
-            usage(argv[0]);
-            fprintf(stderr, "     %s -help\n\n", argv[0]);
-            exit(EXIT_FAILURE);
+        usage(argv[0]);
+        fprintf(stderr, "     %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
     }
 
 

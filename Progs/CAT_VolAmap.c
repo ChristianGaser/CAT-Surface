@@ -17,15 +17,15 @@
 
 char *label_filename;
 int n_pure_classes = 3;
-int iters_amap = 200;
+int iters_amap = 50;
 int subsample = 96;
 int iters_ICM = 50;
 int pve = 1;
-int las = 1;
 int write_seg[3] = {0, 1, 0};
 int write_label = 1;
 int write_corr = 1;
 int debug = 0;
+double weight_LAS = 1.0;
 double weight_MRF = 0.0;
 double bias_fwhm = 10.0;
 
@@ -48,12 +48,17 @@ static ArgvInfo argTable[] = {
          "Determines the weight of the Markov Random Field (MRF) prior, a value\n\
          between 0 and 1."},
          
+    {"-las", ARGV_FLOAT, (char *) 1, (char *) &weight_LAS,
+         "Determines the weight of the local adaptive segmentation (LAS), a value\n\
+         between 0 and 1. Only used if bias correction is applied."},
+         
     {"-bias-fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
          "Specifies the Full Width Half Maximum (FWHM) value for the bias correction\n\
          smoothing kernel."},
          
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
-         "Option to use Partial Volume Estimation with 5 classes (1) or not (0)."},
+         "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
+         Default setting is 1."},
          
     {"-write-seg", ARGV_INT, (char *) 3, (char *) &write_seg,
          "Option to write segmentation results as separate images. Requires three integers\n\
@@ -62,17 +67,14 @@ static ArgvInfo argTable[] = {
     {"-write-label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
          "Enable writing the label image. This is the default setting."},
          
-    {"-write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
-         "Enable writing the nu-corrected image. This is the default setting."},
-         
     {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
          "Disable writing the label image."},
          
+    {"-write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
+         "Enable writing the nu-corrected image. This is the default setting."},
+         
     {"-nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
          "Disable writing the nu-corrected image."},
-         
-    {"-no-las", ARGV_CONSTANT, (char *) 0, (char *) &las,
-         "Disable the application of local adaptive segmentation (LAS)."},
          
     {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
          "Enable debug mode to print additional debug information."},
@@ -98,7 +100,7 @@ main(int argc, char *argv[])
     nifti_image   *src_ptr, *label_ptr;
     int       n_classes;
     char      *input_filename, *output_filename, *basename, *extension;
-    int       i, j, dims[3], erosion_steps;
+    int       i, j, dims[3];
     int       x, y, z, z_area, y_dims;
     char      *arg_string, buffer[1024];
     unsigned char *label, *prob;
@@ -138,7 +140,7 @@ main(int argc, char *argv[])
     }
 
     if (iters_amap == 0) {
-        fprintf(stdout,"To estimate segmentation you need at least one iteration.\n");
+        fprintf(stderr,"To estimate segmentation you need at least one iteration.\n");
         exit(EXIT_FAILURE);
     }
     
@@ -193,7 +195,7 @@ main(int argc, char *argv[])
         mu[i] = 0;
 
     /* get min/max */
-    min_vol =    FLT_MAX; max_vol = -FLT_MAX;
+    min_vol = FLT_MAX; max_vol = -FLT_MAX;
     for (i = 0; i < src_ptr->nvox; i++) {
         min_vol = MIN((double)src[i], min_vol);
         max_vol = MAX((double)src[i], max_vol);
@@ -217,14 +219,10 @@ main(int argc, char *argv[])
 
     /* apply bias correction first for GM+WM and subsequently for WM only with less
      * smoothing to emphasize subcortical structures */
-    if (bias_fwhm > 0) {
-        fprintf(stderr,"Bias correction\n");
-        correct_bias(src, label, dims, voxelsize, bias_fwhm, las);
+    if (bias_fwhm > 0.0) {
+        fprintf(stdout,"Bias correction\n");
+        correct_bias(src, label, dims, voxelsize, bias_fwhm, weight_LAS);
     }
-
-    /* normalize erosion steps by voxelsize */
-    erosion_steps = (int)round(6.0*(voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0);
-    correct_outer_rim(src, label, dims, voxelsize, erosion_steps);
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
 
@@ -264,7 +262,7 @@ main(int argc, char *argv[])
             exit(EXIT_FAILURE);
     }
     
-    /* write fuzzy segmentations for each class */
+    /* write PVE segmentations for each class */
     if (write_seg[0] || write_seg[1] || write_seg[2]) {
         
         slope = 1.0/255.0;

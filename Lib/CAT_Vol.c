@@ -136,10 +136,10 @@ convert_output_type(void *data, float *buffer, int nvox, int datatype)
             ((unsigned int *)data)[i] = (unsigned int ) roundf(buffer[i]);
             break;
         case DT_FLOAT32:
-            ((float*)data)[i] = (float) roundf(buffer[i]);
+            ((float*)data)[i] = (float) buffer[i];
             break;
         case DT_FLOAT64:
-            ((double*)data)[i] = (double) roundf(buffer[i]);
+            ((double*)data)[i] = (double) buffer[i];
             break;
         default:
             fprintf(stderr, "Data type %d not handled\n", datatype);
@@ -282,18 +282,19 @@ correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsiz
  *             the Gaussian kernel used for smoothing in the bias correction
  *             process. This parameter is primarily used for WM correction.
  *
- * @do_las: An integer indicating whether local adaptive segmentation (LAS) should
- *          be applied for additional GM correction. If non-zero, LAS is applied.
+ * @weight_las: A double value indicating the amount of weighting local adaptive 
+ *              segmentation (LAS) that should be applied for additional GM correction. 
+ *              If non-zero, LAS is applied (use values 0..1).
  *
- * The function first applies WM bias correction. If `do_las` is non-zero, it then
- * performs GM correction with a small smoothing factor, creates a distance map 
- * for subcortical regions, and applies a weighted average to optimize the bias 
- * correction in these areas. The function modifies the `src` array in place with 
- * the corrected values.
+ * The function first applies WM bias correction. If `weight_las` is non-zero, it
+ * then performs GM correction with a small smoothing factor, creates a distance 
+ * map for subcortical regions, and applies a weighted average to optimize the 
+ * bias correction in these areas. The function modifies the `src` array in place 
+ * with the corrected values.
  *
  */
 void
-correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int do_las)
+correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
 {
     int i, nvol, replace;
     unsigned char *mask;
@@ -306,7 +307,7 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
     
     /* use local adaptive segmentation (LAS) and apply additional GM correction with
      * very small smoothing */
-    if (do_las) {
+    if (weight_las > 0.0) {
         src_subcortical = (float *)malloc(sizeof(float)*nvol);
         dist = (float *)malloc(sizeof(float)*nvol);
         if (!src_subcortical || !dist) {
@@ -320,6 +321,10 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
         for (i = 0; i < nvol; i++) src_subcortical[i] = src[i];
         bias_fwhm = 3.0;
         correct_bias_label(src_subcortical, label, dims, voxelsize, bias_fwhm, GM);
+
+        /* weight LAS correction */
+        for (i = 0; i < nvol; i++)
+            src[i] = weight_las*src_subcortical[i] + (1.0 - weight_las)*src[i];
 
         /* prepare mask for distance map */
         for (i = 0; i < nvol; i++) dist[i] = (label[i] > 0) ? 0.0 : 1.0;
@@ -345,43 +350,6 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
         free(dist);
         free(src_subcortical);
     }
-}
-
-void
-correct_outer_rim(float *src, unsigned char *label, int *dims, double *voxelsize, int erosion_steps)
-{
-    int i, nvol;
-    float *outer_rim;
-    double mu[MAX_NC], threshold;
-
-    nvol = dims[0]*dims[1]*dims[2];
-
-    outer_rim = (float *)malloc(sizeof(float)*nvol);
-    if (!outer_rim) {
-        printf("Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* create initial outer_rim for label */
-    for (i = 0; i < nvol; i++) outer_rim[i] = (label[i] > 0) ? 1.0 : 0.0;
-
-    /* estimate outer rim of CSF that changed by erosion steps and fill it with
-       input values inside that mask */
-    morph_erode(outer_rim, dims, erosion_steps, 0, DT_FLOAT32);
-    /* fill with original values if it's CSF and was removed by erosion */
-    for (i = 0; i < nvol; i++) outer_rim[i] = ((label[i] == CSF) && (outer_rim[i] == 0)) ? src[i] : 0.0;
-
-    //double max_src = Kmeans(outer_rim, NULL, NULL, 25, 3, mu, voxelsize, dims, 0, 0);
-    threshold = (mu[0] + mu[1])/2.0;
-    threshold = 1000;
-fprintf(stderr,"%g\n",threshold);
-    /* assume that larger values in outer rim should be rather CSF and don't have that high
-     * intensities and set these therefore to zero */
-    //for (i = 0; i < nvol; i++) src[i] = (outer_rim[i] > threshold) ? 0.0 : src[i];
-    for (i = 0; i < nvol; i++) if (outer_rim[i] > threshold) src[i] = 0.0;
-
-    free(outer_rim);
-
 }
 
 /**
@@ -1076,7 +1044,7 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
     }
 }
 
-/* Calculates the euclidean distance without PVE to an object in V with a 
+/* Calculates the euclidean distance (in voxel) without PVE to an object in V with a 
    boundary of 0.5 for all voxels within a given mask M that should define
    a convex hull with direct connection between object and estimation 
    voxels.
@@ -1089,7 +1057,7 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
    voxelsize voxelsize in mm
    replace   replace/fill values inside mask with its neighbouring values
    
-   V returns the distance if replace == 0, otherwise the V contains the original
+   V returns the voxel distance if replace == 0, otherwise the V contains the original
    values outside the mask and inside the mask the values are replaced/filled 
    with its neighbouring values
 */
@@ -1204,10 +1172,8 @@ vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
     }
 
     /* finally return output to original variable V */
-    for (i=0; i<nvol; i++) {
-        if ((M[i]==0) || (D[i] == FLT_MAX))
-            V[i] = 0.0; else V[i] = D[i];
-    }
+    for (i=0; i<nvol; i++)
+        V[i] = ((M[i]==0) || (D[i] == FLT_MAX)) ? 0.0 : D[i];
 
     /* finally replace values inside mask */
     if (replace > 0) {
@@ -2542,21 +2508,58 @@ median3(void *data, int dims[3], int datatype)
     free(buffer);
 }
 
+/**
+ * keep_largest_cluster_float - Identifies the largest cluster in a 3D volume.
+ *
+ * This sub-function processes a 3D volume (such as an MRI scan) and identifies the largest
+ * cluster of voxels that exceed a specified threshold. The function operates on a volume
+ * represented as a linear array and modifies the input data to retain only the largest
+ * cluster, setting all other values to zero.
+ *
+ * @inData: Pointer to the float array representing the input 3D volume. The array should
+ *          have 'numVoxels' elements. This array is modified in place, with only the largest
+ *          cluster's voxels retained.
+ *
+ * @thresh: A double value representing the threshold. Voxels with values equal to or greater
+ *          than this threshold are considered part of a cluster.
+ *
+ * @dims: Pointer to an integer array of size 3, indicating the dimensions of the volume
+ *        (e.g., [width, height, depth]).
+ *
+ * @min_size: Integer value that defines the minimum cluster size. To ignore this parameter
+ *            you can set min_size to <= 0 
+ *
+ * The function first initializes auxiliary arrays to track used voxels and to store the output
+ * data. It then iterates through the volume, identifying connected voxels that form clusters
+ * and exceed the threshold. The size of each cluster is determined, and the largest one is
+ * identified. Finally, the input data is modified to retain only the largest cluster.
+ *
+ */
 void
-get_largest_cluster(float *inData, double thresh, const int *dims)
+keep_largest_cluster_float(float *inData, double thresh, const int *dims, int min_size)
 {
     float valToAdd;
     float *outData;
-    int i, j, k, ti, tj, tk, maxi, maxj, maxk, mini, minj, mink, ind, ind1, growingInd, growingCur;
+    int i, j, k, ti, tj, tk, maxi, maxj, maxk, mini, minj, mink, ind, ind1;
+    int maxInd = 0, growingInd, growingCur;
     int numVoxels = dims[0] * dims[1] * dims[2];
     char *flagUsed;
     short *growing;
 
     flagUsed = (char*)  malloc(numVoxels*sizeof(char));
-    growing  = (short*) malloc(numVoxels*3*sizeof(short));
     outData  = (float*) malloc(numVoxels*sizeof(float));
+    growing  = (short*) malloc(numVoxels*3*sizeof(short));
 
-    for (i = 0; i < numVoxels; ++i) flagUsed[i] = 0;
+    /* check success of memory allocation */
+    if (!flagUsed || !outData || !growing) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (i = 0; i < numVoxels; ++i) {
+        flagUsed[i] = 0;
+        outData[i] = 0.0;
+    }
 
     for (k = 0; k < dims[2]; ++k) for (j = 0; j < dims[1]; ++j) for (i = 0; i < dims[0]; ++i)
     {
@@ -2573,11 +2576,11 @@ get_largest_cluster(float *inData, double thresh, const int *dims)
 
             while (growingCur < growingInd)
             {
-                maxi = MIN(dims[0], growing[growingCur      ] + 2);
+                maxi = MIN(dims[0], growing[growingCur    ] + 2);
                 maxj = MIN(dims[1], growing[growingCur + 1] + 2);
                 maxk = MIN(dims[2], growing[growingCur + 2] + 2);
 
-                mini = MAX(0, growing[growingCur        ] - 1);
+                mini = MAX(0, growing[growingCur    ] - 1);
                 minj = MAX(0, growing[growingCur + 1] - 1);
                 mink = MAX(0, growing[growingCur + 2] - 1);
 
@@ -2588,7 +2591,7 @@ get_largest_cluster(float *inData, double thresh, const int *dims)
                     if (!flagUsed[ind1] && inData[ind1] >= thresh)
                     {
                         flagUsed[ind1] = 1;
-                        growing[growingInd      ] = ti;
+                        growing[growingInd    ] = ti;
                         growing[growingInd + 1] = tj;
                         growing[growingInd + 2] = tk;
                         growingInd += 3;
@@ -2598,60 +2601,52 @@ get_largest_cluster(float *inData, double thresh, const int *dims)
             }
 
             growingCur = 0;
-            valToAdd = (float)growingInd;
 
             while (growingCur < growingInd)
             {
-                outData[growing[growingCur + 2]*(dims[0]*dims[1])+(growing[growingCur + 1]*dims[0])+growing[growingCur]] += valToAdd;
+                outData[growing[growingCur + 2]*(dims[0]*dims[1])+(growing[growingCur + 1]*dims[0])+growing[growingCur]] += (float)growingInd;
                 growingCur += 3;
             }
         }
     }
 
-    for (i = 0; i < numVoxels; ++i) inData[i] = outData[i];
+    /* find maximum value which is the largest cluster or use defined minimum cluster size */
+    if (min_size >= 0)
+        for (i = 0; i < numVoxels; ++i) maxInd = MAX(outData[i], maxInd);
+    else maxInd = min_size;
+    
+    /* set values with smaller clusters to zero */
+    for (i = 0; i < numVoxels; ++i) inData[i] = (outData[i] >= maxInd) ? inData[i] : 0;
 
     free(flagUsed);
     free(growing);
+    free(outData);
 }
 
+/**
+ * keep_largest_cluster - Identifies the largest cluster in a 3D volume.
+ *
+ * This function calls keep_largest_cluster_float and converts datatypes of
+ * input and output
+ */
 void
-distopen_uint8(unsigned char *vol, int dims[3], double voxelsize[3], double dist, double th)
+keep_largest_cluster(void *data, double thresh, const int *dims, int datatype, int min_size)
 {
+    int nvox;
     float *buffer;
-    int i,j;
-    unsigned char max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
-
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
     
-    if (dist == 0.0) return;
-
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
-    th *= (double)max_vol;
-    
-    buffer = (float *)malloc(sizeof(float)*nvol);
-
+    /* check success of memory allocation */
     if (!buffer) {
-        fprintf(stderr,"Memory allocation error\n");
+        printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-
-    /* threshold input */
-    for (i=0; i<nvol; i++)
-        buffer[i] = (float)((double)vol[i] <= th);
-                
-    vbdist(buffer, NULL, dims, voxelsize, 0);
-    for (i=0; i<nvol; i++)
-        buffer[i] = buffer[i] > (float)dist;
-
-    vbdist(buffer, NULL, dims, voxelsize, 0);
-    for (i=0; i<nvol; i++)
-        buffer[i] = buffer[i] <= (float)dist;
-
-    /* return image */
-    for (i=0; i<nvol; i++)
-        vol[i] = (unsigned char)buffer[i];
-
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    keep_largest_cluster_float(buffer, thresh, dims, min_size);
+    convert_output_type(data, buffer, nvox, datatype);
+    
     free(buffer);
 }
-
-
