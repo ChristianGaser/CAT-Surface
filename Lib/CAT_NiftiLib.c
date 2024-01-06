@@ -229,8 +229,6 @@ write_nifti_double(const char *output_filename, double image[], int data_type, d
         nii_ptr->scl_slope = ((img_range[1] - img_range[0]) / 
                                                     (dt_range[1] - dt_range[0]));
         nii_ptr->scl_inter = img_range[0] - (dt_range[0] * nii_ptr->scl_slope);
-        for (i = 0; i < nii_ptr->nvox; i++)
-            image[i] = (image[i] - nii_ptr->scl_inter)/nii_ptr->scl_slope;
     }
 
     nii_ptr->datatype = data_type;
@@ -497,8 +495,6 @@ write_nifti_float(const char *output_filename, float image[], int data_type, dou
     if (slope == 0.0) {
         nii_ptr->scl_slope = ((img_range[1] - img_range[0]) / (dt_range[1] - dt_range[0]));
         nii_ptr->scl_inter = img_range[0] - (dt_range[0] * nii_ptr->scl_slope);
-        for (i = 0; i < nii_ptr->nvox; i++)
-            image[i] = (image[i] - (float)nii_ptr->scl_inter)/(float)nii_ptr->scl_slope;
     }
 
     nii_ptr->datatype = data_type;
