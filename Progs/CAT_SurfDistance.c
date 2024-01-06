@@ -142,6 +142,6 @@ main(int argc, char *argv[])
         delete_object_list(n_objects, objects);
         delete_object_list(n_objects, objects2);
 
-        FREE(distance);
+        free(distance);
         return(EXIT_SUCCESS);
 }

@@ -387,6 +387,9 @@ main(
         
         output_volume_all("test.nii", NC_FLOAT, 0, 0.0, 100000.0, volume, "test\n", NULL);
     }
+
+    /* apply cluster function the 1st time and keep largest cluster after thresholding */
+    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0);
                        
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
@@ -518,6 +521,9 @@ main(
                 g0->output[i] = (unsigned short)(input_float[i] >= min_threshold ? input_uint8[i] : 0);
         }
         
+        /* apply cluster function a 2nd time and keep largest cluster after thresholding */
+        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0);
+
         for (i = 0; i < sizes[0]; i++)
         for (j = 0; j < sizes[1]; j++)
         for (k = 0; k < sizes[2]; k++)
