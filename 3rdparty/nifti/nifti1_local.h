@@ -1,5 +1,3 @@
-#include  <bicpl.h>
-
 /* Additional things we define for the NIfTI-1 format.  Some of these
  * should probably be included in the header files.
  */
@@ -61,12 +59,4 @@ static const int dimmap[MAX_NII_DIMS] = {
     -1,
     -1,
     -1
-};
-
-/* Names of MINC spatial dimensions, in our "standard" world ordering.
- */
-static const char *mnc_spatial_names[MAX_SPACE_DIMS] = {
-    MIxspace,
-    MIyspace,
-    MIzspace
 };

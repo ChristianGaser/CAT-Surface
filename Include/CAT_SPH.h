@@ -10,8 +10,8 @@
 #include <bicpl.h>
 #include <fftw3.h>
 
-#include "s2kit10/makeweights.h"
-#include "s2kit10/FST_semi_fly.h"
+#include "3rdparty/s2kit10/makeweights.h"
+#include "3rdparty/s2kit10/FST_semi_fly.h"
 
 #define BINTREE_FACTOR   0.5
 

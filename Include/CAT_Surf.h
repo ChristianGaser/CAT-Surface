@@ -15,6 +15,7 @@
 #define FWHM 30.0
 #define DATAFORMAT 1 /* 1 = double data, 0 = complex data */
 #define  MAX_NEIGHBOURS  2000
+#define _PI 3.14159265358979323846264338327510
 
 int bound(int, int, int *);
 void indices(int *, int *, int *);

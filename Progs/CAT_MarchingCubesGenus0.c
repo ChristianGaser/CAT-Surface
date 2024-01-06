@@ -8,7 +8,6 @@
  */
 
 #include <ParseArgv.h>
-#include "genus0.h"
 #include "CAT_Separate.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_SurfaceIO.h"
@@ -16,7 +15,8 @@
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 #include "CAT_Vol.h"
-#include "MarchingCubes.h"
+#include "3rdparty/MarchingCubes/MarchingCubes.h"
+#include "3rdparty/MarchingCubes/genus0.h"
 
 /* argument defaults */
 double min_threshold = 0.5;

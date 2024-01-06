@@ -10,7 +10,6 @@
 static int dbg = 0;
 static int dbg2 = 0;
 
-#include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
 
 #include "CAT_SurfaceIO.h"

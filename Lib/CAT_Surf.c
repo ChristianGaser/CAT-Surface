@@ -7,7 +7,7 @@
  *
  */
 
-/* Some of the code is used from caret 5.3 (BrainModelSurface.cxx)  */
+/* Some of the code is modified from caret 5.3 (BrainModelSurface.cxx) and bicpl */
 
 #include <bicpl.h>
 #include <float.h>
@@ -18,8 +18,6 @@
 #include "CAT_Resample.h"
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
-
-#define _PI 3.14159265358979323846264338327510
 
 int
 bound(int i, int j, int dm[])

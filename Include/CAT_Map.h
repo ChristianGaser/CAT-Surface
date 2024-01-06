@@ -8,13 +8,13 @@
 */
 
 typedef struct {
-	long x;
-	long y;
+    long x;
+    long y;
 } Header;
 
 typedef struct {
-	double x;
-	double y;
+    double x;
+    double y;
 } Vector2D;
 
 void point_to_uv(Point *, double *, double *);

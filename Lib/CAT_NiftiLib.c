@@ -7,7 +7,6 @@
  *
  */
 
-#include "nifti/nifti1_local.h"
 #include "CAT_NiftiLib.h"
 
 int
