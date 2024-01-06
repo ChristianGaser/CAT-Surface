@@ -1648,26 +1648,28 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
  * isovalue in a volume or to a reference mesh
 */
 double
-get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygons_reference, Volume volume, 
-        double isovalue, double *curvatures, double weight)
+get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygons_reference, float* vol,
+        nifti_image *nii_ptr, double isovalue, double *curvatures, double weight)
 {
         double          distance = 0.0, val, x, y, z;
         int             p;
         Point           point;
+        float           *input;
+        int             dims[3];
 
+        dims[0] = nii_ptr->nx;
+        dims[1] = nii_ptr->ny;
+        dims[2] = nii_ptr->nz;
+        
         for (p = 0; p < polygons->n_points; p++) {
                 x = Point_x(polygons->points[p]) + weight*curvatures[p]*Point_x(polygons->normals[p]);
                 y = Point_y(polygons->points[p]) + weight*curvatures[p]*Point_y(polygons->normals[p]);
                 z = Point_z(polygons->points[p]) + weight*curvatures[p]*Point_z(polygons->normals[p]);
                                         
-                /* if volume is defined then use squared difference between isovalue and real value at surface border
-                   otherwise use distance between the mesh points */
-                if (volume != NULL) {
-                        evaluate_volume_in_world(volume, 
-                                      x,y,z,
-                                      0, FALSE, 0.0, &val, NULL,
-                                      NULL, NULL, NULL, NULL, NULL,
-                                      NULL, NULL, NULL);
+                /* if nifti pointer is defined then use squared difference between isovalue and real value 
+                   at surface border otherwise use distance between the mesh points */
+                if (nii_ptr != NULL) {
+                        val = (double)isoval(vol, x, y, z, dims, nii_ptr);
                         if (!isnan(val)) distance += (val-isovalue)*(val-isovalue);
                 } else {
                         point = polygons->points[p];
@@ -1689,7 +1691,8 @@ get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygon
  * isovalue in a volume or to a reference mesh.
 */
 int
-correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_reference, Volume volume, double isovalue)
+correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_reference, float *vol, 
+         nifti_image *nii_ptr, double isovalue)
 {
         int             curvtype = 0; /* mean curvature averaged over 3mm, in degrees */
         double          distance, eps = 1e-6, fwhm = 2.0;
@@ -1698,9 +1701,9 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
         int             *n_neighbours, **neighbours, p;
         const double    phi = (1.0 + sqrt(5.0))/2.0; /* Golden ratio constant */
         
-        if (polygons_reference == NULL && volume == NULL) {
-                printf("ERROR: You have to define polygons_reference or volume.\n");
-                exit(EXIT_FAILURE);
+        if (!polygons_reference && !nii_ptr) {
+            printf("ERROR: You have to define polygons_reference or volume.\n");
+            exit(EXIT_FAILURE);
         }
         
         /* for curvtype 0 (mean curvature in degrees) use average around point */
@@ -1725,11 +1728,11 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
         a = -2.0; b = 2.0;
         
         weight1 = b - (b - a) / phi;
-        f1 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+        f1 = get_distance_mesh_correction(polygons, polygons_reference, vol, nii_ptr, 
                     isovalue, curvatures, weight1);
     
         weight2 = a + (b - a) / phi;
-        f2 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+        f2 = get_distance_mesh_correction(polygons, polygons_reference, vol, nii_ptr, 
                     isovalue, curvatures, weight2);
     
         /* Golden Ratio method for finding minimum */
@@ -1739,14 +1742,14 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
                 weight2 = weight1;
                 f2 = f1;
                 weight1 = b - (b - a) / phi;
-                f1 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+                f1 = get_distance_mesh_correction(polygons, polygons_reference, vol, nii_ptr, 
                             isovalue, curvatures, weight1);
             } else {
                 a = weight1;
                 weight1 = weight2;
                 f1 = f2;
                 weight2 = a + (b - a) / phi;
-                f2 = get_distance_mesh_correction(polygons, polygons_reference, volume, 
+                f2 = get_distance_mesh_correction(polygons, polygons_reference, vol, nii_ptr, 
                             isovalue, curvatures, weight2);
             }
         }
@@ -1765,7 +1768,7 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
                 Point_z(polygons->points[p]) += weight*curvatures[p]*Point_z(polygons->normals[p]);                
         }
 
-        FREE(curvatures);
+        free(curvatures);
         
         return(EXIT_SUCCESS);
 }

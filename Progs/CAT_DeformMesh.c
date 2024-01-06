@@ -9,7 +9,6 @@
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_Surf.h"
-#include "CAT_NiftiIO.h"
 #include "nifti/nifti1_io.h"
 
 #define KAPPA   10

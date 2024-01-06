@@ -169,115 +169,8 @@ resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
 }
 
 void
-surface_deform(object_struct *object, polygons_struct *hbw, int *hbw_defects)
-{
-        Volume    volume, label_volume, tmp;        
-        int       i, label, sizes[3], check_every_iteration;
-        int       range_changed[2][3], value[3];
-        int       *n_neighbours, **neighbours, *flag;
-        double    separations[3], voxel[3], world[3];
-        double    bounds[6], label_val, threshold;
-        deform_struct deform;
-        polygons_struct *hbw_restore;
-        
-        if (hbw_defects != NULL) {
-                hbw_restore = (polygons_struct *) malloc(sizeof(polygons_struct));
-                copy_polygons(hbw, hbw_restore);
-        }
-        
-        /* create volume inside surface bounds */
-        get_bounds(get_polygons_ptr(object), bounds);
-        volume = create_volume( 3, XYZ_dimension_names, NC_BYTE, FALSE,
-                            0.0, 255.0 );
-        
-        /* prepare volume parameters */
-        for (i=0; i<3; i++) {
-                separations[i] = 0.75;
-                voxel[i] = -0.5;
-                world[i] = bounds[2*i] - separations[i];
-                value[i] = 2.0;
-                sizes[i] = ROUND((bounds[2*i+1] - bounds[2*i]) / separations[i]) + 2;
-        }
-
-        set_volume_separations( volume, separations );    
-        set_volume_sizes( volume, sizes );
-        set_volume_voxel_range( volume, 0.0, 255.0 );
-        set_volume_real_range( volume, 0, 255.0 );
-        set_volume_translation( volume, voxel, world );
-
-        alloc_volume_data( volume );
-        
-        /* label volume according to surface */
-        if (DEBUG) printf("scan_object_to_volume...\n");
-        label_val = 127.0;
-        label_volume = create_label_volume( volume, NC_BYTE );
-        scan_object_to_volume( object, volume, label_volume, (int) label_val, 0.0 );
-        
-        /* fill inside volume */
-        if (DEBUG) printf("fill_connected_voxels...\n");
-        fill_connected_voxels( volume, label_volume, EIGHT_NEIGHBOURS,
-                           value, 0, 0, label_val*2.0, 0.0, -1.0, range_changed );
-                           
-        if (DEBUG) printf("create_box_filtered_volume...\n");
-        tmp = create_box_filtered_volume(label_volume, NC_BYTE, FALSE,
-                                                 0.0, 0.0, 2, 2, 2);
-
-        delete_volume(label_volume);
-        label_volume = tmp;
-
-        initialize_deformation_parameters(&deform);
-        deform.fractional_step = 0.1;
-        deform.max_step = 0.1;
-        deform.max_search_distance = 5;
-        deform.degrees_continuity = 0;
-        deform.max_iterations = 100;
-        deform.movement_threshold = 0.01;
-        deform.stop_threshold = 0.0;
-        deform.deform_data.type = VOLUME_DATA;
-        deform.deform_data.volume = label_volume;
-        deform.deform_data.label_volume = (Volume) NULL;
-        check_every_iteration = 25; /* check for self intersections every 25 iterations */
-
-        if (DEBUG) printf("add_deformation_model...\n");
-        if (add_deformation_model(&deform.deformation_model, -1, 0.5, "avg", -0.1, 0.1) != OK)
-                exit(EXIT_FAILURE);
-
-        threshold = 0.75*label_val;
-        set_boundary_definition(&deform.boundary_definition, threshold, threshold, 0, 0, 'n', 0);
-
-        if (DEBUG) printf("deform_polygons...\n");
-        deform_polygons_check_selfintersection(hbw, &deform, check_every_iteration, 1);
-
-        if (DEBUG) printf("add_neighbours...\n");
-        if (hbw_defects != NULL) {
-                flag = (int *) malloc(sizeof(int) * hbw->n_points);
-                memset(flag, 0, sizeof(int) * hbw->n_points);
-                create_polygon_point_neighbours(hbw, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
-                for (i = 0; i < hbw->n_points; i++) {
-                        if  (hbw_defects[i] != 0) {
-                                flag[i] = 1; /* patch this one */
-                                add_neighbours(hbw, hbw_restore, neighbours, n_neighbours, i,
-                                       flag, 1);
-                        }
-                }
-
-                /* combine the surfaces based on the modify flag */
-                for (i = 0; i < hbw->n_points; i++) {
-                        if (flag[i] == 0)
-                                hbw->points[i] = hbw_restore->points[i]; /* restore */
-                }
-                free(flag);
-                free(hbw_restore);
-        }
-        
-        delete_volume( volume );
-        delete_volume( label_volume );
-}
-
-void
 sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects, 
-                int n_defects, int *holes, polygons_struct *hbw, polygons_struct *lbw, int do_surface_deform)
+                int n_defects, int *holes, polygons_struct *hbw, polygons_struct *lbw)
 {
         object_struct *surface_object;
         double *sharpness;
@@ -371,13 +264,6 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
                                  TYPE_INTEGER);
         }
 
-        if (DEBUG) printf("do_surface_deform...\n");
-        if ( do_surface_deform ) {
-                surface_object = create_object(POLYGONS);
-                copy_polygons(surface, get_polygons_ptr(surface_object));
-                surface_deform(surface_object, hbw, hbw_holes);
-        }
-
         if (DEBUG) printf("compute_polygon_normals...\n");
         compute_polygon_normals(hbw);
 
@@ -390,7 +276,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 
 object_struct **
 fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, int bw, int lim, 
-        char *reparam_file, double max_refine_length, int do_surface_deform, int force, double laplace_thresh)
+        char *reparam_file, double max_refine_length, int force, double laplace_thresh)
 {
         object_struct **hbw_objects, **lbw_objects, **reparam_objects, *surface_object;
         polygons_struct *hbw, *lbw, *reparam, refined;
@@ -566,7 +452,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         /* make post correction */
         if (DEBUG) printf("sph_postcorrect...\n");
         sph_postcorrect(surface, sphere, defects, polydefects, n_defects, holes,
-                        hbw, lbw, do_surface_deform);
+                        hbw, lbw);
 
         /* make refinement to guarantee small sized vertices */ 
         if (DEBUG) printf("refine_mesh...\n");

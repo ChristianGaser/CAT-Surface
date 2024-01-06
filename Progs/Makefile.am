@@ -2,7 +2,6 @@ AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes 
 LDADD = ../libCAT.la -lm
 
 dist_bin_SCRIPTS = \
-    CAT_DeformSurf_ui \
     CAT_ResampleFS_ui \
     CAT_FractalDimensionFS_ui \
     CAT_Resample_ui \
@@ -18,7 +17,6 @@ dist_bin_SCRIPTS = \
 ##  CAT_Obj2Neurolens \
 
 bin_PROGRAMS = \
-    CAT_DeformSurf \
     CAT_Surf2Sheet \
     CAT_Sheet2Surf \
     CAT_3dVol2Surf \
@@ -64,13 +62,10 @@ bin_PROGRAMS = \
     CAT_GIPhantom \
     CAT_DumpConvexity \
     CAT_MarchingCubesGenus0 \
-    CAT_MarchingCubesTopological \
     CAT_AddValuesToSurf \
     CAT_SulcusDepth \
-    CAT_Surf2Surf \
     CAT_DumpDepthPotential \
     CAT_Central2Pial \
-    CAT_Surf2Vol \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
     CAT_Test \
@@ -83,7 +78,6 @@ bin_PROGRAMS = \
     CAT_DeformMesh 
 
 # experimental code, not yet working or for testing only!
-##  CAT_VolConvert \
 ##  CAT_Test \
 ##  CAT_DumpGI \
 ##  CAT_DumpGyrificationIndex \ 

@@ -77,7 +77,6 @@ noinst_HEADERS = \
     Include/CAT_DeformPolygons.h \
     Include/CAT_Separate.h \
     Include/CAT_Octree.h \
-    Include/CAT_NiftiIO.h \
     Include/CAT_ConvexHull.h \
     Include/CAT_Gyrification.h \
     Include/CAT_DepthPotential.h \
@@ -137,7 +136,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_Interpolate.c \
     Lib/CAT_Isometrics.c \
     Lib/CAT_Separate.c \
-    Lib/CAT_NiftiIO.c \
     Lib/CAT_ConvexHull.c \
     Lib/CAT_Gyrification.c \
     Lib/CAT_DepthPotential.c \

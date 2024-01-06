@@ -143,7 +143,7 @@ main(int argc, char *argv[])
            The amount of compensation is automatically estimated using the difference between 
            the original and the smoothed surface. */
         if (correct_mesh) {
-                correct_mesh_folding(polygons, polygons_orig, NULL, 0);
+                correct_mesh_folding(polygons, polygons_orig, NULL, NULL, 0);
                 free(polygons_orig);
         }
 

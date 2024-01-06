@@ -7,15 +7,11 @@
  */
 
 #include "CAT_FixTopology.h"
-#include "CAT_NiftiIO.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Defect.h"
 
 /* the argument table */
 ArgvInfo argTable[] = {
-  {"-deform", ARGV_CONSTANT, (char *) TRUE, 
-     (char *) &do_surface_deform,
-     "Deform corrected surface to its uncorrected version in aeras where topology correction was made."},
   { "-bw", ARGV_INT, (char *) 1, 
     (char *) &bw,
     "Bandwidth of coefficients for spherical harmonic expansion." },
@@ -121,7 +117,7 @@ main(int argc, char *argv[])
         if (handles) force = HANDLE;
         
         objects = fix_topology_sph(surface, sphere, n_triangles, bw, lim, reparam_file, max_refine_length, 
-            do_surface_deform, force, laplace_thresh);
+            force, laplace_thresh);
 
         if (output_graphics_any_format(output_surface_file, ASCII_FORMAT, 1,
                                        objects, NULL) != OK)

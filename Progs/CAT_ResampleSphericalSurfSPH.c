@@ -55,7 +55,6 @@ main(int argc, char *argv[])
         double               *rcx, *icx, *rcy, *icy, *rcz, *icz;
         double               *rdatax, *rdatay, *rdataz;
         double               r, value;
-        Volume               volume;
         polygons_struct      *polygons, *sphere, *polygons_output;
         object_struct        **objects, *objects_output;
 

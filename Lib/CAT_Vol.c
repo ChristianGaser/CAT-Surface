@@ -568,10 +568,9 @@ sub2ind(int x, int y, int z, int s[]) {
 float
 isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
 {
-
     int i;
     float seg=0.0, n=0.0;
-    float world_coords[4] = {x, y, z, 1.0}; /* Define world coordinates (in mm) */
+    float world_coords[3] = {x, y, z}; /* Define world coordinates (in mm) */
 
     /* convert from world to voxel space if nifti-pointer is defined */
     if (nii_ptr) {
