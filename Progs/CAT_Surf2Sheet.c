@@ -18,9 +18,9 @@
 #define  BINTREE_FACTOR   0.5
 
 double fwhm         = 0.0;
-char * values_file  = NULL;
-char * surface_file = NULL;
-char * sphere_file  = NULL;
+char *values_file   = NULL;
+char *surface_file  = NULL;
+char *sphere_file   = NULL;
 int    sz_map[2]    = {512, 256};
 int    curvtype     = 0;
 

@@ -16,7 +16,6 @@
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
-#include "CAT_DeformPolygons.h"
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
 
@@ -1491,6 +1490,134 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
         compute_polygon_normals(polygons);
 }
 
+
+BOOLEAN
+ccw_neighbours(Point *centroid, Vector *normal, Point points[],
+               int n_nb, int neighbours[], signed char point_error[])
+{
+        Vector    to_nb, prev_to_nb, up, offset;
+        double      len;
+        int       i;
+        BOOLEAN   ccw;
+
+        ccw = TRUE;
+        fill_Vector(to_nb, 0.0, 0.0, 0.0);
+
+        for (i = 0; i < n_nb + 1; i++) {
+                prev_to_nb = to_nb;
+                SUB_VECTORS(to_nb, points[neighbours[i % n_nb]], *centroid);
+                len = DOT_VECTORS(to_nb, *normal);
+                SCALE_VECTOR(offset, *normal, len);
+                SUB_VECTORS(to_nb, to_nb, offset);
+
+                if (i != 0) {
+                        CROSS_VECTORS(up, prev_to_nb, to_nb);
+                        if (DOT_VECTORS(up, *normal) < 0.0) {
+                                ++point_error[neighbours[i % n_nb]];
+                                ++point_error[neighbours[(i-1 + n_nb) % n_nb]];
+                                ccw = FALSE;
+                        }
+                }
+        }
+
+        return(ccw);
+}
+
+void
+check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
+{
+        signed char      *point_done;
+        int              vertidx, ptidx, poly, size;
+        Point            *centroids;
+        Vector           normal;
+        progress_struct  progress;
+        double           base_length, curv_factor;
+        int              n_nb, neighbours[MAX_NEIGHBOURS];
+        BOOLEAN          interior_flag;
+        signed char      *point_error;
+#ifdef  DEBUG
+        int              n_errors, n_bad_points;
+#endif
+
+        ALLOC(point_done, polygons->n_points);
+        ALLOC(point_error, polygons->n_points);
+        ALLOC(centroids, polygons->n_points);
+
+        for (ptidx = 0; ptidx <  polygons->n_points; ptidx++) {
+                point_done[ptidx] = FALSE;
+                point_error[ptidx] = 0;
+        }
+
+        initialize_progress_report(&progress, TRUE, polygons->n_items,
+                                   "Checking Integrity");
+
+        for (poly = 0; poly < polygons->n_items; poly++) {
+                size = GET_OBJECT_SIZE(*polygons, poly);
+
+                for (vertidx = 0; vertidx <  size; vertidx++) {
+                        ptidx = polygons->indices[
+                          POINT_INDEX(polygons->end_indices, poly, vertidx)];
+
+                        if (!point_done[ptidx]) {
+                                point_done[ptidx] = TRUE;
+
+                                compute_polygon_point_centroid(polygons, poly,
+                                                              vertidx, ptidx,
+                                                              &centroids[ptidx],
+                                                              &normal,
+                                                              &base_length,
+                                                              &curv_factor);
+                                n_nb = get_neighbours_of_point(polygons, poly,
+                                                               vertidx,
+                                                               neighbours,
+                                                               MAX_NEIGHBOURS,
+                                                               &interior_flag);
+
+#ifdef CHECK_CLOCKWISE_NEIGHBOURS
+                                if (!ccw_neighbours(&centroids[ptidx], &normal,
+                                                    new_points, n_nb,
+                                                    neighbours, point_error)) {
+                                        point_error[ptidx] = TRUE;
+                                        ++n_errors;
+                                }
+#else
+                                ccw_neighbours(&centroids[ptidx], &normal,
+                                               new_points, n_nb,
+                                               neighbours, point_error);
+#endif
+                        }
+                }
+
+                update_progress_report(&progress, poly+1);
+        }
+
+        terminate_progress_report(&progress);
+
+#ifdef DEBUG
+        n_errors = 0;
+        n_bad_points = 0;
+#endif
+        for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
+                if (point_error[ptidx] > 0) {
+#ifdef DEBUG
+                        ++n_errors;
+                        n_bad_points += point_error[ptidx];
+                        if (n_errors < 10)
+                                printf(" %d", ptidx);
+#endif
+                        new_points[ptidx] = centroids[ptidx];
+                }
+        }
+
+#ifdef DEBUG
+        if (n_errors > 0)
+                printf(": Shape errors %d/%d\n", n_errors, n_bad_points);
+#endif
+
+        FREE(point_error);
+        FREE(centroids);
+        FREE(point_done);
+}
 
 /*
  * Calls central_to_pial, but creates a new surface object and does not modify the original surface

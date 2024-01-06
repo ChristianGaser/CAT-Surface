@@ -14,12 +14,11 @@
 
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
-#include "CAT_Smooth.h"
+#include "CAT_Surf.h"
 #include "CAT_ConvexHull.h"
 #include "CAT_DepthPotential.h"
 
 #define PI2 0.6366197724    /* 2/pi */
-#define  MAX_NEIGHBOURS   1000
 
 Vector
 projectToPlane(Vector projected, Vector basis[2])

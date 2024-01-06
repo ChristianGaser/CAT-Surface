@@ -7,7 +7,6 @@
  *
  */
 
-#include <bicpl/marching.h>
 #include <ParseArgv.h>
 #include "genus0.h"
 #include "CAT_Separate.h"

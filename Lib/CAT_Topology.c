@@ -7,7 +7,6 @@
  */
 
 #include <bicpl.h>
-#include <bicpl/deform.h>
 
 #include "CAT_SPH.h"
 #include "CAT_Surf.h"
@@ -15,7 +14,6 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Curvature.h"
 #include "CAT_Defect.h"
-#include "CAT_DeformPolygons.h"
 #include "CAT_Refine.h"
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */

@@ -74,7 +74,6 @@ noinst_HEADERS = \
     Include/CAT_Intersect.h \
     Include/CAT_FixTopology.h \
     Include/CAT_Refine.h \
-    Include/CAT_DeformPolygons.h \
     Include/CAT_Separate.h \
     Include/CAT_Octree.h \
     Include/CAT_ConvexHull.h \
@@ -127,7 +126,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_Intersect.c \
     Lib/CAT_Octree.c \
     Lib/CAT_Resample.c \
-    Lib/CAT_DeformPolygons.c \
     Lib/CAT_Topology.c \
     Lib/CAT_Defect.c \
     Lib/CAT_Patch.c \

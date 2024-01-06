@@ -14,6 +14,7 @@
 #define BW 1024
 #define FWHM 30.0
 #define DATAFORMAT 1 /* 1 = double data, 0 = complex data */
+#define  MAX_NEIGHBOURS  2000
 
 int bound(int, int, int *);
 void indices(int *, int *, int *);
