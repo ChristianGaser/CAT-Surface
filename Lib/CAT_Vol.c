@@ -2528,6 +2528,8 @@ median3(void *data, int dims[3], int datatype)
  * @min_size: Integer value that defines the minimum cluster size. To ignore this parameter
  *            you can set min_size to <= 0 
  *
+ * @conn18: Integer value that set the connection-scheme to 18 neighbors instaed of 26.
+ *
  * The function first initializes auxiliary arrays to track used voxels and to store the output
  * data. It then iterates through the volume, identifying connected voxels that form clusters
  * and exceed the threshold. The size of each cluster is determined, and the largest one is
@@ -2535,7 +2537,7 @@ median3(void *data, int dims[3], int datatype)
  *
  */
 void
-keep_largest_cluster_float(float *inData, double thresh, const int *dims, int min_size)
+keep_largest_cluster_float(float *inData, double thresh, const int *dims, int min_size, int conn18)
 {
     float valToAdd;
     float *outData;
@@ -2585,6 +2587,9 @@ keep_largest_cluster_float(float *inData, double thresh, const int *dims, int mi
 
                 for (tk = mink; tk < maxk; ++tk) for (tj = minj; tj < maxj; ++tj) for (ti = mini; ti < maxi; ++ti)
                 {
+                    /*  Skip diagonal neighbors in 3D (only consider 18-neighbors) */
+                    if (conn18 && (abs(ti - growing[growingCur]) + abs(tj - growing[growingCur + 1]) + abs(tk - growing[growingCur + 2]) > 2))
+                        continue;
                     ind1 = tk*(dims[0]*dims[1]) + (tj*dims[0]) + ti;
 
                     if (!flagUsed[ind1] && inData[ind1] >= thresh)
@@ -2594,7 +2599,7 @@ keep_largest_cluster_float(float *inData, double thresh, const int *dims, int mi
                         growing[growingInd + 1] = tj;
                         growing[growingInd + 2] = tk;
                         growingInd += 3;
-                    }
+                    }   
                 }
                 growingCur += 3;
             }
@@ -2629,7 +2634,7 @@ keep_largest_cluster_float(float *inData, double thresh, const int *dims, int mi
  * input and output
  */
 void
-keep_largest_cluster(void *data, double thresh, const int *dims, int datatype, int min_size)
+keep_largest_cluster(void *data, double thresh, const int *dims, int datatype, int min_size, int conn18)
 {
     int nvox;
     float *buffer;
@@ -2644,7 +2649,7 @@ keep_largest_cluster(void *data, double thresh, const int *dims, int datatype, i
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    keep_largest_cluster_float(buffer, thresh, dims, min_size);
+    keep_largest_cluster_float(buffer, thresh, dims, min_size, conn18);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);

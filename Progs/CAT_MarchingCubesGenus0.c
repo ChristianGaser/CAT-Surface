@@ -312,7 +312,7 @@ main(
     }
                        
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
-    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0);
+    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1);
                        
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
@@ -445,7 +445,7 @@ main(
         }
         
         /* apply cluster function a 2nd time and keep largest cluster after thresholding */
-        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0);
+        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1);
 
         for (i = 0; i < nvol; i++)
             mcb->data[i]  = (double)(g0->output[i] - 0.5);
@@ -524,7 +524,7 @@ main(
         correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
 
-    (void) output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
+    output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
     free(input);
     clean_temps(mcb);

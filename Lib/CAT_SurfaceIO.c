@@ -1457,11 +1457,11 @@ Status
 input_txt_values(
         STRING         filename,
         int            *n_values,
-        double           *values[] )
+        Real           *values[] )
 {
         FILE           *fp;
         Status         status;
-        double           value;
+        Real           value;
     
     
         if ((fp = fopen(filename, "r")) == 0) {
@@ -1472,10 +1472,10 @@ input_txt_values(
         *n_values = 0;
         *values = NULL;
     
-        while (fscanf(fp, "%lf", &value) == 1)
+        while( input_real( fp, &value ) == OK )
                 ADD_ELEMENT_TO_ARRAY( *values, *n_values, value, DEFAULT_CHUNK_SIZE );
     
-        (void) fclose( fp );
+        (void) close_file( fp );
     
     
         return( OK );
@@ -1488,9 +1488,9 @@ input_values_any_format(char *file, int *n_values, double **values)
         Status status;
         FILE   *fp;
 
-        if (strcmp(nifti_find_file_extension(file),".txt") == 0)
+        if (filename_extension_matches(file,"txt"))
                 status = input_txt_values(file, n_values, values);
-        else if (strcmp(nifti_find_file_extension(file),".gii") == 0)
+        else if (filename_extension_matches(file,"gii"))
                 status = input_gifti_curv(file, n_values, values);
         else
                 status = input_freesurfer_curv(file, n_values, values);
@@ -1520,7 +1520,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
                         buffer[i] = (double) r[i];
         }
 
-        if (strcmp(nifti_find_file_extension(file),".txt") == 0) {
+        if (filename_extension_matches(file, "txt")) {
                 if ((fp = fopen(file, "w")) == 0) {
                         fprintf(stderr, "write_txt: Couldn't open file %s.\n", file);
                         return(-1);
@@ -1532,7 +1532,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
                 }
                         
                 fclose(fp);
-        } else if (strcmp(nifti_find_file_extension(file),".gii") == 0)
+        } else if (filename_extension_matches(file, "gii"))
                 status = output_gifti_curv(file, n_values, buffer);
         else
                 status = output_freesurfer_curv(file, n_values, buffer);
@@ -1548,19 +1548,19 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
 {
         Status status;
 
-        if (strcmp(nifti_find_file_extension(file),".obj") == 0) {
+        if (filename_extension_matches(file, "obj")) {
                 status = input_graphics_file(file, format,
                                              n_objects, object_list);
-        } else if (strcmp(nifti_find_file_extension(file),".off") == 0) {
+        } else if (filename_extension_matches(file, "off")) {
                 status = input_oogl(file, format,
                                     n_objects, object_list);
-        } else if (strcmp(nifti_find_file_extension(file),".gii") == 0) {
+        } else if (filename_extension_matches(file, "gii")) {
                 status = input_gifti(file, format,
                                     n_objects, object_list);
-        } else if (strcmp(nifti_find_file_extension(file),".dfs") == 0) {
+        } else if (filename_extension_matches(file, "dfs")) {
                 status = input_dfs(file, format,
                                    n_objects, object_list);
-        } else if (strcmp(nifti_find_file_extension(file),".dx") == 0) {
+        } else if (filename_extension_matches(file, "dx")) {
                 status = input_dx(file, format,
                                   n_objects, object_list);
         } else {
@@ -1577,13 +1577,13 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
 {
         Status     status;
 
-        if (strcmp(nifti_find_file_extension(file),".obj") == 0) {
+        if (filename_extension_matches(file, "obj")) {
                 status = output_graphics_file(file, format,
                                 n_objects, object_list);
-        } else if (strcmp(nifti_find_file_extension(file),".off") == 0) {
+        } else if (filename_extension_matches(file, "off")) {
                 status = output_oogl(file, format,
                                 n_objects, object_list);
-        } else if (strcmp(nifti_find_file_extension(file),".gii") == 0) {
+        } else if (filename_extension_matches(file, "gii")) {
                 status = output_gifti(file, format,
                                 n_objects, object_list, values);
         } else {

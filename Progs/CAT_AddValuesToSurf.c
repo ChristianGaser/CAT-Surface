@@ -11,8 +11,6 @@
 #include <float.h>
 
 #include "CAT_SurfaceIO.h"
-#include "CAT_NiftiLib.h"
-
 
 void
 usage(char *executable)
@@ -43,7 +41,7 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (strcmp(nifti_find_file_extension(dest_file),".gii") != 0) {
+        if (filename_extension_matches(dest_file, "gii") != 1) {
                 fprintf(stderr,"Only gifti output format allowed (use .gii as extension).\n");
                 exit(EXIT_FAILURE);
         }
