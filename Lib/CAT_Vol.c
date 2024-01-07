@@ -384,10 +384,10 @@ double
 get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
 {
     double sum = 0.0;
-    int n = 0;
+    int i, n = 0;
     
     /* Calculate mean */
-    for(int i = 0; i < size; i++) {
+    for (i = 0; i < size; i++) {
         if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             sum += arr[i];
             n++;
@@ -429,10 +429,10 @@ double
 get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 {
     double mean = 0.0, variance = 0.0;
-    int n = 0;
+    int i, n = 0;
 
     /* Calculate mean */
-    for(int i = 0; i < size; i++) {
+    for (i = 0; i < size; i++) {
         if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             mean += arr[i];
             n++;
@@ -441,7 +441,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
     mean = mean / (double)n;
 
     /* Calculate variance */
-    for(int i = 0; i < size; i++)
+    for (i = 0; i < size; i++)
         if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask))
             variance += pow(arr[i] - mean, 2);
     variance /= (double)n;

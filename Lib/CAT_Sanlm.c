@@ -609,8 +609,6 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
 
 #if defined(_WIN32)
 
-        /* printf("Windows system detected\n");fflush(stdout); */
-
         /* Reserve room for handles of threads in ThreadList*/
         ThreadList = (HANDLE*) malloc(Nthreads*sizeof( HANDLE ));
         ThreadArgs = (myargument*) malloc( Nthreads*sizeof(myargument));

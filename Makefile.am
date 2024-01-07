@@ -3,8 +3,13 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
-#AM_CPPFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+
+if WINDOWS
+  AM_CFLAGS = ${CFLAGS0}
+else
+  AM_CFLAGS = -pthread ${CFLAGS0}
+endif
 
 lib_LTLIBRARIES = libCAT.la
 

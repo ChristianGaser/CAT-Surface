@@ -248,32 +248,6 @@ VIOAPI  STRING  get_clock_time( void )
     return( create_string( str ) );
 }
 
-/* ----------------------------- MNI Header -----------------------------------
-@NAME       : sleep_program
-@INPUT      : seconds
-@OUTPUT     : 
-@RETURNS    : 
-@DESCRIPTION: Make the program sleep for the specified number of seconds.
-@METHOD     : 
-@GLOBALS    : 
-@CALLS      : 
-@CREATED    : 1993            David MacDonald
-@MODIFIED   : 
----------------------------------------------------------------------------- */
-
-VIOAPI  void  sleep_program( Real seconds )
-{
-#if HAVE_SELECT
-    struct  timeval  timeout;
-
-    timeout.tv_sec = (long) seconds;
-    timeout.tv_usec = (long) (1.0e6 * (seconds - (Real) timeout.tv_sec) + 0.5);
-
-    (void) select( 0, NULL, NULL, NULL, &timeout );
-#else
-    sleep((unsigned int) seconds);
-#endif
-}
 
 /* ----------------------------- MNI Header -----------------------------------
 @NAME       : get_date
