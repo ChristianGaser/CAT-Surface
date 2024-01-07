@@ -1,0 +1,556 @@
+2009-06-29  Claude Lepage <claude@bic.mni.mcgill.ca>
+	* Fixed bug in viewport clipping in render.c (offset out of range would
+	  cause seg fault in register)
+
+2008-12-19  Claude Lepage <claude@bic.mni.mcgill.ca>
+	* Added obj2brainvisa for conversion from .obj to brainvisa
+	* Added rgb option to colour_object for colouring of DTI tracks in .obj
+	* Modified Volumes/rend*.c to use size_t as type for loop index
+	to allow reading large volumes with more than 2^31 voxels
+
+2007-12-17  Claude Lepage <claude@bic.mni.mcgill.ca>
+        * Added objconcat for concatenation of .obj and .txt.
+
+2007-06-27  Claude Lepage <claude@bic.mni.mcgill.ca>
+        * Added a bunch of new colour maps
+        * Moved the surface utilities from conglomerate to bicpl/tools
+
+2005-08-17  Bert Vincent <bert@bic.mni.mcgill.ca>
+	* Added Include/bicpl_internal.h
+	* Replaced public/private pseudokeywords with BICAPI/static
+	
+2005-08-11  Andrew Janke  <a.janke@gmail.com>
+	* added epm-header.in
+	* added netpbm alternative to ppm for OSX
+
+2005-06-03  Bert Vincent   <bert@bic.mni.mcgill.ca>
+	* A series of smallish changes for Windows build compatibility:
+	
+	 - bicpl_clapack/dlamch.c - add volatile to all declarations 
+	 of dlamc3_
+	 - bicpl_clapack/Makefile.am - put f2c.h and blaswrap.h in a
+	 noinst_HEADERS target
+	 - Volumes/labels.c - avoid use of global
+	 File_order_dimension_names
+	 - Transforms/safe_compute_xfm.c - use HAVE_FORK rather than
+	 NO_FORK and include config.h
+	 - Prog_utils/random.c - If random(), srandom(), and
+	 gettimeofday() are not available, use rand(), srand(), and
+	 time(). Also make use of the standard constant RAND_MAX 
+	 - Numerical/t_stat.c - If gamma() is not defined, use a private
+	 copy.
+	 - Numerical/numerical.c - Use HAVE_CBRT rather than NO_CBRT and
+	 include config.h
+
+	 - configure.in - add checks for fork(), srandom(), random(),
+	 cbrt(), gamma(), gettimeofday()
+	 - Makefile.am - remove unnecessary m4 files, add the Windows
+	 build files	
+	
+2005-05-02  Bert Vincent   <bert@bic.mni.mcgill.ca>
+
+	* Fixed odd problem in dlamch.c.  In the case where GCC 3.4.1 was
+	used to compile the code with the -O2 option on Linux, the code
+	would hang in an infinite loop in the function dlamc1_(). The bug
+	could be avoided by disabling the optimizer. I masked the problem
+	by declaring a few local variables 'volatile'.
+	
+2005-04-02  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* bicpl_clapack/Makefile.am (libbicpl_cla_la_SOURCES): Include
+	headers blaswrap.h and f2c.h.
+
+	* Include/bicpl.h:
+	* Include/bicpl/deform_prototypes.h:
+	* Include/bicpl/ds_prototypes.h:
+	* Include/bicpl/geom_prototypes.h
+	* Include/bicpl/image_prototypes.h:
+	* Include/bicpl/march_prototypes.h:
+	* Include/bicpl/numeric_prototypes.h:
+	* Include/bicpl/object_prototypes.h:
+	* Include/bicpl/prog_prototypes.h:
+	* Include/bicpl/trans_prototypes.h:
+	* Include/bicpl/vol_prototypes.h: Wrap files in "extern C"
+	declaration if compiled with C++.
+
+	* Include/bicpl/ds_prototypes.h: 
+	* Data_structures/object_bintrees.c (allocate_bintree): Return
+	bintree_struct_ptr rather than casting to void*.
+
+2004-04-15  Vivek Singh    <vsingh@bic.mni.mcgill.ca>
+
+	* removed non-open source compatible file Geometry/lfit_vector.c
+	* modified Numerical/matrix_svd.c (again due to licence compatibility)
+	and replaced it with a call to a function from the clapack library.
+	The supporting files required by the function were placed in 
+	the directory bicpl_clapack. 
+
+2003-11-16  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* mni_bicpl.epm.header: Set correct license file.
+
+2003-06-17  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* configure.in: Add options to select SGI image library
+	or PPM library for raster I/O.  The installer must choose
+	one or the other, else no raster I/O possible.
+
+2003-06-16  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* Include/bicpl/vol_prototypes.h: 
+	* Volumes/scan_polygons.c (scan_a_polygon): Make function public.
+
+	* Makefile.am (libbicpl_la_LDFLAGS): Increment CURRENT and AGE,
+	to account for additional interface.
+
+2003-04-26  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Makefile.am (libbicpl_la_LIBADD): 
+	* tools/Makefile.am (LDADD): Remove $(BIC_LIBS), as it
+	was not defined anywhere.  Ditto $(imageio_LIBS).
+
+	* Makefile.am (libbicpl_la_LDFLAGS): Fix -version-info by
+	incrementing "current" and "age", since interfaces were added in
+	change of 2003-02-10.
+
+	* configure.in: Set version to 1.4.1.
+
+	* Documentation/Makefile.am (tex_sources): Add rules to
+	build bicpl.ps.
+
+	* tools/bicobj2vtk.c (MAX_ATTRIBUTES): Raise to 300.
+
+2003-02-16  Jason Lerch		<jason@bic.mni.mcgill.ca>
+
+	* added mni_bicpl.epm.header
+	* bumped version to 1.4.0-1
+
+2003-02-10  Jason Lerch		<jason@bic.mni.mcgill.ca>
+
+	* added Deform directory, taking sources from
+	/home/bic/david/Source/David/Deform/.
+	* added deform.h and friends to Include directory
+	* bumped version to 1.4.0
+
+2003-01-25  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* configure.in: Set version to 1.3.10.
+
+2003-01-25  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Tagged as bicpl-1_3_9.
+
+	* NEWS: Update.
+
+	* Makefile.am (libbicpl_la_LDFLAGS): Update -version-info to 1:1:0.
+
+	* configure.in: Set version to 1.3.9.
+
+2002-11-27  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Testing/Makefile.am: New.  Not all programs compile.
+
+	* Images/rgb_io_ppm.c (input_rgb_file): Enable this code.
+
+	* tools/bicobj2vtk.c: Handle LINES object type.
+
+2002-09-05  Jason Lerch		<jason@bic.mni.mcgill.ca>
+
+	* updated the NEWS file so that make dist works.
+
+2002-05-15  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Include/*.h: Remove rcsid strings from public headers.
+
+2002-04-26  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* tools/ParseArgv.c:
+	* tools/ParseArgv.h: Remove.  These are now installed with
+	MINC 1.0.
+
+	* autogen.sh: Run libtoolize.
+
+2001-12-21  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* tools/bicobj2vtk.c: New.  Transform polygons into VTK
+	data file.
+
+	* tools/ParseArgv.c:
+	* tools/ParseArgv.h: New.  Temporarily add these until they
+	are available elsewhere (e.g. MINC).
+
+2001-10-19  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* Objects/object_io.c: Document TEXT object file format.
+
+2001-08-11  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* configure.in: Bump version to 1.3.8.
+
+	* INSTALL.bicpl: 
+	* NEWS: Updated.
+
+	* Makefile.am (libbicpl_la_LDFLAGS): Increment current version for
+	library, due to 2001-07-04 change.
+
+	* configure.in: Bump version to 1.3.7.
+	Add AC_PREREQ to force autoconf 2.5x usage.
+
+2001-07-25  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* m4/smr_OPTIONAL_LIB.m4: Define HAVE_libfoo, if library foo is
+	found.
+
+	* configure.in: Accomodate above change.
+
+2001-07-24  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* tools/Makefile.am: Don't build biobj2ply, make_mesh_map.
+
+	* autogen.sh: Improved ordering; stop on error; use "aclocal -I m4".
+
+	* acinclude.m4: Remove.
+
+	* m4/smr_OPTIONAL_LIB.m4:
+	* m4/smr_REQUIRED_LIB.m4:
+	* m4/smr_WITH_BUILD_PATH.m4: New files.  These replace the old
+	smr_CHECK_LIB macro in acinclude.m4.
+
+	* Makefile.am (EXTRA_DIST): Distribute new m4 files.
+
+	* configure.in: Use new macros.
+
+2001-07-20  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	Tagged as release-1_3_6.
+
+2001-07-09  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* acinclude.m4 (AC_HELP_STRING): Disable the too-clever
+	pretty formatter.
+
+2001-07-04  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Volumes/scan_polygons.c (scan_a_polygon): Add extra parameter
+	specifying size of output_vertices array.
+
+	* Include/bicpl/geom_prototypes.h: 
+	* Geometry/clip_3d.c (clip_polygon_against_box): Add extra
+	parameter specifying size of output_points array.  Abort if
+	too many points generated.
+
+2001-06-13  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Include/bicpl/object_prototypes.h:
+	* Objects/quadmesh.c (get_quadmesh_point): 
+	(get_quadmesh_n_objects): 
+	(get_quadmesh_patch_indices): 
+	(get_quadmesh_patch): Declare quadmesh_struct* as const.
+
+2001-06-06  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Objects/quadmesh.c (set_quadmesh_point): Assert that
+	(i,j) is a valid location.
+
+	* Documentation/groups.dox: New.  Define groups for
+	Doxygen documentation here.
+
+	* Documentation/doxygen.config.in: Set QUIET = YES.
+
+	* Objects/quadmesh.c: 
+	* Include/bicpl/obj_defs.h: Add doxygen comment blocks for
+	quadmesh structure and functions.
+
+2001-06-05  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* tools/bicobj2oogl.c: Allow optional second argument to specify
+	output file name.
+
+2001-04-21  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Volumes/render_funcs_include.c: 
+	* Volumes/call_rend_f_include.c: Replace all occurances of "long"
+	or "LONG" by "int" and "INT".  Needed for upcoming MINC release
+	based on netcdf-3.x.
+
+	* Documentation/doxygen.config.in: Tweaked for better C-code
+	documentation.
+
+2001-04-02  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Makefile.am (SUBDIRS): Descend into Documentation subdir.
+	* Documentation/Makefile.am: New.
+
+	* Documentation/doxygen.config.in: New.  Generates config
+	file for use with the doxygen document generator.
+
+	* tools/ascii_binary.c: New.  Copied from
+	~david/Source/Batch_processing.
+
+2001-03-27  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* configure.in: Check for PPM library in -lppm
+	(also requires -lpgm -lpbm to link).
+
+2001-03-02  Steve M. Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* tools/make_mesh_map.c: New.  Takes two BICOBJ files each 
+	containing a mesh, and generates a PLY file where each
+	vertex has two sets of coordinate values.
+
+2001-02-12  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* tools/bicobj2ply.c: New.  Convert BIC ".obj" file to PLY format.
+	See http://www.cc.gatech.edu/projects/large_models/ply.html.
+
+	* tools/ply.c:
+	* tools/ply.h: New.  Routines for reading and writing PLY, from
+	gatech's "plytools" package, obtained at the above website.
+	Changed to declare equal_strings() statically, as it conflicts
+	with function in "volume_io".
+	
+2001-02-09  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* tools: New directory.
+
+	* tools/bicobj2oogl.c: New.  Convert BIC ".obj" file to
+	OOGL format, for viewing with Geomview.
+
+2001-02-06  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Images/rgb_io_ppm.c (input_rgb_file): Added code to read
+	PPM images.  This is completely untested, so left inactive.
+
+2001-02-05  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* README.release: New.  Recipe for creating a new release.
+
+	* Prog_utils/random.c (set_random_seed, get_random): Removed
+	sun-only prototypes; Gilles Beaudoin
+	<gilles.beaudoin@attglobal.net> reports they are no longer valid
+	for solaris 7.
+
+2001-01-28  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* NEWS: Updated.
+
+	* Tagged as release-1_3_3.
+
+	* configure.in: Put BIC libs into variable BIC_LIBS, rather than LIBS.
+	Set VERSION to 1.3.3.
+
+	* Makefile.am (libbicpl_la_LIBADD): Link $(BIC_LIBS) and $(imageio_LIBS).
+
+	* Images/Makefile.am: Do not need $(imageio_LIBS).
+
+2001-01-26  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* Tagged as release-1_3_2.
+	* configure.in: Set VERSION to 1.3.2
+
+	* configure.in: Disable shared libraries by default.
+
+2001-01-23  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Tagged as release-1_3_1.
+	
+	* configure.in: Set VERSION to 1.3.1.
+	* Makefile.am (libbicpl_la_LDFLAGS): Bumped library REVISION number.
+
+	* Makefile.include:
+	* Makefile.objects: Removed.
+
+	* INSTALL.bicpl: New.
+
+	* configure.in: Detect whether netpbm or IRIS image library
+	is installed, used to read or write image files in Images/rgb_io.c;
+	we prefer netpbm over IRIS image.  This is is a change, but previous
+	behaviour can be restored using "--without-ppm".
+
+	* Images/Makefile.am: Changes for above.
+
+	* Images/rgb_io_sgi.c: Code formerly in rgb_io.c.
+	* Images/rgb_io_ppm.c: New.  Do image I/O using netpbm's PPM files.
+	* Images/rgb_io_none.c: New.  Emit error if image I/O function called.
+	* Images/rgb_io.c: New.  Dummy file that includes one of the above
+	options.
+
+2001-01-05  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* configure.in: Add "--with-build-path" flag to set
+	CPPFLAGS and LDFLAGS, rather than generating them
+	from ${prefix}.
+	
+
+2000-12-15  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* acinclude.m4: Update to latest version from smr_macros.
+
+	* Images/rgb_io.c: Include config.h.
+
+2000-10-18  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Volumes/colour_coding.c (define_colour_coding_user_defined):
+	check for monotonic colour scale before checking for non-empty
+	range, otherwise a non-monotonic scale may falsely claim that the
+	position range is empty.
+
+2000-10-07  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Include/bicpl/marching_cube_data.h: moved header from Marching_cubes.
+	* Include/bicpl/splines.h: restored header from Include/Other.
+	These two headers are indeed used by other software packages, notably `Display'.
+
+	* Include/bicpl/Makefile.am (pkginclude_HEADERS): install newly-restored headers.
+
+2000-06-14  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Volumes/render.c (render_volume_to_slice): applied patch from
+	John & Peter.  The patch does not fix the root problem, which
+	relates to the calculation of offsets converting from screen
+	pixels to volume voxels. It simply prevents the offsets from
+	stepping outside the volume. The calculation error appears to only
+	affect the edge pixels, so it should not be too serious (apart
+	from the core dumping).
+
+2000-02-06  Steve ROBBINS  <stever@bic.mni.mcgill.ca>
+
+	* Include/bicpl/.cvsignore: 
+	* README.CVS: new.
+
+2000-02-06  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* autogen.sh: new.
+
+	* Marching_cubes/marching_cube_data.h: moved here from Include.
+	* Marching_cubes/Makefile.am (libbicpl_mc_la_SOURCES): add
+	marching_cube_data.h
+
+	* */*.c: changed all include directives from <foo.h> to <bicpl/foo.h>.
+	* Include/*.h: removed all unused headers; moved all but bicpl.h
+	into Include/bicpl.
+	* configure.in (AC_OUTPUT): add Include/bicpl/Makefile.
+
+	* Include/bicpl/minimization.h (downhill_simplex_struct): fully
+	prototype evaluate_fit_function.
+
+	* version.c: make version string non static.
+
+	* Images/rgb_io.c (error_function): defined by not used,
+	if HAVE_IMAGE_H not defined; moved definition into conditionally
+	compiled code.
+
+	* Marching_cubes/marching_tetra.c (translate_to_edge_index): 
+	* Marching_cubes/isosurfaces.c (get_isosurface_point): 
+	* Volumes/call_rend_f_include.c: 
+	* Volumes/mapping.c (clip_points): 
+	* Volumes/interpolate.c (interpolate_volume_to_slice): 
+	* Volumes/dilate.c (dilate_voxels_3d): 
+	* Volumes/create_slice.c (create_weighted_volume_slices): 
+	* Prog_utils/arguments.c (get_real_argument): 
+	* Objects/polygons.c (add_point_to_polygon, find_edge_index): 
+	* Objects/poly_neighs.c (create_polygon_neighbours): 
+	* Numerical/numerical.c (get_roots_of_cubic): 
+	* Geometry/polygon_sphere.c (get_tessellation_with_n_points): 
+	* Geometry/plane_polygon_intersect.c (intersect_planes_with_polygons, 
+	intersect_planes_with_quadmesh): 
+	* Geometry/clip_3d.c (clip_polygon_against_plane, 
+	split_polygon_with_plane): 
+	* Data_structures/build_bintree.c (split_node): small changes to
+	placate "gcc -Wall", e.g.  add parentheses around && within ||,
+	remove unused variables, add braces to avoid ambiguous else.
+
+	* Volumes/scan_objects.c (scan_object_to_volume): 
+	* Volumes/col_code_points.c (colour_code_object): several object types
+	not handled in switch; add default case that prints error message.
+
+	* Objects/object_io.c (io_object_type): object type N_OBJECT_TYPES
+	is not handled in switch; return error.
+
+Thu Jan 20 01:36:43 2000  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Include/globals.h: fix includes.
+
+	* Include/Makefile.am (pkginclude_HEADERS): add globals.h,
+
+Wed Jan 19 23:31:36 2000  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* *.c: include <volume_io/foo.h> for internal volume_io headers.
+
+Wed Jan 19 21:52:21 2000  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* TODO: new.
+
+	* configure.in: check for SGI's iris image library.
+
+	* Images/Makefile.am (AM_CPPFLAGS, _LIBADD): include flags for
+	finding the iris image library and headers.
+
+	* Images/rgb_io.c: do not test OS-dependent symbols (__sgi) for
+	the image library; now the code is controlled by HAVE_IMAGE_H
+	symbol.
+
+	* Include/Makefile.am (all-local): test -l doesn't exist on linux.
+
+Wed Jan 19 18:05:49 2000  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Include/Makefile.am (all-local): test -e doesn't exist on IRIX5.
+
+	* Volumes/Makefile.am (noinst_HEADERS): 
+	* Numerical/Makefile.am (noinst_HEADERS): include `header' files
+	that are named ending in '.c', and hence can't be put into a
+	_SOURCES variable, lest they get compiled.
+
+	* */Makefile.am: put -I$(top_srcdir)/Include into AM_CPPFLAGS
+	rather than AM_CFLAGS, since it gets put on the command line
+	before CPPFLAGS, and the latter might have -I flags that point to
+	*installed* versions of the headers.
+
+	* Include/Makefile.am (pkginclude_HEADERS): new.  List all the
+	headers that get installed under include/bicpl.
+
+	* Include/Makefile.am (all-local): make symlink bicpl -> ., so
+	that including <bicpl/foo.h> picks up foo.h in the source tree,
+	not the previously-installed copy.
+
+	* Makefile.am (SUBDIRS): put Include first in the list, since the
+	Include/bicpl link needs to be done first.
+
+	* AUTHORS: put in Dave's name and mine.
+
+Wed Jan 19 16:32:48 2000  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* Include/Makefile.am (pkginclude_HEADERS): install all headers
+	included by including <bicpl.h>.
+
+	* Include/*.h: modify installed headers to include <bicpl/foo.h>
+	rather than just <foo.h>; this avoids problems with common header
+	names, such as stack.h and the like.  Also, some are incestuously
+	including internal volume_io headers, which get modified to
+	include <volume_io/foo.h>.
+
+	* acinclude.m4 (AC_PRETTY_HELP_STRING): remove the occurances of
+	"if ! command" and "while ! command", which isn't supported by
+	IRIX 5.3 /bin/sh.
+
+Wed Jan 19 02:40:27 2000  Steve Robbins  <steve@nyongwa.montreal.qc.ca>
+
+	* configure.in: volume_io needs -lm on IRIX.
+
+	* configure.in: search -lnetcdf for `ncopen' rather than
+	`nc_open', as the latter does not appear in NetCDF 2.3.
+
+	* configure.in: remove AC_PROG_RANLIB; rendered obsolete by
+	AM_PROG_LIBTOOL.
+
+	* */.cvsignore
+	* AUTHORS
+	* ChangeLog
+	* */Makefile.am
+	* NEWS
+	* README
+	* acinclude.m4
+	* configure.in: new.  Set up for automake, autoconf, and libtool.
+
+	* version.c: new.  It seems that libtool requires at least one
+	real object file in a library to be happy.

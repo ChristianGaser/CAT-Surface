@@ -3,8 +3,8 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib
-AM_CPPFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib
+AM_CFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+AM_CPPFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
 
 lib_LTLIBRARIES = libCAT.la
 
@@ -51,6 +51,148 @@ dartel_SRC = \
     dartel/diffeosphere.c \
     dartel/diffeopoly.c \
     dartel/optimizersphere.c
+
+bicpl_SRC = \
+    3rdparty/bicpl-surface/ParseArgv.c  \
+    3rdparty/bicpl-surface/Data_structures/bintree.c  \
+    3rdparty/bicpl-surface/Data_structures/bitlist.c  \
+    3rdparty/bicpl-surface/Data_structures/build_bintree.c  \
+    3rdparty/bicpl-surface/Data_structures/hash2_table.c  \
+    3rdparty/bicpl-surface/Data_structures/hash_table.c  \
+    3rdparty/bicpl-surface/Data_structures/object_bintrees.c  \
+    3rdparty/bicpl-surface/Data_structures/point_bintree.c  \
+    3rdparty/bicpl-surface/Data_structures/ray_bintree.c  \
+    3rdparty/bicpl-surface/Data_structures/skiplist.c  \
+    3rdparty/bicpl-surface/Geometry/approx_sqrt.c  \
+    3rdparty/bicpl-surface/Geometry/clip_3d.c  \
+    3rdparty/bicpl-surface/Geometry/closest_point.c  \
+    3rdparty/bicpl-surface/Geometry/curvature.c  \
+    3rdparty/bicpl-surface/Geometry/flatten.c  \
+    3rdparty/bicpl-surface/Geometry/geodesic_distance.c  \
+    3rdparty/bicpl-surface/Geometry/geometry.c  \
+    3rdparty/bicpl-surface/Geometry/intersect.c  \
+    3rdparty/bicpl-surface/Geometry/line_circle.c  \
+    3rdparty/bicpl-surface/Geometry/map_polygons.c  \
+    3rdparty/bicpl-surface/Geometry/path_surface.c  \
+    3rdparty/bicpl-surface/Geometry/plane_polygon_intersect.c  \
+    3rdparty/bicpl-surface/Geometry/platonics.c  \
+    3rdparty/bicpl-surface/Geometry/points.c  \
+    3rdparty/bicpl-surface/Geometry/poly_dist.c  \
+    3rdparty/bicpl-surface/Geometry/polygon_sphere.c  \
+    3rdparty/bicpl-surface/Geometry/ray_intersect.c  \
+    3rdparty/bicpl-surface/Geometry/segment_polygons.c  \
+    3rdparty/bicpl-surface/Geometry/smooth_curvature.c  \
+    3rdparty/bicpl-surface/Geometry/smooth_lines.c  \
+    3rdparty/bicpl-surface/Geometry/smooth_polygons.c  \
+    3rdparty/bicpl-surface/Geometry/solve_plane.c  \
+    3rdparty/bicpl-surface/Geometry/subdivide_lines.c  \
+    3rdparty/bicpl-surface/Geometry/subdivide_polygons.c  \
+    3rdparty/bicpl-surface/Geometry/surface_area.c  \
+    3rdparty/bicpl-surface/Geometry/tetrahedrons.c  \
+    3rdparty/bicpl-surface/Geometry/tubes.c  \
+    3rdparty/bicpl-surface/Numerical/amoeba.c  \
+    3rdparty/bicpl-surface/Numerical/gaussian.c  \
+    3rdparty/bicpl-surface/Numerical/gradient_minimize.c  \
+    3rdparty/bicpl-surface/Numerical/histogram.c  \
+    3rdparty/bicpl-surface/Numerical/least_squares.c  \
+    3rdparty/bicpl-surface/Numerical/matrix_svd.c  \
+    3rdparty/bicpl-surface/Numerical/minimize_lsq.c  \
+    3rdparty/bicpl-surface/Numerical/minimize_lsq_float.c  \
+    3rdparty/bicpl-surface/Numerical/minimize_lsq_include.c  \
+    3rdparty/bicpl-surface/Numerical/numerical.c  \
+    3rdparty/bicpl-surface/Numerical/quadratic.c  \
+    3rdparty/bicpl-surface/Numerical/real_quadratic.c  \
+    3rdparty/bicpl-surface/Numerical/statistics.c  \
+    3rdparty/bicpl-surface/Numerical/t_stat.c  \
+    3rdparty/bicpl-surface/Objects/coalesce.c  \
+    3rdparty/bicpl-surface/Objects/colours.c  \
+    3rdparty/bicpl-surface/Objects/lines.c  \
+    3rdparty/bicpl-surface/Objects/markers.c  \
+    3rdparty/bicpl-surface/Objects/models.c  \
+    3rdparty/bicpl-surface/Objects/object_io.c  \
+    3rdparty/bicpl-surface/Objects/objects.c  \
+    3rdparty/bicpl-surface/Objects/pixels.c  \
+    3rdparty/bicpl-surface/Objects/poly_neighs.c  \
+    3rdparty/bicpl-surface/Objects/polygons.c  \
+    3rdparty/bicpl-surface/Objects/quadmesh.c  \
+    3rdparty/bicpl-surface/Objects/rgb_lookup.c  \
+    3rdparty/bicpl-surface/Objects/tag_objects.c  \
+    3rdparty/bicpl-surface/Objects/text.c  \
+    3rdparty/bicpl-surface/Prog_utils/arguments.c  \
+    3rdparty/bicpl-surface/Prog_utils/globals.c  \
+    3rdparty/bicpl-surface/Prog_utils/time.c  \
+    3rdparty/bicpl-surface/Transforms/compute_tps.c  \
+    3rdparty/bicpl-surface/Transforms/compute_xfm.c  \
+    3rdparty/bicpl-surface/Transforms/matrix_basics.c  \
+    3rdparty/bicpl-surface/Transforms/optimize.c  \
+    3rdparty/bicpl-surface/Transforms/procrustes.c  \
+    3rdparty/bicpl-surface/Transforms/rotmat_to_ang.c  \
+    3rdparty/bicpl-surface/Transforms/safe_compute_xfm.c  \
+    3rdparty/bicpl-surface/Transforms/transform_io.c  \
+    3rdparty/bicpl-surface/Transforms/transforms.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/F77_aloc.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/d_sign.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dbdsqr.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dcopy.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgebd2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgebrd.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgelq2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgelqf.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgemm.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgemv.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgeqr2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgeqrf.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dger.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dgesvd.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlabrd.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlacpy.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlamch.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlange.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlapy2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlarf.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlarfb.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlarfg.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlarft.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlartg.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlas2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlascl.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlaset.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasq1.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasq2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasq3.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasq4.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasq5.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasq6.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasr.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasrt.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlassq.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dlasv2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dnrm2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorg2r.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorgbr.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorgl2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorglq.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorgqr.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorm2r.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dormbr.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dorml2.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dormlq.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dormqr.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/drot.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dscal.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dswap.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dtrmm.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/dtrmv.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/exit_.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/ieeeck.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/ilaenv.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/lsame.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/pow_dd.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/pow_di.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/s_cat.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/s_cmp.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/s_copy.c  \
+    3rdparty/bicpl-surface/bicpl_clapack/xerbla.c
     
 noinst_HEADERS = \
     Include/CAT_Map.h \
@@ -143,10 +285,10 @@ libCAT_la_SOURCES = \
     $(nifti_SRC) \
     $(gifti_SRC) \
     $(dartel_SRC) \
+    $(bicpl_SRC) \
     $(s2kit10_SRC)
 
 m4_files = m4/mni_REQUIRE_LIB.m4 \
-    m4/mni_REQUIRE_MNILIBS.m4 \
     m4/mni_REQUIRE_OPENINVENTOR.m4 \
     m4/mni_cxx_have_koenig_lookup.m4 \
     m4/smr_CGAL_MAKEFILE.m4 \

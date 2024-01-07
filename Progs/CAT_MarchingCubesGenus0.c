@@ -521,7 +521,7 @@ main(
     */
     if (fwhm > 0.0) {
         smooth_heatkernel(polygons, NULL, fwhm);
-        //correct_mesh_folding(polygons, NULL, volume, min_threshold);
+        correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
 
     (void) output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);

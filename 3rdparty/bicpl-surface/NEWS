@@ -1,0 +1,88 @@
+New in Release 1.4.6
+
+* Fixed bug in viewport clipping in render.c (offset out of range would
+  cause seg fault in register)
+* added obj2brainvisa for conversion from .obj to brainvisa
+* added rgb option to colour_object for colouring of DTI tracks in .obj
+* modified Volumes/rend*.c to use size_t as type for loop index
+  to allow reading large volumes with more than 2^31 voxels
+  (used by register and Display)
+
+New in Release 1.4.5
+
+* added objconcat
+
+New in Release 1.4.4
+
+* new cool colour maps
+* moved the surface utilities from conglomerate to bicpl/tools
+
+New in Release 1.4.3
+
+* add check for sys/times.h for autoconf
+* include all m4 files for make dist
+
+New in Release 1.4.2
+
+* Minor bug fixes
+* Windows build support
+* Fix hang in CLAPACK code
+* support for netpbm library over ppm for OSX
+
+New in Release 1.4.1
+
+* Raster I/O library must be chosen at build time; see INSTALL.bicpl.
+
+New in Release 1.4.0-1
+
+* added epm header for binary packaging purposes.
+
+New in Release 1.4.0
+
+* added code from the former libdavid for object-volume intersections.
+
+New in Release 1.3.9
+
+* Fixes for build.
+
+New in Release 1.3.8
+
+* New tool: bicobj2vtk.
+* Requires MINC 1.0 to build.
+
+New in Release 1.3.7
+
+* Improved build procedure.
+
+New in Release 1.3.6
+
+* Interface change:
+  clip_polygon_against_box: parameter specifying size of output_points array 
+    added.
+    
+* New tool: ascii_binary.
+* New optional second argument to bicobj2oogl.
+* Requires MINC 0.8 to compile.
+
+New in Release 1.3.5
+
+* Utilities for converting polygon meshes to other formats:
+  bicobj2oogl, bicobj2ply.
+* Fix configure script to search for proper PPM library.
+
+New in Release 1.3.4
+
+* Bugfixes only, no user-visible changes.
+
+New in Release 1.3.3
+
+* Bugfixes, no user-visible changes.
+
+New in Release 1.3.2
+
+* Image I/O can be done using either Portable PixMap (PPM) files
+  or IRIS image library files, depending on configure-time
+  options.
+
+* First public release independent of Display and Register packages.
+

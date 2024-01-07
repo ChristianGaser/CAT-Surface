@@ -1,0 +1,25 @@
+* don't clobber CPPFLAGS, LIBS, and the like
+
+* replace drand48() calls by rand()
+  - former does not exist on mac osx
+
+
+* PR from Christina Rossmanith <cr@neuro.ma.uni-heidelberg.de>
+
+    I'm trying to compile bicpl as a prerequisite for
+    register+Display. I've installed the most recent version of netpbm
+    which is 10.8. Since the release of version 10 there is no libppm
+    but libnetpbm instead. Thus configure sh ould check for either the
+    three libs or for the new lib.  I've no experience with configure
+    stuff so I just report the problem without supplying a general
+    solution. I've modified my configure.
+
+
+* build with SGI image library should be an option
+  - MNI's /usr/local should be built with SGI image lib
+
+* PPM code should check that it really gets a valid PPM
+  file on read
+
+
+

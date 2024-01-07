@@ -1,0 +1,257 @@
+# Windows Makefile for BICPL
+
+INCLUDES = -I. -I.\Include -I$(NETCDF_ROOT) -I$(MINC_ROOT)/libsrc -I$(MINC_ROOT)/volume_io/Include
+
+DEFINES = -DDLL_NETCDF -D_POSIX_ -DHAVE_CONFIG_H -D_USE_MATH_DEFINES
+NETCDF_LIB = $(NETCDF_ROOT)/netcdf.lib
+MINC_LIB = $(MINC_ROOT)/minc.lib
+VOLUMEIO_LIB = $(MINC_ROOT)/volume_io.lib
+
+CFLAGS = $(INCLUDES) $(DEFINES)
+
+.SUFFIXES: .obj
+
+BICPL_HDRS = \
+	Include\bicpl.h \
+	Include\bicpl\amoeba.h \
+	Include\bicpl\bintree.h \
+	Include\bicpl\bitlist.h \
+	Include\bicpl\colours.h \
+	Include\bicpl\colour_coding.h \
+	Include\bicpl\compute_xfm.h \
+	Include\bicpl\data_structures.h \
+	Include\bicpl\deform.h \
+	Include\bicpl\deform_prototypes.h \
+	Include\bicpl\ds_prototypes.h \
+	Include\bicpl\geom.h \
+	Include\bicpl\geom_prototypes.h \
+	Include\bicpl\globals.h \
+	Include\bicpl\global_lookup.h \
+	Include\bicpl\hash.h \
+	Include\bicpl\histogram.h \
+	Include\bicpl\images.h \
+	Include\bicpl\image_prototypes.h \
+	Include\bicpl\marching.h \
+	Include\bicpl\marching_cubes.h \
+	Include\bicpl\marching_cube_data.h \
+	Include\bicpl\march_prototypes.h \
+	Include\bicpl\minimization.h \
+	Include\bicpl\numerical.h \
+	Include\bicpl\numeric_prototypes.h \
+	Include\bicpl\objects.h \
+	Include\bicpl\object_prototypes.h \
+	Include\bicpl\obj_defs.h \
+	Include\bicpl\priority_queue.h \
+	Include\bicpl\prog_prototypes.h \
+	Include\bicpl\prog_utils.h \
+	Include\bicpl\queue.h \
+	Include\bicpl\skiplist.h \
+	Include\bicpl\splines.h \
+	Include\bicpl\stack.h \
+	Include\bicpl\statistics.h \
+	Include\bicpl\trans.h \
+	Include\bicpl\trans_prototypes.h \
+	Include\bicpl\vols.h \
+	Include\bicpl\vol_prototypes.h
+
+BICPL_OBJS = \
+	bicpl_clapack\dbdsqr.obj \
+	bicpl_clapack\dcopy.obj \
+	bicpl_clapack\dgebd2.obj \
+	bicpl_clapack\dgebrd.obj \
+	bicpl_clapack\dgelq2.obj \
+	bicpl_clapack\dgelqf.obj \
+	bicpl_clapack\dgemm.obj \
+	bicpl_clapack\dgemv.obj \
+	bicpl_clapack\dgeqr2.obj \
+	bicpl_clapack\dgeqrf.obj \
+	bicpl_clapack\dger.obj \
+	bicpl_clapack\dgesvd.obj \
+	bicpl_clapack\dlabrd.obj \
+	bicpl_clapack\dlacpy.obj \
+	bicpl_clapack\dlamch.obj \
+	bicpl_clapack\dlange.obj \
+	bicpl_clapack\dlapy2.obj \
+	bicpl_clapack\dlarf.obj \
+	bicpl_clapack\dlarfb.obj \
+	bicpl_clapack\dlarfg.obj \
+	bicpl_clapack\dlarft.obj \
+	bicpl_clapack\dlartg.obj \
+	bicpl_clapack\dlas2.obj \
+	bicpl_clapack\dlascl.obj \
+	bicpl_clapack\dlaset.obj \
+	bicpl_clapack\dlasq1.obj \
+	bicpl_clapack\dlasq2.obj \
+	bicpl_clapack\dlasq3.obj \
+	bicpl_clapack\dlasq4.obj \
+	bicpl_clapack\dlasq5.obj \
+	bicpl_clapack\dlasq6.obj \
+	bicpl_clapack\dlasr.obj \
+	bicpl_clapack\dlasrt.obj \
+	bicpl_clapack\dlassq.obj \
+	bicpl_clapack\dlasv2.obj \
+	bicpl_clapack\dnrm2.obj \
+	bicpl_clapack\dorg2r.obj \
+	bicpl_clapack\dorgbr.obj \
+	bicpl_clapack\dorgl2.obj \
+	bicpl_clapack\dorglq.obj \
+	bicpl_clapack\dorgqr.obj \
+	bicpl_clapack\dorm2r.obj \
+	bicpl_clapack\dormbr.obj \
+	bicpl_clapack\dorml2.obj \
+	bicpl_clapack\dormlq.obj \
+	bicpl_clapack\dormqr.obj \
+	bicpl_clapack\drot.obj \
+	bicpl_clapack\dscal.obj \
+	bicpl_clapack\dswap.obj \
+	bicpl_clapack\dtrmm.obj \
+	bicpl_clapack\dtrmv.obj \
+	bicpl_clapack\d_sign.obj \
+	bicpl_clapack\exit_.obj \
+	bicpl_clapack\F77_aloc.obj \
+	bicpl_clapack\ieeeck.obj \
+	bicpl_clapack\ilaenv.obj \
+	bicpl_clapack\lsame.obj \
+	bicpl_clapack\pow_dd.obj \
+	bicpl_clapack\pow_di.obj \
+	bicpl_clapack\s_cat.obj \
+	bicpl_clapack\s_cmp.obj \
+	bicpl_clapack\s_copy.obj \
+	bicpl_clapack\xerbla.obj \
+	Data_structures\bintree.obj \
+	Data_structures\bitlist.obj \
+	Data_structures\build_bintree.obj \
+	Data_structures\hash2_table.obj \
+	Data_structures\hash_table.obj \
+	Data_structures\object_bintrees.obj \
+	Data_structures\point_bintree.obj \
+	Data_structures\ray_bintree.obj \
+	Data_structures\skiplist.obj \
+	Deform\deform_line.obj \
+	Deform\find_in_direction.obj \
+	Deform\intersect_voxel.obj \
+	Deform\models.obj \
+	Deform\model_objects.obj \
+	Deform\search_utils.obj \
+	Geometry\approx_sqrt.obj \
+	Geometry\clip_3d.obj \
+	Geometry\closest_point.obj \
+	Geometry\curvature.obj \
+	Geometry\flatten.obj \
+	Geometry\geodesic_distance.obj \
+	Geometry\geometry.obj \
+	Geometry\intersect.obj \
+	Geometry\line_circle.obj \
+	Geometry\map_polygons.obj \
+	Geometry\path_surface.obj \
+	Geometry\plane_polygon_intersect.obj \
+	Geometry\platonics.obj \
+	Geometry\points.obj \
+	Geometry\polygon_sphere.obj \
+	Geometry\poly_dist.obj \
+	Geometry\ray_intersect.obj \
+	Geometry\segment_polygons.obj \
+	Geometry\smooth_curvature.obj \
+	Geometry\smooth_lines.obj \
+	Geometry\smooth_polygons.obj \
+	Geometry\solve_plane.obj \
+	Geometry\subdivide_lines.obj \
+	Geometry\subdivide_polygons.obj \
+	Geometry\surface_area.obj \
+	Geometry\tetrahedrons.obj \
+	Geometry\tubes.obj \
+	Geometry\volume_slice.obj \
+	Images\crop_image.obj \
+	Images\rgb_io.obj \
+	Marching_cubes\isosurfaces.obj \
+	Marching_cubes\marching_cubes.obj \
+	Marching_cubes\marching_no_holes.obj \
+	Marching_cubes\marching_tetra.obj \
+	Numerical\amoeba.obj \
+	Numerical\gaussian.obj \
+	Numerical\gradient_minimize.obj \
+	Numerical\histogram.obj \
+	Numerical\least_squares.obj \
+	Numerical\matrix_svd.obj \
+	Numerical\minimize_lsq.obj \
+	Numerical\minimize_lsq_float.obj \
+	Numerical\numerical.obj \
+	Numerical\quadratic.obj \
+	Numerical\real_quadratic.obj \
+	Numerical\statistics.obj \
+	Numerical\t_stat.obj \
+	Objects\coalesce.obj \
+	Objects\colours.obj \
+	Objects\graphics_io.obj \
+	Objects\landmark_file.obj \
+	Objects\lines.obj \
+	Objects\markers.obj \
+	Objects\models.obj \
+	Objects\objects.obj \
+	Objects\object_io.obj \
+	Objects\pixels.obj \
+	Objects\polygons.obj \
+	Objects\poly_neighs.obj \
+	Objects\quadmesh.obj \
+	Objects\rgb_lookup.obj \
+	Objects\tag_objects.obj \
+	Objects\text.obj \
+	Objects\texture_values.obj \
+	Prog_utils\arguments.obj \
+	Prog_utils\globals.obj \
+	Prog_utils\random.obj \
+	Prog_utils\time.obj \
+	Transforms\compute_tps.obj \
+	Transforms\compute_xfm.obj \
+	Transforms\matrix_basics.obj \
+	Transforms\optimize.obj \
+	Transforms\procrustes.obj \
+	Transforms\rotmat_to_ang.obj \
+	Transforms\safe_compute_xfm.obj \
+	Transforms\transforms.obj \
+	Transforms\transform_io.obj \
+	Volumes\box_filter.obj \
+	Volumes\change_labels.obj \
+	Volumes\colour_coding.obj \
+	Volumes\col_code_io.obj \
+	Volumes\col_code_points.obj \
+	Volumes\create_slice.obj \
+	Volumes\crop_volume.obj \
+	Volumes\dilate.obj \
+	Volumes\fill_volume.obj \
+	Volumes\filters.obj \
+	Volumes\input.obj \
+	Volumes\interpolate.obj \
+	Volumes\labels.obj \
+	Volumes\mapping.obj \
+	Volumes\output_free.obj \
+	Volumes\render.obj \
+	Volumes\rend_f.obj \
+	Volumes\resample.obj \
+	Volumes\scan_lines.obj \
+	Volumes\scan_markers.obj \
+	Volumes\scan_objects.obj \
+	Volumes\scan_polygons.obj \
+	Volumes\smooth.obj \
+	Volumes\talairach.obj
+
+.c.obj:
+	cl /nologo $(CFLAGS) -c -Fo$*.obj $<
+
+all: bicpl.dll
+
+$(BICPL_OBJS): config.h $(BICPL_HDRS)
+
+config.h: config.h.msvc-win32
+	copy config.h.msvc-win32 config.h
+
+bicpl.dll: $(BICPL_OBJS)
+	link /dll /nologo /out:bicpl.dll $(BICPL_OBJS) $(VOLUMEIO_LIB) $(MINC_LIB) $(NETCDF_LIB)
+
+clean:
+	-del /s *.obj
+	-del *.exp
+	-del *.lib
+	-del *.dll
+	-del *.exe
+	
