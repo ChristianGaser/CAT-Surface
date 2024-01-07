@@ -111,7 +111,7 @@ Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file\n\
        - Compensation degree is auto-calculated based on deviation\n\
          from the defined isovalue.\n\n";
 
-    print_error(usage_str, executable);
+    fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
 
 /* convert subscripts to linear index */
@@ -507,7 +507,7 @@ main(
     free(input_uint8);
     free(input_float);
     
-    if (n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
+    if (n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
     fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
     /* Mesh Correction in Folded Areas

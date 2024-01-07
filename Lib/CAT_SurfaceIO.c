@@ -1488,9 +1488,9 @@ input_values_any_format(char *file, int *n_values, double **values)
         Status status;
         FILE   *fp;
 
-        if (filename_extension_matches(file,"txt"))
+        if (strcmp(nifti_find_file_extension(file),".txt") == 0)
                 status = input_txt_values(file, n_values, values);
-        else if (filename_extension_matches(file,"gii"))
+        else if (strcmp(nifti_find_file_extension(file),".gii") == 0)
                 status = input_gifti_curv(file, n_values, values);
         else
                 status = input_freesurfer_curv(file, n_values, values);
@@ -1520,7 +1520,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
                         buffer[i] = (double) r[i];
         }
 
-        if (filename_extension_matches(file, "txt")) {
+        if (strcmp(nifti_find_file_extension(file),".txt") == 0) {
                 if ((fp = fopen(file, "w")) == 0) {
                         fprintf(stderr, "write_txt: Couldn't open file %s.\n", file);
                         return(-1);
@@ -1532,7 +1532,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
                 }
                         
                 fclose(fp);
-        } else if (filename_extension_matches(file, "gii"))
+        } else if (strcmp(nifti_find_file_extension(file),".gii") == 0)
                 status = output_gifti_curv(file, n_values, buffer);
         else
                 status = output_freesurfer_curv(file, n_values, buffer);
@@ -1548,19 +1548,19 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
 {
         Status status;
 
-        if (filename_extension_matches(file, "obj")) {
+        if (strcmp(nifti_find_file_extension(file),".obj") == 0) {
                 status = input_graphics_file(file, format,
                                              n_objects, object_list);
-        } else if (filename_extension_matches(file, "off")) {
+        } else if (strcmp(nifti_find_file_extension(file),".off") == 0) {
                 status = input_oogl(file, format,
                                     n_objects, object_list);
-        } else if (filename_extension_matches(file, "gii")) {
+        } else if (strcmp(nifti_find_file_extension(file),".gii") == 0) {
                 status = input_gifti(file, format,
                                     n_objects, object_list);
-        } else if (filename_extension_matches(file, "dfs")) {
+        } else if (strcmp(nifti_find_file_extension(file),".dfs") == 0) {
                 status = input_dfs(file, format,
                                    n_objects, object_list);
-        } else if (filename_extension_matches(file, "dx")) {
+        } else if (strcmp(nifti_find_file_extension(file),".dx") == 0) {
                 status = input_dx(file, format,
                                   n_objects, object_list);
         } else {
@@ -1577,13 +1577,13 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
 {
         Status     status;
 
-        if (filename_extension_matches(file, "obj")) {
+        if (strcmp(nifti_find_file_extension(file),".obj") == 0) {
                 status = output_graphics_file(file, format,
                                 n_objects, object_list);
-        } else if (filename_extension_matches(file, "off")) {
+        } else if (strcmp(nifti_find_file_extension(file),".off") == 0) {
                 status = output_oogl(file, format,
                                 n_objects, object_list);
-        } else if (filename_extension_matches(file, "gii")) {
+        } else if (strcmp(nifti_find_file_extension(file),".gii") == 0) {
                 status = output_gifti(file, format,
                                 n_objects, object_list, values);
         } else {

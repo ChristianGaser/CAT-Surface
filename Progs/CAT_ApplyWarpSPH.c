@@ -70,7 +70,7 @@ main(int argc, char *argv[])
                 printf("topology is not optimal.\n");
                 printf("Please try 20*(4*x) triangles (e.g. 81920).\n");
         }
-	
+    
         if (input_graphics_any_format(surface_file, &format,
                                       &n_objects, &objects) != OK ||
             n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
@@ -98,7 +98,7 @@ main(int argc, char *argv[])
 
         if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
                 fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
-    	        exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
         }
 
         /*
@@ -139,7 +139,7 @@ main(int argc, char *argv[])
                 poly = find_closest_polygon_point(&poly_dest_sphere->points[i],
                                                   poly_src_sphere,
                                                   &point_on_src_sphere);
-		
+        
                 n_points = get_polygon_points(poly_src_sphere, poly,
                                               poly_points_src);
                 get_polygon_interpolation_weights(&point_on_src_sphere,
@@ -147,7 +147,7 @@ main(int argc, char *argv[])
                                                   weights);
 
                 if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                        handle_internal_error("map_point_between_polygons");
+                        fprintf(stderr,"map_point_between_polygons\n");
 
                 output_values[i] = 0.0;
 
@@ -161,7 +161,7 @@ main(int argc, char *argv[])
                 poly = find_closest_polygon_point(&poly_dest_sphere->points[i],
                                                   polygons,
                                                   &point_on_src_sphere);
-		
+        
                 n_points = get_polygon_points(polygons, poly,
                                               poly_points_src);
                 get_polygon_interpolation_weights(&point_on_src_sphere,
@@ -169,7 +169,7 @@ main(int argc, char *argv[])
                                                   weights);
 
                 if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                        handle_internal_error("map_point_between_polygons");
+                        fprintf(stderr,"map_point_between_polygons\n");
 
                 output_values2[i] = 0.0;
 
@@ -177,7 +177,7 @@ main(int argc, char *argv[])
                         output_values2[i] += weights[k] * output_values[polygons->indices[POINT_INDEX(polygons->end_indices,poly,k)]];
                 }
         }
-		    
+            
         output_values_any_format(output_values_file, polygons->n_points,
                                  output_values2, TYPE_DOUBLE);
         FREE(input_values);

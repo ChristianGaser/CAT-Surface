@@ -117,7 +117,7 @@ main(int argc, char *argv[])
                 input_values  = (double *) malloc(sizeof(double) * polygons_sphere->n_points);
                 output_values = (double *) malloc(sizeof(double) * target_sphere->n_points);
 
-                if (filename_extension_matches(input_values_file, "annot")) {
+                if (strcmp(nifti_find_file_extension(input_values_file),".annot") == 0) {
                         /* this is not yet working under Windows */
                         fprintf(stderr, "Resampling of annotation files not yet working.\n");
                         exit(EXIT_FAILURE);
@@ -145,13 +145,13 @@ main(int argc, char *argv[])
         }
     
         if (values_specified) {
-                if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation)) {
+                if ((strcmp(nifti_find_file_extension(output_values_file),".annot") == 0) || (label_interpolation)) {
                         out_annot  = (int *) malloc(sizeof(int) * target_sphere->n_points);
                         for (i = 0 ; i < target_sphere->n_points ; i++) 
                                 out_annot[i] = (int)round(output_values[i]);
                 }
                 
-                if (filename_extension_matches(output_values_file, "annot")) {
+                if (strcmp(nifti_find_file_extension(output_values_file),".annot") == 0) {
                         write_annotation_table(output_values_file, target_sphere->n_points, out_annot, n_table, atable);
                 } else {
                         if (label_interpolation)
@@ -164,7 +164,7 @@ main(int argc, char *argv[])
                                          output_values, TYPE_DOUBLE);
                 }
                         
-                if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation))
+                if ((strcmp(nifti_find_file_extension(output_values_file),".annot") == 0) || (label_interpolation))
                         FREE(out_annot);
                 FREE(input_values);
                 FREE(output_values);

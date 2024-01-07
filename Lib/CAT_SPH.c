@@ -467,7 +467,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
 
                         if (get_polygon_points(polygons, poly,
                                                poly_points) !=  size)
-                                handle_internal_error("map_point_between_polygons");
+                                fprintf(stderr,"map_point_between_polygons\n");
                 
                         fill_Point(new_point, 0.0, 0.0, 0.0);
                         for (i = 0; i < size; i++) {
@@ -563,7 +563,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
 
                         if (get_polygon_points(polygons, poly,
                                                poly_points) !=  size)
-                                handle_internal_error("map_point_between_polygons");
+                                fprintf(stderr,"map_point_between_polygons\n");
                 
                         fill_Point(new_point, 0.0, 0.0, 0.0);
                         for (i = 0; i < size; i++) {

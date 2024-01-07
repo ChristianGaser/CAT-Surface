@@ -42,15 +42,15 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (open_file(output_surface_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK)
-                exit(EXIT_FAILURE);
+        fp = fopen(output_surface_file, "w");
+        if (!fp) exit(EXIT_FAILURE);
 
         for (i = 0; i < n_values; i++) {
-                if (output_real(fp, values[i]) != OK ||
-                    output_newline(fp) != OK)
+                if ((fprintf(fp, " %g", values[i] ) <= 0) ||
+                    (fprintf(fp, "\n" ) <= 0))
                         break;
         }
 
-        close_file(fp);    
+        fclose(fp);    
         return(EXIT_SUCCESS);
 }

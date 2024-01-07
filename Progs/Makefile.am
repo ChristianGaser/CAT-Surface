@@ -23,11 +23,9 @@ bin_PROGRAMS = \
     CAT_DumpCurv \
     CAT_ApplyWarpSurf \
     CAT_ApplyWarpValues \
-    CAT_Color2Surf \
     CAT_DumpSurfArea \
     CAT_DumpSurfaceRatio \
     CAT_BlurSurfHK \
-    CAT_GlmEstimate \
     CAT_PlotValuesAtPoint \
     CAT_PlotValuesAtMaximum \
     CAT_FreesurferCurv2Txt \
@@ -56,10 +54,8 @@ bin_PROGRAMS = \
     CAT_SelfIntersect \
     CAT_MarkDefects \
     CAT_Artifacts \
-    CAT_FractalSurface \
     CAT_FractalDimension \
     CAT_RefineMesh \
-    CAT_GIPhantom \
     CAT_DumpConvexity \
     CAT_MarchingCubesGenus0 \
     CAT_AddValuesToSurf \

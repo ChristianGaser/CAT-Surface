@@ -40,7 +40,7 @@ main(int argc, char *argv[])
 
         if (input_values_any_format(values_file, &n_values, &values) != OK) {
                 fprintf(stderr, "Cannot read values in %s.\n", values_file);
-    	        exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
         }
 
         n_files = argc - 3;
@@ -57,8 +57,8 @@ main(int argc, char *argv[])
         fprintf(stderr, "Maximum value of %3.2f found at line %d.\n",
                 max_value, max_index);
     
-        if (open_file(output_surface_file, WRITE_FILE, ASCII_FORMAT, &outfp) != OK)
-    	        exit(EXIT_FAILURE);
+        outfp = fopen(output_surface_file, "w");
+        if (!outfp) exit(EXIT_FAILURE);
 
         for (i = 0; i < n_files; i++) {
                 get_string_argument(NULL, &input_file);
@@ -66,13 +66,12 @@ main(int argc, char *argv[])
                         fprintf(stderr, "Cannot read values in %s.\n", values_file);
                         exit(EXIT_FAILURE);
                 }
-
-                if (output_real(outfp, values[max_index]) != OK ||
-        	    output_newline(outfp) != OK)
+                if ((fprintf(outfp, " %g", values[max_index] ) <= 0) ||
+                        (fprintf(outfp, "\n" ) <= 0))
                         exit(EXIT_FAILURE);
 
         }
 
-        close_file(outfp);
+        fclose(outfp);
         return(EXIT_SUCCESS);
 }

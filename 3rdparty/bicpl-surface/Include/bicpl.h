@@ -36,6 +36,7 @@ extern "C" {
 #include  <bicpl/numerical.h>
 #include  <bicpl/objects.h>
 #include  <bicpl/prog_utils.h>
+#include  <alloc.h>
 //#include  <bicpl/vols.h>
 //#include  <bicpl/images.h>
 

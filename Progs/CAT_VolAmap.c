@@ -87,10 +87,10 @@ private void
 usage(
     char *executable)
 {
-     char *usage_str = "\n\
+    char *usage_str = "\n\
         CAT_VolAmap: Segmentation with adaptive MAP\n\
          usage: CAT_VolAmap [options] -label label.nii in.nii [out.nii]\n\n";
-    print_error(usage_str, executable);
+    fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
 
 int

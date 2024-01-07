@@ -19,7 +19,7 @@ Usage: %s  surface_file output_surface_file  max_length [weight_curvatures]\n\
   weighting is used regions in sulci and gyri with large absolute mean curvature values\n\
   will result in a smaller max_length to allow better surface deforming.\n\n";
 
-    print_error( usage_str, executable );
+    fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
 
 int  main(
@@ -50,7 +50,7 @@ int  main(
                              &object_list ) != OK ||
         n_objects < 1 || get_object_type(object_list[0]) != POLYGONS )
     {
-        print_error( "Error in input file.\n" );
+        fprintf(stderr, "Error in input file.\n");
         return( 1 );
     }
 
@@ -70,7 +70,7 @@ int  main(
     }
     while( n_done > 0 );
 
-    print( "Resampled into %d polygons.\n", polygons->n_items );
+    fprintf(stdout,"Resampled into %d polygons.\n", polygons->n_items );
 
     (void) output_graphics_any_format( output_filename, format, n_objects,
                                  object_list, NULL);

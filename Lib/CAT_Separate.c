@@ -21,7 +21,7 @@ private  BOOLEAN  recursive_triangulate_one_polygon(
     BOOLEAN   found;
 
     if( size < 3 )
-        handle_internal_error( "recursive_triangulate_one_polygon" );
+        fprintf(stderr,"recursive_triangulate_one_polygon" );
     
     if( size == 3 )
     {
@@ -69,7 +69,7 @@ private  BOOLEAN  recursive_triangulate_one_polygon(
 
             if( n_left + n_right != size + 2 )
             {
-                handle_internal_error( "n_left" );
+                fprintf(stderr, "n_left\n");
             }
 
             if( recursive_triangulate_one_polygon( n_left, left,
@@ -196,7 +196,7 @@ void  triangulate_polygons(
     terminate_progress_report( &progress );
 
     if( ind != 3 * triangles->n_items )
-        handle_internal_error( "Summation of ind" );
+        fprintf(stderr, "Summation of ind\n");
 
     FREE( polygons->end_indices );
     FREE( polygons->indices );

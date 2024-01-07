@@ -20,6 +20,7 @@ Makefile
 .libs
 build*
 log*
+.deps
 configure~
 Progs/CAT_3dVol2Surf
 Progs/CAT_AddValuesToSurf

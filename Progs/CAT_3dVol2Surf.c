@@ -303,8 +303,8 @@ main(int argc, char *argv[])
         }
 
         if (sphere_src_file != NULL  && sphere_trg_file != NULL && annot_file != NULL) {
-                if ((filename_extension_matches(output_values_file,"txt") != 1) &&
-                    (filename_extension_matches(output_values_file,"csv") != 1)) {
+                if ((strcmp(nifti_find_file_extension(output_values_file),".txt") != 0) &&
+                    (strcmp(nifti_find_file_extension(output_values_file),".csv") != 0)) {
                         fprintf(stdout, "Extension of output files for ROI partitioning has to be csv or txt.\n");
                         exit(EXIT_FAILURE);
                 }
@@ -512,7 +512,7 @@ main(int argc, char *argv[])
                 }
 
 
-                if (filename_extension_matches(annot_file, "annot")) {
+                if (strcmp(nifti_find_file_extension(annot_file),".annot") == 0) {
                         read_annotation_table(annot_file, &n_arrays, &in_annot, &n_labels, &atable);
 
                         if ((fp = fopen(output_values_file, "w")) == 0) {
@@ -640,12 +640,12 @@ main(int argc, char *argv[])
                                          roi_values, TYPE_DOUBLE);
                                          
                 } else if (map_func == F_MULTI) {
-                        ALLOC(tmp_string, string_length(output_values_file)+10);
+                        ALLOC(tmp_string, strlen(output_values_file)+10);
                         
                         /* remove potential extension for output name */
                         strcpy(tmp_string,output_values_file);
-                        if (filename_extension_matches(output_values_file,"txt")) {
-                                output_values_file[string_length(output_values_file)-4] = '\0';
+                        if (strcmp(nifti_find_file_extension(output_values_file),".txt") == 0) {
+                                output_values_file[strlen(output_values_file)-4] = '\0';
                                 strcpy(ext,".txt");
                         } else  strcpy(ext,"");
         
@@ -663,7 +663,7 @@ main(int argc, char *argv[])
                         free(tmp_string);
                                 
                 } else  {
-                        if (filename_extension_matches(output_values_file, "annot")) {
+                        if (strcmp(nifti_find_file_extension(output_values_file),".annot") == 0) {
                                 n_arrays = polygons->n_points;
                                 out_annot  = (int *) malloc(n_arrays * sizeof(int));
                                 

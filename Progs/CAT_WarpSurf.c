@@ -177,7 +177,7 @@ resample_spherical_surface(polygons_struct *polygons,
                                                   weights);
 
                 if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                        handle_internal_error("map_point_between_polygons");
+                        fprintf(stderr,"map_point_between_polygons\n");
 
                 fill_Point(new_points[i], 0.0, 0.0, 0.0);
                 if (input_values != NULL)

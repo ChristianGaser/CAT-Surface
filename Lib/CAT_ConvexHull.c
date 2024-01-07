@@ -186,7 +186,7 @@ find_limit_plane(
 
                 if( first || angle < best_angle ) {
                         if( angle < 90.0 - 0.1 || angle > 270.0 + 0.1 ) {
-                                handle_internal_error( "find_limit_plane angle" );
+                                fprintf(stderr, "find_limit_plane angle\n");
                                 exit(1);
                         }
                         else {
@@ -207,7 +207,7 @@ find_limit_plane(
         }
 
         if( best_ind < 0 ) {
-                handle_internal_error( "find_limit_plane" );
+                fprintf(stderr, "find_limit_plane\n");
                 exit(1);
         }
         if(dbg) printf( "  keep i = %d\n", best_ind );
@@ -386,7 +386,7 @@ get_plane_polygon_vertices(
         }
 
         if( n_in_plane < 3 )
-                handle_internal_error( "get_plane_polygon_vertices" );
+                fprintf(stderr, "get_plane_polygon_vertices\n");
 
         ALLOC( x, n_in_plane );
         ALLOC( y, n_in_plane );
@@ -482,7 +482,7 @@ get_convex_hull(
                                    &points[ind], &new_hinge, &new_normal );
 
         if( min_ind == ind || min_ind == second_ind || ind == second_ind )
-                handle_internal_error( "get_convex_hull" );
+                fprintf(stderr, "get_convex_hull\n");
 
         ALLOC( vertices, n_points );
         ALLOC( poly_vertices, n_points );
@@ -512,7 +512,7 @@ get_convex_hull(
                 key = get_edge_key( polygons, poly, edge );
 
                 if( !lookup_in_hash_table( &edge_table, key, (void *) &edge_ptr ) ) {
-                        handle_internal_error( "Convex hull" );
+                        fprintf(stderr, "Convex hull\n");
                 }
 
                 if( edge_ptr.ref_count >= 2 )
@@ -637,7 +637,7 @@ get_convex_hull_2d(
 
         do {
                 if( n_in_hull >= n_points ) {
-                        handle_internal_error( "get_convex_hull_2d" );
+                        fprintf(stderr, "get_convex_hull_2d\n");
                         printf( "\n" );
                         for( i = 0; i < n_in_hull; i++ ) {
                                 printf( " %g %g\n", x[hull_indices[i]], y[hull_indices[i]] );

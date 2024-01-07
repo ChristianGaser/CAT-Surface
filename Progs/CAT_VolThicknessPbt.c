@@ -92,7 +92,7 @@ Options:\n\
 Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
 
-    print_error(usage_str, executable, executable);
+    fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
 
 int main(int argc, char *argv[])

@@ -54,6 +54,10 @@ dartel_SRC = \
 
 bicpl_SRC = \
     3rdparty/bicpl-surface/ParseArgv.c  \
+    3rdparty/bicpl-surface/alloc.c  \
+    3rdparty/bicpl-surface/alloc_check.c  \
+    3rdparty/bicpl-surface/progress.c  \
+    3rdparty/bicpl-surface/arrays.c  \
     3rdparty/bicpl-surface/Data_structures/bintree.c  \
     3rdparty/bicpl-surface/Data_structures/bitlist.c  \
     3rdparty/bicpl-surface/Data_structures/build_bintree.c  \

@@ -147,9 +147,8 @@ main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        if (open_file(output_surface_file, WRITE_FILE, ASCII_FORMAT, &fp) != OK) {
-                exit(EXIT_FAILURE);
-        }
+        fp = fopen(output_surface_file, "w");
+        if (!fp) exit(EXIT_FAILURE);
 
         polygons = get_polygons_ptr(objects[0]);
         polygons2 = get_polygons_ptr(objects2[0]);
@@ -210,15 +209,15 @@ main(int argc, char *argv[])
                 if (!PerPoly && n_polys[i] > 0) /* average distortion */
                         ad_values[i] /= n_polys[i];
 
-                if (output_double(fp, ad_values[i]) != OK ||
-                    output_newline(fp) != OK)
+                if ((fprintf(fp, " %g", ad_values[i]) <= 0 ) ||
+                    (fprintf(fp, "\n" ) <= 0))
                         exit(EXIT_FAILURE);
         }
 
         printf("Angular distortion: %f\n", total_distortion /
                                            (3 * polygons->n_items));
       
-        close_file(fp);
+        fclose(fp);
 
         delete_object_list(n_objects, objects);
         delete_object_list(n_objects, objects2);

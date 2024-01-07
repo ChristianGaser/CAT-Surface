@@ -87,7 +87,7 @@ main(int argc, char *argv[])
                 for (j = 0; j <  min_index+1; j++)
                         fgets(line, 256, infp);
                 printf("%s",line);
-                close_file(infp);
+                fclose(infp);
         }
 
         delete_object_list(n_objects, objects);

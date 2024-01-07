@@ -156,7 +156,7 @@ resample_spherical_surface(polygons_struct *polygons,
                 poly = find_closest_polygon_point(&resampled_source->points[i],
                                                   poly_src_sphere,
                                                   &point_on_src_sphere);
-		
+        
                 n_points = get_polygon_points(poly_src_sphere, poly,
                                               poly_points_src);
                 get_polygon_interpolation_weights(&point_on_src_sphere,
@@ -164,7 +164,7 @@ resample_spherical_surface(polygons_struct *polygons,
                                                   weights);
 
                 if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                        handle_internal_error("map_point_between_polygons");
+                        fprintf(stderr,"map_point_between_polygons\n");
 
                 fill_Point(new_points[i], 0.0, 0.0, 0.0);
                 if (input_values != NULL)
@@ -186,7 +186,7 @@ resample_spherical_surface(polygons_struct *polygons,
         for (i = 0; i < resampled_source->n_points; i++) {
                 resampled_source->points[i] = new_points[i];
         }
-		
+        
         compute_polygon_normals(resampled_source);
         free(new_points);
 }
