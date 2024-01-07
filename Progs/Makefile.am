@@ -80,5 +80,4 @@ bin_PROGRAMS = \
 ##  CAT_ApplyWarpSPH \
 ##  CAT_WarpSurfSPH \
 ##  CAT_WarpSurfPoly \
-##  CAT_GlmMath \
     

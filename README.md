@@ -3,19 +3,9 @@ Christian Gaser christian.gaser@uni-jena.de Jena University Hospital, Germany.
 
 These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for almost all of the surfaced-based functions.
 
-## The following libraries are necessary to compile CAT:
+## The following external libraries are necessary to compile CAT:
 - [expat-2.0](https://github.com/libexpat/libexpat)
 - [fftw-3](https://www.fftw.org)
-
-## The following library was largely modified:
-- [bicp-1.4.6](https://github.com/BIC-MNI/minc)
-All dependencies in bicpl on minc and volume_io were removed and replaced by 
-nifti-functions. The following functions from minc were added:
-- ParseArgv.c
-- alloc.c
-- alloc_check.c
-- progress.c
-- arrays.c
 
 ## CAT_3dVol2Surf
 Map values form 3D volume to surface
