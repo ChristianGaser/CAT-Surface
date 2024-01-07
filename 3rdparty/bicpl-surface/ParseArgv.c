@@ -47,7 +47,6 @@ static ArgvInfo defaultTable[] = {
  */
 
 static void PrintUsage _ANSI_ARGS_((ArgvInfo *argTable, int flags));
-static void     PrintVersion(ArgvInfo *argTable);
 
 /*
  *----------------------------------------------------------------------
@@ -287,9 +286,6 @@ ParseArgv(argcPtr, argv, argTable, flags)
       case ARGV_HELP:
          PrintUsage (argTable, flags);
          return TRUE;
-      case ARGV_VERSION:
-         PrintVersion(argTable);
-         return FALSE;
       default:
          FPRINTF(stderr, "bad argument type %d in ArgvInfo",
                  infoPtr->type);
@@ -448,23 +444,4 @@ PrintUsage(argTable, flags)
    }
 
    FPRINTF(stderr, "\n");
-}
-
-static void PrintVersion(ArgvInfo *argTable)
-{
-    char *versionStr = VERSION;
-
-    for ( ; argTable->type != ARGV_END; argTable++) {
-        if (argTable->type == ARGV_VERINFO) {
-            /* Version information found? */
-            if (argTable->src != NULL) {
-                versionStr = argTable->src;
-                break;
-            }
-        }
-    }
-    printf("program: %s\n", versionStr);
-    printf("libminc: %s\n", miget_version());
-    printf("netcdf : %s\n", nc_inq_libvers());
-    exit(0);
 }

@@ -1457,11 +1457,11 @@ Status
 input_txt_values(
         STRING         filename,
         int            *n_values,
-        Real           *values[] )
+        double           *values[] )
 {
         FILE           *fp;
         Status         status;
-        Real           value;
+        double           value;
     
     
         if ((fp = fopen(filename, "r")) == 0) {
@@ -1472,10 +1472,10 @@ input_txt_values(
         *n_values = 0;
         *values = NULL;
     
-        while( input_real( fp, &value ) == OK )
+        while (fscanf(fp, "%lf", &value) == 1)
                 ADD_ELEMENT_TO_ARRAY( *values, *n_values, value, DEFAULT_CHUNK_SIZE );
     
-        (void) close_file( fp );
+        (void) fclose( fp );
     
     
         return( OK );

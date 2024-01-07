@@ -3,8 +3,8 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-AM_CFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
-AM_CPPFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+AM_CFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+#AM_CPPFLAGS = -pthread -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
 
 lib_LTLIBRARIES = libCAT.la
 
@@ -52,12 +52,31 @@ dartel_SRC = \
     dartel/diffeopoly.c \
     dartel/optimizersphere.c
 
-bicpl_SRC = \
+bic_SRC = \
+    3rdparty/volume_io/Geometry/colour.c  \
+    3rdparty/volume_io/Geometry/colour_def.c  \
+    3rdparty/volume_io/Geometry/gaussian.c  \
+    3rdparty/volume_io/Geometry/inverse.c  \
+    3rdparty/volume_io/Geometry/newton.c  \
+    3rdparty/volume_io/Geometry/points.c  \
+    3rdparty/volume_io/Geometry/splines.c  \
+    3rdparty/volume_io/Geometry/tensors.c  \
+    3rdparty/volume_io/Geometry/transforms.c  \
+    3rdparty/volume_io/MNI_formats/gen_xf_io.c  \
+    3rdparty/volume_io/MNI_formats/gen_xfs.c  \
+    3rdparty/volume_io/MNI_formats/grid_transforms.c  \
+    3rdparty/volume_io/MNI_formats/mni_io.c  \
+    3rdparty/volume_io/MNI_formats/tag_points.c  \
+    3rdparty/volume_io/MNI_formats/thin_plate_spline.c  \
+    3rdparty/volume_io/Prog_utils/alloc.c  \
+    3rdparty/volume_io/Prog_utils/alloc_check.c  \
+    3rdparty/volume_io/Prog_utils/arrays.c  \
+    3rdparty/volume_io/Prog_utils/files.c  \
+    3rdparty/volume_io/Prog_utils/print.c  \
+    3rdparty/volume_io/Prog_utils/progress.c  \
+    3rdparty/volume_io/Prog_utils/string.c  \
+    3rdparty/volume_io/Prog_utils/time.c  \
     3rdparty/bicpl-surface/ParseArgv.c  \
-    3rdparty/bicpl-surface/alloc.c  \
-    3rdparty/bicpl-surface/alloc_check.c  \
-    3rdparty/bicpl-surface/progress.c  \
-    3rdparty/bicpl-surface/arrays.c  \
     3rdparty/bicpl-surface/Data_structures/bintree.c  \
     3rdparty/bicpl-surface/Data_structures/bitlist.c  \
     3rdparty/bicpl-surface/Data_structures/build_bintree.c  \
@@ -110,6 +129,7 @@ bicpl_SRC = \
     3rdparty/bicpl-surface/Numerical/t_stat.c  \
     3rdparty/bicpl-surface/Objects/coalesce.c  \
     3rdparty/bicpl-surface/Objects/colours.c  \
+    3rdparty/bicpl-surface/Objects/graphics_io.c  \
     3rdparty/bicpl-surface/Objects/lines.c  \
     3rdparty/bicpl-surface/Objects/markers.c  \
     3rdparty/bicpl-surface/Objects/models.c  \
@@ -224,6 +244,7 @@ noinst_HEADERS = \
     Include/CAT_Kmeans.h \
     Include/CAT_Amap.h \
     Include/CAT_NiftiLib.h \
+    3rdparty/bicpl-surface/Include/bicpl.h \
     3rdparty/MarchingCubes/MarchingCubes.h \
     3rdparty/MarchingCubes/LookUpTable.h \
     3rdparty/MarchingCubes/genus0.h \
@@ -289,5 +310,5 @@ libCAT_la_SOURCES = \
     $(nifti_SRC) \
     $(gifti_SRC) \
     $(dartel_SRC) \
-    $(bicpl_SRC) \
+    $(bic_SRC) \
     $(s2kit10_SRC)
