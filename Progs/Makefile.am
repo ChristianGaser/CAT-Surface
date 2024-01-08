@@ -1,4 +1,6 @@
-AM_CPPFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/MarchingCubes -I$(top_srcdir) -I$(top_srcdir)/niftilib -I$(top_srcdir)/zlib
+AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+AM_CPPFLAGS=${AM_CFLAGS}
+
 LDADD = ../libCAT.la -lm
 
 dist_bin_SCRIPTS = \
@@ -11,11 +13,6 @@ dist_bin_SCRIPTS = \
     CAT_SulcusDepth_ui \
     CAT_DumpCurv_ui
     
-##  CAT_DumpGI_ui \
-##  CAT_ReconSurf \
-##  CAT_GLM_tmp \
-##  CAT_Obj2Neurolens \
-
 bin_PROGRAMS = \
     CAT_Surf2Sheet \
     CAT_Sheet2Surf \
@@ -70,7 +67,6 @@ bin_PROGRAMS = \
     CAT_VolAverage \
     CAT_VolSmooth \
     CAT_VolSanlm \
-    CAT_MarchingCubesGenus0_old \
     CAT_VolThicknessPbt
 
 # experimental code, not yet working or for testing only!

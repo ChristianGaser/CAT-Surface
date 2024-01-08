@@ -15,7 +15,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 #include "CAT_Vol.h"
-#include "CAT_MarchingCubes.h"
+#include "3rdparty/MarchingCubes/MarchingCubes.h"
 #include "3rdparty/MarchingCubes/genus0.h"
 
 /* argument defaults */
@@ -111,9 +111,8 @@ Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file\n\
        - Compensation degree is auto-calculated based on deviation\n\
          from the defined isovalue.\n\n";
 
-    print_error(usage_str, executable);
+    fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
-
 
 int   
 main(
@@ -127,12 +126,14 @@ main(
     int                 i, j, k, c;
     int                 n_out, EC, sizes[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
-    Marching_cubes_methods    method;
     object_struct       *object, **object2, *object3;
+    General_transform   voxel_to_world_transform;
     polygons_struct     *polygons;
     unsigned short      *input;
     unsigned char       *input_uint8, *ref_uint8;
-    float               *vol, *input_float, *input_filtered, *dist_CSF, *dist_WM, *GMT;
+    float               *input_float, *input_filtered, *dist_CSF, *dist_WM, *GMT;
+    Point               point;
+    MCB                 *mcb;
     nifti_image         *nii_ptr;
     mat44               nii_mat;
 
@@ -153,9 +154,6 @@ main(
         return(1);
     }
     
-    /* marching cubes without holes */
-    method = (Marching_cubes_methods) 1;
-
     valid_low  =  0.0;
     valid_high = -1.0;
     min_label  =  0.0;
@@ -182,12 +180,15 @@ main(
         
     nvol = sizes[0]*sizes[1]*sizes[2];
 
-    vol         = (float*) malloc(nvol*sizeof(float));  
     input       = (unsigned short *) malloc(nvol*sizeof(unsigned short));  
     input_uint8 = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
     ref_uint8   = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
-fprintf(stderr,"Memory check\n");
-    /* Preprocessing Step: Smoothing Filter
+
+    mcb = MarchingCubes(-1, -1, -1);
+    set_resolution(mcb, sizes[0], sizes[1], sizes[2]);
+    init_all(mcb);
+
+   /* Preprocessing Step: Smoothing Filter
        - Purpose: To remove outliers in the input image.
        - Method: A weighted average is calculated between the original image and the 
          smoothed image to protect the structural integrity of gyri and sulci.
@@ -252,7 +253,7 @@ fprintf(stderr,"Memory check\n");
     
     sum_RMSE = 0.0;
     count = 0;
-
+    
     /* estimate cortical thickness for local correction of intensities for morphological opening */
     if (use_distopen && use_thickness && 0) {
         dist_CSF = (float *)malloc(sizeof(float)*nvol);
@@ -296,7 +297,7 @@ fprintf(stderr,"Memory check\n");
         projection_based_thickness(input_float, dist_WM, dist_CSF, GMT, sizes, voxelsize); 
 
     }
-
+                       
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
     keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1);
                        
@@ -434,15 +435,45 @@ fprintf(stderr,"Memory check\n");
         keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1);
 
         for (i = 0; i < nvol; i++)
-            vol[i] = (float)g0->output[i];
+            mcb->data[i]  = (double)(g0->output[i] - 0.5);
 
         /* extract surface to check euler number */
-        extract_isosurface(vol, sizes,
-                  min_label, max_label,
-                  nii_mat,
-                  method, FALSE,
-                  0.5, 0.5,
-                  valid_low, valid_high, get_polygons_ptr(object));
+        run(mcb);
+    
+        /* convert mcb structure to BIC polygon data */
+        polygons->n_items = mcb->ntrigs;
+        polygons->n_points = mcb->nverts;
+        ALLOC(polygons->points, polygons->n_points);
+        ALLOC(polygons->normals, polygons->n_points);
+        ALLOC(polygons->end_indices, polygons->n_items);
+        polygons->bintree = (bintree_struct_ptr) NULL;
+        
+        for (i = 0; i < polygons->n_items; i++)
+            polygons->end_indices[i] = (i + 1) * 3;
+            
+        ALLOC(polygons->indices,
+            polygons->end_indices[polygons->n_items-1]);
+            
+        /* Convert voxel coordinates to world coordinates */
+        for (i = 0; i < polygons->n_points; i++) {
+            Point_x(point) = mcb->vertices[i].x * nii_mat.m[0][0] + 
+                             mcb->vertices[i].y * nii_mat.m[0][1] + 
+                             mcb->vertices[i].z * nii_mat.m[0][2] + nii_mat.m[0][3];
+            Point_y(point) = mcb->vertices[i].x * nii_mat.m[1][0] + 
+                             mcb->vertices[i].y * nii_mat.m[1][1] + 
+                             mcb->vertices[i].z * nii_mat.m[1][2] + nii_mat.m[1][3];
+            Point_z(point) = mcb->vertices[i].x * nii_mat.m[2][0] + 
+                             mcb->vertices[i].y * nii_mat.m[2][1] + 
+                             mcb->vertices[i].z * nii_mat.m[2][2] + nii_mat.m[2][3];
+
+            polygons->points[i] = point;
+        }
+        
+        for (i = 0; i < polygons->n_items; i++) {
+            polygons->indices[POINT_INDEX(polygons->end_indices, i, 0)] = mcb->triangles[i].v3;
+            polygons->indices[POINT_INDEX(polygons->end_indices, i, 1)] = mcb->triangles[i].v2;
+            polygons->indices[POINT_INDEX(polygons->end_indices, i, 2)] = mcb->triangles[i].v1;
+        }
     
         compute_polygon_normals(polygons);
 
@@ -463,7 +494,7 @@ fprintf(stderr,"Memory check\n");
     free(input_uint8);
     free(input_float);
     
-    if (n_out > 2) fprintf(stderr,"Extract largest of %d components.\n",n_out);
+    if (n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
     fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
     /* Mesh Correction in Folded Areas
@@ -483,8 +514,10 @@ fprintf(stderr,"Memory check\n");
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
     free(input);
-    free(vol);
-    delete_marching_cubes_table();
+    clean_temps(mcb);
 
     return(0);
 }
+
+
+

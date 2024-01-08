@@ -3,19 +3,19 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/MarchingCubes -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
 
 if WINDOWS
   AM_CFLAGS = ${CFLAGS0}
 else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
+AM_CPPFLAGS=${AM_CFLAGS}
 
 lib_LTLIBRARIES = libCAT.la
 
 EXTRA_DIST = \
     autogen.sh \
-    3rdparty/MarchingCubes/README \
     3rdparty/gifticlib/LICENSE.gifti \
     3rdparty/gifticlib/README.gifti \
     $(m4_files)
@@ -255,10 +255,9 @@ noinst_HEADERS = \
     Include/CAT_NiftiLib.h \
     Include/CAT_MarchingCubes.h \
     3rdparty/bicpl-surface/Include/bicpl.h \
-    3rdparty/MarchingCubes/MarchingCubes.h \
-    3rdparty/MarchingCubes/LookUpTable.h \
-    3rdparty/MarchingCubes/genus0.h \
-    3rdparty/MarchingCubes/tricases.h \
+    3rdparty/genus0/LookUpTable.h \
+    3rdparty/genus0/genus0.h \
+    3rdparty/genus0/tricases.h \
     dartel/dartel.h \
     3rdparty/nifti/analyze75.h \
     3rdparty/nifti/nifti1.h \
@@ -315,8 +314,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \
     Lib//CAT_MarchingCubes.c \
-    3rdparty/MarchingCubes/MarchingCubes.c \
-    3rdparty/MarchingCubes/genus0.c \
+    3rdparty/genus0/genus0.c \
     $(zlib_SRC) \
     $(nifti_SRC) \
     $(gifti_SRC) \
