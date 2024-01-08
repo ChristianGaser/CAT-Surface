@@ -92,6 +92,7 @@ void laplace3(float *SEG, int dims[3], int maxiter);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void vbdist(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
+int sub2ind(int x, int y, int z, int s[]);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void keep_largest_cluster(void *inData, double thresh, const int *dims, int datatype, int min_size, int conn18);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);

@@ -118,6 +118,10 @@ bic_SRC = \
     3rdparty/bicpl-surface/Geometry/surface_area.c  \
     3rdparty/bicpl-surface/Geometry/tetrahedrons.c  \
     3rdparty/bicpl-surface/Geometry/tubes.c  \
+    3rdparty/bicpl-surface/Marching_cubes/isosurfaces.c  \
+    3rdparty/bicpl-surface/Marching_cubes/marching_cubes.c  \
+    3rdparty/bicpl-surface/Marching_cubes/marching_no_holes.c  \
+    3rdparty/bicpl-surface/Marching_cubes/marching_tetra.c  \
     3rdparty/bicpl-surface/Numerical/amoeba.c  \
     3rdparty/bicpl-surface/Numerical/gaussian.c  \
     3rdparty/bicpl-surface/Numerical/gradient_minimize.c  \
@@ -249,6 +253,7 @@ noinst_HEADERS = \
     Include/CAT_Kmeans.h \
     Include/CAT_Amap.h \
     Include/CAT_NiftiLib.h \
+    Include/CAT_MarchingCubes.h \
     3rdparty/bicpl-surface/Include/bicpl.h \
     3rdparty/MarchingCubes/MarchingCubes.h \
     3rdparty/MarchingCubes/LookUpTable.h \
@@ -309,6 +314,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Amap.c \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \
+    Lib//CAT_MarchingCubes.c \
     3rdparty/MarchingCubes/MarchingCubes.c \
     3rdparty/MarchingCubes/genus0.c \
     $(zlib_SRC) \
