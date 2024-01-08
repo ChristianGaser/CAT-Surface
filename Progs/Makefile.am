@@ -70,14 +70,10 @@ bin_PROGRAMS = \
     CAT_VolAverage \
     CAT_VolSmooth \
     CAT_VolSanlm \
-    CAT_VolThicknessPbt \
-    CAT_DeformMesh 
+    CAT_VolThicknessPbt
 
 # experimental code, not yet working or for testing only!
 ##  CAT_Test \
 ##  CAT_DumpGI \
 ##  CAT_DumpGyrificationIndex \ 
-##  CAT_ApplyWarpSPH \
-##  CAT_WarpSurfSPH \
-##  CAT_WarpSurfPoly \
-    
+##  CAT_DeformMesh
