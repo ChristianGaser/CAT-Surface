@@ -54,7 +54,7 @@ bin_PROGRAMS = \
     CAT_FractalDimension \
     CAT_RefineMesh \
     CAT_DumpConvexity \
-    CAT_MarchingCubesGenus0 \
+    CAT_VolMarchingCubes \
     CAT_AddValuesToSurf \
     CAT_SulcusDepth \
     CAT_DumpDepthPotential \
