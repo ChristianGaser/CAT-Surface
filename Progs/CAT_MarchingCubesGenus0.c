@@ -20,8 +20,8 @@
 
 /* argument defaults */
 double min_threshold = 0.5;
-double fwhm = 3.0;
-double pre_fwhm = 2.0;
+double post_fwhm = 2.0;
+double pre_fwhm = -1.0;
 double scl_open = -1;
 int median_correction = 1;
 int use_distopen = 1;
@@ -39,9 +39,11 @@ static ArgvInfo argTable[] = {
     "Specify the Full Width Half Maximum (FWHM) for the preprocessing\n\
      smoothing filter. This helps in preserving gyri and sulci by\n\
      creating a weighted average between original and smoothed\n\
-     images based on their distance to the threshold (isovalue)."},
-  
-  {"-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &fwhm,
+     images based on their distance to the threshold (isovalue).\n\
+     A negative value will force masked smoothing, which may\n\
+     preserves gyri and sulci even better."},
+
+  {"-post-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &post_fwhm,
     "Set FWHM for surface smoothing. This aids in correcting the mesh\n\
      in folded areas like gyri and sulci. Note: Do not use smoothing\n\
      sizes > 3 mm for reliable compensation in these areas."},
@@ -131,8 +133,8 @@ main(
     object_struct       *object, **object2, *object3;
     polygons_struct     *polygons;
     unsigned short      *input;
-    unsigned char       *input_uint8, *ref_uint8;
-    float               *vol, *input_float, *input_filtered, *dist_CSF, *dist_WM, *GMT;
+    unsigned char       *input_uint8, *vol_uint8;
+    float               *input_float, *vol_float, *dist_CSF, *dist_WM, *GMT;
     nifti_image         *nii_ptr;
     mat44               nii_mat;
 
@@ -182,11 +184,16 @@ main(
         
     nvol = sizes[0]*sizes[1]*sizes[2];
 
-    vol         = (float*) malloc(nvol*sizeof(float));  
+    vol_float   = (float *)malloc(nvol*sizeof(float));
     input       = (unsigned short *) malloc(nvol*sizeof(unsigned short));  
     input_uint8 = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
-    ref_uint8   = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
-fprintf(stderr,"Memory check\n");
+    vol_uint8   = (unsigned char  *) malloc(nvol*sizeof(unsigned char));
+
+    if (!vol_float || !input || !input_uint8 || !vol_uint8) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
     /* Preprocessing Step: Smoothing Filter
        - Purpose: To remove outliers in the input image.
        - Method: A weighted average is calculated between the original image and the 
@@ -198,13 +205,12 @@ fprintf(stderr,"Memory check\n");
        - Enhanced Weighting: Weights are squared to emphasize larger weightings,
          providing a more robust distinction between regions of interest and outliers.
     */
-    if (pre_fwhm > 0.0) {
-        input_filtered = (float *)malloc(nvol*sizeof(float));
+    if (pre_fwhm != 0.0) {
     
         for (i = 0; i < nvol; i++)
-            input_filtered[i] = input_float[i];
-        double s[] = {pre_fwhm, pre_fwhm, pre_fwhm};
-        smooth_float(input_filtered, sizes, voxelsize, s, 0);
+            vol_float[i] = input_float[i];
+        double s[] = {fabs(pre_fwhm), fabs(pre_fwhm), fabs(pre_fwhm)};
+        smooth_float(vol_float, sizes, voxelsize, s, (pre_fwhm < 0.0));
         
         /* Protect values in sulci and gyri and weight areas with filtered values 
           depending on distance isovalue (threshold) */
@@ -219,9 +225,8 @@ fprintf(stderr,"Memory check\n");
             weight *= weight;
             
             /* weighted average of filtered and original input */
-            input_float[i] = weight*input_float[i] + (1.0 - weight)*input_filtered[i];
+            input_float[i] = weight*input_float[i] + (1.0 - weight)*vol_float[i];
         }
-        free(input_filtered);
     }
 
     /* Analyzing the Impact of scl_open Values
@@ -336,7 +341,7 @@ fprintf(stderr,"Memory check\n");
             RMSE = 0.0;
             for (i = 0; i < nvol; i++)
             {
-                val = (double)input_uint8[i] - (double)ref_uint8[i];  
+                val = (double)input_uint8[i] - (double)vol_uint8[i];  
                 RMSE += val*val;
             } 
             RMSE = sqrt(RMSE/(double)nvol);
@@ -353,7 +358,7 @@ fprintf(stderr,"Memory check\n");
         
         /* save previous image after distopen */ 
         for (i = 0; i < nvol; i++)
-            ref_uint8[i] = input_uint8[i];   
+            vol_uint8[i] = input_uint8[i];   
 
         count++;        
 
@@ -372,7 +377,7 @@ fprintf(stderr,"Memory check\n");
     /* we need uint16 for genus0 approach */
     for (i = 0; i < nvol; i++)
         input[i] = (unsigned short)input_uint8[i];
-    free(ref_uint8);
+    free(vol_uint8);
 
     /* set some parameters/options for the firt iteration */
     for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
@@ -434,10 +439,10 @@ fprintf(stderr,"Memory check\n");
         keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1);
 
         for (i = 0; i < nvol; i++)
-            vol[i] = (float)g0->output[i];
+            vol_float[i] = (float)g0->output[i];
 
         /* extract surface to check euler number */
-        extract_isosurface(vol, sizes,
+        extract_isosurface(vol_float, sizes,
                   min_label, max_label,
                   nii_mat,
                   method, FALSE,
@@ -461,7 +466,6 @@ fprintf(stderr,"Memory check\n");
     }
 
     free(input_uint8);
-    free(input_float);
     
     if (n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
     fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
@@ -475,15 +479,16 @@ fprintf(stderr,"Memory check\n");
          ensures accurate correction in folded regions, maintaining the integrity of 
          gyri and sulci structures.
     */
-    if (fwhm > 0.0) {
-        smooth_heatkernel(polygons, NULL, fwhm);
+    if (post_fwhm > 0.0) {
+        smooth_heatkernel(polygons, NULL, post_fwhm);
         correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
 
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
     free(input);
-    free(vol);
+    free(input_float);
+    free(vol_float);
     delete_marching_cubes_table();
 
     return(0);
