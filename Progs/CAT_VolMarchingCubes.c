@@ -302,19 +302,15 @@ main(
 
     }
 
-    /* apply cluster function the 1st time and keep largest cluster after thresholding */
-    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1);
-                       
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
-      
         /* Skip morphological opening if distopen is disabled */
         if (!use_distopen) scl_open = 1.0;
       
         /* We first apply a slightly different threshold for initial mask 
            to allow to control amount of morphological opening */
         for (i = 0; i < nvol; i++)
-            input_uint8[i] = (double)input_float[i] >= scl_open*min_threshold ? 1 : 0;
+            input_uint8[i] = (double)input_float[i] >= (scl_open*min_threshold) ? 1 : 0;
     
         /* Interrupt here if distopen is disabled and use default scl_open value */
         if (!use_distopen) break;
@@ -344,6 +340,7 @@ main(
                 val = (double)input_uint8[i] - (double)vol_uint8[i];  
                 RMSE += val*val;
             } 
+
             RMSE = sqrt(RMSE/(double)nvol);
             sum_RMSE += RMSE;
             
@@ -435,7 +432,7 @@ main(
                 g0->output[i] = (unsigned short)(input_float[i] >= min_threshold ? input_uint8[i] : 0);
         }
         
-        /* apply cluster function a 2nd time and keep largest cluster after thresholding */
+        /* keep largest cluster after thresholding */
         keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1);
 
         for (i = 0; i < nvol; i++)
