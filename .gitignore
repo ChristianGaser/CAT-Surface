@@ -44,9 +44,7 @@ Progs/CAT_GIPhantom
 Progs/CAT_GlmEstimate
 Progs/CAT_Hausdorff
 Progs/CAT_Isometize
-Progs/CAT_MarchingCubesGenus0
-Progs/CAT_MarchingCubesGenus0_new.c
-Progs/CAT_MarchingCubesTopological
+Progs/CAT_VolMarchingCubes
 Progs/CAT_MarkDefects
 Progs/CAT_MetricDistortion
 Progs/CAT_PlotValuesAtMaximum

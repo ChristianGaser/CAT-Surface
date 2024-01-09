@@ -13,9 +13,9 @@
 #include <bicpl.h>
 #include <stdio.h>
 #include <string.h>
-#include "3rdparty/gifticlib/gifti_io.h"
-#include "3rdparty/nifti/nifti1.h"
-#include "3rdparty/nifti/nifti1_io.h"
+#include <gifti_io.h>
+#include <nifti1.h>
+#include <nifti1_io.h>
 
 #define QUAD_FILE_MAGIC_NUMBER      (-1 & 0x00ffffff)
 #define TRIANGLE_FILE_MAGIC_NUMBER  (-2 & 0x00ffffff)

@@ -12,7 +12,7 @@
 #include "CAT_Map.h"
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
-#include "dartel/dartel.h"
+#include "dartel.h"
 
 #define BINTREE_FACTOR   0.5
         

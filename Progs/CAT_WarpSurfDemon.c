@@ -18,7 +18,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Interpolate.h"
 #include "CAT_Resample.h"
-#include "dartel/dartel.h"
+#include "dartel.h"
 
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
 #define DEGREES(rad) ((180.0 * (double)(rad)) / PI)

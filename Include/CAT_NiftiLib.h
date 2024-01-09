@@ -12,8 +12,8 @@
 
 #include <stdlib.h>
 
-#include "3rdparty/nifti/nifti1_io.h"
-#include "3rdparty/nifti/nifti1_local.h"
+#include "nifti1_io.h"
+#include "nifti1_local.h"
 
 #include <float.h>
 

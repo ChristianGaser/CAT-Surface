@@ -17,7 +17,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
-#include "dartel/dartel.h"
+#include "dartel.h"
 
 #define INVERSE_WARPING 0
 #define RADIANS(deg) ((PI * (double)(deg)) / 180.0)

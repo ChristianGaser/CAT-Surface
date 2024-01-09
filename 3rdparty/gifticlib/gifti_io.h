@@ -5,7 +5,7 @@
 #include <zlib.h>
 #endif
 #include <expat.h>
-#include "3rdparty/nifti/nifti1_io.h"
+#include "nifti1_io.h"
 /* also #include "gifti_xml.h", but at the end */
 
 /* ---------------------------------------------------------------------- */
