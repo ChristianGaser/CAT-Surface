@@ -132,7 +132,7 @@ main(
     Marching_cubes_methods    method;
     object_struct       *object, **object2, *object3;
     polygons_struct     *polygons;
-    unsigned short      *input;
+    unsigned short      *input_uint16;
     unsigned char       *input_uint8, *vol_uint8;
     float               *input_float, *vol_float, *dist_CSF, *dist_WM, *GMT;
     nifti_image         *nii_ptr;
@@ -184,12 +184,12 @@ main(
         
     nvol = sizes[0]*sizes[1]*sizes[2];
 
-    vol_float   = (float *)malloc(nvol*sizeof(float));
-    input       = (unsigned short *) malloc(nvol*sizeof(unsigned short));  
-    input_uint8 = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
-    vol_uint8   = (unsigned char  *) malloc(nvol*sizeof(unsigned char));
+    vol_float    = (float *)malloc(nvol*sizeof(float));
+    input_uint16 = (unsigned short *) malloc(nvol*sizeof(unsigned short));  
+    input_uint8  = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
+    vol_uint8    = (unsigned char  *) malloc(nvol*sizeof(unsigned char));
 
-    if (!vol_float || !input || !input_uint8 || !vol_uint8) {
+    if (!vol_float || !input_uint16 || !input_uint8 || !vol_uint8) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -303,7 +303,9 @@ main(
     }
     
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
-    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1);
+    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 1);
+    fill_holes(input_float, min_threshold, sizes, DT_FLOAT32);
+
 
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
@@ -347,11 +349,11 @@ main(
             RMSE = sqrt(RMSE/(double)nvol);
             sum_RMSE += RMSE;
             
-            if (verbose) fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",scl_open,sum_RMSE/RMSE/(double)count,RMSE);
+            if (verbose) fprintf(stderr,"%5.2f\t%5.4f\t%5.4f\n",scl_open,sum_RMSE/RMSE/(double)count,RMSE);
             
             /* Indicate stop if changes are getting smaller by a factor of 1.5 */
             if (sum_RMSE/RMSE/(double)count > 1.5) {
-                if (!verbose) fprintf(stderr,"%5.4f\t%5.4f\t%5.4f\n",scl_open,sum_RMSE/RMSE/(double)count,RMSE);
+                if (!verbose) fprintf(stderr,"Final threshold for distopen: %5.2f\n",scl_open);
                 break;    
             }
         }
@@ -376,7 +378,7 @@ main(
     
     /* we need uint16 for genus0 approach */
     for (i = 0; i < nvol; i++)
-        input[i] = (unsigned short)input_uint8[i];
+        input_uint16[i] = (unsigned short)input_uint8[i];
     free(vol_uint8);
 
     /* set some parameters/options for the firt iteration */
@@ -400,7 +402,7 @@ main(
     /* repeat until EC is 2 or max. count is reached */
     while ((EC != 2) && (count < 10)) {        
         /* call genus0 for the 1st time */
-        g0->input = input;
+        g0->input = input_uint16;
         g0->cut_loops = 0;
         g0->connectivity = 6;
         g0->alt_value = 1;
@@ -411,10 +413,10 @@ main(
     
         /* save results as next input */
         for (i = 0; i < nvol; i++)
-            input[i] = g0->output[i];
+            input_uint16[i] = g0->output[i];
             
         /* call genus0 a 2nd time with other parameters */
-        g0->input = input;
+        g0->input = input_uint16;
         g0->cut_loops = 1;
         g0->connectivity = 18;
         g0->alt_value = 0;
@@ -436,7 +438,8 @@ main(
         }
         
         /* apply cluster function a 2nd time and keep largest cluster after thresholding */
-        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1);
+        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1, 1);
+        fill_holes(g0->output, min_threshold, sizes, DT_UINT16);
 
         for (i = 0; i < nvol; i++)
             vol_float[i] = (float)g0->output[i];
@@ -461,7 +464,7 @@ main(
 
         /* save results as next input */
         for (i = 0; i < nvol; i++)
-            input[i] = g0->output[i];
+            input_uint16[i] = g0->output[i];
     
     }
 
@@ -486,7 +489,7 @@ main(
 
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
-    free(input);
+    free(input_uint16);
     free(input_float);
     free(vol_float);
     delete_marching_cubes_table();

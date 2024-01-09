@@ -949,7 +949,7 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
     const float s2 = sqrt(2.0);
     const float s3 = sqrt(3.0);
     
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
+    /* indices of the neighbour Ni (index distance) and euclidean distance NW */
     const int   NI[] = {0, -1, -x+1,- x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1};    
     const float ND[] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3};
     
@@ -1043,23 +1043,39 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
     }
 }
 
-/* Calculates the euclidean distance (in voxel) without PVE to an object in V with a 
-   boundary of 0.5 for all voxels within a given mask M that should define
-   a convex hull with direct connection between object and estimation 
-   voxels.
-
-   vbdist(V, M, dims, voxelsize, replace)
-
-   V         input image with zero for non-elements 
-   M         mask to limit the distance calculation
-   dims      image dimension
-   voxelsize voxelsize in mm
-   replace   replace/fill values inside mask with its neighbouring values
-   
-   V returns the voxel distance if replace == 0, otherwise the V contains the original
-   values outside the mask and inside the mask the values are replaced/filled 
-   with its neighbouring values
-*/
+/**
+ * vbdist - Calculate the voxel-wise Euclidean distance to an object in a 3D volume.
+ *
+ * This function computes the Euclidean distance from each voxel within a given mask 
+ * to the nearest surface of an object in a 3D volume. The object is defined by voxels 
+ * with values below a threshold (typically 0.5, representing the boundary).
+ * The input image is modified and returns the distanxe measure.
+ *
+ * Parameters:
+ *   @V: The input image (float) represented as a 3D volume. Voxels with zero value 
+ *       are considered non-elements of the object.
+ *   @M: An uint16 mask defining the region in which the distance calculations 
+ *       are performed. The mask should define a convex hull ensuring direct 
+ *       connections between the object and the estimation voxels.
+ *       If the mask is NULL the distance calculations are performed for the whole image
+ *       without any mask.
+ *   @dims: An integer array representing the dimensions of the 3D volume (width, height, depth).
+ *   voxelsize: An float array representing the size of each voxel in the 3D volume, in millimeters.
+ *   replace: An integer flag indicating whether to replace the values inside the mask with 
+ *            their neighboring values. If set to 0, the function returns the voxel 
+ *            distance; otherwise, the original values outside the mask are retained, 
+ *            and inside the mask, the values are replaced.
+ *
+ * The function performs a forward and backward pass to calculate the minimum distance
+ * from each voxel within the mask to the object's surface. The distances are calculated
+ * using the voxel sizes to correct for anisotropy. However, the distance is defined in voxels.
+ *
+ * If the 'replace' parameter is set, the function additionally replaces the values inside 
+ * the mask with the values from their nearest neighbor outside the object boundary. This 
+ * can be useful in scenarios where the original values inside the object are to be retained 
+ * for further analysis.
+ *
+ */
 void
 vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace) 
 {
@@ -2526,18 +2542,23 @@ median3(void *data, int dims[3], int datatype)
  *        (e.g., [width, height, depth]).
  *
  * @min_size: Integer value that defines the minimum cluster size. To ignore this parameter
- *            you can set min_size to <= 0 
+ *            and only keep the largest cluster, you can set min_size to <= 0.
  *
- * @conn18: Integer value that set the connection-scheme to 18 neighbors instaed of 26.
+ * @retain_above_th: Integer value that defines whether we set all smaller clusters to zero, 
+ *                   but retain all original values (by setting retain_above_th to 1), or we 
+ *                   only keep values in larger clusters that are then thresholded.
+ *
+ * @conn18: Integer value that set the connection-scheme to 18 neighbors instead of 26.
  *
  * The function first initializes auxiliary arrays to track used voxels and to store the output
  * data. It then iterates through the volume, identifying connected voxels that form clusters
  * and exceed the threshold. The size of each cluster is determined, and the largest one is
- * identified. Finally, the input data is modified to retain only the largest cluster.
+ * identified. Finally, the input data is modified so that all smaller clusters are filled
+ * with zeros and the original values are retained otherwise.
  *
  */
 void
-keep_largest_cluster_float(float *inData, double thresh, const int *dims, int min_size, int conn18)
+keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn18)
 {
     float valToAdd;
     float *outData;
@@ -2620,8 +2641,14 @@ keep_largest_cluster_float(float *inData, double thresh, const int *dims, int mi
     else maxInd = min_size;
     
     /* set values with smaller clusters to zero */
-    for (i = 0; i < numVoxels; ++i)
-        if ((outData[i] > 0) && (outData[i] < maxInd)) inData[i] = 0.0;
+    /* Depending on the parameter retain_above_th we either set smaller clusters to zero, 
+     * but retain all original values otherwise, or we only keep values in larger clusters
+     * that are then thresholded */
+    for (i = 0; i < numVoxels; ++i) {
+        if (retain_above_th) {
+            if ((outData[i] > 0) && (outData[i] < maxInd)) inData[i] = 0.0;
+        } else inData[i] = (outData[i] >= maxInd) ? inData[i] : 0;
+    }
 
     free(flagUsed);
     free(growing);
@@ -2635,7 +2662,7 @@ keep_largest_cluster_float(float *inData, double thresh, const int *dims, int mi
  * input and output
  */
 void
-keep_largest_cluster(void *data, double thresh, const int *dims, int datatype, int min_size, int conn18)
+keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn18)
 {
     int nvox;
     float *buffer;
@@ -2650,8 +2677,78 @@ keep_largest_cluster(void *data, double thresh, const int *dims, int datatype, i
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    keep_largest_cluster_float(buffer, thresh, dims, min_size, conn18);
+    keep_largest_cluster_float(buffer, thresh, dims, min_size, retain_above_th, conn18);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
+}
+
+/**
+ * fill_holes - Fill holes in a 3D volume after thresholding.
+ *
+ * This function is designed to process a 3D volume by filling the holes 
+ * created after applying a thresholding operation.
+ *
+ * The process involves several steps:
+ * 1. Conversion of input data to a floating-point buffer based on the given datatype.
+ * 2. Creation of an inverted mask based on the threshold value, where values below 
+ *    the threshold are set to 1 (indicating potential holes) and values above are set to 0.
+ * 3. Identification and retention of the largest cluster in the inverted mask, typically 
+ *    representing the background, using the `keep_largest_cluster_float` function.
+ * 4. Filling the identified holes in the original data buffer by setting values corresponding 
+ *    to the holes to the threshold value.
+ * 5. Conversion of the processed data back to the original datatype.
+ *
+ * Parameters:
+ *  @data: Pointer to the input data buffer. This buffer is modified in-place.
+ *  @thresh: Threshold value used for identifying holes. Values below this threshold 
+ *          are considered potential holes.
+ *  @dims: Array of 3 integers representing the dimensions of the 3D volume 
+ *         (width, height, depth).
+ *  @datatype: An integer representing the datatype of the input data. This is used 
+ *             to correctly interpret and manipulate the data buffer.
+ *
+ */
+void
+fill_holes(void *data, double thresh, int *dims, int datatype)
+{
+    int i, nvox, replace = 1;
+    float *buffer, *mask_inv;
+    double voxelsize[3] = {1.0, 1.0, 1.0};
+    unsigned char *mask_fill;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+    mask_inv = (float *)malloc(sizeof(float)*nvox);
+    mask_fill = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    
+    /* check success of memory allocation */
+    if (!buffer || !mask_fill || !mask_inv) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    
+    /* get inverted mask after thresholding */
+    for (i = 0; i < nvox; ++i)
+        mask_inv[i] = (buffer[i] >= thresh) ? 0.0 : 1.0;
+
+    /* retain largest cluster of inverted mask, which should be the background */
+    keep_largest_cluster_float(mask_inv, thresh, dims, 0, 1, 1);
+    
+    /* fill those values (=holes) that were removed by the previous keep_largest_cluster step */
+    for (i = 0; i < nvox; ++i)
+        mask_fill[i] = ((mask_inv[i] == 0.0) && (buffer[i] < thresh)) ? 1 : 0;
+    vbdist(buffer, mask_fill, dims, voxelsize, replace);
+    
+    /* ensure a minimum filled value that is the threshold */
+    for (i = 0; i < nvox; ++i)
+        buffer[i] = ((mask_fill[i] == 1) && (buffer[i] < thresh)) ? thresh : buffer[i];
+        
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
+    free(mask_inv);
+    free(mask_fill);
 }
