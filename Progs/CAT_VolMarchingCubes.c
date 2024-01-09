@@ -443,7 +443,7 @@ main(
                   min_label, max_label,
                   nii_mat,
                   method, FALSE,
-                  0.5, 0.5,
+                  min_threshold, min_threshold,
                   valid_low, valid_high, get_polygons_ptr(object));
     
         compute_polygon_normals(polygons);
