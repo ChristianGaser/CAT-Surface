@@ -2620,7 +2620,8 @@ keep_largest_cluster_float(float *inData, double thresh, const int *dims, int mi
     else maxInd = min_size;
     
     /* set values with smaller clusters to zero */
-    for (i = 0; i < numVoxels; ++i) inData[i] = (outData[i] >= maxInd) ? inData[i] : 0;
+    for (i = 0; i < numVoxels; ++i)
+        if ((outData[i] > 0) && (outData[i] < maxInd)) inData[i] = 0.0;
 
     free(flagUsed);
     free(growing);

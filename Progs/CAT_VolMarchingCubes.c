@@ -301,6 +301,9 @@ main(
         projection_based_thickness(input_float, dist_WM, dist_CSF, GMT, sizes, voxelsize); 
 
     }
+    
+    /* apply cluster function the 1st time and keep largest cluster after thresholding */
+    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1);
 
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
@@ -432,7 +435,7 @@ main(
                 g0->output[i] = (unsigned short)(input_float[i] >= min_threshold ? input_uint8[i] : 0);
         }
         
-        /* keep largest cluster after thresholding */
+        /* apply cluster function a 2nd time and keep largest cluster after thresholding */
         keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1);
 
         for (i = 0; i < nvol; i++)
