@@ -1,3 +1,15 @@
+/**
+ * CAT_AddValuesToSurf.c
+ * This program adds values to a surface file in the gifti format.
+ *
+ * The program takes three command line arguments: the input surface file, the input values file,
+ * and the output surface file. It reads the surface file and the values file, and then adds the values
+ * to the surface. The resulting surface with values is saved in the gifti format.
+ *
+ * Usage: ./CAT_AddValuesToSurf surface_file values_file output_surface_file.gii
+ *
+ */
+
 /* Christian Gaser - christian.gaser@uni-jena.de
  * Department of Psychiatry
  * University of Jena

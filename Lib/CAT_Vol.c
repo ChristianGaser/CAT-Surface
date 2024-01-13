@@ -8,7 +8,15 @@
  */
 
 #include "CAT_Vol.h"
-#include "CAT_Kmeans.h"
+
+enum
+{
+        F_AVERAGE,
+        F_MEDIAN,
+        F_STD,
+        F_MAX,
+        F_MIN,
+};
 
 /**
  * convert_input_type - Converts various data types to a floating point array.
@@ -146,6 +154,230 @@ convert_output_type(void *data, float *buffer, int nvox, int datatype)
             break;
         }
     }
+}
+
+/* qicksort */
+void
+swap_double(double *a, double *b)
+{
+    double t=*a;
+    *a=*b;
+    *b=t;
+}
+
+void
+sort_double(double arr[], int start, int end)
+{
+    if (end > start + 1)
+    {
+        double piv = arr[start];
+        int l = start + 1, r = end;
+        while (l < r)
+        {
+            if (arr[l] <= piv) l++;
+            else swap_double(&arr[l], &arr[--r]);
+        }
+        swap_double(&arr[--l], &arr[start]);
+        sort_double(arr, start, l);
+        sort_double(arr, r, end);
+    }
+}
+
+/* Function to find the median of a double array */
+double
+get_median_double(double arr[], int n) {
+    sort_double(arr,0,n);
+
+    // If n is odd
+    if (n % 2 != 0)
+        return arr[n / 2];
+    else
+        return (arr[(n - 1) / 2] + arr[n / 2]) / 2.0;
+}
+
+/* Function to find the sum of a double array */
+double
+get_sum_double(double arr[], int n) {
+    int i;
+    double sum = 0.0;
+
+    for (i=0; i<n; i++) sum += arr[i];
+    
+    return sum;
+}
+
+/* Function to find the mean of a double array */
+double
+get_mean_double(double arr[], int n) {
+
+    return get_sum_double(arr,n) / (double)n;
+}
+
+/* Function to find the std of a double array */
+double
+get_std_double(double arr[], int n) {
+    int i;
+    double mean, variance = 0.0;
+
+    mean = get_mean_double(arr,n);
+
+    /* Calculate variance */
+    for (i = 0; i < n; i++)
+        variance += pow(arr[i] - mean, 2);
+    variance /= (double)n;
+
+    /* Calculate standard deviation */
+    return sqrt(variance);
+}
+
+/* Function to find the min of a double array */
+double
+get_min_double(double arr[], int n) {
+    int i;
+    double result = FLT_MAX;
+    
+    for (i = 0; i < n; i++) {
+        if (arr[i] < result)
+            result = arr[i];
+    }
+
+    return result;
+}
+
+/* Function to find the max of a double array */
+double
+get_max_double(double arr[], int n) {
+    int i;
+    double result = -FLT_MAX;
+    
+    for (i = 0; i < n; i++) {
+        if (arr[i] > result)
+            result = arr[i];
+    }
+
+    return result;
+}
+
+/* simple median function for float */
+void 
+localstat_float(float *input, int dims[3], char size_kernel, unsigned char mask[], int stat_func)
+{
+    double *arr;
+    int i,j,k,ind,ni,x,y,z,n,di;
+    float *buffer;
+    int nvol = dims[0]*dims[1]*dims[2];
+    
+    /* we need odd kernel size */
+    if ((size_kernel % 2 == 0) || (size_kernel < 1)) {
+        printf("Only odd (positive) kernel sizes accepted\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (size_kernel > 1)
+        di = size_kernel - 2;
+    else
+        di = 0;
+       
+    buffer = (float *)malloc(sizeof(float)*nvol);
+    arr    = (double *)malloc(sizeof(double)*size_kernel*size_kernel*size_kernel);
+
+    /* check success of memory allocation */
+    if (!buffer || !arr) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* set buffer to zero in case that NANs occur */
+    for (i=0; i<nvol; i++) buffer[i] = 0.0;
+    
+    /* filter process */
+    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
+        ind = sub2ind(x,y,z,dims);
+        n = 0;
+        
+        /* go through all elements in a box defined by kernel_size */
+        for (i=-di; i<=di; i++) for (j=-di; j<=di; j++) for (k=-di; k<=di; k++) {
+            ni = sub2ind(x+i,y+j,z+k,dims);
+            
+            /* check masks and NaN or Infinities */
+            if (isnan(input[ni]) || input[ni]==FLT_MAX || input[ind]==-FLT_MAX || (mask && mask[ni] == 0))
+                continue;
+            
+            arr[n] = (double)input[ni];
+            n++;
+        }
+
+        switch (stat_func) {
+        case F_AVERAGE:
+            buffer[ind] = (float)get_mean_double(arr, n);
+            break;
+        case F_MEDIAN:
+            buffer[ind] = (float)get_median_double(arr, n);
+            break;
+        case F_STD:
+            buffer[ind] = (float)get_std_double(arr, n);
+            break;
+        case F_MIN:
+            buffer[ind] = (float)get_min_double(arr, n);
+            break;
+        case F_MAX:
+            buffer[ind] = (float)get_max_double(arr, n);
+            break;
+        default:
+            fprintf(stderr, "Data Function %d not handled\n", stat_func);
+            break;
+        }
+    }
+
+    for (i=0; i<nvol; i++) input[i] = buffer[i];
+    
+    free(buffer);
+    free(arr);
+}
+
+
+void
+localstat3(void *data, int dims[3], char size_kernel, unsigned char mask[], int stat_func, int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    localstat_float(buffer, dims, size_kernel, mask, stat_func);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
+void
+median3(void *data, int dims[3], int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    localstat_float(buffer, dims, 3, NULL, F_MEDIAN);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
 }
 
 /**
@@ -1403,7 +1635,7 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
     
     /* threshold input */
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
-        buffer[index(x+band,y+band,z+band,dims2)] = (vol[index(x,y,z,dims)]>(float)th);
+        buffer[sub2ind(x+band,y+band,z+band,dims2)] = (vol[sub2ind(x,y,z,dims)]>(float)th);
 
     replace = 0;
     vbdist(buffer, NULL, dims2, voxelsize, replace);
@@ -1416,7 +1648,7 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
 
     /* return image */
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
-        vol[index(x,y,z,dims)] = buffer[index(x+band,y+band,z+band,dims2)];
+        vol[sub2ind(x,y,z,dims)] = buffer[sub2ind(x+band,y+band,z+band,dims2)];
         
     free(buffer);
 }
@@ -1580,7 +1812,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
     
     /* threshold input */
     for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        buffer[index(x+band,y+band,z+band,dims2)] = (unsigned char)((double)vol[index(x,y,z,dims)]>th);
+        buffer[sub2ind(x+band,y+band,z+band,dims2)] = (unsigned char)((double)vol[sub2ind(x,y,z,dims)]>th);
 
     for (i=0;i<niter;i++) {
         convxyz_uint8(buffer,filt,filt,filt,3,3,3,-1,-1,-1,buffer,dims2);
@@ -1590,7 +1822,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
 
     /* return image */
     for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        vol[index(x,y,z,dims)] = (float)buffer[index(x+band,y+band,z+band,dims2)];
+        vol[sub2ind(x,y,z,dims)] = (float)buffer[sub2ind(x+band,y+band,z+band,dims2)];
         
     free(buffer);
     
@@ -1647,7 +1879,7 @@ morph_close_float(float *vol, int dims[3], int niter, double th)
     
     /* threshold input */
     for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        buffer[index(x+band,y+band,z+band,dims2)] = (unsigned char)((double)vol[index(x,y,z,dims)]>th);
+        buffer[sub2ind(x+band,y+band,z+band,dims2)] = (unsigned char)((double)vol[sub2ind(x,y,z,dims)]>th);
                 
     /* dilate */
     for (i=0;i<niter;i++) {
@@ -1665,7 +1897,7 @@ morph_close_float(float *vol, int dims[3], int niter, double th)
 
     /* return image */
     for (x=0;x<dims[0];x++) for (y=0;y<dims[1];y++) for (z=0;z<dims[2];z++) 
-        vol[index(x,y,z,dims)] = (float)buffer[index(x+band,y+band,z+band,dims2)];
+        vol[sub2ind(x,y,z,dims)] = (float)buffer[sub2ind(x+band,y+band,z+band,dims2)];
         
     free(buffer);
 }
@@ -2431,96 +2663,6 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
     free(b);
     free(c);
     
-}
-
-/* qicksort */
-void
-swap_float(float *a, float *b)
-{
-    float t=*a;
-    *a=*b;
-    *b=t;
-}
-
-void
-sort_float(float arr[], int start, int end)
-{
-    if (end > start + 1)
-    {
-        float piv = arr[start];
-        int l = start + 1, r = end;
-        while (l < r)
-        {
-            if (arr[l] <= piv) l++;
-            else swap_float(&arr[l], &arr[--r]);
-        }
-        swap_float(&arr[--l], &arr[start]);
-        sort_float(arr, start, l);
-        sort_float(arr, r, end);
-    }
-}
-
-/* simple median function for float */
-void 
-median3_float(float *D, int dims[3])
-{
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    float NV[27];
-    int i,j,k,ind,ni,x,y,z,n;
-    float *M;
-    int nvol = dims[0]*dims[1]*dims[2];
-                
-    /* output */
-    M = (float *)malloc(sizeof(float)*nvol);
-
-    /* filter process */
-    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
-        ind = index(x,y,z,dims);
-        n = 0;
-        /* go through all elements in a 3x3x3 box */
-        for (i=-1; i<=1; i++) for (j=-1; j<=1; j++) for (k=-1; k<=1; k++) {
-            /* check borders */ 
-            if (((x+i)>=0) && ((x+i)<dims[0]) && ((y+j)>=0) && ((y+j)<dims[1]) && ((z+k)>=0) && ((z+k)<dims[2])) {
-                ni = index(x+i,y+j,z+k,dims);
-                /* check masks and NaN or Infinities */
-                if (isnan(D[ni]) || D[ni]==FLT_MAX || D[ind]==-FLT_MAX) ni = ind;
-                NV[n] = D[ni];
-                n++;
-            }
-        }
-        /* get correct n */
-        n--;
-        /* sort and get the median by finding the element in the middle of the sorting */
-        sort_float(NV,0,n);
-        M[ind] = NV[(int)(n/2)];
-    }
-     
-    for (i=0; i<nvol; i++) D[i] = M[i];
-    
-    free(M);
-    
-}
-
-void
-median3(void *data, int dims[3], int datatype)
-{
-    int nvox;
-    float *buffer;
-   
-    nvox = dims[0]*dims[1]*dims[2];
-    buffer = (float *)malloc(sizeof(float)*nvox);
-
-    /* check success of memory allocation */
-    if (!buffer) {
-        printf("Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-   
-    convert_input_type(data, buffer, nvox, datatype);
-    median3_float(buffer, dims);
-    convert_output_type(data, buffer, nvox, datatype);
-    
-    free(buffer);
 }
 
 /**

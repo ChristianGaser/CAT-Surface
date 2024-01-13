@@ -66,6 +66,11 @@
 
 #define MAX_NC 6
 
+double get_min_double(double arr[], int n);
+double get_max_double(double arr[], int n);
+double get_mean_double(double arr[], int n);
+double get_median_double(double arr[], int n);
+double get_std_double(double arr[], int n);
 void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
@@ -88,6 +93,7 @@ void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double
 void initial_cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int remove_sinus);
 void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int gmwm_only);
 void median3(void *D, int dims[3], int datatype);
+void localstat3(void *data, int dims[3], char size_kernel, unsigned char mask[], int stat_func, int datatype);
 void laplace3(float *SEG, int dims[3], int maxiter);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void vbdist(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
