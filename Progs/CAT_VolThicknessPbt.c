@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
     if (fwhm > 0.0) {
         if (verbose) fprintf(stderr,"Final correction\n");
         double s[3] = {fwhm, fwhm, fwhm};
-        smooth_float(GMT, dims, voxelsize, s, 1);
+        smooth3(GMT, dims, voxelsize, s, 1, DT_FLOAT32);
     }
     
     /* save GMT and PPM image */

@@ -13,6 +13,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Map.h"
+#include "CAT_Vol.h"
 #include "CAT_Surf.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
@@ -398,81 +399,18 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
         free(map_src);
 }
 
-/* qicksort */
-void swap(double *a, double *b)
-{
-  double t=*a; *a=*b; *b=t;
-}
-
-void sort(double arr[], int beg, int end)
-{
-  if (end > beg + 1)
-  {
-    double piv = arr[beg];
-    int l = beg + 1, r = end;
-    while (l < r)
-    {
-      if (arr[l] <= piv)
-        l++;
-      else
-        swap(&arr[l], &arr[--r]);
-    }
-    swap(&arr[--l], &arr[beg]);
-    sort(arr, beg, l);
-    sort(arr, r, end);
-  }
-}
-
-double
-median(double *data, int length)
-{
-        double *data_sort, median_value;
-        int i;
-    
-        data_sort = (double *) malloc(sizeof(double) * length);
-
-        for (i = 0; i < length; i++) 
-               data_sort[i] = data[i];
- 
-        sort(data_sort, 0, length);
-        
-        median_value = data_sort[(int)(length/2)];
-        free(data_sort);
-        return median_value;
-}
-
-double
-stdev(double *data, int length)
-{
-        double avg, sum2, data0;
-        int i;
-    
-        avg = sum2 = 0.0;
-        for (i = 0; i < length; i++) 
-               avg  += data[i];
-               
-        avg /= (double)length;
-                
-        for (i = 0; i < length; i++) {
-               data0 = data[i] - avg; 
-               sum2  += data0*data0;
-        }
-
-        return sqrt(sum2);
-}
-
 void
 normalizeVector(double *data, int length)
 {
         double median_data, stdev_data;
         int i;
     
-        median_data = median(data, length);
+        median_data = get_median(data, length);
 
         for (i = 0; i < length; i++) 
                 data[i] -= median_data;
                 
-        stdev_data = stdev(data, length);
+        stdev_data = get_std(data, length);
 
         for (i = 0; i < length; i++)
                 data[i] /= stdev_data;

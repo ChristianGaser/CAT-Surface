@@ -655,7 +655,8 @@ float pmax(const float GMT[], const float PPM[], const float SEG[], const float 
 float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr) {
     float seg = 0.0, n = 0.0;
     float world_coords[3] = {x, y, z}; // Define world coordinates (in mm)
-
+    int i;
+    
     // Convert from world to voxel space if NIfTI pointer is defined
     if (nii_ptr) {
         mat44 mat = nii_ptr->sto_xyz; // Transformation matrix
@@ -680,7 +681,7 @@ float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *ni
     float N[8], W[8]; // Neighbors and their weights
         
     // Calculate value of the 8 neighbors and their distance weight
-    for (int i = 0; i < 8; i++) {
+    for (i = 0; i < 8; i++) {
         int ix = (i & 1) ? cx : fx;
         int iy = (i & 2) ? cy : fy;
         int iz = (i & 4) ? cz : fz;

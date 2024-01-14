@@ -210,7 +210,7 @@ main(
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
         double s[] = {fabs(pre_fwhm), fabs(pre_fwhm), fabs(pre_fwhm)};
-        smooth_float(vol_float, sizes, voxelsize, s, (pre_fwhm < 0.0));
+        smooth3(vol_float, sizes, voxelsize, s, (pre_fwhm < 0.0), DT_FLOAT32);
         
         /* Protect values in sulci and gyri and weight areas with filtered values 
           depending on distance isovalue (threshold) */
