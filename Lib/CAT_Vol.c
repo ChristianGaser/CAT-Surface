@@ -242,34 +242,82 @@ void quicksort(double arr[], int start, int end) {
     }
 }
 
-/* Function to find the median of a double array */
+/**
+ * get_median - Calculate the median of an array of doubles.
+ *
+ * This function finds the median value in an array of doubles. It sorts the array
+ * using quicksort and then calculates the median.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  The median value of the array.
+ *
+ * Note:
+ *  This function modifies the original array by sorting it.
+ */
 double get_median(double arr[], int n) {
-    quicksort(arr,0,n);
+    quicksort(arr, 0, n);
 
-    // If n is odd
-    if (n % 2 != 0)
+    // Calculate median
+    if (n % 2 != 0) // If n is odd
         return arr[n / 2];
     else
         return (arr[(n - 1) / 2] + arr[n / 2]) / 2.0;
 }
 
-/* Function to find the sum of a double array */
+/**
+ * get_sum - Calculate the sum of an array of doubles.
+ *
+ * This function calculates the sum of all elements in an array of doubles.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  The sum of the array elements.
+ */
 double get_sum(double arr[], int n) {
     int i;
     double sum = 0.0;
-
-    for (i=0; i<n; i++) sum += arr[i];
+    
+    for (i = 0; i < n; i++)
+        sum += arr[i];
     
     return sum;
 }
 
-/* Function to find the mean of a double array */
+/**
+ * get_mean - Calculate the mean of an array of doubles.
+ *
+ * This function calculates the mean (average) value of an array of doubles.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  The mean value of the array.
+ */
 double get_mean(double arr[], int n) {
-
-    return get_sum(arr,n) / (double)n;
+    return get_sum(arr, n) / (double)n;
 }
 
-/* Function to find the std of a double array */
+/**
+ * get_std - Calculate the standard deviation of an array of doubles.
+ *
+ * This function calculates the standard deviation of an array of doubles. It first
+ * calculates the mean, then computes the variance, and finally the standard deviation.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array
+ *
+ * Returns: The standard deviation of the array.
+*/
 double get_std(double arr[], int n) {
     int i;
     double mean, variance = 0.0;
@@ -285,8 +333,19 @@ double get_std(double arr[], int n) {
     return sqrt(variance);
 }
 
-/* Function to find the min of a double array */
-double get_min(double arr[], int n) {
+/**
+ * get_min - Find the minimum value in an array of doubles.
+ *
+ * This function iterates through an array of doubles to find the smallest element.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  The minimum value in the array.
+ */
+ double get_min(double arr[], int n) {
     int i;
     double result = FLT_MAX;
     
@@ -298,8 +357,19 @@ double get_min(double arr[], int n) {
     return result;
 }
 
-/* Function to find the max of a double array */
-double get_max(double arr[], int n) {
+/**
+ * get_max - Find the maximum value in an array of doubles.
+ *
+ * This function iterates through an array of doubles to find the largest element.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  The maximum value in the array.
+ */
+ double get_max(double arr[], int n) {
     int i;
     double result = -FLT_MAX;
     
@@ -410,7 +480,9 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
     free(arr);
 }
 
-/* wrapper to call localstat_float for any data type */
+/**
+ * wrapper to call localstat_float for any data type 
+ */
 void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned char use_dist, unsigned char mask[], int stat_func, int datatype)
 {
     int nvox;
@@ -438,7 +510,9 @@ void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned cha
     free(buffer);
 }
 
-/* wrapper to call median for any data type */
+/**
+ * wrapper to use localstat_float for median calculation for any data type 
+ */
 void median3(void *data, int dims[3], int datatype)
 {
     int nvox;
@@ -596,27 +670,49 @@ void pmin(float *A, int sA, float *minimum, int *index)
     }
 }
 
-/* subfunction for SBT to get all values of the voxels which are in WMD-range (children of this voxel) */
+/**
+ * pmax - Calculate a conditional maximum value from a set of voxels.
+ *
+ * This function is used in the projection_based_thickness process to find the maximum value among
+ * the voxels that are in the range of White Matter Distance (WMD), considering certain constraints.
+ * It first finds the pure maximum based on several criteria and then calculates the mean of the 
+ * highest values under the same constraints.
+ *
+ * Parameters:
+ *  - GMT: Array of thickness/WMD values of neighbors.
+ *  - PPM: Array of projection values.
+ *  - SEG: Array of segmentation values.
+ *  - ND: Array of Euclidean distances.
+ *  - WMD: White Matter Distance for the current voxel.
+ *  - SEGI: Segmentation value of the current voxel.
+ *  - sA: Size of the arrays (number of elements to consider).
+ *
+ * Returns:
+ *  The calculated maximum value under the specified conditions.
+ *
+ * Notes:
+ *  The function applies several constraints based on segmentation and distance measures to determine
+ *  the relevant maximum value. This includes checking the range of projection, upper and lower distance 
+ *  boundaries, and segmentation-based conditions.
+ */
 float pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
-    float n=0.0, maximum=WMD;
+    float maximum = WMD;
     int i;
 
-    /* the pure maximum */
-    for (i=0; i<=sA; i++) {
+    // Calculate the pure maximum under specified conditions
+    for (i = 0; i <= sA; i++) {
         if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbors should be larger */
                 (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) &&       /* projection range */
                 (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
                 (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) && /* lower boundary - minimum distance - corrected values outside */
-                ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) /* for high values will project data over sulcal gaps */
-        {
+                ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) { /* for high values will project data over sulcal gaps */
             maximum = GMT[i];
         }
     }
 
-    
-    /* the mean of the highest values */
-    float maximum2=maximum; float m2n=0.0; 
-    for (i=0; i<=sA; i++) {
+    // Calculate the mean of the highest values under the same conditions
+    float maximum2 = maximum, m2n = 0.0; 
+    for (i = 0; i <= sA; i++) {
         if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) && 
                  (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) && 
                  (((PPM[i] - ND[i] * 1.2) <= WMD)) && 
@@ -774,8 +870,26 @@ void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], 
     free(histo);
 }
 
-static void convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, float buff[])
-{
+/**
+ * convxy_float - Apply 2D convolution to a slice of data.
+ *
+ * This function applies a slice-wise 2D convolution to a given input data array 
+ * using specified filter kernels along x and y dimensions. The result is stored 
+ * in the output array.
+ *
+ * Parameters:
+ *  - out: Output array where the convolution result is stored.
+ *  - xdim, ydim: Dimensions of the input data slice.
+ *  - filtx, filty: Filter kernels for convolution along x and y dimensions.
+ *  - fxdim, fydim: Dimensions of the filter kernels.
+ *  - xoff, yoff: Offsets for the filter kernels.
+ *  - buff: Buffer array for intermediate results.
+ *
+ * Notes:
+ * This is a slightly modified function from spm_conv_vol.c from SPM12.
+ */
+static void convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], 
+                         int fxdim, int fydim, int xoff, int yoff, float buff[]) {
     int x,y,k;
 
     for (y=0; y<ydim; y++) {
@@ -812,10 +926,34 @@ static void convxy_float(float out[], int xdim, int ydim, double filtx[], double
     }
 }
 
+/**
+ * convxyz_float - Apply 3D convolution to a volume.
+ *
+ * This function applies 3D convolution to a given volume using separate 1D 
+ * filter kernels along x, y, and z dimensions. The output is stored in a 
+ * separate output volume.
+ *
+ * Parameters:
+ *  - iVol: Input volume for convolution.
+ *  - filtx, filty, filtz: Filter kernels for convolution along x, y, and z dimensions.
+ *  - fxdim, fydim, fzdim: Dimensions of the filter kernels.
+ *  - xoff, yoff, zoff: Offsets for the filter kernels.
+ *  - oVol: Output volume where the convolution result is stored.
+ *  - dims: Array containing the dimensions of the input volume.
+ * 
+ * Returns:
+ * 0 on successful completion.
+ *
+ * Notes:
+ * The function applies a slice-wise 2D convolution using 'convxy_float'
+ * and then combines these results to achieve 3D convolution. It allocates
+ * temporary buffers for intermediate results and performs necessary memory
+ * management.
+ * This is a slightly modified function from spm_conv_vol.c from SPM12
+*/
 int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
-    int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
-    float *oVol, int dims[3])
-{
+                int fxdim, int fydim, int fzdim,
+                int xoff, int yoff, int zoff, float *oVol, int dims[3]) {
     float *tmp, *buff, **sortedv, *obuf;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
@@ -834,7 +972,7 @@ int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     }
 
     startz = ((fzdim+zoff-1<0) ? fzdim+zoff-1 : 0);
-    endz     = zdim+fzdim+zoff-1;
+    endz = zdim+fzdim+zoff-1;
 
     for (z=startz; z<endz; z++) {
         double sum2 = 0.0;
@@ -902,7 +1040,7 @@ int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double fi
     }
 
     startz = ((fzdim+zoff-1<0) ? fzdim+zoff-1 : 0);
-    endz     = zdim+fzdim+zoff-1;
+    endz = zdim+fzdim+zoff-1;
 
     for (z=startz; z<endz; z++) {
         double sum2 = 0.0;
@@ -948,6 +1086,135 @@ int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double fi
     free(buff);
     free(sortedv);
     return(0);
+}
+
+/**
+ * smooth_float - Apply Gaussian smoothing to a 3D volume.
+ *
+ * This function performs Gaussian smoothing on a 3D volume. The size of the 
+ * Gaussian kernel is defined by the Full Width at Half Maximum (FWHM) parameter. 
+ * Optionally, the function can perform smoothing only inside a specified mask 
+ * and correct the smoothed values based on the mask.
+ *
+ * Parameters:
+ *  - vol: Pointer to the 3D volume to be smoothed.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - voxelsize: Array containing the size of each voxel.
+ *  - fwhm: Array containing the FWHM values for each dimension.
+ *  - use_mask: Flag to indicate whether masked smoothing should be used.
+ *
+ * Notes:
+ *  - The function calculates the Gaussian kernel based on FWHM and voxel size.
+ *  - Masked smoothing excludes zero-valued voxels and adjusts the smoothing accordingly.
+ */
+void smooth_float(float *vol, int dims[3], double voxelsize[3], double fwhm[3], int use_mask) {
+    int i;
+    double xsum, ysum, zsum;
+    double *x, *y, *z, s[3];
+    int xyz[3], nvox, sum_mask;
+    float *mask;
+    unsigned char *mask2;
+
+    nvox = dims[0] * dims[1] * dims[2];
+
+    // Calculate the standard deviation and kernel size based on FWHM and voxel size
+    for (i = 0; i < 3; i++) {
+        s[i] = fwhm[i] / voxelsize[i];
+        if (s[i] < 1.0) s[i] = 1.0;
+        s[i] /= sqrt(8.0 * log(2.0));
+        xyz[i] = (int)round(6.0 * s[i]);
+    }
+
+    // Memory allocation for Gaussian kernels
+    x = (double *)malloc(sizeof(double) * ((2 * xyz[0]) + 1));
+    y = (double *)malloc(sizeof(double) * ((2 * xyz[1]) + 1));
+    z = (double *)malloc(sizeof(double) * ((2 * xyz[2]) + 1));
+
+    if (!x || !y || !z) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize and build the mask for masked smoothing
+    if (use_mask) {
+        mask  = (float *) malloc(sizeof(float)*nvox);
+        mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvox);
+
+        if (!mask || !mask2) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        sum_mask = 0;
+        // Build the mask based on the volume data
+        for (i = 0; i < nvox; i++) {
+            if (vol[i] == 0.0) {
+                mask[i]  = 0.0;
+                mask2[i] = 0;
+            } else {
+            mask[i]  = 1.0;
+                mask2[i] = 1;
+                sum_mask++;
+            }
+        }
+    }
+
+    // Build the Gaussian kernel
+    for (i = -xyz[0]; i <= xyz[0]; i++) x[i + xyz[0]] = exp(-pow((double)i, 2) / (2.0 * pow(s[0], 2)));
+    for (i = -xyz[1]; i <= xyz[1]; i++) y[i + xyz[1]] = exp(-pow((double)i, 2) / (2.0 * pow(s[1], 2)));
+    for (i = -xyz[2]; i <= xyz[2]; i++) z[i + xyz[2]] = exp(-pow((double)i, 2) / (2.0 * pow(s[2], 2)));
+    
+    // Normalize the Gaussian kernel
+    xsum = ysum = zsum = 0.0;
+    for (i = 0; i < ((2 * xyz[0]) + 1); i++) xsum += x[i];
+    for (i = 0; i < ((2 * xyz[1]) + 1); i++) ysum += y[i];
+    for (i = 0; i < ((2 * xyz[2]) + 1); i++) zsum += z[i];
+    for (i = 0; i < ((2 * xyz[0]) + 1); i++) x[i] /= xsum;
+    for (i = 0; i < ((2 * xyz[1]) + 1); i++) y[i] /= ysum;
+    for (i = 0; i < ((2 * xyz[2]) + 1); i++) z[i] /= zsum;
+    
+    // Apply convolution with the Gaussian kernel
+    convxyz_float(vol, x, y, z, ((2 * xyz[0]) + 1), ((2 * xyz[1]) + 1), ((2 * xyz[2]) + 1), -xyz[0], -xyz[1], -xyz[2], vol, dims);
+    
+    // Apply masked smoothing if selected
+    if (use_mask) {
+        if (sum_mask > 0) {
+            convxyz_float(mask, x, y, z, ((2 * xyz[0]) + 1), ((2 * xyz[1]) + 1), ((2 * xyz[2]) + 1), -xyz[0], -xyz[1], -xyz[2], mask, dims);
+            for (i = 0; i < nvox; i++) {
+                vol[i] = mask2[i] > 0 ? vol[i] / mask[i] : 0.0;
+            }
+        }
+        free(mask);
+        free(mask2);
+    }
+    
+    // Free allocated memory for the Gaussian kernels
+    free(x);
+    free(y);
+    free(z);
+}
+
+/**
+ * wrapper to call smooth_float for any data type 
+ */
+void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int use_mask, int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    smooth_float(buffer, dims, voxelsize, fwhm, use_mask);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
 }
 
 /**
@@ -1754,133 +2021,6 @@ void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int o
             }
         }
     }
-}
-
-/**
- * smooth_float - Apply Gaussian smoothing to a 3D volume.
- *
- * This function performs Gaussian smoothing on a 3D volume. The size of the 
- * Gaussian kernel is defined by the Full Width at Half Maximum (FWHM) parameter. 
- * Optionally, the function can perform smoothing only inside a specified mask 
- * and correct the smoothed values based on the mask.
- *
- * Parameters:
- *  - vol: Pointer to the 3D volume to be smoothed.
- *  - dims: Array containing the dimensions of the volume.
- *  - voxelsize: Array containing the size of each voxel.
- *  - fwhm: Array containing the FWHM values for each dimension.
- *  - use_mask: Flag to indicate whether masked smoothing should be used.
- *
- * Notes:
- *  - The function calculates the Gaussian kernel based on FWHM and voxel size.
- *  - Masked smoothing excludes zero-valued voxels and adjusts the smoothing accordingly.
- */
-void smooth_float(float *vol, int dims[3], double voxelsize[3], double fwhm[3], int use_mask) {
-    int i;
-    double xsum, ysum, zsum;
-    double *x, *y, *z, s[3];
-    int xyz[3], nvox, sum_mask;
-    float *mask;
-    unsigned char *mask2;
-
-    nvox = dims[0] * dims[1] * dims[2];
-
-    // Calculate the standard deviation and kernel size based on FWHM and voxel size
-    for (i = 0; i < 3; i++) {
-        s[i] = fwhm[i] / voxelsize[i];
-        if (s[i] < 1.0) s[i] = 1.0;
-        s[i] /= sqrt(8.0 * log(2.0));
-        xyz[i] = (int)round(6.0 * s[i]);
-    }
-
-    // Memory allocation for Gaussian kernels
-    x = (double *)malloc(sizeof(double) * ((2 * xyz[0]) + 1));
-    y = (double *)malloc(sizeof(double) * ((2 * xyz[1]) + 1));
-    z = (double *)malloc(sizeof(double) * ((2 * xyz[2]) + 1));
-
-    if (!x || !y || !z) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Initialize and build the mask for masked smoothing
-    if (use_mask) {
-        mask  = (float *) malloc(sizeof(float)*nvox);
-        mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvox);
-
-        if (!mask || !mask2) {
-            fprintf(stderr,"Memory allocation error\n");
-            exit(EXIT_FAILURE);
-        }
-        sum_mask = 0;
-        // Build the mask based on the volume data
-        for (i = 0; i < nvox; i++) {
-            if (vol[i] == 0.0) {
-                mask[i]  = 0.0;
-                mask2[i] = 0;
-            } else {
-            mask[i]  = 1.0;
-                mask2[i] = 1;
-                sum_mask++;
-            }
-        }
-    }
-
-    // Build the Gaussian kernel
-    for (i = -xyz[0]; i <= xyz[0]; i++) x[i + xyz[0]] = exp(-pow((double)i, 2) / (2.0 * pow(s[0], 2)));
-    for (i = -xyz[1]; i <= xyz[1]; i++) y[i + xyz[1]] = exp(-pow((double)i, 2) / (2.0 * pow(s[1], 2)));
-    for (i = -xyz[2]; i <= xyz[2]; i++) z[i + xyz[2]] = exp(-pow((double)i, 2) / (2.0 * pow(s[2], 2)));
-    
-    // Normalize the Gaussian kernel
-    xsum = ysum = zsum = 0.0;
-    for (i = 0; i < ((2 * xyz[0]) + 1); i++) xsum += x[i];
-    for (i = 0; i < ((2 * xyz[1]) + 1); i++) ysum += y[i];
-    for (i = 0; i < ((2 * xyz[2]) + 1); i++) zsum += z[i];
-    for (i = 0; i < ((2 * xyz[0]) + 1); i++) x[i] /= xsum;
-    for (i = 0; i < ((2 * xyz[1]) + 1); i++) y[i] /= ysum;
-    for (i = 0; i < ((2 * xyz[2]) + 1); i++) z[i] /= zsum;
-    
-    // Apply convolution with the Gaussian kernel
-    convxyz_float(vol, x, y, z, ((2 * xyz[0]) + 1), ((2 * xyz[1]) + 1), ((2 * xyz[2]) + 1), -xyz[0], -xyz[1], -xyz[2], vol, dims);
-    
-    // Apply masked smoothing if selected
-    if (use_mask) {
-        if (sum_mask > 0) {
-            convxyz_float(mask, x, y, z, ((2 * xyz[0]) + 1), ((2 * xyz[1]) + 1), ((2 * xyz[2]) + 1), -xyz[0], -xyz[1], -xyz[2], mask, dims);
-            for (i = 0; i < nvox; i++) {
-                vol[i] = mask2[i] > 0 ? vol[i] / mask[i] : 0.0;
-            }
-        }
-        free(mask);
-        free(mask2);
-    }
-    
-    // Free allocated memory for the Gaussian kernels
-    free(x);
-    free(y);
-    free(z);
-}
-
-/* wrapper to call smooth for any data type */
-void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int use_mask, int datatype)
-{
-    int nvox;
-    float *buffer;
-   
-    nvox = dims[0]*dims[1]*dims[2];
-    buffer = (float *)malloc(sizeof(float)*nvox);
-
-    /* check success of memory allocation */
-    if (!buffer) {
-        printf("Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-   
-    convert_input_type(data, buffer, nvox, datatype);
-    smooth_float(buffer, dims, voxelsize, fwhm, use_mask);
-    convert_output_type(data, buffer, nvox, datatype);
-    
-    free(buffer);
 }
 
 void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
