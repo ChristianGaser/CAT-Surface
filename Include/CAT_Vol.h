@@ -82,15 +82,16 @@ enum
     F_MULTI
 };
 
-double get_min_double(double arr[], int n);
-double get_max_double(double arr[], int n);
-double get_mean_double(double arr[], int n);
-double get_median_double(double arr[], int n);
-double get_std_double(double arr[], int n);
-double get_sum_double(double arr[], int n);
-void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
+double get_min(double arr[], int n);
+double get_max(double arr[], int n);
+double get_mean(double arr[], int n);
+double get_median(double arr[], int n);
+double get_std(double arr[], int n);
+double get_sum(double arr[], int n);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
+float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
+void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
@@ -98,14 +99,11 @@ void morph_close(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_open(void *vol, int dims[3], int niter, double th, int datatype);
 void distclose(void *vol, int dims[3], double voxelsize[3], int niter, double th, int datatype);
 void distopen(void *vol, int dims[3], double voxelsize[3], int niter, double th, int datatype);
-void subsample_double(double *in, double *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
 void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
 void subsample_uint8(unsigned char *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
 void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp);
-void smooth_double(double *vol, int dims[3], double voxelsize[3], double s[3], int use_mask);
-void smooth_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask);
-void smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp);
-void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp);
+void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int datatype);
+void smooth_subsample(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp, int datatype);
 void initial_cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int remove_sinus);
 void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int gmwm_only);
 void median3(void *D, int dims[3], int datatype);
@@ -118,6 +116,5 @@ int sub2ind(int x, int y, int z, int s[]);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn18);
 void fill_holes(void *data, double thresh, int *dims, int datatype);
-float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 
 #endif

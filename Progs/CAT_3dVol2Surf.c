@@ -160,10 +160,10 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
     switch (map_func)
     {
     case F_MEAN:
-        result = get_mean_double(val_array, n_val);
+        result = get_mean(val_array, n_val);
         break;
     case F_MEDIAN:
-        result = get_median_double(val_array, n_val);
+        result = get_median(val_array, n_val);
         break;
     case F_WAVERAGE:
         result = 0.0;
@@ -245,7 +245,7 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
             result += val_array[i] * kernel[i];
         break;
     case F_SUM:
-        result = get_sum_double(val_array, n_val);
+        result = get_sum(val_array, n_val);
         break;
     }
     return (result);

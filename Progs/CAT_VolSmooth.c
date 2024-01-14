@@ -40,7 +40,8 @@ main(int argc, char *argv[])
 {
         char *infile, outfile[1024];
         int i, dims[3];
-        double *input, separations[3], s[3];
+        float *input;
+        double separations[3], s[3];
         nifti_image *nii_ptr;
 
         /* Get arguments */
@@ -62,7 +63,7 @@ main(int argc, char *argv[])
                 fprintf(stdout,"Filtering %s with FWHM of %gmm.\n", infile, fwhm);
         
         /* read first image to get image parameters */
-        nii_ptr = read_nifti_double(infile, &input, 0);
+        nii_ptr = read_nifti_float(infile, &input, 0);
         if(nii_ptr == NULL) {
                 fprintf(stderr,"Error reading %s.\n", infile);
                 return(EXIT_FAILURE);
@@ -78,7 +79,7 @@ main(int argc, char *argv[])
         dims[1] = nii_ptr->ny;
         dims[2] = nii_ptr->nz;
         
-        smooth_double(input, dims, separations, s, use_mask);
+        smooth3(input, dims, separations, s, use_mask, DT_FLOAT32);
         
         /* if not defined use original name as basename for output */
         if(argc == 3)
@@ -90,7 +91,7 @@ main(int argc, char *argv[])
         }
 
         /* write data using same data type and rescale */
-        if (!write_nifti_double(outfile, input, nii_ptr->datatype, 0.0, dims, separations, nii_ptr)) 
+        if (!write_nifti_float(outfile, input, nii_ptr->datatype, 0.0, dims, separations, nii_ptr)) 
                 exit(EXIT_FAILURE);
         
         return(EXIT_SUCCESS);

@@ -199,7 +199,7 @@ void convert_output_type(void *data, float *buffer, int nvox, int datatype)
 }
 
 /**
- * swap_double - Swap the values of two double variables.
+ * swap - Swap the values of two double variables.
  *
  * This utility function is used in sorting algorithms to swap the values 
  * of two double variables.
@@ -208,14 +208,14 @@ void convert_output_type(void *data, float *buffer, int nvox, int datatype)
  *  - a: Pointer to the first double variable.
  *  - b: Pointer to the second double variable.
  */
-void swap_double(double *a, double *b) {
+void swap(double *a, double *b) {
     double temp = *a;
     *a = *b;
     *b = temp;
 }
 
 /**
- * quicksort_double - Sort an array of doubles using the Quick Sort algorithm.
+ * quicksort - Sort an array of doubles using the Quick Sort algorithm.
  *
  * This function sorts an array of doubles in place using the Quick Sort algorithm. 
  * It's a recursive algorithm that sorts elements by partitioning the array.
@@ -225,7 +225,7 @@ void swap_double(double *a, double *b) {
  *  - start: The starting index for the sorting process.
  *  - end: The ending index (exclusive) for the sorting process.
  */
-void quicksort_double(double arr[], int start, int end) {
+void quicksort(double arr[], int start, int end) {
     if (end > start + 1) {
         double pivot = arr[start];
         int left = start + 1, right = end;
@@ -233,18 +233,18 @@ void quicksort_double(double arr[], int start, int end) {
             if (arr[left] <= pivot) {
                 left++;
             } else {
-                swap_double(&arr[left], &arr[--right]);
+                swap(&arr[left], &arr[--right]);
             }
         }
-        swap_double(&arr[--left], &arr[start]);
-        quicksort_double(arr, start, left);
-        quicksort_double(arr, right, end);
+        swap(&arr[--left], &arr[start]);
+        quicksort(arr, start, left);
+        quicksort(arr, right, end);
     }
 }
 
 /* Function to find the median of a double array */
-double get_median_double(double arr[], int n) {
-    quicksort_double(arr,0,n);
+double get_median(double arr[], int n) {
+    quicksort(arr,0,n);
 
     // If n is odd
     if (n % 2 != 0)
@@ -254,7 +254,7 @@ double get_median_double(double arr[], int n) {
 }
 
 /* Function to find the sum of a double array */
-double get_sum_double(double arr[], int n) {
+double get_sum(double arr[], int n) {
     int i;
     double sum = 0.0;
 
@@ -264,17 +264,17 @@ double get_sum_double(double arr[], int n) {
 }
 
 /* Function to find the mean of a double array */
-double get_mean_double(double arr[], int n) {
+double get_mean(double arr[], int n) {
 
-    return get_sum_double(arr,n) / (double)n;
+    return get_sum(arr,n) / (double)n;
 }
 
 /* Function to find the std of a double array */
-double get_std_double(double arr[], int n) {
+double get_std(double arr[], int n) {
     int i;
     double mean, variance = 0.0;
 
-    mean = get_mean_double(arr,n);
+    mean = get_mean(arr,n);
 
     /* Calculate variance */
     for (i = 0; i < n; i++)
@@ -286,7 +286,7 @@ double get_std_double(double arr[], int n) {
 }
 
 /* Function to find the min of a double array */
-double get_min_double(double arr[], int n) {
+double get_min(double arr[], int n) {
     int i;
     double result = FLT_MAX;
     
@@ -299,7 +299,7 @@ double get_min_double(double arr[], int n) {
 }
 
 /* Function to find the max of a double array */
-double get_max_double(double arr[], int n) {
+double get_max(double arr[], int n) {
     int i;
     double result = -FLT_MAX;
     
@@ -335,7 +335,7 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
     double *arr;
     int i, j, k, ind, ni, x, y, z, n, di;
     float *buffer;
-    int nvol = dims[0] * dims[1] * dims[2];
+    int nvox = dims[0] * dims[1] * dims[2];
     
     // Check for odd kernel size
     if ((size_kernel % 2 == 0) || (size_kernel < 1)) {
@@ -346,7 +346,7 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
     di = (size_kernel - 1) / 2; // Define distance parameter
        
     // Memory allocation
-    buffer = (float *)malloc(sizeof(float)*nvol);
+    buffer = (float *)malloc(sizeof(float)*nvox);
     arr    = (double *)malloc(sizeof(double)*size_kernel*size_kernel*size_kernel);
 
     // Check memory allocation success
@@ -356,7 +356,7 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
     }
 
     // Initialize buffer to zero
-    for (i=0; i<nvol; i++) buffer[i] = 0.0;
+    for (i=0; i<nvox; i++) buffer[i] = 0.0;
     
     // Main filter process
     for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
@@ -382,19 +382,19 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
         // Calculate local statistics based on the selected function
         switch (stat_func) {
         case F_MEAN:
-            buffer[ind] = (float)get_mean_double(arr, n);
+            buffer[ind] = (float)get_mean(arr, n);
             break;
         case F_MEDIAN:
-            buffer[ind] = (float)get_median_double(arr, n);
+            buffer[ind] = (float)get_median(arr, n);
             break;
         case F_STD:
-            buffer[ind] = (float)get_std_double(arr, n);
+            buffer[ind] = (float)get_std(arr, n);
             break;
         case F_MIN:
-            buffer[ind] = (float)get_min_double(arr, n);
+            buffer[ind] = (float)get_min(arr, n);
             break;
         case F_MAX:
-            buffer[ind] = (float)get_max_double(arr, n);
+            buffer[ind] = (float)get_max(arr, n);
             break;
         default:
             fprintf(stderr, "Data Function %d not handled\n", stat_func);
@@ -403,7 +403,7 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
     }
 
     // Copy results back to input array
-    for (i=0; i<nvol; i++) input[i] = buffer[i];
+    for (i=0; i<nvox; i++) input[i] = buffer[i];
 
     // Free allocated memory
     free(buffer);
@@ -461,208 +461,6 @@ void median3(void *data, int dims[3], int datatype)
 }
 
 /**
- * correct_bias_label - Performs bias correction on MRI images based on specified labels.
- *
- * This function applies a bias correction process to an MRI image dataset. The correction
- * is performed based on the label values assigned to each voxel, allowing different
- * treatments for different tissue types (e.g., white matter, gray matter).
- *
- * src: Pointer to the source image data (float array).
- *       This array is modified in place with the bias-corrected values.
- *
- * label: Pointer to the label array (unsigned char array) indicating different
- *         tissue types in the MRI scan. Different values in this array represent
- *         different tissues such as white matter, gray matter, etc.
- *
- * dims: Pointer to an integer array of size 3, indicating the dimensions of the
- *        MRI volume (e.g., [width, height, depth]).
- *
- * voxelsize: Pointer to a double array of size 3, indicating the size of each
- *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
- *
- * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
- *             the Gaussian kernel used for smoothing in the bias correction
- *             process.
- *
- * label_th: An integer specifying the threshold label value for selecting
- *            specific tissues for bias correction. For example, using label_th = 2
- *            may focus the correction on white matter only.
- *
- * The function first calculates the mean intensity for each label class and then
- * estimates a bias field based on the ratio between actual voxel values and their
- * respective label class means. Morphological operations are used to refine the 
- * brain mask for the bias estimation. The bias field is then used to adjust the 
- * voxel intensities in the source image.
- *
- */
-void correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
-{
-    int i, j, nvol, n[MAX_NC], n_classes = 0, replace;
-    unsigned char *mask;
-    float *biasfield;
-    double mean_label[MAX_NC], mean_bias;
-    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
-    
-    nvol = dims[0]*dims[1]*dims[2];
-
-    biasfield = (float *)malloc(sizeof(float)*nvol);
-    mask = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
-    if (!mask || !biasfield) {
-        printf("Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* get number of classes by checking maximum label value */
-    for (i = 0; i < nvol; i++)
-        n_classes = MAX((int)label[i], n_classes);
-
-    /* initialize parameters */
-    for (i = 0; i < n_classes; i++) {
-        n[i] = 0;
-        mean_label[i] = 0.0;
-    }
-    
-    /* estimate mean for each label class */
-    for (i = 0; i < nvol; i++) {
-        if (label[i] == 0) continue;
-        n[label[i]-1]++;
-        mean_label[label[i]-1] += (double)src[i];
-    }
-    for (i = 0; i < n_classes; i++) mean_label[i] /= (double)n[i];
-
-    for (i = 0; i < nvol; i++)
-        biasfield[i] = 0.0;
-
-    /* get bias field by ratio between actual values and respective mean of label class */
-    for (i = 0; i < nvol; i++)
-        if (label[i] > 0)
-            biasfield[i] += (src[i] / (float)mean_label[label[i]-1]);
-
-    /* only use defined labels (i.e. using label_th) for bias estimation 
-     * use label_th = 2 for focussing on WM only */
-    for (i = 0; i < nvol; i++)
-        mask[i] = (label[i] >= label_th) ? 1 : 0;
-    
-    /* we need a tight brainmask without remaining small parts that are only
-     * connected by a few voxels */
-    morph_open(mask,  dims, 1, 0, DT_UINT8);
-    morph_erode(mask, dims, 1, 0, DT_UINT8);
-
-    /* invert mask because we need to estimate dist outside the original mask */
-    for (i = 0; i < nvol; i++) {
-        if (mask[i] == 0) biasfield[i] = 0.0;
-        mask[i] = 1 - mask[i];
-    }
-
-    replace = 1;
-    vbdist(biasfield, mask, dims, voxelsize, replace);
-    smooth_subsample_float(biasfield, dims, voxelsize, fwhm, 0, 4);
-
-    /* estimate mean of bias field inside label for mean-correction */
-    mean_bias = get_masked_mean_array_float(biasfield, nvol, label);
-
-    for (i = 0; i < nvol; i++)
-        if ((label[i] > 0) && (biasfield[i] != 0))
-            src[i] /= (biasfield[i]/mean_bias);
-
-    free(mask);
-    free(biasfield);
-}
-
-/**
- * correct_bias - Applies bias correction to MRI data.
- *
- * This function performs bias correction on MRI images, specifically focusing on
- * white matter (WM) and, if specified, on gray matter (GM) as well. It uses a
- * local adaptive segmentation approach for additional GM correction.
- *
- * src: Pointer to the source image data (float array).
- *       This array is modified in place with the bias-corrected values.
- *
- * label: Pointer to the label array (unsigned char array) indicating different
- *         tissue types in the MRI scan. Typically, different values in this array
- *         represent different tissues such as WM, GM, and CSF.
- *
- * dims: Pointer to an integer array of size 3, indicating the dimensions of the
- *        MRI volume (e.g., [width, height, depth]).
- *
- * voxelsize: Pointer to a double array of size 3, indicating the size of each
- *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
- *
- * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
- *             the Gaussian kernel used for smoothing in the bias correction
- *             process. This parameter is primarily used for WM correction.
- *
- * weight_las: A double value indicating the amount of weighting local adaptive 
- *              segmentation (LAS) that should be applied for additional GM correction. 
- *              If non-zero, LAS is applied (use values 0..1).
- *
- * The function first applies WM bias correction. If `weight_las` is non-zero, it
- * then performs GM correction with a small smoothing factor, creates a distance 
- * map for subcortical regions, and applies a weighted average to optimize the 
- * bias correction in these areas. The function modifies the `src` array in place 
- * with the corrected values.
- *
- */
-void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
-{
-    int i, nvol, replace;
-    unsigned char *mask;
-    float *src_subcortical, *dist, max_dist = -FLT_MAX;
-
-    nvol = dims[0]*dims[1]*dims[2];
-
-    /* apply bias correction for WM only */
-    correct_bias_label(src, label, dims, voxelsize, bias_fwhm, WM);
-    
-    /* use local adaptive segmentation (LAS) and apply additional GM correction with
-     * very small smoothing */
-    if (weight_las > 0.0) {
-        src_subcortical = (float *)malloc(sizeof(float)*nvol);
-        dist = (float *)malloc(sizeof(float)*nvol);
-        if (!src_subcortical || !dist) {
-            printf("Memory allocation error\n");
-            free(src_subcortical); // Free in case only one allocation failed
-            free(dist);
-            return; 
-        }
-
-        /* apply bias correction for WM and GM */
-        for (i = 0; i < nvol; i++) src_subcortical[i] = src[i];
-        bias_fwhm = 3.0;
-        correct_bias_label(src_subcortical, label, dims, voxelsize, bias_fwhm, GM);
-
-        /* weight LAS correction */
-        for (i = 0; i < nvol; i++)
-            src[i] = weight_las*src_subcortical[i] + (1.0 - weight_las)*src[i];
-
-        /* prepare mask for distance map */
-        for (i = 0; i < nvol; i++) dist[i] = (label[i] > 0) ? 0.0 : 1.0;
-        
-        /* get distance to background */
-        replace = 0;
-        vbdist(dist, NULL, dims, voxelsize, replace);
-
-        /* scale distance values to 0..1  */
-        for (i=0; i < nvol; i++) max_dist = MAX(dist[i], max_dist);
-        for (i=0; i < nvol; i++) dist[i] /= max_dist;
-        
-        /* use squared distance weights to weight central regions (i.e. subcortical
-           structures) more */
-        for (i=0; i < nvol; i++) dist[i] *= dist[i];
-
-        /* apply weighted average (with squared weights) to maximize weighting 
-         * for subcortical regions with large distances, otherwise WM-bias 
-         * correction is more weighted */
-        for (i = 0; i < nvol; i++)
-            src[i] = dist[i]*src_subcortical[i] + (1.0 - dist[i])*src[i];
-        
-        free(dist);
-        free(src_subcortical);
-    }
-}
-
-/**
  * get_masked_mean_array_float - Calculates the mean of an array with an optional mask.
  *
  * This function computes the mean value of elements in a floating point array, optionally
@@ -697,7 +495,7 @@ double get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
     
     /* Calculate mean */
     for (i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && !isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
+        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             sum += arr[i];
             n++;
         }
@@ -741,7 +539,7 @@ double get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate mean */
     for (i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && !isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
+        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             mean += arr[i];
             n++;
         }
@@ -750,7 +548,7 @@ double get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate variance */
     for (i = 0; i < size; i++)
-        if (!isnan(arr[i]) && !isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask))
+        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask))
             variance += pow(arr[i] - mean, 2);
     variance /= (double)n;
 
@@ -834,130 +632,145 @@ float pmax(const float GMT[], const float PPM[], const float SEG[], const float 
     return maximum;
 }
 
-/* 
- * Read out the linear interpolated value of a volume vol with the size
- * s on the position x,y,z (c-notation). See also ind2sub for details of
- * the c-notation.
- * If nii_ptr is not NULL, the positions are transformed from world to voxel 
- * space.
+/**
+ * isoval - Calculate the linearly interpolated value in a 3D volume.
+ *
+ * This function reads out the linear interpolated value of a volume at a specific position
+ * in 3D space. If a NIfTI image pointer is provided, it first transforms the coordinates from 
+ * world to voxel space. It then performs linear interpolation using the nearest neighbors.
+ *
+ * Parameters:
+ *  - vol: The 3D volume in which to interpolate.
+ *  - x, y, z: Coordinates at which to interpolate the value.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - nii_ptr: Pointer to a NIfTI image for coordinate transformation (optional).
+ *
+ * Returns:
+ *  The interpolated value at the given coordinates. Returns NaN if unable to interpolate.
+ *
+ * Notes:
+ *  - The function uses linear interpolation based on the values of the 8 nearest neighbors.
+ *  - Coordinates are in C-notation. See 'ind2sub' for details on coordinate system.
  */
-float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
-{
-    int i;
-    float seg=0.0, n=0.0;
-    float world_coords[3] = {x, y, z}; /* Define world coordinates (in mm) */
+float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr) {
+    float seg = 0.0, n = 0.0;
+    float world_coords[3] = {x, y, z}; // Define world coordinates (in mm)
 
-    /* convert from world to voxel space if nifti-pointer is defined */
+    // Convert from world to voxel space if NIfTI pointer is defined
     if (nii_ptr) {
-        mat44 mat = nii_ptr->sto_xyz; /* Transformation matrix */
-        mat44 inverse_mat = nifti_mat44_inverse(mat); /* Inverse transformation matrix */
+        mat44 mat = nii_ptr->sto_xyz; // Transformation matrix
+        mat44 inverse_mat = nifti_mat44_inverse(mat); // Inverse transformation matrix
     
-        /* Convert world coordinates to voxel coordinates */
-        x = world_coords[0] * inverse_mat.m[0][0] + world_coords[1] * inverse_mat.m[0][1] + world_coords[2] * inverse_mat.m[0][2] + inverse_mat.m[0][3];
-        y = world_coords[0] * inverse_mat.m[1][0] + world_coords[1] * inverse_mat.m[1][1] + world_coords[2] * inverse_mat.m[1][2] + inverse_mat.m[1][3];
-        z = world_coords[0] * inverse_mat.m[2][0] + world_coords[1] * inverse_mat.m[2][1] + world_coords[2] * inverse_mat.m[2][2] + inverse_mat.m[2][3];
+        // Convert world coordinates to voxel coordinates
+        x = world_coords[0] * inverse_mat.m[0][0] + world_coords[1] * inverse_mat.m[0][1] + 
+            world_coords[2] * inverse_mat.m[0][2] + inverse_mat.m[0][3];
+        y = world_coords[0] * inverse_mat.m[1][0] + world_coords[1] * inverse_mat.m[1][1] + 
+            world_coords[2] * inverse_mat.m[1][2] + inverse_mat.m[1][3];
+        z = world_coords[0] * inverse_mat.m[2][0] + world_coords[1] * inverse_mat.m[2][1] + 
+            world_coords[2] * inverse_mat.m[2][2] + inverse_mat.m[2][3];
     }
-    
-    float fx = floor(x),   fy = floor(y),   fz = floor(z);
+
+    // Floor coordinates for interpolation
+    float fx = floor(x), fy = floor(y), fz = floor(z);
     float cx = floor(x+1), cy = floor(y+1), cz = floor(z+1);
     
-    float wfx = cx-x, wfy = cy-y, wfz = cz-z;
-    float wcx = x-fx, wcy = y-fy, wcz = z-fz;
-    float N[8], W[8];
+    // Weight factors for interpolation
+    float wfx = cx - x, wfy = cy - y, wfz = cz - z;
+    float wcx = x - fx, wcy = y - fy, wcz = z - fz;
+    float N[8], W[8]; // Neighbors and their weights
         
-    /* value of the 8 neighbors and there distance weight */
-    N[0] = vol[sub2ind((int)fx,(int)fy,(int)fz,dims)];  W[0] = wfx * wfy * wfz; 
-    N[1] = vol[sub2ind((int)cx,(int)fy,(int)fz,dims)];  W[1] = wcx * wfy * wfz;
-    N[2] = vol[sub2ind((int)fx,(int)cy,(int)fz,dims)];  W[2] = wfx * wcy * wfz;
-    N[3] = vol[sub2ind((int)cx,(int)cy,(int)fz,dims)];  W[3] = wcx * wcy * wfz;
-    N[4] = vol[sub2ind((int)fx,(int)fy,(int)cz,dims)];  W[4] = wfx * wfy * wcz;
-    N[5] = vol[sub2ind((int)cx,(int)fy,(int)cz,dims)];  W[5] = wcx * wfy * wcz;
-    N[6] = vol[sub2ind((int)fx,(int)cy,(int)cz,dims)];  W[6] = wfx * wcy * wcz; 
-    N[7] = vol[sub2ind((int)cx,(int)cy,(int)cz,dims)];  W[7] = wcx * wcy * wcz;
-    
-    for (i=0; i<8; i++) {
+    // Calculate value of the 8 neighbors and their distance weight
+    for (int i = 0; i < 8; i++) {
+        int ix = (i & 1) ? cx : fx;
+        int iy = (i & 2) ? cy : fy;
+        int iz = (i & 4) ? cz : fz;
+
+        N[i] = vol[sub2ind(ix, iy, iz, dims)];
+        W[i] = ((i & 1) ? wcx : wfx) * ((i & 2) ? wcy : wfy) * ((i & 4) ? wcz : wfz);
+
+        // Perform interpolation using neighbors and weights
         if (!isnan(N[i]) && isfinite(N[i])) {
-            seg = seg + (N[i] * W[i]);
-            n+= W[i];
+            seg += N[i] * W[i];
+            n += W[i];
         }
     }
-    
-    if (n>0.0) return seg/n; 
-    else return FNAN;
+
+    // Return interpolated value or NaN if unable to interpolate
+    return n > 0.0 ? seg / n : FNAN;
 }
 
-void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros)
-{
+/**
+ * get_prctile - Calculate percentile-based thresholds for a 3D volume.
+ *
+ * This function computes two thresholds for a given 3D volume (src) based on the 
+ * specified percentiles. It can optionally exclude zeros from the calculation.
+ * The calculated thresholds are stored in the 'threshold' array.
+ *
+ * Parameters:
+ *  - src: Pointer to the source 3D volume.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - threshold: Array where the calculated threshold values will be stored.
+ *  - prctile: Array containing two percentile values for which thresholds are calculated.
+ *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
+ *
+ * Notes:
+ *  - The function uses a histogram-based approach to calculate the thresholds.
+ */
+void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros) {
     double mn_thresh, mx_thresh;
     double min_src = FLT_MAX, max_src = -FLT_MAX;
     int *cumsum, *histo;
-    int i, sz_histo = 10000, nvol = dims[0]*dims[1]*dims[2];
+    int i, sz_histo = 10000, nvox = dims[0] * dims[1] * dims[2];
     
-    cumsum  = (int *)malloc(sizeof(int)*sz_histo);
-    histo   = (int *)malloc(sizeof(int)*sz_histo);
+    cumsum = (int *)malloc(sizeof(int) * sz_histo);
+    histo = (int *)malloc(sizeof(int) * sz_histo);
     
-    for (i=0; i<nvol; i++) {
-        min_src = MIN((double)src[i], min_src);
-        max_src = MAX((double)src[i], max_src);
+    /* check success of memory allocation */
+    if (!cumsum || !histo) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
     }
 
-    /* build histogram */
+    // Find the minimum and maximum values in the source volume
+    for (i = 0; i < nvox; i++) {
+        min_src = fmin((double)src[i], min_src);
+        max_src = fmax((double)src[i], max_src);
+    }
+
+    // Initialize and build the histogram
     for (i = 0; i < sz_histo; i++) histo[i] = 0;
-    for (i = 0; i < nvol; i++) {
-        if ((exclude_zeros > 0) && (src[i] == 0)) continue; /* exclude zeros from histogram */
-        histo[(int)round((double)sz_histo*((double)src[i]-min_src)/(max_src-min_src))]++;
+    for (i = 0; i < nvox; i++) {
+        if (exclude_zeros && (src[i] == 0)) continue; // Exclude zeros if specified
+        int index = (int)round((double)sz_histo * ((double)src[i] - min_src) / (max_src - min_src));
+        histo[index]++;
     }
 
-    /* find values defined prctile */
+    // Build cumulative sum from histogram
     cumsum[0] = histo[0];
-    for (i = 1; i < sz_histo; i++) cumsum[i] = cumsum[i-1] + histo[i];
-    for (i = 0; i < sz_histo; i++) cumsum[i] = (int) round(100000.0*(double)cumsum[i]/(double)cumsum[sz_histo-1]);
-    for (i = 0; i < sz_histo; i++) if (cumsum[i] >= (int)round(prctile[0]*1000.0)) break;
-    threshold[0] = (double)i/(double)sz_histo*(max_src-min_src) + min_src;
-    for (i = sz_histo-1; i > 0; i--) if (cumsum[i] <= (int)round(prctile[1]*1000.0)) break;
-    threshold[1] = (double)i/(double)sz_histo*(max_src-min_src) + min_src;
- 
+    for (i = 1; i < sz_histo; i++) {
+        cumsum[i] = cumsum[i - 1] + histo[i];
+    }
+    
+    // Normalize cumulative sum and find the lower threshold
+    for (i = 0; i < sz_histo; i++) {
+        cumsum[i] = (int)round(100000.0 * (double)cumsum[i] / (double)cumsum[sz_histo - 1]);
+        if (cumsum[i] >= (int)round(prctile[0] * 1000.0)) {
+            threshold[0] = (double)i / (double)sz_histo * (max_src - min_src) + min_src;
+            break;
+        }
+    }
+    
+    // Find the upper threshold
+    for (i = sz_histo - 1; i >= 0; i--) {
+        if (cumsum[i] <= (int)round(prctile[1] * 1000.0)) {
+            threshold[1] = (double)i / (double)sz_histo * (max_src - min_src) + min_src;
+            break;
+        }
+    }
+    
+    // Free allocated memory
     free(cumsum);
     free(histo);
- 
-}
-
-static void convxy(double out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, double buff[])
-{
-    int x,y,k;
-
-    for (y=0; y<ydim; y++) {
-        for (x=0; x<xdim; x++) {
-            buff[x] = out[x+y*xdim];
-            if (!isfinite(buff[x]))
-                buff[x] = 0.0;
-        }
-        for (x=0; x<xdim; x++) {
-            double sum1 = 0.0;
-            int fstart, fend;
-            fstart = ((x-xoff >= xdim) ? x-xdim-xoff+1 : 0);
-            fend = ((x-(xoff+fxdim) < 0) ? x-xoff+1 : fxdim);
-
-            for (k=fstart; k<fend; k++)
-                sum1 += buff[x-xoff-k]*filtx[k];
-            out[x+y*xdim] = sum1;
-        }
-    }
-    for (x=0; x<xdim; x++) {
-        for (y=0; y<ydim; y++)
-            buff[y] = out[x+y*xdim];
-
-        for (y=0; y<ydim; y++) {
-            double sum1 = 0.0;
-            int fstart, fend;
-            fstart = ((y-yoff >= ydim) ? y-ydim-yoff+1 : 0);
-            fend = ((y-(yoff+fydim) < 0) ? y-yoff+1 : fydim);
-
-            for (k=fstart; k<fend; k++)
-                sum1 += buff[y-yoff-k]*filty[k];
-            out[y*xdim+x] = sum1;
-        }
-    }
 }
 
 static void convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, float buff[])
@@ -998,73 +811,6 @@ static void convxy_float(float out[], int xdim, int ydim, double filtx[], double
     }
 }
 
-
-int convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
-    int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
-    double *oVol, int dims[3])
-{
-    double *tmp, *buff, **sortedv, *obuf;
-    int xy, z, y, x, k, fstart, fend, startz, endz;
-    int xdim, ydim, zdim;
-
-    xdim = dims[0];
-    ydim = dims[1];
-    zdim = dims[2];
-
-    tmp = (double *)malloc(sizeof(double)*xdim*ydim*fzdim);
-    buff = (double *)malloc(sizeof(double)*((ydim>xdim) ? ydim : xdim));
-    sortedv = (double **)malloc(sizeof(double *)*fzdim);
-
-    if(!tmp || !buff || !sortedv) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    startz = ((fzdim+zoff-1<0) ? fzdim+zoff-1 : 0);
-    endz     = zdim+fzdim+zoff-1;
-
-    for (z=startz; z<endz; z++) {
-        double sum2 = 0.0;
-
-        if (z >= 0 && z<zdim) {
-            for (y=0; y<ydim; y++) for (x=0; x<xdim; x++)
-                tmp[((z%fzdim)*xdim*ydim)+(y*xdim)+x] = iVol[(z*xdim*ydim)+(y*xdim)+x];  
-            convxy(tmp+((z%fzdim)*xdim*ydim),xdim, ydim,
-                filtx, filty, fxdim, fydim, xoff, yoff, buff);
-        }
-        if (z-fzdim-zoff+1>=0 && z-fzdim-zoff+1<zdim) {
-            fstart = ((z >= zdim) ? z-zdim+1 : 0);
-            fend = ((z-fzdim < 0) ? z+1 : fzdim);
-
-            for (k=0; k<fzdim; k++) {
-                int z1 = (((z-k)%fzdim)+fzdim)%fzdim;
-                sortedv[k] = &(tmp[z1*xdim*ydim]);
-            }
-
-            for (k=fstart, sum2=0.0; k<fend; k++)
-                sum2 += filtz[k];
-
-            obuf = &oVol[(z-fzdim-zoff+1)*ydim*xdim];
-            if (sum2) {
-                for (xy=0; xy<xdim*ydim; xy++) {
-                    double sum1=0.0;
-                    for (k=fstart; k<fend; k++)
-                        sum1 += filtz[k]*sortedv[k][xy];
-
-                    obuf[xy] = sum1/sum2;
-                }
-            }
-            else
-                for (xy=0; xy<xdim*ydim; xy++)
-                    obuf[xy] = 0.0;
-        }
-    }
-    free(tmp);
-    free(buff);
-    free(sortedv);
-    return(0);
-}
-
 int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     float *oVol, int dims[3])
@@ -1081,7 +827,7 @@ int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     buff = (float *)malloc(sizeof(float)*((ydim>xdim) ? ydim : xdim));
     sortedv = (float **)malloc(sizeof(float *)*fzdim);
 
-    if(!tmp || !buff || !sortedv) {
+    if (!tmp || !buff || !sortedv) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1135,21 +881,21 @@ int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double fi
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     unsigned char *oVol, int dims[3])
 {
-    double *tmp, *buff, **sortedv;
+    float *tmp, *buff, **sortedv;
     int xy, z, y, x, k, fstart, fend, startz, endz;
     int xdim, ydim, zdim;
-    double tmp2;
+    float tmp2;
     unsigned char *obuf;
 
     xdim = dims[0];
     ydim = dims[1];
     zdim = dims[2];
 
-    tmp = (double *)malloc(sizeof(double)*xdim*ydim*fzdim);
-    buff = (double *)malloc(sizeof(double)*((ydim>xdim) ? ydim : xdim));
-    sortedv = (double **)malloc(sizeof(double *)*fzdim);
+    tmp = (float *)malloc(sizeof(float)*xdim*ydim*fzdim);
+    buff = (float *)malloc(sizeof(float)*((ydim>xdim) ? ydim : xdim));
+    sortedv = (float **)malloc(sizeof(float *)*fzdim);
 
-    if(!tmp || !buff || !sortedv) {
+    if (!tmp || !buff || !sortedv) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -1162,8 +908,8 @@ int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double fi
 
         if (z >= 0 && z<zdim) {
             for (y=0; y<ydim; y++) for (x=0; x<xdim; x++)
-                tmp[((z%fzdim)*xdim*ydim)+(y*xdim)+x] = (double)iVol[(z*xdim*ydim)+(y*xdim)+x];  
-            convxy(tmp+((z%fzdim)*xdim*ydim),xdim, ydim,
+                tmp[((z%fzdim)*xdim*ydim)+(y*xdim)+x] = (float)iVol[(z*xdim*ydim)+(y*xdim)+x];  
+            convxy_float(tmp+((z%fzdim)*xdim*ydim),xdim, ydim,
                 filtx, filty, fxdim, fydim, xoff, yoff, buff);
         }
         if (z-fzdim-zoff+1>=0 && z-fzdim-zoff+1<zdim) {
@@ -1183,13 +929,13 @@ int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double fi
             if (sum2) {
                 for (xy=0; xy<xdim*ydim; xy++)
                 {
-                    double sum1=0.0;
+                    float sum1=0.0;
                     for (k=fstart; k<fend; k++)
                         sum1 += filtz[k]*sortedv[k][xy];
                     tmp2 = sum1/sum2;
                     if (tmp2<0.0) tmp2 = 0.0;
                     else if (tmp2>255.0) tmp2 = 255.0;
-                    obuf[xy] = (unsigned char)RINT(tmp2);
+                    obuf[xy] = (unsigned char)round(tmp2);
                 }
             }
             else
@@ -1203,38 +949,59 @@ int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double fi
     return(0);
 }
 
-/* 
-    [Ygmt,Ypp] = projection_based_thickness(Yp0, dist_WM, dist_CSF); 
+/**
+ * projection_based_thickness - Calculate the thickness of segmented structures.
+ *
+ * This function estimates the projection-based thickness of segmented structures 
+ * in a 3D volume, typically used in medical imaging for brain tissue analysis. 
+ * It requires PVE label images and distance maps for WM and CSF.
+ *
+ * Parameters:
+ *  - SEG: PVE label image with labels for CSF, GM, and WM.
+ *  - WMD: White Matter distance map.
+ *  - CSFD: Cerebrospinal Fluid distance map.
+ *  - GMT: Output thickness image.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - voxelsize: Array containing the size of each voxel.
+ *
+ * Note:
+ *  - The function assumes specific labels for CSF (1), GM (2), and WM (3).
  */
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize) 
 {     
-    /* main information about input data (size, dimensions, ...) */
-    const int   nvol = dims[0]*dims[1]*dims[2];
-    const int   x  = dims[0];
-    const int   y  = dims[1];
-    const int   xy = x*y;
-    
-    const float s2 = sqrt(2.0);
-    const float s3 = sqrt(3.0);
-    
-    /* indices of the neighbour Ni (index distance) and euclidean distance NW */
-    const int   NI[] = {0, -1, -x+1,- x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1};    
-    const float ND[] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3};
-    
-    const int   sN = sizeof(NI)/sizeof(NI[0]); /* division by 4 to get from the number of bytes to the number of elements */ 
+    // Initialization and pre-processing
+    const int nvox = dims[0] * dims[1] * dims[2];
+    const int x = dims[0], y = dims[1], xy = x * y;
+    const float s2 = sqrt(2.0), s3 = sqrt(3.0);
+    const int   NI[] = {0, -1, -x+1,- x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbor index offsets
+    const float ND[] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbor distances
+    const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbors
+
+    // Variables for processing
     float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
-    
-    int   i,n,ni,u,v,w,nu,nv,nw, count_WM=0, count_CSF=0;
-        
-    /* initialisiation */
-    for (i=0; i<nvol; i++) {
+    float GMTi, CSFDi;
+    int i, n, ni, u, v, w, nu, nv, nw, count_WM = 0, count_CSF = 0;
+
+    /* GMT should be allocated */
+    if (!GMT) {
+        GMT = (float *)malloc(sizeof(float)*nvox);
+        if (!GMT) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+    }    
+
+    // Initial distance checks and assignment
+    for (i = 0; i < nvox; i++) {
+        // Initial GMT value and WM/CSF counts
         GMT[i] = WMD[i] + 0.0;
         
-        /* proof distance input */
+        // proof distance input
         if (SEG[i] >= GWM) count_WM++;
         if (SEG[i] <= CGM) count_CSF++;
     }
 
+    // Error checks for WM and CSF voxels
     if (count_WM == 0) {
         fprintf(stderr,"ERROR: no WM voxels\n");
         exit(EXIT_FAILURE);
@@ -1243,11 +1010,12 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
         fprintf(stderr,"ERROR: no CSF voxels\n");
         exit(EXIT_FAILURE);
     }    
-    
-    /* thickness calculation
-     ======================================================================= */
-    for (i = 0; i < nvol; i++) {
+
+    // Forward thickness calculation
+    for (i = 0; i < nvox; i++) {
+        // Process only GM voxels
         if (SEG[i] > CSF && SEG[i] < WM) {
+            // Neighborhood processing
             ind2sub(i, &u, &v, &w, xy, x);
 
             /* read neighbour values */
@@ -1255,7 +1023,7 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
                 ni = i + NI[n];
                 ind2sub(ni, &nu, &nv, &nw, xy, x);
 
-                if ((ni < 0) || (ni >= nvol) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
                     ni = i;
 
                 GMTN[n] = GMT[ni];
@@ -1269,18 +1037,18 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
         }
     }
 
-    for (i = nvol - 1; i >= 0; i--) {
+    // Backward search for thickness correction
+    for (i = nvox - 1; i >= 0; i--) {
+        // Process only GM voxels
         if (SEG[i] > CSF && SEG[i] < WM) {
             ind2sub(i, &u, &v, &w, xy, x);
-
-            float GMTN[sN], WMDN[sN], SEGN[sN];
 
             /* read neighbour values */
             for (n = 0; n < sN; n++) {
                 ni = i - NI[n];
                 ind2sub(ni, &nu, &nv, &nw, xy, x);
 
-                if ((ni < 0) || (ni >= nvol) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
                     ni = i;
 
                 GMTN[n] = GMT[ni];
@@ -1294,13 +1062,14 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
         }
     }
 
-    for (i = 0; i < nvol; i++) {
+    // Post-processing to refine GMT values
+    for (i = 0; i < nvox; i++) {
         if (SEG[i] < CGM || SEG[i] > GWM)
             GMT[i] = 0.0;
     }
 
-    float GMTi, CSFDi;
-    for (i = 0; i < nvol; i++) {
+    // Final GMT adjustment based on CSFD and WMD
+    for (i = 0; i < nvox; i++) {
         if (SEG[i] >= CGM && SEG[i] <= GWM) {
             GMTi = CSFD[i] + WMD[i];
             CSFDi = GMT[i] - WMD[i];
@@ -1348,7 +1117,7 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
 {
     
     /* main information about input data (size, dimensions, ...) */
-    const int nvol = dims[0]*dims[1]*dims[2];
+    const int nvox = dims[0]*dims[1]*dims[2];
     const int x    = dims[0];
     const int y    = dims[1];
     const int xy   = x*y;
@@ -1374,13 +1143,13 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
     float        *D, *buffer;
     unsigned int *I;
     
-    I = (unsigned int *)malloc(sizeof(unsigned int)*nvol);
-    D = (float *)malloc(sizeof(float)*nvol);
+    I = (unsigned int *)malloc(sizeof(unsigned int)*nvox);
+    D = (float *)malloc(sizeof(float)*nvox);
     
     /* save original input in buffer if we want to replace values */
     if (replace > 0) {
-        buffer = (float *)malloc(sizeof(float)*nvol);
-        memcpy(buffer,V,nvol*sizeof(float));  
+        buffer = (float *)malloc(sizeof(float)*nvox);
+        memcpy(buffer,V,nvox*sizeof(float));  
     }
     
     if (!D || !I || ((replace > 0) && !buffer)) {
@@ -1390,19 +1159,23 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
 
     /* Initiaize mask with ones if not defined */
     if (!M) {
-        M = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
-        for (i=0; i<nvol; i++)
+        M = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+        if (!M) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        for (i=0; i<nvox; i++)
             M[i] = 1;
     }
     
     /* initialisation of D and I */
-    for (i=0; i<nvol; i++) {
+    for (i=0; i<nvox; i++) {
         if ((round(V[i])<0.5) || isnan(V[i])) D[i] = FLT_MAX; else D[i] = 0.0; 
         I[i] = (unsigned int)i;
     }
     
     /* forward direction that consider all points smaller than i */
-    for (i=0; i<nvol; i++) {
+    for (i=0; i<nvox; i++) {
         if ((D[i]>0) && (M[i]>0)) {
             ind2sub(i,&u,&v,&w,xy,x);
             
@@ -1410,7 +1183,7 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
             for (n=0; n<sN; n++) {
                 ni = i + NI[n];
                 ind2sub(ni,&nu,&nv,&nw,xy,x);
-                if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
+                if ((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
                 DN[n] = D[ni] + ND[n];
             }
     
@@ -1428,7 +1201,7 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
     }
     
     /* backward direction that consider all points larger than i */
-    for (i=nvol-1;i>=0;i--) {
+    for (i=nvox-1;i>=0;i--) {
         if ((D[i]>0) && (M[i]>0)) {
             ind2sub(i,&u,&v,&w,xy,x);
         
@@ -1436,7 +1209,7 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
             for (n=0; n<sN; n++) {
                 ni = i - NI[n];
                 ind2sub(ni,&nu,&nv,&nw,xy,x);
-                if ((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
+                if ((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1)) ni=i;
                 DN[n] = D[ni] + ND[n];
             }
         
@@ -1454,12 +1227,12 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
     }
 
     /* finally return output to original variable V */
-    for (i=0; i<nvol; i++)
+    for (i=0; i<nvox; i++)
         V[i] = ((M[i]==0) || (D[i] == FLT_MAX)) ? 0.0 : D[i];
 
     /* finally replace values inside mask */
     if (replace > 0) {
-        for (i = 0; i < nvol; ++i)
+        for (i = 0; i < nvox; ++i)
             V[i] = buffer[I[i]];
         free(buffer);
     }
@@ -1488,19 +1261,24 @@ void laplace3(float *SEG, int dims[3], int maxiter)
     const int y = dims[1];
     const int z = dims[2];
     const int xy = x*y;
-    const int nvol = x*y*z;
+    const int nvox = x*y*z;
         
     /* indices of the neighbor Ni (index distance) and euclidean distance NW */
     const int NI[6] = { -1, 1, -x, x, -xy, xy}; 
     const int sN = sizeof(NI)/4;   
-    
-    float *L1 = (float *)malloc(sizeof(float)*nvol);
-    float *L2 = (float *)malloc(sizeof(float)*nvol);
-    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
     int i, n;
     
+    float *L1 = (float *)malloc(sizeof(float)*nvox);
+    float *L2 = (float *)malloc(sizeof(float)*nvox);
+    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    
+    if (!L1 || !L2 || !LN) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
     /* initialisiation */
-    for (i=0; i<nvol; i++) {
+    for (i=0; i<nvox; i++) {
         if (isnan(SEG[i]))
             L1[i] = FLT_MAX; else L1[i] = SEG[i];
         L2[i] = L1[i];
@@ -1512,7 +1290,7 @@ void laplace3(float *SEG, int dims[3], int maxiter)
     float Nn;
     while (iter < maxiter) {
         iter++;
-        for (i=0; i<nvol; i++) {
+        for (i=0; i<nvox; i++) {
             if ((SEG[i] == 0) && LN[i]) {
                 ind2sub(i,&u,&v,&w,xy,x);
 
@@ -1521,7 +1299,7 @@ void laplace3(float *SEG, int dims[3], int maxiter)
                 for (n=0;n<sN;n++) {
                     ni = i + NI[n];
                     ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
+                    if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
                         L2[i] += L1[ni];
                         Nn++;
                     }
@@ -1531,7 +1309,7 @@ void laplace3(float *SEG, int dims[3], int maxiter)
                 for (n=0;n<sN;n++) {
                     ni = i + NI[n];
                     ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
+                    if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
                         LN[ni] = 1; /* if I change his neigbors it has to be recalculated */
                     }
                 LN[i] = 0;
@@ -1539,12 +1317,12 @@ void laplace3(float *SEG, int dims[3], int maxiter)
         }
         
         /* update of L1 */
-        for (i=0; i<nvol; i++) 
+        for (i=0; i<nvox; i++) 
             L1[i] = L2[i];
         
     }
     
-    for (i=0; i<nvol; i++) 
+    for (i=0; i<nvox; i++) 
         SEG[i] = L1[i];
 
     free(L1);
@@ -1571,19 +1349,24 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
     const int y = dims[1];
     const int z = dims[2];
     const int xy = x*y;
-    const int nvol = x*y*z;
+    const int nvox = x*y*z;
         
     /* indices of the neighbor Ni (index distance) and euclidean distance NW */
     const int NI[] = { -1, 1, -x, x, -xy, xy}; 
     const int sN = sizeof(NI)/4;   
 
-    float *L1 = (float *)malloc(sizeof(float)*nvol);
-    float *L2 = (float *)malloc(sizeof(float)*nvol);
-    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+    float *L1 = (float *)malloc(sizeof(float)*nvox);
+    float *L2 = (float *)malloc(sizeof(float)*nvox);
+    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
     int i,n;
     
+    if (!L1 || !L2 || !LN) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
     /* initialisiation */
-    for (i=0; i<nvol; i++) {
+    for (i=0; i<nvox; i++) {
         if (isnan(SEG[i]))
             L1[i] = FLT_MAX; else L1[i] = SEG[i];
         L2[i] = L1[i];
@@ -1594,7 +1377,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
     float Nn, diff, maxdiffi, maxdiff=1.0;
     while (maxdiff > TH && iter < maxiter) {
         maxdiffi=0; iter++;
-        for (i=0; i<nvol; i++) {
+        for (i=0; i<nvox; i++) {
             if (M[i] && LN[i]) {  
                 ind2sub(i,&u,&v,&w,xy,x);
 
@@ -1603,7 +1386,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
                 for (n=0;n<sN;n++) {
                     ni = i + NI[n];
                     ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
+                    if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
                         L2[i] += L1[ni];
                         Nn++;
                     }
@@ -1615,7 +1398,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
                     for (n=0;n<sN;n++) {
                         ni = i + NI[n];
                         ind2sub(ni,&nu,&nv,&nw,xy,x);
-                        if (((ni<0) || (ni>=nvol) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
+                        if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
                             LN[ni] = 1; /* if I change his neigbors it has to be recalculated */
                     }
                 }
@@ -1626,12 +1409,12 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
         maxdiff = maxdiffi;
         
         /* update of L1 */
-        for (i=0; i<nvol; i++) 
+        for (i=0; i<nvox; i++) 
             L1[i] = L2[i];
         
     }
     
-    for (i=0; i<nvol; i++) 
+    for (i=0; i<nvox; i++) 
         SEG[i] = L1[i];
 
     free(L1);
@@ -1644,17 +1427,17 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, do
     float *buffer;
     int i,x,y,z,j,band,dims2[3], replace;
     float max_vol;
-    int nvol2,nvol = dims[0]*dims[1]*dims[2];
+    int nvox2,nvox = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
 
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    for (i=0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
     th *= (double)max_vol;
 
     /* add band with zeros to image to avoid clipping */    
     band = niter;
     for (i=0;i<3;i++) dims2[i] = dims[i] + 2*band;
-    nvol2 = dims2[0]*dims2[1]*dims2[2];
+    nvox2 = dims2[0]*dims2[1]*dims2[2];
 
     buffer = (float *)malloc(sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
 
@@ -1671,11 +1454,11 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, do
 
     replace = 0;
     vbdist(buffer, NULL, dims2, voxelsize, replace);
-    for (i=0;i<nvol2;i++)
+    for (i=0;i<nvox2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
     vbdist(buffer, NULL, dims2, voxelsize, replace);
-    for (i=0;i<nvol2;i++)
+    for (i=0;i<nvox2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
     /* return image */
@@ -1711,14 +1494,14 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     float *buffer;
     int i, j, replace;
     float max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox = dims[0]*dims[1]*dims[2];
     
     if (dist == 0.0) return;
 
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    for (i=0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
     th *= (double)max_vol;
     
-    buffer = (float *)malloc(sizeof(float)*nvol);
+    buffer = (float *)malloc(sizeof(float)*nvox);
 
     if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
@@ -1726,20 +1509,20 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     }
     
     /* threshold input */
-    for (i=0; i<nvol; i++)
+    for (i=0; i<nvox; i++)
         buffer[i] = 1.0 - ((float)vol[i]>th);
 
     replace = 0;
     vbdist(buffer, NULL, dims, voxelsize, replace);
-    for (i=0; i<nvol; i++)
+    for (i=0; i<nvox; i++)
         buffer[i] = buffer[i] > (float)dist;
 
     vbdist(buffer, NULL, dims, voxelsize, replace);
-    for (i=0; i<nvol; i++)
+    for (i=0; i<nvox; i++)
         buffer[i] = buffer[i] <= (float)dist;
 
     /* return image */
-    for (i=0; i<nvol; i++)
+    for (i=0; i<nvox; i++)
         vol[i] = buffer[i];
 
     free(buffer);
@@ -1771,20 +1554,20 @@ void morph_erode_float(float *vol, int dims[3], int niter, double th)
     double filt[3]={1,1,1};
     int i,j;
     float max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
 
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    for (i=0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
     th *= (double)max_vol;
 
     /* threshold input */
-    for (j=0;j<nvol;j++)
+    for (j=0;j<nvox;j++)
         vol[j] = vol[j]>(float)th;
 
     for (i=0;i<niter;i++) {
         convxyz_float(vol,filt,filt,filt,3,3,3,-1,-1,-1,vol,dims);
-        for (j=0;j<nvol;j++)
+        for (j=0;j<nvox;j++)
             vol[j] = vol[j]>=9.0;
     }
 }
@@ -1816,11 +1599,11 @@ void morph_dilate_float(float *vol, int dims[3], int niter, double th)
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
     unsigned char *buffer;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
 
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    for (i=0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
     th *= (double)max_vol;
 
     /* add band with zeros to image to avoid clipping */    
@@ -1881,11 +1664,11 @@ void morph_close_float(float *vol, int dims[3], int niter, double th)
     unsigned char *buffer;
     int i,x,y,z,j,band,dims2[3];
     float max_vol;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvox = dims[0]*dims[1]*dims[2];
     
     if (niter < 1) return;
 
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    for (i=0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
     th *= (double)max_vol;
 
     /* add band with zeros to image to avoid clipping */    
@@ -1951,16 +1734,16 @@ void morph_open_float(float *vol, int dims[3], int niter, double th)
 {
     unsigned char *buffer;
     double filt[3]={1,1,1};
-    int i, j, nvol;
+    int i, j, nvox;
     float max_vol;
     
     if (niter < 1) return;
 
-    nvol = dims[0]*dims[1]*dims[2];
-    for (i=0; i<nvol; i++) max_vol = MAX(max_vol,vol[i]);
+    nvox = dims[0]*dims[1]*dims[2];
+    for (i=0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
     th *= (double)max_vol;
 
-    buffer = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+    buffer = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
 
     if (!buffer) {
         fprintf(stderr,"Memory allocation error\n");
@@ -1968,22 +1751,22 @@ void morph_open_float(float *vol, int dims[3], int niter, double th)
     }
 
     /* threshold input */
-    for (j=0;j<nvol;j++)
+    for (j=0;j<nvox;j++)
         buffer[j] = (unsigned char)((double)vol[j]>th);
 
     for (i=0;i<niter;i++) {
         convxyz_uint8(buffer,filt,filt,filt,3,3,3,-1,-1,-1,buffer,dims);
-        for (j=0;j<nvol;j++)
+        for (j=0;j<nvox;j++)
             buffer[j] = (buffer[j]>=9);
     }
 
     for (i=0;i<niter;i++) {
         convxyz_uint8(buffer,filt,filt,filt,3,3,3,-1,-1,-1,buffer,dims);
-        for (j=0; j<nvol; j++) 
+        for (j=0; j<nvox; j++) 
             buffer[j] = (buffer[j]>0);
     }
 
-    for (i=0; i<nvol; i++)
+    for (i=0; i<nvox; i++)
         vol[i] = (float)buffer[i];
         
     free(buffer);
@@ -2008,88 +1791,6 @@ void morph_open(void *data, int dims[3], int niter, double th, int datatype)
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
-}
-
-/* First order hold resampling - trilinear interpolation */
-void subsample_double(double *in, double *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out)
-{
-    int i, x, y, z;
-    double k111,k112,k121,k122,k211,k212,k221,k222;
-    double dx1, dx2, dy1, dy2, dz1, dz2, xi, yi, zi, samp[3];
-    int off1, off2, xcoord, ycoord, zcoord;
-
-    for (i=0; i<3; i++) {
-        if (dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
-        else samp[i] = 1.0/(ceil((double)dim_in[i]/(double)dim_out[i]));
-    }
-    
-    for (z=0; z<dim_out[2]; z++) {
-        zi = 1.0+(double)z/samp[2];
-        for (y=0; y<dim_out[1]; y++) {
-            yi = 1.0+(double)y/samp[1];
-            for (x=0; x<dim_out[0]; x++) {
-                xi = 1.0+(double)x/samp[0];
-                i = z*dim_out[0]*dim_out[1] + y*dim_out[0] + x + offset_out;
-
-                if (zi>=0 && zi<dim_in[2] && yi>=0 && yi<dim_in[1] && xi>=0 && xi<dim_in[0])    {
-                    xcoord = (int)floor(xi); dx1=xi-(double)xcoord; dx2=1.0-dx1;
-                    ycoord = (int)floor(yi); dy1=yi-(double)ycoord; dy2=1.0-dy1;
-                    zcoord = (int)floor(zi); dz1=zi-(double)zcoord; dz2=1.0-dz1;
-
-                    off1 = xcoord-1 + dim_in[0]*(ycoord-1 + dim_in[1]*(zcoord-1)) + offset_in;
-                    k222 = (double)in[off1]; k122 = (double)in[off1+1]; off2 = off1+dim_in[0];
-                    k212 = (double)in[off2]; k112 = (double)in[off2+1]; off1+= dim_in[0]*dim_in[1];
-                    k221 = (double)in[off1]; k121 = (double)in[off1+1]; off2 = off1+dim_in[0];
-                    k211 = (double)in[off2]; k111 = (double)in[off2+1];
-
-                    out[i] = ((((k222*dx2 + k122*dx1)*dy2 + (k212*dx2 + k112*dx1)*dy1))*dz2
-                        + (((k221*dx2 + k121*dx1)*dy2 + (k211*dx2 + k111*dx1)*dy1))*dz1);
-                                 
-                } else out[i] = 0;
-            }
-        }
-    }
-}
-
-/* First order hold resampling - trilinear interpolation */
-void subsample_uint8(unsigned char *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out)
-{
-    int i, x, y, z;
-    double k111,k112,k121,k122,k211,k212,k221,k222;
-    double dx1, dx2, dy1, dy2, dz1, dz2, xi, yi, zi, samp[3];
-    int off1, off2, xcoord, ycoord, zcoord;
-
-    for (i=0; i<3; i++) {
-        if (dim_out[i] > dim_in[i]) samp[i] = ceil((double)dim_out[i]/(double)dim_in[i]);
-        else samp[i] = 1.0/(ceil((double)dim_in[i]/(double)dim_out[i]));
-    }
-    
-    for (z=0; z<dim_out[2]; z++) {
-        zi = 1.0+(double)z/samp[2];
-        for (y=0; y<dim_out[1]; y++) {
-            yi = 1.0+(double)y/samp[1];
-            for (x=0; x<dim_out[0]; x++) {
-                xi = 1.0+(double)x/samp[0];
-                i = z*dim_out[0]*dim_out[1] + y*dim_out[0] + x + offset_out;
-
-                if (zi>=0 && zi<dim_in[2] && yi>=0 && yi<dim_in[1] && xi>=0 && xi<dim_in[0]) {
-                    xcoord = (int)floor(xi); dx1=xi-(double)xcoord; dx2=1.0-dx1;
-                    ycoord = (int)floor(yi); dy1=yi-(double)ycoord; dy2=1.0-dy1;
-                    zcoord = (int)floor(zi); dz1=zi-(double)zcoord; dz2=1.0-dz1;
-
-                    off1 = xcoord-1 + dim_in[0]*(ycoord-1 + dim_in[1]*(zcoord-1)) + offset_in;
-                    k222 = (double)in[off1]; k122 = (double)in[off1+1]; off2 = off1+dim_in[0];
-                    k212 = (double)in[off2]; k112 = (double)in[off2+1]; off1+= dim_in[0]*dim_in[1];
-                    k221 = (double)in[off1]; k121 = (double)in[off1+1]; off2 = off1+dim_in[0];
-                    k211 = (double)in[off2]; k111 = (double)in[off2+1];
-
-                    out[i] = (float)((((k222*dx2 + k122*dx1)*dy2 + (k212*dx2 + k112*dx1)*dy1))*dz2
-                        + (((k221*dx2 + k121*dx1)*dy2 + (k211*dx2 + k111*dx1)*dy1))*dz1);
-                                 
-                } else out[i] = 0;
-            }
-        }
-    }
 }
 
 /* First order hold resampling - trilinear interpolation */
@@ -2133,192 +1834,136 @@ void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int o
     }
 }
 
-void smooth_double(double *vol, int dims[3], double voxelsize[3], double s0[3], int use_mask)
-{
+/**
+ * smooth_float - Apply Gaussian smoothing to a 3D volume.
+ *
+ * This function performs Gaussian smoothing on a 3D volume. The size of the 
+ * Gaussian kernel is defined by the Full Width at Half Maximum (FWHM) parameter. 
+ * Optionally, the function can perform smoothing only inside a specified mask 
+ * and correct the smoothed values based on the mask.
+ *
+ * Parameters:
+ *  - vol: Pointer to the 3D volume to be smoothed.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - voxelsize: Array containing the size of each voxel.
+ *  - fwhm: Array containing the FWHM values for each dimension.
+ *  - use_mask: Flag to indicate whether masked smoothing should be used.
+ *
+ * Notes:
+ *  - The function calculates the Gaussian kernel based on FWHM and voxel size.
+ *  - Masked smoothing excludes zero-valued voxels and adjusts the smoothing accordingly.
+ */
+void smooth_float(float *vol, int dims[3], double voxelsize[3], double fwhm[3], int use_mask) {
     int i;
     double xsum, ysum, zsum;
     double *x, *y, *z, s[3];
-    int xyz[3], nvol, sum_mask;
-    double *mask;
-    unsigned char *mask2;
-    
-    nvol = dims[0]*dims[1]*dims[2];
-
-    for (i=0; i<3; i++) {
-        s[i] = s0[i]/voxelsize[i];
-        if(s[i] < 1.0) s[i] = 1.0;
-        s[i] /= sqrt(8.0*log(2.0));
-        xyz[i] = (int) RINT(6.0*s[i]);
-    }
-    
-    x = (double *) malloc(sizeof(double)*((2*xyz[0])+1));
-    y = (double *) malloc(sizeof(double)*((2*xyz[1])+1));
-    z = (double *) malloc(sizeof(double)*((2*xyz[2])+1));
-    
-    /* build mask for masked smoothing */
-    if(use_mask) {
-        mask  = (double *) malloc(sizeof(double)*nvol);
-        mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvol);
-        sum_mask = 0;
-        for (i=0; i<nvol; i++) {
-            if(vol[i] == 0.0) {
-                mask[i]  = 0.0;
-                mask2[i] = 0;
-            } else {
-                mask[i]  = 1.0;
-                mask2[i] = 1;
-                sum_mask++;
-            }
-        }
-    }
-    
-    for (i=-xyz[0]; i <= xyz[0]; i++) x[i+xyz[0]] = (double)i;
-    for (i=-xyz[1]; i <= xyz[1]; i++) y[i+xyz[1]] = (double)i;
-    for (i=-xyz[2]; i <= xyz[2]; i++) z[i+xyz[2]] = (double)i;
-    
-    xsum = 0.0; ysum = 0.0; zsum = 0.0;
-    for (i=0; i < ((2*xyz[0])+1); i++) {
-        x[i] = exp(-pow(x[i],2) / (2.0*pow(s[0],2)));
-        xsum += x[i];
-    }
-    for (i=0; i < ((2*xyz[1])+1); i++) {
-        y[i] = exp(-pow(y[i],2) / (2.0*pow(s[1],2)));
-        ysum += y[i];
-    }
-    for (i=0; i < ((2*xyz[2])+1); i++) {
-        z[i] = exp(-pow(z[i],2) / (2.0*pow(s[2],2)));
-        zsum += z[i];
-    }
-    
-    for (i=0; i < ((2*xyz[0])+1); i++) x[i] /= xsum;
-    for (i=0; i < ((2*xyz[1])+1); i++) y[i] /= ysum;
-    for (i=0; i < ((2*xyz[2])+1); i++) z[i] /= zsum;
-    
-    convxyz_double(vol,x,y,z,((2*xyz[0])+1),((2*xyz[1])+1),((2*xyz[2])+1),-xyz[0],-xyz[1],-xyz[2],vol,dims);
-    if(use_mask) {
-        /* only smooth mask if mask has values > 0 */
-        if(sum_mask>0) {
-            convxyz_double(mask,x,y,z,((2*xyz[0])+1),((2*xyz[1])+1),((2*xyz[2])+1),-xyz[0],-xyz[1],-xyz[2],mask,dims);
-            for (i=0; i<nvol; i++) {
-                if(mask2[i]>0) vol[i] /= (double)mask[i];    
-                else vol[i] = 0.0; 
-            }
-        }
-        free(mask);
-        free(mask2);
-    }
-    
-    free(x);
-    free(y);
-    free(z);
-
-}
-
-void smooth_float(float *vol, int dims[3], double voxelsize[3], double s0[3], int use_mask)
-{
-    int i;
-    double xsum, ysum, zsum;
-    double *x, *y, *z, s[3];
-    int xyz[3], nvol, sum_mask;
+    int xyz[3], nvox, sum_mask;
     float *mask;
     unsigned char *mask2;
-    
-    nvol = dims[0]*dims[1]*dims[2];
 
-    for (i=0; i<3; i++) {
-        s[i] = s0[i]/voxelsize[i];
-        if(s[i] < 1.0) s[i] = 1.0;
-        s[i] /= sqrt(8.0*log(2.0));
-        xyz[i] = (int) RINT(6.0*s[i]);
+    nvox = dims[0] * dims[1] * dims[2];
+
+    // Calculate the standard deviation and kernel size based on FWHM and voxel size
+    for (i = 0; i < 3; i++) {
+        s[i] = fwhm[i] / voxelsize[i];
+        if (s[i] < 1.0) s[i] = 1.0;
+        s[i] /= sqrt(8.0 * log(2.0));
+        xyz[i] = (int)round(6.0 * s[i]);
     }
-    
-    x = (double *) malloc(sizeof(double)*((2*xyz[0])+1));
-    y = (double *) malloc(sizeof(double)*((2*xyz[1])+1));
-    z = (double *) malloc(sizeof(double)*((2*xyz[2])+1));
-    
-    /* build mask for masked smoothing */
-    if(use_mask) {
-        mask  = (float *) malloc(sizeof(float)*nvol);
-        mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvol);
+
+    // Memory allocation for Gaussian kernels
+    x = (double *)malloc(sizeof(double) * ((2 * xyz[0]) + 1));
+    y = (double *)malloc(sizeof(double) * ((2 * xyz[1]) + 1));
+    z = (double *)malloc(sizeof(double) * ((2 * xyz[2]) + 1));
+
+    if (!x || !y || !z) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize and build the mask for masked smoothing
+    if (use_mask) {
+        mask  = (float *) malloc(sizeof(float)*nvox);
+        mask2 = (unsigned char *) malloc(sizeof(unsigned char)*nvox);
+
+        if (!mask || !mask2) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
         sum_mask = 0;
-        for (i=0; i<nvol; i++) {
-            if(vol[i] == 0.0) {
+        // Build the mask based on the volume data
+        for (i = 0; i < nvox; i++) {
+            if (vol[i] == 0.0) {
                 mask[i]  = 0.0;
                 mask2[i] = 0;
             } else {
-                mask[i]  = 1.0;
+            mask[i]  = 1.0;
                 mask2[i] = 1;
                 sum_mask++;
             }
         }
     }
+
+    // Build the Gaussian kernel
+    for (i = -xyz[0]; i <= xyz[0]; i++) x[i + xyz[0]] = exp(-pow((double)i, 2) / (2.0 * pow(s[0], 2)));
+    for (i = -xyz[1]; i <= xyz[1]; i++) y[i + xyz[1]] = exp(-pow((double)i, 2) / (2.0 * pow(s[1], 2)));
+    for (i = -xyz[2]; i <= xyz[2]; i++) z[i + xyz[2]] = exp(-pow((double)i, 2) / (2.0 * pow(s[2], 2)));
     
-    for (i=-xyz[0]; i <= xyz[0]; i++) x[i+xyz[0]] = (double)i;
-    for (i=-xyz[1]; i <= xyz[1]; i++) y[i+xyz[1]] = (double)i;
-    for (i=-xyz[2]; i <= xyz[2]; i++) z[i+xyz[2]] = (double)i;
+    // Normalize the Gaussian kernel
+    xsum = ysum = zsum = 0.0;
+    for (i = 0; i < ((2 * xyz[0]) + 1); i++) xsum += x[i];
+    for (i = 0; i < ((2 * xyz[1]) + 1); i++) ysum += y[i];
+    for (i = 0; i < ((2 * xyz[2]) + 1); i++) zsum += z[i];
+    for (i = 0; i < ((2 * xyz[0]) + 1); i++) x[i] /= xsum;
+    for (i = 0; i < ((2 * xyz[1]) + 1); i++) y[i] /= ysum;
+    for (i = 0; i < ((2 * xyz[2]) + 1); i++) z[i] /= zsum;
     
-    xsum = 0.0; ysum = 0.0; zsum = 0.0;
-    for (i=0; i < ((2*xyz[0])+1); i++) {
-        x[i] = exp(-pow(x[i],2) / (2.0*pow(s[0],2)));
-        xsum += x[i];
-    }
-    for (i=0; i < ((2*xyz[1])+1); i++) {
-        y[i] = exp(-pow(y[i],2) / (2.0*pow(s[1],2)));
-        ysum += y[i];
-    }
-    for (i=0; i < ((2*xyz[2])+1); i++) {
-        z[i] = exp(-pow(z[i],2) / (2.0*pow(s[2],2)));
-        zsum += z[i];
-    }
+    // Apply convolution with the Gaussian kernel
+    convxyz_float(vol, x, y, z, ((2 * xyz[0]) + 1), ((2 * xyz[1]) + 1), ((2 * xyz[2]) + 1), -xyz[0], -xyz[1], -xyz[2], vol, dims);
     
-    for (i=0; i < ((2*xyz[0])+1); i++) x[i] /= xsum;
-    for (i=0; i < ((2*xyz[1])+1); i++) y[i] /= ysum;
-    for (i=0; i < ((2*xyz[2])+1); i++) z[i] /= zsum;
-    
-    convxyz_float(vol,x,y,z,((2*xyz[0])+1),((2*xyz[1])+1),((2*xyz[2])+1),-xyz[0],-xyz[1],-xyz[2],vol,dims);
-    if(use_mask) {
-        /* only smooth mask if mask has values > 0 */
-        if(sum_mask>0) {
-            convxyz_float(mask,x,y,z,((2*xyz[0])+1),((2*xyz[1])+1),((2*xyz[2])+1),-xyz[0],-xyz[1],-xyz[2],mask,dims);
-            for (i=0; i<nvol; i++) {
-                if(mask2[i]>0) vol[i] /= (float)mask[i];    
-                else vol[i] = 0.0; 
+    // Apply masked smoothing if selected
+    if (use_mask) {
+        if (sum_mask > 0) {
+            convxyz_float(mask, x, y, z, ((2 * xyz[0]) + 1), ((2 * xyz[1]) + 1), ((2 * xyz[2]) + 1), -xyz[0], -xyz[1], -xyz[2], mask, dims);
+            for (i = 0; i < nvox; i++) {
+                vol[i] = mask2[i] > 0 ? vol[i] / mask[i] : 0.0;
             }
         }
         free(mask);
         free(mask2);
     }
     
+    // Free allocated memory for the Gaussian kernels
     free(x);
     free(y);
     free(z);
-
 }
 
-void smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
+/* wrapper to call smooth for any data type */
+void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int use_mask, int datatype)
 {
-    int i, nvol_samp, nvol;
-    int dims_samp[3];
-    double *vol_samp, voxelsize_samp[3];
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    smooth_float(buffer, dims, voxelsize, fwhm, use_mask);
+    convert_output_type(data, buffer, nvox, datatype);
     
-    /* define grid dimensions */
-    for (i=0; i<3; i++) dims_samp[i] = (int) ceil((dims[i]-1)/((double) samp))+1;
-    for (i=0; i<3; i++) voxelsize_samp[i] = voxelsize[i]*((double)dims[i]/(double)dims_samp[i]);
-
-    nvol      = dims[0]*dims[1]*dims[2];
-    nvol_samp = dims_samp[0]*dims_samp[1]*dims_samp[2];
-    vol_samp  = (double *)malloc(sizeof(double)*nvol_samp);
-
-    subsample_double(vol, vol_samp, dims, dims_samp, 0, 0);     
-    smooth_double(vol_samp, dims_samp, voxelsize_samp, s, use_mask);
-    subsample_double(vol_samp, vol, dims_samp, dims, 0, 0);     
-
-    free(vol_samp);
+    free(buffer);
 }
 
 void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
 {
-    int i, nvol_samp, nvol;
+    int i, nvox_samp, nvox;
     int dims_samp[3];
     float *vol_samp;
     double voxelsize_samp[3];
@@ -2327,9 +1972,14 @@ void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double
     for (i=0; i<3; i++) dims_samp[i] = (int) ceil((dims[i]-1)/((double) samp))+1;
     for (i=0; i<3; i++) voxelsize_samp[i] = voxelsize[i]*((double)dims[i]/(double)dims_samp[i]);
 
-    nvol      = dims[0]*dims[1]*dims[2];
-    nvol_samp = dims_samp[0]*dims_samp[1]*dims_samp[2];
-    vol_samp  = (float *)malloc(sizeof(float)*nvol_samp);
+    nvox      = dims[0]*dims[1]*dims[2];
+    nvox_samp = dims_samp[0]*dims_samp[1]*dims_samp[2];
+    vol_samp  = (float *)malloc(sizeof(float)*nvox_samp);
+
+    if (!vol_samp) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
 
     subsample_float(vol, vol_samp, dims, dims_samp, 0, 0);   
     smooth_float(vol_samp, dims_samp, voxelsize_samp, s, use_mask);
@@ -2338,9 +1988,243 @@ void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double
     free(vol_samp);
 }
 
+void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp, int datatype)
+{
+    int i, nvox_samp, nvox;
+    int dims_samp[3];
+    float *vol_samp;
+    float *buffer;
+    double voxelsize_samp[3];
+    
+    /* define grid dimensions */
+    for (i=0; i<3; i++) dims_samp[i] = (int) ceil((dims[i]-1)/((double) samp))+1;
+    for (i=0; i<3; i++) voxelsize_samp[i] = voxelsize[i]*((double)dims[i]/(double)dims_samp[i]);
+
+    nvox      = dims[0]*dims[1]*dims[2];
+    nvox_samp = dims_samp[0]*dims_samp[1]*dims_samp[2];
+    vol_samp  = (float *)malloc(sizeof(float)*nvox_samp);
+    buffer    = (float *)malloc(sizeof(float)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer || !vol_samp) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    subsample_float(buffer, vol_samp, dims, dims_samp, 0, 0);   
+    smooth_float(vol_samp, dims_samp, voxelsize_samp, s, use_mask);
+    subsample_float(vol_samp, buffer, dims_samp, dims, 0, 0);
+    convert_output_type(data, buffer, nvox, datatype);
+
+    free(vol_samp);
+    free(buffer);
+}
+
+/**
+ * correct_bias_label - Performs bias correction on MRI images based on specified labels.
+ *
+ * This function applies a bias correction process to an MRI image dataset. The correction
+ * is performed based on the label values assigned to each voxel, allowing different
+ * treatments for different tissue types (e.g., white matter, gray matter).
+ *
+ * src: Pointer to the source image data (float array).
+ *       This array is modified in place with the bias-corrected values.
+ *
+ * label: Pointer to the label array (unsigned char array) indicating different
+ *         tissue types in the MRI scan. Different values in this array represent
+ *         different tissues such as white matter, gray matter, etc.
+ *
+ * dims: Pointer to an integer array of size 3, indicating the dimensions of the
+ *        MRI volume (e.g., [width, height, depth]).
+ *
+ * voxelsize: Pointer to a double array of size 3, indicating the size of each
+ *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
+ *
+ * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
+ *             the Gaussian kernel used for smoothing in the bias correction
+ *             process.
+ *
+ * label_th: An integer specifying the threshold label value for selecting
+ *            specific tissues for bias correction. For example, using label_th = 2
+ *            may focus the correction on white matter only.
+ *
+ * The function first calculates the mean intensity for each label class and then
+ * estimates a bias field based on the ratio between actual voxel values and their
+ * respective label class means. Morphological operations are used to refine the 
+ * brain mask for the bias estimation. The bias field is then used to adjust the 
+ * voxel intensities in the source image.
+ *
+ */
+void correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
+{
+    int i, j, nvox, n[MAX_NC], n_classes = 0, replace;
+    unsigned char *mask;
+    float *biasfield;
+    double mean_label[MAX_NC], mean_bias;
+    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
+    
+    nvox = dims[0]*dims[1]*dims[2];
+
+    biasfield = (float *)malloc(sizeof(float)*nvox);
+    mask = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    
+    if (!mask || !biasfield) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* get number of classes by checking maximum label value */
+    for (i = 0; i < nvox; i++)
+        n_classes = MAX((int)label[i], n_classes);
+
+    /* initialize parameters */
+    for (i = 0; i < n_classes; i++) {
+        n[i] = 0;
+        mean_label[i] = 0.0;
+    }
+    
+    /* estimate mean for each label class */
+    for (i = 0; i < nvox; i++) {
+        if (label[i] == 0) continue;
+        n[label[i]-1]++;
+        mean_label[label[i]-1] += (double)src[i];
+    }
+    for (i = 0; i < n_classes; i++) mean_label[i] /= (double)n[i];
+
+    for (i = 0; i < nvox; i++)
+        biasfield[i] = 0.0;
+
+    /* get bias field by ratio between actual values and respective mean of label class */
+    for (i = 0; i < nvox; i++)
+        if (label[i] > 0)
+            biasfield[i] += (src[i] / (float)mean_label[label[i]-1]);
+
+    /* only use defined labels (i.e. using label_th) for bias estimation 
+     * use label_th = 2 for focussing on WM only */
+    for (i = 0; i < nvox; i++)
+        mask[i] = (label[i] >= label_th) ? 1 : 0;
+    
+    /* we need a tight brainmask without remaining small parts that are only
+     * connected by a few voxels */
+    morph_open(mask,  dims, 1, 0, DT_UINT8);
+    morph_erode(mask, dims, 1, 0, DT_UINT8);
+
+    /* invert mask because we need to estimate dist outside the original mask */
+    for (i = 0; i < nvox; i++) {
+        if (mask[i] == 0) biasfield[i] = 0.0;
+        mask[i] = 1 - mask[i];
+    }
+
+    replace = 1;
+    vbdist(biasfield, mask, dims, voxelsize, replace);
+    smooth_subsample_float(biasfield, dims, voxelsize, fwhm, 0, 4);
+
+    /* estimate mean of bias field inside label for mean-correction */
+    mean_bias = get_masked_mean_array_float(biasfield, nvox, label);
+
+    for (i = 0; i < nvox; i++)
+        if ((label[i] > 0) && (biasfield[i] != 0))
+            src[i] /= (biasfield[i]/mean_bias);
+
+    free(mask);
+    free(biasfield);
+}
+
+/**
+ * correct_bias - Applies bias correction to MRI data.
+ *
+ * This function performs bias correction on MRI images, specifically focusing on
+ * white matter (WM) and, if specified, on gray matter (GM) as well. It uses a
+ * local adaptive segmentation approach for additional GM correction.
+ *
+ * src: Pointer to the source image data (float array).
+ *       This array is modified in place with the bias-corrected values.
+ *
+ * label: Pointer to the label array (unsigned char array) indicating different
+ *         tissue types in the MRI scan. Typically, different values in this array
+ *         represent different tissues such as WM, GM, and CSF.
+ *
+ * dims: Pointer to an integer array of size 3, indicating the dimensions of the
+ *        MRI volume (e.g., [width, height, depth]).
+ *
+ * voxelsize: Pointer to a double array of size 3, indicating the size of each
+ *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
+ *
+ * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
+ *             the Gaussian kernel used for smoothing in the bias correction
+ *             process. This parameter is primarily used for WM correction.
+ *
+ * weight_las: A double value indicating the amount of weighting local adaptive 
+ *              segmentation (LAS) that should be applied for additional GM correction. 
+ *              If non-zero, LAS is applied (use values 0..1).
+ *
+ * The function first applies WM bias correction. If `weight_las` is non-zero, it
+ * then performs GM correction with a small smoothing factor, creates a distance 
+ * map for subcortical regions, and applies a weighted average to optimize the 
+ * bias correction in these areas. The function modifies the `src` array in place 
+ * with the corrected values.
+ *
+ */
+void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
+{
+    int i, nvox, replace;
+    unsigned char *mask;
+    float *src_subcortical, *dist, max_dist = -FLT_MAX;
+
+    nvox = dims[0]*dims[1]*dims[2];
+
+    /* apply bias correction for WM only */
+    correct_bias_label(src, label, dims, voxelsize, bias_fwhm, WM);
+    
+    /* use local adaptive segmentation (LAS) and apply additional GM correction with
+     * very small smoothing */
+    if (weight_las > 0.0) {
+        src_subcortical = (float *)malloc(sizeof(float)*nvox);
+        dist = (float *)malloc(sizeof(float)*nvox);
+        if (!src_subcortical || !dist) {
+            printf("Memory allocation error\n");
+            exit(EXIT_FAILURE); 
+        }
+
+        /* apply bias correction for WM and GM */
+        for (i = 0; i < nvox; i++) src_subcortical[i] = src[i];
+        bias_fwhm = 3.0;
+        correct_bias_label(src_subcortical, label, dims, voxelsize, bias_fwhm, GM);
+
+        /* weight LAS correction */
+        for (i = 0; i < nvox; i++)
+            src[i] = weight_las*src_subcortical[i] + (1.0 - weight_las)*src[i];
+
+        /* prepare mask for distance map */
+        for (i = 0; i < nvox; i++) dist[i] = (label[i] > 0) ? 0.0 : 1.0;
+        
+        /* get distance to background */
+        replace = 0;
+        vbdist(dist, NULL, dims, voxelsize, replace);
+
+        /* scale distance values to 0..1  */
+        for (i=0; i < nvox; i++) max_dist = MAX(dist[i], max_dist);
+        for (i=0; i < nvox; i++) dist[i] /= max_dist;
+        
+        /* use squared distance weights to weight central regions (i.e. subcortical
+           structures) more */
+        for (i=0; i < nvox; i++) dist[i] *= dist[i];
+
+        /* apply weighted average (with squared weights) to maximize weighting 
+         * for subcortical regions with large distances, otherwise WM-bias 
+         * correction is more weighted */
+        for (i = 0; i < nvox; i++)
+            src[i] = dist[i]*src_subcortical[i] + (1.0 - dist[i])*src[i];
+        
+        free(dist);
+        free(src_subcortical);
+    }
+}
+
 void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 {
-    int i, nvolr, nvol, replace = 1;
+    int i, nvoxr, nvox, replace = 1;
     int dimsr[3];
     float *volr, *buffer, *TAr;
     double voxelsizer[3];
@@ -2354,19 +2238,19 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
         voxelsizer[i] = voxelsize[i]*samp;
     }
 
-    nvol   = dims[0]*dims[1]*dims[2];
-    nvolr  = dimsr[0]*dimsr[1]*dimsr[2];
-    volr   = (float *)malloc(sizeof(float)*nvolr);
-    buffer = (float *)malloc(sizeof(float)*nvolr);
-    TAr    = (float *)malloc(sizeof(float)*nvolr);
-    BMr    = (unsigned char *)malloc(sizeof(unsigned char)*nvolr);
-    BMr2   = (unsigned char *)malloc(sizeof(unsigned char)*nvolr);
+    nvox   = dims[0]*dims[1]*dims[2];
+    nvoxr  = dimsr[0]*dimsr[1]*dimsr[2];
+    volr   = (float *)malloc(sizeof(float)*nvoxr);
+    buffer = (float *)malloc(sizeof(float)*nvoxr);
+    TAr    = (float *)malloc(sizeof(float)*nvoxr);
+    BMr    = (unsigned char *)malloc(sizeof(unsigned char)*nvoxr);
+    BMr2   = (unsigned char *)malloc(sizeof(unsigned char)*nvoxr);
 
     /* find values between 0.1% and 99.9% percentile */
-    for (i = 0; i < nvol; ++i)
+    for (i = 0; i < nvox; ++i)
         vol[i] -= 0;
 
-    for (i = 0; i < nvol; ++i) {
+    for (i = 0; i < nvox; ++i) {
         min_vol = MIN(vol[i], min_vol);
         max_vol = MAX(vol[i], max_vol);
     }
@@ -2374,13 +2258,13 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     /* only keep values between 5..95% percentiles 
        to remove extremes that occur at edges */
     get_prctile(vol, dims, threshold, prctile, 1);  
-    for (i = 0; i < nvol; ++i)
+    for (i = 0; i < nvox; ++i)
         if ((vol[i] < threshold[0]) || (vol[i] > threshold[1])) vol[i] = 0;;
 
     /* scale vol to 0..1 but keep zero-background */
-    for (i = 0; i < nvol; ++i)
+    for (i = 0; i < nvox; ++i)
         if (vol[i] !=0) min_vol = MIN(vol[i], min_vol);
-    for (i = 0; i < nvol; ++i) {
+    for (i = 0; i < nvox; ++i) {
         if (vol[i] != 0) {
             vol[i] -= min_vol;   
             max_vol = MAX(vol[i], max_vol);
@@ -2392,23 +2276,23 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     subsample_float(vol, volr, dims, dimsr, 0, 0);
 
     /* create mask by closing holes */ 
-    for (i = 0; i < nvolr; ++i) BMr[i] = volr[i] > 0;
+    for (i = 0; i < nvoxr; ++i) BMr[i] = volr[i] > 0;
     morph_close(BMr, dimsr, 20, 0, DT_UINT8);
 
     /* vbdist to fill values in background with neighbours */
-    memcpy(buffer,volr,nvolr*sizeof(float));    
+    memcpy(buffer,volr,nvoxr*sizeof(float));    
     vbdist(buffer, NULL, dimsr, voxelsizer, replace);
-    for (i = 0; i < nvolr; ++i)
+    for (i = 0; i < nvoxr; ++i)
         TAr[i] = buffer[i];
     
     /* smooth values outside mask */
     double s[3] = {20,20,20};
     smooth_float(buffer, dimsr, voxelsizer, s, 0);
-    for (i = 0; i < nvolr; ++i)
+    for (i = 0; i < nvoxr; ++i)
         if (BMr[i] == 0) TAr[i] = buffer[i];
 
     /* rescue mask and create new mask that is only defined inside */
-    for (i = 0; i < nvolr; ++i) {
+    for (i = 0; i < nvoxr; ++i) {
         BMr2[i] = BMr[i];
         BMr[i] = (BMr[i] > 0) && (volr[i] == 0);
     }
@@ -2418,7 +2302,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     laplace3R(TAr, BMr, dimsr, 0.4);
 
     /* only keep TAr inside (closed) mask */
-    for (i = 0; i < nvolr; ++i)
+    for (i = 0; i < nvoxr; ++i)
         if ((BMr2[i] == 0) && (vol[i] == 0)) TAr[i] = 0.0;
 
     /* again apply vbdist to fill values in background with neighbours */
@@ -2426,25 +2310,25 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 
     for (i = 0; i < 3; ++i) s[i] *= 2.0;
     smooth_float(buffer, dimsr, voxelsizer, s, 0);
-    for (i = 0; i < nvolr; ++i)
+    for (i = 0; i < nvoxr; ++i)
         if (BMr[i] == 0) TAr[i] = buffer[i];
 
-    for (i = 0; i < nvolr; ++i)
+    for (i = 0; i < nvoxr; ++i)
         BMr[i] = (BMr2[i] == 0);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
     median3(TAr, dimsr, DT_FLOAT32);
 
-    for (i = 0; i < nvolr; ++i)
+    for (i = 0; i < nvoxr; ++i)
         BMr[i] = (volr[i] == 0);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
-    memcpy(volr,TAr,nvolr*sizeof(float));
+    memcpy(volr,TAr,nvoxr*sizeof(float));
     
     subsample_float(volr, vol, dimsr, dims, 0, 0);  
 
     /* get old range back */
-    for (i = 0; i < nvol; ++i)
+    for (i = 0; i < nvox; ++i)
         vol[i] *= max_vol;
 
     free(volr);
@@ -2458,39 +2342,44 @@ void initial_cleanup(unsigned char *probs, unsigned char *label, int dims[3], do
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
-    int nvol, th, i;
+    int nvox, th, i;
     int n_initial_openings = MAX(1,round(scale*strength));
     float *sum;
     double filt[3] = {0.75, 1.0, 0.75};
     
-    nvol = dims[0]*dims[1]*dims[2];
+    nvox = dims[0]*dims[1]*dims[2];
 
-    sum = (float *)malloc(sizeof(float)*nvol);
+    sum = (float *)malloc(sizeof(float)*nvox);
 
-    for (i = 0; i < nvol; ++i)
+    if (!sum) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (i = 0; i < nvox; ++i)
         sum[i] = (float)probs[i];
 
     morph_open_float(sum, dims, 1, 0.1);
     morph_dilate_float(sum, dims, 1, 0.5);
 
     /* build a first rough mask to remove noisy parts */
-    for (i = 0; i < nvol; ++i)
-        sum[i] = (float)probs[i]*sum[i] + (float)probs[i + (int)WM*nvol];
+    for (i = 0; i < nvox; ++i)
+        sum[i] = (float)probs[i]*sum[i] + (float)probs[i + (int)WM*nvox];
 
     morph_open_float(sum, dims, n_initial_openings, 0.1);
     morph_dilate_float(sum, dims, round(scale*1), 0.5);
     distclose_float(sum, dims, voxelsize, round(scale*20), 0.5);
 
-    if(remove_sinus) {
+    if (remove_sinus) {
         /* remove sinus sagittalis */
-        for (i = 0; i < nvol; i++)
+        for (i = 0; i < nvox; i++)
             sum[i] = sum[i] && (label[i] < 4);
     }
 
     distclose_float(sum, dims, voxelsize, round(scale*2), 0.5);
 
-    for (i = 0; i < nvol; ++i)
-        if(remove_sinus) {
+    for (i = 0; i < nvox; ++i)
+        if (remove_sinus) {
             label[i] = (unsigned char)(label[i] < 4)*label[i]*sum[i];
             probs[i] = (label[i] < 4) * (sum[i] > 0) * probs[i];
         } else
@@ -2503,7 +2392,7 @@ void cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
-    int niter, iter, nvol, th, th_erode, th_dilate, i, j;
+    int niter, iter, nvox, th, th_erode, th_dilate, i, j;
     int n_initial_openings = MAX(1,round(scale*strength));
     float *sum;
     double filt[3] = {0.75, 1.0, 0.75};
@@ -2512,46 +2401,51 @@ void cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double
     th_erode  = 153;  /* initial threshold for erosion 0.6*255.0 */
     th_dilate = (5*strength + 1)*16; /* threshold for dilation */
     
-    nvol = dims[0]*dims[1]*dims[2];
+    nvox = dims[0]*dims[1]*dims[2];
 
-    sum = (float *)malloc(sizeof(float)*nvol);
+    sum = (float *)malloc(sizeof(float)*nvox);
+    
+    if (!sum) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* build a first rough mask to remove noisy parts */
-    for (i = 0; i < nvol; ++i)
-        sum[i] = (float)probs[i] + (float)probs[i + (int)WM*nvol];
+    for (i = 0; i < nvox; ++i)
+        sum[i] = (float)probs[i] + (float)probs[i + (int)WM*nvox];
 
     morph_open_float(sum, dims, n_initial_openings, 0.25);
     
     /* init mask with WM values that are larger than GM and CSF and threshold for erosion */
-    for (i = 0; i < nvol; ++i)
-        if ((probs[i + (int)WM*nvol] > probs[i]) && (probs[i + (int)WM*nvol] > probs[i + (int)CSF*nvol]) && (probs[i + (int)WM*nvol] > th_erode) && (sum[i] > 0))
-            mask[i] = probs[i + (int)WM*nvol];
+    for (i = 0; i < nvox; ++i)
+        if ((probs[i + (int)WM*nvox] > probs[i]) && (probs[i + (int)WM*nvox] > probs[i + (int)CSF*nvox]) && (probs[i + (int)WM*nvox] > th_erode) && (sum[i] > 0))
+            mask[i] = probs[i + (int)WM*nvox];
         else mask[i] = 0;
 
     /* use masked WM image for all subsequent operations */
-    for (i = 0; i < nvol; ++i) probs[i + (int)WM*nvol] = mask[i];
+    for (i = 0; i < nvox; ++i) probs[i + (int)WM*nvox] = mask[i];
     
     /* mask computed from gm and wm */
     /* erosions and conditional dilations */
     for (iter=0; iter < niter; iter++) {
 
         /*  start with 2 iterations of erosions*/
-        if(iter < 2) th = th_erode;
+        if (iter < 2) th = th_erode;
         else th = th_dilate;
         
         /* mask = (mask>th).*(white+gray) */
-        for (i = 0; i < nvol; ++i) {
-            if(mask[i] > th) {
-                sum[i] = (float)probs[i] + (float)probs[i + (int)WM*nvol];
+        for (i = 0; i < nvox; ++i) {
+            if (mask[i] > th) {
+                sum[i] = (float)probs[i] + (float)probs[i + (int)WM*nvox];
                 mask[i] = (unsigned char)MIN(sum[i], 255.0);
             } else  mask[i] = 0;             
         }
 
-        /* convolve mask with filter width of 3 voxel */
+        /* convoxve mask with filter width of 3 voxel */
         convxyz_uint8(mask,filt,filt,filt,3,3,3,-1,-1,-1,mask,dims);
     }
     
-    for (i = 0; i < nvol; ++i)
+    for (i = 0; i < nvox; ++i)
         sum[i] = (float)mask[i];
 
     /* use copy of mask to erode and fill holes */
@@ -2560,7 +2454,7 @@ void cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double
 
 
     /* use either original mask or new eroded and filled mask */
-    for (i = 0; i < nvol; ++i)
+    for (i = 0; i < nvox; ++i)
         sum[i] = (sum[i] > 0) || (mask[i] > 0);
 
     /* fill remaining CSF spaces */
@@ -2568,10 +2462,10 @@ void cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double
     distclose(mask, dims, voxelsize, round(scale*4), 0.5, DT_UINT8);
 
 if (0) {
-    for (i = 0; i < nvol; ++i) {
+    for (i = 0; i < nvox; ++i) {
         for (j = 0; j < 6; ++j)
-            probs[i + j*nvol] = probs[i + j*nvol] * (sum[i] > 0);
-        mask[i] = probs[i] + probs[i + nvol] + probs[i + 2*nvol]; 
+            probs[i + j*nvox] = probs[i + j*nvox] * (sum[i] > 0);
+        mask[i] = probs[i] + probs[i + nvox] + probs[i + 2*nvox]; 
     }
     }
     free(sum);
@@ -2582,7 +2476,7 @@ void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
-    int niter, iter, nvol, th, th_erode, th_dilate, i, j;
+    int niter, iter, nvox, th, th_erode, th_dilate, i, j;
     int n_initial_openings = MAX(1,round(scale*strength));
     unsigned char *b, *c;
     float bp, tot;
@@ -2599,14 +2493,19 @@ void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
     for (i = 0; i < 3; ++i)
         filt[i] /= tot;
 
-    nvol = dims[0]*dims[1]*dims[2];
+    nvox = dims[0]*dims[1]*dims[2];
 
-    b = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
-    c = (unsigned char *)malloc(sizeof(unsigned char)*nvol);
+    b = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    c = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+
+    if (!b || !c) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* init with WM */
-    for (i = 0; i < nvol; ++i)
-        b[i] = probs[i + (int)WM*nvol];
+    for (i = 0; i < nvox; ++i)
+        b[i] = probs[i + (int)WM*nvox];
     
     /* mask computed from gm and wm */
     /* erosions and conditional dilations */
@@ -2614,18 +2513,18 @@ void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
         
         fprintf(stderr,"."); 
         /*  start with 2 iterations of erosions */
-        if(iter < 2) th = th_erode;
+        if (iter < 2) th = th_erode;
         else th = th_dilate;
         
         /* b = (b>th).*(white+gray) */
-        for (i = 0; i < nvol; ++i) {
-            if(b[i] > th) {
-                bp = (float)probs[i] + (float)probs[i + (int)WM*nvol];
+        for (i = 0; i < nvox; ++i) {
+            if (b[i] > th) {
+                bp = (float)probs[i] + (float)probs[i + (int)WM*nvox];
                 b[i] = (unsigned char)MIN(round(bp), 255.0);
             } else b[i] = 0;               
         }
 
-        /* convolve mask with filter width of 3 voxel */
+        /* convoxve mask with filter width of 3 voxel */
         convxyz_uint8(b,filt,filt,filt,3,3,3,-1,-1,-1,b,dims);           
     }
     fprintf(stderr,"\n");
@@ -2633,14 +2532,14 @@ void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
     morph_open(b, dims, n_initial_openings, 0.05, DT_UINT8);
 
     if (gmwm_only == 0) {
-        for (i = 0; i < nvol; ++i)
+        for (i = 0; i < nvox; ++i)
             c[i] = b[i];
             
         /* use copy of mask to fill holes */
         morph_close(c, dims, round(scale*20), 0.5, DT_UINT8);
     
         /* use either original mask or new eroded and filled mask */
-        for (i = 0; i < nvol; ++i)
+        for (i = 0; i < nvox; ++i)
             c[i] = (c[i] > 0) ||    (b[i] > 0);
     
         /* fill remaining CSF spaces */
@@ -2648,28 +2547,28 @@ void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *vox
     }
     
     th = 13; /* 0.05*255 */
-    for (i = 0; i < nvol; ++i) {
-        if((b[i] < th) || (((float)probs[i] + (float)probs[i + (int)WM*nvol]) < th)) {
+    for (i = 0; i < nvox; ++i) {
+        if ((b[i] < th) || (((float)probs[i] + (float)probs[i + (int)WM*nvox]) < th)) {
             probs[i] = 0;
-            probs[i + (int)WM*nvol] = 0;
+            probs[i + (int)WM*nvox] = 0;
         }        
     }
     
     if (gmwm_only == 0) {
-        for (i = 0; i < nvol; ++i) {
-            if((c[i] < th) || (((float)probs[i] + (float)probs[i + (int)WM*nvol] + (float)probs[i + (int)CSF*nvol]) < th)) {
-                probs[i + (int)CSF*nvol] = 0;
+        for (i = 0; i < nvox; ++i) {
+            if ((c[i] < th) || (((float)probs[i] + (float)probs[i + (int)WM*nvox] + (float)probs[i + (int)CSF*nvox]) < th)) {
+                probs[i + (int)CSF*nvox] = 0;
             }        
         }
     }
     
-    for (i = 0; i < nvol; ++i) {
+    for (i = 0; i < nvox; ++i) {
         tot = 0.0;
         for (j = 0; j < 3; ++j)
-            tot += (float)probs[i + j*nvol];
+            tot += (float)probs[i + j*nvox];
         for (j = 0; j < 3; ++j)
-            probs[i + j*nvol] = (unsigned char)(round((float)probs[i + j*nvol]/tot*255.0));
-        mask[i] = probs[i] + probs[i + (int)WM*nvol];
+            probs[i + j*nvox] = (unsigned char)(round((float)probs[i + j*nvox]/tot*255.0));
+        mask[i] = probs[i] + probs[i + (int)WM*nvox];
     }
 
     free(b);
@@ -2841,7 +2740,7 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
  * This function is designed to process a 3D volume by filling the holes 
  * created after applying a thresholding operation.
  *
- * The process involves several steps:
+ * The process invoxves several steps:
  * 1. Conversion of input data to a floating-point buffer based on the given datatype.
  * 2. Creation of an inverted mask based on the threshold value, where values below 
  *    the threshold are set to 1 (indicating potential holes) and values above are set to 0.
