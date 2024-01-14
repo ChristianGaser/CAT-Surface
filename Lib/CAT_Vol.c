@@ -1241,166 +1241,86 @@ void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int repl
     free(I);
 }
 
-
-/* laplace calculation
- * ________________________________________________________________________
- * Filter SEG within the intensity range of low and high until the changes
- * are below TH. 
+/**
+ * laplace3R - Apply Laplace filter on a 3D volume.
  *
- * L = laplace3(SEG,TH)
+ * This function performs Laplace filtering on a 3D volume. It filters the volume 
+ * within the intensity range defined by a mask until the changes are below a 
+ * specified threshold.
  *
- * SEG  = 3d single input matrix
- * TH       = threshold to control the number of iterations
- *              maximum change of an element after iteration
+ * Parameters:
+ *  - SEG: 3D single input matrix (volume to be filtered).
+ *  - M: 3D volume that defines the filter area (mask).
+ *  - dims: Array containing the dimensions of the volume.
+ *  - TH: Threshold controlling the number of iterations (maximum change allowed after an iteration).
  *
+ * Notes:
+ *  - The function iterates until the maximum difference in the filtered volume is 
+ *    less than the threshold or until it reaches the maximum number of iterations.
+ *  - The function uses the neighboring values to calculate the Laplace filtering.
  */
-void laplace3(float *SEG, int dims[3], int maxiter)
-{
-    /* main information about input data (size, dimensions, ...) */
+void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH) {
     const int x = dims[0];
     const int y = dims[1];
+
     const int z = dims[2];
-    const int xy = x*y;
-    const int nvox = x*y*z;
-        
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    const int NI[6] = { -1, 1, -x, x, -xy, xy}; 
-    const int sN = sizeof(NI)/4;   
-    int i, n;
+    const int xy = x * y;
+    const int nvox = x * y * z;
     
-    float *L1 = (float *)malloc(sizeof(float)*nvox);
-    float *L2 = (float *)malloc(sizeof(float)*nvox);
-    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    // Indices of the neighbor and size of neighbors array
+    const int NI[] = { -1, 1, -x, x, -xy, xy }; 
+    const int sN = sizeof(NI) / sizeof(NI[0]);
     
+    int i, n, u, v, w, nu, nv, nw, ni, iter = 0, maxiter = 2000;
+    float Nn, diff, maxdiffi, maxdiff = 1.0;
+
+    // Allocate memory for Laplace calculation
+    float *L1 = (float *)malloc(sizeof(float) * nvox);
+    float *L2 = (float *)malloc(sizeof(float) * nvox);
+    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
+    
+    // Check for successful memory allocation
     if (!L1 || !L2 || !LN) {
-        fprintf(stderr,"Memory allocation error\n");
+        fprintf(stderr, "Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-
-    /* initialisiation */
-    for (i=0; i<nvox; i++) {
-        if (isnan(SEG[i]))
-            L1[i] = FLT_MAX; else L1[i] = SEG[i];
-        L2[i] = L1[i];
-        if (SEG[i] == 0)
-            LN[i] = 1; else LN[i] = 0;
-    }
-
-    int u,v,w,nu,nv,nw,ni,iter=0;
-    float Nn;
-    while (iter < maxiter) {
-        iter++;
-        for (i=0; i<nvox; i++) {
-            if ((SEG[i] == 0) && LN[i]) {
-                ind2sub(i,&u,&v,&w,xy,x);
-
-                /* read neighbor values */
-                L2[i]=0.0; Nn=0.0;
-                for (n=0;n<sN;n++) {
-                    ni = i + NI[n];
-                    ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
-                        L2[i] += L1[ni];
-                        Nn++;
-                    }
-                }
-                if (Nn>0) {L2[i]/=(float)Nn;} else {L2[i]=L1[i];}
-                
-                for (n=0;n<sN;n++) {
-                    ni = i + NI[n];
-                    ind2sub(ni,&nu,&nv,&nw,xy,x);
-                    if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
-                        LN[ni] = 1; /* if I change his neigbors it has to be recalculated */
-                    }
-                LN[i] = 0;
-            }
-        }
-        
-        /* update of L1 */
-        for (i=0; i<nvox; i++) 
-            L1[i] = L2[i];
-        
-    }
     
-    for (i=0; i<nvox; i++) 
-        SEG[i] = L1[i];
-
-    free(L1);
-    free(L2);
-    free(LN);
-}
-
-/* laplace calculation
- * ________________________________________________________________________
- * Filter SEG within the intensity range of low and high until the changes
- * are below TH. 
- *
- * L = laplace3R(SEG,TH)
- *
- * SEG  = 3d single input matrix
- * TH       = threshold to control the number of iterations
- *              maximum change of an element after iteration
- *
- */
-void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
-{
-    /* main information about input data (size, dimensions, ...) */
-    const int x = dims[0];
-    const int y = dims[1];
-    const int z = dims[2];
-    const int xy = x*y;
-    const int nvox = x*y*z;
-        
-    /* indices of the neighbor Ni (index distance) and euclidean distance NW */
-    const int NI[] = { -1, 1, -x, x, -xy, xy}; 
-    const int sN = sizeof(NI)/4;   
-
-    float *L1 = (float *)malloc(sizeof(float)*nvox);
-    float *L2 = (float *)malloc(sizeof(float)*nvox);
-    unsigned char *LN = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
-    int i,n;
-    
-    if (!L1 || !L2 || !LN) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* initialisiation */
-    for (i=0; i<nvox; i++) {
-        if (isnan(SEG[i]))
-            L1[i] = FLT_MAX; else L1[i] = SEG[i];
+    // Initialization
+    for (i = 0; i < nvox; i++) {
+        L1[i] = isnan(SEG[i]) ? FLT_MAX : SEG[i];
         L2[i] = L1[i];
         LN[i] = M[i];
     }
-
-    int u,v,w,nu,nv,nw,ni,iter=0,maxiter=2000;
-    float Nn, diff, maxdiffi, maxdiff=1.0;
+    
+    // Iterative Laplace filtering
     while (maxdiff > TH && iter < maxiter) {
-        maxdiffi=0; iter++;
-        for (i=0; i<nvox; i++) {
+        maxdiffi = 0;
+        iter++;
+        for (i = 0; i < nvox; i++) {
             if (M[i] && LN[i]) {  
-                ind2sub(i,&u,&v,&w,xy,x);
-
-                /* read neighbor values */
-                L2[i]=0.0; Nn=0.0;
-                for (n=0;n<sN;n++) {
+                ind2sub(i, &u, &v, &w, xy, x);
+    
+                // Read neighbor values
+                L2[i] = 0.0;
+                Nn = 0.0;
+                for (n = 0; n < sN; n++) {
                     ni = i + NI[n];
-                    ind2sub(ni,&nu,&nv,&nw,xy,x);
+                    ind2sub(ni, &nu, &nv, &nw, xy, x);
                     if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) {
                         L2[i] += L1[ni];
                         Nn++;
                     }
                 }
-                if (Nn>0) L2[i] /= (float)Nn; else L2[i] = L1[i];
-                
-                diff    = fabs(L1[i] - L2[i]); 
-                if (diff>(TH/10.0)) { 
+    
+                L2[i] = Nn > 0 ? L2[i] / (float)Nn : L1[i];
+                diff = fabs(L1[i] - L2[i]);
+                if (diff > (TH / 10.0)) { 
                     for (n=0;n<sN;n++) {
                         ni = i + NI[n];
                         ind2sub(ni,&nu,&nv,&nw,xy,x);
                         if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
                             LN[ni] = 1; /* if I change his neigbors it has to be recalculated */
-                    }
+                    }                
                 }
                 LN[i] = 0;
                 if (maxdiffi<diff) maxdiffi = diff; 
@@ -1408,15 +1328,16 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
         }
         maxdiff = maxdiffi;
         
-        /* update of L1 */
+        // Update L1 with the new values from L2
         for (i=0; i<nvox; i++) 
             L1[i] = L2[i];
-        
     }
     
+    // Copy the final result back into SEG
     for (i=0; i<nvox; i++) 
         SEG[i] = L1[i];
 
+    // Free allocated memory
     free(L1);
     free(L2);
     free(LN);

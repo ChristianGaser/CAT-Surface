@@ -75,7 +75,7 @@ main(int argc, char *argv[])
         dims[1] = nii_ptr->ny;
         dims[2] = nii_ptr->nz;
         
-        localstat3(input, dims, 3, 1, NULL, F_MAX, DT_FLOAT32);
+//        laplace3R(input, dims, 100);
         
         /* if not defined use original name as basename for output */
         if(argc == 3)

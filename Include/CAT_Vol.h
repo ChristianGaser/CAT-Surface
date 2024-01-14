@@ -20,7 +20,6 @@
 
 #define SQRT2PI 2.506628
 
-#define RINT(A) floor((A)+0.5)
 #ifndef isfinite
 #define isfinite(x) ((x) * (x) >= 0.) /* check for NaNs */
 #endif
@@ -90,6 +89,11 @@ double get_std(double arr[], int n);
 double get_sum(double arr[], int n);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
+void median3(void *D, int dims[3], int datatype);
+void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned char use_dist, unsigned char mask[], int stat_func, int datatype);
+void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
+void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int datatype);
+void smooth_subsample3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp, int datatype);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
@@ -100,16 +104,9 @@ void morph_open(void *vol, int dims[3], int niter, double th, int datatype);
 void distclose(void *vol, int dims[3], double voxelsize[3], int niter, double th, int datatype);
 void distopen(void *vol, int dims[3], double voxelsize[3], int niter, double th, int datatype);
 void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
-void subsample_uint8(unsigned char *in, float *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out);
 void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp);
-void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int datatype);
-void smooth_subsample(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp, int datatype);
 void initial_cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int remove_sinus);
 void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double voxelsize[3], int strength, int gmwm_only);
-void median3(void *D, int dims[3], int datatype);
-void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned char use_dist, unsigned char mask[], int stat_func, int datatype);
-void laplace3(float *SEG, int dims[3], int maxiter);
-void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void vbdist(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
