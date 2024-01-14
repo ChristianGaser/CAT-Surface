@@ -1,4 +1,4 @@
-/* Christian Gaser - christian.gaser@uni-jena.de
+/* Christian Gaser - christian.gaseruni-jena.de
  * Department of Psychiatry
  * University of Jena
  *
@@ -9,14 +9,58 @@
 
 #include "CAT_Vol.h"
 
-enum
-{
-        F_AVERAGE,
-        F_MEDIAN,
-        F_STD,
-        F_MAX,
-        F_MIN,
-};
+/**
+ * ind2sub - Convert a linear index to 3D array coordinates.
+ *
+ * This function calculates the x, y, and z coordinates corresponding to a linear index 
+ * in a 3D array. It's useful for converting a 1D array index to 3D coordinates in a volume.
+ *
+ * Parameters:
+ *  - i: The linear index in the array.
+ *  - x: Pointer to store the calculated x-coordinate.
+ *  - y: Pointer to store the calculated y-coordinate.
+ *  - z: Pointer to store the calculated z-coordinate.
+ *  - sxy: Product of the dimensions in the x and y directions (sx * sy).
+ *  - sx: The dimension in the x direction.
+ */
+void ind2sub(int i, int *x, int *y, int *z, int sxy, int sx) {
+    int j = i % sxy; // Modulo to find position within a single z-plane
+
+    *z = (int)floor((double)i / (double)sxy); // Calculate z-coordinate
+    *y = (int)floor((double)j / (double)sx);  // Calculate y-coordinate
+    *x = j % sx; // Calculate x-coordinate
+}
+
+
+/**
+ * sub2ind - Convert 3D array coordinates to a linear index.
+ *
+ * This function calculates the linear index corresponding to the x, y, and z coordinates 
+ * in a 3D array. It is useful for accessing elements in a linearly stored 3D array.
+ *
+ * Boundary handling is implemented to ensure the coordinates stay within the array limits.
+ *
+ * Parameters:
+ *  - x: The x-coordinate in the array.
+ *  - y: The y-coordinate in the array.
+ *  - z: The z-coordinate in the array.
+ *  - s: Array containing the dimensions of the 3D array.
+ *
+ * Returns:
+ *  The linear index corresponding to the provided 3D coordinates.
+ *
+ * See Also:
+ *  - ind2sub function for the inverse operation.
+ */
+int sub2ind(int x, int y, int z, int s[]) {
+    // Boundary handling to ensure coordinates are within array limits
+    x = (x < 0) ? 0 : (x > s[0] - 1) ? s[0] - 1 : x; 
+    y = (y < 0) ? 0 : (y > s[1] - 1) ? s[1] - 1 : y; 
+    z = (z < 0) ? 0 : (z > s[2] - 1) ? s[2] - 1 : z; 
+  
+    // Calculate and return the linear index
+    return z * s[0] * s[1] + y * s[0] + x;
+}
 
 /**
  * convert_input_type - Converts various data types to a floating point array.
@@ -26,16 +70,16 @@ enum
  * are specifically defined to work with floating point data, especially in contexts 
  * like image processing where data might come in various formats.
  *
- * @data: Pointer to the input data array. The actual data type of this array is
+ * data: Pointer to the input data array. The actual data type of this array is
  *        determined by the 'datatype' parameter.
  *
- * @buffer: Pointer to the output float array where the converted data will be stored.
+ * buffer: Pointer to the output float array where the converted data will be stored.
  *          This array should be pre-allocated with enough space to hold 'nvox' elements.
  *          The function fills this array with the converted float values.
  *
- * @nvox: Integer representing the number of elements in the input data array.
+ * nvox: Integer representing the number of elements in the input data array.
  *
- * @datatype: Integer that specifies the type of data in the input array. This parameter
+ * datatype: Integer that specifies the type of data in the input array. This parameter
  *            uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.) to represent
  *            different data types like char, unsigned char, short, unsigned short, etc.
  *
@@ -45,8 +89,7 @@ enum
  * uniform data format.
  *
  */
-void
-convert_input_type(void *data, float *buffer, int nvox, int datatype)
+void convert_input_type(void *data, float *buffer, int nvox, int datatype)
 {
     int i;
     float tmp;
@@ -99,16 +142,16 @@ convert_input_type(void *data, float *buffer, int nvox, int datatype)
  * This is useful in contexts like image processing where data needs to be restored to
  * its original format after processing.
  *
- * @data: Pointer to the output data array where the converted data will be stored.
+ * data: Pointer to the output data array where the converted data will be stored.
  *        The actual data type of this array is determined by the 'datatype' parameter.
  *        This array should be pre-allocated with enough space to hold 'nvox' elements.
  *
- * @buffer: Pointer to the input float array containing the data to be converted.
+ * buffer: Pointer to the input float array containing the data to be converted.
  *          This array contains 'nvox' elements of type float.
  *
- * @nvox: Integer representing the number of elements in the input float array.
+ * nvox: Integer representing the number of elements in the input float array.
  *
- * @datatype: Integer that specifies the desired output data type for the 'data' array.
+ * datatype: Integer that specifies the desired output data type for the 'data' array.
  *            This parameter uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.)
  *            to represent different data types like char, unsigned char, short, etc.
  *
@@ -118,8 +161,7 @@ convert_input_type(void *data, float *buffer, int nvox, int datatype)
  * to its original or a different format as needed.
  *
  */
-void
-convert_output_type(void *data, float *buffer, int nvox, int datatype)
+void convert_output_type(void *data, float *buffer, int nvox, int datatype)
 {
     int i;
 
@@ -156,37 +198,53 @@ convert_output_type(void *data, float *buffer, int nvox, int datatype)
     }
 }
 
-/* qicksort */
-void
-swap_double(double *a, double *b)
-{
-    double t=*a;
-    *a=*b;
-    *b=t;
+/**
+ * swap_double - Swap the values of two double variables.
+ *
+ * This utility function is used in sorting algorithms to swap the values 
+ * of two double variables.
+ *
+ * Parameters:
+ *  - a: Pointer to the first double variable.
+ *  - b: Pointer to the second double variable.
+ */
+void swap_double(double *a, double *b) {
+    double temp = *a;
+    *a = *b;
+    *b = temp;
 }
 
-void
-sort_double(double arr[], int start, int end)
-{
-    if (end > start + 1)
-    {
-        double piv = arr[start];
-        int l = start + 1, r = end;
-        while (l < r)
-        {
-            if (arr[l] <= piv) l++;
-            else swap_double(&arr[l], &arr[--r]);
+/**
+ * quicksort_double - Sort an array of doubles using the Quick Sort algorithm.
+ *
+ * This function sorts an array of doubles in place using the Quick Sort algorithm. 
+ * It's a recursive algorithm that sorts elements by partitioning the array.
+ *
+ * Parameters:
+ *  - arr: The array of doubles to be sorted.
+ *  - start: The starting index for the sorting process.
+ *  - end: The ending index (exclusive) for the sorting process.
+ */
+void quicksort_double(double arr[], int start, int end) {
+    if (end > start + 1) {
+        double pivot = arr[start];
+        int left = start + 1, right = end;
+        while (left < right) {
+            if (arr[left] <= pivot) {
+                left++;
+            } else {
+                swap_double(&arr[left], &arr[--right]);
+            }
         }
-        swap_double(&arr[--l], &arr[start]);
-        sort_double(arr, start, l);
-        sort_double(arr, r, end);
+        swap_double(&arr[--left], &arr[start]);
+        quicksort_double(arr, start, left);
+        quicksort_double(arr, right, end);
     }
 }
 
 /* Function to find the median of a double array */
-double
-get_median_double(double arr[], int n) {
-    sort_double(arr,0,n);
+double get_median_double(double arr[], int n) {
+    quicksort_double(arr,0,n);
 
     // If n is odd
     if (n % 2 != 0)
@@ -196,8 +254,7 @@ get_median_double(double arr[], int n) {
 }
 
 /* Function to find the sum of a double array */
-double
-get_sum_double(double arr[], int n) {
+double get_sum_double(double arr[], int n) {
     int i;
     double sum = 0.0;
 
@@ -207,15 +264,13 @@ get_sum_double(double arr[], int n) {
 }
 
 /* Function to find the mean of a double array */
-double
-get_mean_double(double arr[], int n) {
+double get_mean_double(double arr[], int n) {
 
     return get_sum_double(arr,n) / (double)n;
 }
 
 /* Function to find the std of a double array */
-double
-get_std_double(double arr[], int n) {
+double get_std_double(double arr[], int n) {
     int i;
     double mean, variance = 0.0;
 
@@ -231,8 +286,7 @@ get_std_double(double arr[], int n) {
 }
 
 /* Function to find the min of a double array */
-double
-get_min_double(double arr[], int n) {
+double get_min_double(double arr[], int n) {
     int i;
     double result = FLT_MAX;
     
@@ -245,8 +299,7 @@ get_min_double(double arr[], int n) {
 }
 
 /* Function to find the max of a double array */
-double
-get_max_double(double arr[], int n) {
+double get_max_double(double arr[], int n) {
     int i;
     double result = -FLT_MAX;
     
@@ -258,57 +311,77 @@ get_max_double(double arr[], int n) {
     return result;
 }
 
-/* simple median function for float */
-void 
-localstat_float(float *input, int dims[3], char size_kernel, unsigned char mask[], int stat_func)
+/**
+ * localstat_float - Calculate local statistics for a 3D float array.
+ *
+ * This function calculates mean, median, min, max, and standard deviation 
+ * within a defined kernel size for each element in a 3D float array. It 
+ * optionally uses a Euclidean distance to restrict the search area and 
+ * an optional mask to optimize performance.
+ *
+ * Parameters:
+ *  - input: Pointer to the input 3D float array.
+ *  - dims: Array representing the dimensions of the input array.
+ *  - size_kernel: Size of the kernel (must be an odd number).
+ *  - use_dist: Flag to use Euclidean distance in calculations.
+ *  - mask: Optional mask array to optimize calculations.
+ *  - stat_func: Function selector for the type of statistic to calculate.
+ *
+ * Note: The function modifies the input array to store the results.
+ */
+void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsigned char use_dist, 
+                        unsigned char mask[], int stat_func)
 {
     double *arr;
-    int i,j,k,ind,ni,x,y,z,n,di;
+    int i, j, k, ind, ni, x, y, z, n, di;
     float *buffer;
-    int nvol = dims[0]*dims[1]*dims[2];
+    int nvol = dims[0] * dims[1] * dims[2];
     
-    /* we need odd kernel size */
+    // Check for odd kernel size
     if ((size_kernel % 2 == 0) || (size_kernel < 1)) {
         printf("Only odd (positive) kernel sizes accepted\n");
         exit(EXIT_FAILURE);
     }
 
-    if (size_kernel > 1)
-        di = size_kernel - 2;
-    else
-        di = 0;
+    di = (size_kernel - 1) / 2; // Define distance parameter
        
+    // Memory allocation
     buffer = (float *)malloc(sizeof(float)*nvol);
     arr    = (double *)malloc(sizeof(double)*size_kernel*size_kernel*size_kernel);
 
-    /* check success of memory allocation */
+    // Check memory allocation success
     if (!buffer || !arr) {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
-    /* set buffer to zero in case that NANs occur */
+    // Initialize buffer to zero
     for (i=0; i<nvol; i++) buffer[i] = 0.0;
     
-    /* filter process */
+    // Main filter process
     for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
         ind = sub2ind(x,y,z,dims);
         n = 0;
         
-        /* go through all elements in a box defined by kernel_size */
+        // Iterate through kernel
         for (i=-di; i<=di; i++) for (j=-di; j<=di; j++) for (k=-di; k<=di; k++) {
             ni = sub2ind(x+i,y+j,z+k,dims);
             
-            /* check masks and NaN or Infinities */
-            if (isnan(input[ni]) || input[ni]==FLT_MAX || input[ind]==-FLT_MAX || (mask && mask[ni] == 0))
+            // Check for NaNs, Infinities, and optional mask
+            if (isnan(input[ni]) || !isfinite(input[ni]) || (mask && mask[ni] == 0))
+                continue;
+
+            // Check for Euclidean distance if required
+            if (use_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)di)
                 continue;
             
             arr[n] = (double)input[ni];
             n++;
         }
 
+        // Calculate local statistics based on the selected function
         switch (stat_func) {
-        case F_AVERAGE:
+        case F_MEAN:
             buffer[ind] = (float)get_mean_double(arr, n);
             break;
         case F_MEDIAN:
@@ -329,19 +402,26 @@ localstat_float(float *input, int dims[3], char size_kernel, unsigned char mask[
         }
     }
 
+    // Copy results back to input array
     for (i=0; i<nvol; i++) input[i] = buffer[i];
-    
+
+    // Free allocated memory
     free(buffer);
     free(arr);
 }
 
-
-void
-localstat3(void *data, int dims[3], char size_kernel, unsigned char mask[], int stat_func, int datatype)
+/* wrapper to call localstat_float for any data type */
+void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned char use_dist, unsigned char mask[], int stat_func, int datatype)
 {
     int nvox;
     float *buffer;
    
+    /* we need odd kernel sizes */
+    if ((size_kernel % 2 == 0) || (size_kernel < 3)) {
+        printf("Only odd kernel sizes >= 3 accepted\n");
+        exit(EXIT_FAILURE);
+    }
+
     nvox = dims[0]*dims[1]*dims[2];
     buffer = (float *)malloc(sizeof(float)*nvox);
 
@@ -352,14 +432,14 @@ localstat3(void *data, int dims[3], char size_kernel, unsigned char mask[], int 
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    localstat_float(buffer, dims, size_kernel, mask, stat_func);
+    localstat_float(buffer, dims, size_kernel, use_dist, mask, stat_func);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
 }
 
-void
-median3(void *data, int dims[3], int datatype)
+/* wrapper to call median for any data type */
+void median3(void *data, int dims[3], int datatype)
 {
     int nvox;
     float *buffer;
@@ -374,7 +454,7 @@ median3(void *data, int dims[3], int datatype)
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    localstat_float(buffer, dims, 3, NULL, F_MEDIAN);
+    localstat_float(buffer, dims, 3, 0, NULL, F_MEDIAN);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -387,24 +467,24 @@ median3(void *data, int dims[3], int datatype)
  * is performed based on the label values assigned to each voxel, allowing different
  * treatments for different tissue types (e.g., white matter, gray matter).
  *
- * @src: Pointer to the source image data (float array).
+ * src: Pointer to the source image data (float array).
  *       This array is modified in place with the bias-corrected values.
  *
- * @label: Pointer to the label array (unsigned char array) indicating different
+ * label: Pointer to the label array (unsigned char array) indicating different
  *         tissue types in the MRI scan. Different values in this array represent
  *         different tissues such as white matter, gray matter, etc.
  *
- * @dims: Pointer to an integer array of size 3, indicating the dimensions of the
+ * dims: Pointer to an integer array of size 3, indicating the dimensions of the
  *        MRI volume (e.g., [width, height, depth]).
  *
- * @voxelsize: Pointer to a double array of size 3, indicating the size of each
+ * voxelsize: Pointer to a double array of size 3, indicating the size of each
  *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
  *
- * @bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
+ * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
  *             the Gaussian kernel used for smoothing in the bias correction
  *             process.
  *
- * @label_th: An integer specifying the threshold label value for selecting
+ * label_th: An integer specifying the threshold label value for selecting
  *            specific tissues for bias correction. For example, using label_th = 2
  *            may focus the correction on white matter only.
  *
@@ -415,8 +495,7 @@ median3(void *data, int dims[3], int datatype)
  * voxel intensities in the source image.
  *
  */
-void
-correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
+void correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
 {
     int i, j, nvol, n[MAX_NC], n_classes = 0, replace;
     unsigned char *mask;
@@ -497,24 +576,24 @@ correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsiz
  * white matter (WM) and, if specified, on gray matter (GM) as well. It uses a
  * local adaptive segmentation approach for additional GM correction.
  *
- * @src: Pointer to the source image data (float array).
+ * src: Pointer to the source image data (float array).
  *       This array is modified in place with the bias-corrected values.
  *
- * @label: Pointer to the label array (unsigned char array) indicating different
+ * label: Pointer to the label array (unsigned char array) indicating different
  *         tissue types in the MRI scan. Typically, different values in this array
  *         represent different tissues such as WM, GM, and CSF.
  *
- * @dims: Pointer to an integer array of size 3, indicating the dimensions of the
+ * dims: Pointer to an integer array of size 3, indicating the dimensions of the
  *        MRI volume (e.g., [width, height, depth]).
  *
- * @voxelsize: Pointer to a double array of size 3, indicating the size of each
+ * voxelsize: Pointer to a double array of size 3, indicating the size of each
  *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
  *
- * @bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
+ * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
  *             the Gaussian kernel used for smoothing in the bias correction
  *             process. This parameter is primarily used for WM correction.
  *
- * @weight_las: A double value indicating the amount of weighting local adaptive 
+ * weight_las: A double value indicating the amount of weighting local adaptive 
  *              segmentation (LAS) that should be applied for additional GM correction. 
  *              If non-zero, LAS is applied (use values 0..1).
  *
@@ -525,8 +604,7 @@ correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsiz
  * with the corrected values.
  *
  */
-void
-correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
+void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
 {
     int i, nvol, replace;
     unsigned char *mask;
@@ -593,12 +671,12 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
  * situations where only specific parts of data (like certain regions in an image) are of 
  * interest.
  *
- * @arr: Pointer to the float array whose mean is to be calculated.
+ * arr: Pointer to the float array whose mean is to be calculated.
  *       The array should contain 'size' elements.
  *
- * @size: Integer representing the number of elements in the 'arr' array.
+ * size: Integer representing the number of elements in the 'arr' array.
  *
- * @mask: Pointer to an unsigned char array that serves as the mask. If the mask is not
+ * mask: Pointer to an unsigned char array that serves as the mask. If the mask is not
  *        NULL, only elements of 'arr' at positions where 'mask' has a non-zero value are
  *        included in the mean calculation. If 'mask' is NULL, all elements of 'arr' are
  *        considered.
@@ -612,15 +690,14 @@ correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, dou
  *         elements are selected (e.g., due to all being NaN or masked out), the behavior
  *         is not defined (potential division by zero).
  */
-double
-get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
+double get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
 {
     double sum = 0.0;
     int i, n = 0;
     
     /* Calculate mean */
     for (i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
+        if (!isnan(arr[i]) && !isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             sum += arr[i];
             n++;
         }
@@ -637,12 +714,12 @@ get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
  * can be useful in situations where variability of specific parts of data (like certain 
  * regions in an image or dataset) is of interest.
  *
- * @arr: Pointer to the float array whose standard deviation is to be calculated.
+ * arr: Pointer to the float array whose standard deviation is to be calculated.
  *       The array should contain 'size' elements.
  *
- * @size: Integer representing the number of elements in the 'arr' array.
+ * size: Integer representing the number of elements in the 'arr' array.
  *
- * @mask: Pointer to an unsigned char array that serves as the mask. If the mask is not
+ * mask: Pointer to an unsigned char array that serves as the mask. If the mask is not
  *        NULL, only elements of 'arr' at positions where 'mask' has a non-zero value are
  *        included in the standard deviation calculation. If 'mask' is NULL, all elements
  *        of 'arr' are considered.
@@ -657,15 +734,14 @@ get_masked_mean_array_float(float arr[], int size, unsigned char mask[])
  *         If no elements are selected (e.g., due to all being NaN or masked out), the 
  *         behavior is not defined (potential division by zero).
  */
-double
-get_masked_std_array_float(float arr[], int size, unsigned char mask[])
+double get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 {
     double mean = 0.0, variance = 0.0;
     int i, n = 0;
 
     /* Calculate mean */
     for (i = 0; i < size; i++) {
-        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
+        if (!isnan(arr[i]) && !isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
             mean += arr[i];
             n++;
         }
@@ -674,7 +750,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
 
     /* Calculate variance */
     for (i = 0; i < size; i++)
-        if (!isnan(arr[i]) && ((mask && mask[i] > 0) || !mask))
+        if (!isnan(arr[i]) && !isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask))
             variance += pow(arr[i] - mean, 2);
     variance /= (double)n;
 
@@ -690,15 +766,15 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
  * value and the index at which this value occurs. It is specifically designed to ignore
  * non-positive values (i.e., values less than or equal to zero).
  *
- * @A: Pointer to the float array in which the minimum positive value is to be searched.
+ * A: Pointer to the float array in which the minimum positive value is to be searched.
  *     The array should contain 'sA' elements.
  *
- * @sA: Integer representing the size of the 'A' array.
+ * sA: Integer representing the size of the 'A' array.
  *
- * @minimum: Pointer to a float where the minimum positive value found in the array will be stored.
+ * minimum: Pointer to a float where the minimum positive value found in the array will be stored.
  *           If no positive value is found, it will store FLT_MAX.
  *
- * @index: Pointer to an integer where the index of the minimum positive value found in the array
+ * index: Pointer to an integer where the index of the minimum positive value found in the array
  *         will be stored. If no positive value is found, it will store 0.
  *
  * The function initializes 'minimum' to the maximum float value (FLT_MAX) and 'index' to 0.
@@ -707,8 +783,7 @@ get_masked_std_array_float(float arr[], int size, unsigned char mask[])
  * positive element of an array and its position is required.
  *
  */
-void
-pmin(float *A, int sA, float *minimum, int *index)
+void pmin(float *A, int sA, float *minimum, int *index)
 {
     int i; 
     
@@ -724,8 +799,7 @@ pmin(float *A, int sA, float *minimum, int *index)
 }
 
 /* subfunction for SBT to get all values of the voxels which are in WMD-range (children of this voxel) */
-float
-pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
+float pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
     float n=0.0, maximum=WMD;
     int i;
 
@@ -760,36 +834,6 @@ pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], 
     return maximum;
 }
 
-/* estimate x,y,z position of index i in an array size sx,sxy=sx*sy... */
-void
-ind2sub(int i, int *x, int *y, int *z, int sxy, int sx)
-{
-    int j = i % sxy;
-
-    *z = (int)floor((double)i / (double)sxy); 
-    *y = (int)floor((double)j / (double)sx);   
-    *x = j % sx;
-}
-
-/* 
- * Estimate index i of a voxel x,y,z in an array size s.
- * See also for ind2sub.
- */
-int
-sub2ind(int x, int y, int z, int s[]) {
-    /* handling on boundaries */
-    if (x<0) x=0; if (x>s[0]-1) x=s[0]-1; 
-    if (y<0) y=0; if (y>s[1]-1) y=s[1]-1; 
-    if (z<0) z=0; if (z>s[2]-1) z=s[2]-1; 
-  
-    /*   z * (number of voxels within a slice) 
-       + y * (number of voxels in a column)  
-       + x   (position within the column)   
-    */   
-    return z*s[0]*s[1] + y*s[0] + x;
-}
-
-
 /* 
  * Read out the linear interpolated value of a volume vol with the size
  * s on the position x,y,z (c-notation). See also ind2sub for details of
@@ -797,8 +841,7 @@ sub2ind(int x, int y, int z, int s[]) {
  * If nii_ptr is not NULL, the positions are transformed from world to voxel 
  * space.
  */
-float
-isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
+float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
 {
     int i;
     float seg=0.0, n=0.0;
@@ -843,8 +886,7 @@ isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr)
     else return FNAN;
 }
 
-void 
-get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros)
+void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros)
 {
     double mn_thresh, mx_thresh;
     double min_src = FLT_MAX, max_src = -FLT_MAX;
@@ -880,8 +922,7 @@ get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int e
  
 }
 
-static void 
-convxy(double out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, double buff[])
+static void convxy(double out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, double buff[])
 {
     int x,y,k;
 
@@ -919,8 +960,7 @@ convxy(double out[], int xdim, int ydim, double filtx[], double filty[], int fxd
     }
 }
 
-static void 
-convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, float buff[])
+static void convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], int fxdim, int fydim, int xoff, int yoff, float buff[])
 {
     int x,y,k;
 
@@ -959,8 +999,7 @@ convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], in
 }
 
 
-int 
-convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
+int convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     double *oVol, int dims[3])
 {
@@ -1026,8 +1065,7 @@ convxyz_double(double *iVol, double filtx[], double filty[], double filtz[],
     return(0);
 }
 
-int 
-convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
+int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     float *oVol, int dims[3])
 {
@@ -1093,8 +1131,7 @@ convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     return(0);
 }
 
-int
-convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[],
+int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     unsigned char *oVol, int dims[3])
 {
@@ -1169,8 +1206,7 @@ convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[
 /* 
     [Ygmt,Ypp] = projection_based_thickness(Yp0, dist_WM, dist_CSF); 
  */
-void
-projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize) 
+void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize) 
 {     
     /* main information about input data (size, dimensions, ...) */
     const int   nvol = dims[0]*dims[1]*dims[2];
@@ -1284,14 +1320,14 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
  * The input image is modified and returns the distanxe measure.
  *
  * Parameters:
- *   @V: The input image (float) represented as a 3D volume. Voxels with zero value 
+ *   V: The input image (float) represented as a 3D volume. Voxels with zero value 
  *       are considered non-elements of the object.
- *   @M: An uint16 mask defining the region in which the distance calculations 
+ *   M: An uint16 mask defining the region in which the distance calculations 
  *       are performed. The mask should define a convex hull ensuring direct 
  *       connections between the object and the estimation voxels.
  *       If the mask is NULL the distance calculations are performed for the whole image
  *       without any mask.
- *   @dims: An integer array representing the dimensions of the 3D volume (width, height, depth).
+ *   dims: An integer array representing the dimensions of the 3D volume (width, height, depth).
  *   voxelsize: An float array representing the size of each voxel in the 3D volume, in millimeters.
  *   replace: An integer flag indicating whether to replace the values inside the mask with 
  *            their neighboring values. If set to 0, the function returns the voxel 
@@ -1308,8 +1344,7 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
  * for further analysis.
  *
  */
-void
-vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace) 
+void vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace) 
 {
     
     /* main information about input data (size, dimensions, ...) */
@@ -1446,8 +1481,7 @@ vbdist(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
  *              maximum change of an element after iteration
  *
  */
-void 
-laplace3(float *SEG, int dims[3], int maxiter)
+void laplace3(float *SEG, int dims[3], int maxiter)
 {
     /* main information about input data (size, dimensions, ...) */
     const int x = dims[0];
@@ -1530,8 +1564,7 @@ laplace3(float *SEG, int dims[3], int maxiter)
  *              maximum change of an element after iteration
  *
  */
-void 
-laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
+void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
 {
     /* main information about input data (size, dimensions, ...) */
     const int x = dims[0];
@@ -1606,8 +1639,7 @@ laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
     free(LN);
 }
 
-void
-distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th)
+void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th)
 {
     float *buffer;
     int i,x,y,z,j,band,dims2[3], replace;
@@ -1653,8 +1685,7 @@ distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double 
     free(buffer);
 }
 
-void
-distclose(void *data, int dims[3], double voxelsize[3], int niter, double th, int datatype)
+void distclose(void *data, int dims[3], double voxelsize[3], int niter, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1675,8 +1706,7 @@ distclose(void *data, int dims[3], double voxelsize[3], int niter, double th, in
     free(buffer);
 }
 
-void
-distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
     int i, j, replace;
@@ -1715,8 +1745,7 @@ distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double
     free(buffer);
 }
 
-void
-distopen(void *data, int dims[3], double voxelsize[3], int niter, double th, int datatype)
+void distopen(void *data, int dims[3], double voxelsize[3], int niter, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1737,8 +1766,7 @@ distopen(void *data, int dims[3], double voxelsize[3], int niter, double th, int
     free(buffer);
 }
 
-void
-morph_erode_float(float *vol, int dims[3], int niter, double th)
+void morph_erode_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
     int i,j;
@@ -1761,8 +1789,7 @@ morph_erode_float(float *vol, int dims[3], int niter, double th)
     }
 }
 
-void
-morph_erode(void *data, int dims[3], int niter, double th, int datatype)
+void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1783,8 +1810,7 @@ morph_erode(void *data, int dims[3], int niter, double th, int datatype)
     free(buffer);
 }
 
-void
-morph_dilate_float(float *vol, int dims[3], int niter, double th)
+void morph_dilate_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
     int i,x,y,z,j,band,dims2[3];
@@ -1828,8 +1854,7 @@ morph_dilate_float(float *vol, int dims[3], int niter, double th)
     
 }
 
-void
-morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
+void morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1850,8 +1875,7 @@ morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
     free(buffer);
 }
 
-void
-morph_close_float(float *vol, int dims[3], int niter, double th)
+void morph_close_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
     unsigned char *buffer;
@@ -1902,8 +1926,7 @@ morph_close_float(float *vol, int dims[3], int niter, double th)
     free(buffer);
 }
 
-void
-morph_close(void *data, int dims[3], int niter, double th, int datatype)
+void morph_close(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1924,8 +1947,7 @@ morph_close(void *data, int dims[3], int niter, double th, int datatype)
     free(buffer);
 }
 
-void
-morph_open_float(float *vol, int dims[3], int niter, double th)
+void morph_open_float(float *vol, int dims[3], int niter, double th)
 {
     unsigned char *buffer;
     double filt[3]={1,1,1};
@@ -1967,8 +1989,7 @@ morph_open_float(float *vol, int dims[3], int niter, double th)
     free(buffer);
 }
 
-void
-morph_open(void *data, int dims[3], int niter, double th, int datatype)
+void morph_open(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1990,8 +2011,7 @@ morph_open(void *data, int dims[3], int niter, double th, int datatype)
 }
 
 /* First order hold resampling - trilinear interpolation */
-void 
-subsample_double(double *in, double *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out)
+void subsample_double(double *in, double *out, int dim_in[3], int dim_out[3], int offset_in, int offset_out)
 {
     int i, x, y, z;
     double k111,k112,k121,k122,k211,k212,k221,k222;
@@ -2113,8 +2133,7 @@ void subsample_float(float *in, float *out, int dim_in[3], int dim_out[3], int o
     }
 }
 
-void
-smooth_double(double *vol, int dims[3], double voxelsize[3], double s0[3], int use_mask)
+void smooth_double(double *vol, int dims[3], double voxelsize[3], double s0[3], int use_mask)
 {
     int i;
     double xsum, ysum, zsum;
@@ -2195,8 +2214,7 @@ smooth_double(double *vol, int dims[3], double voxelsize[3], double s0[3], int u
 
 }
 
-void
-smooth_float(float *vol, int dims[3], double voxelsize[3], double s0[3], int use_mask)
+void smooth_float(float *vol, int dims[3], double voxelsize[3], double s0[3], int use_mask)
 {
     int i;
     double xsum, ysum, zsum;
@@ -2277,8 +2295,7 @@ smooth_float(float *vol, int dims[3], double voxelsize[3], double s0[3], int use
 
 }
 
-void
-smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
+void smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
 {
     int i, nvol_samp, nvol;
     int dims_samp[3];
@@ -2299,8 +2316,7 @@ smooth_subsample_double(double *vol, int dims[3], double voxelsize[3], double s[
     free(vol_samp);
 }
 
-void
-smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
+void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp)
 {
     int i, nvol_samp, nvol;
     int dims_samp[3];
@@ -2322,8 +2338,7 @@ smooth_subsample_float(float *vol, int dims[3], double voxelsize[3], double s[3]
     free(vol_samp);
 }
 
-void
-vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
+void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 {
     int i, nvolr, nvol, replace = 1;
     int dimsr[3];
@@ -2439,8 +2454,7 @@ vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     free(TAr);
 }
 
-void
-initial_cleanup(unsigned char *probs, unsigned char *label, int dims[3], double *voxelsize, int strength, int remove_sinus)
+void initial_cleanup(unsigned char *probs, unsigned char *label, int dims[3], double *voxelsize, int strength, int remove_sinus)
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -2485,8 +2499,7 @@ initial_cleanup(unsigned char *probs, unsigned char *label, int dims[3], double 
     free(sum);
 }
 
-void
-cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsize, int strength)
+void cleanup_orig(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsize, int strength)
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -2565,8 +2578,7 @@ if (0) {
     
 }
 
-void
-cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsize, int strength, int gmwm_only)
+void cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsize, int strength, int gmwm_only)
 {
     
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -2673,24 +2685,24 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
  * represented as a linear array and modifies the input data to retain only the largest
  * cluster, setting all other values to zero.
  *
- * @inData: Pointer to the float array representing the input 3D volume. The array should
+ * inData: Pointer to the float array representing the input 3D volume. The array should
  *          have 'numVoxels' elements. This array is modified in place, with only the largest
  *          cluster's voxels retained.
  *
- * @thresh: A double value representing the threshold. Voxels with values equal to or greater
+ * thresh: A double value representing the threshold. Voxels with values equal to or greater
  *          than this threshold are considered part of a cluster.
  *
- * @dims: Pointer to an integer array of size 3, indicating the dimensions of the volume
+ * dims: Pointer to an integer array of size 3, indicating the dimensions of the volume
  *        (e.g., [width, height, depth]).
  *
- * @min_size: Integer value that defines the minimum cluster size. To ignore this parameter
+ * min_size: Integer value that defines the minimum cluster size. To ignore this parameter
  *            and only keep the largest cluster, you can set min_size to <= 0.
  *
- * @retain_above_th: Integer value that defines whether we set all smaller clusters to zero, 
+ * retain_above_th: Integer value that defines whether we set all smaller clusters to zero, 
  *                   but retain all original values (by setting retain_above_th to 1), or we 
  *                   only keep values in larger clusters that are then thresholded.
  *
- * @conn18: Integer value that set the connection-scheme to 18 neighbors instead of 26.
+ * conn18: Integer value that set the connection-scheme to 18 neighbors instead of 26.
  *
  * The function first initializes auxiliary arrays to track used voxels and to store the output
  * data. It then iterates through the volume, identifying connected voxels that form clusters
@@ -2699,8 +2711,7 @@ cleanup(unsigned char *probs, unsigned char *mask, int dims[3], double *voxelsiz
  * with zeros and the original values are retained otherwise.
  *
  */
-void
-keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn18)
+void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn18)
 {
     float valToAdd;
     float *outData;
@@ -2803,8 +2814,7 @@ keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size
  * This function calls keep_largest_cluster_float and converts datatypes of
  * input and output
  */
-void
-keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn18)
+void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn18)
 {
     int nvox;
     float *buffer;
@@ -2842,17 +2852,16 @@ keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min
  * 5. Conversion of the processed data back to the original datatype.
  *
  * Parameters:
- *  @data: Pointer to the input data buffer. This buffer is modified in-place.
- *  @thresh: Threshold value used for identifying holes. Values below this threshold 
+ *  data: Pointer to the input data buffer. This buffer is modified in-place.
+ *  thresh: Threshold value used for identifying holes. Values below this threshold 
  *          are considered potential holes.
- *  @dims: Array of 3 integers representing the dimensions of the 3D volume 
+ *  dims: Array of 3 integers representing the dimensions of the 3D volume 
  *         (width, height, depth).
- *  @datatype: An integer representing the datatype of the input data. This is used 
+ *  datatype: An integer representing the datatype of the input data. This is used 
  *             to correctly interpret and manipulate the data buffer.
  *
  */
-void
-fill_holes(void *data, double thresh, int *dims, int datatype)
+void fill_holes(void *data, double thresh, int *dims, int datatype)
 {
     int i, nvox, replace = 1;
     float *buffer, *mask_inv;

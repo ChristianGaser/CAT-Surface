@@ -73,15 +73,16 @@ main(int argc, char *argv[])
         dims[1] = nii_ptr->ny;
         dims[2] = nii_ptr->nz;
         
+        //localstat3(input, dims, 3, 1, NULL, F_MEAN, DT_FLOAT32);
         median3(input, dims, DT_FLOAT32);
         
         /* if not defined use original name as basename for output */
         if(argc == 3)
-                        (void) sprintf(outfile, "%s", argv[2]); 
+            (void) sprintf(outfile, "%s", argv[2]); 
         else {
-                #if !defined(_WIN32)
-                        (void) sprintf(outfile, "%s/s%g%s", dirname(infile), fwhm, basename(infile)); 
-                #endif
+            #if !defined(_WIN32)
+             (void) sprintf(outfile, "%s/s%g%s", dirname(infile), fwhm, basename(infile)); 
+            #endif
         }
 
         /* write data using same data type and rescale */
