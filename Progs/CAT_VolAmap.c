@@ -237,7 +237,8 @@ main(int argc, char *argv[])
 
         slope = 0.0;
         sprintf(buffer, "%s_corr%s",basename,extension);
-        if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
+//        if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
+        if (!write_nifti_float(buffer, src, DT_FLOAT32, slope, 
                         dims, voxelsize, src_ptr))
         {
             free(label);

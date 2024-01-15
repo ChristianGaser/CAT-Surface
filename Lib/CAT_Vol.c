@@ -385,36 +385,36 @@ double get_std(double arr[], int n) {
  * localstat_float - Calculate local statistics for a 3D float array.
  *
  * This function calculates mean, median, min, max, and standard deviation 
- * within a defined kernel size for each element in a 3D float array. It 
- * optionally uses a Euclidean distance to restrict the search area and 
+ * within a defined distance from voxel center for each element in a 3D float array. It 
+ * optionally uses a Euclidean (instead of block) distance to restrict the search area and 
  * an optional mask to optimize performance.
  *
  * Parameters:
  *  - input: Pointer to the input 3D float array.
  *  - dims: Array representing the dimensions of the input array.
- *  - size_kernel: Size of the kernel (must be an odd number).
- *  - use_dist: Flag to use Euclidean distance in calculations.
+ *  - dist: search distance from voxel center (1..10).
+ *  - use_euclidean_dist: Flag to use Euclidean instead of block distance in calculations.
  *  - mask: Optional mask array to optimize calculations.
  *  - stat_func: Function selector for the type of statistic to calculate.
  *
  * Note: The function modifies the input array to store the results.
  */
-void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsigned char use_dist, 
-                        unsigned char mask[], int stat_func)
+void localstat_float(float *input, unsigned char mask[], int dims[3], int dist, 
+                    int stat_func, int iters, int use_euclidean_dist)
 {
     double *arr;
-    int i, j, k, ind, ni, x, y, z, n, di;
+    int i, j, k, ind, ni, x, y, z, n;
     float *buffer;
-    int nvox = dims[0] * dims[1] * dims[2];
+    int nvox = dims[0] * dims[1] * dims[2], size_kernel;
     
-    // Check for odd kernel size
-    if ((size_kernel % 2 == 0) || (size_kernel < 1)) {
-        printf("Only odd (positive) kernel sizes accepted\n");
+    // Check for distance parameter
+    if ((dist < 1) || (dist > 10)) {
+        printf("Distance parameter should be in the range 1..10.\n");
         exit(EXIT_FAILURE);
     }
-
-    di = (size_kernel - 1) / 2; // Define distance parameter
-       
+        
+    size_kernel = (2*dist) + 1;
+    
     // Memory allocation
     buffer = (float *)malloc(sizeof(float)*nvox);
     arr    = (double *)malloc(sizeof(double)*size_kernel*size_kernel*size_kernel);
@@ -434,7 +434,7 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
         n = 0;
         
         // Iterate through kernel
-        for (i=-di; i<=di; i++) for (j=-di; j<=di; j++) for (k=-di; k<=di; k++) {
+        for (i=-dist; i<=dist; i++) for (j=-dist; j<=dist; j++) for (k=-dist; k<=dist; k++) {
             ni = sub2ind(x+i,y+j,z+k,dims);
             
             // Check for NaNs, Infinities, and optional mask
@@ -442,7 +442,7 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
                 continue;
 
             // Check for Euclidean distance if required
-            if (use_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)di)
+            if (use_euclidean_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)dist)
                 continue;
             
             arr[n] = (double)input[ni];
@@ -483,14 +483,15 @@ void localstat_float(float *input, int dims[3], unsigned char size_kernel, unsig
 /**
  * wrapper to call localstat_float for any data type 
  */
-void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned char use_dist, unsigned char mask[], int stat_func, int datatype)
+void localstat3(void *data, unsigned char mask[], int dims[3], int dist, 
+                    int stat_func, int iters, int use_euclidean_dist, int datatype)
 {
     int nvox;
     float *buffer;
    
-    /* we need odd kernel sizes */
-    if ((size_kernel % 2 == 0) || (size_kernel < 3)) {
-        printf("Only odd kernel sizes >= 3 accepted\n");
+    // Check for distance parameter
+    if ((dist < 1) || (dist > 10)) {
+        printf("Distance parameter should be in the range 1..10.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -504,7 +505,7 @@ void localstat3(void *data, int dims[3], unsigned char size_kernel, unsigned cha
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    localstat_float(buffer, dims, size_kernel, use_dist, mask, stat_func);
+    localstat_float(buffer, mask, dims, dist, stat_func, iters, use_euclidean_dist);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -528,7 +529,9 @@ void median3(void *data, int dims[3], int datatype)
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    localstat_float(buffer, dims, 3, 0, NULL, F_MEDIAN);
+    
+    // use kernel 3x3x3
+    localstat_float(buffer, NULL, dims, 1, F_MEDIAN, 1, 0);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -1016,6 +1019,31 @@ int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
     return(0);
 }
 
+/**
+ * convxyz_uint8 - Apply 3D convolution to a volume with type unsigned char.
+ *
+ * This function applies 3D convolution to a given volume using separate 1D 
+ * filter kernels along x, y, and z dimensions. The output is stored in a 
+ * separate output volume.
+ *
+ * Parameters:
+ *  - iVol: Input volume for convolution.
+ *  - filtx, filty, filtz: Filter kernels for convolution along x, y, and z dimensions.
+ *  - fxdim, fydim, fzdim: Dimensions of the filter kernels.
+ *  - xoff, yoff, zoff: Offsets for the filter kernels.
+ *  - oVol: Output volume where the convolution result is stored.
+ *  - dims: Array containing the dimensions of the input volume.
+ * 
+ * Returns:
+ * 0 on successful completion.
+ *
+ * Notes:
+ * The function applies a slice-wise 2D convolution using 'convxy_float'
+ * and then combines these results to achieve 3D convolution. It allocates
+ * temporary buffers for intermediate results and performs necessary memory
+ * management.
+ * This is a slightly modified function from spm_conv_vol.c from SPM12
+*/
 int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[],
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     unsigned char *oVol, int dims[3])
@@ -1614,7 +1642,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH) {
 void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, double th)
 {
     float *buffer;
-    int i,x,y,z,j,band,dims2[3], replace;
+    int i,x,y,z,j,band,dims2[3];
     float max_vol;
     int nvox2,nvox = dims[0]*dims[1]*dims[2];
     
@@ -1635,18 +1663,17 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, do
         exit(EXIT_FAILURE);
     }
     
-    memset(buffer,0,sizeof(float)*dims2[0]*dims2[1]*dims2[2]);
+    memset(buffer,0,sizeof(float)*nvox2);
     
     /* threshold input */
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
         buffer[sub2ind(x+band,y+band,z+band,dims2)] = (vol[sub2ind(x,y,z,dims)]>(float)th);
 
-    replace = 0;
-    vbdist(buffer, NULL, dims2, voxelsize, replace);
+    vbdist(buffer, NULL, dims2, voxelsize, 0);
     for (i=0;i<nvox2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
-    vbdist(buffer, NULL, dims2, voxelsize, replace);
+    vbdist(buffer, NULL, dims2, voxelsize, 0);
     for (i=0;i<nvox2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
@@ -1681,7 +1708,7 @@ void distclose(void *data, int dims[3], double voxelsize[3], int niter, double t
 void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
-    int i, j, replace;
+    int i, j;
     float max_vol;
     int nvox = dims[0]*dims[1]*dims[2];
     
@@ -1701,12 +1728,11 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     for (i=0; i<nvox; i++)
         buffer[i] = 1.0 - ((float)vol[i]>th);
 
-    replace = 0;
-    vbdist(buffer, NULL, dims, voxelsize, replace);
+    vbdist(buffer, NULL, dims, voxelsize, 0);
     for (i=0; i<nvox; i++)
         buffer[i] = buffer[i] > (float)dist;
 
-    vbdist(buffer, NULL, dims, voxelsize, replace);
+    vbdist(buffer, NULL, dims, voxelsize, 0);
     for (i=0; i<nvox; i++)
         buffer[i] = buffer[i] <= (float)dist;
 
@@ -2120,7 +2146,81 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
  */
 void correct_bias_label(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
 {
-    int i, j, nvox, n[MAX_NC], n_classes = 0, replace;
+    int i, j, nvox, n[MAX_NC], n_classes = 0;
+    unsigned char *mask;
+    float *biasfield;
+    double mean_label[MAX_NC], mean_bias;
+    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
+    
+    nvox = dims[0]*dims[1]*dims[2];
+
+    biasfield = (float *)malloc(sizeof(float)*nvox);
+    mask = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    
+    if (!mask || !biasfield) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* get number of classes by checking maximum label value */
+    for (i = 0; i < nvox; i++)
+        n_classes = MAX((int)label[i], n_classes);
+
+    /* initialize parameters */
+    for (i = 0; i < n_classes; i++) {
+        n[i] = 0;
+        mean_label[i] = 0.0;
+    }
+    
+    /* estimate mean for each label class */
+    for (i = 0; i < nvox; i++) {
+        if (label[i] == 0) continue;
+        n[label[i]-1]++;
+        mean_label[label[i]-1] += (double)src[i];
+    }
+    for (i = 0; i < n_classes; i++) mean_label[i] /= (double)n[i];
+
+    /* get bias field by ratio between actual values and respective mean of label class */
+    for (i = 0; i < nvox; i++)
+        if (label[i] >= label_th)
+            biasfield[i] += (src[i] / (float)mean_label[label[i]-1]);
+        else biasfield[i] = 0.0;
+
+
+    /* only use defined labels (i.e. using label_th) for bias estimation 
+     * use label_th = 2 for focussing on WM only */
+    for (i = 0; i < nvox; i++)
+        mask[i] = (label[i] >= label_th) ? 1 : 0;
+    
+    // initial median and iterative means reduces PVE effects
+    localstat3(biasfield, mask, dims, 1, F_MEDIAN, 1, 0, DT_FLOAT32);
+    localstat3(biasfield, mask, dims, 3, F_MAX, 1, 0, DT_FLOAT32);
+    //localstat3(biasfield, mask, dims, 1, F_MEAN, 4, 0, DT_FLOAT32);
+    
+    /* invert mask because we need to estimate dist outside the original mask */
+    for (i = 0; i < nvox; i++) {
+//        if (mask[i] == 0) biasfield[i] = 0.0;
+        mask[i] = 1 - mask[i];
+    }
+
+    vbdist(biasfield, mask, dims, voxelsize, 1);
+    smooth_subsample_float(biasfield, dims, voxelsize, fwhm, 0, 4);
+
+    /* estimate mean of bias field inside label for mean-correction */
+    mean_bias = get_masked_mean_array_float(biasfield, nvox, label);
+
+    for (i = 0; i < nvox; i++)
+        if ((label[i] > 0) && (biasfield[i] != 0))
+            src[i] /= (biasfield[i]/mean_bias);
+//            src[i] = (biasfield[i]);
+
+    free(mask);
+    free(biasfield);
+}
+
+void correct_bias_label_orig(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
+{
+    int i, j, nvox, n[MAX_NC], n_classes = 0;
     unsigned char *mask;
     float *biasfield;
     double mean_label[MAX_NC], mean_bias;
@@ -2178,8 +2278,7 @@ void correct_bias_label(float *src, unsigned char *label, int *dims, double *vox
         mask[i] = 1 - mask[i];
     }
 
-    replace = 1;
-    vbdist(biasfield, mask, dims, voxelsize, replace);
+    vbdist(biasfield, mask, dims, voxelsize, 1);
     smooth_subsample_float(biasfield, dims, voxelsize, fwhm, 0, 4);
 
     /* estimate mean of bias field inside label for mean-correction */
@@ -2230,7 +2329,7 @@ void correct_bias_label(float *src, unsigned char *label, int *dims, double *vox
  */
 void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
 {
-    int i, nvox, replace;
+    int i, nvox;
     unsigned char *mask;
     float *src_subcortical, *dist, max_dist = -FLT_MAX;
 
@@ -2262,8 +2361,7 @@ void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize
         for (i = 0; i < nvox; i++) dist[i] = (label[i] > 0) ? 0.0 : 1.0;
         
         /* get distance to background */
-        replace = 0;
-        vbdist(dist, NULL, dims, voxelsize, replace);
+        vbdist(dist, NULL, dims, voxelsize, 0);
 
         /* scale distance values to 0..1  */
         for (i=0; i < nvox; i++) max_dist = MAX(dist[i], max_dist);
@@ -2286,7 +2384,7 @@ void correct_bias(float *src, unsigned char *label, int *dims, double *voxelsize
 
 void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 {
-    int i, nvoxr, nvox, replace = 1;
+    int i, nvoxr, nvox;
     int dimsr[3];
     float *volr, *buffer, *TAr;
     double voxelsizer[3];
@@ -2343,7 +2441,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
 
     /* vbdist to fill values in background with neighbours */
     memcpy(buffer,volr,nvoxr*sizeof(float));    
-    vbdist(buffer, NULL, dimsr, voxelsizer, replace);
+    vbdist(buffer, NULL, dimsr, voxelsizer, 1);
     for (i = 0; i < nvoxr; ++i)
         TAr[i] = buffer[i];
     
@@ -2368,7 +2466,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
         if ((BMr2[i] == 0) && (vol[i] == 0)) TAr[i] = 0.0;
 
     /* again apply vbdist to fill values in background with neighbours */
-    vbdist(TAr, NULL, dimsr, voxelsizer, replace);
+    vbdist(TAr, NULL, dimsr, voxelsizer, 1);
 
     for (i = 0; i < 3; ++i) s[i] *= 2.0;
     smooth_float(buffer, dimsr, voxelsizer, s, 0);
@@ -2824,7 +2922,7 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
  */
 void fill_holes(void *data, double thresh, int *dims, int datatype)
 {
-    int i, nvox, replace = 1;
+    int i, nvox;
     float *buffer, *mask_inv;
     double voxelsize[3] = {1.0, 1.0, 1.0};
     unsigned char *mask_fill;
@@ -2852,7 +2950,7 @@ void fill_holes(void *data, double thresh, int *dims, int datatype)
     /* fill those values (=holes) that were removed by the previous keep_largest_cluster step */
     for (i = 0; i < nvox; ++i)
         mask_fill[i] = ((mask_inv[i] == 0.0) && (buffer[i] < thresh)) ? 1 : 0;
-    vbdist(buffer, mask_fill, dims, voxelsize, replace);
+    vbdist(buffer, mask_fill, dims, voxelsize, 1);
     
     /* ensure a minimum filled value that is the threshold */
     for (i = 0; i < nvox; ++i)
