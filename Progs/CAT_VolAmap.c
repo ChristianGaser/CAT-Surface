@@ -16,16 +16,17 @@
 #include "CAT_Vol.h"
 
 char *label_filename;
-int n_pure_classes = 3;
 int iters_amap = 50;
 int subsample = 96;
 int iters_ICM = 50;
 int pve = 1;
+int cleanup = 2;
 int write_seg[3] = {0, 1, 0};
 int write_label = 1;
 int write_corr = 1;
+int write_bias = 0;
 int debug = 0;
-double weight_LAS = 1.0;
+double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 double bias_fwhm = 10.0;
 
@@ -60,6 +61,11 @@ static ArgvInfo argTable[] = {
          "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
          Default setting is 1."},
          
+    {"-cleanup", ARGV_INT, (char *) 1, (char *) &cleanup,
+         "Option to additionally clean-up segmentations by removing remaining non-brain parts\n\
+         such as meninges with medium (1) or strong clean-up (2).\n\
+         Default setting is 2."},
+         
     {"-write-seg", ARGV_INT, (char *) 3, (char *) &write_seg,
          "Option to write segmentation results as separate images. Requires three integers\n\
          indicating whether to save each tissue class (CSF/GM/WM) with '1' for yes."},
@@ -72,6 +78,9 @@ static ArgvInfo argTable[] = {
          
     {"-write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
          "Enable writing the nu-corrected image. This is the default setting."},
+         
+    {"-write-bias", ARGV_CONSTANT, (char *) 1, (char *) &write_bias,
+         "Enable writing the nu-correction (bias field)."},
          
     {"-nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
          "Disable writing the nu-corrected image."},
@@ -96,15 +105,14 @@ usage(
 int
 main(int argc, char *argv[])
 {
-    /* NIFTI stuff */
     nifti_image   *src_ptr, *label_ptr;
     int       n_classes;
     char      *input_filename, *output_filename, *basename, *extension;
-    int       i, j, dims[3];
+    int       i, j, dims[3], n_pure_classes = 3;;
     int       x, y, z, z_area, y_dims;
     char      *arg_string, buffer[1024];
     unsigned char *label, *prob;
-    float     *src, *buffer_vol;
+    float     *src, *buffer_vol, *biasfield;
     double    slope, offset, val, max_vol, min_vol, voxelsize[3];    
     char *label_arr[] = {"CSF", "GM", "WM"};
 
@@ -163,8 +171,9 @@ main(int argc, char *argv[])
             
     label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
     prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
+    biasfield = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
-    if (!label || !prob) {
+    if (!label || !prob || !biasfield) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -173,16 +182,12 @@ main(int argc, char *argv[])
     label_ptr = read_nifti_float(label_filename, &buffer_vol, 0);
     if (!label_ptr) {
         fprintf(stderr,"Error reading %s.\n", label_filename);
-        free(label);
-        free(prob);
         return(EXIT_FAILURE);
     }
     
     /* check size */
     if (!equal_image_dimensions(src_ptr, label_ptr)) {     
         fprintf(stderr,"Label and source image have different size\n");
-        free(label);
-        free(prob);
         exit(EXIT_FAILURE);
     }
     
@@ -221,7 +226,7 @@ main(int argc, char *argv[])
      * smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0.0) {
         fprintf(stdout,"Bias correction\n");
-        correct_bias(src, label, dims, voxelsize, bias_fwhm, weight_LAS);
+        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
     }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
@@ -232,19 +237,25 @@ main(int argc, char *argv[])
         Pve5(src, prob, label, mean, dims);
     }
         
+    if (cleanup > 0)
+        cleanup_brain(prob, dims, voxelsize, cleanup);
+
     /* write nu-corrected volume */
     if (write_corr) {
-
         slope = 0.0;
         sprintf(buffer, "%s_corr%s",basename,extension);
-//        if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
-        if (!write_nifti_float(buffer, src, DT_FLOAT32, slope, 
+        if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
                         dims, voxelsize, src_ptr))
-        {
-            free(label);
-            free(prob);
             exit(EXIT_FAILURE);
-        }
+    }
+
+    /* write bias field */
+    if (write_bias) {
+        slope = 0.0;
+        sprintf(buffer, "%s_bias%s",basename,extension);
+        if (!write_nifti_float(buffer, biasfield, DT_INT16, slope, 
+                        dims, voxelsize, src_ptr))
+            exit(EXIT_FAILURE);
     }
 
     /* write labeled volume */
@@ -285,6 +296,7 @@ main(int argc, char *argv[])
     
     free(prob);
     free(label);
+    free(biasfield);
     
     return(EXIT_SUCCESS);
 }

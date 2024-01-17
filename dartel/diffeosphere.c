@@ -11,8 +11,6 @@
 #include <omp.h>
 #endif
 
-extern double floor();
-
 
 void
 composition(int dm[], double *A, double *B, double *C)

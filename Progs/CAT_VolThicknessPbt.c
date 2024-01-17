@@ -24,8 +24,6 @@ int no_minimum_thickness = 0;
 int n_avgs = 4;
 double fwhm = 2.0;
 
-//extern int ParseArgv(int *argcPtr, char **argv, ArgvInfo *argTable, int flags);
-
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
     "Enable verbose mode. Provides detailed output during processing for debugging\n\
@@ -97,12 +95,12 @@ Example:\n\
 
 int main(int argc, char *argv[])
 {
-    char *infile, out_GMT[1024], out_PPM[1024];
+    char *infile, out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
     int i, j, dims[3], replace = 0;
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM_filtered;
     float mean_vx_size;
     unsigned char *mask;
-    double voxelsize[3], slope, add_value;
+    double voxelsize[3], slope, add_value, offset;
     nifti_image *src_ptr, *out_ptr;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
@@ -116,7 +114,11 @@ int main(int argc, char *argv[])
     infile  = argv[1];
 
     /* Determine output filenames based on input filename or command-line arguments */
-    if(argc == 4) {
+    if(argc == 6) {
+        (void) sprintf(out_WMD, "%s", argv[4]); 
+        (void) sprintf(out_CSD, "%s", argv[5]);
+    }
+    if(argc >= 4) {
         (void) sprintf(out_GMT, "%s", argv[2]); 
         (void) sprintf(out_PPM, "%s", argv[3]); 
     } else {
@@ -147,8 +149,8 @@ int main(int argc, char *argv[])
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
     
-    mask   = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
-    input  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    mask     = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
+    input    = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_WM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
 
@@ -170,30 +172,35 @@ int main(int argc, char *argv[])
     
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
+
+        //offset = max(0,min(.5,j * .5/n_avgs)) / 2;
+        
         /* estimate value for shifting the border to obtain a less noisy measure by averaging distances */
-        add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
+        add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;        
         
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] <= (CGM+add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] < WM) ? 1 : 0;
+            mask[i]  = (src[i] <= GWM) ? 1 : 0;
+//            mask[i]  = (src[i] < WM) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
         if (verbose && (j == 0)) fprintf(stderr,"Estimate CSF distance map.\n");
-        vbdist(input, mask, dims, voxelsize, replace);
+        vbdist(input, mask, dims, NULL, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_CSF[i] += input[i];
                 
         /* prepare map outside WM and mask to obtain distance map for WN */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] >= (GWM+add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] > CSF) ? 1 : 0;
+            mask[i]  = (src[i] >= CGM) ? 1 : 0;
+//            mask[i]  = (src[i] > CSF) ? 1 : 0;
         }    
     
         /* obtain WM distance map */
         if (verbose && (j == 0)) fprintf(stderr,"Estimate WM distance map.\n");
-        vbdist(input, mask, dims, voxelsize, replace);
+        vbdist(input, mask, dims, NULL, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_WM[i] += input[i];
     }
@@ -222,27 +229,31 @@ int main(int argc, char *argv[])
         /* we need the inverse of src: 4 - src */
         for (i = 0; i < src_ptr->nvox; i++)
             input[i] = 4.0 - src[i];
-            
+
         GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-        
+
         if (!GMT2) {
             fprintf(stderr,"Memory allocation error\n");
             exit(EXIT_FAILURE);
         }
-        
+
         /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
         projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize); 
-    
+
+        // set GMT2 to a minimum of 1.5
+        for (i = 0; i < src_ptr->nvox; i++)
+            GMT2[i] = (GMT2[i] > 0 && GMT2[i] < 1.5) ? 1.5f : GMT2[i];
+
         /* use minimum for each measure to reduce issues with meninges */
         for (i = 0; i < src_ptr->nvox; i++) {
             GMT[i]  = MIN(GMT[i],  dist_WM[i]+dist_CSF[i]);
             GMT2[i] = MIN(GMT2[i], dist_WM[i]+dist_CSF[i]);
         }
-        
+
         /* finally use minimum of both thickness measures */
         for (i = 0; i < src_ptr->nvox; i++)
             GMT[i] = MIN(GMT[i], GMT2[i]);
-            
+
         free(GMT2);
     }
 
@@ -262,11 +273,11 @@ int main(int argc, char *argv[])
         if (PPM[i] < 0.0) PPM[i] = 0.0;
     }
     
-    /* fFnally minimize outliers in the PPM using median-filter */
+    /* Finally minimize outliers in the PPM using median-filter */
     for (i = 0; i < src_ptr->nvox; i++) PPM_filtered[i] = PPM[i];
     median3(PPM_filtered, dims, DT_FLOAT32);
     
-    /* protect values in sulci and only replace other areas with median-filtered values */
+    /* Protect values in sulci and only replace other areas with median-filtered values */
     for (i = 0; i < src_ptr->nvox; i++)
         if (PPM[i] > 0.25)
             PPM[i] = PPM_filtered[i];
@@ -289,7 +300,14 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     if (!write_nifti_float(out_PPM, PPM, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
         exit(EXIT_FAILURE);
-        
+
+    if(argc == 6) {
+        if (!write_nifti_float(out_CSD, dist_CSF, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+        if (!write_nifti_float(out_WMD, dist_WM, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+    }
+            
     free(input);
     free(dist_CSF);
     free(dist_WM);

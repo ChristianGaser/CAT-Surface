@@ -283,7 +283,7 @@ main(
         }
         
         /* obtain CSF distance map */
-        vbdist(GMT, input_uint8, sizes, voxelsize, replace);
+        vbdist(GMT, input_uint8, sizes, NULL, replace);
         for (i = 0; i < nvol; i++)
             dist_CSF[i] = GMT[i];
 
@@ -294,7 +294,7 @@ main(
         }
 
         /* obtain WM distance map */
-        vbdist(GMT, input_uint8, sizes, voxelsize, replace);
+        vbdist(GMT, input_uint8, sizes, NULL, replace);
         for (i = 0; i < nvol; i++)
             dist_WM[i] = GMT[i];
 
