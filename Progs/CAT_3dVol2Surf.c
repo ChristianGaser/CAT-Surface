@@ -53,6 +53,7 @@ char *sphere_src_file = NULL;  /* source sphere for resampling */
 char *sphere_trg_file = NULL;  /* target source for resampling */
 char *annot_file = NULL;       /* annotation atlas file */
 int degrees_continuity = 1000; /* interpolation */
+int verbose = 0;               /* be verbose */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -85,6 +86,10 @@ ArgvInfo argTable[] = {
 
   {"-equivolume", ARGV_CONSTANT, (char *)TRUE, (char *)&equivol,
    "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
+   
+  {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
+   "Enable verbose mode for detailed output during processing."},
+
   {NULL, ARGV_HELP, (char *)NULL, (char *)NULL,
    "Interpolation options:"},
 
@@ -397,7 +402,7 @@ int main(int argc, char *argv[])
         }
     }
     /* initialize values for lengths (starting with origin) */
-    if (thickness_file == NULL)
+    if (verbose && !thickness_file)
     {
         if (map_func == F_MULTI)
             fprintf(stdout, "Save values for absolute positions [mm]:\n");
@@ -433,7 +438,7 @@ int main(int argc, char *argv[])
         if (input_values_any_format(offset_file, &n_thickness_values, &thickness) != OK)
             exit(EXIT_FAILURE);
 
-        fprintf(stdout, "Use relative offset of %g of thickness to the surface:\n", offset_value);
+        if (verbose) fprintf(stdout, "Use relative offset of %g of thickness to the surface:\n", offset_value);
     }
 
     for (j = 0; j < grid_steps1; j++)
@@ -444,10 +449,10 @@ int main(int argc, char *argv[])
         if (grid_steps1 > 1)
             length_array[j] += ((double)j / (double)(grid_steps1 - 1) * (grid_end1 - grid_start1));
 
-        if ((length_array[j] >= grid_start) && ((length_array[j] - grid_end) < 1e-10))
+        if (verbose && (length_array[j] >= grid_start) && ((length_array[j] - grid_end) < 1e-10))
             fprintf(stdout, "%3.2f ", length_array[j]);
     }
-    fprintf(stdout, "\n");
+    if (verbose) fprintf(stdout, "\n");
 
     /* calculate exponential decay if exp function is defined */
     if (exp_half != FLT_MAX)
