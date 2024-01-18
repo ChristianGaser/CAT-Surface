@@ -53,7 +53,7 @@ char *sphere_src_file = NULL;  /* source sphere for resampling */
 char *sphere_trg_file = NULL;  /* target source for resampling */
 char *annot_file = NULL;       /* annotation atlas file */
 int degrees_continuity = 1000; /* interpolation */
-int verbose = 0;               /* be verbose */
+BOOLEAN verbose = FALSE;       /* be verbose */
 
 /* the argument table */
 ArgvInfo argTable[] = {
@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (sphere_src_file != NULL && sphere_trg_file != NULL && annot_file != NULL)
+    if (sphere_src_file && sphere_trg_file && annot_file)
     {
         if ((filename_extension_matches(output_values_file, "txt") != 1) &&
           (filename_extension_matches(output_values_file, "csv") != 1))
@@ -352,15 +352,15 @@ int main(int argc, char *argv[])
     }
 
     /* check that the option for equivolume is used together with the thickness option */
-    if ((equivol) && (thickness_file == NULL))
+    if (equivol && !thickness_file)
     {
         fprintf(stderr, "You have to define a thickness file for the equi-volume approach.\n");
         exit(EXIT_FAILURE);
     }
 
-    if ((sphere_src_file != NULL && (sphere_trg_file == NULL || annot_file == NULL)) ||
-      (sphere_trg_file != NULL && (sphere_src_file == NULL || annot_file == NULL)) ||
-      (annot_file != NULL && (sphere_trg_file == NULL || sphere_src_file == NULL)))
+        if ((sphere_src_file && (!sphere_trg_file || !annot_file)) ||
+          (sphere_trg_file && (!sphere_src_file || !annot_file)) ||
+          (annot_file && (!sphere_trg_file || !sphere_src_file)))
     {
         fprintf(stderr, "You have to define all three files for using annotation files:\n\
             -sphere_src, -sphere_trg and -annot.\n");
@@ -402,12 +402,14 @@ int main(int argc, char *argv[])
         }
     }
     /* initialize values for lengths (starting with origin) */
-    if (verbose && !thickness_file)
+    if (!thickness_file)
     {
-        if (map_func == F_MULTI)
-            fprintf(stdout, "Save values for absolute positions [mm]:\n");
-        else
-            fprintf(stdout, "Calculate values along absolute positions [mm]:\n");
+        if (verbose) {
+            if (map_func == F_MULTI)
+                fprintf(stdout, "Save values for absolute positions [mm]:\n");
+            else
+                fprintf(stdout, "Calculate values along absolute positions [mm]:\n");
+        }
     }
     else
     {
@@ -427,10 +429,10 @@ int main(int argc, char *argv[])
     }
 
     /* use offset file to get other surfaces */
-    if (offset_file != NULL)
+    if (offset_file)
     {
         /* check that not both thickness and offset are defined */
-        if (thickness_file != NULL)
+        if (thickness_file)
         {
             fprintf(stderr, "Please only define either thickness or offset.\n");
             exit(EXIT_FAILURE);
@@ -512,7 +514,7 @@ int main(int argc, char *argv[])
     polygons = get_polygons_ptr(objects[0]);
 
     /* check whether # of thickness values fits to surface */
-    if ((thickness_file != NULL) || (offset_file != NULL))
+    if ((thickness_file) || (offset_file))
     {
         if (polygons->n_points != n_thickness_values)
         {
@@ -539,7 +541,7 @@ int main(int argc, char *argv[])
     }
 
     /* read source and target sphere and annotation file if defined */
-    if (sphere_src_file != NULL && sphere_trg_file != NULL && annot_file != NULL)
+    if (sphere_src_file && sphere_trg_file && annot_file)
     {
 
         if (map_func == F_MULTI)
@@ -609,7 +611,7 @@ int main(int argc, char *argv[])
 
         /* read image  */
         nii_ptr = read_nifti_float(volume_file[k + 1], &input, 0);
-        if (nii_ptr == NULL)
+        if (!nii_ptr)
         {
             fprintf(stderr, "Error reading %s.\n", volume_file[k + 1]);
             return (EXIT_FAILURE);
@@ -628,9 +630,9 @@ int main(int argc, char *argv[])
             {
 
                 /* get point from origin in normal direction */
-                if (thickness_file == NULL)
+                if (!thickness_file)
                 {
-                    if (offset_file != NULL)
+                    if (offset_file)
                     {
                         pos = length_array[j] + (offset_value * thickness[i]);
                     }
@@ -681,7 +683,7 @@ int main(int argc, char *argv[])
                                 map_func, kernel, &index);
         }
 
-        if (annot_file != NULL)
+        if (annot_file)
         {
             for (j = 0; j < n_labels; j++)
             {
@@ -704,7 +706,7 @@ int main(int argc, char *argv[])
         }
 
         /* read source and target sphere and annotation file if defined */
-        if (sphere_src_file != NULL && sphere_trg_file != NULL && annot_file != NULL)
+        if (sphere_src_file && sphere_trg_file && annot_file)
         {
 
             output_values_any_format(output_values_file, n_labels,
@@ -777,7 +779,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (sphere_src_file != NULL && sphere_trg_file != NULL && annot_file != NULL)
+    if (sphere_src_file && sphere_trg_file && annot_file)
     {
         free(input_values);
         free(resampled_values);
