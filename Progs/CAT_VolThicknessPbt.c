@@ -22,7 +22,7 @@
 int verbose = 0;
 int no_minimum_thickness = 0;
 int n_avgs = 4;
-double fwhm = 2.0;
+double fwhm = 1.0;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
