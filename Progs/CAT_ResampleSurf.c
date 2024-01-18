@@ -77,106 +77,105 @@ void usage(char *executable)
 
 int main(int argc, char *argv[])
 {
-    char       *surface_file, *sphere_file, *output_surface_file, *target_sphere_file;
-    char       *input_values_file, *output_values_file;
-    File_formats   format;
-    int        i, n_objects;
-    int        n_points, n_values, n_table, *out_annot, *in_annot;
-    object_struct  **objects, **objects_src_sphere, **objects_target_sphere;
-    polygons_struct  *polygons, *polygons_sphere, *target_sphere;
-    double       *input_values = NULL, *output_values = NULL;
-    BOOLEAN      values_defined, output_values_defined;
-    ATABLE       *atable;
+    char *surface_file, *sphere_file, *output_surface_file, *target_sphere_file;
+    char *input_values_file, *output_values_file;
+    File_formats format;
+    int i, n_objects;
+    int n_points, n_values, n_table, *out_annot, *in_annot;
+    object_struct **objects, **objects_src_sphere, **objects_target_sphere;
+    polygons_struct *polygons, *polygons_sphere, *target_sphere;
+    double *input_values = NULL, *output_values = NULL;
+    BOOLEAN values_defined, output_values_defined;
+    ATABLE *atable;
 
+    // Initialize argument processing and parse command line arguments
     initialize_argument_processing(argc, argv);
 
+    // Parse arguments and handle errors if arguments are missing or invalid
     if (ParseArgv(&argc, argv, argTable, 0) ||
-      !get_string_argument(NULL, &surface_file) ||
-      !get_string_argument(NULL, &sphere_file) ||
-      !get_string_argument(NULL, &target_sphere_file) ||
-      !get_string_argument(NULL, &output_surface_file)) {
+        !get_string_argument(NULL, &surface_file) ||
+        !get_string_argument(NULL, &sphere_file) ||
+        !get_string_argument(NULL, &target_sphere_file) ||
+        !get_string_argument(NULL, &output_surface_file)) {
         usage(argv[0]);
         fprintf(stderr, "   %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    // check whether input and ouput values files are defined
+    // Determine if input and output value files are defined
     values_defined = get_string_argument(NULL, &input_values_file);
     output_values_defined = get_string_argument(NULL, &output_values_file);
 
-    // check that at least surface or sphere are defined
-    if ((!strcmp(sphere_file,"NULL")) && (!strcmp(surface_file,"NULL"))) {
+    // Ensure at least one of the surface or sphere files is defined
+    if ((!strcmp(sphere_file, "NULL")) && (!strcmp(surface_file, "NULL"))) {
         fprintf(stderr, "You have to define either surface or sphere.\n");
         exit(EXIT_FAILURE);
     }
 
-    // annot values cannot be added to the resampled surface and has to be saved in a seperate file
+    // Ensure output file is defined for annotation resampling
     if ((filename_extension_matches(input_values_file, "annot")) && !output_values_defined) {
-        fprintf(stderr, "You have to define output for resampling of annot files .\n");
+        fprintf(stderr, "You have to define output for resampling of annot files.\n");
         exit(EXIT_FAILURE);
     }
-    
-    // at least one output has to be defined
-    if ((!strcmp(output_surface_file,"NULL")) && values_defined && !output_values_defined) {
+
+    // Ensure at least one output (surface or values) is defined
+    if ((!strcmp(output_surface_file, "NULL")) && values_defined && !output_values_defined) {
         fprintf(stderr, "You have to define either output surface or output values.\n");
         exit(EXIT_FAILURE);
     }
 
-    // surface is necessary is you need the resampled surface
-    if ((strcmp(output_surface_file,"NULL")) && (!strcmp(surface_file,"NULL"))) {
+    // Ensure surface file is defined if resampled mesh is to be written
+    if ((strcmp(output_surface_file, "NULL")) && (!strcmp(surface_file, "NULL"))) {
         fprintf(stderr, "You have to define surface if resampled mesh should be written.\n");
         exit(EXIT_FAILURE);
     }
 
-    // read input surface
-    if (strcmp(surface_file,"NULL")) {
+    // Read input surface file, handling errors for invalid input
+    if (strcmp(surface_file, "NULL")) {
         if (input_graphics_any_format(surface_file, &format,
                         &n_objects, &objects) != OK ||
-          n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+            n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
             fprintf(stderr, "File %s must contain 1 polygons object.\n",
-                surface_file);
+                    surface_file);
             exit(EXIT_FAILURE);
         }
     }
 
-    // read sphere if defined
-    if (strcmp(sphere_file,"NULL")) {
+    // Read sphere file, handling errors for invalid input
+    if (strcmp(sphere_file, "NULL")) {
         if (input_graphics_any_format(sphere_file, &format,
-          &n_objects,
-          &objects_src_sphere) != OK ||
-          n_objects != 1 ||
-          get_object_type(objects_src_sphere[0]) != POLYGONS ) {
+              &n_objects, &objects_src_sphere) != OK ||
+              n_objects != 1 ||
+              get_object_type(objects_src_sphere[0]) != POLYGONS) {
             fprintf(stderr, "File %s must contain 1 polygons object.\n",
-            sphere_file);
+                    sphere_file);
             exit(EXIT_FAILURE);
         }
         polygons_sphere = get_polygons_ptr(objects_src_sphere[0]);
     } else  polygons_sphere = NULL;
 
-    // read target sphere
+    // Read target sphere file, handling errors for invalid input
     if (input_graphics_any_format(target_sphere_file, &format,
-                    &n_objects,
-                    &objects_target_sphere) != OK ||
-      n_objects != 1 ||
-      get_object_type(objects_target_sphere[0]) != POLYGONS ) {
+                    &n_objects, &objects_target_sphere) != OK ||
+        n_objects != 1 || get_object_type(objects_target_sphere[0]) != POLYGONS) {
         fprintf(stderr, "File %s must contain 1 polygons object.\n",
-            target_sphere_file);
+                target_sphere_file);
         exit(EXIT_FAILURE);
     }
 
-    // get polygons from surface
-    if (strcmp(surface_file,"NULL")) {
+    // Extract polygons from surface and target sphere
+    if (strcmp(surface_file, "NULL")) {
         polygons = get_polygons_ptr(objects[0]);
     } else  polygons = NULL;
-    
-    // get polygons from target sphere
     target_sphere = get_polygons_ptr(objects_target_sphere[0]);
 
-    // read input values or annot file
+    // Process input values or annotation file
     if (values_defined) {
-        input_values  = (double *) malloc(sizeof(double) * polygons_sphere->n_points);
+        // Allocate memory for input and output values
+        input_values = (double *) malloc(sizeof(double) * polygons_sphere->n_points);
         output_values = (double *) malloc(sizeof(double) * target_sphere->n_points);
 
+        // Handle annotation files, with a note on current platform limitation
         if (filename_extension_matches(input_values_file, "annot")) {
             /* this is not yet working under Windows */
             fprintf(stderr, "Resampling of annotation files not yet working.\n");
@@ -184,9 +183,10 @@ int main(int argc, char *argv[])
 
             label_interpolation = 1;
             read_annotation_table(input_values_file, &n_values, &in_annot, &n_table, &atable);
-            for (i = 0 ; i < n_values ; i++) 
+            for (i = 0 ; i < n_values ; i++)
                 input_values[i] = (double)in_annot[i];
         } else {
+            // Handle standard value files
             if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
                 fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
                  exit(EXIT_FAILURE);
@@ -194,16 +194,16 @@ int main(int argc, char *argv[])
         }
     }
     
+    // Resample the surface to the target sphere
     objects_target_sphere = resample_surface_to_target_sphere(polygons, polygons_sphere, 
         target_sphere, input_values, output_values, label_interpolation);
 
-    // if values are defined and not output value file is given then add values to the  
-    // resampled surface
+    // Add resampled values to the surface or save surface without values
     if (values_defined && !output_values_defined) {
         if(output_graphics_any_format(output_surface_file, format, 1,
                    objects_target_sphere, output_values) != OK)
           exit(EXIT_FAILURE);
-    } else { // save resampled surface without values
+    } else {
         if (strcmp(output_surface_file, "NULL" )) {
             if(output_graphics_any_format(output_surface_file, format, 1,
                        objects_target_sphere, NULL) != OK)
@@ -211,33 +211,33 @@ int main(int argc, char *argv[])
         }
     }
 
-    // save resampled values as extra file
+    // Save resampled values as a separate file, handling different data types
     if (values_defined) {                
         if (output_values_defined) {
-            // for annot files and label interpolation we need integers
+            // Convert output values to integers for annotation files and label interpolation
             if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation)) {
-                out_annot  = (int *) malloc(sizeof(int) * target_sphere->n_points);
-                for (i = 0 ; i < target_sphere->n_points ; i++) 
+                out_annot = (int *) malloc(sizeof(int) * target_sphere->n_points);
+                for (i = 0; i < target_sphere->n_points; i++) 
                     out_annot[i] = (int)round(output_values[i]);
             }
             
-            // save annot files
+            // Write output values to annotation or value files
             if (filename_extension_matches(output_values_file, "annot")) {
                 write_annotation_table(output_values_file, target_sphere->n_points, out_annot, n_table, atable);
-            } else {  // and value file
+            } else {
                 if (label_interpolation)
                     output_values_any_format(output_values_file,
-                         target_sphere->n_points,
-                         out_annot, TYPE_INTEGER);
+                         target_sphere->n_points, out_annot, TYPE_INTEGER);
                 else
                     output_values_any_format(output_values_file,
-                         target_sphere->n_points,
-                         output_values, TYPE_DOUBLE);
+                         target_sphere->n_points, output_values, TYPE_DOUBLE);
             }
+            // Free allocated memory for output annotations if used
             if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation))
                 FREE(out_annot);
         }
             
+        // Free allocated memory for input and output values
         FREE(input_values);
         FREE(output_values);
     }   
