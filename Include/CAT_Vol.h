@@ -110,7 +110,7 @@ void vbdist(float *V, unsigned char *IO, int dims[3], double *voxelsize, int rep
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
-void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn18);
+void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 void fill_holes(void *data, double thresh, int *dims, int datatype);
 
 #endif

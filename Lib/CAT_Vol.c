@@ -2696,7 +2696,7 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
  *                   but retain all original values (by setting retain_above_th to 1), or we 
  *                   only keep values in larger clusters that are then thresholded.
  *
- * conn18: Integer value that set the connection-scheme to 18 neighbors instead of 26.
+ * conn: Integer value that sets the connection-scheme to 6, 18 or 26 neighbors.
  *
  * The function first initializes auxiliary arrays to track used voxels and to store the output
  * data. It then iterates through the volume, identifying connected voxels that form clusters
@@ -2705,7 +2705,7 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
  * with zeros and the original values are retained otherwise.
  *
  */
-void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn18)
+void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn)
 {
     float valToAdd;
     float *outData;
@@ -2714,6 +2714,17 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
     int numVoxels = dims[0] * dims[1] * dims[2];
     char *flagUsed;
     short *growing;
+
+    if ((conn != 6) && (conn != 18) && (conn != 26)) {
+        printf("Values for connectivity can be only 6, 18 or 26.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    int adiff = 1;   //connectivity 6: faces only
+    if (conn == 18)
+        adiff = 2;   //connectivity 18: faces+edges
+    if (conn == 26)
+        adiff = 3;   //connectivity 26: faces+edges+corners
 
     flagUsed = (char*)  malloc(numVoxels*sizeof(char));
     outData  = (float*) malloc(numVoxels*sizeof(float));
@@ -2755,8 +2766,8 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
 
                 for (tk = mink; tk < maxk; ++tk) for (tj = minj; tj < maxj; ++tj) for (ti = mini; ti < maxi; ++ti)
                 {
-                    /*  Skip diagonal neighbors in 3D (only consider 18-neighbors) */
-                    if (conn18 && (abs(ti - growing[growingCur]) + abs(tj - growing[growingCur + 1]) + abs(tk - growing[growingCur + 2]) > 2))
+                    /*  Check for corners and edges depending on defined connectivity */
+                    if (abs(ti - growing[growingCur]) + abs(tj - growing[growingCur + 1]) + abs(tk - growing[growingCur + 2]) > adiff)
                         continue;
                     ind1 = tk*(dims[0]*dims[1]) + (tj*dims[0]) + ti;
 
@@ -2808,7 +2819,7 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
  * This function calls keep_largest_cluster_float and converts datatypes of
  * input and output
  */
-void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn18)
+void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn)
 {
     int nvox;
     float *buffer;
@@ -2823,7 +2834,7 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
     }
    
     convert_input_type(data, buffer, nvox, datatype);
-    keep_largest_cluster_float(buffer, thresh, dims, min_size, retain_above_th, conn18);
+    keep_largest_cluster_float(buffer, thresh, dims, min_size, retain_above_th, conn);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -2880,7 +2891,7 @@ void fill_holes(void *data, double thresh, int *dims, int datatype)
         mask_inv[i] = (buffer[i] >= thresh) ? 0.0 : 1.0;
 
     /* retain largest cluster of inverted mask, which should be the background */
-    keep_largest_cluster_float(mask_inv, thresh, dims, 0, 1, 1);
+    keep_largest_cluster_float(mask_inv, thresh, dims, 0, 1, 18);
     
     /* fill those values (=holes) that were removed by the previous keep_largest_cluster step */
     for (i = 0; i < nvox; ++i)
