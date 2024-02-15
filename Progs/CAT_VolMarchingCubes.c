@@ -303,7 +303,7 @@ main(
     }
     
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
-    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 1);
+    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 18);
     fill_holes(input_float, min_threshold, sizes, DT_FLOAT32);
 
 
@@ -438,7 +438,7 @@ main(
         }
         
         /* apply cluster function a 2nd time and keep largest cluster after thresholding */
-        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1, 1);
+        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1, 18);
         fill_holes(g0->output, min_threshold, sizes, DT_UINT16);
 
         for (i = 0; i < nvol; i++)
