@@ -19,12 +19,15 @@ extern int ParseArgv(int *argcPtr, char **argv, ArgvInfo *argTable, int flags);
 
 char *std_filename = NULL;
 char *zscore_filename = NULL;
+char *zscore_txt_filename = NULL;
 
 static ArgvInfo argTable[] = {
         {"-std", ARGV_STRING, (char *) 1, (char *) &std_filename, 
                   "Write standard deviation."},
         {"-zscore", ARGV_STRING, (char *) 1, (char *) &zscore_filename, 
-                  "Write z-scores in csv-file."},
+                  "Write filenames and z-scores in csv-file."},
+        {"-zscore-txt", ARGV_STRING, (char *) 1, (char *) &zscore_txt_filename, 
+                  "Write z-scores in txt-file."},
         {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
                   "Be verbose."},
          {NULL, ARGV_END, NULL, NULL, NULL}
@@ -80,14 +83,14 @@ int main(int argc, char *argv[])
                 avg[j] = 0.0;
                 
         /* prepare sum of squares image */
-        if ((std_filename != NULL) || (zscore_filename != NULL)) {
+        if ((std_filename != NULL) || (zscore_filename != NULL) || (zscore_txt_filename != NULL)) {
                 sum_squares = (double *)malloc(sizeof(double)*nii_ptr->nvox);
                 for (j=0; j<nii_ptr->nvox; j++) 
                         sum_squares[j] = 0.0;
         }                
         
         /* prepare zscore */
-        if(zscore_filename != NULL)
+        if ((zscore_filename != NULL) || (zscore_txt_filename != NULL))
                 zscore = (double *)malloc(sizeof(double)*nfiles);
                 
         free(input);
@@ -110,14 +113,14 @@ int main(int argc, char *argv[])
                         avg[j] += (input[j]/(double)nfiles);
 
                 /* calculate sum of squares */
-                if ((std_filename != NULL) || (zscore_filename != NULL))        {
+                if ((std_filename != NULL) || (zscore_filename != NULL) || (zscore_txt_filename != NULL)) {
                         for (j=0; j<nii_ptr->nvox; j++) 
                                 sum_squares[j] += input[j]*input[j];
                 }
                 free(input);
         }
 
-        if ((std_filename != NULL) || (zscore_filename != NULL)) {
+        if ((std_filename != NULL) || (zscore_filename != NULL) || (zscore_txt_filename != NULL)) {
                 for (j=0; j<nii_ptr->nvox; j++) 
                         sum_squares[j] = sqrt(1.0/((double)nfiles-1.0)*(sum_squares[j] - (double)nfiles*avg[j]*avg[j]));
                         
@@ -126,7 +129,7 @@ int main(int argc, char *argv[])
                                 exit(EXIT_FAILURE);
                 }
                 
-                if (zscore_filename != NULL) {
+                if ((zscore_filename != NULL) || (zscore_txt_filename != NULL)) {
                         for (i=0; i<nfiles; i++) {
                                 fprintf(stdout,"run2 %5d/%d:\t%s\n",i+1, nfiles, infiles[i]);
                                 nii_ptr = read_nifti_double(infiles[i], &input, 0);
@@ -147,15 +150,27 @@ int main(int argc, char *argv[])
                                 zscore[i] = zscore[i]/(double)n_voxels;
                                 free(input);
                         }
-                        fid = fopen(zscore_filename, "w");
-                        if (fid == NULL) {
-                                        fprintf(stderr,"Error writing %s.\n", zscore_filename);
-                                        exit(1);
+                        if (zscore_filename != NULL) {
+                                fid = fopen(zscore_filename, "w");
+                                if (fid == NULL) {
+                                                fprintf(stderr,"Error writing %s.\n", zscore_filename);
+                                                exit(1);
+                                }
+                                fprintf(fid,"filename,z-score\n");
+                                for (i=0; i<nfiles; i++)
+                                        fprintf(fid,"%s,%g\n",infiles[i],zscore[i]);
+                                fclose(fid);
                         }
-                        fprintf(fid,"filename;z-score\n");
-                        for (i=0; i<nfiles; i++)
-                                fprintf(fid,"%s;%g\n",infiles[i],zscore[i]);
-                        fclose(fid);
+                        if (zscore_txt_filename != NULL) {
+                                fid = fopen(zscore_txt_filename, "w");
+                                if (fid == NULL) {
+                                                fprintf(stderr,"Error writing %s.\n", zscore_txt_filename);
+                                                exit(1);
+                                }
+                                for (i=0; i<nfiles; i++)
+                                        fprintf(fid,"%g\n",zscore[i]);
+                                fclose(fid);
+                        }
 
                         free(zscore);
                 }                
