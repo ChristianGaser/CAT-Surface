@@ -238,7 +238,7 @@ main(int argc, char *argv[])
         Pve5(src, prob, label, mean, dims);
     }
         
-    if (cleanup > 0)
+    if (cleanup)
         cleanup_brain(prob, dims, voxelsize, cleanup);
 
     /* write nu-corrected volume */

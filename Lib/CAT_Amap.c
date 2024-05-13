@@ -22,74 +22,66 @@
 
 void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims)
 {
-    int x,y,z,i,z_area,y_dims,ind,mxi;
+    int i, mxi;
     double w, mx;
     unsigned char new_val[MAX_NC];
     
-    int area = dims[0]*dims[1];
-    int vol = area*dims[2];
+    int vol = dims[0]*dims[1]*dims[2];
         
-    for (z = 1; z < dims[2]-1; z++) {
-        z_area = z*area;
-        for (y = 1; y < dims[1]-1; y++) {
-            y_dims = y*dims[0];
-            for (x = 1; x < dims[0]-1; x++) {
-                ind = z_area + y_dims + x;
+    for (i = 0; i < vol; i++) {
 
-                switch(label[ind]) {
-                case 0: /* BG */
-                    new_val[CSFLABEL-1] = 0;
-                    new_val[GMLABEL-1]  = 0;
-                    new_val[WMLABEL-1]  = 0;
-                    break;
-                case CSFLABEL: /* CSF */
-                    new_val[CSFLABEL-1] = 255;
-                    new_val[GMLABEL-1]  = 0;
-                    new_val[WMLABEL-1]  = 0;
-                    label[ind] = (unsigned char) ROUND(255.0/3.0);
-                    break;
-                case GMLABEL: /* GM */
-                    new_val[CSFLABEL-1] = 0;
-                    new_val[GMLABEL-1]  = 255;
-                    new_val[WMLABEL-1]  = 0;
-                    label[ind] = (unsigned char) ROUND(2.0*255.0/3.0);
-                    break;
-                case WMLABEL: /* WM */
-                    new_val[CSFLABEL-1] = 0;
-                    new_val[GMLABEL-1]  = 0;
-                    new_val[WMLABEL-1]  = 255;
-                    label[ind] = 255;
-                    break;
-                case GMCSFLABEL: /* GMCSF */
-                    w = ((double)src[ind] - mean[CSFLABEL-1])/(mean[GMLABEL-1]-mean[CSFLABEL-1]);
-                    if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
-                    new_val[CSFLABEL-1] = (unsigned char) ROUND(255.0*(1-w));
-                    new_val[GMLABEL-1]  = (unsigned char) ROUND(255.0*w);
-                    new_val[WMLABEL-1]  = 0;
-                    label[ind] = ROUND(255.0/3.0*(1.0 + w));
-                    break;
-                case WMGMLABEL: /* WMGM */
-                    w = ((double)src[ind] - mean[GMLABEL-1])/(mean[WMLABEL-1]-mean[GMLABEL-1]);
-                    if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
-                    new_val[CSFLABEL-1] = 0;
-                    new_val[GMLABEL-1]  = (unsigned char) ROUND(255.0*(1-w));
-                    new_val[WMLABEL-1]  = (unsigned char) ROUND(255.0*w);
-                    label[ind] = ROUND(255.0/3.0*(2.0 + w));
-                    break;
-                }
-
-                prob[          ind] = new_val[CSFLABEL-1];
-                prob[vol     + ind] = new_val[GMLABEL-1];
-                prob[(2*vol) + ind] = new_val[WMLABEL-1];
-                
-                /* set old probabilities for mixed classes to zero */
-                prob[(3*vol) + ind] = 0;
-                prob[(4*vol) + ind] = 0;
-                
-            }
+        switch(label[i]) {
+        case 0: /* BG */
+            new_val[CSFLABEL-1] = 0;
+            new_val[GMLABEL-1]  = 0;
+            new_val[WMLABEL-1]  = 0;
+            break;
+        case CSFLABEL: /* CSF */
+            new_val[CSFLABEL-1] = 255;
+            new_val[GMLABEL-1]  = 0;
+            new_val[WMLABEL-1]  = 0;
+            label[i] = (unsigned char) ROUND(255.0/3.0);
+            break;
+        case GMLABEL: /* GM */
+            new_val[CSFLABEL-1] = 0;
+            new_val[GMLABEL-1]  = 255;
+            new_val[WMLABEL-1]  = 0;
+            label[i] = (unsigned char) ROUND(2.0*255.0/3.0);
+            break;
+        case WMLABEL: /* WM */
+            new_val[CSFLABEL-1] = 0;
+            new_val[GMLABEL-1]  = 0;
+            new_val[WMLABEL-1]  = 255;
+            label[i] = 255;
+            break;
+        case GMCSFLABEL: /* GMCSF */
+            w = ((double)src[i] - mean[CSFLABEL-1])/(mean[GMLABEL-1]-mean[CSFLABEL-1]);
+            if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
+            new_val[CSFLABEL-1] = (unsigned char) ROUND(255.0*(1-w));
+            new_val[GMLABEL-1]  = (unsigned char) ROUND(255.0*w);
+            new_val[WMLABEL-1]  = 0;
+            label[i] = ROUND(255.0/3.0*(1.0 + w));
+            break;
+        case WMGMLABEL: /* WMGM */
+            w = ((double)src[i] - mean[GMLABEL-1])/(mean[WMLABEL-1]-mean[GMLABEL-1]);
+            if (w > 1.0) w = 1.0; if (w < 0.0) w = 0.0;
+            new_val[CSFLABEL-1] = 0;
+            new_val[GMLABEL-1]  = (unsigned char) ROUND(255.0*(1-w));
+            new_val[WMLABEL-1]  = (unsigned char) ROUND(255.0*w);
+            label[i] = ROUND(255.0/3.0*(2.0 + w));
+            break;
         }
+
+        prob[          i] = new_val[CSFLABEL-1];
+        prob[vol     + i] = new_val[GMLABEL-1];
+        prob[(2*vol) + i] = new_val[WMLABEL-1];
+        
+        /* set old probabilities for mixed classes to zero */
+        prob[(3*vol) + i] = 0;
+        prob[(4*vol) + i] = 0;
     }    
 }
+
 
 /* This code is a substantially modified version of MrfPrior.C 
  * from Jagath C. Rajapakse
@@ -363,9 +355,9 @@ void Normalize(double* val, char n)
 }
 
 /* Compute initial PVE labeling based on marginalized likelihood */
-void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, struct point *r, int n_pure_classes, int sub, int *dims, int pve)
+void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, struct point *r, int n_pure_classes, int sub, int *dims)
 {
-    int x, y, z, z_area, y_dims, index, label_value, off;
+    int x, y, z, z_area, y_dims, index, label_value;
     int i, ix, iy, iz, ind, ind2, nix, niy, niz, narea, nvol;
     int area, vol;
     double val, sub_1, mean[MAX_NC], var[MAX_NC], d_pve[MAX_NC];
@@ -383,9 +375,6 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
 
     narea = nix*niy;
     nvol = nix*niy*niz;
-    
-    /* use 5classes */
-    if (pve) off = 0;
     
     /* loop over image points */
     for (z = 1; z < dims[2]-1; z++) {
@@ -406,39 +395,39 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
                 for (i = 0; i < n_pure_classes; i++) {
                     ind2 = (i*nvol) + ind;                      
                     if (r[ind2].mean > 0.0) {
-                        mean[off+i*2] = r[ind2].mean;
-                        var[off+i*2]  = r[ind2].var;
+                        mean[i*2] = r[ind2].mean;
+                        var[i*2]  = r[ind2].var;
                     }
                 }
 
-                if (fabs(mean[CSFLABEL+off-1]) > TINY) {
-                    d_pve[CSFLABEL+off-1] = ComputeGaussianLikelihood(val, mean[CSFLABEL+off-1], var[CSFLABEL+off-1]);
-                } else d_pve[CSFLABEL+off-1] = HUGE;
+                if (fabs(mean[CSFLABEL-1]) > TINY) {
+                    d_pve[CSFLABEL-1] = ComputeGaussianLikelihood(val, mean[CSFLABEL-1], var[CSFLABEL-1]);
+                } else d_pve[CSFLABEL-1] = HUGE;
 
-                if (fabs(mean[GMLABEL+off-1]) > TINY) {
-                    d_pve[GMLABEL+off-1] = ComputeGaussianLikelihood(val, mean[GMLABEL+off-1], var[GMLABEL+off-1]);
-                } else d_pve[GMLABEL+off-1] = HUGE;
+                if (fabs(mean[GMLABEL-1]) > TINY) {
+                    d_pve[GMLABEL-1] = ComputeGaussianLikelihood(val, mean[GMLABEL-1], var[GMLABEL-1]);
+                } else d_pve[GMLABEL-1] = HUGE;
 
-                if (fabs(mean[WMLABEL+off-1]) > TINY) {
-                    d_pve[WMLABEL+off-1] = ComputeGaussianLikelihood(val, mean[WMLABEL+off-1], var[WMLABEL+off-1]);
-                } else d_pve[WMLABEL+off-1] = HUGE;
+                if (fabs(mean[WMLABEL-1]) > TINY) {
+                    d_pve[WMLABEL-1] = ComputeGaussianLikelihood(val, mean[WMLABEL-1], var[WMLABEL-1]);
+                } else d_pve[WMLABEL-1] = HUGE;
 
-                if ((fabs(mean[WMLABEL+off-1]) > TINY) && (fabs(mean[GMLABEL+off-1]) > TINY)) {
-                    d_pve[WMGMLABEL+off-1] = ComputeMarginalizedLikelihood(val, mean[WMLABEL+off-1], mean[GMLABEL+off-1],
-                        var[WMLABEL+off-1], var[GMLABEL+off-1], 100 );
-                } else d_pve[WMGMLABEL+off-1] = HUGE;
+                if ((fabs(mean[WMLABEL-1]) > TINY) && (fabs(mean[GMLABEL-1]) > TINY)) {
+                    d_pve[WMGMLABEL-1] = ComputeMarginalizedLikelihood(val, mean[WMLABEL-1], mean[GMLABEL-1],
+                        var[WMLABEL-1], var[GMLABEL-1], 100 );
+                } else d_pve[WMGMLABEL-1] = HUGE;
                         
-                if ((fabs(mean[CSFLABEL+off-1]) > TINY) && (fabs(mean[GMLABEL+off-1]) > TINY)) {
-                    d_pve[GMCSFLABEL+off-1] = ComputeMarginalizedLikelihood(val, mean[GMLABEL+off-1], mean[CSFLABEL+off-1],
-                        var[GMLABEL+off-1], var[CSFLABEL+off-1], 100 );
-                } else d_pve[GMCSFLABEL+off-1] = HUGE;
+                if ((fabs(mean[CSFLABEL-1]) > TINY) && (fabs(mean[GMLABEL-1]) > TINY)) {
+                    d_pve[GMCSFLABEL-1] = ComputeMarginalizedLikelihood(val, mean[GMLABEL-1], mean[CSFLABEL-1],
+                        var[GMLABEL-1], var[CSFLABEL-1], 100 );
+                } else d_pve[GMCSFLABEL-1] = HUGE;
                 
-                Normalize(d_pve, n_pure_classes+2+off);
+                Normalize(d_pve, n_pure_classes+2);
                 
-                for (i = 0; i < n_pure_classes+2+off; i++) 
+                for (i = 0; i < n_pure_classes+2; i++) 
                     prob[(vol*i) + index] = (unsigned char)ROUND(255.0*d_pve[i]);
 
-                label[index] = (unsigned char) MaxArg(d_pve, n_pure_classes+2+off);
+                label[index] = (unsigned char) MaxArg(d_pve, n_pure_classes+2);
             }
         }
     }       
@@ -697,12 +686,11 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     /* estimate 3 classes before PVE */
     EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, thresh, beta, offset, bias_fwhm);
     
-    /* Use marginalized likelihood to estimate initial 5 or 6 classes */
+    /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
-
-        ComputeInitialPveLabel(src, label, prob, r, n_classes, sub, dims, pve);
+        ComputeInitialPveLabel(src, label, prob, r, n_classes, sub, dims);
         n_classes = 5;
-        
+
         /* recalculate means for pure and mixed classes */
         for (j = 0; j < n_classes; j++) {
             n[j] = 0;

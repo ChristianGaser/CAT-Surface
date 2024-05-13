@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM_filtered;
     float mean_vx_size;
     unsigned char *mask;
-    double voxelsize[3], slope, add_value, offset;
+    double voxelsize[3], slope, add_value;
     nifti_image *src_ptr, *out_ptr;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
@@ -172,8 +172,6 @@ int main(int argc, char *argv[])
     
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
-
-        //offset = max(0,min(.5,j * .5/n_avgs)) / 2;
         
         /* estimate value for shifting the border to obtain a less noisy measure by averaging distances */
         add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;        
