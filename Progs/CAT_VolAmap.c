@@ -144,6 +144,7 @@ main(int argc, char *argv[])
     /* if no valid extension was found use .nii */
     if (!extension) {
         fprintf(stdout,"Use .nii as extension for %s.\n",output_filename);
+        extension = (char *)malloc(sizeof(char)*10);
         strcpy(extension, ".nii");
     }
 
