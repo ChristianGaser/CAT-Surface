@@ -22,6 +22,8 @@
 int verbose = 0;
 int no_minimum_thickness = 0;
 int n_avgs = 4;
+int thin_cortex = 1;
+
 double fwhm = 1.0;
 
 static ArgvInfo argTable[] = {
@@ -40,10 +42,14 @@ static ArgvInfo argTable[] = {
     This value determines the extent of smoothing applied, using a mask to prevent\n\
     smearing values outside the Gray Matter (GM) areas."},
 
-  {"-no-min_thickness", ARGV_CONSTANT, (char *) 1, (char *) &no_minimum_thickness,
+  {"-no-min-thickness", ARGV_CONSTANT, (char *) 1, (char *) &no_minimum_thickness,
     "Disable the use of two thickness measures (from sulci and gyri) for minimum\n\
     thickness estimation. Instead, use a simpler approach based on sulci only,\n\
     which may be faster but less accurate."},
+
+  {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
+    "Disable the correction for the typical underestimation of GM thickness in data\n\
+    where the border between GM and WM is not correctly estimated by the PVE segmentation."},
 
   {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -85,7 +91,8 @@ Options:\n\
     -verbose           Enable verbose mode for detailed output during processing.\n\
     -n-avgs <int>      Set the number of averages for distance estimation.\n\
     -fwhm <float>      Define FWHM for final thickness smoothing.\n\
-    -no-min_thickness  Use a simpler thickness estimation approach based on sulci only.\n\
+    -no-min-thickness  Use a simpler thickness estimation approach based on sulci only.\n\
+    -no-thin-cortex    Do not slightly shift border between GM/WM for thinner cortices.\n\
 \n\
 Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
@@ -169,7 +176,7 @@ int main(int argc, char *argv[])
         dist_CSF[i] = 0.0;
         dist_WM[i]  = 0.0;
     }
-    
+        
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
         
@@ -179,8 +186,8 @@ int main(int argc, char *argv[])
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] <= (CGM+add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] <= GWM) ? 1 : 0;
-//            mask[i]  = (src[i] < WM) ? 1 : 0;
+            mask[i]  = (src[i] <= GWM + 0.1*thin_cortex) ? 1 : 0;
+            //mask[i]  = (src[i] < WM) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
@@ -193,7 +200,6 @@ int main(int argc, char *argv[])
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] >= (GWM+add_value)) ? 1.0f : 0.0f;
             mask[i]  = (src[i] >= CGM) ? 1 : 0;
-//            mask[i]  = (src[i] > CSF) ? 1 : 0;
         }    
     
         /* obtain WM distance map */

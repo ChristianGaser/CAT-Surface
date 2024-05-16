@@ -79,7 +79,7 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-Usage: CAT_MarchingCubesGenus0 input.nii output_surface_file\n\
+Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
 \n\
     This method generates a mesh with an Euler number of 2 (genus 0) from the\n\
     thresholded volume. The process involves:\n\
