@@ -289,6 +289,15 @@ double get_sum(double arr[], int n) {
     return sum;
 }
 
+float get_sum_float(float arr[], int n) {
+    int i;
+    float sum = 0.0;
+    
+    for (i = 0; i < n; i++)
+        sum += arr[i];
+    
+    return sum;
+}
 /**
  * get_mean - Calculate the mean of an array of doubles.
  *
@@ -305,6 +314,9 @@ double get_mean(double arr[], int n) {
     return get_sum(arr, n) / (double)n;
 }
 
+float get_mean_float(float arr[], int n) {
+    return get_sum_float(arr, n) / (float)n;
+}
 /**
  * get_std - Calculate the standard deviation of an array of doubles.
  *

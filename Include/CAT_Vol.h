@@ -89,6 +89,7 @@ double get_std(double arr[], int n);
 double get_sum(double arr[], int n);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
+float get_mean_float(float arr[], int n);
 void median3(void *D, int dims[3], int datatype);
 void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int stat_func, int iters, int use_euclidean_dist, int datatype);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
