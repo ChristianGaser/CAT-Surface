@@ -187,7 +187,6 @@ int main(int argc, char *argv[])
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] <= (CGM+add_value)) ? 1.0f : 0.0f;
             mask[i]  = (src[i] <= GWM + 0.1*thin_cortex) ? 1 : 0;
-            //mask[i]  = (src[i] < WM) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
@@ -222,10 +221,10 @@ int main(int argc, char *argv[])
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
     /* Estimate cortical thickness (first using sulci measures */
     projection_based_thickness(src, dist_WM, dist_CSF, GMT, dims, voxelsize); 
-
+    
     /* only use reconstruction of sulci */
     if (no_minimum_thickness) {
-        /* use minimum to reduce issues with meninges */
+        /* use minimum/maximum to reduce issues with meninges */
         for (i = 0; i < src_ptr->nvox; i++)
             GMT[i]  = MIN(GMT[i],  dist_WM[i]+dist_CSF[i]);
     } else { /* use both reconstruction of sulci as well as gyri and use minimum of both */
@@ -243,7 +242,7 @@ int main(int argc, char *argv[])
 
         /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
         projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize); 
-
+        
         // set GMT2 to a minimum of 1.5
         for (i = 0; i < src_ptr->nvox; i++)
             GMT2[i] = (GMT2[i] > 0 && GMT2[i] < 1.5) ? 1.5f : GMT2[i];
@@ -254,7 +253,7 @@ int main(int argc, char *argv[])
             GMT2[i] = MIN(GMT2[i], dist_WM[i]+dist_CSF[i]);
         }
 
-        /* finally use minimum of both thickness measures */
+        /* finally use minimum/maximum of both thickness measures depending on median */
         for (i = 0; i < src_ptr->nvox; i++)
             GMT[i] = MIN(GMT[i], GMT2[i]);
 
@@ -276,6 +275,9 @@ int main(int argc, char *argv[])
             PPM[i] = MIN(dist_CSF[i], (GMT[i]-dist_WM[i])) / GMT[i];
         if (PPM[i] < 0.0) PPM[i] = 0.0;
     }
+    
+    // fill small holes that cause topology artefacts
+    fill_holes(PPM, 1E-15, dims, DT_FLOAT32);
     
     /* Finally minimize outliers in the PPM using median-filter */
     for (i = 0; i < src_ptr->nvox; i++) PPM_filtered[i] = PPM[i];
