@@ -317,6 +317,7 @@ double get_mean(double arr[], int n) {
 float get_mean_float(float arr[], int n) {
     return get_sum_float(arr, n) / (float)n;
 }
+
 /**
  * get_std - Calculate the standard deviation of an array of doubles.
  *
@@ -383,6 +384,18 @@ double get_std(double arr[], int n) {
  double get_max(double arr[], int n) {
     int i;
     double result = -FLT_MAX;
+    
+    for (i = 0; i < n; i++) {
+        if (arr[i] > result)
+            result = arr[i];
+    }
+
+    return result;
+}
+
+float get_max_float(float arr[], int n) {
+    int i;
+    float result = -FLT_MAX;
     
     for (i = 0; i < n; i++) {
         if (arr[i] > result)
@@ -525,7 +538,7 @@ void localstat3(void *data, unsigned char mask[], int dims[3], int dist,
 /**
  * wrapper to use localstat_float for median calculation for any data type 
  */
-void median3(void *data, int dims[3], int datatype)
+void median3(void *data, unsigned char *mask, int dims[3], int datatype)
 {
     int nvox;
     float *buffer;
@@ -542,7 +555,7 @@ void median3(void *data, int dims[3], int datatype)
     convert_input_type(data, buffer, nvox, datatype);
     
     // use kernel 3x3x3
-    localstat_float(buffer, NULL, dims, 1, F_MEDIAN, 1, 0);
+    localstat_float(buffer, mask, dims, 1, F_MEDIAN, 1, 0);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -2380,15 +2393,16 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
  * with the corrected values.
  *
  */
-void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
+void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las, int square_image)
 {
     int i, nvox;
     unsigned char *mask;
-    float *src_subcortical, *dist, *buffer, max_dist = -FLT_MAX;
+    float *src_subcortical, *dist, *buffer;
+    float max_dist = -FLT_MAX, mx_image, scl;
 
     nvox = dims[0]*dims[1]*dims[2];
 
-    // allocate biasfield if necessary
+    /* allocate biasfield if necessary */
     if (!biasfield) {
         biasfield = (float *)malloc(sizeof(float)*nvox);
         if (!biasfield) {
@@ -2397,6 +2411,14 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
         }
     }
     
+    /* square input image improve segmentation of CSF and GM */
+    if (square_image) {
+        mx_image = get_max_float(src, nvox);
+        for (i = 0; i < nvox; i++) src[i] *= src[i];
+        scl = mx_image/get_max_float(src, nvox);
+        for (i = 0; i < nvox; i++) src[i] *= scl;
+    }
+      
     /* apply bias correction for WM only */
     correct_bias_label(src, biasfield, label, dims, voxelsize, bias_fwhm, WM);
     
@@ -2522,7 +2544,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     }
     
     laplace3R(TAr, BMr, dimsr, 0.4);
-    median3(TAr, dimsr, DT_FLOAT32);
+    median3(TAr, NULL, dimsr, DT_FLOAT32);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
     /* only keep TAr inside (closed) mask */
@@ -2541,7 +2563,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
         BMr[i] = (BMr2[i] == 0);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
-    median3(TAr, dimsr, DT_FLOAT32);
+    median3(TAr, NULL, dimsr, DT_FLOAT32);
 
     for (i = 0; i < nvoxr; ++i)
         BMr[i] = (volr[i] == 0);
@@ -2919,4 +2941,75 @@ void fill_holes(void *data, double thresh, int *dims, int datatype)
     free(buffer);
     free(mask_inv);
     free(mask_fill);
+}
+
+/**
+ * get x-gradient of 3D voolume
+*/
+float gradientX(float *src, int i, int j, int k, int dims[3]) 
+{
+    if( i > 0 )
+    {
+        if ( i < dims[0] - 1 )
+            return (src[sub2ind(i+1, j, k, dims)] - src[sub2ind(i-1, j, k, dims)])/2.0;
+        else
+            return src[sub2ind(i, j, k, dims)] - src[sub2ind(i-1, j, k, dims)];
+    }
+    else
+        return src[sub2ind(i+1, j, k, dims)] - src[sub2ind(i, j, k, dims)];
+}
+
+/**
+ * get y-gradient of 3D volume
+*/
+float gradientY(float *src, int i, int j, int k, int dims[3]) 
+{
+    if( j > 0 )
+    {
+      if ( j < dims[1] - 1 )
+          return (src[sub2ind(i, j+1, k, dims)] - src[sub2ind(i, j-1, k, dims)])/2.0;
+      else
+          return src[sub2ind(i, j, k, dims)] - src[sub2ind(i, j-1, k, dims)];
+    }
+    else
+        return src[sub2ind(i, j+1, k, dims)] - src[sub2ind(i, j, k, dims)];
+}
+
+/**
+ * get z-gradient of 3D volume
+*/
+float gradientZ(float *src, int i, int j, int k, int dims[3]) 
+{
+    if( k > 0 )
+    {
+      if ( k < dims[2] - 1 )
+          return (src[sub2ind(i, j, k+1, dims)] - src[sub2ind(i, j, k-1, dims)])/2.0;
+      else
+          return src[sub2ind(i, j, k, dims)] - src[sub2ind(i, j, k-1, dims)];
+    }
+    else
+        return src[sub2ind(i, j, k-1, dims)] - src[sub2ind(i, j, k, dims)];
+}
+
+/**
+ * estimate magnitude of local gradient of 3D volume
+*/
+void gradient3D_magnitude(float *src, float *grad_mag, int dims[3])
+{
+    int i, j, k;
+    float gradx, grady, gradz;
+    
+    if (grad_mag == NULL)
+        grad_mag = (float *)malloc(sizeof(float)*dims[0]*dims[1]*dims[2]);
+    
+    for (i = 0; i < dims[0]; ++i) {
+        for (j = 0; j < dims[1]; ++j) {
+            for (k = 0; k < dims[2]; ++k) {
+                gradx = gradientX(src, i, j, k, dims);
+                grady = gradientY(src, i, j, k, dims);
+                gradz = gradientZ(src, i, j, k, dims);
+                grad_mag[sub2ind(i, j, k, dims)] = sqrt(gradx*gradx + grady*grady + gradz*gradz);
+            }
+        }
+    }
 }

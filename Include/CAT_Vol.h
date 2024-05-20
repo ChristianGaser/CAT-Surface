@@ -89,14 +89,15 @@ double get_std(double arr[], int n);
 double get_sum(double arr[], int n);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
+float get_max_float(float arr[], int n);
 float get_mean_float(float arr[], int n);
-void median3(void *D, int dims[3], int datatype);
+void median3(void *D, unsigned char *mask, int dims[3], int datatype);
 void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int stat_func, int iters, int use_euclidean_dist, int datatype);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int datatype);
 void smooth_subsample3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp, int datatype);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
-void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
+void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las, int square_image);
 void get_prctile(float *src, int dims[3], double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
@@ -113,5 +114,6 @@ int sub2ind(int x, int y, int z, int s[]);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 void fill_holes(void *data, double thresh, int *dims, int datatype);
+void gradient3D_magnitude(float *src, float *grad_mag, int dims[3]);
 
 #endif
