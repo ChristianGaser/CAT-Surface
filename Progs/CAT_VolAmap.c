@@ -26,6 +26,7 @@ int write_label = 1;
 int write_corr = 1;
 int write_bias = 0;
 int debug = 0;
+int square_image = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 double bias_fwhm = 10.0;
@@ -60,6 +61,9 @@ static ArgvInfo argTable[] = {
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
          Default setting is 1."},
+         
+    {"-square-image", ARGV_CONSTANT, (char *) 1, (char *) &square_image,
+         "Option to use a squared image to enhance contrast between tissues."},
          
     {"-cleanup", ARGV_INT, (char *) 1, (char *) &cleanup,
          "Option to additionally clean-up segmentations by removing remaining non-brain parts\n\
@@ -227,7 +231,7 @@ main(int argc, char *argv[])
      * smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0.0) {
         fprintf(stdout,"Bias correction\n");
-        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
+        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, square_image);
     }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
