@@ -54,7 +54,7 @@ static ArgvInfo argTable[] = {
      for automatic estimation."},
   
   {"-no-median", ARGV_CONSTANT, (char *) FALSE, (char *) &median_correction,
-    "Disable the median filter typically used outside sulcal areas."},
+    "Disable the median filter typically used to further reduce topology defetcs."},
   
   {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
     "Turn off the additional morphological opening feature."},
@@ -299,13 +299,11 @@ main(
             dist_WM[i] = GMT[i];
 
         projection_based_thickness(input_float, dist_WM, dist_CSF, GMT, sizes, voxelsize); 
-
     }
     
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
     keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 18);
     fill_holes(input_float, min_threshold, sizes, DT_FLOAT32);
-
 
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
@@ -379,7 +377,6 @@ main(
     /* we need uint16 for genus0 approach */
     for (i = 0; i < nvol; i++)
         input_uint16[i] = (unsigned short)input_uint8[i];
-    free(vol_uint8);
 
     /* set some parameters/options for the firt iteration */
     for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
@@ -424,17 +421,23 @@ main(
     
         if (genus0(g0)) return(1); 
     
-        /* apply median-correction after 2nd iteration */
-        if ((median_correction) && (count > 1)) {
+        /* find areas that were corrected for topology and dilate them */
+        for (i = 0; i < nvol; i++)
+            vol_uint8[i] = (unsigned char)(input_uint16[i] != g0->output[i]);
+        morph_dilate(vol_uint8, sizes, 8, 0.5, DT_UINT8);
+
+        /* apply median-correction and only consider the dilated areas */
+        if (median_correction) {
             /* use previous output for filtering */
             for (i = 0; i < nvol; i++)
-                    input_uint8[i] = (unsigned char)g0->output[i];
+                input_uint16[i] = g0->output[i];
             
-            median3(input_uint8, sizes, DT_UINT8);
+            median3(input_uint16, NULL, sizes, DT_UINT16);
 
-            /* replace with its median filtered version outside sulcal areas */
+            /* replace genus0 output with its median filtered version in (dilated)
+               areas with toplogy artefacts */
             for (i = 0; i < nvol; i++)
-                g0->output[i] = (unsigned short)(input_float[i] >= min_threshold ? input_uint8[i] : 0);
+                g0->output[i] = (unsigned short)(((vol_uint8[i] > 0)) ? input_uint16[i] : g0->output[i]);
         }
         
         /* apply cluster function a 2nd time and keep largest cluster after thresholding */
@@ -489,6 +492,7 @@ main(
 
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
+    free(vol_uint8);
     free(input_uint16);
     free(input_float);
     free(vol_float);
