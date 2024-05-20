@@ -64,13 +64,13 @@ main(int argc, char *argv[])
         
         /* read first image to get image parameters */
         nii_ptr = read_nifti_float(infile, &input, 0);
-        if(nii_ptr == NULL) {
+        if (nii_ptr == NULL) {
                 fprintf(stderr,"Error reading %s.\n", infile);
                 return(EXIT_FAILURE);
         }
 
         /* only allow isotropic filtering */
-        for(i=0; i<3; i++) s[i] = fwhm;
+        for (i=0; i<3; i++) s[i] = fwhm;
         
         separations[0] = nii_ptr->dx;
         separations[1] = nii_ptr->dy;
@@ -82,7 +82,7 @@ main(int argc, char *argv[])
         smooth3(input, dims, separations, s, use_mask, DT_FLOAT32);
         
         /* if not defined use original name as basename for output */
-        if(argc == 3)
+        if (argc == 3)
                         (void) sprintf(outfile, "%s", argv[2]); 
         else {
                 #if !defined(_WIN32)
