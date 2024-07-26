@@ -2944,7 +2944,7 @@ void fill_holes(void *data, double thresh, int *dims, int datatype)
 }
 
 /**
- * get x-gradient of 3D voolume
+ * get x-gradient of 3D volume
 */
 float gradientX(float *src, int i, int j, int k, int dims[3]) 
 {

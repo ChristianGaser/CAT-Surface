@@ -57,7 +57,7 @@ static ArgvInfo argTable[] = {
 private void usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii]\n\
+Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii output_WMD.nii output_CSD.nii]\n\
 \n\
     This program performs projection-based cortical thickness estimation and\n\
     percentage position mapping (PPM) from a given PVE label image described in:\n\
@@ -277,6 +277,19 @@ int main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++)
         GMT[i]  = GMT_filtered[i];
 
+
+    /* Approximate thickness values outside GM */
+    for (i = 0; i < src_ptr->nvox; i++)
+        mask[i]  = (GMT[i] < 0.1) ? 1 : 0;
+    vbdist(GMT, mask, dims, NULL, 1);
+
+    /* Apply smoothing */
+    if (fwhm > 0.0) {
+        if (verbose) fprintf(stderr,"Final correction\n");
+        double s[3] = {fwhm, fwhm, fwhm};
+        smooth3(GMT, dims, voxelsize, s, 1, DT_FLOAT32);
+    }
+    
     /* Initialize and estimate percentage position map (PPM) */
     for (i = 0; i < src_ptr->nvox; i++)
         PPM[i] = (src[i] >= GWM) ? 1.0f : 0.0f;
@@ -301,13 +314,6 @@ int main(int argc, char *argv[])
     mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
     for (i = 0; i < src_ptr->nvox; i++) 
         GMT[i] *= mean_vx_size;
-    
-    /* Apply (masked) smoothing */
-    if (fwhm > 0.0) {
-        if (verbose) fprintf(stderr,"Final correction\n");
-        double s[3] = {fwhm, fwhm, fwhm};
-        smooth3(GMT, dims, voxelsize, s, 1, DT_FLOAT32);
-    }
     
     /* save GMT and PPM image */
     slope = 1.0;
