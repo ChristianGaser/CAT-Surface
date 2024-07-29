@@ -3,7 +3,6 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id$
  *
  */
 
@@ -20,14 +19,13 @@
 
 /* argument defaults */
 double min_threshold = 0.5;
-double post_fwhm = 2.0;
-double pre_fwhm = -1.0;
-double scl_open = -1;
-int median_correction = 1;
+double post_fwhm = 1.0;
+double pre_fwhm =  2.0;
+double scl_open = 0.9;
+int median_correction = 4;
 int use_distopen = 1;
 int any_genus = 0;
 int verbose = 0;
-int use_thickness = 1;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -39,9 +37,9 @@ static ArgvInfo argTable[] = {
     "Specify the Full Width Half Maximum (FWHM) for the preprocessing\n\
      smoothing filter. This helps in preserving gyri and sulci by\n\
      creating a weighted average between original and smoothed\n\
-     images based on their distance to the threshold (isovalue).\n\
-     A negative value will force masked smoothing, which may\n\
-     preserves gyri and sulci even better."},
+     images based on the gradient of the input image. Areas with \n\
+     topology artefacts are often characterized by large gradients,\n\
+     thus smoothing in these areas tries to prevent these artefacts."},
 
   {"-post-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &post_fwhm,
     "Set FWHM for surface smoothing. This aids in correcting the mesh\n\
@@ -50,11 +48,12 @@ static ArgvInfo argTable[] = {
   
   {"-scl-opening", ARGV_FLOAT, (char *) TRUE, (char *) &scl_open,
     "Manually set the scaling factor for morphological opening. This\n\
-     affects the isovalue used only for the opening process. Use -1\n\
-     for automatic estimation."},
+     affects the isovalue for the opening process.\n\
+     Use -1 for automatic estimation."},
   
-  {"-no-median", ARGV_CONSTANT, (char *) FALSE, (char *) &median_correction,
-    "Disable the median filter typically used to further reduce topology defetcs."},
+  {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
+    "Specify how many times to apply a median filter to areas with\n\
+     topology artifacts to reduce these artifacts."},
   
   {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
     "Turn off the additional morphological opening feature."},
@@ -88,9 +87,9 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
        - Apply a smoothing filter to the input image to remove outliers.\n\
        - Use a weighted average of the original and smoothed images to\n\
          preserve gyri and sulci.\n\
-       - Weighting is based on the distance to the isovalue.\n\
-       - Weights range from 0 (for intensities at 0 or 1) to 1 (intensity\n\
-         equals the isovalue), with intermediate values scaled linearly.\n\
+       - Weighting is based on the gradient of the input image.\n\
+       - Weights range from 0 (areas with low gradient) to 1 (areas\n\
+         with large gradient), with intermediate values scaled linearly.\n\
        - Weighting effect is enhanced by squaring the value.\n\
     \n\
     2. **Morphological Opening:**\n\
@@ -126,7 +125,7 @@ main(
     double              min_label, max_label, start_scl_open, dist;
     double              valid_low, valid_high, val, RMSE, sum_RMSE;
     double              voxelsize[N_DIMENSIONS];
-    int                 i, j, k, c;
+    int                 i, j, k,c ;
     int                 n_out, EC, sizes[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
     Marching_cubes_methods    method;
@@ -134,7 +133,7 @@ main(
     polygons_struct     *polygons;
     unsigned short      *input_uint16;
     unsigned char       *input_uint8, *vol_uint8;
-    float               *input_float, *vol_float, *dist_CSF, *dist_WM, *GMT;
+    float               *input_float, *vol_float, *grad;
     nifti_image         *nii_ptr;
     mat44               nii_mat;
 
@@ -198,10 +197,8 @@ main(
        - Purpose: To remove outliers in the input image.
        - Method: A weighted average is calculated between the original image and the 
          smoothed image to protect the structural integrity of gyri and sulci.
-       - Weight Estimation: Based on the proximity to the isovalue.
-         * When the intensity equals the isovalue, the weight is set to 1.
-         * For intensities at 0 or 1, the weight is 0.
-         * All other intensities are scaled linearly between 0 and 1.
+       - Weight Estimation: Based on the gradient of the input image.
+         * For values below mean gradient, the weight is 0.
        - Enhanced Weighting: Weights are squared to emphasize larger weightings,
          providing a more robust distinction between regions of interest and outliers.
     */
@@ -209,24 +206,41 @@ main(
     
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
-        double s[] = {fabs(pre_fwhm), fabs(pre_fwhm), fabs(pre_fwhm)};
-        smooth3(vol_float, sizes, voxelsize, s, (pre_fwhm < 0.0), DT_FLOAT32);
+        double s[] = {pre_fwhm, pre_fwhm, pre_fwhm};
+        smooth3(vol_float, sizes, voxelsize, s, 0, DT_FLOAT32);
         
+        /* estimate magnitude of gradient for weighting the smoothing */
+        grad = (float *)malloc(nvol*sizeof(float));
+        gradient3D_magnitude(input_float, grad, sizes);
+
+        /* calculate mean of gradient (where gradient > 0) */
+        double mean_grad = 0.0;
+        c = 0;
+        for (i = 0; i < nvol; i++) {
+            if (grad[i] > 0.0) {
+                mean_grad += grad[i];
+                c++;
+            }
+        }
+        mean_grad /= (float)c;
+
         /* Protect values in sulci and gyri and weight areas with filtered values 
-          depending on distance isovalue (threshold) */
+          depending on gradient of input image */
         float weight;
         for (i = 0; i < nvol; i++) {
-            /* estimate weight using distance to isovalue: weight will be 1 of intensity
-               equals isovalue and is 0 for intensities of 0 or 1. Everything inbetween
-               will have a linear scaling between 0..1 */
-            weight = 2.0*(0.5 - fabs(input_float[i] - min_threshold));
+            /* estimate weight using gradient of input image and limit range to 0..1 */
+            weight = (1.0/(mean_grad+0.2)) - (1.0/(grad[i]+0.2));
+            weight = (weight < 0.0) ? 0.0f : weight;
+            weight = (weight > 1.0) ? 1.0f : weight;
+            
             
             /* emphasize large weightings by using the squared value */
             weight *= weight;
             
             /* weighted average of filtered and original input */
-            input_float[i] = weight*input_float[i] + (1.0 - weight)*vol_float[i];
+            input_float[i] = (1.0 - weight)*input_float[i] + weight*vol_float[i];
         }
+        free(grad);
     }
 
     /* Analyzing the Impact of scl_open Values
@@ -258,49 +272,6 @@ main(
     sum_RMSE = 0.0;
     count = 0;
 
-    /* estimate cortical thickness for local correction of intensities for morphological opening */
-    if (use_distopen && use_thickness && 0) {
-        dist_CSF = (float *)malloc(sizeof(float)*nvol);
-        dist_WM  = (float *)malloc(sizeof(float)*nvol);
-        GMT      = (float *)malloc(sizeof(float)*nvol);
-        
-        /* check for memory faults */
-        if (!dist_CSF || !dist_WM || !GMT) {
-            fprintf(stderr,"Memory allocation error\n");
-            exit(EXIT_FAILURE);
-        }
-        
-        /* initialize distances */
-        for (i = 0; i < nvol; i++) {
-            dist_CSF[i] = 0.0;
-            dist_WM[i]  = 0.0;
-        }
-
-        /* prepare map outside CSF and mask to obtain distance map for CSF */
-        for (i = 0; i < nvol; i++) {
-            GMT[i] = (input_float[i] < 0.001) ? 1.0f : 0.0f;
-            input_uint8[i]  = (input_float[i] < 1.0) ? 1 : 0;
-        }
-        
-        /* obtain CSF distance map */
-        vbdist(GMT, input_uint8, sizes, NULL, replace);
-        for (i = 0; i < nvol; i++)
-            dist_CSF[i] = GMT[i];
-
-        /* prepare map outside WM and mask to obtain distance map for WM */
-        for (i = 0; i < nvol; i++) {
-            GMT[i] = (input_float[i] > 0.999) ? 1.0f : 0.0f;
-            input_uint8[i]  = (input_float[i] > 0.0) ? 1 : 0;
-        }
-
-        /* obtain WM distance map */
-        vbdist(GMT, input_uint8, sizes, NULL, replace);
-        for (i = 0; i < nvol; i++)
-            dist_WM[i] = GMT[i];
-
-        projection_based_thickness(input_float, dist_WM, dist_CSF, GMT, sizes, voxelsize); 
-    }
-    
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
     keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 18);
     fill_holes(input_float, min_threshold, sizes, DT_FLOAT32);
@@ -363,12 +334,6 @@ main(
         count++;        
 
     }
-
-    if (use_distopen && use_thickness && 0) {
-        free(GMT);
-        free(dist_CSF);
-        free(dist_WM);
-    }
     
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
 
@@ -405,7 +370,7 @@ main(
         g0->alt_value = 1;
         g0->alt_contour_value = 1;
     
-        /* call the function! */
+        /* call the function */
         if (genus0(g0)) return(1); /* check for error */
     
         /* save results as next input */
@@ -421,18 +386,19 @@ main(
     
         if (genus0(g0)) return(1); 
     
-        /* find areas that were corrected for topology and dilate them */
-        for (i = 0; i < nvol; i++)
-            vol_uint8[i] = (unsigned char)(input_uint16[i] != g0->output[i]);
-        morph_dilate(vol_uint8, sizes, 8, 0.5, DT_UINT8);
-
         /* apply median-correction and only consider the dilated areas */
         if (median_correction) {
+            /* find areas that were corrected for topology artefacts and dilate them */
+            for (i = 0; i < nvol; i++)
+                vol_uint8[i] = (unsigned char)(input_uint16[i] != g0->output[i]);
+            morph_dilate(vol_uint8, sizes, 4, 0.5, DT_UINT8);
+
             /* use previous output for filtering */
             for (i = 0; i < nvol; i++)
                 input_uint16[i] = g0->output[i];
             
-            median3(input_uint16, NULL, sizes, DT_UINT16);
+            /* apply iterative median filter */
+            for (i = 0; i < median_correction; i++) median3(input_uint16, NULL, sizes, DT_UINT16);
 
             /* replace genus0 output with its median filtered version in (dilated)
                areas with toplogy artefacts */
