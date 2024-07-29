@@ -20,11 +20,12 @@
 #include "CAT_Vol.h"
 
 int verbose = 0;
-int no_minimum_thickness = 0;
 int n_avgs = 4;
 int thin_cortex = 1;
 
 double fwhm = 1.0;
+double min_thickness = 0.5;
+double max_thickness = 5.0;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
@@ -42,10 +43,13 @@ static ArgvInfo argTable[] = {
     This value determines the extent of smoothing applied, using a mask to prevent\n\
     smearing values outside the Gray Matter (GM) areas."},
 
-  {"-no-min-thickness", ARGV_CONSTANT, (char *) 1, (char *) &no_minimum_thickness,
-    "Disable the use of two thickness measures (from sulci and gyri) for minimum\n\
-    thickness estimation. Instead, use a simpler approach based on sulci only,\n\
-    which may be faster but less accurate."},
+  {"-min-thickness", ARGV_FLOAT, (char *) 1, (char *) &min_thickness,
+    "Set the minimum thickness that is expected. Values below that minimum thickness\n\
+    are set to zero and will be approximated by using the replace option in the vbdist approach."},
+
+  {"-max-thickness", ARGV_FLOAT, (char *) 1, (char *) &max_thickness,
+    "Set the maximum thickness that is expected. Values exceeding that maximum thickness\n\
+    are set to that value."},
 
   {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
     "Disable the correction for the typical underestimation of GM thickness in data\n\
@@ -76,7 +80,7 @@ Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii output_WMD.nii ou
     2. **Thickness Estimation:**\n\
        - Reconstructing sulci and optionally gyri to estimate cortical thickness.\n\
        - Using minimum thickness measures from sulci and gyri for more accurate\n\
-         representation, unless the simpler sulci-based approach is specified.\n\
+         representation.\n\
     \n\
     3. **PPM Calculation:**\n\
        - Estimating the percentage position map (PPM), representing the relative\n\
@@ -155,7 +159,8 @@ int main(int argc, char *argv[])
     dims[0] = src_ptr->nx;
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
-    
+    mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
+
     mask     = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
     input    = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
@@ -231,41 +236,39 @@ int main(int argc, char *argv[])
     mean_GMT = get_mean_float(GMT, src_ptr->nvox);
     
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
-    if (!no_minimum_thickness) {
-        /* we need the inverse of src: 4 - src */
-        for (i = 0; i < src_ptr->nvox; i++)
-            input[i] = ROUND(4.0 - src[i]);
+    /* we need the inverse of src: 4 - src */
+    for (i = 0; i < src_ptr->nvox; i++)
+        input[i] = ROUND(4.0 - src[i]);
 
-        GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-        if (!GMT2) {
-            fprintf(stderr,"Memory allocation error\n");
-            exit(EXIT_FAILURE);
-        }
-
-        /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
-        projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize); 
-        
-        for (i = 0; i < src_ptr->nvox; i++)
-            GMT2[i] = MIN(dist_WM[i]+dist_CSF[i], GMT2[i]);
-
-        /* get overall mean thickness */
-        mean_GMT = mean_GMT/2.0 + get_mean_float(GMT2, src_ptr->nvox)/2.0;
-
-        /* use weighted average of thickness measures w.r.t. to distance to mean */
-        for (i = 0; i < src_ptr->nvox; i++) {
-          
-            abs_dist = GMT[i]  - mean_GMT;
-            if (abs_dist > 0) weight1 = 1.0/fabs(abs_dist);
-            else weight1 = 100.0;
-            
-            abs_dist = GMT2[i]  - mean_GMT;
-            if (abs_dist > 0) weight2 = 1.0/fabs(abs_dist);
-            else weight2 = 100.0;
-            
-            GMT[i] = (weight1*GMT[i] + weight2*GMT2[i])/(weight1 + weight2);
-        }
-        free(GMT2);
+    GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    if (!GMT2) {
+        fprintf(stderr,"Memory allocation error\n");
+        exit(EXIT_FAILURE);
     }
+
+    /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
+    projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize); 
+    
+    for (i = 0; i < src_ptr->nvox; i++)
+        GMT2[i] = MIN(dist_WM[i]+dist_CSF[i], GMT2[i]);
+
+    /* get overall mean thickness */
+    mean_GMT = mean_GMT/2.0 + get_mean_float(GMT2, src_ptr->nvox)/2.0;
+
+    /* use weighted average of thickness measures w.r.t. to distance to mean */
+    for (i = 0; i < src_ptr->nvox; i++) {
+      
+        abs_dist = GMT[i]  - mean_GMT;
+        if (abs_dist > 0) weight1 = 1.0/fabs(abs_dist);
+        else weight1 = 100.0;
+        
+        abs_dist = GMT2[i]  - mean_GMT;
+        if (abs_dist > 0) weight2 = 1.0/fabs(abs_dist);
+        else weight2 = 100.0;
+        
+        GMT[i] = (weight1*GMT[i] + weight2*GMT2[i])/(weight1 + weight2);
+    }
+    free(GMT2);
     free(input);
    
     /* finally minimize outliers using median-filter */
@@ -277,13 +280,15 @@ int main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++)
         GMT[i]  = GMT_filtered[i];
 
-
-    /* Approximate thickness values outside GM */
-    for (i = 0; i < src_ptr->nvox; i++)
-        mask[i]  = (GMT[i] < 0.1) ? 1 : 0;
+    /* Approximate thickness values outside GM or below minimum thickness */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        GMT[i]  = ((GMT[i]*mean_vx_size) < min_thickness) ? 0.0 : GMT[i];
+        GMT[i]  = ((GMT[i]*mean_vx_size) > max_thickness) ? max_thickness : GMT[i];
+        mask[i] = (GMT[i] == 0) ? 1 : 0;
+    }
     vbdist(GMT, mask, dims, NULL, 1);
 
-    /* Apply smoothing */
+    /* Apply final smoothing */
     if (fwhm > 0.0) {
         if (verbose) fprintf(stderr,"Final correction\n");
         double s[3] = {fwhm, fwhm, fwhm};
@@ -311,7 +316,6 @@ int main(int argc, char *argv[])
     fill_holes(PPM, 1E-3, dims, DT_FLOAT32);
 
     /* Apply isotropic voxel size correction */
-    mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
     for (i = 0; i < src_ptr->nvox; i++) 
         GMT[i] *= mean_vx_size;
     
