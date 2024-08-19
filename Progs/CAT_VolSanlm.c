@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
         
         /* read first image to get image parameters */
         nii_ptr = read_nifti_float(infile, &input, 0);
-        if(nii_ptr == NULL) {
+        if (nii_ptr == NULL) {
                 fprintf(stderr,"Error reading %s.\n", infile);
                 return(EXIT_FAILURE);
         }

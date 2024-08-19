@@ -1397,7 +1397,7 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
             if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;          
             else GMT[i]  = GMTi;
         }
-    }
+    }    
 }
 
 /**
@@ -2666,7 +2666,7 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
     fprintf(stderr,"\n");
     
     // apply opening, but keep original values otherwise
-    morph_open_float(wm, dims, MAX(1,round(scale*strength)), 0.1, 1);
+    morph_open_float(wm, dims, MAX(1,roundf(scale*strength)), 0.1, 1);
 
     th = 13; // threshold for final cleanup 0.05*255
     for (i = 0; i < nvox; ++i) {

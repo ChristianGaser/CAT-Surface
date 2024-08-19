@@ -19,9 +19,9 @@ char *rms_file = NULL;
 /* the argument table */
 static ArgvInfo argTable[] = {
   {"-avg", ARGV_STRING, (char *) 1, (char *) &outfile, 
-     "Average."},
+     "Define name for average file."},
   {"-rms", ARGV_STRING, (char *) 1, (char *) &rms_file, 
-     "Root mean square error."},
+     "Define name for root mean square error file."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
