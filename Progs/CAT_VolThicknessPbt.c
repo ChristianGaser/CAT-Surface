@@ -23,7 +23,7 @@ int verbose = 0;
 int n_avgs = 4;
 int thin_cortex = 1;
 
-double fwhm = 1.0;
+double fwhm = 3.0;
 double min_thickness = 0.5;
 double max_thickness = 5.0;
 
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
     char *infile, out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
     int i, j, dims[3], replace = 0;
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM;
-    float *GMT_filtered, dist_CSF_val, dist_WM_val, mean_vx_size;
+    float dist_CSF_val, dist_WM_val, mean_vx_size;
     float mean_GMT, weight1, weight2, abs_dist;
     unsigned char *mask;
     double voxelsize[3], slope, add_value;
@@ -168,10 +168,9 @@ int main(int argc, char *argv[])
 
     GMT = (float *)malloc(sizeof(float)*src_ptr->nvox);
     PPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    GMT_filtered = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     /* check for memory faults */
-    if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !PPM || !GMT_filtered) {
+    if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !PPM) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -213,8 +212,6 @@ int main(int argc, char *argv[])
             dist_WM[i] += input[i];
     }
         
-    free(mask);
-
     /* Calculate average distances if n_avgs > 1 */
     if (n_avgs > 1) {
         for (i = 0; i < src_ptr->nvox; i++) {
@@ -222,12 +219,17 @@ int main(int argc, char *argv[])
             dist_WM[i]  /= (float) n_avgs;
         }
     }
+
+    /* fill small holes that cause topology artefacts */
+    fill_holes(dist_WM, 1E-3, dims, DT_FLOAT32);
+    fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
     
     /* Estimate cortical thickness (first using sulci measures */
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
-    for (i = 0; i < src_ptr->nvox; i++) input[i] = ROUND(src[i]);
-    projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize); 
-    
+    for (i = 0; i < src_ptr->nvox; i++) input[i] = src[i];
+
+    projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
+
     /* use minimum/maximum to reduce issues with meninges */
     for (i = 0; i < src_ptr->nvox; i++)
         GMT[i] = MIN(dist_WM[i]+dist_CSF[i], GMT[i]);
@@ -238,7 +240,7 @@ int main(int argc, char *argv[])
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
     for (i = 0; i < src_ptr->nvox; i++)
-        input[i] = ROUND(4.0 - src[i]);
+        input[i] = (4.0 - src[i]);
 
     GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
     if (!GMT2) {
@@ -247,8 +249,8 @@ int main(int argc, char *argv[])
     }
 
     /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
-    projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize); 
-    
+    projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
+
     for (i = 0; i < src_ptr->nvox; i++)
         GMT2[i] = MIN(dist_WM[i]+dist_CSF[i], GMT2[i]);
 
@@ -258,27 +260,21 @@ int main(int argc, char *argv[])
     /* use weighted average of thickness measures w.r.t. to distance to mean */
     for (i = 0; i < src_ptr->nvox; i++) {
       
-        abs_dist = GMT[i]  - mean_GMT;
+/*        abs_dist = GMT[i] - mean_GMT;
         if (abs_dist > 0) weight1 = 1.0/fabs(abs_dist);
         else weight1 = 100.0;
         
-        abs_dist = GMT2[i]  - mean_GMT;
+        abs_dist = GMT2[i] - mean_GMT;
         if (abs_dist > 0) weight2 = 1.0/fabs(abs_dist);
         else weight2 = 100.0;
-        
+*/        
+        weight1= 100.0; weight2 = 100.0;
         GMT[i] = (weight1*GMT[i] + weight2*GMT2[i])/(weight1 + weight2);
     }
     free(GMT2);
     free(input);
    
-    /* finally minimize outliers using median-filter */
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT_filtered[i] = GMT[i];
-
-    median3(GMT_filtered, NULL, dims, DT_FLOAT32);
-
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT[i]  = GMT_filtered[i];
+    median3(GMT, NULL, dims, DT_FLOAT32);
 
     /* Approximate thickness values outside GM or below minimum thickness */
     for (i = 0; i < src_ptr->nvox; i++) {
@@ -333,6 +329,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
     }
             
+    free(mask);
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
