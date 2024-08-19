@@ -52,8 +52,11 @@ static ArgvInfo argTable[] = {
      Use -1 for automatic estimation."},
   
   {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
-    "Specify how many times to apply a median filter to areas with\n\
-     topology artifacts to reduce these artifacts."},
+    "Specify the number of iterations to apply a median filter to areas\n\
+     where the gradient of the thresholded image indicates larger clusters.\n\
+     These clusters may point to potential topology artifacts and regions\n\
+     with high local variations. This process helps to smooth these areas, \n\
+     improving the quality of the surface reconstruction in subsequent steps."},
   
   {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
     "Turn off the additional morphological opening feature."},
@@ -61,10 +64,6 @@ static ArgvInfo argTable[] = {
   {"-no-genus0", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
     "Disable the genus0 functionality. This option skips topology\n\
      correction steps."},
-  
-  {"-no-thickness", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
-    "Avoid using cortical thickness for local correction in\n\
-     additional morphological opening."},
   
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
     "Enable verbose mode for detailed output during processing."},
@@ -92,19 +91,26 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
          with large gradient), with intermediate values scaled linearly.\n\
        - Weighting effect is enhanced by squaring the value.\n\
     \n\
-    2. **Morphological Opening:**\n\
+    2. **Preprocessing with Median Filter:**\n\
+       - Apply an iterative median filter to areas where the gradient of \n\
+         the thresholded image indicates larger clusters.\n\
+       - Use a weighted average of the original and median filterd images.\n\
+       - Weighting is estimated using gradient of the input image and.\n\
+         morphological operations to find larger clusters\n\
+    \n\
+    3. **Morphological Opening:**\n\
        - Apply additional morphological opening, scaled by `scl_open`,\n\
          to prevent gyri fusion and minimize local artifacts.\n\
        - Opening strength is determined by analyzing the impact of\n\
          different `scl_open` values and tracking RMSE changes.\n\
     \n\
-    3. **Extraction of the Largest Component:**\n\
+    4. **Extraction of the Largest Component:**\n\
        - Extract the largest component for further processing.\n\
     \n\
-    4. **Mesh Smoothing:**\n\
+    5. **Mesh Smoothing:**\n\
        - Smooth the extracted mesh.\n\
     \n\
-    5. **Mesh Correction in Folded Areas:**\n\
+    6. **Mesh Correction in Folded Areas:**\n\
        - Correct the mesh in areas with folds, particularly in gyri and\n\
          sulci, to counterbalance the averaging effect from smoothing.\n\
        - Use mean curvature average as a folding measure to estimate\n\
@@ -133,7 +139,7 @@ main(
     polygons_struct     *polygons;
     unsigned short      *input_uint16;
     unsigned char       *input_uint8, *vol_uint8;
-    float               *input_float, *vol_float, *grad;
+    float               *input_float, *vol_float, *grad, weight;
     nifti_image         *nii_ptr;
     mat44               nii_mat;
 
@@ -183,6 +189,7 @@ main(
         
     nvol = sizes[0]*sizes[1]*sizes[2];
 
+    grad         = (float *)malloc(nvol*sizeof(float));
     vol_float    = (float *)malloc(nvol*sizeof(float));
     input_uint16 = (unsigned short *) malloc(nvol*sizeof(unsigned short));  
     input_uint8  = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
@@ -202,7 +209,7 @@ main(
        - Enhanced Weighting: Weights are squared to emphasize larger weightings,
          providing a more robust distinction between regions of interest and outliers.
     */
-    if (pre_fwhm != 0.0) {
+    if (pre_fwhm > 0.0) {
     
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
@@ -210,7 +217,6 @@ main(
         smooth3(vol_float, sizes, voxelsize, s, 0, DT_FLOAT32);
         
         /* estimate magnitude of gradient for weighting the smoothing */
-        grad = (float *)malloc(nvol*sizeof(float));
         gradient3D_magnitude(input_float, grad, sizes);
 
         /* calculate mean of gradient (where gradient > 0) */
@@ -226,7 +232,6 @@ main(
 
         /* Protect values in sulci and gyri and weight areas with filtered values 
           depending on gradient of input image */
-        float weight;
         for (i = 0; i < nvol; i++) {
             /* estimate weight using gradient of input image and limit range to 0..1 */
             weight = (1.0/(mean_grad+0.2)) - (1.0/(grad[i]+0.2));
@@ -240,9 +245,43 @@ main(
             /* weighted average of filtered and original input */
             input_float[i] = (1.0 - weight)*input_float[i] + weight*vol_float[i];
         }
-        free(grad);
     }
 
+    /* Preprocessing with Median Filter:**\n\
+       - Apply an iterative median filter to areas where the gradient of
+         the thresholded image indicates larger clusters.\n\
+       - Use a weighted average of the original and median filterd images.
+       - Weighting is estimated using gradient of the input image and.
+         morphological operations to find larger clusters */
+    if (median_correction) {
+        /* Treshold the input image */
+        for (i = 0; i < nvol; i++)
+            vol_float[i] = input_float[i] >= min_threshold ? 1.0 : 0.0;
+            
+        /* Estimate amplitude of gradient */
+        gradient3D_magnitude(vol_float, grad, sizes);
+
+        /* Apply morphological operations to find and slightly increase 
+           regions with larger clusters */
+        morph_close(grad, sizes, 1, 0.75, DT_FLOAT32);
+        morph_open(grad, sizes, 1, 0.0, DT_FLOAT32);
+        morph_dilate(grad, sizes, 3, 0.0, DT_FLOAT32);
+        
+        /* Smooth the gradient image to later apply weighted average */
+        double s[] = {3.0, 3.0, 3.0};
+        smooth3(grad, sizes, voxelsize, s, 0, DT_FLOAT32);
+
+        for (i = 0; i < nvol; i++)
+            vol_float[i] = input_float[i];
+            
+        /* Apply iterative median filter */
+        for (i = 0; i < median_correction; i++) median3(vol_float, NULL, sizes, DT_FLOAT32);
+
+        /* Calculate weighted average of filtered and original input */
+        for (i = 0; i < nvol; i++)
+            input_float[i] = (1.0 - grad[i])*input_float[i] + grad[i]*vol_float[i];
+    }
+            
     /* Analyzing the Impact of scl_open Values
        - Range: scl_open values are analyzed between 1.5 and 0.5 using distopen.
        - Purpose: To track RMSE (Root Mean Square Error) changes across these values.
@@ -332,7 +371,6 @@ main(
             vol_uint8[i] = input_uint8[i];   
 
         count++;        
-
     }
     
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
@@ -355,7 +393,7 @@ main(
     g0->verbose = 0;
     g0->return_surface = 0;
     g0->extraijkscale[2] = 1;
-        
+    
     /* don't call loop if genus0 is not forced */
     if (any_genus) count = 10; else count = 0;
     
@@ -376,7 +414,7 @@ main(
         /* save results as next input */
         for (i = 0; i < nvol; i++)
             input_uint16[i] = g0->output[i];
-            
+
         /* call genus0 a 2nd time with other parameters */
         g0->input = input_uint16;
         g0->cut_loops = 1;
@@ -385,7 +423,7 @@ main(
         g0->alt_contour_value = 0;
     
         if (genus0(g0)) return(1); 
-    
+ 
         /* apply median-correction and only consider the dilated areas */
         if (median_correction) {
             /* find areas that were corrected for topology artefacts and dilate them */
@@ -412,7 +450,7 @@ main(
 
         for (i = 0; i < nvol; i++)
             vol_float[i] = (float)g0->output[i];
-
+            
         /* extract surface to check euler number */
         extract_isosurface(vol_float, sizes,
                   min_label, max_label,
@@ -430,6 +468,7 @@ main(
         polygons = get_polygons_ptr(object3);
         EC = euler_characteristic(polygons);
         count++;
+fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
         /* save results as next input */
         for (i = 0; i < nvol; i++)
@@ -438,7 +477,7 @@ main(
     }
 
     free(input_uint8);
-    
+
     if (n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
     fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
@@ -458,6 +497,7 @@ main(
 
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
+    free(grad);
     free(vol_uint8);
     free(input_uint16);
     free(input_float);
