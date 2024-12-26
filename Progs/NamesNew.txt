@@ -1,0 +1,67 @@
+CAT_ApplyWarpSPH          deprecated/
+CAT_GlmEstimate           deprecated/
+CAT_GlmMath               deprecated/
+CAT_WarpSurfPoly          deprecated/
+CAT_WarpSurfSPH           deprecated/
+CAT_MarchingCubesTopological  deprecated/
+CAT_Color2Surf            deprecated/
+CAT_DeformSurf            deprecated/
+CAT_FractalSurface        deprecated/
+CAT_GIPhantom             deprecated/
+CAT_Surf2Surf             deprecated/
+CAT_VolConvert            deprecated/
+CAT_Surf2Vol              deprecated/
+
+CAT_3dVol2Surf            CAT_VolMap2Surf
+CAT_MarchingCubesGenus0   CAT_VolMarchingCubes
+
+CAT_AddValuesToSurf       CAT_SurfAddValues
+CAT_ApplyWarpSurf         CAT_SurfApplyWarp
+CAT_ApplyWarpValues       CAT_SurfApplyWarpValues
+CAT_Artifacts             CAT_SurfArtifacts
+CAT_AverageSurfaces       CAT_SurfAverage
+CAT_Central2Pial          CAT_SurfCentral2Pial
+CAT_DeformMesh            CAT_SurfDeformTest
+CAT_DumpCurv              CAT_SurfCurvature
+CAT_DumpGI                CAT_SurfGyrificationIndexTest1
+CAT_DumpGyrificationIndex CAT_SurfGyrificationIndexTest2
+CAT_DumpSurfArea          CAT_SurfArea
+CAT_DumpSurfaceRatio      CAT_SurfRatio
+CAT_FixTopology           CAT_SurfFixTopology
+CAT_FractalDimension      CAT_SurfFractalDimension
+CAT_FreesurferCurv2Txt    CAT_SurfMesure2Txt
+CAT_Hausdorff             CAT_SurfHausdorff
+CAT_Isometize             CAT_SurfIsometize
+CAT_MarkDefects           CAT_SurfMarkDefects 
+CAT_MetricDistortion      CAT_SurfMetricDistortion
+CAT_PlotValuesAtMaximum   CAT_SurfPlotValuesAtMaximum
+CAT_PlotValuesAtPoint     CAT_SurfPlotValuesAtPoint
+CAT_RefineMesh            CAT_SurfRefine
+CAT_ResampleSphericalSurf CAT_SurfResampleSpherical
+CAT_ResampleSphericalSurfSPH  CAT_SurfResampleSphericalSPH
+CAT_ResampleSurf          CAT_SurfResample
+CAT_SPH2Surf              CAT_SurfSPH2Surf
+CAT_SelfIntersect         CAT_SurfSelfIntersect
+CAT_SeparateCluster       CAT_SurfSeparateClusters
+CAT_SeparatePolygon       CAT_SurfSeparatePolygons
+CAT_Sheet2Surf            CAT_SurfSheet2Surf
+CAT_AngularDistortion     CAT_SurfAngularDistortion
+CAT_AreaDistortion        CAT_SurfAreaDistortion
+CAT_DumpConvexity         CAT_SurfConvexity
+CAT_Sharpness             CAT_SurfSharpness
+CAT_DumpDepthPotential    CAT_SurfDepthPotential 
+CAT_BlurSurfHK            CAT_SurfSmooth
+CAT_SmoothConvexity       CAT_SurfSmoothConvexity
+CAT_SmoothDiffusion       CAT_SurfSmoothDiffusion
+CAT_SmoothSharpness       CAT_SurfSmoothSharpness
+CAT_ArealSmoothing        CAT_SurfSmoothAreal
+CAT_SulcusDepth           CAT_SurfSulcusDepth
+CAT_WarpSurf              CAT_SurfWarp
+CAT_WarpSurfDemon         CAT_SurfWarpDemon
+CAT_Surf2ConvexHull       
+CAT_Surf2SPH
+CAT_Surf2Sheet
+CAT_Surf2Sphere
+CAT_SurfConvert
+CAT_SurfDistance
+CAT_Test

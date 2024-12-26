@@ -1394,8 +1394,8 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
             GMTi = CSFD[i] + WMD[i];
             CSFDi = GMT[i] - WMD[i];
 
-            if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;          
-            else GMT[i]  = GMTi;
+            /*if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;          
+            else GMT[i]  = GMTi;*/
         }
     }    
 }
