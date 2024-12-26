@@ -96,6 +96,8 @@ Options:\n\
     -fwhm <float>      Define FWHM for final thickness smoothing.\n\
     -no-min-thickness  Use a simpler thickness estimation approach based on sulci only.\n\
     -no-thin-cortex    Do not slightly shift border between GM/WM for thinner cortices.\n\
+    -min-thickness     Set the minimum thickness that is expected.\n\
+    -max-thickness     Set the maximum thickness that is expected.\n\
 \n\
 Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
@@ -109,7 +111,7 @@ int main(int argc, char *argv[])
     int i, j, dims[3], replace = 0;
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM;
     float dist_CSF_val, dist_WM_val, mean_vx_size;
-    float mean_GMT, weight1, weight2, abs_dist;
+    float mean_GMT, abs_dist;
     unsigned char *mask;
     double voxelsize[3], slope, add_value;
     nifti_image *src_ptr, *out_ptr;
@@ -257,25 +259,19 @@ int main(int argc, char *argv[])
     /* get overall mean thickness */
     mean_GMT = mean_GMT/2.0 + get_mean_float(GMT2, src_ptr->nvox)/2.0;
 
-    /* use weighted average of thickness measures w.r.t. to distance to mean */
-    for (i = 0; i < src_ptr->nvox; i++) {
-      
-/*        abs_dist = GMT[i] - mean_GMT;
-        if (abs_dist > 0) weight1 = 1.0/fabs(abs_dist);
-        else weight1 = 100.0;
-        
-        abs_dist = GMT2[i] - mean_GMT;
-        if (abs_dist > 0) weight2 = 1.0/fabs(abs_dist);
-        else weight2 = 100.0;
-*/        
-        weight1= 100.0; weight2 = 100.0;
-        GMT[i] = (weight1*GMT[i] + weight2*GMT2[i])/(weight1 + weight2);
-    }
+    /* use average of thickness measures */
+    for (i = 0; i < src_ptr->nvox; i++)      
+        GMT[i] = (GMT[i] + GMT2[i])/2;
+
     free(GMT2);
     free(input);
    
     median3(GMT, NULL, dims, DT_FLOAT32);
 
+    /* Re-estimate CSF distance using corrected GM thickness */
+    for (i = 0; i < src_ptr->nvox; i++)
+        dist_CSF[i] = GMT[i] - dist_WM[i];
+    
     /* Approximate thickness values outside GM or below minimum thickness */
     for (i = 0; i < src_ptr->nvox; i++) {
         GMT[i]  = ((GMT[i]*mean_vx_size) < min_thickness) ? 0.0 : GMT[i];
