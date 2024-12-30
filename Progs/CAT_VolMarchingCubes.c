@@ -132,7 +132,7 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
     7. **Mesh Correction in Areas with Intersections:**\n\
        - Apply local surface smoothing to resulting surface in areas where\n\
          the distance between the surface and a shifted surface is below \n\
-         the expected distance,which happens due to intersections of the \n\
+         the expected distance, which happens due to intersections of the \n\
          surface.\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
@@ -188,8 +188,8 @@ main(
 
     nii_ptr = read_nifti_float(input_filename, &input_float, 0);
     if (!nii_ptr) {
-            fprintf(stderr,"Error reading %s.\n", input_filename);
-            return(EXIT_FAILURE);
+        fprintf(stderr,"Error reading %s.\n", input_filename);
+        return(EXIT_FAILURE);
     }
 
     nii_mat = nii_ptr->sto_xyz; /* 4x4 transformation matrix */
@@ -555,6 +555,7 @@ main(
             values[i] = MAX(0.0, values[i]);
             values[i] = values[i]*values[i];
         }
+        
         /* smooth values to obtain a smooth border */
         smooth_heatkernel(polygons, values, 5.0);
         

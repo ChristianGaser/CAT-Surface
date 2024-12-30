@@ -64,79 +64,79 @@ main(int argc, char *argv[])
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0) ||
-            ((argc < 4) && (thickness_file == NULL)) ||
-            ((argc < 3) && (thickness_file != NULL))) {
-                usage(argv[0]);
-                fprintf(stderr, "       %s -help\n\n", argv[0]);
-                exit(EXIT_FAILURE);
+          ((argc < 4) && (thickness_file == NULL)) ||
+          ((argc < 3) && (thickness_file != NULL))) {
+            usage(argv[0]);
+            fprintf(stderr, "       %s -help\n\n", argv[0]);
+            exit(EXIT_FAILURE);
         }
 
         initialize_argument_processing(argc, argv);
 
         get_string_argument(NULL, &object_file);
         if (thickness_file == NULL)
-                get_string_argument(NULL, &object2_file);
+            get_string_argument(NULL, &object2_file);
         else {
-                if (input_values_any_format(thickness_file, &n_values, &thickness_values) != OK)
-                        exit(EXIT_FAILURE);
+            if (input_values_any_format(thickness_file, &n_values, &thickness_values) != OK)
+                exit(EXIT_FAILURE);
         }
         get_string_argument(NULL, &output_surface_file);
 
         if (input_graphics_any_format(object_file, &format,
                                       &n_objects, &objects) != OK) {
-                exit(EXIT_FAILURE);
+            exit(EXIT_FAILURE);
         }
 
         if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-                printf("File must contain 1 polygons object.\n");
-                exit(EXIT_FAILURE);
+            printf("File must contain 1 polygons object.\n");
+            exit(EXIT_FAILURE);
         }
 
         polygons  = get_polygons_ptr(objects[0]);
 
         if (thickness_file == NULL) { /* two surfaces defined */ 
-                if (input_graphics_any_format(object2_file, &format,
-                                              &n_objects, &objects2) != OK) {
-                        exit(EXIT_FAILURE);
-                }
+            if (input_graphics_any_format(object2_file, &format,
+                                          &n_objects, &objects2) != OK) {
+                exit(EXIT_FAILURE);
+            }
         } else { /* thickness flag and one surface defined */
-                extents = (double *) malloc(sizeof(double) * polygons->n_points);
-                
-                /* obtain pial surface */
-                for (i = 0; i < polygons->n_points; i++) extents[i] = 0.5;
-                objects2 = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
-                
-                /* obtain white surface */
-                for (i = 0; i < polygons->n_points; i++) extents[i] = -0.5;
-                objects = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
-                polygons = get_polygons_ptr(objects[0]);
+            extents = (double *) malloc(sizeof(double) * polygons->n_points);
+            
+            /* obtain pial surface */
+            for (i = 0; i < polygons->n_points; i++) extents[i] = 0.5;
+            objects2 = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
+            
+            /* obtain white surface */
+            for (i = 0; i < polygons->n_points; i++) extents[i] = -0.5;
+            objects = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
+            polygons = get_polygons_ptr(objects[0]);
 
-                free(extents);
+            free(extents);
         }
 
         polygons2 = get_polygons_ptr(objects2[0]);
         
         if (n_objects != 1 || get_object_type(objects2[0]) != POLYGONS) {
-                printf("File must contain 1 polygons object.\n");
-                exit(EXIT_FAILURE);
+            printf("File must contain 1 polygons object.\n");
+            exit(EXIT_FAILURE);
         }
 
         if ((polygons->n_items != polygons2->n_items ||
                       polygons->n_points != polygons2->n_points)) {
-                fprintf(stderr, "Number of vertices between surfaces don't match. Exiting.\n");
-                exit(EXIT_FAILURE);
+            fprintf(stderr, "Number of vertices between surfaces don't match. Exiting.\n");
+            exit(EXIT_FAILURE);
         }
 
         distance = (double *) malloc(sizeof(double) * polygons->n_points);
 
         if (dist_func == Tfs) /* mean of both distances */
-                max_distance = compute_point_distance_mean(polygons, polygons2, distance, 0);
+            max_distance = compute_point_distance_mean(polygons, polygons2, distance, 0);
         else                  /* linked distance */
-                max_distance = compute_point_distance(polygons, polygons2, distance, 0);
+            max_distance = compute_point_distance(polygons, polygons2, distance, 0);
 
         if (output_values_any_format(output_surface_file, polygons->n_points,
                                      distance, TYPE_DOUBLE) != OK) {
-                exit(EXIT_FAILURE);
+            exit(EXIT_FAILURE);
         }
 
         delete_object_list(n_objects, objects);
