@@ -224,7 +224,7 @@ main(int argc, char *argv[])
      * smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0.0) {
         fprintf(stdout,"Bias correction\n");
-        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
+        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, 0);
     }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);

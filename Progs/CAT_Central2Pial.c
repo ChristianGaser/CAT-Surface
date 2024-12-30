@@ -113,10 +113,10 @@ main(int argc, char *argv[])
                                 extents[p] = extent;
                         else {
                                 /* eq. 10 from Waehnert et al. 2014 */
-                                extents[p] = (1.0/(area_outer[p]-area_inner[p]))*
-                                             (sqrt((pos*area_outer[p]*area_outer[p]) + ((1.0-pos)*area_inner[p]*area_inner[p]))-area_inner[p]);
+                                extents[p] = (1.0/(area_outer[p] - area_inner[p]))*
+                                             (sqrt((pos*area_outer[p]*area_outer[p]) + ((1.0 - pos)*area_inner[p]*area_inner[p])) - area_inner[p]);
                                 extents[p] -= 0.5; /* subtract offset of 0.5 that was added to pos */            
-                                extents[p] = weight*extents[p] + (1.0-weight)*extent;            
+                                extents[p] = weight*extents[p] + (1.0 - weight)*extent;            
                         }                
                 }
                 free(area_inner);

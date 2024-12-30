@@ -261,8 +261,7 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                 free(polygonsIn);
         } else {
 
-                initialize_progress_report(&progress, FALSE, polygons->n_items,
-                                   "Computing Curvatures");
+                //initialize_progress_report(&progress, FALSE, polygons->n_items, "Computing Curvatures");
 
                 for (p = 0; p < polygons->n_items; p++) {
                         size = GET_OBJECT_SIZE(*polygons, p);
@@ -299,10 +298,10 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                                 }
                         }
 
-                        update_progress_report(&progress, p + 1);
+                        //update_progress_report(&progress, p + 1);
                 }
 
-                terminate_progress_report(&progress);
+                //terminate_progress_report(&progress);
         }
 
         if (smoothing_distance > 0.0)

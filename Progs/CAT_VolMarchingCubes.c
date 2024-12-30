@@ -18,14 +18,16 @@
 #include "genus0.h"
 
 /* argument defaults */
+double local_smoothing = 10.0;
 double min_threshold = 0.5;
-double post_fwhm = 1.0;
-double pre_fwhm =  2.0;
+double post_fwhm = 2.0;
+double pre_fwhm = -2.0;
 double scl_open = 0.9;
-int median_correction = 4;
+int median_correction = 2;
 int use_distopen = 1;
 int any_genus = 0;
 int verbose = 0;
+int iter = 10;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -39,7 +41,9 @@ static ArgvInfo argTable[] = {
      creating a weighted average between original and smoothed\n\
      images based on the gradient of the input image. Areas with \n\
      topology artefacts are often characterized by large gradients,\n\
-     thus smoothing in these areas tries to prevent these artefacts."},
+     thus smoothing in these areas tries to prevent these artefacts.\n\
+     A negative value will force masked smoothing, which may\n\
+     preserves gyri and sulci even better."},
 
   {"-post-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &post_fwhm,
     "Set FWHM for surface smoothing. This aids in correcting the mesh\n\
@@ -57,6 +61,14 @@ static ArgvInfo argTable[] = {
      These clusters may point to potential topology artifacts and regions\n\
      with high local variations. This process helps to smooth these areas, \n\
      improving the quality of the surface reconstruction in subsequent steps."},
+  
+  {"-iter", ARGV_INT, (char *) TRUE, (char *) &iter,
+    "Number of iterations."},
+  
+  {"-local-smoothing", ARGV_FLOAT, (char *) TRUE, (char *) &local_smoothing,
+    "Apply local surface smoothing to resulting surface in areas where the distance\n\
+     between the surface and a shifted surface is below the expected distance,\n\
+     which happens due to intersections of the surface."},
   
   {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
     "Turn off the additional morphological opening feature."},
@@ -116,7 +128,12 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
        - Use mean curvature average as a folding measure to estimate\n\
          necessary compensation.\n\
        - Compensation degree is auto-calculated based on deviation\n\
-         from the defined isovalue.\n\n";
+         from the defined isovalue.\n\;
+    7. **Mesh Correction in Areas with Intersections:**\n\
+       - Apply local surface smoothing to resulting surface in areas where\n\
+         the distance between the surface and a shifted surface is below \n\
+         the expected distance,which happens due to intersections of the \n\
+         surface.\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
@@ -130,13 +147,14 @@ main(
     char                *input_filename, *output_filename;
     double              min_label, max_label, start_scl_open, dist;
     double              valid_low, valid_high, val, RMSE, sum_RMSE;
-    double              voxelsize[N_DIMENSIONS];
-    int                 i, j, k,c ;
+    double              *values, *extents, voxelsize[N_DIMENSIONS];
+    double              x, y, z, min_value, max_value;
+    int                 i, j, k, c ;
     int                 n_out, EC, sizes[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
     Marching_cubes_methods    method;
-    object_struct       *object, **object2, *object3;
-    polygons_struct     *polygons;
+    object_struct       *object, **object2, *object3, **object4;
+    polygons_struct     *polygons, *smooth_polygons;
     unsigned short      *input_uint16;
     unsigned char       *input_uint8, *vol_uint8;
     float               *input_float, *vol_float, *grad, weight;
@@ -209,12 +227,12 @@ main(
        - Enhanced Weighting: Weights are squared to emphasize larger weightings,
          providing a more robust distinction between regions of interest and outliers.
     */
-    if (pre_fwhm > 0.0) {
+    if (pre_fwhm != 0.0) {
     
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
-        double s[] = {pre_fwhm, pre_fwhm, pre_fwhm};
-        smooth3(vol_float, sizes, voxelsize, s, 0, DT_FLOAT32);
+        double s[] = {fabs(pre_fwhm), fabs(pre_fwhm), fabs(pre_fwhm)};
+        smooth3(vol_float, sizes, voxelsize, s, (pre_fwhm < 0.0), DT_FLOAT32);
         
         /* estimate magnitude of gradient for weighting the smoothing */
         gradient3D_magnitude(input_float, grad, sizes);
@@ -270,7 +288,9 @@ main(
         /* Smooth the gradient image to later apply weighted average */
         double s[] = {3.0, 3.0, 3.0};
         smooth3(grad, sizes, voxelsize, s, 0, DT_FLOAT32);
+    }
 
+    if (median_correction) {
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
             
@@ -373,6 +393,9 @@ main(
         count++;        
     }
     
+    for (i = 0; i < nvol; i++)
+        grad[i] = 0.0;   
+
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
 
     genus0init(g0); /* initialize the instance, set default parameters */
@@ -400,7 +423,7 @@ main(
     EC = -1;
     
     /* repeat until EC is 2 or max. count is reached */
-    while ((EC != 2) && (count < 10)) {        
+    while ((EC != 2) && (count < iter)) {        
         /* call genus0 for the 1st time */
         g0->input = input_uint16;
         g0->cut_loops = 0;
@@ -411,6 +434,9 @@ main(
         /* call the function */
         if (genus0(g0)) return(1); /* check for error */
     
+        for (i = 0; i < nvol; i++)
+            if (g0->output[i] != g0->input[i]) grad[i] = 1.0;   
+
         /* save results as next input */
         for (i = 0; i < nvol; i++)
             input_uint16[i] = g0->output[i];
@@ -423,6 +449,9 @@ main(
         g0->alt_contour_value = 0;
     
         if (genus0(g0)) return(1); 
+
+        for (i = 0; i < nvol; i++)
+            if (g0->output[i] != g0->input[i]) grad[i] = 1.0;   
  
         /* apply median-correction and only consider the dilated areas */
         if (median_correction) {
@@ -468,7 +497,7 @@ main(
         polygons = get_polygons_ptr(object3);
         EC = euler_characteristic(polygons);
         count++;
-fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
+        if (verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
         /* save results as next input */
         for (i = 0; i < nvol; i++)
@@ -479,7 +508,7 @@ fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
     free(input_uint8);
 
     if (n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
-    fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
+    if (!verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
     /* Mesh Correction in Folded Areas
        - Objective: To compensate for the averaging effect observed in gyri and sulci.
@@ -495,6 +524,57 @@ fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
         correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
 
+    /* Mesh Correction in Areas with Intersections
+       - Objective: To correct areas with intersections
+       - Method: Apply local surface smoothing to resulting surface in areas 
+         where the distance between the surface and a shifted surface is below 
+         the expected distance, which happens due to intersections of the surface.
+    */
+    if (local_smoothing > 0.0) {
+        values  = (double *) malloc(sizeof(double) * polygons->n_points);
+        extents = (double *) malloc(sizeof(double) * polygons->n_points);
+
+        smooth_polygons = (polygons_struct *) malloc(sizeof(polygons_struct));
+        copy_polygons(polygons, smooth_polygons);
+
+        for (i = 0; i < polygons->n_points; i++) {
+            extents[i] = 0.1;
+            values[i]  = 3.0;
+        }
+
+        object4 = central_to_new_pial(polygons, values, extents, 0);
+        compute_exact_hausdorff(polygons, get_polygons_ptr(object4[0]), values, 0);
+        smooth_heatkernel(polygons, values, 5.0);
+        
+        min_value = 0.25;
+        max_value = 0.3;
+        for (i = 0; i < polygons->n_points; i++) {
+            /* scale values between 0.25..0.3 and force min=0 and max=1 */
+            values[i] = (values[i] - min_value)/(max_value - min_value);
+            values[i] = MIN(1.0, values[i]);
+            values[i] = MAX(0.0, values[i]);
+            values[i] = values[i]*values[i];
+        }
+        /* smooth values to obtain a smooth border */
+        smooth_heatkernel(polygons, values, 5.0);
+        
+        /* obtain smoothed surface */
+        smooth_heatkernel(smooth_polygons, NULL, local_smoothing);
+
+        /* use smoothed or original surface w.r.t. weighting */ 
+        for (i = 0; i < polygons->n_points; i++)
+            Point_x(polygons->points[i]) = values[i]*Point_x(polygons->points[i]) + (1.0 - values[i])*Point_x(smooth_polygons->points[i]);
+
+        compute_polygon_normals(smooth_polygons);
+        free(smooth_polygons);
+
+        output_values_any_format("localweight.txt", polygons->n_points,
+                     values, TYPE_DOUBLE);
+        free(values);
+        free(extents);
+    }
+    
+    compute_polygon_normals(get_polygons_ptr(object3));
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
     free(grad);
