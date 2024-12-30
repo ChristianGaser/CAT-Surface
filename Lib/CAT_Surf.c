@@ -1615,7 +1615,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
  * check_polygons_shape_integrity.
  */
 object_struct **
-central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
+central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, double *positions, int check_intersects)
 {
     polygons_struct *polygons_out;
     object_struct **objects_out;
@@ -1625,7 +1625,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
     polygons_out = get_polygons_ptr(*objects_out);
     
     copy_polygons(polygons, polygons_out);
-    central_to_pial(polygons_out, thickness_values, extents, check_intersects);
+    central_to_pial(polygons_out, thickness_values, extents, positions, check_intersects);
     
     return(objects_out);
 }
@@ -1635,7 +1635,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
  * an extent of 0.5 should be used, while an extent of -0.5 results in the estimation of the white matter surface.
  */
 void
-central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
+central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, double *positions, int check_intersects)
 {
     int *defects, *polydefects, n_intersects;
     int *n_neighbours, **neighbours;
@@ -1732,7 +1732,7 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
     extents = (double *) malloc(sizeof(double) * polygons->n_points);                
     for (p = 0; p < polygons->n_points; p++) extents[p] = extent;
 
-    objects_transformed = central_to_new_pial(polygons, thickness_values, extents, 0);
+    objects_transformed = central_to_new_pial(polygons, thickness_values, extents, NULL, 0);
     polygons_transformed = get_polygons_ptr(objects_transformed[0]);
     surface_area = get_area_of_points(polygons_transformed, area);
     

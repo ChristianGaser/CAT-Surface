@@ -128,7 +128,7 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
        - Use mean curvature average as a folding measure to estimate\n\
          necessary compensation.\n\
        - Compensation degree is auto-calculated based on deviation\n\
-         from the defined isovalue.\n\;
+         from the defined isovalue.\n\
     7. **Mesh Correction in Areas with Intersections:**\n\
        - Apply local surface smoothing to resulting surface in areas where\n\
          the distance between the surface and a shifted surface is below \n\
@@ -542,7 +542,7 @@ main(
             values[i]  = 3.0;
         }
 
-        object4 = central_to_new_pial(polygons, values, extents, 0);
+        object4 = central_to_new_pial(polygons, values, extents, NULL, 0);
         compute_exact_hausdorff(polygons, get_polygons_ptr(object4[0]), values, 0);
         smooth_heatkernel(polygons, values, 5.0);
         

@@ -126,7 +126,7 @@ main(int argc, char *argv[])
             extents[p] = extent;
     }
     
-    objects_out = central_to_new_pial(polygons, thickness_values, extents, check_intersect);
+    objects_out = central_to_new_pial(polygons, thickness_values, extents, NULL, check_intersect);
 
     if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
         exit(EXIT_FAILURE);
