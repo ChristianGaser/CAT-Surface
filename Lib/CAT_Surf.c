@@ -65,12 +65,12 @@ from_array(double *xyz, Point *p) {
 double *
 get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
 {
-    int    i, j, x, y, z, a, b, c, nan = 0;
-    double   *lf, *avol;
-    int    size, poly_size;
-    double   area, asum, total_area, mean_surface_ratio;
-    char   str[512];
-    Point  points[MAX_POINTS_PER_POLYGON];
+    int i, j, x, y, z, a, b, c, nan = 0;
+    int size, poly_size;
+    double *lf, *avol;
+    double area, asum, total_area, mean_surface_ratio;
+    char str[512];
+    Point points[MAX_POINTS_PER_POLYGON];
     progress_struct progress;
     
     avol = (double *) calloc(256*256*256, sizeof(double));
@@ -128,17 +128,13 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
                 for (z = -radius; z <= radius; z++) {
                     if (x*x + y*y + z*z < radius*radius) {
                         *points = polygons->points[i];
-                        a = x + 128 +
-                          (int) Point_x(*points);
-                        b = y + 128 +
-                          (int) Point_y(*points);
-                        c = z + 128 +
-                          (int) Point_z(*points);
+                        a = x + 128 + (int) Point_x(*points);
+                        b = y + 128 + (int) Point_y(*points);
+                        c = z + 128 + (int) Point_z(*points);
                         if (a >= 0 && a < 256 &&
                           b >= 0 && b < 256 &&
                           c >= 0 && c < 256)
-                            asum += avol[c*65536 +
-                                   b*256 + a];
+                            asum += avol[c*65536 + b*256 + a];
                     }
                 }
             }
@@ -174,11 +170,11 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
 double
 get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_struct *sphere, double *area_values)
 {
-    double      area, *area_values_resampled, *areas_sphere, area_sum = 0.0;
-    int       i, n_points;
+    double area, *area_values_resampled, *areas_sphere, area_sum = 0.0;
+    int i, n_points;
     object_struct **object;
     polygons_struct *resampled, *resampled_sphere;
-    Point     center;
+    Point center;
     
     n_points = 81920;
     
@@ -218,11 +214,11 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
 double
 get_area_of_points(polygons_struct *polygons, double *area_values)
 {
-    int       *pcount;
-    double      poly_size, area;
-    Point     points[MAX_POINTS_PER_POLYGON];
-    int       ptidx, poly, vertidx, size;
-    double      surface_area = 0.0;
+    int *pcount;
+    int ptidx, poly, vertidx, size;
+    double poly_size, area;
+    double surface_area = 0.0;
+    Point points[MAX_POINTS_PER_POLYGON];
 
     pcount = (int *) malloc(sizeof(int) * polygons->n_points);
     memset(pcount, 0, sizeof(int) * polygons->n_points);
@@ -257,9 +253,9 @@ get_area_of_points(polygons_struct *polygons, double *area_values)
 double
 get_area_of_polygons(polygons_struct *polygons, double *area_values)
 {
-    int       poly, size;
-    double      surface_area = 0.0;
-    Point     points[MAX_POINTS_PER_POLYGON];
+    int poly, size;
+    double surface_area = 0.0;
+    Point points[MAX_POINTS_PER_POLYGON];
 
     for (poly = 0; poly < polygons->n_items; poly++) {    
         size = get_polygon_points(polygons, poly, points);
@@ -274,9 +270,9 @@ get_area_of_polygons(polygons_struct *polygons, double *area_values)
 void
 correct_bounds_to_target(polygons_struct *polygons, polygons_struct *target)
 {
-    int    i, j;
+    int i, j;
     double bounds_dest[6], bounds_src[6];
-    Point  center;
+    Point center;
 
     /* Calc. sphere center based on bounds of input (correct for shifts) */    
     get_bounds(polygons, bounds_src);
@@ -294,9 +290,9 @@ correct_bounds_to_target(polygons_struct *polygons, polygons_struct *target)
 void
 correct_bounds_to_target_with_scaling(polygons_struct *polygons, polygons_struct *target)
 {
-    int    i, j;
+    int i, j;
     double bounds_dest[6], bounds_src[6];
-    Point  center;
+    Point center;
 
     /* Calc. sphere center based on bounds of input (correct for shifts) */    
     get_bounds(polygons, bounds_src);
@@ -358,7 +354,7 @@ get_sphere_radius(polygons_struct *polygons)
 void
 set_vector_length(Point *p, double newLength)
 {
-    int   j;
+    int j;
     const double len = sqrt(Point_x(*p)*Point_x(*p) + 
                 Point_y(*p)*Point_y(*p) +
                 Point_z(*p)*Point_z(*p));
@@ -409,7 +405,7 @@ get_bounds(polygons_struct *polygons, double bounds[6])
 int
 count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[])
 {
-    int    p, n, nn, n_edges, n_duplicate_edges;
+    int p, n, nn, n_edges, n_duplicate_edges;
 
     n_edges = 0;
     n_duplicate_edges = 0;
@@ -588,11 +584,11 @@ void
 apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
        int *dm, int inverse)
 {
-    Point       centre, unit_point, *new_points;
-    polygons_struct   unit_sphere;
-    double        xm, ym, xp, yp, x0, x1, y0, y1, weight;
-    double        *udeform, *vdeform, u, v, *ux, *vy;
-    int         i, j, p, x, y, m = dm[0]*dm[1];
+    Point centre, unit_point, *new_points;
+    polygons_struct unit_sphere;
+    double xm, ym, xp, yp, x0, x1, y0, y1, weight;
+    double *udeform, *vdeform, u, v, *ux, *vy;
+    int i, j, p, x, y, m = dm[0]*dm[1];
 
     if (sphere == NULL) {
         /* create unit sphere w/ same # of triangles as skin surf */
@@ -707,12 +703,12 @@ void
 apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
         double *vy, int inverse)
 {
-    Point       centre, unit_point, *new_points, trans_point;
-    polygons_struct   unit_sphere;
-    double        u, v, x, y, z;
-    double        indx, indy;
-    double        xo, yo, zo;
-    int         i, p, ind;
+    Point centre, unit_point, *new_points, trans_point;
+    polygons_struct unit_sphere;
+    double u, v, x, y, z;
+    double indx, indy;
+    double xo, yo, zo;
+    int i, p, ind;
 
     copy_polygons(sphere, &unit_sphere);
     
@@ -767,11 +763,11 @@ void
 apply_poly_warp(polygons_struct *polygons, polygons_struct *sphere,
         double *flow, int inverse)
 {
-    Point       centre, unit_point, *new_points, trans_point;
-    polygons_struct   unit_sphere;
-    double        u, v, x, y, z, ux, vy;
-    double        indx, indy;
-    int         i, p, ind;
+    Point centre, unit_point, *new_points, trans_point;
+    polygons_struct unit_sphere;
+    double u, v, x, y, z, ux, vy;
+    double indx, indy;
+    int i, p, ind;
 
     copy_polygons(sphere, &unit_sphere);
     /* set radius to 1 */
@@ -853,7 +849,7 @@ void
 convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *polygons,
                         double desiredSurfaceArea)
 {
-    int   i;
+    int i;
     double radius, A, B, C, A2, B2, C2;
     double t1, t2, t3, f;
     double bounds[6];
@@ -906,13 +902,12 @@ linear_smoothing(polygons_struct *polygons, double strength, int iters,
          int smoothEdgesEveryXIters, int *smoothOnlyTheseNodes,
          int projectToSphereEveryXIters)
 {
-    int   i, j, k, l;
-    int   *n_neighbours, **neighbours;
-    int   pidx;
-    double  xyz[3], pt[3];
-
+    int i, j, k, l;
+    int *n_neighbours, **neighbours;
+    int pidx;
     BOOLEAN smoothSubsetOfNodes = 0;
     const double invstr = 1.0 - strength;
+    double  xyz[3], pt[3];
     double radius = get_sphere_radius(polygons);
   
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
@@ -973,15 +968,14 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
         int smoothEdgesEveryXIters, int *smoothOnlyTheseNodes,
         int projectToSphereEveryXIters)
 {
-    int   i, j, k, l;
-    int   n1, n2, next;
-    int   *n_neighbours, **neighbours;
-    double  *area_values;
+    int i, j, k, l;
+    int n1, n2, next;
+    int *n_neighbours, **neighbours;
+    double *area_values;
     Point pts[1000];
-    double  tileAreas[32], tileCenters[32*3];
-    double  xyz[3], pt1[3], pt2[3], pt3[3];
-    double  totalArea, weight;
-
+    double tileAreas[32], tileCenters[32*3];
+    double xyz[3], pt1[3], pt2[3], pt3[3];
+    double totalArea, weight;
     BOOLEAN smoothSubsetOfNodes = 0;
     BOOLEAN smoothEdges, smoothIt;
     double invstr = 1.0 - strength;
@@ -1080,11 +1074,11 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
            int smoothEdgesEveryXIters, int *smoothOnlyTheseNodes,
            int projectToSphereEveryXIters)
 {
-    int   i, j, k, l, pidx;
-    int   *n_neighbours, **neighbours;
-    double  totalDistance, tileDist[MAX_POINTS_PER_POLYGON];
-    double  pt[3], xyz[3];
-    double  weight, invstr, radius, div;
+    int i, j, k, l, pidx;
+    int *n_neighbours, **neighbours;
+    double totalDistance, tileDist[MAX_POINTS_PER_POLYGON];
+    double pt[3], xyz[3];
+    double weight, invstr, radius, div;
     BOOLEAN smoothSubsetOfNodes = 0;
 
     invstr = 1.0 - strength;
@@ -1185,22 +1179,22 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 {
 
     polygons_struct   *polygons;
-    int         i, j, cycle, n;
-    const double    inflationFactor = inflationFactorIn - 1.0;
-    double        *avgCompStretch, *compStretch;
-    double        *maxLinDistort, *avgArealComp;
-    double        *stretching, *area_values, *area_valuesIn;
-    int         *n_neighbours, **neighbours, *needSmoothing, nidx;
-    object_struct   *out_object;
-    double        bounds[6], xyz[3], nodept[3], nodeptIn[3];
-    double        diff_bound[3];
-    double        dx, dy, dz, dist, distIn, ratio;
-    double        x, y, z, r, k;
-    double        SA, SA_ratio, inflatedSA;
-    double        numNeighbors, neighpt[3], neighptIn[3];
-    double        tileArea, tileAreaIn;
-    int         numDistortionAboveThresh;
-    double        maxDistort, minDistort, distort;
+    int i, j, cycle, n;
+    int numDistortionAboveThresh;
+    int *n_neighbours, **neighbours, *needSmoothing, nidx;
+    const double inflationFactor = inflationFactorIn - 1.0;
+    double *avgCompStretch, *compStretch;
+    double *maxLinDistort, *avgArealComp;
+    double *stretching, *area_values, *area_valuesIn;
+    double bounds[6], xyz[3], nodept[3], nodeptIn[3];
+    double diff_bound[3];
+    double dx, dy, dz, dist, distIn, ratio;
+    double x, y, z, r, k;
+    double SA, SA_ratio, inflatedSA;
+    double numNeighbors, neighpt[3], neighptIn[3];
+    double tileArea, tileAreaIn;
+    double maxDistort, minDistort, distort;
+    object_struct *out_object;
   
     /* Copy the fiducial surface since it will be modified 
        (translated to center of mass) */
@@ -1398,9 +1392,9 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 void
 surf_to_sphere(polygons_struct *polygons, int stop_at)
 {
-    BOOLEAN      enableFingerSmoothing = 1;
-    int        fingerSmoothingIters, arealSmoothingIters;
-    double       surfarea, factor;
+    BOOLEAN enableFingerSmoothing = 1;
+    int fingerSmoothingIters, arealSmoothingIters;
+    double surfarea, factor;
     
     surfarea = get_polygons_surface_area(polygons);
 
@@ -1493,10 +1487,10 @@ BOOLEAN
 ccw_neighbours(Point *centroid, Vector *normal, Point points[],
          int n_nb, int neighbours[], signed char point_error[])
 {
-    Vector    to_nb, prev_to_nb, up, offset;
-    double    len;
-    int     i;
-    BOOLEAN   ccw;
+    Vector to_nb, prev_to_nb, up, offset;
+    double len;
+    int i;
+    BOOLEAN ccw;
 
     ccw = TRUE;
     fill_Vector(to_nb, 0.0, 0.0, 0.0);
@@ -1524,18 +1518,16 @@ ccw_neighbours(Point *centroid, Vector *normal, Point points[],
 void
 check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
 {
-    signed char    *point_done;
-    int        vertidx, ptidx, poly, size;
-    Point      *centroids;
-    Vector       normal;
-    progress_struct  progress;
-    double       base_length, curv_factor;
-    int        n_nb, neighbours[MAX_NEIGHBOURS];
-    BOOLEAN      interior_flag;
-    signed char    *point_error;
-#ifdef  DEBUG
-    int        n_errors, n_bad_points;
-#endif
+    signed char *point_done;
+    signed char *point_error;
+    int vertidx, ptidx, poly, size;
+    int n_nb, neighbours[MAX_NEIGHBOURS];
+    int n_errors, n_bad_points;
+    double base_length, curv_factor;
+    Point *centroids;
+    Vector normal;
+    progress_struct progress;
+    BOOLEAN interior_flag;
 
     ALLOC(point_done, polygons->n_points);
     ALLOC(point_error, polygons->n_points);
@@ -1625,8 +1617,8 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
 object_struct **
 central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
-    polygons_struct    *polygons_out;
-    object_struct    **objects_out;
+    polygons_struct *polygons_out;
+    object_struct **objects_out;
     
     objects_out  = (object_struct **) malloc(sizeof(object_struct *));
     *objects_out = create_object(POLYGONS);
@@ -1645,13 +1637,13 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects)
 {
-    int          i, p, n_steps, counter;
-    polygons_struct    *polygons_out;
-    Point        *new_pts;
-    object_struct    **objects_out;
-    int          *defects, *polydefects, n_intersects;
-    int          *n_neighbours, **neighbours;
-    double         length;
+    int *defects, *polydefects, n_intersects;
+    int *n_neighbours, **neighbours;
+    int i, p, n_steps, counter;
+    double length;
+    polygons_struct *polygons_out;
+    Point *new_pts;
+    object_struct **objects_out;
 
     compute_polygon_normals(polygons);
     check_polygons_neighbours_computed(polygons);
@@ -1752,10 +1744,10 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
 double
 get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, double *thickness_values, double extent)
 {
-    double         surface_area, *extents;
-    int          p;
-    polygons_struct    *polygons_transformed;
-    object_struct    **objects_transformed;
+    double surface_area, *extents;
+    int p;
+    polygons_struct *polygons_transformed;
+    object_struct **objects_transformed;
 
     extents = (double *) malloc(sizeof(double) * polygons->n_points);                
     for (p = 0; p < polygons->n_points; p++) extents[p] = extent;
@@ -1776,11 +1768,11 @@ double
 get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygons_reference, float* vol,
     nifti_image *nii_ptr, double isovalue, double *curvatures, double weight)
 {
-    double      distance = 0.0, val, x, y, z;
-    int       p;
-    Point     point;
-    float     *input;
-    int       dims[3];
+    int dims[3];
+    int p;
+    double distance = 0.0, val, x, y, z;
+    float *input;
+    Point point;
 
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
@@ -1819,11 +1811,11 @@ int
 correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_reference, float *vol, 
      nifti_image *nii_ptr, double isovalue)
 {
-    int       curvtype = 0; /* mean curvature averaged over 3mm, in degrees */
-    double      distance, eps = 1e-6, fwhm = 2.0;
-    double      a, b, f1, f2, *curvatures;
-    double      weight = 0.0, weight1, weight2, avg;
-    int       *n_neighbours, **neighbours, p;
+    int curvtype = 0; /* mean curvature averaged over 3mm, in degrees */
+    int *n_neighbours, **neighbours, p;
+    double distance, eps = 1e-6, fwhm = 2.0;
+    double a, b, f1, f2, *curvatures;
+    double weight = 0.0, weight1, weight2, avg;
     const double  phi = (1.0 + sqrt(5.0))/2.0; /* Golden ratio constant */
     
     if (!polygons_reference && !nii_ptr) {

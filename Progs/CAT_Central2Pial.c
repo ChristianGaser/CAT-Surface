@@ -45,14 +45,14 @@ Furthermore, you can weight the extent of equi-volume correction which is helpfu
 int
 main(int argc, char *argv[])
 {
-    double         *thickness_values, *area_inner, *area_outer, *extents;
-    double         extent, value, surface_area, pos;
-    Status         status;
-    char         *src_file, *out_file, *values_file;
-    int          p, n_objects, n_values;
-    File_formats     format;
-    polygons_struct    *polygons;
-    object_struct    **object_list, **objects_out;
+    double          *thickness_values, *area_inner, *area_outer, *extents;
+    double          extent, value, surface_area, pos;
+    Status          status;
+    char            *src_file, *out_file, *values_file;
+    int             p, n_objects, n_values;
+    File_formats    format;
+    polygons_struct *polygons;
+    object_struct   **object_list, **objects_out;
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
