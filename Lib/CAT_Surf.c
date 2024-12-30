@@ -1680,27 +1680,7 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
             Point_z(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_z(polygons->normals[p]);
         }
         
-        /* takes too long, don't use it anymore */
-        if (check_intersects) {                      
-            n_intersects = find_selfintersections(polygons_out, defects, polydefects);        
-            n_intersects = join_intersections(polygons_out, defects, polydefects,
-                      n_neighbours, neighbours);
-            counter = 0;
-            do {
-                counter++;
-                
-                if (n_intersects > 0) {
-                    printf("%3d self intersections found that will be corrected.\n", n_intersects);
-        
-                    n_intersects = smooth_selfintersections(polygons_out, defects, polydefects,
-                           n_intersects, n_neighbours,
-                           neighbours, 50);
-    
-                }
-            } while (n_intersects > 0 && counter < 10);
-
-            new_pts = polygons_out->points;
-        } else  new_pts = polygons_out->points;
+        new_pts = polygons_out->points;
         
         /* check polygon integrity of new points */
         check_polygons_shape_integrity(polygons, new_pts);
