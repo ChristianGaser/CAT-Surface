@@ -11,6 +11,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Surf.h"
+#include "CAT_Vol.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Smooth.h"
 
@@ -18,9 +19,12 @@
 int   check_intersect = 0;
 int   equivol = 0;
 double weight = 1.0;
+char *position_file  = NULL;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
+  {"-position", ARGV_STRING, (char *) 1, (char *) &position_file, 
+     "Additional position file for estimating  whether inner or outer border is reached."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
    "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014)."},
   {"-weight", ARGV_FLOAT, (char *) TRUE, (char *) &weight,
@@ -45,14 +49,16 @@ Furthermore, you can weight the extent of equi-volume correction which is helpfu
 int
 main(int argc, char *argv[])
 {
-    double          *thickness_values, *area_inner, *area_outer, *extents;
-    double          extent, value, surface_area, pos;
-    Status          status;
-    char            *src_file, *out_file, *values_file;
-    int             p, n_objects, n_values;
-    File_formats    format;
+    int p, n_objects, n_values;
+    double *thickness_values, *area_inner, *area_outer, *extents;
+    double extent, value, surface_area, pos;
+    float *positions;
+    Status status;
+    char *src_file, *out_file, *values_file;
+    File_formats format;
+    nifti_image *nii_ptr;
     polygons_struct *polygons;
-    object_struct   **object_list, **objects_out;
+    object_struct **object_list, **objects_out;
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
@@ -126,7 +132,18 @@ main(int argc, char *argv[])
             extents[p] = extent;
     }
     
-    objects_out = central_to_new_pial(polygons, thickness_values, extents, NULL, check_intersect);
+    if (position_file != NULL) {
+        nii_ptr = read_nifti_float(position_file, &positions, 0);
+        if (!nii_ptr) {
+            fprintf(stderr, "Error reading %s.\n", position_file);
+            return (EXIT_FAILURE);
+        }
+    } else {
+        nii_ptr = NULL;
+        positions = NULL;
+    }
+    
+    objects_out = central_to_new_pial(polygons, thickness_values, extents, positions, nii_ptr, check_intersect);
 
     if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
         exit(EXIT_FAILURE);
