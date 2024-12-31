@@ -507,8 +507,8 @@ main(
 
     free(input_uint8);
 
-    if (n_out > 1) fprintf(stderr,"Extract largest of %d components.\n",n_out);
-    if (!verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
+    if (verbose && (n_out > 1)) fprintf(stderr,"Extract largest of %d components.\n",n_out);
+    if (verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
     /* Mesh Correction in Folded Areas
        - Objective: To compensate for the averaging effect observed in gyri and sulci.
