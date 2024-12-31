@@ -104,11 +104,11 @@ main(int argc, char *argv[])
             
             /* obtain pial surface */
             for (i = 0; i < polygons->n_points; i++) extents[i] = 0.5;
-            objects2 = central_to_new_pial(polygons, thickness_values, extents, NULL, check_intersect);
+            objects2 = central_to_new_pial(polygons, thickness_values, extents, NULL, NULL, check_intersect);
             
             /* obtain white surface */
             for (i = 0; i < polygons->n_points; i++) extents[i] = -0.5;
-            objects = central_to_new_pial(polygons, thickness_values, extents, NULL, check_intersect);
+            objects = central_to_new_pial(polygons, thickness_values, extents, NULL, NULL, check_intersect);
             polygons = get_polygons_ptr(objects[0]);
 
             free(extents);
