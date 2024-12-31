@@ -68,7 +68,7 @@ static ArgvInfo argTable[] = {
   {"-local-smoothing", ARGV_FLOAT, (char *) TRUE, (char *) &local_smoothing,
     "Apply local surface smoothing to resulting surface in areas where the distance\n\
      between the surface and a shifted surface is below the expected distance,\n\
-     which happens due to intersections of the surface."},
+     which often happens due to self intersections of the surface."},
   
   {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
     "Turn off the additional morphological opening feature."},
@@ -129,11 +129,11 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
          necessary compensation.\n\
        - Compensation degree is auto-calculated based on deviation\n\
          from the defined isovalue.\n\
-    7. **Mesh Correction in Areas with Intersections:**\n\
+    7. **Mesh Correction in Areas with Self Intersections:**\n\
        - Apply local surface smoothing to resulting surface in areas where\n\
          the distance between the surface and a shifted surface is below \n\
-         the expected distance, which happens due to intersections of the \n\
-         surface.\n\n";
+         the expected distance, which often happens due to self intersections\n\
+         of the surface.\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
@@ -523,12 +523,15 @@ main(
         smooth_heatkernel(polygons, NULL, post_fwhm);
         correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
+    
 
-    /* Mesh Correction in Areas with Intersections
-       - Objective: To correct areas with intersections
+
+    /* Mesh Correction in Areas with Self Intersections
+       - Objective: To correct areas with self intersections
        - Method: Apply local surface smoothing to resulting surface in areas 
          where the distance between the surface and a shifted surface is below 
-         the expected distance, which happens due to intersections of the surface.
+         the expected distance, which often happens due to self intersections of 
+         the surface.
     */
     if (local_smoothing > 0.0) {
         values  = (double *) malloc(sizeof(double) * polygons->n_points);
@@ -542,7 +545,7 @@ main(
             values[i]  = 3.0;
         }
 
-        object4 = central_to_new_pial(polygons, values, extents, NULL, 0);
+        object4 = central_to_new_pial(polygons, values, extents, NULL, NULL, 0);
         compute_exact_hausdorff(polygons, get_polygons_ptr(object4[0]), values, 0);
         smooth_heatkernel(polygons, values, 5.0);
         
@@ -567,14 +570,12 @@ main(
             Point_x(polygons->points[i]) = values[i]*Point_x(polygons->points[i]) + (1.0 - values[i])*Point_x(smooth_polygons->points[i]);
 
         compute_polygon_normals(smooth_polygons);
+        
         free(smooth_polygons);
-
-        output_values_any_format("localweight.txt", polygons->n_points,
-                     values, TYPE_DOUBLE);
         free(values);
         free(extents);
     }
-    
+
     compute_polygon_normals(get_polygons_ptr(object3));
     output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
 
