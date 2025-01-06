@@ -96,11 +96,10 @@ void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, i
  * Comments to raja@cns.mpg.de, 15.10.96
  */
 
-void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, int init, int *dims)
+void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, int init, int *dims, int verbose)
 {
     int i, j, k, x, y, z;
     int fi, fj;
-    int verb = 0;
     long color[MAX_NC][7][7][7][7];
     long area;
 
@@ -151,10 +150,10 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
     }
 
     /* evaluate alphas */
-    if (verb) printf("MRF priors: alpha ");
+    if (verbose) printf("MRF priors: alpha ");
     for (i = 0; i < n_classes; i++) {
         if (init == 0) alpha[i] /= n; else alpha[i] = 1.0;
-        if (verb) printf("%3.3f ", alpha[i]);
+        if (verbose) printf("%3.3f ", alpha[i]);
     }
 
     /* compute beta */
@@ -188,8 +187,10 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
     /* weighting of beta was empirically estimated using brainweb data with different noise levels
        because old beta estimation was not working */
     beta[0] = XX/YY;
-    if (verb) printf("\t beta %3.3f\n", beta[0]);
-    fflush(stdout);
+    if (verbose) {
+        printf("\t beta %3.3f\n", beta[0]);
+        fflush(stdout);
+    }
 }
 
 /* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
@@ -471,7 +472,7 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
 } 
 
 /* Iterative conditional mode */
-void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations, double *voxelsize)
+void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations, double *voxelsize, int verbose)
 {
     
     int i, iter, x, y, z, z_area, y_dims, index, sum_voxel;
@@ -519,15 +520,17 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
 
         rel_changed /= (double)sum_voxel;
 #if !defined(_WIN32)
-        printf("ICM: %d relative change: %2.4f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iter+1, 100.0*rel_changed);
-        fflush(stdout);
+        if (verbose) {
+            printf("ICM: %d relative change: %2.4f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iter+1, 100.0*rel_changed);
+            fflush(stdout);
+        }
 #endif
         if (rel_changed < TH_CHANGE) break;
-    }       
-    printf("\n");
+    }   
+    if (verbose) printf("\n");
 } 
 
-void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, struct point *r, double *mean, double *var, int n_classes, int niters, int sub, int *dims, double *voxelsize, double *thresh, double *beta, double offset, double bias_fwhm)
+void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, struct point *r, double *mean, double *var, int n_classes, int niters, int sub, int *dims, double *voxelsize, double *thresh, double *beta, double offset, double bias_fwhm, int verbose)
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
@@ -539,7 +542,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     int ix, iy, iz, ind2, replace = 1;
     double ll, ll_old, change_ll;
         
-    MrfPrior(label, n_classes, alpha, beta, 0, dims);        
+    MrfPrior(label, n_classes, alpha, beta, 0, dims, verbose);        
 
     area = dims[0]*dims[1];
     vol = area*dims[2];
@@ -630,8 +633,10 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         ll /= (double)vol;
         change_ll = (ll_old - ll)/fabs(ll);
 #if !defined(_WIN32)
-        printf("iters:%3d log-likelihood: %7.5f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iters+1, ll);
-        fflush(stdout);
+        if (verbose) {
+            printf("iters:%3d log-likelihood: %7.5f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iters+1, ll);
+            fflush(stdout);
+        }
 #endif
         ll_old = ll;
         
@@ -640,15 +645,17 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         if ((count_change > 2) && (iters > 2)) break;      
     }
 
-    printf("\nFinal Mean*Std: "); 
-    for (i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i]-offset,sqrt(var[i])); 
-    printf("\n"); 
+    if (verbose) {
+        printf("\nFinal Mean*Std: ");
+        for (i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i]-offset,sqrt(var[i])); 
+        printf("\n"); 
+    }
     
 }
 
 
 /* perform adaptive MAP on given src and initial segmentation label */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset, double bias_fwhm)
+void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset, double bias_fwhm, int verbose)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -684,7 +691,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     }
         
     /* estimate 3 classes before PVE */
-    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, thresh, beta, offset, bias_fwhm);
+    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, thresh, beta, offset, bias_fwhm, verbose);
     
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
@@ -711,10 +718,10 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     if (niters_ICM > 0) {
         if (weight_MRF != 1.0) {
             beta[0] *= weight_MRF;
-            printf("Weighted MRF beta %3.3f\n",beta[0]);
+            if (verbose) printf("Weighted MRF beta %3.3f\n",beta[0]);
         }
     
-        ICM(prob, label, n_classes, dims, beta[0], niters_ICM, voxelsize);
+        ICM(prob, label, n_classes, dims, beta[0], niters_ICM, voxelsize, verbose);
     }
     
     free(r);

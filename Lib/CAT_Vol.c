@@ -2650,7 +2650,6 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
     /* erosions and conditional dilations */
     for (iter = 0; iter < niter; iter++) {
         
-        fprintf(stderr,"."); 
         /*  start with 2 iterations of erosions */
         th = (iter < 2) ? th_erode : th_dilate;
         
@@ -2663,7 +2662,6 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
         /* convolve mask with filter width of 3 voxel */
         convxyz_float(wm, filt, filt, filt, 3, 3, 3, -1, -1, -1, wm, dims);           
     }
-    fprintf(stderr,"\n");
     
     // apply opening, but keep original values otherwise
     morph_open_float(wm, dims, MAX(1,roundf(scale*strength)), 0.1, 1);

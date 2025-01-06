@@ -25,7 +25,7 @@ int write_seg[3] = {0, 1, 0};
 int write_label = 1;
 int write_corr = 1;
 int write_bias = 0;
-int debug = 0;
+int verbose = 0;
 int square_image = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
@@ -89,8 +89,8 @@ static ArgvInfo argTable[] = {
     {"-nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
          "Disable writing the nu-corrected image."},
          
-    {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
-         "Enable debug mode to print additional debug information."},
+    {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
+         "Enable verbose mode to print additional information."},
          
     {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -190,12 +190,6 @@ main(int argc, char *argv[])
         return(EXIT_FAILURE);
     }
     
-    /* check size */
-    if (!equal_image_dimensions(src_ptr, label_ptr)) {     
-        fprintf(stderr,"Label and source image have different size\n");
-        exit(EXIT_FAILURE);
-    }
-    
     /* scale label image to a range 0..3 */
     for (i = 0; i < src_ptr->nvox; i++) 
         label[i] = (unsigned char) round(buffer_vol[i]);
@@ -211,7 +205,7 @@ main(int argc, char *argv[])
         max_vol = MAX((double)src[i], max_vol);
     }
 
-    if (debug)
+    if (verbose)
         fprintf(stdout,"Intensity range: %3.2f - %3.2f\n", min_vol, max_vol);
 
     /* correct images with values < 0 */
@@ -230,15 +224,15 @@ main(int argc, char *argv[])
     /* apply bias correction first for GM+WM and subsequently for WM only with less
      * smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0.0) {
-        fprintf(stdout,"Bias correction\n");
+        if (verbose) fprintf(stdout,"Bias correction\n");
         correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, square_image);
     }
 
-    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
+    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm, verbose);
 
     /* PVE */
     if (pve) {
-        fprintf(stdout,"Calculate Partial Volume Estimate.\n");
+        if (verbose) fprintf(stdout,"Calculate Partial Volume Estimate.\n");
         Pve5(src, prob, label, mean, dims);
     }
         
