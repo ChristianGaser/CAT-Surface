@@ -180,15 +180,7 @@ main(int argc, char *argv[])
         free(prob);
         return(EXIT_FAILURE);
     }
-    
-    /* check size */
-    if (!equal_image_dimensions(src_ptr, label_ptr)) {     
-        fprintf(stderr,"Label and source image have different size\n");
-        free(label);
-        free(prob);
-        exit(EXIT_FAILURE);
-    }
-    
+        
     /* scale label image to a range 0..3 */
     for (i = 0; i < src_ptr->nvox; i++) 
         label[i] = (unsigned char) round(buffer_vol[i]);
@@ -227,7 +219,7 @@ main(int argc, char *argv[])
         correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, 0);
     }
 
-    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm);
+    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm, 1);
 
     /* PVE */
     if (pve) {

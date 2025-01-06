@@ -108,7 +108,7 @@ static ArgvInfo argTable[] = {
      "Curvature type for the 2nd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-type2", ARGV_INT, (char *) 1, (char *) &curvtype2,
      "Curvature type for the 3rd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
-  {"-v", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
+  {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
      "Save debug files."},

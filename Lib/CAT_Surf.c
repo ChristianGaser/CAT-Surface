@@ -71,7 +71,6 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
     double area, asum, total_area, mean_surface_ratio;
     char str[512];
     Point points[MAX_POINTS_PER_POLYGON];
-    progress_struct progress;
     
     avol = (double *) calloc(256*256*256, sizeof(double));
 
@@ -116,9 +115,6 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
         printf("Estimated radius: %3.1f\n", radius);
     }
 
-    initialize_progress_report( &progress, FALSE, polygons->n_points,
-                "Estimating surface ratio" );
-
     mean_surface_ratio = 0.0;
     for (i = 0; i < polygons->n_points; i++) {
 
@@ -152,10 +148,8 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
             nan++;
 
         mean_surface_ratio += lf[i];
-        update_progress_report( &progress, i );
     }
 
-    terminate_progress_report( &progress );
     free(avol);
     
     printf("Mean surface ratio: %3.3f\n",mean_surface_ratio/polygons->n_points);
@@ -1401,8 +1395,8 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     /* use more iterations for larger surfaces */
     if (polygons->n_items > 350000) {
         factor = (double)polygons->n_items/350000.0;
-        fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n",
-              factor);
+        /*fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n",
+              factor); */
     } else factor = 1.0;
 
     /* low smooth */
@@ -1526,7 +1520,6 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     double base_length, curv_factor;
     Point *centroids;
     Vector normal;
-    progress_struct progress;
     BOOLEAN interior_flag;
 
     ALLOC(point_done, polygons->n_points);
@@ -1537,9 +1530,6 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
         point_done[ptidx] = FALSE;
         point_error[ptidx] = 0;
     }
-
-    initialize_progress_report(&progress, TRUE, polygons->n_items,
-                   "Checking Integrity");
 
     for (poly = 0; poly < polygons->n_items; poly++) {
         size = GET_OBJECT_SIZE(*polygons, poly);
@@ -1577,11 +1567,8 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
 #endif
             }
         }
-
-        update_progress_report(&progress, poly+1);
     }
 
-    terminate_progress_report(&progress);
 
 #ifdef DEBUG
     n_errors = 0;
