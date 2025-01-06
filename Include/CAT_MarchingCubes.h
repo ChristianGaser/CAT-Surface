@@ -21,4 +21,5 @@
     double           max_threshold,
     double           valid_low,
     double           valid_high,
-    polygons_struct  *polygons);
+    polygons_struct  *polygons,
+    int              verbose);

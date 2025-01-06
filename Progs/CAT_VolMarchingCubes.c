@@ -486,7 +486,7 @@ main(
                   nii_mat,
                   method, FALSE,
                   min_threshold, min_threshold,
-                  valid_low, valid_high, get_polygons_ptr(object));
+                  valid_low, valid_high, get_polygons_ptr(object),verbose);
     
         compute_polygon_normals(polygons);
 

@@ -268,7 +268,8 @@ extract_isosurface(
     double  max_threshold,
     double  valid_low,
     double  valid_high,
-    polygons_struct *polygons)
+    polygons_struct *polygons,
+    int verbose)
 {
     int   n_slices, x_size, y_size, slice;
     int   ***point_ids[2], ***tmp_point_ids;
@@ -317,7 +318,7 @@ extract_isosurface(
     Surfprop_t(spr) = 1.0f;
     initialize_polygons(polygons, WHITE, &spr);
 
-    initialize_progress_report(&progress, FALSE, n_slices+1, "Extracting Surface");
+    if (verbose) initialize_progress_report(&progress, FALSE, n_slices+1, "Extracting Surface");
 
     for (slice = 0; slice < n_slices; slice++)
     {
@@ -341,10 +342,10 @@ extract_isosurface(
             right_handed, nii_mat,
             point_ids, polygons);
 
-        update_progress_report(&progress, slice+2);
+        if (verbose) update_progress_report(&progress, slice+2);
     }
 
-    terminate_progress_report(&progress);
+    if (verbose) terminate_progress_report(&progress);
 
     if (polygons->n_points > 0)
     {
