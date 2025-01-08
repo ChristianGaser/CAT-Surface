@@ -1293,7 +1293,7 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
     const int nvox = dims[0] * dims[1] * dims[2];
     const int x = dims[0], y = dims[1], xy = x * y;
     const float s2 = sqrt(2.0), s3 = sqrt(3.0);
-    const int   NI[] = {0, -1, -x+1,- x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbor index offsets
+    const int   NI[] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbor index offsets
     const float ND[] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbor distances
     const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbors
 

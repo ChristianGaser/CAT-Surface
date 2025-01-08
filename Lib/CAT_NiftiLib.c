@@ -41,6 +41,7 @@ void
 init_nifti_header(nifti_image *nii_ptr)
 {
     int i, j;
+    double val;
 
     nii_ptr->ndim = 0;
 
@@ -113,10 +114,11 @@ init_nifti_header(nifti_image *nii_ptr)
 
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 4; j++) {
-            nii_ptr->qto_xyz.m[i][j] = 0.0;
-            nii_ptr->qto_ijk.m[i][j] = 0.0;
-            nii_ptr->sto_xyz.m[i][j] = 0.0;
-            nii_ptr->sto_ijk.m[i][j] = 0.0;
+            if (i==j) val = 1.0; else val = 0.0;
+            nii_ptr->qto_xyz.m[i][j] = val;
+            nii_ptr->qto_ijk.m[i][j] = val;
+            nii_ptr->sto_xyz.m[i][j] = val;
+            nii_ptr->sto_ijk.m[i][j] = val;
         }
     }
 }  
@@ -131,14 +133,14 @@ write_nifti_double(const char *output_filename, double image[], int data_type, d
     double img_range[2], dt_range[2], val;
     
     if ((data_type != DT_UINT8) && 
-         (data_type != DT_INT8) && 
-         (data_type != DT_UINT16) && 
-         (data_type != DT_INT16) && 
-         (data_type != DT_UINT32) && 
-         (data_type != DT_INT32) && 
-         (data_type != DT_INT64) && 
-         (data_type != DT_FLOAT32) && 
-         (data_type != DT_FLOAT64)) {
+        (data_type != DT_INT8) && 
+        (data_type != DT_UINT16) && 
+        (data_type != DT_INT16) && 
+        (data_type != DT_UINT32) && 
+        (data_type != DT_INT32) && 
+        (data_type != DT_INT64) && 
+        (data_type != DT_FLOAT32) && 
+        (data_type != DT_FLOAT64)) {
         fprintf(stderr,"Datatype %d not supported to write data.\n",data_type);
         return(0);
     }
@@ -158,9 +160,8 @@ write_nifti_double(const char *output_filename, double image[], int data_type, d
 
     nii_ptr->nifti_type = 1;
     
-    if (strcmp(extension,".img") == 0) {
+    if (strcmp(extension,".img") == 0)
         nii_ptr->nifti_type = 2;
-    }
     
     if (strcmp(extension,".hdr") == 0) {
         nii_ptr->nifti_type = 2;
@@ -398,14 +399,14 @@ write_nifti_float(const char *output_filename, float image[], int data_type, dou
     double img_range[2], dt_range[2], val;
     
     if ((data_type != DT_UINT8) && 
-         (data_type != DT_INT8) && 
-         (data_type != DT_UINT16) && 
-         (data_type != DT_INT16) && 
-         (data_type != DT_UINT32) && 
-         (data_type != DT_INT32) && 
-         (data_type != DT_INT64) && 
-         (data_type != DT_FLOAT32) && 
-         (data_type != DT_FLOAT64)) {
+        (data_type != DT_INT8) && 
+        (data_type != DT_UINT16) && 
+        (data_type != DT_INT16) && 
+        (data_type != DT_UINT32) && 
+        (data_type != DT_INT32) && 
+        (data_type != DT_INT64) && 
+        (data_type != DT_FLOAT32) && 
+        (data_type != DT_FLOAT64)) {
         fprintf(stderr,"Datatype %d not supported to write data.\n",data_type);
         return(0);
     }
@@ -425,9 +426,8 @@ write_nifti_float(const char *output_filename, float image[], int data_type, dou
 
     nii_ptr->nifti_type = 1;
     
-    if (strcmp(extension,".img") == 0) {
+    if (strcmp(extension,".img") == 0)
         nii_ptr->nifti_type = 2;
-    }
     
     if (strcmp(extension,".hdr") == 0) {
         nii_ptr->nifti_type = 2;

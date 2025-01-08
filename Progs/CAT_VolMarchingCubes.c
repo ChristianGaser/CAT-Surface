@@ -288,9 +288,7 @@ main(
         /* Smooth the gradient image to later apply weighted average */
         double s[] = {3.0, 3.0, 3.0};
         smooth3(grad, sizes, voxelsize, s, 0, DT_FLOAT32);
-    }
 
-    if (median_correction) {
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
             

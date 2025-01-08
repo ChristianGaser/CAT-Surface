@@ -22,8 +22,9 @@
 int verbose = 0;
 int n_avgs = 4;
 int thin_cortex = 1;
+int downsample = 1;
 
-double fwhm = 3.0;
+double fwhm = 2.0;
 double min_thickness = 0.5;
 double max_thickness = 5.0;
 
@@ -50,6 +51,10 @@ static ArgvInfo argTable[] = {
   {"-max-thickness", ARGV_FLOAT, (char *) 1, (char *) &max_thickness,
     "Set the maximum thickness that is expected. Values exceeding that maximum thickness\n\
     are set to that value."},
+
+  {"-no-downsample", ARGV_CONSTANT, (char *) 0, (char *) &downsample,
+    "Enable verbose mode. Provides detailed output during processing for debugging\n\
+    and monitoring."},
 
   {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
     "Disable the correction for the typical underestimation of GM thickness in data\n\
@@ -96,6 +101,7 @@ Options:\n\
     -fwhm <float>      Define FWHM for final thickness smoothing.\n\
     -no-min-thickness  Use a simpler thickness estimation approach based on sulci only.\n\
     -no-thin-cortex    Do not slightly shift border between GM/WM for thinner cortices.\n\
+    -no-downsample     Do not downsample PPM and GMT image to 1mm.\n\
     -min-thickness     Set the minimum thickness that is expected.\n\
     -max-thickness     Set the maximum thickness that is expected.\n\
 \n\
@@ -108,13 +114,13 @@ Example:\n\
 int main(int argc, char *argv[])
 {
     char *infile, out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
-    int i, j, dims[3], replace = 0;
-    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM;
+    int i, j, dims[3], dims_reduced[3], replace = 0;
+    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *vol_reduced;
     float dist_CSF_val, dist_WM_val, mean_vx_size;
     float mean_GMT, abs_dist;
     unsigned char *mask;
-    double voxelsize[3], slope, add_value;
-    nifti_image *src_ptr, *out_ptr;
+    double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope, add_value;
+    nifti_image *src_ptr, *out_ptr, *out_ptr_reduced;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
         usage(argv[0]);
@@ -153,6 +159,7 @@ int main(int argc, char *argv[])
 
     /* Prepare output NIfTI images */
     out_ptr = nifti_copy_nim_info(src_ptr);
+    out_ptr_reduced = nifti_copy_nim_info(src_ptr);
 
     /* Retrieve dimensions and voxel size from source image */
     voxelsize[0] = src_ptr->dx;
@@ -311,12 +318,53 @@ int main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++) 
         GMT[i] *= mean_vx_size;
     
-    /* save GMT and PPM image */
+    // Downsample images to 1mm
+    if (downsample) {
+        for (i = 0; i<3; i++) {
+            s[i] = 1.2;
+            voxelsize_reduced[i] = 1.0;
+            samp[i] = voxelsize_reduced[i]/voxelsize[i];
+        }
+    
+        // Define grid dimensions
+        for (i = 0; i<3; i++) 
+            dims_reduced[i] = (int) ceil((dims[i]-1)/((double) samp[i]))+1;
+    
+        out_ptr_reduced->nvox = dims_reduced[0] * dims_reduced[1] * dims_reduced[2];
+        
+        // Correct affine matrix
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < 3; j++) {
+                out_ptr_reduced->sto_xyz.m[i][j] = out_ptr->sto_xyz.m[i][j]*samp[i];
+            }
+        }
+        out_ptr_reduced->sto_ijk = nifti_mat44_inverse( out_ptr_reduced->sto_xyz ) ;
+    
+        smooth3(GMT, dims, voxelsize, s, 0, DT_FLOAT32);
+        smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
+    }
+
+    /* Save GMT and PPM image */
     slope = 1.0;
-    if (!write_nifti_float(out_GMT, GMT, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
-        exit(EXIT_FAILURE);
-    if (!write_nifti_float(out_PPM, PPM, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
-        exit(EXIT_FAILURE);
+    if (downsample) {
+        vol_reduced = (float *)malloc(sizeof(float)*out_ptr_reduced->nvox);
+
+        subsample3(GMT, vol_reduced, dims, dims_reduced, DT_FLOAT32);
+        if (!write_nifti_float(out_GMT, vol_reduced, DT_FLOAT32, slope, dims_reduced, voxelsize_reduced, out_ptr_reduced)) 
+            exit(EXIT_FAILURE);
+    
+        subsample3(PPM, vol_reduced, dims, dims_reduced, DT_FLOAT32);
+        if (!write_nifti_float(out_PPM, vol_reduced, DT_FLOAT32, slope, dims_reduced, voxelsize_reduced, out_ptr_reduced)) 
+            exit(EXIT_FAILURE);
+
+        free(vol_reduced);
+    } else {
+        if (!write_nifti_float(out_GMT, GMT, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+    
+        if (!write_nifti_float(out_PPM, PPM, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+    }
 
     if(argc == 6) {
         if (!write_nifti_float(out_CSD, dist_CSF, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
