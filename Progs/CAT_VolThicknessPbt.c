@@ -3,7 +3,6 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id$
  *
  */
 
@@ -22,8 +21,10 @@
 int verbose = 0;
 int n_avgs = 4;
 int thin_cortex = 1;
-int downsample = 1;
+int median_correction = 2;
 
+double sharpening = 0.2;
+double downsample = 0.0;
 double fwhm = 2.0;
 double min_thickness = 0.5;
 double max_thickness = 5.0;
@@ -52,13 +53,24 @@ static ArgvInfo argTable[] = {
     "Set the maximum thickness that is expected. Values exceeding that maximum thickness\n\
     are set to that value."},
 
-  {"-no-downsample", ARGV_CONSTANT, (char *) 0, (char *) &downsample,
-    "Enable verbose mode. Provides detailed output during processing for debugging\n\
-    and monitoring."},
+  {"-downsample", ARGV_FLOAT, (char *) 1, (char *) &downsample,
+    "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
+    spacial resolution for the subsequent steps. Set to '0' to disable downsampling"},
 
   {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
     "Disable the correction for the typical underestimation of GM thickness in data\n\
     where the border between GM and WM is not correctly estimated by the PVE segmentation."},
+
+  {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
+    "Specify the number of iterations to apply a median filter to areas\n\
+     where the gradient of the thresholded image indicates larger clusters.\n\
+     These clusters may point to potential topology artifacts and regions\n\
+     with high local variations. This process helps to smooth these areas, \n\
+     improving the quality of the surface reconstruction in subsequent steps."},
+  
+  {"-sharpen", ARGV_FLOAT, (char *) 1, (char *) &sharpening,
+    "Amount of sharpening the PPM map by adding the difference between the unsmoothed and \n\
+     smoothed PPM map."},
 
   {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -96,14 +108,15 @@ Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii output_WMD.nii ou
          to the thickness map based on the specified Full Width Half Maximum (FWHM).\n\
 \n\
 Options:\n\
-    -verbose           Enable verbose mode for detailed output during processing.\n\
-    -n-avgs <int>      Set the number of averages for distance estimation.\n\
-    -fwhm <float>      Define FWHM for final thickness smoothing.\n\
-    -no-min-thickness  Use a simpler thickness estimation approach based on sulci only.\n\
-    -no-thin-cortex    Do not slightly shift border between GM/WM for thinner cortices.\n\
-    -no-downsample     Do not downsample PPM and GMT image to 1mm.\n\
-    -min-thickness     Set the minimum thickness that is expected.\n\
-    -max-thickness     Set the maximum thickness that is expected.\n\
+    -verbose                Enable verbose mode for detailed output during processing.\n\
+    -n-avgs <int>           Set the number of averages for distance estimation.\n\
+    -fwhm <float>           Define FWHM for final thickness smoothing.\n\
+    -downsample <float>     Downsample PPM and GMT image to defined resolution.\n\
+    -sharpen <float>        Amount of sharpening the PPM map.\n\
+    -min-thickness <float>  Set the minimum thickness that is expected.\n\
+    -max-thickness <float>  Set the maximum thickness that is expected.\n\
+    -no-min-thickness       Use a simpler thickness estimation approach based on sulci only.\n\
+    -no-thin-cortex         Do not slightly shift border between GM/WM for thinner cortices.\n\
 \n\
 Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
@@ -115,11 +128,12 @@ int main(int argc, char *argv[])
 {
     char *infile, out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
     int i, j, dims[3], dims_reduced[3], replace = 0;
-    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *vol_reduced;
-    float dist_CSF_val, dist_WM_val, mean_vx_size;
+    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM0, *vol_reduced;
+    float *vol_smoothed, dist_CSF_val, dist_WM_val, mean_vx_size;
     float mean_GMT, abs_dist;
     unsigned char *mask;
     double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope, add_value;
+    double threshold[2], prctile[2];
     nifti_image *src_ptr, *out_ptr, *out_ptr_reduced;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
@@ -244,7 +258,7 @@ int main(int argc, char *argv[])
         GMT[i] = MIN(dist_WM[i]+dist_CSF[i], GMT[i]);
     
     /* get mean thickness */
-    mean_GMT = get_mean_float(GMT, src_ptr->nvox);
+    mean_GMT = get_mean_float(GMT, src_ptr->nvox, 1);
     
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
@@ -264,16 +278,16 @@ int main(int argc, char *argv[])
         GMT2[i] = MIN(dist_WM[i]+dist_CSF[i], GMT2[i]);
 
     /* get overall mean thickness */
-    mean_GMT = mean_GMT/2.0 + get_mean_float(GMT2, src_ptr->nvox)/2.0;
+    mean_GMT = mean_GMT/2.0 + get_mean_float(GMT2, src_ptr->nvox, 1)/2.0;
 
     /* use average of thickness measures */
     for (i = 0; i < src_ptr->nvox; i++)      
         GMT[i] = (GMT[i] + GMT2[i])/2;
 
     free(GMT2);
-    free(input);
    
     median3(GMT, NULL, dims, DT_FLOAT32);
+    median3(dist_WM, NULL, dims, DT_FLOAT32);
 
     /* Re-estimate CSF distance using corrected GM thickness */
     for (i = 0; i < src_ptr->nvox; i++)
@@ -290,7 +304,7 @@ int main(int argc, char *argv[])
     /* Apply final smoothing */
     if (fwhm > 0.0) {
         if (verbose) fprintf(stderr,"Final correction\n");
-        double s[3] = {fwhm, fwhm, fwhm};
+        s[0] = s[1] = s[2] = fwhm;
         smooth3(GMT, dims, voxelsize, s, 1, DT_FLOAT32);
     }
     
@@ -311,18 +325,97 @@ int main(int argc, char *argv[])
         if (PPM[i] > 1.0) PPM[i] = 1.0;
     }
     
-    /* fill small holes that cause topology artefacts */
+    /* Fill small holes that cause topology artefacts */
     fill_holes(PPM, 1E-3, dims, DT_FLOAT32);
+
+    median3(PPM, NULL, dims, DT_FLOAT32);
 
     /* Apply isotropic voxel size correction */
     for (i = 0; i < src_ptr->nvox; i++) 
         GMT[i] *= mean_vx_size;
+
+    /* Preprocessing with Median Filter:
+       - Apply an iterative median filter to areas where the gradient of
+         the thresholded image indicates larger clusters.
+       - Use a weighted average of the original and median filtered images.
+       - Weighting is estimated using gradient of the input image and.
+         morphological operations to find larger clusters */
+    if (median_correction) {
+        vol_smoothed = (float *)malloc(sizeof(float)*src_ptr->nvox);
+        
+        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i];
+
+        s[0] = s[1] = s[2] = 4.0;
+        smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
+
+        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - vol_smoothed[i];
+
+        prctile[0] = 0.1; prctile[1] = 99;
+        get_prctile(vol_smoothed, dims, threshold, prctile, 1);  
+
+        /* Treshold the difference image */
+        for (i = 0; i < src_ptr->nvox; i++)
+            vol_smoothed[i] = vol_smoothed[i] > threshold[1] ? 1.0 : 0.0;
+            
+        /* Apply morphological operations to find and slightly increase 
+           regions with larger clusters */
+        morph_close(vol_smoothed, dims, 1, 0.5, DT_FLOAT32);
+        morph_open(vol_smoothed, dims, 1, 0.0, DT_FLOAT32);
+        morph_dilate(vol_smoothed, dims, 3, 0.0, DT_FLOAT32);
+        
+        /* Smooth the gradient image to later apply weighted average */
+        s[0] = s[1] = s[2] = 3.0;
+        smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
+
+        for (i = 0; i < src_ptr->nvox; i++)
+            input[i] = PPM[i];
+            
+        /* Apply iterative median filter */
+        for (i = 0; i < median_correction; i++) median3(input, NULL, dims, DT_FLOAT32);
+
+        /* Calculate weighted average of filtered and original input */
+        for (i = 0; i < src_ptr->nvox; i++)
+            PPM[i] = (1.0 - vol_smoothed[i])*PPM[i] + vol_smoothed[i]*input[i];
+            
+        free(vol_smoothed);
+    }
     
-    // Downsample images to 1mm
-    if (downsample) {
+    /* Apply sharpening by subtracting smoothed PPM map */
+    if (sharpening > 0.0) {
+        vol_smoothed = (float *)malloc(sizeof(float)*src_ptr->nvox);
+        PPM0 = (float *)malloc(sizeof(float)*src_ptr->nvox);
+
+        for (i = 0; i < src_ptr->nvox; i++) PPM0[i] = PPM[i];
+        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i];
+
+        j = 1;
+        
+        /* Do 3 steps with j = [1 2 4] */
+        while (j < 5) {
+            /* Smoothing PPM map */
+            s[0] = s[1] = s[2] = 4.0*j;
+            smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
+            
+            /* Use iterative levels of smoothing */
+            for (i = 0; i < src_ptr->nvox; i++)
+                PPM[i] += sharpening*j*(PPM[i] - vol_smoothed[i] + 0.001*j);
+            j *= 2;
+        }
+        
+        /* Correct thickness values */
+        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - PPM0[i];
+        median3(vol_smoothed, NULL, dims, DT_FLOAT32);
+        for (i = 0; i < src_ptr->nvox; i++) GMT[i] += 2*vol_smoothed[i];
+        
+        free(vol_smoothed);
+        free(PPM0);
+    }
+    
+    /* Downsample images */
+    if (downsample > 0.0) {
         for (i = 0; i<3; i++) {
             s[i] = 1.2;
-            voxelsize_reduced[i] = 1.0;
+            voxelsize_reduced[i] = downsample;
             samp[i] = voxelsize_reduced[i]/voxelsize[i];
         }
     
@@ -346,7 +439,7 @@ int main(int argc, char *argv[])
 
     /* Save GMT and PPM image */
     slope = 1.0;
-    if (downsample) {
+    if (downsample > 0.0) {
         vol_reduced = (float *)malloc(sizeof(float)*out_ptr_reduced->nvox);
 
         subsample3(GMT, vol_reduced, dims, dims_reduced, DT_FLOAT32);
@@ -378,6 +471,7 @@ int main(int argc, char *argv[])
     free(dist_WM);
     free(GMT);
     free(PPM);
+    free(input);
 
     return(EXIT_SUCCESS);
 
