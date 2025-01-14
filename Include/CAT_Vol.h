@@ -81,16 +81,16 @@ enum
     F_MULTI
 };
 
-double get_min(double arr[], int n);
-double get_max(double arr[], int n);
-double get_mean(double arr[], int n);
+double get_min(double arr[], int n, int mask_zeros);
+double get_max(double arr[], int n, int mask_zeros);
+double get_mean(double arr[], int n, int mask_zeros);
 double get_median(double arr[], int n);
-double get_std(double arr[], int n);
-double get_sum(double arr[], int n);
+double get_std(double arr[], int n, int mask_zeros);
+double get_sum(double arr[], int n, int mask_zeros);
 double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
 double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
-float get_max_float(float arr[], int n);
-float get_mean_float(float arr[], int n);
+float get_max_float(float arr[], int n, int mask_zeros);
+float get_mean_float(float arr[], int n, int mask_zeros);
 void median3(void *D, unsigned char *mask, int dims[3], int datatype);
 void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int stat_func, int iters, int use_euclidean_dist, int datatype);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);

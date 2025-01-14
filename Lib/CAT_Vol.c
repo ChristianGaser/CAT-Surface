@@ -275,26 +275,35 @@ double get_median(double arr[], int n) {
  * Parameters:
  *  - arr: Array of doubles.
  *  - n: Number of elements in the array.
+ *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
  *
  * Returns:
  *  The sum of the array elements.
  */
-double get_sum(double arr[], int n) {
+double get_sum(double arr[], int n, int exclude_zeros) {
     int i;
     double sum = 0.0;
     
-    for (i = 0; i < n; i++)
-        sum += arr[i];
+    for (i = 0; i < n; i++) {
+        if ((exclude_zeros) && (arr[i] != 0.0))
+            sum += arr[i];
+        else
+            sum += arr[i];
+    }
     
     return sum;
 }
 
-float get_sum_float(float arr[], int n) {
+float get_sum_float(float arr[], int n, int exclude_zeros) {
     int i;
     float sum = 0.0;
     
-    for (i = 0; i < n; i++)
-        sum += arr[i];
+    for (i = 0; i < n; i++) {
+        if ((exclude_zeros) && (arr[i] != 0.0))
+            sum += arr[i];
+        else
+            sum += arr[i];
+    }
     
     return sum;
 }
@@ -306,16 +315,42 @@ float get_sum_float(float arr[], int n) {
  * Parameters:
  *  - arr: Array of doubles.
  *  - n: Number of elements in the array.
+ *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
  *
  * Returns:
  *  The mean value of the array.
  */
-double get_mean(double arr[], int n) {
-    return get_sum(arr, n) / (double)n;
+double get_mean(double arr[], int n, int exclude_zeros) {
+    int i, n0 = 0;
+    double sum = 0.0;
+    
+    for (i = 0; i < n; i++) {
+        if ((exclude_zeros) && (arr[i] != 0.0)) {
+            sum += arr[i];
+            n0++;
+        } else {
+            sum += arr[i];
+            n0++;
+        }
+    }
+
+    return sum / (double)n0;
 }
 
-float get_mean_float(float arr[], int n) {
-    return get_sum_float(arr, n) / (float)n;
+float get_mean_float(float arr[], int n, int exclude_zeros) {
+    int i, n0 = 0;
+    float sum = 0.0;
+    
+    for (i = 0; i < n; i++) {
+        if ((exclude_zeros) && (arr[i] != 0.0)) {
+            sum += arr[i];
+            n0++;
+        } else {
+            sum += arr[i];
+            n0++;
+        }
+    }
+    return sum / (float)n0;
 }
 
 /**
@@ -327,19 +362,28 @@ float get_mean_float(float arr[], int n) {
  * Parameters:
  *  - arr: Array of doubles.
  *  - n: Number of elements in the array
+ *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
  *
  * Returns: The standard deviation of the array.
 */
-double get_std(double arr[], int n) {
-    int i;
+double get_std(double arr[], int n, int exclude_zeros) {
+    int i, n0=0;
     double mean, variance = 0.0;
 
-    mean = get_mean(arr,n);
+    mean = get_mean(arr,n, exclude_zeros);
 
     /* Calculate variance */
-    for (i = 0; i < n; i++)
-        variance += pow(arr[i] - mean, 2);
-    variance /= (double)n;
+    for (i = 0; i < n; i++) {
+        if ((exclude_zeros) && (arr[i] != 0.0)) {
+            variance += pow(arr[i] - mean, 2);
+            n0++;
+        } else {
+            variance += pow(arr[i] - mean, 2);
+            n0++;
+        }
+    }
+
+    variance /= (double)n0;
 
     /* Calculate standard deviation */
     return sqrt(variance);
@@ -353,17 +397,22 @@ double get_std(double arr[], int n) {
  * Parameters:
  *  - arr: Array of doubles.
  *  - n: Number of elements in the array.
+ *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
  *
  * Returns:
  *  The minimum value in the array.
  */
- double get_min(double arr[], int n) {
+ double get_min(double arr[], int n, int exclude_zeros) {
     int i;
     double result = FLT_MAX;
     
     for (i = 0; i < n; i++) {
-        if (arr[i] < result)
-            result = arr[i];
+        if (arr[i] < result) {
+            if ((exclude_zeros) && (arr[i] != 0.0))
+                result = arr[i];
+            else
+                result = arr[i];
+        }
     }
 
     return result;
@@ -377,29 +426,38 @@ double get_std(double arr[], int n) {
  * Parameters:
  *  - arr: Array of doubles.
  *  - n: Number of elements in the array.
+ *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
  *
  * Returns:
  *  The maximum value in the array.
  */
- double get_max(double arr[], int n) {
+ double get_max(double arr[], int n, int exclude_zeros) {
     int i;
     double result = -FLT_MAX;
     
     for (i = 0; i < n; i++) {
-        if (arr[i] > result)
-            result = arr[i];
+        if (arr[i] > result) {
+            if ((exclude_zeros) && (arr[i] != 0.0))
+                result = arr[i];
+            else
+                result = arr[i];
+        }
     }
 
     return result;
 }
 
-float get_max_float(float arr[], int n) {
+float get_max_float(float arr[], int n, int exclude_zeros) {
     int i;
     float result = -FLT_MAX;
     
     for (i = 0; i < n; i++) {
-        if (arr[i] > result)
-            result = arr[i];
+        if (arr[i] > result) {
+            if ((exclude_zeros) && (arr[i] != 0.0))
+                result = arr[i];
+            else
+                result = arr[i];
+        }
     }
 
     return result;
@@ -476,19 +534,19 @@ void localstat_float(float *input, unsigned char mask[], int dims[3], int dist,
         // Calculate local statistics based on the selected function
         switch (stat_func) {
         case F_MEAN:
-            buffer[ind] = (float)get_mean(arr, n);
+            buffer[ind] = (float)get_mean(arr, n, 0);
             break;
         case F_MEDIAN:
             buffer[ind] = (float)get_median(arr, n);
             break;
         case F_STD:
-            buffer[ind] = (float)get_std(arr, n);
+            buffer[ind] = (float)get_std(arr, n, 0);
             break;
         case F_MIN:
-            buffer[ind] = (float)get_min(arr, n);
+            buffer[ind] = (float)get_min(arr, n, 0);
             break;
         case F_MAX:
-            buffer[ind] = (float)get_max(arr, n);
+            buffer[ind] = (float)get_max(arr, n, 0);
             break;
         default:
             fprintf(stderr, "Data Function %d not handled\n", stat_func);
@@ -843,11 +901,11 @@ float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *ni
 void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros) {
     double mn_thresh, mx_thresh;
     double min_src = FLT_MAX, max_src = -FLT_MAX;
-    int *cumsum, *histo;
-    int i, sz_histo = 10000, nvox = dims[0] * dims[1] * dims[2];
+    long *cumsum, *histo;
+    int i, sz_histo = 1000, nvox = dims[0] * dims[1] * dims[2];
     
-    cumsum = (int *)malloc(sizeof(int) * sz_histo);
-    histo = (int *)malloc(sizeof(int) * sz_histo);
+    cumsum = (long *)malloc(sizeof(long) * sz_histo);
+    histo  = (long *)malloc(sizeof(long) * sz_histo);
     
     /* check success of memory allocation */
     if (!cumsum || !histo) {
@@ -871,14 +929,15 @@ void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], 
 
     // Build cumulative sum from histogram
     cumsum[0] = histo[0];
-    for (i = 1; i < sz_histo; i++) {
+    for (i = 1; i < sz_histo; i++) 
         cumsum[i] = cumsum[i - 1] + histo[i];
-    }
     
+    for (i = 1; i < sz_histo; i++)
+        cumsum[i] = (long)round(100000.0 * (double)cumsum[i] / (double)cumsum[sz_histo - 1]);
+
     // Normalize cumulative sum and find the lower threshold
     for (i = 0; i < sz_histo; i++) {
-        cumsum[i] = (int)round(100000.0 * (double)cumsum[i] / (double)cumsum[sz_histo - 1]);
-        if (cumsum[i] >= (int)round(prctile[0] * 1000.0)) {
+        if (cumsum[i] >= (long)round(prctile[0] * 1000.0)) {
             threshold[0] = (double)i / (double)sz_histo * (max_src - min_src) + min_src;
             break;
         }
@@ -886,7 +945,7 @@ void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], 
     
     // Find the upper threshold
     for (i = sz_histo - 1; i >= 0; i--) {
-        if (cumsum[i] <= (int)round(prctile[1] * 1000.0)) {
+        if (cumsum[i] <= (long)round(prctile[1] * 1000.0)) {
             threshold[1] = (double)i / (double)sz_histo * (max_src - min_src) + min_src;
             break;
         }
@@ -2413,9 +2472,9 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
     
     /* square input image improve segmentation of CSF and GM */
     if (square_image) {
-        mx_image = get_max_float(src, nvox);
+        mx_image = get_max_float(src, nvox, 0);
         for (i = 0; i < nvox; i++) src[i] *= src[i];
-        scl = mx_image/get_max_float(src, nvox);
+        scl = mx_image/get_max_float(src, nvox, 0);
         for (i = 0; i < nvox; i++) src[i] *= scl;
     }
       

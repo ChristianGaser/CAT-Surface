@@ -410,7 +410,7 @@ normalizeVector(double *data, int length)
         for (i = 0; i < length; i++) 
                 data[i] -= median_data;
                 
-        stdev_data = get_std(data, length);
+        stdev_data = get_std(data, length, 0);
 
         for (i = 0; i < length; i++)
                 data[i] /= stdev_data;
