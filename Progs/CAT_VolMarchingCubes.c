@@ -21,7 +21,7 @@
 double local_smoothing = 10.0;
 double min_threshold = 0.5;
 double post_fwhm = 2.0;
-double pre_fwhm = -2.0;
+double pre_fwhm = 5.0;
 double scl_open = 0.9;
 int median_correction = 2;
 int use_distopen = 1;
@@ -41,19 +41,12 @@ static ArgvInfo argTable[] = {
      creating a weighted average between original and smoothed\n\
      images based on the gradient of the input image. Areas with \n\
      topology artefacts are often characterized by large gradients,\n\
-     thus smoothing in these areas tries to prevent these artefacts.\n\
-     A negative value will force masked smoothing, which may\n\
-     preserves gyri and sulci even better."},
+     thus smoothing in these areas tries to prevent these artefacts."},
 
   {"-post-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &post_fwhm,
     "Set FWHM for surface smoothing. This aids in correcting the mesh\n\
      in folded areas like gyri and sulci. Note: Do not use smoothing\n\
      sizes > 3 mm for reliable compensation in these areas."},
-  
-  {"-scl-opening", ARGV_FLOAT, (char *) TRUE, (char *) &scl_open,
-    "Manually set the scaling factor for morphological opening. This\n\
-     affects the isovalue for the opening process.\n\
-     Use -1 for automatic estimation."},
   
   {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
     "Specify the number of iterations to apply a median filter to areas\n\
@@ -61,6 +54,11 @@ static ArgvInfo argTable[] = {
      These clusters may point to potential topology artifacts and regions\n\
      with high local variations. This process helps to smooth these areas, \n\
      improving the quality of the surface reconstruction in subsequent steps."},
+  
+  {"-scl-opening", ARGV_FLOAT, (char *) TRUE, (char *) &scl_open,
+    "Manually set the scaling factor for morphological opening. This\n\
+     affects the isovalue for the opening process.\n\
+     Use -1 for automatic estimation."},
   
   {"-iter", ARGV_INT, (char *) TRUE, (char *) &iter,
     "Number of iterations."},
@@ -148,7 +146,7 @@ main(
     double              min_label, max_label, start_scl_open, dist;
     double              valid_low, valid_high, val, RMSE, sum_RMSE;
     double              *values, *extents, voxelsize[N_DIMENSIONS];
-    double              x, y, z, min_value, max_value;
+    double              x, y, z, min_value, max_value, mean_grad, max_grad;
     int                 i, j, k, c ;
     int                 n_out, EC, sizes[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
@@ -231,31 +229,23 @@ main(
     
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
-        double s[] = {fabs(pre_fwhm), fabs(pre_fwhm), fabs(pre_fwhm)};
-        smooth3(vol_float, sizes, voxelsize, s, (pre_fwhm < 0.0), DT_FLOAT32);
+        double s[] = {pre_fwhm, pre_fwhm, pre_fwhm};
+        smooth3(vol_float, sizes, voxelsize, s, 0, DT_FLOAT32);
         
         /* estimate magnitude of gradient for weighting the smoothing */
         gradient3D_magnitude(input_float, grad, sizes);
 
         /* calculate mean of gradient (where gradient > 0) */
-        double mean_grad = 0.0;
-        c = 0;
-        for (i = 0; i < nvol; i++) {
-            if (grad[i] > 0.0) {
-                mean_grad += grad[i];
-                c++;
-            }
-        }
-        mean_grad /= (float)c;
-
+        mean_grad = get_mean_float(grad, nvol, 1);
+        max_grad  = get_max_float(grad, nvol, 1);
+        
         /* Protect values in sulci and gyri and weight areas with filtered values 
           depending on gradient of input image */
         for (i = 0; i < nvol; i++) {
             /* estimate weight using gradient of input image and limit range to 0..1 */
-            weight = (1.0/(mean_grad+0.2)) - (1.0/(grad[i]+0.2));
+            weight = (grad[i] - mean_grad)/(max_grad - mean_grad);
             weight = (weight < 0.0) ? 0.0f : weight;
             weight = (weight > 1.0) ? 1.0f : weight;
-            
             
             /* emphasize large weightings by using the squared value */
             weight *= weight;
@@ -265,13 +255,13 @@ main(
         }
     }
 
-    /* Preprocessing with Median Filter:**\n\
+    /* Preprocessing with Median Filter:
        - Apply an iterative median filter to areas where the gradient of
-         the thresholded image indicates larger clusters.\n\
+         the thresholded image indicates larger clusters.
        - Use a weighted average of the original and median filterd images.
        - Weighting is estimated using gradient of the input image and.
          morphological operations to find larger clusters */
-    if (median_correction) {
+    if (median_correction && 0) {
         /* Treshold the input image */
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i] >= min_threshold ? 1.0 : 0.0;
