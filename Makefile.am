@@ -54,8 +54,8 @@ gifti_SRC = \
 
 dartel_SRC = \
     dartel/diffeosphere.c \
-    dartel/diffeopoly.c \
-    dartel/optimizersphere.c
+    dartel/optimizersphere.c \
+    dartel/diffeopoly.c 
 
 bic_SRC = \
     3rdparty/volume_io/Geometry/colour.c  \

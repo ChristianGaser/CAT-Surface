@@ -34,7 +34,7 @@
    ===================================================================== 
 */
 
-    printf("** On entry to %6s, parameter number %2i had an illegal value\n",
+    printf("** On entry to %6s, parameter number %2li had an illegal value\n",
 		srname, *info);
 
 /*     End of XERBLA */

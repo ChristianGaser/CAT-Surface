@@ -26,7 +26,7 @@ static ArgvInfo argTable[] = {
   {"-thickness", ARGV_STRING, (char *) 1, (char *) &thickness_file, 
      "Additional thickness file for internally estimating inner and outer surface based on central surface and thickness."},
   {"-position", ARGV_STRING, (char *) 1, (char *) &position_file, 
-     "Additional position file for estimating  whether inner or outer border is reached."},
+     "Additional position file for estimating whether inner or outer border is reached."},
   {"-mean", ARGV_CONSTANT, (char *) Tfs, (char *) &dist_func,
      "Calculate mean of closest distance between surface 1 and 2 and vice versa (Tfs, default)." },
   {"-link", ARGV_CONSTANT, (char *) Tlink, (char *) &dist_func,
