@@ -232,6 +232,7 @@ noinst_HEADERS = \
     Include/CAT_Smooth.h \
     Include/CAT_Curvature.h \
     Include/CAT_Surf.h \
+    Include/CAT_Warp.h \
     Include/CAT_Pinv.h \
     Include/CAT_SurfaceIO.h \
     Include/CAT_SPH.h \
@@ -288,6 +289,7 @@ noinst_HEADERS = \
 
 libCAT_la_SOURCES = \
     Lib/CAT_Surf.c \
+    Lib/CAT_Warp.c \
     Lib/CAT_Curvature.c \
     Lib/CAT_SurfaceIO.c \
     Lib/CAT_Map.c \

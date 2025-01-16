@@ -12,6 +12,7 @@
 #include <float.h>
 #include <ParseArgv.h>
 
+#include "CAT_Warp.h"
 #include "CAT_Map.h"
 #include "CAT_Vol.h"
 #include "CAT_Surf.h"
@@ -83,97 +84,6 @@ static ArgvInfo argTable[] = {
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
-
-void
-resample_spherical_surface(polygons_struct *polygons,
-                           polygons_struct *poly_src_sphere,
-                           polygons_struct *resampled_source,
-                           double *input_values, double *output_values,
-                           int n_triangles)
-{
-        int    i, k, poly, n_points;
-        int    *n_neighbours, **neighbours;
-        Point  centre, point_on_src_sphere, scaled_point;
-        Point  poly_points[MAX_POINTS_PER_POLYGON];
-        Point  poly_points_src[MAX_POINTS_PER_POLYGON];
-        Point  *new_points;
-        double   weights[MAX_POINTS_PER_POLYGON];
-        double sphereRadius, r, bounds[6];
-
-        /*
-         * Determine radius for the output sphere.  The sphere is not always
-         * perfectly spherical, thus use average radius
-         */
-        sphereRadius = 0.0;
-        for (i = 0; i < poly_src_sphere->n_points; i++) {
-                r = 0.0;
-                for (k = 0; k < 3; k++) 
-                        r += Point_coord(poly_src_sphere->points[i], k) *
-                             Point_coord(poly_src_sphere->points[i], k);
-                sphereRadius += sqrt(r);
-        }
-        sphereRadius /= poly_src_sphere->n_points;
-
-        /* Calc. sphere center based on bounds of input (correct for shifts) */
-        get_bounds(poly_src_sphere, bounds);
-        fill_Point(centre, bounds[0]+bounds[1],
-                           bounds[2]+bounds[3], bounds[4]+bounds[5]);
-    
-        /*
-         * Make radius slightly smaller to get sure that the
-         * inner side of handles will be found as nearest point on the surface
-         */
-        sphereRadius *= 0.975;
-        create_tetrahedral_sphere(&centre, sphereRadius, sphereRadius,
-                                  sphereRadius, n_triangles, resampled_source);
-
-        create_polygons_bintree(poly_src_sphere,
-                                ROUND((Real) poly_src_sphere->n_items * 0.5));
-
-        ALLOC(new_points, resampled_source->n_points);
-        if (input_values != NULL)
-                ALLOC(output_values, resampled_source->n_points);
-
-        for (i = 0; i < resampled_source->n_points; i++) {
-                poly = find_closest_polygon_point(&resampled_source->points[i],
-                                                  poly_src_sphere,
-                                                  &point_on_src_sphere);
-    
-                n_points = get_polygon_points(poly_src_sphere, poly,
-                                              poly_points_src);
-                get_polygon_interpolation_weights(&point_on_src_sphere,
-                                                  n_points, poly_points_src,
-                                                  weights);
-
-                if (get_polygon_points(polygons, poly, poly_points) != n_points)
-                        fprintf(stderr,"map_point_between_polygons\n");
-
-                fill_Point(new_points[i], 0.0, 0.0, 0.0);
-                if (input_values != NULL)
-                        output_values[i] = 0.0;
-
-                for (k = 0; k < n_points; k++) {
-                        SCALE_POINT(scaled_point, poly_points[k], weights[k]);
-                        ADD_POINTS(new_points[i], new_points[i], scaled_point);
-                        if (input_values != NULL)
-                                output_values[i] += weights[k] *
-                                    input_values[polygons->indices[
-                                    POINT_INDEX(polygons->end_indices,poly,k)]];
-                }
-       }
-
-        create_polygon_point_neighbours(resampled_source, TRUE, &n_neighbours,
-                                        &neighbours, NULL, NULL);
-
-        for (i = 0; i < resampled_source->n_points; i++) {
-                resampled_source->points[i] = new_points[i];
-        }
-    
-        compute_polygon_normals(resampled_source);
-        free(new_points);
-        delete_the_bintree(&poly_src_sphere->bintree);
-}
-
 /* Compose two vector fields */
 void
 compose_field(double ax[], double ay[], double bx[], double by[], int n_values)
@@ -236,167 +146,6 @@ gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
 
     }
     if (polygons->bintree != NULL) delete_the_bintree(&polygons->bintree);
-}
-
-void
-rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygons,
-                double *rotation_matrix)
-{
-        int i;
-        double x, y, z;
-        
-        if (rotated_polygons != NULL)
-                copy_polygons(polygons, rotated_polygons);
-        
-        for (i = 0; i < polygons->n_points; i++) {
-                x = Point_x(polygons->points[i])*rotation_matrix[0] 
-                  + Point_y(polygons->points[i])*rotation_matrix[1]
-                  + Point_z(polygons->points[i])*rotation_matrix[2];
-                y = Point_x(polygons->points[i])*rotation_matrix[3] 
-                  + Point_y(polygons->points[i])*rotation_matrix[4]
-                  + Point_z(polygons->points[i])*rotation_matrix[5];
-                z = Point_x(polygons->points[i])*rotation_matrix[6] 
-                  + Point_y(polygons->points[i])*rotation_matrix[7]
-                  + Point_z(polygons->points[i])*rotation_matrix[8];
-                if (rotated_polygons != NULL) {
-                        fill_Point(rotated_polygons->points[i], x, y, z);
-                } else  fill_Point(polygons->points[i], x, y, z);
-        }
-}
-
-void
-rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
-                   double gamma)
-{
-        int i, j, k;        
-        double sum, rot[9];
-        
-        /* rotation matrices */
-        double rot_x[9] = {1.0, 0.0,         0.0,
-                           0.0, cos(alpha),  sin(alpha),
-                           0.0, -sin(alpha), cos(alpha)}; 
-        double rot_y[9] = {cos(beta),  0.0, sin(beta),
-                           0.0,        1.0, 0.0,
-                           -sin(beta), 0.0, cos(beta)}; 
-        double rot_z[9] = {cos(gamma),  sin(gamma), 0.0,
-                           -sin(gamma), cos(gamma), 0.0,
-                           0.0,         0.0,        1.0}; 
-
-        /* combine x and y rotation */
-        for (i = 0; i < 3; i++) {
-                for (j = 0; j < 3; j++) {
-                        sum = 0.0;
-                        for (k = 0; k < 3; k++)
-                                sum += rot_y[i + 3*k] * rot_x[k + 3*j];
-                        rot[i + 3*j] = sum;
-                }
-        }
-
-        /* combine with z rotation */
-        for (i = 0; i < 3; i++) {
-                for (j = 0; j < 3; j++) {
-                        sum = 0.0;
-                        for (k = 0; k < 3; k++) 
-                                sum += rot_z[i + 3*k] * rot[k + 3*j];
-                        rotation_matrix[i + 3*j] = sum;
-                }
-        }
-}
-
-/* This function uses the approach of the matlab function
- * SD_rotateAtlas2Sphere.m from the Spherical Demon software of Thomas Yeo
- * and Mert Sabuncu */
-void
-rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
-                         polygons_struct *trg, polygons_struct *trg_sphere,
-                         double fwhm, int curvtype, double *rot)
-{
-        int             i;
-        int             n_angles;
-        double          alpha, beta, gamma, sum_sq, min_sum_sq;
-        double          degrees, delta, d;
-        double          curr_alpha = 0.0, curr_beta = 0.0, curr_gamma = 0.0;
-        double          best_alpha, best_beta, best_gamma;
-        polygons_struct rot_src_sphere;
-        double          rotation_tmp[9], min_degrees, max_degrees;
-        double          *orig_trg, *map_trg, *map_src;
-                
-        min_degrees = RADIANS(1.0);
-        max_degrees = RADIANS(32.0);
-        degrees = max_degrees;
-        n_angles  = 4;
-        
-        min_sum_sq = 1e15;
-
-        orig_trg = (double *) malloc(sizeof(double) * trg->n_points);
-        map_trg  = (double *) malloc(sizeof(double) * src->n_points);
-        map_src  = (double *) malloc(sizeof(double) * src->n_points);
-
-        get_smoothed_curvatures(trg, orig_trg,
-                                fwhm, curvtype);
-        get_smoothed_curvatures(src, map_src,
-                                fwhm, curvtype);
-
-        for (degrees = max_degrees; degrees >= min_degrees; degrees /= 2.0f) {
-                delta = 2.0*degrees / (double) n_angles;
-                for (alpha = curr_alpha - degrees;
-                     alpha < curr_alpha + degrees; alpha += delta) {
-                        for (beta = curr_beta - degrees;
-                             beta < curr_beta + degrees; beta += delta) {
-                                for (gamma = curr_gamma - degrees;
-                                     gamma < curr_gamma + degrees;
-                                     gamma += delta) {
-                                
-                                        /* rotate source sphere */
-                                        rotation_to_matrix(rotation_tmp, alpha,
-                                                           beta, gamma);
-                                        rotate_polygons(src_sphere,
-                                                        &rot_src_sphere,
-                                                        rotation_tmp);
-                                        resample_values_sphere(trg_sphere,
-                                                         &rot_src_sphere,
-                                                         orig_trg, map_trg, 0);
-
-                                        /* estimate squared difference between
-                                         * rotated source map and target map */
-                                        sum_sq = 0.0;
-                                        for (i = 0; i < src->n_points; i++) {
-                                                d = map_src[i] - map_trg[i];
-                                                sum_sq += d*d;
-                                        }
-
-                                        if(sum_sq < min_sum_sq) {
-                                                min_sum_sq = sum_sq;
-                                                best_alpha = alpha;
-                                                best_beta = beta;
-                                                best_gamma = gamma;
-                                                rot[0] = best_alpha;
-                                                rot[1] = best_beta;
-                                                rot[2] = best_gamma;
-                                                if (verbose) {
-                                                        printf("alpha: %5.3f\tbeta: %5.3f\tgamma: %5.3f\tsquared difference: %5.3f\n",
-                                                                DEGREES(alpha), DEGREES(beta), DEGREES(gamma), sum_sq);
-/*
-                                                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-                                                        printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-*/
-                                                }
-                                        }
-                                }
-                        }
-                }
-                
-                /* save best estimates */
-                curr_alpha = best_alpha;
-                curr_beta  = best_beta;
-                curr_gamma = best_gamma;
-        }
-        if (verbose) printf("\n");
-        free(orig_trg);
-        free(map_trg);
-        free(map_src);
 }
 
 void
@@ -736,7 +485,7 @@ main(int argc, char *argv[])
                         if (rotate) {
                                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                                                          sm_trg, sm_trg_sphere,
-                                                         10.0, 5, rot);
+                                                         10.0, 5, rot, verbose);
 
                                 rotation_to_matrix(rotation_matrix,
                                                    rot[0], rot[1], rot[2]);
