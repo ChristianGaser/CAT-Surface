@@ -25,4 +25,5 @@ void resample_values_sphere_noscale(polygons_struct *, polygons_struct *,
             double *, double *);
 void resample_values_sphere(polygons_struct *, polygons_struct *, double *, 
             double *, int);
-
+void resample_spherical_surface(polygons_struct *, polygons_struct *, polygons_struct *,
+               double *, double *, int );

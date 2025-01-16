@@ -235,6 +235,96 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
 }
 
 
+void
+resample_spherical_surface(polygons_struct *polygons,
+               polygons_struct *poly_src_sphere,
+               polygons_struct *resampled_source,
+               double *input_values, double *output_values,
+               int n_triangles)
+{
+    int    i, k, poly, n_points;
+    int    *n_neighbours, **neighbours;
+    Point  centre, point_on_src_sphere, scaled_point;
+    Point  poly_points[MAX_POINTS_PER_POLYGON];
+    Point  poly_points_src[MAX_POINTS_PER_POLYGON];
+    Point  *new_points;
+    double   weights[MAX_POINTS_PER_POLYGON];
+    double sphereRadius, r, bounds[6];
+
+    /*
+     * Determine radius for the output sphere.  The sphere is not always
+     * perfectly spherical, thus use average radius
+     */
+    sphereRadius = 0.0;
+    for (i = 0; i < poly_src_sphere->n_points; i++) {
+        r = 0.0;
+        for (k = 0; k < 3; k++) 
+            r += Point_coord(poly_src_sphere->points[i], k) *
+               Point_coord(poly_src_sphere->points[i], k);
+        sphereRadius += sqrt(r);
+    }
+    sphereRadius /= poly_src_sphere->n_points;
+
+    /* Calc. sphere center based on bounds of input (correct for shifts) */
+    get_bounds(poly_src_sphere, bounds);
+    fill_Point(centre, bounds[0]+bounds[1],
+               bounds[2]+bounds[3], bounds[4]+bounds[5]);
+  
+    /*
+     * Make radius slightly smaller to get sure that the
+     * inner side of handles will be found as nearest point on the surface
+     */
+    sphereRadius *= 0.975;
+    create_tetrahedral_sphere(&centre, sphereRadius, sphereRadius,
+                  sphereRadius, n_triangles, resampled_source);
+
+    create_polygons_bintree(poly_src_sphere,
+                ROUND((Real) poly_src_sphere->n_items * 0.5));
+
+    ALLOC(new_points, resampled_source->n_points);
+    if (input_values != NULL)
+        ALLOC(output_values, resampled_source->n_points);
+
+    for (i = 0; i < resampled_source->n_points; i++) {
+        poly = find_closest_polygon_point(&resampled_source->points[i],
+                          poly_src_sphere,
+                          &point_on_src_sphere);
+  
+        n_points = get_polygon_points(poly_src_sphere, poly,
+                        poly_points_src);
+        get_polygon_interpolation_weights(&point_on_src_sphere,
+                          n_points, poly_points_src,
+                          weights);
+
+        if (get_polygon_points(polygons, poly, poly_points) != n_points)
+            fprintf(stderr,"map_point_between_polygons\n");
+
+        fill_Point(new_points[i], 0.0, 0.0, 0.0);
+        if (input_values != NULL)
+            output_values[i] = 0.0;
+
+        for (k = 0; k < n_points; k++) {
+            SCALE_POINT(scaled_point, poly_points[k], weights[k]);
+            ADD_POINTS(new_points[i], new_points[i], scaled_point);
+            if (input_values != NULL)
+                output_values[i] += weights[k] *
+                  input_values[polygons->indices[
+                  POINT_INDEX(polygons->end_indices,poly,k)]];
+        }
+     }
+
+    create_polygon_point_neighbours(resampled_source, TRUE, &n_neighbours,
+                    &neighbours, NULL, NULL);
+
+    for (i = 0; i < resampled_source->n_points; i++) {
+        resampled_source->points[i] = new_points[i];
+    }
+  
+    compute_polygon_normals(resampled_source);
+    free(new_points);
+    delete_the_bintree(&poly_src_sphere->bintree);
+}
+
 /* resample surface and values to space defined by tetrahedral sphere */
 object_struct **
 resample_surface(polygons_struct *surface, polygons_struct *sphere,
