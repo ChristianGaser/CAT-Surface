@@ -8,6 +8,17 @@
  */
 
 #include "CAT_Resample.h"
+#include <pthread.h>
+
+// Define the struct to pass arguments to threads
+typedef struct {
+    int start_idx;
+    int end_idx;
+    polygons_struct *source_sphere;
+    polygons_struct *target_sphere;
+    double *invals;
+    double *outvals;
+} ThreadArgs;
 
 /* correct shifting and scaling of source sphere w.r.t. target sphere */
 void
@@ -43,37 +54,85 @@ correct_shift_scale_sphere(polygons_struct *source_sphere, polygons_struct *targ
 
 }
 
-void
-resample_values_sphere_noscale(polygons_struct *source_sphere, polygons_struct *target_sphere,
-               double *invals, double *outvals)
-{
-        int    i, j, t, poly, n_points;
-        Point  point;
-        Point  poly_points[MAX_POINTS_PER_POLYGON];
-        double weights[MAX_POINTS_PER_POLYGON];
+// Thread function to process a subset of points
+void *process_target_points(void *args) {
+    ThreadArgs *thread_args = (ThreadArgs *)args;
 
-        if (source_sphere->bintree == NULL) {
-                create_polygons_bintree(source_sphere,
-                                        ROUND((double) source_sphere->n_items * 0.5));
+    int start = thread_args->start_idx;
+    int end = thread_args->end_idx;
+    polygons_struct *source_sphere = thread_args->source_sphere;
+    polygons_struct *target_sphere = thread_args->target_sphere;
+    double *invals = thread_args->invals;
+    double *outvals = thread_args->outvals;
+
+    int poly, n_points;
+    Point point;
+    Point poly_points[MAX_POINTS_PER_POLYGON];
+    double weights[MAX_POINTS_PER_POLYGON];
+
+    for (int i = start; i < end; i++) {
+        poly = find_closest_polygon_point(&target_sphere->points[i],
+                                          source_sphere, &point);
+
+        n_points = get_polygon_points(source_sphere, poly, poly_points);
+        get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
+
+        outvals[i] = 0.0;
+        for (int j = 0; j < n_points; j++) {
+            outvals[i] += weights[j] * invals[source_sphere->indices[
+                                   POINT_INDEX(source_sphere->end_indices, poly, j)]];
         }
+    }
 
-        for (i = 0; i < target_sphere->n_points; i++) {
-                poly = find_closest_polygon_point(&target_sphere->points[i],
-                                                  source_sphere, &point);
-    
-                n_points = get_polygon_points(source_sphere, poly, poly_points);
-                get_polygon_interpolation_weights(&point, n_points, poly_points,
-                                                  weights);
-
-                outvals[i] = 0.0;
-                for (j = 0; j < n_points; j++) {
-                        outvals[i] += weights[j] * invals[source_sphere->indices[
-                                                POINT_INDEX(source_sphere->end_indices,
-                                                            poly,j)]];
-                }
-        }
-        delete_the_bintree(&source_sphere->bintree);
+    return NULL;
 }
+
+// Parallelized version of the function
+void resample_values_sphere_noscale(polygons_struct *source_sphere, 
+                                    polygons_struct *target_sphere, 
+                                    double *invals, double *outvals) {
+    int num_threads = 8; // Number of threads
+    pthread_t threads[num_threads];
+    ThreadArgs thread_args[num_threads];
+
+    // Create bintree if it doesn't already exist
+    if (source_sphere->bintree == NULL) {
+        create_polygons_bintree(source_sphere,
+                                ROUND((double)source_sphere->n_items * 0.5));
+    }
+
+    // Divide the workload among threads
+    int total_points = target_sphere->n_points;
+    int chunk_size = total_points / num_threads;
+    int remainder = total_points % num_threads;
+
+    for (int t = 0; t < num_threads; t++) {
+        thread_args[t].start_idx = t * chunk_size;
+        thread_args[t].end_idx = (t == num_threads - 1) ? (t + 1) * chunk_size + remainder
+                                                        : (t + 1) * chunk_size;
+        thread_args[t].source_sphere = source_sphere;
+        thread_args[t].target_sphere = target_sphere;
+        thread_args[t].invals = invals;
+        thread_args[t].outvals = outvals;
+
+        if (pthread_create(&threads[t], NULL, process_target_points, &thread_args[t]) != 0) {
+            perror("pthread_create");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Join all threads
+    for (int t = 0; t < num_threads; t++) {
+        if (pthread_join(threads[t], NULL) != 0) {
+            perror("pthread_join");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Delete the bintree after processing
+    delete_the_bintree(&source_sphere->bintree);
+}
+
 
 /* resample values from source sphere onto target sphere */
 void
@@ -233,7 +292,6 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
 
         return(scaled_objects);
 }
-
 
 void
 resample_spherical_surface(polygons_struct *polygons,

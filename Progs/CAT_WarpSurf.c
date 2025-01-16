@@ -225,8 +225,10 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                                         dartel(prm[it0], dm, inflow, map_trg,
                                               map_src, NULL, flow, ll, scratch);
                                 }
-                                if (verbose) 
-                                        printf("%02d-%02d: %8.2f\n", step+1, it, ll[0]);
+                                if (verbose) {
+                                        printf("\r%02d-%02d: %8.2f", step+1, it, ll[0]);
+                                        fflush(stdout);
+                                }
 
                                 for (i = 0; i < xy_size*2; i++)
                                         inflow[i] = flow[i];
