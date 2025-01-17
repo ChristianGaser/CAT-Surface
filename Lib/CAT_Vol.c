@@ -1761,11 +1761,11 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], int niter, do
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
         buffer[sub2ind(x+band,y+band,z+band,dims2)] = (vol[sub2ind(x,y,z,dims)]>(float)th);
 
-    vbdist(buffer, NULL, dims2, NULL, 0);
+    vbdist(buffer, NULL, dims2, voxelsize, 0);
     for (i = 0;i<nvox2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
-    vbdist(buffer, NULL, dims2, NULL, 0);
+    vbdist(buffer, NULL, dims2, voxelsize, 0);
     for (i = 0;i<nvox2;i++)
         buffer[i] = buffer[i] > (float)niter;
 
@@ -1820,11 +1820,11 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     for (i = 0; i<nvox; i++)
         buffer[i] = 1.0 - ((float)vol[i]>th);
 
-    vbdist(buffer, NULL, dims, NULL, 0);
+    vbdist(buffer, NULL, dims, voxelsize, 0);
     for (i = 0; i<nvox; i++)
         buffer[i] = buffer[i] > (float)dist;
 
-    vbdist(buffer, NULL, dims, NULL, 0);
+    vbdist(buffer, NULL, dims, voxelsize, 0);
     for (i = 0; i<nvox; i++)
         buffer[i] = buffer[i] <= (float)dist;
 
