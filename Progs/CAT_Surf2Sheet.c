@@ -3,13 +3,12 @@
  * University of Jena
  *
  * Copyright Christian Gaser, University of Jena.
- * $Id$
  *
  */
 
+#include <ParseArgv.h>
 #include <bicpl.h>
 #include <float.h>
-#include <ParseArgv.h>
 
 #include "CAT_Map.h"
 #include "CAT_Curvature.h"
@@ -17,12 +16,12 @@
 
 #define  BINTREE_FACTOR   0.5
 
-double fwhm         = 0.0;
-char *values_file   = NULL;
-char *surface_file  = NULL;
-char *sphere_file   = NULL;
-int    sz_map[2]    = {512, 256};
-int    curvtype     = 0;
+double fwhm = 0.0;
+char *values_file = NULL;
+char *surface_file = NULL;
+char *sphere_file = NULL;
+int sz_map[2] = {512, 256};
+int curvtype = 0;
 
 static ArgvInfo argTable[] = {
   {"-values", ARGV_STRING, (char *) 1, (char *) &values_file, 
@@ -66,8 +65,6 @@ main(int argc, char *argv[])
         Point                centre;
         object_struct        **objects, *object;
 
-        initialize_argument_processing(argc, argv);
-
         if (ParseArgv(&argc, argv, argTable, 0) ||
             (values_file != NULL && surface_file != NULL) ||
             (values_file == NULL && surface_file == NULL)) {
@@ -76,6 +73,8 @@ main(int argc, char *argv[])
                 fprintf(stderr, "     %s -help\n\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
+
+        initialize_argument_processing(argc, argv);
 
         if (!get_string_argument(NULL, &output_surface_file)) {
                 usage(argv[0]);

@@ -6,286 +6,550 @@
  *
  */
 
-#include <float.h>
-#include <math.h>
-
 #include <bicpl.h>
+#include <float.h>
 #include <ParseArgv.h>
-#include "CAT_Amap.h"
-#include "CAT_NiftiLib.h"
-#include "CAT_Vol.h"
 
-char *label_filename;
-int iters_amap = 50;
-int subsample = 96;
-int iters_ICM = 50;
-int pve = 1;
-int write_seg[3] = {0, 1, 0};
-int write_label = 1;
-int write_corr = 1;
-int write_bias = 0;
-int debug = 0;
-double weight_LAS = 0.5;
-double weight_MRF = 0.0;
-double bias_fwhm = 10.0;
+#include "CAT_Warp.h"
+#include "CAT_Map.h"
+#include "CAT_Surf.h"
+#include "CAT_Curvature.h"
+#include "CAT_SurfaceIO.h"
+#include "CAT_Smooth.h"
+#include "CAT_Resample.h"
+#include "dartel.h"
+
+#define INVERSE_WARPING 0
+#define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
+#define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
+
+/* argument defaults */
+char *param_file         = NULL;
+char *source_file        = NULL;
+char *source_sphere_file = NULL;
+char *target_file        = NULL;
+char *target_sphere_file = NULL;
+char *jacdet_file        = NULL;
+char *output_sphere_file = NULL;
+char *pgm_file           = NULL;
+
+int rotate       = 1;
+int avg          = 0;
+int code         = 1;
+int loop         = 6;
+int verbose      = 0;
+int rtype        = 1;
+int curvtype0    = 5;
+int curvtype1    = 5;
+int curvtype2    = 2;
+int muchange     = 4;
+int sz_map[2]    = {512, 256};
+int n_triangles  = 81920;
+int n_steps      = 2;
+int n_runs       = 2;
+int debug        = 0;
+double murate    = 1.25;
+double lambda    = 0;
+double mu        = 0.125;
+double lmreg     = 1e-3;
+double fwhm      = 5.0;
+double fwhm_surf = 0.0;
 
 static ArgvInfo argTable[] = {
-    {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
-         "File containing segmentation labels for initialization."},
-         
-    {"-iters", ARGV_INT, (char *) 1, (char *) &iters_amap,
-         "Specifies the number of iterations for the Amap approach to terminate."},
-         
-    {"-sub", ARGV_INT, (char *) 1, (char *) &subsample,
-         "Defines the subsampling factor for Amap approach, which will be scaled\n\
-         internally by voxel size."},
-         
-    {"-iters-icm", ARGV_INT, (char *) 1, (char *) &iters_ICM,
-         "Sets the number of iterations for the Iterative Conditional Mode (ICM)\n\
-         algorithm."},
-         
-    {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
-         "Determines the weight of the Markov Random Field (MRF) prior, a value\n\
-         between 0 and 1."},
-         
-    {"-las", ARGV_FLOAT, (char *) 1, (char *) &weight_LAS,
-         "Determines the weight of the local adaptive segmentation (LAS), a value\n\
-         between 0 and 1. Only used if bias correction is applied."},
-         
-    {"-bias-fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
-         "Specifies the Full Width Half Maximum (FWHM) value for the bias correction\n\
-         smoothing kernel."},
-         
-    {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
-         "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
-         Default setting is 1."},
-         
-    {"-write-seg", ARGV_INT, (char *) 3, (char *) &write_seg,
-         "Option to write segmentation results as separate images. Requires three integers\n\
-         indicating whether to save each tissue class (CSF/GM/WM) with '1' for yes."},
-         
-    {"-write-label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
-         "Enable writing the label image. This is the default setting."},
-         
-    {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
-         "Disable writing the label image."},
-         
-    {"-write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
-         "Enable writing the nu-corrected image. This is the default setting."},
-         
-    {"-write-bias", ARGV_CONSTANT, (char *) 1, (char *) &write_bias,
-         "Enable writing the nu-correction (bias field)."},
-         
-    {"-nowrite-corr", ARGV_CONSTANT, (char *) 0, (char *) &write_corr,
-         "Disable writing the nu-corrected image."},
-         
-    {"-debug", ARGV_CONSTANT, (char *) 1, (char *) &debug,
-         "Enable debug mode to print additional debug information."},
-         
-    {NULL, ARGV_END, NULL, NULL, NULL}
+  {"-i", ARGV_STRING, (char *) 1, (char *) &source_file, 
+     "Input surface file."},
+  {"-is", ARGV_STRING, (char *) 1, (char *) &source_sphere_file, 
+     "Input sphere file."},
+  {"-t", ARGV_STRING, (char *) 1, (char *) &target_file, 
+     "Template surface file."},
+  {"-ts", ARGV_STRING, (char *) 1, (char *) &target_sphere_file, 
+     "Template sphere file."},
+  {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file, 
+     "Warped input sphere."},
+  {"-o", ARGV_STRING, (char *) 1, (char *) &pgm_file, 
+     "Warped map as pgm file."},
+  {"-j", ARGV_STRING, (char *) 1, (char *) &jacdet_file, 
+     "Save Jacobian determinant values (subtract 1 to ease the use of relative volume changes) of the surface."},
+  {"-p", ARGV_STRING, (char *) 1, (char *) &param_file, 
+     "Parameter file."},
+  {"-code", ARGV_INT, (char *) 1, (char *) &code,
+     "Objective function (code): 0 - sum of squares; 1 - symmetric sum of squares; 2 - multinomial."},
+  {"-rtype", ARGV_INT, (char *) 1, (char *) &rtype,
+     "Regularization type: 0 - linear elastic energy; 1 - membrane energy; 2 - bending energy."},
+  {"-mu", ARGV_FLOAT, (char *) 1, (char *) &mu,
+     "Regularization parameter mu."},
+  {"-muchange", ARGV_INT, (char *) TRUE, (char *) &muchange,
+     "Decrease mu after muchange loops."},
+  {"-murate", ARGV_FLOAT, (char *) TRUE, (char *) &murate,
+     "Divide mu after muchange loops with murate."},
+  {"-lambda", ARGV_FLOAT, (char *) 1, (char *) &lambda,
+     "Regularization parameter lambda."},
+  {"-lmreg", ARGV_FLOAT, (char *) 1, (char *) &lmreg,
+     "LM regularization."},
+  {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
+     "Filter size for curvature map in FWHM. This filter size is decreased by factor 3 with each step."},
+  {"-fwhm-surf", ARGV_FLOAT, (char *) 1, (char *) &fwhm_surf,
+     "Filter size for smoothing surface in FWHM. This filter size is decreased by factor 3 with each step."},
+  {"-loop", ARGV_INT, (char *) 1, (char *) &loop,
+     "Number of outer Dartel loops for default parameters (max. 6)."},
+  {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
+     "Number of Dartel steps (max. 3):\n\t1 - Inflated surface\n\t2 - High smoothed surface\n\t3 - Low smoothed surface."},
+  {"-runs", ARGV_INT, (char *) 1, (char *) &n_runs,
+     "Number of runs (repetitions) for whole Dartel approach."},
+  {"-size", ARGV_INT, (char *) 2, (char *) sz_map,
+     "Size of curvature map for warping."},
+  {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
+     "Don't rotate input surface before warping."},
+  {"-avg", ARGV_CONSTANT, (char *) TRUE, (char *) &avg,
+     "Average together two weighted DARTEL solutions into final mesh."},
+  {"-type0", ARGV_INT, (char *) 1, (char *) &curvtype0,
+     "Curvature type for 1st step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+  {"-type1", ARGV_INT, (char *) 1, (char *) &curvtype1,
+     "Curvature type for the 2nd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+  {"-type2", ARGV_INT, (char *) 1, (char *) &curvtype2,
+     "Curvature type for the 3rd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+  {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
+     "Be verbose."},
+  {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
+     "Save debug files."},
+   {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
-
-private void
-usage(
-    char *executable)
+void
+solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
+                  polygons_struct *trg, polygons_struct *trg_sphere,
+                  struct dartel_prm *prm, int dm[3], int n_steps,
+                  double rot[3], double *flow, int n_loops)
 {
-    char *usage_str = "\n\
-        CAT_VolAmap: Segmentation with adaptive MAP\n\
-         usage: CAT_VolAmap [options] -label label.nii in.nii [out.nii]\n\n";
-    fprintf(stderr,"%s\n %s\n",usage_str, executable);
+        int              step, i, it, it0, it1, xy_size, it_scratch, curvtype;
+        polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
+        double           rotation_matrix[9];
+        double           *flow1, *inflow, *map_src, *map_trg;
+        double           *scratch, *jd, *jd1, *values;
+        double           ll[3];
+
+        xy_size = dm[0] * dm[1];
+
+        flow1         = (double *) malloc(sizeof(double) * xy_size * 2);
+        inflow        = (double *) malloc(sizeof(double) * xy_size * 2);
+        map_src       = (double *) malloc(sizeof(double) * xy_size);
+        map_trg       = (double *) malloc(sizeof(double) * xy_size);
+        sm_src        = (polygons_struct *) malloc(sizeof(polygons_struct));
+        sm_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
+        sm_trg        = (polygons_struct *) malloc(sizeof(polygons_struct));
+        sm_trg_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
+        
+        for (step = 0; step < n_steps; step++) {
+                /* resample source and target surface */
+                resample_spherical_surface(src, src_sphere, sm_src, NULL, NULL,
+                                           n_triangles);
+                resample_spherical_surface(trg, trg_sphere, sm_trg, NULL, NULL,
+                                           n_triangles);
+
+                /* initialization */
+                if (step == 0) {
+                       curvtype = curvtype0;
+                       if (fwhm_surf > 0) {
+                               smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                               smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       }
+                       resample_spherical_surface(src_sphere, src_sphere,
+                                                   sm_src_sphere, NULL, NULL,
+                                                   n_triangles);
+                       resample_spherical_surface(trg_sphere, trg_sphere,
+                                                   sm_trg_sphere, NULL, NULL,
+                                                   n_triangles);
+
+                        /* initial rotation if n_loops < 0 */
+                        if (n_loops < 0) {
+                                rotate_polygons_to_atlas(sm_src, sm_src_sphere,
+                                                         sm_trg, sm_trg_sphere,
+                                                         fwhm, curvtype0, rot, verbose);
+                                rotation_to_matrix(rotation_matrix,
+                                                   rot[0], rot[1], rot[2]);
+                
+                                /* rotate source sphere */
+                                rotate_polygons(src_sphere,
+                                                NULL, rotation_matrix);
+
+                                resample_spherical_surface(src_sphere,
+                                                           src_sphere,
+                                                           sm_src_sphere, NULL,
+                                                           NULL, n_triangles);
+                        }
+
+                        for (i = 0; i < xy_size*2; i++)  inflow[i] = 0.0;
+
+                } else if (step == 1) {
+                       curvtype = curvtype1;
+                       if (fwhm_surf > 0) {
+                               smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                               smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       }
+                       
+                } else if (step == 2) {
+                       curvtype = curvtype2;
+                        
+                       if (fwhm_surf > 0) {
+                               smooth_heatkernel(sm_src, NULL, fwhm_surf);
+                               smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+                       }
+                }
+
+                /* get curvatures */
+                map_sphere_values_to_sheet(sm_trg, sm_trg_sphere, (double *)0,
+                                                 map_trg, fwhm, dm, curvtype);
+                map_sphere_values_to_sheet(sm_src, sm_src_sphere, (double *)0, 
+                                                 map_src, fwhm, dm, curvtype);
+                
+                if (debug) {
+                        if (write_pgm("source.pgm", map_src, dm[0], dm[1]) != 0)
+                                exit(EXIT_FAILURE);
+                        if (write_pgm("target.pgm", map_trg, dm[0], dm[1]) != 0)
+                                exit(EXIT_FAILURE);
+                }
+
+                /* go through dartel steps */
+                for (it = 0, it0 = 0; it0 < n_loops; it0++) {
+                        it_scratch = dartel_scratchsize((int *)dm,
+                                                         prm[it0].code);
+
+                        scratch = (double *) malloc(sizeof(double)*it_scratch);
+                        for (it1 = 0; it1 < prm[it0].its; it1++) {
+                                it++;
+                                /* map target onto source */
+                                if (INVERSE_WARPING) {
+                                        dartel(prm[it0], dm, inflow, map_src,
+                                              map_trg, NULL, flow, ll, scratch);
+                                } else {
+                                        dartel(prm[it0], dm, inflow, map_trg,
+                                              map_src, NULL, flow, ll, scratch);
+                                }
+                                if (verbose) 
+                                        printf("%02d-%02d: %8.2f\n", step+1, it, ll[0]);
+
+                                for (i = 0; i < xy_size*2; i++)
+                                        inflow[i] = flow[i];
+                        }
+                        free(scratch);
+                }
+
+                /* use smaller FWHM for next steps */
+                fwhm /= 3.0;
+                fwhm_surf /= 3.0;
+        }
+        if (verbose) printf("\n");
+
+        free(sm_src);
+        free(sm_trg);
+        free(sm_src_sphere);
+        free(sm_trg_sphere);
+        
+        /* get deformations and jacobian det. from flow field */
+        if (jacdet_file != NULL) {
+                printf("Warning: Saving jacobians not working\n");
+                if (rotate)
+                       printf("Warning: Rotation not yet considered\n");
+                jd  = (double *) malloc(sizeof(double) * xy_size);
+                jd1 = (double *) malloc(sizeof(double) * xy_size);
+
+                expdefdet(dm, 10, inflow, flow, flow1, jd, jd1);
+                
+                /* subtract 1 to get values around 0 instead of 1 and invert */
+                for (i = 0; i < xy_size; i++) {
+                        jd1[i] -= 1;
+                        jd1[i] *= -1;
+                }
+
+                values = (double *) malloc(sizeof(double) *
+                                           src_sphere->n_points);
+
+                map_sheet2d_to_sphere(jd1, values, src_sphere, 1, dm);
+
+                output_values_any_format(jacdet_file, src_sphere->n_points,
+                                         values, TYPE_DOUBLE);
+
+                free(values);
+                free(jd1);
+                free(jd);
+        } else {
+                expdef(dm, 10, inflow, flow, flow1,
+                       (double *) 0, (double *) 0);
+        }
+
+        free(flow1);
+        free(inflow);
+        free(map_src);
+        free(map_trg);
 }
 
 int
 main(int argc, char *argv[])
 {
-    nifti_image   *src_ptr, *label_ptr;
-    int       n_classes;
-    char      *input_filename, *output_filename, *basename, *extension;
-    int       i, j, dims[3], n_pure_classes = 3;;
-    int       x, y, z, z_area, y_dims;
-    char      *arg_string, buffer[1024];
-    unsigned char *label, *prob;
-    float     *src, *buffer_vol, *biasfield;
-    double    slope, offset, val, max_vol, min_vol, voxelsize[3];    
-    char *label_arr[] = {"CSF", "GM", "WM"};
+        File_formats     format;
+        FILE             *fp;
+        char             line[1024];
+        polygons_struct  *src, *trg, *src_sphere, *trg_sphere;
+        polygons_struct  *rsrc, *rs_sph, *rtrg, *rt_sph;
+        polygons_struct  *as_sph;
+        int              i, j, run;
+        int              n_objects, xy_size;
+        double           *flow, *flow2, *data;
+        object_struct    **objects;
+        static double    param[2] = {1.0, 1.0};
+        int              dm[3];
+        double           rotation_matrix[9];
+        struct           dartel_prm* prm;
+        double           rot[3];
 
-    /* Get arguments */
-    if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
-        usage(argv[0]);
-        fprintf(stderr, "     %s -help\n\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    
-    initialize_argument_processing(argc, argv);
 
-    if (!get_string_argument(NULL, &input_filename)) {
-        usage(argv[0]);
-        fprintf(stderr, "     %s -help\n\n", argv[0]);
-        return(1);
-    }
+        /* get the arguments from the command line */
+        if (ParseArgv(&argc, argv, argTable, 0) ||
+            source_file == NULL || target_file == NULL || 
+            source_sphere_file == NULL || target_sphere_file == NULL ||
+            (jacdet_file == NULL && pgm_file == NULL && output_sphere_file == NULL)) {
+                fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
+                fprintf(stderr, "     %s -help\n\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
 
-    /* if not defined use original name as basename for output */
-    if (!get_string_argument(NULL, &output_filename))
-        output_filename = argv[1];
+        /* size of curvature map for warping */
+        dm[0] = sz_map[0];
+        dm[1] = sz_map[1];
+        dm[2] = 1;
+
+        if (input_graphics_any_format(target_file, &format,
+                                      &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+
+        /* get a pointer to the surface */
+        trg = get_polygons_ptr(objects[0]);
+
+        /* check that the surface file contains a polyhedron */
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("Surface file must contain 1 polygons object.\n");
+                exit(EXIT_FAILURE);
+        }
+
+        if (input_graphics_any_format(source_file, &format,
+                                      &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+
+        /* get a pointer to the surface */
+        src = get_polygons_ptr(objects[0]);
+
+        /* check that the surface file contains a polyhedron */
+        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+                printf("Surface file must contain 1 polygons object.\n");
+                exit(EXIT_FAILURE);
+        }
+  
+        /* read sphere for input surface */
+        if (input_graphics_any_format(source_sphere_file, &format,
+                              &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+        src_sphere = get_polygons_ptr(objects[0]);
+
+        /* read sphere for template surface */
+        if (input_graphics_any_format(target_sphere_file, &format,
+                              &n_objects, &objects) != OK)
+                exit(EXIT_FAILURE);
+        trg_sphere = get_polygons_ptr(objects[0]);
+
+        translate_to_center_of_mass(src_sphere);
+        for (i = 0; i < src_sphere->n_points; i++)
+                set_vector_length(&src_sphere->points[i], 1.0);
+        translate_to_center_of_mass(trg_sphere);
+        for (i = 0; i < trg_sphere->n_points; i++)
+                set_vector_length(&trg_sphere->points[i], 1.0);
+
+        prm = (struct dartel_prm*) malloc(sizeof(struct dartel_prm) * 100);
         
-    /* get basename */
-    basename = nifti_makebasename(output_filename);
+        /* first two entries of param are equal */
+        for (j = 0; j < loop; j++) {
+                for (i = 0; i < 2; i++)
+                        prm[j].rparam[i] = param[i];
+        }
 
-    /* deal with extension */
-    extension = nifti_find_file_extension(output_filename);
+        /* read values from parameter file */
+        if (param_file != NULL) {
+                if ((fp = fopen(param_file, "r")) == 0) {
+                        fprintf(stderr, "Couldn't open parameter file %s.\n",
+                                param_file);
+                        exit(EXIT_FAILURE);
+                }
     
-    /* if no valid extension was found use .nii */
-    if (!extension) {
-        fprintf(stdout,"Use .nii as extension for %s.\n",output_filename);
-        strcpy(extension, ".nii");
-    }
+                j = 0;
 
-    if (iters_amap == 0) {
-        fprintf(stderr,"To estimate segmentation you need at least one iteration.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if (pve) n_classes = 5;
-    else     n_classes = 3;
-    
-    /* read data */
-    src_ptr = read_nifti_float(input_filename, &src, 0);
-    
-    if (!src_ptr) {
-        fprintf(stderr,"Error reading %s.\n",input_filename);
-        exit(EXIT_FAILURE);
-    }
+                printf("Read parameters from %s\n", param_file);
+                while (fgets(line, sizeof(line), fp)) {
+                        /* check for 9 values in each line */
+                        if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
+                                   &prm[j].rtype, &prm[j].rparam[2],
+                                   &prm[j].rparam[3], &prm[j].rparam[4],
+                                   &prm[j].lmreg, &prm[j].cycles,
+                                   &prm[j].its, &prm[j].k,
+                                   &prm[j].code) != 9)
+                                continue;
+                        j++;
+                }
+                fclose(fp);
 
-    /* read label and check for same size */
-    if (!label_filename) {
-        fprintf(stderr,"Label image has to be defined\n");
-        exit(EXIT_FAILURE);
-    }
-            
-    label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
-    prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
-    biasfield = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    
-    if (!label || !prob || !biasfield) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
+                if (j == 0) {
+                        fprintf(stderr, "Could not read parameter file %s. Check that each line contains 9 values\n", param_file);
+                        exit(EXIT_FAILURE);
+                }
 
-    /* read volume */
-    label_ptr = read_nifti_float(label_filename, &buffer_vol, 0);
-    if (!label_ptr) {
-        fprintf(stderr,"Error reading %s.\n", label_filename);
-        free(label);
-        free(prob);
-        return(EXIT_FAILURE);
-    }
+        } else { /* use predefined values */
+                for (j = 0; j < loop; j++) {
+                        /* some entries are equal */
+                        prm[j].rtype = rtype;
+                        prm[j].cycles = 3;
+                        prm[j].its = 3;
+                        prm[j].code = code;
+                        prm[j].lmreg = lmreg;
+                        prm[j].rparam[2] = mu;
+                        prm[j].rparam[3] = lambda;
+                        prm[j].rparam[4] = lambda/2.0;
+                        prm[j].k = j;
+                        if ((j+1) % muchange == 0) mu /= murate;
+                        lambda /= 5.0;
+                }
+        }
+
+        if (verbose) {
+                printf("___________________________________");
+                printf("________________________________________\n");
+                printf("Parameters\n");
+                printf("___________________________________");
+                printf("________________________________________\n");
+                printf("Regularization (0 - elastic; 1 - membrane; ");
+                printf("2 - bending):\t\t%d\n", prm[0].rtype);
+                printf("Number of cycles for full multi grid (FMG):");
+                printf("\t\t\t\t%d\n", prm[0].cycles);
+                printf("Number of relaxation iterations in each ");
+                printf("Multigrid cycle:\t\t%d\n", prm[0].its);
+                printf("Objective function (0 - sum of squares; ");
+                printf("1 - sym. sum of squares):\t%d\n", prm[0].code);
+                printf("Levenberg-Marquardt regularization:");
+                printf("\t\t\t\t\t%g\n", prm[0].lmreg);
+                printf("Curvature types:\t\t\t\t\t\t\t%d", curvtype0);
+                if (n_steps > 1) printf("/%d",curvtype1);
+                if (n_steps > 2) printf("/%d",curvtype2);
+                printf("\n%d Iterative loops\n", loop);
+                printf("\nRegularization parameter mu:\t\t");
+                for (i = 0; i < loop; i++)
+                        printf("%8g\t", prm[i].rparam[2]);
+                printf("\n");
+                printf("Regularization parameter lambda:\t");
+                for (i = 0; i < loop; i++)
+                        printf("%8g\t", prm[i].rparam[3]);
+                printf("\n");
+                printf("Regularization parameter id:\t\t");
+                for (i = 0; i < loop; i++)
+                        printf("%8g\t", prm[i].rparam[4]);
+                printf("\n");
+                printf("Time steps for solving the PDE:\t\t");
+                for (i = 0; i < loop; i++)
+                        printf("%8d\t",prm[i].k);
+                printf("\n\n");
+        }
+    
+        xy_size = dm[0] * dm[1];
+        flow    = (double *) malloc(sizeof(double) * xy_size * 2);
         
-    /* scale label image to a range 0..3 */
-    for (i = 0; i < src_ptr->nvox; i++) 
-        label[i] = (unsigned char) round(buffer_vol[i]);
-
-    double mean[n_classes], mu[n_pure_classes], var[n_pure_classes];
-    for (i = 0; i < n_pure_classes; i++)
-        mu[i] = 0;
-
-    /* get min/max */
-    min_vol = FLT_MAX; max_vol = -FLT_MAX;
-    for (i = 0; i < src_ptr->nvox; i++) {
-        min_vol = MIN((double)src[i], min_vol);
-        max_vol = MAX((double)src[i], max_vol);
-    }
-
-    if (debug)
-        fprintf(stdout,"Intensity range: %3.2f - %3.2f\n", min_vol, max_vol);
-
-    /* correct images with values < 0 */
-    if (min_vol < 0) {
-        for (i = 0; i < src_ptr->nvox; i++)
-            src[i] = src[i] - (float)min_vol;
-    }
-
-    voxelsize[0] = src_ptr->dx;
-    voxelsize[1] = src_ptr->dy;
-    voxelsize[2] = src_ptr->dz;
-    dims[0] = src_ptr->nx;
-    dims[1] = src_ptr->ny;
-    dims[2] = src_ptr->nz;
-
-    /* apply bias correction first for GM+WM and subsequently for WM only with less
-     * smoothing to emphasize subcortical structures */
-    if (bias_fwhm > 0.0) {
-        fprintf(stdout,"Bias correction\n");
-        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, 0);
-    }
-
-    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm, 1);
-
-    /* PVE */
-    if (pve) {
-        fprintf(stdout,"Calculate Partial Volume Estimate.\n");
-        Pve5(src, prob, label, mean, dims);
-    }
+        /* estimate rotation only */
+        if (rotate) {
+                solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm,
+                                  n_steps, rot, flow, -1);
+        }
         
-    /* write nu-corrected volume */
-    if (write_corr) {
+        if (debug && rotate) {
+                data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
 
-        slope = 0.0;
-        sprintf(buffer, "%s_corr%s",basename,extension);
-        if (!write_nifti_float(buffer, src, DT_UINT16, slope, 
-                        dims, voxelsize, src_ptr))
-            exit(EXIT_FAILURE);
-    }
+                map_sphere_values_to_sheet(src, src_sphere, (double *)0,
+                                                 data, 0.0, dm, curvtype0);
 
-    /* write bias field */
-    if (write_bias) {
+                if (write_pgm("source_rotated.pgm", data, dm[0], dm[1]) != 0)
+                        exit(EXIT_FAILURE);
 
-        slope = 0.0;
-        sprintf(buffer, "%s_bias%s",basename,extension);
-        if (!write_nifti_float(buffer, biasfield, DT_FLOAT, slope, 
-                        dims, voxelsize, src_ptr))
-            exit(EXIT_FAILURE);
-    }
+                free(data);
+        }
 
-    /* write labeled volume */
-    if (write_label) {
+        if (avg) {
+                flow2 = (double *) malloc(sizeof(double) * xy_size * 2);
+                rsrc = (polygons_struct *) malloc(sizeof(polygons_struct));
+                rs_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));
+                rtrg = (polygons_struct *) malloc(sizeof(polygons_struct));
+                rt_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));
+                as_sph  = (polygons_struct *) malloc(sizeof(polygons_struct));
 
-        /* different ranges for pve */
-        if (pve) slope = 3.0/255.0;
-        else slope = 1.0;
-
-        for (i = 0; i < src_ptr->nvox; i++)
-            src[i] = (float)label[i];
-
-        sprintf(buffer, "%s_seg%s",basename,extension);
-        if (!write_nifti_float(buffer, src, DT_UINT8, slope, 
-                        dims, voxelsize, src_ptr))
-            exit(EXIT_FAILURE);
-    }
-    
-    /* write PVE segmentations for each class */
-    if (write_seg[0] || write_seg[1] || write_seg[2]) {
+                rotation_to_matrix(rotation_matrix, 0.0, PI/2.0, 0.0);
+                rotate_polygons(trg, rtrg, rotation_matrix);
+                rotate_polygons(trg_sphere, rt_sph, rotation_matrix);
+        }
         
-        slope = 1.0/255.0;
+        /* run dartel */
+        for (run = 0; run < n_runs; run++) {
+                solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
+                          rot, flow, loop);
 
-        for (j = 0; j < n_pure_classes; j++) {
-            if (write_seg[j]) {
+                /* solve again, but rotated to change pole location */
+                if (avg && (run==(n_runs-1))) {
+                        rotation_to_matrix(rotation_matrix, 0.0, PI/2.0, 0.0);
+                        rotate_polygons(src, rsrc, rotation_matrix);
+                        rotate_polygons(src_sphere, rs_sph, rotation_matrix);
 
-                sprintf(buffer, "%s_label-%s_probseg%s",basename,label_arr[j],extension); 
-                
-                for (i = 0; i < src_ptr->nvox; i++)
-                    src[i] = prob[i+(j*src_ptr->nvox)];
-                
-                if (!write_nifti_float(buffer, src, DT_UINT8, slope, 
-                                dims, voxelsize, src_ptr))
-                    exit(EXIT_FAILURE);
-            }
-        }        
-    }
-    
-    free(prob);
-    free(label);
-    free(biasfield);
-    
-    return(EXIT_SUCCESS);
+                        solve_dartel_flow(rsrc, rs_sph, rtrg, rt_sph, prm,
+                                  dm, n_steps, rot, flow2, loop);
+
+                        apply_warp(src_sphere, src_sphere, flow, dm, !INVERSE_WARPING);
+                        apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 
+                        
+                        rotation_to_matrix(rotation_matrix, 0.0, -PI/2.0, 0.0);
+                        rotate_polygons(rs_sph, NULL, rotation_matrix);
+
+                        average_xz_surf(rs_sph, src_sphere, as_sph);
+                        copy_polygons(as_sph, src_sphere);
+                } else {
+                        apply_warp(src_sphere, src_sphere, flow, dm,
+                                   !INVERSE_WARPING);
+                }
+        }
+
+        if (avg) {
+                free(flow2);
+                free(rsrc);
+                free(rs_sph);
+                free(rtrg);
+                free(rt_sph);
+                free(as_sph);
+        }
+
+        if (output_sphere_file != NULL) {
+                compute_polygon_normals(src_sphere);
+                *get_polygons_ptr(objects[0]) = *src_sphere;
+                if (output_graphics_any_format(output_sphere_file, format,
+                                               n_objects, objects, NULL) != OK)
+                        exit(EXIT_FAILURE);
+        }
+
+        if (pgm_file != NULL) {
+                data = (double *) malloc(sizeof(double) * dm[0] * dm[1]);
+
+                map_sphere_values_to_sheet(src, src_sphere, (double *)0,
+                                                 data, 0.0, dm, curvtype0);
+
+                if (write_pgm(pgm_file, data, dm[0], dm[1]) != 0)
+                        exit(EXIT_FAILURE);
+
+                free(data);
+        }
+
+
+        delete_object_list(n_objects, objects);
+        free(flow);
+        free(prm);
+
+        return(EXIT_SUCCESS);
 }

@@ -665,7 +665,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
 
         for (i=0; i<Nthreads; i++)
         {
-                if(pthread_create(&ThreadList[i], NULL, ThreadFunc,&ThreadArgs[i])) {
+                if(pthread_create(&ThreadList[i], NULL, ThreadFunc, &ThreadArgs[i])) {
                          printf("Threads cannot be created\n");
                          exit(1);
                 }                                
