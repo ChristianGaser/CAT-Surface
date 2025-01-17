@@ -23,6 +23,7 @@ int n_avgs = 4;
 int thin_cortex = 1;
 int median_correction = 2;
 
+double sigmoid_center = 0.6;
 double sharpening = 0.2;
 double downsample = 0.0;
 double fwhm = 2.0;
@@ -56,6 +57,12 @@ static ArgvInfo argTable[] = {
   {"-downsample", ARGV_FLOAT, (char *) 1, (char *) &downsample,
     "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
     spacial resolution for the subsequent steps. Set to '0' to disable downsampling"},
+
+  {"-sigmoid-center", ARGV_FLOAT, (char *) 1, (char *) &sigmoid_center,
+    "Applies scaled sigmoid function to PPM map to obtain much smaller values below.\n\
+     the center and much higher values above the center. For the steepness a values\n\
+     k = 10 is used. This helps to prevent glueing sulci after downsampling the PPM map.\n\
+     while preserving gyri."},
 
   {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
     "Disable the correction for the typical underestimation of GM thickness in data\n\
@@ -121,7 +128,22 @@ Options:\n\
 Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
 
-    fprintf(stderr,"%s\n %s\n",usage_str, executable);
+    fprintf(stderr,"%s¥n %s¥n",usage_str, executable);
+}
+
+/* Scaled sigmoid function (input/output range 0..1)
+x - is the input value
+k - controls the steepness of the function */
+double scaled_sigmoid(double x, double k) {
+    // Standard sigmoid function
+    double sigmoid = 1.0 / (1.0 + exp(-k * (x - 0.5)));
+    
+    // Calculate scaling factors
+    double min_val = 1.0 / (1.0 + exp(k * 0.5)); // S(0)
+    double max_val = 1.0 / (1.0 + exp(-k * 0.5)); // S(1)
+    
+    // Scale sigmoid to [0, 1]
+    return (sigmoid - min_val) / (max_val - min_val);
 }
 
 int main(int argc, char *argv[])
@@ -159,7 +181,7 @@ int main(int argc, char *argv[])
             (void) sprintf(out_GMT, "%s/gmt_%s", dirname(infile), basename(infile)); 
             (void) sprintf(out_PPM, "%s/ppm_%s", dirname(infile), basename(infile)); 
         #else
-            fprintf(stderr,"\nUsage: %s input.nii GMT.nii PPM.nii\n\n", argv[0]);
+            fprintf(stderr,"¥nUsage: %s input.nii GMT.nii PPM.nii\n\n", argv[0]);
             return( 1 );
         #endif
     }
@@ -167,7 +189,7 @@ int main(int argc, char *argv[])
     /* read source image */
     src_ptr = read_nifti_float(infile, &src, 0);
     if (!src_ptr) {
-        fprintf(stderr,"Error reading %s.\n", infile);
+        fprintf(stderr,"Error reading %s.¥n", infile);
         return(EXIT_FAILURE);
     }
 
@@ -194,7 +216,7 @@ int main(int argc, char *argv[])
     
     /* check for memory faults */
     if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !PPM) {
-        fprintf(stderr,"Memory allocation error\n");
+        fprintf(stderr,"Memory allocation error¥n");
         exit(EXIT_FAILURE);
     }
     
@@ -217,7 +239,7 @@ int main(int argc, char *argv[])
         }    
     
         /* obtain CSF distance map */
-        if (verbose && (j == 0)) fprintf(stderr,"Estimate CSF distance map.\n");
+        if (verbose && (j == 0)) fprintf(stderr,"Estimate CSF distance map.¥n");
         vbdist(input, mask, dims, NULL, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_CSF[i] += input[i];
@@ -229,7 +251,7 @@ int main(int argc, char *argv[])
         }    
     
         /* obtain WM distance map */
-        if (verbose && (j == 0)) fprintf(stderr,"Estimate WM distance map.\n");
+        if (verbose && (j == 0)) fprintf(stderr,"Estimate WM distance map.¥n");
         vbdist(input, mask, dims, NULL, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_WM[i] += input[i];
@@ -248,7 +270,7 @@ int main(int argc, char *argv[])
     fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
     
     /* Estimate cortical thickness (first using sulci measures */
-    if (verbose) fprintf(stderr,"Estimate thickness map.\n");
+    if (verbose) fprintf(stderr,"Estimate thickness map.¥n");
     for (i = 0; i < src_ptr->nvox; i++) input[i] = src[i];
 
     projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
@@ -267,7 +289,7 @@ int main(int argc, char *argv[])
 
     GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
     if (!GMT2) {
-        fprintf(stderr,"Memory allocation error\n");
+        fprintf(stderr,"Memory allocation error¥n");
         exit(EXIT_FAILURE);
     }
 
@@ -303,7 +325,7 @@ int main(int argc, char *argv[])
 
     /* Apply final smoothing */
     if (fwhm > 0.0) {
-        if (verbose) fprintf(stderr,"Final correction\n");
+        if (verbose) fprintf(stderr,"Final correction¥n");
         s[0] = s[1] = s[2] = fwhm;
         smooth3(GMT, dims, voxelsize, s, 1, DT_FLOAT32);
     }
@@ -317,7 +339,7 @@ int main(int argc, char *argv[])
        If gyri were reconstructed too than also the dist_WM have to be
        corrected to avoid underestimation of the position map with surfaces 
        running to close to the WM. */
-    if (verbose) fprintf(stderr,"Estimate percentage position map.\n");
+    if (verbose) fprintf(stderr,"Estimate percentage position map.¥n");
     for (i = 0; i < src_ptr->nvox; i++) {
         if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
             PPM[i] = MIN(dist_CSF[i], (GMT[i]-dist_WM[i])) / GMT[i];
@@ -350,12 +372,12 @@ int main(int argc, char *argv[])
 
         for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - vol_smoothed[i];
 
-        prctile[0] = 0.1; prctile[1] = 99;
+        prctile[0] = 0.1; prctile[1] = 99.0;
         get_prctile(vol_smoothed, dims, threshold, prctile, 1);  
 
         /* Treshold the difference image */
         for (i = 0; i < src_ptr->nvox; i++)
-            vol_smoothed[i] = vol_smoothed[i] > threshold[1] ? 1.0 : 0.0;
+            vol_smoothed[i] = ((vol_smoothed[i] > threshold[1]) && (GMT[i] > 1.5)) ? 1.0 : 0.0;
             
         /* Apply morphological operations to find and slightly increase 
            regions with larger clusters */
@@ -410,22 +432,31 @@ int main(int argc, char *argv[])
         free(vol_smoothed);
         free(PPM0);
     }
-    
+        
     /* Downsample images */
     if (downsample > 0.0) {
+
+        if (sigmoid_center > 0.0) {
+            /* Estimate correction to shift values if sigmoid_center is not 0.5 */
+            double shift = sigmoid_center - 0.5;
+            int k = 10; /* controls the steepness of the function */
+            for (i = 0; i < src_ptr->nvox; i++)
+                PPM[i] = scaled_sigmoid(PPM[i] - shift, k) + shift;
+        }
+
         for (i = 0; i<3; i++) {
             s[i] = 1.2;
             voxelsize_reduced[i] = downsample;
             samp[i] = voxelsize_reduced[i]/voxelsize[i];
         }
     
-        // Define grid dimensions
+        /*  Define grid dimensions */
         for (i = 0; i<3; i++) 
             dims_reduced[i] = (int) ceil((dims[i]-1)/((double) samp[i]))+1;
     
         out_ptr_reduced->nvox = dims_reduced[0] * dims_reduced[1] * dims_reduced[2];
         
-        // Correct affine matrix
+        /* Correct affine matrix */
         for (i = 0; i < 3; i++) {
             for (j = 0; j < 3; j++) {
                 out_ptr_reduced->sto_xyz.m[i][j] = out_ptr->sto_xyz.m[i][j]*samp[i];
@@ -434,12 +465,10 @@ int main(int argc, char *argv[])
         out_ptr_reduced->sto_ijk = nifti_mat44_inverse( out_ptr_reduced->sto_xyz ) ;
     
         smooth3(GMT, dims, voxelsize, s, 0, DT_FLOAT32);
-        smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
-    }
+        //smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
 
-    /* Save GMT and PPM image */
-    slope = 1.0;
-    if (downsample > 0.0) {
+        /* Save GMT and PPM image */
+        slope = 1.0;
         vol_reduced = (float *)malloc(sizeof(float)*out_ptr_reduced->nvox);
 
         subsample3(GMT, vol_reduced, dims, dims_reduced, DT_FLOAT32);
