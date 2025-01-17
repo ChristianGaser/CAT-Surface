@@ -76,15 +76,15 @@ THREAD_RETURN process_target_points(void *args) {
     double *outvals = thread_args->outvals;
 
     int poly, n_points;
-    void *point = NULL; // Replace with actual point type
-    void *poly_points = malloc(MAX_POINTS_PER_POLYGON * sizeof(void *)); // Replace with actual point type
+    Point point;
+    Point poly_points[MAX_POINTS_PER_POLYGON];
     double weights[MAX_POINTS_PER_POLYGON];
 
     for (int i = start; i < end; i++) {
-        poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, point);
+        poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
 
         n_points = get_polygon_points(source_sphere, poly, poly_points);
-        get_polygon_interpolation_weights(point, n_points, poly_points, weights);
+        get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
         outvals[i] = 0.0;
         for (int j = 0; j < n_points; j++) {
@@ -93,7 +93,6 @@ THREAD_RETURN process_target_points(void *args) {
         }
     }
 
-    free(poly_points);
     return NULL;
 }
 #endif
@@ -111,7 +110,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
     // Create bintree if it doesn't already exist
     if (source_sphere->bintree == NULL) {
         create_polygons_bintree(source_sphere,
-                                (int)((double)source_sphere->n_items * 0.5));
+                                ROUND((double)source_sphere->n_items * 0.5));
     }
 
     // Divide the workload among threads
@@ -123,14 +122,14 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
     // **Sequential Execution for Windows**
     for (int i = 0; i < total_points; i++) {
         int poly, n_points;
-        void *point = NULL; // Replace with actual point type
-        void *poly_points = malloc(MAX_POINTS_PER_POLYGON * sizeof(void *)); // Replace with actual point type
+        Point point;
+        Point poly_points[MAX_POINTS_PER_POLYGON];
         double weights[MAX_POINTS_PER_POLYGON];
 
-        poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, point);
+        poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
 
         n_points = get_polygon_points(source_sphere, poly, poly_points);
-        get_polygon_interpolation_weights(point, n_points, poly_points, weights);
+        get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
         outvals[i] = 0.0;
         for (int j = 0; j < n_points; j++) {
@@ -138,9 +137,9 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
                                    POINT_INDEX(source_sphere->end_indices, poly, j)]];
         }
 
-        free(poly_points);
     }
 #else
+fprintf(stdout,"%d\n",num_threads);
     // **Parallel Execution for Non-Windows Systems**
     for (int t = 0; t < num_threads; t++) {
         thread_args[t].start_idx = t * chunk_size;
