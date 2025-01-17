@@ -525,7 +525,7 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
              polygons_struct *trg, polygons_struct *trg_sphere,
              double fwhm, int curvtype, double *rot, int verbose)
 {
-    int i, n;
+    int n;
     int n_angles;
     double alpha, beta, gamma, sum_sq, min_sum_sq;
     double degrees, delta, d;
@@ -564,7 +564,7 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
     double f_values[4];
 
     // Evaluate the cost function at each vertex
-    for (i = 0; i <= n; i++) {
+    for (int i = 0; i <= n; i++) {
         f_values[i] = compute_cost(simplex_ptrs[i], &params);
     }
 
