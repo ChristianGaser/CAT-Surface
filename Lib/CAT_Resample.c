@@ -101,7 +101,7 @@ THREAD_RETURN process_target_points(void *args) {
 void resample_values_sphere_noscale(polygons_struct *source_sphere, 
                                     polygons_struct *target_sphere, 
                                     double *invals, double *outvals) {
-    int num_threads = 8; // Number of threads (adjust based on system hardware)
+    int i, j, num_threads = 8; // Number of threads (adjust based on system hardware)
 #ifndef _WIN32
     THREAD_HANDLE threads[num_threads];
     ThreadArgs thread_args[num_threads];
@@ -120,7 +120,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
 
 #ifdef _WIN32
     // **Sequential Execution for Windows**
-    for (int i = 0; i < total_points; i++) {
+    for (i = 0; i < total_points; i++) {
         int poly, n_points;
         Point point;
         Point poly_points[MAX_POINTS_PER_POLYGON];
@@ -132,7 +132,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
         get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
         outvals[i] = 0.0;
-        for (int j = 0; j < n_points; j++) {
+        for (j = 0; j < n_points; j++) {
             outvals[i] += weights[j] * invals[source_sphere->indices[
                                    POINT_INDEX(source_sphere->end_indices, poly, j)]];
         }
