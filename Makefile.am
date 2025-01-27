@@ -58,21 +58,6 @@ dartel_SRC = \
     dartel/diffeopoly.c 
 
 bic_SRC = \
-    3rdparty/volume_io/Geometry/colour.c  \
-    3rdparty/volume_io/Geometry/colour_def.c  \
-    3rdparty/volume_io/Geometry/gaussian.c  \
-    3rdparty/volume_io/Geometry/inverse.c  \
-    3rdparty/volume_io/Geometry/newton.c  \
-    3rdparty/volume_io/Geometry/points.c  \
-    3rdparty/volume_io/Geometry/splines.c  \
-    3rdparty/volume_io/Geometry/tensors.c  \
-    3rdparty/volume_io/Geometry/transforms.c  \
-    3rdparty/volume_io/MNI_formats/gen_xf_io.c  \
-    3rdparty/volume_io/MNI_formats/gen_xfs.c  \
-    3rdparty/volume_io/MNI_formats/grid_transforms.c  \
-    3rdparty/volume_io/MNI_formats/mni_io.c  \
-    3rdparty/volume_io/MNI_formats/tag_points.c  \
-    3rdparty/volume_io/MNI_formats/thin_plate_spline.c  \
     3rdparty/volume_io/Prog_utils/alloc.c  \
     3rdparty/volume_io/Prog_utils/alloc_check.c  \
     3rdparty/volume_io/Prog_utils/arrays.c  \
