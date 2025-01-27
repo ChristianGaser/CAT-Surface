@@ -9,7 +9,6 @@
 
 /* Most of the code is used from convex_hull.c from conglomerate)  */
 
-#include  <volume_io/internal_volume_io.h>
 #include  <bicpl.h>
 
 #include "CAT_ConvexHull.h"

@@ -139,7 +139,6 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
 
     }
 #else
-fprintf(stdout,"%d\n",num_threads);
     // **Parallel Execution for Non-Windows Systems**
     for (int t = 0; t < num_threads; t++) {
         thread_args[t].start_idx = t * chunk_size;

@@ -25,7 +25,7 @@ int median_correction = 2;
 
 double sigmoid_center = 0.6;
 double sharpening = 0.2;
-double downsample = 0.0;
+double downsample = 1.0;
 double fwhm = 2.0;
 double min_thickness = 0.5;
 double max_thickness = 5.0;
@@ -158,14 +158,14 @@ int main(int argc, char *argv[])
     double threshold[2], prctile[2];
     nifti_image *src_ptr, *out_ptr, *out_ptr_reduced;
     
+    initialize_argument_processing(argc, argv);
+
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
         usage(argv[0]);
         fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     
-    initialize_argument_processing(argc, argv);
-
     infile  = argv[1];
 
     /* Determine output filenames based on input filename or command-line arguments */
