@@ -26,7 +26,7 @@ int maxiters = 30; /* the number of FD's to calculate */
 BOOLEAN sph = 1; /* 1=sph, 0=straight resampling */
 int n_triangles = 327680; /* # of triangles */
 BOOLEAN debug = 0; /* massive output */
-BOOLEAN smooth = 1; /* smooth the values */
+BOOLEAN do_smooth = 1; /* smooth the values */
 char *reparam_file = NULL;
 
 /* the argument table */
@@ -46,7 +46,7 @@ ArgvInfo argTable[] = {
     (char *) &sph,
     "Use direct resampling for FD calculation." },
   { "-nosmooth", ARGV_CONSTANT, (char *) FALSE,
-    (char *) &smooth,
+    (char *) &do_smooth,
     "Turn off smoothing of FD values." },
   { "-debug", ARGV_CONSTANT, (char *) TRUE,
     (char *) &debug,
@@ -143,10 +143,10 @@ main(int argc, char *argv[])
 
         if (sph) {
                 fd = fractal_dimension_sph(surface, sphere, output_surface_file,
-                                           n_triangles, reparam, smooth, debug);
+                                           n_triangles, reparam, do_smooth, debug);
         } else {
                 fd = fractal_dimension(surface, sphere, maxiters,
-                                       output_surface_file, smooth, debug);
+                                       output_surface_file, do_smooth, debug);
         }
 
         printf("global FD: %f\n", fd);

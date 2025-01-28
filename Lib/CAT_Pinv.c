@@ -48,12 +48,12 @@ pinv(int m, int n, double **A, double **Ainv)
         r = 0;
         for (i = 0; i < n; i++)
                 if (W[i] > TOL)
-	                r += 1;
+                  r += 1;
 
         if (r == 0) {
                 for (i = 0; i < n; i++)
-	                for (j = 0; j < m; j++)
-	                        Ainv[i][j] = 0.0;
+                  for (j = 0; j < m; j++)
+                          Ainv[i][j] = 0.0;
         } else {
                 for (i = 0; i < r; i++) {
                         for (j = 0; j < r; j++) {

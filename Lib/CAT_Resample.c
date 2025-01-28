@@ -75,19 +75,19 @@ THREAD_RETURN process_target_points(void *args) {
     double *invals = thread_args->invals;
     double *outvals = thread_args->outvals;
 
-    int poly, n_points;
+    int i, j, poly, n_points;
     Point point;
     Point poly_points[MAX_POINTS_PER_POLYGON];
     double weights[MAX_POINTS_PER_POLYGON];
 
-    for (int i = start; i < end; i++) {
+    for (i = start; i < end; i++) {
         poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
 
         n_points = get_polygon_points(source_sphere, poly, poly_points);
         get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
         outvals[i] = 0.0;
-        for (int j = 0; j < n_points; j++) {
+        for (j = 0; j < n_points; j++) {
             outvals[i] += weights[j] * invals[source_sphere->indices[
                                    POINT_INDEX(source_sphere->end_indices, poly, j)]];
         }
@@ -101,7 +101,7 @@ THREAD_RETURN process_target_points(void *args) {
 void resample_values_sphere_noscale(polygons_struct *source_sphere, 
                                     polygons_struct *target_sphere, 
                                     double *invals, double *outvals) {
-    int i, j, num_threads = 8; // Number of threads (adjust based on system hardware)
+    int i, j, t, num_threads = 8; // Number of threads (adjust based on system hardware)
 #ifndef _WIN32
     THREAD_HANDLE threads[num_threads];
     ThreadArgs thread_args[num_threads];
@@ -140,7 +140,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
     }
 #else
     // **Parallel Execution for Non-Windows Systems**
-    for (int t = 0; t < num_threads; t++) {
+    for (t = 0; t < num_threads; t++) {
         thread_args[t].start_idx = t * chunk_size;
         thread_args[t].end_idx = (t == num_threads - 1) ? (t + 1) * chunk_size + remainder
                                                         : (t + 1) * chunk_size;
@@ -156,7 +156,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
     }
 
     // Join all threads
-    for (int t = 0; t < num_threads; t++) {
+    for (t = 0; t < num_threads; t++) {
         if (pthread_join(threads[t], NULL) != 0) {
             perror("pthread_join");
             exit(EXIT_FAILURE);

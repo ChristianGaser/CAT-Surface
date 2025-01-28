@@ -10,8 +10,6 @@
 #ifndef _CAT_NIFTILIB_H_
 #define _CAT_NIFTILIB_H_
 
-#include <stdlib.h>
-
 #include "nifti1_io.h"
 #include "nifti1_local.h"
 

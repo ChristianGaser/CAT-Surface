@@ -415,7 +415,7 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] ) {
 }
 
 // Main function
-int main() {
+int calc_hessian() {
     // Load your 3D image into a 3D array (double***) here
     double ***image;
 
