@@ -40,7 +40,7 @@
 #include <stdio.h>
 
 /* Multithreading stuff*/
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <process.h>
 #else
@@ -492,7 +492,7 @@ void* ThreadFunc( void* pArguments )
                 }
         }
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(_WIN64)
         _endthreadex(0);                
 #else
         pthread_exit(0);                
@@ -515,7 +515,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
 
         myargument *ThreadArgs;  
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(_WIN64)
         HANDLE *ThreadList; /* Handles to the worker threads*/
 #else
         pthread_t * ThreadList;
@@ -607,7 +607,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
         if(Nthreads<1) Nthreads=1;
 
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(_WIN64)
 
         /* Reserve room for handles of threads in ThreadList*/
         ThreadList = (HANDLE*) malloc(Nthreads*sizeof( HANDLE ));
@@ -683,7 +683,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
                         if (variances[i]>0.0) {
                                 SNR = (double)means[i]/sqrt((double)variances[i]);                      
                                 bias[i] = 2*(variances[i]/(float)Epsi(SNR));                    
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(_WIN64)
                                 if (_isnan(bias[i])) bias[i] = 0.0;                     
 #else
                                 if (isnan(bias[i])) bias[i] = 0.0;               

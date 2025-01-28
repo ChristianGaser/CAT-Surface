@@ -9,7 +9,7 @@
 #include <float.h>
 #include <stdlib.h>
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <libgen.h>
 #endif
 
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
         (void) sprintf(out_GMT, "%s", argv[2]); 
         (void) sprintf(out_PPM, "%s", argv[3]); 
     } else {
-        #if !defined(_WIN32)
+        #if !defined(_WIN32) && !defined(_WIN64)
             (void) sprintf(out_GMT, "%s/gmt_%s", dirname(infile), basename(infile)); 
             (void) sprintf(out_PPM, "%s/ppm_%s", dirname(infile), basename(infile)); 
         #else

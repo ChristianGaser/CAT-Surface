@@ -9,7 +9,7 @@
 
 #include <float.h>
 #include <stdlib.h>
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <libgen.h>
 #endif
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
         if(argc == 3)
                 (void) sprintf(outfile, "%s", argv[2]); 
         else {
-                #if !defined(_WIN32)
+                #if !defined(_WIN32) && !defined(_WIN64)
                         (void) sprintf(outfile, "%s/n%s", dirname(infile), basename(infile)); 
                 #else
                         fprintf(stderr,"\nUsage: %s input.nii output.nii\n\n\

@@ -10,7 +10,7 @@
 #include <float.h>
 #include <stdlib.h>
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <libgen.h>
 #endif
 
@@ -45,7 +45,7 @@ main(int argc, char *argv[])
     nifti_image *nii_ptr;
 
     /* Get arguments */
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_WIN64)
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
 #else
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 3)) {
@@ -85,7 +85,7 @@ main(int argc, char *argv[])
     if (argc == 3)
             (void) sprintf(outfile, "%s", argv[2]); 
     else {
-        #if !defined(_WIN32)
+        #if !defined(_WIN32) && !defined(_WIN64)
             (void) sprintf(outfile, "%s/s%g%s", dirname(infile), fwhm, basename(infile)); 
         #endif
     }

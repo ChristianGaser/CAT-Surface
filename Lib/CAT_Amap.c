@@ -519,7 +519,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
         }
 
         rel_changed /= (double)sum_voxel;
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_WIN64)
         if (verbose) {
             printf("ICM: %d relative change: %2.4f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iter+1, 100.0*rel_changed);
             fflush(stdout);
@@ -632,7 +632,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 
         ll /= (double)vol;
         change_ll = (ll_old - ll)/fabs(ll);
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(_WIN64)
         if (verbose) {
             printf("iters:%3d log-likelihood: %7.5f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iters+1, ll);
             fflush(stdout);

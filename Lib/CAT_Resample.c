@@ -10,7 +10,7 @@
 #include "CAT_Resample.h"
 
 /* Multithreading stuff*/
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     #define THREAD_HANDLE HANDLE
     #define THREAD_RETURN DWORD WINAPI
 #else
@@ -64,7 +64,7 @@ correct_shift_scale_sphere(polygons_struct *source_sphere, polygons_struct *targ
 }
 
 // Thread function (used only on non-Windows systems)
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(_WIN64)
 THREAD_RETURN process_target_points(void *args) {
     ThreadArgs *thread_args = (ThreadArgs *)args;
 
@@ -102,7 +102,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
                                     polygons_struct *target_sphere, 
                                     double *invals, double *outvals) {
     int i, j, t, num_threads = 8; // Number of threads (adjust based on system hardware)
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(_WIN64)
     THREAD_HANDLE threads[num_threads];
     ThreadArgs thread_args[num_threads];
 #endif
@@ -118,7 +118,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
     int chunk_size = total_points / num_threads;
     int remainder = total_points % num_threads;
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(_WIN64)
     // **Sequential Execution for Windows**
     for (i = 0; i < total_points; i++) {
         int poly, n_points;
