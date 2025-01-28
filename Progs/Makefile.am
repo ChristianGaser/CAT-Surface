@@ -1,8 +1,11 @@
+# Compiler flags
 AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/dartel -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
-AM_CPPFLAGS=${AM_CFLAGS}
+AM_CPPFLAGS = ${AM_CFLAGS}
 
+# Linker flags
 LDADD = ../libCAT.la -lm
 
+# Distribute scripts
 dist_bin_SCRIPTS = \
     CAT_ResampleFS_ui \
     CAT_FractalDimensionFS_ui \
@@ -12,7 +15,8 @@ dist_bin_SCRIPTS = \
     CAT_DumpSurfArea_ui \
     CAT_SulcusDepth_ui \
     CAT_DumpCurv_ui
-    
+
+# Programs to build
 bin_PROGRAMS = \
     CAT_Surf2Sheet \
     CAT_Sheet2Surf \
@@ -40,12 +44,9 @@ bin_PROGRAMS = \
     CAT_Isometize \
     CAT_WarpSurf \
     CAT_WarpSurfDemon \
-    CAT_ResampleSphericalSurfSPH \
     CAT_ArealSmoothing \
     CAT_SmoothConvexity \
     CAT_SmoothSharpness \
-    CAT_Surf2SPH \
-    CAT_SPH2Surf \
     CAT_Hausdorff \
     CAT_Sharpness \
     CAT_SelfIntersect \
@@ -67,10 +68,7 @@ bin_PROGRAMS = \
     CAT_VolAverage \
     CAT_VolSmooth \
     CAT_VolSanlm \
-    CAT_VolThicknessPbt
-
-# experimental code, not yet working or for testing only!
-##  CAT_Test \
-##  CAT_DumpGI \
-##  CAT_DumpGyrificationIndex \ 
-##  CAT_DeformMesh
+    CAT_VolThicknessPbt \
+    CAT_ResampleSphericalSurfSPH \
+    CAT_Surf2SPH \
+    CAT_SPH2Surf

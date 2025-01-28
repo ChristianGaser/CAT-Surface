@@ -5,6 +5,11 @@ ACLOCAL_AMFLAGS = -I m4
 
 CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/dartel -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
 
+if EMSCRIPTEN
+CFLAGS0 += -s USE_ZLIB=1 -s MODULARIZE=1 -s FETCH=1 -s WASM=1 -s EXPORT_ES6=1 \
+    -s FORCE_FILESYSTEM=1 -s USE_PTHREADS=1 -s ENVIRONMENT=web
+endif
+
 if WINDOWS
   AM_CFLAGS = ${CFLAGS0}
 else
@@ -28,7 +33,14 @@ s2kit10_SRC = \
     3rdparty/s2kit10/seminaive.c \
     3rdparty/s2kit10/naive_synthesis.c \
     3rdparty/s2kit10/primitive.c
-    
+
+expat_SRC = \
+    3rdparty/expat/lib/xmlparse.c \
+    3rdparty/expat/lib/xmlrole.c \
+    3rdparty/expat/lib/xmltok.c  \
+    3rdparty/expat/lib/xmltok_impl.c \
+    3rdparty/expat/lib/xmltok_ns.c
+
 zlib_SRC = \
     3rdparty/zlib/adler32.c \
     3rdparty/zlib/crc32.c \
@@ -49,7 +61,6 @@ nifti_SRC = \
 
 gifti_SRC = \
     3rdparty/gifticlib/gifti_io.c \
-    3rdparty/gifticlib/gifti_tool.c \
     3rdparty/gifticlib/gifti_xml.c
 
 dartel_SRC = \
@@ -58,6 +69,15 @@ dartel_SRC = \
     dartel/diffeopoly.c 
 
 bic_SRC = \
+    3rdparty/volume_io/Geometry/colour.c  \
+    3rdparty/volume_io/Geometry/colour_def.c  \
+    3rdparty/volume_io/Geometry/gaussian.c  \
+    3rdparty/volume_io/Geometry/inverse.c  \
+    3rdparty/volume_io/Geometry/newton.c  \
+    3rdparty/volume_io/Geometry/points.c  \
+    3rdparty/volume_io/Geometry/splines.c  \
+    3rdparty/volume_io/Geometry/tensors.c  \
+    3rdparty/volume_io/Geometry/transforms.c  \
     3rdparty/volume_io/Prog_utils/alloc.c  \
     3rdparty/volume_io/Prog_utils/alloc_check.c  \
     3rdparty/volume_io/Prog_utils/arrays.c  \
@@ -279,7 +299,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_SurfaceIO.c \
     Lib/CAT_Map.c \
     Lib/CAT_Smooth.c \
-    Lib/CAT_SPH.c \
     Lib/CAT_Pinv.c \
     Lib/CAT_Intersect.c \
     Lib/CAT_Octree.c \
@@ -301,10 +320,14 @@ libCAT_la_SOURCES = \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \
     Lib//CAT_MarchingCubes.c \
+    Lib/CAT_SPH.c \
     3rdparty/genus0/genus0.c \
+    $(expat_SRC) \
     $(zlib_SRC) \
     $(nifti_SRC) \
     $(gifti_SRC) \
     $(dartel_SRC) \
     $(bic_SRC) \
     $(s2kit10_SRC)
+
+
