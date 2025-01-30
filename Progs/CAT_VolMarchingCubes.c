@@ -21,7 +21,7 @@
 double local_smoothing = 10.0;
 double min_threshold = 0.5;
 double post_fwhm = 2.0;
-double pre_fwhm = 5.0;
+double pre_fwhm = 2.0;
 double scl_open = 0.9;
 int median_correction = 2;
 int use_distopen = 1;
@@ -143,11 +143,13 @@ main(
     char  *argv[])
 {
     char                *input_filename, *output_filename;
+    char                out_diff[1024], out_bin[1024];;
     double              min_label, max_label, start_scl_open, dist;
     double              valid_low, valid_high, val, RMSE, sum_RMSE;
     double              *values, *extents, voxelsize[N_DIMENSIONS];
-    double              x, y, z, min_value, max_value, mean_grad, max_grad;
-    int                 i, j, k, c ;
+    double              x, y, z, min_value;
+    double              max_value, mean_grad, max_grad;
+    int                 i, j, k, c, n_values;
     int                 n_out, EC, sizes[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
     Marching_cubes_methods    method;
@@ -155,9 +157,12 @@ main(
     polygons_struct     *polygons, *smooth_polygons;
     unsigned short      *input_uint16;
     unsigned char       *input_uint8, *vol_uint8;
-    float               *input_float, *vol_float, *grad, weight;
-    nifti_image         *nii_ptr;
+    float               *input_float, *vol_float;
+    float               *grad, weight;
+    nifti_image         *nii_ptr, *out_ptr;
     mat44               nii_mat;
+
+    initialize_argument_processing(argc, argv);
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
@@ -165,8 +170,6 @@ main(
         fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-
-    initialize_argument_processing(argc, argv);
 
     if (!get_string_argument(NULL, &input_filename) ||
         !get_string_argument(NULL, &output_filename))
@@ -176,6 +179,12 @@ main(
         return(1);
     }
     
+    if(argc > 3)
+        (void) sprintf(out_diff, "%s", argv[3]); 
+
+    if(argc > 4)
+        (void) sprintf(out_bin, "%s", argv[4]); 
+
     /* marching cubes without holes */
     method = (Marching_cubes_methods) 1;
 
@@ -183,7 +192,7 @@ main(
     valid_high = -1.0;
     min_label  =  0.0;
     max_label  = -1.0;
-
+    
     nii_ptr = read_nifti_float(input_filename, &input_float, 0);
     if (!nii_ptr) {
         fprintf(stderr,"Error reading %s.\n", input_filename);
@@ -216,6 +225,13 @@ main(
         exit(EXIT_FAILURE);
     }
 
+    /* We have to scale image to a maximum of 1.0 if isoval > 1.0 */
+    if (min_threshold > 1.0) {
+        max_value = get_max_float(input_float, nvol, 0);
+        for (i = 0; i < nvol; i++) input_float[i] /= (float)max_value;
+        min_threshold = min_threshold/max_value;
+    }
+    
     /* Preprocessing Step: Smoothing Filter
        - Purpose: To remove outliers in the input image.
        - Method: A weighted average is calculated between the original image and the 
@@ -253,41 +269,6 @@ main(
             /* weighted average of filtered and original input */
             input_float[i] = (1.0 - weight)*input_float[i] + weight*vol_float[i];
         }
-    }
-
-    /* Preprocessing with Median Filter:
-       - Apply an iterative median filter to areas where the gradient of
-         the thresholded image indicates larger clusters.
-       - Use a weighted average of the original and median filterd images.
-       - Weighting is estimated using gradient of the input image and.
-         morphological operations to find larger clusters */
-    if (median_correction && 0) {
-        /* Treshold the input image */
-        for (i = 0; i < nvol; i++)
-            vol_float[i] = input_float[i] >= min_threshold ? 1.0 : 0.0;
-            
-        /* Estimate amplitude of gradient */
-        gradient3D_magnitude(vol_float, grad, sizes);
-
-        /* Apply morphological operations to find and slightly increase 
-           regions with larger clusters */
-        morph_close(grad, sizes, 1, 0.75, DT_FLOAT32);
-        morph_open(grad, sizes, 1, 0.0, DT_FLOAT32);
-        morph_dilate(grad, sizes, 3, 0.0, DT_FLOAT32);
-        
-        /* Smooth the gradient image to later apply weighted average */
-        double s[] = {3.0, 3.0, 3.0};
-        smooth3(grad, sizes, voxelsize, s, 0, DT_FLOAT32);
-
-        for (i = 0; i < nvol; i++)
-            vol_float[i] = input_float[i];
-            
-        /* Apply iterative median filter */
-        for (i = 0; i < median_correction; i++) median3(vol_float, NULL, sizes, DT_FLOAT32);
-
-        /* Calculate weighted average of filtered and original input */
-        for (i = 0; i < nvol; i++)
-            input_float[i] = (1.0 - grad[i])*input_float[i] + grad[i]*vol_float[i];
     }
             
     /* Analyzing the Impact of scl_open Values
@@ -382,7 +363,7 @@ main(
     }
     
     for (i = 0; i < nvol; i++)
-        grad[i] = 0.0;   
+        grad[i] = 0.0;
 
     genus0parameters g0[1]; /* need an instance of genus0 parameters */
 
@@ -423,7 +404,7 @@ main(
         if (genus0(g0)) return(1); /* check for error */
     
         for (i = 0; i < nvol; i++)
-            if (g0->output[i] != g0->input[i]) grad[i] = 1.0;   
+            grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
 
         /* save results as next input */
         for (i = 0; i < nvol; i++)
@@ -439,13 +420,14 @@ main(
         if (genus0(g0)) return(1); 
 
         for (i = 0; i < nvol; i++)
-            if (g0->output[i] != g0->input[i]) grad[i] = 1.0;   
+            grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
  
         /* apply median-correction and only consider the dilated areas */
         if (median_correction) {
             /* find areas that were corrected for topology artefacts and dilate them */
             for (i = 0; i < nvol; i++)
                 vol_uint8[i] = (unsigned char)(input_uint16[i] != g0->output[i]);
+                
             morph_dilate(vol_uint8, sizes, 4, 0.5, DT_UINT8);
 
             /* use previous output for filtering */
@@ -456,7 +438,7 @@ main(
             for (i = 0; i < median_correction; i++) median3(input_uint16, NULL, sizes, DT_UINT16);
 
             /* replace genus0 output with its median filtered version in (dilated)
-               areas with toplogy artefacts */
+               areas with topology artefacts */
             for (i = 0; i < nvol; i++)
                 g0->output[i] = (unsigned short)(((vol_uint8[i] > 0)) ? input_uint16[i] : g0->output[i]);
         }
@@ -474,15 +456,13 @@ main(
                   nii_mat,
                   method, FALSE,
                   min_threshold, min_threshold,
-                  valid_low, valid_high, get_polygons_ptr(object),verbose);
-    
+                  valid_low, valid_high, polygons, verbose);
         compute_polygon_normals(polygons);
-
-        check_polygons_neighbours_computed(get_polygons_ptr(object));
-        n_out = separate_polygons(get_polygons_ptr(object), -1, &object2);
-          
+        check_polygons_neighbours_computed(polygons);
+        n_out = separate_polygons(polygons, -1, &object2);          
         triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
         polygons = get_polygons_ptr(object3);
+
         EC = euler_characteristic(polygons);
         count++;
         if (verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
@@ -496,7 +476,6 @@ main(
     free(input_uint8);
 
     if (verbose && (n_out > 1)) fprintf(stderr,"Extract largest of %d components.\n",n_out);
-    if (verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
 
     /* Mesh Correction in Folded Areas
        - Objective: To compensate for the averaging effect observed in gyri and sulci.
@@ -511,8 +490,6 @@ main(
         smooth_heatkernel(polygons, NULL, post_fwhm);
         correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
-    
-
 
     /* Mesh Correction in Areas with Self Intersections
        - Objective: To correct areas with self intersections
@@ -562,6 +539,18 @@ main(
         free(smooth_polygons);
         free(values);
         free(extents);
+    }
+
+    if(argc > 3) {
+        out_ptr = nifti_copy_nim_info(nii_ptr);
+        if (!write_nifti_float(out_diff, grad, DT_FLOAT32, 1.0, sizes, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+    }
+
+    if(argc > 4) {
+        out_ptr = nifti_copy_nim_info(nii_ptr);
+        if (!write_nifti_float(out_bin, vol_float, DT_FLOAT32, 1.0, sizes, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
     }
 
     compute_polygon_normals(get_polygons_ptr(object3));
