@@ -62,7 +62,7 @@ static ArgvInfo argTable[] = {
     "Applies scaled sigmoid function to PPM map to obtain much smaller values below.\n\
      the center and much higher values above the center. For the steepness a values\n\
      k = 10 is used. This helps to prevent glueing sulci after downsampling the PPM map.\n\
-     while preserving gyri."},
+     while preserving gyri. Set to '0' to disable signoid scaling"},
 
   {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
     "Disable the correction for the typical underestimation of GM thickness in data\n\
@@ -77,7 +77,7 @@ static ArgvInfo argTable[] = {
   
   {"-sharpen", ARGV_FLOAT, (char *) 1, (char *) &sharpening,
     "Amount of sharpening the PPM map by adding the difference between the unsmoothed and \n\
-     smoothed PPM map."},
+     smoothed PPM map. Set to '0' to disable sharpening"},
 
   {NULL, ARGV_END, NULL, NULL, NULL}
 };

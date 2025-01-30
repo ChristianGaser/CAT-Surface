@@ -47,7 +47,6 @@ AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
 AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
 
 AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
-#AC_CHECK_LIB(expat, XML_ParserCreate,, AC_MSG_ERROR([The expat library is required.]))
 
 AC_CHECK_HEADERS(values.h malloc.h)
 
