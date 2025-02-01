@@ -136,6 +136,119 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
 
+#define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
+
+
+void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2], int n_loops) {
+    float *vol_euler;
+    unsigned short *vol_bin;
+    int loop, i, x, y, z, nx, ny, nz, iter, val_corr;
+    int V, E, F, conn, chi_local, n_errors, cube[8];
+    int edges18[18][2] = {
+        {0,1}, {1,3}, {3,2}, {2,0}, // Bottom face edges
+        {4,5}, {5,7}, {7,6}, {6,4}, // Top face edges
+        {0,4}, {1,5}, {2,6}, {3,7}, // Vertical edges
+        {0,5}, {1,4}, {2,7}, {3,6}, // Diagonal edges across faces
+        {0,7}, {3,4}  // Extended diagonal connections
+    };
+    int edges26[26][2] = {
+        {0,1}, {1,3}, {3,2}, {2,0}, // Bottom face edges
+        {4,5}, {5,7}, {7,6}, {6,4}, // Top face edges
+        {0,4}, {1,5}, {2,6}, {3,7}, // Vertical edges
+        {0,5}, {1,4}, {2,7}, {3,6}, // Diagonal edges across faces
+        {0,7}, {3,4}, {2,5}, {1,6}, // Extended diagonal connections
+        {0,6}, {1,7}, {2,4}, {3,5}  // Corner-to-corner vertex edges
+    };
+    // Count faces (6 faces in a cube)
+    int faces[6][4] = {
+        {0,1,3,2}, {4,5,7,6}, // XY faces
+        {0,2,6,4}, {1,3,7,5}, // YZ faces
+        {0,1,5,4}, {2,3,7,6}  // XZ faces
+    };
+    
+    vol_euler = (float *)malloc(sizeof(float)*dims[0]*dims[1]*dims[2]);
+    vol_bin = (unsigned short *)malloc(sizeof(unsigned short)*dims[0]*dims[1]*dims[2]);
+
+    nx = dims[0], ny = dims[1], nz = dims[2];
+
+    // Initialize Euler map
+    for (i = 0; i < nx * ny * nz; i++)
+        vol_euler[i] = (volume[i] >= thresh) ? 1.0 : 0.0;
+
+    for (iter = 0; iter < 50; iter++) {
+        n_errors = 0;
+        for (loop = 0; loop < n_loops; loop++) {
+    
+            // Threshold volume
+            for (i = 0; i < nx * ny * nz; i++)
+                vol_bin[i] = (volume[i] > thresh) ? 1.0 - (float)loop : 0.0 + (float)loop;
+                
+            conn = conn_arr[((loop + iter) % 2)];
+            val_corr = (loop == 0) ? 0.0 : 1.0;
+
+            for (z = 0; z < nz - 1; z++) {
+                for (y = 0; y < ny - 1; y++) {
+                    for (x = 0; x < nx - 1; x++) {
+                            
+                        // Extract 2x2x2 voxel cube
+                        cube[0] = vol_bin[IDX(x, y, z, nx, ny)];
+                        cube[1] = vol_bin[IDX(x+1, y, z, nx, ny)];
+                        cube[2] = vol_bin[IDX(x, y+1, z, nx, ny)];
+                        cube[3] = vol_bin[IDX(x+1, y+1, z, nx, ny)];
+                        cube[4] = vol_bin[IDX(x, y, z+1, nx, ny)];
+                        cube[5] = vol_bin[IDX(x+1, y, z+1, nx, ny)];
+                        cube[6] = vol_bin[IDX(x, y+1, z+1, nx, ny)];
+                        cube[7] = vol_bin[IDX(x+1, y+1, z+1, nx, ny)];
+                        
+                        // Count vertices, edges, faces
+                        V = 0; E = 0; F = 0;
+        
+                        // Count vertices (fully occupied corners)
+                        for (i = 0; i < 8; i++) V += cube[i];
+                        
+                        if (conn == 18) {
+                            for (i = 0; i < 18; i++) 
+                                if (cube[edges18[i][0]] && cube[edges18[i][1]]) E++;
+                        } else if (conn == 26) {
+                            for (i = 0; i < 26; i++) 
+                                if (cube[edges26[i][0]] && cube[edges26[i][1]]) E++;
+                        }
+        
+                        for (i = 0; i < 6; i++)
+                            if (cube[faces[i][0]] && cube[faces[i][1]] && cube[faces[i][2]] && cube[faces[i][3]]) F++;
+        
+                        // Compute local Euler number
+                        chi_local = V - E + F;
+        
+                        if (vol_bin[IDX(x, y, z, nx, ny)] > 0) {
+                            if (((conn == 18) &&  (chi_local ==  2)) || 
+                                ((conn == 26) &&  (chi_local == -6))) {
+                                vol_euler[IDX(x,   y,   z,   nx, ny)] = val_corr;
+                                vol_euler[IDX(x+1, y,   z,   nx, ny)] = val_corr;
+                                vol_euler[IDX(x,   y+1, z,   nx, ny)] = val_corr;
+                                vol_euler[IDX(x+1, y+1, z,   nx, ny)] = val_corr;
+                                vol_euler[IDX(x,   y,   z+1, nx, ny)] = val_corr;
+                                vol_euler[IDX(x+1, y,   z+1, nx, ny)] = val_corr;
+                                vol_euler[IDX(x,   y+1, z+1, nx, ny)] = val_corr;
+                                vol_euler[IDX(x+1, y+1, z+1, nx, ny)] = val_corr;
+                                n_errors++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        printf("%d\n", n_errors);
+        for (i = 0; i < dims[0]*dims[1]*dims[2]; i++)
+            volume[i] = vol_euler[i];
+            
+        if (n_errors == 0) break;
+    }
+    
+    free(vol_euler);
+    free(vol_bin);
+
+}
 
 int   
 main(
@@ -149,16 +262,16 @@ main(
     double              *values, *extents, voxelsize[N_DIMENSIONS];
     double              x, y, z, min_value;
     double              max_value, mean_grad, max_grad;
-    int                 i, j, k, c, n_values;
+    float               *input_float, *vol_float;
+    float               *grad, weight;
+    int                 i, j, k, c, n_values, conn_arr[2], n_loops;
     int                 n_out, EC, sizes[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
+    unsigned short      *input_uint16;
+    unsigned char       *input_uint8, *vol_uint8;
     Marching_cubes_methods    method;
     object_struct       *object, **object2, *object3, **object4;
     polygons_struct     *polygons, *smooth_polygons;
-    unsigned short      *input_uint16;
-    unsigned char       *input_uint8, *vol_uint8;
-    float               *input_float, *vol_float;
-    float               *grad, weight;
     nifti_image         *nii_ptr, *out_ptr;
     mat44               nii_mat;
 
@@ -304,6 +417,10 @@ main(
     keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 18);
     fill_holes(input_float, min_threshold, sizes, DT_FLOAT32);
 
+    conn_arr[0] = 18; conn_arr[1] = 26;
+    n_loops = 2;
+    correct_topology(input_float, min_threshold, sizes, conn_arr, n_loops);
+
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
         /* Skip morphological opening if distopen is disabled */
@@ -386,9 +503,7 @@ main(
     g0->return_surface = 0;
     g0->extraijkscale[2] = 1;
     
-    /* don't call loop if genus0 is not forced */
-    if (any_genus) count = 10; else count = 0;
-    
+    count = 0;
     EC = -1;
     
     /* repeat until EC is 2 or max. count is reached */
@@ -399,16 +514,18 @@ main(
         g0->connectivity = 6;
         g0->alt_value = 1;
         g0->alt_contour_value = 1;
-    
+
         /* call the function */
-        if (genus0(g0)) return(1); /* check for error */
-    
+        if (~any_genus) {
+            if (genus0(g0)) return(1); /* check for error */
+        
+            /* save results as next input */
+            for (i = 0; i < nvol; i++)
+                input_uint16[i] = g0->output[i];
+        }
+        
         for (i = 0; i < nvol; i++)
             grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
-
-        /* save results as next input */
-        for (i = 0; i < nvol; i++)
-            input_uint16[i] = g0->output[i];
 
         /* call genus0 a 2nd time with other parameters */
         g0->input = input_uint16;
@@ -417,7 +534,13 @@ main(
         g0->alt_value = 0;
         g0->alt_contour_value = 0;
     
-        if (genus0(g0)) return(1); 
+        if (any_genus) {
+            for (i = 0; i < nvol; i++)
+                g0->output[i] = input_uint16[i];
+            count = 10;
+        } else {
+            if (genus0(g0)) return(1); 
+        }
 
         for (i = 0; i < nvol; i++)
             grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
@@ -445,6 +568,7 @@ main(
         
         /* apply cluster function a 2nd time and keep largest cluster after thresholding */
         keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1, 18);
+        printf(".");
         fill_holes(g0->output, min_threshold, sizes, DT_UINT16);
 
         for (i = 0; i < nvol; i++)
