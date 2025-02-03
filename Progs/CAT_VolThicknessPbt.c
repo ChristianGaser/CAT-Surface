@@ -120,6 +120,7 @@ Options:\n\
     -fwhm <float>           Define FWHM for final thickness smoothing.\n\
     -downsample <float>     Downsample PPM and GMT image to defined resolution.\n\
     -sharpen <float>        Amount of sharpening the PPM map.\n\
+    -sigmoid-center <float> Center of sigmoid filter that should be the intended isoval.\n\
     -min-thickness <float>  Set the minimum thickness that is expected.\n\
     -max-thickness <float>  Set the maximum thickness that is expected.\n\
     -no-min-thickness       Use a simpler thickness estimation approach based on sulci only.\n\

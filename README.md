@@ -4,7 +4,6 @@ Christian Gaser christian.gaser@uni-jena.de Jena University Hospital, Germany.
 These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for almost all of the surfaced-based functions.
 
 ## The following external libraries are necessary to compile CAT:
-- [expat-2.0](https://github.com/libexpat/libexpat)
 - [fftw-3](https://www.fftw.org)
 
 ## CAT_3dVol2Surf
