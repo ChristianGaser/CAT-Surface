@@ -238,7 +238,7 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
                 }
             }
         }
-        printf("%d\n", n_errors);
+        //printf("%d\n", n_errors);
         for (i = 0; i < dims[0]*dims[1]*dims[2]; i++)
             volume[i] = vol_euler[i];
             

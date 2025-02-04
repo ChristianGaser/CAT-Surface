@@ -23,8 +23,8 @@ int n_avgs = 4;
 int thin_cortex = 1;
 int median_correction = 2;
 
-double sigmoid_center = 0.6;
-double sharpening = 0.2;
+double sigmoid_center = 0.0;
+double sharpening = 0.02;
 double downsample = 1.0;
 double fwhm = 2.0;
 double min_thickness = 0.5;
