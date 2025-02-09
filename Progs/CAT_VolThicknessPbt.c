@@ -23,7 +23,6 @@ int n_avgs = 4;
 int thin_cortex = 1;
 int median_correction = 2;
 
-double sigmoid_center = 0.0;
 double sharpening = 0.02;
 double downsample = 1.0;
 double fwhm = 2.0;
@@ -57,12 +56,6 @@ static ArgvInfo argTable[] = {
   {"-downsample", ARGV_FLOAT, (char *) 1, (char *) &downsample,
     "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
     spacial resolution for the subsequent steps. Set to '0' to disable downsampling"},
-
-  {"-sigmoid-center", ARGV_FLOAT, (char *) 1, (char *) &sigmoid_center,
-    "Applies scaled sigmoid function to PPM map to obtain much smaller values below.\n\
-     the center and much higher values above the center. For the steepness a values\n\
-     k = 10 is used. This helps to prevent glueing sulci after downsampling the PPM map.\n\
-     while preserving gyri. Set to '0' to disable signoid scaling"},
 
   {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
     "Disable the correction for the typical underestimation of GM thickness in data\n\
@@ -120,7 +113,6 @@ Options:\n\
     -fwhm <float>           Define FWHM for final thickness smoothing.\n\
     -downsample <float>     Downsample PPM and GMT image to defined resolution.\n\
     -sharpen <float>        Amount of sharpening the PPM map.\n\
-    -sigmoid-center <float> Center of sigmoid filter that should be the intended isoval.\n\
     -min-thickness <float>  Set the minimum thickness that is expected.\n\
     -max-thickness <float>  Set the maximum thickness that is expected.\n\
     -no-min-thickness       Use a simpler thickness estimation approach based on sulci only.\n\
@@ -130,21 +122,6 @@ Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
-}
-
-/* Scaled sigmoid function (input/output range 0..1)
-x - is the input value
-k - controls the steepness of the function */
-double scaled_sigmoid(double x, double k) {
-    // Standard sigmoid function
-    double sigmoid = 1.0 / (1.0 + exp(-k * (x - 0.5)));
-    
-    // Calculate scaling factors
-    double min_val = 1.0 / (1.0 + exp(k * 0.5)); // S(0)
-    double max_val = 1.0 / (1.0 + exp(-k * 0.5)); // S(1)
-    
-    // Scale sigmoid to [0, 1]
-    return (sigmoid - min_val) / (max_val - min_val);
 }
 
 int main(int argc, char *argv[])
@@ -170,11 +147,11 @@ int main(int argc, char *argv[])
     infile  = argv[1];
 
     /* Determine output filenames based on input filename or command-line arguments */
-    if(argc == 6) {
+    if (argc == 6) {
         (void) sprintf(out_WMD, "%s", argv[4]); 
         (void) sprintf(out_CSD, "%s", argv[5]);
     }
-    if(argc >= 4) {
+    if (argc >= 4) {
         (void) sprintf(out_GMT, "%s", argv[2]); 
         (void) sprintf(out_PPM, "%s", argv[3]); 
     } else {
@@ -183,7 +160,7 @@ int main(int argc, char *argv[])
             (void) sprintf(out_PPM, "%s/ppm_%s", dirname(infile), basename(infile)); 
         #else
             fprintf(stderr,"\nUsage: %s input.nii GMT.nii PPM.nii\n\n", argv[0]);
-            return( 1 );
+            return(1);
         #endif
     }
     
@@ -437,14 +414,6 @@ int main(int argc, char *argv[])
     /* Downsample images */
     if (downsample > 0.0) {
 
-        if (sigmoid_center > 0.0) {
-            /* Estimate correction to shift values if sigmoid_center is not 0.5 */
-            double shift = sigmoid_center - 0.5;
-            int k = 10; /* controls the steepness of the function */
-            for (i = 0; i < src_ptr->nvox; i++)
-                PPM[i] = scaled_sigmoid(PPM[i] - shift, k) + shift;
-        }
-
         for (i = 0; i<3; i++) {
             s[i] = 1.2;
             voxelsize_reduced[i] = downsample;
@@ -463,7 +432,7 @@ int main(int argc, char *argv[])
                 out_ptr_reduced->sto_xyz.m[i][j] = out_ptr->sto_xyz.m[i][j]*samp[i];
             }
         }
-        out_ptr_reduced->sto_ijk = nifti_mat44_inverse( out_ptr_reduced->sto_xyz ) ;
+        out_ptr_reduced->sto_ijk = nifti_mat44_inverse(out_ptr_reduced->sto_xyz);
     
         smooth3(GMT, dims, voxelsize, s, 0, DT_FLOAT32);
         //smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
@@ -489,7 +458,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
     }
 
-    if(argc == 6) {
+    if (argc == 6) {
         if (!write_nifti_float(out_CSD, dist_CSF, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
             exit(EXIT_FAILURE);
         if (!write_nifti_float(out_WMD, dist_WM, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
