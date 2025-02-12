@@ -1356,7 +1356,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
  * check_polygons_shape_integrity.
  */
 object_struct **
-central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *vol, nifti_image *nii_ptr, int check_intersects)
+central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *positions, nifti_image *nii_ptr, int check_intersects)
 {
     polygons_struct *polygons_out;
     object_struct **objects_out;
@@ -1366,7 +1366,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
     polygons_out = get_polygons_ptr(*objects_out);
     
     copy_polygons(polygons, polygons_out);
-    central_to_pial(polygons_out, thickness_values, extents, vol, nii_ptr, check_intersects);
+    central_to_pial(polygons_out, thickness_values, extents, positions, nii_ptr, check_intersects);
     
     return(objects_out);
 }
@@ -1376,7 +1376,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
  * an extent of 0.5 should be used, while an extent of -0.5 results in the estimation of the white matter surface.
  */
 void
-central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *vol, nifti_image *nii_ptr, int check_intersects)
+central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *positions, nifti_image *nii_ptr, int check_intersects)
 {
     int *defects, *polydefects, n_intersects;
     int *n_neighbours, **neighbours;
@@ -1432,10 +1432,10 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                 x = Point_x(polygons_out->points[p]);
                 y = Point_y(polygons_out->points[p]);
                 z = Point_z(polygons_out->points[p]);
-                val = (double)isoval(vol, x, y, z, dims, nii_ptr);
+                val = (double)isoval(positions, x, y, z, dims, nii_ptr);
                 
                 /* Undo last shift if position value exceeds inner or outer borders */
-                if (((extents[p] > 0.0) && (val <= 0.2)) || ((extents[p] < 0.0) && (val >= 0.8))) {
+                if (((extents[p] > 0.0) && (val <= 0.025)) || ((extents[p] < 0.0) && (val >= 0.975))) {
                     Point_x(polygons_out->points[p]) = Point_x(polygons->points[p]);
                     Point_y(polygons_out->points[p]) = Point_y(polygons->points[p]);
                     Point_z(polygons_out->points[p]) = Point_z(polygons->points[p]);

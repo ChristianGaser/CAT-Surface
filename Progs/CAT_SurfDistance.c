@@ -58,7 +58,7 @@ main(int argc, char *argv[])
     int n_objects, n_values;
     int i;
     float *positions;
-    double max_distance = 0;
+    double shift, max_distance = 0;
     double *extents, *distance, *thickness_values;
     char *object_file, *object2_file, *output_surface_file;
     FILE *fp;
@@ -122,13 +122,16 @@ main(int argc, char *argv[])
             positions = NULL;
         }
         
+        /* If position file is defined we go a bit further than half thickness */
+        shift = (position_file != NULL) ? 0.55 : 0.5;
+
         /* obtain pial surface */
-        for (i = 0; i < polygons->n_points; i++) extents[i] = 0.5;
+        for (i = 0; i < polygons->n_points; i++) extents[i] = shift;
         objects2 = central_to_new_pial(polygons, thickness_values, extents, 
             positions, nii_ptr, check_intersect);
         
         /* obtain white surface */
-        for (i = 0; i < polygons->n_points; i++) extents[i] = -0.5;
+        for (i = 0; i < polygons->n_points; i++) extents[i] = -shift;
         objects = central_to_new_pial(polygons, thickness_values, extents, 
             NULL, NULL, check_intersect);
         polygons = get_polygons_ptr(objects[0]);
