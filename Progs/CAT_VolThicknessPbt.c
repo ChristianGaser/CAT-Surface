@@ -19,15 +19,11 @@
 #include "CAT_Vol.h"
 
 int verbose = 0;
-int n_avgs = 4;
-int thin_cortex = 1;
+int n_avgs = 8;
 int median_correction = 2;
-
 double sharpening = 0.02;
 double downsample = 1.0;
 double fwhm = 2.0;
-double min_thickness = 0.5;
-double max_thickness = 5.0;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
@@ -45,21 +41,9 @@ static ArgvInfo argTable[] = {
     This value determines the extent of smoothing applied, using a mask to prevent\n\
     smearing values outside the Gray Matter (GM) areas."},
 
-  {"-min-thickness", ARGV_FLOAT, (char *) 1, (char *) &min_thickness,
-    "Set the minimum thickness that is expected. Values below that minimum thickness\n\
-    are set to zero and will be approximated by using the replace option in the vbdist approach."},
-
-  {"-max-thickness", ARGV_FLOAT, (char *) 1, (char *) &max_thickness,
-    "Set the maximum thickness that is expected. Values exceeding that maximum thickness\n\
-    are set to that value."},
-
   {"-downsample", ARGV_FLOAT, (char *) 1, (char *) &downsample,
     "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
     spacial resolution for the subsequent steps. Set to '0' to disable downsampling"},
-
-  {"-no-thin-cortex", ARGV_CONSTANT, (char *) 0, (char *) &thin_cortex,
-    "Disable the correction for the typical underestimation of GM thickness in data\n\
-    where the border between GM and WM is not correctly estimated by the PVE segmentation."},
 
   {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
     "Specify the number of iterations to apply a median filter to areas\n\
@@ -78,7 +62,7 @@ static ArgvInfo argTable[] = {
 private void usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii output_WMD.nii output_CSD.nii]\n\
+Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii output_CSD.nii]\n\
 \n\
     This program performs projection-based cortical thickness estimation and\n\
     percentage position mapping (PPM) from a given PVE label image described in:\n\
@@ -96,8 +80,6 @@ Usage: %s [options] <input.nii> [output_GMT.nii output_PPM.nii output_WMD.nii ou
     \n\
     2. **Thickness Estimation:**\n\
        - Reconstructing sulci and optionally gyri to estimate cortical thickness.\n\
-       - Using minimum thickness measures from sulci and gyri for more accurate\n\
-         representation.\n\
     \n\
     3. **PPM Calculation:**\n\
        - Estimating the percentage position map (PPM), representing the relative\n\
@@ -113,13 +95,9 @@ Options:\n\
     -fwhm <float>           Define FWHM for final thickness smoothing.\n\
     -downsample <float>     Downsample PPM and GMT image to defined resolution.\n\
     -sharpen <float>        Amount of sharpening the PPM map.\n\
-    -min-thickness <float>  Set the minimum thickness that is expected.\n\
-    -max-thickness <float>  Set the maximum thickness that is expected.\n\
-    -no-min-thickness       Use a simpler thickness estimation approach based on sulci only.\n\
-    -no-thin-cortex         Do not slightly shift border between GM/WM for thinner cortices.\n\
 \n\
 Example:\n\
-    %s -verbose -n-avgs 4 -fwhm 2.5 input.nii gmt_output.nii ppm_output.nii\n\n";
+    %s -verbose -n-avgs 4 -fwhm 2 input.nii gmt_output.nii ppm_output.nii\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
@@ -130,7 +108,7 @@ int main(int argc, char *argv[])
     int i, j, dims[3], dims_reduced[3], replace = 0;
     float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM0, *vol_reduced;
     float *vol_smoothed, dist_CSF_val, dist_WM_val, mean_vx_size;
-    float mean_GMT, abs_dist;
+    float sum_dist, abs_dist;
     unsigned char *mask;
     double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope, add_value;
     double threshold[2], prctile[2];
@@ -188,12 +166,12 @@ int main(int argc, char *argv[])
     input    = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_WM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
-
-    GMT = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    PPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    GMT  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    PPM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     /* check for memory faults */
-    if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !PPM) {
+    if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !GMT2 || !PPM) {
         fprintf(stderr,"Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
@@ -204,16 +182,19 @@ int main(int argc, char *argv[])
         dist_WM[i]  = 0.0;
     }
     
+    /* Ensure that n_avgs is at least 1 */
+    n_avgs = (n_avgs < 1) ? 1 : n_avgs;
+
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
         
         /* estimate value for shifting the border to obtain a less noisy measure by averaging distances */
-        add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;        
+        add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
         
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < src_ptr->nvox; i++) {
-            input[i] = (src[i] <= (CGM+add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] <= GWM + 0.1*thin_cortex) ? 1 : 0;
+            input[i] = (src[i] < (CGM + add_value)) ? 1.0f : 0.0f;
+            mask[i]  = (src[i] < GWM) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
@@ -224,8 +205,8 @@ int main(int argc, char *argv[])
                 
         /* prepare map outside WM and mask to obtain distance map for WN */
         for (i = 0; i < src_ptr->nvox; i++) {
-            input[i] = (src[i] >= (GWM+add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] >= CGM) ? 1 : 0;
+            input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
+            mask[i]  = (src[i] > CGM) ? 1 : 0;
         }    
     
         /* obtain WM distance map */
@@ -244,62 +225,65 @@ int main(int argc, char *argv[])
     }
 
     /* fill small holes that cause topology artefacts */
-    fill_holes(dist_WM, 1E-3, dims, DT_FLOAT32);
-    fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
+//    fill_holes(dist_WM, 1E-3, dims, DT_FLOAT32);
+//    fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
     
     /* Estimate cortical thickness (first using sulci measures */
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
-    for (i = 0; i < src_ptr->nvox; i++) input[i] = src[i];
+    for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(src[i]);
 
     projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
 
-    /* use minimum/maximum to reduce issues with meninges */
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT[i] = MIN(dist_WM[i]+dist_CSF[i], GMT[i]);
-    
-    /* get mean thickness */
-    mean_GMT = get_mean_float(GMT, src_ptr->nvox, 1);
-    
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
     for (i = 0; i < src_ptr->nvox; i++)
-        input[i] = (4.0 - src[i]);
-
-    GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    if (!GMT2) {
-        fprintf(stderr,"Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
+        input[i] = roundf(4.0 - src[i]);
 
     /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
     projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
 
+    /* Correct distance values by half of a voxel */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        if (dist_CSF[i] >=0.5) dist_CSF[i] -= 0.5;
+        if (dist_WM[i]  >=0.5) dist_WM[i]  -= 0.5;
+    }
+
+    /* use minimum/maximum to reduce issues with meninges */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        sum_dist = dist_WM[i] + dist_CSF[i];
+        GMT[i] = MIN(sum_dist, MAX(0.0, GMT[i] - 0.5 - 0.5*(GMT[i]  < sum_dist)));
+    }
+
+    /* Limit GMT2 to thick regions */
     for (i = 0; i < src_ptr->nvox; i++)
-        GMT2[i] = MIN(dist_WM[i]+dist_CSF[i], GMT2[i]);
+        GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
 
-    /* get overall mean thickness */
-    mean_GMT = mean_GMT/2.0 + get_mean_float(GMT2, src_ptr->nvox, 1)/2.0;
-
-    /* use average of thickness measures */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        sum_dist = dist_WM[i] + dist_CSF[i];
+        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5 - 0.5*(GMT2[i]  < sum_dist)));
+    }
+        
+    /* use minimum of thickness measures */
     for (i = 0; i < src_ptr->nvox; i++)      
-        GMT[i] = (GMT[i] + GMT2[i])/2;
-
-    free(GMT2);
+        GMT[i] = MIN(GMT[i], GMT2[i]);
    
-    median3(GMT, NULL, dims, DT_FLOAT32);
-    median3(dist_WM, NULL, dims, DT_FLOAT32);
+    for (i = 0; i < src_ptr->nvox; i++)
+        mask[i] = (GMT[i] < 0.5/mean_vx_size) ? 0 : 1;
+
+    median3(GMT, mask, dims, 1, DT_FLOAT32);
+    median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
+    median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
 
     /* Re-estimate CSF distance using corrected GM thickness */
     for (i = 0; i < src_ptr->nvox; i++)
-        dist_CSF[i] = GMT[i] - dist_WM[i];
+        if ((src[i] > CGM-0.3) && (src[i] < GWM+0.3) && (GMT[i] > 1e-15))
+            dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
     
+    for (i = 0; i < src_ptr->nvox; i++)
+        mask[i] = (GMT[i] < 0.5/mean_vx_size) ? 1 : 0;
+
     /* Approximate thickness values outside GM or below minimum thickness */
-    for (i = 0; i < src_ptr->nvox; i++) {
-        GMT[i]  = ((GMT[i]*mean_vx_size) < min_thickness) ? 0.0 : GMT[i];
-        GMT[i]  = ((GMT[i]*mean_vx_size) > max_thickness) ? max_thickness : GMT[i];
-        mask[i] = (GMT[i] == 0) ? 1 : 0;
-    }
-    vbdist(GMT, mask, dims, NULL, 1);
+    //vbdist(GMT, mask, dims, NULL, 1);
 
     /* Apply final smoothing */
     if (fwhm > 0.0) {
@@ -319,16 +303,17 @@ int main(int argc, char *argv[])
        running to close to the WM. */
     if (verbose) fprintf(stderr,"Estimate percentage position map.\n");
     for (i = 0; i < src_ptr->nvox; i++) {
-        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
-            PPM[i] = MIN(dist_CSF[i], (GMT[i]-dist_WM[i])) / GMT[i];
+        if ((src[i] > CGM-0.3) && (src[i] < GWM+0.3) && (GMT[i] > 1e-15))
+            PPM[i] = MAX(0.0, dist_CSF[i] / GMT[i]);
         if (PPM[i] < 0.0) PPM[i] = 0.0;
         if (PPM[i] > 1.0) PPM[i] = 1.0;
+        if ((PPM[i] < 0.9) && (src[i] > GWM)) PPM[i] = 1.0;
     }
     
     /* Fill small holes that cause topology artefacts */
     fill_holes(PPM, 1E-3, dims, DT_FLOAT32);
 
-    median3(PPM, NULL, dims, DT_FLOAT32);
+    //median3(PPM, NULL, dims, 1, DT_FLOAT32);
 
     /* Apply isotropic voxel size correction */
     for (i = 0; i < src_ptr->nvox; i++) 
@@ -371,7 +356,7 @@ int main(int argc, char *argv[])
             input[i] = PPM[i];
             
         /* Apply iterative median filter */
-        for (i = 0; i < median_correction; i++) median3(input, NULL, dims, DT_FLOAT32);
+        median3(input, NULL, dims, median_correction, DT_FLOAT32);
 
         /* Calculate weighted average of filtered and original input */
         for (i = 0; i < src_ptr->nvox; i++)
@@ -404,7 +389,7 @@ int main(int argc, char *argv[])
         
         /* Correct thickness values */
         for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - PPM0[i];
-        median3(vol_smoothed, NULL, dims, DT_FLOAT32);
+        median3(vol_smoothed, NULL, dims, 1, DT_FLOAT32);
         for (i = 0; i < src_ptr->nvox; i++) GMT[i] += 2*vol_smoothed[i];
         
         free(vol_smoothed);
@@ -469,6 +454,7 @@ int main(int argc, char *argv[])
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
+    free(GMT2);
     free(PPM);
     free(input);
 
