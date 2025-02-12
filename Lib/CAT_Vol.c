@@ -418,6 +418,22 @@ double get_std(double arr[], int n, int exclude_zeros) {
     return result;
 }
 
+float get_min_float(float arr[], int n, int exclude_zeros) {
+    int i;
+    float result = FLT_MAX;
+    
+    for (i = 0; i < n; i++) {
+        if (arr[i] < result) {
+            if ((exclude_zeros) && (arr[i] != 0.0))
+                result = arr[i];
+            else
+                result = arr[i];
+        }
+    }
+
+    return result;
+}
+
 /**
  * get_max - Find the maximum value in an array of doubles.
  *
@@ -485,7 +501,7 @@ void localstat_float(float *input, unsigned char mask[], int dims[3], int dist,
                     int stat_func, int iters, int use_euclidean_dist)
 {
     double *arr;
-    int i, j, k, ind, ni, x, y, z, n;
+    int i, j, k, ind, ni, x, y, z, n, it;
     float *buffer;
     int nvox = dims[0] * dims[1] * dims[2], size_kernel;
     
@@ -511,46 +527,61 @@ void localstat_float(float *input, unsigned char mask[], int dims[3], int dist,
     for (i = 0; i<nvox; i++) buffer[i] = 0.0;
     
     // Main filter process
-    for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
-        ind = sub2ind(x,y,z,dims);
-        n = 0;
-        
-        // Iterate through kernel
-        for (i=-dist; i<=dist; i++) for (j=-dist; j<=dist; j++) for (k=-dist; k<=dist; k++) {
-            ni = sub2ind(x+i,y+j,z+k,dims);
+    for (it = 0; it<iters; it++) {
+        for (z=0; z<dims[2]; z++) for (y=0; y<dims[1]; y++) for (x=0; x<dims[0]; x++) {
+            ind = sub2ind(x,y,z,dims);
+            n = 0;
             
-            // Check for NaNs, Infinities, and optional mask
-            if (isnan(input[ni]) || !isfinite(input[ni]) || (mask && mask[ni] == 0))
+            memset(arr,0.0,size_kernel*size_kernel*size_kernel*sizeof(double));  
+            // Iterate through kernel
+            for (i=-dist; i<=dist; i++) for (j=-dist; j<=dist; j++) for (k=-dist; k<=dist; k++) {
+                ni = sub2ind(x+i,y+j,z+k,dims);
+                
+                // Check for NaNs, Infinities
+                if (isnan(input[ni]) || !isfinite(input[ni]))
+                    continue;
+    
+                // Check for optional mask
+                if (mask && mask[ni] == 0) 
+                    continue;
+    
+                // Check for Euclidean distance if required
+                if (use_euclidean_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)dist)
+                    continue;
+                
+                arr[n] = (double)input[ni];
+                n++;
+            }
+    
+            // Check for NaNs, Infinities
+            if (isnan(input[ind]) || !isfinite(input[ind]))
                 continue;
-
-            // Check for Euclidean distance if required
-            if (use_euclidean_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)dist)
+    
+            // Check for optional mask
+            if (mask && mask[ind] == 0) 
                 continue;
-            
-            arr[n] = (double)input[ni];
-            n++;
-        }
-
-        // Calculate local statistics based on the selected function
-        switch (stat_func) {
-        case F_MEAN:
-            buffer[ind] = (float)get_mean(arr, n, 0);
-            break;
-        case F_MEDIAN:
-            buffer[ind] = (float)get_median(arr, n);
-            break;
-        case F_STD:
-            buffer[ind] = (float)get_std(arr, n, 0);
-            break;
-        case F_MIN:
-            buffer[ind] = (float)get_min(arr, n, 0);
-            break;
-        case F_MAX:
-            buffer[ind] = (float)get_max(arr, n, 0);
-            break;
-        default:
-            fprintf(stderr, "Data Function %d not handled\n", stat_func);
-            break;
+    
+            // Calculate local statistics based on the selected function
+            switch (stat_func) {
+            case F_MEAN:
+                buffer[ind] = (float)get_mean(arr, n, 0);
+                break;
+            case F_MEDIAN:
+                buffer[ind] = (float)get_median(arr, n);
+                break;
+            case F_STD:
+                buffer[ind] = (float)get_std(arr, n, 0);
+                break;
+            case F_MIN:
+                buffer[ind] = (float)get_min(arr, n, 0);
+                break;
+            case F_MAX:
+                buffer[ind] = (float)get_max(arr, n, 0);
+                break;
+            default:
+                fprintf(stderr, "Data Function %d not handled\n", stat_func);
+                break;
+            }
         }
     }
 
@@ -596,7 +627,7 @@ void localstat3(void *data, unsigned char mask[], int dims[3], int dist,
 /**
  * wrapper to use localstat_float for median calculation for any data type 
  */
-void median3(void *data, unsigned char *mask, int dims[3], int datatype)
+void median3(void *data, unsigned char *mask, int dims[3], int iters, int datatype)
 {
     int nvox;
     float *buffer;
@@ -612,8 +643,8 @@ void median3(void *data, unsigned char *mask, int dims[3], int datatype)
    
     convert_input_type(data, buffer, nvox, datatype);
     
-    // use kernel 3x3x3
-    localstat_float(buffer, mask, dims, 1, F_MEDIAN, 1, 0);
+    /* use kernel 3x3x3 */
+    localstat_float(buffer, mask, dims, 1, F_MEDIAN, iters, 0);
     convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -753,64 +784,6 @@ void pmin(float *A, int sA, float *minimum, int *index)
             *index   = i;
         }
     }
-}
-
-/**
- * pmax - Calculate a conditional maximum value from a set of voxels.
- *
- * This function is used in the projection_based_thickness process to find the maximum value among
- * the voxels that are in the range of White Matter Distance (WMD), considering certain constraints.
- * It first finds the pure maximum based on several criteria and then calculates the mean of the 
- * highest values under the same constraints.
- *
- * Parameters:
- *  - GMT: Array of thickness/WMD values of neighbors.
- *  - PPM: Array of projection values.
- *  - SEG: Array of segmentation values.
- *  - ND: Array of Euclidean distances.
- *  - WMD: White Matter Distance for the current voxel.
- *  - SEGI: Segmentation value of the current voxel.
- *  - sA: Size of the arrays (number of elements to consider).
- *
- * Returns:
- *  The calculated maximum value under the specified conditions.
- *
- * Notes:
- *  The function applies several constraints based on segmentation and distance measures to determine
- *  the relevant maximum value. This includes checking the range of projection, upper and lower distance 
- *  boundaries, and segmentation-based conditions.
- */
-float pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
-    float maximum = WMD;
-    int i;
-
-    // Calculate the pure maximum under specified conditions
-    for (i = 0; i <= sA; i++) {
-        if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbors should be larger */
-                (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) &&       /* projection range */
-                (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
-                (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) && /* lower boundary - minimum distance - corrected values outside */
-                ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) { /* for high values will project data over sulcal gaps */
-            maximum = GMT[i];
-        }
-    }
-
-    // Calculate the mean of the highest values under the same conditions
-    float maximum2 = maximum, m2n = 0.0; 
-    for (i = 0; i <= sA; i++) {
-        if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) && 
-                 (SEG[i] >= 1.0) && (SEGI>1.2 && SEGI<=2.75) && 
-                 (((PPM[i] - ND[i] * 1.2) <= WMD)) && 
-                 (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i]<1.5)) &&
-                 ((((SEGI * MAX(1.0,MIN(1.2,SEGI-1.5))) >= SEG[i])) || (SEG[i]<1.5))) {
-            maximum2 += GMT[i]; 
-            m2n++;
-        } 
-    }
-    if (m2n > 0.0)
-        maximum = (maximum2 - maximum) / m2n;
-
-    return maximum;
 }
 
 /**
@@ -1329,6 +1302,64 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
 }
 
 /**
+ * pmax - Calculate a conditional maximum value from a set of voxels.
+ *
+ * This function is used in the projection_based_thickness process to find the maximum value among
+ * the voxels that are in the range of White Matter Distance (WMD), considering certain constraints.
+ * It first finds the pure maximum based on several criteria and then calculates the mean of the 
+ * highest values under the same constraints.
+ *
+ * Parameters:
+ *  - GMT: Array of thickness/WMD values of neighbors.
+ *  - PPM: Array of projection values.
+ *  - SEG: Array of segmentation values.
+ *  - ND: Array of Euclidean distances.
+ *  - WMD: White Matter Distance for the current voxel.
+ *  - SEGI: Segmentation value of the current voxel.
+ *  - sA: Size of the arrays (number of elements to consider).
+ *
+ * Returns:
+ *  The calculated maximum value under the specified conditions.
+ *
+ * Notes:
+ *  The function applies several constraints based on segmentation and distance measures to determine
+ *  the relevant maximum value. This includes checking the range of projection, upper and lower distance 
+ *  boundaries, and segmentation-based conditions.
+ */
+float pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
+    float maximum = WMD;
+    int i;
+
+    // Calculate the pure maximum under specified conditions
+    for (i = 0; i <= sA; i++) {
+        if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbors should be larger */
+                (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&       /* projection range */
+                (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
+                (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i] < 1.5)) && /* lower boundary - minimum distance - corrected values outside */
+                ((((SEGI * MAX(1.0,MIN(1.2, SEGI-1.5))) >= SEG[i])) || (SEG[i] < 1.5))) { /* for high values will project data over sulcal gaps */
+            maximum = GMT[i];
+        }
+    }
+
+    // Calculate the mean of the highest values under the same conditions
+    float maximum2 = maximum, m2n = 0.0; 
+    for (i = 0; i <= sA; i++) {
+        if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) && 
+                 (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) && 
+                 (((PPM[i] - ND[i] * 1.2) <= WMD)) && 
+                 (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i] < 1.5)) &&
+                 ((((SEGI * MAX(1.0,MIN(1.2, SEGI-1.5))) >= SEG[i])) || (SEG[i] < 1.5))) {
+            maximum2 += GMT[i]; 
+            m2n++;
+        } 
+    }
+    if (m2n > 0.0)
+        maximum = (maximum2 - maximum) / m2n;
+
+    return maximum;
+}
+
+/**
  * projection_based_thickness - Calculate the thickness of segmented structures.
  *
  * This function estimates the projection-based thickness of segmented structures 
@@ -1436,7 +1467,7 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
             }
 
             /* find minimum distance within the neighborhood */
-            DNm = pmax(GMTN,WMDN,SEGN,ND,WMD[i],SEG[i],sN);
+            DNm = pmax(GMTN, WMDN, SEGN, ND, WMD[i], SEG[i], sN);
             if ((GMT[i] < DNm) && (DNm > 0)) GMT[i] = DNm;
         }
     }
@@ -2603,7 +2634,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     }
     
     laplace3R(TAr, BMr, dimsr, 0.4);
-    median3(TAr, NULL, dimsr, DT_FLOAT32);
+    median3(TAr, NULL, dimsr, 1, DT_FLOAT32);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
     /* only keep TAr inside (closed) mask */
@@ -2622,7 +2653,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
         BMr[i] = (BMr2[i] == 0);
     laplace3R(TAr, BMr, dimsr, 0.4);
 
-    median3(TAr, NULL, dimsr, DT_FLOAT32);
+    median3(TAr, NULL, dimsr, 1, DT_FLOAT32);
 
     for (i = 0; i < nvoxr; ++i)
         BMr[i] = (volr[i] == 0);
