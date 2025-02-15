@@ -524,7 +524,7 @@ void localstat_float(float *input, unsigned char mask[], int dims[3], int dist,
     }
 
     // Initialize buffer to zero
-    for (i = 0; i<nvox; i++) buffer[i] = 0.0;
+    for (i = 0; i<nvox; i++) buffer[i] = input[i];
     
     // Main filter process
     for (it = 0; it<iters; it++) {
@@ -583,10 +583,9 @@ void localstat_float(float *input, unsigned char mask[], int dims[3], int dist,
                 break;
             }
         }
+        // Copy results back to input array
+        for (i = 0; i<nvox; i++) input[i] = buffer[i];
     }
-
-    // Copy results back to input array
-    for (i = 0; i<nvox; i++) input[i] = buffer[i];
 
     // Free allocated memory
     free(buffer);
@@ -1378,7 +1377,7 @@ float pmax(const float GMT[], const float PPM[], const float SEG[], const float 
  *  - The function assumes specific labels for CSF (1), GM (2), and WM (3).
  */
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize) 
-{     
+{
     // Initialization and pre-processing
     const int nvox = dims[0] * dims[1] * dims[2];
     const int x = dims[0], y = dims[1], xy = x * y;
