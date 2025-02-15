@@ -123,7 +123,7 @@ main(int argc, char *argv[])
         }
         
         /* If position file is defined we go a bit further than half thickness */
-        shift = (position_file != NULL) ? 0.55 : 0.5;
+        shift = (position_file != NULL) ? 0.6 : 0.5;
 
         /* obtain pial surface */
         for (i = 0; i < polygons->n_points; i++) extents[i] = shift;
