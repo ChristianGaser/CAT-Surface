@@ -23,7 +23,7 @@ double min_threshold = 0.5;
 double post_fwhm = 2.0;
 double pre_fwhm = 2.0;
 double scl_open = 0.9;
-int median_correction = 2;
+int n_median_filter = 2;
 int use_distopen = 1;
 int any_genus = 0;
 int verbose = 0;
@@ -46,9 +46,9 @@ static ArgvInfo argTable[] = {
   {"-post-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &post_fwhm,
     "Set FWHM for surface smoothing. This aids in correcting the mesh\n\
      in folded areas like gyri and sulci. Note: Do not use smoothing\n\
-     sizes > 3 mm for reliable compensation in these areas."},
+     size > 3 mm for reliable compensation in these areas."},
   
-  {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
+  {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &n_median_filter,
     "Specify the number of iterations to apply a median filter to areas\n\
      where the gradient of the thresholded image indicates larger clusters.\n\
      These clusters may point to potential topology artifacts and regions\n\
@@ -265,7 +265,7 @@ main(
     float               *input_float, *vol_float;
     float               *grad, weight;
     int                 i, j, k, c, n_values, conn_arr[2], n_loops;
-    int                 n_out, EC, sizes[MAX_DIMENSIONS];
+    int                 n_out, EC, dims[MAX_DIMENSIONS];
     int                 nvol, ind, count, stop_distopen, replace = 0;
     unsigned short      *input_uint16;
     unsigned char       *input_uint8, *vol_uint8;
@@ -314,9 +314,9 @@ main(
 
     nii_mat = nii_ptr->sto_xyz; /* 4x4 transformation matrix */
     
-    sizes[0] = nii_ptr->nx;
-    sizes[1] = nii_ptr->ny;
-    sizes[2] = nii_ptr->nz;
+    dims[0] = nii_ptr->nx;
+    dims[1] = nii_ptr->ny;
+    dims[2] = nii_ptr->nz;
     voxelsize[0] = nii_ptr->dx;
     voxelsize[1] = nii_ptr->dy;
     voxelsize[2] = nii_ptr->dz;
@@ -325,7 +325,7 @@ main(
     object3 = create_object(POLYGONS);
     polygons = get_polygons_ptr(object);
         
-    nvol = sizes[0]*sizes[1]*sizes[2];
+    nvol = dims[0]*dims[1]*dims[2];
 
     grad         = (float *)malloc(nvol*sizeof(float));
     vol_float    = (float *)malloc(nvol*sizeof(float));
@@ -359,10 +359,10 @@ main(
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
         double s[] = {pre_fwhm, pre_fwhm, pre_fwhm};
-        smooth3(vol_float, sizes, voxelsize, s, 0, DT_FLOAT32);
+        smooth3(vol_float, dims, voxelsize, s, 0, DT_FLOAT32);
         
         /* estimate magnitude of gradient for weighting the smoothing */
-        gradient3D_magnitude(input_float, grad, sizes);
+        gradient3D_magnitude(input_float, grad, dims);
 
         /* calculate mean of gradient (where gradient > 0) */
         mean_grad = get_mean_float(grad, nvol, 1);
@@ -414,12 +414,12 @@ main(
     count = 0;
 
     /* apply cluster function the 1st time and keep largest cluster after thresholding */
-    keep_largest_cluster(input_float, min_threshold, sizes, DT_FLOAT32, 0, 1, 18);
-    fill_holes(input_float, min_threshold, sizes, DT_FLOAT32);
+    keep_largest_cluster(input_float, min_threshold, dims, DT_FLOAT32, 0, 1, 18);
+    fill_holes(input_float, min_threshold, dims, DT_FLOAT32);
 
     conn_arr[0] = 18; conn_arr[1] = 26;
     n_loops = 2;
-    correct_topology(input_float, min_threshold, sizes, conn_arr, n_loops);
+    correct_topology(input_float, min_threshold, dims, conn_arr, n_loops);
 
     for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
     {
@@ -437,7 +437,7 @@ main(
         /* Optional morphological opening with distance criteria (distopen)
            Additionaly adapt dist parameter w.r.t. scl_open  */
         dist = 0.75/(scl_open*min_threshold);
-        distopen(input_uint8, sizes, voxelsize, dist, 0.0, DT_UINT8);
+        distopen(input_uint8, dims, voxelsize, dist, 0.0, DT_UINT8);
 
         /* Apply threshold to original input image, but keep any changes from 
            the above distopen. This ensures correct position using the original
@@ -491,7 +491,7 @@ main(
         input_uint16[i] = (unsigned short)input_uint8[i];
 
     /* set some parameters/options for the firt iteration */
-    for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = sizes[j];
+    for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = dims[j];
     g0->connected_component = 1;
     g0->value = 1;
     g0->contour_value = 1;
@@ -546,19 +546,22 @@ main(
             grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
  
         /* apply median-correction and only consider the dilated areas */
-        if (median_correction) {
+        if (n_median_filter) {
             /* find areas that were corrected for topology artefacts and dilate them */
             for (i = 0; i < nvol; i++)
                 vol_uint8[i] = (unsigned char)(input_uint16[i] != g0->output[i]);
                 
-            morph_dilate(vol_uint8, sizes, 4, 0.5, DT_UINT8);
+            morph_dilate(vol_uint8, dims, 4, 0.5, DT_UINT8);
 
             /* use previous output for filtering */
             for (i = 0; i < nvol; i++)
                 input_uint16[i] = g0->output[i];
             
+            /* Apply iterative median filter */
+            localstat3(input_uint16, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_UINT16);
+
             /* apply iterative median filter */
-            for (i = 0; i < median_correction; i++) median3(input_uint16, NULL, sizes, DT_UINT16);
+            median3(input_uint16, NULL, dims, n_median_filter, DT_UINT16);
 
             /* replace genus0 output with its median filtered version in (dilated)
                areas with topology artefacts */
@@ -567,15 +570,14 @@ main(
         }
         
         /* apply cluster function a 2nd time and keep largest cluster after thresholding */
-        keep_largest_cluster(g0->output, min_threshold, sizes, DT_UINT16, 0, 1, 18);
-        printf(".");
-        fill_holes(g0->output, min_threshold, sizes, DT_UINT16);
+        keep_largest_cluster(g0->output, min_threshold, dims, DT_UINT16, 0, 1, 18);
+        fill_holes(g0->output, min_threshold, dims, DT_UINT16);
 
         for (i = 0; i < nvol; i++)
             vol_float[i] = (float)g0->output[i];
             
         /* extract surface to check euler number */
-        extract_isosurface(vol_float, sizes,
+        extract_isosurface(vol_float, dims,
                   min_label, max_label,
                   nii_mat,
                   method, FALSE,
@@ -667,13 +669,13 @@ main(
 
     if(argc > 3) {
         out_ptr = nifti_copy_nim_info(nii_ptr);
-        if (!write_nifti_float(out_diff, grad, DT_FLOAT32, 1.0, sizes, voxelsize, out_ptr)) 
+        if (!write_nifti_float(out_diff, grad, DT_FLOAT32, 1.0, dims, voxelsize, out_ptr)) 
             exit(EXIT_FAILURE);
     }
 
     if(argc > 4) {
         out_ptr = nifti_copy_nim_info(nii_ptr);
-        if (!write_nifti_float(out_bin, vol_float, DT_FLOAT32, 1.0, sizes, voxelsize, out_ptr)) 
+        if (!write_nifti_float(out_bin, vol_float, DT_FLOAT32, 1.0, dims, voxelsize, out_ptr)) 
             exit(EXIT_FAILURE);
     }
 
