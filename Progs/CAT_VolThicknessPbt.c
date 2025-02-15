@@ -20,7 +20,7 @@
 
 int verbose = 0;
 int n_avgs = 8;
-int median_correction = 2;
+int n_median_filter = 2;
 double sharpening = 0.02;
 double downsample = 1.0;
 double fwhm = 2.0;
@@ -45,7 +45,7 @@ static ArgvInfo argTable[] = {
     "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
     spacial resolution for the subsequent steps. Set to '0' to disable downsampling"},
 
-  {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &median_correction,
+  {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &n_median_filter,
     "Specify the number of iterations to apply a median filter to areas\n\
      where the gradient of the thresholded image indicates larger clusters.\n\
      These clusters may point to potential topology artifacts and regions\n\
@@ -185,6 +185,9 @@ int main(int argc, char *argv[])
     /* Ensure that n_avgs is at least 1 */
     n_avgs = (n_avgs < 1) ? 1 : n_avgs;
 
+    /* 2x Median-filtering of input with euclidean distance helps a bit */
+    localstat3(src, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
+
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
         
@@ -225,8 +228,8 @@ int main(int argc, char *argv[])
     }
 
     /* fill small holes that cause topology artefacts */
-//    fill_holes(dist_WM, 1E-3, dims, DT_FLOAT32);
-//    fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
+    //fill_holes(dist_WM, 1E-3, dims, DT_FLOAT32);
+    //fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
     
     /* Estimate cortical thickness (first using sulci measures */
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
@@ -244,8 +247,10 @@ int main(int argc, char *argv[])
 
     /* Correct distance values by half of a voxel */
     for (i = 0; i < src_ptr->nvox; i++) {
-        if (dist_CSF[i] >=0.5) dist_CSF[i] -= 0.5;
-        if (dist_WM[i]  >=0.5) dist_WM[i]  -= 0.5;
+        dist_CSF[i] -= 0.5;
+        dist_WM[i]  -= 0.5;
+        if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
+        if (dist_WM[i]  < 0.0) dist_WM[i]  = 0.0;
     }
 
     /* use minimum/maximum to reduce issues with meninges */
@@ -268,22 +273,22 @@ int main(int argc, char *argv[])
         GMT[i] = MIN(GMT[i], GMT2[i]);
    
     for (i = 0; i < src_ptr->nvox; i++)
-        mask[i] = (GMT[i] < 0.5/mean_vx_size) ? 0 : 1;
+        mask[i] = (GMT[i] > 0.2) ? 1 : 0;
 
-    median3(GMT, mask, dims, 1, DT_FLOAT32);
+    median3(GMT, mask, dims, 3, DT_FLOAT32);
     median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
     median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
 
     /* Re-estimate CSF distance using corrected GM thickness */
     for (i = 0; i < src_ptr->nvox; i++)
-        if ((src[i] > CGM-0.3) && (src[i] < GWM+0.3) && (GMT[i] > 1e-15))
+        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
             dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
     
     for (i = 0; i < src_ptr->nvox; i++)
-        mask[i] = (GMT[i] < 0.5/mean_vx_size) ? 1 : 0;
+        mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
 
     /* Approximate thickness values outside GM or below minimum thickness */
-    //vbdist(GMT, mask, dims, NULL, 1);
+    vbdist(GMT, mask, dims, NULL, 1);
 
     /* Apply final smoothing */
     if (fwhm > 0.0) {
@@ -303,7 +308,7 @@ int main(int argc, char *argv[])
        running to close to the WM. */
     if (verbose) fprintf(stderr,"Estimate percentage position map.\n");
     for (i = 0; i < src_ptr->nvox; i++) {
-        if ((src[i] > CGM-0.3) && (src[i] < GWM+0.3) && (GMT[i] > 1e-15))
+        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
             PPM[i] = MAX(0.0, dist_CSF[i] / GMT[i]);
         if (PPM[i] < 0.0) PPM[i] = 0.0;
         if (PPM[i] > 1.0) PPM[i] = 1.0;
@@ -311,9 +316,10 @@ int main(int argc, char *argv[])
     }
     
     /* Fill small holes that cause topology artefacts */
-    fill_holes(PPM, 1E-3, dims, DT_FLOAT32);
+    fill_holes(PPM, 1E-1, dims, DT_FLOAT32);
 
-    //median3(PPM, NULL, dims, 1, DT_FLOAT32);
+    /* 2x Median-filtering of PPM with euclidean distance */
+    localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 
     /* Apply isotropic voxel size correction */
     for (i = 0; i < src_ptr->nvox; i++) 
@@ -325,7 +331,7 @@ int main(int argc, char *argv[])
        - Use a weighted average of the original and median filtered images.
        - Weighting is estimated using gradient of the input image and.
          morphological operations to find larger clusters */
-    if (median_correction) {
+    if (n_median_filter) {
         vol_smoothed = (float *)malloc(sizeof(float)*src_ptr->nvox);
         
         for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i];
@@ -355,8 +361,8 @@ int main(int argc, char *argv[])
         for (i = 0; i < src_ptr->nvox; i++)
             input[i] = PPM[i];
             
-        /* Apply iterative median filter */
-        median3(input, NULL, dims, median_correction, DT_FLOAT32);
+        /* Apply iterative median filter with Euclidean distance */
+        localstat3(input, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_FLOAT32);
 
         /* Calculate weighted average of filtered and original input */
         for (i = 0; i < src_ptr->nvox; i++)
