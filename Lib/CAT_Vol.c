@@ -854,15 +854,15 @@ float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *ni
 }
 
 /**
- * get_prctile - Calculate percentile-based thresholds for a 3D volume.
+ * get_prctile - Calculate percentile-based thresholds.
  *
- * This function computes two thresholds for a given 3D volume (src) based on the 
+ * This function computes two thresholds for a given data (src) based on the 
  * specified percentiles. It can optionally exclude zeros from the calculation.
  * The calculated thresholds are stored in the 'threshold' array.
  *
  * Parameters:
- *  - src: Pointer to the source 3D volume.
- *  - dims: Array containing the dimensions of the volume.
+ *  - src: Pointer to the source.
+ *  - n_vol: Number of data poits.
  *  - threshold: Array where the calculated threshold values will be stored.
  *  - prctile: Array containing two percentile values for which thresholds are calculated.
  *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
@@ -870,11 +870,11 @@ float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *ni
  * Notes:
  *  - The function uses a histogram-based approach to calculate the thresholds.
  */
-void get_prctile(float *src, int *dims, double threshold[2], double prctile[2], int exclude_zeros) {
+void get_prctile(float *src, int nvox, double threshold[2], double prctile[2], int exclude_zeros) {
     double mn_thresh, mx_thresh;
     double min_src = FLT_MAX, max_src = -FLT_MAX;
     long *cumsum, *histo;
-    int i, sz_histo = 1000, nvox = dims[0] * dims[1] * dims[2];
+    int i, sz_histo = 1000;
     
     cumsum = (long *)malloc(sizeof(long) * sz_histo);
     histo  = (long *)malloc(sizeof(long) * sz_histo);
@@ -2592,7 +2592,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3], int samp)
     
     /* only keep values between 5..95% percentiles 
        to remove extremes that occur at edges */
-    get_prctile(vol, dims, threshold, prctile, 1);  
+    get_prctile(vol, dims[0]*dims[1]*dims[2], threshold, prctile, 1);  
     for (i = 0; i < nvox; ++i)
         if ((vol[i] < threshold[0]) || (vol[i] > threshold[1])) vol[i] = 0;;
 
