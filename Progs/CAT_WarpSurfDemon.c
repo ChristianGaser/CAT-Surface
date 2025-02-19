@@ -154,12 +154,12 @@ normalizeVector(double *data, int length)
         double median_data, stdev_data;
         int i;
     
-        median_data = get_median(data, length);
+        median_data = get_median_double(data, length, 0);
 
         for (i = 0; i < length; i++) 
                 data[i] -= median_data;
                 
-        stdev_data = get_std(data, length, 0);
+        stdev_data = get_std_double(data, length, 0);
 
         for (i = 0; i < length; i++)
                 data[i] /= stdev_data;

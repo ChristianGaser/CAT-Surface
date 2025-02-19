@@ -17,43 +17,7 @@
 #include <float.h>
 #include <limits.h>
 #include "CAT_NiftiLib.h"
-
-#define SQRT2PI 2.506628
-
-#ifndef isfinite
-#define isfinite(x) ((x) * (x) >= 0.) /* check for NaNs */
-#endif
-
-#ifndef TINY
-#define TINY 1e-15 
-#endif
-
-#ifndef SQR
-#define SQR(x) ((x)*(x))
-#endif
-
-#ifndef MAX
-#define MAX(A,B) ((A) > (B) ? (A) : (B))
-#endif
-
-#ifndef MIN
-#define MIN(A,B) ((A) < (B) ? (A) : (B))
-#endif
-
-#ifndef ROUND
-#define ROUND( x ) ((long) ((x) + ( ((x) >= 0) ? 0.5 : (-0.5) ) ))
-#endif
-
-#ifndef isnan
-#define isnan(a) ((a)!=(a)) 
-#endif
-
-#ifdef _MSC_VER
-  static const unsigned long __nan[2] = {0xffffffff, 0x7fffffff};
-  #define FNAN (*(const float *) __nan)
-#else
-  #define FNAN 0.0f/0.0f
-#endif
+#include "CAT_Math.h"
 
 #define index(A,B,C,DIM) ((C)*DIM[0]*DIM[1] + (B)*DIM[0] + (A))
 
@@ -81,16 +45,6 @@ enum
     F_MULTI
 };
 
-double get_min(double arr[], int n, int mask_zeros);
-double get_max(double arr[], int n, int mask_zeros);
-double get_mean(double arr[], int n, int mask_zeros);
-double get_median(double arr[], int n);
-double get_std(double arr[], int n, int mask_zeros);
-double get_sum(double arr[], int n, int mask_zeros);
-double get_masked_mean_array_float(float arr[], int n, unsigned char mask[]);
-double get_masked_std_array_float(float arr[], int n, unsigned char mask[]);
-float get_max_float(float arr[], int n, int mask_zeros);
-float get_mean_float(float arr[], int n, int mask_zeros);
 void median3(void *D, unsigned char *mask, int dims[3], int iters, int datatype);
 void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int stat_func, int iters, int use_euclidean_dist, int datatype);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
@@ -98,7 +52,6 @@ void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_m
 void smooth_subsample3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int samp, int datatype);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las, int square_image);
-void get_prctile(float *src, int nvox, double threshold[2], double prctile[2], int exclude_zeros);
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_close(void *vol, int dims[3], int niter, double th, int datatype);

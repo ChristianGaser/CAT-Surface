@@ -256,6 +256,7 @@ noinst_HEADERS = \
     Include/CAT_Gyrification.h \
     Include/CAT_DepthPotential.h \
     Include/CAT_Vol.h \
+    Include/CAT_Math.h \
     Include/CAT_Kmeans.h \
     Include/CAT_Amap.h \
     Include/CAT_NiftiLib.h \
@@ -293,6 +294,7 @@ noinst_HEADERS = \
     3rdparty/s2kit10/seminaive.h
 
 libCAT_la_SOURCES = \
+    Lib/CAT_Math.c \
     Lib/CAT_Surf.c \
     Lib/CAT_Warp.c \
     Lib/CAT_Curvature.c \
