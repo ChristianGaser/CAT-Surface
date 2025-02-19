@@ -78,7 +78,7 @@ THREAD_RETURN process_target_points(void *args) {
     int i, j, poly, n_points;
     Point point;
     Point poly_points[MAX_POINTS_PER_POLYGON];
-    double weights[MAX_POINTS_PER_POLYGON];
+    float weights[MAX_POINTS_PER_POLYGON];
 
     for (i = start; i < end; i++) {
         poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
@@ -88,7 +88,7 @@ THREAD_RETURN process_target_points(void *args) {
 
         outvals[i] = 0.0;
         for (j = 0; j < n_points; j++) {
-            outvals[i] += weights[j] * invals[source_sphere->indices[
+            outvals[i] += (double)weights[j] * invals[source_sphere->indices[
                                    POINT_INDEX(source_sphere->end_indices, poly, j)]];
         }
     }
