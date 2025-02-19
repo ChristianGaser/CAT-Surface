@@ -12,12 +12,13 @@
 #include <float.h>
 
 #include "CAT_Surf.h"
+#include "CAT_Vol.h"
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
-
+    
 int
 bound(int i, int j, int dm[])
 {
@@ -1356,7 +1357,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
  * check_polygons_shape_integrity.
  */
 object_struct **
-central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *positions, nifti_image *nii_ptr, int check_intersects)
+central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *label, nifti_image *nii_ptr, int check_intersects)
 {
     polygons_struct *polygons_out;
     object_struct **objects_out;
@@ -1366,7 +1367,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
     polygons_out = get_polygons_ptr(*objects_out);
     
     copy_polygons(polygons, polygons_out);
-    central_to_pial(polygons_out, thickness_values, extents, positions, nii_ptr, check_intersects);
+    central_to_pial(polygons_out, thickness_values, extents, label, nii_ptr, check_intersects);
     
     return(objects_out);
 }
@@ -1376,12 +1377,12 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
  * an extent of 0.5 should be used, while an extent of -0.5 results in the estimation of the white matter surface.
  */
 void
-central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *positions, nifti_image *nii_ptr, int check_intersects)
+central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *label, nifti_image *nii_ptr, int check_intersects)
 {
     int *defects, *polydefects, n_intersects;
     int *n_neighbours, **neighbours;
     int i, p, n_steps, counter, dims[3];
-    double x, y, z, val, length;
+    double x, y, z, val, length, *curvatures;
     polygons_struct *polygons_out;
     Point *new_pts;
     object_struct **objects_out;
@@ -1402,16 +1403,22 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
 
     copy_polygons(polygons, polygons_out);
 
-    /* use 10 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
-    n_steps = 10;
+    /* use 20 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
+    n_steps = 20;
     length = 1.0;
 
+    /* Compute mean curvature if label map is defined */
     if (nii_ptr != NULL) {
         dims[0] = nii_ptr->nx;
         dims[1] = nii_ptr->ny;
         dims[2] = nii_ptr->nz;
+
+        curvatures = (double *)malloc(sizeof(double)*polygons->n_points);
+        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                         0.0, 4, curvatures);
     }
-    
+  
     for (i = 0; i < n_steps; i++) {
         copy_polygons(polygons, polygons_out);
         
@@ -1432,10 +1439,10 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
                 x = Point_x(polygons_out->points[p]);
                 y = Point_y(polygons_out->points[p]);
                 z = Point_z(polygons_out->points[p]);
-                val = (double)isoval(positions, x, y, z, dims, nii_ptr);
+                val = (double)isoval(label, x, y, z, dims, nii_ptr);
                 
                 /* Undo last shift if position value exceeds inner or outer borders */
-                if (((extents[p] > 0.0) && (val <= 0.025)) || ((extents[p] < 0.0) && (val >= 0.975))) {
+                if (((extents[p] > 0.0) && (curvatures[i] > 0.2) && (val <= CGM)) || ((extents[p] < 0.0) && (val >= GWM))) {
                     Point_x(polygons_out->points[p]) = Point_x(polygons->points[p]);
                     Point_y(polygons_out->points[p]) = Point_y(polygons->points[p]);
                     Point_z(polygons_out->points[p]) = Point_z(polygons->points[p]);
