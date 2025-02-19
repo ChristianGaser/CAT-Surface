@@ -15,53 +15,53 @@
 void
 usage(char *executable)
 {
-        char *usage_str = "\n\
+    char *usage_str = "\n\
 Usage: %s  surface_file output_values_file\n\n\
-     Dump the sharpness values.\n";
+   Dump the sharpness values.\n";
 
-        fprintf(stderr, usage_str, executable);
+    fprintf(stderr, usage_str, executable);
 }
 
 int
 main(int argc, char *argv[])
 {
-        char                 *object_file, *output_surface_file;
-        FILE                 *fp;
-        File_formats         format;
-        int                  n_objects;
-        int                  *n_neighbours, **neighbours;
-        object_struct        **objects;
-        polygons_struct      *polygons;
-        double               *sharpness;
+    char         *object_file, *output_surface_file;
+    FILE         *fp;
+    File_formats     format;
+    int          n_objects;
+    int          *n_neighbours, **neighbours;
+    object_struct    **objects;
+    polygons_struct    *polygons;
+    double         *sharpness;
 
-        initialize_argument_processing(argc, argv);
+    initialize_argument_processing(argc, argv);
 
-        if (!get_string_argument(NULL, &object_file) ||
-            !get_string_argument(NULL, &output_surface_file)) {
-                usage(argv[0]);
-                exit(EXIT_FAILURE);
-        }
+    if (!get_string_argument(NULL, &object_file) ||
+      !get_string_argument(NULL, &output_surface_file)) {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
 
-        if (input_graphics_any_format(object_file, &format, &n_objects,
-                                      &objects) != OK)
-                exit(EXIT_FAILURE);
+    if (input_graphics_any_format(object_file, &format, &n_objects,
+                    &objects) != OK)
+        exit(EXIT_FAILURE);
 
-        if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-                printf("File must contain 1 polygons object.\n");
-                exit(EXIT_FAILURE);
-        }
+    if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
+        printf("File must contain 1 polygons object.\n");
+        exit(EXIT_FAILURE);
+    }
 
-        polygons = get_polygons_ptr(objects[0]);
-        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+    polygons = get_polygons_ptr(objects[0]);
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-        ALLOC(sharpness, polygons->n_points);
-        compute_local_sharpness(polygons, n_neighbours, neighbours, sharpness);
+    ALLOC(sharpness, polygons->n_points);
+    compute_local_sharpness(polygons, n_neighbours, neighbours, sharpness);
 
-        output_values_any_format(output_surface_file, polygons->n_points,
-                                 sharpness, TYPE_DOUBLE);
+    output_values_any_format(output_surface_file, polygons->n_points,
+                 sharpness, TYPE_DOUBLE);
 
-        delete_object_list(n_objects, objects);
-        FREE(sharpness);
-    
-        return(EXIT_SUCCESS);
+    delete_object_list(n_objects, objects);
+    FREE(sharpness);
+  
+    return(EXIT_SUCCESS);
 }
