@@ -676,7 +676,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     vol = area*dims[2];
  
     double prctile[2] = {1,99};
-    get_prctile(src, vol, thresh, prctile, 1);  
+    get_prctile(src, vol, thresh, prctile, 1, DT_FLOAT32);  
  
     /* define grid dimensions */
     nix = (int) ceil((dims[0]-1)/((double) sub))+1;

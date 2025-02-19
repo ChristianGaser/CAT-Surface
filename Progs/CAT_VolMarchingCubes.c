@@ -340,7 +340,7 @@ main(
 
     /* We have to scale image to a maximum of 1.0 if isoval > 1.0 */
     if (min_threshold > 1.0) {
-        max_value = get_max_float(input_float, nvol, 0);
+        max_value = get_max(input_float, nvol, 0, DT_FLOAT32);
         for (i = 0; i < nvol; i++) input_float[i] /= (float)max_value;
         min_threshold = min_threshold/max_value;
     }
@@ -365,8 +365,8 @@ main(
         gradient3D_magnitude(input_float, grad, dims);
 
         /* calculate mean of gradient (where gradient > 0) */
-        mean_grad = get_mean_float(grad, nvol, 1);
-        max_grad  = get_max_float(grad, nvol, 1);
+        mean_grad = get_mean(grad, nvol, 1, DT_FLOAT32);
+        max_grad  = get_max(grad, nvol, 1, DT_FLOAT32);
         
         /* Protect values in sulci and gyri and weight areas with filtered values 
           depending on gradient of input image */

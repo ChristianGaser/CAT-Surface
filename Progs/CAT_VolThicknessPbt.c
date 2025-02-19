@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
         for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - vol_smoothed[i];
 
         prctile[0] = 0.1; prctile[1] = 99.0;
-        get_prctile(vol_smoothed, dims[0]*dims[1]*dims[2], threshold, prctile, 1);  
+        get_prctile(vol_smoothed, dims[0]*dims[1]*dims[2], threshold, prctile, 1, DT_FLOAT32);  
 
         /* Treshold the difference image */
         for (i = 0; i < src_ptr->nvox; i++)

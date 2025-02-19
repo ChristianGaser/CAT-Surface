@@ -354,7 +354,12 @@ void Regularize(float *in,float *out,int r,int sx,int sy,int sz)
         return;
 }
 
-void* ThreadFunc( void* pArguments )
+#if defined(_WIN32) || defined(_WIN64)
+unsigned int 
+#else
+void * 
+#endif
+ThreadFunc( void* pArguments )
 {
         float *bias,*Estimate,*ima,*means,*variances,*average;
         double epsilon,mu1,var1,totalweight,wmax,t1,t1i,t2,d,w,distanciaminima;
