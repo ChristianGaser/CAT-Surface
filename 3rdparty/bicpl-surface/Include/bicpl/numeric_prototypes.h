@@ -1,6 +1,10 @@
 #ifndef  DEF_numeric_prototypes
 #define  DEF_numeric_prototypes
 
+#ifndef  Real
+#define  Real float
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

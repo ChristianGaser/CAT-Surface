@@ -48,8 +48,8 @@ BICAPI  Status   input_tag_objects_file(
     marker_struct      *marker;
     int                i, n_volumes, n_tag_points, *structure_ids, *patient_ids;
     STRING             *labels;
-    double             *weights;
-    double             **tags1, **tags2;
+    Real             *weights;
+    Real             **tags1, **tags2;
 
     *n_objects = 0;
 

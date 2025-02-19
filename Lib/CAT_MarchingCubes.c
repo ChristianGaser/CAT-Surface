@@ -110,7 +110,7 @@ get_point_index(
     int x_size,
     int y_size,
     voxel_point_type *point,
-    double corners[2][2][2],
+    float corners[2][2][2],
     mat44  nii_mat,
     BOOLEAN  binary_flag,
     double   min_threshold,
@@ -120,7 +120,7 @@ get_point_index(
 {
     int    voxel[N_DIMENSIONS], edge, point_index;
     int    edge_voxel[N_DIMENSIONS];
-    double v[N_DIMENSIONS];
+    float v[N_DIMENSIONS];
     Point  world_point;
     Point_classes point_class;
 
@@ -176,7 +176,7 @@ extract_surface(
     int         x, y, *sizes, tx, ty, tz, n_polys, ind;
     int         p, point_index, poly, size, start_points, dir;
     voxel_point_type  *points;
-    double        corners[2][2][2], label;
+    float        corners[2][2][2], label;
     BOOLEAN       valid;
 
     for (x = -1; x < x_size; x++)

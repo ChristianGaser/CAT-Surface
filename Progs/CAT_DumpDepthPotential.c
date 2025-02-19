@@ -28,7 +28,8 @@ main(int argc, char *argv[])
         int                  poly, n_objects;
         object_struct        **objects;
         polygons_struct      *polygons;
-        double               *measure, alpha;
+        float                alpha;
+        double               *measure;
 
         initialize_argument_processing(argc, argv);
 

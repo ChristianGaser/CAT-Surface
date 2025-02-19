@@ -418,11 +418,11 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                                       double ycoord[], double zcoord[])
 {
         int i, j, x, y;
-        double value, u, v, r;
+        double value, u, v, r, radius;
         Point unit_point, on_sphere_point, new_point;
         Point poly_points[1000], poly_points_src[1000], scaled_point;
         int poly, size, ind, bandwidth2;
-        double weights[1000], radius;
+        float weights[1000];
         object_struct *objects;
         polygons_struct *scaled_sphere;
 
@@ -472,7 +472,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                         fill_Point(new_point, 0.0, 0.0, 0.0);
                         for (i = 0; i < size; i++) {
                                 SCALE_POINT(scaled_point, poly_points[i],
-                                            weights[i]);
+                                            (double)weights[i]);
                                 ADD_POINTS(new_point, new_point, scaled_point);
                         }
                         xcoord[x + (bandwidth2*y)] = Point_x(new_point);
@@ -493,11 +493,11 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                                  double zcoord[], int force)
 {
         int i, j, x, y, *bisected;
-        double value, u, v, r;
+        double value, u, v, r, radius;
         Point unit_point, on_sphere_point, new_point;
         Point poly_points[1000], poly_points_src[1000], scaled_point;
         int poly, size, ind, bandwidth2;
-        double weights[1000], radius;
+        float weights[1000];
         object_struct **objects;
         polygons_struct *scaled_sphere;
 
@@ -568,7 +568,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
                         fill_Point(new_point, 0.0, 0.0, 0.0);
                         for (i = 0; i < size; i++) {
                                 SCALE_POINT(scaled_point, poly_points[i],
-                                            weights[i]);
+                                            (double)weights[i]);
                                 ADD_POINTS(new_point, new_point, scaled_point);
                         }
                         xcoord[x + (bandwidth2*y)] = Point_x(new_point);

@@ -42,7 +42,7 @@ main(int argc, char *argv[])
         polygons_struct  *polygons, *polygons_sphere, *target_sphere;
         double           *input_values, *output_values, dist;
         BOOLEAN          values_specified;
-        double           weights[MAX_POINTS_PER_POLYGON];
+        float            weights[MAX_POINTS_PER_POLYGON];
         double           sphereRadius, r, bounds[6];
 
         initialize_argument_processing(argc, argv);
@@ -161,7 +161,7 @@ main(int argc, char *argv[])
                         output_values[i] = 0.0;
 
                 for (k = 0; k < n_points; k++) {
-                        SCALE_POINT(scaled_point, poly_points[k], weights[k]);
+                        SCALE_POINT(scaled_point, poly_points[k], (double)weights[k]);
                         ADD_POINTS(new_points[i], new_points[i], scaled_point);
                         if (values_specified)
                                 output_values[i] += weights[k] * 

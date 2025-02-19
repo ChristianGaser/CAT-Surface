@@ -101,7 +101,8 @@ map_sphere_values_to_sheet(polygons_struct *polygons,
         Point             poly_points[1000];
         double            value;
         double            u, v;
-        double            weights[1000], mn, mx;
+        double            mn, mx;
+        float             weights[1000];
         int               i;
         int               x, y;
         int               poly, size, ind;
@@ -161,7 +162,7 @@ map_sphere_values_to_sheet(polygons_struct *polygons,
                                 ind = unit_sphere.indices[
                                       POINT_INDEX(unit_sphere.end_indices,
                                                   poly, i)];
-                                value += weights[i] * sphere_values[ind];
+                                value += (double)weights[i] * sphere_values[ind];
                         }
                         mapped_data[x + (dm[0]*y)] = value;
                 }

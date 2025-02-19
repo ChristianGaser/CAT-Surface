@@ -113,10 +113,10 @@ get_points_of_region(polygons_struct *polygons, Point   *points[] )
 
 }
 
-private  Real
-compute_clockwise_degrees( Real x, Real y )
+private  float
+compute_clockwise_degrees( float x, float y )
 {
-        Real   degrees;
+        float   degrees;
 
         if( x >= -TOLERANCE_DISTANCE && x <= TOLERANCE_DISTANCE ) {
                 if( y < -TOLERANCE_DISTANCE )
@@ -133,7 +133,7 @@ compute_clockwise_degrees( Real x, Real y )
                         return( 180.0 );
         }
         else {
-                degrees = - RAD_TO_DEG * (Real) atan2( (double) y, (double) x );
+                degrees = - RAD_TO_DEG * (float) atan2( (double) y, (double) x );
 
                 if( degrees < 0.0 )
                         degrees += 360.0;
@@ -153,7 +153,7 @@ find_limit_plane(
 {
         int      i, best_ind;
         Vector   horizontal, vertical, offset;
-        Real     angle, best_angle, x, y;
+        float     angle, best_angle, x, y;
         BOOLEAN  first;
 
         best_angle = 0.0;
@@ -335,7 +335,7 @@ get_plane_polygon_vertices(
         int              vertices[] )
 {
         int      i, n_in_hull, n_in_plane, *plane_points, *hull_points;
-        Real     plane_constant, horiz_constant, *x, *y, dist;
+        float     plane_constant, horiz_constant, *x, *y, dist;
         Vector   v01, v02, normal, offset, horizontal, vertical;
 
         SUB_POINTS( v01, points[p1], points[p0] );
@@ -607,15 +607,15 @@ get_convex_hull(
 private  int
 get_convex_hull_2d(
         int              n_points,
-        Real             x[],
-        Real             y[],
+        float             x[],
+        float             y[],
         int              hull_indices[],
         int              e0,
         int              e1 )
 {
 
         int      i, j, min_ind, n_in_hull, current_ind, best_ind;
-        Real     dx, dy, best_len, cross;
+        float     dx, dy, best_len, cross;
 
         n_in_hull = 0;
         if( e0 < 0 && e1 < 0 ) {

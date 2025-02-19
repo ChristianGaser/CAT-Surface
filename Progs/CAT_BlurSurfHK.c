@@ -47,7 +47,8 @@ main(int argc, char *argv[])
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons;
-        double           fwhm, *values, *mask;
+        double           *values, *mask;
+        float            fwhm;
         BOOLEAN          values_present, mask_present;
 
         initialize_argument_processing(argc, argv);

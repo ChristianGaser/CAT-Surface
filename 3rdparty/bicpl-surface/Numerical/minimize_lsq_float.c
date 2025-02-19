@@ -1,8 +1,5 @@
 #include "bicpl_internal.h"
 
-#define  LSQ_TYPE      double
-#define  MINIMIZE_LSQ  minimize_lsq
-
 #include  "minimize_lsq_include.c"
 
 BICAPI  Real   minimize_lsq_float(

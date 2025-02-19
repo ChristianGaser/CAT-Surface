@@ -27,7 +27,7 @@ static int KeyFactor = 100000;
 object_struct **  surface_get_convex_hull(polygons_struct *, polygons_struct * );
 private  int  get_points_of_region(polygons_struct  *, Point ** );
 private  void  get_convex_hull(int, Point *, polygons_struct * );
-private  int  get_convex_hull_2d(int, Real *, Real *, int *, int, int );
+private  int  get_convex_hull_2d(int, float *, float *, int *, int, int );
 private int get_surface_point_normals( polygons_struct *, int *, Point *[],
                               Vector *[], int *[], int **[] );
 private int get_surface_neighbours( polygons_struct *, int *[],

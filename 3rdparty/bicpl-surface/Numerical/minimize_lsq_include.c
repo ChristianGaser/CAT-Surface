@@ -1,7 +1,7 @@
 
 #include "bicpl_internal.h"
 #define   DEFAULT_RATIO      1.0
-#define Real double
+#define Real float
 #define LSQ_TYPE Real
 
 static  Real  evaluate_fit(

@@ -1273,7 +1273,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     int vertidx, ptidx, poly, size;
     int n_nb, neighbours[MAX_NEIGHBOURS];
     int n_errors, n_bad_points;
-    double base_length, curv_factor;
+    float base_length, curv_factor;
     Point *centroids;
     Vector normal;
     BOOLEAN interior_flag;

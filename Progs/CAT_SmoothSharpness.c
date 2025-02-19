@@ -48,8 +48,8 @@ main(int argc, char *argv[])
         File_formats     format;
         object_struct    **object_list;
         polygons_struct  *polygons, *smoothed_polygons;
-        double           fwhm, min, max;
-        double           *sharpness;
+        float            fwhm;
+        double           *sharpness, min, max;
 
         initialize_argument_processing(argc, argv);
 

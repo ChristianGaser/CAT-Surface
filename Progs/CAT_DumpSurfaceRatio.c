@@ -47,7 +47,7 @@ main(int argc, char *argv[])
         object_struct        **objects;
         polygons_struct      *polygons;
         double               *area_values;
-        double               radius;
+        float                radius;
 
         /* Call ParseArgv */
         if (ParseArgv(&argc, argv, argTable, 0)) {

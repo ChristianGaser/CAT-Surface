@@ -15,7 +15,7 @@ interp_point_unit_sphere(polygons_struct *sphere, double *values, Point pt)
 {
         Point             on_sphere_pt, poly_pts[1000];
         double            value;
-        double            weights[1000];
+        float            weights[1000];
         int               i, poly, size, ind;
 
         if (sphere->bintree == NULL)
@@ -30,7 +30,7 @@ interp_point_unit_sphere(polygons_struct *sphere, double *values, Point pt)
         for (i = 0; i < size; i++) {
                 ind = sphere->indices[POINT_INDEX(sphere->end_indices,
                                                   poly, i)];
-                value += weights[i] * values[ind];
+                value += (double)weights[i] * values[ind];
         }
         
         return value;

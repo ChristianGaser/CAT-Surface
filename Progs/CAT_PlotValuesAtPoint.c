@@ -32,7 +32,8 @@ main(int argc, char *argv[])
         int               i, j;
         object_struct     **objects;
         polygons_struct   *polygons;
-        double              x, y, z, dist, min_dist, value;
+        float             x, y, z;
+        double            dist, min_dist, value;
         Point             point;
         char              line[256];
 

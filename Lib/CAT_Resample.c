@@ -124,7 +124,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
         int poly, n_points;
         Point point;
         Point poly_points[MAX_POINTS_PER_POLYGON];
-        double weights[MAX_POINTS_PER_POLYGON];
+        float weights[MAX_POINTS_PER_POLYGON];
 
         poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
 
@@ -133,7 +133,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
 
         outvals[i] = 0.0;
         for (j = 0; j < n_points; j++) {
-            outvals[i] += weights[j] * invals[source_sphere->indices[
+            outvals[i] += (double)weights[j] * invals[source_sphere->indices[
                                    POINT_INDEX(source_sphere->end_indices, poly, j)]];
         }
 
@@ -199,7 +199,8 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
         Point           *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct   **objects, **scaled_objects;
         polygons_struct *scaled_target_sphere, *scaled_polygons_sphere;
-        double          max_prob, val, weights[MAX_POINTS_PER_POLYGON];
+        double          max_prob, val;
+        float           weights[MAX_POINTS_PER_POLYGON];
 
         objects  = (object_struct **) malloc(sizeof(object_struct *));
         *objects = create_object(POLYGONS);
@@ -278,7 +279,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                 /* resample mesh if defined */
                 if (polygons != NULL) {
                         for (j = 0; j < n_points; j++) {
-                                SCALE_POINT(scaled_point, poly_points[j], weights[j]);
+                                SCALE_POINT(scaled_point, poly_points[j], (double)weights[j]);
                                 ADD_POINTS(new_points[i], new_points[i], scaled_point);
                         }
                 }
@@ -340,7 +341,7 @@ resample_spherical_surface(polygons_struct *polygons,
     Point  poly_points[MAX_POINTS_PER_POLYGON];
     Point  poly_points_src[MAX_POINTS_PER_POLYGON];
     Point  *new_points;
-    double   weights[MAX_POINTS_PER_POLYGON];
+    float  weights[MAX_POINTS_PER_POLYGON];
     double sphereRadius, r, bounds[6];
 
     /*
@@ -371,7 +372,7 @@ resample_spherical_surface(polygons_struct *polygons,
                   sphereRadius, n_triangles, resampled_source);
 
     create_polygons_bintree(poly_src_sphere,
-                ROUND((Real) poly_src_sphere->n_items * 0.5));
+                ROUND((float) poly_src_sphere->n_items * 0.5));
 
     ALLOC(new_points, resampled_source->n_points);
     if (input_values != NULL)
@@ -396,7 +397,7 @@ resample_spherical_surface(polygons_struct *polygons,
             output_values[i] = 0.0;
 
         for (k = 0; k < n_points; k++) {
-            SCALE_POINT(scaled_point, poly_points[k], weights[k]);
+            SCALE_POINT(scaled_point, poly_points[k], (double)weights[k]);
             ADD_POINTS(new_points[i], new_points[i], scaled_point);
             if (input_values != NULL)
                 output_values[i] += weights[k] *
@@ -427,7 +428,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
         Point           *new_points, poly_points[MAX_POINTS_PER_POLYGON];
         object_struct   **objects, *scaled_objects;
         polygons_struct *output_surface, *scaled_sphere;
-        double          weights[MAX_POINTS_PER_POLYGON];
+        float          weights[MAX_POINTS_PER_POLYGON];
 
         scaled_objects = create_object(POLYGONS);
         scaled_sphere  = get_polygons_ptr(scaled_objects);
@@ -467,7 +468,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
                         outvals[i] = 0.0;
 
                 for (j = 0; j < n_points; j++) {
-                        SCALE_POINT(scaled_point, poly_points[j], weights[j]);
+                        SCALE_POINT(scaled_point, poly_points[j], (double)weights[j]);
                         ADD_POINTS(new_points[i], new_points[i], scaled_point);
                         if (invals != NULL) {
                                 outvals[i] += weights[j] *

@@ -1,6 +1,14 @@
 #ifndef  DEF_vol_io_prototypes
 #define  DEF_vol_io_prototypes
 
+#ifndef  Real
+#define  Real float
+#endif
+
+#ifndef  VIO_Real
+#define  VIO_Real float
+#endif
+
 VIOAPI  VIO_Real  convert_voxel_to_value(
     VIO_Volume   volume,
     VIO_Real     voxel );

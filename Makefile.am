@@ -301,7 +301,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_SurfaceIO.c \
     Lib/CAT_Map.c \
     Lib/CAT_Smooth.c \
-    Lib/CAT_Pinv.c \
     Lib/CAT_Intersect.c \
     Lib/CAT_Octree.c \
     Lib/CAT_Resample.c \

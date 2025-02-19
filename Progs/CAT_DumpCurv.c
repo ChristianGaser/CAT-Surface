@@ -52,7 +52,8 @@ main(int argc, char *argv[])
         int                  *n_neighbours, **neighbours, use_abs_values;
         object_struct        **objects;
         polygons_struct      *polygons;
-        double               fwhm, *curvatures, distance;
+        double               *curvatures, distance;
+        float                fwhm;
         BOOLEAN              smoothing;
 
         initialize_argument_processing(argc, argv);

@@ -39,7 +39,8 @@ main(int argc, char *argv[])
         Point                unit_point, on_sphere_point, centre;
         Point                poly_points[1000];
         double               u, v, *values, *input_values, **sheet;
-        double               weights[1000], value, indx, indy;
+        double               value, indx, indy;
+        float                weights[1000]; 
         progress_struct      progress;
         double               inflow_x, inflow_y, ux, vy;
         int                  size_map[2], shift[2];
@@ -134,7 +135,7 @@ main(int argc, char *argv[])
                 for (j = 0; j < size; j++) {
                         ind = unit_sphere.indices[
                               POINT_INDEX(unit_sphere.end_indices,poly,j)];
-                        value += weights[j] * input_values[ind];
+                        value += (double)weights[j] * input_values[ind];
                 }
                 values[i] = value;
  
