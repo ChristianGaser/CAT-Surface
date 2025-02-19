@@ -22,7 +22,7 @@ int verbose = 0;
 int n_avgs = 8;
 int n_median_filter = 2;
 double sharpening = 0.02;
-double downsample = 1.0;
+double downsample = 0.0;
 double fwhm = 2.0;
 
 static ArgvInfo argTable[] = {
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] < (CGM + add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] < GWM) ? 1 : 0;
+            mask[i]  = (src[i] < GWM + 0.3) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
         /* prepare map outside WM and mask to obtain distance map for WN */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] > CGM) ? 1 : 0;
+            mask[i]  = (src[i] > CGM - 0.3) ? 1 : 0;
         }    
     
         /* obtain WM distance map */
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
     /* use minimum/maximum to reduce issues with meninges */
     for (i = 0; i < src_ptr->nvox; i++) {
         sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT[i] = MIN(sum_dist, MAX(0.0, GMT[i] - 0.5 - 0.5*(GMT[i]  < sum_dist)));
+        GMT[i] = MIN(sum_dist, MAX(0.0, GMT[i] - 0.5*(GMT[i]  < sum_dist)));
     }
 
     /* Limit GMT2 to thick regions */
@@ -265,20 +265,20 @@ int main(int argc, char *argv[])
 
     for (i = 0; i < src_ptr->nvox; i++) {
         sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5 - 0.5*(GMT2[i]  < sum_dist)));
+        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5*(GMT2[i]  < sum_dist)));
     }
         
     /* use minimum of thickness measures */
-    for (i = 0; i < src_ptr->nvox; i++)      
+    for (i = 0; i < src_ptr->nvox; i++)
         GMT[i] = MIN(GMT[i], GMT2[i]);
    
     for (i = 0; i < src_ptr->nvox; i++)
         mask[i] = (GMT[i] > 0.2) ? 1 : 0;
 
-    median3(GMT, mask, dims, 3, DT_FLOAT32);
+    /*median3(GMT, mask, dims, 3, DT_FLOAT32);
     median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
     median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
-
+*/
     /* Re-estimate CSF distance using corrected GM thickness */
     for (i = 0; i < src_ptr->nvox; i++)
         if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
@@ -289,6 +289,7 @@ int main(int argc, char *argv[])
 
     /* Approximate thickness values outside GM or below minimum thickness */
     vbdist(GMT, mask, dims, NULL, 1);
+    laplace3R(GMT, mask, dims, 0.1);
 
     /* Apply final smoothing */
     if (fwhm > 0.0) {
@@ -342,7 +343,7 @@ int main(int argc, char *argv[])
         for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - vol_smoothed[i];
 
         prctile[0] = 0.1; prctile[1] = 99.0;
-        get_prctile(vol_smoothed, dims, threshold, prctile, 1);  
+        get_prctile(vol_smoothed, dims[0]*dims[1]*dims[2], threshold, prctile, 1);  
 
         /* Treshold the difference image */
         for (i = 0; i < src_ptr->nvox; i++)
@@ -400,6 +401,11 @@ int main(int argc, char *argv[])
         
         free(vol_smoothed);
         free(PPM0);
+    }
+
+    for (i = 0; i < src_ptr->nvox; i++) {
+        if (PPM[i] < 0.0) PPM[i] = 0.0;
+        if (PPM[i] > 1.0) PPM[i] = 1.0;
     }
         
     /* Downsample images */
