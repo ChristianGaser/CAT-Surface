@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
             return(1);
         #endif
     }
-    
+
     /* read source image */
     src_ptr = read_nifti_float(infile, &src, 0);
     if (!src_ptr) {
@@ -185,8 +185,8 @@ int main(int argc, char *argv[])
     /* Ensure that n_avgs is at least 1 */
     n_avgs = (n_avgs < 1) ? 1 : n_avgs;
 
-    /* 2x Median-filtering of input with euclidean distance helps a bit */
-    localstat3(src, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
+    /* Median-filtering of input with euclidean distance helps a bit */
+    localstat3(src, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
 
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
@@ -239,8 +239,7 @@ int main(int argc, char *argv[])
 
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
-    for (i = 0; i < src_ptr->nvox; i++)
-        input[i] = roundf(4.0 - src[i]);
+    for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(4.0 - src[i]);
 
     /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
     projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
@@ -273,24 +272,28 @@ int main(int argc, char *argv[])
         GMT[i] = MIN(GMT[i], GMT2[i]);
    
     for (i = 0; i < src_ptr->nvox; i++)
-        mask[i] = (GMT[i] > 0.2) ? 1 : 0;
+        mask[i] = (GMT[i] > 1.0) ? 1 : 0;
 
-    /*median3(GMT, mask, dims, 3, DT_FLOAT32);
-    median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
-    median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
-*/
+    median3(GMT, mask, dims, 3, DT_FLOAT32);
+    //median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
+    //median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
+
     /* Re-estimate CSF distance using corrected GM thickness */
-    for (i = 0; i < src_ptr->nvox; i++)
+    for (i = 0; i < src_ptr->nvox; i++) {
         if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
             dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
+        if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
+    }
     
     for (i = 0; i < src_ptr->nvox; i++)
         mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
 
     /* Approximate thickness values outside GM or below minimum thickness */
-    vbdist(GMT, mask, dims, NULL, 1);
-    laplace3R(GMT, mask, dims, 0.1);
-
+    if (fwhm >= 0.0) {
+        vbdist(GMT, mask, dims, NULL, 1);
+        laplace3R(GMT, mask, dims, 0.1);
+    }
+    
     /* Apply final smoothing */
     if (fwhm > 0.0) {
         if (verbose) fprintf(stderr,"Final correction\n");
