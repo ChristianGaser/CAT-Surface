@@ -135,7 +135,7 @@ static  void  minimize_along_line(
     {
         first = FALSE;
         if( getenv( "LSQ_STEP_RATIO" ) == 0 ||
-            sscanf( getenv( "LSQ_STEP_RATIO" ), "%lg", &ratio ) != 1 )
+            sscanf( getenv( "LSQ_STEP_RATIO" ), "%g", &ratio ) != 1 )
             ratio = DEFAULT_RATIO;
     }
 

@@ -227,48 +227,10 @@ void convert_output_type_float(void *data, float *buffer, int n, int datatype)
     }
 }
 
-/**
- * swap - Swap the values of two double variables.
- *
- * This utility function is used in sorting algorithms to swap the values 
- * of two double variables.
- *
- * Parameters:
- *  - a: Pointer to the first double variable.
- *  - b: Pointer to the second double variable.
- */
-void swap(double *a, double *b) {
-    double temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
-/**
- * quicksort - Sort an array of doubles using the Quick Sort algorithm.
- *
- * This function sorts an array of doubles in place using the Quick Sort algorithm. 
- * It's a recursive algorithm that sorts elements by partitioning the array.
- *
- * Parameters:
- *  - arr: The array of doubles to be sorted.
- *  - start: The starting index for the sorting process.
- *  - end: The ending index (exclusive) for the sorting process.
- */
-void quicksort(double *arr, int start, int end) {
-    if (end > start + 1) {
-        double pivot = arr[start];
-        int left = start + 1, right = end;
-        while (left < right) {
-            if (arr[left] <= pivot) {
-                left++;
-            } else {
-                swap(&arr[left], &arr[--right]);
-            }
-        }
-        swap(&arr[--left], &arr[start]);
-        quicksort(arr, start, left);
-        quicksort(arr, right, end);
-    }
+/* Comparison function for qsort */
+int compare_doubles(const void *a, const void *b) {
+    double diff = *(const double *)a - *(const double *)b;
+    return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 }
 
 /**
@@ -285,17 +247,49 @@ void quicksort(double *arr, int start, int end) {
  * Returns:
  *  The median value of the array.
  *
- * Note:
- *  This function modifies the original array by sorting it.
  */
 double get_median_double(double *arr, int n, int exclude_zeros) {
-    quicksort(arr, 0, n);
 
-    // Calculate median
-    if (n % 2 != 0) // If n is odd
-        return arr[n / 2];
-    else
-        return (arr[(n - 1) / 2] + arr[n / 2]) / 2.0;
+    int i, filtered_count = 0;
+    double median;
+
+    if (n <= 0) return NAN;  // Handle empty array
+        
+    // Allocate memory for a copy of the data
+    double *copy = malloc(n * sizeof(double));
+    if (copy == NULL) {
+        fprintf(stderr, "Memory allocation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy data while optionally excluding zeros
+    for (i = 0; i < n; i++) {
+        if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
+            continue;
+        copy[filtered_count++] = arr[i];
+    }
+
+    // Check if we have valid data points left
+    if (filtered_count == 0) {
+        fprintf(stderr, "Error: No valid data points after filtering.\n");
+        free(copy);
+        exit(EXIT_FAILURE);
+    }
+
+    // Sort the filtered data
+    qsort(copy, filtered_count, sizeof(double), compare_doubles);
+
+    // Compute the median
+    if (filtered_count % 2 == 0) {
+        // Even number of elements: average of the two middle elements
+        median = (copy[filtered_count / 2 - 1] + copy[filtered_count / 2]) / 2.0;
+    } else {
+        // Odd number of elements: middle element
+        median = copy[filtered_count / 2];
+    }
+
+    free(copy);
+    return median;
 }
 
 /**
@@ -314,9 +308,11 @@ double get_median_double(double *arr, int n, int exclude_zeros) {
 double get_sum_double(double *arr, int n, int exclude_zeros) {
     int i;
     double sum = 0.0;
+
+    if (n <= 0) return NAN;  // Handle empty array
     
     for (i = 0; i < n; i++) {
-        if ((exclude_zeros) && (arr[i] != 0.0))
+        if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             sum += arr[i];
         else
             sum += arr[i];
@@ -341,16 +337,19 @@ double get_sum_double(double *arr, int n, int exclude_zeros) {
 double get_mean_double(double *arr, int n, int exclude_zeros) {
     int i, n0 = 0;
     double sum = 0.0;
+
+    if (n <= 0) return NAN;  // Handle empty array
     
     for (i = 0; i < n; i++) {
-        if ((exclude_zeros) && (arr[i] != 0.0)) {
-            sum += arr[i];
-            n0++;
-        } else {
-            sum += arr[i];
-            n0++;
-        }
+
+        if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
+            continue; // Skip zero values if exclusion is enabled
+            
+        sum += arr[i];
+        n0++;
     }
+
+    if (n0 == 0) return NAN;  // Prevent division by zero
 
     return sum / (double)n0;
 }
@@ -369,23 +368,27 @@ double get_mean_double(double *arr, int n, int exclude_zeros) {
  * Returns: The standard deviation of the array.
 */
 double get_std_double(double *arr, int n, int exclude_zeros) {
-    int i, n0=0;
+    int i, n0 = 0;
     double mean, variance = 0.0;
 
-    mean = get_mean_double(arr,n, exclude_zeros);
+    if (n <= 0) return NAN;  // Handle empty array
+
+    mean = get_mean_double(arr, n, exclude_zeros);
+
+    if (isnan(mean)) return NAN;  // No valid elements
 
     /* Calculate variance */
     for (i = 0; i < n; i++) {
-        if ((exclude_zeros) && (arr[i] != 0.0)) {
-            variance += pow(arr[i] - mean, 2);
-            n0++;
-        } else {
-            variance += pow(arr[i] - mean, 2);
-            n0++;
-        }
+        if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
+            continue; // Skip zero values if exclusion is enabled
+            
+        variance += pow(arr[i] - mean, 2);
+        n0++;
     }
 
-    variance /= (double)n0;
+    if (n0 <= 1) return NAN;  // Prevent division by zero and invalid sqrt()
+
+    variance /= (double)(n0 - 1);
 
     /* Calculate standard deviation */
     return sqrt(variance);
@@ -406,15 +409,16 @@ double get_std_double(double *arr, int n, int exclude_zeros) {
  */
  double get_min_double(double *arr, int n, int exclude_zeros) {
     int i;
-    double result = FLT_MAX;
+    double result = DBL_MAX;
+
+    if (n <= 0) return NAN;  // Handle empty array
     
-    for (i = 0; i < n; i++) {
-        if (arr[i] < result) {
-            if ((exclude_zeros) && (arr[i] != 0.0))
-                result = arr[i];
-            else
-                result = arr[i];
-        }
+    for (int i = 0; i < n; i++) {
+        if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
+            continue; // Skip zero values if exclusion is enabled
+            
+        if (arr[i] < result)
+            result = arr[i];
     }
 
     return result;
@@ -435,15 +439,16 @@ double get_std_double(double *arr, int n, int exclude_zeros) {
  */
  double get_max_double(double *arr, int n, int exclude_zeros) {
     int i;
-    double result = -FLT_MAX;
+    double result = -DBL_MAX;
+
+    if (n <= 0) return NAN;  // Handle empty array
     
     for (i = 0; i < n; i++) {
-        if (arr[i] > result) {
-            if ((exclude_zeros) && (arr[i] != 0.0))
-                result = arr[i];
-            else
-                result = arr[i];
-        }
+        if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
+            continue; // Skip zero values if exclusion is enabled
+            
+        if (arr[i] > result)
+            result = arr[i];
     }
 
     return result;
@@ -481,6 +486,8 @@ double get_masked_mean_array_double(double *arr, int n, unsigned char *mask)
 {
     double sum = 0.0;
     int i, count = 0;
+
+    if (n <= 0) return NAN;  // Handle empty array
     
     /* Calculate mean */
     for (i = 0; i < n; i++) {
@@ -526,6 +533,8 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
     double mean = 0.0, variance = 0.0;
     int i, count = 0;
 
+    if (n <= 0) return NAN;  // Handle empty array
+
     /* Calculate mean */
     for (i = 0; i < n; i++) {
         if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
@@ -562,59 +571,110 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
  * Notes:
  *  - The function uses a histogram-based approach to calculate the thresholds.
  */
-void get_prctile_double(double *src, int n, double threshold[2], double prctile[2], int exclude_zeros) {
-    double mn_thresh, mx_thresh;
-    double min_src = FLT_MAX, max_src = -FLT_MAX;
+
+// Function to estimate percentiles for given thresholds (in percent, e.g., 1 and 99)
+void get_prctile_double(double *data, int n, double threshold[2], 
+                           double prctile[2], int exclude_zeros) {
+    int i, filtered_count = 0;
+    
+    // Create a copy of the data for sorting
+    double *copy = malloc(n * sizeof(double));
+    if(copy == NULL) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+    
+    // Copy data, optionally excluding zeros
+    for (i = 0; i < n; i++) {
+        if (!exclude_zeros || data[i] != 0.0) {
+            copy[filtered_count++] = data[i];
+        }
+    }
+
+    // Check if we have enough valid data points
+    if (filtered_count == 0) {
+        fprintf(stderr, "No valid data points after filtering.\n");
+        free(copy);
+        exit(EXIT_FAILURE);
+    }
+            
+    // Sort the copy
+    qsort(copy, filtered_count, sizeof(double), compare_doubles);
+    
+    // Calculate indices using the formula: index = round((n - 1) * (P/100))
+    int lower_index = (int)round((filtered_count - 1) * prctile[0] / 100.0);
+    int upper_index = (int)round((filtered_count - 1) * prctile[1] / 100.0);
+        
+    threshold[0] = copy[lower_index];
+    threshold[1] = copy[upper_index];
+        
+    free(copy);
+}
+
+
+void get_prctile_double_old(double *src, int n, double threshold[2], double prctile[2], int exclude_zeros) {
+    double min_src = DBL_MAX, max_src = -DBL_MAX;
     long *cumsum, *histo;
     int i, sz_histo = 1000;
-    
-    cumsum = (long *)malloc(sizeof(long) * sz_histo);
-    histo  = (long *)malloc(sizeof(long) * sz_histo);
-    
-    /* check success of memory allocation */
+
+    cumsum = (long *)calloc(sz_histo, sizeof(long));
+    histo  = (long *)calloc(sz_histo, sizeof(long));
+
+    /* Check for memory allocation errors */
     if (!cumsum || !histo) {
         printf("Memory allocation error\n");
+        free(cumsum);
+        free(histo);
         exit(EXIT_FAILURE);
     }
 
     // Find the minimum and maximum values in the source volume
-    for (i = 0; i < n; i++) {
-        min_src = fmin(src[i], min_src);
-        max_src = fmax(src[i], max_src);
+    min_src = get_min_double(src, n, exclude_zeros);
+    max_src = get_max_double(src, n, exclude_zeros);
+
+    if (min_src == max_src) { // Prevent division by zero
+        threshold[0] = threshold[1] = min_src;
+        free(cumsum);
+        free(histo);
+        return;
     }
 
-    // Initialize and build the histogram
-    for (i = 0; i < sz_histo; i++) histo[i] = 0;
+    // Populate histogram
     for (i = 0; i < n; i++) {
-        if (exclude_zeros && (src[i] == 0)) continue; // Exclude zeros if specified
-        int index = (int)round((double)sz_histo * (src[i] - min_src) / (max_src - min_src));
+        if (exclude_zeros && (src[i] == 0)) continue;
+        int index = (int)((sz_histo - 1) * (src[i] - min_src) / (max_src - min_src));
+        index = index < 0 ? 0 : (index >= sz_histo ? sz_histo - 1 : index);
         histo[index]++;
     }
 
-    // Build cumulative sum from histogram
+    // Build cumulative sum
     cumsum[0] = histo[0];
     for (i = 1; i < sz_histo; i++) 
         cumsum[i] = cumsum[i - 1] + histo[i];
-    
-    for (i = 1; i < sz_histo; i++)
-        cumsum[i] = (long)round(100000.0 * (double)cumsum[i] / (double)cumsum[sz_histo - 1]);
 
-    // Normalize cumulative sum and find the lower threshold
+    // Normalize cumulative sum to percentages
+    for (i = 0; i < sz_histo; i++)
+        cumsum[i] = (long)roundf(100.0 * (double)cumsum[i] / (double)cumsum[sz_histo - 1]);
+
+    // Compute bin width
+    double bin_width = (max_src - min_src) / (sz_histo - 1);
+
+    // Find the lower threshold
     for (i = 0; i < sz_histo; i++) {
-        if (cumsum[i] >= (long)round(prctile[0] * 1000.0)) {
-            threshold[0] = (double)i / (double)sz_histo * (max_src - min_src) + min_src;
+        if (cumsum[i] >= prctile[0] * 100.0) {
+            threshold[0] = min_src + i * bin_width;
             break;
         }
     }
-    
+
     // Find the upper threshold
     for (i = sz_histo - 1; i >= 0; i--) {
-        if (cumsum[i] <= (long)round(prctile[1] * 1000.0)) {
-            threshold[1] = (double)i / (double)sz_histo * (max_src - min_src) + min_src;
+        if (cumsum[i] <= prctile[1] * 100.0) {
+            threshold[1] = min_src + i * bin_width;
             break;
         }
     }
-    
+
     // Free allocated memory
     free(cumsum);
     free(histo);
