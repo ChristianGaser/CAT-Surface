@@ -265,6 +265,9 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
     if (DEBUG) printf("compute_polygon_normals...\n");
     compute_polygon_normals(hbw);
 
+    delete_polygon_point_neighbours(surface, n_neighbours,
+                    neighbours, NULL, NULL);
+
     free(sharpness);
     free(flag);
     free(hbw_defects);
@@ -471,6 +474,8 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
     
     }
     
+    delete_polygon_point_neighbours(surface, n_neighbours,
+                    neighbours, NULL, NULL);
     delete_object_list(1, lbw_objects);
     free(defects);
     free(polydefects);

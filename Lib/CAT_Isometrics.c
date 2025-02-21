@@ -68,6 +68,12 @@ getmetricdata(polygons_struct *polygons)
     brain->neigh = neighbours;
     brain->ptdata = ptr;
 
+    free(n_neighbours);
+    for (p = 0; p < polygons->n_points; p++) {
+        free(neighbours[p]);
+    }
+    free(neighbours);
+
     return brain;
 }
 

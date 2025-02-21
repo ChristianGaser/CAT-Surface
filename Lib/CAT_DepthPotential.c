@@ -53,8 +53,8 @@ compute_depth_potential( polygons_struct *polygons, double alpha)
     double * areas = NULL;           // Voronoi area at nodes
     double * mc = NULL;                  // mean curvature
     double * dp = NULL;                  // depth potential parameter
-    int      * n_neighbours = NULL;             // node neighbours (inverse connectivity)
-    int     ** neighbours = NULL;
+    int * n_neighbours = NULL;             // node neighbours (inverse connectivity)
+    int ** neighbours = NULL;
     double SOR = 1.90;           // this value works best with alpha=0.0015
     int lambda = 2, i;
 

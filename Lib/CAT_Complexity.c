@@ -259,6 +259,12 @@ get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
     smooth_heatkernel(polygons, values, fwhm);
+
+    free(n_neighbours);
+    for (i = 0; i < polygons->n_points; i++) {
+        free(neighbours[i]);
+    }
+    free(neighbours);
 }
 
 

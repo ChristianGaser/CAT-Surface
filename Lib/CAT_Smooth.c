@@ -71,6 +71,8 @@ get_all_polygon_point_neighbours(polygons_struct *polygons,
   
     *n_point_neighbours_ptr = n_neighbours;
     *point_neighbours_ptr = neighbours;
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
 }
 
 double
@@ -216,5 +218,7 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
     if (values != NULL) 
         free(smooth_values);
     else  free(smooth_pts);
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     
 }

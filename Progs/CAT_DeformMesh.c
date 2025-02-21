@@ -231,5 +231,8 @@ double f2 = DOT_VECTORS(f, n);
                      n_objects, object_list, NULL) == ERROR)
         exit(EXIT_FAILURE);
 
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
+
     return(EXIT_SUCCESS);
 }

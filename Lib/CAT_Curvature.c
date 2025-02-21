@@ -315,9 +315,9 @@ void
 get_smoothed_curvatures(polygons_struct *polygons,
             double *values, double fwhm, int curvtype)
 {
-    double        distance, mn, mx;
-    int         *n_neighbours, **neighbours;
-    int         i;
+    double distance, mn, mx;
+    int *n_neighbours, **neighbours;
+    int i;
 
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
@@ -339,6 +339,12 @@ get_smoothed_curvatures(polygons_struct *polygons,
 
     for (i = 0; i < polygons->n_points; i++)
         values[i] = (values[i] - mn)/(mx - mn);
+
+    free(n_neighbours);
+    for (i = 0; i < polygons->n_points; i++) {
+        free(neighbours[i]);
+    }
+    free(neighbours);
 
 }
 

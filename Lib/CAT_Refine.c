@@ -273,6 +273,12 @@ int refine_mesh(
     delete_hash2_table( &edge_lookup );
     if (weight_curvature > 0.0) FREE(curvatures);
 
+    free(n_neighbours);
+    for (i = 0; i < polygons->n_points; i++) {
+        free(neighbours[i]);
+    }
+    free(neighbours);
+
     return( new_polygons->n_items - polygons->n_items );
 }
 

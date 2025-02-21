@@ -368,6 +368,8 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
     /* invert deformation because we need inverse transformation */
     apply_uv_warp(src_sphere, warped_src_sphere, u, v, 0);
 
+    delete_polygon_point_neighbours(src, n_neighbours,
+                    neighbours, NULL, NULL);
     free(curv_src0);
     free(curv_src);
     free(curv_trg0);

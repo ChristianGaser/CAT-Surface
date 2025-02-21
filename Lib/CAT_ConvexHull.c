@@ -55,7 +55,7 @@ surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_s
         copy_polygons(convex_polygons, sphere_convex);
 //          fprintf(stderr,"Warning: Laplace-Beltrami approach results in rotated sphere and link to original surface is lost\n");
 //          find_conformal_map(sphere_convex);
-        surf_to_sphere(sphere_convex,5);
+        surf_to_sphere(sphere_convex,5, 0);
 
         object = resample_surface_to_target_sphere(convex_polygons, sphere_convex, polygons_sphere, NULL, NULL, 0);
     }

@@ -190,6 +190,8 @@ main(int argc, char *argv[])
         FREE(output_values);
     }
     
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     delete_the_bintree(&polygons_sphere->bintree);
     FREE(new_points);
     return(EXIT_SUCCESS);

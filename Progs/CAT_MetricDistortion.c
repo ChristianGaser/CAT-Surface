@@ -159,19 +159,19 @@ dijkstra_dist(polygons_struct *polygons, int *n_neighbours, int **neighbours,
 int
 main(int argc, char** argv)
 {
-    char         *in_file, *map_file, *out_file;
-    object_struct    **objects, **objects2;
-    polygons_struct    *polygons, *polygons2;
-    int          *n_neighbours, **neighbours;
-    unsigned char    *visited, *pointset;
-    double         *geo_dist, *geo_dist2;
-    int          n_objects;
-    File_formats     format;
-    int          n, p, nidx, count;
-    double         *metric_dist;
-    double         length, length2, radius, total_dist;
-    Point        dir;
-    progress_struct    progress;
+    char *in_file, *map_file, *out_file;
+    object_struct **objects, **objects2;
+    polygons_struct *polygons, *polygons2;
+    int *n_neighbours, **neighbours;
+    unsigned char *visited, *pointset;
+    double *geo_dist, *geo_dist2;
+    int n_objects;
+    File_formats format;
+    int n, p, nidx, count;
+    double *metric_dist;
+    double length, length2, radius, total_dist;
+    Point dir;
+    progress_struct progress;
 
 
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 4)) {
@@ -253,7 +253,7 @@ main(int argc, char** argv)
         }
     } else {
         NumPts = polygons->n_points;
-        memset(pointset, 1, sizeof(char) * polygons->n_points);
+        memset(pointset, 1, sizeof(unsigned char) * polygons->n_points);
     }
 
     if (Global)
@@ -266,19 +266,18 @@ main(int argc, char** argv)
             continue; /* skip this point */
 
         if (Global) {
-            for (n = 0; n < polygons->n_points; n++) {
+            for (n = 0; n < polygons->n_points; n++)
                 geo_dist[n] = geo_dist2[n] = PINF;
-            }
 
             geo_dist[p] = geo_dist2[p] = 0;
 
-            memset(visited, 0,
-                 sizeof(unsigned char) * polygons->n_points);
+            for (n = 0; n < polygons->n_points; n++)
+                visited[n] = 0;
             dijkstra_dist(polygons, n_neighbours, neighbours,
                     p, visited, geo_dist);
-            memset(visited, 0,
-                 sizeof(unsigned char) * polygons->n_points);
-
+                    
+            for (n = 0; n < polygons->n_points; n++)
+                visited[n] = 0;
             dijkstra_dist(polygons2, n_neighbours, neighbours,
                     p, visited, geo_dist2);
 
@@ -343,6 +342,8 @@ main(int argc, char** argv)
 
     printf("Metric distortion = %f\n", total_dist);
 
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     delete_object_list(n_objects, objects);
     delete_object_list(n_objects, objects2);
 

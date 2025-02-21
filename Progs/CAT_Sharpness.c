@@ -60,6 +60,8 @@ main(int argc, char *argv[])
     output_values_any_format(output_surface_file, polygons->n_points,
                  sharpness, TYPE_DOUBLE);
 
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     delete_object_list(n_objects, objects);
     FREE(sharpness);
   

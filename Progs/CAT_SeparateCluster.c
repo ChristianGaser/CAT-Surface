@@ -68,6 +68,8 @@ make_connected_components_values(polygons_struct *polygons, int point_classes[],
         printf("%d: %d\n", point, point_classes[point]);
     }
 
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     return(n_parts);
 }
 

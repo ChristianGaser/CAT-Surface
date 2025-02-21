@@ -20,7 +20,7 @@ void
 usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s surface_file output_surface_file [stop_at]\n\n\
+Usage: %s surface_file output_surface_file [stop_at] [verbose]\n\n\
    Maps a surface to a sphere using the caret inflating approach.\n\n\
    The inflating can be limited using stop_at (default 5), where\n\
      1  - Low smooth\n\
@@ -39,14 +39,14 @@ Usage: %s surface_file output_surface_file [stop_at]\n\n\
 int
 main(int argc, char *argv[])
 {
-    char       *input_file, *output_surface_file;
-    int        n_objects, i, stop_at;
-    File_formats   format;
-    object_struct  **object_list;
-    polygons_struct  *polygons;
-    BOOLEAN      enableFingerSmoothing = 1;
-    int        fingerSmoothingIters;
-    double       surfarea;
+    char *input_file, *output_surface_file;
+    int n_objects, i, stop_at, verbose;
+    File_formats format;
+    object_struct **object_list;
+    polygons_struct *polygons;
+    BOOLEAN enableFingerSmoothing = 1;
+    int fingerSmoothingIters;
+    double surfarea;
   
     initialize_argument_processing(argc, argv);
 
@@ -57,6 +57,7 @@ main(int argc, char *argv[])
     }
 
     get_int_argument(5, &stop_at);
+    get_int_argument(0, &verbose);
   
     if (input_graphics_any_format(input_file, &format, &n_objects,
                     &object_list) != OK || n_objects != 1 ||
@@ -67,10 +68,13 @@ main(int argc, char *argv[])
 
     polygons = get_polygons_ptr(object_list[0]);
     
-    surf_to_sphere(polygons, stop_at);
+    surf_to_sphere(polygons, stop_at, verbose);
    
     if(output_graphics_any_format(output_surface_file, format, 1, 
             object_list, NULL) != OK)
         exit(EXIT_FAILURE);
+
+    delete_object_list(n_objects, object_list);
+
     return(EXIT_SUCCESS);
 }

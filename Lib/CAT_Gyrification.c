@@ -41,7 +41,7 @@ gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
     /* get sphere of convex hull */
     convex_sphere = get_polygons_ptr(create_object(POLYGONS));
     copy_polygons(convex, convex_sphere);
-    surf_to_sphere(convex_sphere, 6);
+    surf_to_sphere(convex_sphere, 6, 0);
 
     convex_areas = (double *) malloc(sizeof(double) * surface->n_points);
     convex_area = get_area_of_points_normalized_to_sphere(convex, convex_sphere, convex_areas);

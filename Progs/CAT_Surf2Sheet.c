@@ -144,6 +144,8 @@ main(int argc, char *argv[])
     if (write_pgm(output_surface_file, data, sz_map[0], sz_map[1]) != 0)
         exit(EXIT_FAILURE);
 
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     delete_object_list(n_objects, objects);
     free(data);
 
