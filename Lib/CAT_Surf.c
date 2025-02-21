@@ -18,6 +18,7 @@
 #include "CAT_Resample.h"
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
+#include "CAT_Defect.h"
 
 
 int
@@ -578,7 +579,7 @@ compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd, int 
 int
 euler_characteristic(polygons_struct *polygons)
 {
-    int n_edges, *n_neighbours, **neighbours;
+    int i, n_edges, *n_neighbours, **neighbours;
 
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
@@ -711,6 +712,8 @@ linear_smoothing(polygons_struct *polygons, double strength, int iters,
                               radius);
         }
     }
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
 }
 
 void
@@ -816,6 +819,8 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
             }
         }
     }
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
 }
 
     
@@ -914,6 +919,8 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
             }
         }
     }
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
 }
 
 
@@ -928,22 +935,22 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                    const int fingerSmoothIters)
 {
 
-    polygons_struct   *polygons;
+    polygons_struct *polygons;
     int i, j, cycle, n;
     int numDistortionAboveThresh;
     int *n_neighbours, **neighbours, *needSmoothing, nidx;
     const double inflationFactor = inflationFactorIn - 1.0;
-    double *avgCompStretch, *compStretch;
-    double *maxLinDistort, *avgArealComp;
-    double *stretching, *area_values, *area_valuesIn;
+    double tileArea, tileAreaIn, distort;    
     double bounds[6], xyz[3], nodept[3], nodeptIn[3];
-    double diff_bound[3];
-    double dx, dy, dz, dist, distIn, ratio;
+    double *area_values, *area_valuesIn, diff_bound[3];
     double x, y, z, r, k;
-    double SA, SA_ratio, inflatedSA;
     double numNeighbors, neighpt[3], neighptIn[3];
-    double tileArea, tileAreaIn;
-    double maxDistort, minDistort, distort;
+    float *avgCompStretch, *compStretch;
+    float *maxLinDistort, *avgArealComp;
+    float *stretching;
+    float SA, SA_ratio, inflatedSA;
+    float maxDistort, minDistort, ratio;
+    float dx, dy, dz, dist, distIn;
     object_struct *out_object;
   
     /* Copy the fiducial surface since it will be modified 
@@ -963,11 +970,14 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 
     SA = get_polygons_surface_area(polygons);
     
-    ALLOC(avgCompStretch, polygons->n_points);
-    ALLOC(maxLinDistort, polygons->n_points);
-    ALLOC(avgArealComp, polygons->n_points);
-    ALLOC(compStretch, polygons->n_points);
-    ALLOC(stretching, polygons->n_points);
+    avgCompStretch = (float *) malloc(sizeof(float) * polygons->n_points);
+    maxLinDistort = (float *) malloc(sizeof(float) * polygons->n_points);
+    avgArealComp = (float *) malloc(sizeof(float) * polygons->n_points);
+    compStretch = (float *) malloc(sizeof(float) * polygons->n_points);
+    stretching = (float *) malloc(sizeof(float) * polygons->n_points);
+    area_values = (double *) malloc(sizeof(double) * polygons->n_points);
+    area_valuesIn = (double *) malloc(sizeof(double) * polygons->n_points);
+    needSmoothing = (int *) malloc(sizeof(int) * polygons->n_points);
 
     SA_ratio = 0.0;
 
@@ -1005,9 +1015,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                         &neighbours, NULL, NULL);
 
-        ALLOC(area_values, polygons->n_points);
         get_area_of_points(polygons, area_values);
-        ALLOC( area_valuesIn, polygonsIn->n_points);
         get_area_of_points(polygonsIn, area_valuesIn);
 
         // Step 6d: Calculate compress/stretched value for each node
@@ -1039,7 +1047,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 
                 dist = sqrt(dx*dx + dy*dy + dz*dz);
                 if (dist > 0.0) {
-                    ratio = distIn / dist;
+                    ratio = (float)distIn / dist;
                     if (ratio > maxLinDistort[i]) {
                         maxLinDistort[i] = ratio;
                     }
@@ -1069,7 +1077,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                     distort = 0.00000001;
                 }
 
-                avgArealComp[i] += distort;
+                avgArealComp[i] += (float)distort;
                 numNeighbors += 1.0;
             }
 
@@ -1095,7 +1103,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
                     n = neighbours[i][j];
                     avgCompStretch[i] += compStretch[n];
                 }
-                avgCompStretch[i] /= (double)
+                avgCompStretch[i] /= (float)
                             (n_neighbours[i] + 1);
             }
         }
@@ -1105,7 +1113,6 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         numDistortionAboveThresh = 0;
         maxDistort = -FLT_MAX;
         minDistort =  FLT_MAX;
-        ALLOC(needSmoothing, polygons->n_points);
     
         for (i = 0; i < polygons->n_points; i++) {
             if (avgCompStretch[i] > compStretchThresh) {
@@ -1128,19 +1135,22 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     }
     
     compute_polygon_normals(polygonsIn);
-
-    FREE(area_values);
-    FREE(area_valuesIn);
-    FREE(avgCompStretch);
-    FREE(maxLinDistort);
-    FREE(avgArealComp);
-    FREE(compStretch);
-    FREE(stretching);
-    FREE(needSmoothing);
+    
+    delete_object(out_object);
+    free(area_values);
+    free(area_valuesIn);
+    free(avgCompStretch);
+    free(maxLinDistort);
+    free(avgArealComp);
+    free(compStretch);
+    free(stretching);
+    free(needSmoothing);
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
 }
 
 void
-surf_to_sphere(polygons_struct *polygons, int stop_at)
+surf_to_sphere(polygons_struct *polygons, int stop_at, int verbose)
 {
     BOOLEAN enableFingerSmoothing = 1;
     int fingerSmoothingIters, arealSmoothingIters;
@@ -1151,11 +1161,12 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     /* use more iterations for larger surfaces */
     if (polygons->n_items > 350000) {
         factor = (double)polygons->n_items/350000.0;
-        /*fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n",
-              factor); */
+        if (verbose)
+            fprintf(stderr, "Large number polygons -> Increase # of iterations by factor %g.\n", factor);
     } else factor = 1.0;
 
     /* low smooth */
+    if (verbose) printf("Low Smooth\n");
     inflate_surface_and_smooth_fingers(polygons,
           /*           cycles */ 1,
           /* regular smoothing strength */ 0.2,
@@ -1166,6 +1177,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
           /*    finger smooth iters */ 0);
 
     if (stop_at > 1) {
+      if (verbose) printf("Inflate\n");
         /* inflated */
         fingerSmoothingIters = 0;
         if (enableFingerSmoothing)
@@ -1181,6 +1193,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     }                       
   
     if (stop_at > 2) {
+      if (verbose) printf("Very inflate\n");
         /* very inflated */
         inflate_surface_and_smooth_fingers(polygons,
           /*           cycles */ 4,
@@ -1193,6 +1206,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     }                       
   
     if (stop_at > 3) {
+      if (verbose) printf("High smooth\n");
         /* high smooth */
         fingerSmoothingIters = 0;
         if (enableFingerSmoothing)
@@ -1208,6 +1222,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     }
 
     if (stop_at > 4) {
+      if (verbose) printf("Ellipsoid\n");
         /* ellipsoid */
         inflate_surface_and_smooth_fingers(polygons,
           /*           cycles */ 6,
@@ -1222,6 +1237,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at)
     }
   
     if (stop_at > 5) {
+      if (verbose) printf("Areal smoothing\n");
         /* areal smoothing */
         arealSmoothingIters = 1000*(stop_at - 5);
         areal_smoothing(polygons, 1.0, arealSmoothingIters, 1, NULL, 1000);
@@ -1352,6 +1368,72 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     FREE(point_done);
 }
 
+void
+smooth_gaussian_curvature(polygons_struct *polygons)
+{
+    int *defects, *polydefects, n_intersects;
+    int *n_neighbours, **neighbours;
+    int i, counter;
+    double *curvatures;
+    double threshold[2], prctile[2] = {1,99};
+
+    compute_polygon_normals(polygons);
+            
+    defects = (int *) malloc(sizeof(int) * polygons->n_points);
+    polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                &neighbours, NULL, NULL);
+
+
+    /* estimate gaussian curvature */
+    printf("curvatures\n");
+    curvatures = (double *)malloc(sizeof(double)*polygons->n_points);
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+    get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                                     0.0, 1, curvatures);
+
+
+    printf("prctile\n");
+    get_prctile(curvatures, polygons->n_points, threshold, prctile, 1, DT_FLOAT64);
+
+    printf("update_polydefects\n");
+    for (i = 0; i < polygons->n_points; i++)
+        defects[i] = ((curvatures[i] < -0.75) || (curvatures[i] > 0.75)) ? 1 : 0;
+    update_polydefects(polygons, defects, polydefects);
+    printf("join_intersections\n");
+    n_intersects = join_intersections(polygons, defects, polydefects, n_neighbours, neighbours);
+
+    //areal_smoothing(polygons, 1.0, 50000, 1, defects, 100000);
+
+if (1==1) {
+    printf("find_remaining_intersections\n");
+/*    n_intersects = find_remaining_intersections(polygons, defects, polydefects,
+                         n_neighbours, neighbours);
+*/    
+    /* Correction for self intersections identified by gaussian curvature */
+    counter = 0;
+//    n_intersects = join_intersections(polygons, defects, polydefects, n_neighbours, neighbours);
+    do {
+        counter++;
+        
+        if (n_intersects > 0) {
+            printf("%3d self intersections found that will be corrected.\n", n_intersects);
+
+            n_intersects = smooth_selfintersections(polygons, defects, polydefects,
+                   n_intersects, n_neighbours,
+                   neighbours, 50);
+
+        }
+    } while (n_intersects > 0 && counter < 10);
+}
+    compute_polygon_normals(polygons);
+    free(defects);
+    free(polydefects);
+    free(curvatures);
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
+}
+
 /*
  * Calls central_to_pial, but creates a new surface object and does not modify the original surface
  * The direct implementation into central_to_pial was not working because of issues with the function 
@@ -1380,7 +1462,6 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *label, nifti_image *nii_ptr, int check_intersects)
 {
-    int *defects, *polydefects, n_intersects;
     int *n_neighbours, **neighbours;
     int i, p, n_steps, counter, dims[3];
     double x, y, z, val, length, *curvatures;
@@ -1395,13 +1476,6 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     *objects_out = create_object(POLYGONS);
     polygons_out = get_polygons_ptr(*objects_out);
             
-    if (check_intersects) {
-        defects = (int *) malloc(sizeof(int) * polygons->n_points);
-        polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
-        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
-                    &neighbours, NULL, NULL);
-    }
-
     copy_polygons(polygons, polygons_out);
 
     /* use 20 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
@@ -1462,32 +1536,14 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     }
 
     /* final check and correction for self intersections */
-    if (check_intersects) { 
-        counter = 0;
-        n_intersects = find_selfintersections(polygons, defects, polydefects);        
-        n_intersects = join_intersections(polygons, defects, polydefects,
-                  n_neighbours, neighbours);
-        do {
-            counter++;
-            
-            if (n_intersects > 0) {
-                printf("%3d self intersections found that will be corrected.\n", n_intersects);
-    
-                n_intersects = smooth_selfintersections(polygons, defects, polydefects,
-                       n_intersects, n_neighbours,
-                       neighbours, 50);
-
-            }
-        } while (n_intersects > 0 && counter < 10);
-    } 
+    if (check_intersects)
+        smooth_gaussian_curvature(polygons);
     
     compute_polygon_normals(polygons);
-    if (check_intersects) {
-        free(defects);
-        free(polydefects);
-        delete_polygon_point_neighbours(polygons, n_neighbours,
+    if (nii_ptr != NULL) free(curvatures);
+
+    delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);
-    }
 }
 
 /*
@@ -1639,6 +1695,8 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     }
 
     free(curvatures);
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     
     return(EXIT_SUCCESS);
 }
