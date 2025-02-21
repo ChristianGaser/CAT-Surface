@@ -413,7 +413,7 @@ double get_std_double(double *arr, int n, int exclude_zeros) {
 
     if (n <= 0) return NAN;  // Handle empty array
     
-    for (int i = 0; i < n; i++) {
+    for (i = 0; i < n; i++) {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue; // Skip zero values if exclusion is enabled
             
