@@ -579,7 +579,7 @@ compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd, int 
 int
 euler_characteristic(polygons_struct *polygons)
 {
-    int i, n_edges, *n_neighbours, **neighbours;
+    int n_edges, *n_neighbours, **neighbours;
 
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
@@ -1368,72 +1368,6 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     FREE(point_done);
 }
 
-void
-smooth_gaussian_curvature(polygons_struct *polygons)
-{
-    int *defects, *polydefects, n_intersects;
-    int *n_neighbours, **neighbours;
-    int i, counter;
-    double *curvatures;
-    double threshold[2], prctile[2] = {1,99};
-
-    compute_polygon_normals(polygons);
-            
-    defects = (int *) malloc(sizeof(int) * polygons->n_points);
-    polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
-    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
-                &neighbours, NULL, NULL);
-
-
-    /* estimate gaussian curvature */
-    printf("curvatures\n");
-    curvatures = (double *)malloc(sizeof(double)*polygons->n_points);
-    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-    get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
-                                     0.0, 1, curvatures);
-
-
-    printf("prctile\n");
-    get_prctile(curvatures, polygons->n_points, threshold, prctile, 1, DT_FLOAT64);
-
-    printf("update_polydefects\n");
-    for (i = 0; i < polygons->n_points; i++)
-        defects[i] = ((curvatures[i] < -0.75) || (curvatures[i] > 0.75)) ? 1 : 0;
-    update_polydefects(polygons, defects, polydefects);
-    printf("join_intersections\n");
-    n_intersects = join_intersections(polygons, defects, polydefects, n_neighbours, neighbours);
-
-    //areal_smoothing(polygons, 1.0, 50000, 1, defects, 100000);
-
-if (1==1) {
-    printf("find_remaining_intersections\n");
-/*    n_intersects = find_remaining_intersections(polygons, defects, polydefects,
-                         n_neighbours, neighbours);
-*/    
-    /* Correction for self intersections identified by gaussian curvature */
-    counter = 0;
-//    n_intersects = join_intersections(polygons, defects, polydefects, n_neighbours, neighbours);
-    do {
-        counter++;
-        
-        if (n_intersects > 0) {
-            printf("%3d self intersections found that will be corrected.\n", n_intersects);
-
-            n_intersects = smooth_selfintersections(polygons, defects, polydefects,
-                   n_intersects, n_neighbours,
-                   neighbours, 50);
-
-        }
-    } while (n_intersects > 0 && counter < 10);
-}
-    compute_polygon_normals(polygons);
-    free(defects);
-    free(polydefects);
-    free(curvatures);
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
-}
-
 /*
  * Calls central_to_pial, but creates a new surface object and does not modify the original surface
  * The direct implementation into central_to_pial was not working because of issues with the function 
@@ -1462,12 +1396,20 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *label, nifti_image *nii_ptr, int check_intersects)
 {
+    int *defects, *polydefects, n_intersects;
     int *n_neighbours, **neighbours;
     int i, p, n_steps, counter, dims[3];
     double x, y, z, val, length, *curvatures;
     polygons_struct *polygons_out;
     Point *new_pts;
     object_struct **objects_out;
+
+    if (check_intersects) {
+        defects = (int *) malloc(sizeof(int) * polygons->n_points);
+        polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
+        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                    &neighbours, NULL, NULL);
+    }
 
     compute_polygon_normals(polygons);
     check_polygons_neighbours_computed(polygons);
@@ -1536,14 +1478,31 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     }
 
     /* final check and correction for self intersections */
-    if (check_intersects)
-        smooth_gaussian_curvature(polygons);
-    
-    compute_polygon_normals(polygons);
-    if (nii_ptr != NULL) free(curvatures);
 
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
+    if (check_intersects) { 
+        counter = 0;
+        n_intersects = find_selfintersections(polygons, defects, polydefects);        
+        n_intersects = join_intersections(polygons, defects, polydefects,
+                  n_neighbours, neighbours);
+        do {
+            counter++;
+            
+            if (n_intersects > 0) {
+                printf("%3d self intersections found that will be corrected.\n", n_intersects);
+    
+                n_intersects = smooth_selfintersections(polygons, defects, polydefects,
+                       n_intersects, n_neighbours,
+                       neighbours, 50);
+
+            }
+        } while (n_intersects > 0 && counter < 10);
+        free(defects);
+        free(polydefects);
+    }
+
+    compute_polygon_normals(polygons);
+        
+    if (nii_ptr != NULL) free(curvatures);
 }
 
 /*
@@ -1583,9 +1542,11 @@ get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygon
     float *input;
     Point point;
 
-    dims[0] = nii_ptr->nx;
-    dims[1] = nii_ptr->ny;
-    dims[2] = nii_ptr->nz;
+    if (nii_ptr != NULL) {
+        dims[0] = nii_ptr->nx;
+        dims[1] = nii_ptr->ny;
+        dims[2] = nii_ptr->nz;
+    }
     
     for (p = 0; p < polygons->n_points; p++) {
         x = Point_x(polygons->points[p]) + weight*curvatures[p]*Point_x(polygons->normals[p]);
@@ -1602,7 +1563,7 @@ get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygon
             Point_x(point) += weight*curvatures[p]*Point_x(polygons->normals[p]);
             Point_y(point) += weight*curvatures[p]*Point_y(polygons->normals[p]);
             Point_z(point) += weight*curvatures[p]*Point_z(polygons->normals[p]);
-            
+
             val = distance_between_points(&point,&polygons_reference->points[p]);
             if (!isnan(val)) distance  += val;
         }
@@ -1687,7 +1648,7 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
        minimize noisy meshes for larger weights */
     smooth_heatkernel(polygons, curvatures, fabs(2.0*weight));
     
-    /* finally aplly the optimized weighting to original mesh */
+    /* finally apply the optimized weighting to original mesh */
     for (p = 0; p < polygons->n_points; p++) {
         Point_x(polygons->points[p]) += weight*curvatures[p]*Point_x(polygons->normals[p]);
         Point_y(polygons->points[p]) += weight*curvatures[p]*Point_y(polygons->normals[p]);
@@ -1695,8 +1656,6 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     }
 
     free(curvatures);
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
     
     return(EXIT_SUCCESS);
 }

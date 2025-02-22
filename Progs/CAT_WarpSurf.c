@@ -226,7 +226,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                         map_src, NULL, flow, ll, scratch);
                 }
                 if (verbose) {
-                    printf("\r%02d-%02d: %8.2f", step+1, it, ll[0]);
+                    fprintf(stdout,"\r%02d-%02d: %8.2f", step+1, it, ll[0]);
                     fflush(stdout);
                 }
 
@@ -240,7 +240,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
         fwhm /= 3.0;
         fwhm_surf /= 3.0;
     }
-    if (verbose) printf("\n");
+    if (verbose) fprintf(stdout,"\n");
 
     free(sm_src);
     free(sm_trg);
@@ -249,9 +249,9 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
     
     /* get deformations and jacobian det. from flow field */
     if (jacdet_file != NULL) {
-        printf("Warning: Saving jacobians not working\n");
+        fprintf(stdout,"Warning: Saving jacobians not working\n");
         if (rotate)
-             printf("Warning: Rotation not yet considered\n");
+             fprintf(stdout,"Warning: Rotation not yet considered\n");
         jd  = (double *) malloc(sizeof(double) * xy_size);
         jd1 = (double *) malloc(sizeof(double) * xy_size);
 
@@ -329,7 +329,7 @@ main(int argc, char *argv[])
 
     /* check that the surface file contains a polyhedron */
     if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-        printf("Surface file must contain 1 polygons object.\n");
+        fprintf(stdout,"Surface file must contain 1 polygons object.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -342,7 +342,7 @@ main(int argc, char *argv[])
 
     /* check that the surface file contains a polyhedron */
     if (n_objects != 1 || get_object_type(objects[0]) != POLYGONS) {
-        printf("Surface file must contain 1 polygons object.\n");
+        fprintf(stdout,"Surface file must contain 1 polygons object.\n");
         exit(EXIT_FAILURE);
     }
   
@@ -383,7 +383,7 @@ main(int argc, char *argv[])
   
         j = 0;
 
-        printf("Read parameters from %s\n", param_file);
+        fprintf(stdout,"Read parameters from %s\n", param_file);
         while (fgets(line, sizeof(line), fp)) {
             /* check for 9 values in each line */
             if (sscanf(line, "%d %lf %lf %lf %lf %d %d %d %d",
@@ -420,41 +420,41 @@ main(int argc, char *argv[])
     }
 
     if (verbose) {
-        printf("___________________________________");
-        printf("________________________________________\n");
-        printf("Parameters\n");
-        printf("___________________________________");
-        printf("________________________________________\n");
-        printf("Regularization (0 - elastic; 1 - membrane; ");
-        printf("2 - bending):\t\t%d\n", prm[0].rtype);
-        printf("Number of cycles for full multi grid (FMG):");
-        printf("\t\t\t\t%d\n", prm[0].cycles);
-        printf("Number of relaxation iterations in each ");
-        printf("Multigrid cycle:\t\t%d\n", prm[0].its);
-        printf("Objective function (0 - sum of squares; ");
-        printf("1 - sym. sum of squares):\t%d\n", prm[0].code);
-        printf("Levenberg-Marquardt regularization:");
-        printf("\t\t\t\t\t%g\n", prm[0].lmreg);
-        printf("Curvature types:\t\t\t\t\t\t\t%d", curvtype0);
-        if (n_steps > 1) printf("/%d",curvtype1);
-        if (n_steps > 2) printf("/%d",curvtype2);
-        printf("\n%d Iterative loops\n", loop);
-        printf("\nRegularization parameter mu:\t\t");
+        fprintf(stdout,"___________________________________");
+        fprintf(stdout,"________________________________________\n");
+        fprintf(stdout,"Parameters\n");
+        fprintf(stdout,"___________________________________");
+        fprintf(stdout,"________________________________________\n");
+        fprintf(stdout,"Regularization (0 - elastic; 1 - membrane; ");
+        fprintf(stdout,"2 - bending):\t\t%d\n", prm[0].rtype);
+        fprintf(stdout,"Number of cycles for full multi grid (FMG):");
+        fprintf(stdout,"\t\t\t\t%d\n", prm[0].cycles);
+        fprintf(stdout,"Number of relaxation iterations in each ");
+        fprintf(stdout,"Multigrid cycle:\t\t%d\n", prm[0].its);
+        fprintf(stdout,"Objective function (0 - sum of squares; ");
+        fprintf(stdout,"1 - sym. sum of squares):\t%d\n", prm[0].code);
+        fprintf(stdout,"Levenberg-Marquardt regularization:");
+        fprintf(stdout,"\t\t\t\t\t%g\n", prm[0].lmreg);
+        fprintf(stdout,"Curvature types:\t\t\t\t\t\t\t%d", curvtype0);
+        if (n_steps > 1) fprintf(stdout,"/%d",curvtype1);
+        if (n_steps > 2) fprintf(stdout,"/%d",curvtype2);
+        fprintf(stdout,"\n%d Iterative loops\n", loop);
+        fprintf(stdout,"\nRegularization parameter mu:\t\t");
         for (i = 0; i < loop; i++)
-            printf("%8g\t", prm[i].rparam[2]);
-        printf("\n");
-        printf("Regularization parameter lambda:\t");
+            fprintf(stdout,"%8g\t", prm[i].rparam[2]);
+        fprintf(stdout,"\n");
+        fprintf(stdout,"Regularization parameter lambda:\t");
         for (i = 0; i < loop; i++)
-            printf("%8g\t", prm[i].rparam[3]);
-        printf("\n");
-        printf("Regularization parameter id:\t\t");
+            fprintf(stdout,"%8g\t", prm[i].rparam[3]);
+        fprintf(stdout,"\n");
+        fprintf(stdout,"Regularization parameter id:\t\t");
         for (i = 0; i < loop; i++)
-            printf("%8g\t", prm[i].rparam[4]);
-        printf("\n");
-        printf("Time steps for solving the PDE:\t\t");
+            fprintf(stdout,"%8g\t", prm[i].rparam[4]);
+        fprintf(stdout,"\n");
+        fprintf(stdout,"Time steps for solving the PDE:\t\t");
         for (i = 0; i < loop; i++)
-            printf("%8d\t",prm[i].k);
-        printf("\n\n");
+            fprintf(stdout,"%8d\t",prm[i].k);
+        fprintf(stdout,"\n\n");
     }
   
     xy_size = dm[0] * dm[1];

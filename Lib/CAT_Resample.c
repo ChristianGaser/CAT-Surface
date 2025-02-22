@@ -322,8 +322,6 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
         
     compute_polygon_normals(scaled_target_sphere);
 
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-          neighbours, NULL, NULL);
     delete_the_bintree(&scaled_polygons_sphere->bintree);
     delete_object_list(1, objects);
 
@@ -418,8 +416,6 @@ resample_spherical_surface(polygons_struct *polygons,
   
     compute_polygon_normals(resampled_source);
     free(new_points);
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
     delete_the_bintree(&poly_src_sphere->bintree);
 }
 
