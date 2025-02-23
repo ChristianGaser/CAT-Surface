@@ -141,6 +141,11 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
         map_point_to_unit_sphere(polygons, &polygons->points[p],
                      &unit_sphere, &unit_point);
 
+        if (isnan(Point_x(unit_point)))
+            fill_Point(unit_point, Point_x(unit_sphere.points[p]), 
+                                   Point_y(unit_sphere.points[p]), 
+                                   Point_z(unit_sphere.points[p]));
+
         point_to_uv(&unit_point, &u, &v);
 
         xp = u*((double)dm[0]) - 0.5;
@@ -488,11 +493,10 @@ average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
 
     for (p = 0; p < surface->n_points; p++) {
         phi = acos(Point_x(xsurf->points[p])) / PI;
-        //wx[p] = 1.0 - pow(2.0*phi - 1.0, 2.0);
         wx[p] = exp(-(pow(2.0*phi - 1.0, 2.0)/0.1));
         if (wx[p] <= 0.0) wx[p] = 1e-19;
+        
         phi = acos(Point_z(zsurf->points[p])) / PI;
-        //wz[p] = 1.0 - pow(2.0*phi - 1.0, 2.0);
         wz[p] = exp(-(pow(2.0*phi - 1.0, 2.0)/0.1));
         if (wz[p] <= 0.0) wz[p] = 1e-19;
     }
@@ -506,8 +510,11 @@ average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
         zz = Point_z(zsurf->points[p]);
 
         wtot = wx[p] + wz[p];
-        wx[p] /= wtot;
-        wz[p] /= wtot;
+        if (wtot != 0.0) {
+            wx[p] /= wtot;
+            wz[p] /= wtot;
+        }
+
 
         fill_Point(surface->points[p], wx[p]*xx + wz[p]*zx,
                wx[p]*xy + wz[p]*zy, wx[p]*xz + wz[p]*zz);
