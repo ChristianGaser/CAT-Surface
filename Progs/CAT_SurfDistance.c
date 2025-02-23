@@ -168,5 +168,8 @@ main(int argc, char *argv[])
     delete_object_list(n_objects, objects2);
 
     free(distance);
+    free(labels);
+    free(thickness_values);
+    
     return(EXIT_SUCCESS);
 }
