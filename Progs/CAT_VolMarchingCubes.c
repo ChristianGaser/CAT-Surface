@@ -14,6 +14,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 #include "CAT_Vol.h"
+#include "CAT_Intersect.h"
 #include "CAT_MarchingCubes.h"
 #include "genus0.h"
 
@@ -636,7 +637,7 @@ main(
             values[i]  = 3.0;
         }
 
-        object4 = central_to_new_pial(polygons, values, extents, NULL, NULL, 0);
+        object4 = central_to_new_pial(polygons, values, extents, NULL, NULL, 0, 0);
         compute_exact_hausdorff(polygons, get_polygons_ptr(object4[0]), values, 0);
         smooth_heatkernel(polygons, values, 5.0);
         
@@ -659,8 +660,6 @@ main(
         /* use smoothed or original surface w.r.t. weighting */ 
         for (i = 0; i < polygons->n_points; i++)
             Point_x(polygons->points[i]) = values[i]*Point_x(polygons->points[i]) + (1.0 - values[i])*Point_x(smooth_polygons->points[i]);
-
-        compute_polygon_normals(smooth_polygons);
         
         free(smooth_polygons);
         free(values);
