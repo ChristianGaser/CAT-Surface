@@ -540,3 +540,44 @@ has_selfintersections(polygons_struct *polygons, int *polydefects, int defect)
     }
     return 0;
 }
+
+/* Find and remove intersections */
+void
+remove_intersections(polygons_struct *polygons, int verbose)
+{
+    int *defects, *polydefects, n_intersects;
+    int *n_neighbours, **neighbours;
+    int counter;
+    Point *new_pts;
+
+    defects = (int *) malloc(sizeof(int) * polygons->n_points);
+    polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                &neighbours, NULL, NULL);
+
+    check_polygons_neighbours_computed(polygons);
+
+    counter = 0;
+    n_intersects = find_selfintersections(polygons, defects, polydefects);        
+    n_intersects = join_intersections(polygons, defects, polydefects,
+              n_neighbours, neighbours);
+    do {
+        counter++;
+        
+        if (n_intersects > 0) {
+            if (verbose)
+                printf("%3d self intersections found that will be corrected.\n", n_intersects);
+
+            n_intersects = smooth_selfintersections(polygons, defects, polydefects,
+                   n_intersects, n_neighbours,
+                   neighbours, 50);
+
+        }
+    } while (n_intersects > 0 && counter < 10);
+    
+    free(defects);
+    free(polydefects);
+
+    compute_polygon_normals(polygons);
+        
+}

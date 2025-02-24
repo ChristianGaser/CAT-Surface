@@ -27,3 +27,4 @@ int patch_selfintersections(polygons_struct *, polygons_struct *, int *, int *,
 int smooth_selfintersections(polygons_struct *, int *, int *, int, int *,
                              int **, int);
 int has_selfintersections(polygons_struct *, int *, int);
+void remove_intersections(polygons_struct *, int);
