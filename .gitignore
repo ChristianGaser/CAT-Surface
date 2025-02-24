@@ -16,6 +16,7 @@ libtool
 Makefile
 build*
 log*
+INSTALL
 configure~
 Progs/CAT_3dVol2Surf
 Progs/CAT_AddValuesToSurf

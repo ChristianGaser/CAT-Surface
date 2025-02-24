@@ -355,7 +355,7 @@ void Regularize(float *in,float *out,int r,int sx,int sy,int sz)
 }
 
 #if defined(_WIN32) || defined(_WIN64)
-unsigned int 
+unsigned int __stdcall
 #else
 void * 
 #endif
