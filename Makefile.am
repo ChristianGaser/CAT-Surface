@@ -3,7 +3,15 @@ SUBDIRS = . Progs
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/dartel -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/zlib -I$(top_srcdir)/3rdparty/volume_io/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl
+CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/dartel \
+    -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti \
+    -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 \
+    -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/zlib \
+    -I$(top_srcdir)/3rdparty/volume_io/Include \
+    -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
+    -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
+    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
+    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
 
 if EMSCRIPTEN
 CFLAGS0 += -s USE_ZLIB=1 -s MODULARIZE=1 -s FETCH=1 -s WASM=1 -s EXPORT_ES6=1 \
@@ -16,6 +24,7 @@ else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
 AM_CPPFLAGS=${AM_CFLAGS}
+AM_CXXFLAGS=${AM_CFLAGS} -std=c++11
 
 lib_LTLIBRARIES = libCAT.la
 
@@ -33,6 +42,25 @@ s2kit10_SRC = \
     3rdparty/s2kit10/seminaive.c \
     3rdparty/s2kit10/naive_synthesis.c \
     3rdparty/s2kit10/primitive.c
+
+MeshFix_SRC = \
+		3rdparty/MeshFix-V2.1/src/TMesh/edge.cpp \
+		3rdparty/MeshFix-V2.1/src/TMesh/vertex.cpp \
+		3rdparty/MeshFix-V2.1/src/TMesh/triangle.cpp \
+		3rdparty/MeshFix-V2.1/src/TMesh/tin.cpp \
+		3rdparty/MeshFix-V2.1/src/Algorithms/detectIntersections.cpp \
+		3rdparty/MeshFix-V2.1/src/Algorithms/holeFilling.cpp \
+		3rdparty/MeshFix-V2.1/src/Algorithms/marchIntersections.cpp \
+		3rdparty/MeshFix-V2.1/src/Algorithms/checkAndRepair.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/heap.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/matrix.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/orientation.c \
+		3rdparty/MeshFix-V2.1/src/Kernel/list.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/coordinates.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/tmesh.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/graph.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/point.cpp \
+		3rdparty/MeshFix-V2.1/src/Kernel/jqsort.cpp
 
 expat_SRC = \
     3rdparty/expat/lib/xmlparse.c \
