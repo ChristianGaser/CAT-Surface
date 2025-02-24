@@ -19,7 +19,8 @@ enum {Tfs, Tlink};
 int  dist_func        = Tfs;     /* default distance function: Freesurfer method */
 char *thickness_file  = NULL;    /* thickness file for estimating inner and outer surface from central surface */
 char *label_file  = NULL;
-int   check_intersect = 0;
+int  check_intersect = 0;
+int  verbose = 0; 
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -33,6 +34,8 @@ static ArgvInfo argTable[] = {
      "Calculate the linked (exact) distance between both surfaces (Tlink)." },
   {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
      "Correct self intersections if you use thickness file for internally estimating inner and outer surface."},
+  {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
+     "Be verbose."},
   { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -128,12 +131,12 @@ main(int argc, char *argv[])
         /* obtain pial surface */
         for (i = 0; i < polygons->n_points; i++) extents[i] = shift;
         objects2 = central_to_new_pial(polygons, thickness_values, extents, 
-            labels, nii_ptr, check_intersect);
+            labels, nii_ptr, check_intersect, verbose);
         
         /* obtain white surface */
         for (i = 0; i < polygons->n_points; i++) extents[i] = -shift;
         objects = central_to_new_pial(polygons, thickness_values, extents, 
-            NULL, NULL, check_intersect);
+            NULL, NULL, check_intersect, verbose);
         polygons = get_polygons_ptr(objects[0]);
 
         free(extents);

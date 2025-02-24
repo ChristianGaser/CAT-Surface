@@ -20,6 +20,7 @@ int   check_intersect = 0;
 int   equivol = 0;
 double weight = 1.0;
 char *label_file  = NULL;
+int  verbose = 0; 
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -31,6 +32,8 @@ static ArgvInfo argTable[] = {
    "Weight between equi-volume model (1.0) and original data (0.0)."},
   {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
    "Correct self intersections"},
+  {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
+     "Be verbose."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -143,7 +146,7 @@ main(int argc, char *argv[])
         labels = NULL;
     }
     
-    objects_out = central_to_new_pial(polygons, thickness_values, extents, labels, nii_ptr, check_intersect);
+    objects_out = central_to_new_pial(polygons, thickness_values, extents, labels, nii_ptr, check_intersect, verbose);
 
     if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
         exit(EXIT_FAILURE);
