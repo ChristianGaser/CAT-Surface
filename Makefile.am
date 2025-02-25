@@ -24,7 +24,7 @@ else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
 AM_CPPFLAGS=${AM_CFLAGS}
-AM_CXXFLAGS=${AM_CFLAGS} -std=c++11
+AM_CXXFLAGS=${AM_CFLAGS} 
 
 lib_LTLIBRARIES = libCAT.la
 
@@ -357,6 +357,7 @@ libCAT_la_SOURCES = \
     $(gifti_SRC) \
     $(dartel_SRC) \
     $(bic_SRC) \
+    $(MeshFix_SRC) \
     $(s2kit10_SRC)
 
 
