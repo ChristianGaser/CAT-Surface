@@ -491,7 +491,7 @@ main(
     for (i = 0; i < nvol; i++)
         input_uint16[i] = (unsigned short)input_uint8[i];
 
-    /* set some parameters/options for the firt iteration */
+    /* set some parameters/options for the first iteration */
     for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = dims[j];
     g0->connected_component = 1;
     g0->value = 1;
@@ -507,6 +507,30 @@ main(
     count = 0;
     EC = -1;
     
+    if (verbose) {
+        for (i = 0; i < nvol; i++)
+            vol_float[i] = input_uint16[i];
+        keep_largest_cluster(vol_float, min_threshold, dims, DT_FLOAT32, 0, 1, 18);
+        fill_holes(vol_float, min_threshold, dims, DT_UINT16);
+
+        /* extract surface to check euler number */
+        extract_isosurface(vol_float, dims,
+                  min_label, max_label,
+                  nii_mat,
+                  method, FALSE,
+                  min_threshold, min_threshold,
+                  valid_low, valid_high, polygons, verbose);
+        compute_polygon_normals(polygons);
+        check_polygons_neighbours_computed(polygons);
+        n_out = separate_polygons(polygons, -1, &object2);          
+        triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
+        polygons = get_polygons_ptr(object3);
+
+        EC = euler_characteristic(polygons);
+        fprintf(stderr,"Euler characteristics before correction is %d.\n", EC);
+    }
+
+
     /* repeat until EC is 2 or max. count is reached */
     while ((EC != 2) && (count < iter)) {        
         /* call genus0 for the 1st time */
