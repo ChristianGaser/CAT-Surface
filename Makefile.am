@@ -44,23 +44,23 @@ s2kit10_SRC = \
     3rdparty/s2kit10/primitive.c
 
 MeshFix_SRC = \
-		3rdparty/MeshFix-V2.1/src/TMesh/edge.cpp \
-		3rdparty/MeshFix-V2.1/src/TMesh/vertex.cpp \
-		3rdparty/MeshFix-V2.1/src/TMesh/triangle.cpp \
-		3rdparty/MeshFix-V2.1/src/TMesh/tin.cpp \
-		3rdparty/MeshFix-V2.1/src/Algorithms/detectIntersections.cpp \
-		3rdparty/MeshFix-V2.1/src/Algorithms/holeFilling.cpp \
-		3rdparty/MeshFix-V2.1/src/Algorithms/marchIntersections.cpp \
-		3rdparty/MeshFix-V2.1/src/Algorithms/checkAndRepair.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/heap.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/matrix.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/orientation.c \
-		3rdparty/MeshFix-V2.1/src/Kernel/list.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/coordinates.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/tmesh.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/graph.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/point.cpp \
-		3rdparty/MeshFix-V2.1/src/Kernel/jqsort.cpp
+    3rdparty/MeshFix-V2.1/src/TMesh/edge.cpp \
+    3rdparty/MeshFix-V2.1/src/TMesh/vertex.cpp \
+    3rdparty/MeshFix-V2.1/src/TMesh/triangle.cpp \
+    3rdparty/MeshFix-V2.1/src/TMesh/tin.cpp \
+    3rdparty/MeshFix-V2.1/src/Algorithms/detectIntersections.cpp \
+    3rdparty/MeshFix-V2.1/src/Algorithms/holeFilling.cpp \
+    3rdparty/MeshFix-V2.1/src/Algorithms/marchIntersections.cpp \
+    3rdparty/MeshFix-V2.1/src/Algorithms/checkAndRepair.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/heap.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/matrix.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/orientation.c \
+    3rdparty/MeshFix-V2.1/src/Kernel/list.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/coordinates.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/tmesh.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/graph.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/point.cpp \
+    3rdparty/MeshFix-V2.1/src/Kernel/jqsort.cpp
 
 expat_SRC = \
     3rdparty/expat/lib/xmlparse.c \
@@ -357,7 +357,6 @@ libCAT_la_SOURCES = \
     $(gifti_SRC) \
     $(dartel_SRC) \
     $(bic_SRC) \
-    $(MeshFix_SRC) \
     $(s2kit10_SRC)
 
 

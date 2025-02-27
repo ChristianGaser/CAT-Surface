@@ -20,7 +20,7 @@ dist_bin_SCRIPTS = \
 bin_PROGRAMS = \
     CAT_Surf2Sheet \
     CAT_Sheet2Surf \
-    CAT_3dVol2Surf \
+    CAT_Vol2Surf \
     CAT_DumpCurv \
     CAT_ApplyWarpSurf \
     CAT_ApplyWarpValues \
@@ -59,7 +59,7 @@ bin_PROGRAMS = \
     CAT_AddValuesToSurf \
     CAT_SulcusDepth \
     CAT_DumpDepthPotential \
-    CAT_Central2Pial \
+    CAT_SurfCentral2Pial \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
     CAT_Test \

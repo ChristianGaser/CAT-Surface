@@ -24,8 +24,8 @@
 #include "CAT_Vol.h"
 #include "CAT_Resample.h"
 
-#define GET_grid_POINT(result, grid_start, normal, length)            \
-    {                                   \
+#define GET_grid_POINT(result, grid_start, normal, length)              \
+    {                                                                   \
         (result)[X] = RPoint_x(grid_start) + length * Vector_x(normal); \
         (result)[Y] = RPoint_y(grid_start) + length * Vector_y(normal); \
         (result)[Z] = RPoint_z(grid_start) + length * Vector_z(normal); \
@@ -45,7 +45,6 @@ double grid_end = 0.5;     /* end point of grid along normals */
 double offset_value = 0.0; /* offset according to thickness that is given with offset option */
 int map_func = F_MAXABS;   /* default mapping function: (absolute) maximum value */
 double frange[2] = {-FLT_MAX, FLT_MAX};
-double frange_count[2] = {-FLT_MAX, FLT_MAX};
 double exp_half = FLT_MAX;
 char *thickness_file = NULL;   /* thickness file for restricting mapping inside defined thickness */
 char *offset_file = NULL;      /* thickness file for defining offset to (central) surface */
@@ -72,16 +71,16 @@ ArgvInfo argTable[] = {
   {"-offset", ARGV_STRING, (char *)1, (char *)&offset_file,
    "Additional thickness file defining an offset according to the given surface.\n\t\t   If this option is used then also use the option -offset_value to define the offset (default 0)."},
 
-  {"-offset_value", ARGV_FLOAT, (char *)1, (char *)&offset_value,
+  {"-offset-value", ARGV_FLOAT, (char *)1, (char *)&offset_value,
    "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t   WM surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t   A negative value of -0.5 can be used to define the pial surface."},
 
   {"-annot", ARGV_STRING, (char *)1, (char *)&annot_file,
    "Annotation atlas file for ROI partitioning."},
 
-  {"-sphere_src", ARGV_STRING, (char *)1, (char *)&sphere_src_file,
+  {"-sphere-src", ARGV_STRING, (char *)1, (char *)&sphere_src_file,
    "Source sphere file for resampling of annotation file. This is usually the sphere of the input surface file."},
 
-  {"-sphere_trg", ARGV_STRING, (char *)1, (char *)&sphere_trg_file,
+  {"-sphere-trg", ARGV_STRING, (char *)1, (char *)&sphere_trg_file,
    "Target sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
 
   {"-equivolume", ARGV_CONSTANT, (char *)TRUE, (char *)&equivol,
@@ -90,20 +89,6 @@ ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
    "Enable verbose mode for detailed output during processing."},
 
-  {NULL, ARGV_HELP, (char *)NULL, (char *)NULL,
-   "Interpolation options:"},
-
-  {"-linear", ARGV_CONSTANT, (char *)0,
-   (char *)&degrees_continuity,
-   "Not supported anymore!."},
-
-  {"-nearest_neighbour", ARGV_CONSTANT, (char *)-1,
-   (char *)&degrees_continuity,
-   "Not supported anymore!."},
-
-  {"-cubic", ARGV_CONSTANT, (char *)2,
-   (char *)&degrees_continuity,
-   "Not supported anymore!."},
   {NULL, ARGV_HELP, (char *)NULL, (char *)NULL,
    "Mapping function options:"},
 
@@ -115,17 +100,13 @@ ArgvInfo argTable[] = {
    (char *)&map_func,
    "Use median for mapping along normals."},
 
-  {"-weighted_avg", ARGV_CONSTANT, (char *)F_WAVERAGE,
+  {"-weighted-avg", ARGV_CONSTANT, (char *)F_WAVERAGE,
    (char *)&map_func,
    "Use weighted average with gaussian kernel for mapping along normals.\n\t\t   The kernel is so defined that values at the boundary are weighted with 50% while the center is weighted with 100%"},
 
-  {"-range-count", ARGV_FLOAT, (char *)2,
-   (char *)frange_count,
-   "Count number of values in range for mapping along normals. If any value is out of range \n\t\t   values will be counted only until this point"},
-
   {"-range", ARGV_FLOAT, (char *)2,
    (char *)frange,
-   "Assign a value of 1 if at least one value is in the range for assignment along the normal, 0 otherwise."},
+   "Limit values to defined range"},
 
   {"-maxabs", ARGV_CONSTANT, (char *)F_MAXABS,
    (char *)&map_func,
@@ -174,41 +155,6 @@ evaluate_function(double val_array[], int n_val, int map_func, double kernel[], 
         result = 0.0;
         for (i = 0; i < n_val; i++)
             result += val_array[i] * kernel[i];
-        break;
-    case F_RANGE:
-        /*
-         * set to 1 if at least one value is in range, 0 otherwise
-         */
-        result = 0.0;
-        for (i = 0; i < n_val; i++)
-        {
-            /* are values in range? */
-            if (val_array[i] > frange[0] && val_array[i] < frange[1])
-                result = 1.0;
-        }
-        break;
-    case F_COUNT:
-        /*
-         * count only if values are in range
-         * until any value is out of range
-         */
-        in_range = 0;
-        result = 0.0;
-        for (i = 0; i < n_val; i++)
-        {
-            /* stop counting if values are leaving range */
-            if (in_range == 1 &&
-              (val_array[i] < frange_count[0] ||
-               val_array[i] > frange_count[1]))
-                break;
-            /* are values for the first time in range? */
-            if (val_array[i] > frange_count[0] &&
-              val_array[i] < frange_count[1])
-                in_range = 1;
-            /* count values in range */
-            if (in_range)
-                result++;
-        }
         break;
     case F_MAXABS:
         result = 0;
@@ -381,7 +327,6 @@ int main(int argc, char *argv[])
     /* if range is given use range mapping function */
     if (frange[0] != -FLT_MAX || frange[1] != FLT_MAX)
     {
-        map_func = F_RANGE;
         /* check range values */
         if (frange[0] > frange[1])
         {
@@ -390,17 +335,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* if range is given use range mapping function */
-    if (frange_count[0] != -FLT_MAX || frange_count[1] != FLT_MAX)
-    {
-        map_func = F_COUNT;
-        /* check range values */
-        if (frange_count[0] > frange_count[1])
-        {
-            fprintf(stderr, "First range value is larger than second.\n");
-            exit(EXIT_FAILURE);
-        }
-    }
     /* initialize values for lengths (starting with origin) */
     if (!thickness_file)
     {
@@ -671,16 +605,21 @@ int main(int argc, char *argv[])
 
                 if (isnan(value))
                     value = 0.0;
-                if (map_func == F_MULTI)
-                    values2d[i][j] = value;
+                if (map_func == F_MULTI) {
+                    values2d[i][j] = (value < frange[0]) ? frange[0] : value;
+                    values2d[i][j] = (value > frange[1]) ? frange[1] : value;
+                }
 
                 val_array[j] = value;
             }
 
-            if (map_func != F_MULTI)
+            if (map_func != F_MULTI) {
                 /* evaluate function */
                 values[i] = evaluate_function(val_array, grid_steps1,
                                 map_func, kernel, &index);
+                values[i] = (values[i] < frange[0]) ? frange[0] : values[i];
+                values[i] = (values[i] > frange[1]) ? frange[1] : values[i];
+            }
         }
 
         if (annot_file)
@@ -733,6 +672,7 @@ int main(int argc, char *argv[])
                     (void)sprintf(tmp_string, "%s_ev%3.2f%s", output_values_file, length_array[j], ext);
                 else
                     (void)sprintf(tmp_string, "%s_ed%3.2f%s", output_values_file, length_array[j], ext);
+                    
                 for (i = 0; i < polygons->n_points; i++)
                     values[i] = values2d[i][j];
 
