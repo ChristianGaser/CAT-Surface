@@ -156,7 +156,7 @@ main(int argc, char *argv[])
     }
 
     distance = (double *) malloc(sizeof(double) * polygons->n_points);
-
+        
     if (dist_func == Tfs) /* mean of both distances */
         max_distance = compute_point_distance_mean(polygons, polygons2, distance, 0);
     else                  /* linked distance */
@@ -172,7 +172,7 @@ main(int argc, char *argv[])
 
     free(distance);
     free(labels);
-    free(thickness_values);
+    if (thickness_file != NULL) free(thickness_values);
     
     return(EXIT_SUCCESS);
 }
