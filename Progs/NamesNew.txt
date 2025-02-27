@@ -17,7 +17,6 @@ CAT_ApplyWarpSurf         CAT_SurfApplyWarp
 CAT_ApplyWarpValues       CAT_SurfApplyWarpValues
 CAT_Artifacts             CAT_SurfArtifacts
 CAT_AverageSurfaces       CAT_SurfAverage
-CAT_Central2Pial          CAT_SurfCentral2Pial
 CAT_DeformMesh            CAT_SurfDeformTest
 CAT_DumpCurv              CAT_SurfCurvature
 CAT_DumpGI                CAT_SurfGyrificationIndexTest1
@@ -53,12 +52,4 @@ CAT_SmoothDiffusion       CAT_SurfSmoothDiffusion
 CAT_SmoothSharpness       CAT_SurfSmoothSharpness
 CAT_ArealSmoothing        CAT_SurfSmoothAreal
 CAT_SulcusDepth           CAT_SurfSulcusDepth
-CAT_WarpSurf              CAT_SurfWarp
 CAT_WarpSurfDemon         CAT_SurfWarpDemon
-CAT_Surf2ConvexHull       
-CAT_Surf2SPH
-CAT_Surf2Sheet
-CAT_Surf2Sphere
-CAT_SurfConvert
-CAT_SurfDistance
-CAT_Test

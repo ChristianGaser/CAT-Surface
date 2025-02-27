@@ -42,7 +42,7 @@ bin_PROGRAMS = \
     CAT_AverageSurfaces \
     CAT_FixTopology \
     CAT_Isometize \
-    CAT_WarpSurf \
+    CAT_SurfWarp \
     CAT_WarpSurfDemon \
     CAT_ArealSmoothing \
     CAT_SmoothConvexity \
