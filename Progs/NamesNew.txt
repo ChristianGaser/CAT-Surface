@@ -12,9 +12,6 @@ CAT_Surf2Surf             deprecated/
 CAT_VolConvert            deprecated/
 CAT_Surf2Vol              deprecated/
 
-CAT_3dVol2Surf            CAT_VolMap2Surf
-CAT_MarchingCubesGenus0   CAT_VolMarchingCubes
-
 CAT_AddValuesToSurf       CAT_SurfAddValues
 CAT_ApplyWarpSurf         CAT_SurfApplyWarp
 CAT_ApplyWarpValues       CAT_SurfApplyWarpValues
@@ -29,7 +26,7 @@ CAT_DumpSurfArea          CAT_SurfArea
 CAT_DumpSurfaceRatio      CAT_SurfRatio
 CAT_FixTopology           CAT_SurfFixTopology
 CAT_FractalDimension      CAT_SurfFractalDimension
-CAT_FreesurferCurv2Txt    CAT_SurfMesure2Txt
+CAT_FreesurferCurv2Txt    CAT_SurfMeasure2Txt
 CAT_Hausdorff             CAT_SurfHausdorff
 CAT_Isometize             CAT_SurfIsometize
 CAT_MarkDefects           CAT_SurfMarkDefects 

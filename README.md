@@ -6,7 +6,7 @@ These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for
 ## The following external libraries are necessary to compile CAT:
 - [fftw-3](https://www.fftw.org)
 
-## CAT_3dVol2Surf
+## CAT_Vol2Surf
 Map values form 3D volume to surface
 
 ## CAT_ApplyWarpSurf
