@@ -25,7 +25,7 @@ ArgvInfo argTable[] = {
      {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
-rivate void usage(char *executable)
+void usage(char *executable)
 {
     char *usage_str = "\n\
 Usage: %s [options] <input.nii> [<output_denoised.nii>]\n\

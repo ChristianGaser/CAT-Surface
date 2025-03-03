@@ -27,7 +27,169 @@ typedef struct {
     polygons_struct *target_sphere;
     double *invals;
     double *outvals;
+} ThreadArgs_process_target_points;
+
+// Define the struct to pass arguments to threads
+typedef struct {
+    int start_idx;
+    int end_idx;
+    polygons_struct *polygons;
+    polygons_struct *poly_src_sphere;
+    polygons_struct *resampled_source;
+    double *input_values;
+    double *output_values;
+    Point *new_points;
 } ThreadArgs;
+
+// Thread function for parallel execution
+#if !defined(_WIN32) && !defined(_WIN64)
+THREAD_RETURN process_resample_surface(void *args) {
+    ThreadArgs *thread_args = (ThreadArgs *)args;
+    int i, k, poly, n_points;
+    Point point_on_src_sphere, scaled_point;
+    Point poly_points[MAX_POINTS_PER_POLYGON];
+    Point poly_points_src[MAX_POINTS_PER_POLYGON];
+    float weights[MAX_POINTS_PER_POLYGON];
+
+    for (i = thread_args->start_idx; i < thread_args->end_idx; i++) {
+        poly = find_closest_polygon_point(&thread_args->resampled_source->points[i],
+                                          thread_args->poly_src_sphere,
+                                          &point_on_src_sphere);
+
+        n_points = get_polygon_points(thread_args->poly_src_sphere, poly, poly_points_src);
+        get_polygon_interpolation_weights(&point_on_src_sphere, n_points, poly_points_src, weights);
+
+        if (get_polygon_points(thread_args->polygons, poly, poly_points) != n_points) {
+            fprintf(stderr, "map_point_between_polygons\n");
+        }
+
+        fill_Point(thread_args->new_points[i], 0.0, 0.0, 0.0);
+        if (thread_args->input_values != NULL) {
+            thread_args->output_values[i] = 0.0;
+        }
+
+        for (k = 0; k < n_points; k++) {
+            SCALE_POINT(scaled_point, poly_points[k], (double)weights[k]);
+            ADD_POINTS(thread_args->new_points[i], thread_args->new_points[i], scaled_point);
+            if (thread_args->input_values != NULL) {
+                thread_args->output_values[i] += weights[k] *
+                    thread_args->input_values[thread_args->polygons->indices[
+                    POINT_INDEX(thread_args->polygons->end_indices, poly, k)]];
+            }
+        }
+    }
+    return NULL;
+}
+#endif
+
+void resample_spherical_surface(polygons_struct *polygons,
+                                polygons_struct *poly_src_sphere,
+                                polygons_struct *resampled_source,
+                                double *input_values, double *output_values,
+                                int n_triangles) {
+    int i, t, num_threads = 8; // Adjust based on hardware
+#if !defined(_WIN32) && !defined(_WIN64)
+    THREAD_HANDLE threads[num_threads];
+    ThreadArgs thread_args[num_threads];
+#endif
+
+    double sphereRadius = 0.0, r, bounds[6];
+
+    // Compute average sphere radius
+    for (i = 0; i < poly_src_sphere->n_points; i++) {
+        r = 0.0;
+        for (int k = 0; k < 3; k++)
+            r += Point_coord(poly_src_sphere->points[i], k) * Point_coord(poly_src_sphere->points[i], k);
+        sphereRadius += sqrt(r);
+    }
+    sphereRadius /= poly_src_sphere->n_points;
+
+    // Calculate sphere center
+    get_bounds(poly_src_sphere, bounds);
+    Point centre;
+    fill_Point(centre, bounds[0] + bounds[1], bounds[2] + bounds[3], bounds[4] + bounds[5]);
+
+    // Slightly reduce radius
+    sphereRadius *= 0.975;
+    create_tetrahedral_sphere(&centre, sphereRadius, sphereRadius, sphereRadius, n_triangles, resampled_source);
+
+    create_polygons_bintree(poly_src_sphere, ROUND((float) poly_src_sphere->n_items * 0.5));
+
+    Point *new_points;
+    ALLOC(new_points, resampled_source->n_points);
+    if (input_values != NULL)
+        ALLOC(output_values, resampled_source->n_points);
+
+    int total_points = resampled_source->n_points;
+    int chunk_size = total_points / num_threads;
+    int remainder = total_points % num_threads;
+
+#if defined(_WIN32) || defined(_WIN64)
+    // **Sequential Execution for Windows**
+    for (i = 0; i < resampled_source->n_points; i++) {
+        int poly, n_points;
+        Point point_on_src_sphere, scaled_point;
+        Point poly_points[MAX_POINTS_PER_POLYGON];
+        Point poly_points_src[MAX_POINTS_PER_POLYGON];
+        float weights[MAX_POINTS_PER_POLYGON];
+
+        poly = find_closest_polygon_point(&resampled_source->points[i], poly_src_sphere, &point_on_src_sphere);
+
+        n_points = get_polygon_points(poly_src_sphere, poly, poly_points_src);
+        get_polygon_interpolation_weights(&point_on_src_sphere, n_points, poly_points_src, weights);
+
+        if (get_polygon_points(polygons, poly, poly_points) != n_points) {
+            fprintf(stderr, "map_point_between_polygons\n");
+        }
+
+        fill_Point(new_points[i], 0.0, 0.0, 0.0);
+        if (input_values != NULL)
+            output_values[i] = 0.0;
+
+        for (int k = 0; k < n_points; k++) {
+            SCALE_POINT(scaled_point, poly_points[k], (double)weights[k]);
+            ADD_POINTS(new_points[i], new_points[i], scaled_point);
+            if (input_values != NULL)
+                output_values[i] += weights[k] * input_values[polygons->indices[
+                                      POINT_INDEX(polygons->end_indices, poly, k)]];
+        }
+    }
+#else
+    // **Parallel Execution for Non-Windows Systems**
+    for (t = 0; t < num_threads; t++) {
+        thread_args[t].start_idx = t * chunk_size;
+        thread_args[t].end_idx = (t == num_threads - 1) ? (t + 1) * chunk_size + remainder : (t + 1) * chunk_size;
+        thread_args[t].polygons = polygons;
+        thread_args[t].poly_src_sphere = poly_src_sphere;
+        thread_args[t].resampled_source = resampled_source;
+        thread_args[t].input_values = input_values;
+        thread_args[t].output_values = output_values;
+        thread_args[t].new_points = new_points;
+
+        if (pthread_create(&threads[t], NULL, process_resample_surface, &thread_args[t]) != 0) {
+            perror("pthread_create");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    // Join all threads
+    for (t = 0; t < num_threads; t++) {
+        if (pthread_join(threads[t], NULL) != 0) {
+            perror("pthread_join");
+            exit(EXIT_FAILURE);
+        }
+    }
+#endif
+
+    // Copy new points to the resampled surface
+    for (i = 0; i < resampled_source->n_points; i++) {
+        resampled_source->points[i] = new_points[i];
+    }
+
+    compute_polygon_normals(resampled_source);
+    free(new_points);
+    delete_the_bintree(&poly_src_sphere->bintree);
+}
 
 /* correct shifting and scaling of source sphere w.r.t. target sphere */
 void
@@ -66,7 +228,7 @@ correct_shift_scale_sphere(polygons_struct *source_sphere, polygons_struct *targ
 // Thread function (used only on non-Windows systems)
 #if !defined(_WIN32) && !defined(_WIN64)
 THREAD_RETURN process_target_points(void *args) {
-    ThreadArgs *thread_args = (ThreadArgs *)args;
+    ThreadArgs_process_target_points *thread_args = (ThreadArgs_process_target_points *)args;
 
     int start = thread_args->start_idx;
     int end = thread_args->end_idx;
@@ -104,7 +266,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
     int i, j, t, num_threads = 8; // Number of threads (adjust based on system hardware)
 #if !defined(_WIN32) && !defined(_WIN64)
     THREAD_HANDLE threads[num_threads];
-    ThreadArgs thread_args[num_threads];
+    ThreadArgs_process_target_points thread_args[num_threads];
 #endif
 
     // Create bintree if it doesn't already exist
@@ -330,7 +492,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
 }
 
 void
-resample_spherical_surface(polygons_struct *polygons,
+resample_spherical_surface_orig(polygons_struct *polygons,
                polygons_struct *poly_src_sphere,
                polygons_struct *resampled_source,
                double *input_values, double *output_values,

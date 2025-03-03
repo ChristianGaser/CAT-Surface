@@ -19,10 +19,6 @@
 #include "CAT_Resample.h"
 #include "dartel.h"
 
-#define INVERSE_WARPING 0
-#define RADIANS(deg) ((PI * (double)(deg)) / 180.0)
-#define DEGREES(rad) ((180.0 * (double)(rad)) / PI)
-
 /* argument defaults */
 char *param_file     = NULL;
 char *source_file    = NULL;
@@ -130,13 +126,13 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
 
     xy_size = dm[0] * dm[1];
 
-    flow1     = (double *) malloc(sizeof(double) * xy_size * 2);
-    inflow      = (double *) malloc(sizeof(double) * xy_size * 2);
-    map_src     = (double *) malloc(sizeof(double) * xy_size);
-    map_trg     = (double *) malloc(sizeof(double) * xy_size);
-    sm_src      = (polygons_struct *) malloc(sizeof(polygons_struct));
+    flow1 = (double *) malloc(sizeof(double) * xy_size * 2);
+    inflow = (double *) malloc(sizeof(double) * xy_size * 2);
+    map_src = (double *) malloc(sizeof(double) * xy_size);
+    map_trg = (double *) malloc(sizeof(double) * xy_size);
+    sm_src = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
-    sm_trg      = (polygons_struct *) malloc(sizeof(polygons_struct));
+    sm_trg = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_trg_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
     
     for (step = 0; step < n_steps; step++) {

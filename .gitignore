@@ -18,7 +18,7 @@ build*
 log*
 INSTALL
 configure~
-Progs/CAT_3dVol2Surf
+Progs/CAT_Vol2Surf
 Progs/CAT_AddValuesToSurf
 Progs/CAT_AngularDistortion
 Progs/CAT_ApplyWarpSurf
@@ -28,7 +28,7 @@ Progs/CAT_ArealSmoothing
 Progs/CAT_Artifacts
 Progs/CAT_AverageSurfaces
 Progs/CAT_BlurSurfHK
-Progs/CAT_Central2Pial
+Progs/CAT_SurfCentral2Pial
 Progs/CAT_Color2Surf
 Progs/CAT_DeformMesh
 Progs/CAT_DeformSurf
@@ -78,5 +78,5 @@ Progs/CAT_VolAverage
 Progs/CAT_VolSanlm
 Progs/CAT_VolSmooth
 Progs/CAT_VolThicknessPbt
-Progs/CAT_WarpSurf
 Progs/CAT_WarpSurfDemon
+Progs/CAT_SurfWarp

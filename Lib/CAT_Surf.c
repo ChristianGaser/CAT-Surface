@@ -823,7 +823,14 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
                     neighbours, NULL, NULL);
 }
 
-    
+/* Use faster Manhattan distance */
+double manhattan_distance_between_points(Point *p1, Point *p2) {
+    double dx = fabs(Point_x(*p2) - Point_x(*p1));
+    double dy = fabs(Point_y(*p2) - Point_y(*p1));
+    double dz = fabs(Point_z(*p2) - Point_z(*p1));
+    return dx + dy + dz;
+}
+
 void
 distance_smoothing(polygons_struct *polygons, double strength, int iters,
            int smoothEdgesEveryXIters, int *smoothOnlyTheseNodes,
@@ -831,27 +838,19 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
 {
     int i, j, k, l, pidx;
     int *n_neighbours, **neighbours;
-    double totalDistance, tileDist[MAX_POINTS_PER_POLYGON];
-    double pt[3], xyz[3];
-    double weight, invstr, radius, div;
-    BOOLEAN smoothSubsetOfNodes = 0;
-
-    invstr = 1.0 - strength;
-    radius = get_sphere_radius(polygons);
+    double tileDist[MAX_POINTS_PER_POLYGON];
+    double pt[3];
+    double weight;
+    double invstr = 1.0 - strength;
+    double radius = get_sphere_radius(polygons);
+    BOOLEAN smoothSubsetOfNodes = (smoothOnlyTheseNodes != NULL);
   
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
 
-    if (smoothOnlyTheseNodes != NULL)
-         smoothSubsetOfNodes = 1;
-
     for (k = 1; k < iters; k++) {
         /* should the edges be smoothed? */
-        BOOLEAN smoothEdges = 0;
-        if (smoothEdgesEveryXIters > 0) {
-            if ((k % smoothEdgesEveryXIters) == 0)
-                smoothEdges = 1;
-        }
+        BOOLEAN smoothEdges = (smoothEdgesEveryXIters > 0 && (k % smoothEdgesEveryXIters) == 0);
 
         for (i = 0; i < polygons->n_points; i++) {
             BOOLEAN smoothIt = smoothEdges;
@@ -861,64 +860,43 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
             if (!smoothIt || n_neighbours[i] <= 1)
                 continue; /* skip this point */
 
-            /* use distance weighting only for a limited number */
-            /* of neighbours (usually tetras have 5-7 neighbours) */
-            if (n_neighbours[i] < 20) { 
-                totalDistance = 0.0;  
-                for (j = 0; j < n_neighbours[i]; j++) {  
-                    tileDist[j] = distance_between_points(
-                       &polygons->points[i],
-                       &polygons->points[neighbours[i][j]]);
-                    totalDistance += tileDist[j];            
-                }
-
-                /* Compute the influence of neighboring nodes */
-                for (j = 0; j < 3; j++)
-                    xyz[j] = 0.0;
-                for (j = 0; j < n_neighbours[i]; j++) {
-                    if (tileDist[j] <= 0.0)
-                        continue;
-
-                    pidx = neighbours[i][j];
-                    to_array(&polygons->points[pidx], pt);
-                    weight = tileDist[j] / totalDistance;
-                    for (l = 0; l < 3; l++)
-                        xyz[l] += weight * pt[l];
-                }
-                div = 1;
-
-            /* use linear smoothing if number of */
-            /* neighbours is too large */
-            } else {
-                for (j = 0; j < 3; j++)
-                    xyz[j] = 0.0;
-                for (j = 0; j < n_neighbours[i]; j++) {
-                    pidx = neighbours[i][j];
-                    to_array(&polygons->points[pidx], pt);
-                    for (l = 0; l < 3; l++)
-                        xyz[l] += pt[l];
-                }
-                div = (double) n_neighbours[i];
+            /* Compute the influence of neighboring nodes */
+            double xyz[3] = {0.0, 0.0, 0.0};
+            double totalDistance = 0.0;
+            
+            for (j = 0; j < n_neighbours[i]; j++) {  
+                tileDist[j] = manhattan_distance_between_points(
+                   &polygons->points[i],
+                   &polygons->points[neighbours[i][j]]);
+                totalDistance += tileDist[j];            
             }
+
+            for (j = 0; j < n_neighbours[i]; j++) {
+                if (tileDist[j] <= 0.0)
+                    continue;
+
+                pidx = neighbours[i][j];
+                to_array(&polygons->points[pidx], pt);
+                weight = tileDist[j] / totalDistance;
+                for (l = 0; l < 3; l++)
+                    xyz[l] += weight * pt[l];
+            }
+
             /* Update the nodes position */
             to_array(&polygons->points[i], pt);
             for (l = 0; l < 3; l++) {
-                pt[l] = (pt[l] * invstr) +
-                    (xyz[l] / div * strength);
+                pt[l] = (pt[l] * invstr) + (xyz[l] * strength);
             }
             from_array(pt, &polygons->points[i]);
         }
       
-        // If the surface should be projected to a sphere
-        if (projectToSphereEveryXIters > 0) {
-            if ((k % projectToSphereEveryXIters) == 0) {
-                for (i = 0; i < polygons->n_points; i++) {
-                    set_vector_length(&polygons->points[i],
-                              radius);
-                }
-            }
+        /* If the surface should be projected to a sphere */
+        if ((projectToSphereEveryXIters > 0) && ((k % projectToSphereEveryXIters) == 0)) {
+            for (i = 0; i < polygons->n_points; i++)
+                set_vector_length(&polygons->points[i], radius);
         }
     }
+    
     delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);
 }
