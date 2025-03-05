@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 {
     char **infiles, *outfile;
     int i, j, nfiles, dims[3], n_voxels;
-    double *avg, *sum_squares, *input, separations[3], *zscore, diff;
+    double *avg, *sum_squares, *input, voxelsize[3], *zscore, diff;
     nifti_image *nii_ptr, *nii_ptr2;
     FILE *fid;
 
@@ -70,9 +70,9 @@ int main(int argc, char *argv[])
     }
     fprintf(stdout,"%3d: %s\n",1, infiles[0]);
 
-    separations[0] = nii_ptr->dx;
-    separations[1] = nii_ptr->dy;
-    separations[2] = nii_ptr->dz;
+    voxelsize[0] = nii_ptr->dx;
+    voxelsize[1] = nii_ptr->dy;
+    voxelsize[2] = nii_ptr->dz;
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
             sum_squares[j] = sqrt(1.0/((double)nfiles-1.0)*(sum_squares[j] - (double)nfiles*avg[j]*avg[j]));
             
         if (std_filename != NULL) {
-            if (!write_nifti_double( std_filename, sum_squares, DT_FLOAT32, 1.0, dims, separations, nii_ptr)) 
+            if (!write_nifti_double( std_filename, sum_squares, DT_FLOAT32, 1.0, dims, voxelsize, nii_ptr)) 
                 exit(EXIT_FAILURE);
         }
         
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
         free(sum_squares);
     }
 
-    if (!write_nifti_double( outfile, avg, DT_FLOAT32, 1.0, dims, separations, nii_ptr)) 
+    if (!write_nifti_double( outfile, avg, DT_FLOAT32, 1.0, dims, voxelsize, nii_ptr)) 
         exit(EXIT_FAILURE);
 
     free(avg);

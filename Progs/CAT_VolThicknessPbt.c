@@ -23,7 +23,7 @@ int n_avgs = 8;
 int n_median_filter = 2;
 double sharpening = 0.02;
 double downsample = 0.0;
-double fwhm = 2.0;
+double fwhm = 0.0;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
@@ -162,13 +162,13 @@ int main(int argc, char *argv[])
     dims[2] = src_ptr->nz;
     mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
 
-    mask     = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
-    input    = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    mask = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
+    input = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    dist_WM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    GMT  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    dist_WM = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    GMT = (float *)malloc(sizeof(float)*src_ptr->nvox);
     GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    PPM  = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    PPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     /* check for memory faults */
     if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !GMT2 || !PPM) {
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
     
         /* obtain CSF distance map */
         if (verbose && (j == 0)) fprintf(stderr,"Estimate CSF distance map.\n");
-        vbdist(input, mask, dims, NULL, replace);
+        euclidean_distance(input, mask, dims, NULL, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_CSF[i] += input[i];
                 
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
     
         /* obtain WM distance map */
         if (verbose && (j == 0)) fprintf(stderr,"Estimate WM distance map.\n");
-        vbdist(input, mask, dims, NULL, replace);
+        euclidean_distance(input, mask, dims, NULL, replace);
         for (i = 0; i < src_ptr->nvox; i++)
             dist_WM[i] += input[i];
     }
@@ -288,11 +288,8 @@ int main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++)
         mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
 
-    /* Approximate thickness values outside GM or below minimum thickness */
-    if (fwhm >= 0.0) {
-        vbdist(GMT, mask, dims, NULL, 1);
-        laplace3R(GMT, mask, dims, 0.1);
-    }
+    /* Approximate thickness values outside GM */
+    vol_approx(GMT, dims, voxelsize);
     
     /* Apply final smoothing */
     if (fwhm > 0.0) {

@@ -41,7 +41,7 @@ main(int argc, char *argv[])
     char *infile, outfile[1024];
     int i, dims[3];
     float *input;
-    double separations[3], s[3];
+    double voxelsize[3], s[3];
     nifti_image *nii_ptr;
 
     /* Get arguments */
@@ -72,14 +72,14 @@ main(int argc, char *argv[])
     /* only allow isotropic filtering */
     for (i=0; i<3; i++) s[i] = fwhm;
     
-    separations[0] = nii_ptr->dx;
-    separations[1] = nii_ptr->dy;
-    separations[2] = nii_ptr->dz;
+    voxelsize[0] = nii_ptr->dx;
+    voxelsize[1] = nii_ptr->dy;
+    voxelsize[2] = nii_ptr->dz;
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
     
-    smooth3(input, dims, separations, s, use_mask, DT_FLOAT32);
+    smooth3(input, dims, voxelsize, s, use_mask, DT_FLOAT32);
     
     /* if not defined use original name as basename for output */
     if (argc == 3)
@@ -91,7 +91,7 @@ main(int argc, char *argv[])
     }
 
     /* write data using same data type and rescale */
-    if (!write_nifti_float(outfile, input, nii_ptr->datatype, 0.0, dims, separations, nii_ptr)) 
+    if (!write_nifti_float(outfile, input, nii_ptr->datatype, 0.0, dims, voxelsize, nii_ptr)) 
         exit(EXIT_FAILURE);
     
     return(EXIT_SUCCESS);
