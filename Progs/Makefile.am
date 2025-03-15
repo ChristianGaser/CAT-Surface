@@ -71,4 +71,5 @@ bin_PROGRAMS = \
     CAT_VolThicknessPbt \
     CAT_ResampleSphericalSurfSPH \
     CAT_Surf2SPH \
+    CAT_SurfDeform \
     CAT_SPH2Surf
