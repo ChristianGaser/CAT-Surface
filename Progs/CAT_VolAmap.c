@@ -26,6 +26,7 @@ int write_label = 1;
 int write_corr = 1;
 int write_bias = 0;
 int verbose = 0;
+int use_median = 1;
 int square_image = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
@@ -63,7 +64,7 @@ static ArgvInfo argTable[] = {
          Default setting is 1."},
          
     {"-square-image", ARGV_CONSTANT, (char *) 1, (char *) &square_image,
-         "Option to use a squared image to enhance contrast between tissues."},
+         "Option to use a squared image to enhance contrast between tissues (for bias correction only)."},
          
     {"-cleanup", ARGV_INT, (char *) 1, (char *) &cleanup,
          "Option to additionally clean-up segmentations by removing remaining non-brain parts\n\
@@ -74,8 +75,8 @@ static ArgvInfo argTable[] = {
          "Option to write segmentation results as separate images. Requires three integers\n\
          indicating whether to save each tissue class (CSF/GM/WM) with '1' for yes."},
          
-    {"-write-label", ARGV_CONSTANT, (char *) 1, (char *) &write_label,
-         "Enable writing the label image. This is the default setting."},
+    {"-use-mean", ARGV_CONSTANT, (char *) 0, (char *) &use_median,
+         "Use local mean for estimating peaks instead of median."},
          
     {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
          "Disable writing the label image."},
@@ -228,7 +229,8 @@ main(int argc, char *argv[])
         correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, square_image);
     }
 
-    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, voxelsize, iters_ICM, offset, bias_fwhm, verbose);
+    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, 
+        voxelsize, iters_ICM, offset, bias_fwhm, verbose, use_median);
 
     /* PVE */
     if (pve) {
