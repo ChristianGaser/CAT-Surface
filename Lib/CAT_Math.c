@@ -604,7 +604,7 @@ void get_prctile_double(double *data, int n, double threshold[2],
     // Calculate indices using the formula: index = round((n - 1) * (P/100))
     int lower_index = (int)round((filtered_count - 1) * prctile[0] / 100.0);
     int upper_index = (int)round((filtered_count - 1) * prctile[1] / 100.0);
-        
+  
     threshold[0] = copy[lower_index];
     threshold[1] = copy[upper_index];
         

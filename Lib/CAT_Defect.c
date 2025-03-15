@@ -105,9 +105,9 @@ find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
     int euler, *polydefects;
     struct looptree *ltree;
 
-    polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
+    polydefects = (int *) calloc(sphere->n_items,sizeof(int));
 
-    n_intersects = find_selfintersections(sphere, defects, polydefects);
+    n_intersects = find_selfintersections(sphere, defects, polydefects, 0);
     if (n_intersects == 0)
         return 0;
 
@@ -393,7 +393,6 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
     free(pts);
     free(depth);
 
-//      delete_object_list(1, objects);
     if (detect_euler) free(polydefects);
 
 }
