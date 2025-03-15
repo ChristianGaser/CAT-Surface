@@ -236,7 +236,7 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
 
     /* find remaining self-intersections */
     if (DEBUG) printf("find_selfintersections...\n");
-    n_defects = find_selfintersections(hbw, hbw_defects, hbw_polydefects);
+    n_defects = find_selfintersections(hbw, hbw_defects, hbw_polydefects, 0);
     n_defects = join_intersections(hbw, hbw_defects, hbw_polydefects,
                     n_neighbours, neighbours);
 

@@ -6,7 +6,8 @@
  *
  */
 
-#include <bicpl.h>
+#include <stdbool.h>
+#include "bicpl.h"
 #include "CAT_Vol.h"
 
 #define BINTREE_FACTOR 0.5
