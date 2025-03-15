@@ -194,9 +194,9 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
 }
 
 /* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
-static void GetMeansVariances(float *src, unsigned char *label, int n_classes, struct point *r, int sub, int *dims, double *thresh)
+static void GetMeansVariances(float *src, unsigned char *label, int n_classes, struct point *r, int sub, int *dims, double *thresh, int use_median)
 {
-    int i, j, ind;
+    int i, j, ind, sz_cube;
     int area, narea, nvol, zsub, ysub, xsub, yoffset, zoffset;
     int zsub2, ysub2;
     int nix, niy, niz, k, l, m, z, y, x, label_value;
@@ -219,18 +219,20 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
         exit(EXIT_FAILURE);
     }
 
+    sz_cube = 2*sub*2*sub*2*sub;
     for (i = 0; i < n_classes; i++) {
         for (j = 0; j < nvol; j++) {
             ind = (i*nvol)+j; 
             ir[ind].n = 0;
             ir[ind].s = 0.0;
             ir[ind].ss = 0.0;
+            ir[ind].arr = (double*)malloc(sizeof(double)*sz_cube);
         }
     }
     
 
     /* loop over neighborhoods of the grid points */
-    for (k=-sub; k<=sub; k++) for (l=-sub; l<=sub; l++) for (m=-sub; m<=sub; m++) 
+    for (k=-sub; k<=sub; k++) for (l=-sub; l<=sub; l++) for (m=-sub; m<=sub; m++) {
         for (z = 0; z < niz; z++) {
             zsub = z*sub + k;
             if ((zsub >= 0) && (zsub < dims[2])) {
@@ -253,6 +255,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
 //                                if ((val < thresh[0]) || (val > thresh[1])) continue;
                                 if ((val < thresh[0])) continue;
                                 ind = ((label_value_BG)*nvol)+yoffset+x;
+                                ir[ind].arr[ir[ind].n] = val;
                                 ir[ind].n++;
                                 ir[ind].s += val; ir[ind].ss += val*val;
                             }
@@ -261,22 +264,35 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes, s
                 }
             }
         }
+    }
 
 
-    /* find means and standard deviations */
+    /* find mean or median and standard deviations */
     for (i = 0; i < n_classes; i++) {
         for (j = 0; j < nvol; j++) {
             ind = (i*nvol)+j;
             if (ir[ind].n > G) {
-                r[ind].mean = ir[ind].s/ir[ind].n;
-                if (ir[ind].n == 1)
+                if (ir[ind].n == 1) {
                     r[ind].var = 0.0;
-                else r[ind].var = (ir[ind].ss -ir[ind].n*SQR(r[ind].mean))/(ir[ind].n-1);
+                    r[ind].mean = ir[ind].arr[0];
+                } else {
+                    if (use_median)
+                        r[ind].mean = get_median_double(ir[ind].arr, ir[ind].n-1, 0);
+                    else
+                        r[ind].mean = r[ind].mean = ir[ind].s/ir[ind].n;
+                    r[ind].var = (ir[ind].ss -ir[ind].n*SQR(ir[ind].s/ir[ind].n))/(ir[ind].n-1);
+                }
             } else r[ind].mean = 0.0;
         }
     }
 
     free(ir);
+    for (i = 0; i < n_classes; i++) {
+        for (j = 0; j < nvol; j++) {
+            ind = (i*nvol)+j; 
+            free(ir[ind].arr);
+        }
+    }
 
     return;
 }
@@ -530,7 +546,10 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
     if (verbose) printf("\n");
 } 
 
-void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, struct point *r, double *mean, double *var, int n_classes, int niters, int sub, int *dims, double *voxelsize, double *thresh, double *beta, double offset, double bias_fwhm, int verbose)
+void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, 
+                          struct point *r, double *mean, double *var, int n_classes, 
+                          int niters, int sub, int *dims, double *voxelsize, double *thresh, 
+                          double *beta, double offset, double bias_fwhm, int verbose, int use_median)
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
@@ -568,7 +587,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         ll = 0.0;
         
         /* get means for grid points */
-        GetMeansVariances(src, label, n_classes, r, sub, dims, thresh);      
+        GetMeansVariances(src, label, n_classes, r, sub, dims, thresh, use_median);      
 
         /* loop over image points */
         for (z = 1; z < dims[2]-1; z++) {
@@ -655,7 +674,10 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 
 
 /* perform adaptive MAP on given src and initial segmentation label */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, double *voxelsize, int niters_ICM, double offset, double bias_fwhm, int verbose)
+void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
+          int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, 
+          double *voxelsize, int niters_ICM, double offset, double bias_fwhm, 
+          int verbose, int use_median)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -691,7 +713,8 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, i
     }
         
     /* estimate 3 classes before PVE */
-    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, thresh, beta, offset, bias_fwhm, verbose);
+    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, 
+                        thresh, beta, offset, bias_fwhm, verbose, use_median);
     
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
