@@ -13,6 +13,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Octree.h"
 #include "CAT_Defect.h"
+#include "CAT_Math.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Intersect.h"
 
@@ -79,14 +80,14 @@ int
 intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
                polygons_struct *surface)
 {
-    Vector   u, v, n;       /* triangle vectors */
-    Vector   dir, w0, w;      /* ray vectors */
-    Vector   zero;
-    float  r, a, b;       /* params to calc ray-plane intersect */
-    float  uu, uv, vv, wu, wv, D;
-    float  s, t;
-    Point  pts[3], I;
-    int    i;
+    Vector u, v, n;       /* triangle vectors */
+    Vector dir, w0, w;      /* ray vectors */
+    Vector zero;
+    float r, a, b;       /* params to calc ray-plane intersect */
+    float uu, uv, vv, wu, wv, D;
+    float s, t;
+    Point pts[3], I;
+    int i;
 
     for (i = 0; i < 3; i++)
         pts[i] = surface->points[tpidx[i]];
@@ -143,26 +144,62 @@ intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
 
 
 int
-find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
+find_selfintersections_masked(polygons_struct *polygons, int *defects, int *polydefects)
 {
-    int          n_intersects, size, i, n, p, p2, b;
-    progress_struct    progress;
-    struct octree    *tree;
-    struct polynode    *cur, *node;
+    int n_intersects, p;
+    double *curvatures, threshold[2];
+    int *n_neighbours, **neighbours;
 
-    memset(polydefects, 0, sizeof(int) * surface->n_items);
+    curvatures = (double *) malloc(sizeof(double) * polygons->n_points);
+  
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+    get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
+                     0.0, 2, curvatures);
 
-    tree = build_octree(surface);
+    double prctile[2] = {10, 90};
+    get_prctile(curvatures, polygons->n_points, threshold, prctile, 0, DT_FLOAT64);
+    /* Limit search for intersections to areas with large neg. curvature by 
+       indicating with zeros */
+    for (p = 0; p < polygons->n_items; p++)
+        defects[p] = (curvatures[p] < threshold[1]) ? -1 : 0;
 
-    initialize_progress_report(&progress, FALSE, surface->n_items,
+    update_polydefects(polygons, defects, polydefects);
+
+    n_intersects = find_selfintersections(polygons, defects, polydefects, 0);
+    
+    free(curvatures);
+    return n_intersects;
+}
+
+int
+find_selfintersections(polygons_struct *polygons, int *defects, int *polydefects, int init)
+{
+    int n_intersects, size, i, n, p, p2, b;
+    progress_struct progress;
+    struct octree *tree;
+    struct polynode *cur, *node;
+
+    if (init)
+        memset(polydefects, 0, sizeof(int) * polygons->n_items);
+
+    tree = build_octree(polygons);
+
+    initialize_progress_report(&progress, FALSE, polygons->n_items,
                    "find_selfintersections");
 
     n_intersects = 0;
-    for (p = 0; p < surface->n_items; p++) {
+    for (p = 0; p < polygons->n_items; p++) {
         node = tree->nodelist[p];
+        
+        /* skip check if neg. values in polydefects indicate that */
+        if (!init && polydefects[p] < 0)
+            continue;
 
-        for (p2 = p+1; p2 < surface->n_items; p2++)
+        for (p2 = p+1; p2 < polygons->n_items; p2++)
             tree->polyflag[p2] = 0;
+            /* skip check if neg. values in polydefects indicate that */
+            if (!init && polydefects[p2] < 0)
+                continue;
 
         for (b = 0; b < NBOXES; b++) {
             if (xintersect(node->bounds, tree->bounds[b]) == 0) {
@@ -186,7 +223,7 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
 
                 if (intersect_triangle_triangle(node->pts,
                                 cur->pts,
-                                surface) == 0) 
+                                polygons) == 0) 
                     continue;
 
                 n_intersects++;
@@ -199,7 +236,7 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
 
     terminate_progress_report(&progress);
 
-    update_defects(surface, polydefects, defects);
+    update_defects(polygons, polydefects, defects);
 
     return n_intersects;
 }
@@ -208,8 +245,8 @@ find_selfintersections(polygons_struct *surface, int *defects, int *polydefects)
 int
 correct_simple_selfintersections(polygons_struct *surface, int *defects, int *polydefects, int *n_neighbours, int **neighbours)
 {
-    int          i, n, p, n_intersections = 1;
-    double         extent = 0.05;
+    int i, n, p, n_intersections = 1;
+    double extent = 0.05;
 
     for (p = 0; p < surface->n_points; p++)
         if (defects[p] > 0) n_intersections++;
@@ -239,8 +276,8 @@ int
 join_intersections(polygons_struct *surface, int *defects, int *polydefects,
            int *n_neighbours, int **neighbours)
 {
-    int          d, old_d;
-    int          n_intersects = 0, i, n, p, *dmap;
+    int d, old_d;
+    int n_intersects = 0, i, n, p, *dmap;
 
     update_defects(surface, polydefects, defects);
 
@@ -558,7 +595,7 @@ remove_intersections(polygons_struct *polygons, int verbose)
     check_polygons_neighbours_computed(polygons);
 
     counter = 0;
-    n_intersects = find_selfintersections(polygons, defects, polydefects);        
+    n_intersects = find_selfintersections(polygons, defects, polydefects, 1);        
     n_intersects = join_intersections(polygons, defects, polydefects,
               n_neighbours, neighbours);
     do {

@@ -17,7 +17,8 @@
 int intersect_poly_poly(int, int, polygons_struct *);
 int intersect_triangle_triangle(int [3], int [3], polygons_struct *);
 int intersect_segment_triangle(Point, Point, int [3], polygons_struct *);
-int find_selfintersections(polygons_struct *, int *, int *);
+int find_selfintersections(polygons_struct *, int *, int *, int);
+int find_selfintersections_masked(polygons_struct *, int *, int *);
 int correct_simple_selfintersections(polygons_struct *, int *, int *, int *, int **);
 int join_intersections(polygons_struct *, int *, int *, int *, int **);
 int find_remaining_intersections(polygons_struct *, int *, int *, int *,
