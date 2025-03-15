@@ -46,15 +46,15 @@ Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals] [-1|
 int
 main(int argc, char *argv[])
 {
-    char         *object_file, *output_surface_file;
-    File_formats     format;
-    int          i, n_objects, curvtype, sign;
-    int          *n_neighbours, **neighbours, use_abs_values;
-    object_struct    **objects;
-    polygons_struct    *polygons;
-    double         *curvatures, distance;
-    float        fwhm;
-    BOOLEAN        smoothing;
+    char *object_file, *output_surface_file;
+    File_formats format;
+    int i, n_objects, curvtype, sign;
+    int *n_neighbours, **neighbours, use_abs_values;
+    object_struct **objects;
+    polygons_struct *polygons;
+    double *curvatures, distance;
+    float fwhm;
+    BOOLEAN smoothing;
 
     initialize_argument_processing(argc, argv);
 
@@ -84,7 +84,7 @@ main(int argc, char *argv[])
 
     polygons = get_polygons_ptr(objects[0]);
 
-    ALLOC(curvatures, polygons->n_points);
+    curvatures = (double *) malloc(sizeof(double) * polygons->n_points);
   
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
@@ -137,7 +137,7 @@ main(int argc, char *argv[])
     delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);
     delete_object_list(n_objects, objects);
-    FREE(curvatures);
+    free(curvatures);
   
     return(EXIT_SUCCESS);
 }
