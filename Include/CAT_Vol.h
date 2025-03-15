@@ -56,6 +56,10 @@ void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_close(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_open(void *vol, int dims[3], int niter, double th, int datatype);
+void grey_erode(void *data, int dims[3], int niter, int datatype);
+void grey_dilate(void *data, int dims[3], int niter, int datatype);
+void grey_open(void *data, int dims[3], int niter, int datatype);
+void grey_close(void *data, int dims[3], int niter, int datatype);
 void distclose(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
 void distopen(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
 void subsample3(void *in, void *out, int dims[3], int dims_samp[3], int datatype);
@@ -66,7 +70,7 @@ void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
-void fill_holes(void *data, double thresh, int *dims, int datatype);
-void gradient3D_magnitude(float *src, float *grad_mag, int dims[3]);
+void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype);
+void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, float *grad_z, int dims[3], double voxelsize[3]);
 
 #endif

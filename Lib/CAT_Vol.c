@@ -52,7 +52,7 @@ void ind2sub(int i, int *x, int *y, int *z, int sxy, int sx) {
  * See Also:
  *  - ind2sub function for the inverse operation.
  */
-int sub2ind(int x, int y, int z, int s[]) {
+int sub2ind(int x, int y, int z, int s[3]) {
     // Boundary handling to ensure coordinates are within array limits
     x = (x < 0) ? 0 : (x > s[0] - 1) ? s[0] - 1 : x; 
     y = (y < 0) ? 0 : (y > s[1] - 1) ? s[1] - 1 : y; 
@@ -80,7 +80,7 @@ int sub2ind(int x, int y, int z, int s[]) {
  *
  * Note: The function modifies the input array to store the results.
  */
-void localstat_double(double *input, unsigned char mask[], int dims[3], int dist, 
+void localstat_double(double *input, unsigned char *mask, int dims[3], int dist, 
                     int stat_func, int iters, int use_euclidean_dist)
 {
     double *arr;
@@ -178,7 +178,7 @@ void localstat_double(double *input, unsigned char mask[], int dims[3], int dist
 /**
  * wrapper to call localstat_double for any data type 
  */
-void localstat3(void *data, unsigned char mask[], int dims[3], int dist, 
+void localstat3(void *data, unsigned char *mask, int dims[3], int dist, 
                     int stat_func, int iters, int use_euclidean_dist, int datatype)
 {
     int nvox;
@@ -291,7 +291,7 @@ void pmin(float *A, int sA, float *minimum, int *index)
  *  - The function uses linear interpolation based on the values of the 8 nearest neighbours.
  *  - Coordinates are in C-notation. See 'ind2sub' for details on coordinate system.
  */
-float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *nii_ptr) {
+float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *nii_ptr) {
     float seg = 0.0, n = 0.0;
     float world_coords[3] = {x, y, z}; // Define world coordinates (in mm)
     int i;
@@ -357,8 +357,8 @@ float isoval(float vol[], float x, float y, float z, int dims[], nifti_image *ni
  * Notes:
  * This is a slightly modified function from spm_conv_vol.c from SPM12.
  */
-static void convxy_float(float out[], int xdim, int ydim, double filtx[], double filty[], 
-                         int fxdim, int fydim, int xoff, int yoff, float buff[]) {
+static void convxy_float(float *out, int xdim, int ydim, double *filtx, double *filty, 
+                         int fxdim, int fydim, int xoff, int yoff, float *buff) {
     int x,y,k;
 
     for (y=0; y<ydim; y++) {
@@ -420,7 +420,7 @@ static void convxy_float(float out[], int xdim, int ydim, double filtx[], double
  * management.
  * This is a slightly modified function from spm_conv_vol.c from SPM12
 */
-int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
+int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
                 int fxdim, int fydim, int fzdim,
                 int xoff, int yoff, int zoff, float *oVol, int dims[3]) {
     float *tmp, *buff, **sortedv, *obuf;
@@ -510,7 +510,7 @@ int convxyz_float(float *iVol, double filtx[], double filty[], double filtz[],
  * management.
  * This is a slightly modified function from spm_conv_vol.c from SPM12
 */
-int convxyz_uint8(unsigned char *iVol, double filtx[], double filty[], double filtz[],
+int convxyz_uint8(unsigned char *iVol, double *filtx, double *filty, double *filtz,
     int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
     unsigned char *oVol, int dims[3])
 {
@@ -736,7 +736,7 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
  *  the relevant maximum value. This includes checking the range of projection, upper and lower distance 
  *  boundaries, and segmentation-based conditions.
  */
-float pmax(const float GMT[], const float PPM[], const float SEG[], const float ND[], const float WMD, const float SEGI, const int sA) {
+float pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, const float WMD, const float SEGI, const int sA) {
     float maximum = WMD;
     int i;
 
@@ -793,8 +793,8 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
     const int nvox = dims[0] * dims[1] * dims[2];
     const int x = dims[0], y = dims[1], xy = x * y;
     const float s2 = sqrt(2.0), s3 = sqrt(3.0);
-    const int   NI[] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbor index offsets
-    const float ND[] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbor distances
+    const int   NI[14] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbor index offsets
+    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbor distances
     const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbours
 
     // Variables for processing
@@ -959,8 +959,8 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
     const float s123 = (float) sqrt((double)s12*s12 + s3*s3); /* xyz - voxel size */
     
     /* indices of the neighbour Ni (index distance) and euclidean distance NW */
-    const int NI[] = { 0, -1,-x+1, -x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1}; 
-    const float  ND[] = {0.0, s1, s12, s2, s12, s13, s3,    s13, s123, s23, s123, s123, s23, s123};
+    const int NI[14] = { 0, -1,-x+1, -x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1}; 
+    const float  ND[14] = {0.0, s1, s12, s2, s12, s13, s3, s13, s123, s23, s123, s123, s23, s123};
     const int sN = sizeof(NI)/4; /* division by 4 to get from the number of bytes to the number of elements */ 
     float DN[sN];
     float DNm = FLT_MAX;
@@ -1097,7 +1097,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH) {
     const int nvox = x * y * z;
     
     // Indices of the neighbour and size of neighbours array
-    const int NI[] = { -1, 1, -x, x, -xy, xy }; 
+    const int NI[6] = { -1, 1, -x, x, -xy, xy }; 
     const int sN = sizeof(NI) / sizeof(NI[0]);
     
     int i, n, u, v, w, nu, nv, nw, ni, iter = 0, maxiter = 2000;
@@ -1200,7 +1200,7 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], double dist, 
     
     /* threshold input */
     for (z=0;z<dims[2];z++) for (y=0;y<dims[1];y++) for (x=0;x<dims[0];x++) 
-        buffer[sub2ind(x+band,y+band,z+band,dims2)] = (vol[sub2ind(x,y,z,dims)]>(float)th);
+        buffer[sub2ind(x+band,y+band,z+band,dims2)] = (vol[sub2ind(x,y,z,dims)] > (float)th);
 
     euclidean_distance(buffer, NULL, dims2, voxelsize, 0);
     for (i = 0; i<nvox2; i++)
@@ -1259,7 +1259,7 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     
     /* threshold input */
     for (i = 0; i<nvox; i++)
-        buffer[i] = 1.0 - ((float)vol[i]>th);
+        buffer[i] = 1.0 - ((float)vol[i] > th);
 
     euclidean_distance(buffer, NULL, dims, voxelsize, 0);
     for (i = 0; i<nvox; i++)
@@ -1542,6 +1542,92 @@ void morph_open(void *data, int dims[3], int niter, double th, int datatype)
     convert_input_type_float(data, buffer, nvox, datatype);
     morph_open_float(buffer, dims, niter, th, 0);
     convert_output_type_float(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
+void grey_erode(void *data, int dims[3], int niter, int datatype)
+{
+    int nvox;
+    double *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (double *)malloc(sizeof(double)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    localstat_double(buffer, NULL, dims, 1, F_MIN, niter, 0);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
+void grey_dilate(void *data, int dims[3], int niter, int datatype)
+{
+    int nvox;
+    double *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (double *)malloc(sizeof(double)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    localstat_double(buffer, NULL, dims, 1, F_MAX, niter, 0);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
+void grey_open(void *data, int dims[3], int niter, int datatype)
+{
+    int nvox;
+    double *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (double *)malloc(sizeof(double)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    localstat_double(buffer, NULL, dims, 1, F_MIN, niter, 0);
+    localstat_double(buffer, NULL, dims, 1, F_MAX, niter, 0);
+    convert_output_type(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
+void grey_close(void *data, int dims[3], int niter, int datatype)
+{
+    int nvox;
+    double *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (double *)malloc(sizeof(double)*nvox);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, nvox, datatype);
+    localstat_double(buffer, NULL, dims, 1, F_MAX, niter, 0);
+    localstat_double(buffer, NULL, dims, 1, F_MIN, niter, 0);
+    convert_output_type(data, buffer, nvox, datatype);
     
     free(buffer);
 }
@@ -1867,7 +1953,7 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
     unsigned char *mask, *maskr;
     float *biasfieldr;
     double mean_label[MAX_NC], mean_bias, voxelsizer[3];
-    double fwhm[] = {bias_fwhm, bias_fwhm, bias_fwhm};
+    double fwhm[3] = {bias_fwhm, bias_fwhm, bias_fwhm};
 
     // downsample resolution by factor samp to increase speed
     int samp = 2;
@@ -2461,15 +2547,17 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
  *
  * Parameters:
  *  data: Pointer to the input data buffer. This buffer is modified in-place.
- *  thresh: Threshold value used for identifying holes. Values below this threshold 
- *          are considered potential holes.
  *  dims: Array of 3 integers representing the dimensions of the 3D volume 
- *         (width, height, depth).
+ *        (width, height, depth).
+ *  thresh: Threshold value used for identifying holes. Values below this threshold 
+ *        are considered potential holes.
+ *  fill_value: Value with which the hole should be filled. A negative value means
+ *        that the filled value will be estimated based on the surrounding voxels.   
  *  datatype: An integer representing the datatype of the input data. This is used 
- *             to correctly interpret and manipulate the data buffer.
+ *        to correctly interpret and manipulate the data buffer.
  *
  */
-void fill_holes(void *data, double thresh, int *dims, int datatype)
+void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype)
 {
     int i, nvox;
     float *buffer, *mask_inv;
@@ -2499,12 +2587,18 @@ void fill_holes(void *data, double thresh, int *dims, int datatype)
     /* fill those values (=holes) that were removed by the previous keep_largest_cluster step */
     for (i = 0; i < nvox; ++i)
         mask_fill[i] = ((mask_inv[i] == 0.0) && (buffer[i] < thresh)) ? 1 : 0;
-    euclidean_distance(buffer, mask_fill, dims, NULL, 1);
-    
-    /* ensure a minimum filled value that is the threshold */
-    for (i = 0; i < nvox; ++i)
-        buffer[i] = ((mask_fill[i] == 1) && (buffer[i] < thresh)) ? thresh : buffer[i];
         
+    if (fill_value < 0.0) {
+        euclidean_distance(buffer, mask_fill, dims, NULL, 1);
+        
+        /* ensure a minimum filled value that is to the threshold*1.001 */
+        for (i = 0; i < nvox; ++i)
+            buffer[i] = ((mask_fill[i] == 1) && (buffer[i] <= thresh)) ? thresh*1.001 : buffer[i];
+    } else {
+        for (i = 0; i < nvox; ++i)
+            buffer[i] = (mask_fill[i] == 1) ? fill_value : buffer[i];
+    }
+            
     convert_output_type_float(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -2513,71 +2607,74 @@ void fill_holes(void *data, double thresh, int *dims, int datatype)
 }
 
 /**
- * get x-gradient of 3D volume
-*/
-float gradientX(float *src, int i, int j, int k, int dims[3]) 
-{
-    if( i > 0 )
-    {
-        if ( i < dims[0] - 1 )
-            return (src[sub2ind(i+1, j, k, dims)] - src[sub2ind(i-1, j, k, dims)])/2.0;
-        else
-            return src[sub2ind(i, j, k, dims)] - src[sub2ind(i-1, j, k, dims)];
-    }
-    else
-        return src[sub2ind(i+1, j, k, dims)] - src[sub2ind(i, j, k, dims)];
+ * Compute x-gradient of 3D volume
+ */
+float gradientX(float *src, int i, int j, int k, int dims[3], double voxelsize[3]) {
+    int index = sub2ind(i, j, k, dims);
+    float dx = voxelsize[0];  // X-axis voxel size
+
+    if (i > 0 && i < dims[0] - 1)
+        return (src[sub2ind(i + 1, j, k, dims)] - src[sub2ind(i - 1, j, k, dims)]) / (2.0 * dx);
+    else if (i == 0)
+        return (src[sub2ind(i + 1, j, k, dims)] - src[index]) / dx;
+    else  // i == dims[0] - 1
+        return (src[index] - src[sub2ind(i - 1, j, k, dims)]) / dx;
 }
 
 /**
- * get y-gradient of 3D volume
-*/
-float gradientY(float *src, int i, int j, int k, int dims[3]) 
-{
-    if( j > 0 )
-    {
-      if ( j < dims[1] - 1 )
-          return (src[sub2ind(i, j+1, k, dims)] - src[sub2ind(i, j-1, k, dims)])/2.0;
-      else
-          return src[sub2ind(i, j, k, dims)] - src[sub2ind(i, j-1, k, dims)];
-    }
-    else
-        return src[sub2ind(i, j+1, k, dims)] - src[sub2ind(i, j, k, dims)];
+ * Compute y-gradient of 3D volume
+ */
+float gradientY(float *src, int i, int j, int k, int dims[3], double voxelsize[3]) {
+    int index = sub2ind(i, j, k, dims);
+    float dy = voxelsize[1];  // Y-axis voxel size
+
+    if (j > 0 && j < dims[1] - 1)
+        return (src[sub2ind(i, j + 1, k, dims)] - src[sub2ind(i, j - 1, k, dims)]) / (2.0 * dy);
+    else if (j == 0)
+        return (src[sub2ind(i, j + 1, k, dims)] - src[index]) / dy;
+    else  // j == dims[1] - 1
+        return (src[index] - src[sub2ind(i, j - 1, k, dims)]) / dy;
 }
 
 /**
- * get z-gradient of 3D volume
-*/
-float gradientZ(float *src, int i, int j, int k, int dims[3]) 
-{
-    if( k > 0 )
-    {
-      if ( k < dims[2] - 1 )
-          return (src[sub2ind(i, j, k+1, dims)] - src[sub2ind(i, j, k-1, dims)])/2.0;
-      else
-          return src[sub2ind(i, j, k, dims)] - src[sub2ind(i, j, k-1, dims)];
-    }
-    else
-        return src[sub2ind(i, j, k-1, dims)] - src[sub2ind(i, j, k, dims)];
+ * Compute z-gradient of 3D volume
+ */
+float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3]) {
+    int index = sub2ind(i, j, k, dims);
+    float dz = voxelsize[2];  // Z-axis voxel size
+
+    if (k > 0 && k < dims[2] - 1)
+        return (src[sub2ind(i, j, k + 1, dims)] - src[sub2ind(i, j, k - 1, dims)]) / (2.0 * dz);
+    else if (k == 0)
+        return (src[sub2ind(i, j, k + 1, dims)] - src[index]) / dz;
+    else  // k == dims[2] - 1
+        return (src[index] - src[sub2ind(i, j, k - 1, dims)]) / dz;
 }
 
 /**
- * estimate magnitude of local gradient of 3D volume
-*/
-void gradient3D_magnitude(float *src, float *grad_mag, int dims[3])
-{
-    int i, j, k;
+ * Compute local gradient for a 3D volume
+ */
+void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, 
+                          float *grad_z, int dims[3], double voxelsize[3]) {
+    int i, j, k, index;
     float gradx, grady, gradz;
-    
-    if (grad_mag == NULL)
-        grad_mag = (float *)malloc(sizeof(float)*dims[0]*dims[1]*dims[2]);
     
     for (i = 0; i < dims[0]; ++i) {
         for (j = 0; j < dims[1]; ++j) {
             for (k = 0; k < dims[2]; ++k) {
-                gradx = gradientX(src, i, j, k, dims);
-                grady = gradientY(src, i, j, k, dims);
-                gradz = gradientZ(src, i, j, k, dims);
-                grad_mag[sub2ind(i, j, k, dims)] = sqrt(gradx*gradx + grady*grady + gradz*gradz);
+                index = sub2ind(i, j, k, dims);
+                gradx = gradientX(src, i, j, k, dims, voxelsize);
+                grady = gradientY(src, i, j, k, dims, voxelsize);
+                gradz = gradientZ(src, i, j, k, dims, voxelsize);
+                
+                /* Also output xyz-gradients */
+                if (grad_x) grad_x[index] = gradx;
+                if (grad_y) grad_y[index] = grady;
+                if (grad_z) grad_z[index] = gradz;
+
+                /* Also output gradient magnitude */
+                if (grad_mag)
+                    grad_mag[index] = sqrtf(gradx * gradx + grady * grady + gradz * gradz);
             }
         }
     }
