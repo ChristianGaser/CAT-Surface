@@ -23,12 +23,10 @@ double local_smoothing = 10.0;
 double min_threshold = 0.5;
 double post_fwhm = 2.0;
 double pre_fwhm = 2.0;
-double scl_open = 0.9;
+double dist_morph = FLT_MAX;
 int n_median_filter = 2;
-int use_distopen = 1;
-int any_genus = 0;
 int verbose = 0;
-int iter = 10;
+int n_iter = 10;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -49,6 +47,11 @@ static ArgvInfo argTable[] = {
      in folded areas like gyri and sulci. Note: Do not use smoothing\n\
      size > 3 mm for reliable compensation in these areas."},
   
+  {"-dist-morph", ARGV_FLOAT, (char *) TRUE, (char *) &dist_morph,
+    "Apply initial morphological open or close step. Close is used\n\
+     by a value around 1.0 and open by negative values around -1.0.\n\
+     The default automatically estimates the optimal value"},
+  
   {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &n_median_filter,
     "Specify the number of iterations to apply a median filter to areas\n\
      where the gradient of the thresholded image indicates larger clusters.\n\
@@ -56,25 +59,13 @@ static ArgvInfo argTable[] = {
      with high local variations. This process helps to smooth these areas, \n\
      improving the quality of the surface reconstruction in subsequent steps."},
   
-  {"-scl-opening", ARGV_FLOAT, (char *) TRUE, (char *) &scl_open,
-    "Manually set the scaling factor for morphological opening. This\n\
-     affects the isovalue for the opening process.\n\
-     Use -1 for automatic estimation."},
-  
-  {"-iter", ARGV_INT, (char *) TRUE, (char *) &iter,
+  {"-iter", ARGV_INT, (char *) TRUE, (char *) &n_iter,
     "Number of iterations."},
   
   {"-local-smoothing", ARGV_FLOAT, (char *) TRUE, (char *) &local_smoothing,
     "Apply local surface smoothing to resulting surface in areas where the distance\n\
      between the surface and a shifted surface is below the expected distance,\n\
      which often happens due to self intersections of the surface."},
-  
-  {"-no-distopen", ARGV_CONSTANT, (char *) FALSE, (char *) &use_distopen,
-    "Turn off the additional morphological opening feature."},
-  
-  {"-no-genus0", ARGV_CONSTANT, (char *) TRUE, (char *) &any_genus,
-    "Disable the genus0 functionality. This option skips topology\n\
-     correction steps."},
   
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
     "Enable verbose mode for detailed output during processing."},
@@ -88,7 +79,7 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
+Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii thresholded_map.nii]\n\
 \n\
     This method generates a mesh with an Euler number of 2 (genus 0) from the\n\
     thresholded volume. The process involves:\n\
@@ -139,11 +130,8 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file\n\
 
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
 
-
 void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2], int n_loops) {
-    float *vol_euler;
-    unsigned short *vol_bin;
-    int loop, i, x, y, z, nx, ny, nz, iter, val_corr;
+    int loop, i, x, y, z, iter, val_corr;
     int V, E, F, conn, chi_local, n_errors, cube[8];
     int edges18[18][2] = {
         {0,1}, {1,3}, {3,2}, {2,0}, // Bottom face edges
@@ -167,21 +155,28 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
         {0,1,5,4}, {2,3,7,6}  // XZ faces
     };
     
-    vol_euler = (float *)malloc(sizeof(float)*dims[0]*dims[1]*dims[2]);
-    vol_bin = (unsigned short *)malloc(sizeof(unsigned short)*dims[0]*dims[1]*dims[2]);
+    int nx = dims[0], ny = dims[1], nz = dims[2];
+    int nvol = nx*ny*nz;
+    
+    double mn = get_min(volume, nvol, 0, DT_FLOAT32);
+    double mx = get_max(volume, nvol, 0, DT_FLOAT32);
 
-    nx = dims[0], ny = dims[1], nz = dims[2];
+    float *vol_euler = (float *)malloc(sizeof(float)*nvol);
+    float *vol_euler_orig = (float *)malloc(sizeof(float)*nvol);
+    unsigned short *vol_bin = (unsigned short *)malloc(sizeof(unsigned short)*nvol);
 
     // Initialize Euler map
-    for (i = 0; i < nx * ny * nz; i++)
+    for (i = 0; i < nvol; i++) {
         vol_euler[i] = (volume[i] >= thresh) ? 1.0 : 0.0;
+        vol_euler_orig[i] = vol_euler[i];
+    }
 
     for (iter = 0; iter < 50; iter++) {
         n_errors = 0;
         for (loop = 0; loop < n_loops; loop++) {
     
             // Threshold volume
-            for (i = 0; i < nx * ny * nz; i++)
+            for (i = 0; i < nvol; i++)
                 vol_bin[i] = (volume[i] > thresh) ? 1.0 - (float)loop : 0.0 + (float)loop;
                 
             conn = conn_arr[((loop + iter) % 2)];
@@ -239,82 +234,30 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
                 }
             }
         }
-        //printf("%d\n", n_errors);
-        for (i = 0; i < dims[0]*dims[1]*dims[2]; i++)
-            volume[i] = vol_euler[i];
+        
+        /* Apply changes to volume */
+        for (i = 0; i < nvol; i++)
+            volume[i] = (vol_euler[i] < vol_euler_orig[i]) ? mn : volume[i];
+            volume[i] = (vol_euler[i] > vol_euler_orig[i]) ? mx : volume[i];
             
         if (n_errors == 0) break;
     }
     
     free(vol_euler);
     free(vol_bin);
+    free(vol_euler_orig);
 
 }
 
-int   
-main(
-    int   argc,
-    char  *argv[])
-{
-    char                *input_filename, *output_filename;
-    char                out_diff[1024], out_bin[1024];;
-    double              min_label, max_label, start_scl_open, dist;
-    double              valid_low, valid_high, val, RMSE, sum_RMSE;
-    double              *values, *extents, voxelsize[N_DIMENSIONS];
-    double              x, y, z, min_value;
-    double              max_value, mean_grad, max_grad;
-    float               *input_float, *vol_float;
-    float               *grad, weight;
-    int                 i, j, k, c, n_values, conn_arr[2], n_loops;
-    int                 n_out, EC, dims[MAX_DIMENSIONS];
-    int                 nvol, ind, count, stop_distopen, replace = 0;
-    unsigned short      *input_uint16;
-    unsigned char       *input_uint8, *vol_uint8;
-    Marching_cubes_methods    method;
-    object_struct       *object, **object2, *object3, **object4;
-    polygons_struct     *polygons, *smooth_polygons;
-    nifti_image         *nii_ptr, *out_ptr;
-    mat44               nii_mat;
+/* Function to apply marching cubes and extract polygons */
+object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr) {
+    double voxelsize[N_DIMENSIONS];
+    double best_dist;
+    int dims[MAX_DIMENSIONS], i, k, nvol, count_change = 0, best_change_values;
+    object_struct **object2;
+    Marching_cubes_methods method = (Marching_cubes_methods)1;
 
-    initialize_argument_processing(argc, argv);
-
-    /* get the arguments from the command line */
-    if (ParseArgv(&argc, argv, argTable, 0)) {
-        usage(argv[0]);
-        fprintf(stderr, "     %s -help\n\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    if (!get_string_argument(NULL, &input_filename) ||
-        !get_string_argument(NULL, &output_filename))
-    {
-        usage(argv[0]);
-        fprintf(stderr, "     %s -help\n\n", argv[0]);
-        return(1);
-    }
-    
-    if(argc > 3)
-        (void) sprintf(out_diff, "%s", argv[3]); 
-
-    if(argc > 4)
-        (void) sprintf(out_bin, "%s", argv[4]); 
-
-    /* marching cubes without holes */
-    method = (Marching_cubes_methods) 1;
-
-    valid_low  =  0.0;
-    valid_high = -1.0;
-    min_label  =  0.0;
-    max_label  = -1.0;
-    
-    nii_ptr = read_nifti_float(input_filename, &input_float, 0);
-    if (!nii_ptr) {
-        fprintf(stderr,"Error reading %s.\n", input_filename);
-        return(EXIT_FAILURE);
-    }
-
-    nii_mat = nii_ptr->sto_xyz; /* 4x4 transformation matrix */
-    
+    mat44 nii_mat = nii_ptr->sto_xyz;
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
@@ -322,311 +265,253 @@ main(
     voxelsize[1] = nii_ptr->dy;
     voxelsize[2] = nii_ptr->dz;
 
-    object  = create_object(POLYGONS);
-    object3 = create_object(POLYGONS);
-    polygons = get_polygons_ptr(object);
-        
-    nvol = dims[0]*dims[1]*dims[2];
+    nvol = dims[0] * dims[1] * dims[2];
 
-    grad         = (float *)malloc(nvol*sizeof(float));
-    vol_float    = (float *)malloc(nvol*sizeof(float));
-    input_uint16 = (unsigned short *) malloc(nvol*sizeof(unsigned short));  
-    input_uint8  = (unsigned char  *) malloc(nvol*sizeof(unsigned char));  
-    vol_uint8    = (unsigned char  *) malloc(nvol*sizeof(unsigned char));
+    /* Memory allocation */
+    float *vol_changed = (float *)calloc(nvol, sizeof(float));
+    float *vol_float = (float *)malloc(nvol * sizeof(float));
+    unsigned short *vol_uint16 = (unsigned short *)malloc(nvol * sizeof(unsigned short));
+    unsigned char *vol_uint8 = (unsigned char *)malloc(nvol * sizeof(unsigned char));
 
-    if (!vol_float || !input_uint16 || !input_uint8 || !vol_uint8) {
-        fprintf(stderr,"Memory allocation error\n");
+    if (!vol_float || !vol_uint16 || !vol_uint8) {
+        fprintf(stderr, "Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
-    /* We have to scale image to a maximum of 1.0 if isoval > 1.0 */
+    /* Normalize input if necessary */
     if (min_threshold > 1.0) {
-        max_value = get_max(input_float, nvol, 0, DT_FLOAT32);
+        double max_value = get_max(input_float, nvol, 0, DT_FLOAT32);
         for (i = 0; i < nvol; i++) input_float[i] /= (float)max_value;
-        min_threshold = min_threshold/max_value;
+        min_threshold /= max_value;
     }
-    
+
     /* Preprocessing Step: Smoothing Filter
        - Purpose: To remove outliers in the input image.
        - Method: A weighted average is calculated between the original image and the 
          smoothed image to protect the structural integrity of gyri and sulci.
        - Weight Estimation: Based on the gradient of the input image.
-         * For values below mean gradient, the weight is 0.
+         For values below mean gradient, the weight is 0.
        - Enhanced Weighting: Weights are squared to emphasize larger weightings,
          providing a more robust distinction between regions of interest and outliers.
     */
-    if (pre_fwhm != 0.0) {
-    
+    if (pre_fwhm) {
+        float *grad = (float *)malloc(nvol * sizeof(float));
+        if (!grad) {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        
         for (i = 0; i < nvol; i++)
             vol_float[i] = input_float[i];
+
         double s[] = {pre_fwhm, pre_fwhm, pre_fwhm};
         smooth3(vol_float, dims, voxelsize, s, 0, DT_FLOAT32);
-        
-        /* estimate magnitude of gradient for weighting the smoothing */
-        gradient3D_magnitude(input_float, grad, dims);
 
-        /* calculate mean of gradient (where gradient > 0) */
-        mean_grad = get_mean(grad, nvol, 1, DT_FLOAT32);
-        max_grad  = get_max(grad, nvol, 1, DT_FLOAT32);
-        
-        /* Protect values in sulci and gyri and weight areas with filtered values 
-          depending on gradient of input image */
+        gradient3D(input_float, grad, NULL, NULL, NULL, dims, voxelsize);
+        double mean_grad = get_mean(grad, nvol, 1, DT_FLOAT32);
+        double max_grad = get_max(grad, nvol, 1, DT_FLOAT32);
+
         for (i = 0; i < nvol; i++) {
-            /* estimate weight using gradient of input image and limit range to 0..1 */
-            weight = (grad[i] - mean_grad)/(max_grad - mean_grad);
+            float weight = (grad[i] - mean_grad) / (max_grad - mean_grad);
             weight = (weight < 0.0) ? 0.0f : weight;
             weight = (weight > 1.0) ? 1.0f : weight;
-            
-            /* emphasize large weightings by using the squared value */
             weight *= weight;
-            
-            /* weighted average of filtered and original input */
-            input_float[i] = (1.0 - weight)*input_float[i] + weight*vol_float[i];
-        }
-    }
-            
-    /* Analyzing the Impact of scl_open Values
-       - Range: scl_open values are analyzed between 1.5 and 0.5 using distopen.
-       - Purpose: To track RMSE (Root Mean Square Error) changes across these values.
-       - Observations:
-         * Large scl_open values (closer to 1.5): These significantly and stably 
-           affect the entire image, leading to smaller gyri and wider sulci.
-         * Small scl_open values (closer to 0.5): These cause only localized changes,
-           impacting primarily areas with artifacts (e.g., vessels, poor skull-stripping),
-           resulting in smaller alterations.
-       - Optimal Value Determination: The ideal scl_open value is identified at the 
-         point where a significant decrease in RMSE is observed. This indicates effective 
-         artifact removal while preserving the overall structure of gyri and sulci.
-    */
 
-    /* default scl_open is negative that indicates automatically search for 
-       optimal scl_open value
-    */
-    if (scl_open < 0)
-    {
-        stop_distopen = 0;
-        start_scl_open = 1.5;
-    } else {
-        stop_distopen = 1;
-        start_scl_open = scl_open;
+            input_float[i] = (1.0 - weight) * input_float[i] + weight * vol_float[i];
+        }
+        free(grad);
     }
     
-    sum_RMSE = 0.0;
-    count = 0;
-
-    /* apply cluster function the 1st time and keep largest cluster after thresholding */
+    /* Apply iterative median filter to strengthen structures */
+    unsigned char *mask = (unsigned char *)malloc(nvol * sizeof(unsigned char));
+    for (i = 0; i < nvol; i++)
+        mask[i] = input_float[i] != 0;
+    
+    median3(input_float, mask, dims, 3, DT_FLOAT32);
+    free(mask);
+            
+    /* Keep largest cluster and fill holes */
     keep_largest_cluster(input_float, min_threshold, dims, DT_FLOAT32, 0, 1, 18);
-    fill_holes(input_float, min_threshold, dims, DT_FLOAT32);
+    fill_holes(input_float, dims, min_threshold, -1.0, DT_FLOAT32);
 
-    conn_arr[0] = 18; conn_arr[1] = 26;
-    n_loops = 2;
-    correct_topology(input_float, min_threshold, dims, conn_arr, n_loops);
+    /* Correct topology */
+    int conn_arr[2] = {18, 26};
+    correct_topology(input_float, min_threshold, dims, conn_arr, 2);
 
-    for (scl_open = start_scl_open; scl_open > 0.4; scl_open -= 0.1)
-    {
-        /* Skip morphological opening if distopen is disabled */
-        if (!use_distopen) scl_open = 1.0;
-      
-        /* We first apply a slightly different threshold for initial mask 
-           to allow to control amount of morphological opening */
-        for (i = 0; i < nvol; i++)
-            input_uint8[i] = (double)input_float[i] >= (scl_open*min_threshold) ? 1 : 0;
-    
-        /* Interrupt here if distopen is disabled and use default scl_open value */
-        if (!use_distopen) break;
+    /* Apply genus-0 correction */
+    genus0parameters g0[1];
+    genus0init(g0);
+    for (i = 0; i < N_DIMENSIONS; i++) g0->dims[i] = dims[i];
 
-        /* Optional morphological opening with distance criteria (distopen)
-           Additionaly adapt dist parameter w.r.t. scl_open  */
-        dist = 0.75/(scl_open*min_threshold);
-        distopen(input_uint8, dims, voxelsize, dist, 0.0, DT_UINT8);
-
-        /* Apply threshold to original input image, but keep any changes from 
-           the above distopen. This ensures correct position using the original
-           isoval, but opens (glued) areas using a different threshold from above */
-        for (i = 0; i < nvol; i++)
-            input_uint8[i] = (double)input_float[i] >= min_threshold ? ((input_uint8[i] == 0) ? 0 : 1) : 0;
-        
-        /* Stop after one additional iteration */
-        if (stop_distopen > 0) break;
-        
-        /* Calulate RMSE between actual and previous distopen and stop if
-           changes in RMSE are getting much smaller to obtain the optimal 
-           scl_open parameter */
-        if (count)
-        {
-            RMSE = 0.0;
-            for (i = 0; i < nvol; i++)
-            {
-                val = (double)input_uint8[i] - (double)vol_uint8[i];  
-                RMSE += val*val;
-            } 
-
-            RMSE = sqrt(RMSE/(double)nvol);
-            sum_RMSE += RMSE;
-            
-            if (verbose) fprintf(stderr,"%5.2f\t%5.4f\t%5.4f\n",scl_open,sum_RMSE/RMSE/(double)count,RMSE);
-            
-            /* Indicate stop if changes are getting smaller by a factor of 1.5 */
-            if (sum_RMSE/RMSE/(double)count > 1.5) {
-                if (!verbose) fprintf(stderr,"Final threshold for distopen: %5.2f\n",scl_open);
-                break;    
-            }
-        }
-        
-        /* save previous image after distopen */ 
-        for (i = 0; i < nvol; i++)
-            vol_uint8[i] = input_uint8[i];   
-
-        count++;        
-    }
-    
-    for (i = 0; i < nvol; i++)
-        grad[i] = 0.0;
-
-    genus0parameters g0[1]; /* need an instance of genus0 parameters */
-
-    genus0init(g0); /* initialize the instance, set default parameters */
-    
-    /* we need uint16 for genus0 approach */
-    for (i = 0; i < nvol; i++)
-        input_uint16[i] = (unsigned short)input_uint8[i];
-
-    /* set some parameters/options for the first iteration */
-    for(j = 0; j <N_DIMENSIONS; j++) g0->dims[j] = dims[j];
+    g0->input = vol_uint16;
     g0->connected_component = 1;
     g0->value = 1;
     g0->contour_value = 1;
-    g0->any_genus = any_genus;
+    g0->any_genus = 0;
     g0->biggest_component = 1;
     g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
     g0->ijk2ras = NULL;
     g0->verbose = 0;
     g0->return_surface = 0;
     g0->extraijkscale[2] = 1;
+
+    /* Iterative genus-0 correction */
+    int count = 0, EC = -1;
+
+    object_struct *object = create_object(POLYGONS);
+    polygons_struct *polygons = get_polygons_ptr(object);
     
-    count = 0;
-    EC = -1;
+    /* Find optimal dist-parameter for open/close to minimize the number of voxel that
+       have to be changed during topology correction */
+    if (dist_morph == FLT_MAX) {
+        double dist_values[] = {-1.0, -0.5, 0.0, 0.5, 1.0, 1.5};
+        int change_values[] = {0, 0, 0, 0, 0, 0};
+        int n_values = sizeof(change_values) / sizeof(change_values[0]);
+        for (k = 0; k < n_values; k++) {
     
-    if (verbose) {
-        for (i = 0; i < nvol; i++)
-            vol_float[i] = input_uint16[i];
-        keep_largest_cluster(vol_float, min_threshold, dims, DT_FLOAT32, 0, 1, 18);
-        fill_holes(vol_float, min_threshold, dims, DT_UINT16);
-
-        /* extract surface to check euler number */
-        extract_isosurface(vol_float, dims,
-                  min_label, max_label,
-                  nii_mat,
-                  method, FALSE,
-                  min_threshold, min_threshold,
-                  valid_low, valid_high, polygons, verbose);
-        compute_polygon_normals(polygons);
-        check_polygons_neighbours_computed(polygons);
-        n_out = separate_polygons(polygons, -1, &object2);          
-        triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
-        polygons = get_polygons_ptr(object3);
-
-        EC = euler_characteristic(polygons);
-        fprintf(stderr,"Euler characteristics before correction is %d.\n", EC);
-    }
-
-
-    /* repeat until EC is 2 or max. count is reached */
-    while ((EC != 2) && (count < iter)) {        
-        /* call genus0 for the 1st time */
-        g0->input = input_uint16;
-        g0->cut_loops = 0;
-        g0->connectivity = 6;
-        g0->alt_value = 1;
-        g0->alt_contour_value = 1;
-
-        /* call the function */
-        if (~any_genus) {
-            if (genus0(g0)) return(1); /* check for error */
+            for (i = 0; i < nvol; i++)
+                vol_uint16[i] = (input_float[i] >= min_threshold) ? 1 : 0;
+    
+            if (dist_values[k] > 0.0)
+                distclose(vol_uint16, dims, voxelsize, dist_values[k], 0.0, DT_UINT16);
+            else if (dist_values[k] < 0.0)
+                distopen(vol_uint16, dims, voxelsize, -dist_values[k], 0.0, DT_UINT16);
+    
+            /* call genus0 for the 1st time */
+            g0->input = vol_uint16;
+            g0->cut_loops = 0;
+            g0->connectivity = 6;
+            g0->alt_value = 1;
+            g0->alt_contour_value = 1;
+            if (genus0(g0)) return(NULL); /* check for error */
         
             /* save results as next input */
             for (i = 0; i < nvol; i++)
-                input_uint16[i] = g0->output[i];
-        }
-        
-        for (i = 0; i < nvol; i++)
-            grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
-
-        /* call genus0 a 2nd time with other parameters */
-        g0->input = input_uint16;
-        g0->cut_loops = 1;
-        g0->connectivity = 18;
-        g0->alt_value = 0;
-        g0->alt_contour_value = 0;
+                vol_uint16[i] = g0->output[i];
     
-        if (any_genus) {
+            /* save changes */
             for (i = 0; i < nvol; i++)
-                g0->output[i] = input_uint16[i];
-            count = 10;
-        } else {
-            if (genus0(g0)) return(1); 
+                change_values[k] += (int)fabs((float)g0->output[i] - (float)g0->input[i]);   
+    
+            /* call genus0 a 2nd time with other parameters */
+            g0->input = vol_uint16;
+            g0->cut_loops = 1;
+            g0->connectivity = 18;
+            g0->alt_value = 0;
+            g0->alt_contour_value = 0;    
+            if (genus0(g0)) return(NULL); 
+    
+            /* save changes */
+            for (i = 0; i < nvol; i++)
+                change_values[k] += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
+            if (change_values[k] == 0) {
+                n_values = k+1;
+                break;
+            }
         }
+        int ind_min_value;
+        int min_value = 1E9;
+        for (k = 0; k < n_values; k++) {
+            if (change_values[k] < min_value) {
+                min_value = change_values[k];
+                ind_min_value = k;
+            }
+        }
+        best_dist = dist_values[ind_min_value];
+        best_change_values = change_values[ind_min_value];
+    } else {
+        best_dist = dist_morph;
+        best_change_values = 1E3;
+    }    
+    if (verbose) printf("Optimal dist-parameter for morphological operations: %f\n", best_dist);
 
-        for (i = 0; i < nvol; i++)
-            grad[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
- 
-        /* apply median-correction and only consider the dilated areas */
-        if (n_median_filter) {
-            /* find areas that were corrected for topology artefacts and dilate them */
+    /* Convert to binary image */
+    for (i = 0; i < nvol; i++)
+        vol_uint16[i] = (input_float[i] >= min_threshold) ? 1 : 0;
+    
+    while ((EC != 2) && (count < n_iter)) {
+        
+        /* Only move on if topology correction is still necessary */
+        if (best_change_values > 0) {
+            if (best_dist > 0.0)
+                distclose(vol_uint16, dims, voxelsize, best_dist, 0.0, DT_UINT16);
+            else if (best_dist < 0.0)
+                distopen(vol_uint16, dims, voxelsize, -best_dist, 0.0, DT_UINT16);
+    
+            /* call genus0 for the 1st time */
+            g0->input = vol_uint16;
+            g0->cut_loops = 0;
+            g0->connectivity = 6;
+            g0->alt_value = 1;
+            g0->alt_contour_value = 1;
+            if (genus0(g0)) return(NULL); /* check for error */
+        
+            /* save results as next input */
             for (i = 0; i < nvol; i++)
-                vol_uint8[i] = (unsigned char)(input_uint16[i] != g0->output[i]);
+                vol_uint16[i] = g0->output[i];
+    
+            /* save changes */
+            for (i = 0; i < nvol; i++)
+                vol_changed[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);   
+    
+            /* call genus0 a 2nd time with other parameters */
+            g0->input = vol_uint16;
+            g0->cut_loops = 1;
+            g0->connectivity = 18;
+            g0->alt_value = 0;
+            g0->alt_contour_value = 0;    
+            if (genus0(g0)) return(NULL); 
+    
+            /* save changes */
+            count_change = 0;
+            for (i = 0; i < nvol; i++) {
+                vol_changed[i] += (float)(count + 1)*((float)g0->output[i] - (float)g0->input[i]);
+                if (vol_changed[i] != 0.0) count_change++;
+            }
                 
-            morph_dilate(vol_uint8, dims, 4, 0.5, DT_UINT8);
-
-            /* use previous output for filtering */
-            for (i = 0; i < nvol; i++)
-                input_uint16[i] = g0->output[i];
-            
-            /* Apply iterative median filter */
-            localstat3(input_uint16, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_UINT16);
-
-            /* apply iterative median filter */
-            median3(input_uint16, NULL, dims, n_median_filter, DT_UINT16);
-
-            /* replace genus0 output with its median filtered version in (dilated)
-               areas with topology artefacts */
-            for (i = 0; i < nvol; i++)
-                g0->output[i] = (unsigned short)(((vol_uint8[i] > 0)) ? input_uint16[i] : g0->output[i]);
+            if (n_median_filter) {
+                /* find areas that were corrected for topology artefacts and dilate them */
+                for (i = 0; i < nvol; i++)
+                    vol_uint8[i] = (unsigned char)(vol_uint16[i] != g0->output[i]);
+                    
+                morph_dilate(vol_uint8, dims, 4, 0.5, DT_UINT8);
+    
+                /* use previous output for filtering */
+                for (i = 0; i < nvol; i++)
+                    vol_uint16[i] = g0->output[i];
+                
+                /* Apply iterative median filter */
+                median3(vol_uint16, NULL, dims, n_median_filter, DT_UINT16);
+    
+                /* replace genus0 output with its median filtered version in (dilated)
+                   areas with topology artefacts */
+                for (i = 0; i < nvol; i++)
+                    g0->output[i] = (unsigned short)(((vol_uint8[i] > 0)) ? vol_uint16[i] : g0->output[i]);
+            }
         }
         
-        /* apply cluster function a 2nd time and keep largest cluster after thresholding */
         keep_largest_cluster(g0->output, min_threshold, dims, DT_UINT16, 0, 1, 18);
-        fill_holes(g0->output, min_threshold, dims, DT_UINT16);
+        fill_holes(g0->output, dims, min_threshold, -1.0, DT_UINT16);
 
         for (i = 0; i < nvol; i++)
             vol_float[i] = (float)g0->output[i];
-            
-        /* extract surface to check euler number */
-        extract_isosurface(vol_float, dims,
-                  min_label, max_label,
-                  nii_mat,
-                  method, FALSE,
-                  min_threshold, min_threshold,
-                  valid_low, valid_high, polygons, verbose);
+
+        extract_isosurface(vol_float, dims, 0.0, -1.0, nii_mat, method, FALSE,
+                           min_threshold, min_threshold, 0.0, -1.0, polygons, verbose);
+
         compute_polygon_normals(polygons);
         check_polygons_neighbours_computed(polygons);
-        n_out = separate_polygons(polygons, -1, &object2);          
-        triangulate_polygons(get_polygons_ptr(object2[0]), get_polygons_ptr(object3));
-        polygons = get_polygons_ptr(object3);
+        int n_out = separate_polygons(polygons, -1, &object2);          
+        triangulate_polygons(get_polygons_ptr(object2[0]), polygons);
 
         EC = euler_characteristic(polygons);
         count++;
-        if (verbose) fprintf(stderr,"Euler characteristics after %d iterations is %d.\n", count, EC);
-
+        if (verbose) printf("Euler characteristics after %d iterations is %d (%d voxel changed).\n", count, EC, count_change);
+  
         /* save results as next input */
         for (i = 0; i < nvol; i++)
-            input_uint16[i] = g0->output[i];
-    
+            vol_uint16[i] = g0->output[i];
     }
-
-    free(input_uint8);
-
-    if (verbose && (n_out > 1)) fprintf(stderr,"Extract largest of %d components.\n",n_out);
 
     /* Mesh Correction in Folded Areas
        - Objective: To compensate for the averaging effect observed in gyri and sulci.
@@ -650,23 +535,22 @@ main(
          the surface.
     */
     if (local_smoothing > 0.0) {
-        values  = (double *) malloc(sizeof(double) * polygons->n_points);
-        extents = (double *) malloc(sizeof(double) * polygons->n_points);
-
-        smooth_polygons = (polygons_struct *) malloc(sizeof(polygons_struct));
+        double *values = (double *)malloc(sizeof(double) * polygons->n_points);
+        double *extents = (double *)malloc(sizeof(double) * polygons->n_points);
+        polygons_struct *smooth_polygons = (polygons_struct *)malloc(sizeof(polygons_struct));
         copy_polygons(polygons, smooth_polygons);
 
         for (i = 0; i < polygons->n_points; i++) {
             extents[i] = 0.1;
-            values[i]  = 3.0;
+            values[i] = 3.0;
         }
 
-        object4 = central_to_new_pial(polygons, values, extents, NULL, NULL, 0, 0);
-        compute_exact_hausdorff(polygons, get_polygons_ptr(object4[0]), values, 0);
+        object2 = central_to_new_pial(polygons, values, extents, NULL, NULL, 0, 0);
+        compute_exact_hausdorff(polygons, get_polygons_ptr(object2[0]), values, 0);
         smooth_heatkernel(polygons, values, 5.0);
-        
-        min_value = 0.25;
-        max_value = 0.3;
+
+        double min_value = 0.25;
+        double max_value = 0.3;
         for (i = 0; i < polygons->n_points; i++) {
             /* scale values between 0.25..0.3 and force min=0 and max=1 */
             values[i] = (values[i] - min_value)/(max_value - min_value);
@@ -684,33 +568,72 @@ main(
         /* use smoothed or original surface w.r.t. weighting */ 
         for (i = 0; i < polygons->n_points; i++)
             Point_x(polygons->points[i]) = values[i]*Point_x(polygons->points[i]) + (1.0 - values[i])*Point_x(smooth_polygons->points[i]);
-        
+
         free(smooth_polygons);
         free(values);
         free(extents);
     }
 
-    if(argc > 3) {
-        out_ptr = nifti_copy_nim_info(nii_ptr);
-        if (!write_nifti_float(out_diff, grad, DT_FLOAT32, 1.0, dims, voxelsize, out_ptr)) 
-            exit(EXIT_FAILURE);
-    }
+    for (i = 0; i < nvol; i++)
+        input_float[i] = vol_changed[i];
 
-    if(argc > 4) {
-        out_ptr = nifti_copy_nim_info(nii_ptr);
-        if (!write_nifti_float(out_bin, vol_float, DT_FLOAT32, 1.0, dims, voxelsize, out_ptr)) 
-            exit(EXIT_FAILURE);
-    }
-
-    compute_polygon_normals(get_polygons_ptr(object3));
-    output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object3, NULL);
-
-    free(grad);
+    free(vol_changed);
     free(vol_uint8);
-    free(input_uint16);
-    free(input_float);
+    free(vol_uint16);
     free(vol_float);
-    delete_marching_cubes_table();
+    
+    return object;
+}
 
-    return(0);
+int main(int argc, char *argv[]) {
+    float *input_float;
+    char out_diff[1024];
+
+    initialize_argument_processing(argc, argv);
+
+    /* get the arguments from the command line */
+    if (ParseArgv(&argc, argv, argTable, 0)) {
+        usage(argv[0]);
+        fprintf(stderr, "     %s -help\n\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    char *input_filename, *output_filename;
+    if (!get_string_argument(NULL, &input_filename) || !get_string_argument(NULL, &output_filename)) {
+        usage(argv[0]);
+        fprintf(stderr, "Usage: CAT_VolMarchingCubes input.nii output_surface_file\n");
+        return EXIT_FAILURE;
+    }
+
+    /* Read input volume */
+    nifti_image *nii_ptr = read_nifti_float(input_filename, &input_float, 0);
+    if (!nii_ptr) {
+        fprintf(stderr, "Error reading %s.\n", input_filename);
+        return EXIT_FAILURE;
+    }
+
+    object_struct *object = apply_marching_cubes(input_float, nii_ptr);
+    if (object) {
+        output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
+    } else {
+        fprintf(stderr, "Error generating surface.\n");
+    }
+
+    if(argc > 3) {
+        double voxelsize[N_DIMENSIONS];
+        int dims[MAX_DIMENSIONS];
+        dims[0] = nii_ptr->nx;
+        dims[1] = nii_ptr->ny;
+        dims[2] = nii_ptr->nz;
+        voxelsize[0] = nii_ptr->dx;
+        voxelsize[1] = nii_ptr->dy;
+        voxelsize[2] = nii_ptr->dz;
+        (void) sprintf(out_diff, "%s", argv[3]); 
+        if (!write_nifti_float(out_diff, input_float, DT_FLOAT32, 1.0, dims, voxelsize, nii_ptr)) 
+            exit(EXIT_FAILURE);
+    }
+
+    free(input_float);
+    delete_marching_cubes_table();
+    return 0;
 }
