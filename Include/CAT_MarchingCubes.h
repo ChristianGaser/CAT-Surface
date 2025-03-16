@@ -17,7 +17,6 @@
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
 
 /* argument defaults */
-double local_smoothing = 10.0;
 double min_threshold = 0.5;
 double post_fwhm = 2.0;
 double pre_fwhm = 2.0;

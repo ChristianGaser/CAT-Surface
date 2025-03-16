@@ -762,53 +762,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr) {
         correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
     }
 
-    /* Mesh Correction in Areas with Self Intersections
-       - Objective: To correct areas with self intersections
-       - Method: Apply local surface smoothing to resulting surface in areas 
-         where the distance between the surface and a shifted surface is below 
-         the expected distance, which often happens due to self intersections of 
-         the surface.
-    */
-    if (local_smoothing > 0.0) {
-        double *values = (double *)malloc(sizeof(double) * polygons->n_points);
-        double *extents = (double *)malloc(sizeof(double) * polygons->n_points);
-        polygons_struct *smooth_polygons = (polygons_struct *)malloc(sizeof(polygons_struct));
-        copy_polygons(polygons, smooth_polygons);
-
-        for (i = 0; i < polygons->n_points; i++) {
-            extents[i] = 0.1;
-            values[i] = 3.0;
-        }
-
-        object2 = central_to_new_pial(polygons, values, extents, NULL, NULL, 0, 0);
-        compute_exact_hausdorff(polygons, get_polygons_ptr(object2[0]), values, 0);
-        smooth_heatkernel(polygons, values, 5.0);
-
-        double min_value = 0.25;
-        double max_value = 0.3;
-        for (i = 0; i < polygons->n_points; i++) {
-            /* scale values between 0.25..0.3 and force min=0 and max=1 */
-            values[i] = (values[i] - min_value)/(max_value - min_value);
-            values[i] = MIN(1.0, values[i]);
-            values[i] = MAX(0.0, values[i]);
-            values[i] = values[i]*values[i];
-        }
-        
-        /* smooth values to obtain a smooth border */
-        smooth_heatkernel(polygons, values, 5.0);
-        
-        /* obtain smoothed surface */
-        smooth_heatkernel(smooth_polygons, NULL, local_smoothing);
-
-        /* use smoothed or original surface w.r.t. weighting */ 
-        for (i = 0; i < polygons->n_points; i++)
-            Point_x(polygons->points[i]) = values[i]*Point_x(polygons->points[i]) + (1.0 - values[i])*Point_x(smooth_polygons->points[i]);
-
-        free(smooth_polygons);
-        free(values);
-        free(extents);
-    }
-
+    /* Replace input values by change map */
     for (i = 0; i < nvol; i++)
         input_float[i] = vol_changed[i];
 

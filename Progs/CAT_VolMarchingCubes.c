@@ -30,8 +30,8 @@ static ArgvInfo argTable[] = {
      size > 3 mm for reliable compensation in these areas."},
   
   {"-dist-morph", ARGV_FLOAT, (char *) TRUE, (char *) &dist_morph,
-    "Apply initial morphological open or close step. Close is used\n\
-     by a value around 1.0 and open by negative values around -1.0.\n\
+    "Apply initial morphological opening or closing step. Closing is used\n\
+     by a value around 1.0 and opening by negative values around -1.0.\n\
      The default automatically estimates the optimal value"},
   
   {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &n_median_filter,
@@ -43,11 +43,6 @@ static ArgvInfo argTable[] = {
   
   {"-iter", ARGV_INT, (char *) TRUE, (char *) &n_iter,
     "Number of iterations."},
-  
-  {"-local-smoothing", ARGV_FLOAT, (char *) TRUE, (char *) &local_smoothing,
-    "Apply local surface smoothing to resulting surface in areas where the distance\n\
-     between the surface and a shifted surface is below the expected distance,\n\
-     which often happens due to self intersections of the surface."},
   
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
     "Enable verbose mode for detailed output during processing."},
@@ -61,7 +56,7 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii thresholded_map.nii]\n\
+Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n\
 \n\
     This method generates a mesh with an Euler number of 2 (genus 0) from the\n\
     thresholded volume. The process involves:\n\
@@ -83,10 +78,11 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii thresh
          morphological operations to find larger clusters\n\
     \n\
     3. **Morphological Opening:**\n\
-       - Apply additional morphological opening, scaled by `scl_open`,\n\
-         to prevent gyri fusion and minimize local artifacts.\n\
-       - Opening strength is determined by analyzing the impact of\n\
-         different `scl_open` values and tracking RMSE changes.\n\
+       - Apply additional morphological opening or closing, defined by\n\
+         `-dist-morph`, to minimize changes due to topology correction.\n\
+       - Closing is used for positive values (e.g. 1.0) and opening\n\
+         for negative values. The default is to automaticall estimate\n\
+         the optimal value to minimize issues due to topology correction.\n\
     \n\
     4. **Extraction of the Largest Component:**\n\
        - Extract the largest component for further processing.\n\
@@ -126,7 +122,7 @@ int main(int argc, char *argv[]) {
     char *input_filename, *output_filename;
     if (!get_string_argument(NULL, &input_filename) || !get_string_argument(NULL, &output_filename)) {
         usage(argv[0]);
-        fprintf(stderr, "Usage: CAT_VolMarchingCubes input.nii output_surface_file\n");
+        fprintf(stderr, "Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n");
         return EXIT_FAILURE;
     }
 
