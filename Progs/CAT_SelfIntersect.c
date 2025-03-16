@@ -32,16 +32,16 @@ usage(char *executable)
 int
 main(int argc, char** argv)
 {
-    char         *surface_file, *out_file;
-    object_struct    **objects;
-    polygons_struct    *polygons;
-    int          *n_neighbours, **neighbours;
-    int          *defects, *polydefects;
-    File_formats     format;
-    int          n_objects, n_intersects, i;
-    char         str[80];
-    progress_struct    progress;
-    FILE         *fp;
+    char *surface_file, *out_file;
+    object_struct **objects;
+    polygons_struct *polygons;
+    int *n_neighbours, **neighbours;
+    int *defects, *polydefects;
+    int n_objects, n_intersects, i;
+    char str[80];
+    progress_struct progress;
+    FILE *fp;
+    File_formats format;
 
     initialize_argument_processing(argc, argv);
     if (!get_string_argument(NULL, &surface_file) ||
@@ -66,11 +66,11 @@ main(int argc, char** argv)
 
     defects = (int *) malloc(sizeof(int) * polygons->n_points);
     polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
-
+  
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
 
-    n_intersects = find_selfintersections(polygons, defects, polydefects);
+    n_intersects = find_selfintersections(polygons, defects, polydefects, 1);
 
     printf("All Triangle Intersections:  %d\n", n_intersects);
 
