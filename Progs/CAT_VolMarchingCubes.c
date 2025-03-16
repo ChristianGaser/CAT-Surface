@@ -10,6 +10,15 @@
 #include "CAT_MarchingCubes.h"
 #include "CAT_SurfaceIO.h"
 
+/* argument defaults */
+double min_threshold = 0.5;
+double post_fwhm = 2.0;
+double pre_fwhm = 2.0;
+double dist_morph = FLT_MAX;
+int n_median_filter = 2;
+int verbose = 0;
+int n_iter = 10;
+
 /* the argument table */
 static ArgvInfo argTable[] = {
   {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
@@ -124,7 +133,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    object_struct *object = apply_marching_cubes(input_float, nii_ptr);
+    object_struct *object = apply_marching_cubes(input_float, nii_ptr, min_threshold,
+                pre_fwhm, post_fwhm, dist_morph, n_median_filter, n_iter, verbose);
     if (object) {
         output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
     } else {

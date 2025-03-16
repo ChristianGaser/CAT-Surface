@@ -485,7 +485,10 @@ extract_isosurface(
 }
 
 /* Function to apply marching cubes and extract polygons */
-object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr) {
+object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
+                        double min_threshold, double pre_fwhm, double post_fwhm,
+                        double dist_morph, int n_median_filter, int n_iter, int verbose) 
+{
     double voxelsize[N_DIMENSIONS];
     double best_dist;
     int dims[MAX_DIMENSIONS], i, k, nvol, count_change = 0, best_change_values;
