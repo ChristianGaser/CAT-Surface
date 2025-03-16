@@ -12,7 +12,7 @@
 
 /* argument defaults */
 double min_threshold = 0.5;
-double post_fwhm = 2.0;
+double post_fwhm = 1.5;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 int n_median_filter = 2;
