@@ -71,11 +71,7 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n\
        - Weighting effect is enhanced by squaring the value.\n\
     \n\
     2. **Preprocessing with Median Filter:**\n\
-       - Apply an iterative median filter to areas where the gradient of \n\
-         the thresholded image indicates larger clusters.\n\
-       - Use a weighted average of the original and median filterd images.\n\
-       - Weighting is estimated using gradient of the input image and.\n\
-         morphological operations to find larger clusters\n\
+       - Apply an iterative median filter to remove noise.\n\
     \n\
     3. **Morphological Opening:**\n\
        - Apply additional morphological opening or closing, defined by\n\
@@ -96,12 +92,7 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n\
        - Use mean curvature average as a folding measure to estimate\n\
          necessary compensation.\n\
        - Compensation degree is auto-calculated based on deviation\n\
-         from the defined isovalue.\n\
-    7. **Mesh Correction in Areas with Self Intersections:**\n\
-       - Apply local surface smoothing to resulting surface in areas where\n\
-         the distance between the surface and a shifted surface is below \n\
-         the expected distance, which often happens due to self intersections\n\
-         of the surface.\n\n";
+         from the defined isovalue.\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
