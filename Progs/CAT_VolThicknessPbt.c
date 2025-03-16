@@ -21,9 +21,10 @@
 int verbose = 0;
 int n_avgs = 8;
 int n_median_filter = 2;
-double sharpening = 0.02;
+double sharpening = 0.0;
 double downsample = 0.0;
 double fwhm = 0.0;
+double fill_thresh = 0.5;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
@@ -41,9 +42,14 @@ static ArgvInfo argTable[] = {
     This value determines the extent of smoothing applied, using a mask to prevent\n\
     smearing values outside the Gray Matter (GM) areas."},
 
+  {"-fill-holes", ARGV_FLOAT, (char *) 1, (char *) &fill_thresh,
+    "Fill remining holes in the PPM image using the defined threshold.\n\
+    To maximize the filling-effect, this threshold should be the same as used for the\n\
+    subsequent Marching Cubes approach (e.g. 0.5). Set to '0' to disable filling."},
+
   {"-downsample", ARGV_FLOAT, (char *) 1, (char *) &downsample,
     "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
-    spacial resolution for the subsequent steps. Set to '0' to disable downsampling"},
+    spatial resolution for the subsequent steps. Set to '0' to disable downsampling."},
 
   {"-median-filter", ARGV_INT, (char *) TRUE, (char *) &n_median_filter,
     "Specify the number of iterations to apply a median filter to areas\n\
@@ -93,6 +99,7 @@ Options:\n\
     -verbose                Enable verbose mode for detailed output during processing.\n\
     -n-avgs <int>           Set the number of averages for distance estimation.\n\
     -fwhm <float>           Define FWHM for final thickness smoothing.\n\
+    -fill-holes <float>     Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>     Downsample PPM and GMT image to defined resolution.\n\
     -sharpen <float>        Amount of sharpening the PPM map.\n\
 \n\
@@ -106,7 +113,7 @@ int main(int argc, char *argv[])
 {
     char *infile, out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
     int i, j, dims[3], dims_reduced[3], replace = 0;
-    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT2, *PPM, *PPM0, *vol_reduced;
+    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT1, *GMT2, *PPM, *PPM0, *vol_reduced;
     float *vol_smoothed, dist_CSF_val, dist_WM_val, mean_vx_size;
     float sum_dist, abs_dist;
     unsigned char *mask;
@@ -167,6 +174,7 @@ int main(int argc, char *argv[])
     dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
     dist_WM = (float *)malloc(sizeof(float)*src_ptr->nvox);
     GMT = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    GMT1 = (float *)malloc(sizeof(float)*src_ptr->nvox);
     GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
     PPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
@@ -188,6 +196,8 @@ int main(int argc, char *argv[])
     /* Median-filtering of input with euclidean distance helps a bit */
     localstat3(src, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
 
+    double range = 0.3; /* Value of 0.3 was worst */
+    
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
         
@@ -197,7 +207,7 @@ int main(int argc, char *argv[])
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] < (CGM + add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] < GWM + 0.3) ? 1 : 0;
+            mask[i]  = (src[i] < GWM + range) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
@@ -209,7 +219,7 @@ int main(int argc, char *argv[])
         /* prepare map outside WM and mask to obtain distance map for WN */
         for (i = 0; i < src_ptr->nvox; i++) {
             input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] > CGM - 0.3) ? 1 : 0;
+            mask[i]  = (src[i] > CGM - range) ? 1 : 0;
         }    
     
         /* obtain WM distance map */
@@ -226,70 +236,106 @@ int main(int argc, char *argv[])
             dist_WM[i]  /= (float) n_avgs;
         }
     }
-
-    /* fill small holes that cause topology artefacts */
-    //fill_holes(dist_WM, 1E-3, dims, DT_FLOAT32);
-    //fill_holes(dist_CSF,1E-3, dims, DT_FLOAT32);
+    
+    int gyrus_recon2 = 0; // not working yet!!!
     
     /* Estimate cortical thickness (first using sulci measures */
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
     for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(src[i]);
 
-    projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
+    projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
+    
+    if (gyrus_recon2) {
+        vol_approx(GMT1, dims, voxelsize);
+        for (i = 0; i < src_ptr->nvox; i++) {
+            dist_WM[i] = MIN(dist_WM[i], GMT1[i]);
+            dist_CSF[i] = MIN(dist_CSF[i], GMT1[i]);
+            mask[i] = (dist_WM[i] > 0.0) & (dist_CSF[i] > 0.0);
+            if (mask[i] > 0) 
+                dist_CSF[i] = MIN(dist_CSF[i], GMT1[i] - dist_WM[i] );
+        }
+    }
 
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
     for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(4.0 - src[i]);
 
-    /* then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
+    /* Then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
     projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
+    
+    if (gyrus_recon2) {
+        vol_approx(GMT2, dims, voxelsize);
+        memcpy(GMT, GMT2, src_ptr->nvox*sizeof(float));
+        median3(GMT, NULL, dims, 3, DT_FLOAT32);
+        for (i = 0; i < src_ptr->nvox; i++) {
+            if ((mask[i] > 0.0) & (dist_CSF[i] > GMT[i])) /* GMT is here the median filtered GMT2 */ 
+                dist_WM[i] = MIN(dist_WM[i], GMT2[i] - dist_CSF[i] );
+        }
+        /* having now the correct distance values the finale thickness estimations are estimated */
+        projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
+        double GMT_ratio  = get_median(GMT1, src_ptr->nvox, 1, DT_FLOAT32) / 
+                            get_median(GMT, src_ptr->nvox, 1, DT_FLOAT32);
+/*        for (i = 0; i < src_ptr->nvox; i++)
+            if (GMT[i] > GMT1[i]*GMT_ratio) GMT[i] = 0.0;        
+*/
+    }
 
     /* Correct distance values by half of a voxel */
+    double dist_corr = 0.5;
     for (i = 0; i < src_ptr->nvox; i++) {
-        dist_CSF[i] -= 0.5;
-        dist_WM[i]  -= 0.5;
+        dist_CSF[i] -= dist_corr;
+        dist_WM[i]  -= dist_corr;
         if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
         if (dist_WM[i]  < 0.0) dist_WM[i]  = 0.0;
     }
 
-    /* use minimum/maximum to reduce issues with meninges */
-    for (i = 0; i < src_ptr->nvox; i++) {
-        sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT[i] = MIN(sum_dist, MAX(0.0, GMT[i] - 0.5*(GMT[i]  < sum_dist)));
-    }
-
-    /* Limit GMT2 to thick regions */
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
-
-    for (i = 0; i < src_ptr->nvox; i++) {
-        sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5*(GMT2[i]  < sum_dist)));
-    }
-        
-    /* use minimum of thickness measures */
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT[i] = MIN(GMT[i], GMT2[i]);
-   
-    for (i = 0; i < src_ptr->nvox; i++)
-        mask[i] = (GMT[i] > 1.0) ? 1 : 0;
-
-    median3(GMT, mask, dims, 3, DT_FLOAT32);
-    //median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
-    //median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
-
-    /* Re-estimate CSF distance using corrected GM thickness */
-    for (i = 0; i < src_ptr->nvox; i++) {
-        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
-            dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
-        if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
-    }
+    if (gyrus_recon2 == 0) {
+        /* Use minimum/maximum to reduce issues with meninges */
+        for (i = 0; i < src_ptr->nvox; i++) {
+            sum_dist = dist_WM[i] + dist_CSF[i];
+            GMT1[i] = MIN(sum_dist, MAX(0.0, GMT1[i] - 0.5*(GMT1[i]  < sum_dist)));
+        }
     
+        /* Limit GMT2 to thick regions */
+        for (i = 0; i < src_ptr->nvox; i++)
+            GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
+    
+        for (i = 0; i < src_ptr->nvox; i++) {
+            sum_dist = dist_WM[i] + dist_CSF[i];
+            GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5*(GMT2[i]  < sum_dist)));
+        }
+            
+        /* Use minimum of thickness measures */
+        for (i = 0; i < src_ptr->nvox; i++)
+            GMT[i] = MIN(GMT1[i], GMT2[i]);
+       
+        for (i = 0; i < src_ptr->nvox; i++)
+            mask[i] = (GMT[i] > 1.0) ? 1 : 0;
+    
+        median3(GMT, mask, dims, 3, DT_FLOAT32);
+        //median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
+        //median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
+    
+        /* Re-estimate CSF distance using corrected GM thickness */
+        for (i = 0; i < src_ptr->nvox; i++) {
+            if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
+                dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
+            if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
+        }
+    }
+
     for (i = 0; i < src_ptr->nvox; i++)
         mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
 
     /* Approximate thickness values outside GM */
-    vol_approx(GMT, dims, voxelsize);
+    if (fwhm >= 0.0) {
+        if (verbose) fprintf(stderr,"Fill values using Euclidean distance approach\n");
+        euclidean_distance(GMT, mask, dims, NULL, 1);
+        laplace3R(GMT, mask, dims, 0.1);
+    } else {
+        if (verbose) fprintf(stderr,"Fill values using Approximation approach\n");
+        vol_approx(GMT, dims, voxelsize);
+    }
     
     /* Apply final smoothing */
     if (fwhm > 0.0) {
@@ -316,8 +362,9 @@ int main(int argc, char *argv[])
         if ((PPM[i] < 0.9) && (src[i] > GWM)) PPM[i] = 1.0;
     }
     
-    /* Fill small holes that cause topology artefacts */
-    fill_holes(PPM, 1E-1, dims, DT_FLOAT32);
+    /* Fill remaining holes with ones that may otherwise cause topology artefacts */
+    if (fill_thresh > 0.0)
+        fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
     /* 2x Median-filtering of PPM with euclidean distance */
     localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
@@ -466,6 +513,7 @@ int main(int argc, char *argv[])
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
+    free(GMT1);
     free(GMT2);
     free(PPM);
     free(input);
