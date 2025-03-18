@@ -348,6 +348,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Amap.c \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \
+    Lib/CAT_Deform.c \
     Lib//CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
     3rdparty/genus0/genus0.c \
