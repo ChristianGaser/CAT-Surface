@@ -87,7 +87,7 @@ void resample_spherical_surface(polygons_struct *polygons,
                                 polygons_struct *resampled_source,
                                 double *input_values, double *output_values,
                                 int n_triangles) {
-    int i, t, num_threads = 8; // Adjust based on hardware
+    int i, t, k, num_threads = 8; // Adjust based on hardware
 #if !defined(_WIN32) && !defined(_WIN64)
     THREAD_HANDLE threads[num_threads];
     ThreadArgs thread_args[num_threads];
@@ -98,7 +98,7 @@ void resample_spherical_surface(polygons_struct *polygons,
     // Compute average sphere radius
     for (i = 0; i < poly_src_sphere->n_points; i++) {
         r = 0.0;
-        for (int k = 0; k < 3; k++)
+        for (k = 0; k < 3; k++)
             r += Point_coord(poly_src_sphere->points[i], k) * Point_coord(poly_src_sphere->points[i], k);
         sphereRadius += sqrt(r);
     }
@@ -146,7 +146,7 @@ void resample_spherical_surface(polygons_struct *polygons,
         if (input_values != NULL)
             output_values[i] = 0.0;
 
-        for (int k = 0; k < n_points; k++) {
+        for (k = 0; k < n_points; k++) {
             SCALE_POINT(scaled_point, poly_points[k], (double)weights[k]);
             ADD_POINTS(new_points[i], new_points[i], scaled_point);
             if (input_values != NULL)

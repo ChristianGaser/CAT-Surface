@@ -418,14 +418,15 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] ) {
 int calc_hessian() {
     // Load your 3D image into a 3D array (double***) here
     double ***image;
+    int x, y, z;
 
     // Image dimensions
     int width, height, depth;
 
     // Iterate through the image and calculate the Hessian matrix
-    for (int z = 1; z < depth-1; z++) {
-        for (int y = 1; y < height-1; y++) {
-            for (int x = 1; x < width-1; x++) {
+    for (z = 1; z < depth-1; z++) {
+        for (y = 1; y < height-1; y++) {
+            for (x = 1; x < width-1; x++) {
                 HessianMatrix hessian = calculateHessianAtVoxel(image, x, y, z);
                 // Process the Hessian matrix as needed
             }

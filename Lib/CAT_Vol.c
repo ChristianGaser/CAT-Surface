@@ -1633,7 +1633,9 @@ void grey_close(void *data, int dims[3], int niter, int datatype)
 }
 
 void estimate_target_dimensions(int dims[3], double voxelsize[3], double target_voxelsize, int min_target_dim, int dims_samp[3]) {
-    for (int i = 0; i < 3; i++) {
+    int i;
+    
+    for (i = 0; i < 3; i++) {
         // Compute target dimension
         dims_samp[i] = (int) ceil(dims[i] * (voxelsize[i] / target_voxelsize));
         
