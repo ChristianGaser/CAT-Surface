@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_PATCH_H_
+#define _CAT_PATCH_H_
+
 struct patchinfo {
         int num;
         int pts[3];
@@ -18,3 +21,5 @@ object_struct ** extract_patch_around_polygon(polygons_struct *, int, int);
 object_struct ** extract_patch_around_point(polygons_struct *, int, int);
 object_struct ** extract_patch_polys(polygons_struct *, int *, int);
 object_struct ** extract_patch_points(polygons_struct *, int *, int);
+
+#endif

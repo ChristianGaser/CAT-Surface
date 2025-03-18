@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_COMPLEXITY_H_
+#define _CAT_COMPLEXITY_H_
+
 #define DATAFORMAT 1 /* 1 = double data, 0 = complex data */
 #define SPH_ITERS 10
 #define BW 1024
@@ -21,3 +24,5 @@ double fractal_dimension(polygons_struct *, polygons_struct *, int, char *,
 void get_smoothed_values(polygons_struct *, double *, double);
 double fractal_dimension_sph(polygons_struct *, polygons_struct *, char *, int,
                              polygons_struct *, int, int);
+
+#endif

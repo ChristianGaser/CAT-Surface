@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_ISOMETRICS_H_
+#define _CAT_ISOMETRICS_H_
+
 #include <bicpl.h>
 #include <ParseArgv.h>
 
@@ -41,3 +44,5 @@ struct metricdata * getmetricdata(polygons_struct *);
 int smooth(struct metricdata *, polygons_struct *, int, int, double);
 int distortcorrect(struct metricdata *, polygons_struct *, int, int, double);
 int stretch(struct metricdata *, polygons_struct *, int, int, int, double);
+
+#endif

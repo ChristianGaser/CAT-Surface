@@ -7,6 +7,8 @@
  *
  */
 
+#ifndef _CAT_DEPTHPOTENTIAL_H_
+#define _CAT_DEPTHPOTENTIAL_H_
 
 #include <bicpl.h>
 
@@ -33,3 +35,5 @@ private double * compute_mean_curvature( int, Point [], double *,
                               Vector [] , struct csr_matrix * );
 private void cot_laplacian_operator( int, Point [], struct csr_matrix *,
                               int *, int ** );
+
+#endif

@@ -6,6 +6,9 @@
  *
  */
 
+#ifndef _CAT_SURF_H_
+#define _CAT_SURF_H_
+
 #include <stdbool.h>
 #include "bicpl.h"
 #include "CAT_Vol.h"
@@ -53,3 +56,5 @@ void central_to_pial(polygons_struct *, double *, double *, float *, nifti_image
 double get_area_of_points_central_to_pial(polygons_struct *, double *, double *, double);
 int correct_mesh_folding(polygons_struct *, polygons_struct *, float *, 
                          nifti_image *, double);
+
+#endif

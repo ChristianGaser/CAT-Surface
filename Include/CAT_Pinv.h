@@ -7,4 +7,9 @@
  *
 */
 
+#ifndef _CAT_PINV_H_
+#define _CAT_PINV_H_
+
 int pinv(int, int, double **, double **);
+
+#endif

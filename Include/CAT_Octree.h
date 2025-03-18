@@ -7,6 +7,9 @@
  *
 */
 
+#ifndef _CAT_OCTREE_H_
+#define _CAT_OCTREE_H_
+
 #define LEVEL 5
 #define NBOXES 4096 /* pow(8, LEVEL - 1) */
 #define YINC 2*2*2*2 /* pow(2, LEVEL - 1) */
@@ -45,3 +48,4 @@ unsigned char point_in_bounds(Point, double [6]);
 struct octree * build_octree(polygons_struct *);
 void delete_octree(struct octree *);
 
+#endif

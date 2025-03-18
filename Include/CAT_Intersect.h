@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_INTERSECT_H_
+#define _CAT_INTERSECT_H_
+
 #include <bicpl.h>
 
 #define PINF  1.7976931348623157e+308 /* for doubles */
@@ -29,3 +32,5 @@ int smooth_selfintersections(polygons_struct *, int *, int *, int, int *,
                              int **, int);
 int has_selfintersections(polygons_struct *, int *, int);
 void remove_intersections(polygons_struct *, int);
+
+#endif

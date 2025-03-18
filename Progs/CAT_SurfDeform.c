@@ -9,7 +9,7 @@
 
 #include <ParseArgv.h>
 #include "CAT_SurfaceIO.h"
-#include "CAT_Surf.h"
+#include "CAT_Deform.h"
 #include "CAT_NiftiLib.h"
 
 /* Default parameter values */

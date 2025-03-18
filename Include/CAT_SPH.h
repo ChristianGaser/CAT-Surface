@@ -7,6 +7,9 @@
  *
 */
 
+#ifndef _CAT_SPH_H_
+#define _CAT_SPH_H_
+
 #include <bicpl.h>
 #include <fftw3.h>
 
@@ -40,3 +43,5 @@ double * laplace2d(double *, unsigned char *, int, int, double);
 double * gradient_magnitude(double *, int, int);
 unsigned char * threshold_image(double *, int, int, double);
 void ind2sub2D(int i, int *x, int *y, int sxy, int sy);
+
+#endif

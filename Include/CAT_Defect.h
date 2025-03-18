@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_DEFECT_H_
+#define _CAT_DEFECT_H_
+
 #include <bicpl.h>
 
 #define BINTREE_FACTOR 0.5
@@ -32,3 +35,5 @@ void bisect_defects(polygons_struct *, polygons_struct *,int *, int, int *, int 
 void remap_defect(polygons_struct *, int *, int *, polygons_struct *, int *,
                   int *);
 void inflate_surface_with_topology_defects(polygons_struct *);
+
+#endif

@@ -6,6 +6,9 @@
  * $Id$
  */
 
+#ifndef _CAT_FIXTOPOLOGY_H_
+#define _CAT_FIXTOPOLOGY_H_
+
 #include <bicpl.h>
 #include <ParseArgv.h>
 
@@ -21,3 +24,5 @@ int handles = 0;
 
 object_struct ** fix_topology_sph(polygons_struct *, polygons_struct *, int,
                 int, int, char *, double, int, double);
+
+#endif

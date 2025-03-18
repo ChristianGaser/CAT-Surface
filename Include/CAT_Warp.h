@@ -6,6 +6,9 @@
  *
  */
 
+#ifndef _CAT_WARP_H_
+#define _CAT_WARP_H_
+
 #include <bicpl.h>
 #include <float.h>
 
@@ -36,3 +39,5 @@ void apply_uv_warp(polygons_struct *, polygons_struct *, double *, double *, int
 void average_xz_surf(polygons_struct *, polygons_struct *, polygons_struct *);
 void rotate_polygons_to_atlas(polygons_struct *, polygons_struct *,
              polygons_struct *, polygons_struct *, double, int, double *, int);
+
+#endif

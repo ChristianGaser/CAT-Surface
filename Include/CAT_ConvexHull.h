@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_CONVEXHULL_H_
+#define _CAT_CONVEXHULL_H_
+
 static int dbg = 0;
 static int dbg2 = 0;
 
@@ -33,3 +36,5 @@ private int get_surface_point_normals( polygons_struct *, int *, Point *[],
 private int get_surface_neighbours( polygons_struct *, int *[],
                                     int ** [] );
 void find_conformal_map(polygons_struct *polygons);
+
+#endif

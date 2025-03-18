@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_INTERPOLATE_H_
+#define _CAT_INTERPOLATE_H_
+
 #include <bicpl.h>
 #include <float.h>
 
@@ -22,5 +25,6 @@ double interp_point_sphere(polygons_struct *, double *, Point);
 double interp_uv_unit_sphere(polygons_struct *, double *, double, double);
 double interp_uv_sphere(polygons_struct *, double *, double, double);
 double interp_xyz_sphere(polygons_struct *, double *, double, double, double);
-double interp_xyz_unit_sphere(polygons_struct *, double *, double, double,
-                              double z);
+double interp_xyz_unit_sphere(polygons_struct *, double *, double, double, double z);
+
+#endif

@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_REFINE_H_
+#define _CAT_REFINE_H_
+
 #include <bicpl.h>
 
 #ifndef MAX
@@ -14,3 +17,5 @@
 #endif
 
 int  refine_mesh(Point **, polygons_struct *, double, polygons_struct *, double);
+
+#endif

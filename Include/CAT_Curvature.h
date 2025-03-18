@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_CURVATURE_H_
+#define _CAT_CURVATURE_H_
+
 Vector projectToPlane(Vector projected, Vector basis[2]);
 Vector projection(Vector vector, Vector normal);
 
@@ -22,3 +25,5 @@ void get_smoothed_curvatures(polygons_struct *, double *,
 void compute_sulcus_depth(polygons_struct *, double *);
 void compute_local_sharpness(polygons_struct *, int [], int * [], double *);
 void compute_convexity(polygons_struct *, int [], int *[], double *);
+
+#endif

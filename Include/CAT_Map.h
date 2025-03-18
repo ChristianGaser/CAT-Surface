@@ -7,6 +7,9 @@
  *
 */
 
+#ifndef _CAT_MAP_H_
+#define _CAT_MAP_H_
+
 typedef struct {
     long x;
     long y;
@@ -22,3 +25,5 @@ void uv_to_point(double, double, Point *);
 void map_sphere_values_to_sheet(polygons_struct *, polygons_struct *,
                                       double *, double *, double, int *, int);
 void map_sheet2d_to_sphere(double *, double *, polygons_struct *, int, int *);
+
+#endif

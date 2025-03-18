@@ -7,6 +7,9 @@
  *
  */
 
+#ifndef _CAT_RESAMPLE_H_
+#define _CAT_RESAMPLE_H_
+
 #include <bicpl.h>
 #include <limits.h>
 
@@ -27,3 +30,5 @@ void resample_values_sphere(polygons_struct *, polygons_struct *, double *,
             double *, int);
 void resample_spherical_surface(polygons_struct *, polygons_struct *, polygons_struct *,
                double *, double *, int );
+
+#endif
