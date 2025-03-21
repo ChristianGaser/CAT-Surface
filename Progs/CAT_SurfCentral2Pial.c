@@ -25,7 +25,7 @@ int  verbose = 0;
 /* the argument table */
 static ArgvInfo argTable[] = {
   {"-label", ARGV_STRING, (char *) 1, (char *) &label_file, 
-     "Additional label file for estimating  whether inner or outer border is reached."},
+     "Additional label file for estimating whether inner or outer border is reached."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
    "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014)."},
   {"-weight", ARGV_FLOAT, (char *) TRUE, (char *) &weight,
