@@ -1998,7 +1998,6 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
     }
     for (i = 0; i < n_classes; i++) mean_label[i] /= (double)n[i];
 
-
     /* only use defined labels (i.e. using label_th) for bias estimation
      * use label_th = 2 for focussing on WM only */
     for (i = 0; i < nvox; i++)
@@ -2038,7 +2037,8 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
         maskr[i] = 1 - maskr[i];
     }
 
-    euclidean_distance(biasfieldr, maskr, dimsr, NULL, 1);
+    vol_approx(biasfieldr, dimsr, voxelsizer);
+//    euclidean_distance(biasfieldr, maskr, dimsr, NULL, 1);
     smooth3(biasfieldr, dimsr, voxelsizer, fwhm, 0, DT_FLOAT32);
 
     /* upsample to original resolution */
@@ -2093,7 +2093,7 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
  * with the corrected values.
  *
  */
-void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las, int square_image)
+void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
 {
     int i, nvox;
     unsigned char *mask;
@@ -2111,14 +2111,6 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
         }
     }
     
-    /* square input image improve segmentation of CSF and GM */
-    if (square_image) {
-        mx_image = get_max(src, nvox, 0, DT_FLOAT32);
-        for (i = 0; i < nvox; i++) src[i] *= src[i];
-        scl = mx_image/get_max(src, nvox, 0, DT_FLOAT32);
-        for (i = 0; i < nvox; i++) src[i] *= scl;
-    }
-      
     /* apply bias correction for WM only */
     correct_bias_label(src, biasfield, label, dims, voxelsize, bias_fwhm, WM);
     
