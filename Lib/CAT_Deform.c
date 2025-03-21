@@ -131,6 +131,8 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     }
 
     // Iterative deformation process
+    int counter = 0;
+    double s_prev = FLT_MAX;
     for (i = 0; i < it; i++) {
         s = 0.0;
 
@@ -173,6 +175,9 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
             s += di * di;
         }
 
+        if (s > s_prev) counter++;
+        if (counter > 4) break;
+
         // Apply smoothing to the displacement field
         smooth_displacement_field(displacement_field, polygons, n_neighbours, neighbours, 5, sigma);
 
@@ -186,9 +191,10 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
         // Update normals for next iteration
         compute_polygon_normals(polygons);
         if (verbose) {
-            fprintf(stdout, "\rMesh: deform: iter %03d | Error: %g", i+1, sqrt(s / polygons->n_points));
+            fprintf(stdout, "\rMesh: deform: iter %03d | Error: %6.4f", i+1, sqrt(s / polygons->n_points));
             fflush(stdout);  // Force output update
         }
+        s_prev = s;
     }
     if (verbose) fprintf(stdout, "\n");
 
