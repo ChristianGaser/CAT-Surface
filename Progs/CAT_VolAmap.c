@@ -26,8 +26,7 @@ int write_label = 1;
 int write_corr = 1;
 int write_bias = 0;
 int verbose = 0;
-int use_median = 1;
-int square_image = 0;
+int use_median = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 double bias_fwhm = 10.0;
@@ -63,9 +62,6 @@ static ArgvInfo argTable[] = {
          "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
          Default setting is 1."},
          
-    {"-square-image", ARGV_CONSTANT, (char *) 1, (char *) &square_image,
-         "Option to use a squared image to enhance contrast between tissues (for bias correction only)."},
-         
     {"-cleanup", ARGV_INT, (char *) 1, (char *) &cleanup,
          "Option to additionally clean-up segmentations by removing remaining non-brain parts\n\
          such as meninges with medium (1) or strong clean-up (2).\n\
@@ -75,7 +71,7 @@ static ArgvInfo argTable[] = {
          "Option to write segmentation results as separate images. Requires three integers\n\
          indicating whether to save each tissue class (CSF/GM/WM) with '1' for yes."},
          
-    {"-use-mean", ARGV_CONSTANT, (char *) 0, (char *) &use_median,
+    {"-use-median", ARGV_CONSTANT, (char *) 1, (char *) &use_median,
          "Use local mean for estimating peaks instead of median."},
          
     {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
@@ -226,7 +222,7 @@ main(int argc, char *argv[])
      * smoothing to emphasize subcortical structures */
     if (bias_fwhm > 0.0) {
         if (verbose) fprintf(stdout,"Bias correction\n");
-        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS, square_image);
+        correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
     }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, 
