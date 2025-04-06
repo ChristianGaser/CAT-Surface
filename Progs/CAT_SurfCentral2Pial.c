@@ -19,13 +19,10 @@
 int   check_intersect = 0;
 int   equivol = 0;
 double weight = 1.0;
-char *label_file  = NULL;
 int  verbose = 0; 
 
 /* the argument table */
 static ArgvInfo argTable[] = {
-  {"-label", ARGV_STRING, (char *) 1, (char *) &label_file, 
-     "Additional label file for estimating whether inner or outer border is reached."},
   {"-equivolume", ARGV_CONSTANT, (char *) TRUE, (char *) &equivol,
    "Use equi-volume model by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014)."},
   {"-weight", ARGV_FLOAT, (char *) TRUE, (char *) &weight,
@@ -55,7 +52,7 @@ main(int argc, char *argv[])
     int p, n_objects, n_values;
     double *thickness_values, *area_inner, *area_outer, *extents;
     double value, surface_area, pos;
-    float *labels, extent;
+    float extent;
     Status status;
     char *src_file, *out_file, *values_file;
     File_formats format;
@@ -135,18 +132,7 @@ main(int argc, char *argv[])
             extents[p] = extent;
     }
     
-    if (label_file != NULL) {
-        nii_ptr = read_nifti_float(label_file, &labels, 0);
-        if (!nii_ptr) {
-            fprintf(stderr, "Error reading %s.\n", label_file);
-            return (EXIT_FAILURE);
-        }
-    } else {
-        nii_ptr = NULL;
-        labels = NULL;
-    }
-    
-    objects_out = central_to_new_pial(polygons, thickness_values, extents, labels, nii_ptr, check_intersect, verbose);
+    objects_out = central_to_new_pial(polygons, thickness_values, extents, check_intersect, 0.0, 0, verbose);
 
     if(output_graphics_any_format(out_file, format, 1, objects_out, NULL) != OK)
         exit(EXIT_FAILURE);

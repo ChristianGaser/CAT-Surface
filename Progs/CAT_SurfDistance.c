@@ -18,7 +18,6 @@ enum {Tfs, Tlink};
 /* argument defaults */
 int  dist_func        = Tfs;     /* default distance function: Freesurfer method */
 char *thickness_file  = NULL;    /* thickness file for estimating inner and outer surface from central surface */
-char *label_file  = NULL;
 int  check_intersect = 0;
 int  verbose = 0; 
 
@@ -26,8 +25,6 @@ int  verbose = 0;
 static ArgvInfo argTable[] = {
   {"-thickness", ARGV_STRING, (char *) 1, (char *) &thickness_file, 
      "Additional thickness file for internally estimating inner and outer surface based on central surface and thickness."},
-  {"-label", ARGV_STRING, (char *) 1, (char *) &label_file, 
-     "Additional label file for checking whether inner or outer border is reached."},
   {"-mean", ARGV_CONSTANT, (char *) Tfs, (char *) &dist_func,
      "Calculate mean of closest distance between surface 1 and 2 and vice versa (Tfs, default)." },
   {"-link", ARGV_CONSTANT, (char *) Tlink, (char *) &dist_func,
@@ -60,7 +57,6 @@ main(int argc, char *argv[])
 {
     int n_objects, n_values;
     int i;
-    float *labels;
     double shift, max_distance = 0;
     double *extents, *distance, *thickness_values;
     char *object_file, *object2_file, *output_surface_file;
@@ -68,7 +64,6 @@ main(int argc, char *argv[])
     File_formats format;
     object_struct **objects, **objects2;
     polygons_struct *polygons, *polygons2;
-    nifti_image *nii_ptr;
 
     /* Call ParseArgv */
     if (ParseArgv(&argc, argv, argTable, 0) ||
@@ -84,10 +79,6 @@ main(int argc, char *argv[])
     get_string_argument(NULL, &object_file);
     if (thickness_file == NULL) {
         get_string_argument(NULL, &object2_file);
-        if (label_file != NULL) {
-            fprintf(stderr, "Position file can only be used with thickness option.\n");
-            return (EXIT_FAILURE);
-        }
     } else {
         if (input_values_any_format(thickness_file, &n_values, &thickness_values) != OK)
             exit(EXIT_FAILURE);
@@ -114,29 +105,18 @@ main(int argc, char *argv[])
     } else { /* thickness flag and one surface defined */
         extents = (double *) malloc(sizeof(double) * polygons->n_points);
 
-        if (label_file != NULL) {
-            nii_ptr = read_nifti_float(label_file, &labels, 0);
-            if (!nii_ptr) {
-                fprintf(stderr, "Error reading %s.\n", label_file);
-                return (EXIT_FAILURE);
-            }
-        } else {
-            nii_ptr = NULL;
-            labels = NULL;
-        }
-        
         /* If label file is defined we go a bit further than half thickness */
-        shift = (label_file != NULL) ? 0.55 : 0.5;
+        shift = 0.5;
 
         /* obtain pial surface */
         for (i = 0; i < polygons->n_points; i++) extents[i] = shift;
         objects2 = central_to_new_pial(polygons, thickness_values, extents, 
-            labels, nii_ptr, check_intersect, verbose);
+            check_intersect, 0.0, 0, verbose);
         
         /* obtain white surface */
         for (i = 0; i < polygons->n_points; i++) extents[i] = -shift;
         objects = central_to_new_pial(polygons, thickness_values, extents, 
-            NULL, NULL, check_intersect, verbose);
+            check_intersect, 0.0, 0, verbose);
         polygons = get_polygons_ptr(objects[0]);
 
         free(extents);
@@ -171,7 +151,6 @@ main(int argc, char *argv[])
     delete_object_list(n_objects, objects2);
 
     free(distance);
-    free(labels);
     if (thickness_file != NULL) free(thickness_values);
     
     return(EXIT_SUCCESS);
