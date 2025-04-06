@@ -16,7 +16,217 @@
 #include "CAT_Math.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Intersect.h"
+#include "CAT_Surf.h"
 
+#define GRID_RES 250  // Number of grid cells per axis (adjustable)
+
+typedef struct PointNode {
+    int index;
+    struct PointNode *next;
+} PointNode;
+
+typedef struct GridCell {
+    PointNode *points;
+} GridCell;
+
+typedef struct SpatialGrid {
+    GridCell *cells;
+    int res;
+    double cell_size;
+    Point min, max;
+} SpatialGrid;
+
+/**
+ * @brief Compute the axis-aligned bounding box (AABB) of a surface.
+ *
+ * @param polygons The surface structure containing mesh points.
+ * @param min Output: the minimum bounding box corner (x_min, y_min, z_min).
+ * @param max Output: the maximum bounding box corner (x_max, y_max, z_max).
+ */
+void get_polygon_bounding_box(polygons_struct *polygons, Point *min, Point *max)
+{
+    int i;
+    double x, y, z;
+
+    if (polygons->n_points == 0)
+        return;
+
+    x = Point_x(polygons->points[0]);
+    y = Point_y(polygons->points[0]);
+    z = Point_z(polygons->points[0]);
+
+    fill_Point(*min, x, y, z);
+    fill_Point(*max, x, y, z);
+
+    for (i = 1; i < polygons->n_points; i++) {
+        x = Point_x(polygons->points[i]);
+        y = Point_y(polygons->points[i]);
+        z = Point_z(polygons->points[i]);
+
+        if (x < Point_x(*min)) Point_x(*min) = x;
+        if (y < Point_y(*min)) Point_y(*min) = y;
+        if (z < Point_z(*min)) Point_z(*min) = z;
+
+        if (x > Point_x(*max)) Point_x(*max) = x;
+        if (y > Point_y(*max)) Point_y(*max) = y;
+        if (z > Point_z(*max)) Point_z(*max) = z;
+    }
+}
+
+// Get grid index from 3D coordinate
+int get_grid_index(int x, int y, int z, int res) {
+    return x + y * res + z * res * res;
+}
+
+
+// Insert a vertex into a grid cell
+void insert_into_grid(SpatialGrid *grid, int v, Point *points) {
+    int xi = (int)((Point_x(points[v]) - Point_x(grid->min)) / grid->cell_size);
+    int yi = (int)((Point_y(points[v]) - Point_y(grid->min)) / grid->cell_size);
+    int zi = (int)((Point_z(points[v]) - Point_z(grid->min)) / grid->cell_size);
+
+    if (xi < 0 || yi < 0 || zi < 0 || xi >= grid->res || yi >= grid->res || zi >= grid->res)
+        return;
+
+    int index = get_grid_index(xi, yi, zi, grid->res);
+
+    PointNode *node = malloc(sizeof(PointNode));
+    node->index = v;
+    node->next = grid->cells[index].points;
+    grid->cells[index].points = node;
+}
+
+
+// Build spatial grid from surface vertices
+SpatialGrid *build_spatial_grid(polygons_struct *polygons, int res) {
+    SpatialGrid *grid = malloc(sizeof(SpatialGrid));
+    grid->res = res;
+    grid->cells = calloc(res * res * res, sizeof(GridCell));
+
+    get_polygon_bounding_box(polygons, &grid->min, &grid->max);
+
+    grid->cell_size = fmax(fmax(Point_x(grid->max) - Point_x(grid->min),
+                                Point_y(grid->max) - Point_y(grid->min)),
+                                Point_z(grid->max) - Point_z(grid->min)) / res;
+
+    for (int i = 0; i < polygons->n_points; i++) {
+        insert_into_grid(grid, i, polygons->points);
+    }
+
+    return grid;
+}
+
+
+// Free memory used by spatial grid
+void destroy_spatial_grid(SpatialGrid *grid) {
+    int total = grid->res * grid->res * grid->res;
+    for (int i = 0; i < total; i++) {
+        PointNode *node = grid->cells[i].points;
+        while (node) {
+            PointNode *tmp = node;
+            node = node->next;
+            free(tmp);
+        }
+    }
+    free(grid->cells);
+    free(grid);
+}
+
+
+// Estimate average edge length
+double estimate_average_edge_length(polygons_struct *polygons, int *n_neighbours, int **neighbours) {
+    double total = 0.0;
+    int count = 0;
+    for (int i = 0; i < polygons->n_points; i++) {
+        Point *p1 = &polygons->points[i];
+        for (int j = 0; j < n_neighbours[i]; j++) {
+            int ni = neighbours[i][j];
+            Point *p2 = &polygons->points[ni];
+            total += distance_between_points(p1, p2);
+            count++;
+        }
+    }
+    return (count > 0) ? (total / count) : 1.0;
+}
+
+
+// Main function to find near-self-intersections
+int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, int *n_hits_out) {
+    int i, j;
+    int *n_neighbours, **neighbours;
+    int *flags = calloc(polygons->n_points, sizeof(int));
+    int n_hits = 0;
+
+    check_polygons_neighbours_computed(polygons);
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
+
+    SpatialGrid *grid = build_spatial_grid(polygons, GRID_RES);
+    double threshold = estimate_average_edge_length(polygons, n_neighbours, neighbours) * threshold_factor;
+
+    for (i = 0; i < polygons->n_points; i++) {
+        Point p = polygons->points[i];
+        int xi = (int)((Point_x(p) - Point_x(grid->min)) / grid->cell_size);
+        int yi = (int)((Point_y(p) - Point_y(grid->min)) / grid->cell_size);
+        int zi = (int)((Point_z(p) - Point_z(grid->min)) / grid->cell_size);
+
+        double min_dist = DBL_MAX;
+        int closest_index = -1;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    int nx = xi + dx;
+                    int ny = yi + dy;
+                    int nz = zi + dz;
+
+                    if (nx < 0 || ny < 0 || nz < 0 || nx >= grid->res || ny >= grid->res || nz >= grid->res)
+                        continue;
+
+                    int index = get_grid_index(nx, ny, nz, grid->res);
+                    PointNode *node = grid->cells[index].points;
+
+                    while (node) {
+                        int ni = node->index;
+                        if (ni != i) {
+                            // Skip direct neighbors
+                            int is_neighbor = 0;
+                            for (j = 0; j < n_neighbours[i]; j++) {
+                                if (neighbours[i][j] == ni) {
+                                    is_neighbor = 1;
+                                    break;
+                                }
+                            }
+                            if (is_neighbor) {
+                                node = node->next;
+                                continue;
+                            }
+
+                            double d = distance_between_points(&p, &polygons->points[ni]);
+                            if (d < min_dist) {
+                                min_dist = d;
+                                closest_index = ni;
+                            }
+                        }
+                        node = node->next;
+                    }
+                }
+            }
+        }
+
+        if (min_dist < threshold) {
+            flags[i] = 1;
+            n_hits++;
+        }
+    }
+
+    destroy_spatial_grid(grid);
+    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
+
+    if (n_hits_out)
+        *n_hits_out = n_hits;
+
+    return flags;  // Array of size n_points with 1=potential intersection, 0=none
+}
 
 int
 intersect_poly_poly(int poly0, int poly1, polygons_struct *surface)
@@ -595,6 +805,7 @@ remove_intersections(polygons_struct *polygons, int verbose)
     check_polygons_neighbours_computed(polygons);
 
     counter = 0;
+
     n_intersects = find_selfintersections(polygons, defects, polydefects, 1);        
     n_intersects = join_intersections(polygons, defects, polydefects,
               n_neighbours, neighbours);
@@ -613,6 +824,49 @@ remove_intersections(polygons_struct *polygons, int verbose)
     } while (n_intersects > 0 && counter < 10);
     
     free(defects);
+    free(polydefects);
+
+    compute_polygon_normals(polygons);
+        
+}
+
+/* Find and remove near self-intersections */
+void
+remove_near_intersections(polygons_struct *polygons, double threshold, int verbose)
+{
+    int *polydefects, n_intersects = 0;
+    int *n_neighbours, **neighbours;
+    int counter;
+    Point *new_pts;
+
+    polydefects = (int *) malloc(sizeof(int) * polygons->n_items);
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                &neighbours, NULL, NULL);
+
+    check_polygons_neighbours_computed(polygons);
+
+    counter = 0;
+
+    int *defects = find_near_self_intersections(polygons, threshold, &n_intersects);
+    printf("%3d self intersections found that will be corrected.\n", n_intersects);
+    update_polydefects(polygons, defects, polydefects);
+
+    n_intersects = join_intersections(polygons, defects, polydefects,
+              n_neighbours, neighbours);
+    do {
+        counter++;
+        
+        if (n_intersects > 1) {
+            if (verbose)
+                printf("%3d self intersections found that will be corrected.\n", n_intersects);
+
+            n_intersects = smooth_selfintersections(polygons, defects, polydefects,
+                   n_intersects, n_neighbours,
+                   neighbours, 200);
+
+        }
+    } while (n_intersects > 1 && counter < 5);
+    
     free(polydefects);
 
     compute_polygon_normals(polygons);

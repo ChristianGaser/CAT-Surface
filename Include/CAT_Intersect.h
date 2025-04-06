@@ -32,5 +32,8 @@ int smooth_selfintersections(polygons_struct *, int *, int *, int, int *,
                              int **, int);
 int has_selfintersections(polygons_struct *, int *, int);
 void remove_intersections(polygons_struct *, int);
+int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, 
+                            int *n_hits_out);
+void remove_near_intersections(polygons_struct *polygons, double threshold, int verbose);
 
 #endif
