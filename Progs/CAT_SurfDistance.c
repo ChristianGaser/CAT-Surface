@@ -20,6 +20,7 @@ int  dist_func        = Tfs;     /* default distance function: Freesurfer method
 char *thickness_file  = NULL;    /* thickness file for estimating inner and outer surface from central surface */
 int  check_intersect = 0;
 int  verbose = 0; 
+double max_dist = 5.0;           /* maximal thickness */
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -29,6 +30,7 @@ static ArgvInfo argTable[] = {
      "Calculate mean of closest distance between surface 1 and 2 and vice versa (Tfs, default)." },
   {"-link", ARGV_CONSTANT, (char *) Tlink, (char *) &dist_func,
      "Calculate the linked (exact) distance between both surfaces (Tlink)." },
+  {"-max", ARGV_FLOAT, (char *) TRUE, (char *) &max_dist, "Define maximum distance, where all values exceeding that will be cut."},
   {"-check_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &check_intersect,
      "Correct self intersections if you use thickness file for internally estimating inner and outer surface."},
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
@@ -141,6 +143,9 @@ main(int argc, char *argv[])
         max_distance = compute_point_distance_mean(polygons, polygons2, distance, 0);
     else                  /* linked distance */
         max_distance = compute_point_distance(polygons, polygons2, distance, 0);
+
+    // Limit upper distance values to maximum value
+    for (i = 0; i < polygons->n_points; i++) distance[i] = fmin(max_dist, distance[i]);
 
     if (output_values_any_format(output_surface_file, polygons->n_points,
                                  distance, TYPE_DOUBLE) != OK) {
