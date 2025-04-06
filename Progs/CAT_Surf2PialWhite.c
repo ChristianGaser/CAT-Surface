@@ -21,7 +21,7 @@
 /* argument defaults */
 double w1 = 0.1;  // Internal smoothness force
 double w2 = 0.2;  // Gradient alignment force
-double w3 = 0.2; // Balloon force (expansion/contraction)
+double w3 = 0.4; // Balloon force (expansion/contraction)
 double w4 = 0.0; // Connection force
 double sigma = 0.3; 
 int verbose = 0; 
