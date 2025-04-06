@@ -454,7 +454,7 @@ int main(int argc, char *argv[])
         if (PPM[i] < 0.0) PPM[i] = 0.0;
         if (PPM[i] > 1.0) PPM[i] = 1.0;
     }
-        
+    
     /* Downsample images */
     if (downsample > 0.0) {
 

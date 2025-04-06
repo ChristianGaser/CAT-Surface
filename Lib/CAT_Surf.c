@@ -19,7 +19,7 @@
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
 #include "CAT_Defect.h"
-
+#include "CAT_Deform.h"
 
 int
 bound(int i, int j, int dm[])
@@ -1352,7 +1352,7 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
  * check_polygons_shape_integrity.
  */
 object_struct **
-central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *label, nifti_image *nii_ptr, int check_intersects, int verbose)
+central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects, double sigma, int iterations, int verbose)
 {
     polygons_struct *polygons_out;
     object_struct **objects_out;
@@ -1362,7 +1362,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
     polygons_out = get_polygons_ptr(*objects_out);
     
     copy_polygons(polygons, polygons_out);
-    central_to_pial(polygons_out, thickness_values, extents, label, nii_ptr, check_intersects, verbose);
+    central_to_pial(polygons_out, thickness_values, extents, check_intersects, sigma, iterations, verbose);
     
     return(objects_out);
 }
@@ -1372,11 +1372,12 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
  * an extent of 0.5 should be used, while an extent of -0.5 results in the estimation of the white matter surface.
  */
 void
-central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, float *label, nifti_image *nii_ptr, int check_intersects, int verbose)
+central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, 
+              int check_intersects, double sigma, int iterations, int verbose)
 {
     int *n_neighbours, **neighbours;
     int i, p, n_steps, dims[3];
-    double x, y, z, val, length, *curvatures;
+    double x, y, z, val, length;
     polygons_struct *polygons_out;
     Point *new_pts;
     object_struct **objects_out;
@@ -1389,23 +1390,16 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     polygons_out = get_polygons_ptr(*objects_out);
             
     copy_polygons(polygons, polygons_out);
+    if (((sigma > 0.0) && (iterations > 0)))
+        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
 
     /* use 20 steps to add thickness values to central surface and check in each step shape integrity and self intersections */
     n_steps = 20;
     length = 1.0;
 
-    /* Compute mean curvature if label map is defined */
-    if (nii_ptr != NULL) {
-        dims[0] = nii_ptr->nx;
-        dims[1] = nii_ptr->ny;
-        dims[2] = nii_ptr->nz;
+    /* Allocate displacement field */
+    double (*displacements)[3] = malloc(sizeof(double[3]) * polygons->n_points);
 
-        curvatures = (double *)malloc(sizeof(double)*polygons->n_points);
-        get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-        get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
-                                         0.0, 4, curvatures);
-    }
-  
     for (i = 0; i < n_steps; i++) {
         copy_polygons(polygons, polygons_out);
         
@@ -1414,32 +1408,26 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         if ((i+1) < n_steps)
             length /= 2.0;
 
-        /* add fraction of thickness value in normal direction */ 
+        /* Calculate displacements */
         for (p = 0; p < polygons->n_points; p++) {
-            Point_x(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_x(polygons->normals[p]);
-            Point_y(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_y(polygons->normals[p]);
-            Point_z(polygons_out->points[p]) += extents[p]*length*thickness_values[p]*Point_z(polygons->normals[p]);
+            double factor = extents[p] * length * thickness_values[p];
+            displacements[p][0] = factor * Point_x(polygons->normals[p]);
+            displacements[p][1] = factor * Point_y(polygons->normals[p]);
+            displacements[p][2] = factor * Point_z(polygons->normals[p]);
         }
-        
-        if ((nii_ptr != NULL) && (i > 2)) {
-            for (p = 0; p < polygons->n_points; p++) {
-                x = Point_x(polygons_out->points[p]);
-                y = Point_y(polygons_out->points[p]);
-                z = Point_z(polygons_out->points[p]);
-                val = (double)isoval(label, x, y, z, dims, nii_ptr);
-                
-                /* Undo last shift if position value exceeds inner or outer borders */
-                if (((extents[p] > 0.0) && (curvatures[i] > 0.2) && (val <= CGM)) || ((extents[p] < 0.0) && (val >= GWM))) {
-                    Point_x(polygons_out->points[p]) = Point_x(polygons->points[p]);
-                    Point_y(polygons_out->points[p]) = Point_y(polygons->points[p]);
-                    Point_z(polygons_out->points[p]) = Point_z(polygons->points[p]);
 
-                    x = Point_x(polygons_out->points[p]);
-                    y = Point_y(polygons_out->points[p]);
-                    z = Point_z(polygons_out->points[p]);
-                }
-            }
+        /* Smooth displacement vectors (optional: adjust iterations and smoothing strength) */
+        if ((sigma > 0.0) && (iterations > 0))
+            smooth_displacement_field(displacements, polygons, n_neighbours, 
+                                      neighbours, iterations, sigma);
+
+        /* Apply smoothed displacements */
+        for (p = 0; p < polygons->n_points; p++) {
+            Point_x(polygons_out->points[p]) += displacements[p][0];
+            Point_y(polygons_out->points[p]) += displacements[p][1];
+            Point_z(polygons_out->points[p]) += displacements[p][2];
         }
+
         new_pts = polygons_out->points;
                 
         /* check polygon integrity of new points */
@@ -1447,14 +1435,16 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
         polygons->points = new_pts;
     }
 
-    /* final check and correction for self intersections */
-
-    if (check_intersects)
-        remove_intersections(polygons, verbose);
-
     compute_polygon_normals(polygons);
+
+    /* final check and correction for self intersections */
+    if (check_intersects)
+        remove_near_intersections(polygons, 0.75, verbose);
         
-    if (nii_ptr != NULL) free(curvatures);
+    free(displacements);
+    if (((sigma > 0.0) && (iterations > 0))) {
+        delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
+    }
 }
 
 /*
@@ -1473,7 +1463,7 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
     for (p = 0; p < polygons->n_points; p++) extents[p] = extent;
 
     objects_transformed = central_to_new_pial(polygons, thickness_values, extents, 
-        NULL, NULL, 0, 0);
+        0, 0.0, 0, 0);
     polygons_transformed = get_polygons_ptr(objects_transformed[0]);
     surface_area = get_area_of_points(polygons_transformed, area);
     
