@@ -51,8 +51,8 @@ void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
                                         const double, const double, const int);                                        
 void surf_to_sphere(polygons_struct *, int, int);
 object_struct ** central_to_new_pial(polygons_struct *, double *, double *, 
-                                    float *, nifti_image *, int, int);
-void central_to_pial(polygons_struct *, double *, double *, float *, nifti_image *, int, int);
+                                    int, double, int, int);
+void central_to_pial(polygons_struct *, double *, double *, int, double, int, int);
 double get_area_of_points_central_to_pial(polygons_struct *, double *, double *, double);
 int correct_mesh_folding(polygons_struct *, polygons_struct *, float *, 
                          nifti_image *, double);
