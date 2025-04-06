@@ -72,4 +72,5 @@ bin_PROGRAMS = \
     CAT_ResampleSphericalSurfSPH \
     CAT_Surf2SPH \
     CAT_SurfDeform \
+    CAT_Surf2PialWhite \
     CAT_SPH2Surf
