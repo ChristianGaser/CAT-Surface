@@ -73,6 +73,8 @@ Progs/CAT_Surf2Surf
 Progs/CAT_Surf2Vol
 Progs/CAT_SurfConvert
 Progs/CAT_SurfDistance
+Progs/CAT_SurfDeform
+Progs/CAT_Surf2PialWhite
 Progs/CAT_Test
 Progs/CAT_VolAmap
 Progs/CAT_VolAverage
