@@ -10,9 +10,11 @@
 #define _CAT_DEFORM_H_
 
 void smooth_displacement_field(double (*displacement_field)[3], polygons_struct *polygons, 
-                               int *n_neighbours, int **neighbours, int iterations, double sigma);
+                      int *n_neighbours, int **neighbours, int iterations, 
+                      double sigma);
 void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr, 
-                 double w[3], double sigma, float lim, int it, int verbose);
+                      double w[3], double sigma, float lim, int it, int remove_intersections, 
+                      int verbose);
 void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
                       float *input, nifti_image *nii_ptr, double w[4], double sigma, 
                       float lim1, float lim2, double *target_distance, int it, 
