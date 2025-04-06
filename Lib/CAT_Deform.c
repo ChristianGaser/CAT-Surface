@@ -79,7 +79,7 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
   @param it Number of deformation iterations.
  */
 void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr, 
-                 double w[3], double sigma, float lim, int it, int remove_intersections, int verbose)
+                 double w[3], double sigma, float lim, int it, int del_intersections, int verbose)
 {
     int i, j, k, v, dims[3], nvox, pidx;
     int *n_neighbours, **neighbours;
@@ -273,7 +273,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     }
     copy_polygons(polygons_orig, polygons);
 
-    if (remove_intersections) {
+    if (del_intersections) {
         if (verbose) fprintf(stdout,"\n");
         remove_near_intersections(polygons, 0.75, verbose);
     }

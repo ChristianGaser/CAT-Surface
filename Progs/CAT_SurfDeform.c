@@ -19,7 +19,7 @@ double w3 = 1.2;   // Balloon force (expansion/contraction)
 double isovalue = 0.5;  // Target isosurface value
 double sigma = 0.2;
 int iterations = 75;    // Number of iterations
-int remove_intersections = 0;
+int del_intersections = 0;
 int verbose = 0;         // Verbose mode
 
 /* Command-line argument table */
@@ -30,7 +30,7 @@ static ArgvInfo argTable[] = {
     {"-w3", ARGV_FLOAT, (char *) TRUE, (char *) &w3, "Set balloon force weight (w3)."},
     {"-sigma", ARGV_FLOAT, (char *) TRUE, (char *) &sigma, "Define sigma for smoothing the displacement field."},
     {"-iter", ARGV_INT, (char *) TRUE, (char *) &iterations, "Set number of deformation iterations."},
-    {"-remove_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &remove_intersections, "Remove self-intersections."},
+    {"-remove_intersect", ARGV_CONSTANT, (char *) TRUE, (char *) &del_intersections, "Remove self-intersections."},
     {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose, "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -156,7 +156,7 @@ main(int argc, char *argv[])
     polygons = get_polygons_ptr(object_list[0]);    
 
     double weights[3] = {w1, w2, w3};
-    surf_deform(polygons, input, nii_ptr, weights, sigma, isovalue, iterations, remove_intersections, verbose);
+    surf_deform(polygons, input, nii_ptr, weights, sigma, isovalue, iterations, del_intersections, verbose);
     
     if (output_graphics_any_format(output_surface_file, ASCII_FORMAT,
                      n_objects, object_list, NULL) == ERROR)
