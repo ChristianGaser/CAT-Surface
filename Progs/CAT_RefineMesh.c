@@ -62,8 +62,8 @@ int  main(
 
     do
     {
-        n_done = refine_mesh( &length_points, polygons, max_length,
-                              &new_polygons, weight_curvatures );
+        n_done = refine_mesh( &length_points, polygons, (double)max_length,
+                              &new_polygons, (double)weight_curvatures );
 
         delete_polygons( polygons );
         *polygons = new_polygons;
