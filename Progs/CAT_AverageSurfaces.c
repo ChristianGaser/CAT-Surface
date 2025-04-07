@@ -15,14 +15,14 @@
 /* argument defaults */
 char *outfile  = NULL;
 char *rms_file = NULL;
+int verbose = 0; 
 
 /* the argument table */
 static ArgvInfo argTable[] = {
-  {"-avg", ARGV_STRING, (char *) 1, (char *) &outfile, 
-   "Define name for average file."},
-  {"-rms", ARGV_STRING, (char *) 1, (char *) &rms_file, 
-   "Define name for root mean square error file."},
-   {NULL, ARGV_END, NULL, NULL, NULL}
+  {"-avg", ARGV_STRING, (char *) 1, (char *) &outfile, "Define name for average file."},
+  {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose, "Enable verbose output."},
+  {"-rms", ARGV_STRING, (char *) 1, (char *) &rms_file, "Define name for root mean square error file."},
+  {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
 void
@@ -94,7 +94,7 @@ main(int argc, char *argv[])
             }
         }
 
-        printf("%d:  %s\n", n_sets, infile);
+        if (verbose) printf("%d:  %s\n", n_sets, infile);
 
         if (n_sets > 0)
           delete_object_list(n_objects, object_list);
