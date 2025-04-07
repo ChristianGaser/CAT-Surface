@@ -242,7 +242,7 @@ get_area_of_points(polygons_struct *polygons, double *area_values)
             area_values[ptidx] /= pcount[ptidx];
   
 
-    FREE(pcount);
+    free(pcount);
     return(surface_area);
 }
 
@@ -1262,19 +1262,16 @@ ccw_neighbours(Point *centroid, Vector *normal, Point points[],
 void
 check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
 {
-    signed char *point_done;
-    signed char *point_error;
     int vertidx, ptidx, poly, size;
     int n_nb, neighbours[MAX_NEIGHBOURS];
     int n_errors, n_bad_points;
     float base_length, curv_factor;
-    Point *centroids;
     Vector normal;
     BOOLEAN interior_flag;
 
-    ALLOC(point_done, polygons->n_points);
-    ALLOC(point_error, polygons->n_points);
-    ALLOC(centroids, polygons->n_points);
+    signed char *point_done = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
+    signed char *point_error = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
+    Point *centroids = (Point *) malloc(sizeof(Point) * polygons->n_points);
 
     for (ptidx = 0; ptidx <  polygons->n_points; ptidx++) {
         point_done[ptidx] = FALSE;
@@ -1341,9 +1338,9 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
         printf(": Shape errors %d/%d\n", n_errors, n_bad_points);
 #endif
 
-    FREE(point_error);
-    FREE(centroids);
-    FREE(point_done);
+    free(point_error);
+    free(centroids);
+    free(point_done);
 }
 
 /*
@@ -1527,7 +1524,7 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     int curvtype = 0; /* mean curvature averaged over 3mm, in degrees */
     int *n_neighbours, **neighbours, p;
     double distance, eps = 1e-6, fwhm = 2.0;
-    double a, b, f1, f2, *curvatures;
+    double a, b, f1, f2;
     double weight = 0.0, weight1, weight2, avg;
     const double  phi = (1.0 + sqrt(5.0))/2.0; /* Golden ratio constant */
     
@@ -1539,7 +1536,7 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     /* for curvtype 0 (mean curvature in degrees) use average around point */
     if (curvtype == 0) avg = 3.0; else avg = 0.0;
     
-    ALLOC(curvatures, polygons->n_points);
+    double *curvatures = (double *) malloc(sizeof(double) * polygons->n_points);
     compute_polygon_normals(polygons);
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
