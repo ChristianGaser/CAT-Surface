@@ -12,6 +12,126 @@
 #include "CAT_Intersect.h"
 
 /**
+ * @brief Detects inward-pointing vertex normals (potential self-intersection).
+ * 
+ * @param polygons Pointer to the mesh.
+ * @param threshold_cosine Cosine threshold for flagging (e.g., < 0.0 = strictly inward).
+ * @return int* Array (size: n_points) with 1 if inward, 0 otherwise.
+ */
+int* detect_inward_normals(polygons_struct *polygons, double threshold_cosine)
+{
+    int v;
+    int *flags = calloc(polygons->n_points, sizeof(int));
+
+    // Estimate a rough center of the mesh (can improve with sphere center)
+    double cx = 0.0, cy = 0.0, cz = 0.0;
+    for (v = 0; v < polygons->n_points; v++) {
+        cx += Point_x(polygons->points[v]);
+        cy += Point_y(polygons->points[v]);
+        cz += Point_z(polygons->points[v]);
+    }
+    cx /= polygons->n_points;
+    cy /= polygons->n_points;
+    cz /= polygons->n_points;
+
+    for (v = 0; v < polygons->n_points; v++) {
+        // Vector from center to vertex (approximate outward direction)
+        double dx = Point_x(polygons->points[v]) - cx;
+        double dy = Point_y(polygons->points[v]) - cy;
+        double dz = Point_z(polygons->points[v]) - cz;
+
+        // Normalize direction vector
+        double len = sqrt(dx*dx + dy*dy + dz*dz);
+        if (len == 0.0) continue;
+
+        dx /= len;
+        dy /= len;
+        dz /= len;
+
+        // Normal at this point
+        Vector normal = polygons->normals[v];
+
+        // Dot product between normal and outward direction
+        double dot = dx * normal.coords[0] + dy * normal.coords[1] + dz * normal.coords[2];
+
+        // If dot < threshold (e.g., 0.0), normal is inward
+        if (dot < threshold_cosine)
+            flags[v] = 1;
+    }
+
+    return flags;  // Caller must free()
+}
+
+/**
+ * @brief Smooth vertex normals on a mesh by averaging with neighbors.
+ *
+ * @param polygons The surface mesh (with computed normals).
+ * @param n_neighbours Array of number of neighbors per vertex.
+ * @param neighbours 2D array of neighbor indices.
+ * @param iterations Number of smoothing iterations.
+ */
+void smooth_surface_normals(polygons_struct *polygons, int *n_neighbours, int **neighbours, int iterations)
+{
+    int v, j, it, pidx;
+    int n_points = polygons->n_points;
+
+    Vector *smoothed_normals = malloc(sizeof(Vector) * n_points);
+    if (!smoothed_normals) {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (it = 0; it < iterations; it++) {
+        for (v = 0; v < n_points; v++) {
+            Vector avg = {0.0, 0.0, 0.0};
+
+            // Add self normal
+            avg.coords[0] += polygons->normals[v].coords[0];
+            avg.coords[1] += polygons->normals[v].coords[1];
+            avg.coords[2] += polygons->normals[v].coords[2];
+
+            int count = 1;
+
+            // Add neighbor normals
+            for (j = 0; j < n_neighbours[v]; j++) {
+                pidx = neighbours[v][j];
+                avg.coords[0] += polygons->normals[pidx].coords[0];
+                avg.coords[1] += polygons->normals[pidx].coords[1];
+                avg.coords[2] += polygons->normals[pidx].coords[2];
+                count++;
+            }
+
+            // Average
+            avg.coords[0] /= (double)count;
+            avg.coords[1] /= (double)count;
+            avg.coords[2] /= (double)count;
+
+            // Normalize
+            double norm = sqrt(SQR(avg.coords[0]) + SQR(avg.coords[1]) + SQR(avg.coords[2]));
+            if (norm > 1e-8) {
+                avg.coords[0] /= norm;
+                avg.coords[1] /= norm;
+                avg.coords[2] /= norm;
+            } else {
+                // Fallback to unit Z if degenerate
+                avg.coords[0] = 0.0;
+                avg.coords[1] = 0.0;
+                avg.coords[2] = 1.0;
+            }
+
+            smoothed_normals[v] = avg;
+        }
+
+        // Copy smoothed back
+        for (v = 0; v < n_points; v++) {
+            polygons->normals[v] = smoothed_normals[v];
+        }
+    }
+
+    free(smoothed_normals);
+}
+
+/**
  * @brief Smooths the displacement field to avoid abrupt vertex movements.
  *
  * The displacement field is iteratively updated to ensure smooth transitions between neighboring vertices.

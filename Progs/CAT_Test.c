@@ -7,65 +7,63 @@
  *
  */
 
-#include <float.h>
-#include <stdlib.h>
 
-#include "ParseArgv.h"
-#include "CAT_NiftiLib.h"
-#include "CAT_Vol.h"
+#include <bicpl.h>
+#include "CAT_SurfaceIO.h"
+#include "CAT_Deform.h"
+#include "CAT_Curvature.h"
+#include "CAT_Smooth.h"
+#include "CAT_Intersect.h"
+#include "CAT_Defect.h"
 
-
-/* Main program */
-int main(int argc, char *argv[])
+void
+usage(char *executable)
 {
-    char *infile, *outfile;
-    int i, j, dims[3];
-    float *input_float;
-    double voxelsize[3];
-    nifti_image *nii_ptr;
-    
-    if (argc < 2) {
-         (void) fprintf(stderr, "\nUsage: %s in.nii out.nii\n\n", argv[0]);
-         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
-     exit(EXIT_FAILURE);
-    }
-    
-    infile  = argv[1];
-    outfile = argv[2];
-    
-    /* read first image to get image parameters */
-    nii_ptr = read_nifti_float(infile, &input_float, 0);
-    if (nii_ptr == NULL) {
-        fprintf(stderr,"Error reading %s.\n", infile);
-        return(EXIT_FAILURE);
-    }
+    char *usage_str = "\n\
+Usage: %s surface_file output_file fwhm [values_file] [mask_file]\n\n\
+   Diffusion smoothing of values or surface points using\n\
+   heat kernel. If values are defined then values will be\n\
+   smoothed, otherwise only surface points.\n\n";
 
-    voxelsize[0] = nii_ptr->dx;
-    voxelsize[1] = nii_ptr->dy;
-    voxelsize[2] = nii_ptr->dz;
-    dims[0] = nii_ptr->nx;
-    dims[1] = nii_ptr->ny;
-    dims[2] = nii_ptr->nz;
-    int nvol = dims[0]*dims[1]*dims[2];
+    fprintf(stderr, usage_str, executable);
+}
 
-        float *vol_float = (float *)malloc(nvol * sizeof(float));
-        unsigned char *mask = (unsigned char *)malloc(nvol * sizeof(unsigned char));
-        for (i = 0; i < nvol; i++) {
-            vol_float[i] = input_float[i];
-            mask[i] = input_float[i] != 0;
-        }
-        
-        median3(vol_float, mask, dims, 5, DT_FLOAT32);
-        for (i = 0; i < nvol; i++)
-            input_float[i] = (vol_float[i] > 0.5 || input_float[i] > 0.5) ? MAX(vol_float[i], input_float[i]) : MIN(vol_float[i], input_float[i]);
-        free(vol_float);
-        free(mask);
+int
+main(int argc, char *argv[])
+{
+    char       *input_file, *values_file;
+    int        i, n_objects, n_values;
+    int        *n_neighbours, **neighbours;
+    File_formats   format;
+    object_struct  **object_list;
+    polygons_struct  *polygons;
 
-    if (!write_nifti_float(outfile, input_float, DT_FLOAT32, 1.0, dims, voxelsize, nii_ptr)) 
+    initialize_argument_processing(argc, argv);
+
+    if (!get_string_argument(NULL, &input_file) ||
+      !get_string_argument(NULL, &values_file)) {
+        usage(argv[0]);
         exit(EXIT_FAILURE);
+    }
 
-    free(input_float);
-    
+    if (input_graphics_any_format(input_file, &format, &n_objects,
+                    &object_list) != OK ||
+      n_objects != 1 || get_object_type(object_list[0]) != POLYGONS) {
+        fprintf(stderr, "Error reading %s.\n", input_file);
+        exit(EXIT_FAILURE);
+    }
+
+    polygons = get_polygons_ptr(object_list[0]);
+
+    compute_polygon_normals(polygons);
+    int n_self_hits;
+    int *defects = find_near_self_intersections(polygons, 0.95, &n_self_hits);
+
+    output_values_any_format(values_file, polygons->n_points, defects, TYPE_INTEGER);
+
+
+
+    free(defects);
+
     return(EXIT_SUCCESS);
-
 }
