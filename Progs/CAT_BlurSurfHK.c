@@ -118,8 +118,5 @@ main(int argc, char *argv[])
             exit(EXIT_FAILURE);
     }
 
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
-
     return(EXIT_SUCCESS);
 }
