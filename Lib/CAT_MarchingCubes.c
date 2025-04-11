@@ -52,6 +52,12 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
     float *vol_euler_orig = (float *)malloc(sizeof(float)*nvol);
     unsigned short *vol_bin = (unsigned short *)malloc(sizeof(unsigned short)*nvol);
 
+    if (!vol_euler || !vol_euler_orig || !vol_bin) {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+
     // Initialize Euler map
     for (i = 0; i < nvol; i++) {
         vol_euler[i] = (volume[i] >= thresh) ? 1.0 : 0.0;
@@ -123,9 +129,10 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
         }
         
         /* Apply changes to volume */
-        for (i = 0; i < nvol; i++)
+        for (i = 0; i < nvol; i++) {
             volume[i] = (vol_euler[i] < vol_euler_orig[i]) ? mn : volume[i];
             volume[i] = (vol_euler[i] > vol_euler_orig[i]) ? mx : volume[i];
+        }
             
         if (n_errors == 0) break;
     }
