@@ -142,7 +142,7 @@ main(int argc, char *argv[])
     copy_polygons(polygons_pial, polygons_smoothed);
     smooth_heatkernel(polygons_smoothed, NULL, 5.0);
     
-    // Weight between pial and smoothe surface w.r.t. curvature
+    // Weight between pial and smoothed surface w.r.t. curvature
     for (p = 0; p < polygons->n_points; p++) {
         Point_x(polygons_pial->points[p]) = weight[p]*Point_x(polygons_smoothed->points[p]) + 
                                             (1.0-weight[p])*Point_x(polygons_pial->points[p]);
@@ -158,10 +158,11 @@ main(int argc, char *argv[])
     object_white = objects_out[0];
     polygons_white = get_polygons_ptr(object_white);
 
-    // Build weighting matrix and deform pial and white matter surface to isovalues
+    // Build weighting matrix and deform pial and white matter surface to (slightly) 
+    // deviating isovalues to consider smoothing of displacement field
     double weights[4] = {w1, w2, w3, w4};
     surf_deform_dual(polygons_pial, polygons_white, labels, nii_ptr, 
-                      weights, sigma, 1.4, 2.6, thickness_values, iterations, verbose);
+                      weights, sigma, 1.4, 2.4, thickness_values, iterations, verbose);
 
     if(output_graphics_any_format(pial_file, format, 1, &object_pial, NULL) != OK)
         exit(EXIT_FAILURE);

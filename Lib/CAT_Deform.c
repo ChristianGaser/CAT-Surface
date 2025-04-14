@@ -582,9 +582,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         int *flags1 = find_near_self_intersections(polygons1, 0.75, &n_self_hits);
         for (v = 0; v < polygons1->n_points; v++) {
             if (flags1[v]) {
-                Point_x(polygons1->points[v]) -= displacement_field1[v][0];
-                Point_y(polygons1->points[v]) -= displacement_field1[v][1];
-                Point_z(polygons1->points[v]) -= displacement_field1[v][2];
+                Point_x(polygons1->points[v]) -= 1.25*displacement_field1[v][0];
+                Point_y(polygons1->points[v]) -= 1.25*displacement_field1[v][1];
+                Point_z(polygons1->points[v]) -= 1.25*displacement_field1[v][2];
             }
         }
         compute_polygon_normals(polygons1);
@@ -602,9 +602,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
         for (v = 0; v < polygons2->n_points; v++) {
             if (flags2[v]) {
-                Point_x(polygons2->points[v]) -= displacement_field2[v][0];
-                Point_y(polygons2->points[v]) -= displacement_field2[v][1];
-                Point_z(polygons2->points[v]) -= displacement_field2[v][2];
+                Point_x(polygons2->points[v]) -= 1.25*displacement_field2[v][0];
+                Point_y(polygons2->points[v]) -= 1.25*displacement_field2[v][1];
+                Point_z(polygons2->points[v]) -= 1.25*displacement_field2[v][2];
             }
         }
         compute_polygon_normals(polygons2);
@@ -706,10 +706,11 @@ if (0) {
         }
     }
 }
+
     // Apply very slight smoothing to the displacement field to smooth replacements
     // Estimate weight w.r.t. curvature and esnure minimum of min_weight
-    smooth_displacement_field(displacement_field1, polygons1, n_neighbours, neighbours, 5, 0.25*sigma);
-    smooth_displacement_field(displacement_field2, polygons2, n_neighbours, neighbours, 5, 0.25*sigma);
+    smooth_displacement_field(displacement_field1, polygons1, n_neighbours, neighbours, 5, 0.01*sigma);
+    smooth_displacement_field(displacement_field2, polygons2, n_neighbours, neighbours, 5, 0.01*sigma);
 
     // Apply the final displacement to vertices
     for (v = 0; v < polygons1->n_points; v++) {
