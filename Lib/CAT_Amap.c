@@ -549,7 +549,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
 void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, 
                           struct point *r, double *mean, double *var, int n_classes, 
                           int niters, int sub, int *dims, double *voxelsize, double *thresh, 
-                          double *beta, double offset, double bias_fwhm, int verbose, int use_median)
+                          double *beta, double offset, int verbose, int use_median)
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
@@ -676,8 +676,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 /* perform adaptive MAP on given src and initial segmentation label */
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, 
-          double *voxelsize, int niters_ICM, double offset, double bias_fwhm, 
-          int verbose, int use_median)
+          double *voxelsize, int niters_ICM, double offset, int verbose, int use_median)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -714,7 +713,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         
     /* estimate 3 classes before PVE */
     EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, 
-                        thresh, beta, offset, bias_fwhm, verbose, use_median);
+                        thresh, beta, offset, verbose, use_median);
     
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
