@@ -1181,7 +1181,7 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], double dist, 
     
     if (dist <= 0.0) return;
 
-    for (i = 0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
+    max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
     /* add band with zeros to image to avoid clipping */    
@@ -1247,7 +1247,7 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     
     if (dist <= 0.0) return;
 
-    for (i = 0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
+    max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
     
     buffer = (float *)malloc(sizeof(float)*nvox);
@@ -1306,7 +1306,7 @@ void morph_erode_float(float *vol, int dims[3], int niter, double th)
     
     if (niter < 1) return;
 
-    for (i = 0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
+    max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
     /* threshold input */
@@ -1349,7 +1349,7 @@ void morph_dilate_float(float *vol, int dims[3], int niter, double th)
     
     if (niter < 1) return;
 
-    for (i = 0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
+    max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
     /* add band with zeros to image to avoid clipping */    
@@ -1414,7 +1414,7 @@ void morph_close_float(float *vol, int dims[3], int niter, double th)
     
     if (niter < 1) return;
 
-    for (i = 0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
+    max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
     /* add band with zeros to image to avoid clipping */    
@@ -1486,7 +1486,7 @@ void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_va
     if (niter < 1) return;
 
     nvox = dims[0]*dims[1]*dims[2];
-    for (i = 0; i<nvox; i++) max_vol = MAX(max_vol,vol[i]);
+    max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
     buffer = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
@@ -1981,8 +1981,7 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
     }
 
     /* get number of classes by checking maximum label value */
-    for (i = 0; i < nvox; i++)
-        n_classes = MAX((int)label[i], n_classes);
+    n_classes = get_max(label, nvox, 0, DT_UINT8);
 
     /* initialize parameters */
     for (i = 0; i < n_classes; i++) {
@@ -1992,7 +1991,8 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
     
     /* estimate mean for each label class */
     for (i = 0; i < nvox; i++) {
-        if (label[i] == 0) continue;
+        if ((label[i] == 0) || isnan(src[i]) || !isfinite(src[i]))
+            continue;
         n[label[i]-1]++;
         mean_label[label[i]-1] += (double)src[i];
     }
@@ -2120,12 +2120,13 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
         src_subcortical = (float *)malloc(sizeof(float)*nvox);
         dist = (float *)malloc(sizeof(float)*nvox);
         buffer = (float *)malloc(sizeof(float)*nvox);
+        
         if (!src_subcortical || !dist || !buffer) {
             printf("Memory allocation error\n");
             exit(EXIT_FAILURE); 
         }
 
-        /* apply bias correction for WM and GM */
+        /* apply bias correction for GM */
         for (i = 0; i < nvox; i++) src_subcortical[i] = src[i];
         bias_fwhm = 3.0;
         correct_bias_label(src_subcortical, buffer, label, dims, voxelsize, bias_fwhm, GM);
@@ -2141,7 +2142,7 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
         euclidean_distance(dist, NULL, dims, NULL, 0);
 
         /* scale distance values to 0..1  */
-        for (i = 0; i < nvox; i++) max_dist = MAX(dist[i], max_dist);
+        max_dist = get_max(dist, nvox, 0, DT_FLOAT32);
         for (i = 0; i < nvox; i++) dist[i] /= max_dist;
         
         /* use cubic distance weights to weight central regions (i.e. subcortical
@@ -2290,7 +2291,7 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
     euclidean_distance(dist, NULL, dims, NULL, 0);
 
     /* scale distance to 0..1  */
-    for (i = 0; i < nvox; i++) max_dist = MAX(dist[i], max_dist);
+    max_dist = get_max(dist, nvox, 0, DT_FLOAT32);
     for (i = 0; i < nvox; i++) dist[i] /= max_dist;
 
     /* use cubic distance weights to weight central regions (i.e. subcortical
@@ -2363,7 +2364,7 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
  * cluster, setting all other values to zero.
  *
  * inData: Pointer to the float array representing the input 3D volume. The array should
- *          have 'numVoxels' elements. This array is modified in place, with only the largest
+ *          have 'nvox' elements. This array is modified in place, with only the largest
  *          cluster's voxels retained.
  *
  * thresh: A double value representing the threshold. Voxels with values equal to or greater
@@ -2394,7 +2395,7 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
     float *outData;
     int i, j, k, ti, tj, tk, maxi, maxj, maxk, mini, minj, mink, ind, ind1;
     int maxInd = 0, growingInd, growingCur;
-    int numVoxels = dims[0] * dims[1] * dims[2];
+    int nvox = dims[0] * dims[1] * dims[2];
     char *flagUsed;
     short *growing;
 
@@ -2409,9 +2410,9 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
     if (conn == 26)
         adiff = 3;   //connectivity 26: faces+edges+corners
 
-    flagUsed = (char*)  malloc(numVoxels*sizeof(char));
-    outData  = (float*) malloc(numVoxels*sizeof(float));
-    growing  = (short*) malloc(numVoxels*3*sizeof(short));
+    flagUsed = (char*)  malloc(nvox*sizeof(char));
+    outData  = (float*) malloc(nvox*sizeof(float));
+    growing  = (short*) malloc(nvox*3*sizeof(short));
 
     /* check success of memory allocation */
     if (!flagUsed || !outData || !growing) {
@@ -2419,7 +2420,7 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
         exit(EXIT_FAILURE);
     }
 
-    for (i = 0; i < numVoxels; ++i) {
+    for (i = 0; i < nvox; ++i) {
         flagUsed[i] = 0;
         outData[i] = 0.0;
     }
@@ -2478,14 +2479,14 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
 
     /* find maximum value which is the largest cluster or use defined minimum cluster size */
     if (min_size >= 0)
-        for (i = 0; i < numVoxels; ++i) maxInd = MAX(outData[i], maxInd);
+        maxInd = get_max(outData, nvox, 0, DT_FLOAT32);
     else maxInd = min_size;
     
     /* set values with smaller clusters to zero */
     /* Depending on the parameter retain_above_th we either set smaller clusters to zero, 
      * but retain all original values otherwise, or we only keep values in larger clusters
      * that are then thresholded */
-    for (i = 0; i < numVoxels; ++i) {
+    for (i = 0; i < nvox; ++i) {
         if (retain_above_th) {
             if ((outData[i] > 0) && (outData[i] < maxInd)) inData[i] = 0.0;
         } else inData[i] = (outData[i] >= maxInd) ? inData[i] : 0;
