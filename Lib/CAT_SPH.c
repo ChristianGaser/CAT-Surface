@@ -711,7 +711,7 @@ laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
             if ( msk2[i] && LN[i] ) {  
                 ind2sub2D(i,&u,&v,xy,dimx);
 
-                /* read neighbor values */
+                /* read neighbour values */
                 L2[i] = 0; Nn = 0;
                 for (n = 0; n<sN; n++) {
                     ni = i + NI[n]; 

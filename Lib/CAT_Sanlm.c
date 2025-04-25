@@ -238,7 +238,7 @@ double distance(float* ima,int x,int y,int z,int nx,int ny,int nz,int f,int sx,i
     return d;
 }
 
-double distance2(float *ima,float *medias,int x,int y,int z,int nx,int ny,int nz,int f,int sx,int sy,int sz)
+double distance2(float *ima,float *means,int x,int y,int z,int nx,int ny,int nz,int f,int sx,int sy,int sz)
 {
     double d,acu,distancetotal;
     int i,j,k,ni1,nj1,ni2,nj2,nk1,nk2;
@@ -270,7 +270,7 @@ double distance2(float *ima,float *medias,int x,int y,int z,int nx,int ny,int nz
                 if (ni1>= sx) ni1 = 2*sx-ni1-1;
                 if (ni2>= sx) ni2 = 2*sx-ni2-1;
                         
-                d = ((double)ima[nk1*(sx*sy)+(nj1*sx)+ni1]-(double)medias[nk1*(sx*sy)+(nj1*sx)+ni1])-((double)ima[nk2*(sx*sy)+(nj2*sx)+ni2]-(double)medias[nk2*(sx*sy)+(nj2*sx)+ni2]);                      
+                d = ((double)ima[nk1*(sx*sy)+(nj1*sx)+ni1]-(double)means[nk1*(sx*sy)+(nj1*sx)+ni1])-((double)ima[nk2*(sx*sy)+(nj2*sx)+ni2]-(double)means[nk2*(sx*sy)+(nj2*sx)+ni2]);                      
                 distancetotal += d*d;                          
             }
         }
