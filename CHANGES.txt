@@ -172,7 +172,7 @@ RM niftilib/nifti1_local.h -> nifti/nifti1_local.h
 R  niftilib/znzlib.c -> nifti/znzlib.c
 R  niftilib/znzlib.h -> nifti/znzlib.h
 
-Changed: Added automatical estimation of dist parameter to
+Changed: Added automatically estimation of dist parameter to
          CAT_MarchingCubesGenus0.c. 
 Changed: Updated help text for CAT_MarchingCubesGenus0.c and changed some 
          options.
@@ -194,7 +194,7 @@ A  Progs/CAT_DeformMesh.c
 Changed: Added flag for correcting mesh to cat_DeformSurf.c that allows to 
          correct mesh w.r.t. local folding to better fit to isovalue.
 Fixed:   Replaced HUGE by 1e15 in CAT_Vol.c
-Added:   New CAT_SmoothSharpness.ca nd CAT_DeformMesh.c.
+Added:   New CAT_SmoothSharpness.ca and CAT_DeformMesh.c.
 ------------------------------------------------------------------------
 r457 | gaser | 2023-03-14 07:41:33
 
@@ -357,7 +357,7 @@ M       dartel/optimizersphere.c
              distance to pole regions (not yileding better results).
 (3) Changed: Updated multi-step support for CAT_WarpDemon.c
 (4) Fixed:   Corrected output and handling for label interpolation.
-(5) Fixed:   Disapled resampling of annotazion files which is not yet working
+(5) Fixed:   Disabled resampling of annotazion files which is not yet working
              for Windows systems.
 (6) Fixed:   Corrected allocation in CAT_ResampleSphericalSurf.c which was in 
              wrong order. 
@@ -543,7 +543,7 @@ M       Progs/CAT_FixSelfIntersect.c
 
 (1) Changed: Updated CAT_FixSelfIntersect.c to iteratively minimize self-
     intersections.
-(2) Chnaged: Added subfunction for fixing self-intersections to 
+(2) Changed : Added subfunction for fixing self-intersections to 
     CAT_SelfIntersect.c
 
 ------------------------------------------------------------------------
@@ -601,7 +601,7 @@ M       Makefile.am
 M       Progs/CAT_ResampleSurf.c
 M       Progs/Makefile.am
 
-(1) Changed: Removed some unneccessary functions in CAT_Map.c.
+(1) Changed: Removed some unnecessary functions in CAT_Map.c.
 (2) Changed: Added label interpolation to CAT_Resample.c
 
 
@@ -855,7 +855,7 @@ M       Progs/CAT_Central2Pial.c
 M       Progs/CAT_SelfIntersect.c
 !       stamp-h1
 
-Changed: Removed findal smoothing for expension from central to pial surface.
+Changed: Removed findal smoothing for expansion from central to pial surface.
 
 ------------------------------------------------------------------------
 r403 | gaser | 2018-01-18 15:24:31 +0100 (Do, 18 Jan 2018) | 27 lines
@@ -918,7 +918,7 @@ M       Lib/CAT_Surf.c
 M       Progs/CAT_DumpSurfArea.c
 M       Progs/CAT_DumpSurfaceRatio.c
 
-Changed: Added automatical estimation of optimal radius to surface ratio
+Changed: Added automatically estimation of optimal radius to surface ratio
 approach. This radius will result in a global (mean) surface ratio that 
 is equal to the global gyrification index.
 
@@ -1118,7 +1118,7 @@ Changed paths:
 M       Lib/CAT_NiftiIO.c
 M       Progs/CAT_Surf2Vol.c
 
-Changed: Output_nifit is inidcated as experimental and cannot be used.
+Changed: Output_nifit is indicated as experimental and cannot be used.
 
 ------------------------------------------------------------------------
 r382 | gaser | 2017-08-31 10:26:32 +0200 (Do, 31 Aug 2017) | 7 lines
@@ -1333,7 +1333,7 @@ M       Lib/CAT_SPH.c
 M       Lib/CAT_Topology.c
 !       stamp-h1
 
-Chnaged: Updated laplace filtering of coordinate maps.
+Changed : Updated laplace filtering of coordinate maps.
 
 
 ------------------------------------------------------------------------
@@ -1426,7 +1426,7 @@ M       Lib/CAT_SurfaceIO.c
 M       Progs/CAT_WarpSurf.c
 
 (1) Fixed: Input of dfs surfaces was not yet working.
-(2) Cjanged: Reduced output of some functions to be not so verbose.
+(2) Changed : Reduced output of some functions to be not so verbose.
 
 ------------------------------------------------------------------------
 r357 | gaser | 2016-01-25 14:21:37 +0100 (Mo, 25 Jan 2016) | 8 lines
