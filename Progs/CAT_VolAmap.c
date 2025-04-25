@@ -29,7 +29,7 @@ int verbose = 0;
 int use_median = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
-double bias_fwhm = 10.0;
+double bias_fwhm = 20.0;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -226,7 +226,7 @@ main(int argc, char *argv[])
     }
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, 
-        voxelsize, iters_ICM, offset, bias_fwhm, verbose, use_median);
+        voxelsize, iters_ICM, offset, verbose, use_median);
 
     /* PVE */
     if (pve) {
