@@ -563,7 +563,7 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
  *
  * Parameters:
  *  - src: Pointer to the source.
- *  - n_vol: Number of data poits.
+ *  - n_vol: Number of data points.
  *  - threshold: Array where the calculated threshold values will be stored.
  *  - prctile: Array containing two percentile values for which thresholds are calculated.
  *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
@@ -684,7 +684,7 @@ void get_prctile_double_old(double *src, int n, double threshold[2], double prct
  * Generic functions
  *
  * These function additionally provide conversion between different data types
- * and call the respective function for data tpye 'double'.
+ * and call the respective function for data type 'double'.
  *
  */
 

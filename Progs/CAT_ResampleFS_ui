@@ -271,9 +271,9 @@ OPTIONS:
   subject    - one or more subject directories
   -f         - diffusion heat kernel smoothing defined in fwhm in mm [default $fwhm]
   -t         - target surface for resampling [default $template]
-  -o         - output directory (created if neccessary) [default $output_dir]                
+  -o         - output directory (created if necessary) [default $output_dir]                
   -m         - surface measure as input [default $measure]                 
-  -r         - sperical surface for resampling [default $reg]                 
+  -r         - spherical surface for resampling [default $reg]                 
   -a         - save output as ascii (text) file
   -gifti     - save output as gifti file
   -lh        - resample left hemisphere only

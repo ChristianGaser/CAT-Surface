@@ -84,7 +84,7 @@ ArgvInfo argTable[] = {
    "Target sphere file for resampling of annotation file. This is usually the sphere of the fsaverage file."},
 
   {"-equivolume", ARGV_CONSTANT, (char *)TRUE, (char *)&equivol,
-   "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjuntion with a thickness file."},
+   "Use equi-volume approach by Bok (1929) to correct distances/layers. The correction is based on Waehnert et al. (2014).\n\t\t     This option can only be used in conjunction with a thickness file."},
    
   {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
    "Enable verbose mode for detailed output during processing."},

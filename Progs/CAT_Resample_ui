@@ -84,7 +84,7 @@ preprocess ()
       fi
 
       if [ ! "$hemi" == "lh" ] && [ ! "$hemi" == "rh" ]; then
-        echo File $subject should beging with lh or rh.
+        echo File $subject should begin with lh or rh.
         exit    
       fi
       
@@ -266,8 +266,8 @@ OPTIONS:
   subject    - one or more subject
   -f         - diffusion heat kernel smoothing defined in fwhm in mm [default $fwhm]
   -t         - target surface directory for resampling [default $template]
-  -o         - output directory (created if neccessary) [default $outputdir]                
-  -r         - sperical surface for resampling [default $reg]                 
+  -o         - output directory (created if necessary) [default $outputdir]                
+  -r         - spherical surface for resampling [default $reg]                 
   -m         - soptional mask to set NaNs in areas where mask=0                 
   -nogifti   - save output not as gifti file
   -noclobber - do not overwrite existing file

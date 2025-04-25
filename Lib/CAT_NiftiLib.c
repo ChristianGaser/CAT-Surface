@@ -186,7 +186,7 @@ write_nifti_double(const char *output_filename, double image[], int data_type, d
     nii_ptr->nvox = dim[0]*dim[1]*dim[2];
     nii_ptr->ndim = 3;
 
-    /* for floating data no rescaling is neccessary */
+    /* for floating data no rescaling is necessary */
     if ((slope == 0.0) && ((data_type == DT_FLOAT32) || (data_type == DT_FLOAT64)))
         slope = 1.0;
          
@@ -452,7 +452,7 @@ write_nifti_float(const char *output_filename, float image[], int data_type, dou
     nii_ptr->nvox = dim[0]*dim[1]*dim[2];
     nii_ptr->ndim = 3;
 
-    /* for floating data no rescaling is neccessary */
+    /* for floating data no rescaling is necessary */
     if ((slope == 0.0) && ((data_type == DT_FLOAT32) || (data_type == DT_FLOAT64)))
         slope = 1.0;
          

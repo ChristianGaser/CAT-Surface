@@ -43,7 +43,7 @@ static ArgvInfo argTable[] = {
     smearing values outside the Gray Matter (GM) areas."},
 
   {"-fill-holes", ARGV_FLOAT, (char *) 1, (char *) &fill_thresh,
-    "Fill remining holes in the PPM image using the defined threshold.\n\
+    "Fill remaining holes in the PPM image using the defined threshold.\n\
     To maximize the filling-effect, this threshold should be the same as used for the\n\
     subsequent Marching Cubes approach (e.g. 0.5). Set to '0' to disable filling."},
 
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
         prctile[0] = 0.1; prctile[1] = 99.0;
         get_prctile(vol_smoothed, dims[0]*dims[1]*dims[2], threshold, prctile, 1, DT_FLOAT32);  
 
-        /* Treshold the difference image */
+        /* Threshold the difference image */
         for (i = 0; i < src_ptr->nvox; i++)
             vol_smoothed[i] = ((vol_smoothed[i] > threshold[1]) && (GMT[i] > 1.5)) ? 1.0 : 0.0;
             

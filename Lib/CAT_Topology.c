@@ -371,7 +371,7 @@ fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triang
         /* obtain a filtered map */
         tmp_vol = laplace2d(rdataz, NULL, 2*bw, 2*bw, 0.49);
         
-        /* estimate mask by using the difference between orignal and filtered map */
+        /* estimate mask by using the difference between original and filtered map */
         for (i = 0; i < 4*bw2; i++) tmp_vol[i] = (rdataz[i] - tmp_vol[i]);
         mask = threshold_image(tmp_vol, 2*bw, 2*bw, 1);
         

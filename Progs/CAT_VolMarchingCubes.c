@@ -86,7 +86,7 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n\
        - Apply additional morphological opening or closing, defined by\n\
          `-dist-morph`, to minimize changes due to topology correction.\n\
        - Closing is used for positive values (e.g. 1.0) and opening\n\
-         for negative values. The default is to automaticall estimate\n\
+         for negative values. The default is to automatically estimate\n\
          the optimal value to minimize issues due to topology correction.\n\
     \n\
     4. **Extraction of the Largest Component:**\n\

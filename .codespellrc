@@ -1,4 +1,4 @@
 [codespell]
-skip = .git,*.pdf,*.svg,*.nii,gifti,nifti
+skip = .git,*.pdf,*.svg,*.nii,3rdparty,deprecated
 # file with ignores (ATM all shorts found by codespell)
 ignore-words = .codespell-ignores
