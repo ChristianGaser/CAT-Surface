@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
 
     // Initial estimate of pial surface
     extents = malloc(sizeof(double) * polygons->n_points);
-    for (p = 0; p < polygons->n_points; p++) extents[p] = 1.0;
+    for (p = 0; p < polygons->n_points; p++) extents[p] = 1.1;
 
     objects_out = central_to_new_pial(polygons, thickness_values, extents, 1, 0.5*sigma, 5, verbose);
     object_pial = objects_out[0];
@@ -177,15 +177,15 @@ int main(int argc, char *argv[]) {
     }
 
     // Initial estimate of white surface
-    for (p = 0; p < polygons->n_points; p++) extents[p] = -1.0;
+    for (p = 0; p < polygons->n_points; p++) extents[p] = -1.1;
     objects_out = central_to_new_pial(polygons, thickness_values, extents, 0, 0.5*sigma, 5, verbose);
     object_white = objects_out[0];
     polygons_white = get_polygons_ptr(object_white);
 
     // Perform final dual-surface deformation
     double weights[4] = {w1, w2, w3, w4};
-    surf_deform_dual(polygons_pial, polygons_white, labels, nii_ptr,
-                     weights, sigma, 1.4, 2.4, thickness_values,
+    surf_deform_dual(polygons_pial, polygons_white, polygons, labels, nii_ptr,
+                     weights, sigma, 1.35, 2.45, thickness_values,
                      iterations, verbose);
 
     // Save output surfaces

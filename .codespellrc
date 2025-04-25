@@ -1,0 +1,4 @@
+[codespell]
+skip = .git,*.pdf,*.svg,*.nii,gifti,nifti
+# file with ignores (ATM all shorts found by codespell)
+ignore-words = .codespell-ignores

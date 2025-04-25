@@ -371,7 +371,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     double threshold[2];
     get_prctile(displacement, polygons->n_points, threshold, prctile, 1, DT_FLOAT64);
 
-    /* If squaed sum of displacements is exceeding 95% percentile we limit all
+    /* If squared sum of displacements is exceeding 95% percentile we limit all
       displacements to 95% percentile to prevent that these outliers cause 
       self-intersections */
     for (v = 0; v < polygons->n_points; v++) {
@@ -408,7 +408,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
 }
 
 void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
-                      float *input, nifti_image *nii_ptr, 
+                      polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
                       double w[4], double sigma, float lim1, float lim2, 
                       double *target_distance, int it, int verbose) 
 {
@@ -423,9 +423,15 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     object_struct *orig_object2 = create_object(POLYGONS);
     polygons1_orig = get_polygons_ptr(orig_object1);
     polygons2_orig = get_polygons_ptr(orig_object2);
-    copy_polygons(polygons1, polygons1_orig);
-    copy_polygons(polygons2, polygons2_orig);
-
+    
+    if (polygons_orig == NULL) {
+        copy_polygons(polygons1, polygons1_orig);
+        copy_polygons(polygons2, polygons2_orig);
+    } else {
+        copy_polygons(polygons_orig, polygons1_orig);
+        copy_polygons(polygons_orig, polygons2_orig);
+    }
+    
     // Extract image dimensions and voxel size
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
@@ -557,7 +563,6 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                                           ((w[1] * f2_2 + w3_scaled2) * f3_2) * 
                                            n2[k] + w[3] * distance_force[k];
             }
-
             s1 += di1 * di1;
             s2 += di2 * di2;
         }
@@ -627,88 +632,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         displacement_field2[v][1] = Point_y(polygons2->points[v]) - Point_y(polygons2_orig->points[v]);
         displacement_field2[v][2] = Point_z(polygons2->points[v]) - Point_z(polygons2_orig->points[v]);
     }
-
-    double *displacement1 = malloc(sizeof(double) * polygons1->n_points);
-    double *displacement2 = malloc(sizeof(double) * polygons2->n_points);
-
-    double prctile[2] = {99.9, 99.9};
     
-    /* Get percentile for x-displacement */
-if (0) {
-      for (v = 0; v < polygons1->n_points; v++)
-        displacement1[v] = displacement_field1[v][0];
-    double threshold_x1[2];
-    get_prctile(displacement1, polygons1->n_points, threshold_x1, prctile, 1, DT_FLOAT64);
-    for (v = 0; v < polygons2->n_points; v++)
-        displacement2[v] = displacement_field2[v][0];
-    double threshold_x2[2];
-    get_prctile(displacement2, polygons2->n_points, threshold_x2, prctile, 1, DT_FLOAT64);
-    
-    /* Get percentile for y-displacement */
-    for (v = 0; v < polygons1->n_points; v++)
-        displacement1[v] = displacement_field1[v][1];
-    double threshold_y1[2];
-    get_prctile(displacement1, polygons1->n_points, threshold_y1, prctile, 1, DT_FLOAT64);
-    for (v = 0; v < polygons2->n_points; v++)
-        displacement2[v] = displacement_field2[v][1];
-    double threshold_y2[2];
-    get_prctile(displacement2, polygons2->n_points, threshold_y2, prctile, 1, DT_FLOAT64);
-
-    /* Get percentile for z-displacement */
-    for (v = 0; v < polygons1->n_points; v++)
-        displacement1[v] = displacement_field1[v][2];
-    double threshold_z1[2];
-    get_prctile(displacement1, polygons1->n_points, threshold_z1, prctile, 1, DT_FLOAT64);
-    for (v = 0; v < polygons2->n_points; v++)
-        displacement2[v] = displacement_field2[v][2];
-    double threshold_z2[2];
-    get_prctile(displacement2, polygons2->n_points, threshold_z2, prctile, 1, DT_FLOAT64);
-
-    // Get the squared sum of displacement
-    for (v = 0; v < polygons1->n_points; v++) {
-        displacement1[v] = SQR(displacement_field1[v][0]) + 
-                           SQR(displacement_field1[v][1]) + 
-                           SQR(displacement_field1[v][2]);
-    }
-    
-    /* Get percentile for squared sum of displacements */
-    double threshold1[2];
-    get_prctile(displacement1, polygons1->n_points, threshold1, prctile, 1, DT_FLOAT64);
-
-    // Get the squared sum of displacement
-    for (v = 0; v < polygons2->n_points; v++) {
-        displacement2[v] = SQR(displacement_field2[v][0]) + 
-                           SQR(displacement_field2[v][1]) + 
-                           SQR(displacement_field2[v][2]);
-    }
-    
-    /* Get percentile for squared sum of displacements */
-    double threshold2[2];
-    get_prctile(displacement2, polygons2->n_points, threshold2, prctile, 1, DT_FLOAT64);
-
-
-    /* If squaed sum of displacements is exceeding 95% percentile we limit all
-      displacements to 95% percentile to prevent that these outliers cause 
-      self-intersections */
-    for (v = 0; v < polygons1->n_points; v++) {
-        if (displacement1[v] > threshold1[1]) {
-            displacement_field1[v][0] = threshold_x1[1];
-            displacement_field1[v][1] = threshold_y1[1];
-            displacement_field1[v][2] = threshold_z1[1];
-        }
-    }
-
-    for (v = 0; v < polygons2->n_points; v++) {
-        if (displacement2[v] > threshold2[1]) {
-            displacement_field2[v][0] = threshold_x2[1];
-            displacement_field2[v][1] = threshold_y2[1];
-            displacement_field2[v][2] = threshold_z2[1];
-        }
-    }
-}
-
     // Apply very slight smoothing to the displacement field to smooth replacements
-    // Estimate weight w.r.t. curvature and esnure minimum of min_weight
+    // Estimate weight w.r.t. curvature and ensure minimum of min_weight
     smooth_displacement_field(displacement_field1, polygons1, n_neighbours, neighbours, 5, 0.01*sigma);
     smooth_displacement_field(displacement_field2, polygons2, n_neighbours, neighbours, 5, 0.01*sigma);
 
@@ -735,8 +661,6 @@ if (0) {
     free(gradient_x);
     free(gradient_y);
     free(gradient_z);
-    free(displacement1);
-    free(displacement2);
     free(displacement_field1);
     free(displacement_field2);
     delete_polygon_point_neighbours(polygons1, n_neighbours, neighbours, NULL, NULL);

@@ -17,9 +17,9 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
                       double w[3], double sigma, float lim, int it, int remove_intersections, 
                       int verbose);
 void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
-                      float *input, nifti_image *nii_ptr, double w[4], double sigma, 
-                      float lim1, float lim2, double *target_distance, int it, 
-                      int verbose);
+                      polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
+                      double w[4], double sigma, float lim1, float lim2, double *target_distance,
+                      int it, int verbose);
 void smooth_surface_normals(polygons_struct *polygons, int *n_neighbours, int **neighbours, 
                       int iterations);
 
