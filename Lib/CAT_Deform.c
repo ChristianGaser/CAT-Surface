@@ -11,138 +11,97 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Intersect.h"
 
-/**
- * @brief Detects inward-pointing vertex normals (potential self-intersection).
- * 
- * @param polygons Pointer to the mesh.
- * @param threshold_cosine Cosine threshold for flagging (e.g., < 0.0 = strictly inward).
- * @return int* Array (size: n_points) with 1 if inward, 0 otherwise.
- */
-int* detect_inward_normals(polygons_struct *polygons, double threshold_cosine)
-{
-    int v;
-    int *flags = calloc(polygons->n_points, sizeof(int));
+#include <float.h>
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-    // Estimate a rough center of the mesh (can improve with sphere center)
-    double cx = 0.0, cy = 0.0, cz = 0.0;
-    for (v = 0; v < polygons->n_points; v++) {
-        cx += Point_x(polygons->points[v]);
-        cy += Point_y(polygons->points[v]);
-        cz += Point_z(polygons->points[v]);
-    }
-    cx /= polygons->n_points;
-    cy /= polygons->n_points;
-    cz /= polygons->n_points;
-
-    for (v = 0; v < polygons->n_points; v++) {
-        // Vector from center to vertex (approximate outward direction)
-        double dx = Point_x(polygons->points[v]) - cx;
-        double dy = Point_y(polygons->points[v]) - cy;
-        double dz = Point_z(polygons->points[v]) - cz;
-
-        // Normalize direction vector
-        double len = sqrt(dx*dx + dy*dy + dz*dz);
-        if (len == 0.0) continue;
-
-        dx /= len;
-        dy /= len;
-        dz /= len;
-
-        // Normal at this point
-        Vector normal = polygons->normals[v];
-
-        // Dot product between normal and outward direction
-        double dot = dx * normal.coords[0] + dy * normal.coords[1] + dz * normal.coords[2];
-
-        // If dot < threshold (e.g., 0.0), normal is inward
-        if (dot < threshold_cosine)
-            flags[v] = 1;
-    }
-
-    return flags;  // Caller must free()
+// Blending function based on Jacobian determinant
+double blend_weight(double detJ, double eps, double soft) {
+    if (detJ <= 0.0) return 1.0; // full smoothing for inverted mappings
+    double x = (eps - detJ) / eps;
+    if (x <= 0.0) return 0.0;
+    if (x >= 1.0) return 1.0;
+    return pow(x, soft);
 }
 
 /**
- * @brief Smooth vertex normals on a mesh by averaging with neighbors.
+ * @brief Smooths a 3D displacement field with Jacobian-based blending to enforce diffeomorphism.
  *
- * @param polygons The surface mesh (with computed normals).
- * @param n_neighbours Array of number of neighbors per vertex.
- * @param neighbours 2D array of neighbor indices.
- * @param iterations Number of smoothing iterations.
+ * This function performs iterative smoothing of a displacement field associated with a surface mesh,
+ * placing more smoothing emphasis on vertices with lower Jacobian determinant values. The blending
+ * ensures that areas with potential non-invertibility (J ≈ 0) or folding (J < 0) are smoothed more
+ * aggressively, while regions with safe Jacobians (J >> 0) retain their displacements.
+ *
+ * This is useful for enforcing one-to-one mappings and preventing surface self-intersections.
+ *
+ * @param displacement_field  A pointer to the 3D displacement vector for each mesh vertex.
+ *                            This is a 2D array of size [n_points][3].
+ * @param polygons            Pointer to the surface mesh (polygons_struct).
+ * @param n_neighbours        Number of neighbors for each vertex.
+ * @param neighbours          2D array of neighbor indices per vertex.
+ * @param iterations          Number of smoothing iterations to perform.
+ * @param sigma               Smoothing decay factor (controls strength of smoothing).
+ * @param min_det             Minimum acceptable Jacobian determinant for diffeomorphism.
+ * @param blend_strength      Controls sharpness of blending (higher = smoother transition).
+ *                            Recommended: 5–10.
  */
-void smooth_surface_normals(polygons_struct *polygons, int *n_neighbours, int **neighbours, int iterations)
+ void smooth_displacement_field_blended(double (*displacement_field)[3], 
+                                       polygons_struct *polygons,
+                                       int *n_neighbours, int **neighbours,
+                                       int iterations, double sigma,
+                                       double min_det, double blend_strength)
 {
-    int v, j, it, pidx;
-    int n_points = polygons->n_points;
-
-    Vector *smoothed_normals = malloc(sizeof(Vector) * n_points);
-    if (!smoothed_normals) {
-        fprintf(stderr, "Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
+    int it, v, j, k, pidx;
+    double (*new_disp)[3] = malloc(sizeof(double[3]) * polygons->n_points);
 
     for (it = 0; it < iterations; it++) {
-        for (v = 0; v < n_points; v++) {
-            Vector avg = {0.0, 0.0, 0.0};
+        for (v = 0; v < polygons->n_points; v++) {
+            double J[3][3], detJ;
 
-            // Add self normal
-            avg.coords[0] += polygons->normals[v].coords[0];
-            avg.coords[1] += polygons->normals[v].coords[1];
-            avg.coords[2] += polygons->normals[v].coords[2];
+            // Estimate local Jacobian using 3 neighboring displacements
+            for (k = 0; k < 3; k++) {
+                J[k][0] = displacement_field[v][k] - displacement_field[neighbours[v][0]][k];
+                J[k][1] = displacement_field[v][k] - displacement_field[neighbours[v][1]][k];
+                J[k][2] = displacement_field[v][k] - displacement_field[neighbours[v][2]][k];
+            }
 
-            int count = 1;
+            detJ = J[0][0]*(J[1][1]*J[2][2] - J[1][2]*J[2][1]) -
+                   J[0][1]*(J[1][0]*J[2][2] - J[1][2]*J[2][0]) +
+                   J[0][2]*(J[1][0]*J[2][1] - J[1][1]*J[2][0]);
 
-            // Add neighbor normals
+            // Compute weight: 1 = smooth fully, 0 = keep original
+            double blend = 1.0 / (1.0 + exp(blend_strength * (detJ - min_det)));
+
+            double smoothed[3] = {0.0, 0.0, 0.0};
+            int count = 0;
+
             for (j = 0; j < n_neighbours[v]; j++) {
                 pidx = neighbours[v][j];
-                avg.coords[0] += polygons->normals[pidx].coords[0];
-                avg.coords[1] += polygons->normals[pidx].coords[1];
-                avg.coords[2] += polygons->normals[pidx].coords[2];
+                for (k = 0; k < 3; k++) {
+                    smoothed[k] += displacement_field[pidx][k];
+                }
                 count++;
             }
 
-            // Average
-            avg.coords[0] /= (double)count;
-            avg.coords[1] /= (double)count;
-            avg.coords[2] /= (double)count;
-
-            // Normalize
-            double norm = sqrt(SQR(avg.coords[0]) + SQR(avg.coords[1]) + SQR(avg.coords[2]));
-            if (norm > 1e-8) {
-                avg.coords[0] /= norm;
-                avg.coords[1] /= norm;
-                avg.coords[2] /= norm;
-            } else {
-                // Fallback to unit Z if degenerate
-                avg.coords[0] = 0.0;
-                avg.coords[1] = 0.0;
-                avg.coords[2] = 1.0;
+            for (k = 0; k < 3; k++) {
+                smoothed[k] = (smoothed[k] / count) * exp(-sigma);
+                // Blend between original and smoothed displacement
+                new_disp[v][k] = (1.0 - blend) * displacement_field[v][k] + blend * smoothed[k];
             }
-
-            smoothed_normals[v] = avg;
         }
 
-        // Copy smoothed back
-        for (v = 0; v < n_points; v++) {
-            polygons->normals[v] = smoothed_normals[v];
+        // Commit updates
+        for (v = 0; v < polygons->n_points; v++) {
+            for (k = 0; k < 3; k++) {
+                displacement_field[v][k] = new_disp[v][k];
+            }
         }
     }
 
-    free(smoothed_normals);
+    free(new_disp);
 }
 
-/**
- * @brief Smooths the displacement field to avoid abrupt vertex movements.
- *
- * The displacement field is iteratively updated to ensure smooth transitions between neighboring vertices.
- *
- * @param displacement_field 3D displacement field for each vertex.
- * @param polygons The 3D surface mesh.
- * @param n_neighbours Array storing the number of neighbors for each vertex.
- * @param neighbours 2D array storing the indices of each vertex’s neighbors.
- * @param iterations Number of smoothing iterations.
- * @param sigma Smoothing factor.
- */
 void smooth_displacement_field(double (*displacement_field)[3], polygons_struct *polygons, 
                                int *n_neighbours, int **neighbours, int iterations, double sigma) 
 {
@@ -407,32 +366,30 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
 }
 
-void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
-                      polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
-                      double w[4], double sigma, float lim1, float lim2, 
-                      double *target_distance, int it, int verbose) 
+void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
+                      polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr,
+                      double w[4], double sigma, float lim1, float lim2,
+                      double *target_distance, int it, int verbose)
 {
     int i, j, k, v, dims[3], nvox, pidx, n_self_hits;
     int *n_neighbours, **neighbours;
-    float *gradient_x, *gradient_y, *gradient_z;
     double vx[3];
-    
-    // Create backup copies of original meshes
-    polygons_struct *polygons1_orig, *polygons2_orig;
+
+    // Create original surface references
     object_struct *orig_object1 = create_object(POLYGONS);
     object_struct *orig_object2 = create_object(POLYGONS);
-    polygons1_orig = get_polygons_ptr(orig_object1);
-    polygons2_orig = get_polygons_ptr(orig_object2);
-    
-    if (polygons_orig == NULL) {
-        copy_polygons(polygons1, polygons1_orig);
-        copy_polygons(polygons2, polygons2_orig);
-    } else {
+    polygons_struct *polygons1_orig = get_polygons_ptr(orig_object1);
+    polygons_struct *polygons2_orig = get_polygons_ptr(orig_object2);
+
+    if (polygons_orig) {
         copy_polygons(polygons_orig, polygons1_orig);
         copy_polygons(polygons_orig, polygons2_orig);
+    } else {
+        copy_polygons(polygons1, polygons1_orig);
+        copy_polygons(polygons2, polygons2_orig);
     }
-    
-    // Extract image dimensions and voxel size
+
+    // Volume size
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
@@ -442,10 +399,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     vx[1] = nii_ptr->dy;
     vx[2] = nii_ptr->dz;
 
-    // Allocate memory for gradient images
-    gradient_x = (float *)malloc(sizeof(float) * nvox);
-    gradient_y = (float *)malloc(sizeof(float) * nvox);
-    gradient_z = (float *)malloc(sizeof(float) * nvox);
+    // Gradient volume
+    float *gradient_x = (float *)malloc(sizeof(float) * nvox);
+    float *gradient_y = (float *)malloc(sizeof(float) * nvox);
+    float *gradient_z = (float *)malloc(sizeof(float) * nvox);
 
     if (!gradient_x || !gradient_y || !gradient_z) {
         fprintf(stderr, "Memory allocation error\n");
@@ -458,31 +415,24 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     // Compute surface normals and neighbors
     compute_polygon_normals(polygons1);
     compute_polygon_normals(polygons2);
-
     // Both surfaces have the same topology, thus neighbours can be estimated from 1st
     create_polygon_point_neighbours(polygons1, TRUE, &n_neighbours, &neighbours, NULL, NULL);
 
-    // Allocate displacement fields
-    double (*displacement_field1)[3] = malloc(sizeof(double[3]) * polygons1->n_points);
-    double (*displacement_field2)[3] = malloc(sizeof(double[3]) * polygons2->n_points);
+    // Displacement fields from original position
+    double (*displacement_field1)[3] = calloc(polygons1->n_points, sizeof(double[3]));
+    double (*displacement_field2)[3] = calloc(polygons2->n_points, sizeof(double[3]));
+    double (*inc_disp1)[3] = calloc(polygons1->n_points, sizeof(double[3]));
+    double (*inc_disp2)[3] = calloc(polygons2->n_points, sizeof(double[3]));
 
-    if (!displacement_field1 || !displacement_field2) {
-        fprintf(stderr, "Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Iterative deformation process
-    int counter1 = 0, counter2 = 0;
     double s1_prev = FLT_MAX, s2_prev = FLT_MAX;
+    int counter1 = 0, counter2 = 0;
+
     for (i = 0; i < it; i++) {
         double s1 = 0.0, s2 = 0.0;
 
-        // Process both surfaces
         for (v = 0; v < polygons1->n_points; v++) {
-            // Compute centroids for smoothing
-            double c1[3] = {0.0, 0.0, 0.0};
-            double c2[3] = {0.0, 0.0, 0.0};
-
+            // Smoothing centroids
+            double c1[3] = {0.0, 0.0, 0.0}, c2[3] = {0.0, 0.0, 0.0};
             for (j = 0; j < n_neighbours[v]; j++) {
                 pidx = neighbours[v][j];
                 c1[0] += Point_x(polygons1->points[pidx]);
@@ -493,176 +443,122 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                 c2[2] += Point_z(polygons2->points[pidx]);
             }
             for (k = 0; k < 3; k++) {
-                c1[k] /= (float)n_neighbours[v];
-                c2[k] /= (float)n_neighbours[v];
+                c1[k] /= n_neighbours[v];
+                c2[k] /= n_neighbours[v];
             }
 
-            // Get current positions
-            double p1[3] = { Point_x(polygons1->points[v]), 
-                             Point_y(polygons1->points[v]), 
-                             Point_z(polygons1->points[v]) };
-            double p2[3] = { Point_x(polygons2->points[v]), 
-                             Point_y(polygons2->points[v]), 
-                             Point_z(polygons2->points[v]) };
+            // Positions
+            double p1[3] = {Point_x(polygons1->points[v]), Point_y(polygons1->points[v]), Point_z(polygons1->points[v])};
+            double p2[3] = {Point_x(polygons2->points[v]), Point_y(polygons2->points[v]), Point_z(polygons2->points[v])};
 
-            // Get normals
-            double n1[3] = { Point_x(polygons1->normals[v]), 
-                             Point_y(polygons1->normals[v]), 
-                             Point_z(polygons1->normals[v]) };
-            double n2[3] = { Point_x(polygons2->normals[v]), 
-                             Point_y(polygons2->normals[v]), 
-                             Point_z(polygons2->normals[v]) };
+            // Normals
+            double n1[3] = {Point_x(polygons1->normals[v]), Point_y(polygons1->normals[v]), Point_z(polygons1->normals[v])};
+            double n2[3] = {Point_x(polygons2->normals[v]), Point_y(polygons2->normals[v]), Point_z(polygons2->normals[v])};
 
-            // Compute external forces
+            // Image forces
             float di1 = isoval(input, p1[0], p1[1], p1[2], dims, nii_ptr) - lim1;
             float di2 = isoval(input, p2[0], p2[1], p2[2], dims, nii_ptr) - lim2;
-
             float fx1 = isoval(gradient_x, p1[0], p1[1], p1[2], dims, nii_ptr);
             float fy1 = isoval(gradient_y, p1[0], p1[1], p1[2], dims, nii_ptr);
             float fz1 = isoval(gradient_z, p1[0], p1[1], p1[2], dims, nii_ptr);
-
             float fx2 = isoval(gradient_x, p2[0], p2[1], p2[2], dims, nii_ptr);
             float fy2 = isoval(gradient_y, p2[0], p2[1], p2[2], dims, nii_ptr);
             float fz2 = isoval(gradient_z, p2[0], p2[1], p2[2], dims, nii_ptr);
 
             float f2_1 = fmax(-1.0, fmin(1.0, fx1 * n1[0] + fy1 * n1[1] + fz1 * n1[2]));
             float f2_2 = fmax(-1.0, fmin(1.0, fx2 * n2[0] + fy2 * n2[1] + fz2 * n2[2]));
-
             float f3_1 = di1;
             float f3_2 = di2;
 
-            // Dynamic boosting (optional: limit max)
+            // Dynamic boosting balloon weight if far from isosurface
             float boost1 = 0.5 + tanh(fabs(di1));
             float boost2 = 0.5 + tanh(fabs(di2));
             float w3_scaled1 = fmin(w[2] * boost1, 5.0 * w[2]);
             float w3_scaled2 = fmin(w[2] * boost2, 5.0 * w[2]);
 
-            // Compute Euclidean distance between corresponding points
-            double current_distance = sqrt(
-                (p2[0] - p1[0]) * (p2[0] - p1[0]) +
-                (p2[1] - p1[1]) * (p2[1] - p1[1]) +
-                (p2[2] - p1[2]) * (p2[2] - p1[2])
-            );
+            double dist = sqrt(SQR(p2[0] - p1[0]) + SQR(p2[1] - p1[1]) + SQR(p2[2] - p1[2]));
+            double factor = (dist - target_distance[v]) / target_distance[v];
+            double dist_force[3] = {
+                (counter1 > 4 || counter2 > 4) ? 0.0 : (p2[0] - p1[0]) * factor,
+                (counter1 > 4 || counter2 > 4) ? 0.0 : (p2[1] - p1[1]) * factor,
+                (counter1 > 4 || counter2 > 4) ? 0.0 : (p2[2] - p1[2]) * factor
+            };
 
-            // Compute distance constraint force
-            double distance_force[3];
-            double distance_factor = (current_distance - target_distance[v]) / target_distance[v];
+            // Compute incremental displacements
             for (k = 0; k < 3; k++) {
-                if ((counter1 > 4) || (counter2 > 4))
-                    distance_force[k] = 0.0;
-                else
-                    distance_force[k] = (p2[k] - p1[k]) * distance_factor;
+                inc_disp1[v][k] = w[0] * (c1[k] - p1[k]) + ((w[1] * f2_1 + w3_scaled1) * f3_1) * n1[k] + w[3] * dist_force[k];
+                inc_disp2[v][k] = w[0] * (c2[k] - p2[k]) + ((w[1] * f2_2 + w3_scaled2) * f3_2) * n2[k] + w[3] * dist_force[k];
+
+                displacement_field1[v][k] += inc_disp1[v][k];
+                displacement_field2[v][k] += inc_disp2[v][k];
             }
 
-            // Compute final displacement
-            for (k = 0; k < 3; k++) {
-                displacement_field1[v][k] = w[0] * (c1[k] - p1[k]) + 
-                                          ((w[1] * f2_1 + w3_scaled1) * f3_1) * 
-                                           n1[k] + w[3] * distance_force[k];
-                displacement_field2[v][k] = w[0] * (c2[k] - p2[k]) + 
-                                          ((w[1] * f2_2 + w3_scaled2) * f3_2) * 
-                                           n2[k] + w[3] * distance_force[k];
-            }
             s1 += di1 * di1;
             s2 += di2 * di2;
         }
 
-        if (s1 > s1_prev) counter1++;
-        if (s2 > s2_prev) counter2++;
+        // Smooth accumulated full displacements
+        smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours, neighbours, 5, sigma, 0.1, 10);
+        smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours, neighbours, 5, sigma, 0.1, 10);
 
-        // Stop if no further minimization is seen and s1 and s2 increase instead
-        //if ((counter1 > 5) && (counter2 > 5)) break;
-
-        // Apply smoothing to the (pial) displacement field
-        smooth_displacement_field(displacement_field1, polygons1, n_neighbours, neighbours, 5, sigma);
-
-        // Apply the final displacement to vertices
+        // Apply smoothed full displacement
         for (v = 0; v < polygons1->n_points; v++) {
-            Point_x(polygons1->points[v]) += displacement_field1[v][0];
-            Point_y(polygons1->points[v]) += displacement_field1[v][1];
-            Point_z(polygons1->points[v]) += displacement_field1[v][2];
+            Point_x(polygons1->points[v]) = Point_x(polygons1_orig->points[v]) + displacement_field1[v][0];
+            Point_y(polygons1->points[v]) = Point_y(polygons1_orig->points[v]) + displacement_field1[v][1];
+            Point_z(polygons1->points[v]) = Point_z(polygons1_orig->points[v]) + displacement_field1[v][2];
         }
-        
+
+        for (v = 0; v < polygons2->n_points; v++) {
+            Point_x(polygons2->points[v]) = Point_x(polygons2_orig->points[v]) + displacement_field2[v][0];
+            Point_y(polygons2->points[v]) = Point_y(polygons2_orig->points[v]) + displacement_field2[v][1];
+            Point_z(polygons2->points[v]) = Point_z(polygons2_orig->points[v]) + displacement_field2[v][2];
+        }
+
+        // Minimize self-intersections
         n_self_hits = 0;
         int *flags1 = find_near_self_intersections(polygons1, 0.75, &n_self_hits);
         for (v = 0; v < polygons1->n_points; v++) {
             if (flags1[v]) {
-                Point_x(polygons1->points[v]) -= 1.25*displacement_field1[v][0];
-                Point_y(polygons1->points[v]) -= 1.25*displacement_field1[v][1];
-                Point_z(polygons1->points[v]) -= 1.25*displacement_field1[v][2];
+                displacement_field1[v][0] -= 1.5*inc_disp1[v][0];
+                displacement_field1[v][1] -= 1.5*inc_disp1[v][1];
+                displacement_field1[v][2] -= 1.5*inc_disp1[v][2];
             }
-        }
-        compute_polygon_normals(polygons1);
-
-        // Apply smoothing to the (white) displacement field
-        smooth_displacement_field(displacement_field2, polygons2, n_neighbours, neighbours, 5, sigma);
-
-        // Apply the final displacement to vertices
-        for (v = 0; v < polygons2->n_points; v++) {
-            Point_x(polygons2->points[v]) += displacement_field2[v][0];
-            Point_y(polygons2->points[v]) += displacement_field2[v][1];
-            Point_z(polygons2->points[v]) += displacement_field2[v][2];
         }
 
         int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
         for (v = 0; v < polygons2->n_points; v++) {
             if (flags2[v]) {
-                Point_x(polygons2->points[v]) -= 1.25*displacement_field2[v][0];
-                Point_y(polygons2->points[v]) -= 1.25*displacement_field2[v][1];
-                Point_z(polygons2->points[v]) -= 1.25*displacement_field2[v][2];
+                displacement_field2[v][0] -= 1.25*inc_disp2[v][0];
+                displacement_field2[v][1] -= 1.25*inc_disp2[v][1];
+                displacement_field2[v][2] -= 1.25*inc_disp2[v][2];
             }
         }
+        compute_polygon_normals(polygons1);
         compute_polygon_normals(polygons2);
 
+        if (s1 > s1_prev) counter1++;
+        if (s2 > s2_prev) counter2++;
+
         if (verbose) {
-            fprintf(stdout, "\rMesh: deform: iter %03d | Errors: %6.4f/%6.4f", i+1, 
-                      sqrt(s1 / polygons1->n_points),sqrt(s2 / polygons1->n_points));
+            fprintf(stdout, "\rMesh: deform: iter %03d | Errors: %6.4f/%6.4f", i + 1,
+                    sqrt(s1 / polygons1->n_points), sqrt(s2 / polygons2->n_points));
             fflush(stdout);
         }
+
         s1_prev = s1;
         s2_prev = s2;
     }
+
     if (verbose) fprintf(stdout, "\n");
 
-    for (v = 0; v < polygons1->n_points; v++) {
-        displacement_field1[v][0] = Point_x(polygons1->points[v]) - Point_x(polygons1_orig->points[v]);
-        displacement_field1[v][1] = Point_y(polygons1->points[v]) - Point_y(polygons1_orig->points[v]);
-        displacement_field1[v][2] = Point_z(polygons1->points[v]) - Point_z(polygons1_orig->points[v]);
-        displacement_field2[v][0] = Point_x(polygons2->points[v]) - Point_x(polygons2_orig->points[v]);
-        displacement_field2[v][1] = Point_y(polygons2->points[v]) - Point_y(polygons2_orig->points[v]);
-        displacement_field2[v][2] = Point_z(polygons2->points[v]) - Point_z(polygons2_orig->points[v]);
-    }
-    
-    // Apply very slight smoothing to the displacement field to smooth replacements
-    // Estimate weight w.r.t. curvature and ensure minimum of min_weight
-    smooth_displacement_field(displacement_field1, polygons1, n_neighbours, neighbours, 5, 0.01*sigma);
-    smooth_displacement_field(displacement_field2, polygons2, n_neighbours, neighbours, 5, 0.01*sigma);
-
-    // Apply the final displacement to vertices
-    for (v = 0; v < polygons1->n_points; v++) {
-        Point_x(polygons1_orig->points[v]) += displacement_field1[v][0];
-        Point_y(polygons1_orig->points[v]) += displacement_field1[v][1];
-        Point_z(polygons1_orig->points[v]) += displacement_field1[v][2];
-    }
-    copy_polygons(polygons1_orig, polygons1);
-
-    for (v = 0; v < polygons2->n_points; v++) {
-        Point_x(polygons2_orig->points[v]) += displacement_field2[v][0];
-        Point_y(polygons2_orig->points[v]) += displacement_field2[v][1];
-        Point_z(polygons2_orig->points[v]) += displacement_field2[v][2];
-    }
-    copy_polygons(polygons2_orig, polygons2);
-
-    if (verbose) fprintf(stdout,"\n");
     remove_near_intersections(polygons1, 0.75, verbose);
     remove_near_intersections(polygons2, 0.75, verbose);
 
-    // Free allocated memory
-    free(gradient_x);
-    free(gradient_y);
-    free(gradient_z);
-    free(displacement_field1);
-    free(displacement_field2);
+    // Cleanup
+    free(gradient_x); free(gradient_y); free(gradient_z);
+    free(displacement_field1); free(displacement_field2);
+    free(inc_disp1); free(inc_disp2);
     delete_polygon_point_neighbours(polygons1, n_neighbours, neighbours, NULL, NULL);
+    delete_polygons(polygons1_orig);
+    delete_polygons(polygons2_orig);
 }
-
