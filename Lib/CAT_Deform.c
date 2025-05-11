@@ -448,12 +448,20 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             }
 
             // Positions
-            double p1[3] = {Point_x(polygons1->points[v]), Point_y(polygons1->points[v]), Point_z(polygons1->points[v])};
-            double p2[3] = {Point_x(polygons2->points[v]), Point_y(polygons2->points[v]), Point_z(polygons2->points[v])};
+            double p1[3] = {Point_x(polygons1->points[v]), 
+                            Point_y(polygons1->points[v]), 
+                            Point_z(polygons1->points[v])};
+            double p2[3] = {Point_x(polygons2->points[v]), 
+                            Point_y(polygons2->points[v]), 
+                            Point_z(polygons2->points[v])};
 
             // Normals
-            double n1[3] = {Point_x(polygons1->normals[v]), Point_y(polygons1->normals[v]), Point_z(polygons1->normals[v])};
-            double n2[3] = {Point_x(polygons2->normals[v]), Point_y(polygons2->normals[v]), Point_z(polygons2->normals[v])};
+            double n1[3] = {Point_x(polygons1->normals[v]), 
+                            Point_y(polygons1->normals[v]), 
+                            Point_z(polygons1->normals[v])};
+            double n2[3] = {Point_x(polygons2->normals[v]), 
+                            Point_y(polygons2->normals[v]), 
+                            Point_z(polygons2->normals[v])};
 
             // Image forces
             float di1 = isoval(input, p1[0], p1[1], p1[2], dims, nii_ptr) - lim1;
@@ -486,8 +494,12 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
 
             // Compute incremental displacements
             for (k = 0; k < 3; k++) {
-                inc_disp1[v][k] = w[0] * (c1[k] - p1[k]) + ((w[1] * f2_1 + w3_scaled1) * f3_1) * n1[k] + w[3] * dist_force[k];
-                inc_disp2[v][k] = w[0] * (c2[k] - p2[k]) + ((w[1] * f2_2 + w3_scaled2) * f3_2) * n2[k] + w[3] * dist_force[k];
+                inc_disp1[v][k] = w[0] * (c1[k] - p1[k]) + 
+                                ((w[1] * f2_1 + w3_scaled1) * f3_1) * n1[k] + 
+                                  w[3] * dist_force[k];
+                inc_disp2[v][k] = w[0] * (c2[k] - p2[k]) + 
+                                ((w[1] * f2_2 + w3_scaled2) * f3_2) * n2[k] + 
+                                  w[3] * dist_force[k];
 
                 displacement_field1[v][k] += inc_disp1[v][k];
                 displacement_field2[v][k] += inc_disp2[v][k];
@@ -498,20 +510,28 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         }
 
         // Smooth accumulated full displacements
-        smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours, neighbours, 5, sigma, 0.1, 10);
-        smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours, neighbours, 5, sigma, 0.1, 10);
+        smooth_displacement_field_blended(displacement_field1, polygons1, 
+                                          n_neighbours, neighbours, 5, sigma, 0.1, 10);
+        smooth_displacement_field_blended(displacement_field2, polygons2, 
+                                          n_neighbours, neighbours, 5, sigma, 0.1, 10);
 
         // Apply smoothed full displacement
         for (v = 0; v < polygons1->n_points; v++) {
-            Point_x(polygons1->points[v]) = Point_x(polygons1_orig->points[v]) + displacement_field1[v][0];
-            Point_y(polygons1->points[v]) = Point_y(polygons1_orig->points[v]) + displacement_field1[v][1];
-            Point_z(polygons1->points[v]) = Point_z(polygons1_orig->points[v]) + displacement_field1[v][2];
+            Point_x(polygons1->points[v]) = Point_x(polygons1_orig->points[v]) + 
+                                            displacement_field1[v][0];
+            Point_y(polygons1->points[v]) = Point_y(polygons1_orig->points[v]) + 
+                                            displacement_field1[v][1];
+            Point_z(polygons1->points[v]) = Point_z(polygons1_orig->points[v]) + 
+                                            displacement_field1[v][2];
         }
 
         for (v = 0; v < polygons2->n_points; v++) {
-            Point_x(polygons2->points[v]) = Point_x(polygons2_orig->points[v]) + displacement_field2[v][0];
-            Point_y(polygons2->points[v]) = Point_y(polygons2_orig->points[v]) + displacement_field2[v][1];
-            Point_z(polygons2->points[v]) = Point_z(polygons2_orig->points[v]) + displacement_field2[v][2];
+            Point_x(polygons2->points[v]) = Point_x(polygons2_orig->points[v]) + 
+                                            displacement_field2[v][0];
+            Point_y(polygons2->points[v]) = Point_y(polygons2_orig->points[v]) + 
+                                            displacement_field2[v][1];
+            Point_z(polygons2->points[v]) = Point_z(polygons2_orig->points[v]) + 
+                                            displacement_field2[v][2];
         }
 
         // Minimize self-intersections

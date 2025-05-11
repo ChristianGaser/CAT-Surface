@@ -1148,7 +1148,7 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH) {
                         ni = i + NI[n];
                         ind2sub(ni,&nu,&nv,&nw,xy,x);
                         if (((ni<0) || (ni>=nvox) || (abs(nu-u)>1) || (abs(nv-v)>1) || (abs(nw-w)>1) || (L1[ni]==-FLT_MAX) || (L1[ni]==FLT_MAX))==0) 
-                            LN[ni] = 1; /* if I change his neigbours it has to be recalculated */
+                            LN[ni] = 1; /* if I change his neighbours it has to be recalculated */
                     }                
                 }
                 LN[i] = 0;

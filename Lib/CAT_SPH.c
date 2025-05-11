@@ -733,7 +733,7 @@ laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
                         if (ni < 0) ni += dimx;
                         if (ni >= xy) ni -= dimx;
                         if (((ni<0) || (ni>= xy) || (L1[ni] == -FLT_MAX) || (L1[ni] == FLT_MAX) ) == 0) 
-                            LN[ni] = 1; /* if i changes his neigbours has to be recalculated */
+                            LN[ni] = 1; /* if i changes his neighbours has to be recalculated */
                     }
                 }
     
