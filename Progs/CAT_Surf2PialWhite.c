@@ -23,10 +23,10 @@
 // Default arguments for the surface deformation
 // ---------------------------------------------
 double w1 = 0.1;  // Internal smoothness force
-double w2 = 0.2;  // Gradient alignment force
+double w2 = 1.0;  // Gradient alignment force
 double w3 = 0.4;  // Balloon force (based on intensity deviation)
 double w4 = 0.0;  // Connection force (between pial and white)
-double sigma = 0.3; 
+double sigma = 0.002; 
 int verbose = 0; 
 int iterations = 50; 
 
@@ -149,13 +149,13 @@ int main(int argc, char *argv[]) {
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours, 3.0, 0.0, weight);
     for (p = 0; p < polygons->n_points; p++) {
         weight[p] = fmin(0.0, weight[p]);   // Only negative curvatures
-        weight[p] = fmax(-80.0, weight[p]); // Clip at -80
-        weight[p] /= -80.0;                 // Normalize to [0..1]
+        weight[p] = fmax(-90.0, weight[p]); // Clip at -90
+        weight[p] /= -90.0;                 // Normalize to [0..1]
     }
 
     // Initial estimate of pial surface
     extents = malloc(sizeof(double) * polygons->n_points);
-    for (p = 0; p < polygons->n_points; p++) extents[p] = 1.1;
+    for (p = 0; p < polygons->n_points; p++) extents[p] = 0.75;
 
     objects_out = central_to_new_pial(polygons, thickness_values, extents, 1, 0.5*sigma, 5, verbose);
     object_pial = objects_out[0];
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Initial estimate of white surface
-    for (p = 0; p < polygons->n_points; p++) extents[p] = -1.1;
+    for (p = 0; p < polygons->n_points; p++) extents[p] = -0.5;
     objects_out = central_to_new_pial(polygons, thickness_values, extents, 0, 0.5*sigma, 5, verbose);
     object_white = objects_out[0];
     polygons_white = get_polygons_ptr(object_white);
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     // Perform final dual-surface deformation
     double weights[4] = {w1, w2, w3, w4};
     surf_deform_dual(polygons_pial, polygons_white, polygons, labels, nii_ptr,
-                     weights, sigma, 1.35, 2.45, thickness_values,
+                     weights, sigma, 1.48, 2.52, thickness_values,
                      iterations, verbose);
 
     // Save output surfaces
