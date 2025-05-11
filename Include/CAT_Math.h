@@ -18,6 +18,8 @@
 #include "CAT_NiftiLib.h"
 
 #define SQRT2PI 2.506628
+#define TOLSVD 1e-10
+#define EPS 1e-15
 
 #ifndef isfinite
 #define isfinite(x) ((x) * (x) >= 0.) /* check for NaNs */
@@ -54,6 +56,7 @@
   #define FNAN 0.0f/0.0f
 #endif
 
+int pinv(int m, int n, float **A, float **Ainv);
 void convert_input_type(void *data, double *buffer, int n, int datatype);
 void convert_output_type(void *data, double *buffer, int n, int datatype);
 void convert_input_type_float(void *data, float *buffer, int n, int datatype);
