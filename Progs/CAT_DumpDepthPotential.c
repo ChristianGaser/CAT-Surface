@@ -23,13 +23,12 @@
 int
 main(int argc, char *argv[])
 {
-    char         *object_file, *output_surface_file;
-    File_formats     format;
-    int          poly, n_objects;
-    object_struct    **objects;
-    polygons_struct    *polygons;
-    float        alpha;
-    double         *measure;
+    char *object_file, *output_surface_file;
+    File_formats format;
+    int poly, n_objects;
+    object_struct **objects;
+    polygons_struct *polygons;
+    double *measure, alpha;
 
     initialize_argument_processing(argc, argv);
 

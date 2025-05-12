@@ -2,11 +2,11 @@
 #define  DEF_vol_io_prototypes
 
 #ifndef  Real
-#define  Real float
+#define  Real double
 #endif
 
 #ifndef  VIO_Real
-#define  VIO_Real float
+#define  VIO_Real double
 #endif
 
 VIOAPI  VIO_Real  convert_voxel_to_value(

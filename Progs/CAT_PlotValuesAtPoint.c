@@ -25,17 +25,17 @@ Usage: %s surface_file x y z values1.txt [values2.txt .. valuesn.txt]\n\n\
 int
 main(int argc, char *argv[])
 {
-    char        *object_file, *input_file;
-    FILE        *infp;
-    File_formats    format;
-    int         poly, n_objects, pidx, min_index, n_files;
-    int         i, j;
-    object_struct   **objects;
-    polygons_struct   *polygons;
-    float       x, y, z;
-    double        dist, min_dist, value;
-    Point       point;
-    char        line[256];
+    char *object_file, *input_file;
+    FILE *infp;
+    File_formats format;
+    int poly, n_objects, pidx, min_index, n_files;
+    int i, j;
+    object_struct **objects;
+    polygons_struct *polygons;
+    double x, y, z;
+    double dist, min_dist, value;
+    Point point;
+    char line[256];
 
     initialize_argument_processing(argc, argv);
 

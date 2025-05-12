@@ -2,7 +2,7 @@
 #define  DEF_object_prototypes
 
 #ifndef  Real
-#define  Real float
+#define  Real double
 #endif
 
 #ifdef __cplusplus

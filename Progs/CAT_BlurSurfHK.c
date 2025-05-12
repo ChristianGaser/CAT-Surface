@@ -41,15 +41,14 @@ Usage: %s surface_file output_file fwhm [values_file] [mask_file]\n\n\
 int
 main(int argc, char *argv[])
 {
-    char       *input_file, *output_surface_file, *values_file, *mask_file;
-    int        i, n_objects, n_values, n_mask;
-    int        *n_neighbours, **neighbours;
-    File_formats   format;
-    object_struct  **object_list;
-    polygons_struct  *polygons;
-    double       *values, *mask;
-    float      fwhm;
-    BOOLEAN      values_present, mask_present;
+    char *input_file, *output_surface_file, *values_file, *mask_file;
+    int i, n_objects, n_values, n_mask;
+    int *n_neighbours, **neighbours;
+    File_formats format;
+    object_struct **object_list;
+    polygons_struct *polygons;
+    double *values, *mask, fwhm;
+    BOOLEAN values_present, mask_present;
 
     initialize_argument_processing(argc, argv);
 

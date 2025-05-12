@@ -162,7 +162,6 @@ bic_SRC = \
     3rdparty/bicpl-surface/Numerical/least_squares.c  \
     3rdparty/bicpl-surface/Numerical/matrix_svd.c  \
     3rdparty/bicpl-surface/Numerical/minimize_lsq.c  \
-    3rdparty/bicpl-surface/Numerical/minimize_lsq_float.c  \
     3rdparty/bicpl-surface/Numerical/minimize_lsq_include.c  \
     3rdparty/bicpl-surface/Numerical/numerical.c  \
     3rdparty/bicpl-surface/Numerical/quadratic.c  \

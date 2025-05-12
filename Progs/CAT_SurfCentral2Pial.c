@@ -52,7 +52,7 @@ main(int argc, char *argv[])
     int p, n_objects, n_values;
     double *thickness_values, *area_inner, *area_outer, *extents;
     double value, surface_area, pos;
-    float extent;
+    double extent;
     Status status;
     char *src_file, *out_file, *values_file;
     File_formats format;

@@ -56,11 +56,12 @@
   #define FNAN 0.0f/0.0f
 #endif
 
-int pinv(int m, int n, float **A, float **Ainv);
+int pinv(int m, int n, double **A, double **Ainv);
 void convert_input_type(void *data, double *buffer, int n, int datatype);
 void convert_output_type(void *data, double *buffer, int n, int datatype);
 void convert_input_type_float(void *data, float *buffer, int n, int datatype);
 void convert_output_type_float(void *data, float *buffer, int n, int datatype);
+void normalize_double(double *arr, int n);
 double get_min_double(double *arr, int n, int mask_zeros);
 double get_max_double(double *arr, int n, int mask_zeros);
 double get_mean_double(double *arr, int n, int mask_zeros);

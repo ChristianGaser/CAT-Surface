@@ -41,13 +41,12 @@ Usage: %s  surface_file output_values_file [radius]\n\
 int
 main(int argc, char *argv[])
 {
-    char         *object_file, *output_surface_file;
-    File_formats     format;
-    int          n_objects;
-    object_struct    **objects;
-    polygons_struct    *polygons;
-    double         *area_values;
-    float        radius;
+    char *object_file, *output_surface_file;
+    File_formats format;
+    int n_objects;
+    object_struct **objects;
+    polygons_struct *polygons;
+    double *area_values, radius;
 
     /* Call ParseArgv */
     if (ParseArgv(&argc, argv, argTable, 0)) {

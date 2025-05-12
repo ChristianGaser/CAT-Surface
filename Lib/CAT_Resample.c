@@ -49,7 +49,7 @@ THREAD_RETURN process_resample_surface(void *args) {
     Point point_on_src_sphere, scaled_point;
     Point poly_points[MAX_POINTS_PER_POLYGON];
     Point poly_points_src[MAX_POINTS_PER_POLYGON];
-    float weights[MAX_POINTS_PER_POLYGON];
+    double weights[MAX_POINTS_PER_POLYGON];
 
     for (i = thread_args->start_idx; i < thread_args->end_idx; i++) {
         poly = find_closest_polygon_point(&thread_args->resampled_source->points[i],
@@ -131,7 +131,7 @@ void resample_spherical_surface(polygons_struct *polygons,
         Point point_on_src_sphere, scaled_point;
         Point poly_points[MAX_POINTS_PER_POLYGON];
         Point poly_points_src[MAX_POINTS_PER_POLYGON];
-        float weights[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
 
         poly = find_closest_polygon_point(&resampled_source->points[i], poly_src_sphere, &point_on_src_sphere);
 
@@ -240,7 +240,7 @@ THREAD_RETURN process_target_points(void *args) {
     int i, j, poly, n_points;
     Point point;
     Point poly_points[MAX_POINTS_PER_POLYGON];
-    float weights[MAX_POINTS_PER_POLYGON];
+    double weights[MAX_POINTS_PER_POLYGON];
 
     for (i = start; i < end; i++) {
         poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
@@ -286,7 +286,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
         int poly, n_points;
         Point point;
         Point poly_points[MAX_POINTS_PER_POLYGON];
-        float weights[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
 
         poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
 
@@ -362,7 +362,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
     object_struct **objects, **scaled_objects;
     polygons_struct *scaled_target_sphere, *scaled_polygons_sphere;
     double      max_prob, val;
-    float     weights[MAX_POINTS_PER_POLYGON];
+    double     weights[MAX_POINTS_PER_POLYGON];
 
     objects  = (object_struct **) malloc(sizeof(object_struct *));
     *objects = create_object(POLYGONS);
@@ -504,7 +504,7 @@ resample_spherical_surface_orig(polygons_struct *polygons,
     Point  poly_points[MAX_POINTS_PER_POLYGON];
     Point  poly_points_src[MAX_POINTS_PER_POLYGON];
     Point  *new_points;
-    float  weights[MAX_POINTS_PER_POLYGON];
+    double weights[MAX_POINTS_PER_POLYGON];
     double sphereRadius, r, bounds[6];
 
     /*
@@ -591,7 +591,7 @@ resample_surface(polygons_struct *surface, polygons_struct *sphere,
     Point     *new_points, poly_points[MAX_POINTS_PER_POLYGON];
     object_struct **objects, *scaled_objects;
     polygons_struct *output_surface, *scaled_sphere;
-    float      weights[MAX_POINTS_PER_POLYGON];
+    double      weights[MAX_POINTS_PER_POLYGON];
 
     scaled_objects = create_object(POLYGONS);
     scaled_sphere  = get_polygons_ptr(scaled_objects);

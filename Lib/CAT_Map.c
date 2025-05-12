@@ -102,7 +102,7 @@ map_sphere_values_to_sheet(polygons_struct *polygons,
     double        value;
     double        u, v;
     double        mn, mx;
-    float       weights[1000];
+    double       weights[1000];
     int         i;
     int         x, y;
     int         poly, size, ind;

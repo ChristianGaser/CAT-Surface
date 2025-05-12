@@ -13,10 +13,10 @@
 double
 interp_point_unit_sphere(polygons_struct *sphere, double *values, Point pt)
 {
-    Point       on_sphere_pt, poly_pts[1000];
-    double        value;
-    float      weights[1000];
-    int         i, poly, size, ind;
+    Point on_sphere_pt, poly_pts[1000];
+    double value;
+    double weights[1000];
+    int i, poly, size, ind;
 
     if (sphere->bintree == NULL)
         create_polygons_bintree(sphere, ROUND((double) sphere->n_items *

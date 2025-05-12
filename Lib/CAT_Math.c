@@ -16,61 +16,61 @@
  * are treated as zero. The rank of the matrix A is returned.
  */
 int
-pinv(int m, int n, float **A, float **Ainv)
+pinv(int m, int n, double **A, double **Ainv)
 {
-        int   i, j, k, r;
-        float  **U, **V, **S, *W, **Ut;
-    
-        ALLOC2D(U, m, n);
-        ALLOC2D(V, n, n);
-        ALLOC2D(S,  n, n);
-        ALLOC2D(Ut, n, m);
-        ALLOC(W, n);
+    int i, j, k, r;
+    double **U, **V, **S, *W, **Ut;
+  
+    ALLOC2D(U, m, n);
+    ALLOC2D(V, n, n);
+    ALLOC2D(S,  n, n);
+    ALLOC2D(Ut, n, m);
+    ALLOC(W, n);
 
-        /*
-         * copy matrix A to U, because this matrix will be overwritten by
-         * singular_value_decomposition
-         */
-        for (i = 0; i < m; i++)
-                for (j = 0; j < n; j++)
-                        U[i][j] = A[i][j];
+    /*
+     * copy matrix A to U, because this matrix will be overwritten by
+     * singular_value_decomposition
+     */
+    for (i = 0; i < m; i++)
+        for (j = 0; j < n; j++)
+            U[i][j] = A[i][j];
 
-        (void) singular_value_decomposition(m, n, U, W, V);
-    
-        /*
-         * rank of matrix using a somewhat arbitrary value of 1e-10 as
-         * tolerance for singular values
-         */
-        r = 0;
+    (void) singular_value_decomposition(m, n, U, W, V);
+  
+    /*
+     * rank of matrix using a somewhat arbitrary value of 1e-10 as
+     * tolerance for singular values
+     */
+    r = 0;
+    for (i = 0; i < n; i++)
+        if (W[i] > TOLSVD)
+          r += 1;
+
+    if (r == 0) {
         for (i = 0; i < n; i++)
-                if (W[i] > TOLSVD)
-                  r += 1;
-
-        if (r == 0) {
-                for (i = 0; i < n; i++)
-                  for (j = 0; j < m; j++)
-                          Ainv[i][j] = 0.0;
-        } else {
-                for (i = 0; i < r; i++) {
-                        for (j = 0; j < r; j++) {
-                                if (i == j) S[i][j] = 1/(W[i] + EPS);
-                                else S[i][j] = 0.0;
-                        }
-                }
-
-                transpose(m, n, U, Ut);
-    
-                matrix_multiply(n, n, n, V, S, S);
-                matrix_multiply(n, n, m, S, Ut, Ainv);
+          for (j = 0; j < m; j++)
+              Ainv[i][j] = 0.0;
+    } else {
+        for (i = 0; i < r; i++) {
+            for (j = 0; j < r; j++) {
+                if (i == j) S[i][j] = 1/(W[i] + EPS);
+                else S[i][j] = 0.0;
+            }
         }
 
-        FREE(W);
-        FREE2D(U);
-        FREE2D(S);
-        FREE2D(V);
-        FREE2D(Ut);
-    
-        return(r);
+        transpose(m, n, U, Ut);
+  
+        matrix_multiply(n, n, n, V, S, S);
+        matrix_multiply(n, n, m, S, Ut, Ainv);
+    }
+
+    FREE(W);
+    FREE2D(U);
+    FREE2D(S);
+    FREE2D(V);
+    FREE2D(Ut);
+  
+    return(r);
 }
 
 /**
@@ -674,6 +674,27 @@ void get_prctile_double(double *data, int n, double threshold[2],
     threshold[1] = copy[upper_index];
         
     free(copy);
+}
+
+/**
+ * normalize_double - Subtract mean from an array of doubles.
+ *
+ * This function iterates through an array of doubles to obtain a mean of 0.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  Overwrites the array by the mean-corrected array.
+ */
+void normalize_double(double *arr, int n) {
+    int i;
+
+    double mn = get_mean_double(arr, n, 0);
+
+    for (i = 0; i < n; i++) arr[i] -= mn;
+
 }
 
 /**

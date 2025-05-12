@@ -29,29 +29,29 @@ Usage: %s input_values_file ShiftField_file output_values_file\n\n\
 int
 main(int argc, char *argv[])
 {
-    char         *output_surface_file, *vector_file, *values_file;
-    FILE         *infp;
-    polygons_struct    unit_sphere;
-    int          i, j;
-    int          poly, size, ind;
-    int          n_values;
-    double         *inflow, *flow, *flow1;
-    Point        unit_point, on_sphere_point, centre;
-    Point        poly_points[1000];
-    double         u, v, *values, *input_values, **sheet;
-    double         value, indx, indy;
-    float        weights[1000]; 
-    progress_struct    progress;
-    double         inflow_x, inflow_y, ux, vy;
-    int          size_map[2], shift[2];
+    char *output_surface_file, *vector_file, *values_file;
+    FILE *infp;
+    polygons_struct unit_sphere;
+    int i, j;
+    int poly, size, ind;
+    int n_values;
+    double *inflow, *flow, *flow1;
+    Point unit_point, on_sphere_point, centre;
+    Point poly_points[1000];
+    double u, v, *values, *input_values, **sheet;
+    double value, indx, indy;
+    double weights[1000]; 
+    progress_struct progress;
+    double inflow_x, inflow_y, ux, vy;
+    int size_map[2], shift[2];
 
     initialize_argument_processing(argc, argv);
 
     if (!get_string_argument(NULL, &values_file) ||
-      !get_string_argument(NULL, &vector_file) ||
-      !get_string_argument(NULL, &output_surface_file)) {
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
+        !get_string_argument(NULL, &vector_file) ||
+        !get_string_argument(NULL, &output_surface_file)) {
+          usage(argv[0]);
+          exit(EXIT_FAILURE);
     }
 
 

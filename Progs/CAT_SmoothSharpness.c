@@ -41,15 +41,14 @@ Usage: %s surface_file output_surface_file fwhm\n\n\
 int
 main(int argc, char *argv[])
 {
-    char       *input_file, *output_surface_file;
-    int        n_objects;
-    int        *n_neighbours, **neighbours;
-    int        p, k;
-    File_formats   format;
-    object_struct  **object_list;
-    polygons_struct  *polygons, *smoothed_polygons;
-    float      fwhm;
-    double       *sharpness, min, max;
+    char *input_file, *output_surface_file;
+    int n_objects;
+    int *n_neighbours, **neighbours;
+    int p, k;
+    File_formats format;
+    object_struct **object_list;
+    polygons_struct *polygons, *smoothed_polygons;
+    double *sharpness, min, max, fwhm;
 
     initialize_argument_processing(argc, argv);
 

@@ -1461,7 +1461,7 @@ input_txt_values(
 {
     FILE       *fp;
     Status       status;
-    float     value;
+    double     value;
   
   
     if ((fp = fopen(filename, "r")) == 0) {
@@ -1473,7 +1473,7 @@ input_txt_values(
     *values = NULL;
   
     while( input_real( fp, &value ) == OK )
-        ADD_ELEMENT_TO_ARRAY( *values, *n_values, (double)value, DEFAULT_CHUNK_SIZE );
+        ADD_ELEMENT_TO_ARRAY( *values, *n_values, value, DEFAULT_CHUNK_SIZE );
   
     (void) close_file( fp );
   

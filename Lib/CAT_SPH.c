@@ -422,7 +422,7 @@ get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
     Point unit_point, on_sphere_point, new_point;
     Point poly_points[1000], poly_points_src[1000], scaled_point;
     int poly, size, ind, bandwidth2;
-    float weights[1000];
+    double weights[1000];
     object_struct *objects;
     polygons_struct *scaled_sphere;
 
@@ -497,7 +497,7 @@ get_equally_sampled_coords_holes(polygons_struct *polygons,
     Point unit_point, on_sphere_point, new_point;
     Point poly_points[1000], poly_points_src[1000], scaled_point;
     int poly, size, ind, bandwidth2;
-    float weights[1000];
+    double weights[1000];
     object_struct **objects;
     polygons_struct *scaled_sphere;
 

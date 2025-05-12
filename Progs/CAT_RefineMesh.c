@@ -32,7 +32,7 @@ int  main(
     object_struct      **object_list;
     polygons_struct    *polygons, new_polygons;
     Point              *length_points;
-    float              max_length, weight_curvatures;
+    double             max_length, weight_curvatures;
 
     initialize_argument_processing( argc, argv );
 

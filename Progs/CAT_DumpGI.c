@@ -40,14 +40,14 @@ Usage: %s  surface_file output_surface_file fwhm [fwhm_surf] [curvtype]\n\n\
 int
 main(int argc, char *argv[])
 {
-    char         *object_file, *output_surface_file;
-    File_formats     format;
-    int          i, n_objects, curvtype;
-    int          *n_neighbours, **neighbours;
-    object_struct    **objects;
-    polygons_struct    *polygons;
-    double           fwhm, fwhm_surf, *curvatures, *curvs_inflated;
-    double           *GI, distance;
+    char *object_file, *output_surface_file;
+    File_formats format;
+    int i, n_objects, curvtype;
+    int *n_neighbours, **neighbours;
+    object_struct **objects;
+    polygons_struct *polygons;
+    double fwhm, fwhm_surf, *curvatures, *curvs_inflated;
+    double *GI, distance;
 
     initialize_argument_processing(argc, argv);
 

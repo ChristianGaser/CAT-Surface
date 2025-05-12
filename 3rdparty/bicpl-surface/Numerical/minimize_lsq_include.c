@@ -1,8 +1,14 @@
 
 #include "bicpl_internal.h"
 #define   DEFAULT_RATIO      1.0
-#define Real float
+
+#ifndef  Real
+#define  Real double
+#endif
+
+#ifndef  LSQ_TYPE
 #define LSQ_TYPE Real
+#endif
 
 static  Real  evaluate_fit(
     int              n_parameters,
@@ -135,7 +141,7 @@ static  void  minimize_along_line(
     {
         first = FALSE;
         if( getenv( "LSQ_STEP_RATIO" ) == 0 ||
-            sscanf( getenv( "LSQ_STEP_RATIO" ), "%g", &ratio ) != 1 )
+            sscanf( getenv( "LSQ_STEP_RATIO" ), "%lg", &ratio ) != 1 )
             ratio = DEFAULT_RATIO;
     }
 
