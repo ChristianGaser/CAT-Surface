@@ -23,10 +23,10 @@
 // Default arguments for the surface deformation
 // ---------------------------------------------
 double w1 = 0.1;  // Internal smoothness force
-double w2 = 1.0;  // Gradient alignment force
+double w2 = 0.2;  // Gradient alignment force
 double w3 = 0.4;  // Balloon force (based on intensity deviation)
 double w4 = 0.0;  // Connection force (between pial and white)
-double sigma = 0.002; 
+double sigma = 0.3; 
 int verbose = 0; 
 int iterations = 50; 
 
@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
     char *src_file, *pial_file, *white_file, *values_file, *label_file;
     float *labels;
     double *thickness_values, *extents;
+    double *weight;
     File_formats format;
     Status status;
     nifti_image *nii_ptr;
@@ -131,9 +132,26 @@ int main(int argc, char *argv[]) {
     // Allocate memory for surfaces and weights
     object_struct *object_pial = create_object(POLYGONS);
     object_struct *object_white = create_object(POLYGONS);
+    object_struct *object_smoothed = create_object(POLYGONS);
 
     polygons_struct *polygons_pial;
     polygons_struct *polygons_white;
+    polygons_struct *polygons_smoothed;
+
+    int *n_neighbours;
+    int **neighbours;
+
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+
+    weight = malloc(sizeof(double) * polygons->n_points);
+
+    // Use negative mean curvature to drive smoothing
+    get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours, 3.0, 0.0, weight);
+    for (p = 0; p < polygons->n_points; p++) {
+        weight[p] = fmin(0.0, weight[p]);   // Only negative curvatures
+        weight[p] = fmax(-90.0, weight[p]); // Clip at -90
+        weight[p] /= -90.0;                 // Normalize to [0..1]
+    }
 
     // Initial estimate of pial surface
     extents = malloc(sizeof(double) * polygons->n_points);
@@ -142,6 +160,21 @@ int main(int argc, char *argv[]) {
     objects_out = central_to_new_pial(polygons, thickness_values, extents, 1, 0.5*sigma, 5, verbose);
     object_pial = objects_out[0];
     polygons_pial = get_polygons_ptr(object_pial);
+
+    // Smooth pial surface based on local curvature
+    polygons_smoothed = get_polygons_ptr(object_smoothed);
+    copy_polygons(polygons_pial, polygons_smoothed);
+    smooth_heatkernel(polygons_smoothed, NULL, 5.0);
+
+    // Blend original and smoothed surface using curvature-based weights
+    for (p = 0; p < polygons->n_points; p++) {
+        Point_x(polygons_pial->points[p]) = weight[p]*Point_x(polygons_smoothed->points[p]) + 
+                                            (1.0-weight[p])*Point_x(polygons_pial->points[p]);
+        Point_y(polygons_pial->points[p]) = weight[p]*Point_y(polygons_smoothed->points[p]) + 
+                                            (1.0-weight[p])*Point_y(polygons_pial->points[p]);
+        Point_z(polygons_pial->points[p]) = weight[p]*Point_z(polygons_smoothed->points[p]) + 
+                                            (1.0-weight[p])*Point_z(polygons_pial->points[p]);
+    }
 
     // Initial estimate of white surface
     for (p = 0; p < polygons->n_points; p++) extents[p] = -0.5;
@@ -152,8 +185,9 @@ int main(int argc, char *argv[]) {
     // Perform final dual-surface deformation using slightly deviating isovalues which
     // are optimized w.r.t. used parameters
     double weights[4] = {w1, w2, w3, w4};
+    double shifting[2] = {-0.05, 0.05};
     surf_deform_dual(polygons_pial, polygons_white, polygons, labels, nii_ptr,
-                     weights, sigma, CGM-0.02, GWM+0.02, thickness_values,
+                     weights, sigma, CGM+shifting[0], GWM+shifting[1], thickness_values,
                      iterations, verbose);
 
     // Save output surfaces

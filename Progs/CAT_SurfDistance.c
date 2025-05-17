@@ -16,11 +16,11 @@
 enum {Tfs, Tlink};
 
 /* argument defaults */
-int  dist_func        = Tfs;     /* default distance function: Freesurfer method */
-char *thickness_file  = NULL;    /* thickness file for estimating inner and outer surface from central surface */
+int  dist_func = Tfs;     /* default distance function: Freesurfer method */
+char *thickness_file = NULL;    /* thickness file for estimating inner and outer surface from central surface */
 int  check_intersect = 0;
 int  verbose = 0; 
-double max_dist = 5.0;           /* maximal thickness */
+double max_dist = 6.0;           /* maximal thickness */
 
 /* the argument table */
 static ArgvInfo argTable[] = {
