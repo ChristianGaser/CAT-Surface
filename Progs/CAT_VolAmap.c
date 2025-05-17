@@ -107,14 +107,14 @@ int
 main(int argc, char *argv[])
 {
     nifti_image   *src_ptr, *label_ptr;
-    int       n_classes;
-    char      *input_filename, *output_filename, *basename, *extension;
-    int       i, j, dims[3], n_pure_classes = 3;;
-    int       x, y, z, z_area, y_dims;
-    char      *arg_string, buffer[1024];
-    unsigned char *label, *prob;
-    float     *src, *buffer_vol, *biasfield;
-    double    slope, offset, val, max_vol, min_vol, voxelsize[3];    
+    int n_classes;
+    char *input_filename, *output_filename, *basename, *extension;
+    int i, j, dims[3], n_pure_classes = 3;;
+    int x, y, z, z_area, y_dims;
+    char *arg_string, buffer[1024];
+    float *src, *buffer_vol;
+    double slope, offset, val, voxelsize[3];    
+    double mean[n_classes], mu[n_pure_classes], var[n_pure_classes];
     char *label_arr[] = {"CSF", "GM", "WM"};
 
     /* Get arguments */
@@ -171,9 +171,9 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
             
-    label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
-    prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
-    biasfield = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    unsigned char *label = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
+    unsigned char *prob  = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox*n_classes);
+    float *biasfield = (float *)malloc(sizeof(float)*src_ptr->nvox);
     
     if (!label || !prob || !biasfield) {
         fprintf(stderr,"Memory allocation error\n");
@@ -191,24 +191,22 @@ main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++) 
         label[i] = (unsigned char) round(buffer_vol[i]);
 
-    double mean[n_classes], mu[n_pure_classes], var[n_pure_classes];
     for (i = 0; i < n_pure_classes; i++)
         mu[i] = 0;
 
     /* get min/max */
-    min_vol = FLT_MAX; max_vol = -FLT_MAX;
-    for (i = 0; i < src_ptr->nvox; i++) {
-        min_vol = MIN((double)src[i], min_vol);
-        max_vol = MAX((double)src[i], max_vol);
-    }
+    
+    float min_vol = get_min(src, src_ptr->nvox, 0, DT_FLOAT32);
 
-    if (verbose)
+    if (verbose) {
+        float max_vol = get_max(src, src_ptr->nvox, 0, DT_FLOAT32);
         fprintf(stdout,"Intensity range: %3.2f - %3.2f\n", min_vol, max_vol);
-
+    }
+    
     /* correct images with values < 0 */
-    if (min_vol < 0) {
+    if (min_vol < 0.0) {
         for (i = 0; i < src_ptr->nvox; i++)
-            src[i] = src[i] - (float)min_vol;
+            src[i] = src[i] - min_vol;
     }
 
     voxelsize[0] = src_ptr->dx;

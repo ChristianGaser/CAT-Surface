@@ -11,6 +11,7 @@
 #include <math.h>
 #include "CAT_Amap.h"
 #include "CAT_Vol.h"
+#include "CAT_Math.h"
 
 /* This PVE calculation is a modified version from
  * the PVE software bundle:
