@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
     // Perform final dual-surface deformation using slightly deviating isovalues which
     // are optimized w.r.t. used parameters
     double weights[4] = {w1, w2, w3, w4};
-    double shifting[2] = {-0.05, 0.05};
+    double shifting[2] = {-0.1, 0.1};
     surf_deform_dual(polygons_pial, polygons_white, polygons, labels, nii_ptr,
                      weights, sigma, CGM+shifting[0], GWM+shifting[1], thickness_values,
                      iterations, verbose);

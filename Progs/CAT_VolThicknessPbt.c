@@ -271,17 +271,10 @@ int main(int argc, char *argv[])
             if ((mask[i] > 0.0) & (dist_CSF[i] > GMT[i])) /* GMT is here the median filtered GMT2 */ 
                 dist_WM[i] = MIN(dist_WM[i], GMT2[i] - dist_CSF[i] );
         }
-        /* having now the correct distance values the finale thickness estimations are estimated */
-        projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
-        double GMT_ratio  = get_median(GMT1, src_ptr->nvox, 1, DT_FLOAT32) / 
-                            get_median(GMT, src_ptr->nvox, 1, DT_FLOAT32);
-/*        for (i = 0; i < src_ptr->nvox; i++)
-            if (GMT[i] > GMT1[i]*GMT_ratio) GMT[i] = 0.0;        
-*/
     }
 
     /* Correct distance values by half of a voxel */
-    double dist_corr = 0.5;
+    double dist_corr = 0.0; // 0.5 was not working better, which I used before
     for (i = 0; i < src_ptr->nvox; i++) {
         dist_CSF[i] -= dist_corr;
         dist_WM[i]  -= dist_corr;
