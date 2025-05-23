@@ -25,6 +25,7 @@ double sharpening = 0.0;
 double downsample = 0.0;
 double fwhm = 0.0;
 double fill_thresh = 0.5;
+double correct_voxelsize = 0.0;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
@@ -62,6 +63,10 @@ static ArgvInfo argTable[] = {
     "Amount of sharpening the PPM map by adding the difference between the unsmoothed and \n\
      smoothed PPM map. Set to '0' to disable sharpening"},
 
+  {"-correct-voxelsize", ARGV_FLOAT, (char *) 1, (char *) &correct_voxelsize,
+    "Amount of thickness correction for voxel-size, since we observed a systematic \n\
+     shift to smaller thickness values of half voxel-size."},
+
   {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -96,12 +101,13 @@ Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii ou
          to the thickness map based on the specified Full Width Half Maximum (FWHM).\n\
 \n\
 Options:\n\
-    -verbose                Enable verbose mode for detailed output during processing.\n\
-    -n-avgs <int>           Set the number of averages for distance estimation.\n\
-    -fwhm <float>           Define FWHM for final thickness smoothing.\n\
-    -fill-holes <float>     Define the threshold to fill holes in the PPM image.\n\
-    -downsample <float>     Downsample PPM and GMT image to defined resolution.\n\
-    -sharpen <float>        Amount of sharpening the PPM map.\n\
+    -verbose                   Enable verbose mode for detailed output during processing.\n\
+    -n-avgs <int>              Set the number of averages for distance estimation.\n\
+    -fwhm <float>              Define FWHM for final thickness smoothing.\n\
+    -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
+    -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
+    -sharpen <float>           Amount of sharpening the PPM map.\n\
+    -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
 \n\
 Example:\n\
     %s -verbose -n-avgs 4 -fwhm 2 input.nii gmt_output.nii ppm_output.nii\n\n";
@@ -362,9 +368,11 @@ int main(int argc, char *argv[])
     /* 2x Median-filtering of PPM with euclidean distance */
     localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 
-    /* Apply isotropic voxel size correction */
-    for (i = 0; i < src_ptr->nvox; i++) 
+    /* Apply voxel size correction */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        GMT[i] += correct_voxelsize;
         GMT[i] *= mean_vx_size;
+    }
 
     /* Preprocessing with Median Filter:
        - Apply an iterative median filter to areas where the gradient of
