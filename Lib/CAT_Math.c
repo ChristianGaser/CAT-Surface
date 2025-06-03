@@ -293,7 +293,8 @@ void convert_output_type_float(void *data, float *buffer, int n, int datatype)
 }
 
 /* Comparison function for qsort */
-int compare_doubles(const void *a, const void *b) {
+int compare_doubles(const void *a, const void *b) 
+{
     double diff = *(const double *)a - *(const double *)b;
     return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 }
@@ -313,8 +314,8 @@ int compare_doubles(const void *a, const void *b) {
  *  The median value of the array.
  *
  */
-double get_median_double(double *arr, int n, int exclude_zeros) {
-
+double get_median_double(double *arr, int n, int exclude_zeros) 
+{
     int i, filtered_count = 0;
     double median;
 
@@ -370,7 +371,8 @@ double get_median_double(double *arr, int n, int exclude_zeros) {
  * Returns:
  *  The sum of the array elements.
  */
-double get_sum_double(double *arr, int n, int exclude_zeros) {
+double get_sum_double(double *arr, int n, int exclude_zeros) 
+{
     int i;
     double sum = 0.0;
 
@@ -399,7 +401,8 @@ double get_sum_double(double *arr, int n, int exclude_zeros) {
  * Returns:
  *  The mean value of the array.
  */
-double get_mean_double(double *arr, int n, int exclude_zeros) {
+double get_mean_double(double *arr, int n, int exclude_zeros) 
+{
     int i, n0 = 0;
     double sum = 0.0;
 
@@ -432,7 +435,8 @@ double get_mean_double(double *arr, int n, int exclude_zeros) {
  *
  * Returns: The standard deviation of the array.
 */
-double get_std_double(double *arr, int n, int exclude_zeros) {
+double get_std_double(double *arr, int n, int exclude_zeros) 
+{
     int i, n0 = 0;
     double mean, variance = 0.0;
 
@@ -472,7 +476,8 @@ double get_std_double(double *arr, int n, int exclude_zeros) {
  * Returns:
  *  The minimum value in the array.
  */
- double get_min_double(double *arr, int n, int exclude_zeros) {
+double get_min_double(double *arr, int n, int exclude_zeros) 
+{
     int i;
     double result = DBL_MAX;
 
@@ -502,7 +507,8 @@ double get_std_double(double *arr, int n, int exclude_zeros) {
  * Returns:
  *  The maximum value in the array.
  */
- double get_max_double(double *arr, int n, int exclude_zeros) {
+double get_max_double(double *arr, int n, int exclude_zeros) 
+{
     int i;
     double result = -DBL_MAX;
 
@@ -636,10 +642,9 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
  * Notes:
  *  - The function uses a histogram-based approach to calculate the thresholds.
  */
-
-// Function to estimate percentiles for given thresholds (in percent, e.g., 1 and 99)
 void get_prctile_double(double *data, int n, double threshold[2], 
-                           double prctile[2], int exclude_zeros) {
+                           double prctile[2], int exclude_zeros) 
+{
     int i, filtered_count = 0;
     
     // Create a copy of the data for sorting
@@ -688,7 +693,8 @@ void get_prctile_double(double *data, int n, double threshold[2],
  * Returns:
  *  Overwrites the array by the mean-corrected array.
  */
-void normalize_double(double *arr, int n) {
+void normalize_double(double *arr, int n) 
+{
     int i;
 
     double mn = get_mean_double(arr, n, 0);
@@ -698,14 +704,54 @@ void normalize_double(double *arr, int n) {
 }
 
 /**
+ * get_corrcoef_double - calculate Pearson correlation coefficient from two array 
+ *                       of doubles.
+ *
+ * This function iterates through two array of doubles to obtain Pearson correlation 
+ * coefficient.
+ *
+ * Parameters:
+ *  - x: Array of doubles.
+ *  - y: Array of doubles with same size as x.
+ *  - n: Number of elements in the array.
+ *
+ * Returns:
+ *  Pearson correlation coefficient.
+ */
+double get_corrcoef_double(const double* x, const double* y, int n) 
+{
+    double sum_x = 0, sum_y = 0, sum_xy = 0;
+    double sum_x2 = 0, sum_y2 = 0;
+
+    for (int i = 0; i < n; ++i) {
+        sum_x  += x[i];
+        sum_y  += y[i];
+        sum_xy += x[i] * y[i];
+        sum_x2 += x[i] * x[i];
+        sum_y2 += y[i] * y[i];
+    }
+
+    double numerator   = n * sum_xy - sum_x * sum_y;
+    double denominator = sqrt((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y));
+
+    if (denominator == 0) {
+        // Avoid division by zero; correlation is undefined
+        return 0.0;
+    }
+
+    return numerator / denominator;
+}
+
+/**
  * Generic functions
  *
  * These function additionally provide conversion between different data types
  * and call the respective function for data type 'double'.
  *
  */
-
-double get_median(void *data, int n, int exclude_zeros, int datatype) {
+ 
+double get_median(void *data, int n, int exclude_zeros, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -723,7 +769,8 @@ double get_median(void *data, int n, int exclude_zeros, int datatype) {
     return(result);
 }
 
-double get_mean(void *data, int n, int exclude_zeros, int datatype) {
+double get_mean(void *data, int n, int exclude_zeros, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -741,7 +788,8 @@ double get_mean(void *data, int n, int exclude_zeros, int datatype) {
     return(result);
 }
 
-double get_sum(void *data, int n, int exclude_zeros, int datatype) {
+double get_sum(void *data, int n, int exclude_zeros, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -759,7 +807,8 @@ double get_sum(void *data, int n, int exclude_zeros, int datatype) {
     return(result);
 }
 
-double get_min(void *data, int n, int exclude_zeros, int datatype) {
+double get_min(void *data, int n, int exclude_zeros, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -777,7 +826,8 @@ double get_min(void *data, int n, int exclude_zeros, int datatype) {
     return(result);
 }
 
-double get_max(void *data, int n, int exclude_zeros, int datatype) {
+double get_max(void *data, int n, int exclude_zeros, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -795,7 +845,8 @@ double get_max(void *data, int n, int exclude_zeros, int datatype) {
     return(result);
 }
 
-double get_std(void *data, int n, int exclude_zeros, int datatype) {
+double get_std(void *data, int n, int exclude_zeros, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -813,7 +864,8 @@ double get_std(void *data, int n, int exclude_zeros, int datatype) {
     return(result);
 }
 
-double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatype) {
+double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -831,7 +883,8 @@ double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatyp
     return(result);
 }
 
-double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype) {
+double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype) 
+{
     double *buffer, result;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -849,7 +902,8 @@ double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype
     return(result);
 }
 
-void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype) {
+void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype) 
+{
     double *buffer;
    
     buffer = (double *)malloc(sizeof(double)*n);
@@ -865,3 +919,27 @@ void get_prctile(void *data, int n, double threshold[2], double prctile[2], int 
     
     free(buffer);
 }
+
+double get_corrcoef(void *x, void *y, int n, int datatype) 
+{
+    double *buffer_x, *buffer_y;
+   
+    buffer_x = (double *)malloc(sizeof(double)*n);
+    buffer_y = (double *)malloc(sizeof(double)*n);
+
+    /* check success of memory allocation */
+    if (!buffer_x | !buffer_y) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(x, buffer_x, n, datatype);
+    convert_input_type(y, buffer_y, n, datatype);
+    double result = get_corrcoef_double(buffer_x, buffer_y, n);
+    
+    free(buffer_x);
+    free(buffer_y);
+    
+    return(result);
+}
+

@@ -78,5 +78,6 @@ double get_mean(void *arr, int n, int mask_zeros, int datatype);
 double get_masked_mean_array(void *arr, int n, unsigned char *mask, int datatype);
 double get_masked_std_array(void *arr, int n, unsigned char *mask, int datatype);
 void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype);
+double get_corrcoef(void *x, void *y, int n, int datatype);
 
 #endif
