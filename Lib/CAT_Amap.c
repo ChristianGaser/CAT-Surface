@@ -550,7 +550,8 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
 void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, 
                           struct point *r, double *mean, double *var, int n_classes, 
                           int niters, int sub, int *dims, double *voxelsize, double *thresh, 
-                          double *beta, double offset, int verbose, int use_median)
+                          double *beta, double offset, int verbose, int use_median, 
+                          double alpha_CSF)
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
@@ -562,8 +563,11 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     int ix, iy, iz, ind2, replace = 1;
     double ll, ll_old, change_ll;
         
-    MrfPrior(label, n_classes, alpha, beta, 0, dims, verbose);        
-
+    MrfPrior(label, n_classes, alpha, beta, 0, dims, verbose);
+    
+    /* Scale MRF prior for CSF to prevent overestimation of CSF */
+    if (alpha_CSF > 0) alpha[0] *= alpha_CSF;
+    
     area = dims[0]*dims[1];
     vol = area*dims[2];
 
@@ -677,7 +681,8 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 /* perform adaptive MAP on given src and initial segmentation label */
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, 
-          double *voxelsize, int niters_ICM, double offset, int verbose, int use_median)
+          double *voxelsize, int niters_ICM, double offset, int verbose, 
+          int use_median, double alpha_CSF)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -714,7 +719,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         
     /* estimate 3 classes before PVE */
     EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, 
-                        thresh, beta, offset, verbose, use_median);
+                        thresh, beta, offset, verbose, use_median, alpha_CSF);
     
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
