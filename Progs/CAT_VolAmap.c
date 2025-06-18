@@ -14,6 +14,7 @@
 #include "CAT_Amap.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
+#include "CAT_Math.h"
 
 char *label_filename;
 int iters_amap = 50;
@@ -30,7 +31,6 @@ int use_median = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 double bias_fwhm = 20.0;
-double alpha = 0.25;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -58,10 +58,6 @@ static ArgvInfo argTable[] = {
     {"-bias-fwhm", ARGV_FLOAT, (char *) 1, (char *) &bias_fwhm,
          "Specifies the Full Width Half Maximum (FWHM) value for the bias correction\n\
          smoothing kernel."},
-         
-    {"-alpha", ARGV_FLOAT, (char *) 1, (char *) &alpha,
-         "Option to scale MRF prior (alpha) for CSF by defined value. Values around\n\
-         0.25..0.40 help to prevent overestimation of CSF."},
          
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
@@ -118,7 +114,7 @@ main(int argc, char *argv[])
     int x, y, z, z_area, y_dims;
     char *arg_string, buffer[1024];
     float *src, *buffer_vol;
-    double slope, offset, val, voxelsize[3];    
+    double slope, val, voxelsize[3];    
     double mean[n_classes], mu[n_pure_classes], var[n_pure_classes];
     char *label_arr[] = {"CSF", "GM", "WM"};
 
@@ -229,7 +225,7 @@ main(int argc, char *argv[])
     } else write_corr = 0;
 
     Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, 
-        voxelsize, iters_ICM, offset, verbose, use_median, alpha);
+        voxelsize, iters_ICM, verbose, use_median);
 
     /* PVE */
     if (pve) {
@@ -256,6 +252,13 @@ main(int argc, char *argv[])
         if (!write_nifti_float(buffer, biasfield, DT_INT16, slope, 
                         dims, voxelsize, src_ptr))
             exit(EXIT_FAILURE);
+    }
+
+    if (verbose) {
+        for (i = 0; i < src_ptr->nvox; i++)
+            buffer_vol[i] = (float)label[i];
+        double cc = get_corrcoef(src, buffer_vol, src_ptr->nvox, DT_FLOAT32);
+        fprintf(stderr,"Correlation between input image and PVE label: %g\n", cc);
     }
 
     /* write labeled volume */

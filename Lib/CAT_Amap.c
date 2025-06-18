@@ -111,12 +111,14 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
     area = dims[0]*dims[1];
 
     /* initialize configuration counts */
-    for (i = 0; i < n_classes; i++)
-        for (f[0] = 0; f[0] < 7; f[0]++)
-            for (f[1] = 0; f[1] < 7; f[1]++)
-                for (f[2] = 0; f[2] < 7; f[2]++)
-                    for (f[3] = 0; f[3] < 7; f[3]++)
-                        color[i][f[0]][f[1]][f[2]][f[3]]=0;
+    if (beta != NULL) {
+        for (i = 0; i < n_classes; i++)
+            for (f[0] = 0; f[0] < 7; f[0]++)
+                for (f[1] = 0; f[1] < 7; f[1]++)
+                    for (f[2] = 0; f[2] < 7; f[2]++)
+                        for (f[3] = 0; f[3] < 7; f[3]++)
+                            color[i][f[0]][f[1]][f[2]][f[3]]=0;
+    }
 
     /* calculate configuration counts */
     n = 0;
@@ -135,17 +137,19 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
                 n++;
                 alpha[zero - 1] += 1.0;
                 
-                for (i = 1; i < n_classes; i++) {
-                    f[i-1] = 0;       
-                    iBG = i+1;
-                    if ((int)label[z_area + y_dims + x-1] == iBG)        f[i-1]++;
-                    if ((int)label[z_area + y_dims + x+1] == iBG)        f[i-1]++;
-                    if ((int)label[z_area + ((y-1)*dims[0]) + x] == iBG) f[i-1]++;
-                    if ((int)label[z_area + ((y+1)*dims[0]) + x] == iBG) f[i-1]++;
-                    if ((int)label[((z-1)*area) + y_dims + x] == iBG)    f[i-1]++;
-                    if ((int)label[((z+1)*area) + y_dims + x] == iBG)    f[i-1]++;
+                if (beta != NULL) {
+                    for (i = 1; i < n_classes; i++) {
+                        f[i-1] = 0;       
+                        iBG = i+1;
+                        if ((int)label[z_area + y_dims + x-1] == iBG)        f[i-1]++;
+                        if ((int)label[z_area + y_dims + x+1] == iBG)        f[i-1]++;
+                        if ((int)label[z_area + ((y-1)*dims[0]) + x] == iBG) f[i-1]++;
+                        if ((int)label[z_area + ((y+1)*dims[0]) + x] == iBG) f[i-1]++;
+                        if ((int)label[((z-1)*area) + y_dims + x] == iBG)    f[i-1]++;
+                        if ((int)label[((z+1)*area) + y_dims + x] == iBG)    f[i-1]++;
+                    }
+                    color[zero-1][f[0]][f[1]][f[2]][f[3]]++;
                 }
-                color[zero-1][f[0]][f[1]][f[2]][f[3]]++;
             }
         }
     }
@@ -158,38 +162,42 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
     }
 
     /* compute beta */
-    n = 0;
-    XX=0.0, YY=0.0;
-    for (f[0] = 0; f[0] < 7; f[0]++)
-        for (f[1] = 0; f[1] < 7; f[1]++)
-            for (f[2] = 0; f[2] < 7; f[2]++)
-                for (f[3] = 0; f[3] < 7; f[3]++)
-                    for (i = 0; i < n_classes; i++)
-                        for (j = 0; j < i; j++) {
-                            n++;
-                            if (color[i][f[0]][f[1]][f[2]][f[3]] < TH_COLOR ||
-                                    color[j][f[0]][f[1]][f[2]][f[3]] < TH_COLOR) continue;
-                 
-                            L = log(((double) color[i][f[0]][f[1]][f[2]][f[3]])/
-                                    (double) color[j][f[0]][f[1]][f[2]][f[3]]);
-                 
-                            if (i == 0) 
-                                fi = 6 - f[0] - f[1] - f[2] - f[3];
-                            else fi = f[i-1];
-                                                     
-                            if (j == 0) 
-                                fj = 6 - f[0] - f[1] - f[2] - f[3];
-                            else fj = f[j-1];
-
-                            XX += (fi-fj)*(fi-fj);
-                            YY += L*(fi-fj);
-    }
+    if (beta != NULL) {
+        n = 0;
+        XX=0.0, YY=0.0;
+        for (f[0] = 0; f[0] < 7; f[0]++)
+            for (f[1] = 0; f[1] < 7; f[1]++)
+                for (f[2] = 0; f[2] < 7; f[2]++)
+                    for (f[3] = 0; f[3] < 7; f[3]++)
+                        for (i = 0; i < n_classes; i++)
+                            for (j = 0; j < i; j++) {
+                                n++;
+                                if (color[i][f[0]][f[1]][f[2]][f[3]] < TH_COLOR ||
+                                        color[j][f[0]][f[1]][f[2]][f[3]] < TH_COLOR) continue;
+                     
+                                L = log(((double) color[i][f[0]][f[1]][f[2]][f[3]])/
+                                        (double) color[j][f[0]][f[1]][f[2]][f[3]]);
+                     
+                                if (i == 0) 
+                                    fi = 6 - f[0] - f[1] - f[2] - f[3];
+                                else fi = f[i-1];
+                                                         
+                                if (j == 0) 
+                                    fj = 6 - f[0] - f[1] - f[2] - f[3];
+                                else fj = f[j-1];
     
-    /* weighting of beta was empirically estimated using brainweb data with different noise levels
-       because old beta estimation was not working */
-    beta[0] = XX/YY;
-    if (verbose) {
-        printf("\t beta %3.3f\n", beta[0]);
+                                XX += (fi-fj)*(fi-fj);
+                                YY += L*(fi-fj);
+        }
+        /* weighting of beta was empirically estimated using brainweb data with different noise levels
+           because old beta estimation was not working */
+        beta[0] = XX/YY;
+        if (verbose) {
+            printf("\t beta %3.3f\n", beta[0]);
+            fflush(stdout);
+        }
+    } else {
+        printf("\n");
         fflush(stdout);
     }
 }
@@ -550,8 +558,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
 void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, 
                           struct point *r, double *mean, double *var, int n_classes, 
                           int niters, int sub, int *dims, double *voxelsize, double *thresh, 
-                          double *beta, double offset, int verbose, int use_median, 
-                          double alpha_CSF)
+                          double *beta, int verbose, int use_median)
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
@@ -564,9 +571,6 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     double ll, ll_old, change_ll;
         
     MrfPrior(label, n_classes, alpha, beta, 0, dims, verbose);
-    
-    /* Scale MRF prior for CSF to prevent overestimation of CSF */
-    if (alpha_CSF > 0) alpha[0] *= alpha_CSF;
     
     area = dims[0]*dims[1];
     vol = area*dims[2];
@@ -593,6 +597,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* get means for grid points */
         GetMeansVariances(src, label, n_classes, r, sub, dims, thresh, use_median);      
+        //MrfPrior(label, n_classes, alpha, NULL, 0, dims, verbose);
 
         /* loop over image points */
         for (z = 1; z < dims[2]-1; z++) {
@@ -666,12 +671,13 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* break if log-likelihood has not changed significantly two iterations */
         if (change_ll < TH_CHANGE) count_change++;
+        //if ((count_change > 2) && (iters > 2)) break;      
         if ((count_change > 2) && (iters > 2)) break;      
     }
 
     if (verbose) {
         printf("\nFinal Mean*Std: ");
-        for (i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i]-offset,sqrt(var[i])); 
+        for (i = 0; i < n_classes; i++) printf("%.3f*%.3f    ",mean[i],sqrt(var[i])); 
         printf("\n"); 
     }
     
@@ -681,8 +687,8 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 /* perform adaptive MAP on given src and initial segmentation label */
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, 
-          double *voxelsize, int niters_ICM, double offset, int verbose, 
-          int use_median, double alpha_CSF)
+          double *voxelsize, int niters_ICM, int verbose, 
+          int use_median)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -716,10 +722,16 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-        
+    
+    double max_label = get_max(label, vol, 0, DT_UINT8);
+    if (max_label > n_classes) {
+        printf("Label maximum %g exceeds number of tissue classes.\n", max_label);
+        exit(EXIT_FAILURE);
+    }
+
     /* estimate 3 classes before PVE */
     EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, 
-                        thresh, beta, offset, verbose, use_median, alpha_CSF);
+                        thresh, beta, verbose, use_median);
     
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
