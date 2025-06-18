@@ -199,6 +199,7 @@ int main(int argc, char *argv[]) {
 
     // Cleanup
     free(extents);
+    free(weight);
     free(object_pial);
     free(object_white);
 

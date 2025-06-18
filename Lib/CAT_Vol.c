@@ -317,7 +317,7 @@ float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *ni
     // Weight factors for interpolation
     float wfx = cx - x, wfy = cy - y, wfz = cz - z;
     float wcx = x - fx, wcy = y - fy, wcz = z - fz;
-    float N[8], W[8]; // Neighbors and their weights
+    float N[8], W[8]; // Neighbours and their weights
         
     // Calculate value of the 8 neighbours and their distance weight
     for (i = 0; i < 8; i++) {
@@ -743,7 +743,7 @@ float pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND
     // Calculate the pure maximum under specified conditions
     for (i = 0; i <= sA; i++) {
         if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbours should be larger */
-                (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&       /* projection range */
+                (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&   /* projection range */
                 (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
                 (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i] < 1.5)) && /* lower boundary - minimum distance - corrected values outside */
                 ((((SEGI * MAX(1.0,MIN(1.2, SEGI-1.5))) >= SEG[i])) || (SEG[i] < 1.5))) { /* for high values will project data over sulcal gaps */
@@ -793,8 +793,8 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
     const int nvox = dims[0] * dims[1] * dims[2];
     const int x = dims[0], y = dims[1], xy = x * y;
     const float s2 = sqrt(2.0), s3 = sqrt(3.0);
-    const int   NI[14] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbor index offsets
-    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbor distances
+    const int   NI[14] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbour index offsets
+    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbour distances
     const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbours
 
     // Variables for processing
@@ -835,7 +835,7 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
     for (i = 0; i < nvox; i++) {
         // Process only GM voxels
         if (SEG[i] > CSF && SEG[i] < WM) {
-            // Neighborhood processing
+            // Neighbourhood processing
             ind2sub(i, &u, &v, &w, xy, x);
 
             /* read neighbour values */
