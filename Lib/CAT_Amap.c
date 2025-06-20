@@ -196,7 +196,7 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
             printf("\t beta %3.3f\n", beta[0]);
             fflush(stdout);
         }
-    } else {
+    } else if (verbose) {
         printf("\n");
         fflush(stdout);
     }
@@ -380,8 +380,8 @@ void Normalize(double* val, char n)
     }
 }
 
-/* Compute initial PVE labeling based on marginalized likelihood */
-void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, struct point *r, int n_pure_classes, int sub, int *dims)
+/* Compute initial PVE labeling based on marginalized likelihood for Amap */
+void ComputeInitialPveLabelSub(float *src, unsigned char *label, unsigned char *prob, struct point *r, int n_pure_classes, int sub, int *dims)
 {
     int x, y, z, z_area, y_dims, index, label_value;
     int i, ix, iy, iz, ind, ind2, nix, niy, niz, narea, nvol;
@@ -562,9 +562,9 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 {
     int i;
     int area, narea, nvol, vol, z_area, y_dims, index, ind;
-    double sub_1, dmin, val;
-    double d[MAX_NC], alpha[MAX_NC], log_alpha[MAX_NC], log_var[MAX_NC];
-    double pvalue[MAX_NC], psum;
+    double sub_1, dmin, val, sum_voxelsize = 0.0;
+    double d[MAX_NC], alpha[MAX_NC], log_alpha[MAX_NC], log_var[MAX_NC], exponent[MAX_NC];
+    double pvalue[MAX_NC], mrf_probability[MAX_NC], voxelsize_squared[3], psum;
     int nix, niy, niz, iters, count_change;
     int x, y, z, label_value, xBG;
     int ix, iy, iz, ind2, replace = 1;
@@ -587,9 +587,15 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     nvol = nix*niy*niz;
 
     for (i = 0; i < n_classes; i++) log_alpha[i] = log(alpha[i]);
+
+    /* normalize voxelsize to a sum of 3 and calculate its squared value */
+    for (i = 0; i < 3; i++) sum_voxelsize += voxelsize[i];
+    for (i = 0; i < 3; i++) voxelsize_squared[i] = SQR(3.0*voxelsize[i]/sum_voxelsize);
         
     ll_old = HUGE;
     count_change = 0;
+    
+    int do_mrf = 0;
             
     for (iters = 0; iters < niters; iters++) {
             
@@ -597,7 +603,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* get means for grid points */
         GetMeansVariances(src, label, n_classes, r, sub, dims, thresh, use_median);      
-        //MrfPrior(label, n_classes, alpha, NULL, 0, dims, verbose);
+        for (i = 0; i < n_classes; i++) log_alpha[i] = log(alpha[i]);
 
         /* loop over image points */
         for (z = 1; z < dims[2]-1; z++) {
@@ -632,7 +638,19 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 
                     for (i = 0; i < n_classes; i++) {
                         if (fabs(mean[i]) > TINY) {
-                            d[i] = 0.5*(SQR(val-mean[i])/var[i]+log_var[i])-log_alpha[i];
+
+                            // find the number of first order neighbors in the class
+                            int first=0;
+                            if (do_mrf) {
+                                if (label[index-1] == i+1) first++;
+                                if (label[index+1] == i+1) first++;
+                                if (label[index-dims[0]] == i+1) first++;
+                                if (label[index+dims[0]] == i+1) first++;
+                                if (label[index-area] == i+1) first++;
+                                if (label[index+area] == i+1) first++;
+                            } else first=5;
+
+                            d[i] = 0.5*(SQR(val-mean[i])/var[i]+log_var[i])-log_alpha[i]-beta[0]*first;
                             pvalue[i] = exp(-d[i])/SQRT2PI;
                             psum += pvalue[i];
                             
@@ -642,7 +660,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                             xBG = i;
                         }
                     }
-                             
+
                     /* scale p-values to a sum of 1 */
                     if (psum > TINY) {
                         for (i = 0; i < n_classes; i++) pvalue[i] /= psum;
@@ -671,8 +689,8 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         
         /* break if log-likelihood has not changed significantly two iterations */
         if (change_ll < TH_CHANGE) count_change++;
-        //if ((count_change > 2) && (iters > 2)) break;      
-        if ((count_change > 2) && (iters > 2)) break;      
+        if ((count_change > 0) && (do_mrf)) do_mrf = 0;
+        if ((count_change > 2) && (iters > 5)) break;
     }
 
     if (verbose) {
@@ -735,7 +753,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
-        ComputeInitialPveLabel(src, label, prob, r, n_classes, sub, dims);
+        ComputeInitialPveLabelSub(src, label, prob, r, n_classes, sub, dims);
         n_classes = 5;
 
         /* recalculate means for pure and mixed classes */
@@ -768,6 +786,3 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
 
     return;      
 }
-
-
-

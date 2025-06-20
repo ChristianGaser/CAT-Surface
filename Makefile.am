@@ -286,6 +286,7 @@ noinst_HEADERS = \
     Include/CAT_Math.h \
     Include/CAT_Kmeans.h \
     Include/CAT_Amap.h \
+    Include/CAT_Bmap.h \
     Include/CAT_NiftiLib.h \
     Include/CAT_MarchingCubes.h \
     3rdparty/bicpl-surface/Include/bicpl.h \
@@ -345,6 +346,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Vol.c \
     Lib/CAT_Kmeans.c \
     Lib/CAT_Amap.c \
+    Lib/CAT_Bmap.c \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \
     Lib/CAT_Deform.c \

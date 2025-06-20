@@ -12,6 +12,7 @@
 #include <bicpl.h>
 #include <ParseArgv.h>
 #include "CAT_Amap.h"
+#include "CAT_Bmap.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
@@ -28,6 +29,7 @@ int write_corr = 1;
 int write_bias = 0;
 int verbose = 0;
 int use_median = 0;
+int use_bmap = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 double bias_fwhm = 20.0;
@@ -74,6 +76,9 @@ static ArgvInfo argTable[] = {
          
     {"-use-median", ARGV_CONSTANT, (char *) 1, (char *) &use_median,
          "Use local mean for estimating peaks instead of median."},
+         
+    {"-use-bmap", ARGV_CONSTANT, (char *) 1, (char *) &use_bmap,
+         "Use BMAP instead of AMAP (experimental!)."},
          
     {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
          "Disable writing the label image."},
@@ -224,8 +229,14 @@ main(int argc, char *argv[])
         correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
     } else write_corr = 0;
 
-    Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, pve, weight_MRF, 
-        voxelsize, iters_ICM, verbose, use_median);
+    if (use_bmap) {
+        int BG = 1, nflips = 5, sub_bias = 8;
+        double bias_thresh = 100.0;
+        Bmap(src, label, prob, n_pure_classes, BG, iters_amap, nflips, sub_bias, 
+            sub_bias, sub_bias, biasfield, bias_thresh, dims, pve);
+    } else
+        Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
+            pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median);
 
     /* PVE */
     if (pve) {
