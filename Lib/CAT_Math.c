@@ -718,12 +718,14 @@ void normalize_double(double *arr, int n)
  * Returns:
  *  Pearson correlation coefficient.
  */
-double get_corrcoef_double(const double* x, const double* y, int n) 
+double get_corrcoef_double(const double* x, const double* y, int n, int exclude_zeros) 
 {
     double sum_x = 0, sum_y = 0, sum_xy = 0;
     double sum_x2 = 0, sum_y2 = 0;
 
     for (int i = 0; i < n; ++i) {
+        if ((exclude_zeros && ((x[i] == 0.0) || (y[i] == 0.0))))
+            continue;
         sum_x  += x[i];
         sum_y  += y[i];
         sum_xy += x[i] * y[i];
@@ -734,10 +736,9 @@ double get_corrcoef_double(const double* x, const double* y, int n)
     double numerator   = n * sum_xy - sum_x * sum_y;
     double denominator = sqrt((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y));
 
-    if (denominator == 0) {
-        // Avoid division by zero; correlation is undefined
+    // Avoid division by zero; correlation is undefined
+    if (denominator == 0)
         return 0.0;
-    }
 
     return numerator / denominator;
 }
@@ -920,7 +921,7 @@ void get_prctile(void *data, int n, double threshold[2], double prctile[2], int 
     free(buffer);
 }
 
-double get_corrcoef(void *x, void *y, int n, int datatype) 
+double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype) 
 {
     double *buffer_x, *buffer_y;
    
@@ -935,7 +936,7 @@ double get_corrcoef(void *x, void *y, int n, int datatype)
    
     convert_input_type(x, buffer_x, n, datatype);
     convert_input_type(y, buffer_y, n, datatype);
-    double result = get_corrcoef_double(buffer_x, buffer_y, n);
+    double result = get_corrcoef_double(buffer_x, buffer_y, n, exclude_zeros);
     
     free(buffer_x);
     free(buffer_y);
