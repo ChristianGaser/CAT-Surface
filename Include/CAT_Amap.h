@@ -13,7 +13,6 @@
 #define SQRT2PI 2.506628
 #define G 6
 
-#define MAX_NC 6
 #define TH_COLOR 1
 #define TH_CHANGE 0.001
 #ifndef TINY

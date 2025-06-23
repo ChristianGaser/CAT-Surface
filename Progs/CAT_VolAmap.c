@@ -268,7 +268,7 @@ main(int argc, char *argv[])
     if (verbose) {
         for (i = 0; i < src_ptr->nvox; i++)
             buffer_vol[i] = (float)label[i];
-        double cc = get_corrcoef(src, buffer_vol, src_ptr->nvox, DT_FLOAT32);
+        double cc = get_corrcoef(src, buffer_vol, src_ptr->nvox, 1, DT_FLOAT32);
         fprintf(stderr,"Correlation between input image and PVE label: %g\n", cc);
     }
 
