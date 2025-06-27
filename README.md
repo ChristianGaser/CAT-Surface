@@ -87,3 +87,10 @@ Maps surface values or mean curvature to 2d sheet in pgm format
 
 ## CAT_Surf2Sphere
 Maps a surface to a sphere by using the caret inflating approach. 
+
+## Continuous Integration
+
+A GitHub Actions workflow located in `.github/workflows/ci.yml` automatically
+runs `./autogen.sh`, `./configure`, `make` and a small test on every push or
+pull request.
+
