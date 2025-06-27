@@ -13,6 +13,10 @@
 
 #include "CAT_ConvexHull.h"
 
+/* debug output flags */
+int dbg = 0;
+int dbg2 = 0;
+
 object_struct **
 surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_sphere)
 {
