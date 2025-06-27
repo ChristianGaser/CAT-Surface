@@ -12,6 +12,6 @@
 
 #include <math.h>
 
-void Bmap(float *src, unsigned char *label, unsigned char *prob, int n_classes, int BG, int niters, int nflips, int a, int b, int c, float *bias, float bias_thresh, int *dims, int pve);
+void Bmap(float *src, unsigned char *label, unsigned char *prob, double *mean, int n_classes, int BG, int niters, int a, int b, int c, float *bias, int *dims, int pve, int verbose);
 
 #endif
