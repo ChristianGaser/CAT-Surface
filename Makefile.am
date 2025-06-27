@@ -349,6 +349,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Bmap.c \
     Lib/CAT_NiftiLib.c \
     Lib/CAT_Sanlm.c \
+    Lib/CAT_Ornlm.c \
     Lib/CAT_Deform.c \
     Lib//CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
