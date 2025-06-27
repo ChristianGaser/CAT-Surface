@@ -51,5 +51,5 @@ AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
 AC_CHECK_HEADERS(values.h malloc.h)
 
 
-AC_CONFIG_FILES([Makefile Progs/Makefile])
+AC_CONFIG_FILES([Makefile Progs/Makefile tests/Makefile])
 AC_OUTPUT
