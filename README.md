@@ -6,6 +6,11 @@ These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for
 ## The following external libraries are necessary to compile CAT:
 - [fftw-3](https://www.fftw.org)
 
+## Build Instructions
+1. Run `./autogen.sh`.
+2. Run `./configure` (requires FFTW).
+3. Run `make` and `make install`.
+
 ## CAT_Vol2Surf
 Map values form 3D volume to surface
 
