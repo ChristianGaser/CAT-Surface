@@ -615,11 +615,13 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
     }
     mean = mean / (double)count;
 
+    if (count <= 1) return NAN; // Prevent division by zero
+
     /* Calculate variance */
     for (i = 0; i < n; i++)
         if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask))
             variance += pow(arr[i] - mean, 2);
-    variance /= (double)n;
+    variance /= (double)(count - 1);
 
     /* Calculate standard deviation */
     return sqrt(variance);
