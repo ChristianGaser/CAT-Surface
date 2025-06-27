@@ -380,9 +380,8 @@ double get_sum_double(double *arr, int n, int exclude_zeros)
     
     for (i = 0; i < n; i++) {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
-            sum += arr[i];
-        else
-            sum += arr[i];
+            continue;
+        sum += arr[i];
     }
     
     return sum;
