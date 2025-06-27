@@ -10,8 +10,8 @@
 #ifndef _CAT_CONVEXHULL_H_
 #define _CAT_CONVEXHULL_H_
 
-static int dbg = 0;
-static int dbg2 = 0;
+extern int dbg;
+extern int dbg2;
 
 #include  <bicpl.h>
 
