@@ -127,8 +127,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
             if (udeform[p] <= -1.0) udeform[p] += floor(-udeform[p]);
             if (udeform[p] >=  0.5) udeform[p] -= 1.0;
             if (udeform[p] <= -0.5) udeform[p] += 1.0;
-            if (vdeform[p] >=  1.0) vdeform[p] -= floor(udeform[p]);
-            if (vdeform[p] <= -1.0) vdeform[p] += floor(-udeform[p]);
+            if (vdeform[p] >=  1.0) vdeform[p] -= floor(vdeform[p]);
+            if (vdeform[p] <= -1.0) vdeform[p] += floor(-vdeform[p]);
             udeform[p] *= weight;
             vdeform[p] *= weight;
         }

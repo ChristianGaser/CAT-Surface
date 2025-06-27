@@ -83,3 +83,4 @@ Progs/CAT_VolSmooth
 Progs/CAT_VolThicknessPbt
 Progs/CAT_WarpSurfDemon
 Progs/CAT_SurfWarp
+tests/test_math.out
