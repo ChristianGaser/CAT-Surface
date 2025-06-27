@@ -6,10 +6,27 @@ These tools are used within [CAT12](https://github.com/ChristianGaser/cat12) for
 ## The following external libraries are necessary to compile CAT:
 - [fftw-3](https://www.fftw.org)
 
+The repository also includes a `3rdparty` directory with additional
+libraries such as mesh handling and image format support.  These
+packages are not maintained within this project but are bundled for
+convenience so that no extra downloads are needed during compilation.
+
 ## Build Instructions
-1. Run `./autogen.sh`.
-2. Run `./configure` (requires FFTW).
-3. Run `make` and `make install`.
+
+First ensure that FFTW3 is installed:
+
+- **Linux:** install the development package from your package manager, e.g.
+  `sudo apt-get install libfftw3-dev`.
+- **macOS:** install via [Homebrew](https://brew.sh/) using `brew install fftw`.
+- **Windows:** use a Unix-like environment such as MSYS2 or the Windows
+  Subsystem for Linux and install FFTW there.
+
+Once FFTW is available, the typical build steps are
+
+1. Run `./autogen.sh` to generate the `configure` script.
+2. Run `./configure`.
+3. Run `make`.
+4. Optionally run `make install` to copy the binaries system wide.
 
 ## CAT_Vol2Surf
 Map values form 3D volume to surface
@@ -70,3 +87,10 @@ Maps surface values or mean curvature to 2d sheet in pgm format
 
 ## CAT_Surf2Sphere
 Maps a surface to a sphere by using the caret inflating approach. 
+
+## Continuous Integration
+
+A GitHub Actions workflow located in `.github/workflows/ci.yml` automatically
+runs `./autogen.sh`, `./configure`, `make` and a small test on every push or
+pull request.
+

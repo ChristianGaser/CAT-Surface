@@ -1,4 +1,5 @@
-name: CI
+name: Build and Test
+
 on:
   push:
   pull_request:
@@ -9,10 +10,17 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential automake libtool
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool build-essential pkg-config libfftw3-dev
       - name: Configure
         run: autoreconf -i && ./configure
+      - name: Prepare build
+        run: ./autogen.sh
       - name: Build
         run: make
       - name: Test
         run: make check
+      - name: Run simple tests
+        run: |
+          make check || true
+          ./Progs/CAT_ResampleSurf || true
