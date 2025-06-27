@@ -13,6 +13,7 @@
 #include <ParseArgv.h>
 #include "CAT_Amap.h"
 #include "CAT_Bmap.h"
+#include "CAT_Ornlm.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
@@ -32,7 +33,8 @@ int use_median = 0;
 int use_bmap = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
-double bias_fwhm = 20.0;
+double bias_fwhm = 0.0;
+double h_ornlm = 0.05;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -61,6 +63,9 @@ static ArgvInfo argTable[] = {
          "Specifies the Full Width Half Maximum (FWHM) value for the bias correction\n\
          smoothing kernel."},
          
+    {"-h-ornlm", ARGV_FLOAT, (char *) 1, (char *) &h_ornlm,
+         "Specifies h as a smoothing parameter controlling the decay of the exponential function."},
+         
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
          Default setting is 1."},
@@ -82,9 +87,6 @@ static ArgvInfo argTable[] = {
          
     {"-nowrite-label", ARGV_CONSTANT, (char *) 0, (char *) &write_label,
          "Disable writing the label image."},
-         
-    {"-write-corr", ARGV_CONSTANT, (char *) 1, (char *) &write_corr,
-         "Enable writing the nu-corrected image. This is the default setting."},
          
     {"-write-bias", ARGV_CONSTANT, (char *) 1, (char *) &write_bias,
          "Enable writing the nu-correction (bias field)."},
@@ -227,13 +229,25 @@ main(int argc, char *argv[])
     if (bias_fwhm > 0.0) {
         if (verbose) fprintf(stdout,"Bias correction\n");
         correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
-    } else write_corr = 0;
+    }
+
+    int grid[3] = {96, 96, 96};
+    float valley = 0.1;      // minimum weight in the center of the U
+    float peak   = 1.0;      // maximum weight at the sides
+    float center = 110;    // center of the U (in bins, [0,255])
+    float width  = 40;     // width/spread of the valley (in bins)
+    float clip_limit = 2.0;
+    write_corr = 1;
+    if (verbose) fprintf(stdout,"CLAHE normalization\n");
+    clahe3d_float(src, dims, grid[0], grid[1], grid[2], clip_limit, valley, peak, center, width);
+    int v = 3, f = 1;
+    if (verbose) fprintf(stdout,"ORNLM filter\n");
+    ornlm(src, v, f, h_ornlm, dims);
 
     if (use_bmap) {
-        int BG = 1, nflips = 5, sub_bias = 8;
-        double bias_thresh = 100.0;
-        Bmap(src, label, prob, n_pure_classes, BG, iters_amap, nflips, sub_bias, 
-            sub_bias, sub_bias, biasfield, bias_thresh, dims, pve);
+        int BG = 1, sub_bias = 8;
+        Bmap(src, label, prob, mean, n_pure_classes, BG, iters_amap, sub_bias, 
+            sub_bias, sub_bias, biasfield, dims, pve, verbose);
     } else
         Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
             pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median);
@@ -269,7 +283,7 @@ main(int argc, char *argv[])
         for (i = 0; i < src_ptr->nvox; i++)
             buffer_vol[i] = (float)label[i];
         double cc = get_corrcoef(src, buffer_vol, src_ptr->nvox, 1, DT_FLOAT32);
-        fprintf(stderr,"Correlation between input image and PVE label: %g\n", cc);
+        fprintf(stdout,"Correlation between input image and PVE label: %g\n", cc);
     }
 
     /* write labeled volume */

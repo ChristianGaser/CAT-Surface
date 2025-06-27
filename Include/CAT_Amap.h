@@ -56,10 +56,13 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
 void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims);
 double ComputeGaussianLikelihood(double value, double mean , double var);
 double ComputeMarginalizedLikelihood(double value, double mean1 , double mean2, 
-    double var1, double var2, unsigned int nof_intervals);
-void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, int init, int *dims, int verbose);
+                double var1, double var2, unsigned int nof_intervals);
+void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
+                int init, int *dims, int verbose);
 void Normalize(double* val, char n);
 unsigned char MaxArg(double *val, unsigned char n);
+void clahe3d_float(float* vol, int dims[3], int tile_x, int tile_y, int tile_z, 
+                float clip_limit, float valley, float peak, float center, float width);
 
 struct point {
   double median;
