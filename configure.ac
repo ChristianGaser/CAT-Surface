@@ -52,5 +52,5 @@ AC_CHECK_HEADERS(values.h malloc.h)
 
 AC_CHECK_HEADERS()
 
-AC_CONFIG_FILES([Makefile Progs/Makefile])
+AC_CONFIG_FILES([Makefile Progs/Makefile tests/Makefile])
 AC_OUTPUT
