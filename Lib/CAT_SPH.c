@@ -675,7 +675,7 @@ laplace2d(double *im, unsigned char *msk, int dimx, int dimy, double TH)
     double *L1, *L2;
     unsigned char *LN;
     const int NI[]  = { -1, 1, -dimx, dimx};  
-    const int sN = sizeof(NI)/4;  
+    const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbours
     int i, n;
     unsigned char * msk2;
 

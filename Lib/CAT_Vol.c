@@ -961,7 +961,7 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
     /* indices of the neighbour Ni (index distance) and euclidean distance NW */
     const int NI[14] = { 0, -1,-x+1, -x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1}; 
     const float  ND[14] = {0.0, s1, s12, s2, s12, s13, s3, s13, s123, s23, s123, s123, s23, s123};
-    const int sN = sizeof(NI)/4; /* division by 4 to get from the number of bytes to the number of elements */ 
+    const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbours
     float DN[sN];
     float DNm = FLT_MAX;
     int  i, n, ni, DNi, init_M = 0;
