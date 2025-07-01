@@ -49,6 +49,10 @@
 
 #define PI 3.1415926535
 
+#if !defined(_WIN32) && !defined(_WIN64)
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 typedef struct{
     int rows;
     int cols;
@@ -486,14 +490,26 @@ ThreadFunc( void* pArguments )
                             
             if (wmax == 0.0) wmax = 1.0;                                              
             Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices);                                       
-            totalweight = totalweight + wmax;                                                                                
-            Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);                               
+            totalweight = totalweight + wmax;
+#if !defined(_WIN32) && !defined(_WIN64)
+            pthread_mutex_lock(&mutex);
+#endif
+            Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);
+#if !defined(_WIN32) && !defined(_WIN64)
+            pthread_mutex_unlock(&mutex);
+#endif
         }
         else {                         
             wmax = 1.0;    
             Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices); 
             totalweight = totalweight + wmax;
+#if !defined(_WIN32) && !defined(_WIN64)
+            pthread_mutex_lock(&mutex);
+#endif
             Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);
+#if !defined(_WIN32) && !defined(_WIN64)
+            pthread_mutex_unlock(&mutex);
+#endif
         }
     }
 
