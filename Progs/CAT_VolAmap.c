@@ -231,18 +231,11 @@ main(int argc, char *argv[])
         correct_bias(src, biasfield, label, dims, voxelsize, bias_fwhm, weight_LAS);
     }
 
-    int grid[3] = {96, 96, 96};
-    float valley = 0.1;      // minimum weight in the center of the U
-    float peak   = 1.0;      // maximum weight at the sides
-    float center = 110;    // center of the U (in bins, [0,255])
-    float width  = 40;     // width/spread of the valley (in bins)
-    float clip_limit = 2.0;
-    write_corr = 1;
-    if (verbose) fprintf(stdout,"CLAHE normalization\n");
-    clahe3d_float(src, dims, grid[0], grid[1], grid[2], clip_limit, valley, peak, center, width);
     int v = 3, f = 1;
-    if (verbose) fprintf(stdout,"ORNLM filter\n");
-    ornlm(src, v, f, h_ornlm, dims);
+    if (h_ornlm > 0.0) {      
+        if (verbose) fprintf(stdout,"ORNLM filter\n");
+        ornlm(src, v, f, h_ornlm, dims);
+    }
 
     if (use_bmap) {
         int BG = 1, sub_bias = 8;

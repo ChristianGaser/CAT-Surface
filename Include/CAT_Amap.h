@@ -61,8 +61,6 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta,
                 int init, int *dims, int verbose);
 void Normalize(double* val, char n);
 unsigned char MaxArg(double *val, unsigned char n);
-void clahe3d_float(float* vol, int dims[3], int tile_x, int tile_y, int tile_z, 
-                float clip_limit, float valley, float peak, float center, float width);
 
 struct point {
   double median;
