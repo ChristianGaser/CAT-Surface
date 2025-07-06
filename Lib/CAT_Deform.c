@@ -522,17 +522,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         }
 
         // Apply smoothing to the pial and white displacement field
-        if (0) {
-        smooth_displacement_field(displacement_field1, polygons1, 
-                                  n_neighbours, neighbours, 5, sigma);
-        smooth_displacement_field(displacement_field2, polygons2, 
-                                  n_neighbours, neighbours, 5, sigma);
-        } else {
         smooth_displacement_field_blended(displacement_field1, polygons1, 
                                           n_neighbours, neighbours, 5, sigma, 0.1, 10);
         smooth_displacement_field_blended(displacement_field2, polygons2, 
                                           n_neighbours, neighbours, 5, sigma, 0.1, 10);
-        }
 
         // Apply the final displacement to vertices
         for (v = 0; v < polygons1->n_points; v++) {
@@ -602,17 +595,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     
     // Apply very slight smoothing to the displacement field to smooth replacements
     // Estimate weight w.r.t. curvature and ensure minimum of min_weight
-    if (0) {
-    smooth_displacement_field(displacement_field1, polygons1, n_neighbours, 
-                              neighbours, 5, 0.01*sigma);
-    smooth_displacement_field(displacement_field2, polygons2, n_neighbours,  
-                              neighbours, 5, 0.01*sigma);
-    } else {
     smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours,  
                               neighbours, 5, 0.01*sigma, 0.1, 10);
     smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours,  
                               neighbours, 5, 0.01*sigma, 0.1, 10);
-    }
 
     // Apply the final displacement to vertices
     for (v = 0; v < polygons1->n_points; v++) {
