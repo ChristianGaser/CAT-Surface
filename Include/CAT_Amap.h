@@ -15,12 +15,15 @@
 
 #define TH_COLOR 1
 #define TH_CHANGE 0.001
+
 #ifndef TINY
 #define TINY 1e-15 
 #endif
+
 #ifndef HUGE
 #define HUGE 1e15 
 #endif
+
 #ifndef NULL
 #define NULL ((void *) 0)
 #endif

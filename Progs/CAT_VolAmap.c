@@ -203,7 +203,6 @@ main(int argc, char *argv[])
         mu[i] = 0;
 
     /* get min/max */
-    
     float min_vol = get_min(src, src_ptr->nvox, 0, DT_FLOAT32);
 
     if (verbose) {
@@ -214,7 +213,7 @@ main(int argc, char *argv[])
     /* correct images with values < 0 */
     if (min_vol < 0.0) {
         for (i = 0; i < src_ptr->nvox; i++)
-            src[i] = src[i] - min_vol;
+            src[i] -= min_vol;
     }
 
     voxelsize[0] = src_ptr->dx;
@@ -223,6 +222,11 @@ main(int argc, char *argv[])
     dims[0] = src_ptr->nx;
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
+
+    for (i = 0; i < src_ptr->nvox; i++) {
+        src[i] = label[i]>0 ? src[i] : 0;
+        label[i] = src[i]>0 ? label[i] : 0;
+    }
 
     /* apply bias correction first for GM+WM and subsequently for WM only with less
      * smoothing to emphasize subcortical structures */
