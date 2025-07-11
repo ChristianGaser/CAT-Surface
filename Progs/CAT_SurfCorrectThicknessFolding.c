@@ -1,15 +1,3 @@
-/**
- * CAT_SurfCorrectThicknessFolding.c
- * This program corrects cortical thickness that is influenced by folding using
- * the ideas from that paper:
- * Nagehan Demirci, Timothy S. Coalson, Maria A. Holland, David C. Van Essen, Matthew F. Glasser
- * Compensating Cortical Thickness for Cortical Folding-Related Variation
- * https://doi.org/10.1101/2025.05.03.651968
- *
- * Usage: ./CAT_SurfCorrectThicknessFolding surface_file thickness_file output_thickness_file
- *
- */
-
 /* Christian Gaser - christian.gaser@uni-jena.de
  * Department of Psychiatry
  * University of Jena
@@ -21,17 +9,31 @@
 
 #include <bicpl.h>
 #include <float.h>
+#include <ParseArgv.h>
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_Math.h"
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
 
+double max_dist = 6.0;           /* maximal thickness */
+
+/* the argument table */
+static ArgvInfo argTable[] = {
+  {"-max", ARGV_FLOAT, (char *) TRUE, (char *) &max_dist, "Define maximum thickness, where all values exceeding that will be cut."},
+  { NULL, ARGV_END, NULL, NULL, NULL }
+};
+
 void
 usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s  surface_file thickness_file output_thickness_file\n\n";
+Usage: %s  surface_file [options] surface_file thickness_file output_thickness_file\n\n\
+   This program corrects cortical thickness that is influenced by folding using\n\
+   the ideas from that paper:\n\
+   Nagehan Demirci, Timothy S. Coalson, Maria A. Holland, David C. Van Essen, Matthew F. Glasser\n\
+   Compensating Cortical Thickness for Cortical Folding-Related Variation\n\
+   https://doi.org/10.1101/2025.05.03.651968.\n";
 
     fprintf(stderr, usage_str, executable);
 }
@@ -124,6 +126,9 @@ main(int argc, char *argv[])
 
     // Add mean again to thickness
     for (i = 0; i < n_vals; i++) thickness[i] += mean_thickness;
+
+    double limit[2] = {0, max_dist};
+    clip_data(thickness, n_vals, limit, DT_FLOAT64); 
     
     output_values_any_format(output_thickness_file, n_vals,
                  thickness, TYPE_DOUBLE);
