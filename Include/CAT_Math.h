@@ -25,10 +25,6 @@
 #define isfinite(x) ((x) * (x) >= 0.) /* check for NaNs */
 #endif
 
-#ifndef TINY
-#define TINY 1e-15 
-#endif
-
 #ifndef SQR
 #define SQR(x) ((x)*(x))
 #endif
@@ -78,5 +74,6 @@ double get_masked_mean_array(void *arr, int n, unsigned char *mask, int datatype
 double get_masked_std_array(void *arr, int n, unsigned char *mask, int datatype);
 void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype);
 double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype);
+void clip_data(void *data, int n, double limit[2], int datatype);
 
 #endif

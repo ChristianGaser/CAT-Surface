@@ -701,7 +701,31 @@ void normalize_double(double *arr, int n)
     double mn = get_mean_double(arr, n, 0);
 
     for (i = 0; i < n; i++) arr[i] -= mn;
+}
 
+/**
+ * clip_double - Clip an array of doubles to specified bounds.
+ *
+ * This function iterates through an array of doubles and restricts each element 
+ * to the range specified by the limits array. Values lower than the lower limit 
+ * are set to the lower limit, and values higher than the upper limit are set to 
+ * the upper limit.
+ *
+ * Parameters:
+ *  - arr: Array of doubles.
+ *  - n: Number of elements in the array.
+ *  - limit: Array of two doubles specifying the lower and upper bounds (limit[0] = lower, limit[1] = upper).
+ *
+ * Returns:
+ *  Overwrites the array with the clipped values.
+ */
+ void clip_double(double *arr, int n, double limit[2]) 
+{
+    int i;
+    for (i = 0; i < n; i++) {
+        if (arr[i] < limit[0]) arr[i] = limit[0];
+        if (arr[i] > limit[1]) arr[i] = limit[1];
+    }
 }
 
 /**
@@ -902,6 +926,25 @@ double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype
     
     free(buffer);
     return(result);
+}
+
+void clip_data(void *data, int n, double limit[2], int datatype) 
+{
+    double *buffer;
+   
+    buffer = (double *)malloc(sizeof(double)*n);
+
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type(data, buffer, n, datatype);
+    clip_double(buffer, n, limit);
+    convert_output_type(data, buffer, n, datatype);
+    
+    free(buffer);
 }
 
 void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype) 
