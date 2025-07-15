@@ -569,8 +569,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     
     /* Apply iterative median filter to strengthen structures */
     unsigned char *mask = (unsigned char *)malloc(nvol * sizeof(unsigned char));
-    for (i = 0; i < nvol; i++)
-        mask[i] = input_float[i] != 0;
+    for (i = 0; i < nvol; i++) mask[i] = input_float[i] != 0;
     
     median3(input_float, mask, dims, 3, DT_FLOAT32);
     free(mask);
