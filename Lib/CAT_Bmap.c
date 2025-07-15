@@ -365,11 +365,12 @@ void Bmap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         }
 
 #if !defined(_WIN32) && !defined(_WIN64)
-        if (verbose)
+        if (verbose) {
             printf("iters:%2d log-likelihood: %7.5f ", iters, ll);
             for (i = 0; i < n_classes; i++) printf("%.3f*%.3f ",mean[i],sqrt(0.5/var[i]));
             printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
             fflush(stdout);
+        }
 #endif
 
         ll_old = ll;
