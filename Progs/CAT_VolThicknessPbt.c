@@ -372,6 +372,7 @@ int main(int argc, char *argv[])
     for (i = 0; i < src_ptr->nvox; i++) {
         GMT[i] += correct_voxelsize;
         GMT[i] *= mean_vx_size;
+        //GMT[i] /= 1.075;
     }
 
     /* Preprocessing with Median Filter:
@@ -400,7 +401,7 @@ int main(int argc, char *argv[])
         /* Apply morphological operations to find and slightly increase 
            regions with larger clusters */
         morph_close(vol_smoothed, dims, 1, 0.5, DT_FLOAT32);
-        morph_open(vol_smoothed, dims, 1, 0.0, DT_FLOAT32);
+        morph_open(vol_smoothed, dims, 1, 0.0, 0, DT_FLOAT32);
         morph_dilate(vol_smoothed, dims, 3, 0.0, DT_FLOAT32);
         
         /* Smooth the gradient image to later apply weighted average */
