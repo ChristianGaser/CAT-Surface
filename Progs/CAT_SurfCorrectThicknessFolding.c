@@ -51,6 +51,13 @@ main(int argc, char *argv[])
     object_struct **objects;
     polygons_struct *polygons;
 
+    /* Call ParseArgv */
+    if (ParseArgv(&argc, argv, argTable, 0)) {
+        usage(argv[0]);
+        fprintf(stderr, "       %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
     initialize_argument_processing(argc, argv);
 
     if (!get_string_argument( NULL, &surface_file) ||
