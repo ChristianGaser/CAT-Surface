@@ -1525,7 +1525,7 @@ void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_va
     free(buffer);
 }
 
-void morph_open(void *data, int dims[3], int niter, double th, int datatype)
+void morph_open(void *data, int dims[3], int niter, double th, int keep_values, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1540,7 +1540,7 @@ void morph_open(void *data, int dims[3], int niter, double th, int datatype)
     }
    
     convert_input_type_float(data, buffer, nvox, datatype);
-    morph_open_float(buffer, dims, niter, th, 0);
+    morph_open_float(buffer, dims, niter, th, keep_values);
     convert_output_type_float(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -2174,7 +2174,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
     mask = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
     mask2 = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
 
-    /* The function approximates only values larger than zeros The easiest was
+    /* The function approximates only values larger than zeros. The easiest was
        to shift the value and use a mask to redefine the zero values. */
     min_vol = get_min(vol, nvox, 0, DT_FLOAT32);
     if (min_vol < 0) {
@@ -2194,7 +2194,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
 
     /* smooth values outside mask */
     memcpy(buffer, TAr, nvox*sizeof(float));    
-    double s[3] = {20,20,20};
+    double s[3] = {20, 20, 20};
     smooth_subsample_float(buffer, dims, voxelsize, s, 1, 4.0);
     for (i = 0; i < nvox; ++i)
         if (mask[i] == 0) TAr[i] = buffer[i];
@@ -2203,9 +2203,10 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
     for (i = 0; i < nvox; ++i)
         mask2[i] = (mask[i] > 0) && (vol[i] == 0);
     
-    laplace3R(TAr, mask2, dims, 0.4);
+    double laplace_thresh = 0.4;
+    laplace3R(TAr, mask2, dims, laplace_thresh);
     median_subsample3(TAr, dims, voxelsize, 1, 4.0, DT_FLOAT32);
-    laplace3R(TAr, mask2, dims, 0.4);
+    laplace3R(TAr, mask2, dims, laplace_thresh);
 
     /* only keep TAr inside (closed) mask */
     for (i = 0; i < nvox; ++i)
@@ -2221,12 +2222,12 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
         if (mask[i] == 0) TAr[i] = buffer[i];
     for (i = 0; i < nvox; ++i)
         mask[i] = (mask[i] == 0);
-    laplace3R(TAr, mask, dims, 0.4);
+    laplace3R(TAr, mask, dims, laplace_thresh);
     median_subsample3(TAr, dims, voxelsize, 1, 2.0, DT_FLOAT32);
 
     for (i = 0; i < nvox; ++i)
         mask[i] = (vol[i] == 0);
-    laplace3R(TAr, mask, dims, 0.4);
+    laplace3R(TAr, mask, dims, laplace_thresh);
 
     memcpy(vol,TAr,nvox*sizeof(float));
     

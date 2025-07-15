@@ -54,7 +54,7 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
 void morph_close(void *vol, int dims[3], int niter, double th, int datatype);
-void morph_open(void *vol, int dims[3], int niter, double th, int datatype);
+void morph_open(void *vol, int dims[3], int niter, double th, int keep_values, int datatype);
 void grey_erode(void *data, int dims[3], int niter, int datatype);
 void grey_dilate(void *data, int dims[3], int niter, int datatype);
 void grey_open(void *data, int dims[3], int niter, int datatype);
