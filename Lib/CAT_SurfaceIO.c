@@ -626,7 +626,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
     faces->num_dim  = 2;
     faces->dims[0]  = numFaces;    /* In highest first, dim0 = rows */
     faces->dims[1]  = 3;       /* In highest first, dim1 = cols */
-    faces->encoding = GIFTI_ENCODING_B64BIN;
+    faces->encoding = GIFTI_ENCODING_B64GZ;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     faces->endian = GIFTI_ENDIAN_LITTLE;
 #else
@@ -719,7 +719,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
         shape->num_dim = 1;
         shape->dims[0] = polygons->n_points;
         shape->dims[1] = 0;
-        shape->encoding = GIFTI_ENCODING_B64BIN; 
+        shape->encoding = GIFTI_ENCODING_B64GZ; 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
         shape->endian = GIFTI_ENDIAN_LITTLE;
 #else
