@@ -18,12 +18,13 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 
+int fast = 0;
 int verbose = 0;
 int n_avgs = 8;
 int n_median_filter = 2;
 double sharpening = 0.0;
 double downsample = 0.0;
-double fwhm = 0.0;
+double fwhm = -1.0;
 double fill_thresh = 0.5;
 double correct_voxelsize = 0.0;
 
@@ -31,6 +32,9 @@ static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
     "Enable verbose mode. Provides detailed output during processing for debugging\n\
     and monitoring."},
+
+  {"-fast", ARGV_CONSTANT, (char *) 1, (char *) &fast,
+    "Enable fast mode in order to get a very quick and rougher estimate of thickness only."},
 
   {"-n-avgs", ARGV_INT, (char *) 1, (char *) &n_avgs,
     "Specify the number of averages for distance estimation. Used for averaging\n\
@@ -41,7 +45,8 @@ static ArgvInfo argTable[] = {
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
     "Set the Full Width Half Maximum (FWHM) value for final thickness smoothing.\n\
     This value determines the extent of smoothing applied, using a mask to prevent\n\
-    smearing values outside the Gray Matter (GM) areas."},
+    smearing values outside the Gray Matter (GM) areas. Set to negative values to\n\
+    use approximation of remaining values instead of laplace function."},
 
   {"-fill-holes", ARGV_FLOAT, (char *) 1, (char *) &fill_thresh,
     "Fill remaining holes in the PPM image using the defined threshold.\n\
@@ -196,6 +201,16 @@ int main(int argc, char *argv[])
         dist_WM[i]  = 0.0;
     }
     
+    /* Change some defaults for fast option */
+    if (fast) {
+        n_avgs /= 2;
+        n_median_filter = 0;
+        fwhm = -1.0;
+        fill_thresh = 0.0;
+        sharpening = 0.0;
+        downsample = 0.0;
+    }
+
     /* Ensure that n_avgs is at least 1 */
     n_avgs = (n_avgs < 1) ? 1 : n_avgs;
 
@@ -332,8 +347,10 @@ int main(int argc, char *argv[])
         euclidean_distance(GMT, mask, dims, NULL, 1);
         laplace3R(GMT, mask, dims, 0.1);
     } else {
-        if (verbose) fprintf(stderr,"Fill values using Approximation approach\n");
-        vol_approx(GMT, dims, voxelsize);
+        if (!fast) {
+            if (verbose) fprintf(stderr,"Fill values using Approximation approach\n");
+            vol_approx(GMT, dims, voxelsize);
+        }
     }
     
     /* Apply final smoothing */
@@ -366,7 +383,7 @@ int main(int argc, char *argv[])
         fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
     /* 2x Median-filtering of PPM with euclidean distance */
-    localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
+    if (!fast) localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 
     /* Apply voxel size correction */
     for (i = 0; i < src_ptr->nvox; i++) {
