@@ -44,8 +44,6 @@ bool is_order_changed(const double old_mean[3], const double new_mean[3]) {
     return false; // order is unchanged
 }
 
-// Definition of get_order as above
-
 /* Compute initial PVE labeling based on marginalized likelihood for Bmap*/
 void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, double *mean, double *var, int n_pure_classes, int *dims)
 {
