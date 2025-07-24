@@ -78,6 +78,12 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_Surf2Sheet**          | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
 | **CAT_Surf2Sphere**         | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
 
+### External binary GIFTI files
+
+Specifying an output name with the `.dat` extension causes CAT-Surface to write
+a `.gii` header alongside a `.dat` binary. The header uses the GIFTI
+`ExternalFileBinary` encoding so the resulting pair is compatible with SPM12.
+
 ## Continuous Integration
 
 A GitHub Actions workflow located in `.github/workflows/ci.yml` automatically
