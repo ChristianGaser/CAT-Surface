@@ -535,7 +535,20 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     int j,k;
     polygons_struct   *polygons;
-  
+
+/* handle external binary .dat output */
+    int use_dat = filename_extension_matches(fname, "dat");
+    char header_fname[1024];
+    char *out_name = fname;
+    if (use_dat) {
+        strncpy(header_fname, fname, sizeof(header_fname)-1);
+        header_fname[sizeof(header_fname)-1] = '\0';
+        char *dot = strrchr(header_fname, '.');
+        if (dot) strcpy(dot, ".gii");
+        out_name = header_fname;
+        remove(fname);
+    }
+
     gifti_image* image = (gifti_image *)calloc(1,sizeof(gifti_image));
     if (NULL == image) {
         fprintf (stderr,"output_gifti: couldn't allocate image\n");
@@ -545,7 +558,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
     image->version = (char *) calloc(strlen(GIFTI_XML_VERSION)+1,sizeof(char));;
     strcpy(image->version,GIFTI_XML_VERSION);
 
-    gifti_add_to_meta( &image->meta, "Name", fname, 1 );
+    gifti_add_to_meta( &image->meta, "Name", out_name, 1 );
 
     giiDataArray* coords = gifti_alloc_and_add_darray (image);
     if (NULL == coords) {
@@ -694,8 +707,8 @@ output_gifti(char *fname, File_formats format, int n_objects,
                     geotype,
                     1 );
         gifti_add_to_meta( &faces->meta, "TopologicalType", topotype, 1 );
-        gifti_add_to_meta( &coords->meta, "Name", name, 1 );
-        gifti_add_to_meta( &faces->meta, "Name", name, 1 );
+        gifti_add_to_meta( &coords->meta, "Name", out_name, 1 );
+        gifti_add_to_meta( &faces->meta, "Name", out_name, 1 );
     }
 
 
@@ -745,6 +758,9 @@ output_gifti(char *fname, File_formats format, int n_objects,
     }
 
 
+    if (use_dat)
+        gifti_set_extern_filelist(image, 1, &fname);
+
     /* check for compliance */
     int valid = gifti_valid_gifti_image (image, 1);
     if (valid == 0) {
@@ -754,7 +770,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
     }
 
     /* Write the file. */
-    if (gifti_write_image (image, fname, 1)) {
+    if (gifti_write_image (image, out_name, 1)) {
         fprintf (stderr,"output_gifti_curv: couldn't write image\n");
         gifti_free_image (image);
         return(-1);
@@ -770,7 +786,20 @@ output_gifti_curv(char *fname, int nvertices, double *data)
 {
 
     int k;
-  
+
+    /* handle external binary .dat output */
+    int use_dat = filename_extension_matches(fname, "dat");
+    char header_fname[1024];
+    char *out_name = fname;
+    if (use_dat) {
+        strncpy(header_fname, fname, sizeof(header_fname)-1);
+        header_fname[sizeof(header_fname)-1] = '\0';
+        char *dot = strrchr(header_fname, '.');
+        if (dot) strcpy(dot, ".gii");
+        out_name = header_fname;
+        remove(fname);
+    }
+
     gifti_image* image = (gifti_image *)calloc(1,sizeof(gifti_image));
     if (NULL == image) {
         fprintf (stderr,"output_gifti_curv: couldn't allocate image\n");
@@ -780,7 +809,7 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     image->version = (char *) calloc(strlen(GIFTI_XML_VERSION)+1,sizeof(char));;
     strcpy(image->version,GIFTI_XML_VERSION);
 
-    gifti_add_to_meta( &image->meta, "Name", fname, 1 );
+    gifti_add_to_meta( &image->meta, "Name", out_name, 1 );
 
     giiDataArray* shape = gifti_alloc_and_add_darray (image);
     if (NULL == shape) {
@@ -807,7 +836,7 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     gifti_datatype_sizes (shape->datatype, &shape->nbyper, NULL);
 
     /* include some metadata describing this shape */
-    gifti_add_to_meta( &shape->meta, "Name", fname, 1 );
+    gifti_add_to_meta( &shape->meta, "Name", out_name, 1 );
     char *meta=NULL;
     if (strstr(fname, ".thickness")) meta = "Thickness";
     if (strstr(fname, ".curv"))    meta = "CurvatureRadial";
@@ -831,6 +860,9 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     for (k = 0; k < nvertices; k++)
         gifti_set_DA_value_2D (shape, k, 0, data[k]);
 
+    if (use_dat)
+        gifti_set_extern_filelist(image, 1, &fname);
+
     /* check for compliance */
     int valid = gifti_valid_gifti_image (image, 1);
     if (valid == 0) {
@@ -840,7 +872,7 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     }
 
     /* Write the file. */
-    if (gifti_write_image (image, fname, 1)) {
+    if (gifti_write_image (image, out_name, 1)) {
         fprintf (stderr,"output_gifti_curv: couldn't write image\n");
         gifti_free_image (image);
         return(-1);
@@ -1532,7 +1564,8 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
         }
             
         fclose(fp);
-    } else if (filename_extension_matches(file, "gii"))
+    } else if (filename_extension_matches(file, "gii") ||
+               filename_extension_matches(file, "dat"))
         status = output_gifti_curv(file, n_values, buffer);
     else
         status = output_freesurfer_curv(file, n_values, buffer);
@@ -1583,7 +1616,8 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
     } else if (filename_extension_matches(file, "off")) {
         status = output_oogl(file, format,
                 n_objects, object_list);
-    } else if (filename_extension_matches(file, "gii")) {
+    } else if (filename_extension_matches(file, "gii") ||
+               filename_extension_matches(file, "dat")) {
         status = output_gifti(file, format,
                 n_objects, object_list, values);
     } else {
