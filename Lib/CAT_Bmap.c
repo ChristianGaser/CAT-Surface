@@ -33,12 +33,12 @@ void get_order(const double mean[3], int order[3]) {
 }
 
 bool is_order_changed(const double old_mean[3], const double new_mean[3]) {
-    int old_order[3], new_order[3];
+    int old_order[3], new_order[3], i;
     get_order(old_mean, old_order);
     get_order(new_mean, new_order);
 
     // Compare orders
-    for (int i = 0; i < 3; ++i) {
+    for (i = 0; i < 3; ++i) {
         if (old_order[i] != new_order[i]) return true; // order has changed
     }
     return false; // order is unchanged

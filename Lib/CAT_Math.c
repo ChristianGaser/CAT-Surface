@@ -747,8 +747,9 @@ double get_corrcoef_double(const double* x, const double* y, int n, int exclude_
 {
     double sum_x = 0, sum_y = 0, sum_xy = 0;
     double sum_x2 = 0, sum_y2 = 0;
+    int i;
 
-    for (int i = 0; i < n; ++i) {
+    for (i = 0; i < n; ++i) {
         if ((exclude_zeros && ((x[i] == 0.0) || (y[i] == 0.0))))
             continue;
         sum_x  += x[i];
