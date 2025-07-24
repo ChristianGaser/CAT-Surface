@@ -16,8 +16,8 @@ convenience so that no extra downloads are needed during compilation.
 First ensure that FFTW3 is installed:
 
 - **Linux:** install the development package from your package manager, e.g.
-  `sudo apt-get install libfftw3-dev`.
-- **macOS:** install via [Homebrew](https://brew.sh/) using `brew install fftw`.
+  `sudo apt-get install libfftw3-dev`
+- **macOS:** install via [Homebrew](https://brew.sh/) using `brew install fftw`
 - **Windows:** use a Unix-like environment such as MSYS2 or the Windows
   Subsystem for Linux and install FFTW there.
 
