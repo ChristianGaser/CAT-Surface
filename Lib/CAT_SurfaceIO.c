@@ -20,7 +20,7 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
 
     status = OK;    
     for (i = 0; i < polygons->n_points; i++) {
-         (*vertices)[i]            = Point_x(polygons->points[i]);
+         (*vertices)[i] = Point_x(polygons->points[i]);
          (*vertices)[i+polygons->n_points]   = Point_y(polygons->points[i]);
          (*vertices)[i+2*polygons->n_points] = Point_z(polygons->points[i]);
     }
@@ -576,12 +576,15 @@ output_gifti(char *fname, File_formats format, int n_objects,
     coords->num_dim  = 2;
     coords->dims[0]  = polygons->n_points; /* In highest first, dim0 = rows */
     coords->dims[1]  = 3;       /* In highest first, dim1 = cols */
-    coords->encoding = GIFTI_ENCODING_B64BIN;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     coords->endian   = GIFTI_ENDIAN_LITTLE;
 #else
     coords->endian   = GIFTI_ENDIAN_BIG;
 #endif
+    if (use_dat)
+        coords->encoding = GIFTI_ENCODING_EXTBIN;
+    else
+        coords->encoding = GIFTI_ENCODING_B64GZ;
 
     gifti_add_empty_CS( coords );
     coords->coordsys[0]->dataspace  = (char *) calloc(strlen("NIFTI_XFORM_UNKNOWN")  +1,sizeof(char));;
@@ -639,7 +642,6 @@ output_gifti(char *fname, File_formats format, int n_objects,
     faces->num_dim  = 2;
     faces->dims[0]  = numFaces;    /* In highest first, dim0 = rows */
     faces->dims[1]  = 3;       /* In highest first, dim1 = cols */
-    faces->encoding = GIFTI_ENCODING_B64GZ;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     faces->endian = GIFTI_ENDIAN_LITTLE;
 #else
@@ -647,6 +649,10 @@ output_gifti(char *fname, File_formats format, int n_objects,
 #endif
     faces->coordsys = NULL;
     faces->nvals  = gifti_darray_nvals (faces);
+    if (use_dat)
+        faces->encoding = GIFTI_ENCODING_EXTBIN;
+    else
+        faces->encoding = GIFTI_ENCODING_B64GZ;
     gifti_datatype_sizes (faces->datatype, &faces->nbyper, NULL);
 
     /* Allocate the data array. */
@@ -825,7 +831,6 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     shape->num_dim  = 1;
     shape->dims[0]  = nvertices;
     shape->dims[1]  = 0;
-    shape->encoding = GIFTI_ENCODING_B64BIN; 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     shape->endian = GIFTI_ENDIAN_LITTLE;
 #else
@@ -833,6 +838,10 @@ output_gifti_curv(char *fname, int nvertices, double *data)
 #endif
     shape->coordsys = NULL;
     shape->nvals  = gifti_darray_nvals (shape);
+    if (use_dat)
+        shape->encoding = GIFTI_ENCODING_EXTBIN;
+    else
+        shape->encoding = GIFTI_ENCODING_B64GZ;
     gifti_datatype_sizes (shape->datatype, &shape->nbyper, NULL);
 
     /* include some metadata describing this shape */
