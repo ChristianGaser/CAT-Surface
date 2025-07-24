@@ -3,7 +3,7 @@ SUBDIRS = . Progs tests
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
-CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/dartel \
+CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti \
     -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 \
     -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/zlib \
@@ -92,9 +92,9 @@ gifti_SRC = \
     3rdparty/gifticlib/gifti_xml.c
 
 dartel_SRC = \
-    dartel/diffeosphere.c \
-    dartel/optimizersphere.c \
-    dartel/diffeopoly.c 
+    3rdparty/dartel/diffeosphere.c \
+    3rdparty/dartel/optimizersphere.c \
+    3rdparty/dartel/diffeopoly.c 
 
 bic_SRC = \
     3rdparty/volume_io/Geometry/colour.c  \
@@ -293,7 +293,7 @@ noinst_HEADERS = \
     3rdparty/genus0/LookUpTable.h \
     3rdparty/genus0/genus0.h \
     3rdparty/genus0/tricases.h \
-    dartel/dartel.h \
+    3rdparty/dartel/dartel.h \
     3rdparty/nifti/analyze75.h \
     3rdparty/nifti/nifti1.h \
     3rdparty/nifti/nifti1_io.h \
