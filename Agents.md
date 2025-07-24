@@ -9,17 +9,16 @@ The library code lives in the `Lib` directory and code for the command line tool
 ## External Packages
 **1. Install FFTW3:**
 
-- **Linux:**  
-  With root: `sudo apt-get install libfftw3-dev`  
-  Without root: see below.
-
-If you lack sudo rights, build FFTW3 in your home directory:
 ```
-wget http://www.fftw.org/fftw-3.3.10.tar.gz
-tar xzf fftw-3.3.10.tar.gz
-cd fftw-3.3.10
-./configure --prefix=$HOME/.local
-make && make install
+apt-get install libfftw3-dev
+```
+
+**2. Build the tools:**
+```
+./autogen.sh       # Generate the configure script
+./configure        # Configure the build (add --prefix if needed)
+make               # Build all tools
+make install       # Optional: install system-wide
 ```
 
 ## Project Structure for OpenAI Codex Navigation
