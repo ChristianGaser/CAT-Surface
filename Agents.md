@@ -6,6 +6,22 @@ These tools are integral to the [CAT12 toolbox](https://github.com/ChristianGase
 
 The library code lives in the `Lib` directory and code for the command line tools is in `Progs/`. The repository also contains additional third-party libraries in `3rdparty/`.
 
+## External Packages
+**1. Install FFTW3:**
+
+- **Linux:**  
+  With root: `sudo apt-get install libfftw3-dev`  
+  Without root: see below.
+
+If you lack sudo rights, build FFTW3 in your home directory:
+```
+wget http://www.fftw.org/fftw-3.3.10.tar.gz
+tar xzf fftw-3.3.10.tar.gz
+cd fftw-3.3.10
+./configure --prefix=$HOME/.local
+make && make install
+```
+
 ## Project Structure for OpenAI Codex Navigation
 
 ```
