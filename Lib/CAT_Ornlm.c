@@ -47,7 +47,7 @@
 #include "CAT_Ornlm.h"
 
 /* Function which compute the weighted average for one block */
-void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float *average, float weight, const int* vol_size)
+void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize, float *average, float weight, const int* vol_size)
 {
     int x_pos, y_pos, z_pos;
     int is_outside;
@@ -81,7 +81,7 @@ void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float 
 }
 
 /* Function which computes the value assigned to each voxel */
-void Value_block(float *Estimate, unsigned char *Label, int x, int y, int z, int neighborhoodsize, float *average, float global_sum, const int* vol_size, float hh)
+void Value_block_ornlm(float *Estimate, unsigned char *Label, int x, int y, int z, int neighborhoodsize, float *average, float global_sum, const int* vol_size, float hh)
 {
     int x_pos, y_pos, z_pos;
     int is_outside;
@@ -124,7 +124,7 @@ void Value_block(float *Estimate, unsigned char *Label, int x, int y, int z, int
 }
 
 
-float distance(float* ima, int x, int y, int z, int nx, int ny, int nz, int f, int sx, int sy, int sz)
+float distance_ornlm(float* ima, int x, int y, int z, int nx, int ny, int nz, int f, int sx, int sy, int sz)
 {
 
     float d, acu, distancetotal;
@@ -291,12 +291,12 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
         
                                         if(t1>mu1 && t1<(1/mu1) && t2>var1 && t2<(1/var1)) {                 
                                             
-                                            d = distance(ima, i, j, k, ni, nj, nk, f, dims[1], dims[0], dims[2]);
+                                            d = distance_ornlm(ima, i, j, k, ni, nj, nk, f, dims[1], dims[0], dims[2]);
                                             w = exp(-d/(h*h));
         
                                             if(w>wmax) wmax = w;
                                             
-                                            Average_block(ima, ni, nj, nk, f, average, w, dims);
+                                            Average_block_ornlm(ima, ni, nj, nk, f, average, w, dims);
                                             
                                             /*average = average + w*ima[nk*(dims[0]*dims[1])+(ni*dims[0])+nj]; */
                                             totalweight += w;
@@ -310,17 +310,17 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
                     if(wmax==0.0) wmax=1.0;
             
                     /*average = average + wmax*ima[k*(dims[0]*dims[1])+(i*dims[0])+j]; */
-                    Average_block(ima, i, j, k, f, average, wmax, dims);
+                    Average_block_ornlm(ima, i, j, k, f, average, wmax, dims);
                         
                     totalweight += wmax;
                                  
                     if(totalweight != 0.0)
-                    Value_block(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
+                    Value_block_ornlm(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
                 } else {
                     wmax=1.0;
-                    Average_block(ima, i, j, k, f, average, wmax, dims);
+                    Average_block_ornlm(ima, i, j, k, f, average, wmax, dims);
                     totalweight = totalweight + wmax;
-                    Value_block(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
+                    Value_block_ornlm(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
                 }
             }
         } 
