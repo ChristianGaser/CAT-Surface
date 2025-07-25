@@ -58,25 +58,22 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 
 | Tool                        | Description |
 |-----------------------------|-------------|
-| **CAT_Vol2Surf**            | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
-| **CAT_ApplyWarpSurf**       | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
-| **CAT_ApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
-| **CAT_BlurSurfHK**          | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
-| **CAT_DeformSurf**          | Legacy algorithm (after David MacDonald) for cortical surface extraction from 3D anatomical images. Mainly for archival/historical purposes. |
-| **CAT_DumpCurv**            | Extracts folding-related surface parameters (e.g., mean curvature, Gaussian curvature, sulcal depth) and optionally smooths results using the diffusion heat kernel. |
-| **CAT_DumpCurv_ui**         | GUI batch interface for CAT_DumpCurv to process large collections of surface files. |
-| **CAT_DumpGI**              | Computes the local gyrification index (GI), quantifying local cortical folding via the ratio of local surface area to inflated surface area (mean curvature over 3mm default). |
-| **CAT_DumpGI_ui**           | GUI batch interface for CAT_DumpGI for processing large datasets. |
-| **CAT_DumpSurfArea**        | Calculates total and/or local surface area metrics from cortical meshes. |
-| **CAT_SurfConvert**         | Converts between surface mesh file formats: BIC (obj), Freesurfer, and OOGL. |
-| **CAT_FreesurferCurv2Txt**  | Converts Freesurfer curvature (`.curv`) files to plain text format. |
-| **CAT_PlotValuesAtMaximum** | For a given reference, extracts or plots the values at the vertex of maximum value for each surface file. |
-| **CAT_PlotValuesAtPoint**   | Extracts or plots the values at specified (x, y, z) coordinates for each input surface. |
-| **CAT_ResampleSphericalSurf** | Resamples a spherical surface mesh onto a standard sphere (for surface-based morphometry or group analysis). |
-| **CAT_ResampleSphericalSurf2** | Resamples a spherical mesh onto an *externally supplied* reference sphere. |
-| **CAT_Sheet2Surf**          | Maps a 2D image (PGM format) onto a surface mesh. |
-| **CAT_Surf2Sheet**          | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
-| **CAT_Surf2Sphere**         | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
+| **CAT_Vol2Surf**                | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
+| **CAT_SurfApplyWarp**           | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
+| **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
+| **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
+| **CAT_SurfDeform**              | Legacy algorithm (after David MacDonald) for cortical surface extraction from 3D anatomical images. Mainly for archival/historical purposes. |
+| **CAT_SurfCurvature**           | Extracts folding-related surface parameters (e.g., mean curvature, Gaussian curvature, sulcal depth) and optionally smooths results using the diffusion heat kernel. |
+| **CAT_DumpCurv_ui**             | GUI batch interface for CAT_DumpCurv to process large collections of surface files. |
+| **CAT_SurfArea**                | Calculates total and/or local surface area metrics from cortical meshes. |
+| **CAT_SurfConvert**             | Converts between surface mesh file formats: BIC (obj), Freesurfer, and OOGL. |
+| **CAT_SurfMeasure2Txt**         | Converts Freesurfer curvature (`.curv`) files to plain text format. |
+| **CAT_SurfPlotValuesAtMaximum** | For a given reference, extracts or plots the values at the vertex of maximum value for each surface file. |
+| **CAT_SurfPlotValuesAtPoint**   | Extracts or plots the values at specified (x, y, z) coordinates for each input surface. |
+| **CAT_SurfResampleSpherical**   | Resamples a spherical surface mesh onto a standard sphere (for surface-based morphometry or group analysis). |
+| **CAT_SurfSheet2Surf**          | Maps a 2D image (PGM format) onto a surface mesh. |
+| **CAT_Surf2Sheet**              | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
+| **CAT_Surf2Sphere**             | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
 
 ### External binary GIFTI files
 

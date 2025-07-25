@@ -19,59 +19,59 @@ dist_bin_SCRIPTS = \
 # Programs to build
 bin_PROGRAMS = \
     CAT_Surf2Sheet \
-    CAT_Sheet2Surf \
+    CAT_SurfSheet2Surf \
     CAT_Vol2Surf \
-    CAT_DumpCurv \
-    CAT_ApplyWarpSurf \
-    CAT_ApplyWarpValues \
-    CAT_DumpSurfArea \
-    CAT_DumpSurfaceRatio \
-    CAT_BlurSurfHK \
-    CAT_PlotValuesAtPoint \
-    CAT_PlotValuesAtMaximum \
-    CAT_FreesurferCurv2Txt \
+    CAT_SurfCurvature \
+    CAT_SurfApplyWarp \
+    CAT_SurfApplyWarpValues \
+    CAT_SurfArea \
+    CAT_SurfRatio \
+    CAT_SurfSmooth \
+    CAT_SurfPlotValuesAtPoint \
+    CAT_SurfPlotValuesAtMaximum \
+    CAT_SurfMeasure2Txt \
     CAT_SurfConvert \
     CAT_Surf2Sphere \
-    CAT_SeparateCluster \
-    CAT_SeparatePolygon \
-    CAT_ResampleSphericalSurf \
-    CAT_ResampleSurf \
-    CAT_AreaDistortion \
-    CAT_AngularDistortion \
-    CAT_MetricDistortion \
-    CAT_AverageSurfaces \
-    CAT_FixTopology \
-    CAT_Isometize \
+    CAT_SurfSeparateClusters \
+    CAT_SurfSeparatePolygons \
+    CAT_SurfResampleSpherical \
+    CAT_SurfResample \
+    CAT_SurfAreaDistortion \
+    CAT_SurfAngularDistortion \
+    CAT_SurfMetricDistortion \
+    CAT_SurfAverage \
+    CAT_SurfFixTopology \
+    CAT_SurfIsometize \
     CAT_SurfWarp \
-    CAT_WarpSurfDemon \
-    CAT_ArealSmoothing \
-    CAT_SmoothConvexity \
-    CAT_SmoothSharpness \
-    CAT_Hausdorff \
-    CAT_Sharpness \
-    CAT_SelfIntersect \
-    CAT_MarkDefects \
-    CAT_Artifacts \
-    CAT_FractalDimension \
-    CAT_RefineMesh \
-    CAT_DumpConvexity \
+    CAT_SurfWarpDemon \
+    CAT_SurfSmoothAreal \
+    CAT_SurfSmoothConvexity \
+    CAT_SurfSmoothSharpness \
+    CAT_SurfHausdorff \
+    CAT_SurfSharpness \
+    CAT_SurfSelfIntersect \
+    CAT_SurfMarkDefects \
+    CAT_SurfArtifacts \
+    CAT_SurfFractalDimension \
+    CAT_SurfRefine \
+    CAT_SurfConvexity \
     CAT_VolMarchingCubes \
-    CAT_AddValuesToSurf \
-    CAT_SulcusDepth \
-    CAT_DumpDepthPotential \
+    CAT_SurfAddValues \
+    CAT_SurfSulcusDepth \
+    CAT_SurfDepthPotential \
     CAT_SurfCentral2Pial \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
     CAT_Test \
-    CAT_SmoothDiffusion \
+    CAT_SurfSmoothDiffusion \
     CAT_VolAmap \
     CAT_VolAverage \
     CAT_VolSmooth \
     CAT_VolSanlm \
     CAT_VolThicknessPbt \
-    CAT_ResampleSphericalSurfSPH \
+    CAT_SurfResampleSphericalSPH \
     CAT_Surf2SPH \
     CAT_SurfDeform \
     CAT_Surf2PialWhite \
     CAT_SurfCorrectThicknessFolding \
-    CAT_SPH2Surf
+    CAT_SurfSPH2Surf
