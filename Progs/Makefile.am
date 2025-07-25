@@ -36,6 +36,7 @@ bin_PROGRAMS = \
     CAT_SurfSeparatePolygons \
     CAT_SurfResampleSpherical \
     CAT_SurfResample \
+    CAT_SurfResampleMulti \
     CAT_SurfAreaDistortion \
     CAT_SurfAngularDistortion \
     CAT_SurfMetricDistortion \
