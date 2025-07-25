@@ -11,6 +11,22 @@
  */
 
 #include "CAT_SurfaceIO.h"
+#include <string.h>
+
+static const char* basename(const char* path) {
+    const char* base = strrchr(path, '/');
+    return base ? base + 1 : path;
+}
+
+static const char* basename_no_path(const char* p)
+{
+    const char *s1 = strrchr(p, '/');
+#ifdef _WIN32
+    const char *s2 = strrchr(p, '\\');
+    if (s2 && (!s1 || s2 > s1)) s1 = s2;
+#endif
+    return s1 ? s1 + 1 : p;
+}
 
 Status
 bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
@@ -530,367 +546,499 @@ output_oogl(char *file, File_formats format, int n_objects,
 
 int
 output_gifti(char *fname, File_formats format, int n_objects,
-          object_struct *object_list[], double *values)
+             object_struct *object_list[], double *values)
 {
+    int j, k, r, c;
+    polygons_struct *polygons;
 
-    int j,k;
-    polygons_struct   *polygons;
+    /* ------------------------------------------------------------ */
+    /* decide on ExternalFileBinary vs. internal (gz+b64) encoding  */
+    /* current trigger: user gives *.dat to request EXTBIN          */
+    /* ------------------------------------------------------------ */
+    size_t ext_off = 0;
+    int use_extbin = filename_extension_matches(fname, "dat");
 
-/* handle external binary .dat output */
-    int use_dat = filename_extension_matches(fname, "dat");
     char header_fname[1024];
+    char dat_fname[1024];
     char *out_name = fname;
-    if (use_dat) {
-        strncpy(header_fname, fname, sizeof(header_fname)-1);
-        header_fname[sizeof(header_fname)-1] = '\0';
+
+    if (use_extbin) {
+        /* .gii header name */
+        strncpy(header_fname, fname, sizeof(header_fname) - 1);
+        header_fname[sizeof(header_fname) - 1] = '\0';
         char *dot = strrchr(header_fname, '.');
         if (dot) strcpy(dot, ".gii");
+        else     strcat(header_fname, ".gii");
         out_name = header_fname;
-        remove(fname);
+
+        /* .dat payload name (same basename) */
+        strncpy(dat_fname, fname, sizeof(dat_fname) - 1);
+        dat_fname[sizeof(dat_fname) - 1] = '\0';
+        dot = strrchr(dat_fname, '.');
+        if (dot) strcpy(dot, ".dat");
+        else     strcat(dat_fname, ".dat");
+
+        /* remove possibly pre-existing .dat to start clean */
+        remove(dat_fname);
     }
 
-    gifti_image* image = (gifti_image *)calloc(1,sizeof(gifti_image));
-    if (NULL == image) {
-        fprintf (stderr,"output_gifti: couldn't allocate image\n");
-        return(-1);
+    /* ------------------------------------------------------------ */
+    /* allocate gifti image                                         */
+    /* ------------------------------------------------------------ */
+    gifti_image *image = (gifti_image *) calloc(1, sizeof(gifti_image));
+    if (!image) {
+        fprintf(stderr, "output_gifti: couldn't allocate image\n");
+        return -1;
     }
 
-    image->version = (char *) calloc(strlen(GIFTI_XML_VERSION)+1,sizeof(char));;
-    strcpy(image->version,GIFTI_XML_VERSION);
+    image->version = (char *) calloc(strlen(GIFTI_XML_VERSION) + 1, sizeof(char));
+    strcpy(image->version, GIFTI_XML_VERSION);
 
-    gifti_add_to_meta( &image->meta, "Name", out_name, 1 );
-
-    giiDataArray* coords = gifti_alloc_and_add_darray (image);
-    if (NULL == coords) {
-        fprintf (stderr,"output_gifti: couldn't allocate giiDataArray\n");
-        gifti_free_image (image);
-        return(-1);
-    }
+    gifti_add_to_meta(&image->meta, "Name", out_name, 1);
 
     polygons = get_polygons_ptr(object_list[0]);
 
-    /* Set its attributes. */
+    /* ------------------------------------------------------------ */
+    /* open .dat file (if EXTBIN)                                   */
+    /* ------------------------------------------------------------ */
+    FILE *fdat = NULL;
+    if (use_extbin) {
+        fdat = fopen(dat_fname, "wb");
+        if (!fdat) {
+            fprintf(stderr, "output_gifti: cannot open external dat file %s\n", dat_fname);
+            gifti_free_image(image);
+            return -1;
+        }
+    }
+
+    /* ============================================================ */
+    /* COORDS (POINTSET)                                            */
+    /* ============================================================ */
+    giiDataArray *coords = gifti_alloc_and_add_darray(image);
+    if (!coords) {
+        fprintf(stderr, "output_gifti: couldn't allocate coords giiDataArray\n");
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
+        return -1;
+    }
+
     coords->intent   = NIFTI_INTENT_POINTSET;
     coords->datatype = NIFTI_TYPE_FLOAT32;
-    coords->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
+    coords->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* Matlab/SPM-kompatibel */
     coords->num_dim  = 2;
-    coords->dims[0]  = polygons->n_points; /* In highest first, dim0 = rows */
-    coords->dims[1]  = 3;       /* In highest first, dim1 = cols */
+    coords->dims[0]  = polygons->n_points; /* rows (highest first) */
+    coords->dims[1]  = 3;                  /* cols */
+
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     coords->endian   = GIFTI_ENDIAN_LITTLE;
 #else
     coords->endian   = GIFTI_ENDIAN_BIG;
 #endif
-    if (use_dat)
-        coords->encoding = GIFTI_ENCODING_EXTBIN;
-    else
-        coords->encoding = GIFTI_ENCODING_B64GZ;
 
-    gifti_add_empty_CS( coords );
-    coords->coordsys[0]->dataspace  = (char *) calloc(strlen("NIFTI_XFORM_UNKNOWN")  +1,sizeof(char));;
-    coords->coordsys[0]->xformspace = (char *) calloc(strlen("NIFTI_XFORM_TALAIRACH")+1,sizeof(char));;
+    gifti_add_empty_CS(coords);
+    coords->coordsys[0]->dataspace  = (char *) calloc(strlen("NIFTI_XFORM_UNKNOWN")   + 1, sizeof(char));
+    coords->coordsys[0]->xformspace = (char *) calloc(strlen("NIFTI_XFORM_TALAIRACH") + 1, sizeof(char));
+    strcpy(coords->coordsys[0]->dataspace,  "NIFTI_XFORM_UNKNOWN");
+    strcpy(coords->coordsys[0]->xformspace, "NIFTI_XFORM_TALAIRACH");
+    for (r = 0; r < 4; r++)
+        for (c = 0; c < 4; c++)
+            coords->coordsys[0]->xform[r][c] = (r == c) ? 1.0 : 0.0;
 
-    strcpy(coords->coordsys[0]->dataspace, "NIFTI_XFORM_UNKNOWN");
-    strcpy(coords->coordsys[0]->xformspace,"NIFTI_XFORM_TALAIRACH");
-    int r,c;
-    for (r=1; r <= 4; r++)
-        for (c=1; c <= 4; c++)
-            if (r==c) coords->coordsys[0]->xform[r-1][c-1] = 1.0;
-            else    coords->coordsys[0]->xform[r-1][c-1] = 0.0;
+    coords->nvals = gifti_darray_nvals(coords);
+    gifti_datatype_sizes(coords->datatype, &coords->nbyper, NULL);
 
-    coords->nvals = gifti_darray_nvals (coords);
-    gifti_datatype_sizes (coords->datatype, &coords->nbyper, NULL);
-
-    /* Allocate the data array. */
-    coords->data = NULL;
-    coords->data = (void*) calloc (coords->nvals, coords->nbyper);
-    if (NULL == coords->data) {
-        fprintf (stderr,"output_gifti: couldn't allocate coords data of "
-            "length %d, element size %d\n",
-        (int)coords->nvals, coords->nbyper);
-    gifti_free_image (image);
-    return -1;
-    }
-
-    /* Copy in all our data. */
-    int vertex_index;
-    for (vertex_index = 0; vertex_index < polygons->n_points; vertex_index++) {
-        gifti_set_DA_value_2D (coords, vertex_index, 0,
-               Point_x(polygons->points[vertex_index]));
-        gifti_set_DA_value_2D (coords, vertex_index, 1,
-               Point_y(polygons->points[vertex_index]));
-        gifti_set_DA_value_2D (coords, vertex_index, 2,
-               Point_z(polygons->points[vertex_index]));
-    }
-
-    /* 
-     * Faces
-     */
-    giiDataArray* faces = gifti_alloc_and_add_darray (image);
-    if (NULL == faces) {
-        fprintf (stderr,"output_gifti: couldn't allocate giiDataArray\n");
-        gifti_free_image (image);
+    /* allocate and fill */
+    coords->data = calloc(coords->nvals, coords->nbyper);
+    if (!coords->data) {
+        fprintf(stderr, "output_gifti: couldn't allocate coords data (%d * %d)\n",
+                (int)coords->nvals, coords->nbyper);
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
         return -1;
     }
 
-    int numFaces = polygons->n_items;
+    /* fill vertex data */
+    for (int v = 0; v < polygons->n_points; v++) {
+        gifti_set_DA_value_2D(coords, v, 0, Point_x(polygons->points[v]));
+        gifti_set_DA_value_2D(coords, v, 1, Point_y(polygons->points[v]));
+        gifti_set_DA_value_2D(coords, v, 2, Point_z(polygons->points[v]));
+    }
 
-    /* Set its attributes. */
-    faces->intent = NIFTI_INTENT_TRIANGLE;
+    if (use_extbin) {
+        coords->encoding   = GIFTI_ENCODING_EXTBIN;
+        coords->ext_fname  = strdup(basename_no_path(dat_fname)); /* nur Basename */
+        coords->ext_offset = ext_off;
+
+        /* write binary block */
+        size_t wrote = fwrite(coords->data, coords->nbyper, coords->nvals, fdat);
+        if (wrote != (size_t)coords->nvals) {
+            fprintf(stderr, "output_gifti: failed writing coords to %s\n", dat_fname);
+            fclose(fdat);
+            gifti_free_image(image);
+            return -1;
+        }
+        ext_off += coords->nvals * coords->nbyper;
+    } else {
+        coords->encoding = GIFTI_ENCODING_B64GZ;
+    }
+
+    /* ============================================================ */
+    /* FACES (TRIANGLE)                                             */
+    /* ============================================================ */
+    giiDataArray *faces = gifti_alloc_and_add_darray(image);
+    if (!faces) {
+        fprintf(stderr, "output_gifti: couldn't allocate faces giiDataArray\n");
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
+        return -1;
+    }
+
+    const int numFaces = polygons->n_items;
+
+    faces->intent   = NIFTI_INTENT_TRIANGLE;
     faces->datatype = NIFTI_TYPE_INT32;
-    faces->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
+    faces->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* Matlab/SPM-kompatibel */
     faces->num_dim  = 2;
-    faces->dims[0]  = numFaces;    /* In highest first, dim0 = rows */
-    faces->dims[1]  = 3;       /* In highest first, dim1 = cols */
+    faces->dims[0]  = numFaces;
+    faces->dims[1]  = 3;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-    faces->endian = GIFTI_ENDIAN_LITTLE;
+    faces->endian   = GIFTI_ENDIAN_LITTLE;
 #else
-    faces->endian = GIFTI_ENDIAN_BIG;
+    faces->endian   = GIFTI_ENDIAN_BIG;
 #endif
     faces->coordsys = NULL;
-    faces->nvals  = gifti_darray_nvals (faces);
-    if (use_dat)
-        faces->encoding = GIFTI_ENCODING_EXTBIN;
-    else
-        faces->encoding = GIFTI_ENCODING_B64GZ;
-    gifti_datatype_sizes (faces->datatype, &faces->nbyper, NULL);
 
-    /* Allocate the data array. */
-    faces->data = NULL;
-    faces->data = (void*) calloc (faces->nvals, faces->nbyper);
-    if (NULL == faces->data) {
-        fprintf (stderr,"output_gifti: couldn't allocate faces data of "
-            "length %d, element size %d\n",
-        (int)faces->nvals, faces->nbyper);
-        gifti_free_image (image);
+    faces->nvals = gifti_darray_nvals(faces);
+    gifti_datatype_sizes(faces->datatype, &faces->nbyper, NULL);
+
+    faces->data = calloc(faces->nvals, faces->nbyper);
+    if (!faces->data) {
+        fprintf(stderr, "output_gifti: couldn't allocate faces data (%d * %d)\n",
+                (int)faces->nvals, faces->nbyper);
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
         return -1;
     }
 
-
-    /* Copy in all our face data */
+    /* Copy faces (assume indices are already 0-based!) */
     int face_index;
-    for (face_index = 0; face_index < polygons->n_items; face_index++)
-        for (j = 0; j < 3; j++)
-            gifti_set_DA_value_2D (faces, face_index, j,
-                 polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]);
-
-    /* standard meta data for surfaces */
-    if (fname) {
-        const char *primary=NULL, *secondary=NULL, *geotype=NULL;
-        char *name = fname;
-        char *topotype="Closed";
-        if (strstr(name, "lh.")) primary = "CortexLeft";
-        if (strstr(name, "rh.")) primary = "CortexRight";
-        if (strstr(name, ".orig"))     secondary = "GrayWhite";
-        if (strstr(name, ".smoothwm")) secondary = "GrayWhite";
-        if (strstr(name, ".white"))    secondary = "GrayWhite";
-        if (strstr(name, ".central"))  secondary = "Central (Layer 4)";
-        if (strstr(name, ".graymid"))  secondary = "MidThickness";
-        if (strstr(name, ".gray"))     secondary = "Pial";
-        if (strstr(name, ".pial"))     secondary = "Pial";
-        if (strstr(name, ".orig"))     geotype = "Reconstruction";
-        if (strstr(name, ".smoothwm")) geotype = "Anatomical";
-        if (strstr(name, ".white"))    geotype = "Anatomical";
-        if (strstr(name, ".central"))  geotype = "Anatomical";
-        if (strstr(name, ".gray"))     geotype = "Anatomical";
-        if (strstr(name, ".graymid"))  geotype = "Anatomical";
-        if (strstr(name, ".pial"))     geotype = "Anatomical";
-        if (strstr(name, ".inflated")) geotype = "Inflated";
-        if (strstr(name, ".sphere"))   geotype = "Sphere";
-        if (strstr(name, ".qsphere"))  geotype = "Sphere";
-        if (strstr(name,"pial-outer")) geotype = "Hull";
-    
-        if (primary) gifti_add_to_meta( &coords->meta,
-                    "AnatomicalStructurePrimary",
-                    primary,
-                    1 );
-        if (secondary) gifti_add_to_meta( &coords->meta,
-                    "AnatomicalStructureSecondary",
-                    secondary,
-                    1 );
-        if (geotype) gifti_add_to_meta( &coords->meta,
-                    "GeometricType",
-                    geotype,
-                    1 );
-        gifti_add_to_meta( &faces->meta, "TopologicalType", topotype, 1 );
-        gifti_add_to_meta( &coords->meta, "Name", out_name, 1 );
-        gifti_add_to_meta( &faces->meta, "Name", out_name, 1 );
+    for (face_index = 0; face_index < polygons->n_items; face_index++) {
+        for (j = 0; j < 3; j++) {
+            gifti_set_DA_value_2D(
+                faces, face_index, j,
+                polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]
+            );
+        }
     }
 
+    if (use_extbin) {
+        faces->encoding   = GIFTI_ENCODING_EXTBIN;
+        faces->ext_fname  = strdup(basename_no_path(dat_fname));
+        faces->ext_offset = ext_off;
 
-
-    /* 
-     * Shape (textures)
-     */
-    if (values != NULL) {
-
-        giiDataArray* shape = gifti_alloc_and_add_darray (image);
-        if (NULL == shape) {
-            fprintf (stderr,"output_gifti_curv: couldn't allocate giiDataArray\n");
-            gifti_free_image (image);
-            return(-1);
+        size_t wrote = fwrite(faces->data, faces->nbyper, faces->nvals, fdat);
+        if (wrote != (size_t)faces->nvals) {
+            fprintf(stderr, "output_gifti: failed writing faces to %s\n", dat_fname);
+            fclose(fdat);
+            gifti_free_image(image);
+            return -1;
         }
-        
-        /* Set its attributes. */
-        shape->intent = NIFTI_INTENT_SHAPE;
+        ext_off += faces->nvals * faces->nbyper;
+    } else {
+        faces->encoding = GIFTI_ENCODING_B64GZ;
+    }
+
+    /* ------------------------------------------------------------ */
+    /* set standard surface meta                                    */
+    /* ------------------------------------------------------------ */
+    if (fname) {
+        const char *primary = NULL, *secondary = NULL, *geotype = NULL;
+        const char *topotype = "Closed";
+
+        if (strstr(fname, "lh."))        primary = "CortexLeft";
+        if (strstr(fname, "rh."))        primary = "CortexRight";
+        if (strstr(fname, ".orig"))      secondary = "GrayWhite";
+        if (strstr(fname, ".smoothwm"))  secondary = "GrayWhite";
+        if (strstr(fname, ".white"))     secondary = "GrayWhite";
+        if (strstr(fname, ".central"))   secondary = "Central (Layer 4)";
+        if (strstr(fname, ".graymid"))   secondary = "MidThickness";
+        if (strstr(fname, ".gray"))      secondary = "Pial";
+        if (strstr(fname, ".pial"))      secondary = "Pial";
+
+        if (strstr(fname, ".orig"))      geotype = "Reconstruction";
+        if (strstr(fname, ".smoothwm"))  geotype = "Anatomical";
+        if (strstr(fname, ".white"))     geotype = "Anatomical";
+        if (strstr(fname, ".central"))   geotype = "Anatomical";
+        if (strstr(fname, ".gray"))      geotype = "Anatomical";
+        if (strstr(fname, ".graymid"))   geotype = "Anatomical";
+        if (strstr(fname, ".pial"))      geotype = "Anatomical";
+        if (strstr(fname, ".inflated"))  geotype = "Inflated";
+        if (strstr(fname, ".sphere"))    geotype = "Sphere";
+        if (strstr(fname, ".qsphere"))   geotype = "Sphere";
+        if (strstr(fname, "pial-outer")) geotype = "Hull";
+
+        if (primary)   gifti_add_to_meta(&coords->meta, "AnatomicalStructurePrimary",   primary,   1);
+        if (secondary) gifti_add_to_meta(&coords->meta, "AnatomicalStructureSecondary", secondary, 1);
+        if (geotype)   gifti_add_to_meta(&coords->meta, "GeometricType",                geotype,   1);
+
+        gifti_add_to_meta(&faces->meta,  "TopologicalType", topotype, 1);
+        gifti_add_to_meta(&coords->meta, "Name", out_name, 1);
+        gifti_add_to_meta(&faces->meta,  "Name", out_name, 1);
+    }
+
+    /* ============================================================ */
+    /* SHAPE (optional, e.g. curvature or thickness)                */
+    /* ============================================================ */
+    if (values) {
+        giiDataArray *shape = gifti_alloc_and_add_darray(image);
+        if (!shape) {
+            fprintf(stderr, "output_gifti: couldn't allocate shape giiDataArray\n");
+            if (fdat) fclose(fdat);
+            gifti_free_image(image);
+            return -1;
+        }
+
+        shape->intent   = NIFTI_INTENT_SHAPE;
         shape->datatype = NIFTI_TYPE_FLOAT32;
-        shape->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
-        shape->num_dim = 1;
-        shape->dims[0] = polygons->n_points;
-        shape->dims[1] = 0;
-        shape->encoding = GIFTI_ENCODING_B64GZ; 
+        shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* 1D, aber wir bleiben konsistent */
+        shape->num_dim  = 1;
+        shape->dims[0]  = polygons->n_points;
+        shape->dims[1]  = 0;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        shape->endian = GIFTI_ENDIAN_LITTLE;
+        shape->endian   = GIFTI_ENDIAN_LITTLE;
 #else
-        shape->endian = GIFTI_ENDIAN_BIG;
+        shape->endian   = GIFTI_ENDIAN_BIG;
 #endif
         shape->coordsys = NULL;
-        shape->nvals = gifti_darray_nvals (shape);
-        gifti_datatype_sizes (shape->datatype, &shape->nbyper, NULL);
 
-        /* Allocate the data array. */
-        shape->data = NULL;
-        shape->data = (void*) calloc (shape->nvals, shape->nbyper);
-        if (NULL == shape->data) {
-            fprintf (stderr,"output_gifti_curv: couldn't allocate shape data of "
-                "length %d, element size %d\n", (int)shape->nvals,shape->nbyper);
+        shape->nvals = gifti_darray_nvals(shape);
+        gifti_datatype_sizes(shape->datatype, &shape->nbyper, NULL);
+
+        shape->data = calloc(shape->nvals, shape->nbyper);
+        if (!shape->data) {
+            fprintf(stderr, "output_gifti: couldn't allocate shape data (%d * %d)\n",
+                    (int)shape->nvals, shape->nbyper);
+            if (fdat) fclose(fdat);
+            gifti_free_image(image);
+            return -1;
+        }
+
+        for (k = 0; k < polygons->n_points; k++)
+            gifti_set_DA_value_2D(shape, k, 0, values[k]);
+
+        if (use_extbin) {
+            shape->encoding   = GIFTI_ENCODING_EXTBIN;
+            shape->ext_fname  = strdup(basename_no_path(dat_fname));
+            shape->ext_offset = ext_off;
+
+            size_t wrote = fwrite(shape->data, shape->nbyper, shape->nvals, fdat);
+            if (wrote != (size_t)shape->nvals) {
+                fprintf(stderr, "output_gifti: failed writing shape to %s\n", dat_fname);
+                fclose(fdat);
+                gifti_free_image(image);
+                return -1;
+            }
+            ext_off += shape->nvals * shape->nbyper;
+        } else {
+            shape->encoding = GIFTI_ENCODING_B64GZ;
+        }
+    }
+
+    if (fdat) fclose(fdat);
+
+    /* ------------------------------------------------------------ */
+    /* GIFTI compliance check                                       */
+    /* ------------------------------------------------------------ */
+    int valid = gifti_valid_gifti_image (image, 1);
+    if (valid == 0) {
+        fprintf (stderr,"output_gifti: GIFTI file %s is invalid!\n", out_name);
+        if (fdat) fclose(fdat);
+        gifti_free_image (image);
+        return(-1);
+    }
+
+    /* Wenn wir EXTBIN benutzt haben, haben wir die Daten bereits geschrieben.
+       Also: Datenzeiger optional freigeben und NULL setzen, dann NUR XML schreiben. */
+    if (use_extbin) {
+        /* optional, aber empfehlenswert: Speicher freigeben, um doppelte Writes zu verhindern */
+        for (int ia = 0; ia < image->numDA; ia++) {
+            if (image->darray[ia]->data) {
+                free(image->darray[ia]->data);
+                image->darray[ia]->data = NULL;
+            }
+        }
+
+        /* Write only the header/XML */
+        if (gifti_write_image (image, out_name, 0)) {
+            fprintf (stderr,"output_gifti: couldn't write XML header %s\n", out_name);
             gifti_free_image (image);
             return(-1);
         }
-
-        /* Copy in all our data. */
-        for (k = 0; k < polygons->n_points; k++)
-            gifti_set_DA_value_2D (shape, k, 0, values[k]);
-    }
-
-
-    if (use_dat)
-        gifti_set_extern_filelist(image, 1, &fname);
-
-    /* check for compliance */
-    int valid = gifti_valid_gifti_image (image, 1);
-    if (valid == 0) {
-        fprintf (stderr,"output_gifti_curv: GIFTI file %s is invalid!\n", fname);
-        gifti_free_image (image);
-        return(-1);
-    }
-
-    /* Write the file. */
-    if (gifti_write_image (image, out_name, 1)) {
-        fprintf (stderr,"output_gifti_curv: couldn't write image\n");
-        gifti_free_image (image);
-        return(-1);
+    } else {
+        /* interne Encodings -> libgifti darf schreiben */
+        if (gifti_write_image (image, out_name, 1)) {
+            fprintf (stderr,"output_gifti: couldn't write image %s\n", out_name);
+            gifti_free_image (image);
+            return(-1);
+        }
     }
 
     gifti_free_image (image);
-
-    return(OK);
+    return OK;
 }
 
 int
 output_gifti_curv(char *fname, int nvertices, double *data)
 {
-
     int k;
 
-    /* handle external binary .dat output */
-    int use_dat = filename_extension_matches(fname, "dat");
+    /* handle ExternalFileBinary .dat output (triggered by *.dat given as fname) */
+    size_t ext_off   = 0;
+    int    use_extbin = filename_extension_matches(fname, "dat");
+
     char header_fname[1024];
+    char dat_fname[1024];
     char *out_name = fname;
-    if (use_dat) {
+    FILE *fdat = NULL;
+
+    if (use_extbin) {
+        /* header (.gii) */
         strncpy(header_fname, fname, sizeof(header_fname)-1);
         header_fname[sizeof(header_fname)-1] = '\0';
         char *dot = strrchr(header_fname, '.');
         if (dot) strcpy(dot, ".gii");
+        else     strcat(header_fname, ".gii");
         out_name = header_fname;
-        remove(fname);
+
+        /* data (.dat) */
+        strncpy(dat_fname, fname, sizeof(dat_fname)-1);
+        dat_fname[sizeof(dat_fname)-1] = '\0';
+        dot = strrchr(dat_fname, '.');
+        if (dot) strcpy(dot, ".dat");
+        else     strcat(dat_fname, ".dat");
+
+        remove(dat_fname); /* start clean */
+        fdat = fopen(dat_fname, "wb");
+        if (!fdat) {
+            fprintf(stderr, "output_gifti_curv: cannot open %s for writing\n", dat_fname);
+            return -1;
+        }
     }
 
-    gifti_image* image = (gifti_image *)calloc(1,sizeof(gifti_image));
-    if (NULL == image) {
-        fprintf (stderr,"output_gifti_curv: couldn't allocate image\n");
-        return(-1);
+    gifti_image *image = (gifti_image *)calloc(1, sizeof(gifti_image));
+    if (!image) {
+        fprintf(stderr, "output_gifti_curv: couldn't allocate image\n");
+        if (fdat) fclose(fdat);
+        return -1;
     }
 
-    image->version = (char *) calloc(strlen(GIFTI_XML_VERSION)+1,sizeof(char));;
-    strcpy(image->version,GIFTI_XML_VERSION);
+    image->version = (char *)calloc(strlen(GIFTI_XML_VERSION) + 1, sizeof(char));
+    strcpy(image->version, GIFTI_XML_VERSION);
 
-    gifti_add_to_meta( &image->meta, "Name", out_name, 1 );
+    gifti_add_to_meta(&image->meta, "Name", out_name, 1);
 
-    giiDataArray* shape = gifti_alloc_and_add_darray (image);
-    if (NULL == shape) {
-        fprintf (stderr,"output_gifti_curv: couldn't allocate giiDataArray\n");
-        gifti_free_image (image);
-        return(-1);
+    giiDataArray *shape = gifti_alloc_and_add_darray(image);
+    if (!shape) {
+        fprintf(stderr, "output_gifti_curv: couldn't allocate giiDataArray\n");
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
+        return -1;
     }
 
-    /* Set its attributes. */
-    shape->intent = NIFTI_INTENT_SHAPE;
+    /* attributes */
+    shape->intent   = NIFTI_INTENT_SHAPE;
     shape->datatype = NIFTI_TYPE_FLOAT32;
-    shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
+    shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* Matlab/SPM-kompatibel */
     shape->num_dim  = 1;
     shape->dims[0]  = nvertices;
     shape->dims[1]  = 0;
+
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-    shape->endian = GIFTI_ENDIAN_LITTLE;
+    shape->endian   = GIFTI_ENDIAN_LITTLE;
 #else
-    shape->endian = GIFTI_ENDIAN_BIG;
+    shape->endian   = GIFTI_ENDIAN_BIG;
 #endif
+
     shape->coordsys = NULL;
-    shape->nvals  = gifti_darray_nvals (shape);
-    if (use_dat)
-        shape->encoding = GIFTI_ENCODING_EXTBIN;
-    else
+    shape->nvals    = gifti_darray_nvals(shape);
+    gifti_datatype_sizes(shape->datatype, &shape->nbyper, NULL);
+
+    if (use_extbin) {
+        shape->encoding   = GIFTI_ENCODING_EXTBIN;
+        shape->ext_fname  = strdup(basename_no_path(dat_fname));
+        shape->ext_offset = ext_off;
+    } else {
         shape->encoding = GIFTI_ENCODING_B64GZ;
-    gifti_datatype_sizes (shape->datatype, &shape->nbyper, NULL);
+    }
 
-    /* include some metadata describing this shape */
-    gifti_add_to_meta( &shape->meta, "Name", out_name, 1 );
-    char *meta=NULL;
+    /* metadata */
+    gifti_add_to_meta(&shape->meta, "Name", out_name, 1);
+    const char *meta = NULL;
     if (strstr(fname, ".thickness")) meta = "Thickness";
-    if (strstr(fname, ".curv"))    meta = "CurvatureRadial";
-    if (strstr(fname, ".sulc"))    meta = "SulcalDepth";
-    if (strstr(fname, ".area"))    meta = "Area";
-    if (strstr(fname, ".volume"))  meta = "Volume";
+    if (strstr(fname, ".curv"))      meta = "CurvatureRadial";
+    if (strstr(fname, ".sulc"))      meta = "SulcalDepth";
+    if (strstr(fname, ".area"))      meta = "Area";
+    if (strstr(fname, ".volume"))    meta = "Volume";
     if (strstr(fname, ".jacobian"))  meta = "Jacobian";
-    if (meta) gifti_add_to_meta( &shape->meta, "ShapeDataType", meta, 1 );
+    if (meta) gifti_add_to_meta(&shape->meta, "ShapeDataType", meta, 1);
 
-    /* Allocate the data array. */
-    shape->data = NULL;
-    shape->data = (void*) calloc (shape->nvals, shape->nbyper);
-    if (NULL == shape->data) {
-        fprintf (stderr,"output_gifti_curv: couldn't allocate shape data of "
-            "length %d, element size %d\n", (int)shape->nvals,shape->nbyper);
-        gifti_free_image (image);
-        return(-1);
+    /* allocate & fill */
+    shape->data = calloc(shape->nvals, shape->nbyper);
+    if (!shape->data) {
+        fprintf(stderr, "output_gifti_curv: couldn't allocate shape data (%d * %d)\n",
+                (int)shape->nvals, shape->nbyper);
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
+        return -1;
     }
 
-    /* Copy in all our data. */
     for (k = 0; k < nvertices; k++)
-        gifti_set_DA_value_2D (shape, k, 0, data[k]);
+        gifti_set_DA_value_2D(shape, k, 0, data[k]);
 
-    if (use_dat)
-        gifti_set_extern_filelist(image, 1, &fname);
-
-    /* check for compliance */
-    int valid = gifti_valid_gifti_image (image, 1);
-    if (valid == 0) {
-        fprintf (stderr,"output_gifti_curv: GIFTI file %s is invalid!\n", fname);
-        gifti_free_image (image);
-        return(-1);
+    /* If EXTBIN: write raw block now, maintain offset, then null data to avoid libgifti rewrite */
+    if (use_extbin) {
+        size_t wrote = fwrite(shape->data, shape->nbyper, shape->nvals, fdat);
+        if (wrote != (size_t)shape->nvals) {
+            fprintf(stderr, "output_gifti_curv: failed writing data to %s\n", dat_fname);
+            fclose(fdat);
+            gifti_free_image(image);
+            return -1;
+        }
+        ext_off += shape->nvals * shape->nbyper;
     }
 
-    /* Write the file. */
-    if (gifti_write_image (image, out_name, 1)) {
-        fprintf (stderr,"output_gifti_curv: couldn't write image\n");
-        gifti_free_image (image);
-        return(-1);
+    /* validity */
+    if (!gifti_valid_gifti_image(image, 1)) {
+        fprintf(stderr, "output_gifti_curv: GIFTI file %s is invalid!\n", out_name);
+        if (fdat) fclose(fdat);
+        gifti_free_image(image);
+        return -1;
     }
 
-    gifti_free_image (image);
+    /* write header */
+    if (use_extbin) {
+        /* avoid second write by the library */
+        if (shape->data) {
+            free(shape->data);
+            shape->data = NULL;
+        }
+        if (fdat) fclose(fdat);
 
-    return(OK);
+        if (gifti_write_image(image, out_name, 0)) {
+            fprintf(stderr, "output_gifti_curv: couldn't write XML header %s\n", out_name);
+            gifti_free_image(image);
+            return -1;
+        }
+    } else {
+        if (gifti_write_image(image, out_name, 1)) {
+            fprintf(stderr, "output_gifti_curv: couldn't write image %s\n", out_name);
+            gifti_free_image(image);
+            return -1;
+        }
+    }
 
+    gifti_free_image(image);
+    return OK;
 }
 
 int
