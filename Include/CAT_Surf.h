@@ -28,6 +28,14 @@
 #define  MAX_NEIGHBOURS  2000
 #define _PI 3.14159265358979323846264338327510
 
+/* edge incidence */
+typedef struct { int a,b,c, idx; } keytri_t;
+typedef struct {
+    int a,b;      /* a<b undirected edge key */
+    int tri;      /* triangle index */
+    double area;  /* triangle area for ranking */
+} edge_occ;
+
 int bound(int, int, int *);
 void indices(int *, int *, int *);
 void get_bounds(polygons_struct *, double [6]);
@@ -66,5 +74,6 @@ int correct_mesh_folding(polygons_struct *, polygons_struct *, float *,
                          nifti_image *, double);
 int reduce_mesh_quadrics(polygons_struct *polygons, int target_faces,
                         double aggressiveness, int preserve_sharp, int verbose);
+int remove_duplicate_edges(polygons_struct *polygons, int verbose);
 
 #endif

@@ -1970,20 +1970,21 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
  * \return See function description for return value semantics.
  */
 int reduce_mesh_quadrics(polygons_struct *polygons,
-                             int target_faces,
-                             double aggressiveness,
-                             int preserve_sharp,
-                             int verbose)
+                         int target_faces,
+                         double aggressiveness,
+                         int preserve_sharp,
+                         int verbose)
 {
-    int i, j, nv = polygons ? polygons->n_points : 0, nf = 0, tri_count = 0;
-    int had_non_tri = 0;
+    if (!polygons || polygons->n_points <= 0 || polygons->n_items <= 0) return -1;
+
+    int i, j;
+    int nv = polygons->n_points;
+    int nf_in = polygons->n_items;
+    int tri_count = 0, had_non_tri = 0;
     vec3d *V = NULL;
     vec3i *F = NULL;
 
-    /* Validate inputs */
-    if (!polygons || nv <= 0 || polygons->n_items <= 0) return -1;
-
-    /* --- 1) Copy points -> vec3d array expected by the QEM routine --- */
+    /* --- 1) vertices -> vec3d --- */
     V = (vec3d*)malloc(sizeof(vec3d) * nv);
     if (!V) return -1;
     for (i = 0; i < nv; ++i) {
@@ -1992,44 +1993,40 @@ int reduce_mesh_quadrics(polygons_struct *polygons,
         V[i].z = Point_z(polygons->points[i]);
     }
 
-    /* --- 2) Convert polygons to a pure triangle list (fan triangulation if needed) --- */
-    /* Determine how many triangles we will output */
-    for (i = 0; i < polygons->n_items; ++i) {
+    /* --- 2) count triangles (fan for n-gons) and build faces --- */
+    for (i = 0; i < nf_in; ++i) {
         int sz = GET_OBJECT_SIZE(*polygons, i);
-        if (sz == 3) tri_count += 1;
-        else if (sz > 3) { tri_count += (sz - 2); had_non_tri = 1; }
-        else { /* degenerate face; skip */ }
+        if      (sz == 3) tri_count += 1;
+        else if (sz >  3) { tri_count += (sz - 2); had_non_tri = 1; }
+        /* sz < 3: skip degenerates */
     }
     if (tri_count <= 0) { free(V); return -1; }
 
     F = (vec3i*)malloc(sizeof(vec3i) * tri_count);
     if (!F) { free(V); return -1; }
 
-    /* Flatten BICPL indexing to consecutive triangles */
-    {
-        int write_t = 0;
-        for (i = 0; i < polygons->n_items; ++i) {
-            int sz = GET_OBJECT_SIZE(*polygons, i);
-            if (sz < 3) continue;
+    int write_t = 0;
+    for (i = 0; i < nf_in; ++i) {
+        int sz = GET_OBJECT_SIZE(*polygons, i);
+        if (sz < 3) continue;
 
-            /* Collect the indices for face i */
-            int base = (i == 0) ? 0 : (polygons->end_indices[i-1] + 1);
+        /* EXCLUSIVE end_index convention -> first index of face i: */
+        int base = (i == 0) ? 0 : polygons->end_indices[i-1];
 
-            /* Fan triangulation: (v0, v(k), v(k+1)) for k=1..sz-2 */
-            int v0 = polygons->indices[base+0];
-            for (j = 1; j < sz-1; ++j) {
-                int v1 = polygons->indices[base+j];
-                int v2 = polygons->indices[base+j+1];
-                F[write_t].x = v0;
-                F[write_t].y = v1;
-                F[write_t].z = v2;
-                ++write_t;
-            }
+        /* Fan triangulation: (v0, v(k), v(k+1)) */
+        int v0 = polygons->indices[base + 0];
+        for (j = 1; j < sz - 1; ++j) {
+            int v1 = polygons->indices[base + j];
+            int v2 = polygons->indices[base + j + 1];
+            F[write_t].x = v0;
+            F[write_t].y = v1;
+            F[write_t].z = v2;
+            ++write_t;
         }
-        nf = tri_count;
     }
+    int nf = tri_count;
 
-    /* --- 3) Set target count and run QEM simplification --- */
+    /* --- 3) run QEM --- */
     if (target_faces <= 0) target_faces = nf / 2;
     if (target_faces < 1)  target_faces = 1;
     if (target_faces > nf) target_faces = nf;
@@ -2041,7 +2038,6 @@ int reduce_mesh_quadrics(polygons_struct *polygons,
                 target_faces, aggressiveness, preserve_sharp);
     }
 
-    /* Signature: quadric_simplify_mesh(&V,&F,&nv,&nf,target,aggr,extract_uv,prevent_sharp_collapse) */
     quadric_simplify_mesh(&V, &F, &nv, &nf,
                           target_faces,
                           aggressiveness,
@@ -2051,18 +2047,15 @@ int reduce_mesh_quadrics(polygons_struct *polygons,
     if (verbose) fprintf(stderr, "[QEM] output: %d verts / %d tris\n", nv, nf);
     if (nv <= 0 || nf <= 0) { free(V); free(F); return -1; }
 
-    /* --- 4) Write back into BICPL structures (points, indices, end_indices) --- */
-    /* Resize and write points */
+    /* --- 4) write back (exclusive end_indices!), normals & bintree --- */
     Point *new_pts = (Point*)realloc(polygons->points, sizeof(Point) * nv);
     if (!new_pts) { free(V); free(F); return -1; }
     polygons->points = new_pts;
     polygons->n_points = nv;
 
-    for (i = 0; i < nv; ++i) {
+    for (i = 0; i < nv; ++i)
         fill_Point(polygons->points[i], V[i].x, V[i].y, V[i].z);
-    }
 
-    /* Allocate a pure-triangle index buffer */
     int *new_indices = (int*)realloc(polygons->indices, sizeof(int) * (nf * 3));
     int *new_endidx  = (int*)realloc(polygons->end_indices, sizeof(int) * nf);
     if (!new_indices || !new_endidx) {
@@ -2076,17 +2069,20 @@ int reduce_mesh_quadrics(polygons_struct *polygons,
     polygons->n_items = nf;
 
     for (i = 0; i < nf; ++i) {
-        polygons->indices[3*i+0] = F[i].x;
-        polygons->indices[3*i+1] = F[i].y;
-        polygons->indices[3*i+2] = F[i].z;
-        /* BICPL uses inclusive end indices; triangles pack as 0..(3*nf-1) */
-        polygons->end_indices[i] = 3*(i+1) - 1;
+        polygons->indices[3*i + 0] = F[i].x;
+        polygons->indices[3*i + 1] = F[i].y;
+        polygons->indices[3*i + 2] = F[i].z;
+        /* EXCLUSIVE end offset (cumulative count) */
+        polygons->end_indices[i] = 3 * (i + 1);
     }
 
-    /* Recompute normals (adjusts normal arrays to the new point count) */
+    /* normals storage should match n_points; re-alloc if needed */
+    polygons->normals = (Vector*)realloc(polygons->normals, sizeof(Vector) * nv);
+
+    /* invalidate any spatial index; recompute normals */
+    polygons->bintree = (bintree_struct_ptr)NULL;
     compute_polygon_normals(polygons);
 
-    /* Cleanup */
     free(V);
     free(F);
 
@@ -2095,4 +2091,301 @@ int reduce_mesh_quadrics(polygons_struct *polygons,
         fprintf(stderr, "[QEM] surface area after: %g\n", area);
     }
     return 0;
+}
+
+/* triangle area helper */
+static inline double tri_area3(const Point *A, const Point *B, const Point *C) {
+    double ux = Point_x(*B) - Point_x(*A);
+    double uy = Point_y(*B) - Point_y(*A);
+    double uz = Point_z(*B) - Point_z(*A);
+    double vx = Point_x(*C) - Point_x(*A);
+    double vy = Point_y(*C) - Point_y(*A);
+    double vz = Point_z(*C) - Point_z(*A);
+    double cx = uy*vz - uz*vy;
+    double cy = uz*vx - ux*vz;
+    double cz = ux*vy - uy*vx;
+    return 0.5 * sqrt(cx*cx + cy*cy + cz*cz);
+}
+
+/* keys for dedup */
+static int cmp_keytri(const void *pa, const void *pb) {
+    const keytri_t *A = (const keytri_t*)pa, *B = (const keytri_t*)pb;
+    if (A->a != B->a) return (A->a < B->a) ? -1 : 1;
+    if (A->b != B->b) return (A->b < B->b) ? -1 : 1;
+    if (A->c != B->c) return (A->c < B->c) ? -1 : 1;
+    return 0;
+}
+
+static int cmp_edge_occ(const void *pa, const void *pb) {
+    const edge_occ *A=(const edge_occ*)pa, *B=(const edge_occ*)pb;
+    if (A->a != B->a) return (A->a < B->a) ? -1 : 1;
+    if (A->b != B->b) return (A->b < B->b) ? -1 : 1;
+    /* larger area first */
+    if (A->area != B->area) return (A->area > B->area) ? -1 : 1;
+    return 0;
+}
+
+/**
+ * Clean triangles so that each undirected edge has incidence <= 2.
+ * Also removes degenerate & duplicate faces and compacts vertices.
+ *
+ * Layout assumptions:
+ *  - triangles packed in indices as [3*i..3*i+2]
+ *  - end_indices[i] = 3*(i+1)  (EXCLUSIVE)
+ *
+ * @return number of faces removed; -1 on error
+ */
+int remove_duplicate_edges(polygons_struct *polygons, int verbose)
+{
+    if (!polygons || polygons->n_items <= 0 || polygons->n_points <= 0) return -1;
+
+    const int nf_in = polygons->n_items;
+
+    /* ---- 0) read triangles; drop degenerate faces ---- */
+    typedef struct { int i0,i1,i2; } tri_t;
+    tri_t *T = (tri_t*)malloc(sizeof(tri_t) * nf_in);
+    if (!T) return -1;
+
+    int i, kept = 0;
+    for (i = 0; i < nf_in; ++i) {
+        const int base = (i == 0) ? 0 : polygons->end_indices[i-1]; /* EXCLUSIVE */
+        int i0 = polygons->indices[base + 0];
+        int i1 = polygons->indices[base + 1];
+        int i2 = polygons->indices[base + 2];
+        if (i0 == i1 || i1 == i2 || i2 == i0) continue; /* degenerate */
+        T[kept].i0 = i0; T[kept].i1 = i1; T[kept].i2 = i2;
+        ++kept;
+    }
+    if (kept == 0) { free(T); polygons->n_items = 0; return nf_in; }
+
+    /* ---- 1) exact triangle dedup (unordered {a,b,c}) ---- */
+    keytri_t *K = (keytri_t*)malloc(sizeof(keytri_t) * kept);
+    if (!K) { free(T); return -1; }
+    for (i = 0; i < kept; ++i) {
+        int a = T[i].i0, b = T[i].i1, c = T[i].i2;
+        if (a > b) { int t=a; a=b; b=t; }
+        if (b > c) { int t=b; b=c; c=t; }
+        if (a > b) { int t=a; a=b; b=t; }
+        K[i].a=a; K[i].b=b; K[i].c=c; K[i].idx=i;
+    }
+    qsort(K, kept, sizeof(keytri_t), cmp_keytri);
+
+    unsigned char *drop = (unsigned char*)calloc(kept, 1);
+    if (!drop) { free(K); free(T); return -1; }
+    for (i = 1; i < kept; ++i)
+        if (K[i].a==K[i-1].a && K[i].b==K[i-1].b && K[i].c==K[i-1].c)
+            drop[K[i].idx] = 1;
+    free(K);
+
+    /* ---- 2) enforce edge incidence <=2. Build all edge occurrences ---- */
+    int mcap = kept * 3;
+    edge_occ *E = (edge_occ*)malloc(sizeof(edge_occ) * mcap);
+    if (!E) { free(drop); free(T); return -1; }
+
+    int changed;
+    do {
+        /* collect edges from not-dropped triangles */
+        int m = 0;
+        for (i = 0; i < kept; ++i) {
+            if (drop[i]) continue;
+            int i0=T[i].i0, i1=T[i].i1, i2=T[i].i2;
+            double area = tri_area3(&polygons->points[i0], &polygons->points[i1], &polygons->points[i2]);
+
+            int a=i0, b=i1; if (a>b){int t=a;a=b;b=t;} E[m++] = (edge_occ){a,b,i,area};
+            a=i1; b=i2;     if (a>b){int t=a;a=b;b=t;} E[m++] = (edge_occ){a,b,i,area};
+            a=i2; b=i0;     if (a>b){int t=a;a=b;b=t;} E[m++] = (edge_occ){a,b,i,area};
+        }
+
+        qsort(E, m, sizeof(edge_occ), cmp_edge_occ);
+
+        /* for edges with >2 triangles, mark extras (keep top-2 by area) */
+        changed = 0;
+        int e = 0;
+        while (e < m) {
+            int s = e;
+            while (e < m && E[e].a == E[s].a && E[e].b == E[s].b) ++e;
+            for (int k = s + 2; k < e; ++k) {
+                if (!drop[E[k].tri]) { drop[E[k].tri] = 1; changed = 1; }
+            }
+        }
+        /* loop until no edge group violates the bound */
+    } while (changed);
+
+    /* ---- 3) remove isolated vertices and compact indices ---- */
+    int nv_old = polygons->n_points;
+    unsigned char *used_v = (unsigned char*)calloc(nv_old, 1);
+    if (!used_v) { free(E); free(drop); free(T); return -1; }
+    int nf_new = 0;
+    for (i = 0; i < kept; ++i) if (!drop[i]) {
+        used_v[T[i].i0] = 1; used_v[T[i].i1] = 1; used_v[T[i].i2] = 1;
+        ++nf_new;
+    }
+
+    int *remap = (int*)malloc(sizeof(int) * nv_old);
+    if (!remap) { free(used_v); free(E); free(drop); free(T); return -1; }
+    int nv_new = 0;
+    for (i = 0; i < nv_old; ++i) remap[i] = used_v[i] ? nv_new++ : -1;
+
+    /* compact points */
+    Point *pts2 = (Point*)malloc(sizeof(Point) * nv_new);
+    if (!pts2) { free(remap); free(used_v); free(E); free(drop); free(T); return -1; }
+    for (i = 0; i < nv_old; ++i) if (remap[i] >= 0) pts2[remap[i]] = polygons->points[i];
+    free(polygons->points);
+    polygons->points = pts2;
+    polygons->n_points = nv_new;
+
+    /* apply remap to triangles and write back */
+    int *new_indices = (int*)realloc(polygons->indices, sizeof(int) * (nf_new * 3));
+    int *new_endidx  = (int*)realloc(polygons->end_indices, sizeof(int) * nf_new);
+    if (!new_indices || !new_endidx) {
+        if (new_indices) polygons->indices = new_indices;
+        if (new_endidx)  polygons->end_indices = new_endidx;
+        free(remap); free(used_v); free(E); free(drop); free(T);
+        return -1;
+    }
+    polygons->indices     = new_indices;
+    polygons->end_indices = new_endidx;
+
+    int w = 0, f = 0;
+    for (i = 0; i < kept; ++i) {
+        if (drop[i]) continue;
+        polygons->indices[w+0] = remap[T[i].i0];
+        polygons->indices[w+1] = remap[T[i].i1];
+        polygons->indices[w+2] = remap[T[i].i2];
+        polygons->end_indices[f] = w + 3; /* EXCLUSIVE cumulative */
+        w += 3; ++f;
+    }
+    polygons->n_items = nf_new;
+
+    /* refresh normals & bintree */
+    polygons->bintree = (bintree_struct_ptr)NULL;
+    polygons->normals = (Vector*)realloc(polygons->normals, sizeof(Vector)*polygons->n_points);
+    compute_polygon_normals(polygons);
+
+    if (verbose) {
+        fprintf(stderr, "[CleanEdges] V: %d -> %d, F: %d -> %d\n",
+                nv_old, polygons->n_points, nf_in, nf_new);
+    }
+
+    free(remap); free(used_v); free(E); free(drop); free(T);
+    return nf_in - nf_new;
+}
+
+
+/**
+ * Remove duplicate edges by limiting undirected edge incidence to <= 2 triangles.
+ * Also removes degenerate and duplicate triangles.
+ *
+ * @param polygons  (in/out) triangle mesh in BICPL layout (exclusive end_indices)
+ * @param verbose   if non-zero, print statistics
+ * @return number of faces removed; -1 on error
+ */
+int remove_duplicate_edges_orig(polygons_struct *polygons, int verbose)
+{
+    if (!polygons || polygons->n_items <= 0 || polygons->n_points <= 0) return -1;
+
+    const int nf_in = polygons->n_items;
+
+    /* ---- 0) read triangles; drop degenerates ---- */
+    typedef struct { int i0,i1,i2; } tri_t;
+    tri_t *T = (tri_t*)malloc(sizeof(tri_t) * nf_in);
+    if (!T) return -1;
+
+    int i, k, kept = 0;
+    for (i = 0; i < nf_in; ++i) {
+        const int base = (i == 0) ? 0 : polygons->end_indices[i-1]; /* EXCLUSIVE end_indices */
+        int i0 = polygons->indices[base + 0];
+        int i1 = polygons->indices[base + 1];
+        int i2 = polygons->indices[base + 2];
+        if (i0 == i1 || i1 == i2 || i2 == i0) continue; /* degenerate */
+        T[kept].i0 = i0; T[kept].i1 = i1; T[kept].i2 = i2;
+        ++kept;
+    }
+    if (kept == 0) { free(T); return 0; }
+
+    /* ---- deduplicate exact triangles (unordered {a,b,c}) ---- */
+    keytri_t *K = (keytri_t*)malloc(sizeof(keytri_t) * kept);
+    if (!K) { free(T); return -1; }
+    for (i = 0; i < kept; ++i) {
+        int a = T[i].i0, b = T[i].i1, c = T[i].i2;
+        if (a > b) { int t=a; a=b; b=t; }
+        if (b > c) { int t=b; b=c; c=t; }
+        if (a > b) { int t=a; a=b; b=t; }
+        K[i].a=a; K[i].b=b; K[i].c=c; K[i].idx=i;
+    }
+    qsort(K, kept, sizeof(keytri_t), cmp_keytri);
+
+    unsigned char *drop = (unsigned char*)calloc(kept, 1);
+    if (!drop) { free(K); free(T); return -1; }
+    for (i = 1; i < kept; ++i) {
+        if (K[i].a==K[i-1].a && K[i].b==K[i-1].b && K[i].c==K[i-1].c)
+            drop[K[i].idx] = 1;
+    }
+    free(K);
+
+    /* ---- 1) collect all edge occurrences across remaining triangles ---- */
+    edge_occ *E = (edge_occ*)malloc(sizeof(edge_occ) * (kept * 3));
+    if (!E) { free(drop); free(T); return -1; }
+
+    int m = 0;
+    for (i = 0; i < kept; ++i) {
+        if (drop[i]) continue;
+        int i0=T[i].i0, i1=T[i].i1, i2=T[i].i2;
+        double area = tri_area3(&polygons->points[i0], &polygons->points[i1], &polygons->points[i2]);
+
+        int a=i0, b=i1; if (a>b){int t=a;a=b;b=t;}
+        E[m++] = (edge_occ){a,b,i,i2,area};
+        a=i1; b=i2; if (a>b){int t=a;a=b;b=t;}
+        E[m++] = (edge_occ){a,b,i,i0,area};
+        a=i2; b=i0; if (a>b){int t=a;a=b;b=t;}
+        E[m++] = (edge_occ){a,b,i,i1,area};
+    }
+
+    qsort(E, m, sizeof(edge_occ), cmp_edge_occ);
+
+    /* ---- 2) for edges with >2 incident faces, keep top-2 by area; drop rest ---- */
+    int e = 0;
+    while (e < m) {
+        int s = e;
+        while (e < m && E[e].a == E[s].a && E[e].b == E[s].b) ++e;
+        for (k = s + 2; k < e; ++k) drop[E[k].tri] = 1;
+    }
+
+    /* ---- 3) rebuild triangles without dropped faces ---- */
+    int nf_new = 0;
+    for (i = 0; i < kept; ++i) if (!drop[i]) ++nf_new;
+
+    int *new_indices = (int*)realloc(polygons->indices, sizeof(int) * (nf_new * 3));
+    int *new_endidx  = (int*)realloc(polygons->end_indices, sizeof(int) * nf_new);
+    if (!new_indices || !new_endidx) {
+        if (new_indices) polygons->indices = new_indices;
+        if (new_endidx)  polygons->end_indices = new_endidx;
+        free(E); free(drop); free(T);
+        return -1;
+    }
+    polygons->indices     = new_indices;
+    polygons->end_indices = new_endidx;
+
+    int w = 0, f = 0;
+    for (i = 0; i < kept; ++i) {
+        if (drop[i]) continue;
+        polygons->indices[w+0] = T[i].i0;
+        polygons->indices[w+1] = T[i].i1;
+        polygons->indices[w+2] = T[i].i2;
+        polygons->end_indices[f] = w + 3; /* EXCLUSIVE cumulative */
+        w += 3; ++f;
+    }
+    polygons->n_items = nf_new;
+
+    polygons->bintree = (bintree_struct_ptr)NULL;
+    polygons->normals = (Vector*)realloc(polygons->normals, sizeof(Vector)*polygons->n_points);
+    compute_polygon_normals(polygons);
+
+    if (verbose) {
+        fprintf(stderr, "[FixEdges] faces: %d -> %d (removed %d), unique edges enforced.\n",
+                nf_in, nf_new, nf_in - nf_new);
+    }
+
+    free(E); free(drop); free(T);
+    return nf_in - nf_new;
 }
