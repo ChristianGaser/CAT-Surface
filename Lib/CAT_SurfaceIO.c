@@ -454,7 +454,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
 
     if ((fp = fopen(file, "rb")) == 0) {
         fprintf(stderr, "input_oogl: Couldn't open file %s.\n", file);
-        return(-1);
+        return(ERROR);
     }
 
     fscanf(fp, "%s", line);
@@ -490,7 +490,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
             if (n_edges != 3) {
                 fprintf(stderr,
                     "Only 3 elements per item allowed.\n");
-                return(-1);
+                return(ERROR);
             }
         }
   
@@ -498,7 +498,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
         compute_polygon_normals(polygons);
     } else {
         fprintf(stderr, "Wrong oogl format\n");
-        return(-1);
+        return(ERROR);
     }
   
     fclose(fp);
@@ -515,7 +515,7 @@ output_oogl(char *file, File_formats format, int n_objects,
 
     if ((fp = fopen(file, "w")) == 0) {
         fprintf(stderr, "output_oogl: Couldn't open file %s.\n", file);
-        return(-1);
+        return(ERROR);
     }
 
     polygons = get_polygons_ptr(object_list[0]);
@@ -854,7 +854,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
         fprintf (stderr,"output_gifti: GIFTI file %s is invalid!\n", out_name);
         if (fdat) fclose(fdat);
         gifti_free_image (image);
-        return(-1);
+        return(ERROR);
     }
 
     /* Wenn wir EXTBIN benutzt haben, haben wir die Daten bereits geschrieben.
@@ -872,14 +872,14 @@ output_gifti(char *fname, File_formats format, int n_objects,
         if (gifti_write_image (image, out_name, 0)) {
             fprintf (stderr,"output_gifti: couldn't write XML header %s\n", out_name);
             gifti_free_image (image);
-            return(-1);
+            return(ERROR);
         }
     } else {
         /* interne Encodings -> libgifti darf schreiben */
         if (gifti_write_image (image, out_name, 1)) {
             fprintf (stderr,"output_gifti: couldn't write image %s\n", out_name);
             gifti_free_image (image);
-            return(-1);
+            return(ERROR);
         }
     }
 
@@ -1054,14 +1054,14 @@ input_gifti(char *file, File_formats *format, int *n_objects,
     gifti_image* image = gifti_read_image (file, 1);
     if (NULL == image) {
         fprintf (stderr,"input_gifti: cannot read image\n");
-        return(-1);
+        return(ERROR);
     }
 
     valid = gifti_valid_gifti_image (image, 1);
     if (valid == 0) {
         fprintf (stderr,"input_gifti: GIFTI file %s is invalid!\n", file);
         gifti_free_image (image);
-        return(-1);
+        return(ERROR);
     }
 
     /* prepare object and polygons */
@@ -1099,7 +1099,7 @@ input_gifti(char *file, File_formats *format, int *n_objects,
                 "%s: num_vertices=%d num_cols=%d\n",
                 file, (int)num_vertices, (int)num_cols);
             gifti_free_image (image);
-            return(-1);
+            return(ERROR);
         }
 
         long long num_faces = 0;
@@ -1114,7 +1114,7 @@ input_gifti(char *file, File_formats *format, int *n_objects,
                 "%s: num_faces=%d num_cols=%d\n",
                 file, (int)num_faces, (int)num_cols);
             gifti_free_image (image);
-            return(-1);
+            return(ERROR);
         }
         
         polygons->n_points = num_vertices;
@@ -1146,7 +1146,7 @@ input_gifti(char *file, File_formats *format, int *n_objects,
     } else {
         fprintf (stderr,"input_gifti: GIFTI file %s does not contain vertices and faces!\n", file);
         gifti_free_image (image);
-        return(-1);
+        return(ERROR);
     }
 
     for (numDA = 0; numDA < image->numDA; numDA++) {
@@ -1173,14 +1173,14 @@ input_gifti_curv(char *file, int *vnum, double **input_values)
     gifti_image* image = gifti_read_image (file, 1);
     if (NULL == image) {
         fprintf (stderr,"input_gifti_curv: cannot read image\n");
-        return(-1);
+        return(ERROR);
     }
 
     valid = gifti_valid_gifti_image (image, 1);
     if (valid == 0) {
         fprintf (stderr,"input_gifti_curv: GIFTI file %s is invalid!\n", file);
         gifti_free_image (image);
-        return(-1);
+        return(ERROR);
     }
 
     *vnum = image->darray[0]->dims[0];
@@ -1204,7 +1204,7 @@ output_freesurfer(char *file, File_formats format, int n_objects,
     if ((fp = fopen(file, "w")) == 0) {
         fprintf(stderr, "output_freesurfer: Couldn't open file %s.\n",
             file);
-        return(-1);
+        return(ERROR);
     }
     
     polygons = get_polygons_ptr(object_list[0]);
@@ -1244,7 +1244,7 @@ output_freesurfer_curv(char *fname, int nvertices, double *data)
     if(fp == NULL){
         fprintf(stderr, "output_freesurfer_curv: Couldn't open file %s.\n",
             fname);
-        return(-1);
+        return(ERROR);
     }
     fwrite3(NEW_VERSION_MAGIC_NUMBER, fp); 
     fwriteInt(nvertices, fp);
@@ -1281,14 +1281,14 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
     if ((fp = fopen(file, "rb")) == 0) {
         fprintf(stderr, "input_freesurfer: Couldn't open file %s.\n",
             file);
-        return(-1);
+        return(ERROR);
     }
 
     /* read magic number for checking filetype */
     fread3(&magic, fp);
     if (magic == QUAD_FILE_MAGIC_NUMBER) {
         fprintf(stderr, "QUAD_FILE_MAGIC_NUMBER not yet prepared.\n");
-        return(-1);
+        return(ERROR);
     } else if (magic == TRIANGLE_FILE_MAGIC_NUMBER) {
         fgets(line, 1024, fp);
         fscanf(fp, "\n");
@@ -1316,7 +1316,7 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
         compute_polygon_normals(polygons);
     } else {
         fprintf(stderr, "input_freesurfer: Unknown magic identifier: %d.\n", magic);
-        return(-1);
+        return(ERROR);
     }
 
     fclose(fp);
@@ -1336,7 +1336,7 @@ input_freesurfer_curv(char *file, int *vnum, double **input_values)
         fprintf(stderr,
             "input_freesurfer_curv: Couldn't open file %s.\n",
             file);
-        return(-1);
+        return(ERROR);
     }
 
     /* read magic number for checking filetype */
@@ -1344,7 +1344,7 @@ input_freesurfer_curv(char *file, int *vnum, double **input_values)
   
     if (magic != NEW_VERSION_MAGIC_NUMBER) {
         fprintf(stderr, "MAGIC_NUMBER %d not yet prepared.\n", magic);
-        return(-1);
+        return(ERROR);
     } else {
         /* read # of vertices and faces */
         *vnum = freadInt(fp);
@@ -1352,7 +1352,7 @@ input_freesurfer_curv(char *file, int *vnum, double **input_values)
         vals_per_vertex = freadInt(fp);
         if (vals_per_vertex != 1) {
             fprintf(stderr, "Only one value per vertex allowed.\n");
-            return(-1);
+            return(ERROR);
         }
         ALLOC(*input_values, *vnum);
         for (i = 0; i < *vnum; i++) {
@@ -1390,7 +1390,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
 
     if ((fp = fopen(file, "r")) == 0) {
         fprintf(stderr, "input_dx: Couldn't open file %s.\n", file);
-        return(-1);
+        return(ERROR);
     }
 
     fgets(line, 54, fp);
@@ -1436,7 +1436,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
             sscanf(line,"%d", &polygons->n_items);
         } else {
             fprintf(stderr, "input_dx: Error reading %s\n", file);
-            return(-1);
+            return(ERROR);
         }
 
         ALLOC(polygons->end_indices, polygons->n_items);
@@ -1455,7 +1455,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
         compute_polygon_normals(polygons);
     } else {
         fprintf(stderr, "input_dx: Unknown dx format..\n");
-        return(-1);
+        return(ERROR);
     }
 
     fclose(fp);
@@ -1476,7 +1476,7 @@ input_dfs(char *file, File_formats *format, int *n_objects,
     object_struct   *object;
     
     fprintf(stderr,"Input of DFS data not working.\n");      
-    return(-1);
+    return(ERROR);
     
     /* prepare object and polygons */
     *n_objects = 0;
@@ -1490,7 +1490,7 @@ input_dfs(char *file, File_formats *format, int *n_objects,
 
     if ((fp = fopen(file, "r")) == 0) {
         fprintf(stderr, "input_dfs: Couldn't open file %s.\n", file);
-        return(-1);
+        return(ERROR);
     }
 
     fread(&dummy, sizeof(char), 12, fp);
@@ -1655,7 +1655,7 @@ input_txt_values(
   
     if ((fp = fopen(filename, "r")) == 0) {
         fprintf(stderr, "input_txt_values: Couldn't open file %s.\n", filename);
-        return(-1);
+        return(ERROR);
     }
   
     *n_values = 0;
@@ -1712,7 +1712,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
     if (filename_extension_matches(file, "txt")) {
         if ((fp = fopen(file, "w")) == 0) {
             fprintf(stderr, "write_txt: Couldn't open file %s.\n", file);
-            return(-1);
+            return(ERROR);
         }
         for (i = 0; i < n_values; i++) {
             if (flag == TYPE_DOUBLE)
@@ -1797,7 +1797,7 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
     fp = fopen(file, "r");
     if (!fp) {
         fprintf(stderr, "Could not open annotation file %s\n", file);
-        return(-1);
+        return(ERROR);
     }
 
     *n_array = freadInt(fp);
@@ -1878,7 +1878,7 @@ write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE
     fp = fopen(file, "w");
     if (!fp) {
         fprintf(stderr, "Could not open annotation file %s\n", file);
-        return(-1);
+        return(ERROR);
     }
 
     fwriteInt(n_array, fp);

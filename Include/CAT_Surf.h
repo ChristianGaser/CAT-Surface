@@ -10,8 +10,16 @@
 #define _CAT_SURF_H_
 
 #include <stdbool.h>
+#include <float.h>
 #include "bicpl.h"
 #include "CAT_Vol.h"
+#include "CAT_Map.h"
+#include "CAT_Smooth.h"
+#include "CAT_Resample.h"
+#include "CAT_Intersect.h"
+#include "CAT_Curvature.h"
+#include "CAT_Defect.h"
+#include "CAT_Deform.h"
 
 #define BINTREE_FACTOR 0.5
 #define BW 1024
@@ -56,5 +64,7 @@ void central_to_pial(polygons_struct *, double *, double *, int, double, int, in
 double get_area_of_points_central_to_pial(polygons_struct *, double *, double *, double);
 int correct_mesh_folding(polygons_struct *, polygons_struct *, float *, 
                          nifti_image *, double);
+int reduce_mesh_quadrics(polygons_struct *polygons, int target_faces,
+                        double aggressiveness, int preserve_sharp, int verbose);
 
 #endif

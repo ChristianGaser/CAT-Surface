@@ -8,18 +8,9 @@
 
 /* Some of the code is modified from caret 5.3 (BrainModelSurface.cxx) and bicpl */
 
-#include <bicpl.h>
-#include <float.h>
+#include <quadric.h>
 
 #include "CAT_Surf.h"
-#include "CAT_Vol.h"
-#include "CAT_Map.h"
-#include "CAT_Smooth.h"
-#include "CAT_Resample.h"
-#include "CAT_Intersect.h"
-#include "CAT_Curvature.h"
-#include "CAT_Defect.h"
-#include "CAT_Deform.h"
 
 int
 bound(int i, int j, int dm[])
@@ -1598,4 +1589,149 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     free(curvatures);
     
     return(EXIT_SUCCESS);
+}
+
+/**
+ * Reduce a triangle mesh using Quadric Error Metrics (QEM).
+ *
+ * This function mirrors the calling style used by spm_mesh_reduce.c: you specify
+ * a target number of triangles and an aggressiveness value. Internally, the input
+ * polygons are treated as triangles; non-triangle faces are fan-triangulated.
+ *
+ * Parameters
+ * ----------
+ * polygons        : (in/out) BICPL polygons_struct to be simplified in-place.
+ * target_faces    : desired number of triangles after simplification. If <= 0,
+ *                   half of the current triangle count is used.
+ * aggressiveness  : simplifier aggressiveness (typical ~7.0; larger => stronger/rougher).
+ * preserve_sharp  : if non-zero, prevent aggressive collapses across sharp edges.
+ * verbose         : if non-zero, print progress and summary to stderr.
+ *
+ */
+int reduce_mesh_quadrics(polygons_struct *polygons,
+                             int target_faces,
+                             double aggressiveness,
+                             int preserve_sharp,
+                             int verbose)
+{
+    int i, j, nv = polygons ? polygons->n_points : 0, nf = 0, tri_count = 0;
+    int had_non_tri = 0;
+    vec3d *V = NULL;
+    vec3i *F = NULL;
+
+    /* Validate inputs */
+    if (!polygons || nv <= 0 || polygons->n_items <= 0) return -1;
+
+    /* --- 1) Copy points -> vec3d array expected by the QEM routine --- */
+    V = (vec3d*)malloc(sizeof(vec3d) * nv);
+    if (!V) return -1;
+    for (i = 0; i < nv; ++i) {
+        V[i].x = Point_x(polygons->points[i]);
+        V[i].y = Point_y(polygons->points[i]);
+        V[i].z = Point_z(polygons->points[i]);
+    }
+
+    /* --- 2) Convert polygons to a pure triangle list (fan triangulation if needed) --- */
+    /* Determine how many triangles we will output */
+    for (i = 0; i < polygons->n_items; ++i) {
+        int sz = GET_OBJECT_SIZE(*polygons, i);
+        if (sz == 3) tri_count += 1;
+        else if (sz > 3) { tri_count += (sz - 2); had_non_tri = 1; }
+        else { /* degenerate face; skip */ }
+    }
+    if (tri_count <= 0) { free(V); return -1; }
+
+    F = (vec3i*)malloc(sizeof(vec3i) * tri_count);
+    if (!F) { free(V); return -1; }
+
+    /* Flatten BICPL indexing to consecutive triangles */
+    {
+        int write_t = 0;
+        for (i = 0; i < polygons->n_items; ++i) {
+            int sz = GET_OBJECT_SIZE(*polygons, i);
+            if (sz < 3) continue;
+
+            /* Collect the indices for face i */
+            int base = (i == 0) ? 0 : (polygons->end_indices[i-1] + 1);
+
+            /* Fan triangulation: (v0, v(k), v(k+1)) for k=1..sz-2 */
+            int v0 = polygons->indices[base+0];
+            for (j = 1; j < sz-1; ++j) {
+                int v1 = polygons->indices[base+j];
+                int v2 = polygons->indices[base+j+1];
+                F[write_t].x = v0;
+                F[write_t].y = v1;
+                F[write_t].z = v2;
+                ++write_t;
+            }
+        }
+        nf = tri_count;
+    }
+
+    /* --- 3) Set target count and run QEM simplification --- */
+    if (target_faces <= 0) target_faces = nf / 2;
+    if (target_faces < 1)  target_faces = 1;
+    if (target_faces > nf) target_faces = nf;
+
+    if (verbose) {
+        fprintf(stderr, "[QEM] input: %d verts / %d tris (%s)\n",
+                nv, nf, had_non_tri ? "fan-triangulated" : "tri");
+        fprintf(stderr, "[QEM] target tris: %d, aggressiveness: %.3f, preserve_sharp: %d\n",
+                target_faces, aggressiveness, preserve_sharp);
+    }
+
+    /* Signature: quadric_simplify_mesh(&V,&F,&nv,&nf,target,aggr,extract_uv,prevent_sharp_collapse) */
+    quadric_simplify_mesh(&V, &F, &nv, &nf,
+                          target_faces,
+                          aggressiveness,
+                          0, /* extract_uv = false */
+                          (preserve_sharp != 0) || (aggressiveness < 7.0));
+
+    if (verbose) fprintf(stderr, "[QEM] output: %d verts / %d tris\n", nv, nf);
+    if (nv <= 0 || nf <= 0) { free(V); free(F); return -1; }
+
+    /* --- 4) Write back into BICPL structures (points, indices, end_indices) --- */
+    /* Resize and write points */
+    Point *new_pts = (Point*)realloc(polygons->points, sizeof(Point) * nv);
+    if (!new_pts) { free(V); free(F); return -1; }
+    polygons->points = new_pts;
+    polygons->n_points = nv;
+
+    for (i = 0; i < nv; ++i) {
+        fill_Point(polygons->points[i], V[i].x, V[i].y, V[i].z);
+    }
+
+    /* Allocate a pure-triangle index buffer */
+    int *new_indices = (int*)realloc(polygons->indices, sizeof(int) * (nf * 3));
+    int *new_endidx  = (int*)realloc(polygons->end_indices, sizeof(int) * nf);
+    if (!new_indices || !new_endidx) {
+        free(V); free(F);
+        if (new_indices) polygons->indices = new_indices;
+        if (new_endidx)  polygons->end_indices = new_endidx;
+        return -1;
+    }
+    polygons->indices = new_indices;
+    polygons->end_indices = new_endidx;
+    polygons->n_items = nf;
+
+    for (i = 0; i < nf; ++i) {
+        polygons->indices[3*i+0] = F[i].x;
+        polygons->indices[3*i+1] = F[i].y;
+        polygons->indices[3*i+2] = F[i].z;
+        /* BICPL uses inclusive end indices; triangles pack as 0..(3*nf-1) */
+        polygons->end_indices[i] = 3*(i+1) - 1;
+    }
+
+    /* Recompute normals (adjusts normal arrays to the new point count) */
+    compute_polygon_normals(polygons);
+
+    /* Cleanup */
+    free(V);
+    free(F);
+
+    if (verbose) {
+        double area = get_polygons_surface_area(polygons);
+        fprintf(stderr, "[QEM] surface area after: %g\n", area);
+    }
+    return 0;
 }
