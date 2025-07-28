@@ -75,4 +75,5 @@ bin_PROGRAMS = \
     CAT_SurfDeform \
     CAT_Surf2PialWhite \
     CAT_SurfCorrectThicknessFolding \
+    CAT_SurfReduce \
     CAT_SurfSPH2Surf
