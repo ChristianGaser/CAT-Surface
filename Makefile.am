@@ -10,6 +10,7 @@ CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
+    -I$(top_srcdir)/3rdparty/nii2mesh \
     -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
     -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
 
@@ -95,6 +96,9 @@ dartel_SRC = \
     3rdparty/dartel/diffeosphere.c \
     3rdparty/dartel/optimizersphere.c \
     3rdparty/dartel/diffeopoly.c 
+
+nii2mesh_SRC = \
+    3rdparty/nii2mesh/quadric.c
 
 bic_SRC = \
     3rdparty/volume_io/Geometry/colour.c  \
@@ -359,6 +363,7 @@ libCAT_la_SOURCES = \
     $(nifti_SRC) \
     $(gifti_SRC) \
     $(dartel_SRC) \
+    $(nii2mesh_SRC) \
     $(bic_SRC) \
     $(s2kit10_SRC)
 
