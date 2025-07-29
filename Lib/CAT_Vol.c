@@ -9,6 +9,13 @@
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
 
+#if defined(_WIN32) || defined(_WIN64)
+  #include <windows.h>
+  #include <process.h>  /* _beginthreadex, _endthreadex */
+#else
+  #include <pthread.h>
+#endif
+
 /**
  * ind2sub - Convert a linear index to 3D array coordinates.
  *
@@ -339,6 +346,103 @@ float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *ni
     return n > 0.0 ? seg / n : FNAN;
 }
 
+
+/* ------------------------ Row-pass worker ------------------------- */
+#if defined(_WIN32) || defined(_WIN64)
+static unsigned int __stdcall
+#else
+static void *
+#endif
+conv_row_worker(void *p)
+{
+    conv_args_row a = *(conv_args_row*)p;
+
+    /* per-thread temporary buffer for a whole row */
+    float *tbuf = (float*)malloc((size_t)a.xdim * sizeof(float));
+    if (!tbuf) {
+    #if defined(_WIN32) || defined(_WIN64)
+        _endthreadex(0);
+        return 0;
+    #else
+        return 0;
+    #endif
+    }
+
+    for (int y = a.ini; y < a.fin; ++y) {
+        /* copy row y to buffer & sanitise NaNs/Infs */
+        for (int x = 0; x < a.xdim; ++x) {
+            tbuf[x] = a.out[x + y * a.xdim];
+            if (!isfinite(tbuf[x])) tbuf[x] = 0.0f;
+        }
+        /* horizontal (x) convolution */
+        for (int x = 0; x < a.xdim; ++x) {
+            double sum1 = 0.0;
+            int fstart = ((x - a.xoff >= a.xdim) ? x - a.xdim - a.xoff + 1 : 0);
+            int fend   = ((x - (a.xoff + a.fxdim) < 0) ? x - a.xoff + 1 : a.fxdim);
+            for (int k = fstart; k < fend; ++k)
+                sum1 += (double)tbuf[x - a.xoff - k] * a.filtx[k];
+            a.out[x + y * a.xdim] = (float)sum1;
+        }
+    }
+
+    free(tbuf);
+
+#if defined(_WIN32) || defined(_WIN64)
+    _endthreadex(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/* ------------------------ Column-pass worker ---------------------- */
+#if defined(_WIN32) || defined(_WIN64)
+static unsigned int __stdcall
+#else
+static void *
+#endif
+conv_col_worker(void *p)
+{
+    conv_args_col a = *(conv_args_col*)p;
+
+    /* per-thread temporary buffer for a whole column */
+    float *tbuf = (float*)malloc((size_t)a.ydim * sizeof(float));
+    if (!tbuf) {
+    #if defined(_WIN32) || defined(_WIN64)
+        _endthreadex(0);
+        return 0;
+    #else
+        return 0;
+    #endif
+    }
+
+    for (int x = a.ini; x < a.fin; ++x) {
+        /* copy column x to buffer */
+        for (int y = 0; y < a.ydim; ++y)
+            tbuf[y] = a.out[x + y * a.xdim];
+
+        /* vertical (y) convolution writing back to out */
+        for (int y = 0; y < a.ydim; ++y) {
+            double sum1 = 0.0;
+            int fstart = ((y - a.yoff >= a.ydim) ? y - a.ydim - a.yoff + 1 : 0);
+            int fend   = ((y - (a.yoff + a.fydim) < 0) ? y - a.yoff + 1 : a.fydim);
+            for (int k = fstart; k < fend; ++k)
+                sum1 += (double)tbuf[y - a.yoff - k] * a.filty[k];
+            a.out[y * a.xdim + x] = (float)sum1;
+        }
+    }
+
+    free(tbuf);
+
+#if defined(_WIN32) || defined(_WIN64)
+    _endthreadex(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/* ===================== Multithreaded convxy_float ===================== */
 /**
  * convxy_float - Apply 2D convolution to a slice of data.
  *
@@ -356,45 +460,242 @@ float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *ni
  *
  * Notes:
  * This is a slightly modified function from spm_conv_vol.c from SPM12.
+ *
+ * In multithreaded mode, per-thread temporary buffers are used internally.
+ * The 'buff' argument is only used in the single-thread fallback.
  */
-static void convxy_float(float *out, int xdim, int ydim, double *filtx, double *filty, 
-                         int fxdim, int fydim, int xoff, int yoff, float *buff) {
-    int x,y,k;
+static void convxy_float(float *out, int xdim, int ydim,
+                         double *filtx, double *filty,
+                         int fxdim, int fydim,
+                         int xoff, int yoff,
+                         float *buff)
+{
+    /* choose thread counts similarly to CAT_Sanlm.c style (cap at 8) */
+    int Nthreads_row = (ydim < 8) ? ydim : 8;
+    int Nthreads_col = (xdim < 8) ? xdim : 8;
+    if (Nthreads_row < 1) Nthreads_row = 1;
+    if (Nthreads_col < 1) Nthreads_col = 1;
 
-    for (y=0; y<ydim; y++) {
-        for (x=0; x<xdim; x++) {
-            buff[x] = out[x+y*xdim];
-            if (!isfinite(buff[x]))
-                buff[x] = 0.0;
+    /* If only one thread would be used overall, keep the original serial path. */
+    if (Nthreads_row == 1 && Nthreads_col == 1) {
+        int x, y, k;
+        for (y = 0; y < ydim; y++) {
+            for (x = 0; x < xdim; x++) {
+                buff[x] = out[x + y * xdim];
+                if (!isfinite(buff[x])) buff[x] = 0.0f;
+            }
+            for (x = 0; x < xdim; x++) {
+                double sum1 = 0.0;
+                int fstart = ((x - xoff >= xdim) ? x - xdim - xoff + 1 : 0);
+                int fend   = ((x - (xoff + fxdim) < 0) ? x - xoff + 1 : fxdim);
+                for (k = fstart; k < fend; k++)
+                    sum1 += (double)buff[x - xoff - k] * filtx[k];
+                out[x + y * xdim] = (float)sum1;
+            }
         }
-        for (x=0; x<xdim; x++) {
-            double sum1 = 0.0;
-            int fstart, fend;
-            fstart = ((x-xoff >= xdim) ? x-xdim-xoff+1 : 0);
-            fend = ((x-(xoff+fxdim) < 0) ? x-xoff+1 : fxdim);
+        for (x = 0; x < xdim; x++) {
+            for (y = 0; y < ydim; y++)
+                buff[y] = out[x + y * xdim];
 
-            for (k=fstart; k<fend; k++)
-                sum1 += (double)buff[x-xoff-k]*filtx[k];
-            out[x+y*xdim] = (float)sum1;
+            for (y = 0; y < ydim; y++) {
+                double sum1 = 0.0;
+                int fstart = ((y - yoff >= ydim) ? y - ydim - yoff + 1 : 0);
+                int fend   = ((y - (yoff + fydim) < 0) ? y - yoff + 1 : fydim);
+                for (k = fstart; k < fend; k++)
+                    sum1 += (double)buff[y - yoff - k] * filty[k];
+                out[y * xdim + x] = (float)sum1;
+            }
         }
+        return;
     }
-    for (x=0; x<xdim; x++) {
-        for (y=0; y<ydim; y++)
-            buff[y] = out[x+y*xdim];
 
-        for (y=0; y<ydim; y++) {
-            double sum1 = 0.0;
-            int fstart, fend;
-            fstart = ((y-yoff >= ydim) ? y-ydim-yoff+1 : 0);
-            fend = ((y-(yoff+fydim) < 0) ? y-yoff+1 : fydim);
+    /* -------------------- Pass 1: parallel across rows -------------------- */
+#if defined(_WIN32) || defined(_WIN64)
+    HANDLE *RowThreads = (HANDLE*)malloc((size_t)Nthreads_row * sizeof(HANDLE));
+    conv_args_row *RowArgs = (conv_args_row*)malloc((size_t)Nthreads_row * sizeof(conv_args_row));
+    for (int t = 0; t < Nthreads_row; ++t) {
+        int ini = (t * ydim) / Nthreads_row;
+        int fin = ((t + 1) * ydim) / Nthreads_row;
 
-            for (k=fstart; k<fend; k++)
-                sum1 += (double)buff[y-yoff-k]*filty[k];
-            out[y*xdim+x] = (float)sum1;
-        }
+        RowArgs[t].out = out;
+        RowArgs[t].xdim = xdim; RowArgs[t].ydim = ydim;
+        RowArgs[t].filtx = filtx; RowArgs[t].filty = filty;
+        RowArgs[t].fxdim = fxdim; RowArgs[t].fydim = fydim;
+        RowArgs[t].xoff = xoff; RowArgs[t].yoff = yoff;
+        RowArgs[t].ini = ini; RowArgs[t].fin = fin;
+
+        RowThreads[t] = (HANDLE)_beginthreadex(NULL, 0, &conv_row_worker, &RowArgs[t], 0, NULL);
     }
+    for (int t = 0; t < Nthreads_row; ++t)  WaitForSingleObject(RowThreads[t], INFINITE);
+    for (int t = 0; t < Nthreads_row; ++t)  CloseHandle(RowThreads[t]);
+    free(RowThreads); free(RowArgs);
+#else
+    pthread_t *RowThreads = (pthread_t*)calloc((size_t)Nthreads_row, sizeof(pthread_t));
+    conv_args_row *RowArgs = (conv_args_row*)calloc((size_t)Nthreads_row, sizeof(conv_args_row));
+    for (int t = 0; t < Nthreads_row; ++t) {
+        int ini = (t * ydim) / Nthreads_row;
+        int fin = ((t + 1) * ydim) / Nthreads_row;
+
+        RowArgs[t].out = out;
+        RowArgs[t].xdim = xdim; RowArgs[t].ydim = ydim;
+        RowArgs[t].filtx = filtx; RowArgs[t].filty = filty;
+        RowArgs[t].fxdim = fxdim; RowArgs[t].fydim = fydim;
+        RowArgs[t].xoff = xoff; RowArgs[t].yoff = yoff;
+        RowArgs[t].ini = ini; RowArgs[t].fin = fin;
+
+        pthread_create(&RowThreads[t], NULL, conv_row_worker, &RowArgs[t]);
+    }
+    for (int t = 0; t < Nthreads_row; ++t) pthread_join(RowThreads[t], NULL);
+    free(RowThreads); free(RowArgs);
+#endif
+
+    /* ------------------- Pass 2: parallel across columns ------------------ */
+#if defined(_WIN32) || defined(_WIN64)
+    HANDLE *ColThreads = (HANDLE*)malloc((size_t)Nthreads_col * sizeof(HANDLE));
+    conv_args_col *ColArgs = (conv_args_col*)malloc((size_t)Nthreads_col * sizeof(conv_args_col));
+    for (int t = 0; t < Nthreads_col; ++t) {
+        int ini = (t * xdim) / Nthreads_col;
+        int fin = ((t + 1) * xdim) / Nthreads_col;
+
+        ColArgs[t].out = out;
+        ColArgs[t].xdim = xdim; ColArgs[t].ydim = ydim;
+        ColArgs[t].filtx = filtx; ColArgs[t].filty = filty;
+        ColArgs[t].fxdim = fxdim; ColArgs[t].fydim = fydim;
+        ColArgs[t].xoff = xoff; ColArgs[t].yoff = yoff;
+        ColArgs[t].ini = ini; ColArgs[t].fin = fin;
+
+        ColThreads[t] = (HANDLE)_beginthreadex(NULL, 0, &conv_col_worker, &ColArgs[t], 0, NULL);
+    }
+    for (int t = 0; t < Nthreads_col; ++t)  WaitForSingleObject(ColThreads[t], INFINITE);
+    for (int t = 0; t < Nthreads_col; ++t)  CloseHandle(ColThreads[t]);
+    free(ColThreads); free(ColArgs);
+#else
+    pthread_t *ColThreads = (pthread_t*)calloc((size_t)Nthreads_col, sizeof(pthread_t));
+    conv_args_col *ColArgs = (conv_args_col*)calloc((size_t)Nthreads_col, sizeof(conv_args_col));
+    for (int t = 0; t < Nthreads_col; ++t) {
+        int ini = (t * xdim) / Nthreads_col;
+        int fin = ((t + 1) * xdim) / Nthreads_col;
+
+        ColArgs[t].out = out;
+        ColArgs[t].xdim = xdim; ColArgs[t].ydim = ydim;
+        ColArgs[t].filtx = filtx; ColArgs[t].filty = filty;
+        ColArgs[t].fxdim = fxdim; ColArgs[t].fydim = fydim;
+        ColArgs[t].xoff = xoff; ColArgs[t].yoff = yoff;
+        ColArgs[t].ini = ini; ColArgs[t].fin = fin;
+
+        pthread_create(&ColThreads[t], NULL, conv_col_worker, &ColArgs[t]);
+    }
+    for (int t = 0; t < Nthreads_col; ++t) pthread_join(ColThreads[t], NULL);
+    free(ColThreads); free(ColArgs);
+#endif
 }
 
+/* ---------- Stage 1: compute 2D convxy for each z-slice in parallel ---------- */
+
+/* forward decl of convxy_float already in the same file */
+static void convxy_float(float *out, int xdim, int ydim,
+                         double *filtx, double *filty,
+                         int fxdim, int fydim,
+                         int xoff, int yoff,
+                         float *buff);
+
+#if defined(_WIN32) || defined(_WIN64)
+static unsigned int __stdcall
+#else
+static void *
+#endif
+convxyz_stage1_worker(void *p)
+{
+    convxyz_s1_args_t a = *(convxyz_s1_args_t*)p;
+    const int xy = a.xdim * a.ydim;
+
+    /* Per-thread temp buffer used by convxy_float in serial path */
+    float *buff = (float*)malloc((size_t)((a.ydim > a.xdim) ? a.ydim : a.xdim) * sizeof(float));
+    if (!buff) {
+    #if defined(_WIN32) || defined(_WIN64)
+        _endthreadex(0);
+        return 0;
+    #else
+        return 0;
+    #endif
+    }
+
+    for (int z = a.z_ini; z < a.z_fin; ++z) {
+        float *dst = a.convxy_vol + (size_t)z * xy;
+        const float *src = a.iVol + (size_t)z * xy;
+
+        /* copy slice z into dst; convxy_float works in-place on dst */
+        for (int i = 0; i < xy; ++i) dst[i] = src[i];
+
+        /* 2D convolution (may itself be multi-threaded as implemented) */
+        convxy_float(dst, a.xdim, a.ydim,
+                     (double*)a.filtx, (double*)a.filty,
+                     a.fxdim, a.fydim, a.xoff, a.yoff,
+                     buff);
+    }
+
+    free(buff);
+
+#if defined(_WIN32) || defined(_WIN64)
+    _endthreadex(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/* ---------- Stage 2: z-direction 1D convolution per output slice in parallel ---------- */
+
+#if defined(_WIN32) || defined(_WIN64)
+static unsigned int __stdcall
+#else
+static void *
+#endif
+convxyz_stage2_worker(void *p)
+{
+    convxyz_s2_args_t a = *(convxyz_s2_args_t*)p;
+    const int xy = a.xdim * a.ydim;
+
+    for (int z_out = a.z_out_ini; z_out < a.z_out_fin; ++z_out) {
+        /* Map to loop variable 'z' from original code:
+           z = z_out + fzdim + zoff - 1  */
+        const int z = z_out + a.fzdim + a.zoff - 1;
+
+        /* original bounds:
+           fstart = ((z >= zdim) ? z - zdim + 1 : 0);
+           fend   = ((z - fzdim < 0) ? z + 1 : fzdim); */
+        const int fstart = (z >= a.zdim) ? (z - a.zdim + 1) : 0;
+        const int fend   = (z - a.fzdim < 0) ? (z + 1) : a.fzdim;
+
+        /* normaliser sum2 */
+        double sum2 = 0.0;
+        for (int k = fstart; k < fend; ++k) sum2 += a.filtz[k];
+
+        float *obuf = a.oVol + (size_t)z_out * xy;
+
+        if (sum2 != 0.0) {
+            for (int idx = 0; idx < xy; ++idx) {
+                double sum1 = 0.0;
+                for (int k = fstart; k < fend; ++k) {
+                    const int z_src = z - k;   /* guaranteed 0..zdim-1 */
+                    sum1 += a.filtz[k] * (double)a.convxy_vol[(size_t)z_src * xy + idx];
+                }
+                obuf[idx] = (float)(sum1 / sum2);
+            }
+        } else {
+            for (int idx = 0; idx < xy; ++idx) obuf[idx] = 0.0f;
+        }
+    }
+
+#if defined(_WIN32) || defined(_WIN64)
+    _endthreadex(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/* ========================= Multithreaded convxyz_float ========================= */
 /**
  * convxyz_float - Apply 3D convolution to a volume.
  *
@@ -419,70 +720,139 @@ static void convxy_float(float *out, int xdim, int ydim, double *filtx, double *
  * temporary buffers for intermediate results and performs necessary memory
  * management.
  * This is a slightly modified function from spm_conv_vol.c from SPM12
-*/
+ * Two-parallel-stage implementation (slice 2D conv, then z-accumulation).
+ *  No locks needed: each thread works on disjoint z (or z_out) ranges.
+ *  Memory: uses one temporary volume convxy_vol[z][y][x].
+ */
 int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
-                int fxdim, int fydim, int fzdim,
-                int xoff, int yoff, int zoff, float *oVol, int dims[3]) {
-    float *tmp, *buff, **sortedv, *obuf;
-    int xy, z, y, x, k, fstart, fend, startz, endz;
-    int xdim, ydim, zdim;
+                  int fxdim, int fydim, int fzdim,
+                  int xoff, int yoff, int zoff, float *oVol, int dims[3])
+{
+    const int xdim = dims[0];
+    const int ydim = dims[1];
+    const int zdim = dims[2];
+    const int xy   = xdim * ydim;
 
-    xdim = dims[0];
-    ydim = dims[1];
-    zdim = dims[2];
+    if (xdim <= 0 || ydim <= 0 || zdim <= 0 || fxdim <= 0 || fydim <= 0 || fzdim <= 0)
+        return 0;
 
-    tmp = (float *)malloc(sizeof(float)*xdim*ydim*fzdim);
-    buff = (float *)malloc(sizeof(float)*((ydim>xdim) ? ydim : xdim));
-    sortedv = (float **)malloc(sizeof(float *)*fzdim);
-
-    if (!tmp || !buff || !sortedv) {
-        fprintf(stderr,"Memory allocation error\n");
+    /* temp storage for all convxy slices */
+    float *convxy_vol = (float*)malloc((size_t)zdim * xy * sizeof(float));
+    if (!convxy_vol) {
+        fprintf(stderr, "Memory allocation error (convxy_vol)\n");
         exit(EXIT_FAILURE);
     }
 
-    startz = ((fzdim+zoff-1<0) ? fzdim+zoff-1 : 0);
-    endz = zdim+fzdim+zoff-1;
+    /* ---------------- Stage 1: parallel convxy over z ---------------- */
+    {
+        int Nthreads = (zdim < 8) ? zdim : 8;
+        if (Nthreads < 1) Nthreads = 1;
 
-    for (z=startz; z<endz; z++) {
-        double sum2 = 0.0;
-
-        if (z >= 0 && z<zdim) {
-            for (y=0; y<ydim; y++) for (x=0; x<xdim; x++)
-                tmp[((z%fzdim)*xdim*ydim)+(y*xdim)+x] = iVol[(z*xdim*ydim)+(y*xdim)+x];  
-                convxy_float(tmp+((z%fzdim)*xdim*ydim),xdim, ydim,
-                        filtx, filty, fxdim, fydim, xoff, yoff, buff);
+    #if defined(_WIN32) || defined(_WIN64)
+        HANDLE *ThreadList = (HANDLE*)malloc((size_t)Nthreads * sizeof(HANDLE));
+        convxyz_s1_args_t *Args = (convxyz_s1_args_t*)malloc((size_t)Nthreads * sizeof(convxyz_s1_args_t));
+        if (!ThreadList || !Args) {
+            fprintf(stderr, "Memory allocation error (threads stage1)\n");
+            exit(EXIT_FAILURE);
         }
-        if (z-fzdim-zoff+1>=0 && z-fzdim-zoff+1<zdim) {
-            fstart = ((z >= zdim) ? z-zdim+1 : 0);
-            fend = ((z-fzdim < 0) ? z+1 : fzdim);
+        for (int i = 0; i < Nthreads; ++i) {
+            int ini = (i * zdim) / Nthreads;
+            int fin = ((i + 1) * zdim) / Nthreads;
 
-            for (k=0; k<fzdim; k++) {
-                int z1 = (((z-k)%fzdim)+fzdim)%fzdim;
-                sortedv[k] = &(tmp[z1*xdim*ydim]);
-            }
+            Args[i].iVol = iVol;
+            Args[i].xdim = xdim; Args[i].ydim = ydim; Args[i].zdim = zdim;
+            Args[i].filtx = filtx; Args[i].filty = filty;
+            Args[i].fxdim = fxdim; Args[i].fydim = fydim;
+            Args[i].xoff = xoff;   Args[i].yoff = yoff;
+            Args[i].convxy_vol = convxy_vol;
+            Args[i].z_ini = ini; Args[i].z_fin = fin;
 
-            for (k=fstart, sum2=0.0; k<fend; k++)
-                sum2 += filtz[k];
-
-            obuf = &oVol[(z-fzdim-zoff+1)*ydim*xdim];
-            if (sum2) {
-                for (xy=0; xy<xdim*ydim; xy++) {
-                    double sum1=0.0;
-                    for (k=fstart; k<fend; k++)
-                        sum1 += filtz[k]*(double)sortedv[k][xy];
-
-                    obuf[xy] = (float)sum1/sum2;
-                }
-            }
-            else
-                for (xy=0; xy<xdim*ydim; xy++)
-                    obuf[xy] = 0.0;
+            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &convxyz_stage1_worker, &Args[i], 0, NULL);
         }
+        for (int i = 0; i < Nthreads; ++i) WaitForSingleObject(ThreadList[i], INFINITE);
+        for (int i = 0; i < Nthreads; ++i) CloseHandle(ThreadList[i]);
+        free(ThreadList); free(Args);
+    #else
+        pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
+        convxyz_s1_args_t *Args = (convxyz_s1_args_t*)calloc((size_t)Nthreads, sizeof(convxyz_s1_args_t));
+        if (!ThreadList || !Args) {
+            fprintf(stderr, "Memory allocation error (threads stage1)\n");
+            exit(EXIT_FAILURE);
+        }
+        for (int i = 0; i < Nthreads; ++i) {
+            int ini = (i * zdim) / Nthreads;
+            int fin = ((i + 1) * zdim) / Nthreads;
+
+            Args[i].iVol = iVol;
+            Args[i].xdim = xdim; Args[i].ydim = ydim; Args[i].zdim = zdim;
+            Args[i].filtx = filtx; Args[i].filty = filty;
+            Args[i].fxdim = fxdim; Args[i].fydim = fydim;
+            Args[i].xoff = xoff;   Args[i].yoff = yoff;
+            Args[i].convxy_vol = convxy_vol;
+            Args[i].z_ini = ini; Args[i].z_fin = fin;
+
+            pthread_create(&ThreadList[i], NULL, convxyz_stage1_worker, &Args[i]);
+        }
+        for (int i = 0; i < Nthreads; ++i) pthread_join(ThreadList[i], NULL);
+        free(ThreadList); free(Args);
+    #endif
     }
-    free(tmp);
-    free(buff);
-    free(sortedv);
-    return(0);
+
+    /* ---------------- Stage 2: parallel z-accumulation ---------------- */
+    {
+        int Nthreads = (zdim < 8) ? zdim : 8;
+        if (Nthreads < 1) Nthreads = 1;
+
+    #if defined(_WIN32) || defined(_WIN64)
+        HANDLE *ThreadList = (HANDLE*)malloc((size_t)Nthreads * sizeof(HANDLE));
+        convxyz_s2_args_t *Args = (convxyz_s2_args_t*)malloc((size_t)Nthreads * sizeof(convxyz_s2_args_t));
+        if (!ThreadList || !Args) {
+            fprintf(stderr, "Memory allocation error (threads stage2)\n");
+            exit(EXIT_FAILURE);
+        }
+        for (int i = 0; i < Nthreads; ++i) {
+            int ini = (i * zdim) / Nthreads;
+            int fin = ((i + 1) * zdim) / Nthreads;
+
+            Args[i].convxy_vol = convxy_vol;
+            Args[i].oVol = oVol;
+            Args[i].xdim = xdim; Args[i].ydim = ydim; Args[i].zdim = zdim;
+            Args[i].filtz = filtz; Args[i].fzdim = fzdim;
+            Args[i].zoff = zoff;
+            Args[i].z_out_ini = ini; Args[i].z_out_fin = fin;
+
+            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &convxyz_stage2_worker, &Args[i], 0, NULL);
+        }
+        for (int i = 0; i < Nthreads; ++i) WaitForSingleObject(ThreadList[i], INFINITE);
+        for (int i = 0; i < Nthreads; ++i) CloseHandle(ThreadList[i]);
+        free(ThreadList); free(Args);
+    #else
+        pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
+        convxyz_s2_args_t *Args = (convxyz_s2_args_t*)calloc((size_t)Nthreads, sizeof(convxyz_s2_args_t));
+        if (!ThreadList || !Args) {
+            fprintf(stderr, "Memory allocation error (threads stage2)\n");
+            exit(EXIT_FAILURE);
+        }
+        for (int i = 0; i < Nthreads; ++i) {
+            int ini = (i * zdim) / Nthreads;
+            int fin = ((i + 1) * zdim) / Nthreads;
+
+            Args[i].convxy_vol = convxy_vol;
+            Args[i].oVol = oVol;
+            Args[i].xdim = xdim; Args[i].ydim = ydim; Args[i].zdim = zdim;
+            Args[i].filtz = filtz; Args[i].fzdim = fzdim;
+            Args[i].zoff = zoff;
+            Args[i].z_out_ini = ini; Args[i].z_out_fin = fin;
+
+            pthread_create(&ThreadList[i], NULL, convxyz_stage2_worker, &Args[i]);
+        }
+        for (int i = 0; i < Nthreads; ++i) pthread_join(ThreadList[i], NULL);
+        free(ThreadList); free(Args);
+    #endif
+    }
+
+    free(convxy_vol);
+    return 0;
 }
 
 /**
@@ -1723,47 +2093,6 @@ void subsample_float(float *in, float *out, int dims[3], int dims_samp[3]) {
                     (((k222 * dx2 + k122 * dx1) * dy2 + (k212 * dx2 + k112 * dx1) * dy1) * dz2) +
                     (((k221 * dx2 + k121 * dx1) * dy2 + (k211 * dx2 + k111 * dx1) * dy1) * dz1)
                 );
-            }
-        }
-    }
-}
-
-void subsample_float_orig(float *in, float *out, int dims[3], int dims_samp[3])
-{
-    int i, x, y, z;
-    double k111, k112, k121, k122, k211, k212, k221, k222;
-    double dx1, dx2, dy1, dy2, dz1, dz2, xi, yi, zi, samp[3];
-    int off1, off2, xcoord, ycoord, zcoord;
-        
-    // Estimate scaling factor for each dimension
-    for (i = 0; i < 3; i++) {
-        if (dims_samp[i] > dims[i]) samp[i] = ceil((double)dims_samp[i]/(double)dims[i]);
-        else samp[i] = 1.0/(ceil((double)dims[i]/(double)dims_samp[i]));
-    }
-    
-    for (z = 0; z < dims_samp[2]; z++) {
-        zi = 1.0 + (double)z / samp[2];
-        for (y = 0; y < dims_samp[1]; y++) {
-            yi = 1.0 + (double)y / samp[1];
-            for (x = 0; x < dims_samp[0]; x++) {
-                xi = 1.0 + (double)x / samp[0];
-                i = z * dims_samp[0] * dims_samp[1] + y * dims_samp[0] + x;
-
-                if (zi >= 0 && zi < dims[2] && yi >= 0 && yi < dims[1] && xi >= 0 && xi < dims[0]) {
-                    xcoord = (int)floor(xi); dx1 = xi - (double)xcoord; dx2 = 1.0 - dx1;
-                    ycoord = (int)floor(yi); dy1 = yi - (double)ycoord; dy2 = 1.0 - dy1;
-                    zcoord = (int)floor(zi); dz1 = zi - (double)zcoord; dz2 = 1.0 - dz1;
-
-                    off1 = xcoord-1 + dims[0]*(ycoord-1 + dims[1]*(zcoord-1));
-                    k222 = (double)in[off1]; k122 = (double)in[off1+1]; off2 = off1 + dims[0];
-                    k212 = (double)in[off2]; k112 = (double)in[off2+1]; off1+= dims[0] * dims[1];
-                    k221 = (double)in[off1]; k121 = (double)in[off1+1]; off2 = off1 + dims[0];
-                    k211 = (double)in[off2]; k111 = (double)in[off2+1];
-
-                    out[i] = (float)((((k222*dx2 + k122*dx1)*dy2 + (k212*dx2 + k112*dx1)*dy1))*dz2
-                        + (((k221*dx2 + k121*dx1)*dy2 + (k211*dx2 + k111*dx1)*dy1))*dz1);
-                                 
-                } else out[i] = 0;
             }
         }
     }

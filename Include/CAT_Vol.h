@@ -44,6 +44,48 @@ enum
     F_MULTI
 };
 
+/* --------------------------- Thread args --------------------------- */
+typedef struct {
+    float *out;
+    int xdim, ydim;
+    const double *filtx, *filty;
+    int fxdim, fydim;
+    int xoff, yoff;
+    int ini, fin;           /* range on outer index: rows for row-pass, cols for col-pass */
+} conv_args_row;
+
+typedef struct {
+    float *out;
+    int xdim, ydim;
+    const double *filtx, *filty;
+    int fxdim, fydim;
+    int xoff, yoff;
+    int ini, fin;           /* columns range */
+} conv_args_col;
+
+typedef struct {
+    /* inputs */
+    const float *iVol;
+    int xdim, ydim, zdim;
+    const double *filtx, *filty;
+    int fxdim, fydim;
+    int xoff, yoff;
+    /* outputs */
+    float *convxy_vol;      /* [zdim * xdim * ydim] */
+    /* range */
+    int z_ini, z_fin;       /* [z_ini, z_fin) */
+} convxyz_s1_args_t;
+
+typedef struct {
+    const float *convxy_vol; /* [zdim * xdim * ydim] */
+    float *oVol;             /* [zdim * xdim * ydim] */
+    int xdim, ydim, zdim;
+    const double *filtz;
+    int fzdim;
+    int zoff;
+    int z_out_ini, z_out_fin;  /* [z_out_ini, z_out_fin) */
+} convxyz_s2_args_t;
+
 void median3(void *D, unsigned char *mask, int dims[3], int iters, int datatype);
 void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int stat_func, int iters, int use_euclidean_dist, int datatype);
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
