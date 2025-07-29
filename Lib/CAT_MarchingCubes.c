@@ -748,7 +748,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         int n_out = separate_polygons(polygons, -1, &object2);          
         triangulate_polygons(get_polygons_ptr(object2[0]), polygons);
 
-        EC = euler_characteristic(polygons);
+        EC = euler_characteristic(polygons, verbose);
         count++;
         if (verbose) printf("Euler characteristics after %d iterations is %d (%d voxel changed).\n", count, EC, count_change);
   
