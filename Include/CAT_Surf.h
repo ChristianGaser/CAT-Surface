@@ -52,12 +52,11 @@ void correct_bounds_to_target(polygons_struct *, polygons_struct *);
 void correct_bounds_to_target_with_scaling(polygons_struct *, polygons_struct *);
 double get_sphere_radius(polygons_struct *);
 void set_vector_length(Point *, double);
-int count_edges(polygons_struct *, int [], int *[]);
 double compute_point_hausdorff(polygons_struct *, polygons_struct *, double *, int);
 double compute_exact_hausdorff(polygons_struct *, polygons_struct *p, double *, int);
 double compute_point_distance(polygons_struct *, polygons_struct *, double *, int);
 double compute_point_distance_mean(polygons_struct *, polygons_struct *, double *, int);
-int euler_characteristic(polygons_struct *);
+int euler_characteristic(polygons_struct *, int verbose);
 void convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *, double);
 void linear_smoothing(polygons_struct *, double, int, int, int *, int);
 void areal_smoothing(polygons_struct *, double, int, int, int *, int);
@@ -72,8 +71,6 @@ void central_to_pial(polygons_struct *, double *, double *, int, double, int, in
 double get_area_of_points_central_to_pial(polygons_struct *, double *, double *, double);
 int correct_mesh_folding(polygons_struct *, polygons_struct *, float *, 
                          nifti_image *, double);
-int reduce_mesh_quadrics(polygons_struct *polygons, int target_faces,
-                        double aggressiveness, int preserve_sharp, int verbose);
-int remove_duplicate_edges(polygons_struct *polygons, int verbose);
+int reduce_mesh_quadrics(polygons_struct *, int, double, int, int);
 
 #endif
