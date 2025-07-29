@@ -18,7 +18,7 @@
  ***************************************************************************
  * Adaptive Non-Local Means Denoising of MR Images 
  * With Spatially Varying Noise Levels
- *                                                                                                                                                 * 
+ * 
  * Jose V. Manjon, Pierrick Coupe, Luis Marti-Bonmati,
  * D. Louis Collins and Montserrat Robles
  ***************************************************************************
@@ -26,12 +26,12 @@
  * Details on SANLM filter                                              
  ***************************************************************************
  *    The SANLM filter is described in:
- *                                                                                                                                                 *
+ *
  *    Jose V. Manjon, Pierrick Coupe, Luis Marti-Bonmati, Montserrat Robles
  *    and D. Louis Collins.
  *    Adaptive Non-Local Means Denoising of MR Images with Spatially Varying
  *    Noise Levels. Journal of Magnetic Resonance Imaging, 31,192-203, 2010.                                                                                                            
- *                                                                                                                                                 *
+ *
  ***************************************************************************/
 
 #include <float.h>

@@ -21,27 +21,27 @@
  *
  *
  *                          Details on ONLM filter                        
- ***************************************************************************
- *  The ONLM filter is described in:                                       *
- *                                                                         *
- *  P. Coupe, P. Yger, S. Prima, P. Hellier, C. Kervrann, C. Barillot.     *
- *  An Optimized Blockwise Non Local Means Denoising Filter for 3D Magnetic*
- *  Resonance Images. IEEE Transactions on Medical Imaging, 27(4):425-441, * 
- *  April 2008                                                             *
- ***************************************************************************
+ ****************************************************************************
+ *  The ONLM filter is described in:                                        *
+ *                                                                          *
+ *  P. Coupe, P. Yger, S. Prima, P. Hellier, C. Kervrann, C. Barillot.      *
+ *  An Optimized Blockwise Non Local Means Denoising Filter for 3D Magnetic *
+ *  Resonance Images. IEEE Transactions on Medical Imaging, 27(4):425-441,  * 
+ *  April 2008                                                              *
+ ****************************************************************************
  *
  *
  *                      Details on Rician adaptation                      
- ***************************************************************************
- *  The adaptation to Rician noise is described in:                        *
- *                                                                         *
- *  N. Wiest-Daessle, S. Prima, P. Coupe, S.P. Morrissey, C. Barillot.     *
- *  Rician noise removal by non-local means filtering for low              *
- *  signal-to-noise ratio MRI: Applications to DT-MRI. In 11th             *
- *  International Conference on Medical Image Computing and                *
- *  Computer-Assisted Intervention, MICCAI'2008,                           *
- *  Pages 171-179, New York, USA, September 2008                           *
- ***************************************************************************/
+ ****************************************************************************
+ *  The adaptation to Rician noise is described in:                         *
+ *                                                                          *
+ *  N. Wiest-Daessle, S. Prima, P. Coupe, S.P. Morrissey, C. Barillot.      *
+ *  Rician noise removal by non-local means filtering for low               *
+ *  signal-to-noise ratio MRI: Applications to DT-MRI. In 11th              *
+ *  International Conference on Medical Image Computing and                 *
+ *  Computer-Assisted Intervention, MICCAI'2008,                            *
+ *  Pages 171-179, New York, USA, September 2008                            *
+ ****************************************************************************/
 
 #include <stdlib.h>
 #include "CAT_Ornlm.h"

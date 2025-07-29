@@ -21,6 +21,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Resample.h"
 #include "CAT_Smooth.h"
+#include "CAT_Math.h"
 
 /* ------------------ Unit description ------------------ */
 
@@ -29,6 +30,7 @@ typedef struct {
     char   *src_sphere;
     char   *trg_sphere;
     char   *vals;
+    char   *mask;
     double  fwhm;          /* < 0.0  => not specified, take global default */
 
     object_struct   **src_obj;
@@ -39,6 +41,7 @@ typedef struct {
     polygons_struct *src_sphere_poly;
     polygons_struct *trg_sphere_poly;
 
+    double *vals_mask;
     double *vals_in;
     double *vals_out;
 } unit_t;
@@ -72,7 +75,7 @@ static char *strdup0(const char *s)
 /* Parse "k1=v1,k2=v2,..." for -unit */
 static int parse_unit_kv(char *arg, unit_t *u)
 {
-    u->surf = u->src_sphere = u->trg_sphere = u->vals = NULL;
+    u->surf = u->src_sphere = u->trg_sphere = u->vals = u->mask = NULL;
     u->fwhm = -1.0;   /* NEW: sentinel => take global default if still <0 */
 
     char *buf = strdup(arg);
@@ -89,6 +92,7 @@ static int parse_unit_kv(char *arg, unit_t *u)
         else if (!strcmp(key, "src_sphere")) u->src_sphere  = strdup0(val);
         else if (!strcmp(key, "trg_sphere")) u->trg_sphere  = strdup0(val);
         else if (!strcmp(key, "vals"))       u->vals        = strdup0(val);
+        else if (!strcmp(key, "mask"))       u->mask        = strdup0(val);
         else if (!strcmp(key, "fwhm"))       u->fwhm        = atof(val);
         else {
             fprintf(stderr, "Unknown key in -unit: '%s'\n", key);
@@ -135,7 +139,7 @@ static void usage(const char *p)
     fprintf(stderr,
       "\nUsage:\n"
       "  %s \\\n"
-      "     -unit surf=...,src_sphere=...,trg_sphere=...,vals=...,fwhm=... \\\n"
+      "     -unit surf=...,src_sphere=...,trg_sphere=...,vals=...,mask=...,fwhm=... \\\n"
       "     [-unit ...] \\\n"
       "     [-fwhm <float>] \\\n"
       "     -out combined.gii\n\n"
@@ -227,7 +231,7 @@ static object_struct **concat_many(object_struct **objs, double **vals, int nobj
 
 static ArgvInfo argTable[] = {
     { "-unit", ARGV_FUNC,  (char *)add_unit_cb, NULL,
-      "Add a unit: surf=...,src_sphere=...,trg_sphere=...,vals=...,fwhm=..." },
+      "Add a unit: surf=...,src_sphere=...,trg_sphere=...,vals=...,mask=...,fwhm=..." },
 
     { "-fwhm", ARGV_FLOAT, (char *)1, (char *)&g_fwhm_default,
       "Global default FWHM for smoothing (applies to units without fwhm=). Default 0.0 (off)." },
@@ -243,7 +247,7 @@ static ArgvInfo argTable[] = {
 int main(int argc, char *argv[])
 {
     File_formats format = BINARY_FORMAT;
-    int i, n_objects;
+    int i, j, n_objects;
     double **vals_per_unit = NULL;
 
     initialize_argument_processing(argc, argv);
@@ -312,6 +316,19 @@ int main(int argc, char *argv[])
             ALLOC(u->vals_out, u->trg_sphere_poly->n_points);
         }
 
+        int n_vals_mask = 0;
+        if (u->mask) {
+            if (input_values_any_format(u->mask, &n_vals_mask, &u->vals_mask) != OK) {
+                fprintf(stderr, "[%d] Cannot read values in %s.\n", i, u->mask);
+                return EXIT_FAILURE;
+            }
+            if (n_vals_mask != u->trg_sphere_poly->n_points) {
+                fprintf(stderr, "[%d] #values (%d) in mask != #points in target sphere (%d).\n",
+                        i, n_vals_mask, u->trg_sphere_poly->n_points);
+                return EXIT_FAILURE;
+            }
+        }
+
         /* resample */
         u->resampled_obj = resample_surface_to_target_sphere(
             u->src_poly, u->src_sphere_poly, u->trg_sphere_poly,
@@ -320,10 +337,20 @@ int main(int argc, char *argv[])
         /* smoothing (optional) */
         if (u->vals && u->fwhm > 0.0) {
             polygons_struct *p = get_polygons_ptr(u->resampled_obj[0]);
+            
+            /* Additionally set masked values to NaN */
+            if (u->mask) {
+                for (j = 0; j < n_vals_mask; j++) {
+                    if (u->vals_mask[j] == 0) u->vals_out[j] = FNAN;
+                }
+                FREE(u->mask);
+            }
+
             smooth_heatkernel(p, u->vals_out, u->fwhm);
         }
 
         vals_per_unit[i] = u->vals_out;
+        
     }
 
     /* concatenate */
@@ -345,8 +372,9 @@ int main(int argc, char *argv[])
     FREE(objs_only);
     FREE(vals_per_unit);
     for (i = 0; i < g_nunits; i++) {
-        if (g_units[i].vals_in)  FREE(g_units[i].vals_in);
-        if (g_units[i].vals_out) FREE(g_units[i].vals_out);
+        if (g_units[i].vals_in)   FREE(g_units[i].vals_in);
+        if (g_units[i].vals_out)  FREE(g_units[i].vals_out);
+        if (g_units[i].vals_mask) FREE(g_units[i].vals_mask);
     }
     FREE(g_units);
 

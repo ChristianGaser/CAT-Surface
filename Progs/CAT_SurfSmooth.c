@@ -18,13 +18,7 @@
 
 #include "CAT_Smooth.h"
 #include "CAT_SurfaceIO.h"
-
-#ifdef _MSC_VER
-  static const unsigned long __nan[2] = {0xffffffff, 0x7fffffff};
-  #define FNAN (*(const float *) __nan)
-#else
-  #define FNAN 0.0f/0.0f
-#endif
+#include "CAT_Math.h"
 
 void
 usage(char *executable)
