@@ -48,6 +48,7 @@
 #endif
 
 #define PI 3.1415926535
+#define MAX_NTHREADS  16
 
 #if !defined(_WIN32)
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -624,7 +625,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
         }
     }
 
-    Nthreads = dims[2]<8?dims[2]:8;
+    Nthreads = dims[2]<MAX_NTHREADS ? dims[2] : MAX_NTHREADS;
     if(Nthreads<1) Nthreads=1;
 
 

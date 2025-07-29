@@ -56,6 +56,8 @@
   pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
+#define MAX_NTHREADS  16
+
 /* Function which compute the weighted average for one block */
 void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize,
                          float *average, float weight, const int* vol_size)
@@ -422,7 +424,7 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
 
     /* --------------------- multithreaded filter ------------------------ */
     {
-        int Nthreads = dims[2] < 8 ? dims[2] : 8;
+        int Nthreads = dims[2] < MAX_NTHREADS ? dims[2] : MAX_NTHREADS;
         if (Nthreads < 1) Nthreads = 1;
 
         myargument *ThreadArgs;

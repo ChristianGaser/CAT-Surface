@@ -16,6 +16,8 @@
   #include <pthread.h>
 #endif
 
+#define MAX_NTHREADS  4 /* Overhead is otherwise too large */
+
 /**
  * ind2sub - Convert a linear index to 3D array coordinates.
  *
@@ -471,8 +473,8 @@ static void convxy_float(float *out, int xdim, int ydim,
                          float *buff)
 {
     /* choose thread counts similarly to CAT_Sanlm.c style (cap at 8) */
-    int Nthreads_row = (ydim < 8) ? ydim : 8;
-    int Nthreads_col = (xdim < 8) ? xdim : 8;
+    int Nthreads_row = (ydim < MAX_NTHREADS) ? ydim : MAX_NTHREADS;
+    int Nthreads_col = (xdim < MAX_NTHREADS) ? xdim : MAX_NTHREADS;
     if (Nthreads_row < 1) Nthreads_row = 1;
     if (Nthreads_col < 1) Nthreads_col = 1;
 
@@ -745,7 +747,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 
     /* ---------------- Stage 1: parallel convxy over z ---------------- */
     {
-        int Nthreads = (zdim < 8) ? zdim : 8;
+        int Nthreads = (zdim < MAX_NTHREADS) ? zdim : MAX_NTHREADS;
         if (Nthreads < 1) Nthreads = 1;
 
     #if defined(_WIN32) || defined(_WIN64)
@@ -800,7 +802,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 
     /* ---------------- Stage 2: parallel z-accumulation ---------------- */
     {
-        int Nthreads = (zdim < 8) ? zdim : 8;
+        int Nthreads = (zdim < MAX_NTHREADS) ? zdim : MAX_NTHREADS;
         if (Nthreads < 1) Nthreads = 1;
 
     #if defined(_WIN32) || defined(_WIN64)
@@ -2130,7 +2132,7 @@ void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3],
     float *vol_samp;
     double voxelsize_samp[3];
 
-    /* Estimate target dimensions by enuring a minimum of 32 */ 
+    /* Estimate target dimensions by ensuring a minimum of 32 */ 
     estimate_target_dimensions(dims, voxelsize, samp_voxelsize, 32, dims_samp);
 
     /* Define new voxel size */
@@ -2169,7 +2171,7 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
     float *buffer;
     double voxelsize_samp[3];
     
-    /* Estimate target dimensions by enuring a minimum of 32 */ 
+    /* Estimate target dimensions by ensuring a minimum of 32 */ 
     estimate_target_dimensions(dims, voxelsize, samp_voxelsize, 32, dims_samp);
 
     /* Define new voxel size and compute smoothing size */
@@ -2211,7 +2213,7 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
     float *vol_samp;
     float *buffer;
     
-    /* Estimate target dimensions by enuring a minimum of 32 */ 
+    /* Estimate target dimensions by ensuring a minimum of 32 */ 
     estimate_target_dimensions(dims, voxelsize, samp_voxelsize, 32, dims_samp);
 
     nvox = dims[0]*dims[1]*dims[2];
