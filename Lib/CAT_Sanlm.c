@@ -39,8 +39,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-/* Multithreading stuff*/
-#if defined(_WIN32) || defined(_WIN64)
+/* Multithreading stuff */
+#if defined(_WIN32)
 #include <windows.h>
 #include <process.h>
 #else
@@ -49,7 +49,7 @@
 
 #define PI 3.1415926535
 
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(_WIN32)
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
@@ -358,7 +358,7 @@ void Regularize(float *in,float *out,int r,int sx,int sy,int sz)
     return;
 }
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
 unsigned int __stdcall
 #else
 void * 
@@ -491,11 +491,11 @@ ThreadFunc( void* pArguments )
             if (wmax == 0.0) wmax = 1.0;                                              
             Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices);                                       
             totalweight = totalweight + wmax;
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(_WIN32)
             pthread_mutex_lock(&mutex);
 #endif
             Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(_WIN32)
             pthread_mutex_unlock(&mutex);
 #endif
         }
@@ -503,17 +503,17 @@ ThreadFunc( void* pArguments )
             wmax = 1.0;    
             Average_block(ima,i,j,k,f,average,wmax,cols,rows,slices); 
             totalweight = totalweight + wmax;
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(_WIN32)
             pthread_mutex_lock(&mutex);
 #endif
             Value_block(Estimate,Label,i,j,k,f,average,totalweight,cols,rows,slices);
-#if !defined(_WIN32) && !defined(_WIN64)
+#if !defined(_WIN32)
             pthread_mutex_unlock(&mutex);
 #endif
         }
     }
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
     _endthreadex(0);        
 #else
     pthread_exit(0);        
@@ -536,10 +536,10 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
 
     myargument *ThreadArgs;  
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
     HANDLE *ThreadList; /* Handles to the worker threads*/
 #else
-    pthread_t * ThreadList;
+    pthread_t *ThreadList;
 #endif
 
     Ndims = (int)floor(pow((2.0*f+1.0),ndim));
@@ -628,7 +628,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
     if(Nthreads<1) Nthreads=1;
 
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
 
     /* Reserve room for handles of threads in ThreadList*/
     ThreadList = (HANDLE*) malloc(Nthreads*sizeof( HANDLE ));
@@ -704,7 +704,7 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
             if (variances[i]>0.0) {
                 SNR = (double)means[i]/sqrt((double)variances[i]);            
                 bias[i] = 2*(variances[i]/(float)Epsi(SNR));          
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32)
                 if (_isnan(bias[i])) bias[i] = 0.0;           
 #else
                 if (isnan(bias[i])) bias[i] = 0.0;         
