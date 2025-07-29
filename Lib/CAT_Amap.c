@@ -13,6 +13,281 @@
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
 
+/* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
+#if defined(_WIN32) || defined(_WIN64)
+  #include <windows.h>
+  #include <process.h>
+#else
+  #include <pthread.h>
+#endif
+
+#define MAX_NTHREADS 16
+
+#if defined(_WIN32) || defined(_WIN64)
+static unsigned int __stdcall
+#else
+static void *
+#endif
+gmv_accum_worker(void *p)
+{
+    gmv_accum_args_t a = *(gmv_accum_args_t*)p;
+
+    const int sub = a.sub;
+    const int area = a.area;
+    const int narea = a.narea;
+    const int nvol  = a.nvol;
+    const int *dims = a.dims;
+
+    for (int k = -sub; k <= sub; ++k)
+    for (int l = -sub; l <= sub; ++l)
+    for (int m = -sub; m <= sub; ++m) {
+
+        for (int z = a.z_ini; z < a.z_fin; ++z) {
+            const int zsub = z*sub + k;
+            if (zsub < 0 || zsub >= dims[2]) continue;
+
+            const int zsub2   = zsub * area;
+            const int zoffset = z * narea;
+
+            for (int y = 0; y < a.niy; ++y) {
+                const int ysub = y*sub + l;
+                if (ysub < 0 || ysub >= dims[1]) continue;
+
+                const int ysub2  = ysub * dims[0];
+                const int yoffset= zoffset + y*a.nix;
+
+                for (int x = 0; x < a.nix; ++x) {
+                    const int xsub = x*sub + m;
+                    if (xsub < 0 || xsub >= dims[0]) continue;
+
+                    const int vox_idx = zsub2 + ysub2 + xsub;
+                    int label_value = (int)a.label[vox_idx];
+                    int label_value_BG = label_value - 1;
+                    if (label_value_BG < 0) continue;
+
+                    double val = (double)a.src[vox_idx];
+
+                    if (val < a.thresh[0]) continue;
+                    /* if (val > a.thresh[1]) continue; */
+
+                    const int grid_idx = yoffset + x;          /* j */
+                    const int ind = label_value_BG * nvol + grid_idx;
+
+                    struct ipoint *pi = &a.ir[ind];
+
+                    pi->arr[pi->n] = val;
+                    pi->n++;
+                    pi->s  += val;
+                    pi->ss += val*val;
+                }
+            }
+        }
+    }
+
+#if defined(_WIN32) || defined(_WIN64)
+    _endthreadex(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+static unsigned int __stdcall
+#else
+static void *
+#endif
+gmv_reduce_worker(void *p)
+{
+    gmv_reduce_args_t a = *(gmv_reduce_args_t*)p;
+
+    for (int i = 0; i < a.n_classes; ++i) {
+        const int base = i * a.nvol;
+        for (int j = a.j_ini; j < a.j_fin; ++j) {
+            const int ind = base + j;
+            const struct ipoint *pi = &a.ir[ind];
+
+            if (pi->n > G) {
+                if (pi->n == 1) {
+                    a.r[ind].var  = 0.0;
+                    a.r[ind].mean = pi->arr[0];
+                } else {
+                    if (a.use_median)
+                        a.r[ind].mean = get_median_double(pi->arr, pi->n, 0);
+                    else
+                        a.r[ind].mean = pi->s / pi->n;
+                    a.r[ind].var = (pi->ss - pi->n * SQR(pi->s / pi->n)) / (pi->n - 1);
+                }
+            } else {
+                a.r[ind].mean = 0.0;
+            }
+        }
+    }
+
+#if defined(_WIN32) || defined(_WIN64)
+    _endthreadex(0);
+    return 0;
+#else
+    return 0;
+#endif
+}
+
+/* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
+static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
+                              struct point *r, int sub, int *dims, double *thresh, int use_median)
+{
+    int area, narea, nvol, nix, niy, niz;
+
+    area = dims[0]*dims[1];
+
+    /* grid-size */
+    nix = (int)ceil((dims[0]-1)/((double)sub)) + 1;
+    niy = (int)ceil((dims[1]-1)/((double)sub)) + 1;
+    niz = (int)ceil((dims[2]-1)/((double)sub)) + 1;
+    narea = nix*niy;
+    nvol  = nix*niy*niz;
+
+    struct ipoint *ir = (struct ipoint*)malloc((size_t)n_classes * (size_t)nvol * sizeof(struct ipoint));
+    if (!ir) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
+
+    /* maximal size of neighbourhood per grid point */
+    const int sz_cube = (2*sub + 1)*(2*sub + 1)*(2*sub + 1);
+
+    /* init accumulators + arr-buffer */
+    for (int i = 0; i < n_classes; ++i) {
+        for (int j = 0; j < nvol; ++j) {
+            const int ind = i*nvol + j;
+            ir[ind].n  = 0;
+            ir[ind].s  = 0.0;
+            ir[ind].ss = 0.0;
+            ir[ind].arr = (double*)malloc((size_t)sz_cube * sizeof(double));
+            if (!ir[ind].arr) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
+        }
+    }
+
+    /* ---------------- Stage 1: parallel accumulation ---------------- */
+    {
+        int Nthreads = (niz < MAX_NTHREADS) ? niz : MAX_NTHREADS;
+        if (Nthreads < 1) Nthreads = 1;
+        
+
+    #if defined(_WIN32) || defined(_WIN64)
+        HANDLE *ThreadList = (HANDLE*)malloc((size_t)Nthreads * sizeof(HANDLE));
+        gmv_accum_args_t *Args = (gmv_accum_args_t*)malloc((size_t)Nthreads * sizeof(gmv_accum_args_t));
+        if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
+
+        for (int t = 0; t < Nthreads; ++t) {
+            int ini = (t * niz) / Nthreads;
+            int fin = ((t + 1) * niz) / Nthreads;
+
+            Args[t].src = src;
+            Args[t].label = label;
+            Args[t].n_classes = n_classes;
+            Args[t].sub = sub;
+            Args[t].dims = dims;
+            Args[t].thresh = thresh;
+
+            Args[t].nix = nix; Args[t].niy = niy; Args[t].niz = niz;
+            Args[t].narea = narea; Args[t].nvol = nvol; Args[t].area = area;
+
+            Args[t].ir = ir;
+
+            Args[t].z_ini = ini; Args[t].z_fin = fin;
+
+            ThreadList[t] = (HANDLE)_beginthreadex(NULL, 0, &gmv_accum_worker, &Args[t], 0, NULL);
+        }
+        for (int t = 0; t < Nthreads; ++t) WaitForSingleObject(ThreadList[t], INFINITE);
+        for (int t = 0; t < Nthreads; ++t) CloseHandle(ThreadList[t]);
+        free(ThreadList); free(Args);
+    #else
+        pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
+        gmv_accum_args_t *Args = (gmv_accum_args_t*)calloc((size_t)Nthreads, sizeof(gmv_accum_args_t));
+        if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
+
+        for (int t = 0; t < Nthreads; ++t) {
+            int ini = (t * niz) / Nthreads;
+            int fin = ((t + 1) * niz) / Nthreads;
+
+            Args[t].src = src;
+            Args[t].label = label;
+            Args[t].n_classes = n_classes;
+            Args[t].sub = sub;
+            Args[t].dims = dims;
+            Args[t].thresh = thresh;
+
+            Args[t].nix = nix; Args[t].niy = niy; Args[t].niz = niz;
+            Args[t].narea = narea; Args[t].nvol = nvol; Args[t].area = area;
+
+            Args[t].ir = ir;
+
+            Args[t].z_ini = ini; Args[t].z_fin = fin;
+
+            pthread_create(&ThreadList[t], NULL, gmv_accum_worker, &Args[t]);
+        }
+        for (int t = 0; t < Nthreads; ++t) pthread_join(ThreadList[t], NULL);
+        free(ThreadList); free(Args);
+    #endif
+    }
+
+    /* ---------------- Stage 2: parallel reduction ------------------- */
+    {
+        int Nthreads = (nvol < 8) ? nvol : 8;
+        if (Nthreads < 1) Nthreads = 1;
+
+    #if defined(_WIN32) || defined(_WIN64)
+        HANDLE *ThreadList = (HANDLE*)malloc((size_t)Nthreads * sizeof(HANDLE));
+        gmv_reduce_args_t *Args = (gmv_reduce_args_t*)malloc((size_t)Nthreads * sizeof(gmv_reduce_args_t));
+        if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
+
+        for (int t = 0; t < Nthreads; ++t) {
+            int j_ini = (t * nvol) / Nthreads;
+            int j_fin = ((t + 1) * nvol) / Nthreads;
+
+            Args[t].r = r;
+            Args[t].ir = ir;
+            Args[t].n_classes = n_classes;
+            Args[t].nvol = nvol;
+            Args[t].use_median = use_median;
+            Args[t].j_ini = j_ini; Args[t].j_fin = j_fin;
+
+            ThreadList[t] = (HANDLE)_beginthreadex(NULL, 0, &gmv_reduce_worker, &Args[t], 0, NULL);
+        }
+        for (int t = 0; t < Nthreads; ++t) WaitForSingleObject(ThreadList[t], INFINITE);
+        for (int t = 0; t < Nthreads; ++t) CloseHandle(ThreadList[t]);
+        free(ThreadList); free(Args);
+    #else
+        pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
+        gmv_reduce_args_t *Args = (gmv_reduce_args_t*)calloc((size_t)Nthreads, sizeof(gmv_reduce_args_t));
+        if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
+
+        for (int t = 0; t < Nthreads; ++t) {
+            int j_ini = (t * nvol) / Nthreads;
+            int j_fin = ((t + 1) * nvol) / Nthreads;
+
+            Args[t].r = r;
+            Args[t].ir = ir;
+            Args[t].n_classes = n_classes;
+            Args[t].nvol = nvol;
+            Args[t].use_median = use_median;
+            Args[t].j_ini = j_ini; Args[t].j_fin = j_fin;
+
+            pthread_create(&ThreadList[t], NULL, gmv_reduce_worker, &Args[t]);
+        }
+        for (int t = 0; t < Nthreads; ++t) pthread_join(ThreadList[t], NULL);
+        free(ThreadList); free(Args);
+    #endif
+    }
+
+    /* correct freeing of arrays */
+    for (int i = 0; i < n_classes; ++i) {
+        for (int j = 0; j < nvol; ++j) {
+            int ind = i*nvol + j;
+            free(ir[ind].arr);
+        }
+    }
+    free(ir);
+}
+
 /* This PVE calculation is a modified version from
  * the PVE software bundle:
  * Copyright (C) Jussi Tohka, Institute of Signal Processing, Tampere University of
@@ -199,110 +474,6 @@ void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, 
         printf("\n");
         fflush(stdout);
     }
-}
-
-/* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
-static void GetMeansVariances(float *src, unsigned char *label, int n_classes, struct point *r, int sub, int *dims, double *thresh, int use_median)
-{
-    int i, j, ind, sz_cube;
-    int area, narea, nvol, zsub, ysub, xsub, yoffset, zoffset;
-    int zsub2, ysub2;
-    int nix, niy, niz, k, l, m, z, y, x, label_value;
-    double val, mean[n_classes];
-    struct ipoint *ir = NULL;
-    int label_value_BG;
-
-    area = dims[0]*dims[1];
-
-    /* define grid dimensions */
-    nix = (int) ceil((dims[0]-1)/((double) sub))+1;
-    niy = (int) ceil((dims[1]-1)/((double) sub))+1;
-    niz = (int) ceil((dims[2]-1)/((double) sub))+1; 
-    narea = nix*niy;
-    nvol  = nix*niy*niz;
-    
-    ir = (struct ipoint*)malloc(sizeof(struct ipoint)*n_classes*nvol);
-    if (ir == NULL) {
-        printf("Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    sz_cube = 2*sub*2*sub*2*sub;
-    for (i = 0; i < n_classes; i++) {
-        for (j = 0; j < nvol; j++) {
-            ind = (i*nvol)+j; 
-            ir[ind].n = 0;
-            ir[ind].s = 0.0;
-            ir[ind].ss = 0.0;
-            ir[ind].arr = (double*)malloc(sizeof(double)*sz_cube);
-        }
-    }
-    
-
-    /* loop over neighborhoods of the grid points */
-    for (k=-sub; k<=sub; k++) for (l=-sub; l<=sub; l++) for (m=-sub; m<=sub; m++) {
-        for (z = 0; z < niz; z++) {
-            zsub = z*sub + k;
-            if ((zsub >= 0) && (zsub < dims[2])) {
-                zsub2 = zsub*area;
-                zoffset = z*narea;
-                for (y = 0; y < niy; y++) {
-                    ysub = y*sub + l;
-                    if ((ysub >= 0) && (ysub < dims[1])) {
-                        ysub2 = ysub*dims[0];
-                        yoffset = zoffset + y*nix;
-                        for (x = 0; x < nix; x++) {
-                            xsub = x*sub + m;
-                            if ((xsub >= 0) && (xsub < dims[0])) {
-                                label_value = (int)label[zsub2 + ysub2 + xsub];
-                                label_value_BG = label_value - 1;
-                                if (label_value_BG < 0) continue;
-                                val = (double)src[zsub2 + ysub2 + xsub];
-                                        
-                                /* exclude values out of quartile 1-99% */
-//                                if ((val < thresh[0]) || (val > thresh[1])) continue;
-                                if ((val < thresh[0])) continue;
-                                ind = ((label_value_BG)*nvol)+yoffset+x;
-                                ir[ind].arr[ir[ind].n] = val;
-                                ir[ind].n++;
-                                ir[ind].s += val; ir[ind].ss += val*val;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    /* find mean or median and standard deviations */
-    for (i = 0; i < n_classes; i++) {
-        for (j = 0; j < nvol; j++) {
-            ind = (i*nvol)+j;
-            if (ir[ind].n > G) {
-                if (ir[ind].n == 1) {
-                    r[ind].var = 0.0;
-                    r[ind].mean = ir[ind].arr[0];
-                } else {
-                    if (use_median)
-                        r[ind].mean = get_median_double(ir[ind].arr, ir[ind].n-1, 0);
-                    else
-                        r[ind].mean = r[ind].mean = ir[ind].s/ir[ind].n;
-                    r[ind].var = (ir[ind].ss -ir[ind].n*SQR(ir[ind].s/ir[ind].n))/(ir[ind].n-1);
-                }
-            } else r[ind].mean = 0.0;
-        }
-    }
-
-    free(ir);
-    for (i = 0; i < n_classes; i++) {
-        for (j = 0; j < nvol; j++) {
-            ind = (i*nvol)+j; 
-            free(ir[ind].arr);
-        }
-    }
-
-    return;
 }
 
 /* Computes likelihood of value given parameters mean and variance */ 
@@ -664,6 +835,11 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 
         ll /= (double)vol;
         change_ll = (ll_old - ll)/fabs(ll);
+
+        /* break if log-likelihood has not changed significantly two iterations */
+        if (change_ll < TH_CHANGE) count_change++;
+        if ((count_change > 2) && (iters > 5)) break;
+
 #if !defined(_WIN32) && !defined(_WIN64)
         if (verbose) {
             printf("iters:%3d log-likelihood: %7.5f\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b",iters+1, ll);
@@ -671,10 +847,6 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         }
 #endif
         ll_old = ll;
-        
-        /* break if log-likelihood has not changed significantly two iterations */
-        if (change_ll < TH_CHANGE) count_change++;
-        if ((count_change > 2) && (iters > 5)) break;
     }
 
     if (verbose) {

@@ -52,6 +52,31 @@
 
 #include <math.h>
 
+typedef struct {
+    /* inputs */
+    const float *src;
+    const unsigned char *label;
+    int n_classes;
+    int sub;
+    const int *dims;         /* dims[0]=X, dims[1]=Y, dims[2]=Z */
+    const double *thresh;    /* thresh[0] .. (optional thresh[1]) */
+    /* grid geometry (precomputed) */
+    int nix, niy, niz, narea, nvol, area;
+    /* shared output accumulator */
+    struct ipoint *ir;       /* size: n_classes * nvol */
+    /* work partition on grid-z */
+    int z_ini, z_fin;        /* [z_ini, z_fin) in 0..niz */
+} gmv_accum_args_t;
+
+typedef struct {
+    struct point *r;
+    const struct ipoint *ir;
+    int n_classes;
+    int nvol;
+    int use_median;
+    int j_ini, j_fin;   /* j-range [j_ini, j_fin) */
+} gmv_reduce_args_t;
+
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
                  int nc, int niters, int sub, int *dims, int pve, double weight_MRF, 
                  double *voxelsize, int niters_ICM, int verbose, 
