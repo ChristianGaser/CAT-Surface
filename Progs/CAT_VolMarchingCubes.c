@@ -12,7 +12,7 @@
 
 /* argument defaults */
 double min_threshold = 0.5;
-double post_fwhm = 1.5;
+int iter_laplacian = 50;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 int n_median_filter = 2;
@@ -33,10 +33,9 @@ static ArgvInfo argTable[] = {
      topology artefacts are often characterized by large gradients,\n\
      thus smoothing in these areas tries to prevent these artefacts."},
 
-  {"-post-fwhm", ARGV_FLOAT, (char *) TRUE, (char *) &post_fwhm,
-    "Set FWHM for surface smoothing. This aids in correcting the mesh\n\
-     in folded areas like gyri and sulci. Note: Do not use smoothing\n\
-     size > 3 mm for reliable compensation in these areas."},
+  {"-iter-laplacian", ARGV_INT, (char *) TRUE, (char *) &iter_laplacian,
+    "Set number of iterations for Laplacian surface smoothing. This aids\n\
+     in removing noise from the mesh"},
   
   {"-dist-morph", ARGV_FLOAT, (char *) TRUE, (char *) &dist_morph,
     "Apply initial morphological opening or closing step. Closing is used\n\
@@ -134,7 +133,7 @@ int main(int argc, char *argv[]) {
     }
 
     object_struct *object = apply_marching_cubes(input_float, nii_ptr, min_threshold,
-                pre_fwhm, post_fwhm, dist_morph, n_median_filter, n_iter, verbose);
+                pre_fwhm, iter_laplacian, dist_morph, n_median_filter, n_iter, verbose);
     if (object) {
         output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
     } else {
