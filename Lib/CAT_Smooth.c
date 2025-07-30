@@ -218,3 +218,61 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
     else  free(smooth_pts);
     
 }
+
+/**
+ * Reduce a triangle mesh using Quadric Error Metrics (QEM).
+ *
+ * This function mirrors the calling style used by spm_mesh_reduce.c: you specify
+ * a target number of triangles and an aggressiveness value. Internally, the input
+ * polygons are treated as triangles; non-triangle faces are fan-triangulated.
+ *
+ * Parameters
+ * ----------
+ * polygons        : (in/out) BICPL polygons_struct to be simplified in-place.
+ * target_faces    : desired number of triangles after simplification. If <= 0,
+ *                   half of the current triangle count is used.
+ * aggressiveness  : simplifier aggressiveness (typical ~7.0; larger => stronger/rougher).
+ * preserve_sharp  : if non-zero, prevent aggressive collapses across sharp edges.
+ * verbose         : if non-zero, print progress and summary to stderr.
+ *
+ */
+/**
+ * \brief Reduce mesh complexity using Quadric Error Metrics (QEM).
+ *
+ * Function: reduce_mesh_quadrics
+ *
+ * \param polygons (polygons_struct *)
+ * \param target_faces (int)
+ * \param aggressiveness (double)
+ * \param preserve_sharp (int)
+ * \param verbose (int)
+ * \return See function description for return value semantics.
+ */
+int smooth_laplacian(polygons_struct *polygons,
+                         int iter,
+                         double alpha,
+                         double beta)
+{
+    if (!polygons || polygons->n_points <= 0 || polygons->n_items <= 0) return -1;
+
+    vec3d *V = NULL;
+    vec3i *F = NULL;
+    int nv = 0, nf = 0, fan = 0;
+
+    /* --- in: BICPL -> (V,F) triangles --- */
+    if (polygons_to_tri_arrays(polygons, &V, &F, &nv, &nf, &fan) != 0)
+        return -1;
+
+    /* --- simplify --- */
+    laplacian_smoothHC(V, F, nv, nf, alpha, beta, iter, true);
+
+    if (nv <= 0 || nf <= 0) { free(V); free(F); return -1; }
+
+    /* --- out: (V,F) -> BICPL (triangles, exclusive end_indices) --- */
+    const int ok = tri_arrays_to_polygons(polygons, V, F, nv, nf);
+    free(V);
+    free(F);
+    if (ok != 0) return -1;
+
+    return 0;
+}

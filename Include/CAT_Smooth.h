@@ -10,6 +10,8 @@
 #ifndef _CAT_SMOOTH_H_
 #define _CAT_SMOOTH_H_
 
+#include "CAT_SurfaceIO.h"
+
 #ifndef isnan
 #define isnan(a) ((a)!=(a)) 
 #endif
@@ -26,5 +28,6 @@ void heatkernel_blur_points(int, Point [], double [], int, int *, int, double,
                             Point *, double *);
 void smooth_heatkernel(polygons_struct *, double *, double);
 void smooth_heatkernel_sharpness(polygons_struct *, double *, double, double);
+int smooth_laplacian(polygons_struct *polygons, int iter, double alpha, double beta);
 
 #endif
