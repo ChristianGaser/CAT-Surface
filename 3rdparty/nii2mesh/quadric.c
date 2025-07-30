@@ -43,7 +43,7 @@ struct TTriangle{
 };
 
 /* ---------- Topology-preserving collapse helpers ---------- */
-
+  
 /* Collect unique 1-ring neighbours of vertex vid into 'out' (returns count). */
 static int collect_vertex_neighbours(int vid,
                                      int *out, int out_cap,

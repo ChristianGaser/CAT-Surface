@@ -54,6 +54,7 @@ bin_PROGRAMS = \
     CAT_SurfWarp \
     CAT_SurfWarpDemon \
     CAT_SurfSmoothAreal \
+    CAT_SurfSmoothLaplacian \
     CAT_SurfSmoothConvexity \
     CAT_SurfSmoothSharpness \
     CAT_SurfHausdorff \
