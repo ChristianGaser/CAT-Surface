@@ -257,26 +257,13 @@ int main(int argc, char *argv[])
             dist_WM[i]  /= (float) n_avgs;
         }
     }
-    
-    int gyrus_recon2 = 0; // not working yet!!!
-    
+        
     /* Estimate cortical thickness (first using sulci measures */
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
     for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(src[i]);
 
     projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
     
-    if (gyrus_recon2) {
-        vol_approx(GMT1, dims, voxelsize);
-        for (i = 0; i < src_ptr->nvox; i++) {
-            dist_WM[i] = MIN(dist_WM[i], GMT1[i]);
-            dist_CSF[i] = MIN(dist_CSF[i], GMT1[i]);
-            mask[i] = (dist_WM[i] > 0.0) & (dist_CSF[i] > 0.0);
-            if (mask[i] > 0) 
-                dist_CSF[i] = MIN(dist_CSF[i], GMT1[i] - dist_WM[i] );
-        }
-    }
-
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
     for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(4.0 - src[i]);
@@ -284,16 +271,6 @@ int main(int argc, char *argv[])
     /* Then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
     projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
     
-    if (gyrus_recon2) {
-        vol_approx(GMT2, dims, voxelsize);
-        memcpy(GMT, GMT2, src_ptr->nvox*sizeof(float));
-        median3(GMT, NULL, dims, 3, DT_FLOAT32);
-        for (i = 0; i < src_ptr->nvox; i++) {
-            if ((mask[i] > 0.0) & (dist_CSF[i] > GMT[i])) /* GMT is here the median filtered GMT2 */ 
-                dist_WM[i] = MIN(dist_WM[i], GMT2[i] - dist_CSF[i] );
-        }
-    }
-
     /* Correct distance values by half of a voxel */
     double dist_corr = 0.0; // 0.5 was not working better, which I used before
     for (i = 0; i < src_ptr->nvox; i++) {
@@ -303,39 +280,37 @@ int main(int argc, char *argv[])
         if (dist_WM[i]  < 0.0) dist_WM[i]  = 0.0;
     }
 
-    if (gyrus_recon2 == 0) {
-        /* Use minimum/maximum to reduce issues with meninges */
-        for (i = 0; i < src_ptr->nvox; i++) {
-            sum_dist = dist_WM[i] + dist_CSF[i];
-            GMT1[i] = MIN(sum_dist, MAX(0.0, GMT1[i] - 0.5*(GMT1[i]  < sum_dist)));
-        }
-    
-        /* Limit GMT2 to thick regions */
-        for (i = 0; i < src_ptr->nvox; i++)
-            GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
-    
-        for (i = 0; i < src_ptr->nvox; i++) {
-            sum_dist = dist_WM[i] + dist_CSF[i];
-            GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5*(GMT2[i]  < sum_dist)));
-        }
-            
-        /* Use minimum of thickness measures */
-        for (i = 0; i < src_ptr->nvox; i++)
-            GMT[i] = MIN(GMT1[i], GMT2[i]);
-       
-        for (i = 0; i < src_ptr->nvox; i++)
-            mask[i] = (GMT[i] > 1.0) ? 1 : 0;
-    
-        median3(GMT, mask, dims, 3, DT_FLOAT32);
-        //median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
-        //median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
-    
-        /* Re-estimate CSF distance using corrected GM thickness */
-        for (i = 0; i < src_ptr->nvox; i++) {
-            if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
-                dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
-            if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
-        }
+    /* Use minimum/maximum to reduce issues with meninges */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        sum_dist = dist_WM[i] + dist_CSF[i];
+        GMT1[i] = MIN(sum_dist, MAX(0.0, GMT1[i] - 0.5*(GMT1[i]  < sum_dist)));
+    }
+
+    /* Limit GMT2 to thick regions */
+    for (i = 0; i < src_ptr->nvox; i++)
+        GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
+
+    for (i = 0; i < src_ptr->nvox; i++) {
+        sum_dist = dist_WM[i] + dist_CSF[i];
+        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5*(GMT2[i]  < sum_dist)));
+    }
+        
+    /* Use minimum of thickness measures */
+    for (i = 0; i < src_ptr->nvox; i++)
+        GMT[i] = MIN(GMT1[i], GMT2[i]);
+   
+    for (i = 0; i < src_ptr->nvox; i++)
+        mask[i] = (GMT[i] > 1.0) ? 1 : 0;
+
+    median3(GMT, mask, dims, 3, DT_FLOAT32);
+    //median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
+    //median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
+
+    /* Re-estimate CSF distance using corrected GM thickness */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
+            dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
+        if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
     }
 
     for (i = 0; i < src_ptr->nvox; i++)
