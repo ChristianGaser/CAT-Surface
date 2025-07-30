@@ -10,9 +10,7 @@ CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
-    -I$(top_srcdir)/3rdparty/nii2mesh \
-    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
-    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
+    -I$(top_srcdir)/3rdparty/nii2mesh
 
 if EMSCRIPTEN
 CFLAGS0 += -s USE_ZLIB=1 -s MODULARIZE=1 -s FETCH=1 -s WASM=1 -s EXPORT_ES6=1 \

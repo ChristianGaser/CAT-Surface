@@ -53,7 +53,7 @@
   #include <process.h>  /* _beginthreadex, _endthreadex */
 #else
   #include <pthread.h>
-  pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_t mutex_ornlm = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 #define MAX_NTHREADS  16
@@ -205,7 +205,7 @@ unsigned int __stdcall
 #else
 void *
 #endif
-ThreadFunc( void* pArguments )
+ThreadFunc_ornlm( void* pArguments )
 {
     myargument arg = *(myargument*)pArguments;
 
@@ -303,11 +303,11 @@ ThreadFunc( void* pArguments )
 
                     if (totalweight != 0.0f) {
                     #if !defined(_WIN32) && !defined(_WIN64)
-                        pthread_mutex_lock(&mutex);
+                        pthread_mutex_lock(&mutex_ornlm);
                     #endif
                         Value_block_ornlm(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
                     #if !defined(_WIN32) && !defined(_WIN64)
-                        pthread_mutex_unlock(&mutex);
+                        pthread_mutex_unlock(&mutex_ornlm);
                     #endif
                     }
 
@@ -317,11 +317,11 @@ ThreadFunc( void* pArguments )
                     totalweight += wmax;
 
                 #if !defined(_WIN32) && !defined(_WIN64)
-                    pthread_mutex_lock(&mutex);
+                    pthread_mutex_lock(&mutex_ornlm);
                 #endif
                     Value_block_ornlm(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
                 #if !defined(_WIN32) && !defined(_WIN64)
-                    pthread_mutex_unlock(&mutex);
+                    pthread_mutex_unlock(&mutex_ornlm);
                 #endif
                 }
             }
@@ -454,7 +454,7 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
             ThreadArgs[i].inv_h2 = 1.0f/(h*h);
             ThreadArgs[i].dims   = dims;
 
-            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &ThreadFunc, &ThreadArgs[i], 0, NULL);
+            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &ThreadFunc_ornlm, &ThreadArgs[i], 0, NULL);
         }
 
         for (i=0; i<Nthreads; i++) { WaitForSingleObject(ThreadList[i], INFINITE); }
@@ -485,7 +485,7 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
             ThreadArgs[i].inv_h2 = 1.0f/(h*h);
             ThreadArgs[i].dims   = dims;
 
-            if (pthread_create(&ThreadList[i], NULL, ThreadFunc, &ThreadArgs[i])) {
+            if (pthread_create(&ThreadList[i], NULL, ThreadFunc_ornlm, &ThreadArgs[i])) {
                 printf("Threads cannot be created\n");
                 exit(1);
             }
