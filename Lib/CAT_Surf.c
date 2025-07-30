@@ -1977,6 +1977,54 @@ int reduce_mesh_quadrics(polygons_struct *polygons,
 {
     if (!polygons || polygons->n_points <= 0 || polygons->n_items <= 0) return -1;
 
+    vec3d *V = NULL;
+    vec3i *F = NULL;
+    int nv = 0, nf = 0, fan = 0;
+
+    /* --- in: BICPL -> (V,F) triangles --- */
+    if (polygons_to_tri_arrays(polygons, &V, &F, &nv, &nf, &fan) != 0)
+        return -1;
+
+    int target = qem_target(nf, target_faces);
+
+    if (verbose) {
+        fprintf(stderr, "[QEM] input: %d verts / %d tris (%s)\n",
+                nv, nf, fan ? "fan-triangulated" : "tri");
+        fprintf(stderr, "[QEM] target tris: %d, aggressiveness: %.3f, preserve_sharp: %d\n",
+                target, aggressiveness, preserve_sharp);
+    }
+
+    /* --- simplify --- */
+    quadric_simplify_mesh(&V, &F, &nv, &nf,
+                          target,
+                          aggressiveness,
+                          0, /* extract_uv = false */
+                          (preserve_sharp != 0) || (aggressiveness < 7.0));
+
+    if (verbose) fprintf(stderr, "[QEM] output: %d verts / %d tris\n", nv, nf);
+    if (nv <= 0 || nf <= 0) { free(V); free(F); return -1; }
+
+    /* --- out: (V,F) -> BICPL (triangles, exclusive end_indices) --- */
+    const int ok = tri_arrays_to_polygons(polygons, V, F, nv, nf);
+    free(V);
+    free(F);
+    if (ok != 0) return -1;
+
+    if (verbose) {
+        double area = get_polygons_surface_area(polygons);
+        fprintf(stderr, "[QEM] surface area after: %g\n", area);
+    }
+    return 0;
+}
+
+int reduce_mesh_quadrics_orig(polygons_struct *polygons,
+                         int target_faces,
+                         double aggressiveness,
+                         int preserve_sharp,
+                         int verbose)
+{
+    if (!polygons || polygons->n_points <= 0 || polygons->n_items <= 0) return -1;
+
     int i, j;
     int nv = polygons->n_points;
     int nf_in = polygons->n_items;

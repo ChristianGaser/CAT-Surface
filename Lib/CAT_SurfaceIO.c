@@ -28,6 +28,142 @@ static const char* basename_no_path(const char* p)
     return s1 ? s1 + 1 : p;
 }
 
+
+/**
+ * \brief Convert a BICPL polygons_struct into flat arrays (V,F) of vertices and 
+ * triangles for quadric.c.
+ *
+ * - Copies points to V[0..nv-1].
+ * - Triangulates n-gons per face into a fan (v0, v(k), v(k+1)) and writes triangles into F[0..nf-1].
+ * - Uses the EXCLUSIVE end_indices convention: first index of face i is
+ *   (i == 0) ? 0 : end_indices[i-1].
+ *
+ * \param poly             (in)  input mesh (may contain n-gons)
+ * \param[out] V           (out) newly malloc'd array of vec3d of size nv
+ * \param[out] F           (out) newly malloc'd array of vec3i of size nf
+ * \param[out] nv          (out) number of vertices copied
+ * \param[out] nf          (out) number of triangles written
+ * \param[out] fan_used    (out) non-zero if any face required fan-triangulation
+ * \return 0 on success, -1 on allocation/argument errors or if no triangles produced
+ */
+int polygons_to_tri_arrays(const polygons_struct *poly,
+                                      vec3d **V, vec3i **F,
+                                      int *nv, int *nf, int *fan_used)
+{
+    if (!poly || poly->n_points <= 0 || poly->n_items <= 0 ||
+        !V || !F || !nv || !nf || !fan_used) return -1;
+
+    const int npoints = poly->n_points;
+    const int nfaces  = poly->n_items;
+
+    /* Count triangles after fan-triangulating n-gons */
+    int tri_count = 0, fan = 0;
+    for (int i = 0; i < nfaces; ++i) {
+        int sz = GET_OBJECT_SIZE(*poly, i);
+        if      (sz == 3) tri_count += 1;
+        else if (sz >  3) { tri_count += (sz - 2); fan = 1; }
+        /* sz < 3: ignore degenerate */
+    }
+    if (tri_count <= 0) return -1;
+
+    /* Allocate and fill vertices */
+    vec3d *v = (vec3d*)malloc(sizeof(vec3d) * npoints);
+    if (!v) return -1;
+    for (int i = 0; i < npoints; ++i) {
+        v[i].x = Point_x(poly->points[i]);
+        v[i].y = Point_y(poly->points[i]);
+        v[i].z = Point_z(poly->points[i]);
+    }
+
+    /* Allocate and fill faces (triangulate if needed) */
+    vec3i *f = (vec3i*)malloc(sizeof(vec3i) * tri_count);
+    if (!f) { free(v); return -1; }
+
+    int w = 0;
+    for (int i = 0; i < nfaces; ++i) {
+        int sz = GET_OBJECT_SIZE(*poly, i);
+        if (sz < 3) continue;
+        int base = (i == 0) ? 0 : poly->end_indices[i-1]; /* EXCLUSIVE */
+        int v0 = poly->indices[base + 0];
+
+        for (int k = 1; k < sz - 1; ++k) {
+            int v1 = poly->indices[base + k];
+            int v2 = poly->indices[base + k + 1];
+            f[w].x = v0; f[w].y = v1; f[w].z = v2;
+            ++w;
+        }
+    }
+
+    *V = v; *F = f; *nv = npoints; *nf = tri_count; *fan_used = fan;
+    return 0;
+}
+
+/**
+ * \brief Write (V,F) triangle arrays from quadric.c back into a BICPL polygons_struct.
+ *
+ * - Reallocates points, indices, end_indices to fit nv/nf (triangles only).
+ * - Writes EXCLUSIVE end_indices[i] = 3*(i+1).
+ * - Invalidates bintree, resizes normals to nv, and recomputes normals.
+ *
+ * \param poly (in/out) target mesh to overwrite (triangles only on exit)
+ * \param V    (in)     vertex positions (size nv)
+ * \param F    (in)     triangle index triplets (size nf)
+ * \param nv   (in)     number of vertices
+ * \param nf   (in)     number of triangles
+ * \return 0 on success, -1 on allocation errors
+ */
+int tri_arrays_to_polygons(polygons_struct *poly,
+                                      const vec3d *V, const vec3i *F,
+                                      int nv, int nf)
+{
+    if (!poly || !V || !F || nv <= 0 || nf <= 0) return -1;
+
+    /* Points */
+    Point *pts = (Point*)realloc(poly->points, sizeof(Point) * nv);
+    if (!pts) return -1;
+    poly->points   = pts;
+    poly->n_points = nv;
+    for (int i = 0; i < nv; ++i) fill_Point(poly->points[i], V[i].x, V[i].y, V[i].z);
+
+    /* Indices / end_indices (triangles only) */
+    int *idx = (int*)realloc(poly->indices, sizeof(int) * (nf * 3));
+    int *end = (int*)realloc(poly->end_indices, sizeof(int) * nf);
+    if (!idx || !end) {
+        if (idx) poly->indices = idx;
+        if (end) poly->end_indices = end;
+        return -1;
+    }
+    poly->indices     = idx;
+    poly->end_indices = end;
+    poly->n_items     = nf;
+
+    for (int i = 0; i < nf; ++i) {
+        poly->indices[3*i+0] = F[i].x;
+        poly->indices[3*i+1] = F[i].y;
+        poly->indices[3*i+2] = F[i].z;
+        poly->end_indices[i] = 3 * (i + 1);  /* EXCLUSIVE cumulative count */
+    }
+
+    /* Housekeeping */
+    poly->bintree = (bintree_struct_ptr)NULL;
+    poly->normals = (Vector*)realloc(poly->normals, sizeof(Vector)*nv);
+    compute_polygon_normals(poly);
+    return 0;
+}
+
+/**
+ * \brief Utility to clamp/derive a valid QEM target (triangle) count.
+ * \param nf_total (int) number of input triangles
+ * \param target   (int) requested target; if <=0 uses half; clamped to [1, nf_total]
+ */
+int qem_target(int nf_total, int target)
+{
+    if (target <= 0) target = nf_total / 2;
+    if (target < 1)  target = 1;
+    if (target > nf_total) target = nf_total;
+    return target;
+}
+
 Status
 bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
 {

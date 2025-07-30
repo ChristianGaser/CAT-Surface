@@ -20,6 +20,7 @@
 #include "CAT_Curvature.h"
 #include "CAT_Defect.h"
 #include "CAT_Deform.h"
+#include "CAT_SurfaceIO.h"
 
 #define BINTREE_FACTOR 0.5
 #define BW 1024

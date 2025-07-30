@@ -16,6 +16,7 @@
 #include <gifti_io.h>
 #include <nifti1.h>
 #include <nifti1_io.h>
+#include <quadric.h>
 
 #define QUAD_FILE_MAGIC_NUMBER      (-1 & 0x00ffffff)
 #define TRIANGLE_FILE_MAGIC_NUMBER  (-2 & 0x00ffffff)
@@ -101,6 +102,13 @@ typedef struct
 }
 ATABLE ;
 
+int polygons_to_tri_arrays(const polygons_struct *poly,
+                                      vec3d **V, vec3i **F,
+                                      int *nv, int *nf, int *fan_used);
+int tri_arrays_to_polygons(polygons_struct *poly,
+                                      const vec3d *V, const vec3i *F,
+                                      int nv, int nf);
+int qem_target(int nf_total, int target);
 Status bicpl_to_facevertexdata(polygons_struct *, double **, double **);
 Status input_values_any_format(char *, int *, double **);
 Status input_values_integer(char *, int *, int **);
