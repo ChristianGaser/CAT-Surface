@@ -493,7 +493,7 @@ extract_isosurface(
 
 /* Function to apply marching cubes and extract polygons */
 object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
-                        double min_threshold, double pre_fwhm, double post_fwhm,
+                        double min_threshold, double pre_fwhm, int iter_laplacian,
                         double dist_morph, int n_median_filter, int n_iter, int verbose) 
 {
     double voxelsize[N_DIMENSIONS];
@@ -757,19 +757,9 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             vol_uint16[i] = g0->output[i];
     }
 
-    /* Mesh Correction in Folded Areas
-       - Objective: To compensate for the averaging effect observed in gyri and sulci.
-       - Method: Utilization of a folding measure, specifically the mean curvature average, 
-         to estimate the necessary compensation in these areas.
-       - Compensation Estimation: Automatically calculated based on the difference 
-         between the actual mesh curvature and the predefined isovalue. This approach 
-         ensures accurate correction in folded regions, maintaining the integrity of 
-         gyri and sulci structures.
-    */
-    if (post_fwhm > 0.0) {
-        smooth_heatkernel(polygons, NULL, post_fwhm);
-        correct_mesh_folding(polygons, NULL, input_float, nii_ptr, min_threshold);
-    }
+    /* Laplacian smoothing to reduce noise in the mesh */
+    if (iter_laplacian > 0)
+        smooth_laplacian(polygons, iter_laplacian, 0.0, 0.5);
 
     /* Replace input values by change map */
     for (i = 0; i < nvol; i++)

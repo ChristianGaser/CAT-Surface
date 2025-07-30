@@ -28,7 +28,7 @@ object_struct *apply_marching_cubes(
     nifti_image *nii_ptr,
     double min_threshold,
     double pre_fwhm,
-    double post_fwhm,
+    int iter_laplacian,
     double dist_morph,
     int n_median_filter,
     int n_iter,
