@@ -493,8 +493,9 @@ extract_isosurface(
 
 /* Function to apply marching cubes and extract polygons */
 object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
-                        double min_threshold, double pre_fwhm, int iter_laplacian,
-                        double dist_morph, int n_median_filter, int n_iter, int verbose) 
+                        float *label, double min_threshold, double pre_fwhm, 
+                        int iter_laplacian, double dist_morph, int n_median_filter, 
+                        int n_iter, double strength_gyri_mask, int verbose) 
 {
     double voxelsize[N_DIMENSIONS];
     double best_dist;
@@ -565,6 +566,21 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             input_float[i] = (1.0 - weight) * input_float[i] + weight * vol_float[i];
         }
         free(grad);
+    }
+    
+    if (label && (strength_gyri_mask != 0.0)) {
+
+        /* Estimate smooth gyrus mask */
+        smooth_gyri_mask(label, vol_float, dims, voxelsize, 1.5, 8.0);
+
+        /* Scale smooth mask to a range of -strength_gyri_mask..strength_gyri_mask */
+        for (i = 0; i < nvol; i++) 
+            vol_float[i] = vol_float[i]*strength_gyri_mask*2 - strength_gyri_mask;
+
+        /* And subtract scaled mask to input so that gyri have lower isovalues by 0.1
+           (to preserve gyral crowns) and sulci higher isovalues by -0.1 to preserve
+           sulcal spaces */    
+        for (i = 0; i < nvol; i++) input_float[i] -= vol_float[i];
     }
     
     /* Apply iterative median filter to strengthen structures */

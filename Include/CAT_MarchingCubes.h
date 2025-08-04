@@ -26,12 +26,14 @@ void correct_topology(
 object_struct *apply_marching_cubes(
     float *input_float, 
     nifti_image *nii_ptr,
+    float *label, 
     double min_threshold,
     double pre_fwhm,
     int iter_laplacian,
     double dist_morph,
     int n_median_filter,
     int n_iter,
+    double strength_gyri_mask,
     int verbose);
 
 void extract_isosurface(
