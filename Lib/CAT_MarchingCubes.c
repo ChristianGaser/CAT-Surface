@@ -633,9 +633,9 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                 vol_uint16[i] = (input_float[i] >= min_threshold) ? 1 : 0;
     
             if (dist_values[k] > 0.0)
-                distclose(vol_uint16, dims, voxelsize, dist_values[k], 0.0, DT_UINT16);
+                dist_close(vol_uint16, dims, voxelsize, dist_values[k], 0.0, DT_UINT16);
             else if (dist_values[k] < 0.0)
-                distopen(vol_uint16, dims, voxelsize, -dist_values[k], 0.0, DT_UINT16);
+                dist_open(vol_uint16, dims, voxelsize, -dist_values[k], 0.0, DT_UINT16);
     
             /* call genus0 for the 1st time */
             g0->input = vol_uint16;
@@ -694,9 +694,9 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         /* Only move on if topology correction is still necessary */
         if (best_change_values > 0) {
             if (best_dist > 0.0)
-                distclose(vol_uint16, dims, voxelsize, best_dist, 0.0, DT_UINT16);
+                dist_close(vol_uint16, dims, voxelsize, best_dist, 0.0, DT_UINT16);
             else if (best_dist < 0.0)
-                distopen(vol_uint16, dims, voxelsize, -best_dist, 0.0, DT_UINT16);
+                dist_open(vol_uint16, dims, voxelsize, -best_dist, 0.0, DT_UINT16);
     
             /* call genus0 for the 1st time */
             g0->input = vol_uint16;

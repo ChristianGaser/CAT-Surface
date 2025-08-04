@@ -1563,14 +1563,14 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH) {
  * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
  */
-void disterode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     if (dist <= 0.0) return;
 
     const int nvox = dims[0]*dims[1]*dims[2];
     float *buffer = (float*)malloc(sizeof(float) * nvox);
     if (!buffer) {
-        fprintf(stderr, "Memory allocation error in disterode_float\n");
+        fprintf(stderr, "Memory allocation error in dist_erode_float\n");
         exit(EXIT_FAILURE);
     }
 
@@ -1594,7 +1594,7 @@ void disterode_float(float *vol, int dims[3], double voxelsize[3], double dist, 
     free(buffer);
 }
 
-void disterode(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
+void dist_erode(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1609,7 +1609,7 @@ void disterode(void *data, int dims[3], double voxelsize[3], double dist, double
     }
    
     convert_input_type_float(data, buffer, nvox, datatype);
-    disterode_float(buffer, dims, voxelsize, dist, th);
+    dist_erode_float(buffer, dims, voxelsize, dist, th);
     convert_output_type_float(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -1630,7 +1630,7 @@ void disterode(void *data, int dims[3], double voxelsize[3], double dist, double
  *
  * To avoid clipping at the volume borders (growth beyond edges), we add a
  * zero-valued band of width floor(dist) around the image, run the transforms,
- * then copy the center region back (as in distclose_float).
+ * then copy the center region back (as in dist_close_float).
  *
  * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
  * \param dims       (in)     {nx, ny, nz}
@@ -1638,7 +1638,7 @@ void disterode(void *data, int dims[3], double voxelsize[3], double dist, double
  * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
  */
-void distdilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     if (dist <= 0.0) return;
 
@@ -1651,7 +1651,7 @@ void distdilate_float(float *vol, int dims[3], double voxelsize[3], double dist,
 
     float *buffer = (float*)malloc(sizeof(float) * nvox2);
     if (!buffer) {
-        fprintf(stderr, "Memory allocation error in distdilate_float\n");
+        fprintf(stderr, "Memory allocation error in dist_dilate_float\n");
         exit(EXIT_FAILURE);
     }
     memset(buffer, 0, sizeof(float) * nvox2);
@@ -1689,7 +1689,7 @@ void distdilate_float(float *vol, int dims[3], double voxelsize[3], double dist,
     free(buffer);
 }
 
-void distdilate(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
+void dist_dilate(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1704,13 +1704,13 @@ void distdilate(void *data, int dims[3], double voxelsize[3], double dist, doubl
     }
    
     convert_input_type_float(data, buffer, nvox, datatype);
-    distdilate_float(buffer, dims, voxelsize, dist, th);
+    dist_dilate_float(buffer, dims, voxelsize, dist, th);
     convert_output_type_float(data, buffer, nvox, datatype);
     
     free(buffer);
 }
 
-void distclose_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
     int i, x, y, z, j, band, dims2[3];
@@ -1755,7 +1755,7 @@ void distclose_float(float *vol, int dims[3], double voxelsize[3], double dist, 
     free(buffer);
 }
 
-void distclose(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
+void dist_close(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1770,13 +1770,13 @@ void distclose(void *data, int dims[3], double voxelsize[3], double dist, double
     }
    
     convert_input_type_float(data, buffer, nvox, datatype);
-    distclose_float(buffer, dims, voxelsize, dist, th);
+    dist_close_float(buffer, dims, voxelsize, dist, th);
     convert_output_type_float(data, buffer, nvox, datatype);
     
     free(buffer);
 }
 
-void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
     int i, j;
@@ -1814,7 +1814,7 @@ void distopen_float(float *vol, int dims[3], double voxelsize[3], double dist, d
     free(buffer);
 }
 
-void distopen(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
+void dist_open(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
     float *buffer;
@@ -1829,7 +1829,7 @@ void distopen(void *data, int dims[3], double voxelsize[3], double dist, double 
     }
    
     convert_input_type_float(data, buffer, nvox, datatype);
-    distopen_float(buffer, dims, voxelsize, dist, th);
+    dist_open_float(buffer, dims, voxelsize, dist, th);
     convert_output_type_float(data, buffer, nvox, datatype);
     
     free(buffer);
@@ -2458,12 +2458,12 @@ void smooth_gyri_mask(const float *src, float *mask,
         mask[i] = (src[i] > thresh) ? 1.0f : 0.0f;
 
     /* Close sulcal gaps with a modest distance closing radius */
-    distclose_float(mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
+    dist_close_float(mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
 
     /* Gyri emphasis: slight dilation then stronger erosion */
     /* This sequence tends to suppress gyri crowns relative to sulci. */
-    distdilate_float(mask, dims, voxelsize, /*dist=*/2.0, /*th=*/0.5);
-    disterode_float (mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
+    dist_dilate_float(mask, dims, voxelsize, /*dist=*/2.0, /*th=*/0.5);
+    dist_erode_float (mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
 
     /* Smooth transition between gyri (≈0) and sulci (≈1) */
     double fwhm3[3];
@@ -2755,7 +2755,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
     
     /* create mask by closing holes */ 
     for (i = 0; i < nvox; ++i) mask[i] = vol[i] > 0;
-    distclose(mask, dims, voxelsize, 50.0, 0.0, DT_UINT8);
+    dist_close(mask, dims, voxelsize, 50.0, 0.0, DT_UINT8);
 
     /* smooth values outside mask */
     memcpy(buffer, TAr, nvox*sizeof(float));    
