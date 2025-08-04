@@ -11,16 +11,27 @@
 #include "CAT_SurfaceIO.h"
 
 /* argument defaults */
+char *label_filename = NULL;
 double min_threshold = 0.5;
-int iter_laplacian = 50;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
+double strength_gyri_mask = 0.15;
+int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
 int n_iter = 10;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
+  {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
+    "File containing segmentation labels for creating smooth mask of gyral\n\
+    and sulcal areas. This prevents sulcal closure by using a higher isovalue\n\
+    in sulci, and prevent cutting gyri by using a lower isovalue in gyri."},
+
+  {"-strength-gyrimask", ARGV_FLOAT, (char *) TRUE, (char *) &strength_gyri_mask,
+    "Define the strength of isovalue correction using the smooth.\n\
+     gyri/sulci mask from the label map."},
+  
   {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
     "Define the volume threshold, also known as the isovalue.\n\
      This value is crucial for initial image thresholding."},
@@ -64,7 +75,7 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n\
+Usage: CAT_VolMarchingCubes input.nii output_surface_file [options] [change_map.nii]\n\
 \n\
     This method generates a mesh with an Euler number of 2 (genus 0) from the\n\
     thresholded volume. The process involves:\n\
@@ -81,32 +92,29 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n\
     2. **Preprocessing with Median Filter:**\n\
        - Apply an iterative median filter to remove noise.\n\
     \n\
-    3. **Morphological Opening:**\n\
+    3. **Optionally Use of smooth mask of gyri and sulci:**\n\
+        - This prevents sulcal closure by using a higher isovalue in sulci,\n\
+          and prevent cutting gyri by using a lower isovalue in gyri\n\
+          An optional label maps must be defined to use this approach.\n\
+    \n\
+    4. **Morphological Opening:**\n\
        - Apply additional morphological opening or closing, defined by\n\
          `-dist-morph`, to minimize changes due to topology correction.\n\
        - Closing is used for positive values (e.g. 1.0) and opening\n\
          for negative values. The default is to automatically estimate\n\
          the optimal value to minimize issues due to topology correction.\n\
     \n\
-    4. **Extraction of the Largest Component:**\n\
+    5. **Extraction of the Largest Component:**\n\
        - Extract the largest component for further processing.\n\
     \n\
-    5. **Mesh Smoothing:**\n\
-       - Smooth the extracted mesh.\n\
-    \n\
-    6. **Mesh Correction in Folded Areas:**\n\
-       - Correct the mesh in areas with folds, particularly in gyri and\n\
-         sulci, to counterbalance the averaging effect from smoothing.\n\
-       - Use mean curvature average as a folding measure to estimate\n\
-         necessary compensation.\n\
-       - Compensation degree is auto-calculated based on deviation\n\
-         from the defined isovalue.\n\n";
+    6. **Mesh Smoothing:**\n\
+       - Smooth the extracted mesh with a Laplacian filter.\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
 
 int main(int argc, char *argv[]) {
-    float *input_float;
+    float *input_float, *label;
     char out_diff[1024];
 
     initialize_argument_processing(argc, argv);
@@ -121,7 +129,7 @@ int main(int argc, char *argv[]) {
     char *input_filename, *output_filename;
     if (!get_string_argument(NULL, &input_filename) || !get_string_argument(NULL, &output_filename)) {
         usage(argv[0]);
-        fprintf(stderr, "Usage: CAT_VolMarchingCubes input.nii output_surface_file [change_map.nii]\n");
+        fprintf(stderr, "Usage: CAT_VolMarchingCubes input.nii output_surface_file [options] [change_map.nii]\n");
         return EXIT_FAILURE;
     }
 
@@ -132,8 +140,23 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    object_struct *object = apply_marching_cubes(input_float, nii_ptr, min_threshold,
-                pre_fwhm, iter_laplacian, dist_morph, n_median_filter, n_iter, verbose);
+    if (label_filename) {
+        nifti_image *nii_ptr2 = read_nifti_float(label_filename, &label, 0);
+        if (!nii_ptr2) {
+            fprintf(stderr, "Error reading %s.\n", label_filename);
+            return EXIT_FAILURE;
+        }
+        if ((nii_ptr->nx != nii_ptr2->nx) ||
+            (nii_ptr->ny != nii_ptr2->ny) ||
+            (nii_ptr->nz != nii_ptr2->nz)) {
+            fprintf(stderr, "Error: Label image must have the same dimensions as the input image.\n");
+            return EXIT_FAILURE;
+        }
+    }
+
+    object_struct *object = apply_marching_cubes(input_float, nii_ptr, label, 
+                min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
+                n_iter, strength_gyri_mask, verbose);
     if (object) {
         output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
     } else {
