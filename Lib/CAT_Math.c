@@ -770,6 +770,40 @@ double get_corrcoef_double(const double* x, const double* y, int n, int exclude_
 }
 
 /**
+ * \brief In-place elementwise minimum with per-element origin flags.
+ *
+ * For each i: A[i] = min(A[i], B[i])
+ * Optionally records where the selected value came from:
+ *   origin[i] = 0  -> A was kept (A[i] <= B[i])
+ *   origin[i] = 1  -> B replaced A (B[i] < A[i])
+ *
+ * \param A       (in/out) float[n]
+ * \param B       (in)     float[n]
+ * \param n       (in)     number of elements
+ * \param origin  (out)    optional; int8_t[n] (or int[n]) to store source flags
+ * \return 0 on success; -1 if A/B is NULL or n==0
+ */
+int min_inplace_with_index_float(float *A, float *B, int n, signed char *index)
+{
+    int i;
+    if (!A || !B || n == 0) return -1;
+
+    for (i = 0; i < n; ++i) {
+        float ai = A[i];
+        float bi = B[i];
+
+        if (bi < ai) {
+            A[i] = bi;
+            if (index) index[i] = 1;
+        } else {
+            if (index) index[i] = 0;
+        }
+    }
+    return 0;
+}
+
+
+/**
  * Generic functions
  *
  * These function additionally provide conversion between different data types
@@ -929,9 +963,10 @@ double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype
     return(result);
 }
 
-void clip_data(void *data, int n, double limit[2], int datatype) 
+void clip_data(void *data, int n, double lower_limit, double upper_limit, int datatype) 
 {
     double *buffer;
+    double limit[2] = {lower_limit, upper_limit};
    
     buffer = (double *)malloc(sizeof(double)*n);
 
