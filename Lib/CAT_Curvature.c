@@ -46,7 +46,7 @@ projectionVector(Vector vector, Vector normal)
 
 
 void
-leastSquares(const int num, Vector dc[], Vector dn[], double *k1, double *k2)
+leastSquares_curv(const int num, Vector dc[], Vector dn[], double *k1, double *k2)
 {
     int i;
     double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
@@ -166,7 +166,7 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
             dc[i] = projectToPlane(projected, basis);
         }
 
-        leastSquares(n_neighbours, dc, dn, &k1, &k2);
+        leastSquares_curv(n_neighbours, dc, dn, &k1, &k2);
 
         switch (curvtype) {
         case 1: /* gauss curvature */
@@ -177,9 +177,24 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
             break;
         case 3: /* shape index */
             *curvparameter = -PI2 * atan((k1 + k2) / (k1 - k2));
-            break;      
+            break;
         case 4: /* mean curvature */
             *curvparameter = (k1 + k2) / 2.0;
+            break;
+        case 5: /* bending enegery */
+            *curvparameter = (k1*k1 + k2*k2);
+            break;
+        case 6: /* sharpness */
+            *curvparameter = (k1 - k2)*(k1 - k2);
+            break;
+        case 7: /* folding index */
+            *curvparameter = fabs(k1)*(fabs(k1)- fabs(k2));
+            break;
+        case 8: /* minimum curvature */
+            *curvparameter = k2;
+            break;
+        case 9: /* maximum curvature */
+            *curvparameter = k1;
             break;
         }
     } else {
@@ -238,13 +253,13 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
     }
     
     /* depth potential */
-    if (curvtype > 5) {
+    if (curvtype > 10) {
         /* looks weird, but we need a way to define the small values alpha << 1 */
         alpha = 1/(double)curvtype;
         values = compute_depth_potential( polygons, alpha);
         for (pidx = 0; pidx < polygons->n_points; pidx++) curvatures[pidx] = values[pidx];
-
-    } else if (curvtype == 5) {
+    /* sulcal depth like estimator */
+    } else if (curvtype == 10) {
         polygonsIn = (polygons_struct *) malloc(sizeof(polygons_struct));
         copy_polygons(polygons, polygonsIn);
 
@@ -260,8 +275,6 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
         }
         free(polygonsIn);
     } else {
-
-        //initialize_progress_report(&progress, FALSE, polygons->n_items, "Computing Curvatures");
 
         for (p = 0; p < polygons->n_items; p++) {
             size = GET_OBJECT_SIZE(*polygons, p);
@@ -293,15 +306,10 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
 
                         initialized = TRUE;
                     }
-
                     curvatures[pidx] = curvature;
                 }
             }
-
-            //update_progress_report(&progress, p + 1);
         }
-
-        //terminate_progress_report(&progress);
     }
 
     if (smoothing_distance > 0.0)

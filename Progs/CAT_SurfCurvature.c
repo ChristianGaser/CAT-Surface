@@ -7,16 +7,9 @@
  *
  */
 
-/*
- * Heat kernel smoothing is based on matlab code from Moo K. Chung:
- *  Chung, M.K., Robbins,S., Dalton, K.M., Davidson, R.J., Evans, A.C. (2004) 
- *  Cortical thickness analysis in autism via heat kernel smoothing.
- *  NeuroImage, submitted. 
- *  http://www.stat.wisc.edu/~mchung/papers/ni_heatkernel.pdf
- */
-
 #include <bicpl.h>
 
+#include "CAT_Vol.h"
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
@@ -25,20 +18,24 @@ void
 usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals] [-1|1]\n\n\
+Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals]\n\n\
    Calculate different curvature parameters (default: mean curvature\n\
-   averaged over 3mm) from a given obj file.  If smoothing filter [fwhm]\n\
+   averaged over 3mm) from a given surface mesh file. If smoothing filter [fwhm]\n\
    is defined (in FWHM) a diffusion heat kernel will be applied. Optionally\n\
-   the absolute value can ba calculated if use_abs_values is defined and\n\
-   only positive or negative values of the values can be saved using the\n\
-   last option (-1 or 1).\n\
-   curvtype:  0 - mean curvature (averaged over 3mm, in degrees)\n\
-        1 - gaussian curvature\n\
-        2 - curvedness\n\
-        3 - shape index\n\
-        4 - mean curvature (in radians)\n\
-        5 - sulcal depth like estimator\n\
-         >5 - depth potential with alpha = 1/curvtype (recommended value curvtype=650)\n\n";
+   the absolute value can ba calculated if use_abs_values is defined.\n\
+   curvtype:\n\
+        0 - mean curvature (averaged over 3mm, in degrees) (k1+k2)/2\n\
+        1 - gaussian curvature k1*k2\n\
+        2 - curvedness sqrt(0.5*(k1*k1+k2*k2))\n\
+        3 - shape index atan((k1+k2)/(k2-k1))\n\
+        4 - mean curvature (in radians) (k1+k2)/2\n\
+        5 - bending energy k1*k1 + k2*k2\n\
+        6 - sharpness (k1 - k2)^2\n\
+        7 - folding index |k1|*(|k1| - |k2|)\n\
+        8 - minimum curvature k2\n\
+        9 - maximum curvature k1\n\
+       10 - sulcal depth like estimator\n\
+      >10 - depth potential with alpha = 1/curvtype (recommended value curvtype=650)\n\n";
 
     fprintf(stderr, usage_str, executable);
 }
@@ -48,7 +45,7 @@ main(int argc, char *argv[])
 {
     char *object_file, *output_surface_file;
     File_formats format;
-    int i, n_objects, curvtype, sign;
+    int i, n_objects, curvtype;
     int *n_neighbours, **neighbours, use_abs_values;
     object_struct **objects;
     polygons_struct *polygons;
@@ -66,7 +63,6 @@ main(int argc, char *argv[])
     get_int_argument(0, &curvtype);
     get_real_argument(0.0, &fwhm);
     get_int_argument(0, &use_abs_values);
-    get_int_argument(0, &sign);
   
     if (fwhm > 0)
         smoothing = 1;
@@ -94,15 +90,9 @@ main(int argc, char *argv[])
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                      distance, curvtype, curvatures);
 
-    /* limit range to values between -1..1 for all curvtypes > 0 */
-    /*  (don't ask me where the large values come from...) */
-    if ((curvtype > 0) && (curvtype < 5)) { 
-        for (i = 0; i < polygons->n_points; i++) {
-            if (curvatures[i] < -1)
-                curvatures[i] = -1;
-            if (curvatures[i] >  1)
-                curvatures[i] = 1;
-        }
+    /* limit range to values between -1..1 for some normalized curvtypes */
+    if (((curvtype > 0) && (curvtype < 4)) || (curvtype == 10)) { 
+        clip_data(curvatures, polygons->n_points, -1, 1, DT_FLOAT64);
     }
   
     /* use absolute value */
@@ -111,22 +101,7 @@ main(int argc, char *argv[])
             curvatures[i] = fabs(curvatures[i]);
     }
 
-    /* use positive or negative values only if option is used */
-    if (sign > 0) {
-        for (i = 0; i < polygons->n_points; i++) {
-            if (curvatures[i] < 0)
-                curvatures[i] = 0;
-        }
-    }
-
-    if (sign < 0) {
-        for (i = 0; i < polygons->n_points; i++) {
-            if (curvatures[i] > 0)
-                curvatures[i] = 0;
-        }
-    }
-
-    /* and smooth curvatures */
+    /* and optionally smooth curvatures */
     if (smoothing)
         smooth_heatkernel(polygons, curvatures, fwhm);
   
