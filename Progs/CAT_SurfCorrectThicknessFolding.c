@@ -134,8 +134,7 @@ main(int argc, char *argv[])
     // Add mean again to thickness
     for (i = 0; i < n_vals; i++) thickness[i] += mean_thickness;
 
-    double limit[2] = {0, max_dist};
-    clip_data(thickness, n_vals, limit, DT_FLOAT64); 
+    clip_data(thickness, n_vals, 0, max_dist, DT_FLOAT64); 
     
     output_values_any_format(output_thickness_file, n_vals,
                  thickness, TYPE_DOUBLE);
