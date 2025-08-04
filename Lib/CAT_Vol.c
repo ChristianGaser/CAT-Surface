@@ -1544,6 +1544,172 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH) {
     free(LN);
 }
 
+/**
+ * \brief Morphological erosion (binary) using the Euclidean distance transform.
+ *
+ * Thresholds the input to a binary mask M = (vol > th * max(vol)).
+ * Erosion by radius 'dist' is implemented as:
+ *
+ *   E = { x | dist_to_background(x) > dist }.
+ *
+ * We compute distance to the background by running the distance transform
+ * on the inverted mask (background==1), then thresholding:
+ *
+ *   E = ( EDT( 1 - M ) > dist ).
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
+void disterode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+{
+    if (dist <= 0.0) return;
+
+    const int nvox = dims[0]*dims[1]*dims[2];
+    float *buffer = (float*)malloc(sizeof(float) * nvox);
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation error in disterode_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Threshold to binary mask relative to max */
+    float max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
+    const float thr = (float)(th * (double)max_vol);
+
+    /* Invert mask to measure distance to background (background = 1, object = 0) */
+    for (int i = 0; i < nvox; ++i)
+        buffer[i] = (vol[i] > thr) ? 0.0f : 1.0f;
+
+    /* Distance to background, then keep voxels farther than dist from background */
+    euclidean_distance(buffer, NULL, dims, voxelsize, 0);
+    for (int i = 0; i < nvox; ++i)
+        buffer[i] = (buffer[i] > (float)dist) ? 1.0f : 0.0f;
+
+    /* Write back binary result */
+    for (int i = 0; i < nvox; ++i)
+        vol[i] = buffer[i];
+
+    free(buffer);
+}
+
+void disterode(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+    
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type_float(data, buffer, nvox, datatype);
+    disterode_float(buffer, dims, voxelsize, dist, th);
+    convert_output_type_float(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
+/**
+ * \brief Morphological dilation (binary) using the Euclidean distance transform.
+ *
+ * Thresholds the input to a binary mask M = (vol > th * max(vol)).
+ * Dilation by radius 'dist' is implemented as:
+ *
+ *   D = { x | dist_to_foreground(x) <= dist }.
+ *
+ * We compute distance to the *foreground* by running the distance transform
+ * on the mask itself (foreground==1), then thresholding:
+ *
+ *   D = ( EDT( M ) <= dist ).
+ *
+ * To avoid clipping at the volume borders (growth beyond edges), we add a
+ * zero-valued band of width floor(dist) around the image, run the transforms,
+ * then copy the center region back (as in distclose_float).
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
+void distdilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+{
+    if (dist <= 0.0) return;
+
+    /* pad band to avoid border clipping during dilation */
+    const int band = (int)floor(dist);
+
+    int dims2[3];
+    for (int d = 0; d < 3; ++d) dims2[d] = dims[d] + 2*band;
+    const int nvox2 = dims2[0]*dims2[1]*dims2[2];
+
+    float *buffer = (float*)malloc(sizeof(float) * nvox2);
+    if (!buffer) {
+        fprintf(stderr, "Memory allocation error in distdilate_float\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(buffer, 0, sizeof(float) * nvox2);
+
+    const int nx = dims[0], ny = dims[1], nz = dims[2];
+
+    /* Threshold to binary mask relative to max */
+    const int nvox = nx * ny * nz;
+    float max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
+    const float thr = (float)(th * (double)max_vol);
+
+    /* Embed thresholded mask into padded buffer at offset 'band' */
+    for (int z = 0; z < nz; ++z)
+        for (int y = 0; y < ny; ++y)
+            for (int x = 0; x < nx; ++x) {
+                int dst = sub2ind(x + band, y + band, z + band, dims2);
+                int src = sub2ind(x, y, z, dims);
+                buffer[dst] = (vol[src] > thr) ? 1.0f : 0.0f;
+            }
+
+    /* Distance to foreground, then keep voxels within dist of the original mask */
+    euclidean_distance(buffer, NULL, dims2, voxelsize, 0);
+    for (int i = 0; i < nvox2; ++i)
+        buffer[i] = (buffer[i] <= (float)dist) ? 1.0f : 0.0f;
+
+    /* Copy center region back to 'vol' */
+    for (int z = 0; z < nz; ++z)
+        for (int y = 0; y < ny; ++y)
+            for (int x = 0; x < nx; ++x) {
+                int src = sub2ind(x + band, y + band, z + band, dims2);
+                int dst = sub2ind(x, y, z, dims);
+                vol[dst] = buffer[src];
+            }
+
+    free(buffer);
+}
+
+void distdilate(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
+{
+    int nvox;
+    float *buffer;
+   
+    nvox = dims[0]*dims[1]*dims[2];
+    buffer = (float *)malloc(sizeof(float)*nvox);
+    
+    /* check success of memory allocation */
+    if (!buffer) {
+        printf("Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+   
+    convert_input_type_float(data, buffer, nvox, datatype);
+    distdilate_float(buffer, dims, voxelsize, dist, th);
+    convert_output_type_float(data, buffer, nvox, datatype);
+    
+    free(buffer);
+}
+
 void distclose_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
@@ -2242,6 +2408,74 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
     /* Free allocated memory */
     free(vol_samp);
     free(buffer);
+}
+
+/**
+ * \brief Build a smooth “gyri/sulci mask” (gyri ≈ 0, sulci ≈ 1).
+ *
+ * This mask supports downstream operations that benefit from different behavior in
+ * gyral vs. sulcal regions, e.g.:
+ *  - **Surface extraction:** prevent sulcal closure by using a higher isovalue in sulci,
+ *    and prevent cutting gyri by using a lower isovalue in gyri.
+ *  - **Projection-based cortical thickness:** use different parameters over gyri vs. sulci.
+ *
+ * **Algorithm (overview)**
+ *  1) **Initial thresholding** of the input scalar image `src` at `thresh * max(src)` to form
+ *     a coarse tissue mask; then **distance-based closing** to fill sulcal gaps.
+ *  2) **Gyri emphasis:** a slight **dilation** followed by a stronger **erosion** to
+ *     preferentially shrink gyri crowns relative to sulcal regions.
+ *  3) **Smoothing** to create a soft (0..1) transition between gyri and sulci.
+ *  4) **CSF enforcement:** voxels clearly below tissue threshold (e.g., CSF) are set to 1
+ *     (open sulci), followed by a light final smoothing to avoid hard borders.
+ *
+ * **Conventions**
+ *  - Output `mask` is in **[0,1]** (float). Values close to **0** indicate gyri crowns;
+ *    values close to **1** indicate sulcal fundi.
+ *
+ * \param src       (in)  float[nx*ny*nz] input scalar image (e.g., label map)
+ * \param mask      (out) float[nx*ny*nz] output mask (0..1); pre-allocated by caller
+ * \param dims      (in)  {nx, ny, nz}
+ * \param voxelsize (in)  voxel spacing (e.g., mm) as {sx, sy, sz}
+ * \param thresh    (in)  threshold for src; seeds the initial mask (recommended value for label map 1.5)
+ * \param fwhm      (in)  smoothing FWHM for the main blur step (recommended value FWHM=8.0)
+ *
+ * \note The heuristic constants (closing 5, dilate 2, erode 5, CSF factor 0.75, final FWHM 2)
+ *       follow the original intent and can be exposed as parameters if needed.
+ */
+void smooth_gyri_mask(const float *src, float *mask,
+                      int dims[3], double voxelsize[3],
+                      double thresh, double fwhm)
+{
+    const int nx = dims[0], ny = dims[1], nz = dims[2];
+    const int nvox = nx * ny * nz;
+    int i;
+
+    /* Check inputs */
+    if (!src || !mask || nvox <= 0) return;
+
+    /* mask = (src > thresh) ? 1 : 0 */
+    for (i = 0; i < nvox; ++i)
+        mask[i] = (src[i] > thresh) ? 1.0f : 0.0f;
+
+    /* Close sulcal gaps with a modest distance closing radius */
+    distclose_float(mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
+
+    /* Gyri emphasis: slight dilation then stronger erosion */
+    /* This sequence tends to suppress gyri crowns relative to sulci. */
+    distdilate_float(mask, dims, voxelsize, /*dist=*/2.0, /*th=*/0.5);
+    disterode_float (mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
+
+    /* Smooth transition between gyri (≈0) and sulci (≈1) */
+    double fwhm3[3];
+    fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm;
+    smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
+
+    /* Force obvious CSF to 1 (open sulci), then very light smoothing */
+    const float t_csf = 0.75f * thresh;  /* slightly below main threshold */
+    for (i = 0; i < nvox; ++i) if (src[i] < t_csf) mask[i] = 1.0f;
+
+    fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm/4.0;
+    smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
 }
 
 /**
