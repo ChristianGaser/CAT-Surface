@@ -64,7 +64,6 @@ double get_mean_double(double *arr, int n, int mask_zeros);
 double get_median_double(double *arr, int n, int mask_zeros);
 double get_std_double(double *arr, int n, int mask_zeros);
 double get_sum_double(double *arr, int n, int mask_zeros);
-int min_inplace_with_index_float(float *A, float *B, int n, signed char *index);
 double get_min(void *arr, int n, int mask_zeros, int datatype);
 double get_max(void *arr, int n, int mask_zeros, int datatype);
 double get_mean(void *arr, int n, int mask_zeros, int datatype);
