@@ -17,6 +17,7 @@
 #include <ParseArgv.h>
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
+#include "CAT_Math.h"
 
 int fast = 0;
 int verbose = 0;
@@ -78,7 +79,7 @@ static ArgvInfo argTable[] = {
 private void usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii output_CSD.nii]\n\
+Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii output_CSD.nii GMT1.nii GMT2.nii]\n\
 \n\
     This program performs projection-based cortical thickness estimation and\n\
     percentage position mapping (PPM) from a given PVE label image described in:\n\
@@ -122,15 +123,13 @@ Example:\n\
 
 int main(int argc, char *argv[])
 {
-    char *infile, out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
+    char out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
+    char out_GMT1[1024], out_GMT2[1024];
     int i, j, dims[3], dims_reduced[3], replace = 0;
-    float *input, *src, *dist_CSF, *dist_WM, *GMT, *GMT1, *GMT2, *PPM, *PPM0, *vol_reduced;
-    float *vol_smoothed, dist_CSF_val, dist_WM_val, mean_vx_size;
+    float *src;
     float sum_dist, abs_dist;
-    unsigned char *mask;
     double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope, add_value;
     double threshold[2], prctile[2];
-    nifti_image *src_ptr, *out_ptr, *out_ptr_reduced;
     
     initialize_argument_processing(argc, argv);
 
@@ -140,10 +139,14 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    infile  = argv[1];
+    char *infile = argv[1];
 
     /* Determine output filenames based on input filename or command-line arguments */
-    if (argc == 6) {
+    if (argc == 8) {
+        (void) sprintf(out_GMT1, "%s", argv[6]); 
+        (void) sprintf(out_GMT2, "%s", argv[7]);
+    }
+    if (argc >= 6) {
         (void) sprintf(out_WMD, "%s", argv[4]); 
         (void) sprintf(out_CSD, "%s", argv[5]);
     }
@@ -161,15 +164,18 @@ int main(int argc, char *argv[])
     }
 
     /* read source image */
-    src_ptr = read_nifti_float(infile, &src, 0);
+    nifti_image *src_ptr = read_nifti_float(infile, &src, 0);
     if (!src_ptr) {
         fprintf(stderr,"Error reading %s.\n", infile);
         return(EXIT_FAILURE);
     }
+    
+    /* Number of voxels */
+    int nvox = src_ptr->nvox;
 
     /* Prepare output NIfTI images */
-    out_ptr = nifti_copy_nim_info(src_ptr);
-    out_ptr_reduced = nifti_copy_nim_info(src_ptr);
+    nifti_image *out_ptr = nifti_copy_nim_info(src_ptr);
+    nifti_image *out_ptr_reduced = nifti_copy_nim_info(src_ptr);
 
     /* Retrieve dimensions and voxel size from source image */
     voxelsize[0] = src_ptr->dx;
@@ -178,16 +184,18 @@ int main(int argc, char *argv[])
     dims[0] = src_ptr->nx;
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
-    mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
+    float mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
 
-    mask = (unsigned char *)malloc(sizeof(unsigned char)*src_ptr->nvox);
-    input = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    dist_CSF = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    dist_WM = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    GMT = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    GMT1 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    GMT2 = (float *)malloc(sizeof(float)*src_ptr->nvox);
-    PPM = (float *)malloc(sizeof(float)*src_ptr->nvox);
+    unsigned char *mask = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
+    signed char *index_min = (signed char *)malloc(sizeof(signed char)*nvox);
+    float *input = (float *)malloc(sizeof(float)*nvox);
+    float *dist_CSF = (float *)malloc(sizeof(float)*nvox);
+    float *dist_WM = (float *)malloc(sizeof(float)*nvox);
+    float *GMT = (float *)malloc(sizeof(float)*nvox);
+    float *GMT1 = (float *)malloc(sizeof(float)*nvox);
+    float *GMT2 = (float *)malloc(sizeof(float)*nvox);
+    float *PPM = (float *)malloc(sizeof(float)*nvox);
+    float *gyrus_mask = (float *)malloc(sizeof(float)*nvox);
     
     /* check for memory faults */
     if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !GMT2 || !PPM) {
@@ -196,7 +204,7 @@ int main(int argc, char *argv[])
     }
     
     /* Initialize distances for CSF and WM */
-    for (i = 0; i < src_ptr->nvox; i++) {
+    for (i = 0; i < nvox; i++) {
         dist_CSF[i] = 0.0;
         dist_WM[i]  = 0.0;
     }
@@ -226,7 +234,7 @@ int main(int argc, char *argv[])
         add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
         
         /* prepare map outside CSF and mask to obtain distance map for CSF */
-        for (i = 0; i < src_ptr->nvox; i++) {
+        for (i = 0; i < nvox; i++) {
             input[i] = (src[i] < (CGM + add_value)) ? 1.0f : 0.0f;
             mask[i]  = (src[i] < GWM + range) ? 1 : 0;
         }    
@@ -234,11 +242,11 @@ int main(int argc, char *argv[])
         /* obtain CSF distance map */
         if (verbose && (j == 0)) fprintf(stderr,"Estimate CSF distance map.\n");
         euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < src_ptr->nvox; i++)
+        for (i = 0; i < nvox; i++)
             dist_CSF[i] += input[i];
                 
         /* prepare map outside WM and mask to obtain distance map for WN */
-        for (i = 0; i < src_ptr->nvox; i++) {
+        for (i = 0; i < nvox; i++) {
             input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
             mask[i]  = (src[i] > CGM - range) ? 1 : 0;
         }    
@@ -246,13 +254,13 @@ int main(int argc, char *argv[])
         /* obtain WM distance map */
         if (verbose && (j == 0)) fprintf(stderr,"Estimate WM distance map.\n");
         euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < src_ptr->nvox; i++)
+        for (i = 0; i < nvox; i++)
             dist_WM[i] += input[i];
     }
         
     /* Calculate average distances if n_avgs > 1 */
     if (n_avgs > 1) {
-        for (i = 0; i < src_ptr->nvox; i++) {
+        for (i = 0; i < nvox; i++) {
             dist_CSF[i] /= (float) n_avgs;
             dist_WM[i]  /= (float) n_avgs;
         }
@@ -260,60 +268,40 @@ int main(int argc, char *argv[])
         
     /* Estimate cortical thickness (first using sulci measures */
     if (verbose) fprintf(stderr,"Estimate thickness map.\n");
-    for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(src[i]);
+    for (i = 0; i < nvox; i++) input[i] = roundf(src[i]);
 
     projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
     
     /* use both reconstruction of sulci as well as gyri and use minimum of both */
     /* we need the inverse of src: 4 - src */
-    for (i = 0; i < src_ptr->nvox; i++) input[i] = roundf(4.0 - src[i]);
+    for (i = 0; i < nvox; i++) input[i] = roundf(4.0 - src[i]);
 
     /* Then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
     projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
     
-    /* Correct distance values by half of a voxel */
-    double dist_corr = 0.0; // 0.5 was not working better, which I used before
-    for (i = 0; i < src_ptr->nvox; i++) {
-        dist_CSF[i] -= dist_corr;
-        dist_WM[i]  -= dist_corr;
-        if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
-        if (dist_WM[i]  < 0.0) dist_WM[i]  = 0.0;
-    }
-
     /* Use minimum/maximum to reduce issues with meninges */
-    for (i = 0; i < src_ptr->nvox; i++) {
+    for (i = 0; i < nvox; i++) {
         sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT1[i] = MIN(sum_dist, MAX(0.0, GMT1[i] - 0.5*(GMT1[i]  < sum_dist)));
-    }
-
-    /* Limit GMT2 to thick regions */
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
-
-    for (i = 0; i < src_ptr->nvox; i++) {
-        sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.5*(GMT2[i]  < sum_dist)));
+        GMT1[i] = MAX(0.0, GMT1[i] - 0.125*(GMT1[i]  < sum_dist));
+        GMT2[i] = MAX(0.0, GMT2[i] - 0.125*(GMT2[i]  < sum_dist));
     }
         
     /* Use minimum of thickness measures */
-    for (i = 0; i < src_ptr->nvox; i++)
-        GMT[i] = MIN(GMT1[i], GMT2[i]);
+    for (i = 0; i < nvox; i++) GMT[i] = MIN(GMT1[i], GMT2[i]);
    
-    for (i = 0; i < src_ptr->nvox; i++)
+    for (i = 0; i < nvox; i++)
         mask[i] = (GMT[i] > 1.0) ? 1 : 0;
 
     median3(GMT, mask, dims, 3, DT_FLOAT32);
-    //median3(dist_WM, NULL, dims, 1, DT_FLOAT32);
-    //median3(dist_CSF, NULL, dims, 1, DT_FLOAT32);
 
     /* Re-estimate CSF distance using corrected GM thickness */
-    for (i = 0; i < src_ptr->nvox; i++) {
+    for (i = 0; i < nvox; i++) {
         if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
             dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
-        if (dist_CSF[i] < 0.0) dist_CSF[i] = 0.0;
     }
+    clip_data(dist_CSF, nvox, 0.0, 1E15, DT_FLOAT32);
 
-    for (i = 0; i < src_ptr->nvox; i++)
+    for (i = 0; i < nvox; i++)
         mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
 
     /* Approximate thickness values outside GM */
@@ -332,11 +320,13 @@ int main(int argc, char *argv[])
     if (fwhm > 0.0) {
         if (verbose) fprintf(stderr,"Final correction\n");
         s[0] = s[1] = s[2] = fwhm;
-        smooth3(GMT, dims, voxelsize, s, 1, DT_FLOAT32);
+        smooth3(GMT,  dims, voxelsize, s, 1, DT_FLOAT32);        
+        smooth3(GMT1, dims, voxelsize, s, 1, DT_FLOAT32);
+        smooth3(GMT2, dims, voxelsize, s, 1, DT_FLOAT32);
     }
     
     /* Initialize and estimate percentage position map (PPM) */
-    for (i = 0; i < src_ptr->nvox; i++)
+    for (i = 0; i < nvox; i++)
         PPM[i] = (src[i] >= GWM) ? 1.0f : 0.0f;
 
     /* Estimate percentage position map (PPM)
@@ -345,13 +335,15 @@ int main(int argc, char *argv[])
        corrected to avoid underestimation of the position map with surfaces 
        running to close to the WM. */
     if (verbose) fprintf(stderr,"Estimate percentage position map.\n");
-    for (i = 0; i < src_ptr->nvox; i++) {
-        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
-            PPM[i] = MAX(0.0, dist_CSF[i] / GMT[i]);
-        if (PPM[i] < 0.0) PPM[i] = 0.0;
-        if (PPM[i] > 1.0) PPM[i] = 1.0;
-        if ((PPM[i] < 0.9) && (src[i] > GWM)) PPM[i] = 1.0;
+    smooth_gyri_mask(src, gyrus_mask, dims, voxelsize, 1.5, 8.0);
+    for (i = 0; i < nvox; i++) {
+        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15)) {
+            float PPM_sulci = MIN(dist_CSF[i], GMT2[i] - dist_WM[i]) / GMT2[i];
+            float PPM_gyri  = MAX(0.0, GMT1[i] - dist_WM[i]) / GMT1[i];
+            PPM[i] = gyrus_mask[i]*PPM_sulci + (1.0 - gyrus_mask[i])*PPM_gyri;
+        }
     }
+    clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
     
     /* Fill remaining holes with ones that may otherwise cause topology artefacts */
     if (fill_thresh > 0.0)
@@ -361,10 +353,9 @@ int main(int argc, char *argv[])
     if (!fast) localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 
     /* Apply voxel size correction */
-    for (i = 0; i < src_ptr->nvox; i++) {
+    for (i = 0; i < nvox; i++) {
         GMT[i] += correct_voxelsize;
         GMT[i] *= mean_vx_size;
-        //GMT[i] /= 1.075;
     }
 
     /* Preprocessing with Median Filter:
@@ -374,20 +365,20 @@ int main(int argc, char *argv[])
        - Weighting is estimated using gradient of the input image and.
          morphological operations to find larger clusters */
     if (n_median_filter) {
-        vol_smoothed = (float *)malloc(sizeof(float)*src_ptr->nvox);
+        float *vol_smoothed = (float *)malloc(sizeof(float)*nvox);
         
-        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i];
+        for (i = 0; i < nvox; i++) vol_smoothed[i] = PPM[i];
 
         s[0] = s[1] = s[2] = 4.0;
         smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
 
-        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - vol_smoothed[i];
+        for (i = 0; i < nvox; i++) vol_smoothed[i] = PPM[i] - vol_smoothed[i];
 
         prctile[0] = 0.1; prctile[1] = 99.0;
         get_prctile(vol_smoothed, dims[0]*dims[1]*dims[2], threshold, prctile, 1, DT_FLOAT32);  
 
         /* Threshold the difference image */
-        for (i = 0; i < src_ptr->nvox; i++)
+        for (i = 0; i < nvox; i++)
             vol_smoothed[i] = ((vol_smoothed[i] > threshold[1]) && (GMT[i] > 1.5)) ? 1.0 : 0.0;
             
         /* Apply morphological operations to find and slightly increase 
@@ -400,14 +391,14 @@ int main(int argc, char *argv[])
         s[0] = s[1] = s[2] = 3.0;
         smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
 
-        for (i = 0; i < src_ptr->nvox; i++)
+        for (i = 0; i < nvox; i++)
             input[i] = PPM[i];
             
         /* Apply iterative median filter with Euclidean distance */
         localstat3(input, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_FLOAT32);
 
         /* Calculate weighted average of filtered and original input */
-        for (i = 0; i < src_ptr->nvox; i++)
+        for (i = 0; i < nvox; i++)
             PPM[i] = (1.0 - vol_smoothed[i])*PPM[i] + vol_smoothed[i]*input[i];
             
         free(vol_smoothed);
@@ -415,11 +406,11 @@ int main(int argc, char *argv[])
     
     /* Apply sharpening by subtracting smoothed PPM map */
     if (sharpening > 0.0) {
-        vol_smoothed = (float *)malloc(sizeof(float)*src_ptr->nvox);
-        PPM0 = (float *)malloc(sizeof(float)*src_ptr->nvox);
+        float *vol_smoothed = (float *)malloc(sizeof(float)*nvox);
+        float *PPM0 = (float *)malloc(sizeof(float)*nvox);
 
-        for (i = 0; i < src_ptr->nvox; i++) PPM0[i] = PPM[i];
-        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i];
+        for (i = 0; i < nvox; i++) PPM0[i] = PPM[i];
+        for (i = 0; i < nvox; i++) vol_smoothed[i] = PPM[i];
 
         j = 1;
         
@@ -430,24 +421,21 @@ int main(int argc, char *argv[])
             smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
             
             /* Use iterative levels of smoothing */
-            for (i = 0; i < src_ptr->nvox; i++)
+            for (i = 0; i < nvox; i++)
                 PPM[i] += sharpening*j*(PPM[i] - vol_smoothed[i] + 0.001*j);
             j *= 2;
         }
         
         /* Correct thickness values */
-        for (i = 0; i < src_ptr->nvox; i++) vol_smoothed[i] = PPM[i] - PPM0[i];
+        for (i = 0; i < nvox; i++) vol_smoothed[i] = PPM[i] - PPM0[i];
         median3(vol_smoothed, NULL, dims, 1, DT_FLOAT32);
-        for (i = 0; i < src_ptr->nvox; i++) GMT[i] += 2*vol_smoothed[i];
+        for (i = 0; i < nvox; i++) GMT[i] += 2*vol_smoothed[i];
         
         free(vol_smoothed);
         free(PPM0);
     }
 
-    for (i = 0; i < src_ptr->nvox; i++) {
-        if (PPM[i] < 0.0) PPM[i] = 0.0;
-        if (PPM[i] > 1.0) PPM[i] = 1.0;
-    }
+    clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
     
     /* Downsample images */
     if (downsample > 0.0) {
@@ -477,7 +465,7 @@ int main(int argc, char *argv[])
 
         /* Save GMT and PPM image */
         slope = 1.0;
-        vol_reduced = (float *)malloc(sizeof(float)*out_ptr_reduced->nvox);
+        float *vol_reduced = (float *)malloc(sizeof(float)*out_ptr_reduced->nvox);
 
         subsample3(GMT, vol_reduced, dims, dims_reduced, DT_FLOAT32);
         if (!write_nifti_float(out_GMT, vol_reduced, DT_FLOAT32, slope, dims_reduced, voxelsize_reduced, out_ptr_reduced)) 
@@ -496,14 +484,31 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
     }
 
-    if (argc == 6) {
+    if (argc >= 6) {
         if (!write_nifti_float(out_CSD, dist_CSF, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
             exit(EXIT_FAILURE);
         if (!write_nifti_float(out_WMD, dist_WM, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
             exit(EXIT_FAILURE);
     }
+
+    if (argc == 8) {
+        for (i = 0; i < nvox; i++)
+            mask[i] = (GMT1[i] > 1.0) ? 1 : 0;
+        median3(GMT1, mask, dims, 3, DT_FLOAT32);
+        median3(GMT2, mask, dims, 3, DT_FLOAT32);
+        for (i = 0; i < nvox; i++) {
+            GMT1[i] *= mean_vx_size;
+            GMT2[i] *= mean_vx_size;
+            GMT2[i] = index_min[i] + 1;
+        }
+        if (!write_nifti_float(out_GMT1, GMT1, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+        if (!write_nifti_float(out_GMT2, GMT2, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
+            exit(EXIT_FAILURE);
+    }
             
     free(mask);
+    free(index_min);
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
@@ -511,6 +516,7 @@ int main(int argc, char *argv[])
     free(GMT2);
     free(PPM);
     free(input);
+    free(gyrus_mask);
 
     return(EXIT_SUCCESS);
 
