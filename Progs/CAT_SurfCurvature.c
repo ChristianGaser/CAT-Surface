@@ -29,13 +29,13 @@ Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals]\n\n\
         2 - curvedness sqrt(0.5*(k1*k1+k2*k2))\n\
         3 - shape index atan((k1+k2)/(k2-k1))\n\
         4 - mean curvature (in radians) (k1+k2)/2\n\
-        5 - bending energy k1*k1 + k2*k2\n\
-        6 - sharpness (k1 - k2)^2\n\
-        7 - folding index |k1|*(|k1| - |k2|)\n\
-        8 - minimum curvature k2\n\
-        9 - maximum curvature k1\n\
-       10 - sulcal depth like estimator\n\
-      >10 - depth potential with alpha = 1/curvtype (recommended value curvtype=650)\n\n";
+        5 - sulcal depth like estimator\n\
+        6 - bending energy k1*k1 + k2*k2\n\
+        7 - sharpness (k1 - k2)^2\n\
+        8 - folding index |k1|*(|k1| - |k2|)\n\
+        9 - minimum curvature k2\n\
+       10 - maximum curvature k1\n\
+      >11 - depth potential with alpha = 1/curvtype (recommended value curvtype=650)\n\n";
 
     fprintf(stderr, usage_str, executable);
 }

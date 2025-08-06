@@ -181,19 +181,19 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
         case 4: /* mean curvature */
             *curvparameter = (k1 + k2) / 2.0;
             break;
-        case 5: /* bending enegery */
+        case 6: /* bending enegery */
             *curvparameter = (k1*k1 + k2*k2);
             break;
-        case 6: /* sharpness */
+        case 7: /* sharpness */
             *curvparameter = (k1 - k2)*(k1 - k2);
             break;
-        case 7: /* folding index */
+        case 8: /* folding index */
             *curvparameter = fabs(k1)*(fabs(k1)- fabs(k2));
             break;
-        case 8: /* minimum curvature */
+        case 9: /* minimum curvature */
             *curvparameter = k2;
             break;
-        case 9: /* maximum curvature */
+        case 10: /* maximum curvature */
             *curvparameter = k1;
             break;
         }
@@ -253,13 +253,13 @@ get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
     }
     
     /* depth potential */
-    if (curvtype > 10) {
+    if (curvtype > 11) {
         /* looks weird, but we need a way to define the small values alpha << 1 */
         alpha = 1/(double)curvtype;
         values = compute_depth_potential( polygons, alpha);
         for (pidx = 0; pidx < polygons->n_points; pidx++) curvatures[pidx] = values[pidx];
     /* sulcal depth like estimator */
-    } else if (curvtype == 10) {
+    } else if (curvtype == 5) {
         polygonsIn = (polygons_struct *) malloc(sizeof(polygons_struct));
         copy_polygons(polygons, polygonsIn);
 
