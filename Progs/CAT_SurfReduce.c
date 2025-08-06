@@ -22,7 +22,7 @@
 
 /* Defaults */
 static double ratio = 0.50;          /* target faces as ratio of input triangles */
-static double aggressiveness = 5.0;  /* larger => stronger decimation */
+static double aggressiveness = 7;    /* larger => stronger decimation */
 static int preserve_sharp = 1;       /* prevent sharp-edge collapses */
 static int verbose = 0;
 
@@ -31,7 +31,7 @@ static ArgvInfo argTable[] = {
     {"-ratio", ARGV_FLOAT, (char *) TRUE, (char *) &ratio,
         "Target triangle ratio in (0,1], e.g., 0.5 keeps ~50% of faces (default 0.5)."},
     {"-aggr", ARGV_FLOAT, (char *) TRUE, (char *) &aggressiveness,
-        "Aggressiveness of simplification (default 7.0)."},
+        "Aggressiveness of simplification (default 7)."},
     {"-preserve_sharp", ARGV_CONSTANT, (char *) TRUE, (char *) &preserve_sharp,
         "Preserve sharp features (default on)."},
     {"-no_preserve_sharp", ARGV_CONSTANT, (char *) FALSE, (char *) &preserve_sharp,
