@@ -568,8 +568,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         free(grad);
     }
     
-    if (label && (strength_gyri_mask != 0.0)) {
-
+    if ((label != NULL) && (strength_gyri_mask != 0.0)) {
         /* Estimate smooth gyrus mask */
         smooth_gyri_mask(label, vol_float, dims, voxelsize, 1.5, 8.0);
 

@@ -15,7 +15,7 @@ char *label_filename = NULL;
 double min_threshold = 0.5;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
-double strength_gyri_mask = 0.15;
+double strength_gyri_mask = 0.1;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -23,7 +23,7 @@ int n_iter = 10;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
-  {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
+  {"-label", ARGV_STRING, (char *) NULL, (char *) &label_filename, 
     "File containing segmentation labels for creating smooth mask of gyral\n\
     and sulcal areas. This prevents sulcal closure by using a higher isovalue\n\
     in sulci, and prevent cutting gyri by using a lower isovalue in gyri."},
@@ -75,7 +75,7 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-Usage: CAT_VolMarchingCubes input.nii output_surface_file [options] [change_map.nii]\n\
+Usage: CAT_VolMarchingCubes [options] input.nii output_surface_file [change_map.nii]\n\
 \n\
     This method generates a mesh with an Euler number of 2 (genus 0) from the\n\
     thresholded volume. The process involves:\n\
@@ -116,8 +116,7 @@ Usage: CAT_VolMarchingCubes input.nii output_surface_file [options] [change_map.
 int main(int argc, char *argv[]) {
     float *input_float, *label;
     char out_diff[1024];
-
-    initialize_argument_processing(argc, argv);
+    char *input_filename, *output_filename;
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
@@ -126,7 +125,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    char *input_filename, *output_filename;
+    initialize_argument_processing(argc, argv);
+
     if (!get_string_argument(NULL, &input_filename) || !get_string_argument(NULL, &output_filename)) {
         usage(argv[0]);
         fprintf(stderr, "Usage: CAT_VolMarchingCubes input.nii output_surface_file [options] [change_map.nii]\n");
@@ -152,7 +152,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Error: Label image must have the same dimensions as the input image.\n");
             return EXIT_FAILURE;
         }
-    }
+    } else label = NULL;
 
     object_struct *object = apply_marching_cubes(input_float, nii_ptr, label, 
                 min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
