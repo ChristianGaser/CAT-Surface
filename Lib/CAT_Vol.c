@@ -2398,7 +2398,7 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
     /* Subsample to lower resolution */
     subsample_float(buffer, vol_samp, dims, dims_samp);   
 
-    /* Apply closing */
+    /* Apply median */
     localstat3(vol_samp, NULL, dims_samp, 1, F_MEDIAN, niter, 0, DT_FLOAT32);
 
     /* Upsample back to original resolution and data type*/
@@ -2770,7 +2770,7 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
     
     double laplace_thresh = 0.4;
     laplace3R(TAr, mask2, dims, laplace_thresh);
-    median_subsample3(TAr, dims, voxelsize, 1, 4.0, DT_FLOAT32);
+    median_subsample3(TAr, dims, voxelsize, 1, 2.0, DT_FLOAT32);
     laplace3R(TAr, mask2, dims, laplace_thresh);
 
     /* only keep TAr inside (closed) mask */

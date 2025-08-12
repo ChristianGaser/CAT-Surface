@@ -91,6 +91,7 @@ void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int st
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int datatype);
 void smooth_subsample3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, double samp_voxelsize, int datatype);
+void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, double samp_voxelsize, int datatype);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
 void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
