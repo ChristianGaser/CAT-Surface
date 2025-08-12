@@ -25,7 +25,6 @@ int n_avgs = 8;
 int n_median_filter = 2;
 double sharpening = 0.0;
 double downsample = 0.0;
-double fwhm = -1.0;
 double fill_thresh = 0.5;
 double correct_voxelsize = 0.0;
 
@@ -42,12 +41,6 @@ static ArgvInfo argTable[] = {
     the distances in White Matter (WM) and Cerebrospinal Fluid (CSF) to obtain a\n\
     less noisy measure. A higher number results in smoother but potentially less\n\
     accurate measures."},
-
-  {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm,
-    "Set the Full Width Half Maximum (FWHM) value for final thickness smoothing.\n\
-    This value determines the extent of smoothing applied, using a mask to prevent\n\
-    smearing values outside the Gray Matter (GM) areas. Set to negative values to\n\
-    use approximation of remaining values instead of laplace function."},
 
   {"-fill-holes", ARGV_FLOAT, (char *) 1, (char *) &fill_thresh,
     "Fill remaining holes in the PPM image using the defined threshold.\n\
@@ -109,14 +102,13 @@ Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii ou
 Options:\n\
     -verbose                   Enable verbose mode for detailed output during processing.\n\
     -n-avgs <int>              Set the number of averages for distance estimation.\n\
-    -fwhm <float>              Define FWHM for final thickness smoothing.\n\
     -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
     -sharpen <float>           Amount of sharpening the PPM map.\n\
     -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
 \n\
 Example:\n\
-    %s -verbose -n-avgs 4 -fwhm 2 input.nii gmt_output.nii ppm_output.nii\n\n";
+    %s -verbose -n-avgs 4 input.nii gmt_output.nii ppm_output.nii\n\n";
 
     fprintf(stderr,"%s\n %s\n",usage_str, executable);
 }
@@ -213,12 +205,11 @@ int main(int argc, char *argv[])
     if (fast) {
         n_avgs /= 2;
         n_median_filter = 0;
-        fwhm = -1.0;
         fill_thresh = 0.0;
         sharpening = 0.0;
         downsample = 0.0;
     }
-
+    
     /* Ensure that n_avgs is at least 1 */
     n_avgs = (n_avgs < 1) ? 1 : n_avgs;
 
@@ -282,10 +273,24 @@ int main(int argc, char *argv[])
     /* Use minimum/maximum to reduce issues with meninges */
     for (i = 0; i < nvox; i++) {
         sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT1[i] = MAX(0.0, GMT1[i] - 0.125*(GMT1[i]  < sum_dist));
-        GMT2[i] = MAX(0.0, GMT2[i] - 0.125*(GMT2[i]  < sum_dist));
+        GMT1[i] = MIN(sum_dist, MAX(0.0, GMT1[i] - 0.125*(GMT1[i]  < sum_dist)));
+
+        /* Limit GMT2 to thick regions */
+        GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75/mean_vx_size);
+
+        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.125*(GMT2[i]  < sum_dist)));
     }
         
+    /* Approximate thickness values outside GM */
+    if (verbose) fprintf(stderr,"Fill values using Euclidean distance approach\n");
+
+    euclidean_distance(GMT1, NULL, dims, NULL, 1);
+    euclidean_distance(GMT2, NULL, dims, NULL, 1);
+    
+    /* Aplly iterative median filter with 4 iterations on a 2mm resampled image */
+    median_subsample3(GMT1, dims, voxelsize, 4, 2.0, DT_FLOAT32);
+    median_subsample3(GMT2, dims, voxelsize, 4, 2.0, DT_FLOAT32);
+
     /* Use minimum of thickness measures */
     for (i = 0; i < nvox; i++) GMT[i] = MIN(GMT1[i], GMT2[i]);
    
@@ -303,42 +308,20 @@ int main(int argc, char *argv[])
 
     for (i = 0; i < nvox; i++)
         mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
-
-    /* Approximate thickness values outside GM */
-    if (fwhm >= 0.0) {
-        if (verbose) fprintf(stderr,"Fill values using Euclidean distance approach\n");
-        euclidean_distance(GMT, mask, dims, NULL, 1);
-        laplace3R(GMT, mask, dims, 0.1);
-    } else {
-        if (!fast) {
-            if (verbose) fprintf(stderr,"Fill values using Approximation approach\n");
-            vol_approx(GMT, dims, voxelsize);
-        }
-    }
-    
-    /* Apply final smoothing */
-    if (fwhm > 0.0) {
-        if (verbose) fprintf(stderr,"Final correction\n");
-        s[0] = s[1] = s[2] = fwhm;
-        smooth3(GMT,  dims, voxelsize, s, 1, DT_FLOAT32);        
-        smooth3(GMT1, dims, voxelsize, s, 1, DT_FLOAT32);
-        smooth3(GMT2, dims, voxelsize, s, 1, DT_FLOAT32);
-    }
     
     /* Initialize and estimate percentage position map (PPM) */
     for (i = 0; i < nvox; i++)
         PPM[i] = (src[i] >= GWM) ? 1.0f : 0.0f;
 
     /* Estimate percentage position map (PPM)
-       We first create a corrected CSF distance map with reconstructed sulci.
-       If gyri were reconstructed too than also the dist_WM have to be
-       corrected to avoid underestimation of the position map with surfaces 
-       running to close to the WM. */
+       We use a smooth map that indicates gyri and sulci to mix the separate
+       estimates of PPM for gyri and sulci */
     if (verbose) fprintf(stderr,"Estimate percentage position map.\n");
-    smooth_gyri_mask(src, gyrus_mask, dims, voxelsize, 1.5, 8.0);
+    smooth_gyri_mask(src, gyrus_mask, dims, voxelsize, 
+        /* threshold */ CGM, /* FWHM */ 8.0);
     for (i = 0; i < nvox; i++) {
         if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15)) {
-            float PPM_sulci = MIN(dist_CSF[i], GMT2[i] - dist_WM[i]) / GMT2[i];
+            float PPM_sulci = MAX(0.0, GMT[i] - dist_WM[i]) / GMT[i];
             float PPM_gyri  = MAX(0.0, GMT1[i] - dist_WM[i]) / GMT1[i];
             PPM[i] = gyrus_mask[i]*PPM_sulci + (1.0 - gyrus_mask[i])*PPM_gyri;
         }
