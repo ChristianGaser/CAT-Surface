@@ -178,8 +178,8 @@ int main(int argc, char *argv[])
         // Handle annotation files, with a note on current platform limitation
         if (filename_extension_matches(input_values_file, "annot")) {
             /* this is not yet working under Windows */
-            fprintf(stderr, "Resampling of annotation files not yet working.\n");
-            exit(EXIT_FAILURE);
+            //fprintf(stderr, "Resampling of annotation files not yet working.\n");
+            //exit(EXIT_FAILURE);
 
             label_interpolation = 1;
             read_annotation_table(input_values_file, &n_values, &in_annot, &n_table, &atable);
