@@ -25,7 +25,6 @@ jobs:
             arch: x86
             artifact: cat-surface-windows-x86
     runs-on: ${{ matrix.os }}
-    architecture: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v3
 
