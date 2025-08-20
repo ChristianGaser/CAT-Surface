@@ -121,8 +121,8 @@ static bool collapse_preserves_topology(int u, int v,
      Over-allocate using 2 * tcount as a safe bound. */
   int capU = MAX(8, vertices[u].tcount * 2 + 8);
   int capV = MAX(8, vertices[v].tcount * 2 + 8);
-  int *Nu = (int*)alloca(sizeof(int) * capU);
-  int *Nv = (int*)alloca(sizeof(int) * capV);
+  int *Nu = (int*)malloc(sizeof(int) * capU);
+  int *Nv = (int*)malloc(sizeof(int) * capV);
   int nu = collect_vertex_neighbours(u, Nu, capU, triangles, refs, vertices);
   int nv = collect_vertex_neighbours(v, Nv, capV, triangles, refs, vertices);
 
@@ -145,6 +145,8 @@ static bool collapse_preserves_topology(int u, int v,
   for (k = 0; k < ni; k++) {
     if (inter[k] == opp[0] || inter[k] == opp[1]) hits++;
   }
+  free(Nu);
+  free(Nv);
   return (hits == 2);
 }
 
