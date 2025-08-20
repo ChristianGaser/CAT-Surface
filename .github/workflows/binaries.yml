@@ -24,8 +24,7 @@ jobs:
           - os: windows-latest
             arch: x64
             artifact: cat-surface-windows-x86
-    runs-on:
-      os: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
 
