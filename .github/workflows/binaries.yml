@@ -48,14 +48,14 @@ jobs:
       - name: Configure
         if: matrix.os != 'windows-latest'
         run: |
-          NOCONFIGURE=1 bash ./autogen.sh
-          ./configure LDFLAGS="-static"
+          sh autogen.sh
+          ./configure --enable-static --disable-shared
       - name: Configure (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          NOCONFIGURE=1 ./autogen.sh
-          ./configure LDFLAGS="-static"
+          ./autogen.sh
+          ./configure --enable-static --disable-shared
 
       - name: Build
         if: matrix.os != 'windows-latest'
