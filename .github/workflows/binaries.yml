@@ -22,9 +22,10 @@ jobs:
             arch: arm64
             artifact: cat-surface-ubuntu-arm64
           - os: windows-latest
-            arch: x86
+            arch: x64
             artifact: cat-surface-windows-x86
-    runs-on: ${{ matrix.os }}
+    runs-on:
+      os: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
 
@@ -33,17 +34,17 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
-          install: autoconf automake libtool make pkgconf zip
+          install: autoconf automake libtool autoconf-archive make pkgconf mingw-w64-i686-fftw zip
 
       - name: Install dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool build-essential pkg-config zip
+          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config libfftw3-dev zip
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: brew install autoconf automake libtool
+        run: brew install autoconf automake libtool autoconf-archive fftw
 
       - name: Configure
         if: matrix.os != 'windows-latest'
