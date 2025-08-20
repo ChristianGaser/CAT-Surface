@@ -13,6 +13,7 @@
 
 #include <bicpl.h>
 #include <ParseArgv.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -76,30 +77,39 @@ static char *strdup0(const char *s)
 static int parse_unit_kv(char *arg, unit_t *u)
 {
     u->surf = u->src_sphere = u->trg_sphere = u->vals = u->mask = NULL;
-    u->fwhm = -1.0;   /* NEW: sentinel => take global default if still <0 */
+    u->fwhm = -1.0;   /* sentinel => take global default if still <0 */
 
-    char *tok, *buf = strdup(arg);
+    char *buf = strdup(arg);
     if (!buf) return 0;
-    char *saveptr = NULL;
-    for (*tok = strtok_r(buf, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr)) {
+
+    char *tok = strtok(buf, ",");
+    while (tok) {
         trim(tok);
         char *eq = strchr(tok, '=');
-        if (!eq) { fprintf(stderr, "Bad -unit token: '%s'\n", tok); free(buf); return 0; }
+        if (!eq) {
+            fprintf(stderr, "Bad -unit token: '%s'\n", tok);
+            free(buf);
+            return 0;
+        }
         *eq = 0;
         const char *key = tok;
         const char *val = eq + 1;
-        if (!strcmp(key, "surf"))            u->surf        = strdup0(val);
-        else if (!strcmp(key, "src_sphere")) u->src_sphere  = strdup0(val);
-        else if (!strcmp(key, "trg_sphere")) u->trg_sphere  = strdup0(val);
-        else if (!strcmp(key, "vals"))       u->vals        = strdup0(val);
-        else if (!strcmp(key, "mask"))       u->mask        = strdup0(val);
-        else if (!strcmp(key, "fwhm"))       u->fwhm        = atof(val);
+
+        if      (!strcmp(key, "surf"))       u->surf       = strdup0(val);
+        else if (!strcmp(key, "src_sphere")) u->src_sphere = strdup0(val);
+        else if (!strcmp(key, "trg_sphere")) u->trg_sphere = strdup0(val);
+        else if (!strcmp(key, "vals"))       u->vals       = strdup0(val);
+        else if (!strcmp(key, "mask"))       u->mask       = strdup0(val);
+        else if (!strcmp(key, "fwhm"))       u->fwhm       = atof(val);
         else {
             fprintf(stderr, "Unknown key in -unit: '%s'\n", key);
             free(buf);
             return 0;
         }
+
+        tok = strtok(NULL, ",");
     }
+
     free(buf);
 
     if (!u->surf || !u->src_sphere || !u->trg_sphere) {
