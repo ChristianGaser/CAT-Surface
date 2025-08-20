@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-latest
             arch: arm64
             artifact: cat-surface-macos-arm64
           - os: macos-13
@@ -34,17 +34,17 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
-          install: autoconf automake libtool make pkgconf mingw-w64-i686-fftw
+          install: autoconf automake libtool make pkgconf zip
 
       - name: Install dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool build-essential pkg-config libfftw3-dev
+          sudo apt-get install -y autoconf automake libtool build-essential pkg-config zip
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: brew install automake libtool fftw
+        run: brew install automake libtool
 
       - name: Configure
         if: matrix.os != 'windows-latest'
@@ -68,18 +68,14 @@ jobs:
 
       - name: Package binaries
         if: matrix.os != 'windows-latest'
-        run: |
-          mkdir artifact
-          cp -r Progs/* artifact/
+        run: zip -r ${{ matrix.artifact }}.zip Progs
       - name: Package binaries (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
-        run: |
-          mkdir artifact
-          cp -r Progs/* artifact/
+        run: zip -r ${{ matrix.artifact }}.zip Progs
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.artifact }}
-          path: artifact
+          path: ${{ matrix.artifact }}.zip
