@@ -1,0 +1,85 @@
+name: Build Binaries
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+            artifact: cat-surface-macos-arm64
+          - os: macos-13
+            arch: x64
+            artifact: cat-surface-macos-x86
+          - os: ubuntu-latest
+            arch: x64
+            artifact: cat-surface-ubuntu-x86_64
+          - os: ubuntu-latest
+            arch: arm64
+            artifact: cat-surface-ubuntu-arm64
+          - os: windows-latest
+            arch: x86
+            artifact: cat-surface-windows-x86
+    runs-on: ${{ matrix.os }}
+    architecture: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up MSYS2
+        if: matrix.os == 'windows-latest'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          install: autoconf automake libtool make pkgconf mingw-w64-i686-fftw
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool build-essential pkg-config libfftw3-dev
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: brew install automake libtool fftw
+
+      - name: Configure
+        if: matrix.os != 'windows-latest'
+        run: |
+          ./autogen.sh
+          ./configure LDFLAGS="-static"
+      - name: Configure (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          ./autogen.sh
+          ./configure LDFLAGS="-static"
+
+      - name: Build
+        if: matrix.os != 'windows-latest'
+        run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: make -j$(nproc)
+
+      - name: Package binaries
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir artifact
+          cp -r Progs/* artifact/
+      - name: Package binaries (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          mkdir artifact
+          cp -r Progs/* artifact/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact }}
+          path: artifact
