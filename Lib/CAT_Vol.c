@@ -561,7 +561,6 @@ static void convxy_float(float *out, int xdim, int ydim,
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE *ColThreads = (HANDLE*)malloc((size_t)Nthreads_col * sizeof(HANDLE));
     conv_args_col *ColArgs = (conv_args_col*)malloc((size_t)Nthreads_col * sizeof(conv_args_col));
-    int t;
 
     for (t = 0; t < Nthreads_col; ++t) {
         int ini = (t * xdim) / Nthreads_col;

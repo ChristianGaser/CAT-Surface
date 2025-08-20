@@ -32,8 +32,6 @@ AM_CPPFLAGS=${AM_CFLAGS}
 AM_CXXFLAGS=${AM_CFLAGS} 
 
 lib_LTLIBRARIES = libCAT.la
-#lib_LTLIBRARIES = $(top_builddir)/3rdparty/fftw-3.3.10/.libs/libfftw3.a \
-#    libCAT.la
 
 EXTRA_DIST = \
     configure.ac \
