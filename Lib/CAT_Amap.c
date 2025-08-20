@@ -31,6 +31,7 @@ static void *
 gmv_accum_worker(void *p)
 {
     gmv_accum_args_t a = *(gmv_accum_args_t*)p;
+    int k, l, m, x, y, z;
 
     const int sub = a.sub;
     const int area = a.area;
@@ -38,25 +39,25 @@ gmv_accum_worker(void *p)
     const int nvol  = a.nvol;
     const int *dims = a.dims;
 
-    for (int k = -sub; k <= sub; ++k)
-    for (int l = -sub; l <= sub; ++l)
-    for (int m = -sub; m <= sub; ++m) {
+    for (k = -sub; k <= sub; ++k)
+    for (l = -sub; l <= sub; ++l)
+    for (m = -sub; m <= sub; ++m) {
 
-        for (int z = a.z_ini; z < a.z_fin; ++z) {
+        for (z = a.z_ini; z < a.z_fin; ++z) {
             const int zsub = z*sub + k;
             if (zsub < 0 || zsub >= dims[2]) continue;
 
             const int zsub2   = zsub * area;
             const int zoffset = z * narea;
 
-            for (int y = 0; y < a.niy; ++y) {
+            for (y = 0; y < a.niy; ++y) {
                 const int ysub = y*sub + l;
                 if (ysub < 0 || ysub >= dims[1]) continue;
 
                 const int ysub2  = ysub * dims[0];
                 const int yoffset= zoffset + y*a.nix;
 
-                for (int x = 0; x < a.nix; ++x) {
+                for (x = 0; x < a.nix; ++x) {
                     const int xsub = x*sub + m;
                     if (xsub < 0 || xsub >= dims[0]) continue;
 
@@ -100,10 +101,11 @@ static void *
 gmv_reduce_worker(void *p)
 {
     gmv_reduce_args_t a = *(gmv_reduce_args_t*)p;
+    int i, j;
 
-    for (int i = 0; i < a.n_classes; ++i) {
+    for (i = 0; i < a.n_classes; ++i) {
         const int base = i * a.nvol;
-        for (int j = a.j_ini; j < a.j_fin; ++j) {
+        for (j = a.j_ini; j < a.j_fin; ++j) {
             const int ind = base + j;
             const struct ipoint *pi = &a.ir[ind];
 
@@ -139,6 +141,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
     int area, narea, nvol, nix, niy, niz;
 
     area = dims[0]*dims[1];
+    int i, j, t;
 
     /* grid-size */
     nix = (int)ceil((dims[0]-1)/((double)sub)) + 1;
@@ -154,8 +157,8 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
     const int sz_cube = (2*sub + 1)*(2*sub + 1)*(2*sub + 1);
 
     /* init accumulators + arr-buffer */
-    for (int i = 0; i < n_classes; ++i) {
-        for (int j = 0; j < nvol; ++j) {
+    for (i = 0; i < n_classes; ++i) {
+        for (j = 0; j < nvol; ++j) {
             const int ind = i*nvol + j;
             ir[ind].n  = 0;
             ir[ind].s  = 0.0;
@@ -176,7 +179,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
         gmv_accum_args_t *Args = (gmv_accum_args_t*)malloc((size_t)Nthreads * sizeof(gmv_accum_args_t));
         if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
 
-        for (int t = 0; t < Nthreads; ++t) {
+        for (t = 0; t < Nthreads; ++t) {
             int ini = (t * niz) / Nthreads;
             int fin = ((t + 1) * niz) / Nthreads;
 
@@ -196,15 +199,15 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
 
             ThreadList[t] = (HANDLE)_beginthreadex(NULL, 0, &gmv_accum_worker, &Args[t], 0, NULL);
         }
-        for (int t = 0; t < Nthreads; ++t) WaitForSingleObject(ThreadList[t], INFINITE);
-        for (int t = 0; t < Nthreads; ++t) CloseHandle(ThreadList[t]);
+        for (t = 0; t < Nthreads; ++t) WaitForSingleObject(ThreadList[t], INFINITE);
+        for (t = 0; t < Nthreads; ++t) CloseHandle(ThreadList[t]);
         free(ThreadList); free(Args);
     #else
         pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
         gmv_accum_args_t *Args = (gmv_accum_args_t*)calloc((size_t)Nthreads, sizeof(gmv_accum_args_t));
         if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
 
-        for (int t = 0; t < Nthreads; ++t) {
+        for (t = 0; t < Nthreads; ++t) {
             int ini = (t * niz) / Nthreads;
             int fin = ((t + 1) * niz) / Nthreads;
 
@@ -224,7 +227,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
 
             pthread_create(&ThreadList[t], NULL, gmv_accum_worker, &Args[t]);
         }
-        for (int t = 0; t < Nthreads; ++t) pthread_join(ThreadList[t], NULL);
+        for (t = 0; t < Nthreads; ++t) pthread_join(ThreadList[t], NULL);
         free(ThreadList); free(Args);
     #endif
     }
@@ -239,7 +242,7 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
         gmv_reduce_args_t *Args = (gmv_reduce_args_t*)malloc((size_t)Nthreads * sizeof(gmv_reduce_args_t));
         if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
 
-        for (int t = 0; t < Nthreads; ++t) {
+        for (t = 0; t < Nthreads; ++t) {
             int j_ini = (t * nvol) / Nthreads;
             int j_fin = ((t + 1) * nvol) / Nthreads;
 
@@ -252,15 +255,15 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
 
             ThreadList[t] = (HANDLE)_beginthreadex(NULL, 0, &gmv_reduce_worker, &Args[t], 0, NULL);
         }
-        for (int t = 0; t < Nthreads; ++t) WaitForSingleObject(ThreadList[t], INFINITE);
-        for (int t = 0; t < Nthreads; ++t) CloseHandle(ThreadList[t]);
+        for (t = 0; t < Nthreads; ++t) WaitForSingleObject(ThreadList[t], INFINITE);
+        for (t = 0; t < Nthreads; ++t) CloseHandle(ThreadList[t]);
         free(ThreadList); free(Args);
     #else
         pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
         gmv_reduce_args_t *Args = (gmv_reduce_args_t*)calloc((size_t)Nthreads, sizeof(gmv_reduce_args_t));
         if (!ThreadList || !Args) { printf("Memory allocation error\n"); exit(EXIT_FAILURE); }
 
-        for (int t = 0; t < Nthreads; ++t) {
+        for (t = 0; t < Nthreads; ++t) {
             int j_ini = (t * nvol) / Nthreads;
             int j_fin = ((t + 1) * nvol) / Nthreads;
 
@@ -273,14 +276,14 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
 
             pthread_create(&ThreadList[t], NULL, gmv_reduce_worker, &Args[t]);
         }
-        for (int t = 0; t < Nthreads; ++t) pthread_join(ThreadList[t], NULL);
+        for (t = 0; t < Nthreads; ++t) pthread_join(ThreadList[t], NULL);
         free(ThreadList); free(Args);
     #endif
     }
 
     /* correct freeing of arrays */
-    for (int i = 0; i < n_classes; ++i) {
-        for (int j = 0; j < nvol; ++j) {
+    for (i = 0; i < n_classes; ++i) {
+        for (j = 0; j < nvol; ++j) {
             int ind = i*nvol + j;
             free(ir[ind].arr);
         }

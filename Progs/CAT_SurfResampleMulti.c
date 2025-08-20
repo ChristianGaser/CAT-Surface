@@ -78,10 +78,10 @@ static int parse_unit_kv(char *arg, unit_t *u)
     u->surf = u->src_sphere = u->trg_sphere = u->vals = u->mask = NULL;
     u->fwhm = -1.0;   /* NEW: sentinel => take global default if still <0 */
 
-    char *buf = strdup(arg);
+    char *tok, *buf = strdup(arg);
     if (!buf) return 0;
     char *saveptr = NULL;
-    for (char *tok = strtok_r(buf, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr)) {
+    for (*tok = strtok_r(buf, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr)) {
         trim(tok);
         char *eq = strchr(tok, '=');
         if (!eq) { fprintf(stderr, "Bad -unit token: '%s'\n", tok); free(buf); return 0; }
@@ -154,7 +154,7 @@ static void usage(const char *p)
 static object_struct **concat_many(object_struct **objs, double **vals, int nobjs,
                                    double **out_vals, int *out_n_points)
 {
-    int i, j;
+    int i, j, k;
     int total_pts = 0, total_items = 0, total_idx = 0;
 
     for (i = 0; i < nobjs; i++) {
@@ -201,7 +201,7 @@ static object_struct **concat_many(object_struct **objs, double **vals, int nobj
             int out_start = (out_item == 0) ? 0 : out->end_indices[out_item - 1];
             out->end_indices[out_item] = out_start + nin;
 
-            for (int k = 0; k < nin; k++) {
+            for (k = 0; k < nin; k++) {
                 out->indices[out_start + k] = p->indices[in_start + k] + p_off;
             }
         }

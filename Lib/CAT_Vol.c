@@ -361,6 +361,8 @@ conv_row_worker(void *p)
 
     /* per-thread temporary buffer for a whole row */
     float *tbuf = (float*)malloc((size_t)a.xdim * sizeof(float));
+    int x, y, k;
+    
     if (!tbuf) {
     #if defined(_WIN32) || defined(_WIN64)
         _endthreadex(0);
@@ -370,18 +372,18 @@ conv_row_worker(void *p)
     #endif
     }
 
-    for (int y = a.ini; y < a.fin; ++y) {
+    for (y = a.ini; y < a.fin; ++y) {
         /* copy row y to buffer & sanitise NaNs/Infs */
-        for (int x = 0; x < a.xdim; ++x) {
+        for (x = 0; x < a.xdim; ++x) {
             tbuf[x] = a.out[x + y * a.xdim];
             if (!isfinite(tbuf[x])) tbuf[x] = 0.0f;
         }
         /* horizontal (x) convolution */
-        for (int x = 0; x < a.xdim; ++x) {
+        for (x = 0; x < a.xdim; ++x) {
             double sum1 = 0.0;
             int fstart = ((x - a.xoff >= a.xdim) ? x - a.xdim - a.xoff + 1 : 0);
             int fend   = ((x - (a.xoff + a.fxdim) < 0) ? x - a.xoff + 1 : a.fxdim);
-            for (int k = fstart; k < fend; ++k)
+            for (k = fstart; k < fend; ++k)
                 sum1 += (double)tbuf[x - a.xoff - k] * a.filtx[k];
             a.out[x + y * a.xdim] = (float)sum1;
         }
@@ -409,6 +411,8 @@ conv_col_worker(void *p)
 
     /* per-thread temporary buffer for a whole column */
     float *tbuf = (float*)malloc((size_t)a.ydim * sizeof(float));
+    int x, y, k;
+    
     if (!tbuf) {
     #if defined(_WIN32) || defined(_WIN64)
         _endthreadex(0);
@@ -418,17 +422,17 @@ conv_col_worker(void *p)
     #endif
     }
 
-    for (int x = a.ini; x < a.fin; ++x) {
+    for (x = a.ini; x < a.fin; ++x) {
         /* copy column x to buffer */
-        for (int y = 0; y < a.ydim; ++y)
+        for (y = 0; y < a.ydim; ++y)
             tbuf[y] = a.out[x + y * a.xdim];
 
         /* vertical (y) convolution writing back to out */
-        for (int y = 0; y < a.ydim; ++y) {
+        for (y = 0; y < a.ydim; ++y) {
             double sum1 = 0.0;
             int fstart = ((y - a.yoff >= a.ydim) ? y - a.ydim - a.yoff + 1 : 0);
             int fend   = ((y - (a.yoff + a.fydim) < 0) ? y - a.yoff + 1 : a.fydim);
-            for (int k = fstart; k < fend; ++k)
+            for (k = fstart; k < fend; ++k)
                 sum1 += (double)tbuf[y - a.yoff - k] * a.filty[k];
             a.out[y * a.xdim + x] = (float)sum1;
         }
@@ -475,6 +479,7 @@ static void convxy_float(float *out, int xdim, int ydim,
     /* choose thread counts similarly to CAT_Sanlm.c style (cap at 8) */
     int Nthreads_row = (ydim < MAX_NTHREADS) ? ydim : MAX_NTHREADS;
     int Nthreads_col = (xdim < MAX_NTHREADS) ? xdim : MAX_NTHREADS;
+    int t;
     if (Nthreads_row < 1) Nthreads_row = 1;
     if (Nthreads_col < 1) Nthreads_col = 1;
 
@@ -515,7 +520,8 @@ static void convxy_float(float *out, int xdim, int ydim,
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE *RowThreads = (HANDLE*)malloc((size_t)Nthreads_row * sizeof(HANDLE));
     conv_args_row *RowArgs = (conv_args_row*)malloc((size_t)Nthreads_row * sizeof(conv_args_row));
-    for (int t = 0; t < Nthreads_row; ++t) {
+    
+    for (t = 0; t < Nthreads_row; ++t) {
         int ini = (t * ydim) / Nthreads_row;
         int fin = ((t + 1) * ydim) / Nthreads_row;
 
@@ -528,13 +534,13 @@ static void convxy_float(float *out, int xdim, int ydim,
 
         RowThreads[t] = (HANDLE)_beginthreadex(NULL, 0, &conv_row_worker, &RowArgs[t], 0, NULL);
     }
-    for (int t = 0; t < Nthreads_row; ++t)  WaitForSingleObject(RowThreads[t], INFINITE);
-    for (int t = 0; t < Nthreads_row; ++t)  CloseHandle(RowThreads[t]);
+    for (t = 0; t < Nthreads_row; ++t)  WaitForSingleObject(RowThreads[t], INFINITE);
+    for (t = 0; t < Nthreads_row; ++t)  CloseHandle(RowThreads[t]);
     free(RowThreads); free(RowArgs);
 #else
     pthread_t *RowThreads = (pthread_t*)calloc((size_t)Nthreads_row, sizeof(pthread_t));
     conv_args_row *RowArgs = (conv_args_row*)calloc((size_t)Nthreads_row, sizeof(conv_args_row));
-    for (int t = 0; t < Nthreads_row; ++t) {
+    for (t = 0; t < Nthreads_row; ++t) {
         int ini = (t * ydim) / Nthreads_row;
         int fin = ((t + 1) * ydim) / Nthreads_row;
 
@@ -547,7 +553,7 @@ static void convxy_float(float *out, int xdim, int ydim,
 
         pthread_create(&RowThreads[t], NULL, conv_row_worker, &RowArgs[t]);
     }
-    for (int t = 0; t < Nthreads_row; ++t) pthread_join(RowThreads[t], NULL);
+    for (t = 0; t < Nthreads_row; ++t) pthread_join(RowThreads[t], NULL);
     free(RowThreads); free(RowArgs);
 #endif
 
@@ -555,7 +561,9 @@ static void convxy_float(float *out, int xdim, int ydim,
 #if defined(_WIN32) || defined(_WIN64)
     HANDLE *ColThreads = (HANDLE*)malloc((size_t)Nthreads_col * sizeof(HANDLE));
     conv_args_col *ColArgs = (conv_args_col*)malloc((size_t)Nthreads_col * sizeof(conv_args_col));
-    for (int t = 0; t < Nthreads_col; ++t) {
+    int t;
+
+    for (t = 0; t < Nthreads_col; ++t) {
         int ini = (t * xdim) / Nthreads_col;
         int fin = ((t + 1) * xdim) / Nthreads_col;
 
@@ -568,13 +576,13 @@ static void convxy_float(float *out, int xdim, int ydim,
 
         ColThreads[t] = (HANDLE)_beginthreadex(NULL, 0, &conv_col_worker, &ColArgs[t], 0, NULL);
     }
-    for (int t = 0; t < Nthreads_col; ++t)  WaitForSingleObject(ColThreads[t], INFINITE);
-    for (int t = 0; t < Nthreads_col; ++t)  CloseHandle(ColThreads[t]);
+    for (t = 0; t < Nthreads_col; ++t)  WaitForSingleObject(ColThreads[t], INFINITE);
+    for (t = 0; t < Nthreads_col; ++t)  CloseHandle(ColThreads[t]);
     free(ColThreads); free(ColArgs);
 #else
     pthread_t *ColThreads = (pthread_t*)calloc((size_t)Nthreads_col, sizeof(pthread_t));
     conv_args_col *ColArgs = (conv_args_col*)calloc((size_t)Nthreads_col, sizeof(conv_args_col));
-    for (int t = 0; t < Nthreads_col; ++t) {
+    for (t = 0; t < Nthreads_col; ++t) {
         int ini = (t * xdim) / Nthreads_col;
         int fin = ((t + 1) * xdim) / Nthreads_col;
 
@@ -587,7 +595,7 @@ static void convxy_float(float *out, int xdim, int ydim,
 
         pthread_create(&ColThreads[t], NULL, conv_col_worker, &ColArgs[t]);
     }
-    for (int t = 0; t < Nthreads_col; ++t) pthread_join(ColThreads[t], NULL);
+    for (t = 0; t < Nthreads_col; ++t) pthread_join(ColThreads[t], NULL);
     free(ColThreads); free(ColArgs);
 #endif
 }
@@ -613,6 +621,8 @@ convxyz_stage1_worker(void *p)
 
     /* Per-thread temp buffer used by convxy_float in serial path */
     float *buff = (float*)malloc((size_t)((a.ydim > a.xdim) ? a.ydim : a.xdim) * sizeof(float));
+    int i, z;
+    
     if (!buff) {
     #if defined(_WIN32) || defined(_WIN64)
         _endthreadex(0);
@@ -622,12 +632,12 @@ convxyz_stage1_worker(void *p)
     #endif
     }
 
-    for (int z = a.z_ini; z < a.z_fin; ++z) {
+    for (z = a.z_ini; z < a.z_fin; ++z) {
         float *dst = a.convxy_vol + (size_t)z * xy;
         const float *src = a.iVol + (size_t)z * xy;
 
         /* copy slice z into dst; convxy_float works in-place on dst */
-        for (int i = 0; i < xy; ++i) dst[i] = src[i];
+        for (i = 0; i < xy; ++i) dst[i] = src[i];
 
         /* 2D convolution (may itself be multi-threaded as implemented) */
         convxy_float(dst, a.xdim, a.ydim,
@@ -657,8 +667,9 @@ convxyz_stage2_worker(void *p)
 {
     convxyz_s2_args_t a = *(convxyz_s2_args_t*)p;
     const int xy = a.xdim * a.ydim;
+    int k, idx, z_out;
 
-    for (int z_out = a.z_out_ini; z_out < a.z_out_fin; ++z_out) {
+    for (z_out = a.z_out_ini; z_out < a.z_out_fin; ++z_out) {
         /* Map to loop variable 'z' from original code:
            z = z_out + fzdim + zoff - 1  */
         const int z = z_out + a.fzdim + a.zoff - 1;
@@ -671,21 +682,21 @@ convxyz_stage2_worker(void *p)
 
         /* normaliser sum2 */
         double sum2 = 0.0;
-        for (int k = fstart; k < fend; ++k) sum2 += a.filtz[k];
+        for (k = fstart; k < fend; ++k) sum2 += a.filtz[k];
 
         float *obuf = a.oVol + (size_t)z_out * xy;
 
         if (sum2 != 0.0) {
-            for (int idx = 0; idx < xy; ++idx) {
+            for (idx = 0; idx < xy; ++idx) {
                 double sum1 = 0.0;
-                for (int k = fstart; k < fend; ++k) {
+                for (k = fstart; k < fend; ++k) {
                     const int z_src = z - k;   /* guaranteed 0..zdim-1 */
                     sum1 += a.filtz[k] * (double)a.convxy_vol[(size_t)z_src * xy + idx];
                 }
                 obuf[idx] = (float)(sum1 / sum2);
             }
         } else {
-            for (int idx = 0; idx < xy; ++idx) obuf[idx] = 0.0f;
+            for (idx = 0; idx < xy; ++idx) obuf[idx] = 0.0f;
         }
     }
 
@@ -734,6 +745,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
     const int ydim = dims[1];
     const int zdim = dims[2];
     const int xy   = xdim * ydim;
+    int i;
 
     if (xdim <= 0 || ydim <= 0 || zdim <= 0 || fxdim <= 0 || fydim <= 0 || fzdim <= 0)
         return 0;
@@ -757,7 +769,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             fprintf(stderr, "Memory allocation error (threads stage1)\n");
             exit(EXIT_FAILURE);
         }
-        for (int i = 0; i < Nthreads; ++i) {
+        for (i = 0; i < Nthreads; ++i) {
             int ini = (i * zdim) / Nthreads;
             int fin = ((i + 1) * zdim) / Nthreads;
 
@@ -771,8 +783,8 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 
             ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &convxyz_stage1_worker, &Args[i], 0, NULL);
         }
-        for (int i = 0; i < Nthreads; ++i) WaitForSingleObject(ThreadList[i], INFINITE);
-        for (int i = 0; i < Nthreads; ++i) CloseHandle(ThreadList[i]);
+        for (i = 0; i < Nthreads; ++i) WaitForSingleObject(ThreadList[i], INFINITE);
+        for (i = 0; i < Nthreads; ++i) CloseHandle(ThreadList[i]);
         free(ThreadList); free(Args);
     #else
         pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
@@ -781,7 +793,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             fprintf(stderr, "Memory allocation error (threads stage1)\n");
             exit(EXIT_FAILURE);
         }
-        for (int i = 0; i < Nthreads; ++i) {
+        for (i = 0; i < Nthreads; ++i) {
             int ini = (i * zdim) / Nthreads;
             int fin = ((i + 1) * zdim) / Nthreads;
 
@@ -795,7 +807,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 
             pthread_create(&ThreadList[i], NULL, convxyz_stage1_worker, &Args[i]);
         }
-        for (int i = 0; i < Nthreads; ++i) pthread_join(ThreadList[i], NULL);
+        for (i = 0; i < Nthreads; ++i) pthread_join(ThreadList[i], NULL);
         free(ThreadList); free(Args);
     #endif
     }
@@ -812,7 +824,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             fprintf(stderr, "Memory allocation error (threads stage2)\n");
             exit(EXIT_FAILURE);
         }
-        for (int i = 0; i < Nthreads; ++i) {
+        for (i = 0; i < Nthreads; ++i) {
             int ini = (i * zdim) / Nthreads;
             int fin = ((i + 1) * zdim) / Nthreads;
 
@@ -825,8 +837,8 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 
             ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &convxyz_stage2_worker, &Args[i], 0, NULL);
         }
-        for (int i = 0; i < Nthreads; ++i) WaitForSingleObject(ThreadList[i], INFINITE);
-        for (int i = 0; i < Nthreads; ++i) CloseHandle(ThreadList[i]);
+        for (i = 0; i < Nthreads; ++i) WaitForSingleObject(ThreadList[i], INFINITE);
+        for (i = 0; i < Nthreads; ++i) CloseHandle(ThreadList[i]);
         free(ThreadList); free(Args);
     #else
         pthread_t *ThreadList = (pthread_t*)calloc((size_t)Nthreads, sizeof(pthread_t));
@@ -835,7 +847,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             fprintf(stderr, "Memory allocation error (threads stage2)\n");
             exit(EXIT_FAILURE);
         }
-        for (int i = 0; i < Nthreads; ++i) {
+        for (i = 0; i < Nthreads; ++i) {
             int ini = (i * zdim) / Nthreads;
             int fin = ((i + 1) * zdim) / Nthreads;
 
@@ -848,7 +860,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 
             pthread_create(&ThreadList[i], NULL, convxyz_stage2_worker, &Args[i]);
         }
-        for (int i = 0; i < Nthreads; ++i) pthread_join(ThreadList[i], NULL);
+        for (i = 0; i < Nthreads; ++i) pthread_join(ThreadList[i], NULL);
         free(ThreadList); free(Args);
     #endif
     }
@@ -1569,6 +1581,8 @@ void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist,
 
     const int nvox = dims[0]*dims[1]*dims[2];
     float *buffer = (float*)malloc(sizeof(float) * nvox);
+    int i;
+    
     if (!buffer) {
         fprintf(stderr, "Memory allocation error in dist_erode_float\n");
         exit(EXIT_FAILURE);
@@ -1579,16 +1593,16 @@ void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist,
     const float thr = (float)(th * (double)max_vol);
 
     /* Invert mask to measure distance to background (background = 1, object = 0) */
-    for (int i = 0; i < nvox; ++i)
+    for (i = 0; i < nvox; ++i)
         buffer[i] = (vol[i] > thr) ? 0.0f : 1.0f;
 
     /* Distance to background, then keep voxels farther than dist from background */
     euclidean_distance(buffer, NULL, dims, voxelsize, 0);
-    for (int i = 0; i < nvox; ++i)
+    for (i = 0; i < nvox; ++i)
         buffer[i] = (buffer[i] > (float)dist) ? 1.0f : 0.0f;
 
     /* Write back binary result */
-    for (int i = 0; i < nvox; ++i)
+    for (i = 0; i < nvox; ++i)
         vol[i] = buffer[i];
 
     free(buffer);
@@ -1644,9 +1658,10 @@ void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist
 
     /* pad band to avoid border clipping during dilation */
     const int band = (int)floor(dist);
+    int d, i, x, y, z;
 
     int dims2[3];
-    for (int d = 0; d < 3; ++d) dims2[d] = dims[d] + 2*band;
+    for (d = 0; d < 3; ++d) dims2[d] = dims[d] + 2*band;
     const int nvox2 = dims2[0]*dims2[1]*dims2[2];
 
     float *buffer = (float*)malloc(sizeof(float) * nvox2);
@@ -1664,9 +1679,9 @@ void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist
     const float thr = (float)(th * (double)max_vol);
 
     /* Embed thresholded mask into padded buffer at offset 'band' */
-    for (int z = 0; z < nz; ++z)
-        for (int y = 0; y < ny; ++y)
-            for (int x = 0; x < nx; ++x) {
+    for (z = 0; z < nz; ++z)
+        for (y = 0; y < ny; ++y)
+            for (x = 0; x < nx; ++x) {
                 int dst = sub2ind(x + band, y + band, z + band, dims2);
                 int src = sub2ind(x, y, z, dims);
                 buffer[dst] = (vol[src] > thr) ? 1.0f : 0.0f;
@@ -1674,13 +1689,13 @@ void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist
 
     /* Distance to foreground, then keep voxels within dist of the original mask */
     euclidean_distance(buffer, NULL, dims2, voxelsize, 0);
-    for (int i = 0; i < nvox2; ++i)
+    for (i = 0; i < nvox2; ++i)
         buffer[i] = (buffer[i] <= (float)dist) ? 1.0f : 0.0f;
 
     /* Copy center region back to 'vol' */
-    for (int z = 0; z < nz; ++z)
-        for (int y = 0; y < ny; ++y)
-            for (int x = 0; x < nx; ++x) {
+    for (z = 0; z < nz; ++z)
+        for (y = 0; y < ny; ++y)
+            for (x = 0; x < nx; ++x) {
                 int src = sub2ind(x + band, y + band, z + band, dims2);
                 int dst = sub2ind(x, y, z, dims);
                 vol[dst] = buffer[src];
