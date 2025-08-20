@@ -8,7 +8,7 @@ config.*
 Makefile.in
 #compile
 #configure
-install-sh
+#install-sh
 ltmain.sh
 #missing
 stamp-h1
