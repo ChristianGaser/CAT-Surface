@@ -55,10 +55,11 @@ int polygons_to_tri_arrays(const polygons_struct *poly,
 
     const int npoints = poly->n_points;
     const int nfaces  = poly->n_items;
+    int i, k;
 
     /* Count triangles after fan-triangulating n-gons */
     int tri_count = 0, fan = 0;
-    for (int i = 0; i < nfaces; ++i) {
+    for (i = 0; i < nfaces; ++i) {
         int sz = GET_OBJECT_SIZE(*poly, i);
         if      (sz == 3) tri_count += 1;
         else if (sz >  3) { tri_count += (sz - 2); fan = 1; }
@@ -69,7 +70,7 @@ int polygons_to_tri_arrays(const polygons_struct *poly,
     /* Allocate and fill vertices */
     vec3d *v = (vec3d*)malloc(sizeof(vec3d) * npoints);
     if (!v) return -1;
-    for (int i = 0; i < npoints; ++i) {
+    for (i = 0; i < npoints; ++i) {
         v[i].x = Point_x(poly->points[i]);
         v[i].y = Point_y(poly->points[i]);
         v[i].z = Point_z(poly->points[i]);
@@ -80,13 +81,13 @@ int polygons_to_tri_arrays(const polygons_struct *poly,
     if (!f) { free(v); return -1; }
 
     int w = 0;
-    for (int i = 0; i < nfaces; ++i) {
+    for (i = 0; i < nfaces; ++i) {
         int sz = GET_OBJECT_SIZE(*poly, i);
         if (sz < 3) continue;
         int base = (i == 0) ? 0 : poly->end_indices[i-1]; /* EXCLUSIVE */
         int v0 = poly->indices[base + 0];
 
-        for (int k = 1; k < sz - 1; ++k) {
+        for (k = 1; k < sz - 1; ++k) {
             int v1 = poly->indices[base + k];
             int v2 = poly->indices[base + k + 1];
             f[w].x = v0; f[w].y = v1; f[w].z = v2;
@@ -117,13 +118,14 @@ int tri_arrays_to_polygons(polygons_struct *poly,
                                       int nv, int nf)
 {
     if (!poly || !V || !F || nv <= 0 || nf <= 0) return -1;
+    int i;
 
     /* Points */
     Point *pts = (Point*)realloc(poly->points, sizeof(Point) * nv);
     if (!pts) return -1;
     poly->points   = pts;
     poly->n_points = nv;
-    for (int i = 0; i < nv; ++i) fill_Point(poly->points[i], V[i].x, V[i].y, V[i].z);
+    for (i = 0; i < nv; ++i) fill_Point(poly->points[i], V[i].x, V[i].y, V[i].z);
 
     /* Indices / end_indices (triangles only) */
     int *idx = (int*)realloc(poly->indices, sizeof(int) * (nf * 3));
@@ -137,7 +139,7 @@ int tri_arrays_to_polygons(polygons_struct *poly,
     poly->end_indices = end;
     poly->n_items     = nf;
 
-    for (int i = 0; i < nf; ++i) {
+    for (i = 0; i < nf; ++i) {
         poly->indices[3*i+0] = F[i].x;
         poly->indices[3*i+1] = F[i].y;
         poly->indices[3*i+2] = F[i].z;
@@ -684,7 +686,7 @@ int
 output_gifti(char *fname, File_formats format, int n_objects,
              object_struct *object_list[], double *values)
 {
-    int j, k, r, c;
+    int j, k, r, c, v, ia;
     polygons_struct *polygons;
 
     /* ------------------------------------------------------------ */
@@ -794,7 +796,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
     }
 
     /* fill vertex data */
-    for (int v = 0; v < polygons->n_points; v++) {
+    for (v = 0; v < polygons->n_points; v++) {
         gifti_set_DA_value_2D(coords, v, 0, Point_x(polygons->points[v]));
         gifti_set_DA_value_2D(coords, v, 1, Point_y(polygons->points[v]));
         gifti_set_DA_value_2D(coords, v, 2, Point_z(polygons->points[v]));
@@ -997,7 +999,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
        Also: Datenzeiger optional freigeben und NULL setzen, dann NUR XML schreiben. */
     if (use_extbin) {
         /* optional, aber empfehlenswert: Speicher freigeben, um doppelte Writes zu verhindern */
-        for (int ia = 0; ia < image->numDA; ia++) {
+        for (ia = 0; ia < image->numDA; ia++) {
             if (image->darray[ia]->data) {
                 free(image->darray[ia]->data);
                 image->darray[ia]->data = NULL;

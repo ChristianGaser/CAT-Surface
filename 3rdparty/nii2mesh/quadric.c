@@ -51,11 +51,11 @@ static int collect_vertex_neighbours(int vid,
                                      struct TRef refs[],
                                      struct TVertex vertices[])
 {
-  int cnt = 0;
+  int r, k, j, cnt = 0;
   int tstart = vertices[vid].tstart;
   int tend   = tstart + vertices[vid].tcount;
 
-  for (int r = tstart; r < tend; ++r) {
+  for (r = tstart; r < tend; ++r) {
     struct TTriangle *t = &triangles[refs[r].tid];
     if (t->deleted) continue;
     int v0 = t->v[0], v1 = t->v[1], v2 = t->v[2];
@@ -64,11 +64,11 @@ static int collect_vertex_neighbours(int vid,
     /* push nbA then nbB, ensuring uniqueness with small linear scan
        (valences are small; no need for a big hash/set) */
     int nb[2] = { nbA, nbB };
-    for (int k=0;k<2;k++) {
+    for (k = 0; k < 2; k++) {
       int v = nb[k];
       if (v == vid) continue;
       int seen = 0;
-      for (int j=0;j<cnt;j++) { if (out[j] == v) { seen=1; break; } }
+      for (j = 0; j < cnt; j++) { if (out[j] == v) { seen=1; break; } }
       if (!seen) {
         if (cnt >= out_cap) return cnt; /* truncated */
         out[cnt++] = v;
@@ -85,11 +85,11 @@ static int edge_opposites(int u, int v, int opp[2],
                           struct TRef refs[],
                           struct TVertex vertices[])
 {
-  int found = 0;
+  int r, found = 0;
   int tstart = vertices[u].tstart;
   int tend   = tstart + vertices[u].tcount;
 
-  for (int r = tstart; r < tend; ++r) {
+  for (r = tstart; r < tend; ++r) {
     struct TTriangle *t = &triangles[refs[r].tid];
     if (t->deleted) continue;
     int a = t->v[0], b = t->v[1], c = t->v[2];
@@ -113,7 +113,7 @@ static bool collapse_preserves_topology(int u, int v,
     return false;
 
   /* Opposite vertices of triangles incident to edge (u,v). */
-  int opp[2] = { -1, -1 };
+  int i, j, k, opp[2] = { -1, -1 };
   int nopp = edge_opposites(u, v, opp, triangles, refs, vertices);
   if (nopp != 2) return false; /* need exactly 2 incident triangles for interior edge */
 
@@ -128,10 +128,10 @@ static bool collapse_preserves_topology(int u, int v,
 
   /* Compute intersection size and members. */
   int inter[8]; int ni = 0; /* intersection is tiny in a manifold */
-  for (int i=0;i<nu;i++) {
+  for (i = 0; i < nu; i++) {
     int a = Nu[i];
     if (a==u || a==v) continue;
-    for (int j=0;j<nv;j++) {
+    for (j = 0; j < nv; j++) {
       if (a == Nv[j]) {
         if (ni < 8) inter[ni++] = a;
         break;
@@ -142,14 +142,15 @@ static bool collapse_preserves_topology(int u, int v,
 
   /* The intersection must match exactly the two opposites of this edge. */
   int hits = 0;
-  for (int k=0;k<ni;k++) {
+  for (k = 0; k < ni; k++) {
     if (inter[k] == opp[0] || inter[k] == opp[1]) hits++;
   }
   return (hits == 2);
 }
 
 static void symMat1(TSymetricMatrix ret, double c){
-  for (int i = 0; i < 10; i++)
+  int i;
+  for (i = 0; i < 10; i++)
     ret[i] = c;
 } // symMat()
 
@@ -242,10 +243,11 @@ static double calculate_error(int id_v1, int id_v2, vec3d *p_result, struct TVer
   return error;
 }
 
-#define loopi(start_l,end_l) for ( int i=start_l;i<end_l;++i )
-#define loopi(start_l,end_l) for ( int i=start_l;i<end_l;++i )
-#define loopj(start_l,end_l) for ( int j=start_l;j<end_l;++j )
-#define loopk(start_l,end_l) for ( int k=start_l;k<end_l;++k )
+int i, j, k;
+#define loopi(start_l,end_l) for (i=start_l;i<end_l;++i )
+#define loopi(start_l,end_l) for (i=start_l;i<end_l;++i )
+#define loopj(start_l,end_l) for (j=start_l;j<end_l;++j )
+#define loopk(start_l,end_l) for (k=start_l;k<end_l;++k )
 
 #ifndef MAX
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -254,7 +256,7 @@ static double calculate_error(int id_v1, int id_v2, vec3d *p_result, struct TVer
 static void update_mesh(int iteration, struct TTriangle triangles[], struct TVertex vertices[], struct TRef refs[], int *nrefs, int* nTri, int* nVert) {
   if (iteration>0) { // compact triangles
     int dst = 0;
-    for (int i = 0; i < *nTri; i++) {
+    for (i = 0; i < *nTri; i++) {
       if(!triangles[i].deleted) {
         triangles[dst] = triangles[i];
         dst = dst + 1;
@@ -514,6 +516,7 @@ void laplacian_smoothHC(vec3d *verts, vec3i *tris, int nvert, int ntri, double a
 void quadric_simplify_mesh(vec3d **vs, vec3i **ts, int* nvert, int *ntri, int target_count, double agressiveness, bool verbose, bool finishLossless) {
   // init: load vertices
   vec3d *verts = *vs;
+  int iteration;
   struct TVertex* vertices = (struct TVertex*) malloc(*nvert * sizeof(struct TVertex));
   loopi(0,*nvert)
     vertices[i].p = verts[i];
@@ -546,7 +549,7 @@ void quadric_simplify_mesh(vec3d **vs, vec3i **ts, int* nvert, int *ntri, int ta
     max_iter = 1000;
   }
   int iterationStartCount = 0;
-  for (int iteration = 0; iteration < max_iter; iteration ++) {
+  for (iteration = 0; iteration < max_iter; iteration ++) {
     if ((lossy) && ((triangle_count-deleted_triangles)<=target_count)) {
       if (!finishLossless) break;
       lossy = false;
