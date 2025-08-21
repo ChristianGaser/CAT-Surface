@@ -751,7 +751,6 @@ AC_CONFIG_FILES([
    genfft/Makefile
    kernel/Makefile
    simd-support/Makefile
-
    dft/Makefile
    dft/scalar/Makefile
    dft/scalar/codelets/Makefile
@@ -769,7 +768,6 @@ AC_CONFIG_FILES([
    dft/simd/neon/Makefile
    dft/simd/generic-simd128/Makefile
    dft/simd/generic-simd256/Makefile
-
    rdft/Makefile
    rdft/scalar/Makefile
    rdft/scalar/r2cf/Makefile
@@ -789,26 +787,18 @@ AC_CONFIG_FILES([
    rdft/simd/neon/Makefile
    rdft/simd/generic-simd128/Makefile
    rdft/simd/generic-simd256/Makefile
-
    reodft/Makefile
-
    threads/Makefile
-
    api/Makefile
-
    mpi/Makefile
-
    libbench2/Makefile
    tests/Makefile
    doc/Makefile
    doc/FAQ/Makefile
-
    tools/Makefile
    tools/fftw_wisdom.1
    tools/fftw-wisdom-to-conf
-
    m4/Makefile
-
    fftw.pc
 ])
 
