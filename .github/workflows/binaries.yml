@@ -9,18 +9,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          #- os: macos-14
-          #  arch: arm64
-          #  artifact: cat-surface-macos-arm64
-          #- os: macos-13
-          #  arch: x64
-          #  artifact: cat-surface-macos-x86
-          #- os: ubuntu-latest
-          #  arch: x64
-          #  artifact: cat-surface-ubuntu-x86_64
-          #- os: ubuntu-latest
-          #  arch: arm64
-          #  artifact: cat-surface-ubuntu-arm64
+          - os: macos-14
+            arch: arm64
+            artifact: cat-surface-macos-arm64
+          - os: macos-13
+            arch: x64
+            artifact: cat-surface-macos-x86
+          - os: ubuntu-latest
+            arch: x64
+            artifact: cat-surface-ubuntu-x86_64
+          - os: ubuntu-latest
+            arch: arm64
+            artifact: cat-surface-ubuntu-arm64
           - os: windows-latest
             arch: x64
             artifact: cat-surface-windows-x86
@@ -33,7 +33,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
-          install: autoconf automake libtool autoconf-archive make pkgconf gcc zip
+          install: autoconf automake libtool autoconf-archive make pkgconf gcc mingw-w64-x86_64-expat zip
 
       - name: Install dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
