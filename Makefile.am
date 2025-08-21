@@ -1,4 +1,5 @@
-SUBDIRS = 3rdparty/fftw-3.3.10 . Progs tests
+#SUBDIRS = 3rdparty/fftw-3.3.10 . Progs tests
+SUBDIRS = . Progs tests
 
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4

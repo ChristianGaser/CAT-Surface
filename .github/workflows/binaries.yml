@@ -33,17 +33,17 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
-          install: autoconf automake libtool autoconf-archive make pkgconf gcc mingw-w64-x86_64-expat zip
+          install: autoconf automake libtool autoconf-archive make pkgconf gcc mingw-w64-x86_64-expat mingw-w64-i686-fftw zip
 
       - name: Install dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config zip
+          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config libfftw3-dev zip
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: brew reinstall autoconf automake libtool autoconf-archive
+        run: brew reinstall autoconf automake libtool autoconf-archive fftw
 
       - name: Configure
         if: matrix.os != 'windows-latest'

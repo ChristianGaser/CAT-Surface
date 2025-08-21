@@ -46,7 +46,8 @@ AM_CONDITIONAL([LINUX], [test "$build_linux" = "yes"])
 AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
 AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
 
-AC_CONFIG_SUBDIRS([3rdparty/fftw-3.3.10])
+#AC_CONFIG_SUBDIRS([3rdparty/fftw-3.3.10])
+AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
 
 AC_CHECK_HEADERS(values.h malloc.h)
 
