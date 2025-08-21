@@ -6,18 +6,20 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Install dependencies
+        run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool build-essential pkg-config libfftw3-dev
+          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config libfftw3-dev zip
       - name: Configure
-        run: autoreconf -i && ./configure
-      - name: Prepare build
-        run: ./autogen.sh
+        run: |
+          autoupdate
+          autoreconf -fi
+          ./configure --enable-static --disable-shared --disable-doc
       - name: Build
-        run: make
+        run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
       - name: Test
         run: make check
       - name: Run simple tests
