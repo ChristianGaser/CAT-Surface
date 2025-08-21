@@ -124,9 +124,9 @@ bic_SRC = \
     3rdparty/volume_io/Prog_utils/string.c  \
     3rdparty/volume_io/Prog_utils/time.c  \
     3rdparty/bicpl-surface/ParseArgv.c  \
+    3rdparty/bicpl-surface/Data_structures/build_bintree.c  \
     3rdparty/bicpl-surface/Data_structures/bintree.c  \
     3rdparty/bicpl-surface/Data_structures/bitlist.c  \
-    3rdparty/bicpl-surface/Data_structures/build_bintree.c  \
     3rdparty/bicpl-surface/Data_structures/hash2_table.c  \
     3rdparty/bicpl-surface/Data_structures/hash_table.c  \
     3rdparty/bicpl-surface/Data_structures/object_bintrees.c  \
@@ -331,6 +331,15 @@ noinst_HEADERS = \
     3rdparty/s2kit10/seminaive.h
 
 libCAT_la_SOURCES = \
+    3rdparty/genus0/genus0.c \
+    $(bic_SRC) \
+    $(expat_SRC) \
+    $(zlib_SRC) \
+    $(nifti_SRC) \
+    $(gifti_SRC) \
+    $(dartel_SRC) \
+    $(nii2mesh_SRC) \
+    $(s2kit10_SRC) \
     Lib/CAT_Math.c \
     Lib/CAT_Surf.c \
     Lib/CAT_Warp.c \
@@ -361,14 +370,5 @@ libCAT_la_SOURCES = \
     Lib/CAT_Ornlm.c \
     Lib/CAT_Deform.c \
     Lib//CAT_MarchingCubes.c \
-    Lib/CAT_SPH.c \
-    3rdparty/genus0/genus0.c \
-    $(expat_SRC) \
-    $(zlib_SRC) \
-    $(nifti_SRC) \
-    $(gifti_SRC) \
-    $(dartel_SRC) \
-    $(nii2mesh_SRC) \
-    $(bic_SRC) \
-    $(s2kit10_SRC)
+    Lib/CAT_SPH.c
 
