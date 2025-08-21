@@ -11,7 +11,7 @@ AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel 
 AM_CPPFLAGS = ${AM_CFLAGS}
 
 # Linker flags
-LDADD = ../libCAT.la -lm
+LDADD = ../libCAT.la -lm -lfftw3 -pthread
 
 # Distribute scripts
 dist_bin_SCRIPTS = \

@@ -25,7 +25,7 @@ endif
 AM_CPPFLAGS=${AM_CFLAGS}
 AM_CXXFLAGS=${AM_CFLAGS} 
 
-lib_LTLIBRARIES = libCAT.la
+lib_LTLIBRARIES = libCAT.la -lfftw3
 
 EXTRA_DIST = \
     configure.ac \
