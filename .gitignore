@@ -15,7 +15,7 @@ stamp-h1
 depcomp
 libtool
 Makefile
-build*
+build-*
 log*
 INSTALL
 configure~
