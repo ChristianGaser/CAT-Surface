@@ -15,10 +15,10 @@ jobs:
           - os: macos-13
             arch: x64
             artifact: cat-surface-macos-x86
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             arch: x64
             artifact: cat-surface-ubuntu-x86_64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             arch: arm64
             artifact: cat-surface-ubuntu-arm64
           - os: windows-latest
@@ -36,7 +36,7 @@ jobs:
           install: autoconf automake libtool autoconf-archive make pkgconf gcc mingw-w64-x86_64-expat zip
 
       - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config zip
