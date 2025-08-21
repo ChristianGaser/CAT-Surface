@@ -1,4 +1,3 @@
-#SUBDIRS = 3rdparty/fftw-3.3.10 . Progs tests
 SUBDIRS = . Progs tests
 
 AUTOMAKE_OPTIONS = subdir-objects
@@ -11,12 +10,6 @@ CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
-    -I$(top_srcdir)/3rdparty/fftw-3.3.10/kernel \
-    -I$(top_srcdir)/3rdparty/fftw-3.3.10/dft \
-    -I$(top_srcdir)/3rdparty/fftw-3.3.10/rdft \
-    -I$(top_srcdir)/3rdparty/fftw-3.3.10/reodft \
-    -I$(top_srcdir)/3rdparty/fftw-3.3.10/api \
-    -I$(top_srcdir)/3rdparty/fftw-3.3.10/simd-support \
     -I$(top_srcdir)/3rdparty/nii2mesh
 
 if EMSCRIPTEN
