@@ -50,6 +50,8 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
+          export CPPFLAGS="-I/opt/homebrew/include"
+          export LDFLAGS="-L/opt/homebrew/lib"
           ./configure --enable-static --disable-shared --disable-doc
       - name: Configure (Windows)
         if: matrix.os == 'windows-latest'
