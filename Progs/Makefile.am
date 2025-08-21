@@ -17,7 +17,8 @@ AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel 
 AM_CPPFLAGS = ${AM_CFLAGS}
 
 # Linker flags
-LDADD = ../libCAT.la $(top_builddir)/3rdparty/fftw-3.3.10/.libs/libfftw3.a -lm
+#LDADD = ../libCAT.la $(top_builddir)/3rdparty/fftw-3.3.10/.libs/libfftw3.a -lm
+LDADD = ../libCAT.la -lm
 
 # Distribute scripts
 dist_bin_SCRIPTS = \
