@@ -33,7 +33,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
-          install: autoconf automake libtool autoconf-archive make pkgconf zip
+          install: autoconf automake libtool autoconf-archive make pkgconf gcc zip
 
       - name: Install dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -48,13 +48,13 @@ jobs:
       - name: Configure
         if: matrix.os != 'windows-latest'
         run: |
-          sh autogen.sh
+          autoreconf -fi
           ./configure --enable-static --disable-shared
       - name: Configure (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
-          ./autogen.sh
+          autoreconf -fi
           ./configure --enable-static --disable-shared
 
       - name: Build
