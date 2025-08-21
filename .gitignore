@@ -6,11 +6,13 @@ autom4te.cache
 aclocal.m4
 config.*
 Makefile.in
-#compile
-#configure
-#install-sh
+compile
+configure
+configure~
+install-sh
 ltmain.sh
-#missing
+missing
+test-driver
 stamp-h1
 depcomp
 libtool
@@ -18,7 +20,6 @@ Makefile
 build-*
 log*
 INSTALL
-configure~
 Progs/CAT_[A-Za-z0-9_]*
 !Progs/CAT_*.c*
 tests/test_math.out
