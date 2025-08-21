@@ -1,7 +1,7 @@
 .deps
 .dirstamp
 .libs
-m4
+#m4
 autom4te.cache
 aclocal.m4
 config.*
