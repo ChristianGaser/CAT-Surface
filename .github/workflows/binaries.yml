@@ -59,6 +59,8 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
+          export CPPFLAGS="-I/mingw64/include"
+          export LDFLAGS="-L/mingw64/lib"
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Build
