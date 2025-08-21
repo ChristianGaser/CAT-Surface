@@ -48,12 +48,14 @@ jobs:
       - name: Configure
         if: matrix.os != 'windows-latest'
         run: |
+          autoupdate
           autoreconf -fi
           ./configure --enable-static --disable-shared
       - name: Configure (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
         run: |
+          autoupdate
           autoreconf -fi
           ./configure --enable-static --disable-shared
 
