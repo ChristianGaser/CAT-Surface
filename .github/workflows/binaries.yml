@@ -35,24 +35,39 @@ jobs:
           msystem: MINGW32
           install: autoconf automake libtool autoconf-archive make pkgconf gcc mingw-w64-x86_64-expat mingw-w64-x86_64-fftw zip
 
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-22.04'
+      - name: Install dependencies (Ubuntu x86_64)
+        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'x64'
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config libfftw3-dev zip
+
+      - name: Install dependencies (Ubuntu ARM64 cross-compile)
+        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool autoconf-archive pkg-config libfftw3-dev zip gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
         run: brew install autoconf automake libtool autoconf-archive fftw
 
-      - name: Configure
-        if: matrix.os != 'windows-latest'
+
+      - name: Configure (non-Windows, x86_64)
+        if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
         run: |
           autoupdate
           autoreconf -fi
           export CPPFLAGS="-I/opt/homebrew/include"
           export LDFLAGS="-L/opt/homebrew/lib"
           ./configure --enable-static --disable-shared --disable-doc
+
+      - name: Configure (Ubuntu ARM64 cross-compile)
+        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
+        run: |
+          autoupdate
+          autoreconf -fi
+          ./configure --host=aarch64-linux-gnu CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
+
       - name: Configure (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
@@ -66,6 +81,7 @@ jobs:
       - name: Build
         if: matrix.os != 'windows-latest'
         run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+        
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
@@ -74,6 +90,7 @@ jobs:
       - name: Package binaries
         if: matrix.os != 'windows-latest'
         run: zip -r ${{ matrix.artifact }}.zip Progs
+        
       - name: Package binaries (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
