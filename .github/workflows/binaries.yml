@@ -59,18 +59,20 @@ jobs:
       - name: Build inside ARM64 container
         if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
         run: |
-          docker run --rm -v $PWD:/src -w /src arm64v8/ubuntu:22.04 bash -c "
-            apt-get update &&
-            DEBIAN_FRONTEND=noninteractive apt-get install -y \
-              autoconf automake libtool autoconf-archive build-essential \
-              pkg-config libfftw3-dev zip wget &&
-            autoupdate &&
-            autoreconf -fi &&
-            ./configure --enable-static --disable-shared --disable-doc &&
-            make -j\$(nproc) &&
-            zip -r cat-surface-ubuntu-arm64.zip Progs
-          "
-
+          docker run --rm --platform linux/arm64 \
+            -v $PWD:/src -w /src arm64v8/ubuntu:22.04 bash -c "
+              apt-get update &&
+              DEBIAN_FRONTEND=noninteractive apt-get install -y \
+                autoconf automake libtool autoconf-archive build-essential \
+                pkg-config libfftw3-dev zip wget &&
+              autoupdate &&
+              autoreconf -fi &&
+              ./configure --enable-static --disable-shared --disable-doc &&
+              make -j\$(nproc) &&
+              zip -r cat-surface-ubuntu-arm64.zip Progs &&
+              file Progs/* || true
+            "
+            
       # ---------------- macOS ----------------
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
