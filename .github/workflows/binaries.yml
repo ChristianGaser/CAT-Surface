@@ -44,8 +44,12 @@ jobs:
       - name: Install dependencies (Ubuntu ARM64 cross-compile)
         if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool autoconf-archive pkg-config libfftw3-dev:arm64 zip gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get install -y \
+            autoconf automake libtool autoconf-archive pkg-config zip \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libfftw3-dev:arm64
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
