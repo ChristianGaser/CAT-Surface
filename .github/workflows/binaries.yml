@@ -49,26 +49,27 @@ jobs:
             autoconf automake libtool autoconf-archive build-essential \
             pkg-config libfftw3-dev zip
 
-      # ---------------- Ubuntu ARM64 (cross-compile) ----------------
-      - name: Install dependencies (Ubuntu ARM64 cross-compile)
+      # ---------------- Ubuntu ARM64 (native under QEMU) ----------------
+      - uses: docker/setup-qemu-action@v3
         if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            autoconf automake libtool autoconf-archive pkg-config zip \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu wget make
 
-      - name: Build fftw3 for ARM64
+      - uses: docker/setup-buildx-action@v3
+        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
+
+      - name: Build inside ARM64 container
         if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
         run: |
-          wget http://www.fftw.org/fftw-3.3.10.tar.gz
-          tar xzf fftw-3.3.10.tar.gz
-          cd fftw-3.3.10
-          ./configure --host=aarch64-linux-gnu CC=aarch64-linux-gnu-gcc \
-              --enable-shared --disable-static \
-              --prefix=$HOME/fftw-arm64
-          make -j$(nproc)
-          make install
+          docker run --rm -v $PWD:/src -w /src arm64v8/ubuntu:22.04 bash -c "
+            apt-get update &&
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+              autoconf automake libtool autoconf-archive build-essential \
+              pkg-config libfftw3-dev zip wget &&
+            autoupdate &&
+            autoreconf -fi &&
+            ./configure --enable-static --disable-shared --disable-doc &&
+            make -j\$(nproc) &&
+            zip -r cat-surface-ubuntu-arm64.zip Progs
+          "
 
       # ---------------- macOS ----------------
       - name: Install dependencies (macOS)
@@ -77,22 +78,13 @@ jobs:
 
       # ---------------- Configure ----------------
       - name: Configure (non-Windows, x86_64)
-        if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
+        if: matrix.os != 'windows-latest' && !(matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64')
         run: |
           autoupdate
           autoreconf -fi
           export CPPFLAGS="-I/opt/homebrew/include"
           export LDFLAGS="-L/opt/homebrew/lib"
           ./configure --enable-static --disable-shared --disable-doc
-
-      - name: Configure (Ubuntu ARM64 cross-compile)
-        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
-        run: |
-          autoupdate
-          autoreconf -fi
-          CPPFLAGS="-I$HOME/fftw-arm64/include" \
-          LDFLAGS="-L$HOME/fftw-arm64/lib" \
-          ./configure --host=aarch64-linux-gnu CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
 
       - name: Configure (Windows)
         if: matrix.os == 'windows-latest'
@@ -106,7 +98,7 @@ jobs:
 
       # ---------------- Build ----------------
       - name: Build
-        if: matrix.os != 'windows-latest'
+        if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
         run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
 
       - name: Build (Windows)
@@ -116,7 +108,7 @@ jobs:
 
       # ---------------- Package ----------------
       - name: Package binaries
-        if: matrix.os != 'windows-latest'
+        if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
         run: zip -r ${{ matrix.artifact }}.zip Progs
 
       - name: Package binaries (Windows)
@@ -125,7 +117,15 @@ jobs:
         run: zip -r ${{ matrix.artifact }}.zip Progs
 
       - name: Upload artifact
+        if: matrix.arch != 'arm64' || matrix.os != 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.zip
+
+      - name: Upload ARM64 artifact
+        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cat-surface-ubuntu-arm64
+          path: cat-surface-ubuntu-arm64.zip
