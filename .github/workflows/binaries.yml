@@ -45,15 +45,23 @@ jobs:
         if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool autoconf-archive pkg-config libfftw3-dev zip gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get install -y autoconf automake libtool autoconf-archive pkg-config libfftw3-dev:arm64 zip gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
         run: brew install autoconf automake libtool autoconf-archive fftw
 
-
       - name: Configure (non-Windows, x86_64)
         if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
+        run: |
+          autoupdate
+          autoreconf -fi
+          export CPPFLAGS="-I/opt/homebrew/include"
+          export LDFLAGS="-L/opt/homebrew/lib"
+          ./configure --enable-static --disable-shared --disable-doc
+
+      - name: Configure (non-Windows, x86_64)
+        if: matrix.os == 'macos-14' && matrix.arch == 'arm64'
         run: |
           autoupdate
           autoreconf -fi
