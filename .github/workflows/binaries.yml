@@ -18,7 +18,7 @@ jobs:
           - os: ubuntu-22.04
             arch: x64
             artifact: cat-surface-ubuntu-x86_64
-          - os: ubuntu-22.04
+          - os: ubuntu-22.04-arm
             arch: arm64
             artifact: cat-surface-ubuntu-arm64
           - os: windows-latest
@@ -40,38 +40,14 @@ jobs:
             autoconf automake libtool autoconf-archive make pkgconf gcc
             mingw-w64-x86_64-expat mingw-w64-x86_64-fftw zip
 
-      # ---------------- Ubuntu x86_64 ----------------
-      - name: Install dependencies (Ubuntu x86_64)
-        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'x64'
+      # ---------------- Ubuntu ----------------
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu-22.04')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             autoconf automake libtool autoconf-archive build-essential \
             pkg-config libfftw3-dev zip
-
-      # ---------------- Ubuntu ARM64 (native under QEMU) ----------------
-      - uses: docker/setup-qemu-action@v3
-        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
-
-      - uses: docker/setup-buildx-action@v3
-        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
-
-      - name: Build inside ARM64 container
-        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
-        run: |
-          docker run --rm --platform linux/arm64 \
-            -v $PWD:/src -w /src arm64v8/ubuntu:22.04 bash -c "
-              apt-get update &&
-              DEBIAN_FRONTEND=noninteractive apt-get install -y \
-                autoconf automake libtool autoconf-archive build-essential \
-                pkg-config libfftw3-dev zip wget &&
-              autoupdate &&
-              autoreconf -fi &&
-              ./configure --enable-static --disable-shared --disable-doc &&
-              make -j\$(nproc) &&
-              zip -r cat-surface-ubuntu-arm64.zip Progs &&
-              file Progs/* || true
-            "
             
       # ---------------- macOS ----------------
       - name: Install dependencies (macOS)
@@ -79,8 +55,8 @@ jobs:
         run: brew install autoconf automake libtool autoconf-archive fftw
 
       # ---------------- Configure ----------------
-      - name: Configure (non-Windows, x86_64)
-        if: matrix.os != 'windows-latest' && !(matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64')
+      - name: Configure (non-Windows)
+        if: matrix.os != 'windows-latest'
         run: |
           autoupdate
           autoreconf -fi
@@ -100,7 +76,7 @@ jobs:
 
       # ---------------- Build ----------------
       - name: Build
-        if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
+        if: matrix.os != 'windows-latest'
         run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
 
       - name: Build (Windows)
@@ -110,7 +86,7 @@ jobs:
 
       # ---------------- Package ----------------
       - name: Package binaries
-        if: matrix.os != 'windows-latest' && matrix.arch != 'arm64'
+        if: matrix.os != 'windows-latest'
         run: zip -r ${{ matrix.artifact }}.zip Progs
 
       - name: Package binaries (Windows)
@@ -119,15 +95,7 @@ jobs:
         run: zip -r ${{ matrix.artifact }}.zip Progs
 
       - name: Upload artifact
-        if: matrix.arch != 'arm64' || matrix.os != 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.zip
-
-      - name: Upload ARM64 artifact
-        if: matrix.os == 'ubuntu-22.04' && matrix.arch == 'arm64'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cat-surface-ubuntu-arm64
-          path: cat-surface-ubuntu-arm64.zip
