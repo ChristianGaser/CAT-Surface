@@ -179,7 +179,6 @@ int main(int argc, char *argv[])
     float mean_vx_size = (voxelsize[0]+voxelsize[1]+voxelsize[2])/3.0;
 
     unsigned char *mask = (unsigned char *)malloc(sizeof(unsigned char)*nvox);
-    signed char *index_min = (signed char *)malloc(sizeof(signed char)*nvox);
     float *input = (float *)malloc(sizeof(float)*nvox);
     float *dist_CSF = (float *)malloc(sizeof(float)*nvox);
     float *dist_WM = (float *)malloc(sizeof(float)*nvox);
@@ -444,7 +443,7 @@ int main(int argc, char *argv[])
         out_ptr_reduced->sto_ijk = nifti_mat44_inverse(out_ptr_reduced->sto_xyz);
     
         smooth3(GMT, dims, voxelsize, s, 0, DT_FLOAT32);
-        //smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
+        smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
 
         /* Save GMT and PPM image */
         slope = 1.0;
@@ -482,7 +481,6 @@ int main(int argc, char *argv[])
         for (i = 0; i < nvox; i++) {
             GMT1[i] *= mean_vx_size;
             GMT2[i] *= mean_vx_size;
-            GMT2[i] = index_min[i] + 1;
         }
         if (!write_nifti_float(out_GMT1, GMT1, DT_FLOAT32, slope, dims, voxelsize, out_ptr)) 
             exit(EXIT_FAILURE);
@@ -491,7 +489,6 @@ int main(int argc, char *argv[])
     }
             
     free(mask);
-    free(index_min);
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
