@@ -349,15 +349,14 @@ void localstat_surface_double(polygons_struct *polygons,
     }
     if (iters < 1) iters = 1;
 
-    const int npts = polygons->n_points;
-
-    /* Build fixed 1-ring adjacency once (walks all polygons->n_items / poly_size). */
+    /* Use neighbours to calculate local statistics */
     int *n_neighbours = NULL;
     int **neighbours  = NULL;
-    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours); /* :contentReference[oaicite:1]{index=1} */
+    int i, it, v;
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-    double *buffer = (double *) malloc(sizeof(double) * npts);
-    double *arr    = (double *) malloc(sizeof(double) * (npts > 0 ? npts : 1));
+    double *buffer = (double *) malloc(sizeof(double) * polygons->n_points);
+    double *arr    = (double *) malloc(sizeof(double) * polygons->n_points);
     if (!buffer || !arr) {
         fprintf(stderr, "Memory allocation error.\n");
         if (buffer) free(buffer);
@@ -366,10 +365,10 @@ void localstat_surface_double(polygons_struct *polygons,
         if (neighbours)   { if (neighbours[0]) free(neighbours[0]); free(neighbours); }
         return;
     }
-    for (int i = 0; i < npts; ++i) buffer[i] = input[i];
+    for (i = 0; i < polygons->n_points; ++i) buffer[i] = input[i];
 
-    for (int it = 0; it < iters; ++it) {
-        for (int v = 0; v < npts; ++v) {
+    for (it = 0; it < iters; ++it) {
+        for (v = 0; v < polygons->n_points; ++v) {
             /* Skip masked/invalid centers exactly like the volume code. */
             if ((mask && mask[v] == 0) || isnan(input[v]) || !isfinite(input[v])) {
                 buffer[v] = input[v];
@@ -383,10 +382,10 @@ void localstat_surface_double(polygons_struct *polygons,
                 if (isfinite(input[v]) && !isnan(input[v])) arr[n++] = input[v];
             }
 
-            /* Add 1-ring neighbours from the precomputed lists. */
+            /* Add neighbours from the precomputed lists. */
             const int nn = n_neighbours[v];
             int *nb = neighbours[v];
-            for (int i = 0; i < nn; ++i) {
+            for (i = 0; i < nn; ++i) {
                 const int u = nb[i];
                 if (mask && mask[u] == 0) continue;
                 if (!isfinite(input[u]) || isnan(input[u])) continue;
@@ -408,7 +407,7 @@ void localstat_surface_double(polygons_struct *polygons,
             }
         }
         /* write back this iteration */
-        for (int i = 0; i < npts; ++i) input[i] = buffer[i];
+        for (i = 0; i < polygons->n_points; ++i) input[i] = buffer[i];
     }
 
     /* Cleanup (get_all_polygon_point_neighbours allocates a single flat block for neighbours[0]). */
