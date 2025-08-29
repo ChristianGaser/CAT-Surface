@@ -28,22 +28,6 @@
 
 #define MAX_NC 6
 
-enum
-{
-    F_MEAN,
-    F_MIN,
-    F_MAX,
-    F_STD,
-    F_SUM,
-    F_MAXABS,
-    F_EXP,
-    F_MEDIAN,
-    F_RANGE,
-    F_COUNT,
-    F_WAVERAGE,
-    F_MULTI
-};
-
 /* --------------------------- Thread args --------------------------- */
 typedef struct {
     float *out;

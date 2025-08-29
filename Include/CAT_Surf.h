@@ -13,6 +13,7 @@
 #include <float.h>
 #include "bicpl.h"
 #include "CAT_Vol.h"
+#include "CAT_Math.h"
 #include "CAT_Map.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
@@ -48,6 +49,11 @@ double * get_surface_ratio(double, polygons_struct *, int);
 double get_area_of_points(polygons_struct *, double *);
 double get_area_of_polygons(polygons_struct *, double *);
 void get_radius_of_points(polygons_struct *, double *);
+void localstat_surface_double(polygons_struct *polygons,
+                              double *input,
+                              unsigned char *mask,
+                              int stat_func,
+                              int iters);
 void translate_to_center_of_mass(polygons_struct *);
 void correct_bounds_to_target(polygons_struct *, polygons_struct *);
 void correct_bounds_to_target_with_scaling(polygons_struct *, polygons_struct *);

@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
     euclidean_distance(GMT1, NULL, dims, NULL, 1);
     euclidean_distance(GMT2, NULL, dims, NULL, 1);
     
-    /* Aplly iterative median filter with 4 iterations on a 2mm resampled image */
+    /* Apply iterative median filter with 4 iterations on a 2mm resampled image */
     median_subsample3(GMT1, dims, voxelsize, 4, 2.0, DT_FLOAT32);
     median_subsample3(GMT2, dims, voxelsize, 4, 2.0, DT_FLOAT32);
 

@@ -322,6 +322,101 @@ get_area_of_polygons(polygons_struct *polygons, double *area_values)
     return(surface_area);
 }
 
+/**
+ * localstat_surface_double — Per-vertex local statistics on a surface (fixed 1-ring).
+ *
+ * Computes mean/median/std/min/max over each vertex’s immediate neighbours
+ * (plus the center vertex) as defined by get_all_polygon_point_neighbours().
+ * Optional mask (0 = skip) and multi-iteration behaviour matches localstat_double.
+ *
+ * Parameters
+ * ----------
+ *  polygons : mesh (BICPL polygons_struct)
+ *  input    : in/out, length = polygons->n_points (per-vertex doubles)
+ *  mask     : optional uchar mask, length = n_points (can be NULL)
+ *  stat_func: F_MEAN, F_MEDIAN, F_STD, F_MIN, F_MAX
+ *  iters    : number of iterations (>=1)
+ */
+void localstat_surface_double(polygons_struct *polygons,
+                              double *input,
+                              unsigned char *mask,
+                              int stat_func,
+                              int iters)
+{
+    if (!polygons || polygons->n_points <= 0) {
+        fprintf(stderr, "localstat_surface_double: invalid polygons.\n");
+        return;
+    }
+    if (iters < 1) iters = 1;
+
+    const int npts = polygons->n_points;
+
+    /* Build fixed 1-ring adjacency once (walks all polygons->n_items / poly_size). */
+    int *n_neighbours = NULL;
+    int **neighbours  = NULL;
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours); /* :contentReference[oaicite:1]{index=1} */
+
+    double *buffer = (double *) malloc(sizeof(double) * npts);
+    double *arr    = (double *) malloc(sizeof(double) * (npts > 0 ? npts : 1));
+    if (!buffer || !arr) {
+        fprintf(stderr, "Memory allocation error.\n");
+        if (buffer) free(buffer);
+        if (arr)    free(arr);
+        if (n_neighbours) free(n_neighbours);
+        if (neighbours)   { if (neighbours[0]) free(neighbours[0]); free(neighbours); }
+        return;
+    }
+    for (int i = 0; i < npts; ++i) buffer[i] = input[i];
+
+    for (int it = 0; it < iters; ++it) {
+        for (int v = 0; v < npts; ++v) {
+            /* Skip masked/invalid centers exactly like the volume code. */
+            if ((mask && mask[v] == 0) || isnan(input[v]) || !isfinite(input[v])) {
+                buffer[v] = input[v];
+                continue;
+            }
+
+            int n = 0;
+
+            /* Include center value if valid. */
+            if (!mask || mask[v] != 0) {
+                if (isfinite(input[v]) && !isnan(input[v])) arr[n++] = input[v];
+            }
+
+            /* Add 1-ring neighbours from the precomputed lists. */
+            const int nn = n_neighbours[v];
+            int *nb = neighbours[v];
+            for (int i = 0; i < nn; ++i) {
+                const int u = nb[i];
+                if (mask && mask[u] == 0) continue;
+                if (!isfinite(input[u]) || isnan(input[u])) continue;
+                arr[n++] = input[u];
+            }
+
+            if (n <= 0) { buffer[v] = input[v]; continue; }
+
+            switch (stat_func) {
+                case F_MEAN:   buffer[v] = get_mean_double(arr,   n, 0); break;
+                case F_MEDIAN: buffer[v] = get_median_double(arr, n, 0); break;
+                case F_STD:    buffer[v] = get_std_double(arr,    n, 0); break;
+                case F_MIN:    buffer[v] = get_min_double(arr,    n, 0); break;
+                case F_MAX:    buffer[v] = get_max_double(arr,    n, 0); break;
+                default:
+                    fprintf(stderr, "Data Function %d not handled\n", stat_func);
+                    buffer[v] = input[v];
+                    break;
+            }
+        }
+        /* write back this iteration */
+        for (int i = 0; i < npts; ++i) input[i] = buffer[i];
+    }
+
+    /* Cleanup (get_all_polygon_point_neighbours allocates a single flat block for neighbours[0]). */
+    free(buffer);
+    free(arr);
+    if (n_neighbours) free(n_neighbours);
+    if (neighbours)   { if (neighbours[0]) free(neighbours[0]); free(neighbours); }
+}
 
 /**
  * \brief Mixed boundary condition index mapping for a 2‑D lattice.

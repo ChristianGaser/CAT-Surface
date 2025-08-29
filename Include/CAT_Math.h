@@ -21,6 +21,22 @@
 #define TOLSVD 1e-10
 #define EPS 1e-15
 
+enum
+{
+    F_MEAN,
+    F_MIN,
+    F_MAX,
+    F_STD,
+    F_SUM,
+    F_MAXABS,
+    F_EXP,
+    F_MEDIAN,
+    F_RANGE,
+    F_COUNT,
+    F_WAVERAGE,
+    F_MULTI
+};
+
 #ifndef isfinite
 #define isfinite(x) ((x) * (x) >= 0.) /* check for NaNs */
 #endif
