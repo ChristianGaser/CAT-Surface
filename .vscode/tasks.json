@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build cat_surface_cython extension (inplace)",
+			"type": "shell",
+			"command": "python ./cat_surface_cython/setup.py build_ext --inplace",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build"
+		}
+	]
+}
