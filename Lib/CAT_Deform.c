@@ -26,34 +26,43 @@ double blend_weight(double detJ, double eps, double soft) {
 }
 
 /**
- * @brief Smooths a 3D displacement field with Jacobian-based blending to enforce diffeomorphism.
+ * @brief Smooths a 3D displacement field with Jacobian- and curvature-based blending.
  *
- * This function performs iterative smoothing of a displacement field associated with a surface mesh,
- * placing more smoothing emphasis on vertices with lower Jacobian determinant values. The blending
- * ensures that areas with potential non-invertibility (J ≈ 0) or folding (J < 0) are smoothed more
- * aggressively, while regions with safe Jacobians (J >> 0) retain their displacements.
+ * This function performs iterative smoothing of a displacement field associated with a surface mesh.
+ * Blending weights increase smoothing in regions with small Jacobian determinants (non-diffeomorphic
+ * risk) and optionally in regions with a selected curvature sign (e.g., sulci vs gyri), controlled by
+ * a global curvature blending weight.
  *
- * This is useful for enforcing one-to-one mappings and preventing surface self-intersections.
- *
- * @param displacement_field  A pointer to the 3D displacement vector for each mesh vertex.
- *                            This is a 2D array of size [n_points][3].
+ * @param displacement_field  2D array [n_points][3] of displacements per vertex (in/out).
  * @param polygons            Pointer to the surface mesh (polygons_struct).
- * @param n_neighbours        Number of neighbors for each vertex.
- * @param neighbours          2D array of neighbor indices per vertex.
+ * @param n_neighbours        Array with number of neighbors per vertex.
+ * @param neighbours          2D ragged array of neighbor indices per vertex.
  * @param iterations          Number of smoothing iterations to perform.
- * @param sigma               Smoothing decay factor (controls strength of smoothing).
+ * @param sigma               Smoothing decay factor applied to the neighbor average.
  * @param min_det             Minimum acceptable Jacobian determinant for diffeomorphism.
- * @param blend_strength      Controls sharpness of blending (higher = smoother transition).
- *                            Recommended: 5–10.
+ * @param blend_strength      Logistic sharpness for Jacobian blending (higher = sharper).
+ * @param curvature           Optional curvature array (size = polygons->n_points). Pass NULL to disable.
+ * @param curvature_sign      Curvature sign selection: -1 = use only negative, +1 = only positive,
+ *                            0 = absolute (both). Values outside {-1,0,1} are clamped to 0.
+ * @param curvature_weight    Global weight [0..1] scaling curvature-based blending contribution.
  */
  void smooth_displacement_field_blended(double (*displacement_field)[3], 
                                        polygons_struct *polygons,
                                        int *n_neighbours, int **neighbours,
                                        int iterations, double sigma,
-                                       double min_det, double blend_strength)
+                                       double min_det, double blend_strength,
+                                       const double *curvature, int curvature_sign,
+                                       double curvature_weight)
 {
     int it, v, j, k, pidx;
     double (*new_disp)[3] = malloc(sizeof(double[3]) * polygons->n_points);
+    const double curv_clip = 90.0; // Clip magnitude before normalization
+
+    // Normalize curvature_sign to {-1,0,1}
+    if (curvature_sign > 0) curvature_sign = 1;
+    else if (curvature_sign < 0) curvature_sign = -1;
+    else curvature_sign = 0;
+    if (curvature_weight < 0.0) curvature_weight = 0.0;
 
     for (it = 0; it < iterations; it++) {
         for (v = 0; v < polygons->n_points; v++) {
@@ -70,8 +79,35 @@ double blend_weight(double detJ, double eps, double soft) {
                    J[0][1]*(J[1][0]*J[2][2] - J[1][2]*J[2][0]) +
                    J[0][2]*(J[1][0]*J[2][1] - J[1][1]*J[2][0]);
 
-            // Compute weight: 1 = smooth fully, 0 = keep original
-            double blend = 1.0 / (1.0 + exp(blend_strength * (detJ - min_det)));
+            // Jacobian-based blend: 1 = smooth fully, 0 = keep original
+            double blend_jac = 1.0 / (1.0 + exp(blend_strength * (detJ - min_det)));
+
+            // Curvature-based blend in [0..1]
+            double blend_curv = 0.0;
+            if (curvature && curvature_weight > 0.0) {
+                double c = curvature[v];
+                if (curvature_sign < 0) {
+                    // Only negative curvature: clip to [-curv_clip, 0] and map to [0..1]
+                    c = fmin(0.0, c);
+                    c = fmax(-curv_clip, c);
+                    blend_curv = (-c) / curv_clip;
+                } else if (curvature_sign > 0) {
+                    // Only positive curvature: clip to [0, curv_clip] and map to [0..1]
+                    c = fmax(0.0, c);
+                    c = fmin(curv_clip, c);
+                    blend_curv = c / curv_clip;
+                } else {
+                    // Absolute curvature: clip to [0, curv_clip] and map to [0..1]
+                    c = fabs(c);
+                    c = fmin(curv_clip, c);
+                    blend_curv = c / curv_clip;
+                }
+            }
+
+            // Combine blends; clamp to [0..1]
+            double blend = blend_jac + curvature_weight * blend_curv;
+            if (blend < 0.0) blend = 0.0;
+            if (blend > 1.0) blend = 1.0;
 
             double smoothed[3] = {0.0, 0.0, 0.0};
             int count = 0;
@@ -522,10 +558,12 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         }
 
         // Apply smoothing to the pial and white displacement field
-        smooth_displacement_field_blended(displacement_field1, polygons1, 
-                                          n_neighbours, neighbours, 5, sigma, 0.1, 10);
-        smooth_displacement_field_blended(displacement_field2, polygons2, 
-                                          n_neighbours, neighbours, 5, sigma, 0.1, 10);
+    smooth_displacement_field_blended(displacement_field1, polygons1, 
+                      n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      NULL, 0, 0.0);
+    smooth_displacement_field_blended(displacement_field2, polygons2, 
+                      n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      NULL, 0, 0.0);
 
         // Apply the final displacement to vertices
         for (v = 0; v < polygons1->n_points; v++) {
@@ -596,9 +634,11 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     // Apply very slight smoothing to the displacement field to smooth replacements
     // Estimate weight w.r.t. curvature and ensure minimum of min_weight
     smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours,  
-                              neighbours, 5, 0.01*sigma, 0.1, 10);
+                              neighbours, 5, 0.01*sigma, 0.1, 10,
+                              NULL, 0, 0.0);
     smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours,  
-                              neighbours, 5, 0.01*sigma, 0.1, 10);
+                              neighbours, 5, 0.01*sigma, 0.1, 10,
+                              NULL, 0, 0.0);
 
     // Apply the final displacement to vertices
     for (v = 0; v < polygons1->n_points; v++) {
@@ -773,10 +813,12 @@ void surf_deform_dual_not_working(polygons_struct *polygons1, polygons_struct *p
         }
 
         // Smooth accumulated full displacements
-        smooth_displacement_field_blended(displacement_field1, polygons1, 
-                                          n_neighbours, neighbours, 5, sigma, 0.1, 10);
-        smooth_displacement_field_blended(displacement_field2, polygons2, 
-                                          n_neighbours, neighbours, 5, sigma, 0.1, 10);
+    smooth_displacement_field_blended(displacement_field1, polygons1, 
+                      n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      NULL, 0, 0.0);
+    smooth_displacement_field_blended(displacement_field2, polygons2, 
+                      n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      NULL, 0, 0.0);
 
         // Apply smoothed full displacement
         for (v = 0; v < polygons1->n_points; v++) {
