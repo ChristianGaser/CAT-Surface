@@ -10,6 +10,7 @@
 #include "CAT_Surf.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Intersect.h"
+#include "CAT_Curvature.h"
 
 #include <float.h>
 #include <math.h>
@@ -44,7 +45,10 @@ double blend_weight(double detJ, double eps, double soft) {
  * @param curvature           Optional curvature array (size = polygons->n_points). Pass NULL to disable.
  * @param curvature_sign      Curvature sign selection: -1 = use only negative, +1 = only positive,
  *                            0 = absolute (both). Values outside {-1,0,1} are clamped to 0.
- * @param curvature_weight    Global weight [0..1] scaling curvature-based blending contribution.
+ * @param curvature_weight    Global scaling for curvature-based blending contribution. Positive
+ *                            values increase smoothing in selected curvature regions; negative
+ *                            values decrease smoothing there. Magnitudes >1 are clipped by
+ *                            the final [0..1] clamp of the blend.
  */
  void smooth_displacement_field_blended(double (*displacement_field)[3], 
                                        polygons_struct *polygons,
@@ -62,7 +66,6 @@ double blend_weight(double detJ, double eps, double soft) {
     if (curvature_sign > 0) curvature_sign = 1;
     else if (curvature_sign < 0) curvature_sign = -1;
     else curvature_sign = 0;
-    if (curvature_weight < 0.0) curvature_weight = 0.0;
 
     for (it = 0; it < iterations; it++) {
         for (v = 0; v < polygons->n_points; v++) {
@@ -465,6 +468,18 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         exit(EXIT_FAILURE);
     }
 
+    // Curvature array computed once from the initial/reference mesh.
+    // polygons1 and polygons2 share topology and similar folding, so reuse one curvature.
+    double *curv = (double *)malloc(sizeof(double) * polygons1->n_points);
+    if (!curv) {
+        fprintf(stderr, "Memory allocation error (curvature)\n");
+        exit(EXIT_FAILURE);
+    }
+    // Use polygons_orig if provided; otherwise polygons1_orig as the baseline geometry
+    polygons_struct *curv_base = polygons_orig ? polygons_orig : polygons1_orig;
+    // Neighbourhood is from polygons1 (same topology), usable for curvature
+    get_polygon_vertex_curvatures_cg(curv_base, n_neighbours, neighbours, 3.0, 0, curv);
+
     // Iterative deformation process
     double s1_prev = FLT_MAX, s2_prev = FLT_MAX;
     int counter1 = 0, counter2 = 0;
@@ -557,13 +572,16 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             s2 += di2 * di2;
         }
 
-        // Apply smoothing to the pial and white displacement field
-    smooth_displacement_field_blended(displacement_field1, polygons1, 
-                      n_neighbours, neighbours, 5, sigma, 0.1, 10,
-                      NULL, 0, 0.0);
-    smooth_displacement_field_blended(displacement_field2, polygons2, 
-                      n_neighbours, neighbours, 5, sigma, 0.1, 10,
-                      NULL, 0, 0.0);
+    // Curvature-aware smoothing (reusing initial curvature):
+        // - polygons1: less smoothing at positive curvature (gyri) => negative curvature_weight for +curv
+        // - polygons2: less smoothing at negative curvature (sulci) => negative curvature_weight for -curv
+        const double curv_weight_less = -0.5; // tuneable: negative reduces smoothing
+        smooth_displacement_field_blended(displacement_field1, polygons1, 
+                                          n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      curv, +1, curv_weight_less);
+        smooth_displacement_field_blended(displacement_field2, polygons2, 
+                                          n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      curv, -1, curv_weight_less);
 
         // Apply the final displacement to vertices
         for (v = 0; v < polygons1->n_points; v++) {
@@ -632,13 +650,13 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     }
     
     // Apply very slight smoothing to the displacement field to smooth replacements
-    // Estimate weight w.r.t. curvature and ensure minimum of min_weight
+    // Apply curvature-aware reduction similarly but with much smaller sigma (reuse curv)
     smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours,  
                               neighbours, 5, 0.01*sigma, 0.1, 10,
-                              NULL, 0, 0.0);
+                              curv, +1, -0.25);
     smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours,  
                               neighbours, 5, 0.01*sigma, 0.1, 10,
-                              NULL, 0, 0.0);
+                              curv, -1, -0.25);
 
     // Apply the final displacement to vertices
     for (v = 0; v < polygons1->n_points; v++) {
@@ -665,6 +683,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     free(gradient_z);
     free(displacement_field1);
     free(displacement_field2);
+    free(curv);
     delete_polygon_point_neighbours(polygons1, n_neighbours, neighbours, NULL, NULL);
 
 }
