@@ -22,20 +22,18 @@
 // ---------------------------------------------
 // Default arguments for the surface deformation
 // ---------------------------------------------
-double w1 = 0.1;  // Internal smoothness force
-double w2 = 0.2;  // Gradient alignment force
-double w3 = 0.4;  // Balloon force (based on intensity deviation)
-double w4 = 0.0;  // Connection force (between pial and white)
-double sigma = 0.3; 
+double w1 = 0.05;  // Internal smoothness force
+double w2 = 0.05;  // Gradient alignment force
+double w3 = 0.05;  // Balloon force (based on intensity deviation)
+double sigma = 0.2; 
 int verbose = 0; 
-int iterations = 50; 
+int iterations = 100; 
 
 // Argument table for command-line parsing
 static ArgvInfo argTable[] = {
     {"-w1", ARGV_FLOAT, (char *) TRUE, (char *) &w1, "Set internal smoothness weight (w1)."},
     {"-w2", ARGV_FLOAT, (char *) TRUE, (char *) &w2, "Set gradient alignment weight (w2)."},
     {"-w3", ARGV_FLOAT, (char *) TRUE, (char *) &w3, "Set balloon force weight (w3)."},
-    {"-w4", ARGV_FLOAT, (char *) TRUE, (char *) &w4, "Set connection force weight (w4)."},
     {"-sigma", ARGV_FLOAT, (char *) TRUE, (char *) &sigma, "Define sigma for smoothing the displacement field."},
     {"-iter", ARGV_INT, (char *) TRUE, (char *) &iterations, "Set number of deformation iterations."},
     {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose, "Enable verbose output."},
@@ -61,7 +59,6 @@ void usage(char *executable) {
         "  -w1  Internal smoothness term (e.g. 0.1).\n"
         "  -w2  Gradient alignment force (edges attraction).\n"
         "  -w3  Balloon force, based on isovalue distance.\n"
-        "  -w4  Connection force to maintain consistent pial/white spacing.\n"
         "  -sigma  Controls displacement smoothing.\n"
         "  -iter   Number of iterations (e.g. 50).\n"
         "  -verbose  Show iteration-wise output.\n\n",
@@ -155,7 +152,7 @@ int main(int argc, char *argv[]) {
 
     // Initial estimate of pial surface
     extents = malloc(sizeof(double) * polygons->n_points);
-    for (p = 0; p < polygons->n_points; p++) extents[p] = 0.75;
+    for (p = 0; p < polygons->n_points; p++) extents[p] = 0.5;
 
     objects_out = central_to_new_pial(polygons, thickness_values, extents, 1, 0.5*sigma, 5, verbose);
     object_pial = objects_out[0];
@@ -184,8 +181,8 @@ int main(int argc, char *argv[]) {
 
     // Perform final dual-surface deformation using slightly deviating isovalues which
     // are optimized w.r.t. used parameters
-    double weights[4] = {w1, w2, w3, w4};
-    double shifting[2] = {-0.1, 0.1};
+    double weights[3] = {w1, w2, w3};
+    double shifting[2] = {-0.25, 0.25};
     surf_deform_dual(polygons_pial, polygons_white, polygons, labels, nii_ptr,
                      weights, sigma, CGM+shifting[0], GWM+shifting[1], thickness_values,
                      iterations, verbose);

@@ -17,7 +17,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
                       int verbose);
 void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
                       polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
-                      double w[4], double sigma, float lim1, float lim2, double *target_distance,
+                      double w[3], double sigma, float lim1, float lim2, double *target_distance,
                       int it, int verbose);
 
 #endif
