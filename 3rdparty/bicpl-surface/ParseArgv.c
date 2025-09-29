@@ -43,10 +43,10 @@ static ArgvInfo defaultTable[] = {
 };
 
 /*
- * Forward declarations for procedures defined in this file:
+ * Forward declarations for procedures defined in this file (ANSI C prototypes).
  */
 
-static void PrintUsage _ANSI_ARGS_((ArgvInfo *argTable, int flags));
+static void PrintUsage(ArgvInfo *argTable, int flags);
 
 /*
  *----------------------------------------------------------------------
@@ -71,14 +71,10 @@ static void PrintUsage _ANSI_ARGS_((ArgvInfo *argTable, int flags));
  */
 
 int
-ParseArgv(argcPtr, argv, argTable, flags)
-    int *argcPtr;       /* Number of arguments in argv.  Modified
-                 * to hold # args left in argv at end. */
-    char **argv;        /* Array of arguments.  Modified to hold
-                 * those that couldn't be processed here. */
-    ArgvInfo *argTable; /* Array of option descriptions */
-    int flags;          /* Or'ed combination of various flag bits,
-                 * such as ARGV_NO_DEFAULTS. */
+ParseArgv(int *argcPtr,       /* Number of arguments in argv. Modified */
+        char **argv,        /* Array of arguments. Modified */
+        ArgvInfo *argTable, /* Array of option descriptions */
+        int flags)          /* Or'ed combination of various flag bits */
 {
    register ArgvInfo *infoPtr;
                 /* Pointer to the current entry in the
@@ -260,10 +256,11 @@ ParseArgv(argcPtr, argv, argTable, flags)
          }
          break;
       case ARGV_FUNC: {
-         int (*handlerProc)();
+         /* Handler signature: int handler(char *dst, char *key, char *nextArg) */
+         int (*handlerProc)(char *, char *, char *);
 
-         handlerProc = (int (*)())infoPtr->src;
-        
+         handlerProc = (int (*)(char *, char *, char *)) (void *) infoPtr->src;
+
          if ((*handlerProc)(infoPtr->dst, infoPtr->key,
                             argv[srcIndex])) {
             srcIndex += 1;
@@ -272,9 +269,10 @@ ParseArgv(argcPtr, argv, argTable, flags)
          break;
       }
       case ARGV_GENFUNC: {
-         int        (*handlerProc)();
+         /* Handler signature: int handler(char *dst, char *key, int argc, char **argv) */
+         int (*handlerProc)(char *, char *, int, char **);
 
-         handlerProc = (int (*)())infoPtr->src;
+         handlerProc = (int (*)(char *, char *, int, char **)) (void *) infoPtr->src;
 
          argc = (*handlerProc)(infoPtr->dst, infoPtr->key,
                                argc, argv+srcIndex);
@@ -334,12 +332,8 @@ ParseArgv(argcPtr, argv, argTable, flags)
  */
 
 static void
-PrintUsage(argTable, flags)
-     ArgvInfo *argTable;    /* Array of command-specific argument
-                 * descriptions. */
-     int flags;         /* If the ARGV_NO_DEFAULTS bit is set
-                 * in this word, then don't generate
-                 * information for default options. */
+PrintUsage(ArgvInfo *argTable, /* Array of command-specific argument descriptions. */
+       int flags)          /* If ARGV_NO_DEFAULTS bit set, skip defaults. */
 {
    register ArgvInfo *infoPtr;
    int width, i, j, numSpaces;
