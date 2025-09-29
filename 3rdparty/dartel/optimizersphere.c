@@ -755,7 +755,7 @@ void cgs2(int dm[], double A[], double b[], int rtype, double param[],
 {
     int i, m = dm[0]*dm[1]*2, it;
     double rtr, nb, rtrold, alpha, beta;
-    void (*Atimesp)();
+    void (*Atimesp)(int [], double [], double [], double [], double []);
 
     /* printf("\n **** %dx%d ****\n",dm[0],dm[1]); */
     if (rtype == 1)
@@ -968,7 +968,8 @@ fmg2(int n0[], double *a0, double *b0, int rtype, double param0[], int c,
     int i, j, ng, bs;
     int    n[32][2], m[32];
     double *bo[32], *a[32], *b[32], *u[32], *res, *rbuf, param[32][5];
-    void (*relax)(), (*Atimesp)();
+    void (*relax)(int [], double [], double [], double [], int, double []);
+    void (*Atimesp)(int [], double [], double [], double [], double []);
 
     if (rtype == 0) {
         relax   = relax_le;
