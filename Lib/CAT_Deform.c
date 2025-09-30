@@ -603,68 +603,56 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         if (s1 > s1_prev) counter1++;
         if (s2 > s2_prev) counter2++;
 
+        // Stop if one mesh is not decreasing error anymore
+        if (counter1 > 0 && counter2 > 0) break; 
+
         // Curvature-aware smoothing (reusing initial curvature):
         // - polygons1: less smoothing at positive curvature (gyri) => negative curvature_weight for +curv
         // - polygons2: less smoothing at negative curvature (sulci) => negative curvature_weight for -curv
-        if (counter1 == 0) {
-            smooth_displacement_field_blended(displacement_field1, polygons1, 
-                                              n_neighbours, neighbours, 5, sigma, 0.1, 10,
-                          curv, +1, curv_weight_less);
-        }
-        if (counter2 == 0) {
-            smooth_displacement_field_blended(displacement_field2, polygons2, 
-                                              n_neighbours, neighbours, 5, sigma, 0.1, 10,
-                          curv, -1, curv_weight_less);
-        }
+        smooth_displacement_field_blended(displacement_field1, polygons1, 
+                                          n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      curv, +1, curv_weight_less);
+        smooth_displacement_field_blended(displacement_field2, polygons2, 
+                                          n_neighbours, neighbours, 5, sigma, 0.1, 10,
+                      curv, -1, curv_weight_less);
 
         // Apply the final displacement to vertices
-        if (counter1 == 0) {
-            for (v = 0; v < polygons1->n_points; v++) {
-                Point_x(polygons1->points[v]) += displacement_field1[v][0];
-                Point_y(polygons1->points[v]) += displacement_field1[v][1];
-                Point_z(polygons1->points[v]) += displacement_field1[v][2];
-            }
+        for (v = 0; v < polygons1->n_points; v++) {
+            Point_x(polygons1->points[v]) += displacement_field1[v][0];
+            Point_y(polygons1->points[v]) += displacement_field1[v][1];
+            Point_z(polygons1->points[v]) += displacement_field1[v][2];
         }
         
         // Apply the final displacement to vertices
-        if (counter2 == 0) {
-            for (v = 0; v < polygons2->n_points; v++) {
-                Point_x(polygons2->points[v]) += displacement_field2[v][0];
-                Point_y(polygons2->points[v]) += displacement_field2[v][1];
-                Point_z(polygons2->points[v]) += displacement_field2[v][2];
-            }
+        for (v = 0; v < polygons2->n_points; v++) {
+            Point_x(polygons2->points[v]) += displacement_field2[v][0];
+            Point_y(polygons2->points[v]) += displacement_field2[v][1];
+            Point_z(polygons2->points[v]) += displacement_field2[v][2];
         }
 
         // Minimize self-intersections
         n_self_hits = 0;
-        if (counter1 == 0) {
-            int *flags1 = find_near_self_intersections(polygons1, 0.75, &n_self_hits);
-            for (v = 0; v < polygons1->n_points; v++) {
-                if (flags1[v]) {
-                    Point_x(polygons1->points[v]) -= displacement_field1[v][0];
-                    Point_y(polygons1->points[v]) -= displacement_field1[v][1];
-                    Point_z(polygons1->points[v]) -= displacement_field1[v][2];
-                }
+        int *flags1 = find_near_self_intersections(polygons1, 0.75, &n_self_hits);
+        for (v = 0; v < polygons1->n_points; v++) {
+            if (flags1[v]) {
+                Point_x(polygons1->points[v]) -= displacement_field1[v][0];
+                Point_y(polygons1->points[v]) -= displacement_field1[v][1];
+                Point_z(polygons1->points[v]) -= displacement_field1[v][2];
             }
         }
 
-        if (counter2 == 0) {
-            int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
-            for (v = 0; v < polygons2->n_points; v++) {
-                if (flags2[v]) {
-                    Point_x(polygons2->points[v]) -= displacement_field2[v][0];
-                    Point_y(polygons2->points[v]) -= displacement_field2[v][1];
-                    Point_z(polygons2->points[v]) -= displacement_field2[v][2];
-                }
+        int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
+        for (v = 0; v < polygons2->n_points; v++) {
+            if (flags2[v]) {
+                Point_x(polygons2->points[v]) -= displacement_field2[v][0];
+                Point_y(polygons2->points[v]) -= displacement_field2[v][1];
+                Point_z(polygons2->points[v]) -= displacement_field2[v][2];
             }
         }
 
-        if (counter1 == 0) compute_polygon_normals(polygons1);
-        if (counter2 == 0) compute_polygon_normals(polygons2);
+        compute_polygon_normals(polygons1);
+        compute_polygon_normals(polygons2);
         
-        // Stop if one mesh is not decreasing error anymore
-        if (counter1 > 0 && counter2 > 0) break; 
-
         if (verbose) {
             fprintf(stdout, "\rMesh: deform: iter %03d | Errors: %6.4f/%6.4f", i+1, 
                       sqrt(s1 / polygons1->n_points),sqrt(s2 / polygons2->n_points));
@@ -693,39 +681,35 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     
     // Apply very slight smoothing to the displacement field to smooth replacements
     // Apply curvature-aware reduction similarly but with much smaller sigma (reuse curv)
-    if (counter1 == 0) {
-        smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours,  
-                                  neighbours, 5, 0.01*sigma, 0.1, 10,
-                                  curv, +1, curv_weight_less/2.0);
-    }
-    if (counter2 == 0) {
-        smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours,  
-                                  neighbours, 5, 0.01*sigma, 0.1, 10,
-                                  curv, -1, curv_weight_less/2.0);
-    }
+    smooth_displacement_field_blended(displacement_field1, polygons1, n_neighbours,  
+                              neighbours, 5, 0.1*sigma, 0.1, 10,
+                              curv, +1, curv_weight_less/2.0);
+    smooth_displacement_field_blended(displacement_field2, polygons2, n_neighbours,  
+                              neighbours, 5, 0.1*sigma, 0.1, 10,
+                              curv, -1, curv_weight_less/2.0);
 
     // Apply the final displacement to vertices
-    if (counter1 == 0) {
-        for (v = 0; v < polygons1->n_points; v++) {
-            Point_x(polygons1_orig->points[v]) += displacement_field1[v][0];
-            Point_y(polygons1_orig->points[v]) += displacement_field1[v][1];
-            Point_z(polygons1_orig->points[v]) += displacement_field1[v][2];
-        }
-        copy_polygons(polygons1_orig, polygons1);
+    for (v = 0; v < polygons1->n_points; v++) {
+        Point_x(polygons1_orig->points[v]) += displacement_field1[v][0];
+        Point_y(polygons1_orig->points[v]) += displacement_field1[v][1];
+        Point_z(polygons1_orig->points[v]) += displacement_field1[v][2];
     }
+    copy_polygons(polygons1_orig, polygons1);
 
-    if (counter2 == 0) {
-        for (v = 0; v < polygons2->n_points; v++) {
-            Point_x(polygons2_orig->points[v]) += displacement_field2[v][0];
-            Point_y(polygons2_orig->points[v]) += displacement_field2[v][1];
-            Point_z(polygons2_orig->points[v]) += displacement_field2[v][2];
-        }
-        copy_polygons(polygons2_orig, polygons2);
+    for (v = 0; v < polygons2->n_points; v++) {
+        Point_x(polygons2_orig->points[v]) += displacement_field2[v][0];
+        Point_y(polygons2_orig->points[v]) += displacement_field2[v][1];
+        Point_z(polygons2_orig->points[v]) += displacement_field2[v][2];
     }
-
+    copy_polygons(polygons2_orig, polygons2);
+        
     if (verbose) fprintf(stdout,"\n");
     remove_near_intersections(polygons1, 0.75, verbose);
     remove_near_intersections(polygons2, 0.75, verbose);
+
+    // Final Laplacian smoothing
+    smooth_laplacian(polygons1, 10, 0.1, 0.5);
+    smooth_laplacian(polygons2, 10, 0.1, 0.5);
 
     // Free allocated memory
     free(gradient_x);
