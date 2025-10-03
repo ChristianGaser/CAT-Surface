@@ -9,10 +9,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             arch: arm64
             artifact: cat-surface-macos-arm64
-          - os: macos-13
+          - os: macos-15-intel
             arch: x64
             artifact: cat-surface-macos-x86
           - os: ubuntu-22.04
