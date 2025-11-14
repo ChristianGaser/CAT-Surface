@@ -10,6 +10,7 @@
 #include <bicpl.h>
 
 #include "CAT_SurfaceIO.h"
+#include "CAT_SafeAlloc.h"
 
 void
 usage(char *executable)
@@ -42,11 +43,7 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    fp = fopen(output_surface_file, "w");
-    if (!fp) {
-        fprintf(stderr, "Failed to open output file %s for writing.\n", output_surface_file);
-        exit(EXIT_FAILURE);
-    }
+    fp = SAFE_FOPEN(output_surface_file, "w");
 
     for (i = 0; i < n_values; i++) {
         if ((fprintf(fp, " %g", values[i] ) <= 0) ||

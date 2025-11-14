@@ -15,6 +15,7 @@
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
+#include "CAT_SafeAlloc.h"
 
 void
 rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygons,
@@ -112,8 +113,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
 
     ALLOC(new_points, polygons->n_points);
 
-    udeform = (double *) malloc(sizeof(double) * m);
-    vdeform = (double *) malloc(sizeof(double) * m);
+    udeform = SAFE_MALLOC(double, m);
+    vdeform = SAFE_MALLOC(double, m);
 
     for (i = 0; i < dm[0]; i++) {
         for (j = 0; j < dm[1]; j++) {
@@ -134,8 +135,8 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
         }
     }
 
-    ux = (double *) malloc(sizeof(double) * polygons->n_points);
-    vy = (double *) malloc(sizeof(double) * polygons->n_points);
+    ux = SAFE_MALLOC(double, polygons->n_points);
+    vy = SAFE_MALLOC(double, polygons->n_points);
 
     for (p = 0; p < polygons->n_points; p++) {
         map_point_to_unit_sphere(polygons, &polygons->points[p],
@@ -485,8 +486,8 @@ average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
     compute_polygon_normals(xsurf);
     compute_polygon_normals(zsurf);
 
-    wx = (double *) malloc(sizeof(double) * surface->n_points);
-    wz = (double *) malloc(sizeof(double) * surface->n_points);
+    wx = SAFE_MALLOC(double, surface->n_points);
+    wz = SAFE_MALLOC(double, surface->n_points);
 
     create_polygon_point_neighbours(surface, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
@@ -550,9 +551,9 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
     
     min_sum_sq = 1e15;
 
-    orig_trg = (double *) malloc(sizeof(double) * trg->n_points);
-    map_trg  = (double *) malloc(sizeof(double) * src->n_points);
-    map_src  = (double *) malloc(sizeof(double) * src->n_points);
+    orig_trg = SAFE_MALLOC(double, trg->n_points);
+    map_trg  = SAFE_MALLOC(double, src->n_points);
+    map_src  = SAFE_MALLOC(double, src->n_points);
 
     get_smoothed_curvatures(trg, orig_trg, fwhm, curvtype);
     get_smoothed_curvatures(src, map_src, fwhm, curvtype);

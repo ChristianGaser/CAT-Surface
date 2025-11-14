@@ -11,6 +11,7 @@
  */
 
 #include "CAT_SurfaceIO.h"
+#include "CAT_SafeAlloc.h"
 #include <string.h>
 
 static const char* basename(const char* path) {
@@ -590,10 +591,7 @@ input_oogl(char *file, File_formats *format, int *n_objects,
     initialize_polygons(polygons, WHITE, NULL);
     *format = ASCII_FORMAT;
 
-    if ((fp = fopen(file, "rb")) == 0) {
-        fprintf(stderr, "input_oogl: Couldn't open file %s.\n", file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "rb");
 
     fscanf(fp, "%s", line);
 
@@ -651,10 +649,7 @@ output_oogl(char *file, File_formats format, int n_objects,
     FILE  *fp;
     polygons_struct   *polygons;
 
-    if ((fp = fopen(file, "w")) == 0) {
-        fprintf(stderr, "output_oogl: Couldn't open file %s.\n", file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "w");
 
     polygons = get_polygons_ptr(object_list[0]);
 
@@ -741,12 +736,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
     /* ------------------------------------------------------------ */
     FILE *fdat = NULL;
     if (use_extbin) {
-        fdat = fopen(dat_fname, "wb");
-        if (!fdat) {
-            fprintf(stderr, "output_gifti: cannot open external dat file %s\n", dat_fname);
-            gifti_free_image(image);
-            return -1;
-        }
+        fdat = SAFE_FOPEN(dat_fname, "wb");
     }
 
     /* ============================================================ */
@@ -1056,11 +1046,7 @@ output_gifti_curv(char *fname, int nvertices, double *data)
         else     strcat(dat_fname, ".dat");
 
         remove(dat_fname); /* start clean */
-        fdat = fopen(dat_fname, "wb");
-        if (!fdat) {
-            fprintf(stderr, "output_gifti_curv: cannot open %s for writing\n", dat_fname);
-            return -1;
-        }
+        fdat = SAFE_FOPEN(dat_fname, "wb");
     }
 
     gifti_image *image = (gifti_image *)calloc(1, sizeof(gifti_image));
@@ -1339,11 +1325,7 @@ output_freesurfer(char *file, File_formats format, int n_objects,
     unsigned char   buffer;
     polygons_struct   *polygons;
 
-    if ((fp = fopen(file, "w")) == 0) {
-        fprintf(stderr, "output_freesurfer: Couldn't open file %s.\n",
-            file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "w");
     
     polygons = get_polygons_ptr(object_list[0]);
 

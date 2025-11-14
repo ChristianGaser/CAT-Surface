@@ -15,6 +15,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_SPH.h"
 #include "CAT_Surf.h"
+#include "CAT_SafeAlloc.h"
 
 /* argument defaults */
 int bandwidth = 256;
@@ -80,10 +81,7 @@ main(int argc, char *argv[])
     }
    
     // read coefficients
-    if ((fp = fopen(SPH_file, "rb")) == NULL) {
-        fprintf(stderr, "Error opening file %s.\n", SPH_file);
-        exit(EXIT_FAILURE);
-    }
+    fp = SAFE_FOPEN(SPH_file, "rb");
 
     fgets(line, 256, fp);
     if (strncmp(line,"SPH", 3)) {

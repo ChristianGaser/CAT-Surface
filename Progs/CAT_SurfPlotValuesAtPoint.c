@@ -10,6 +10,7 @@
 #include <bicpl.h>
 
 #include "CAT_SurfaceIO.h"
+#include "CAT_SafeAlloc.h"
 
 void
 usage(char *executable)
@@ -80,11 +81,7 @@ main(int argc, char *argv[])
   
     for (i = 0; i < n_files; i++) {
         get_string_argument(NULL, &input_file);
-        if ((infp = fopen(input_file, "r")) == 0) {
-            fprintf(stderr, "Couldn't open file %s.\n",
-                input_file);
-            exit(EXIT_FAILURE);
-        }
+        infp = SAFE_FOPEN(input_file, "r");
         for (j = 0; j <  min_index+1; j++)
             fgets(line, 256, infp);
         printf("%s",line);

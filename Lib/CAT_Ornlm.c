@@ -47,6 +47,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "CAT_Ornlm.h"
+#include "CAT_SafeAlloc.h"
 
 #if defined(_WIN32) || defined(_WIN64)
   #include <windows.h>
@@ -230,7 +231,7 @@ ThreadFunc_ornlm( void* pArguments )
     const float var1 = 0.5f;
 
     const int Ndims = (2*f+1)*(2*f+1)*(2*f+1);
-    float* average = (float*)malloc(Ndims*sizeof(float));
+    float* average = SAFE_MALLOC(float, Ndims);
     if (!average) {
     #if defined(_WIN32) || defined(_WIN64)
         _endthreadex(0);
@@ -355,11 +356,11 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
     hh = 2.0f*h*h;
     vol = dims[0]*dims[1]*dims[2];
 
-    ima_out  = (float*)malloc(vol*sizeof(float));
-    means    = (float*)malloc(vol*sizeof(float));
-    variances= (float*)malloc(vol*sizeof(float));
-    Estimate = (float*)malloc(vol*sizeof(float));
-    Label    = (unsigned char*)malloc(vol*sizeof(unsigned char));
+    ima_out  = SAFE_MALLOC(float, vol);
+    means    = SAFE_MALLOC(float, vol);
+    variances= SAFE_MALLOC(float, vol);
+    Estimate = SAFE_MALLOC(float, vol);
+    Label    = SAFE_MALLOC(unsigned char, vol);
 
     for (i = 0; i < vol; i++) {
         Estimate[i] = 0.0f;
@@ -431,8 +432,8 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
 
     #if defined(_WIN32) || defined(_WIN64)
         HANDLE *ThreadList; /* Handles to the worker threads*/
-        ThreadList = (HANDLE*) malloc(Nthreads*sizeof(HANDLE));
-        ThreadArgs = (myargument*) malloc(Nthreads*sizeof(myargument));
+    ThreadList = SAFE_MALLOC(HANDLE, Nthreads);
+    ThreadArgs = SAFE_MALLOC(myargument, Nthreads);
 
         for (i=0; i<Nthreads; i++) {
             int ini = (i*dims[2])/Nthreads;
@@ -462,8 +463,8 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
 
     #else /* POSIX */
         pthread_t *ThreadList;
-        ThreadList = (pthread_t*) calloc(Nthreads, sizeof(pthread_t));
-        ThreadArgs = (myargument*) calloc(Nthreads, sizeof(myargument));
+    ThreadList = SAFE_CALLOC(pthread_t, Nthreads);
+    ThreadArgs = SAFE_CALLOC(myargument, Nthreads);
 
         for (i=0; i<Nthreads; i++) {
             int ini = (i*dims[2])/Nthreads;

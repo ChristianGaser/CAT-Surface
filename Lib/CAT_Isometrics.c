@@ -11,6 +11,7 @@
  * and stretch optimization */
 
 #include "CAT_Isometrics.h"
+#include "CAT_SafeAlloc.h"
 
 struct metricdata *
 getmetricdata(polygons_struct *polygons)
@@ -22,30 +23,26 @@ getmetricdata(polygons_struct *polygons)
     Point pts[3];
     Vector dir;
 
-    brain = (struct metricdata *) malloc(sizeof(struct metricdata));
+    brain = SAFE_MALLOC(struct metricdata, 1);
 
     compute_polygon_normals(polygons);
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                      &neighbours, NULL, NULL);
 
-    ptr = (struct pointdata **)
-        malloc(sizeof(struct pointdata *) * polygons->n_points);
+    ptr = SAFE_MALLOC(struct pointdata*, polygons->n_points);
 
     for (p = 0; p < polygons->n_points; p++) {
         if (n_neighbours[p] <= 1)
             continue; /* skip this point */
 
-        ptr[p] = (struct pointdata *) malloc(sizeof(struct pointdata));
+    ptr[p] = SAFE_MALLOC(struct pointdata, 1);
 
-        ptr[p]->areas = (double *) malloc(sizeof(double) *
-                            n_neighbours[p]);
+    ptr[p]->areas = SAFE_MALLOC(double, n_neighbours[p]);
 
-        ptr[p]->lengths = (double *) malloc(sizeof(double) *
-                              n_neighbours[p]);
+    ptr[p]->lengths = SAFE_MALLOC(double, n_neighbours[p]);
 
         /* allocate this but don't calculating yet */
-        ptr[p]->norm = (Vector *) malloc(sizeof(Vector) *
-                             n_neighbours[p]);
+    ptr[p]->norm = SAFE_MALLOC(Vector, n_neighbours[p]);
 
 
         /* Get 2 consecutive neighbors of this node */
@@ -128,7 +125,7 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
     for (p = 0; p < map->n_points; p++)
         set_vector_length(&map->points[p], radius);
 
-    newpts = (Point *) malloc(sizeof(Point) * map->n_points);
+    newpts = SAFE_MALLOC(Point, map->n_points);
     for (p = 0; p < map->n_points; p++)
         newpts[p] = map->points[p];
 
@@ -291,7 +288,7 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
     for (p = 0; p < map->n_points; p++)
         set_vector_length(&map->points[p], radius);
 
-    newpts = (Point *) malloc(sizeof(Point) * map->n_points);
+    newpts = SAFE_MALLOC(Point, map->n_points);
     for (p = 0; p < map->n_points; p++)
         newpts[p] = map->points[p];
 
@@ -464,7 +461,7 @@ stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
         }
     }
 
-    newpts = (Point *) malloc(sizeof(Point) * map->n_points);
+    newpts = SAFE_MALLOC(Point, map->n_points);
     for (p = 0; p < map->n_points; p++)
         newpts[p] = map->points[p];
 

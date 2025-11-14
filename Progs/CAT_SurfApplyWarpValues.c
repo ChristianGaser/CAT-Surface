@@ -13,6 +13,7 @@
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 #include "dartel.h"
+#include "CAT_SafeAlloc.h"
 
 #define BINTREE_FACTOR   0.5
     
@@ -58,10 +59,7 @@ main(int argc, char *argv[])
     if (input_values_any_format(values_file, &n_values, &input_values) != OK)
         exit(EXIT_FAILURE);
 
-    if ((infp = fopen(vector_file, "rb")) == NULL) {
-        fprintf(stderr, "Error: Couldn't read file %s.\n", vector_file);
-        exit(EXIT_FAILURE);
-    }
+    infp = SAFE_FOPEN(vector_file, "rb");
 
     fread(&size_map, 2, sizeof(int), infp);
     fread(&shift, 2, sizeof(int), infp);

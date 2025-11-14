@@ -23,6 +23,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Vol.h"
 #include "CAT_Resample.h"
+#include "CAT_SafeAlloc.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length)              \
     {                                                                   \
@@ -494,16 +495,11 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
 
-        if (filename_extension_matches(annot_file, "annot"))
+            if (filename_extension_matches(annot_file, "annot"))
         {
             read_annotation_table(annot_file, &n_arrays, &in_annot, &n_labels, &atable);
 
-            if ((fp = fopen(output_values_file, "w")) == 0)
-            {
-                fprintf(stderr, "output_values_file: Couldn't open file %s.\n",
-                    output_values_file);
-                return (EXIT_FAILURE);
-            }
+            fp = SAFE_FOPEN(output_values_file, "w");
 
             trg_sphere = get_polygons_ptr(objects_trg_sphere[0]);
             resampled_values = (double *)malloc(sizeof(double) * polygons->n_points);

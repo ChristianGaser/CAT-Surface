@@ -12,6 +12,7 @@
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_SafeAlloc.h"
 
 BOOLEAN PerPoly = 0; /* by default, generate angle distortion per point */
 
@@ -147,11 +148,7 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    fp = fopen(output_surface_file, "w");
-    if (!fp) {
-        fprintf(stderr, "Failed to open output file %s for writing.\n", output_surface_file);
-        exit(EXIT_FAILURE);
-    }
+    fp = SAFE_FOPEN(output_surface_file, "w");
 
     polygons = get_polygons_ptr(objects[0]);
     polygons2 = get_polygons_ptr(objects2[0]);

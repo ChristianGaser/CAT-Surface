@@ -10,6 +10,7 @@
 #include <bicpl.h>
 
 #include "CAT_SurfaceIO.h"
+#include "CAT_SafeAlloc.h"
 
 void
 usage(char *executable)
@@ -57,11 +58,7 @@ main(int argc, char *argv[])
     fprintf(stderr, "Maximum value of %3.2f found at line %d.\n",
         max_value, max_index);
   
-    outfp = fopen(output_surface_file, "w");
-    if (!outfp) {
-        fprintf(stderr, "Failed to open output file %s for writing.\n", output_surface_file);
-        exit(EXIT_FAILURE);
-    }
+    outfp = SAFE_FOPEN(output_surface_file, "w");
 
     for (i = 0; i < n_files; i++) {
         get_string_argument(NULL, &input_file);

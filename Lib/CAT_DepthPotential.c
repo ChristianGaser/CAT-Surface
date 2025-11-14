@@ -20,6 +20,7 @@
 
 #include "CAT_Surf.h"
 #include "CAT_DepthPotential.h"
+#include "CAT_SafeAlloc.h"
 
 #define vec_sub( a, b, c ) { \
     c.coords[0] = a.coords[0] - b.coords[0]; \
@@ -62,7 +63,7 @@ compute_depth_potential( polygons_struct *polygons, double alpha)
 
     // Defaults
 
-    normals = (Vector *) malloc(sizeof(Vector) * polygons->n_points);
+    normals = SAFE_MALLOC(Vector, polygons->n_points);
 
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
 
@@ -127,7 +128,7 @@ compute_areas( int n_points, Point coords[], int * n_ngh,
     double      area_tri;
     Vector  v1, v2, v3, cross;
 
-    double * areas = (double*)malloc( n_points * sizeof( double ) );
+    double * areas = SAFE_MALLOC(double, n_points);
     for( i = 0; i < n_points; i++ ) {
         areas[i] = 0.0;
     }
@@ -196,7 +197,7 @@ compute_mean_curvature( int n_points, Point coords[], double * areas,
     int         i, j;
     Vector  vv;
 
-    double * mc = (double*)malloc( n_points * sizeof( double ) );
+    double * mc = SAFE_MALLOC(double, n_points);
     for( i = 0; i < n_points; i++ ) {
         mc[i] = 0.0;
     }
@@ -309,13 +310,13 @@ local_depth_potential( int n_points, Point coords[], double * areas,
         sum_area_mc += mc[i] * areas[i];
     }
 
-    double * rhs = (double*)malloc( n_points * sizeof( double ) );
+    double * rhs = SAFE_MALLOC(double, n_points);
     double factor = sum_area_mc / sum_area;
     for( i = 0; i < n_points; i++ ) {
         rhs[i] = ( mc[i] - factor ) * areas[i];
     }
 
-    double * dp_mat_array = (double*)malloc( mat->nnz * sizeof( double ) );
+    double * dp_mat_array = SAFE_MALLOC(double, mat->nnz);
 
     for( i = 0; i < n_points; i++ ) {
         for( j = mat->ia[i]; j < mat->ia[i+1]; j++ ) {
@@ -328,7 +329,7 @@ local_depth_potential( int n_points, Point coords[], double * areas,
 
     /* Solution by SOR Gauss Seidel */
 
-    double * dp = (double*)malloc( n_points * sizeof( double ) );
+    double * dp = SAFE_MALLOC(double, n_points);
 
     gauss_seidel( n_points, mat->ia, mat->ja, dp_mat_array, rhs, dp, 1000, 1.0e-10, SOR, 0 );
 
@@ -398,9 +399,9 @@ init_csr_matrix( int n_points, int * n_ngh, int ** ngh,
     }
 
     mat->n = n_points;
-    mat->ia = (int *)malloc( ( n_points + 1 ) * sizeof( int ) );
-    mat->ja = (int *)malloc( mat->nnz * sizeof( int ) );
-    mat->A = (double *)malloc( mat->nnz * sizeof( double ) );
+    mat->ia = SAFE_MALLOC(int, ( n_points + 1 ));
+    mat->ja = SAFE_MALLOC(int, mat->nnz);
+    mat->A = SAFE_MALLOC(double, mat->nnz);
 
     for( i = 0; i < mat->nnz; i++ ) {
         mat->A[i] = 0.0;

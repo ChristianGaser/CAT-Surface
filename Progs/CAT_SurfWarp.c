@@ -18,6 +18,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"
 #include "dartel.h"
+#include "CAT_SafeAlloc.h"
 
 /* argument defaults */
 char *param_file     = NULL;
@@ -371,11 +372,7 @@ main(int argc, char *argv[])
 
     /* read values from parameter file */
     if (param_file != NULL) {
-        if ((fp = fopen(param_file, "r")) == 0) {
-            fprintf(stderr, "Couldn't open parameter file %s.\n",
-                param_file);
-            exit(EXIT_FAILURE);
-        }
+        fp = SAFE_FOPEN(param_file, "r");
   
         j = 0;
 

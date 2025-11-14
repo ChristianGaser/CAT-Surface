@@ -21,6 +21,7 @@
 
 #include <quadric.h>
 #include "CAT_Surf.h"
+#include "CAT_SafeAlloc.h"
 
 /**
  * \brief Apply mixed boundary conditions to grid indices.
@@ -104,9 +105,9 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
     char str[512];
     Point points[MAX_POINTS_PER_POLYGON];
     
-    avol = (double *) calloc(256*256*256, sizeof(double));
+    avol = SAFE_CALLOC(double, 256*256*256);
 
-    lf = (double *) calloc(polygons->n_points, sizeof(double));
+    lf = SAFE_CALLOC(double, polygons->n_points);
         
     for (i = 0; i < 256*256*256; i++)
         avol[i] = 0.0;
@@ -225,8 +226,8 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     create_tetrahedral_sphere(&center, 100.0, 100.0, 100.0,
                   resampled->n_items, resampled_sphere);
 
-    area_values_resampled = (double *) malloc(sizeof(double) * resampled->n_points);
-    areas_sphere      = (double *) malloc(sizeof(double) * resampled->n_points);
+    area_values_resampled = SAFE_MALLOC(double, resampled->n_points);
+    areas_sphere      = SAFE_MALLOC(double, resampled->n_points);
 
     area = get_area_of_points(resampled_sphere, areas_sphere);
     area = get_area_of_points(resampled, area_values_resampled);
@@ -244,6 +245,7 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
         area_values[i] *= area/area_sum;
 
     free(area_values_resampled);
+    free(areas_sphere);
     
     return(area);
 }
@@ -267,7 +269,7 @@ get_area_of_points(polygons_struct *polygons, double *area_values)
     double surface_area = 0.0;
     Point points[MAX_POINTS_PER_POLYGON];
 
-    pcount = (int *) malloc(sizeof(int) * polygons->n_points);
+    pcount = SAFE_MALLOC(int, polygons->n_points);
     memset(pcount, 0, sizeof(int) * polygons->n_points);
     memset(area_values, 0.0, sizeof(double) * polygons->n_points);
 
@@ -355,16 +357,8 @@ void localstat_surface_double(polygons_struct *polygons,
     int i, it, v;
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-    double *buffer = (double *) malloc(sizeof(double) * polygons->n_points);
-    double *arr    = (double *) malloc(sizeof(double) * polygons->n_points);
-    if (!buffer || !arr) {
-        fprintf(stderr, "Memory allocation error.\n");
-        if (buffer) free(buffer);
-        if (arr)    free(arr);
-        if (n_neighbours) free(n_neighbours);
-        if (neighbours)   { if (neighbours[0]) free(neighbours[0]); free(neighbours); }
-        return;
-    }
+    double *buffer = SAFE_MALLOC(double, polygons->n_points);
+    double *arr    = SAFE_MALLOC(double, polygons->n_points);
     for (i = 0; i < polygons->n_points; ++i) buffer[i] = input[i];
 
     for (it = 0; it < iters; ++it) {
@@ -787,7 +781,7 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int
     
     /* Calculate the reverse Hausdorff */
 
-    revhd = (double *) malloc(sizeof(double) * p2->n_points);
+    revhd = SAFE_MALLOC(double, p2->n_points);
 
     for (i = 0; i < p2->n_points; i++) {
         poly = find_closest_polygon_point(&p2->points[i], p, &closest);
@@ -806,6 +800,7 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int
 
     delete_the_bintree(&p->bintree);
     delete_the_bintree(&p2->bintree);
+    free(revhd);
     return(max_hd);
 }
 
@@ -1294,24 +1289,14 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
 
     SA = get_polygons_surface_area(polygons);
     
-    avgCompStretch = (float *) malloc(sizeof(float) * polygons->n_points);
-    maxLinDistort  = (float *) malloc(sizeof(float) * polygons->n_points);
-    avgArealComp   = (float *) malloc(sizeof(float) * polygons->n_points);
-    compStretch    = (float *) malloc(sizeof(float) * polygons->n_points);
-    stretching     = (float *) malloc(sizeof(float) * polygons->n_points);
-    area_values    = (double *) malloc(sizeof(double) * polygons->n_points);
-    area_valuesIn  = (double *) malloc(sizeof(double) * polygons->n_points);
-    needSmoothing  = (int *) malloc(sizeof(int) * polygons->n_points);
-
-    if (!avgCompStretch || !maxLinDistort || !avgArealComp || !compStretch ||
-        !stretching || !area_values || !area_valuesIn || !needSmoothing) {
-        fprintf(stderr, "Memory allocation error in inflate_surface_and_smooth_fingers().\n");
-        free(avgCompStretch); free(maxLinDistort); free(avgArealComp);
-        free(compStretch); free(stretching); free(area_values);
-        free(area_valuesIn); free(needSmoothing);
-        fclose(fp);
-        return 1;
-    }
+    avgCompStretch = SAFE_MALLOC(float, polygons->n_points);
+    maxLinDistort  = SAFE_MALLOC(float, polygons->n_points);
+    avgArealComp   = SAFE_MALLOC(float, polygons->n_points);
+    compStretch    = SAFE_MALLOC(float, polygons->n_points);
+    stretching     = SAFE_MALLOC(float, polygons->n_points);
+    area_values    = SAFE_MALLOC(double, polygons->n_points);
+    area_valuesIn  = SAFE_MALLOC(double, polygons->n_points);
+    needSmoothing  = SAFE_MALLOC(int, polygons->n_points);
     SA_ratio = 0.0;
 
     for (cycle = 0; cycle < (n_smoothingCycles + 1); cycle++) {
@@ -1655,14 +1640,9 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     Vector normal;
     BOOLEAN interior_flag;
 
-    signed char *point_done   = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
-    signed char *point_error  = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
-    Point       *centroids    = (Point *) malloc(sizeof(Point) * polygons->n_points);
-    if (!point_done || !point_error || !centroids) {
-        fprintf(stderr, "Memory allocation error in check_polygons_shape_integrity().\n");
-        free(point_done); free(point_error); free(centroids);
-        return; /* abort integrity check gracefully */
-    }
+    signed char *point_done   = SAFE_MALLOC(signed char, polygons->n_points);
+    signed char *point_error  = SAFE_MALLOC(signed char, polygons->n_points);
+    Point       *centroids    = SAFE_MALLOC(Point, polygons->n_points);
 
     for (ptidx = 0; ptidx <  polygons->n_points; ptidx++) {
         point_done[ptidx] = FALSE;
@@ -1751,7 +1731,7 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
     polygons_struct *polygons_out;
     object_struct **objects_out;
     
-    objects_out  = (object_struct **) malloc(sizeof(object_struct *));
+    objects_out  = SAFE_MALLOC(object_struct *, 1);
     *objects_out = create_object(POLYGONS);
     polygons_out = get_polygons_ptr(*objects_out);
     
@@ -1789,7 +1769,7 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     compute_polygon_normals(polygons);
     check_polygons_neighbours_computed(polygons);
 
-    objects_out  = (object_struct **) malloc(sizeof(object_struct *));
+    objects_out  = SAFE_MALLOC(object_struct *, 1);
     *objects_out = create_object(POLYGONS);
     polygons_out = get_polygons_ptr(*objects_out);
             
@@ -1802,7 +1782,7 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     length = 1.0;
 
     /* Allocate displacement field */
-    double (*displacements)[3] = malloc(sizeof(double[3]) * polygons->n_points);
+    double (*displacements)[3] = (double (*)[3]) SAFE_MALLOC(double, 3 * polygons->n_points);
 
     for (i = 0; i < n_steps; i++) {
         copy_polygons(polygons, polygons_out);
@@ -1874,7 +1854,7 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
     polygons_struct *polygons_transformed;
     object_struct **objects_transformed;
 
-    extents = (double *) malloc(sizeof(double) * polygons->n_points);                
+    extents = SAFE_MALLOC(double, polygons->n_points);                
     for (p = 0; p < polygons->n_points; p++) extents[p] = extent;
 
     objects_transformed = central_to_new_pial(polygons, thickness_values, extents, 
@@ -1984,7 +1964,7 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     /* for curvtype 0 (mean curvature in degrees) use average around point */
     if (curvtype == 0) avg = 3.0; else avg = 0.0;
     
-    double *curvatures = (double *) malloc(sizeof(double) * polygons->n_points);
+    double *curvatures = SAFE_MALLOC(double, polygons->n_points);
     compute_polygon_normals(polygons);
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,

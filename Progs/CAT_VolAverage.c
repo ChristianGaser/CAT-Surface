@@ -12,6 +12,7 @@
 
 #include <float.h>
 #include <stdlib.h>
+#include "CAT_SafeAlloc.h"
 
 int verbose = 0;
 
@@ -151,22 +152,14 @@ int main(int argc, char *argv[])
                 free(input);
             }
             if (zscore_filename != NULL) {
-                fid = fopen(zscore_filename, "w");
-                if (fid == NULL) {
-                        fprintf(stderr,"Error writing %s.\n", zscore_filename);
-                        exit(1);
-                }
+                fid = SAFE_FOPEN(zscore_filename, "w");
                 fprintf(fid,"filename,z-score\n");
                 for (i=0; i<nfiles; i++)
                     fprintf(fid,"%s,%g\n",infiles[i],zscore[i]);
                 fclose(fid);
             }
             if (zscore_txt_filename != NULL) {
-                fid = fopen(zscore_txt_filename, "w");
-                if (fid == NULL) {
-                        fprintf(stderr,"Error writing %s.\n", zscore_txt_filename);
-                        exit(1);
-                }
+                fid = SAFE_FOPEN(zscore_txt_filename, "w");
                 for (i=0; i<nfiles; i++)
                     fprintf(fid,"%g\n",zscore[i]);
                 fclose(fid);

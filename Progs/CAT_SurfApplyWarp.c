@@ -14,6 +14,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Surf.h"
 #include "dartel.h"
+#include "CAT_SafeAlloc.h"
 
 #define  BINTREE_FACTOR   0.5
 
@@ -72,10 +73,7 @@ main(int argc, char *argv[])
 
     sphere = get_polygons_ptr(objects[0]);
 
-    if ((infp = fopen(flow_file, "rb")) == NULL) {
-        fprintf(stderr, "Error: Couldn't read file %s.\n", flow_file);
-        exit(EXIT_FAILURE);
-    }
+    infp = SAFE_FOPEN(flow_file, "rb");
 
     fread(&size_map, 2, sizeof(int), infp);
     fread(&shift, 2, sizeof(int), infp);
