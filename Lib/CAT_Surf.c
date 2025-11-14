@@ -1295,24 +1295,20 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     SA = get_polygons_surface_area(polygons);
     
     avgCompStretch = (float *) malloc(sizeof(float) * polygons->n_points);
-    maxLinDistort = (float *) malloc(sizeof(float) * polygons->n_points);
-    avgArealComp = (float *) malloc(sizeof(float) * polygons->n_points);
-    compStretch = (float *) malloc(sizeof(float) * polygons->n_points);
-    stretching = (float *) malloc(sizeof(float) * polygons->n_points);
-    area_values = (double *) malloc(sizeof(double) * polygons->n_points);
-    area_valuesIn = (double *) malloc(sizeof(double) * polygons->n_points);
-    needSmoothing = (int *) malloc(sizeof(int) * polygons->n_points);
+    maxLinDistort  = (float *) malloc(sizeof(float) * polygons->n_points);
+    avgArealComp   = (float *) malloc(sizeof(float) * polygons->n_points);
+    compStretch    = (float *) malloc(sizeof(float) * polygons->n_points);
+    stretching     = (float *) malloc(sizeof(float) * polygons->n_points);
+    area_values    = (double *) malloc(sizeof(double) * polygons->n_points);
+    area_valuesIn  = (double *) malloc(sizeof(double) * polygons->n_points);
+    needSmoothing  = (int *) malloc(sizeof(int) * polygons->n_points);
 
-    if (!*avgCompStretch || !*maxLinDistort || !*avgArealComp || !*compStretch || !*stretching || !*area_values || !*area_valuesIn || !*needSmoothing) {
+    if (!avgCompStretch || !maxLinDistort || !avgArealComp || !compStretch ||
+        !stretching || !area_values || !area_valuesIn || !needSmoothing) {
         fprintf(stderr, "Memory allocation error in inflate_surface_and_smooth_fingers().\n");
-        if (*avgCompStretch) free(*avgCompStretch);
-        if (*maxLinDistort) free(*maxLinDistort);
-        if (*avgArealComp) free(*avgArealComp);
-        if (*compStretch) free(*compStretch);
-        if (*stretching) free(*stretching);
-        if (*area_values) free(*area_values);
-        if (*area_valuesIn) free(*area_valuesIn);
-        if (*needSmoothing) free(*needSmoothing);
+        free(avgCompStretch); free(maxLinDistort); free(avgArealComp);
+        free(compStretch); free(stretching); free(area_values);
+        free(area_valuesIn); free(needSmoothing);
         fclose(fp);
         return 1;
     }
@@ -1659,9 +1655,14 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     Vector normal;
     BOOLEAN interior_flag;
 
-    signed char *point_done = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
-    signed char *point_error = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
-    Point *centroids = (Point *) malloc(sizeof(Point) * polygons->n_points);
+    signed char *point_done   = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
+    signed char *point_error  = (signed char *) malloc(sizeof(signed char) * polygons->n_points);
+    Point       *centroids    = (Point *) malloc(sizeof(Point) * polygons->n_points);
+    if (!point_done || !point_error || !centroids) {
+        fprintf(stderr, "Memory allocation error in check_polygons_shape_integrity().\n");
+        free(point_done); free(point_error); free(centroids);
+        return; /* abort integrity check gracefully */
+    }
 
     for (ptidx = 0; ptidx <  polygons->n_points; ptidx++) {
         point_done[ptidx] = FALSE;
