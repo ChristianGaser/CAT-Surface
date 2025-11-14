@@ -21,6 +21,10 @@ newnode(polygons_struct *polygons, int poly)
     int size, i, p;
 
     node = (struct patchinfo *) malloc(sizeof(struct patchinfo));
+    if (!node) {
+        fprintf(stderr, "Memory allocation error in newnode().\n");
+        exit(EXIT_FAILURE);
+    }
     node->num = poly;
     node->next = NULL;
 
@@ -105,9 +109,18 @@ make_patch(polygons_struct *polygons, struct patchinfo *head)
     polygons_struct *patch;
 
     ptmap = (int *) malloc(sizeof(int) * polygons->n_points);
+    if (!ptmap) {
+        fprintf(stderr, "Memory allocation error in make_patch(): ptmap.\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* create the output object */
     object = (object_struct **) malloc(sizeof(object_struct *));
+    if (!object) {
+        fprintf(stderr, "Memory allocation error in make_patch(): object.\n");
+        free(ptmap);
+        exit(EXIT_FAILURE);
+    }
     *object = create_object(POLYGONS);
     patch = get_polygons_ptr(*object);
     initialize_polygons(patch, WHITE, NULL);
@@ -132,6 +145,12 @@ make_patch(polygons_struct *polygons, struct patchinfo *head)
     }
 
     patch->points = (Point *) malloc(sizeof(Point) * patch->n_points);
+    if (!patch->points) {
+        fprintf(stderr, "Memory allocation error in make_patch(): points.\n");
+        free(ptmap);
+        free(object);
+        exit(EXIT_FAILURE);
+    }
 
     p = 1;
     for (i = 0; i < polygons->n_points; i++) {
@@ -152,6 +171,16 @@ make_patch(polygons_struct *polygons, struct patchinfo *head)
     patch->indices = (int *) malloc(sizeof(int) * 3 * patch->n_items);
     patch->end_indices = (int *) malloc(sizeof(int) * patch->n_items);
     patch->normals = (Vector *) malloc(sizeof(Vector) * patch->n_points);
+    if (!patch->indices || !patch->end_indices || !patch->normals) {
+        fprintf(stderr, "Memory allocation error in make_patch(): indices/end_indices/normals.\n");
+        free(ptmap);
+        free(object);
+        free(patch->points);
+        if (patch->indices) free(patch->indices);
+        if (patch->end_indices) free(patch->end_indices);
+        if (patch->normals) free(patch->normals);
+        exit(EXIT_FAILURE);
+    }
 
     cur = head;
     for (i = 0; i < patch->n_items; i++) {

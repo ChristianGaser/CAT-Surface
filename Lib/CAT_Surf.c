@@ -1303,6 +1303,19 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     area_valuesIn = (double *) malloc(sizeof(double) * polygons->n_points);
     needSmoothing = (int *) malloc(sizeof(int) * polygons->n_points);
 
+    if (!*avgCompStretch || !*maxLinDistort || !*avgArealComp || !*compStretch || !*stretching || !*area_values || !*area_valuesIn || !*needSmoothing) {
+        fprintf(stderr, "Memory allocation error in inflate_surface_and_smooth_fingers().\n");
+        if (*avgCompStretch) free(*avgCompStretch);
+        if (*maxLinDistort) free(*maxLinDistort);
+        if (*avgArealComp) free(*avgArealComp);
+        if (*compStretch) free(*compStretch);
+        if (*stretching) free(*stretching);
+        if (*area_values) free(*area_values);
+        if (*area_valuesIn) free(*area_valuesIn);
+        if (*needSmoothing) free(*needSmoothing);
+        fclose(fp);
+        return 1;
+    }
     SA_ratio = 0.0;
 
     for (cycle = 0; cycle < (n_smoothingCycles + 1); cycle++) {

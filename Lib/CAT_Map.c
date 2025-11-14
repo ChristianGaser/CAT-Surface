@@ -110,6 +110,10 @@ map_sphere_values_to_sheet(polygons_struct *polygons,
     /* if sphere_values is empty calculate curvature */
     if (sphere_values == (double *)0) {
         sphere_values = (double *) malloc(sizeof(double) * polygons->n_points);
+        if (!sphere_values) {
+            fprintf(stderr, "Memory allocation error in map_sphere_values_to_sheet().\n");
+            exit(EXIT_FAILURE);
+        }
         get_smoothed_curvatures(polygons, sphere_values, fwhm,
                     curvtype);
     } else if (fwhm > 0) {

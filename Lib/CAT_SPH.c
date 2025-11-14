@@ -60,6 +60,17 @@ read_SPHxyz(char *file, int bandwidth, double **rcx, double **rcy, double **rcz,
     *icx = (double *) malloc(sizeof(double) * bw2);
     *icy = (double *) malloc(sizeof(double) * bw2);
     *icz = (double *) malloc(sizeof(double) * bw2);
+    if (!*rcx || !*rcy || !*rcz || !*icx || !*icy || !*icz) {
+        fprintf(stderr, "Memory allocation error in read_SPHxyz().\n");
+        if (*rcx) free(*rcx);
+        if (*rcy) free(*rcy);
+        if (*rcz) free(*rcz);
+        if (*icx) free(*icx);
+        if (*icy) free(*icy);
+        if (*icz) free(*icz);
+        fclose(fp);
+        return 1;
+    }
 
     if (fread(*rcx, sizeof(double), bw2, fp) !=  bw2) {
         fprintf(stderr, "Error reading data.\n");
@@ -98,6 +109,10 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
 
     /* output coefficients */
     fp = fopen(file, "w");
+    if (!fp) {
+        fprintf(stderr, "Error opening file %s.\n", file);
+        return 1;
+    }
     fprintf(fp, "SPH\n%d %d %d\n", bandwidth, 3, 1);
     for (i = 0; i < bw2; i++) fprintf(fp,"%g %g %g %g %g %g\n",rcx[i],icx[i],rcy[i],icy[i],rcz[i],icz[i]);
     fprintf(fp,"\n");
