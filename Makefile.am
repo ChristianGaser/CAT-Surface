@@ -292,6 +292,7 @@ noinst_HEADERS = \
     Include/CAT_Bmap.h \
     Include/CAT_NiftiLib.h \
     Include/CAT_MarchingCubes.h \
+    Include/CAT_SafeAlloc.h \
     3rdparty/bicpl-surface/Include/bicpl.h \
     3rdparty/genus0/LookUpTable.h \
     3rdparty/genus0/genus0.h \
@@ -364,5 +365,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_Ornlm.c \
     Lib/CAT_Deform.c \
     Lib//CAT_MarchingCubes.c \
-    Lib/CAT_SPH.c
+    Lib/CAT_SPH.c \
+    Lib/CAT_SafeAlloc.c
 
