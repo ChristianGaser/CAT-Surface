@@ -148,7 +148,10 @@ main(int argc, char *argv[])
     }
 
     fp = fopen(output_surface_file, "w");
-    if (!fp) exit(EXIT_FAILURE);
+    if (!fp) {
+        fprintf(stderr, "Failed to open output file %s for writing.\n", output_surface_file);
+        exit(EXIT_FAILURE);
+    }
 
     polygons = get_polygons_ptr(objects[0]);
     polygons2 = get_polygons_ptr(objects2[0]);

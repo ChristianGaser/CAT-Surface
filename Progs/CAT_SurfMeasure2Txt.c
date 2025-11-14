@@ -43,7 +43,10 @@ main(int argc, char *argv[])
     }
 
     fp = fopen(output_surface_file, "w");
-    if (!fp) exit(EXIT_FAILURE);
+    if (!fp) {
+        fprintf(stderr, "Failed to open output file %s for writing.\n", output_surface_file);
+        exit(EXIT_FAILURE);
+    }
 
     for (i = 0; i < n_values; i++) {
         if ((fprintf(fp, " %g", values[i] ) <= 0) ||
