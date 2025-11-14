@@ -8,6 +8,7 @@
  */
 
 #include "CAT_Resample.h"
+#include "CAT_SafeAlloc.h"
 
 /* Multithreading stuff*/
 #if defined(_WIN32) || defined(_WIN64)
@@ -364,7 +365,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
     double      max_prob, val;
     double     weights[MAX_POINTS_PER_POLYGON];
 
-    objects  = (object_struct **) malloc(sizeof(object_struct *));
+    objects  = SAFE_MALLOC(object_struct *, 1);
     *objects = create_object(POLYGONS);
     scaled_polygons_sphere = get_polygons_ptr(*objects);
     
@@ -378,7 +379,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                 max_val = longval;
         }
         /* build histogram of label values which is necessary for large and sparse label entries */
-        histo = (int *) malloc(sizeof(int) * (max_val + 1 - min_val));
+    histo = SAFE_MALLOC(int, (max_val + 1 - min_val));
         memset(histo, 0, sizeof(int) * (max_val + 1 - min_val));
         for (i = 0; i < polygons_sphere->n_points; i++) {
             longval = (signed long)input_values[i];
@@ -406,7 +407,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
     }
     
     /* scale the re-parameterizing sphere... also the returned object. */
-    scaled_objects = (object_struct **) malloc(sizeof(object_struct *));
+    scaled_objects = SAFE_MALLOC(object_struct *, 1);
     *scaled_objects = create_object(POLYGONS);
     scaled_target_sphere = get_polygons_ptr(*scaled_objects);
     copy_polygons(target_sphere, scaled_target_sphere);
@@ -420,7 +421,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
     create_polygons_bintree(scaled_polygons_sphere,
                 ROUND((double) scaled_polygons_sphere->n_items * 0.5));
 
-    new_points = (Point *) malloc(sizeof(Point) * scaled_target_sphere->n_points);
+    new_points = SAFE_MALLOC(Point, scaled_target_sphere->n_points);
 
     for (i = 0; i < scaled_target_sphere->n_points; i++) {
         poly = find_closest_polygon_point(&scaled_target_sphere->points[i],

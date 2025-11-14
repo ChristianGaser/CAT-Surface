@@ -81,9 +81,15 @@ main(int argc, char *argv[])
     fread(&shift, 2, sizeof(int), infp);
     xy_size = size_map[0] * size_map[1];
 
-    flow  = (double *)malloc(sizeof(double) * xy_size * 2);
-    flow1 = (double *)malloc(sizeof(double) * xy_size * 2);
-    inflow  = (double *)malloc(sizeof(double) * xy_size * 2);
+    flow   = (double *)malloc(sizeof(double) * xy_size * 2);
+    flow1  = (double *)malloc(sizeof(double) * xy_size * 2);
+    inflow = (double *)malloc(sizeof(double) * xy_size * 2);
+    if (!flow || !flow1 || !inflow) {
+        fprintf(stderr, "Memory allocation error in CAT_SurfApplyWarp.c\n");
+        free(flow); free(flow1); free(inflow);
+        fclose(infp);
+        exit(EXIT_FAILURE);
+    }
     fread(inflow, xy_size*2, sizeof(double), infp);
     fclose(infp);
 

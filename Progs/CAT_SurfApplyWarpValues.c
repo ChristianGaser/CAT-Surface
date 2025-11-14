@@ -66,9 +66,15 @@ main(int argc, char *argv[])
     fread(&size_map, 2, sizeof(int), infp);
     fread(&shift, 2, sizeof(int), infp);
 
-    inflow  = (double *)malloc(sizeof(double)*size_map[0]*size_map[1]*2);
-    flow  = (double *)malloc(sizeof(double)*size_map[0]*size_map[1]*2);
-    flow1 = (double *)malloc(sizeof(double)*size_map[0]*size_map[1]*2);
+    inflow = (double *)malloc(sizeof(double)*size_map[0]*size_map[1]*2);
+    flow   = (double *)malloc(sizeof(double)*size_map[0]*size_map[1]*2);
+    flow1  = (double *)malloc(sizeof(double)*size_map[0]*size_map[1]*2);
+    if (!inflow || !flow || !flow1) {
+        fprintf(stderr, "Memory allocation error for flow buffers.\n");
+        free(inflow); free(flow); free(flow1);
+        fclose(infp);
+        exit(EXIT_FAILURE);
+    }
     
     fread(inflow, size_map[0]*size_map[1]*2, sizeof(double), infp);
     fclose(infp);
@@ -88,6 +94,11 @@ main(int argc, char *argv[])
                     BINTREE_FACTOR));
 
     values = (double *) malloc(sizeof(double) * unit_sphere.n_points);
+    if (!values) {
+        fprintf(stderr, "Memory allocation error for values array.\n");
+        free(flow);
+        exit(EXIT_FAILURE);
+    }
   
     initialize_progress_report(&progress, FALSE, size_map[0],
                    "Mapping to sheet");

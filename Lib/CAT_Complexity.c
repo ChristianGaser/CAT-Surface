@@ -15,6 +15,7 @@
 #include "CAT_Complexity.h"
 #include "CAT_Resample.h"
 #include "CAT_SPH.h"
+#include "CAT_SafeAlloc.h"
 
 
 /* get the slope */
@@ -40,8 +41,8 @@ get_globalfd(double *x, double *y, int len)
     int i;
     double *logx, *logy, fd;
 
-    logx = (double *) malloc(sizeof(double) * len);
-    logy = (double *) malloc(sizeof(double) * len);
+    logx = SAFE_MALLOC(double, len);
+    logy = SAFE_MALLOC(double, len);
     for (i = 0; i < len; i++) {
         logx[i] = log(x[i]);
         logy[i] = log(y[i]);
@@ -284,21 +285,21 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
 
     bw2 = BW * BW;
 
-    rdatax = (double *) malloc(sizeof(double) * 4 * bw2);
-    rdatay = (double *) malloc(sizeof(double) * 4 * bw2);
-    rdataz = (double *) malloc(sizeof(double) * 4 * bw2);
-    rcx    = (double *) malloc(sizeof(double) * bw2);
-    rcy    = (double *) malloc(sizeof(double) * bw2);
-    rcz    = (double *) malloc(sizeof(double) * bw2);
-    icx    = (double *) malloc(sizeof(double) * bw2);
-    icy    = (double *) malloc(sizeof(double) * bw2);
-    icz    = (double *) malloc(sizeof(double) * bw2);
-    lrcx   = (double *) malloc(sizeof(double) * bw2);
-    lrcy   = (double *) malloc(sizeof(double) * bw2);
-    lrcz   = (double *) malloc(sizeof(double) * bw2);
-    licx   = (double *) malloc(sizeof(double) * bw2);
-    licy   = (double *) malloc(sizeof(double) * bw2);
-    licz   = (double *) malloc(sizeof(double) * bw2);
+    rdatax = SAFE_MALLOC(double, 4 * bw2);
+    rdatay = SAFE_MALLOC(double, 4 * bw2);
+    rdataz = SAFE_MALLOC(double, 4 * bw2);
+    rcx    = SAFE_MALLOC(double, bw2);
+    rcy    = SAFE_MALLOC(double, bw2);
+    rcz    = SAFE_MALLOC(double, bw2);
+    icx    = SAFE_MALLOC(double, bw2);
+    icy    = SAFE_MALLOC(double, bw2);
+    icz    = SAFE_MALLOC(double, bw2);
+    lrcx   = SAFE_MALLOC(double, bw2);
+    lrcy   = SAFE_MALLOC(double, bw2);
+    lrcz   = SAFE_MALLOC(double, bw2);
+    licx   = SAFE_MALLOC(double, bw2);
+    licy   = SAFE_MALLOC(double, bw2);
+    licz   = SAFE_MALLOC(double, bw2);
 
     if (debugflag) printf("Samp SPH coords..");
     get_equally_sampled_coords_of_polygon(surface, sphere, BW,
@@ -311,7 +312,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
 
     if (debugflag) {
         /* output the spectral power */
-        spectral_power = (double *) malloc(sizeof(double) * BW);
+    spectral_power = SAFE_MALLOC(double, BW);
         memset(spectral_power, 0.0, sizeof(double) * BW);
         for (l = 0; l < BW; l++) {
             for (m = -l; m < l+1; m++) {
