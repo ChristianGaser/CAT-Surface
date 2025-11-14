@@ -14,6 +14,7 @@
 #include "CAT_Defect.h"
 #include "CAT_Map.h"
 #include "CAT_Surf.h"
+#include "CAT_SafeAlloc.h"
 
 #define DUMP_FILES 0
 
@@ -29,10 +30,7 @@ read_SPHxyz(char *file, int bandwidth, double **rcx, double **rcy, double **rcz,
     int   dataformat;
 
     /* read coefficients */
-    if ((fp = fopen(file, "rb"))  == NULL) {
-        fprintf(stderr, "Error opening file %s.\n", file);
-        return(1);
-    }
+    fp = SAFE_FOPEN(file, "rb");
 
     fgets(line, 256, fp);
     if (strncmp(line, "SPH", 3)) {
@@ -108,11 +106,7 @@ write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rcz,
     int i, bw2 = bandwidth * bandwidth;
 
     /* output coefficients */
-    fp = fopen(file, "w");
-    if (!fp) {
-        fprintf(stderr, "Error opening file %s.\n", file);
-        return 1;
-    }
+    fp = SAFE_FOPEN(file, "w");
     fprintf(fp, "SPH\n%d %d %d\n", bandwidth, 3, 1);
     for (i = 0; i < bw2; i++) fprintf(fp,"%g %g %g %g %g %g\n",rcx[i],icx[i],rcy[i],icy[i],rcz[i],icz[i]);
     fprintf(fp,"\n");

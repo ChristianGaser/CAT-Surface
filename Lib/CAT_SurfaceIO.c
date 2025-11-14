@@ -1360,12 +1360,7 @@ output_freesurfer_curv(char *fname, int nvertices, double *data)
     double f;
     int k;
 
-    fp = fopen(fname,"wb");
-    if(fp == NULL){
-        fprintf(stderr, "output_freesurfer_curv: Couldn't open file %s.\n",
-            fname);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(fname, "wb");
     fwrite3(NEW_VERSION_MAGIC_NUMBER, fp); 
     fwriteInt(nvertices, fp);
     fwriteInt(0, fp);
@@ -1398,11 +1393,7 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
     initialize_polygons(polygons, WHITE, NULL);
     *format = ASCII_FORMAT;
 
-    if ((fp = fopen(file, "rb")) == 0) {
-        fprintf(stderr, "input_freesurfer: Couldn't open file %s.\n",
-            file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "rb");
 
     /* read magic number for checking filetype */
     fread3(&magic, fp);
@@ -1452,12 +1443,7 @@ input_freesurfer_curv(char *file, int *vnum, double **input_values)
     
     *vnum = 0;
   
-    if ((fp = fopen(file, "rb")) == 0) {
-        fprintf(stderr,
-            "input_freesurfer_curv: Couldn't open file %s.\n",
-            file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "rb");
 
     /* read magic number for checking filetype */
     fread3(&magic,fp);
@@ -1508,10 +1494,7 @@ input_dx(char *file, File_formats *format, int *n_objects,
 
     *format = ASCII_FORMAT;
 
-    if ((fp = fopen(file, "r")) == 0) {
-        fprintf(stderr, "input_dx: Couldn't open file %s.\n", file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "r");
 
     fgets(line, 54, fp);
     if (equal_strings(line,
@@ -1608,10 +1591,7 @@ input_dfs(char *file, File_formats *format, int *n_objects,
 
     *format = ASCII_FORMAT;
 
-    if ((fp = fopen(file, "r")) == 0) {
-        fprintf(stderr, "input_dfs: Couldn't open file %s.\n", file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "r");
 
     fread(&dummy, sizeof(char), 12, fp);
     fread(&hdr_size, 4, 1, fp);
@@ -1672,11 +1652,7 @@ read_pgm(char *file, int *nx, int *ny)
     unsigned char *data_char;
     double      *data;
       
-    if ((fp = fopen(file, "r")) == 0) {
-        fprintf(stderr, "read_pgm: Couldn't open file %s.\n", file);
-        *nx = *ny = 0;
-        return(NULL);
-    }
+    fp = SAFE_FOPEN(file, "r");
   
     /* read PGM header */
     fgets(line, 256, fp);
@@ -1741,10 +1717,7 @@ write_pgm(char *file, double *data, int nx, int ny)
     for (i = 0; i < nx*ny; i++)
         data_char[i] = (char) ROUND((data[i] - offset) * scale);
   
-    if ((fp = fopen(file, "w")) == 0) {
-        fprintf(stderr, "write_pgm: Couldn't open file %s.\n", file);
-        return(1);
-    }
+    fp = SAFE_FOPEN(file, "w");
   
     /* write PGM header */
     fprintf(fp, "P5\n");
@@ -1773,10 +1746,7 @@ input_txt_values(
     double     value;
   
   
-    if ((fp = fopen(filename, "r")) == 0) {
-        fprintf(stderr, "input_txt_values: Couldn't open file %s.\n", filename);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(filename, "r");
   
     *n_values = 0;
     *values = NULL;
@@ -1830,10 +1800,7 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
     }
 
     if (filename_extension_matches(file, "txt")) {
-        if ((fp = fopen(file, "w")) == 0) {
-            fprintf(stderr, "write_txt: Couldn't open file %s.\n", file);
-            return(ERROR);
-        }
+        fp = SAFE_FOPEN(file, "w");
         for (i = 0; i < n_values; i++) {
             if (flag == TYPE_DOUBLE)
                 fprintf(fp, "%f\n",d[i]);
@@ -1914,11 +1881,7 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
     int   version, structure;
     ATABLE *atable;
 
-    fp = fopen(file, "r");
-    if (!fp) {
-        fprintf(stderr, "Could not open annotation file %s\n", file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "r");
 
     *n_array = freadInt(fp);
     array = (int*) calloc (*n_array, sizeof(int));
@@ -1995,11 +1958,7 @@ write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE
     int   i, flag, label, len, vno, tag;
     int   version, structure;
 
-    fp = fopen(file, "w");
-    if (!fp) {
-        fprintf(stderr, "Could not open annotation file %s\n", file);
-        return(ERROR);
-    }
+    fp = SAFE_FOPEN(file, "w");
 
     fwriteInt(n_array, fp);
 
