@@ -20,6 +20,7 @@ int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
 int n_iter = 10;
+int fast = 0;
 
 /* the argument table */
 static ArgvInfo argTable[] = {
@@ -63,6 +64,10 @@ static ArgvInfo argTable[] = {
   {"-iter", ARGV_INT, (char *) TRUE, (char *) &n_iter,
     "Number of iterations."},
   
+  {"-fast", ARGV_CONSTANT, (char *) TRUE, (char *) &fast,
+    "Enable fast processing without any preprocessing, smoothing, or topology \n\
+    correction."},
+
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
     "Enable verbose mode for detailed output during processing."},
 
@@ -117,6 +122,7 @@ int main(int argc, char *argv[]) {
     float *input_float, *label;
     char out_diff[1024];
     char *input_filename, *output_filename;
+    object_struct *object;
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
@@ -154,9 +160,14 @@ int main(int argc, char *argv[]) {
         }
     } else label = NULL;
 
-    object_struct *object = apply_marching_cubes(input_float, nii_ptr, label, 
-                min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
-                n_iter, strength_gyri_mask, verbose);
+    if (fast) {
+        object = apply_marching_cubes_fast(input_float, nii_ptr, 
+                    min_threshold, verbose);
+    } else {
+        object = apply_marching_cubes(input_float, nii_ptr, label, 
+                    min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
+                    n_iter, strength_gyri_mask, verbose);
+    }
     if (object) {
         output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
     } else {

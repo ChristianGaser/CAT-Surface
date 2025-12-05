@@ -765,7 +765,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
         EC = euler_characteristic(polygons, verbose);
         count++;
-        if (verbose) printf("Euler characteristics after %d iterations is %d (%d voxel changed).\n", count, EC, count_change);
+        if (verbose) printf("Euler characteristics after %d iterations: %d (%d voxel changed).\n", count, EC, count_change);
   
         /* save results as next input */
         for (i = 0; i < nvol; i++)
@@ -782,6 +782,98 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
     free(vol_changed);
     free(vol_uint8);
+    free(vol_uint16);
+    free(vol_float);
+    
+    return object;
+}
+
+/* Function to apply marching cubes and extract polygons without any corrections */
+object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_ptr,
+                        double min_threshold, int verbose) 
+{
+    double voxelsize[N_DIMENSIONS];
+    double best_dist;
+    int dims[MAX_DIMENSIONS], i, k, nvol;
+    object_struct **object2;
+    Marching_cubes_methods method = (Marching_cubes_methods)1;
+
+    mat44 nii_mat = nii_ptr->sto_xyz;
+    dims[0] = nii_ptr->nx;
+    dims[1] = nii_ptr->ny;
+    dims[2] = nii_ptr->nz;
+    voxelsize[0] = nii_ptr->dx;
+    voxelsize[1] = nii_ptr->dy;
+    voxelsize[2] = nii_ptr->dz;
+
+    nvol = dims[0] * dims[1] * dims[2];
+
+    /* Memory allocation */
+    float *vol_float = (float *)malloc(nvol * sizeof(float));
+    unsigned short *vol_uint16 = (unsigned short *)malloc(nvol * sizeof(unsigned short));
+    unsigned char *vol_uint8 = (unsigned char *)malloc(nvol * sizeof(unsigned char));
+
+    if (!vol_float || !vol_uint16) {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Normalize input if necessary */
+    if (min_threshold > 1.0) {
+        double max_value = get_max(input_float, nvol, 0, DT_FLOAT32);
+        for (i = 0; i < nvol; i++) input_float[i] /= (float)max_value;
+        min_threshold /= max_value;
+    }
+                
+    /* Keep largest cluster */
+    keep_largest_cluster(input_float, min_threshold, dims, DT_FLOAT32, 0, 1, 18);
+
+    /* Convert to binary image */
+    for (i = 0; i < nvol; i++)
+        vol_uint16[i] = (input_float[i] >= min_threshold) ? 1 : 0;
+
+    /* Do not apply genus-0 correction */
+    genus0parameters g0[1];
+    genus0init(g0);
+    for (i = 0; i < N_DIMENSIONS; i++) g0->dims[i] = dims[i];
+
+    g0->input = vol_uint16;
+    g0->connected_component = 1;
+    g0->value = 1;
+    g0->contour_value = 1;
+    g0->any_genus = 1;
+    g0->biggest_component = 1;
+    g0->pad[0] = g0->pad[1] = g0->pad[2] = 2;
+    g0->ijk2ras = NULL;
+    g0->verbose = 0;
+    g0->return_surface = 0;
+    g0->extraijkscale[2] = 1;
+    g0->cut_loops = 0;
+    g0->connectivity = 6;
+    g0->alt_value = 1;
+    g0->alt_contour_value = 1;
+    
+    if (genus0(g0)) return(NULL); /* check for error */
+        
+    keep_largest_cluster(g0->output, min_threshold, dims, DT_UINT16, 0, 1, 18);
+
+    for (i = 0; i < nvol; i++)
+        vol_float[i] = (float)g0->output[i];
+
+    object_struct *object = create_object(POLYGONS);
+    polygons_struct *polygons = get_polygons_ptr(object);
+
+    extract_isosurface(vol_float, dims, 0.0, -1.0, nii_mat, method, FALSE,
+                       min_threshold, min_threshold, 0.0, -1.0, polygons, verbose);
+
+    compute_polygon_normals(polygons);
+    check_polygons_neighbours_computed(polygons);
+    int n_out = separate_polygons(polygons, -1, &object2);          
+    triangulate_polygons(get_polygons_ptr(object2[0]), polygons);
+
+    int EC = euler_characteristic(polygons, verbose);
+    if (verbose) printf("Euler characteristics: %d\n", EC);
+  
     free(vol_uint16);
     free(vol_float);
     

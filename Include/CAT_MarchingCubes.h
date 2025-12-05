@@ -36,6 +36,12 @@ object_struct *apply_marching_cubes(
     double strength_gyri_mask,
     int verbose);
 
+object_struct *apply_marching_cubes_fast(
+    float *input_float,
+    nifti_image *nii_ptr,
+    double min_threshold,
+    int verbose);
+
 void extract_isosurface(
     float            *vol,
     int              sizes[3],
