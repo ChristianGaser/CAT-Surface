@@ -790,7 +790,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
 /* Function to apply marching cubes and extract polygons without any corrections */
 object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_ptr,
-                        double min_threshold, int verbose) 
+                        double min_threshold, int iter_laplacian, int verbose) 
 {
     double voxelsize[N_DIMENSIONS];
     double best_dist;
@@ -873,6 +873,10 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
 
     int EC = euler_characteristic(polygons, verbose);
     if (verbose) printf("Euler characteristics: %d\n", EC);
+
+    /* Laplacian smoothing to reduce noise in the mesh */
+    if (iter_laplacian > 0)
+        smooth_laplacian(polygons, iter_laplacian, 0.0, 0.5);
   
     free(vol_uint16);
     free(vol_float);

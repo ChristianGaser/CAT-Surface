@@ -40,6 +40,7 @@ object_struct *apply_marching_cubes_fast(
     float *input_float,
     nifti_image *nii_ptr,
     double min_threshold,
+    int iter_laplacian,
     int verbose);
 
 void extract_isosurface(

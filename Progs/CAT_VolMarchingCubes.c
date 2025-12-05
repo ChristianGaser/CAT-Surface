@@ -66,7 +66,7 @@ static ArgvInfo argTable[] = {
   
   {"-fast", ARGV_CONSTANT, (char *) TRUE, (char *) &fast,
     "Enable fast processing without any preprocessing, smoothing, or topology \n\
-    correction."},
+    correction. Only the final Laplacian surface smoothing is applied if defined."},
 
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
     "Enable verbose mode for detailed output during processing."},
@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
 
     if (fast) {
         object = apply_marching_cubes_fast(input_float, nii_ptr, 
-                    min_threshold, verbose);
+                    min_threshold, iter_laplacian, verbose);
     } else {
         object = apply_marching_cubes(input_float, nii_ptr, label, 
                     min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
