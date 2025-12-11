@@ -236,7 +236,7 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     for (i = 0; i < resampled->n_points; i++) 
         area_values_resampled[i] /= areas_sphere[i];
 
-    resample_values_sphere(resampled_sphere, sphere, area_values_resampled, area_values, 1);
+    resample_values_sphere(resampled_sphere, sphere, area_values_resampled, area_values, 1, 0);
     
     /* normalize values to overall area */
     for (i = 0; i < polygons->n_points; i++) 

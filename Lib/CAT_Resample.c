@@ -263,7 +263,8 @@ THREAD_RETURN process_target_points(void *args) {
 // Parallelized or sequential version of the function
 void resample_values_sphere_noscale(polygons_struct *source_sphere, 
                                     polygons_struct *target_sphere, 
-                                    double *invals, double *outvals) {
+                                    double *invals, double *outvals,
+                                    int areal_interpolation) {
     int i, j, t, num_threads = 8; // Number of threads (adjust based on system hardware)
 #if !defined(_WIN32) && !defined(_WIN64)
     THREAD_HANDLE threads[num_threads];
@@ -276,10 +277,17 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
                                 ROUND((double)source_sphere->n_items * 0.5));
     }
 
+    double *src_hits = NULL;
+    if (areal_interpolation && invals != NULL) {
+        src_hits = SAFE_MALLOC(double, source_sphere->n_points);
+        memset(src_hits, 0, sizeof(double) * source_sphere->n_points);
+    }
+
     // Divide the workload among threads
     int total_points = target_sphere->n_points;
     int chunk_size = total_points / num_threads;
     int remainder = total_points % num_threads;
+
 
 #if defined(_WIN32) || defined(_WIN64)
     // **Sequential Execution for Windows**
@@ -294,38 +302,90 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
         n_points = get_polygon_points(source_sphere, poly, poly_points);
         get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
-        outvals[i] = 0.0;
-        for (j = 0; j < n_points; j++) {
-            outvals[i] += (double)weights[j] * invals[source_sphere->indices[
-                                   POINT_INDEX(source_sphere->end_indices, poly, j)]];
+        if (src_hits != NULL) {
+            for (j = 0; j < n_points; j++) {
+                int src_idx = source_sphere->indices[POINT_INDEX(source_sphere->end_indices, poly, j)];
+                src_hits[src_idx] += weights[j];
+            }
         }
 
+        if (!areal_interpolation) {
+            outvals[i] = 0.0;
+            for (j = 0; j < n_points; j++) {
+                outvals[i] += (double)weights[j] * invals[source_sphere->indices[
+                                       POINT_INDEX(source_sphere->end_indices, poly, j)]];
+            }
+        }
     }
 #else
-    // **Parallel Execution for Non-Windows Systems**
-    for (t = 0; t < num_threads; t++) {
-        thread_args[t].start_idx = t * chunk_size;
-        thread_args[t].end_idx = (t == num_threads - 1) ? (t + 1) * chunk_size + remainder
-                                                        : (t + 1) * chunk_size;
-        thread_args[t].source_sphere = source_sphere;
-        thread_args[t].target_sphere = target_sphere;
-        thread_args[t].invals = invals;
-        thread_args[t].outvals = outvals;
+    if (areal_interpolation) {
+        /* Sequential two-pass path to accumulate source hits. */
+        for (i = 0; i < total_points; i++) {
+            int poly, n_points;
+            Point point;
+            Point poly_points[MAX_POINTS_PER_POLYGON];
+            double weights[MAX_POINTS_PER_POLYGON];
 
-        if (pthread_create(&threads[t], NULL, process_target_points, &thread_args[t]) != 0) {
-            perror("pthread_create");
-            exit(EXIT_FAILURE);
+            poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
+
+            n_points = get_polygon_points(source_sphere, poly, poly_points);
+            get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
+
+            for (j = 0; j < n_points; j++) {
+                int src_idx = source_sphere->indices[POINT_INDEX(source_sphere->end_indices, poly, j)];
+                src_hits[src_idx] += weights[j];
+            }
         }
-    }
+    } else {
+        // **Parallel Execution for Non-Windows Systems**
+        for (t = 0; t < num_threads; t++) {
+            thread_args[t].start_idx = t * chunk_size;
+            thread_args[t].end_idx = (t == num_threads - 1) ? (t + 1) * chunk_size + remainder
+                                                            : (t + 1) * chunk_size;
+            thread_args[t].source_sphere = source_sphere;
+            thread_args[t].target_sphere = target_sphere;
+            thread_args[t].invals = invals;
+            thread_args[t].outvals = outvals;
 
-    // Join all threads
-    for (t = 0; t < num_threads; t++) {
-        if (pthread_join(threads[t], NULL) != 0) {
-            perror("pthread_join");
-            exit(EXIT_FAILURE);
+            if (pthread_create(&threads[t], NULL, process_target_points, &thread_args[t]) != 0) {
+                perror("pthread_create");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        // Join all threads
+        for (t = 0; t < num_threads; t++) {
+            if (pthread_join(threads[t], NULL) != 0) {
+                perror("pthread_join");
+                exit(EXIT_FAILURE);
+            }
         }
     }
 #endif
+
+    /* Second pass for areal interpolation: divide by per-source hit counts. */
+    if (src_hits != NULL) {
+        for (i = 0; i < total_points; i++) {
+            int poly, n_points;
+            Point point;
+            Point poly_points[MAX_POINTS_PER_POLYGON];
+            double weights[MAX_POINTS_PER_POLYGON];
+
+            poly = find_closest_polygon_point(&target_sphere->points[i], source_sphere, &point);
+            n_points = get_polygon_points(source_sphere, poly, poly_points);
+            get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
+
+            outvals[i] = 0.0;
+            for (j = 0; j < n_points; j++) {
+                int src_idx = source_sphere->indices[POINT_INDEX(source_sphere->end_indices, poly, j)];
+                double nhits = src_hits[src_idx];
+                if (nhits > 0.0) {
+                    outvals[i] += weights[j] * (invals[src_idx] / nhits);
+                }
+            }
+        }
+        FREE(src_hits);
+    }
 
     // Delete the bintree after processing
     delete_the_bintree(&source_sphere->bintree);
@@ -334,7 +394,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
 /* resample values from source sphere onto target sphere */
 void
 resample_values_sphere(polygons_struct *source_sphere, polygons_struct *target_sphere,
-                double *invals, double *outvals, int scale_and_shift)
+                double *invals, double *outvals, int scale_and_shift, int areal_interpolation)
 {
     int i;
     polygons_struct *scaled_source_sphere, *scaled_target_sphere;
@@ -344,15 +404,16 @@ resample_values_sphere(polygons_struct *source_sphere, polygons_struct *target_s
             &scaled_target_sphere);
 
         resample_values_sphere_noscale(scaled_source_sphere, scaled_target_sphere, 
-            invals, outvals);
+            invals, outvals, areal_interpolation);
         
-    } else  resample_values_sphere_noscale(source_sphere, target_sphere, invals, outvals);
+    } else  resample_values_sphere_noscale(source_sphere, target_sphere, invals, outvals, areal_interpolation);
 }
 
 /* resample surface and values to space defined by target sphere */
 object_struct **
 resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *polygons_sphere, polygons_struct *target_sphere, 
-                                  double *input_values, double *output_values, int label_interpolation)
+                                  double *input_values, double *output_values, int label_interpolation,
+                                  int areal_interpolation)
 {
     int       j, k, poly, n_points;
     int       label_values[65536], n_labels;
@@ -364,6 +425,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
     polygons_struct *scaled_target_sphere, *scaled_polygons_sphere;
     double      max_prob, val;
     double     weights[MAX_POINTS_PER_POLYGON];
+    double     *src_hits = NULL;
 
     objects  = SAFE_MALLOC(object_struct *, 1);
     *objects = create_object(POLYGONS);
@@ -423,6 +485,11 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
 
     new_points = SAFE_MALLOC(Point, scaled_target_sphere->n_points);
 
+    if (areal_interpolation && input_values != NULL && !label_interpolation) {
+        src_hits = SAFE_MALLOC(double, scaled_polygons_sphere->n_points);
+        memset(src_hits, 0, sizeof(double) * scaled_polygons_sphere->n_points);
+    }
+
     for (i = 0; i < scaled_target_sphere->n_points; i++) {
         poly = find_closest_polygon_point(&scaled_target_sphere->points[i],
                           scaled_polygons_sphere, &point);
@@ -469,10 +536,34 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
               
             if (input_values != NULL) output_values[i] = 0.0;    
             for (j = 0; j < n_points; j++) {
-                if (input_values != NULL)
-                    output_values[i] += weights[j] * input_values[scaled_polygons_sphere->indices[
-                            POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)]];
+                int idx = scaled_polygons_sphere->indices[POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)];
+                if (input_values != NULL) {
+                    if (src_hits != NULL) {
+                        src_hits[idx] += weights[j];
+                    }
+                    else {
+                        output_values[i] += weights[j] * input_values[idx];
+                    }
+                }
             }
+        }
+
+        if (src_hits != NULL) {
+            for (i = 0; i < scaled_target_sphere->n_points; i++) {
+                poly = find_closest_polygon_point(&scaled_target_sphere->points[i],
+                                  scaled_polygons_sphere, &point);
+                n_points = get_polygon_points(scaled_polygons_sphere, poly, poly_points);
+                get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
+
+                output_values[i] = 0.0;
+                for (j = 0; j < n_points; j++) {
+                    int idx = scaled_polygons_sphere->indices[POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)];
+                    double nhits = src_hits[idx];
+                    if (nhits > 0.0)
+                        output_values[i] += weights[j] * (input_values[idx] / nhits);
+                }
+            }
+            FREE(src_hits);
         }
     }
 

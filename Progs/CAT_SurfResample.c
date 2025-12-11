@@ -39,10 +39,13 @@
 #include "CAT_Resample.h"
 
 int label_interpolation = 0;
+int areal_interpolation = 0;
 
 static ArgvInfo argTable[] = {
   {"-label", ARGV_CONSTANT, (char *) TRUE, (char *) &label_interpolation,
-   "Use label (categorical) interpolation (i.e. for labeled atlas data). This option is automatically used for annot (label) files."},
+    "Use label (categorical) interpolation (i.e. for labeled atlas data). This option is automatically used for annot (label) files."},
+  {"-areal", ARGV_CONSTANT, (char *) TRUE, (char *) &areal_interpolation,
+    "Use areal (sum-preserving) interpolation for scalar values."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -64,7 +67,8 @@ void usage(char *executable)
       input_values|input_annot: Optional name to a file containing input values or annotations.\n\
       output_values|output_annot: Optional name for outputting resampled values or annotations. 'NULL' to add values to the resampled surface.\n\n\
     Options:\n\
-      -label: Enables label (categorical) interpolation, typically used for labeled atlas data or annot (label) files. This option is automatically used when working with annotation files.\n\n\
+    -label: Enables label (categorical) interpolation, typically used for labeled atlas data or annot (label) files. This option is automatically used when working with annotation files.\n\n\
+    -areal: Use sum-preserving areal interpolation for scalar values.\n\n\
     Example:\n\
     %s surface.gii sphere.gii target_sphere.gii output_surface.gii input_values.txt output_values.txt\n\n\
     Note:\n\
@@ -196,7 +200,7 @@ int main(int argc, char *argv[])
     
     // Resample the surface to the target sphere
     objects_target_sphere = resample_surface_to_target_sphere(polygons, polygons_sphere, 
-        target_sphere, input_values, output_values, label_interpolation);
+        target_sphere, input_values, output_values, label_interpolation, areal_interpolation);
 
     // Add resampled values to the surface or save surface without values
     if (values_defined && !output_values_defined) {

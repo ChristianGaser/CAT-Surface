@@ -333,13 +333,13 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
         }
             
         apply_uv_warp(warped_src_sphere, warped_src_sphere, Utheta, Uphi, 1);
-        resample_values_sphere(src_sphere, warped_src_sphere, curv_src0, curv_src, 0);              
+        resample_values_sphere(src_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);              
             
         normalizeVector(curv_src, src->n_points);
 
         if (method == 3) {
             apply_uv_warp(warped_trg_sphere, warped_trg_sphere, Utheta, Uphi, 0);
-            resample_values_sphere(trg_sphere, warped_trg_sphere, curv_trg0, curv_trg, 0);                   
+            resample_values_sphere(trg_sphere, warped_trg_sphere, curv_trg0, curv_trg, 0, 0);                   
             normalizeVector(curv_trg, src->n_points);
         }
 
@@ -526,7 +526,7 @@ main(int argc, char *argv[])
     }
     printf("\n");
     
-        objects = resample_surface_to_target_sphere(sm_src_sphere, warped_src_sphere, src_sphere, NULL, NULL, 0);
+        objects = resample_surface_to_target_sphere(sm_src_sphere, warped_src_sphere, src_sphere, NULL, NULL, 0, 0);
         src_sphere = get_polygons_ptr(objects[0]);
     if (output_sphere_file != NULL) {
   

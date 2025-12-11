@@ -533,7 +533,7 @@ int main(int argc, char *argv[])
         src_sphere = get_polygons_ptr(objects_src_sphere[0]);
 
         objects_trg_sphere = resample_surface_to_target_sphere(trg_sphere, trg_sphere,
-                                     src_sphere, input_values, resampled_values, 1);
+                         src_sphere, input_values, resampled_values, 1, 0);
     }
 
     for (k = 0; k < argc - 3; k++)

@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
         for (j = 0; j < n_array; j++) ann_in[j] = (double) in_annot[j];
 
         obj_resampled = resample_surface_to_target_sphere(poly, src_sph, trg_sph,
-                                                          ann_in, ann_out, 1 /* label_interp */);
+                                  ann_in, ann_out, 1 /* label_interp */, 0);
 
         /* Values on target sphere */
         double *vals = NULL;

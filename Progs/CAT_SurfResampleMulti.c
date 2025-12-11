@@ -52,6 +52,7 @@ static int      g_nunits = 0;
 
 static char    *g_out = NULL;
 static double   g_fwhm_default = 0.0;   /* NEW: global default FWHM */
+static int      g_areal = 0;            /* sum-preserving interpolation */
 
 /* ------------------ helpers ------------------ */
 
@@ -152,6 +153,7 @@ static void usage(const char *p)
       "     -unit surf=...,src_sphere=...,trg_sphere=...,vals=...,mask=...,fwhm=... \\\n"
       "     [-unit ...] \\\n"
       "     [-fwhm <float>] \\\n"
+    "     [-areal] \\\n"
       "     -out combined.gii\n\n"
       "Repeat -unit as many times as you like (LH, RH, Cerebellum, ...).\n"
       "Per-unit fwhm overrides global -fwhm; if a unit omits fwhm, it takes the global value.\n"
@@ -249,6 +251,9 @@ static ArgvInfo argTable[] = {
     { "-out",  ARGV_STRING, (char *)1, (char *)&g_out,
       "Combined output GIfTI (.gii)" },
 
+        { "-areal", ARGV_CONSTANT, (char *)TRUE, (char *)&g_areal,
+            "Use areal (sum-preserving) interpolation for values." },
+
     { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -342,7 +347,7 @@ int main(int argc, char *argv[])
         /* resample */
         u->resampled_obj = resample_surface_to_target_sphere(
             u->src_poly, u->src_sphere_poly, u->trg_sphere_poly,
-            u->vals_in, u->vals_out, 0 /* no labels */);
+            u->vals_in, u->vals_out, 0 /* no labels */, g_areal);
 
         /* smoothing (optional) */
         if (u->vals && u->fwhm > 0.0) {

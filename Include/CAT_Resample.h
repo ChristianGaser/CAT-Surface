@@ -23,11 +23,11 @@ object_struct ** resample_tetrahedron(polygons_struct *, polygons_struct *,
 object_struct ** resample_surface(polygons_struct *, polygons_struct *,
             int, double *, double *);
 object_struct ** resample_surface_to_target_sphere(polygons_struct *, 
-            polygons_struct *, polygons_struct *, double *, double *, int);
+            polygons_struct *, polygons_struct *, double *, double *, int, int);
 void resample_values_sphere_noscale(polygons_struct *, polygons_struct *, 
-            double *, double *);
+            double *, double *, int);
 void resample_values_sphere(polygons_struct *, polygons_struct *, double *, 
-            double *, int);
+            double *, int, int);
 void resample_spherical_surface(polygons_struct *, polygons_struct *, polygons_struct *,
                double *, double *, int );
 

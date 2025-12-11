@@ -345,7 +345,7 @@ double compute_cost(double *angles, void *params) {
     rotate_polygons(opt_params->src_sphere, &rot_src_sphere, rotation_tmp);
 
     // Resample values
-    resample_values_sphere(opt_params->trg_sphere, &rot_src_sphere, opt_params->orig_trg, opt_params->map_trg, 0);
+    resample_values_sphere(opt_params->trg_sphere, &rot_src_sphere, opt_params->orig_trg, opt_params->map_trg, 0, 0);
 
     // Compute squared difference
     for (i = 0; i < opt_params->src->n_points; i++) {
