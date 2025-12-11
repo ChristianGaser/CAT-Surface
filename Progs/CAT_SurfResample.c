@@ -8,13 +8,13 @@
  */
 
 /**
- * @file resample_surface.c
+ * @file CAT_SurfResample.c
  * 
  * This program resamples a spherical surface to a target sphere, optionally processing 
  * associated value files.
  * 
  * Usage:
- *    executable surface_file|NULL sphere_file|NULL target_sphere_file 
+ *    CAT_SurfResample surface_file|NULL sphere_file|NULL target_sphere_file 
  *              resampled_output_surface_file|NULL [input_values|input_annot output_values|output_annot|NULL]
  * 
  * The program allows for various inputs including the surface file, sphere file, target sphere file,
