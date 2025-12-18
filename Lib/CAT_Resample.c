@@ -416,9 +416,8 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                                   int areal_interpolation)
 {
     int       j, k, poly, n_points;
-    int       label_values[65536], n_labels;
-    int       *n_neighbours, **neighbours, *histo;
-    signed long   i, min_val = 2147483647, max_val = -2147483647, longval;
+    int       *n_neighbours, **neighbours;
+    signed long   i;
     Point     point, scaled_point, center;
     Point     *new_points, poly_points[MAX_POINTS_PER_POLYGON];
     object_struct **objects, **scaled_objects;
@@ -431,31 +430,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
     *objects = create_object(POLYGONS);
     scaled_polygons_sphere = get_polygons_ptr(*objects);
     
-    if (label_interpolation) {
-        /* get maximum and minimum (!=0) value for label interpolation */
-        for (i = 0; i < polygons_sphere->n_points; i++) {
-            longval = (signed long)input_values[i];
-            if ((min_val > longval) && (longval != 0))
-                min_val = longval;
-            if (max_val < longval)
-                max_val = longval;
-        }
-        /* build histogram of label values which is necessary for large and sparse label entries */
-    histo = SAFE_MALLOC(int, (max_val + 1 - min_val));
-        memset(histo, 0, sizeof(int) * (max_val + 1 - min_val));
-        for (i = 0; i < polygons_sphere->n_points; i++) {
-            longval = (signed long)input_values[i];
-            if (longval == 0) continue;
-            histo[longval - min_val]++;
-        }
-        /* collect label values */
-        n_labels = 0;
-        for (i = 0; i < (max_val + 1 - min_val); i++) {
-            if (histo[i] == 0) continue;
-            label_values[n_labels] = i + min_val;
-            n_labels++;
-        }
-    }
+    /* Per-triangle label interpolation: collect local non-zero labels only */
     /* if no source sphere is defined a tetrahedral topology of the surface is assumed
        where the corresponding sphere can be simply estimated by its tetrahedral topology */
     if (polygons_sphere == NULL) {
@@ -514,21 +489,58 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
             }
         }
  
-        /* apply interpolation for each ROI label separately */
+        /* apply interpolation for each ROI label separately (local per-triangle) */
         if (label_interpolation) {
-
             if (input_values != NULL) {
-                max_prob = 0.0;
-                for (k = 0; k < n_labels; k++) {
-                    val = 0.0;
-                    for (j = 0; j < n_points; j++) {
-                        if (label_values[k] == (int)input_values[scaled_polygons_sphere->indices[
-                            POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)]])
-                            val += weights[j];
+                int cand_labels[MAX_POINTS_PER_POLYGON];
+                double cand_probs[MAX_POINTS_PER_POLYGON];
+                int n_cand = 0;
+
+                /* accumulate weights per unique non-zero label from the triangle */
+                for (j = 0; j < n_points; j++) {
+                    int idx = scaled_polygons_sphere->indices[
+                        POINT_INDEX(scaled_polygons_sphere->end_indices, poly, j)];
+                    int lbl = (int)input_values[idx];
+                    if (lbl == 0) continue; /* exclude background from candidates */
+
+                    int found = -1;
+                    for (k = 0; k < n_cand; k++) {
+                        if (cand_labels[k] == lbl) { found = k; break; }
                     }
-                    if (max_prob < val) {
-                        max_prob = val;
-                        output_values[i] = (double)label_values[k];
+                    if (found >= 0) {
+                        cand_probs[found] += weights[j];
+                    } else {
+                        cand_labels[n_cand] = lbl;
+                        cand_probs[n_cand] = weights[j];
+                        n_cand++;
+                    }
+                }
+
+                /* default remains 0.0 when no non-zero labels present */
+                if (n_cand > 0) {
+                    /* sort candidates ascending by label value to preserve tie-breaking */
+                    for (k = 0; k < n_cand - 1; k++) {
+                        int m;
+                        for (m = k + 1; m < n_cand; m++) {
+                            if (cand_labels[m] < cand_labels[k]) {
+                                int tl = cand_labels[k];
+                                double tp = cand_probs[k];
+                                cand_labels[k] = cand_labels[m];
+                                cand_probs[k] = cand_probs[m];
+                                cand_labels[m] = tl;
+                                cand_probs[m] = tp;
+                            }
+                        }
+                    }
+
+                    /* choose label with max weighted probability; strict '>' keeps smallest on ties */
+                    max_prob = 0.0;
+                    for (k = 0; k < n_cand; k++) {
+                        val = cand_probs[k];
+                        if (max_prob < val) {
+                            max_prob = val;
+                            output_values[i] = (double)cand_labels[k];
+                        }
                     }
                 }
             }
@@ -573,7 +585,7 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
         scaled_target_sphere->points = new_points;
     }
 
-    if (label_interpolation) free(histo);
+    /* no global histogram used; nothing to free for labels */
         
     compute_polygon_normals(scaled_target_sphere);
 
