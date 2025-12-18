@@ -547,24 +547,25 @@ resample_surface_to_target_sphere(polygons_struct *polygons, polygons_struct *po
                 }
             }
         }
+    }
 
-        if (src_hits != NULL) {
-            for (i = 0; i < scaled_target_sphere->n_points; i++) {
-                poly = find_closest_polygon_point(&scaled_target_sphere->points[i],
-                                  scaled_polygons_sphere, &point);
-                n_points = get_polygon_points(scaled_polygons_sphere, poly, poly_points);
-                get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
+    /* Second pass for areal interpolation: divide by per-source hit counts. */
+    if (src_hits != NULL) {
+        for (i = 0; i < scaled_target_sphere->n_points; i++) {
+            poly = find_closest_polygon_point(&scaled_target_sphere->points[i],
+                              scaled_polygons_sphere, &point);
+            n_points = get_polygon_points(scaled_polygons_sphere, poly, poly_points);
+            get_polygon_interpolation_weights(&point, n_points, poly_points, weights);
 
-                output_values[i] = 0.0;
-                for (j = 0; j < n_points; j++) {
-                    int idx = scaled_polygons_sphere->indices[POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)];
-                    double nhits = src_hits[idx];
-                    if (nhits > 0.0)
-                        output_values[i] += weights[j] * (input_values[idx] / nhits);
-                }
+            output_values[i] = 0.0;
+            for (j = 0; j < n_points; j++) {
+                int idx = scaled_polygons_sphere->indices[POINT_INDEX(scaled_polygons_sphere->end_indices,poly,j)];
+                double nhits = src_hits[idx];
+                if (nhits > 0.0)
+                    output_values[i] += weights[j] * (input_values[idx] / nhits);
             }
-            FREE(src_hits);
         }
+        FREE(src_hits);
     }
 
     if (polygons != NULL) {
