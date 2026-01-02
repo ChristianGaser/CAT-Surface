@@ -46,6 +46,7 @@ int n_triangles  = 81920;
 int n_steps    = 2;
 int n_runs     = 2;
 int debug    = 0;
+int debug_dc_weights = 0;
 double murate  = 1.25;
 double lambda  = 0;
 double mu    = 0.125;
@@ -112,6 +113,8 @@ static ArgvInfo argTable[] = {
    "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
    "Save debug files."},
+    {"-debug-dc-weights", ARGV_CONSTANT, (char *) TRUE, (char *) &debug_dc_weights,
+     "Save dc_weights.pgm (requires -distortion-correction)."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -157,6 +160,11 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             for (int x = 0; x < dm[0]; x++) {
                 dc_weights[x + dm[0] * y] = w;
             }
+        }
+
+        if (debug_dc_weights) {
+            if (write_pgm("dc_weights.pgm", dc_weights, dm[0], dm[1]) != 0)
+                exit(EXIT_FAILURE);
         }
     }
     
