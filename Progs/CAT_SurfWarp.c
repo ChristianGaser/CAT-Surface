@@ -124,7 +124,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
           struct dartel_prm *prm, int dm[3], int n_steps,
           double rot[3], double *flow, int n_loops, int distortion_correction)
 {
-    int        step, i, it, it0, it1, xy_size, it_scratch, curvtype;
+    int        step, i, x, y, it, it0, it1, xy_size, it_scratch, curvtype;
     polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
     double       rotation_matrix[9];
     double       *flow1, *inflow, *map_src, *map_trg;
@@ -151,13 +151,13 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             exit(EXIT_FAILURE);
         }
 
-        for (int y = 0; y < dm[1]; y++) {
+        for (y = 0; y < dm[1]; y++) {
             double v = ((double) y + 0.5) / (double) dm[1];
             double theta = v * PI;
             double w = sin(theta);
             if (w < 1e-10)
                 w = 1e-10;
-            for (int x = 0; x < dm[0]; x++) {
+            for (x = 0; x < dm[0]; x++) {
                 dc_weights[x + dm[0] * y] = w;
             }
         }
