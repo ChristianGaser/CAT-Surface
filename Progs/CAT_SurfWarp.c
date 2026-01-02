@@ -126,6 +126,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
     double       rotation_matrix[9];
     double       *flow1, *inflow, *map_src, *map_trg;
     double       *scratch, *jd, *jd1, *values;
+    double       *dc_weights;
     double       ll[3];
 
     xy_size = dm[0] * dm[1];
@@ -138,6 +139,26 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
     sm_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_trg = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_trg_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
+
+    dc_weights = (double *) 0;
+    if (distortion_correction) {
+        dc_weights = (double *) malloc(sizeof(double) * xy_size);
+        if (!dc_weights) {
+            fprintf(stderr, "Memory allocation error for distortion-correction weights.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        for (int y = 0; y < dm[1]; y++) {
+            double v = ((double) y + 0.5) / (double) dm[1];
+            double theta = v * PI;
+            double w = sin(theta);
+            if (w < 1e-10)
+                w = 1e-10;
+            for (int x = 0; x < dm[0]; x++) {
+                dc_weights[x + dm[0] * y] = w;
+            }
+        }
+    }
     
     for (step = 0; step < n_steps; step++) {
         /* resample source and target surface */
@@ -220,10 +241,10 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
                 /* map target onto source */
                 if (INVERSE_WARPING) {
                     dartel(prm[it0], dm, inflow, map_src,
-                        map_trg, NULL, flow, ll, scratch);
+                        map_trg, dc_weights, flow, ll, scratch);
                 } else {
                     dartel(prm[it0], dm, inflow, map_trg,
-                        map_src, NULL, flow, ll, scratch);
+                        map_src, dc_weights, flow, ll, scratch);
                 }
                 if (verbose) {
                     fprintf(stdout,"\r%02d-%02d: %8.2f", step+1, it, ll[0]);
@@ -246,6 +267,8 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
     free(sm_trg);
     free(sm_src_sphere);
     free(sm_trg_sphere);
+    if (dc_weights)
+        free(dc_weights);
     
     /* get deformations and jacobian det. from flow field */
     if (jacdet_file != NULL) {
