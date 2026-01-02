@@ -40,6 +40,7 @@ int curvtype0  = 5;
 int curvtype1  = 5;
 int curvtype2  = 2;
 int muchange   = 4;
+int distortion_correction = 0;
 int sz_map[2]  = {512, 256};
 int n_triangles  = 81920;
 int n_steps    = 2;
@@ -105,6 +106,8 @@ static ArgvInfo argTable[] = {
    "Curvature type for the 2nd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-type2", ARGV_INT, (char *) 1, (char *) &curvtype2,
    "Curvature type for the 3rd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+  {"-distortion-correction", ARGV_CONSTANT, (char *) TRUE, (char *) &distortion_correction,
+   "Apply distortion correction weighting (sin(theta)) to 2D registration to reduce bias at poles. References: Fischl et al. 2008 (https://pmc.ncbi.nlm.nih.gov/articles/PMC7784120/), Schuh et al. 2024 (https://www.sciencedirect.com/science/article/pii/S1361841524002172)."},
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
    "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
@@ -116,7 +119,7 @@ void
 solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
           polygons_struct *trg, polygons_struct *trg_sphere,
           struct dartel_prm *prm, int dm[3], int n_steps,
-          double rot[3], double *flow, int n_loops)
+          double rot[3], double *flow, int n_loops, int distortion_correction)
 {
     int        step, i, it, it0, it1, xy_size, it_scratch, curvtype;
     polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
@@ -161,7 +164,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             if (n_loops < 0) {
                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                              sm_trg, sm_trg_sphere,
-                             fwhm, curvtype0, rot, verbose);
+                             fwhm, curvtype0, rot, verbose, distortion_correction);
                 rotation_to_matrix(rotation_matrix,
                            rot[0], rot[1], rot[2]);
         
@@ -456,7 +459,7 @@ main(int argc, char *argv[])
     /* estimate rotation only */
     if (rotate) {
         solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm,
-                  n_steps, rot, flow, -1);
+                  n_steps, rot, flow, -1, distortion_correction);
     }
     
     if (debug && rotate) {
@@ -487,7 +490,7 @@ main(int argc, char *argv[])
     /* run dartel */
     for (run = 0; run < n_runs; run++) {
         solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
-              rot, flow, loop);
+              rot, flow, loop, distortion_correction);
 
         /* solve again, but rotated to change pole location */
         if (avg && (run==(n_runs-1))) {
@@ -496,7 +499,7 @@ main(int argc, char *argv[])
             rotate_polygons(src_sphere, rs_sph, rotation_matrix);
 
             solve_dartel_flow(rsrc, rs_sph, rtrg, rt_sph, prm,
-                  dm, n_steps, rot, flow2, loop);
+                  dm, n_steps, rot, flow2, loop, distortion_correction);
 
             apply_warp(src_sphere, src_sphere, flow, dm, !INVERSE_WARPING);
             apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 

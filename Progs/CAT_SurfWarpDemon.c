@@ -487,7 +487,7 @@ main(int argc, char *argv[])
             if (rotate) {
                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                              sm_trg, sm_trg_sphere,
-                             10.0, 5, rot, verbose);
+                             10.0, 5, rot, verbose, 0);
 
                 rotation_to_matrix(rotation_matrix,
                            rot[0], rot[1], rot[2]);

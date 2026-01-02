@@ -337,8 +337,10 @@ double compute_cost(double *angles, void *params) {
     polygons_struct rot_src_sphere;
     double rotation_tmp[9];
     double sum_sq = 0.0;
-    double d;
+    double d, weight;
     int i;
+    double theta;
+    Point unit_pt;
 
     // Rotate source sphere
     rotation_to_matrix(rotation_tmp, angles[0], angles[1], angles[2]);
@@ -347,12 +349,28 @@ double compute_cost(double *angles, void *params) {
     // Resample values
     resample_values_sphere(opt_params->trg_sphere, &rot_src_sphere, opt_params->orig_trg, opt_params->map_trg, 0, 0);
 
-    // Compute squared difference
+    // Compute squared difference with optional distortion correction weighting
     for (i = 0; i < opt_params->src->n_points; i++) {
         d = opt_params->map_src[i] - opt_params->map_trg[i];
-        sum_sq += d * d;
+        
+        if (opt_params->distortion_correction) {
+            /* Apply distortion correction weight based on elevation angle */
+            unit_pt = opt_params->trg_sphere->points[i];
+            set_vector_length(&unit_pt, 1.0);
+            theta = acos(Point_z(unit_pt));
+            
+            /* Weight by sin(theta) to account for area distortion on sphere
+               This reduces influence of samples near poles where 2D-sphere 
+               mapping has high geometric distortion */
+            weight = sin(theta);
+            if (weight < 1e-10) weight = 1e-10;
+            sum_sq += weight * d * d;
+        } else {
+            sum_sq += d * d;
+        }
     }
 
+    delete_polygons(&rot_src_sphere);
     return sum_sq;
 }
 
@@ -527,11 +545,14 @@ average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
 
 
 /* This function find the optimal rotation parameters to minimize differences in 
-   the curvature maps of target and source using the Nelder-Mead (Downhill) approach */
+   the curvature maps of target and source using the Nelder-Mead (Downhill) approach 
+   Optionally applies distortion correction weighting by sin(theta) for better
+   2D-to-sphere registration on spherical surfaces */
 void
 rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
              polygons_struct *trg, polygons_struct *trg_sphere,
-             double fwhm, int curvtype, double *rot, int verbose)
+             double fwhm, int curvtype, double *rot, int verbose, 
+             int distortion_correction)
 {
     int i, n;
     int n_angles;
@@ -559,7 +580,7 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
     get_smoothed_curvatures(src, map_src, fwhm, curvtype);
 
     // Initialize optimization parameters
-    OptimizationParams params = {src, src_sphere, trg_sphere, orig_trg, map_trg, map_src};
+    OptimizationParams params = {src, src_sphere, trg_sphere, orig_trg, map_trg, map_src, distortion_correction};
 
     // Initial simplex
     double simplex[4][3] = {
@@ -585,4 +606,3 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
     free(map_src);
 
 }
-
