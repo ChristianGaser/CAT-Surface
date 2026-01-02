@@ -209,9 +209,10 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
 double
 get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_struct *sphere, double *area_values)
 {
-    double area, *area_values_resampled, *areas_sphere, area_sum = 0.0;
+    double sphere_area, native_area, *area_values_resampled, *areas_sphere, area_sum = 0.0;
     int i, n_points;
     object_struct **object;
+    object_struct *resampled_sphere_object;
     polygons_struct *resampled, *resampled_sphere;
     Point center;
     
@@ -221,7 +222,8 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     resampled = get_polygons_ptr(*object);
     
     /* create tetrahedral sphere according to resampled surface */
-    resampled_sphere = get_polygons_ptr(create_object(POLYGONS));
+    resampled_sphere_object = create_object(POLYGONS);
+    resampled_sphere = get_polygons_ptr(resampled_sphere_object);
     fill_Point(center, 0.0, 0.0, 0.0);
     create_tetrahedral_sphere(&center, 100.0, 100.0, 100.0,
                   resampled->n_items, resampled_sphere);
@@ -229,8 +231,13 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     area_values_resampled = SAFE_MALLOC(double, resampled->n_points);
     areas_sphere      = SAFE_MALLOC(double, resampled->n_points);
 
-    area = get_area_of_points(resampled_sphere, areas_sphere);
-    area = get_area_of_points(resampled, area_values_resampled);
+    /*
+     * Use a sum-preserving per-vertex area definition (triangle contributions).
+     * This matches the global constraint that vertex areas sum to surface area
+     * and avoids bias from the legacy "average-of-neighbour-polygons" metric.
+     */
+    sphere_area = get_vertex_areas(resampled_sphere, areas_sphere);
+    native_area = get_vertex_areas(resampled, area_values_resampled);
     
     /* normalize values to local sphere areas */
     for (i = 0; i < resampled->n_points; i++) 
@@ -242,12 +249,47 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     for (i = 0; i < polygons->n_points; i++) 
         area_sum += area_values[i];
     for (i = 0; i < polygons->n_points; i++) 
-        area_values[i] *= area/area_sum;
+        area_values[i] *= native_area/area_sum;
 
     free(area_values_resampled);
     free(areas_sphere);
+
+    delete_object_list(1, object);
+    delete_object_list(1, &resampled_sphere_object);
     
-    return(area);
+    return(native_area);
+}
+
+/*
+ * Sum-preserving per-vertex surface area: distribute each polygon's area
+ * equally across its vertices. The sum of vertex areas equals total area.
+ */
+double
+get_vertex_areas(polygons_struct *polygons, double *vertex_areas)
+{
+    int ptidx, poly, vertidx, size;
+    double area;
+    double surface_area = 0.0;
+    Point points[MAX_POINTS_PER_POLYGON];
+
+    memset(vertex_areas, 0.0, sizeof(double) * polygons->n_points);
+
+    for (poly = 0; poly < polygons->n_items; poly++) {
+        size = get_polygon_points(polygons, poly, points);
+        area = get_polygon_surface_area(size, points);
+        if (isnan(area))
+            area = 0.0;
+        surface_area += area;
+
+        for (vertidx = 0; vertidx < size; vertidx++) {
+            ptidx = polygons->indices[
+                        POINT_INDEX(polygons->end_indices,
+                        poly, vertidx)];
+            vertex_areas[ptidx] += area / (double) size;
+        }
+    }
+
+    return surface_area;
 }
 
 /* assign each point the average of area values for neighboring polygons */
