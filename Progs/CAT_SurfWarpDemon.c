@@ -45,6 +45,7 @@ double rate    = 1.05;
 double fwhm_flow = 25.0;
 double fwhm_curv = 6.0;
 double alpha0  = 0.7;
+double max_step_deg = 1.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &src_file, 
@@ -67,6 +68,8 @@ static ArgvInfo argTable[] = {
    "Change of fwhm and alpha for each iteration."},
   {"-alpha", ARGV_FLOAT, (char *) 1, (char *) &alpha0,
    "ALPHA."},
+  {"-max-step-deg", ARGV_FLOAT, (char *) 1, (char *) &max_step_deg,
+   "Clamp per-iteration |dtheta,dphi| to this many degrees (<=0 disables)."},
   {"-maxiters", ARGV_INT, (char *) 1, (char *) &iters,
    "Maximum number of iterations."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
@@ -323,17 +326,28 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
         /* lowpass filtering of displacements */
         smooth_heatkernel(src, Utheta, fwhm_flow);
         smooth_heatkernel(src, Uphi, fwhm_flow);
-            
-        /* sum up deformations */
+
+        /* clip per-vertex step to avoid overshoot/folding */
+        if (max_step_deg > 0.0) {
+            double max_step = max_step_deg * (PI / 180.0);
+            for (i = 0; i < src->n_points; i++) {
+                double step = sqrt(Utheta[i]*Utheta[i] + Uphi[i]*Uphi[i]);
+                if (step > max_step && step > 0.0) {
+                    double scale = max_step / step;
+                    Utheta[i] *= scale;
+                    Uphi[i]   *= scale;
+                }
+            }
+        }
+
         for (i = 0; i < src->n_points; i++) {
             Utheta[i] *= THETA;
             Uphi[i]   *= PHI;
             u[i]    += Utheta[i];
             v[i]    += Uphi[i];
         }
-            
         apply_uv_warp(warped_src_sphere, warped_src_sphere, Utheta, Uphi, 1);
-        resample_values_sphere(src_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);              
+        resample_values_sphere(src_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);             
             
         normalizeVector(curv_src, src->n_points);
 
@@ -354,8 +368,10 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
 
         }
         old_cc = cc;   
-        alpha0 *= rate;
-        fwhm_flow *= rate;
+        if (rate != 0.0) {
+            alpha0 *= rate;
+            //fwhm_flow *= rate;
+        }
 
     }
     
@@ -368,8 +384,6 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
     /* invert deformation because we need inverse transformation */
     apply_uv_warp(src_sphere, warped_src_sphere, u, v, 0);
 
-    delete_polygon_point_neighbours(src, n_neighbours,
-                    neighbours, NULL, NULL);
     free(curv_src0);
     free(curv_src);
     free(curv_trg0);
@@ -463,7 +477,6 @@ main(int argc, char *argv[])
     warped_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
     
     int n_points = 81920;
-//      n_points = 20480;
 
     resample_spherical_surface(trg, trg_sphere, sm_trg, NULL, NULL, n_points);
     resample_spherical_surface(src_sphere, src_sphere, sm_src_sphere, NULL, NULL, n_points);
@@ -514,15 +527,14 @@ main(int argc, char *argv[])
             curvtype0 = curvtype;
         }
                 
-//          init_dartel_poly(sm_src_sphere, dpoly_src);
 
         WarpDemon(sm_src, sm_src_sphere, sm_trg, 
              sm_trg_sphere, warped_src_sphere, dpoly_src, dpoly_trg, curvtype0);
 
         alpha0 *= 0.5;
 
-        /* use smaller FWHM for next steps */
-//          fwhm_flow *= rate;
+        /* use different FWHM for next steps */
+          fwhm_flow *= rate;
     }
     printf("\n");
     
