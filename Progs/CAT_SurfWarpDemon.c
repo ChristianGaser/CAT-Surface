@@ -339,15 +339,17 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
                 }
             }
         }
-
+            
+        /* sum up deformations */
         for (i = 0; i < src->n_points; i++) {
             Utheta[i] *= THETA;
             Uphi[i]   *= PHI;
             u[i]    += Utheta[i];
             v[i]    += Uphi[i];
         }
+            
         apply_uv_warp(warped_src_sphere, warped_src_sphere, Utheta, Uphi, 1);
-        resample_values_sphere(src_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);             
+        resample_values_sphere(src_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);              
             
         normalizeVector(curv_src, src->n_points);
 
@@ -384,6 +386,8 @@ WarpDemon(polygons_struct *src, polygons_struct *src_sphere, polygons_struct *tr
     /* invert deformation because we need inverse transformation */
     apply_uv_warp(src_sphere, warped_src_sphere, u, v, 0);
 
+    //delete_polygon_point_neighbours(src, n_neighbours,
+    //                neighbours, NULL, NULL);
     free(curv_src0);
     free(curv_src);
     free(curv_trg0);
@@ -533,7 +537,7 @@ main(int argc, char *argv[])
 
         alpha0 *= 0.5;
 
-        /* use different FWHM for next steps */
+        /* use larger FWHM for next steps */
           fwhm_flow *= rate;
     }
     printf("\n");
