@@ -752,10 +752,12 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     coords->intent   = NIFTI_INTENT_POINTSET;
     coords->datatype = NIFTI_TYPE_FLOAT32;
-    coords->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* Matlab/SPM-kompatibel */
+    coords->ind_ord  = use_extbin ? GIFTI_IND_ORD_COL_MAJOR : GIFTI_IND_ORD_ROW_MAJOR;
     coords->num_dim  = 2;
-    coords->dims[0]  = polygons->n_points; /* rows (highest first) */
-    coords->dims[1]  = 3;                  /* cols */
+    /* Always expose standard shape N x 3. For EXTBIN we only change
+       ind_ord and storage order so SPM does not need to permute file_array. */
+    coords->dims[0]  = polygons->n_points;
+    coords->dims[1]  = 3;
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     coords->endian   = GIFTI_ENDIAN_LITTLE;
@@ -787,9 +789,17 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     /* fill vertex data */
     for (v = 0; v < polygons->n_points; v++) {
-        gifti_set_DA_value_2D(coords, v, 0, Point_x(polygons->points[v]));
-        gifti_set_DA_value_2D(coords, v, 1, Point_y(polygons->points[v]));
-        gifti_set_DA_value_2D(coords, v, 2, Point_z(polygons->points[v]));
+        if (use_extbin) {
+            /* da->ind_ord is COL_MAJOR: gifti_set_DA_value_2D swaps row/col
+               internally, so swap arguments here to write values at (v,axis). */
+            gifti_set_DA_value_2D(coords, 0, v, Point_x(polygons->points[v]));
+            gifti_set_DA_value_2D(coords, 1, v, Point_y(polygons->points[v]));
+            gifti_set_DA_value_2D(coords, 2, v, Point_z(polygons->points[v]));
+        } else {
+            gifti_set_DA_value_2D(coords, v, 0, Point_x(polygons->points[v]));
+            gifti_set_DA_value_2D(coords, v, 1, Point_y(polygons->points[v]));
+            gifti_set_DA_value_2D(coords, v, 2, Point_z(polygons->points[v]));
+        }
     }
 
     if (use_extbin) {
@@ -825,7 +835,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     faces->intent   = NIFTI_INTENT_TRIANGLE;
     faces->datatype = NIFTI_TYPE_INT32;
-    faces->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* Matlab/SPM-kompatibel */
+    faces->ind_ord  = use_extbin ? GIFTI_IND_ORD_COL_MAJOR : GIFTI_IND_ORD_ROW_MAJOR;
     faces->num_dim  = 2;
     faces->dims[0]  = numFaces;
     faces->dims[1]  = 3;
@@ -852,10 +862,18 @@ output_gifti(char *fname, File_formats format, int n_objects,
     int face_index;
     for (face_index = 0; face_index < polygons->n_items; face_index++) {
         for (j = 0; j < 3; j++) {
-            gifti_set_DA_value_2D(
-                faces, face_index, j,
-                polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]
-            );
+            if (use_extbin) {
+                /* write at (face_index, j) while using COL_MAJOR storage */
+                gifti_set_DA_value_2D(
+                    faces, j, face_index,
+                    polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]
+                );
+            } else {
+                gifti_set_DA_value_2D(
+                    faces, face_index, j,
+                    polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]
+                );
+            }
         }
     }
 
@@ -928,7 +946,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
         shape->intent   = NIFTI_INTENT_SHAPE;
         shape->datatype = NIFTI_TYPE_FLOAT32;
-        shape->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* 1D, aber wir bleiben konsistent */
+        shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
         shape->num_dim  = 1;
         shape->dims[0]  = polygons->n_points;
         shape->dims[1]  = 0;
@@ -1072,7 +1090,7 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     /* attributes */
     shape->intent   = NIFTI_INTENT_SHAPE;
     shape->datatype = NIFTI_TYPE_FLOAT32;
-    shape->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* Matlab/SPM-kompatibel */
+    shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
     shape->num_dim  = 1;
     shape->dims[0]  = nvertices;
     shape->dims[1]  = 0;
