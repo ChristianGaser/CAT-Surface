@@ -752,7 +752,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     coords->intent   = NIFTI_INTENT_POINTSET;
     coords->datatype = NIFTI_TYPE_FLOAT32;
-    coords->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* Matlab/SPM-kompatibel */
+    coords->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* Matlab/SPM-kompatibel */
     coords->num_dim  = 2;
     coords->dims[0]  = polygons->n_points; /* rows (highest first) */
     coords->dims[1]  = 3;                  /* cols */
@@ -825,7 +825,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     faces->intent   = NIFTI_INTENT_TRIANGLE;
     faces->datatype = NIFTI_TYPE_INT32;
-    faces->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* Matlab/SPM-kompatibel */
+    faces->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* Matlab/SPM-kompatibel */
     faces->num_dim  = 2;
     faces->dims[0]  = numFaces;
     faces->dims[1]  = 3;
@@ -928,7 +928,7 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
         shape->intent   = NIFTI_INTENT_SHAPE;
         shape->datatype = NIFTI_TYPE_FLOAT32;
-        shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* 1D, aber wir bleiben konsistent */
+        shape->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* 1D, aber wir bleiben konsistent */
         shape->num_dim  = 1;
         shape->dims[0]  = polygons->n_points;
         shape->dims[1]  = 0;
@@ -1072,7 +1072,7 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     /* attributes */
     shape->intent   = NIFTI_INTENT_SHAPE;
     shape->datatype = NIFTI_TYPE_FLOAT32;
-    shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR; /* Matlab/SPM-kompatibel */
+    shape->ind_ord  = GIFTI_IND_ORD_COL_MAJOR; /* Matlab/SPM-kompatibel */
     shape->num_dim  = 1;
     shape->dims[0]  = nvertices;
     shape->dims[1]  = 0;
