@@ -118,9 +118,14 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
 
     for (i = 0; i < dm[0]; i++) {
         for (j = 0; j < dm[1]; j++) {
+            double theta;
             p = i + dm[0]*j;
-            v = (double)j / (double)dm[1];
-            weight = 1.0 - pow(2.0*v - 1.0, 8.0);
+            /* Use sin(theta) weighting consistent with equirectangular projection
+             * distortion correction. This smoothly tapers from 1 at equator to 0
+             * at poles, matching the area distortion of the projection. */
+            v = ((double)j + 0.5) / (double)dm[1];
+            theta = v * PI;
+            weight = sin(theta);
 
             udeform[p] = (deform[p  ] - (double)i - 1.0) / (double)dm[0];
             vdeform[p] = (deform[p+m] - (double)j - 1.0) / (double)dm[1];
@@ -349,25 +354,10 @@ double compute_cost(double *angles, void *params) {
     // Resample values
     resample_values_sphere(opt_params->trg_sphere, &rot_src_sphere, opt_params->orig_trg, opt_params->map_trg, 0, 0);
 
-    // Compute squared difference with optional distortion correction weighting
+    // Compute squared difference
     for (i = 0; i < opt_params->src->n_points; i++) {
         d = opt_params->map_src[i] - opt_params->map_trg[i];
-        
-        if (opt_params->distortion_correction) {
-            /* Apply distortion correction weight based on elevation angle */
-            unit_pt = opt_params->trg_sphere->points[i];
-            set_vector_length(&unit_pt, 1.0);
-            theta = acos(Point_z(unit_pt));
-            
-            /* Weight by sin(theta) to account for area distortion on sphere
-               This reduces influence of samples near poles where 2D-sphere 
-               mapping has high geometric distortion */
-            weight = sin(theta);
-            if (weight < 1e-10) weight = 1e-10;
-            sum_sq += weight * d * d;
-        } else {
-            sum_sq += d * d;
-        }
+        sum_sq += d * d;
     }
 
     delete_polygons(&rot_src_sphere);
@@ -551,8 +541,7 @@ average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
 void
 rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
              polygons_struct *trg, polygons_struct *trg_sphere,
-             double fwhm, int curvtype, double *rot, int verbose, 
-             int distortion_correction)
+             double fwhm, int curvtype, double *rot, int verbose)
 {
     int i, n;
     int n_angles;
@@ -580,7 +569,7 @@ rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
     get_smoothed_curvatures(src, map_src, fwhm, curvtype);
 
     // Initialize optimization parameters
-    OptimizationParams params = {src, src_sphere, trg_sphere, orig_trg, map_trg, map_src, distortion_correction};
+    OptimizationParams params = {src, src_sphere, trg_sphere, orig_trg, map_trg, map_src};
 
     // Initial simplex
     double simplex[4][3] = {

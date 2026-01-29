@@ -30,7 +30,6 @@ typedef struct {
     double *orig_trg;  // Precomputed target curvatures
     double *map_trg;   // Preallocated buffer for rotated target curvatures
     double *map_src;   // Precomputed source curvatures
-    int distortion_correction;  // Apply sin(theta) weighting for distortion correction (0=off, 1=on)
 } OptimizationParams;
 
 void rotate_polygons(polygons_struct *, polygons_struct *, double *rotation_matrix);
@@ -39,6 +38,6 @@ void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int);
 void apply_uv_warp(polygons_struct *, polygons_struct *, double *, double *, int );
 void average_xz_surf(polygons_struct *, polygons_struct *, polygons_struct *);
 void rotate_polygons_to_atlas(polygons_struct *, polygons_struct *,
-             polygons_struct *, polygons_struct *, double, int, double *, int, int);
+             polygons_struct *, polygons_struct *, double, int, double *, int);
 
 #endif
