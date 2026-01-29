@@ -824,18 +824,20 @@ dartel(struct dartel_prm prm, int dm[], double v[], double g[], double f[],
 
     fmg2(dm, A, b, prm.rtype, param, prm.cycles, prm.its, sbuf, sbuf+2*m);
 
-    /* update and locally weight velocity field: pole regions are weighted less 
-       due to distortions from sphere to cartesian grid 
-       See also Cheng et al. (2020) Cortical surface registration using unsupervised learning, Neuroimage */
     k = 0;
     for (j = 0; j < dm[1]; j++) {
-        wphi = sin(_PI*(j+1)/(dm[1]));
-/* weighting currently not used */
-        wphi = 1.0;
+        /* Use dj (distortion correction weights) if provided, otherwise fall back to sin weighting.
+           Note: dj weights are constant per row, so we can use dj[j*dm[0]] for the row weight */
+        if (dj != NULL) {
+            wphi = dj[j * dm[0]];  /* Use precomputed distortion weights (same for all points in row j) */
+        } else {
+            /* Fallback: */
+            wphi = 1.0;
+        }
         for (i = 0; i < dm[0]; i++) {
-          ov[k  ] = v[k  ] - wphi*sbuf[k  ];
-          ov[k+m] = v[k+m] - wphi*sbuf[k+m];
-          k++;
+            ov[k  ] = v[k  ] - wphi * sbuf[k  ];
+            ov[k+m] = v[k+m] - wphi * sbuf[k+m];
+            k++;
         }
     }
 
