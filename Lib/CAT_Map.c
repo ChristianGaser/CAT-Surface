@@ -284,3 +284,124 @@ map_sheet2d_to_unit_sphere(double *sheet2d, double *values,
     }
     delete_the_bintree(&sphere->bintree);
 }
+
+/**
+ * upsample_flow_field - Upsample a 2D flow field by factor 2 using bilinear interpolation
+ *
+ * @param src_flow:  Source flow field [2 * src_dm[0] * src_dm[1]]
+ * @param src_dm:    Source dimensions [width, height]
+ * @param dst_flow:  Destination flow field [2 * dst_dm[0] * dst_dm[1]]
+ * @param dst_dm:    Destination dimensions [width, height] (must be 2x source)
+ *
+ * The flow field has two components (u, v) stored as:
+ *   - u-component: src_flow[0 .. m-1]
+ *   - v-component: src_flow[m .. 2m-1]
+ * where m = src_dm[0] * src_dm[1]
+ *
+ * Flow values are scaled by 2 since the grid spacing is halved.
+ */
+void
+upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow, int *dst_dm)
+{
+    int src_m = src_dm[0] * src_dm[1];
+    int dst_m = dst_dm[0] * dst_dm[1];
+    int i, j, idx;
+    double x_src, y_src;
+    double fx, fy;
+    int x0, y0, x1, y1;
+    double dx, dy;
+    double f00, f01, f10, f11;
+    double scale_x = (double)src_dm[0] / (double)dst_dm[0];
+    double scale_y = (double)src_dm[1] / (double)dst_dm[1];
+    
+    for (j = 0; j < dst_dm[1]; j++) {
+        for (i = 0; i < dst_dm[0]; i++) {
+            idx = i + j * dst_dm[0];
+            
+            /* Map destination coords to source coords */
+            x_src = (i + 0.5) * scale_x - 0.5;
+            y_src = (j + 0.5) * scale_y - 0.5;
+            
+            /* Get integer and fractional parts */
+            x0 = (int)floor(x_src);
+            y0 = (int)floor(y_src);
+            dx = x_src - x0;
+            dy = y_src - y0;
+            
+            /* Handle boundary with wrapping for x and clamping for y */
+            x1 = x0 + 1;
+            y1 = y0 + 1;
+            
+            /* Wrap x (periodic) */
+            if (x0 < 0) x0 += src_dm[0];
+            if (x0 >= src_dm[0]) x0 -= src_dm[0];
+            if (x1 < 0) x1 += src_dm[0];
+            if (x1 >= src_dm[0]) x1 -= src_dm[0];
+            
+            /* Clamp y (poles) */
+            if (y0 < 0) y0 = 0;
+            if (y0 >= src_dm[1]) y0 = src_dm[1] - 1;
+            if (y1 < 0) y1 = 0;
+            if (y1 >= src_dm[1]) y1 = src_dm[1] - 1;
+            
+            /* Bilinear interpolation for u-component */
+            f00 = src_flow[x0 + y0 * src_dm[0]];
+            f10 = src_flow[x1 + y0 * src_dm[0]];
+            f01 = src_flow[x0 + y1 * src_dm[0]];
+            f11 = src_flow[x1 + y1 * src_dm[0]];
+            
+            /* Scale by 2 since grid spacing is halved */
+            dst_flow[idx] = 2.0 * ((1-dx) * (1-dy) * f00 + 
+                                   dx * (1-dy) * f10 +
+                                   (1-dx) * dy * f01 + 
+                                   dx * dy * f11);
+            
+            /* Bilinear interpolation for v-component */
+            f00 = src_flow[src_m + x0 + y0 * src_dm[0]];
+            f10 = src_flow[src_m + x1 + y0 * src_dm[0]];
+            f01 = src_flow[src_m + x0 + y1 * src_dm[0]];
+            f11 = src_flow[src_m + x1 + y1 * src_dm[0]];
+            
+            dst_flow[dst_m + idx] = 2.0 * ((1-dx) * (1-dy) * f00 + 
+                                           dx * (1-dy) * f10 +
+                                           (1-dx) * dy * f01 + 
+                                           dx * dy * f11);
+        }
+    }
+}
+
+/**
+ * downsample_image - Downsample a 2D image by factor 2 using area averaging
+ *
+ * @param src:     Source image [src_dm[0] * src_dm[1]]
+ * @param src_dm:  Source dimensions [width, height]
+ * @param dst:     Destination image [dst_dm[0] * dst_dm[1]]
+ * @param dst_dm:  Destination dimensions [width, height] (must be src/2)
+ */
+void
+downsample_image(double *src, int *src_dm, double *dst, int *dst_dm)
+{
+    int i, j, di, dj;
+    double sum;
+    
+    for (dj = 0; dj < dst_dm[1]; dj++) {
+        for (di = 0; di < dst_dm[0]; di++) {
+            /* Average 2x2 block */
+            i = di * 2;
+            j = dj * 2;
+            
+            sum = src[i + j * src_dm[0]];
+            sum += src[(i + 1) % src_dm[0] + j * src_dm[0]];
+            
+            if (j + 1 < src_dm[1]) {
+                sum += src[i + (j + 1) * src_dm[0]];
+                sum += src[(i + 1) % src_dm[0] + (j + 1) * src_dm[0]];
+                sum /= 4.0;
+            } else {
+                sum /= 2.0;
+            }
+            
+            dst[di + dj * dst_dm[0]] = sum;
+        }
+    }
+}

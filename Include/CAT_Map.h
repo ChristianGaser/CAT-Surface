@@ -25,5 +25,7 @@ void uv_to_point(double, double, Point *);
 void map_sphere_values_to_sheet(polygons_struct *, polygons_struct *,
                                       double *, double *, double, int *, int);
 void map_sheet2d_to_sphere(double *, double *, polygons_struct *, int, int *);
+void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow, int *dst_dm);
+void downsample_image(double *src, int *src_dm, double *dst, int *dst_dm);
 
 #endif
