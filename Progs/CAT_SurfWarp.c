@@ -41,6 +41,7 @@ int curvtype1  = 5;
 int curvtype2  = 2;
 int muchange   = 4;
 int distortion_correction = 0;
+int multires_levels = 0;  /* 0 = disabled, 1-3 = number of coarse levels */
 int sz_map[2]  = {512, 256};
 int n_triangles  = 81920;
 int n_steps    = 2;
@@ -109,6 +110,8 @@ static ArgvInfo argTable[] = {
    "Curvature type for the 3rd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-distortion-correction", ARGV_CONSTANT, (char *) TRUE, (char *) &distortion_correction,
    "Apply distortion correction weighting (sin(theta)) to 2D registration to reduce bias at poles. References: Fischl et al. 2008 (https://pmc.ncbi.nlm.nih.gov/articles/PMC7784120/), Schuh et al. 2024 (https://www.sciencedirect.com/science/article/pii/S1361841524002172)."},
+  {"-multires", ARGV_INT, (char *) 1, (char *) &multires_levels,
+   "Multi-resolution levels (0-3). Start registration at coarser resolution and progressively refine.\n\t0 - disabled (default)\n\t1 - 2 levels (256x128 -> 512x256)\n\t2 - 3 levels (128x64 -> 256x128 -> 512x256)\n\t3 - 4 levels (64x32 -> 128x64 -> 256x128 -> 512x256)."},
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
    "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
@@ -125,50 +128,43 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
           double rot[3], double *flow, int n_loops, int distortion_correction)
 {
     int        step, i, x, y, it, it0, it1, xy_size, it_scratch, curvtype;
+    int        res_level, n_res_levels, loops_per_level;
+    int        cur_dm[3], prev_dm[3];
     polygons_struct  *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
     double       rotation_matrix[9];
     double       *flow1, *inflow, *map_src, *map_trg;
     double       *scratch, *jd, *jd1, *values;
-    double       *dc_weights;
+    double       *dc_weights, *prev_flow, *cur_flow;
+    double       *map_src_full, *map_trg_full;
     double       ll[3];
+    double       cur_fwhm, cur_fwhm_surf;
 
     xy_size = dm[0] * dm[1];
 
+    /* Determine number of resolution levels */
+    n_res_levels = multires_levels + 1;
+    if (n_res_levels > 4) n_res_levels = 4;
+    if (n_res_levels < 1) n_res_levels = 1;
+    
+    /* Distribute loops across resolution levels */
+    loops_per_level = (n_loops + n_res_levels - 1) / n_res_levels;
+
     flow1 = (double *) malloc(sizeof(double) * xy_size * 2);
     inflow = (double *) malloc(sizeof(double) * xy_size * 2);
-    map_src = (double *) malloc(sizeof(double) * xy_size);
-    map_trg = (double *) malloc(sizeof(double) * xy_size);
+    map_src_full = (double *) malloc(sizeof(double) * xy_size);
+    map_trg_full = (double *) malloc(sizeof(double) * xy_size);
     sm_src = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_trg = (polygons_struct *) malloc(sizeof(polygons_struct));
     sm_trg_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
 
-    dc_weights = (double *) 0;
-    if (distortion_correction) {
-        dc_weights = (double *) malloc(sizeof(double) * xy_size);
-        if (!dc_weights) {
-            fprintf(stderr, "Memory allocation error for distortion-correction weights.\n");
-            exit(EXIT_FAILURE);
-        }
-
-        for (y = 0; y < dm[1]; y++) {
-            double v = ((double) y + 0.5) / (double) dm[1];
-            double theta = v * PI;
-            double w = sin(theta);
-            if (w < 1e-10)
-                w = 1e-10;
-            for (x = 0; x < dm[0]; x++) {
-                dc_weights[x + dm[0] * y] = w;
-            }
-        }
-
-        if (debug_dc_weights) {
-            if (write_pgm("dc_weights.pgm", dc_weights, dm[0], dm[1]) != 0)
-                exit(EXIT_FAILURE);
-        }
-    }
+    /* Initialize flow to zero */
+    for (i = 0; i < xy_size * 2; i++) inflow[i] = 0.0;
     
     for (step = 0; step < n_steps; step++) {
+        cur_fwhm = fwhm;
+        cur_fwhm_surf = fwhm_surf;
+        
         /* resample source and target surface */
         resample_spherical_surface(src, src_sphere, sm_src, NULL, NULL,
                        n_triangles);
@@ -178,9 +174,9 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
         /* initialization */
         if (step == 0) {
              curvtype = curvtype0;
-             if (fwhm_surf > 0) {
-                 smooth_heatkernel(sm_src, NULL, fwhm_surf);
-                 smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+             if (cur_fwhm_surf > 0) {
+                 smooth_heatkernel(sm_src, NULL, cur_fwhm_surf);
+                 smooth_heatkernel(sm_trg, NULL, cur_fwhm_surf);
              }
              resample_spherical_surface(src_sphere, src_sphere,
                            sm_src_sphere, NULL, NULL,
@@ -193,7 +189,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             if (n_loops < 0) {
                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                              sm_trg, sm_trg_sphere,
-                             fwhm, curvtype0, rot, verbose, distortion_correction);
+                             cur_fwhm, curvtype0, rot, verbose, distortion_correction);
                 rotation_to_matrix(rotation_matrix,
                            rot[0], rot[1], rot[2]);
         
@@ -211,58 +207,203 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
 
         } else if (step == 1) {
              curvtype = curvtype1;
-             if (fwhm_surf > 0) {
-                 smooth_heatkernel(sm_src, NULL, fwhm_surf);
-                 smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+             if (cur_fwhm_surf > 0) {
+                 smooth_heatkernel(sm_src, NULL, cur_fwhm_surf);
+                 smooth_heatkernel(sm_trg, NULL, cur_fwhm_surf);
              }
              
         } else if (step == 2) {
              curvtype = curvtype2;
             
-             if (fwhm_surf > 0) {
-                 smooth_heatkernel(sm_src, NULL, fwhm_surf);
-                 smooth_heatkernel(sm_trg, NULL, fwhm_surf);
+             if (cur_fwhm_surf > 0) {
+                 smooth_heatkernel(sm_src, NULL, cur_fwhm_surf);
+                 smooth_heatkernel(sm_trg, NULL, cur_fwhm_surf);
              }
         }
 
-        /* get curvatures */
+        /* get curvatures at full resolution */
         map_sphere_values_to_sheet(sm_trg, sm_trg_sphere, (double *)0,
-                         map_trg, fwhm, dm, curvtype);
+                         map_trg_full, cur_fwhm, dm, curvtype);
         map_sphere_values_to_sheet(sm_src, sm_src_sphere, (double *)0, 
-                         map_src, fwhm, dm, curvtype);
+                         map_src_full, cur_fwhm, dm, curvtype);
         
         if (debug) {
-            if (write_pgm("source.pgm", map_src, dm[0], dm[1]) != 0)
+            if (write_pgm("source.pgm", map_src_full, dm[0], dm[1]) != 0)
                 exit(EXIT_FAILURE);
-            if (write_pgm("target.pgm", map_trg, dm[0], dm[1]) != 0)
+            if (write_pgm("target.pgm", map_trg_full, dm[0], dm[1]) != 0)
                 exit(EXIT_FAILURE);
         }
 
-        /* go through dartel steps */
-        for (it = 0, it0 = 0; it0 < n_loops; it0++) {
-            it_scratch = dartel_scratchsize((int *)dm,
-                             prm[it0].code);
-
-            scratch = (double *) malloc(sizeof(double)*it_scratch);
-            for (it1 = 0; it1 < prm[it0].its; it1++) {
-                it++;
-                /* map target onto source */
-                if (INVERSE_WARPING) {
-                    dartel(prm[it0], dm, inflow, map_src,
-                        map_trg, dc_weights, flow, ll, scratch);
-                } else {
-                    dartel(prm[it0], dm, inflow, map_trg,
-                        map_src, dc_weights, flow, ll, scratch);
+        /* Multi-resolution loop: from coarse to fine */
+        for (res_level = n_res_levels - 1; res_level >= 0; res_level--) {
+            int cur_xy_size, level_loops;
+            
+            /* Calculate current resolution dimensions */
+            cur_dm[0] = dm[0] >> res_level;  /* Divide by 2^res_level */
+            cur_dm[1] = dm[1] >> res_level;
+            cur_dm[2] = 1;
+            cur_xy_size = cur_dm[0] * cur_dm[1];
+            
+            /* Allocate arrays for current resolution */
+            map_src = (double *) malloc(sizeof(double) * cur_xy_size);
+            map_trg = (double *) malloc(sizeof(double) * cur_xy_size);
+            cur_flow = (double *) malloc(sizeof(double) * cur_xy_size * 2);
+            
+            /* Distortion correction weights for current resolution */
+            dc_weights = (double *) 0;
+            if (distortion_correction) {
+                dc_weights = (double *) malloc(sizeof(double) * cur_xy_size);
+                if (!dc_weights) {
+                    fprintf(stderr, "Memory allocation error for distortion-correction weights.\n");
+                    exit(EXIT_FAILURE);
                 }
-                if (verbose) {
-                    fprintf(stdout,"\r%02d-%02d: %8.2f", step+1, it, ll[0]);
-                    fflush(stdout);
+                for (y = 0; y < cur_dm[1]; y++) {
+                    double v = ((double) y + 0.5) / (double) cur_dm[1];
+                    double theta = v * PI;
+                    double w = sin(theta);
+                    if (w < 1e-10) w = 1e-10;
+                    for (x = 0; x < cur_dm[0]; x++) {
+                        dc_weights[x + cur_dm[0] * y] = w;
+                    }
                 }
-
-                for (i = 0; i < xy_size*2; i++)
-                    inflow[i] = flow[i];
             }
-            free(scratch);
+            
+            /* Downsample curvature maps if at coarser level */
+            if (res_level > 0) {
+                int tmp_dm[3];
+                double *tmp_src, *tmp_trg;
+                int level;
+                
+                /* Start with full resolution */
+                tmp_dm[0] = dm[0];
+                tmp_dm[1] = dm[1];
+                tmp_dm[2] = 1;
+                tmp_src = map_src_full;
+                tmp_trg = map_trg_full;
+                
+                /* Progressively downsample to current resolution */
+                for (level = 0; level < res_level; level++) {
+                    int next_dm[3];
+                    double *next_src, *next_trg;
+                    
+                    next_dm[0] = tmp_dm[0] / 2;
+                    next_dm[1] = tmp_dm[1] / 2;
+                    next_dm[2] = 1;
+                    
+                    if (level == res_level - 1) {
+                        /* Last step: downsample directly to map_src/map_trg */
+                        downsample_image(tmp_src, tmp_dm, map_src, next_dm);
+                        downsample_image(tmp_trg, tmp_dm, map_trg, next_dm);
+                    } else {
+                        /* Intermediate step: allocate temp arrays */
+                        next_src = (double *) malloc(sizeof(double) * next_dm[0] * next_dm[1]);
+                        next_trg = (double *) malloc(sizeof(double) * next_dm[0] * next_dm[1]);
+                        downsample_image(tmp_src, tmp_dm, next_src, next_dm);
+                        downsample_image(tmp_trg, tmp_dm, next_trg, next_dm);
+                        
+                        if (tmp_src != map_src_full) free(tmp_src);
+                        if (tmp_trg != map_trg_full) free(tmp_trg);
+                        
+                        tmp_src = next_src;
+                        tmp_trg = next_trg;
+                    }
+                    
+                    tmp_dm[0] = next_dm[0];
+                    tmp_dm[1] = next_dm[1];
+                }
+                
+                /* Free intermediate buffers if any remain */
+                if (tmp_src != map_src_full && tmp_src != map_src) free(tmp_src);
+                if (tmp_trg != map_trg_full && tmp_trg != map_trg) free(tmp_trg);
+            } else {
+                /* At full resolution, just copy */
+                for (i = 0; i < cur_xy_size; i++) {
+                    map_src[i] = map_src_full[i];
+                    map_trg[i] = map_trg_full[i];
+                }
+            }
+            
+            /* Handle flow field initialization/upsampling */
+            if (res_level == n_res_levels - 1) {
+                /* At coarsest level: reallocate inflow to current size and initialize to zero */
+                free(inflow);
+                inflow = (double *) malloc(sizeof(double) * cur_xy_size * 2);
+                for (i = 0; i < cur_xy_size * 2; i++) {
+                    cur_flow[i] = 0.0;
+                    inflow[i] = 0.0;
+                }
+            } else {
+                /* Upsample flow from previous coarser level */
+                double *new_inflow = (double *) malloc(sizeof(double) * cur_xy_size * 2);
+                upsample_flow_field(inflow, prev_dm, new_inflow, cur_dm);
+                free(inflow);
+                inflow = new_inflow;
+                /* Copy to cur_flow as starting point */
+                for (i = 0; i < cur_xy_size * 2; i++) {
+                    cur_flow[i] = inflow[i];
+                }
+            }
+            
+            /* Determine loops for this level */
+            level_loops = loops_per_level;
+            if (res_level == 0) {
+                /* Final level gets remaining loops */
+                level_loops = n_loops - loops_per_level * (n_res_levels - 1);
+                if (level_loops < 1) level_loops = 1;
+            }
+            
+            if (verbose && n_res_levels > 1) {
+                fprintf(stdout, "Resolution level %d: %dx%d (%d loops)\n", 
+                        n_res_levels - res_level, cur_dm[0], cur_dm[1], level_loops);
+            }
+
+            /* go through dartel steps at current resolution */
+            for (it = 0, it0 = 0; it0 < level_loops; it0++) {
+                it_scratch = dartel_scratchsize((int *)cur_dm,
+                                 prm[it0].code);
+
+                scratch = (double *) malloc(sizeof(double)*it_scratch);
+                for (it1 = 0; it1 < prm[it0].its; it1++) {
+                    it++;
+                    /* map target onto source */
+                    if (INVERSE_WARPING) {
+                        dartel(prm[it0], cur_dm, inflow, map_src,
+                            map_trg, dc_weights, cur_flow, ll, scratch);
+                    } else {
+                        dartel(prm[it0], cur_dm, inflow, map_trg,
+                            map_src, dc_weights, cur_flow, ll, scratch);
+                    }
+                    if (verbose) {
+                        if (n_res_levels > 1)
+                            fprintf(stdout,"\r  %02d-%02d-%02d: %8.2f", step+1, n_res_levels - res_level, it, ll[0]);
+                        else
+                            fprintf(stdout,"\r%02d-%02d: %8.2f", step+1, it, ll[0]);
+                        fflush(stdout);
+                    }
+
+                    for (i = 0; i < cur_xy_size*2; i++)
+                        inflow[i] = cur_flow[i];
+                }
+                free(scratch);
+            }
+            
+            /* Save current dimensions for next level's upsampling */
+            prev_dm[0] = cur_dm[0];
+            prev_dm[1] = cur_dm[1];
+            prev_dm[2] = cur_dm[2];
+            
+            /* Free current level's temporary arrays */
+            free(map_src);
+            free(map_trg);
+            if (dc_weights) free(dc_weights);
+            
+            /* At final level, copy result to output flow */
+            if (res_level == 0) {
+                for (i = 0; i < xy_size * 2; i++) {
+                    flow[i] = cur_flow[i];
+                }
+            }
+            free(cur_flow);
         }
 
         /* use smaller FWHM for next steps */
@@ -275,8 +416,8 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
     free(sm_trg);
     free(sm_src_sphere);
     free(sm_trg_sphere);
-    if (dc_weights)
-        free(dc_weights);
+    free(map_src_full);
+    free(map_trg_full);
     
     /* get deformations and jacobian det. from flow field */
     if (jacdet_file != NULL) {
@@ -286,6 +427,9 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
         jd  = (double *) malloc(sizeof(double) * xy_size);
         jd1 = (double *) malloc(sizeof(double) * xy_size);
 
+        /* Use the flow field stored during the final level */
+        for (i = 0; i < xy_size * 2; i++) inflow[i] = flow[i];
+        
         expdefdet(dm, 10, inflow, flow, flow1, jd, jd1);
         
         /* subtract 1 to get values around 0 instead of 1 and invert */
@@ -305,15 +449,15 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
         free(values);
         free(jd1);
         free(jd);
+        free(inflow);
     } else {
+        for (i = 0; i < xy_size * 2; i++) inflow[i] = flow[i];
         expdef(dm, 10, inflow, flow, flow1,
              (double *) 0, (double *) 0);
+        free(inflow);
     }
 
     free(flow1);
-    free(inflow);
-    free(map_src);
-    free(map_trg);
 }
 
 int
