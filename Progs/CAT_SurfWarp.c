@@ -40,7 +40,6 @@ int curvtype0  = 5;
 int curvtype1  = 5;
 int curvtype2  = 2;
 int muchange   = 4;
-int distortion_correction = 0;
 int multires_levels = 0;  /* 0 = disabled, 1-3 = number of coarse levels */
 int sz_map[2]  = {512, 256};
 int n_triangles  = 81920;
@@ -108,8 +107,6 @@ static ArgvInfo argTable[] = {
    "Curvature type for the 2nd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-type2", ARGV_INT, (char *) 1, (char *) &curvtype2,
    "Curvature type for the 3rd step\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
-  {"-distortion-correction", ARGV_CONSTANT, (char *) TRUE, (char *) &distortion_correction,
-   "Apply distortion correction weighting (sin(theta)) to 2D registration to reduce bias at poles. References: Fischl et al. 2008 (https://pmc.ncbi.nlm.nih.gov/articles/PMC7784120/), Schuh et al. 2024 (https://www.sciencedirect.com/science/article/pii/S1361841524002172)."},
   {"-multires", ARGV_INT, (char *) 1, (char *) &multires_levels,
    "Multi-resolution levels (0-3). Start registration at coarser resolution and progressively refine.\n\t0 - disabled (default)\n\t1 - 2 levels (256x128 -> 512x256)\n\t2 - 3 levels (128x64 -> 256x128 -> 512x256)\n\t3 - 4 levels (64x32 -> 128x64 -> 256x128 -> 512x256)."},
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
@@ -125,7 +122,7 @@ void
 solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
           polygons_struct *trg, polygons_struct *trg_sphere,
           struct dartel_prm *prm, int dm[3], int n_steps,
-          double rot[3], double *flow, int n_loops, int distortion_correction)
+          double rot[3], double *flow, int n_loops)
 {
     int        step, i, x, y, it, it0, it1, xy_size, it_scratch, curvtype;
     int        res_level, n_res_levels, loops_per_level;
@@ -189,7 +186,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             if (n_loops < 0) {
                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                              sm_trg, sm_trg_sphere,
-                             cur_fwhm, curvtype0, rot, verbose, distortion_correction);
+                             cur_fwhm, curvtype0, rot, verbose);
                 rotation_to_matrix(rotation_matrix,
                            rot[0], rot[1], rot[2]);
         
@@ -251,22 +248,6 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             
             /* Distortion correction weights for current resolution */
             dc_weights = (double *) 0;
-            if (distortion_correction) {
-                dc_weights = (double *) malloc(sizeof(double) * cur_xy_size);
-                if (!dc_weights) {
-                    fprintf(stderr, "Memory allocation error for distortion-correction weights.\n");
-                    exit(EXIT_FAILURE);
-                }
-                for (y = 0; y < cur_dm[1]; y++) {
-                    double v = ((double) y + 0.5) / (double) cur_dm[1];
-                    double theta = v * PI;
-                    double w = sin(theta);
-                    if (w < 1e-10) w = 1e-10;
-                    for (x = 0; x < cur_dm[0]; x++) {
-                        dc_weights[x + cur_dm[0] * y] = w;
-                    }
-                }
-            }
             
             /* Downsample curvature maps if at coarser level */
             if (res_level > 0) {
@@ -353,7 +334,7 @@ solve_dartel_flow(polygons_struct *src, polygons_struct *src_sphere,
             }
             
             if (verbose && n_res_levels > 1) {
-                fprintf(stdout, "Resolution level %d: %dx%d (%d loops)\n", 
+                fprintf(stdout, "  Resolution level %d: %dx%d (%d loops)\n", 
                         n_res_levels - res_level, cur_dm[0], cur_dm[1], level_loops);
             }
 
@@ -634,7 +615,7 @@ main(int argc, char *argv[])
     /* estimate rotation only */
     if (rotate) {
         solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm,
-                  n_steps, rot, flow, -1, distortion_correction);
+                  n_steps, rot, flow, -1);
     }
     
     if (debug && rotate) {
@@ -665,7 +646,7 @@ main(int argc, char *argv[])
     /* run dartel */
     for (run = 0; run < n_runs; run++) {
         solve_dartel_flow(src, src_sphere, trg, trg_sphere, prm, dm, n_steps,
-              rot, flow, loop, distortion_correction);
+              rot, flow, loop);
 
         /* solve again, but rotated to change pole location */
         if (avg && (run==(n_runs-1))) {
@@ -674,7 +655,7 @@ main(int argc, char *argv[])
             rotate_polygons(src_sphere, rs_sph, rotation_matrix);
 
             solve_dartel_flow(rsrc, rs_sph, rtrg, rt_sph, prm,
-                  dm, n_steps, rot, flow2, loop, distortion_correction);
+                  dm, n_steps, rot, flow2, loop);
 
             apply_warp(src_sphere, src_sphere, flow, dm, !INVERSE_WARPING);
             apply_warp(rs_sph, rs_sph, flow2, dm, !INVERSE_WARPING); 
