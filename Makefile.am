@@ -357,6 +357,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Gyrification.c \
     Lib/CAT_DepthPotential.c \
     Lib/CAT_Vol.c \
+    Lib/CAT_LayerSmooth.c \
     Lib/CAT_Kmeans.c \
     Lib/CAT_Amap.c \
     Lib/CAT_Bmap.c \

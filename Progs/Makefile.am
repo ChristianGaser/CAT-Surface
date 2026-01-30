@@ -79,6 +79,7 @@ bin_PROGRAMS = \
     CAT_VolSmooth \
     CAT_VolSanlm \
     CAT_VolThicknessPbt \
+    CAT_VolLayerSmooth \
     CAT_SurfResampleSphericalSPH \
     CAT_Surf2SPH \
     CAT_SurfDeform \
