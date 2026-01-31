@@ -1381,7 +1381,8 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
     
     /* initialisation of D and I */
     for (i = 0; i<nvox; i++) {
-        if ((roundf(V[i])<0.5) || isnan(V[i])) D[i] = FLT_MAX; else D[i] = 0.0; 
+        /* check for zero or small values that should be filled */
+        if ((V[i] <= 0.000001f) || isnan(V[i])) D[i] = FLT_MAX; else D[i] = 0.0; 
         I[i] = (unsigned int)i;
     }
     

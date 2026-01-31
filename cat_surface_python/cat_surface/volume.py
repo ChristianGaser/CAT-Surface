@@ -26,6 +26,7 @@ class VolAmap(CATToolBase):
                 las_weight: float = 0.5,
                 bias_fwhm: float = 0.0,
                 h_ornlm: float = 0.05,
+                sigma_ornlm: float = -1.0,
                 pve: bool = True,
                 cleanup: int = 2,
                 write_seg: Tuple[bool, bool, bool] = (False, True, False),
@@ -49,6 +50,7 @@ class VolAmap(CATToolBase):
             las_weight: Weight of local adaptive segmentation (0-1)
             bias_fwhm: FWHM for bias correction smoothing kernel
             h_ornlm: Smoothing parameter for exponential function
+            sigma_ornlm: Sigma for Rician noise correction (default: -1.0 = use h_ornlm)
             pve: Use Partial Volume Estimation with 5 classes
             cleanup: Clean-up level (0=none, 1=medium, 2=strong)
             write_seg: Tuple of (CSF, GM, WM) flags for writing separate images
@@ -82,6 +84,8 @@ class VolAmap(CATToolBase):
             args.extend(["-bias-fwhm", str(bias_fwhm)])
         if h_ornlm != 0.05:
             args.extend(["-h-ornlm", str(h_ornlm)])
+        if sigma_ornlm >= 0.0:
+            args.extend(["-sigma-ornlm", str(sigma_ornlm)])
         if not pve:
             args.extend(["-pve", "0"])
         if cleanup != 2:

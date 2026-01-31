@@ -35,6 +35,7 @@ double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 double bias_fwhm = 0.0;
 double h_ornlm = 0.05;
+double sigma_ornlm = -1.0;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -65,6 +66,9 @@ static ArgvInfo argTable[] = {
          
     {"-h-ornlm", ARGV_FLOAT, (char *) 1, (char *) &h_ornlm,
          "Specifies h as a smoothing parameter controlling the decay of the exponential function."},
+
+    {"-sigma-ornlm", ARGV_FLOAT, (char *) 1, (char *) &sigma_ornlm,
+         "Specifies sigma for Rician noise correction (default: equal to h)."},
          
     {"-pve", ARGV_INT, (char *) 1, (char *) &pve,
          "Option to use Partial Volume Estimation with 5 classes (1) or not (0).\n\
@@ -238,7 +242,9 @@ main(int argc, char *argv[])
     int v = 3, f = 1;
     if (h_ornlm > 0.0) {      
         if (verbose) fprintf(stdout,"ORNLM filter\n");
-        ornlm(src, v, f, h_ornlm, dims);
+        float noise_sigma = (float)h_ornlm;
+        if (sigma_ornlm >= 0.0) noise_sigma = (float)sigma_ornlm;
+        ornlm(src, v, f, h_ornlm, noise_sigma, dims);
     }
 
     if (use_bmap) {

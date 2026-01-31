@@ -48,6 +48,7 @@
 #include <math.h>
 #include "CAT_Ornlm.h"
 #include "CAT_SafeAlloc.h"
+#include "CAT_Math.h"
 
 #if defined(_WIN32) || defined(_WIN64)
   #include <windows.h>
@@ -342,19 +343,27 @@ ThreadFunc_ornlm( void* pArguments )
 
 /* ----------------------- end multithreading additions ------------------- */
 
-void ornlm(float* ima, int v, int f, float h, const int* dims)
+void ornlm(float* ima, int v, int f, float h, float sigma, const int* dims)
 {
     float *means, *variances, *Estimate, *ima_out;
     unsigned char *Label;
     float mean, var, hh;
+    double max_val;
 
     int vol;
     int i, j, k, ii, jj, kk, ni, nj, nk, indice;
 
     const float epsilon = 0.00001f;
-
-    hh = 2.0f*h*h;
+    
     vol = dims[0]*dims[1]*dims[2];
+
+    /* normalize image to 0..1 to make parameter invariant to scaling */
+    max_val = get_max(ima, vol, 0, DT_FLOAT32);
+    if (max_val > 0.0) {
+        for (i = 0; i < vol; i++) ima[i] /= (float)max_val;
+    }
+
+    hh = 2.0f*sigma*sigma;
 
     ima_out  = SAFE_MALLOC(float, vol);
     means    = SAFE_MALLOC(float, vol);
@@ -520,8 +529,11 @@ void ornlm(float* ima, int v, int f, float h, const int* dims)
     }
 
     /* Return filtered image to input */
-    for (i = 0; i < vol; i++)
-        ima[i] = ima_out[i];
+    if (max_val > 0.0) {
+        for (i = 0; i < vol; i++) ima[i] = ima_out[i]*(float)max_val;
+    } else {
+        for (i = 0; i < vol; i++) ima[i] = ima_out[i];
+    }
 
     free(means);
     free(variances);

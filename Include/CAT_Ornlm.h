@@ -12,6 +12,6 @@
 
 #include <math.h>
 
-void ornlm(float* ima, int v, int f, float h, const int* dims);
+void ornlm(float* ima, int v, int f, float h, float sigma, const int* dims);
 
 #endif
