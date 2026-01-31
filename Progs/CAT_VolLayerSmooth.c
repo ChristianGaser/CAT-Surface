@@ -24,8 +24,8 @@
 /* Argument defaults */
 double fwhm = 3.0;        /* FWHM smoothing kernel in mm */
 double extend = 0.0;      /* Extension outside cortical band in mm */
-double depth_sigma = 0.15; /* Not exposed yet, but could be made an option */
 int verbose = 0;
+int debug = 0;            /* Debug mode: save intermediate outputs */
 
 static ArgvInfo argTable[] = {
     {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&fwhm,
@@ -36,6 +36,9 @@ static ArgvInfo argTable[] = {
     
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
      "Enable verbose mode for detailed output during processing."},
+    
+    {"-debug", ARGV_CONSTANT, (char *)1, (char *)&debug,
+     "Debug mode: save intermediate outputs (depth field, WM/CSF distances).\n\t\t   Files are saved with prefixes: depth_, distWM_, distCSF_"},
     
     {NULL, ARGV_END, NULL, NULL, NULL}
 };
@@ -80,8 +83,9 @@ int main(int argc, char *argv[])
     char *pve_file, *input_file, *output_file;
     int dims[3], dims_seg[3];
     float *seg, *data;
+    float *depth = NULL, *dist_WM = NULL, *dist_CSF = NULL;
     double voxelsize[3];
-    nifti_image *seg_ptr, *data_ptr, *out_ptr;
+    nifti_image *seg_ptr, *data_ptr;
     
     /* Initialize argument processing */
     initialize_argument_processing(argc, argv);
@@ -147,29 +151,90 @@ int main(int argc, char *argv[])
         if (extend > 0.0) {
             fprintf(stderr, "Extension outside GM: %.2f mm\n", extend);
         }
+        if (debug) {
+            fprintf(stderr, "Debug mode: will save intermediate outputs\n");
+        }
+    }
+    
+    /* In debug mode, allocate arrays for intermediate outputs */
+    if (debug) {
+        int nvox = dims[0] * dims[1] * dims[2];
+        depth = (float *)malloc(sizeof(float) * nvox);
+        dist_WM = (float *)malloc(sizeof(float) * nvox);
+        dist_CSF = (float *)malloc(sizeof(float) * nvox);
+        
+        if (!depth || !dist_WM || !dist_CSF) {
+            fprintf(stderr, "Error: Memory allocation failed for debug arrays\n");
+            exit(EXIT_FAILURE);
+        }
+        
+        /* Compute depth field and distances */
+        if (verbose) fprintf(stderr, "Computing cortical depth field...\n");
+        compute_cortical_depth(seg, depth, dist_WM, dist_CSF, dims, voxelsize, extend);
+        
+        /* Save debug outputs */
+        char debug_filename[1024];
+        char *base = strrchr(output_file, '/');
+        char *dir_part = "";
+        char base_copy[1024];
+        
+        if (base) {
+            strncpy(base_copy, output_file, base - output_file + 1);
+            base_copy[base - output_file + 1] = '\0';
+            dir_part = base_copy;
+            base++;
+        } else {
+            base = output_file;
+        }
+        
+        /* Save depth field */
+        snprintf(debug_filename, sizeof(debug_filename), "%sdepth_%s", dir_part, base);
+        if (verbose) fprintf(stderr, "Saving depth field: %s\n", debug_filename);
+        if (!write_nifti_float(debug_filename, depth, DT_FLOAT32, 1.0, dims, voxelsize, data_ptr)) {
+            fprintf(stderr, "Error writing depth field: %s\n", debug_filename);
+        }
+        
+        /* Save WM distance */
+        snprintf(debug_filename, sizeof(debug_filename), "%sdistWM_%s", dir_part, base);
+        if (verbose) fprintf(stderr, "Saving WM distance: %s\n", debug_filename);
+        if (!write_nifti_float(debug_filename, dist_WM, DT_FLOAT32, 1.0, dims, voxelsize, data_ptr)) {
+            fprintf(stderr, "Error writing WM distance: %s\n", debug_filename);
+        }
+        
+        /* Save CSF distance */
+        snprintf(debug_filename, sizeof(debug_filename), "%sdistCSF_%s", dir_part, base);
+        if (verbose) fprintf(stderr, "Saving CSF distance: %s\n", debug_filename);
+        if (!write_nifti_float(debug_filename, dist_CSF, DT_FLOAT32, 1.0, dims, voxelsize, data_ptr)) {
+            fprintf(stderr, "Error writing CSF distance: %s\n", debug_filename);
+        }
+        
+        free(depth);
+        free(dist_WM);
+        free(dist_CSF);
+    return(1);
     }
     
     /* Perform layer-guided smoothing */
     if (verbose) fprintf(stderr, "Performing layer-guided anisotropic smoothing...\n");
     smooth_within_cortex_float(data, seg, dims, voxelsize, fwhm, extend);
     
-    /* Prepare output */
-    out_ptr = nifti_copy_nim_info(data_ptr);
-    out_ptr->data = (void *)data;
-    
-    /* Set output filename and write */
-    if (nifti_set_filenames(out_ptr, output_file, 0, 0)) {
-        fprintf(stderr, "Error setting output filename: %s\n", output_file);
+    /* Write output */
+    if (verbose) fprintf(stderr, "Writing output: %s\n", output_file);
+    if (!write_nifti_float(output_file, data, DT_FLOAT32, 1.0, dims, voxelsize, data_ptr)) {
+        fprintf(stderr, "Error writing output file: %s\n", output_file);
         exit(EXIT_FAILURE);
     }
     
-    if (verbose) fprintf(stderr, "Writing output: %s\n", output_file);
-    nifti_image_write(out_ptr);
-    
     /* Cleanup */
     free(seg);
+    free(data);
+    
+    /* Clear data pointers before freeing nifti structs to avoid double-free */
+    seg_ptr->data = NULL;
+    data_ptr->data = NULL;
+    
     nifti_image_free(seg_ptr);
-    nifti_image_free(out_ptr);
+    nifti_image_free(data_ptr);
     
     if (verbose) fprintf(stderr, "Done.\n");
     

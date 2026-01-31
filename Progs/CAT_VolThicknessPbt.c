@@ -215,7 +215,7 @@ int main(int argc, char *argv[])
     /* Median-filtering of input with euclidean distance helps a bit */
     localstat3(src, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
 
-    double range = 0.3; /* Value of 0.3 was worst */
+    double range = 0.3;
     
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
