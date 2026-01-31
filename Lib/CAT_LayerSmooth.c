@@ -68,9 +68,9 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
                             int dims[3], double voxelsize[3], double extend)
 {
     int i, j, nvox;
-    float *input, *dist_WM, *dist_CSF;
+    float *input, *dist_WM, *dist_CSF, *GMT;
     unsigned char *mask;
-    double range = 0.3;  /* Range for masking similar to CAT_VolThicknessPbt */
+    double range = 0.9;  /* Range for masking similar to CAT_VolThicknessPbt */
     int n_avgs = 4;      /* Number of averages for distance estimation */
     double add_value;
     
@@ -80,6 +80,7 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
     input = (float *)malloc(sizeof(float) * nvox);
     dist_WM = (float *)malloc(sizeof(float) * nvox);
     dist_CSF = (float *)malloc(sizeof(float) * nvox);
+    GMT = (float *)malloc(sizeof(float) * nvox);
     mask = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
     
     if (!input || !dist_WM || !dist_CSF || !mask) {
@@ -87,6 +88,8 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
         exit(EXIT_FAILURE);
     }
     
+    median3(seg, NULL, dims, 2, DT_FLOAT32);
+
     /* Initialize distances */
     for (i = 0; i < nvox; i++) {
         dist_CSF[i] = 0.0f;
@@ -105,7 +108,7 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
         }
         
         /* Compute CSF distance */
-        euclidean_distance(input, mask, dims, voxelsize, 0);
+        euclidean_distance(input, mask, dims, NULL, 0);
         for (i = 0; i < nvox; i++)
             dist_CSF[i] += input[i];
         
@@ -116,7 +119,7 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
         }
         
         /* Compute WM distance */
-        euclidean_distance(input, mask, dims, voxelsize, 0);
+        euclidean_distance(input, mask, dims, NULL, 0);
         for (i = 0; i < nvox; i++)
             dist_WM[i] += input[i];
     }
@@ -126,33 +129,37 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
         dist_CSF[i] /= (float)n_avgs;
         dist_WM[i] /= (float)n_avgs;
     }
-    
-    /* Compute depth field and determine valid voxels */
+
+    for (i = 0; i < nvox; i++) input[i] = roundf(seg[i]);
+
+    projection_based_thickness(input, dist_WM, dist_CSF, GMT, dims, voxelsize);
+
+    /* Use minimum/maximum to reduce issues with meninges */
     for (i = 0; i < nvox; i++) {
         float total_dist = dist_WM[i] + dist_CSF[i];
-        
-        /* Check if voxel is within cortical band (with optional extension) */
-        int in_gm = (seg[i] > CGM_LABEL && seg[i] < GWM_LABEL);
-        int near_gm = 0;
-        
-        /* For extension: include voxels close to GM boundaries */
-        if (extend > 0.0 && !in_gm) {
-            /* In CSF side but close to GM */
-            if (seg[i] <= CGM_LABEL && dist_CSF[i] < extend)
-                near_gm = 1;
-            /* In WM side but close to GM */
-            if (seg[i] >= GWM_LABEL && dist_WM[i] < extend)
-                near_gm = 1;
-        }
-        
-        if ((in_gm || near_gm) && total_dist > 1e-6) {
-            depth[i] = dist_WM[i] / total_dist;
-            /* Clamp to [0, 1] */
-            depth[i] = MAX(0.0f, MIN(1.0f, depth[i]));
-        } else {
-            depth[i] = -1.0f;  /* Mark as invalid/outside cortex */
+        GMT[i] = MIN(total_dist, MAX(0.0, GMT[i] - 0.125*(GMT[i]  < total_dist)));
+    }
+
+    /* Re-estimate CSF distance using corrected GM thickness */
+    for (i = 0; i < nvox; i++) {
+        if ((seg[i] > CGM) && (seg[i] < GWM) && (GMT[i] > 1e-15))
+            dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
+    }
+    clip_data(dist_CSF, nvox, 0.0, 1E15, DT_FLOAT32);
+
+    /* Estimate percentage position map (PPM) */
+    for (i = 0; i < nvox; i++) {
+        if ((seg[i] > CGM) && (seg[i] < GWM) && (GMT[i] > 1e-15)) {
+            depth[i] = MAX(0.0, GMT[i] - dist_WM[i]) / GMT[i];
         }
     }
+    clip_data(depth, nvox, 0.0, 1.0, DT_FLOAT32);
+    
+    /* extend depth measure and mask it finally */
+    euclidean_distance(depth, NULL, dims, NULL, 1);
+
+    for (i = 0; i < nvox; i++)
+        depth[i] = (seg[i] > (CGM_LABEL - extend)) && (seg[i] < (GWM_LABEL + extend)) ? depth[i] : 0.0f;
     
     /* Optionally copy distance maps to output */
     if (dist_WM_out) {
@@ -165,6 +172,7 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
     free(input);
     free(dist_WM);
     free(dist_CSF);
+    free(GMT);
     free(mask);
 }
 
@@ -231,6 +239,44 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
     
     /* Compute cortical depth field */
     compute_cortical_depth(seg, depth, NULL, NULL, dims, voxelsize, extend);
+
+    /* Allocate normals */
+    float *normals = (float *)calloc(3 * nvox, sizeof(float));
+    if (!normals) {
+        fprintf(stderr, "Memory allocation error for normals in smooth_within_cortex_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Compute gradients of depth field */
+    for (z = 0; z < nz; z++) {
+        for (y = 0; y < ny; y++) {
+            for (x = 0; x < nx; x++) {
+                i = z * nxy + y * nx + x;
+                if (depth[i] <= 0.0f) continue;
+                
+                double grad_x = 0, grad_y = 0, grad_z = 0;
+                
+                if (x > 0 && x < nx - 1) grad_x = (depth[i + 1] - depth[i - 1]) / (2.0 * voxelsize[0]);
+                else if (x > 0) grad_x = (depth[i] - depth[i - 1]) / voxelsize[0];
+                else if (x < nx - 1) grad_x = (depth[i + 1] - depth[i]) / voxelsize[0];
+                
+                if (y > 0 && y < ny - 1) grad_y = (depth[i + nx] - depth[i - nx]) / (2.0 * voxelsize[1]);
+                else if (y > 0) grad_y = (depth[i] - depth[i - nx]) / voxelsize[1];
+                else if (y < ny - 1) grad_y = (depth[i + nx] - depth[i]) / voxelsize[1];
+                
+                if (z > 0 && z < nz - 1) grad_z = (depth[i + nxy] - depth[i - nxy]) / (2.0 * voxelsize[2]);
+                else if (z > 0) grad_z = (depth[i] - depth[i - nxy]) / voxelsize[2];
+                else if (z < nz - 1) grad_z = (depth[i + nxy] - depth[i]) / voxelsize[2];
+                
+                double norm = sqrt(grad_x * grad_x + grad_y * grad_y + grad_z * grad_z);
+                if (norm > 1e-6) {
+                    normals[3 * i] = (float)(grad_x / norm);
+                    normals[3 * i + 1] = (float)(grad_y / norm);
+                    normals[3 * i + 2] = (float)(grad_z / norm);
+                }
+            }
+        }
+    }
     
     /* Initialize output */
     memcpy(output, buffer, sizeof(float) * nvox);
@@ -242,7 +288,7 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
                 i = z * nxy + y * nx + x;
                 
                 /* Skip voxels outside cortical band */
-                if (depth[i] < 0.0f) {
+                if (depth[i] <= 0.0f) {
                     continue;
                 }
                 
@@ -256,7 +302,7 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
                             ni = iz * nxy + iy * nx + ix;
                             
                             /* Skip neighbors outside cortical band */
-                            if (depth[ni] < 0.0f) {
+                            if (depth[ni] <= 0.0f) {
                                 continue;
                             }
                             
@@ -269,9 +315,21 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
                             /* Compute depth difference */
                             dist_depth = fabs((double)(depth[ni] - depth[i]));
                             
-                            /* Combined weight: spatial * depth similarity */
+                            /* Compute normal similarity (dot product) */
+                            double dot = normals[3 * i] * normals[3 * ni] + 
+                                         normals[3 * i + 1] * normals[3 * ni + 1] + 
+                                         normals[3 * i + 2] * normals[3 * ni + 2];
+                            
+                            /* Penalize opposing normals (kissing sulci)
+                             * Normals in kissing sulci are anti-parallel (dot approx -1)
+                             * Use soft threshold */
+                            double weight_angle = MAX(0.0, dot);
+                            weight_angle = pow(weight_angle,6);
+
+                            /* Combined weight: spatial * depth similarity * angle similarity */
                             weight = gaussian_weight(dist_spatial, sigma_spatial) *
-                                     gaussian_weight(dist_depth, sigma_depth);
+                                     gaussian_weight(dist_depth, sigma_depth) *
+                                     weight_angle;
                             
                             weight_sum += weight;
                             value_sum += weight * buffer[ni];
@@ -290,6 +348,7 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
     /* Copy result back to input */
     memcpy(data, output, sizeof(float) * nvox);
     
+    free(normals);
     free(depth);
     free(output);
     free(buffer);
