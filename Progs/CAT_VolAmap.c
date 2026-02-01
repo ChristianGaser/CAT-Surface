@@ -13,7 +13,7 @@
 #include <ParseArgv.h>
 #include "CAT_Amap.h"
 #include "CAT_Bmap.h"
-#include "CAT_Ornlm.h"
+#include "CAT_Nlm.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 #include "CAT_Math.h"

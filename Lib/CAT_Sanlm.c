@@ -67,7 +67,8 @@ typedef struct{
     int ini;
     int fin;
     int radioB;
-    int radioS;       
+    int radioS;
+    double strength;
 } myargument;
 
 int rician;
@@ -368,6 +369,7 @@ ThreadFunc( void* pArguments )
 {
     float *bias,*Estimate,*ima,*means,*variances,*average;
     double epsilon,mu1,var1,totalweight,wmax,t1,t1i,t2,d,w,distanciaminima;
+    double strength, scale;
     unsigned char *Label;
     int rows,cols,slices,ini,fin,v,f,i,j,k,l,rc,ii,jj,kk,ni,nj,nk,Ndims;
         
@@ -389,7 +391,8 @@ ThreadFunc( void* pArguments )
     bias = arg.bias;
     Label = arg.label;        
     v = arg.radioB;
-    f = arg.radioS;      
+    f = arg.radioS;
+    strength = arg.strength;
                                             
     /* filter */
     epsilon = 1e-5;
@@ -473,8 +476,12 @@ ThreadFunc( void* pArguments )
                                 if ( (t1>mu1 && t1<(1.0/mu1)) || ((t1i>mu1 && t1i<(1.0/mu1)) && t2>var1 && t2<(1.0/var1))) {                                                                                                                 
                                     d = distance(ima,i,j,k,ni,nj,nk,f,cols,rows,slices);
                                                          
-                                    if (d>3*distanciaminima) w = 0;
-                                    else w = exp(-d/distanciaminima);                                                                                               
+                                    scale = distanciaminima;
+                                    if (strength > 0.0) scale *= strength;
+                                    if (scale <= 0.0) scale = 1.0;
+
+                                    if (d > 3.0*scale) w = 0;
+                                    else w = exp(-d/scale);                                                                                               
                                                             
                                     if (w>wmax) wmax = w;
                                                             
@@ -525,7 +532,7 @@ ThreadFunc( void* pArguments )
 }
 
 
-void anlm(float* ima, int v, int f, int use_rician, const int* dims)
+void sanlm(float* ima, int v, int f, int use_rician, double strength, const int* dims)
 {
     float *means, *variances, *Estimate, *bias;
     unsigned char *Label;
@@ -542,6 +549,8 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
 #else
     pthread_t *ThreadList;
 #endif
+
+    if (strength <= 0.0) strength = 1.0;
 
     Ndims = (int)floor(pow((2.0*f+1.0),ndim));
     slice = dims[0]*dims[1];
@@ -651,7 +660,8 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
         ThreadArgs[i].ini = ini;
         ThreadArgs[i].fin = fin;
         ThreadArgs[i].radioB = v;
-        ThreadArgs[i].radioS = f;    
+        ThreadArgs[i].radioS = f;
+        ThreadArgs[i].strength = strength;
             
         ThreadList[i] = (HANDLE)_beginthreadex( NULL, 0, &ThreadFunc, &ThreadArgs[i] , 0, NULL );
                 
@@ -682,7 +692,8 @@ void anlm(float* ima, int v, int f, int use_rician, const int* dims)
         ThreadArgs[i].ini = ini;
         ThreadArgs[i].fin = fin;
         ThreadArgs[i].radioB = v;
-        ThreadArgs[i].radioS = f;    
+        ThreadArgs[i].radioS = f;
+        ThreadArgs[i].strength = strength;
     }
 
     for (i=0; i<Nthreads; i++)

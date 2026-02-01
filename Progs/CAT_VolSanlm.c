@@ -15,13 +15,17 @@
 
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
+#include "CAT_Nlm.h"
 
 int is_rician = 0;
+double strength = 1.0;
 
 static
 ArgvInfo argTable[] = {
     {"-rician", ARGV_CONSTANT, (char *) 1, (char *) &is_rician,
          "Use Rician noise estimation. MRIs can have Gaussian or Rician distributed noise with uniform or nonuniform variance across the image. If SNR is high enough (>3) noise can be well approximated by Gaussian noise in the foreground. However, for SENSE reconstruction or DTI data a Rician distribution is expected. Please note that the Rician noise estimation is sensitive for large signals in the neighbourhood and can lead to artefacts (e.g. cortex can be affected by very high values in the scalp or in blood vessels."},
+    {"-strength", ARGV_FLOAT, (char *) 1, (char *) &strength,
+         "Scales filter strength. Values >1 increase smoothing; values <1 reduce it."},
      {NULL, ARGV_END, NULL, NULL, NULL}
 };
 
@@ -52,6 +56,7 @@ Usage: %s [options] <input.nii> [<output_denoised.nii>]\n\
 Options:\n\
     -rician                  Use Rician noise estimation. Recommended for MRI data \n\
                              with non-Gaussian noise distribution.\n\
+     -strength <float>       Scale filter strength (default: 1.0).\n\
 \n\
 Example:\n\
     %s -rician input.nii output_denoised.nii\n\n";
@@ -59,7 +64,6 @@ Example:\n\
     fprintf(stderr, usage_str, executable, executable);
 }
 
-void anlm(float* ima, int v, int f, int is_rician, const int* dims);
 
 /* Main program */
 
@@ -106,7 +110,7 @@ int main(int argc, char *argv[])
     dims[2] = nii_ptr->nz;
     
     
-    anlm(input, 3, 1, is_rician, dims);
+    sanlm(input, 3, 1, is_rician, strength, dims);
 
     if (!write_nifti_float( outfile, input, DT_FLOAT32, 1.0, dims, voxelsize, nii_ptr)) 
         exit(EXIT_FAILURE);
