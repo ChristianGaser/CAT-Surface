@@ -46,7 +46,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "CAT_Ornlm.h"
+#include "CAT_Nlm.h"
 #include "CAT_SafeAlloc.h"
 #include "CAT_Math.h"
 
