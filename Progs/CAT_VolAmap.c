@@ -32,6 +32,7 @@ int write_bias = 0;
 int verbose = 0;
 int use_median = 0;
 int use_bmap = 0;
+int use_multistep = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
 char *mrf_class_weights_str = NULL;
@@ -92,6 +93,9 @@ static ArgvInfo argTable[] = {
          
     {"-use-median", ARGV_CONSTANT, (char *) 1, (char *) &use_median,
          "Use local mean for estimating peaks instead of median."},
+
+    {"-multistep", ARGV_CONSTANT, (char *) 1, (char *) &use_multistep,
+        "Enable multi-step sub schedule (use tzwo steps for sub)."},
          
     {"-use-bmap", ARGV_CONSTANT, (char *) 1, (char *) &use_bmap,
          "Use BMAP instead of AMAP (experimental!)."},
@@ -272,7 +276,7 @@ main(int argc, char *argv[])
     } else
         Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
             pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median,
-            mrf_class_weights);
+            mrf_class_weights, use_multistep);
 
     /* PVE */
     if (pve) {

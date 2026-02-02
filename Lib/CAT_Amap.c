@@ -109,6 +109,7 @@ gmv_reduce_worker(void *p)
             const int ind = base + j;
             const struct ipoint *pi = &a.ir[ind];
 
+            a.r[ind].n = pi->n;
             if (pi->n > G) {
                 if (pi->n == 1) {
                     a.r[ind].var  = 0.0;
@@ -121,6 +122,7 @@ gmv_reduce_worker(void *p)
                     a.r[ind].var = (pi->ss - pi->n * SQR(pi->s / pi->n)) / (pi->n - 1);
                 }
             } else {
+                a.r[ind].n = 0;
                 a.r[ind].mean = 0.0;
             }
         }
@@ -747,7 +749,10 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     int x, y, z, label_value, xBG;
     int ix, iy, iz, ix_large, iy_large, iz_large, ind2, ind2_large, replace = 1;
     double ll, ll_old, change_ll;
-        
+    
+    /* minimum number of voxels per class that is required for the defined sub-size */
+    int min_n = 20;
+    
     MrfPrior(label, n_classes, alpha, beta, 0, dims, verbose);
     
     area = dims[0]*dims[1];
@@ -814,12 +819,12 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                     
                     for (i = 0; i < n_classes; i++) {
                         ind2 = (i*nvol) + ind;
-                        if (r[ind2].mean > TINY) {
+                        if ((r[ind2].mean > TINY) && (r[ind2].n >= min_n)) {
                             mean[i] = r[ind2].mean;
                             var[i]  = r[ind2].var;
                         } else if (r_large && sub_large != sub) {
                             int ind_large = (i*nvol_large) + ind2_large;
-                            if (r_large[ind_large].mean > TINY) {
+                            if ((r_large[ind_large].mean > TINY) && (r_large[ind_large].n >= min_n)) {
                                 mean[i] = r_large[ind_large].mean;
                                 var[i]  = r_large[ind_large].var;
                             }
@@ -892,7 +897,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, 
           double *voxelsize, int niters_ICM, int verbose, 
-          int use_median, const double *mrf_class_weights)
+          int use_median, const double *mrf_class_weights, int use_multistep)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -902,46 +907,80 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     struct point *r = NULL;
     struct point *r_large = NULL;
     int sub_large;
+    int sub_steps[2];
+    int n_steps = 0;
     double class_weights[MAX_NC];
     
     /* we have to make sub independent from voxel size */
     mean_voxelsize = (voxelsize[0] + voxelsize[1] + voxelsize[2])/3.0;
     sub = ROUND((double)sub/mean_voxelsize);
+    if (sub < 1) sub = 1;
     
     /* ICM is not needed if we skip MRF approach */
     if (weight_MRF == 0)
         niters_ICM = 0;
 
-    sub_large = 64;
-    if (sub_large < sub + 1) sub_large = sub + 1;
-    sub_large = MIN(sub_large, MAX(dims[0], MAX(dims[1], dims[2])));
+    if (use_multistep) {
+        int max_dim = MAX(dims[0], MAX(dims[1], dims[2]));
+        int s1 = sub;
+        int s2 = sub * 4;
+        if (s2 < s1 + 1) s2 = s1 + 1;
+        if (s2 > max_dim) s2 = max_dim;
+
+        sub_steps[n_steps++] = s1;
+        if (s2 != s1) sub_steps[n_steps++] = s2;
+    } else {
+        sub_steps[n_steps++] = sub;
+    }
             
     area = dims[0]*dims[1];
     vol = area*dims[2];
  
-    /* define grid dimensions */
-    nix = (int) ceil((dims[0]-1)/((double) sub))+1;
-    niy = (int) ceil((dims[1]-1)/((double) sub))+1;
-    niz = (int) ceil((dims[2]-1)/((double) sub))+1; 
-    nvol  = nix*niy*niz;
-    
-    r = (struct point*)malloc(sizeof(struct point)*MAX_NC*nvol);
-    if (r == NULL) {
-        printf("Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
+    /* run multi-step schedule: small -> large */
+    for (i = 0; i < n_steps; i++) {
+        int step_sub = sub_steps[i];
+        int step_sub_large;
+        int nix_l, niy_l, niz_l, nvol_l;
 
-    /* allocate larger-grid stats for adaptive sub */
-    {
-        int nix_l = (int) ceil((dims[0]-1)/((double) sub_large))+1;
-        int niy_l = (int) ceil((dims[1]-1)/((double) sub_large))+1;
-        int niz_l = (int) ceil((dims[2]-1)/((double) sub_large))+1; 
-        int nvol_l  = nix_l*niy_l*niz_l;
+        nix = (int) ceil((dims[0]-1)/((double) step_sub))+1;
+        niy = (int) ceil((dims[1]-1)/((double) step_sub))+1;
+        niz = (int) ceil((dims[2]-1)/((double) step_sub))+1; 
+        nvol  = nix*niy*niz;
+
+        r = (struct point*)malloc(sizeof(struct point)*MAX_NC*nvol);
+        if (r == NULL) {
+            printf("Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+
+        step_sub_large = step_sub * 2;
+        if (step_sub_large < step_sub + 1) step_sub_large = step_sub + 1;
+        step_sub_large = MIN(step_sub_large, MAX(dims[0], MAX(dims[1], dims[2])));
+        sub_large = step_sub_large;
+
+        nix_l = (int) ceil((dims[0]-1)/((double) sub_large))+1;
+        niy_l = (int) ceil((dims[1]-1)/((double) sub_large))+1;
+        niz_l = (int) ceil((dims[2]-1)/((double) sub_large))+1; 
+        nvol_l  = nix_l*niy_l*niz_l;
 
         r_large = (struct point*)malloc(sizeof(struct point)*MAX_NC*nvol_l);
         if (r_large == NULL) {
             printf("Memory allocation error\n");
             exit(EXIT_FAILURE);
+        }
+
+        if (verbose) printf("Amap sub-step %d/%d: sub=%d\n", i+1, n_steps, step_sub);
+
+        EstimateSegmentation(src, label, prob, r, r_large, mean, var, n_classes, niters,
+                             step_sub, sub_large, dims, voxelsize, thresh, beta, verbose, use_median);
+
+        if (i < n_steps - 1) {
+            free(r);
+            free(r_large);
+            r = NULL;
+            r_large = NULL;
+        } else {
+            sub = step_sub;
         }
     }
     
@@ -950,10 +989,6 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         printf("Label maximum %g exceeds number of tissue classes.\n", max_label);
         exit(EXIT_FAILURE);
     }
-
-    /* estimate 3 classes before PVE */
-    EstimateSegmentation(src, label, prob, r, r_large, mean, var, n_classes, niters, sub, sub_large, dims, voxelsize, 
-                            thresh, beta, verbose, use_median);
 
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve) {
