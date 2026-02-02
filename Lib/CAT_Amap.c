@@ -734,18 +734,18 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
 } 
 
 void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob, 
-                          struct point *r, double *mean, double *var, int n_classes, 
-                          int niters, int sub, int *dims, double *voxelsize, double *thresh, 
+                          struct point *r, struct point *r_large, double *mean, double *var, int n_classes, 
+                          int niters, int sub, int sub_large, int *dims, double *voxelsize, double *thresh, 
                           double *beta, int verbose, int use_median)
 {
     int i;
-    int area, narea, nvol, vol, z_area, y_dims, index, ind;
-    double sub_1, dmin, val, sum_voxelsize = 0.0;
+    int area, narea, nvol, narea_large, nvol_large, vol, z_area, y_dims, index, ind;
+    double sub_1, sub_1_large, dmin, val, sum_voxelsize = 0.0;
     double d[MAX_NC], alpha[MAX_NC], log_alpha[MAX_NC], log_var[MAX_NC], exponent[MAX_NC];
     double pvalue[MAX_NC], mrf_probability[MAX_NC], voxelsize_squared[3], psum;
-    int nix, niy, niz, iters, count_change;
+    int nix, niy, niz, nix_large, niy_large, niz_large, iters, count_change;
     int x, y, z, label_value, xBG;
-    int ix, iy, iz, ind2, replace = 1;
+    int ix, iy, iz, ix_large, iy_large, iz_large, ind2, ind2_large, replace = 1;
     double ll, ll_old, change_ll;
         
     MrfPrior(label, n_classes, alpha, beta, 0, dims, verbose);
@@ -755,14 +755,21 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 
     /* find grid point conversion factor */
     sub_1 = 1.0/((double) sub);
+    sub_1_large = 1.0/((double) sub_large);
 
     /* define grid dimensions */
     nix = (int) ceil((dims[0]-1)/((double) sub))+1;
     niy = (int) ceil((dims[1]-1)/((double) sub))+1;
     niz = (int) ceil((dims[2]-1)/((double) sub))+1; 
 
+    nix_large = (int) ceil((dims[0]-1)/((double) sub_large))+1;
+    niy_large = (int) ceil((dims[1]-1)/((double) sub_large))+1;
+    niz_large = (int) ceil((dims[2]-1)/((double) sub_large))+1; 
+
     narea = nix*niy;
     nvol = nix*niy*niz;
+    narea_large = nix_large*niy_large;
+    nvol_large = nix_large*niy_large*niz_large;
 
     for (i = 0; i < n_classes; i++) log_alpha[i] = log(alpha[i]);
 
@@ -778,7 +785,9 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
         ll = 0.0;
         
         /* get means for grid points */
-        GetMeansVariances(src, label, n_classes, r, sub, dims, thresh, use_median);      
+        GetMeansVariances(src, label, n_classes, r, sub, dims, thresh, use_median);
+        if (r_large && sub_large != sub)
+            GetMeansVariances(src, label, n_classes, r_large, sub_large, dims, thresh, use_median);
 
         /* loop over image points */
         for (z = 1; z < dims[2]-1; z++) {
@@ -797,14 +806,27 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                     iy = (int)(sub_1*y);
                     iz = (int)(sub_1*z);
                     ind = iz*narea + iy*nix + ix;
+
+                    ix_large = (int)(sub_1_large*x);
+                    iy_large = (int)(sub_1_large*y);
+                    iz_large = (int)(sub_1_large*z);
+                    ind2_large = iz_large*narea_large + iy_large*nix_large + ix_large;
                     
                     for (i = 0; i < n_classes; i++) {
                         ind2 = (i*nvol) + ind;
                         if (r[ind2].mean > TINY) {
                             mean[i] = r[ind2].mean;
                             var[i]  = r[ind2].var;
-                            log_var[i] = log(var[i]);
+                        } else if (r_large && sub_large != sub) {
+                            int ind_large = (i*nvol_large) + ind2_large;
+                            if (r_large[ind_large].mean > TINY) {
+                                mean[i] = r_large[ind_large].mean;
+                                var[i]  = r_large[ind_large].var;
+                            }
                         }
+
+                        if (var[i] > TINY)
+                            log_var[i] = log(var[i]);
                     }
                     
                     /* compute energy at each point */
@@ -878,6 +900,8 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     double var[MAX_NC], mean_voxelsize;
     double thresh[2], beta[1];
     struct point *r = NULL;
+    struct point *r_large = NULL;
+    int sub_large;
     double class_weights[MAX_NC];
     
     /* we have to make sub independent from voxel size */
@@ -887,6 +911,10 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     /* ICM is not needed if we skip MRF approach */
     if (weight_MRF == 0)
         niters_ICM = 0;
+
+    sub_large = sub * 2;
+    if (sub_large < sub + 1) sub_large = sub + 1;
+    sub_large = MIN(sub_large, MAX(dims[0], MAX(dims[1], dims[2])));
             
     area = dims[0]*dims[1];
     vol = area*dims[2];
@@ -902,6 +930,20 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
+
+    /* allocate larger-grid stats for adaptive sub */
+    {
+        int nix_l = (int) ceil((dims[0]-1)/((double) sub_large))+1;
+        int niy_l = (int) ceil((dims[1]-1)/((double) sub_large))+1;
+        int niz_l = (int) ceil((dims[2]-1)/((double) sub_large))+1; 
+        int nvol_l  = nix_l*niy_l*niz_l;
+
+        r_large = (struct point*)malloc(sizeof(struct point)*MAX_NC*nvol_l);
+        if (r_large == NULL) {
+            printf("Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+    }
     
     double max_label = get_max(label, vol, 0, DT_UINT8);
     if (max_label > n_classes) {
@@ -910,7 +952,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     }
 
     /* estimate 3 classes before PVE */
-    EstimateSegmentation(src, label, prob, r, mean, var, n_classes, niters, sub, dims, voxelsize, 
+    EstimateSegmentation(src, label, prob, r, r_large, mean, var, n_classes, niters, sub, sub_large, dims, voxelsize, 
                             thresh, beta, verbose, use_median);
 
     /* Use marginalized likelihood to estimate initial 5 classes */
@@ -948,6 +990,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     }
     
     free(r);
+    if (r_large) free(r_large);
 
     return;      
 }
