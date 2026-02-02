@@ -37,7 +37,7 @@ double weight_MRF = 0.0;
 char *mrf_class_weights_str = NULL;
 double mrf_class_weights[MAX_NC] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 double bias_fwhm = 0.0;
-double h_ornlm = 0.05;
+double h_ornlm = 0.00;
 double sigma_ornlm = -1.0;
 
 static ArgvInfo argTable[] = {

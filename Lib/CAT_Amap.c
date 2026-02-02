@@ -912,7 +912,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     if (weight_MRF == 0)
         niters_ICM = 0;
 
-    sub_large = sub * 2;
+    sub_large = 64;
     if (sub_large < sub + 1) sub_large = sub + 1;
     sub_large = MIN(sub_large, MAX(dims[0], MAX(dims[1], dims[2])));
             
