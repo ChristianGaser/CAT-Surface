@@ -633,7 +633,8 @@ void ComputeInitialPveLabelSub(float *src, unsigned char *label, unsigned char *
 } 
 
 void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned char *label, int x, int y, int z, int *dims,
-              int n_classes, double beta, double *voxelsize_squared)
+              int n_classes, double beta, double *voxelsize_squared,
+              const double *class_weights)
 {
     int i,j,k;
     unsigned char label1, label2;  
@@ -654,23 +655,27 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
             label2 = label[(x+i)+dims[0]*(y+j)+dims[0]*dims[1]*(z+k)];
                              
             for (label1 = 1; label1 < n_classes+1; label1++) { 
+                double class_weight = 1.0;
+                if (class_weights) class_weight = class_weights[label1-1];
+                if (class_weight < 0.0) class_weight = 0.0;
                 if (label1 == label2) similarity_value = same;
                 else if (abs(label1 - label2) < 2) similarity_value = similar;
                 else similarity_value = different;
 
                 distance = sqrt(voxelsize_squared[0] * abs(i) + voxelsize_squared[1] * abs(j) + voxelsize_squared[2] * abs(k));
 
-                exponent[label1-1] += (double)similarity_value/distance;                         
+                exponent[label1-1] += (class_weight * (double)similarity_value) / distance;
             }
         }       
 
     for (label1 = 0; label1 < n_classes; label1++)
-        mrf_probability[label1] = exp(-(beta*exponent[label1])); 
+        mrf_probability[label1] = exp(-(beta * exponent[label1])); 
     
 } 
 
 /* Iterative conditional mode */
-void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations, double *voxelsize, int verbose)
+void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations,
+         double *voxelsize, int verbose, const double *class_weights)
 {
     
     int i, iter, x, y, z, z_area, y_dims, index, sum_voxel;
@@ -701,7 +706,8 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
                     if (label[index] == 0) continue;
                     
                     sum_voxel++;
-                    ComputeMrfProbability(mrf_probability, exponent, label, x, y, z, dims, n_classes, beta, voxelsize_squared);
+                    ComputeMrfProbability(mrf_probability, exponent, label, x, y, z, dims, n_classes, beta,
+                                          voxelsize_squared, class_weights);
                     
                     for (i = 0; i < n_classes; i++)
                         mrf_probability[i] *= (double)prob[index+i*vol];
@@ -864,7 +870,7 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF, 
           double *voxelsize, int niters_ICM, int verbose, 
-          int use_median)
+          int use_median, const double *mrf_class_weights)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -872,6 +878,7 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     double var[MAX_NC], mean_voxelsize;
     double thresh[2], beta[1];
     struct point *r = NULL;
+    double class_weights[MAX_NC];
     
     /* we have to make sub independent from voxel size */
     mean_voxelsize = (voxelsize[0] + voxelsize[1] + voxelsize[2])/3.0;
@@ -927,11 +934,17 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     /* use much smaller beta for if no pve is selected */
     if (!pve) beta[0] /= 20.0;
     
-    /* Iterative Conditional Mode */
+    /* Iterative Conditional Mode (run after PVE initialization) */
     if ((niters_ICM > 0) && (weight_MRF > 0.0)) {
+        for (i = 0; i < MAX_NC; i++) class_weights[i] = 1.0;
+        if (mrf_class_weights) {
+            for (i = 0; i < n_classes; i++) class_weights[i] = mrf_class_weights[i];
+        }
+
         beta[0] *= weight_MRF;
         if (verbose) printf("Weighted MRF beta %3.3f\n",beta[0]);
-        ICM(prob, label, n_classes, dims, beta[0], niters_ICM, voxelsize, verbose);
+        ICM(prob, label, n_classes, dims, beta[0], niters_ICM, voxelsize, verbose,
+            class_weights);
     }
     
     free(r);

@@ -8,6 +8,7 @@
 
 #include <float.h>
 #include <math.h>
+#include <string.h>
 
 #include <bicpl.h>
 #include <ParseArgv.h>
@@ -33,6 +34,8 @@ int use_median = 0;
 int use_bmap = 0;
 double weight_LAS = 0.5;
 double weight_MRF = 0.0;
+char *mrf_class_weights_str = NULL;
+double mrf_class_weights[MAX_NC] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 double bias_fwhm = 0.0;
 double h_ornlm = 0.05;
 double sigma_ornlm = -1.0;
@@ -55,7 +58,11 @@ static ArgvInfo argTable[] = {
     {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
          "Determines the weight of the Markov Random Field (MRF) prior, a value\n\
          between 0 and 1."},
-         
+
+    {"-mrf-class-weights", ARGV_STRING, (char *) 1, (char *) &mrf_class_weights_str,
+        "Comma-separated class weights. For pve=0 use 3 values (CSF,GM,WM).\n\
+        For pve=1 use 5 values (CSF,GMCSF,GM,WMGM,WM)."},
+     
     {"-las", ARGV_FLOAT, (char *) 1, (char *) &weight_LAS,
          "Determines the weight of the local adaptive segmentation (LAS), a value\n\
          between 0 and 1. Only used if bias correction is applied."},
@@ -247,13 +254,25 @@ main(int argc, char *argv[])
         ornlm(src, v, f, h_ornlm, noise_sigma, dims);
     }
 
+    if (mrf_class_weights_str) {
+        int count = 0;
+        char *tmp = strdup(mrf_class_weights_str);
+        char *tok = strtok(tmp, ",; ");
+        while (tok && count < n_classes) {
+            mrf_class_weights[count++] = strtod(tok, NULL);
+            tok = strtok(NULL, ",; ");
+        }
+        free(tmp);
+    }
+
     if (use_bmap) {
         int BG = 1, sub_bias = 8;
         Bmap(src, label, prob, mean, n_pure_classes, BG, iters_amap, sub_bias, 
             sub_bias, sub_bias, biasfield, dims, pve, verbose);
     } else
         Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
-            pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median);
+            pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median,
+            mrf_class_weights);
 
     /* PVE */
     if (pve) {

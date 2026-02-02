@@ -80,7 +80,7 @@ typedef struct {
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
                  int nc, int niters, int sub, int *dims, int pve, double weight_MRF, 
                  double *voxelsize, int niters_ICM, int verbose, 
-                 int use_median);
+                 int use_median, const double *mrf_class_weights);
 void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims);
 double ComputeGaussianLikelihood(double value, double mean , double var);
 double ComputeMarginalizedLikelihood(double value, double mean1 , double mean2, 
