@@ -922,9 +922,8 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
 
     if (use_multistep) {
         int max_dim = MAX(dims[0], MAX(dims[1], dims[2]));
-        int s1 = sub;
-        int s2 = sub * 4;
-        if (s2 < s1 + 1) s2 = s1 + 1;
+        s1 = MAX(1, sub / 4)
+        int s2 = sub;
         if (s2 > max_dim) s2 = max_dim;
 
         sub_steps[n_steps++] = s1;

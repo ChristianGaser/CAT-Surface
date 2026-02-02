@@ -95,8 +95,8 @@ static ArgvInfo argTable[] = {
          "Use local mean for estimating peaks instead of median."},
 
     {"-multistep", ARGV_CONSTANT, (char *) 1, (char *) &use_multistep,
-        "Enable two-step sub schedule, where in the 2nd step sub is increased by a \n\
-        factor of 4."},
+        "Enable two-step sub schedule, where in the 1st step sub starts with a 4 times \n\
+        smaller value."},
          
     {"-use-bmap", ARGV_CONSTANT, (char *) 1, (char *) &use_bmap,
          "Use BMAP instead of AMAP (experimental!)."},
