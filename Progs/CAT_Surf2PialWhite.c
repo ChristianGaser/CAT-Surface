@@ -56,12 +56,11 @@ void usage(char *executable) {
         "3. Perform joint deformation of both surfaces using the image intensity and gradient field,\n"
         "   while preserving topology and maintaining surface distance (cortical thickness).\n\n"
         "Key deformation forces:\n"
-        "  -w1  Internal smoothness term (e.g. 0.1).\n"
-        "  -w2  Gradient alignment force (edges attraction).\n"
-        "  -w3  Balloon force, based on isovalue distance.\n"
+        "  -w1     Internal smoothness term (e.g. 0.1).\n"
+        "  -w2     Gradient alignment force (edges attraction).\n"
+        "  -w3     Balloon force, based on isovalue distance.\n"
         "  -sigma  Controls displacement smoothing.\n"
-        "  -iter   Number of iterations (e.g. 50).\n"
-        "  -verbose  Show iteration-wise output.\n\n",
+        "  -iter   Number of iterations (e.g. 50).\n\n",
         executable
     );
 }
