@@ -21,12 +21,12 @@
 
 int fast = 0;
 int verbose = 0;
-int n_avgs = 8;
+int n_avgs = 2;
 int n_median_filter = 2;
-double sharpening = 0.0;
+double range = 0.45;
 double downsample = 0.0;
 double fill_thresh = 0.5;
-double correct_voxelsize = 0.0;
+double correct_voxelsize = 0.5;
 
 static ArgvInfo argTable[] = {
   {"-verbose", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
@@ -47,6 +47,10 @@ static ArgvInfo argTable[] = {
     To maximize the filling-effect, this threshold should be the same as used for the\n\
     subsequent Marching Cubes approach (e.g. 0.5). Set to '0' to disable filling."},
 
+  {"-range", ARGV_FLOAT, (char *) 1, (char *) &range,
+    "Extend range for masking of euclidean distance estimation. A slight increase\n\
+    of range (i.e 0.3) helps in obtaining a more stable distance estimation."},
+
   {"-downsample", ARGV_FLOAT, (char *) 1, (char *) &downsample,
     "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
     spatial resolution for the subsequent steps. Set to '0' to disable downsampling."},
@@ -58,10 +62,6 @@ static ArgvInfo argTable[] = {
      with high local variations. This process helps to smooth these areas, \n\
      improving the quality of the surface reconstruction in subsequent steps."},
   
-  {"-sharpen", ARGV_FLOAT, (char *) 1, (char *) &sharpening,
-    "Amount of sharpening the PPM map by adding the difference between the unsmoothed and \n\
-     smoothed PPM map. Set to '0' to disable sharpening"},
-
   {"-correct-voxelsize", ARGV_FLOAT, (char *) 1, (char *) &correct_voxelsize,
     "Amount of thickness correction for voxel-size, since we observed a systematic \n\
      shift to smaller thickness values of half voxel-size."},
@@ -104,7 +104,6 @@ Options:\n\
     -n-avgs <int>              Set the number of averages for distance estimation.\n\
     -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
-    -sharpen <float>           Amount of sharpening the PPM map.\n\
     -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
 \n\
 Example:\n\
@@ -205,7 +204,6 @@ int main(int argc, char *argv[])
         n_avgs /= 2;
         n_median_filter = 0;
         fill_thresh = 0.0;
-        sharpening = 0.0;
         downsample = 0.0;
     }
     
@@ -214,8 +212,6 @@ int main(int argc, char *argv[])
 
     /* Median-filtering of input with euclidean distance helps a bit */
     localstat3(src, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
-
-    double range = 0.3;
     
     /* Process each average for distance estimation */
     for (j = 0; j < n_avgs; j++) {
@@ -226,7 +222,7 @@ int main(int argc, char *argv[])
         /* prepare map outside CSF and mask to obtain distance map for CSF */
         for (i = 0; i < nvox; i++) {
             input[i] = (src[i] < (CGM + add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] < GWM + range) ? 1 : 0;
+            mask[i]  = (src[i] < (GWM + range)) ? 1 : 0;
         }    
     
         /* obtain CSF distance map */
@@ -238,7 +234,7 @@ int main(int argc, char *argv[])
         /* prepare map outside WM and mask to obtain distance map for WN */
         for (i = 0; i < nvox; i++) {
             input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
-            mask[i]  = (src[i] > CGM - range) ? 1 : 0;
+            mask[i]  = (src[i] > (CGM - range)) ? 1 : 0;
         }    
     
         /* obtain WM distance map */
@@ -316,8 +312,7 @@ int main(int argc, char *argv[])
        We use a smooth map that indicates gyri and sulci to mix the separate
        estimates of PPM for gyri and sulci */
     if (verbose) fprintf(stderr,"Estimate percentage position map.\n");
-    smooth_gyri_mask(src, gyrus_mask, dims, voxelsize, 
-        /* threshold */ CGM, /* FWHM */ 8.0);
+    smooth_gyri_mask(src, gyrus_mask, dims, voxelsize, CGM, 8.0);
     for (i = 0; i < nvox; i++) {
         if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15)) {
             float PPM_sulci = MAX(0.0, GMT[i] - dist_WM[i]) / GMT[i];
@@ -386,37 +381,6 @@ int main(int argc, char *argv[])
         free(vol_smoothed);
     }
     
-    /* Apply sharpening by subtracting smoothed PPM map */
-    if (sharpening > 0.0) {
-        float *vol_smoothed = (float *)malloc(sizeof(float)*nvox);
-        float *PPM0 = (float *)malloc(sizeof(float)*nvox);
-
-        for (i = 0; i < nvox; i++) PPM0[i] = PPM[i];
-        for (i = 0; i < nvox; i++) vol_smoothed[i] = PPM[i];
-
-        j = 1;
-        
-        /* Do 3 steps with j = [1 2 4] */
-        while (j < 5) {
-            /* Smoothing PPM map */
-            s[0] = s[1] = s[2] = 4.0*j;
-            smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
-            
-            /* Use iterative levels of smoothing */
-            for (i = 0; i < nvox; i++)
-                PPM[i] += sharpening*j*(PPM[i] - vol_smoothed[i] + 0.001*j);
-            j *= 2;
-        }
-        
-        /* Correct thickness values */
-        for (i = 0; i < nvox; i++) vol_smoothed[i] = PPM[i] - PPM0[i];
-        median3(vol_smoothed, NULL, dims, 1, DT_FLOAT32);
-        for (i = 0; i < nvox; i++) GMT[i] += 2*vol_smoothed[i];
-        
-        free(vol_smoothed);
-        free(PPM0);
-    }
-
     clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
     
     /* Downsample images */
