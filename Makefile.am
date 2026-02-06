@@ -264,6 +264,7 @@ bic_SRC = \
     
 noinst_HEADERS = \
     Include/CAT_CorrectThicknessFolding.h \
+    Include/CAT_SurfWarpDartel.h \
     Include/CAT_ROIStats.h \
     Include/CAT_Map.h \
     Include/CAT_Smooth.h \
@@ -339,6 +340,7 @@ libCAT_la_SOURCES = \
     $(nii2mesh_SRC) \
     $(s2kit10_SRC) \
     Lib/CAT_CorrectThicknessFolding.c \
+    Lib/CAT_SurfWarpDartel.c \
     Lib/CAT_ROIStats.c \
     Lib/CAT_Math.c \
     Lib/CAT_Surf.c \
