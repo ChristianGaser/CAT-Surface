@@ -1,6 +1,51 @@
-This toolbox is available to the scientific community under the terms of the 
-GNU General Public Licence as published by the Free Software Foundation; either 
-version 2 of the Licence, or (at your option) any later version.
+CAT-Surface - Dual License
 
-If you use any code for commercial application, please email 
-christian.gaser@uni-jena.de.
+Copyright (C) Christian Gaser, University of Jena
+christian.gaser@uni-jena.de
+
+This software is dual-licensed as follows:
+
+================================================================================
+(1) GNU GENERAL PUBLIC LICENSE - Version 3 (or later)
+================================================================================
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+
+================================================================================
+(2) COMMERCIAL LICENSE
+================================================================================
+
+If you wish to use CAT-Surface as part of a commercial software product, or
+if the terms of the GPL-3 are not suitable for your intended use, a commercial
+license is available. Please contact:
+
+    Christian Gaser
+    Department of Psychiatry and Psychotherapy
+    University of Jena
+    Email: christian.gaser@uni-jena.de
+
+================================================================================
+THIRD-PARTY COMPONENTS
+================================================================================
+
+This software includes third-party components with their own licenses:
+
+- MeshFix (GPL-3 or commercial): Marco Attene, IMATI-GE/CNR
+- bicpl-surface, volume_io: Montreal Neurological Institute (permissive)
+- GIFTI, NIfTI libraries: Public domain / permissive
+- s2kit10: GPL-2+
+- Other components: See 3rdparty/ directory for details
+
+Note: The commercial license option applies only to CAT-Surface original code.
+Third-party GPL components (such as MeshFix) require separate licensing
+arrangements with their respective copyright holders for commercial use.

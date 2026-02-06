@@ -88,3 +88,13 @@ A GitHub Actions workflow located in `.github/workflows/ci.yml` automatically
 runs `./autogen.sh`, `./configure`, `make` and a small test on every push or
 pull request.
 
+## License
+
+CAT-Surface is dual-licensed:
+
+1. **GNU General Public License v3** (or later) — for open-source use
+2. **Commercial License** — for proprietary applications
+
+See the [LICENSE](LICENSE) file for full details. For commercial licensing
+inquiries, contact christian.gaser@uni-jena.de.
+

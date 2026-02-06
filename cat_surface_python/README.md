@@ -297,7 +297,9 @@ python examples.py
 
 ## License
 
-This wrapper follows the same license as CAT-Surface (GNU General Public License).
+This wrapper follows the same license as CAT-Surface: dual-licensed under the
+GNU General Public License v3 (or later) for open-source use, with a commercial
+license option available. See the main [LICENSE](../LICENSE) file for details.
 
 ## Support
 
