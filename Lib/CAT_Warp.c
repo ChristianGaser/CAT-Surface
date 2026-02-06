@@ -11,7 +11,7 @@
 
 #include "CAT_Warp.h"
 #include "CAT_Map.h"
-#include "CAT_Surf.h"
+#include "CAT_SurfUtils.h"
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
 #include "CAT_Resample.h"

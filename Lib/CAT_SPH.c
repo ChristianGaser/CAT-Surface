@@ -13,7 +13,7 @@
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
 #include "CAT_Map.h"
-#include "CAT_Surf.h"
+#include "CAT_SurfUtils.h"
 #include "CAT_SafeAlloc.h"
 
 #define DUMP_FILES 0

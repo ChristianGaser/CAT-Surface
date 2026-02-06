@@ -15,7 +15,7 @@
 #include <math.h>
 #include <bicpl.h>
 
-#include "CAT_Surf.h"
+#include "CAT_SurfUtils.h"
 #include "CAT_Octree.h"
 
 void

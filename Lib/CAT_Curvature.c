@@ -14,7 +14,7 @@
 
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
-#include "CAT_Surf.h"
+#include "CAT_SurfUtils.h"
 #include "CAT_ConvexHull.h"
 #include "CAT_DepthPotential.h"
 

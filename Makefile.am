@@ -268,6 +268,7 @@ noinst_HEADERS = \
     Include/CAT_Smooth.h \
     Include/CAT_Curvature.h \
     Include/CAT_Surf.h \
+    Include/CAT_SurfUtils.h \
     Include/CAT_Warp.h \
     Include/CAT_Pinv.h \
     Include/CAT_SurfaceIO.h \
