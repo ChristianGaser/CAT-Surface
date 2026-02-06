@@ -6,7 +6,9 @@ AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel 
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
-    -I$(top_srcdir)/3rdparty/nii2mesh
+    -I$(top_srcdir)/3rdparty/nii2mesh \
+    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
+    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
 
 AM_CPPFLAGS = ${AM_CFLAGS}
 
@@ -87,5 +89,9 @@ bin_PROGRAMS = \
     CAT_Surf2PialWhite \
     CAT_SurfCorrectThicknessFolding \
     CAT_SurfReduce \
+    CAT_SurfRemoveIntersections \
     CAT_Surf2ROIMulti \
     CAT_SurfSPH2Surf
+
+# Programs requiring C++ standard library
+CAT_SurfMeshClean_LDADD = $(LDADD) -lstdc++

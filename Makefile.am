@@ -10,7 +10,9 @@ CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
-    -I$(top_srcdir)/3rdparty/nii2mesh
+    -I$(top_srcdir)/3rdparty/nii2mesh \
+    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
+    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
 
 if EMSCRIPTEN
 CFLAGS0 += -s USE_ZLIB=1 -s MODULARIZE=1 -s FETCH=1 -s WASM=1 -s EXPORT_ES6=1 \
@@ -48,6 +50,7 @@ MeshFix_SRC = \
     3rdparty/MeshFix-V2.1/src/TMesh/vertex.cpp \
     3rdparty/MeshFix-V2.1/src/TMesh/triangle.cpp \
     3rdparty/MeshFix-V2.1/src/TMesh/tin.cpp \
+    3rdparty/MeshFix-V2.1/src/TMesh/io.cpp \
     3rdparty/MeshFix-V2.1/src/Algorithms/detectIntersections.cpp \
     3rdparty/MeshFix-V2.1/src/Algorithms/holeFilling.cpp \
     3rdparty/MeshFix-V2.1/src/Algorithms/marchIntersections.cpp \
@@ -264,6 +267,7 @@ bic_SRC = \
     
 noinst_HEADERS = \
     Include/CAT_CorrectThicknessFolding.h \
+    Include/CAT_MeshClean.h \
     Include/CAT_SurfWarpDartel.h \
     Include/CAT_ROIStats.h \
     Include/CAT_Vol2SurfUtils.h \
@@ -343,6 +347,8 @@ libCAT_la_SOURCES = \
     $(dartel_SRC) \
     $(nii2mesh_SRC) \
     $(s2kit10_SRC) \
+    $(MeshFix_SRC) \
+    Lib/CAT_MeshClean.cpp \
     Lib/CAT_CorrectThicknessFolding.c \
     Lib/CAT_SurfWarpDartel.c \
     Lib/CAT_ROIStats.c \
