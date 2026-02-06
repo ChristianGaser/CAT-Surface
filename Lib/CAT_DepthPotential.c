@@ -18,7 +18,6 @@
 #include <bicpl.h>
 #include <float.h>
 
-#include "CAT_Surf.h"
 #include "CAT_DepthPotential.h"
 #include "CAT_SafeAlloc.h"
 

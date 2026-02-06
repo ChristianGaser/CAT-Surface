@@ -11,11 +11,12 @@
 #include "CAT_Vol.h"
 #include "genus0.h"
 #include "CAT_Separate.h"
-#include "CAT_Surf.h"
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 #include "CAT_Intersect.h"
 #include "CAT_MarchingCubes.h"
+
+int euler_characteristic(polygons_struct *polygons, int verbose);
 
 void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2], int n_loops) {
     int loop, i, x, y, z, iter, val_corr;

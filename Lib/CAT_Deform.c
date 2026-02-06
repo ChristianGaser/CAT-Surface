@@ -5,10 +5,12 @@
  * $Id$
  *
  */
+#include <bicpl.h>
 
-
-#include "CAT_Surf.h"
+#include "CAT_Math.h"
 #include "CAT_NiftiLib.h"
+#include "CAT_Smooth.h"
+#include "CAT_Vol.h"
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
 

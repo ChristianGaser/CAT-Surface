@@ -16,7 +16,6 @@
 #include "CAT_Math.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Intersect.h"
-#include "CAT_Surf.h"
 
 #define GRID_RES 250  // Number of grid cells per axis (adjustable)
 

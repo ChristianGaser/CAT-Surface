@@ -9,8 +9,8 @@
 
 #include <bicpl.h>
 
-#include "CAT_Surf.h"
 #include "CAT_Patch.h"
+
 
 
 /* internal helper routine */

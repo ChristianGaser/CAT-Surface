@@ -11,11 +11,15 @@
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
-#include "CAT_Surf.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
 
 #define DUMP_FILES 0
+
+double compute_point_hausdorff(polygons_struct *, polygons_struct *, double *, int);
+void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
+                                        const double, const int, const double,
+                                        const double, const double, const int);
 
 Vector
 defect_direction(polygons_struct *surface, int *defects, int defect)
