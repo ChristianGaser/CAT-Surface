@@ -94,4 +94,4 @@ bin_PROGRAMS = \
     CAT_SurfSPH2Surf
 
 # Programs requiring C++ standard library
-CAT_SurfMeshClean_LDADD = $(LDADD) -lstdc++
+CAT_SurfRemoveIntersections_LDADD = $(LDADD) -lstdc++
