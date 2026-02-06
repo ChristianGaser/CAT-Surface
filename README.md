@@ -64,6 +64,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
 | **CAT_SurfDeform**              | Legacy algorithm (after David MacDonald) for cortical surface extraction from 3D anatomical images. Mainly for archival/historical purposes. |
 | **CAT_SurfCurvature**           | Extracts folding-related surface parameters (e.g., mean curvature, Gaussian curvature, sulcal depth) and optionally smooths results using the diffusion heat kernel. |
+| **CAT_SurfCorrectThicknessFolding** | Corrects cortical thickness values for folding-related variation (optionally using linear thickness-dependent weighting via `-slope`). |
 | **CAT_DumpCurv_ui**             | GUI batch interface for CAT_DumpCurv to process large collections of surface files. |
 | **CAT_SurfArea**                | Calculates total and/or local surface area metrics from cortical meshes. |
 | **CAT_SurfConvert**             | Converts between surface mesh file formats: BIC (obj), Freesurfer, and OOGL. |
