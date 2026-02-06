@@ -266,6 +266,7 @@ noinst_HEADERS = \
     Include/CAT_CorrectThicknessFolding.h \
     Include/CAT_SurfWarpDartel.h \
     Include/CAT_ROIStats.h \
+    Include/CAT_Vol2SurfUtils.h \
     Include/CAT_Map.h \
     Include/CAT_Smooth.h \
     Include/CAT_Curvature.h \
@@ -342,6 +343,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_CorrectThicknessFolding.c \
     Lib/CAT_SurfWarpDartel.c \
     Lib/CAT_ROIStats.c \
+    Lib/CAT_Vol2SurfUtils.c \
     Lib/CAT_Math.c \
     Lib/CAT_Surf.c \
     Lib/CAT_Warp.c \

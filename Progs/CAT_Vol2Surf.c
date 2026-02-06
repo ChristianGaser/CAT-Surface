@@ -25,6 +25,7 @@
 #include "CAT_Vol.h"
 #include "CAT_Resample.h"
 #include "CAT_ROIStats.h"
+#include "CAT_Vol2SurfUtils.h"
 #include "CAT_SafeAlloc.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length)              \
@@ -137,74 +138,6 @@ ArgvInfo argTable[] = {
    
   {NULL, ARGV_END, NULL, NULL, NULL}};
 
-double
-evaluate_function(double val_array[], int n_val, int map_func, double kernel[], int index[])
-{
-    int i, in_range;
-    double result;
-    double *data_sort;
-
-    index[0] = 0;
-
-    switch (map_func)
-    {
-    case F_MEAN:
-        result = get_mean_double(val_array, n_val, 0);
-        break;
-    case F_MEDIAN:
-        result = get_median_double(val_array, n_val, 0);
-        break;
-    case F_WAVERAGE:
-        result = 0.0;
-        for (i = 0; i < n_val; i++)
-            result += val_array[i] * kernel[i];
-        break;
-    case F_MAXABS:
-        result = 0;
-        for (i = 0; i < n_val; i++)
-        {
-            if (fabs(val_array[i]) > fabs(result))
-            {
-                result = val_array[i];
-                index[0] = i;
-            }
-        }
-        break;
-    case F_MAX:
-        result = -FLT_MAX;
-        for (i = 0; i < n_val; i++)
-        {
-            if (val_array[i] > result)
-            {
-                result = val_array[i];
-                index[0] = i;
-            }
-        }
-        break;
-    case F_MIN:
-        result = FLT_MAX;
-        for (i = 0; i < n_val; i++)
-        {
-            if (val_array[i] < result)
-            {
-                result = val_array[i];
-                index[0] = i;
-            }
-        }
-        break;
-    case F_EXP:
-        /* exponential average */
-        result = 0.0;
-        for (i = 0; i < n_val; i++)
-            result += val_array[i] * kernel[i];
-        break;
-    case F_SUM:
-        result = get_sum_double(val_array, n_val, 0);
-        break;
-    }
-    return (result);
-}
-
 int main(int argc, char *argv[])
 {
     char **volume_file, *object_file;
@@ -221,7 +154,7 @@ int main(int argc, char *argv[])
     double value, voxel[N_DIMENSIONS];
     double *area_inner, *area_outer, *values, **values2d, *thickness;
     double val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
-    double sum, x, sigma, kernel[MAX_N_ARRAY];
+    double kernel[MAX_N_ARRAY];
     double grid_start1, grid_end1, step_size, pos;
     double *roi_values;
     nifti_image *nii_ptr;
@@ -398,48 +331,13 @@ int main(int argc, char *argv[])
     /* calculate exponential decay if exp function is defined */
     if (exp_half != FLT_MAX)
     {
-        sum = 0.0;
-        for (j = 0; j < grid_steps1; j++)
-        {
-            kernel[j] = exp(LOG05 / exp_half * length_array[j]);
-            sum += kernel[j];
-        }
-        /* scale sum of exponential function to 1 */
-        for (j = 0; j < grid_steps1; j++)
-        {
-            kernel[j] /= sum;
-#ifdef DEBUG
-            printf("%g ", kernel[j]);
-#endif
-        }
-#ifdef DEBUG
-        printf("\n");
-#endif
+        CAT_Vol2SurfBuildExpKernel(length_array, grid_steps1, exp_half, kernel);
     }
 
     /* calculate gaussian kernel if weighted average function is defined */
     if (map_func == F_WAVERAGE)
     {
-        sum = 0.0;
-        sigma = -1.0 / (2.0 * LOG05);
-        for (i = 0; i < grid_steps1; i++)
-        {
-            x = ((2.0 * (double)i) / ((double)grid_steps - 1.0)) - ((double)grid_steps1 - 1.0) / ((double)grid_steps - 1.0);
-            kernel[i] = (1.0 / sqrt(PI2 * sigma)) * exp(-(x * x) / (2.0 * sigma));
-            sum += kernel[i];
-        }
-
-        /* scale sum of gaussian kernel to 1 */
-        for (j = 0; j < grid_steps1; j++)
-        {
-            kernel[j] /= sum;
-#ifdef DEBUG
-            printf("%g ", kernel[j]);
-#endif
-        }
-#ifdef DEBUG
-        printf("\n");
-#endif
+        CAT_Vol2SurfBuildGaussianKernel50(grid_steps, grid_steps1, kernel);
     }
 
     if (input_graphics_any_format(object_file, &format,
@@ -633,7 +531,7 @@ int main(int argc, char *argv[])
 
             if (map_func != F_MULTI) {
                 /* evaluate function */
-                values[i] = evaluate_function(val_array, grid_steps1,
+                values[i] = CAT_Vol2SurfEvaluateFunction(val_array, grid_steps1,
                                 map_func, kernel, &index);
                 values[i] = (values[i] < frange[0]) ? frange[0] : values[i];
                 values[i] = (values[i] > frange[1]) ? frange[1] : values[i];
