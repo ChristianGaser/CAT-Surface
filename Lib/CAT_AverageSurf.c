@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "CAT_SurfAverage.h"
+#include "CAT_AverageSurf.h"
 
 int
 CAT_SurfComputeAverage(

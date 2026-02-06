@@ -7,11 +7,11 @@
  *
  */
 
-#ifndef _CAT_SURF_AVERAGE_H_
-#define _CAT_SURF_AVERAGE_H_
+#ifndef _CAT_AVERAGE_SURF_H_
+#define _CAT_AVERAGE_SURF_H_
 
 /**
- * @file CAT_SurfAverage.h
+ * @file CAT_AverageSurf.h
  * @brief Surface averaging and RMS computation library.
  *
  * Provides functions for averaging multiple surfaces and computing
