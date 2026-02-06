@@ -40,11 +40,22 @@ THIRD-PARTY COMPONENTS
 
 This software includes third-party components with their own licenses:
 
-- MeshFix (GPL-3 or commercial): Marco Attene, IMATI-GE/CNR
-- bicpl-surface, volume_io: Montreal Neurological Institute (permissive)
-- GIFTI, NIfTI libraries: Public domain / permissive
-- s2kit10: GPL-2+
-- Other components: See 3rdparty/ directory for details
+Permissive licenses (compatible with commercial use):
+- bicpl-surface, volume_io: Montreal Neurological Institute (MIT-like)
+- nifti, gifticlib: Public domain
+- zlib: zlib license
+- expat: MIT license
+- nii2mesh: BSD-2-Clause (Chris Rorden)
+
+GPL licenses:
+- s2kit10: GPL-2+ (Kostelec & Rockmore)
+- dartel: GPL-2+ (John Ashburner, SPM)
+- MeshFix: GPL-3 or commercial (Marco Attene, IMATI-GE/CNR)
+
+Research use:
+- genus0: Steve Haker, Surgical Planning Lab, BWH/Harvard
+
+See 3rdparty/README.md for full details and source links.
 
 Note: The commercial license option applies only to CAT-Surface original code.
 Third-party GPL components (such as MeshFix) require separate licensing

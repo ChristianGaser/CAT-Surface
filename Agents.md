@@ -41,7 +41,10 @@ CAT-Surface/
 │   ├── nifti/                  # NIfTI IO
 │   ├── gifticlib/              # GIFTI IO
 │   ├── zlib/, expat/           # Bundled compression/XML deps
-│   ├── dartel/, s2kit10/, ...  # Additional bundled libs used by some tools
+│   ├── dartel/, s2kit10/       # SPM dartel registration, spherical harmonics
+│   ├── nii2mesh/               # Mesh simplification (quadric decimation)
+│   ├── genus0/                 # Topology correction
+│   ├── MeshFix-V2.1/           # Mesh repair (self-intersections, GPL-3)
 ├── Include/
 │   ├── CAT_*.h                 # Public-ish headers for CAT library modules
 │   └── ...
