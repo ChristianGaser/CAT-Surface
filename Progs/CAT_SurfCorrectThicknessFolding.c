@@ -28,7 +28,7 @@ void
 usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s  surface_file [options] surface_file thickness_file output_thickness_file\n\n\
+Usage: %s   [options] surface_file thickness_file output_thickness_file\n\n\
    This program corrects cortical thickness that is influenced by folding using\n\
    the ideas from that paper:\n\
    Nagehan Demirci, Timothy S. Coalson, Maria A. Holland, David C. Van Essen, Matthew F. Glasser\n\
