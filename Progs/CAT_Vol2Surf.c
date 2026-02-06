@@ -16,6 +16,7 @@
  */
 
 #include <float.h>
+#include <math.h>
 #include <ParseArgv.h>
 
 #include "CAT_SurfaceIO.h"
@@ -23,6 +24,7 @@
 #include "CAT_Surf.h"
 #include "CAT_Vol.h"
 #include "CAT_Resample.h"
+#include "CAT_ROIStats.h"
 #include "CAT_SafeAlloc.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length)              \
@@ -213,14 +215,15 @@ int main(int argc, char *argv[])
     int i, j, k, index, n_thickness_values, grid_steps1, grid_increase;
     int n_objects, n_arrays, n_labels, *in_annot, n_values, dims[3];
     int *out_annot;
+    int *roi_labels;
     object_struct **objects, **objects_src_sphere, **objects_trg_sphere;
     polygons_struct *polygons, *src_sphere, *trg_sphere;
-    double value, voxel[N_DIMENSIONS], *values_atlas;
+    double value, voxel[N_DIMENSIONS];
     double *area_inner, *area_outer, *values, **values2d, *thickness;
     double val_array[MAX_N_ARRAY], length_array[MAX_N_ARRAY];
     double sum, x, sigma, kernel[MAX_N_ARRAY];
     double grid_start1, grid_end1, step_size, pos;
-    double *input_values, *resampled_values, *roi_values;
+    double *roi_values;
     nifti_image *nii_ptr;
     Vector normal;
     ATABLE *atable;
@@ -260,6 +263,7 @@ int main(int argc, char *argv[])
 
     if (sphere_src_file && sphere_trg_file && annot_file)
     {
+        roi_labels = NULL;
         if ((filename_extension_matches(output_values_file, "txt") != 1) &&
           (filename_extension_matches(output_values_file, "csv") != 1))
         {
@@ -502,9 +506,6 @@ int main(int argc, char *argv[])
             fp = SAFE_FOPEN(output_values_file, "w");
 
             trg_sphere = get_polygons_ptr(objects_trg_sphere[0]);
-            resampled_values = (double *)malloc(sizeof(double) * polygons->n_points);
-            values_atlas = (double *)malloc(sizeof(double) * n_labels);
-            input_values = (double *)malloc(sizeof(double) * trg_sphere->n_points);
             roi_values = (double *)malloc(sizeof(double) * n_labels);
 
             fprintf(fp, "File");
@@ -512,8 +513,7 @@ int main(int argc, char *argv[])
                 fprintf(fp, ",%s", atable[i].name);
             fprintf(fp, "\n");
 
-            for (i = 0; i < trg_sphere->n_points; i++)
-                input_values[i] = (double)in_annot[i];
+            /* in_annot is defined on trg_sphere vertices */
         }
         else
         {
@@ -532,8 +532,30 @@ int main(int argc, char *argv[])
         }
         src_sphere = get_polygons_ptr(objects_src_sphere[0]);
 
-        objects_trg_sphere = resample_surface_to_target_sphere(trg_sphere, trg_sphere,
-                         src_sphere, input_values, resampled_values, 1, 0);
+        if (n_arrays != trg_sphere->n_points)
+        {
+            fprintf(stderr, "#labels in %s (%d) does not match #points in target sphere (%d).\n",
+                    annot_file, n_arrays, trg_sphere->n_points);
+            exit(EXIT_FAILURE);
+        }
+
+        if (src_sphere->n_points != polygons->n_points)
+        {
+            fprintf(stderr, "#points in source sphere (%d) does not match #points in surface (%d).\n",
+                    src_sphere->n_points, polygons->n_points);
+            exit(EXIT_FAILURE);
+        }
+
+        if (CAT_ResampleAnnotationLabels(trg_sphere, src_sphere, in_annot, &roi_labels) != OK)
+        {
+            fprintf(stderr, "Resampling annotation labels failed.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (objects_src_sphere)
+            delete_object_list(1, objects_src_sphere);
+        if (objects_trg_sphere)
+            delete_object_list(1, objects_trg_sphere);
     }
 
     for (k = 0; k < argc - 3; k++)
@@ -620,20 +642,38 @@ int main(int argc, char *argv[])
 
         if (annot_file)
         {
+            CAT_ROIStat *stats = NULL;
+            int n_stats = 0;
+
+            if (CAT_ComputeROIMeansFromLabels(roi_labels, values, polygons->n_points,
+                                              atable, n_labels,
+                                              &stats, &n_stats) != OK)
+            {
+                fprintf(stderr, "ROI statistics computation failed.\n");
+                exit(EXIT_FAILURE);
+            }
+
+            for (j = 0; j < n_labels; j++)
+                roi_values[j] = NAN;
+
             for (j = 0; j < n_labels; j++)
             {
-                roi_values[j] = 0.0;
-                n_values = 0;
-                for (i = 0; i < polygons->n_points; i++)
+                for (i = 0; i < n_stats; i++)
                 {
-                    if (round(resampled_values[i]) == atable[j].annotation)
+                    if (stats[i].id == atable[j].annotation)
                     {
-                        roi_values[j] += values[i];
-                        n_values++;
+                        if (stats[i].n > 0)
+                            roi_values[j] = stats[i].sum / (double)stats[i].n;
+                        else
+                            roi_values[j] = NAN;
+                        break;
                     }
                 }
-                roi_values[j] /= (double)n_values;
             }
+
+            if (stats)
+                free(stats);
+
             fprintf(fp, "%s", volume_file[k + 1]);
             for (j = 0; j < n_labels; j++)
                 fprintf(fp, ",%g", roi_values[j]);
@@ -717,9 +757,12 @@ int main(int argc, char *argv[])
 
     if (sphere_src_file && sphere_trg_file && annot_file)
     {
-        free(input_values);
-        free(resampled_values);
-        free(values_atlas);
+        if (roi_labels)
+            free(roi_labels);
+        if (in_annot)
+            free(in_annot);
+        if (atable)
+            free(atable);
         free(roi_values);
         fclose(fp);
     }
