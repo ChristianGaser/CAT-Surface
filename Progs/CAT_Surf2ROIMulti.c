@@ -32,11 +32,12 @@
 #include <string.h>
 #include <strings.h>
 #include <math.h>
+#include <ctype.h>
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
-#include "CAT_Resample.h"
 #include "CAT_SafeAlloc.h"
+#include "CAT_ROIStats.h"
 
 typedef enum {
     HEMI_UNKNOWN = 0,
@@ -194,22 +195,13 @@ static ArgvInfo argTable[] = {
     { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
-static const char *name_for_id(ATABLE *atable, int n_labels, int id)
-{
-    int i;
-    for (i = 0; i < n_labels; i++) {
-        if (atable[i].annotation == id) return atable[i].name;
-    }
-    return "unknown";
-}
-
-static void add_sum(roi_stat_t **arr, int *count, int *cap, int id, const char *name, double value)
+static void add_sum_count(roi_stat_t **arr, int *count, int *cap, int id, const char *name, double sum, int add_count)
 {
     int i;
     for (i = 0; i < *count; i++) {
         if ((*arr)[i].id == id) {
-            (*arr)[i].sum += value;
-            (*arr)[i].count += 1;
+            (*arr)[i].sum += sum;
+            (*arr)[i].count += add_count;
             return;
         }
     }
@@ -227,8 +219,8 @@ static void add_sum(roi_stat_t **arr, int *count, int *cap, int id, const char *
 
     (*arr)[*count].id = id;
     (*arr)[*count].name = dup_or_die(name);
-    (*arr)[*count].sum = value;
-    (*arr)[*count].count = 1;
+    (*arr)[*count].sum = sum;
+    (*arr)[*count].count = add_count;
     (*count)++;
 }
 
@@ -269,8 +261,8 @@ int main(int argc, char *argv[])
     for (i = 0; i < g_nunits; i++) {
         unit_t *u = &g_units[i];
         int n_objects = 0;
-        object_struct **obj_src_sph = NULL, **obj_trg_sph = NULL, **obj_resampled = NULL;
-        polygons_struct *poly = NULL, *src_sph = NULL, *trg_sph = NULL;
+        object_struct **obj_src_sph = NULL, **obj_trg_sph = NULL;
+        polygons_struct *src_sph = NULL, *trg_sph = NULL;
 
         /* Input geometry */
         if (input_graphics_any_format(u->src_sphere, &format, &n_objects, &obj_src_sph) != OK ||
@@ -279,7 +271,6 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         src_sph = get_polygons_ptr(obj_src_sph[0]);
-        poly = src_sph;
 
         if (input_graphics_any_format(u->trg_sphere, &format, &n_objects, &obj_trg_sph) != OK ||
             n_objects != 1 || get_object_type(obj_trg_sph[0]) != POLYGONS) {
@@ -301,12 +292,11 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
 
-        double *ann_in = (double *) SAFE_MALLOC(double, n_array);
-        double *ann_out = (double *) SAFE_MALLOC(double, trg_sph->n_points);
-        for (j = 0; j < n_array; j++) ann_in[j] = (double) in_annot[j];
-
-        obj_resampled = resample_surface_to_target_sphere(poly, src_sph, trg_sph,
-                                  ann_in, ann_out, 1 /* label_interp */, 0);
+        int *labels_trg = NULL;
+        if (CAT_ResampleAnnotationLabels(src_sph, trg_sph, in_annot, &labels_trg) != OK) {
+            fprintf(stderr, "[%d] Resampling annotation labels failed.\n", i);
+            return EXIT_FAILURE;
+        }
 
         /* Values on target sphere */
         double *vals = NULL;
@@ -324,20 +314,27 @@ int main(int argc, char *argv[])
         int hemi_idx = (int) hemi;
         if (hemi_idx < 0 || hemi_idx > 2) hemi_idx = 0;
 
-        for (j = 0; j < trg_sph->n_points; j++) {
-            int lbl = (int) lround(ann_out[j]);
-            double v = vals[j];
-            if (isnan(v)) continue;
-            const char *nm = name_for_id(atable, n_labels, lbl);
-            add_sum(&rois[hemi_idx], &roi_count[hemi_idx], &roi_cap[hemi_idx], lbl, nm, v);
+        CAT_ROIStat *stats = NULL;
+        int n_stats = 0;
+        if (CAT_ComputeROIMeansFromLabels(labels_trg, vals, trg_sph->n_points,
+                                          atable, n_labels,
+                                          &stats, &n_stats) != OK) {
+            fprintf(stderr, "[%d] ROI statistics computation failed.\n", i);
+            return EXIT_FAILURE;
         }
 
-        if (ann_in) free(ann_in);
-        if (ann_out) free(ann_out);
+        for (j = 0; j < n_stats; j++) {
+            const char *nm = stats[j].name ? stats[j].name : "unknown";
+            if (stats[j].n <= 0) continue;
+            add_sum_count(&rois[hemi_idx], &roi_count[hemi_idx], &roi_cap[hemi_idx],
+                          stats[j].id, nm, stats[j].sum, stats[j].n);
+        }
+
+        if (stats) free(stats);
+        if (labels_trg) free(labels_trg);
         if (vals) FREE(vals);
         if (in_annot) free(in_annot);
         if (atable) free(atable);
-        if (obj_resampled) delete_object_list(1, obj_resampled);
         if (obj_src_sph) delete_object_list(1, obj_src_sph);
         if (obj_trg_sph) delete_object_list(1, obj_trg_sph);
     }
