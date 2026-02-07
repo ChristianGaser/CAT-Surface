@@ -145,7 +145,7 @@ void Basic_TMesh::init(const char *tin_definition)
  else if (!strcmp(tin_definition, "cylinder"))
  {
   const double crds[8][2] = {{1,0},{0.7,0.7},{0,1},{-0.7,0.7},{-1,0},{-0.7,-0.7},{0,-1},{0.7,-0.7}};
-  ExtVertex *ev[8];
+  ExtVertex *ev[16];
   for (int i=0; i<16; i++)
   {
    Vertex *v = newVertex(crds[i%8][0], crds[i%8][1], (i<8)?(-1):(1));
@@ -163,7 +163,7 @@ void Basic_TMesh::init(const char *tin_definition)
    CreateIndexedTriangle(ev, 0, i+2, i+1);
    CreateIndexedTriangle(ev, 8, i+9, i+10);
   }
-  for (int i=0; i<8; i++) delete ev[i];
+  for (int i=0; i<16; i++) delete ev[i];
 
   n_boundaries = 1;
   n_handles = 0;
