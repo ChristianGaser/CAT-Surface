@@ -342,9 +342,9 @@ void Basic_TMesh::coordBackApproximation()
 
  FOREACHVERTEX(v, n)
  {
-  sprintf(floatver, "%f", TMESH_TO_FLOAT(v->x)); sscanf(floatver, "%f", &x); v->x = x;
-  sprintf(floatver, "%f", TMESH_TO_FLOAT(v->y)); sscanf(floatver, "%f", &x); v->y = x;
-  sprintf(floatver, "%f", TMESH_TO_FLOAT(v->z)); sscanf(floatver, "%f", &x); v->z = x;
+  snprintf(floatver, sizeof(floatver), "%f", TMESH_TO_FLOAT(v->x)); sscanf(floatver, "%f", &x); v->x = x;
+  snprintf(floatver, sizeof(floatver), "%f", TMESH_TO_FLOAT(v->y)); sscanf(floatver, "%f", &x); v->y = x;
+  snprintf(floatver, sizeof(floatver), "%f", TMESH_TO_FLOAT(v->z)); sscanf(floatver, "%f", &x); v->z = x;
  }
 }
 
