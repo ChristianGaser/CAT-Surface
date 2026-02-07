@@ -245,10 +245,10 @@ void jitterDecrease(char *f)
 
 void jitterCoordinate(coord& c, int j)
 {
- char floatver[32];
+ char floatver[128];
  float x;
 
- sprintf(floatver, "%f", TMESH_TO_FLOAT(c));
+ snprintf(floatver, sizeof(floatver), "%f", TMESH_TO_FLOAT(c));
  if (j > 0) jitterIncrease(floatver);
  else if (j<0) jitterDecrease(floatver);
  sscanf(floatver, "%f", &x); c = x;

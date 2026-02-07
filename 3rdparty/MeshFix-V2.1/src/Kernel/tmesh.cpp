@@ -145,7 +145,7 @@ void TMesh::report_progress(const char *msg, ...)
 
  if (msg == NULL)
  {
-  sprintf(fms,"%c",rotating_bar[wc++]); if (wc==4) wc=0;
+  snprintf(fms, sizeof(fms), "%c", rotating_bar[wc++]); if (wc==4) wc=0;
   strcpy(fmt+1,fms);
 
   if (display_message != NULL)
@@ -161,7 +161,7 @@ void TMesh::report_progress(const char *msg, ...)
   va_list ap;
   va_start(ap, msg);
   strcpy(fmt+1,msg);
-  vsprintf(fms,fmt,ap);
+  vsnprintf(fms, sizeof(fms), fmt, ap);
 
   if (display_message != NULL)
    display_message(fms, DISPMSG_ACTION_PUTPROGRESS);
@@ -237,7 +237,7 @@ char *currentDateTime()
 void TMesh::logToFileAndExit(const char *s)
 {
 	static char msg[2048];
-	sprintf(msg, "%s\nFILE: %s\nRETURN VALUE: %s\n\n", currentDateTime(), (filename) ? (filename) : ("unknown"), s);
+  snprintf(msg, sizeof(msg), "%s\nFILE: %s\nRETURN VALUE: %s\n\n", currentDateTime(), (filename) ? (filename) : ("unknown"), s);
 	addMessageToLogFile(msg);
 	TMesh::error(msg);
 }

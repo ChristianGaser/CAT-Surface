@@ -377,7 +377,7 @@ bool Basic_TMesh::rebuildConnectivity(bool fixconnectivity) //!< AMF_CHANGE 1.1>
  }
 
  for (i=0; i<V.numels(); i++) delete(var[i]);
- delete var;
+ delete [] var;
  delete [] triangles;
 
  if(fixconnectivity)	return fixConnectivity();

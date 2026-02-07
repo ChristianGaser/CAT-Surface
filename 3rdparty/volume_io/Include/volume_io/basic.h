@@ -109,7 +109,9 @@ typedef enum {
              i.e, ABS( ++x );                          ------------------ */
 
 #define  ABS( x )   ( ((x) > 0) ? (x) : (-(x)) )
+#ifndef FABS
 #define  FABS( x )   fabs( (double) x )
+#endif
 #define  SIGN( x )  ( ((x) > 0) ? 1 : (((x) < 0) ? -1 : 0) )
 #define  FSIGN( x )  ( ((x) > 0.0) ? 1.0 : (((x) < 0.0) ? -1.0 : 0.0) )
 

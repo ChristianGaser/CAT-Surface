@@ -128,7 +128,9 @@ typedef int	 j_voidint;
 #define UINT16_MAX	65535
 #endif
 
+#ifndef FABS
 #define FABS(a) (((a)<0)?(-(a)):(a))
+#endif
 #define LOG2(a) (log(a)/log(2))
 #define PI2	(M_PI/2.0)
 #ifndef MIN

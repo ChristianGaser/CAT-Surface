@@ -123,7 +123,7 @@ char *createFilename(const char *iname, const char *subext, char *oname, const c
 	static char tname[2048];
 	strcpy(tname, iname);
 	for (int n = strlen(tname) - 1; n>0; n--) if (tname[n] == '.') { tname[n] = '\0'; break; }
-	sprintf(oname, "%s%s%s", tname, subext, newextension);
+	snprintf(oname, 2048, "%s%s%s", tname, subext, newextension);
 	return oname;
 }
 
@@ -165,9 +165,9 @@ int main(int argc, char *argv[])
   if (par) i++;
  }
 
- sprintf(infilename, "%s", argv[1]);
+ snprintf(infilename, sizeof(infilename), "%s", argv[1]);
  if (stl_output) strcpy(extension, ".stl");
- if (argc>2 && argv[2][0] != '-') sprintf(outfilename, "%s", argv[2]);
+ if (argc>2 && argv[2][0] != '-') snprintf(outfilename, sizeof(outfilename), "%s", argv[2]);
  else createFilename(infilename, "_fixed", outfilename, extension);
 
  if (skip_if_fixed && fopen(outfilename, "r")) TMesh::error("Output file already exists (-x option specified).");
