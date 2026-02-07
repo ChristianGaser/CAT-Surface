@@ -97,10 +97,10 @@
 
 #define  DELETE_ELEMENT_FROM_ARRAY( array, n_elems, index_to_remove, chunk_size ) \
      {                                                                        \
-         (void) memmove( (void *) ((unsigned long) (array) +                  \
-      (unsigned long) (index_to_remove) * (unsigned long) sizeof(*(array))),  \
-      (void *) ((unsigned long) (array) +                                     \
-     ((unsigned long) (index_to_remove)+1)* (unsigned long) sizeof(*(array))),\
+                 (void) memmove( (void *) ((unsigned char *) (array) +                \
+            (size_t) (index_to_remove) * sizeof(*(array))),                          \
+            (void *) ((unsigned char *) (array) +                                   \
+         ((size_t) (index_to_remove)+1) * sizeof(*(array))),                       \
    ((size_t) (n_elems) - (size_t) (index_to_remove) - 1) * sizeof(*(array)) );\
                                                                               \
          --(n_elems);                                                         \

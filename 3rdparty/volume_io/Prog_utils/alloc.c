@@ -45,7 +45,7 @@ static  void  set_up_array_pointers_2D(
     size_t   i;
 
     for_less( i, 1, n1 )
-        ptr[i] = (void *) ((long) ptr[i-1] + (long) n2* (long) type_size);
+        ptr[i] = (void *) ((unsigned char *) ptr[i-1] + n2 * type_size);
 }
 
 /* ----------------------------- MNI Header -----------------------------------
