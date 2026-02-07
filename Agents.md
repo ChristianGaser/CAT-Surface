@@ -119,6 +119,9 @@ When adding or changing a CLI tool:
 - Keep functions small and well documented.
 - For public C APIs, use clear comment blocks in headers and at function definitions.
 
+## Ignore Rules
+- Coding agents should treat any files or folders matched by `.gitignore` as out of scope (do not search, edit, or base decisions on them) unless the user explicitly asks to work with those ignored paths.
+
 ## Coding style
 - Keep indentation at four spaces.
 - Provide documentation for all public functions (header docs + brief implementation docs).
