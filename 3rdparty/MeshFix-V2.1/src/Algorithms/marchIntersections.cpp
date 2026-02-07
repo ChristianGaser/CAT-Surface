@@ -50,20 +50,20 @@ UBYTE mc_cell::lookup() const
 	UBYTE l = 0;
 	int v[8] = { 0, 0, 0, 0, 0, 0, 0, 0 }, m;
 
-	if (ints[0]) if (ints[0]->sg) v[1] = 1; else v[0] = 1;
-	if (ints[1]) if (ints[1]->sg) v[2] = 1; else v[1] = 1;
-	if (ints[2]) if (ints[2]->sg) v[2] = 1; else v[3] = 1;
-	if (ints[3]) if (ints[3]->sg) v[3] = 1; else v[0] = 1;
+  if (ints[0]) { if (ints[0]->sg) v[1] = 1; else v[0] = 1; }
+  if (ints[1]) { if (ints[1]->sg) v[2] = 1; else v[1] = 1; }
+  if (ints[2]) { if (ints[2]->sg) v[2] = 1; else v[3] = 1; }
+  if (ints[3]) { if (ints[3]->sg) v[3] = 1; else v[0] = 1; }
 
-	if (ints[4]) if (ints[4]->sg) v[5] = 1; else v[4] = 1;
-	if (ints[5]) if (ints[5]->sg) v[6] = 1; else v[5] = 1;
-	if (ints[6]) if (ints[6]->sg) v[6] = 1; else v[7] = 1;
-	if (ints[7]) if (ints[7]->sg) v[7] = 1; else v[4] = 1;
+  if (ints[4]) { if (ints[4]->sg) v[5] = 1; else v[4] = 1; }
+  if (ints[5]) { if (ints[5]->sg) v[6] = 1; else v[5] = 1; }
+  if (ints[6]) { if (ints[6]->sg) v[6] = 1; else v[7] = 1; }
+  if (ints[7]) { if (ints[7]->sg) v[7] = 1; else v[4] = 1; }
 
-	if (ints[8]) if (ints[8]->sg) v[4] = 1; else v[0] = 1;
-	if (ints[9]) if (ints[9]->sg) v[5] = 1; else v[1] = 1;
-	if (ints[10]) if (ints[10]->sg) v[6] = 1; else v[2] = 1;
-	if (ints[11]) if (ints[11]->sg) v[7] = 1; else v[3] = 1;
+  if (ints[8]) { if (ints[8]->sg) v[4] = 1; else v[0] = 1; }
+  if (ints[9]) { if (ints[9]->sg) v[5] = 1; else v[1] = 1; }
+  if (ints[10]) { if (ints[10]->sg) v[6] = 1; else v[2] = 1; }
+  if (ints[11]) { if (ints[11]->sg) v[7] = 1; else v[3] = 1; }
 
 	if (v[0] && !ints[0]) v[1] = 1;
 	if (v[0] && !ints[3]) v[3] = 1;

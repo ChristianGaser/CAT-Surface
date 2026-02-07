@@ -73,15 +73,18 @@ void TMesh::error(const char *msg, ...)
  va_start(ap, msg);
  strcpy(fmt,"\nERROR- ");
  strcat(fmt,msg);
- vsprintf(fms,fmt,ap);
+ vsnprintf(fms, sizeof(fms), fmt, ap);
 
  if (display_message != NULL)
   display_message(fms, DISPMSG_ACTION_ERRORDIALOG);
  else
  {
   fputs(fms, stderr);
+  va_end(ap);
   exit(-1);
  }
+
+	va_end(ap);
 }
 
 ///////////// Prints a warning message /////////////
@@ -94,7 +97,7 @@ void TMesh::warning(const char *msg, ...)
  va_start(ap, msg);
  strcpy(fmt,"WARNING- ");
  strcat(fmt,msg);
- vsprintf(fms,fmt,ap);
+ vsnprintf(fms, sizeof(fms), fmt, ap);
 
  if (display_message != NULL)
   display_message(fms, DISPMSG_ACTION_PUTMESSAGE);
@@ -114,7 +117,7 @@ void TMesh::info(const char *msg, ...)
  va_start(ap, msg);
  strcpy(fmt,"INFO- ");
  strcat(fmt,msg);
- vsprintf(fms,fmt,ap);
+ vsnprintf(fms, sizeof(fms), fmt, ap);
 
  if (display_message != NULL)
   display_message(fms, DISPMSG_ACTION_PUTMESSAGE);
@@ -253,7 +256,7 @@ void TMesh::printElapsedTime(bool reset)
 {
 	static clock_t beginning_time;
 	if (reset) beginning_time = clock();
-	else printf("\n\n********** PARTIAL ELAPSED: %d msecs\n\n", (clock() - beginning_time));
+  else printf("\n\n********** PARTIAL ELAPSED: %lu msecs\n\n", (unsigned long)(clock() - beginning_time));
 }
 
 } //namespace T_MESH
