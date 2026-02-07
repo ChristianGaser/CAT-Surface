@@ -418,7 +418,7 @@ int Basic_TMesh::loadOFF(const char *fname)
 
  fscanf(fp,"%255s",s);
  if (strcmp(s,"OFF") || feof(fp)) return IO_FORMAT;
- do {line = readLineFromFile(fp);} while (line[0] == '#' || line[0] == '\0' || !sscanf(line,"%256s",s));
+ do {line = readLineFromFile(fp);} while (line[0] == '#' || line[0] == '\0' || !sscanf(line,"%255s",s));
  if (sscanf(line,"%d %d %d",&nv,&nt,&ne) < 3) return IO_FORMAT;
  if (nv < 3) TMesh::error("\nloadOFF: Sorry. Can't load objects with less than 3 vertices.\n");
  if (nt < 1) TMesh::error("\nloadOFF: Sorry. Can't load objects with no faces.\n");
@@ -901,7 +901,9 @@ int Basic_TMesh::saveVerTri(const char *fname)
  {
   i1 = TMESH_TO_INT(t->v1()->x); i2 = TMESH_TO_INT(t->v2()->x); i3 = TMESH_TO_INT(t->v3()->x);
   t1 = t->t1(); t2 = t->t2(); t3 = t->t3();
-  a1 = (t1)?((long int)(t1->info)):(0); a2 = (t2)?((long int)(t2->info)):(0); a3 = (t3)?((long int)(t3->info)):(0);
+  a1 = (t1) ? (int)(intptr_t)(t1->info) : 0;
+  a2 = (t2) ? (int)(intptr_t)(t2->info) : 0;
+  a3 = (t3) ? (int)(intptr_t)(t3->info) : 0;
   fprintf(fpt,"%d %d %d %d %d %d\n",i1, i2, i3, a1, a2, a3);
  }
  fclose(fpt);
@@ -1070,14 +1072,14 @@ int ply_parseElements(FILE *in, const char *elname)
  char c, keyword[64];
  int num;
  // skip comments
- if (!fscanf(in,"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+ if (!fscanf(in,"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
  while (!strcmp(keyword,"comment") || !strcmp(keyword,"obj_info"))
  {
   while ((c = fgetc(in)) != '\n') if (c==EOF) TMesh::error("\nUnexpected end of file!\n");
-  if (!fscanf(in,"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+  if (!fscanf(in,"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
  }
  if (strcmp(keyword,"element")) TMesh::error("element definition expected!\n");
- if (!fscanf(in,"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+ if (!fscanf(in,"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,elname)) TMesh::error("Sorry. Element type '%s' is not supported!\n",keyword);
  if (!fscanf(in,"%d\n",&num)) TMesh::error("Unexpected token or end of file!\n");
  if (num <= 0) TMesh::error("Unexpected empty element list!\n");
@@ -1088,15 +1090,15 @@ int ply_parseElements(FILE *in, const char *elname)
 void ply_checkVertexProperties(FILE *in)
 {
  char keyword[64], dtype[64], dval[64];
- if (fscanf(in,"%64s %64s %64s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
+ if (fscanf(in,"%63s %63s %63s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
  if (strcmp(dtype,"float") && strcmp(dtype,"float32")) TMesh::error("float property expected!\n");
  if (strcmp(dval,"x")) TMesh::error("'x' float property expected!\n");
- if (fscanf(in,"%64s %64s %64s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
+ if (fscanf(in,"%63s %63s %63s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
  if (strcmp(dtype,"float") && strcmp(dtype,"float32")) TMesh::error("float property expected!\n");
  if (strcmp(dval,"y")) TMesh::error("'y' float property expected!\n");
- if (fscanf(in,"%64s %64s %64s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
+ if (fscanf(in,"%63s %63s %63s\n",keyword,dtype,dval) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
  if (strcmp(dtype,"float") && strcmp(dtype,"float32")) TMesh::error("float property expected!\n");
  if (strcmp(dval,"z")) TMesh::error("'z' float property expected!\n");
@@ -1108,10 +1110,10 @@ int ply_getOverhead(FILE *in, int format, const char *element)
  int oh = 0;
  long pos = ftell(in);
  char *rline = readLineFromFile(in);
- if (!sscanf(rline,"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+ if (!sscanf(rline,"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
  while (!strcmp(keyword, "property"))
  {
-  if (sscanf(rline,"%64s %64s %64s",keyword,ptype,pname) < 3) TMesh::error("Unexpected token or end of file!\n");
+  if (sscanf(rline,"%63s %63s %63s",keyword,ptype,pname) < 3) TMesh::error("Unexpected token or end of file!\n");
   if (!strcmp(element,"vertex") && !strcmp(pname,"x")) break;
   else if (!strcmp(element,"face") && !strcmp(ptype,"list")) break;
   pos = ftell(in);
@@ -1122,7 +1124,7 @@ int ply_getOverhead(FILE *in, int format, const char *element)
   else if (!strcmp(ptype, "double")) oh += (format)?(8):1;
   else if (!strcmp(ptype, "list")) TMesh::error("list properties other than face indices are not supported!\n");
   else TMesh::error("Unrecognized property type!\n");
-  if (!sscanf(readLineFromFile(in),"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+  if (!sscanf(readLineFromFile(in),"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
  }
  fseek(in, pos, SEEK_SET);
 
@@ -1132,7 +1134,7 @@ int ply_getOverhead(FILE *in, int format, const char *element)
 void ply_checkFaceProperties(FILE *in)
 {
  char keyword[64], ltype[64], uctype[64], dtype[64], dval[64];
- if (fscanf(in,"%64s %64s %64s %64s %64s\n",keyword,ltype,uctype,dtype,dval) < 5) TMesh::error("Unexpected token or end of file!\n");
+ if (fscanf(in,"%63s %63s %63s %63s %63s\n",keyword,ltype,uctype,dtype,dval) < 5) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"property")) TMesh::error("property definition expected!\n");
  if (strcmp(ltype,"list")) TMesh::error("list property expected!\n");
  if (strcmp(uctype,"uchar") && strcmp(uctype,"uint8")) TMesh::error("uchar property expected!\n");
@@ -1226,7 +1228,7 @@ int Basic_TMesh::loadPLY(const char *fname)
  if ((in = fopen(fname,"rb")) == NULL) TMesh::error("Can't open input ply file\n");
 
  if (strcmp(readLineFromFile(in),"ply")) TMesh::error("Input doesn't seem a valid ply file.\n");
- if (sscanf(readLineFromFile(in),"%7s %24s %10s",keyword,formats,version) < 3) TMesh::error("Unexpected token or end of file!\n");
+ if (sscanf(readLineFromFile(in),"%7s %23s %9s",keyword,formats,version) < 3) TMesh::error("Unexpected token or end of file!\n");
  if (strcmp(keyword,"format")) TMesh::error("format definition expected!\n");
  if (!strcmp(formats,"ascii")) format = PLY_FORMAT_ASCII;
  else if (!strcmp(formats,"binary_little_endian")) format = PLY_FORMAT_BIN_L;
@@ -1242,9 +1244,9 @@ int Basic_TMesh::loadPLY(const char *fname)
  ply_checkFaceProperties(in);
  foh = ply_getOverhead(in, format, "face");
 
- if (!sscanf(readLineFromFile(in),"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+ if (!sscanf(readLineFromFile(in),"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
  while (strcmp(keyword, "end_header"))
-  if (!sscanf(readLineFromFile(in),"%64s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
+  if (!sscanf(readLineFromFile(in),"%63s ",keyword)) TMesh::error("Unexpected token or end of file!\n");
 
  for (i=0; i<nv; i++)
  {
@@ -1480,7 +1482,7 @@ int Basic_TMesh::loadSTL(const char *fname)
 	 if ((line = readLineFromFile(fp, 0)) == NULL) binary = 1;
 	 else if ((line = readLineFromFile(fp, 0)) == NULL) binary = 1;
 	 else {
-		 sscanf(line, "%64s", kw);
+     sscanf(line, "%63s", kw);
 		 if (strcmp(kw, "facet")) binary = 1;
 	 }
  }
@@ -1512,10 +1514,10 @@ int Basic_TMesh::loadSTL(const char *fname)
   while ((line = readLineFromFile(fp, 0))!=NULL)
   {
    if ((i++)%10000 == 0) TMesh::report_progress(NULL);
-   sscanf(line,"%64s %f %f %f",kw,&x,&y,&z);
+  sscanf(line,"%63s %f %f %f",kw,&x,&y,&z);
    if (!strcmp(kw,"facet"))
    {
-    sscanf(line,"%64s %64s %f %f %f",kw,kw2,&x,&y,&z);
+   sscanf(line,"%63s %63s %f %f %f",kw,kw2,&x,&y,&z);
     nor.setValue(x,y,z);
    }
    else
