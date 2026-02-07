@@ -2299,7 +2299,7 @@ VIOAPI  Status  io_quoted_string(
                                      sizeof((*str)[0]), length );
         }
 
-        str[length] = END_OF_STRING;
+        (*str)[length] = END_OF_STRING;
     }
 
     if( status != OK )

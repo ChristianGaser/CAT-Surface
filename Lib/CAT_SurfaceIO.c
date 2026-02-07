@@ -1797,7 +1797,7 @@ input_values_any_format(char *file, int *n_values, double **values)
 
 
 Status
-output_values_any_format(char *file, int n_values, void *values, int flag)
+output_values_any_format(const char *file, int n_values, void *values, int flag)
 {
     Status status;
     double *buffer;
@@ -1817,8 +1817,8 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
             buffer[i] = (double) r[i];
     }
 
-    if (filename_extension_matches(file, "txt")) {
-        fp = SAFE_FOPEN(file, "w");
+    if (filename_extension_matches((char *) file, "txt")) {
+        fp = SAFE_FOPEN((char *) file, "w");
         for (i = 0; i < n_values; i++) {
             if (flag == TYPE_DOUBLE)
                 fprintf(fp, "%f\n",d[i]);
@@ -1826,11 +1826,11 @@ output_values_any_format(char *file, int n_values, void *values, int flag)
         }
             
         fclose(fp);
-    } else if (filename_extension_matches(file, "gii") ||
-               filename_extension_matches(file, "dat"))
-        status = output_gifti_curv(file, n_values, buffer);
+    } else if (filename_extension_matches((char *) file, "gii") ||
+               filename_extension_matches((char *) file, "dat"))
+        status = output_gifti_curv((char *) file, n_values, buffer);
     else
-        status = output_freesurfer_curv(file, n_values, buffer);
+        status = output_freesurfer_curv((char *) file, n_values, buffer);
 
     free(buffer);
 

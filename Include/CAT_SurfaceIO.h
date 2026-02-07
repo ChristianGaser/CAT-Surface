@@ -112,7 +112,7 @@ int qem_target(int nf_total, int target);
 Status bicpl_to_facevertexdata(polygons_struct *, double **, double **);
 Status input_values_any_format(char *, int *, double **);
 Status input_values_integer(char *, int *, int **);
-Status output_values_any_format(char *, int, void *, int);
+Status output_values_any_format(const char *, int, void *, int);
 Status input_graphics_any_format(char *, File_formats *, int *, object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct **, double *);
 Status output_txt(char *, int, double *);
