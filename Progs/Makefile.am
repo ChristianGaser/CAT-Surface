@@ -12,22 +12,23 @@ AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel 
 
 AM_CPPFLAGS = ${AM_CFLAGS}
 
+# Initialize before any '+=' (automake requirement).
+AM_LDFLAGS =
+
 # When libCAT includes C++ objects (MeshFix), programs must link with the C++
 # runtime. In some cross toolchains the shared C++ runtime depends on
 # libgcc_s.so.1 which may not be discoverable at link time. If a static
 # libstdc++ is available, prefer static libstdc++/libgcc to avoid rpath-link
 # issues.
-CAT_LIBSTDCXX_A = $(shell $(CXX) -print-file-name=libstdc++.a)
-ifneq ($(CAT_LIBSTDCXX_A),libstdc++.a)
-AM_LDFLAGS += -static-libstdc++ -static-libgcc
-endif
+if LINUX
+CAT_LDFLAGS_RPATHLINK = $(shell \
+    so=`$(CXX) -print-file-name=libgcc_s.so.1 2>/dev/null`; \
+    if [ "$$so" != "libgcc_s.so.1" ]; then \
+        d=`dirname "$$so"`; \
+        echo "-Wl,-rpath-link,$$d -L$$d"; \
+    fi)
 
-# Help the linker discover libgcc_s when a shared libstdc++ is pulled in via
-# libtool's handling of libstdc++.la (common in cross toolchains).
-CAT_LIBGCC_S_SO = $(shell $(CXX) -print-file-name=libgcc_s.so.1)
-ifneq ($(CAT_LIBGCC_S_SO),libgcc_s.so.1)
-CAT_LIBGCC_S_DIR = $(shell dirname $(CAT_LIBGCC_S_SO) 2>/dev/null)
-AM_LDFLAGS += -Wl,-rpath-link,$(CAT_LIBGCC_S_DIR) -L$(CAT_LIBGCC_S_DIR)
+AM_LDFLAGS += $(CAT_LDFLAGS_RPATHLINK)
 endif
 
 # libCAT contains C++ objects (MeshFix), so we must link programs with the C++
@@ -38,7 +39,16 @@ LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
     $(AM_LDFLAGS) $(LDFLAGS) -o $@
 
 # Linker flags
+#
+# On MinGW, libtool's dependency tracking may inject both the static and import
+# libstdc++ libraries when the build is configured with -static/-static-libstdc++,
+# causing "multiple definition" errors. Linking directly against the static
+# archive avoids pulling libCAT.la dependency_libs into the final link.
+if WINDOWS
+LDADD = ../.libs/libCAT.a -lm -lfftw3
+else
 LDADD = ../libCAT.la -lm -lfftw3
+endif
 
 # Distribute scripts
 dist_bin_SCRIPTS = \
@@ -118,5 +128,3 @@ bin_PROGRAMS = \
     CAT_Surf2ROIMulti \
     CAT_SurfSPH2Surf
 
-# Programs requiring C++ standard library
-CAT_SurfRemoveIntersections_LDADD = $(LDADD) -lstdc++
