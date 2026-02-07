@@ -25,7 +25,7 @@ else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
 AM_CPPFLAGS=${AM_CFLAGS}
-AM_CXXFLAGS=${AM_CFLAGS} 
+AM_CXXFLAGS=${AM_CFLAGS} -std=c++11
 
 lib_LTLIBRARIES = libCAT.la
 
