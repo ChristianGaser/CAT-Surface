@@ -1178,7 +1178,7 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
     const float s2 = sqrt(2.0), s3 = sqrt(3.0);
     const int   NI[14] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbour index offsets
     const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbour distances
-    const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbours
+    enum { sN = (int) (sizeof(NI) / sizeof(NI[0])) }; // Number of neighbours
 
     // Variables for processing
     float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
@@ -1344,7 +1344,7 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
     /* indices of the neighbour Ni (index distance) and euclidean distance NW */
     const int NI[14] = { 0, -1,-x+1, -x,-x-1, -xy+1,-xy,-xy-1, -xy+x+1,-xy+x,-xy+x-1, -xy-x+1,-xy-x,-xy-x-1}; 
     const float  ND[14] = {0.0, s1, s12, s2, s12, s13, s3, s13, s123, s23, s123, s123, s23, s123};
-    const int sN = sizeof(NI) / sizeof(NI[0]); // Number of neighbours
+    enum { sN = (int) (sizeof(NI) / sizeof(NI[0])) }; // Number of neighbours
     float DN[sN];
     float DNm = FLT_MAX;
     int  i, n, ni, DNi, init_M = 0;
