@@ -220,6 +220,9 @@ int CAT_SurfMeshClean(
         return -1;
     }
 
+    /* Suppress MeshFix "INFO-" output unless verbose */
+    T_MESH::TMesh::quiet = !opts->verbose;
+
     /* Create TMesh from polygons */
     TMesh *mesh = new TMesh();
     
@@ -288,6 +291,9 @@ int CAT_SurfCountIntersections(polygons_struct *polygons)
     if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {
         return -1;
     }
+
+    /* Suppress MeshFix "INFO-" output */
+    T_MESH::TMesh::quiet = true;
 
     /* Create TMesh from polygons */
     TMesh *mesh = new TMesh();
