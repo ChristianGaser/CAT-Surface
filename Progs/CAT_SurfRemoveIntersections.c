@@ -19,6 +19,8 @@ usage(char *executable)
 Usage: %s surface_file output_file [options]\n\n\
     Remove self-intersections and degeneracies from a triangle mesh\n\
     using the MeshFix algorithm.\n\n\
+    WARNING: This approach may change the number of vertices and faces\n\
+    in the output mesh.\n\n\
     Options:\n\
         -iter N      Maximum iterations for cleaning (default: 10)\n\
         -inner N     Inner loop iterations (default: 3)\n\

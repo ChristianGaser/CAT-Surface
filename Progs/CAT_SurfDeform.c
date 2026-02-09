@@ -92,6 +92,8 @@ void usage(char *executable) {
     "  -sigma <float>       Smoothing the displacement field at each iteration (default: 0.2).\n"
     "  -iter <int>          Number of deformation iterations (default: 100).\n"
     "  -remove_intersect    Remove self-intersections.\n"
+    "                       WARNING: This uses MeshFix and may change the number\n"
+    "                       of vertices and faces in the output mesh.\n"
     "  -verbose             Enable verbose mode for detailed logs.\n"
     "\n"
     "Deformation Forces:\n"

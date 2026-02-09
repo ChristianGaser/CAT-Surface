@@ -69,6 +69,18 @@ int CAT_SurfMeshClean(
  */
 int CAT_SurfCountIntersections(polygons_struct *polygons);
 
+/**
+ * Fast self-intersection mask using MeshFix.
+ *
+ * Returns an int* mask of length n_items (triangles), with 1 for
+ * intersecting triangles, 0 otherwise.  Caller must free() the result.
+ *
+ * @param polygons  Input surface mesh.
+ * @param n_hits_out Output: number of intersecting triangles (can be NULL).
+ * @return Allocated mask array, or NULL on error.
+ */
+int *find_self_intersections_meshfix(polygons_struct *polygons, int *n_hits_out);
+
 #ifdef __cplusplus
 }
 #endif

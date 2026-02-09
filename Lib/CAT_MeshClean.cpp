@@ -311,4 +311,46 @@ int CAT_SurfCountIntersections(polygons_struct *polygons)
     return count;
 }
 
+int *find_self_intersections_meshfix(polygons_struct *polygons, int *n_hits_out)
+{
+    if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {
+        if (n_hits_out) *n_hits_out = 0;
+        return NULL;
+    }
+
+    int n_items = polygons->n_items;
+    int *mask = (int *)calloc(n_items, sizeof(int));
+    if (!mask) {
+        if (n_hits_out) *n_hits_out = 0;
+        return NULL;
+    }
+
+    /* Suppress MeshFix "INFO-" output */
+    T_MESH::TMesh::quiet = true;
+
+    /* Create TMesh from polygons */
+    TMesh *mesh = new TMesh();
+
+    if (polygons_to_tmesh(polygons, mesh) != 0) {
+        delete mesh;
+        if (n_hits_out) *n_hits_out = 0;
+        return mask;
+    }
+
+    /* Detect intersections */
+    mesh->deselectTriangles();
+    int n_hits = mesh->selectIntersectingTriangles();
+
+    /* Build per-triangle mask from selected triangles */
+    int idx = 0;
+    for (TNode *node = mesh->T.head(); node != NULL; node = node->next(), idx++) {
+        TTriangle *tri = (TTriangle *)node->data;
+        if (IS_VISITED(tri)) mask[idx] = 1;
+    }
+
+    delete mesh;
+    if (n_hits_out) *n_hits_out = n_hits;
+    return mask;
+}
+
 } /* extern "C" */
