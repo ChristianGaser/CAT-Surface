@@ -125,7 +125,7 @@ int    input_freesurfer(char *, File_formats *, int *, object_struct  ***);
 int    input_freesurfer_curv(char *, int *, double **);
 int    output_gifti(char *, File_formats, int, object_struct * [], double *);
 int    output_gifti_curv(char *, int, double *);
-int    input_gifti(char *, File_formats *, int *, object_struct  ***);
+int    input_gifti(char *, File_formats *, int *, object_struct  ***, int *, double **);
 int    input_gifti_curv(char *, int *, double **);
 int    input_dx(char *, File_formats *, int *, object_struct  ***);
 int    input_dfs(char *, File_formats *, int *, object_struct  ***);

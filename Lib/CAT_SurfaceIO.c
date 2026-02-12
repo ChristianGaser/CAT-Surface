@@ -13,6 +13,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_SafeAlloc.h"
 #include <string.h>
+#include <unistd.h>
 
 static const char* basename(const char* path) {
     const char* base = strrchr(path, '/');
@@ -1185,19 +1186,49 @@ output_gifti_curv(char *fname, int nvertices, double *data)
 
 int
 input_gifti(char *file, File_formats *format, int *n_objects,
-         object_struct ***object_list)
+         object_struct ***object_list, int *n_values, double **values)
 {
 
     int         i, j, k, valid, numDA;
     polygons_struct   *polygons;
     Point       point;
     object_struct   *object;
-  
-    gifti_image* image = gifti_read_image (file, 1);
-    if (NULL == image) {
-        fprintf (stderr,"input_gifti: cannot read image\n");
-        return(ERROR);
+
+    /*
+     * For .gii/.dat pairs the ExternalFileName stored in the XML is
+     * typically a bare basename.  The gifti library opens it relative
+     * to CWD, which fails when the caller passes a path from a
+     * different directory.  Work around this by temporarily changing
+     * to the .gii file's directory before reading, then restoring CWD.
+     */
+    char saved_cwd[4096];
+    char gii_dir[4096];
+    const char *gii_basename = file;
+    int  did_chdir = 0;
+
+    saved_cwd[0] = '\0';
+    gii_dir[0]   = '\0';
+
+    const char *last_sep = strrchr(file, '/');
+    if (last_sep) {
+        size_t dir_len = (size_t)(last_sep - file);
+        if (dir_len > 0 && dir_len < sizeof(gii_dir)) {
+            memcpy(gii_dir, file, dir_len);
+            gii_dir[dir_len] = '\0';
+            gii_basename = last_sep + 1;
+            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL) {
+                if (chdir(gii_dir) == 0)
+                    did_chdir = 1;
+            }
+        }
     }
+
+    gifti_image* image = gifti_read_image(
+        did_chdir ? gii_basename : file, 1);
+
+    /* restore original working directory */
+    if (did_chdir)
+        (void) chdir(saved_cwd);
 
     valid = gifti_valid_gifti_image (image, 1);
     if (valid == 0) {
@@ -1291,18 +1322,34 @@ input_gifti(char *file, File_formats *format, int *n_objects,
         return(ERROR);
     }
 
-    for (numDA = 0; numDA < image->numDA; numDA++) {
-        giiDataArray* darray = image->darray[numDA];
-        
-        /* did these already */
-        if ((darray->intent == NIFTI_INTENT_POINTSET) ||
-          (darray->intent == NIFTI_INTENT_TRIANGLE)) continue;
+    /* Read SHAPE data if the caller wants it */
+    if (n_values != NULL && values != NULL) {
+        giiDataArray *shape_da = NULL;
 
-        if (darray->intent == NIFTI_INTENT_SHAPE) 
-            fprintf(stderr, "input_gifti: Reading of shape data not yet implemented.\n");
+        for (numDA = 0; numDA < image->numDA; numDA++) {
+            if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE) {
+                shape_da = image->darray[numDA];
+                break;
+            }
+        }
+
+        if (shape_da != NULL) {
+            *n_values = (int) shape_da->dims[0];
+            *values = (double *) malloc(sizeof(double) * (*n_values));
+            if (*values == NULL) {
+                fprintf(stderr, "input_gifti: memory allocation failed\n");
+                gifti_free_image(image);
+                return(ERROR);
+            }
+            for (k = 0; k < *n_values; k++)
+                (*values)[k] = (double) gifti_get_DA_value_2D(shape_da, k, 0);
+        } else {
+            *n_values = 0;
+            *values   = NULL;
+        }
     }
 
-
+    gifti_free_image(image);
     return(OK);
 
 }
@@ -1311,8 +1358,38 @@ int
 input_gifti_curv(char *file, int *vnum, double **input_values)
 {
     int k, valid, numDA;
-  
-    gifti_image* image = gifti_read_image (file, 1);
+
+    /*
+     * For .gii/.dat pairs, temporarily chdir to the .gii directory so
+     * that the gifti library can locate the external .dat file.
+     */
+    char saved_cwd[4096];
+    char gii_dir[4096];
+    const char *gii_basename = file;
+    int  did_chdir = 0;
+
+    saved_cwd[0] = '\0';
+    gii_dir[0]   = '\0';
+
+    const char *last_sep = strrchr(file, '/');
+    if (last_sep) {
+        size_t dir_len = (size_t)(last_sep - file);
+        if (dir_len > 0 && dir_len < sizeof(gii_dir)) {
+            memcpy(gii_dir, file, dir_len);
+            gii_dir[dir_len] = '\0';
+            gii_basename = last_sep + 1;
+            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL) {
+                if (chdir(gii_dir) == 0)
+                    did_chdir = 1;
+            }
+        }
+    }
+
+    gifti_image* image = gifti_read_image(
+        did_chdir ? gii_basename : file, 1);
+
+    if (did_chdir)
+        (void) chdir(saved_cwd);
     if (NULL == image) {
         fprintf (stderr,"input_gifti_curv: cannot read image\n");
         return(ERROR);
@@ -1349,57 +1426,23 @@ input_gifti_mesh_and_texture(char *file, File_formats *format,
                              int *n_objects, object_struct ***object_list,
                              int *n_values, double **values)
 {
-    int k, numDA;
-    gifti_image *image;
-    giiDataArray *shape_da = NULL;
-
     *values   = NULL;
     *n_values = 0;
 
-    /* read mesh via the standard path */
-    if (input_graphics_any_format(file, format, n_objects,
-                                  object_list) != OK) {
+    /* read mesh and SHAPE data in a single pass */
+    if (input_gifti(file, format, n_objects, object_list,
+                    n_values, values) != OK) {
         fprintf(stderr, "input_gifti_mesh_and_texture: "
                 "could not read mesh from %s\n", file);
         return ERROR;
     }
 
-    /* open the file again to extract texture (SHAPE) data */
-    image = gifti_read_image(file, 1);
-    if (image == NULL) {
-        fprintf(stderr, "input_gifti_mesh_and_texture: "
-                "could not read GIFTI image from %s\n", file);
-        return ERROR;
-    }
-
-    /* find the first SHAPE data array */
-    for (numDA = 0; numDA < image->numDA; numDA++) {
-        if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE) {
-            shape_da = image->darray[numDA];
-            break;
-        }
-    }
-
-    if (shape_da == NULL) {
+    if (*values == NULL || *n_values == 0) {
         fprintf(stderr, "input_gifti_mesh_and_texture: "
                 "no SHAPE data array found in %s\n", file);
-        gifti_free_image(image);
         return ERROR;
     }
 
-    *n_values = (int) shape_da->dims[0];
-    *values = (double *) malloc(sizeof(double) * (*n_values));
-    if (*values == NULL) {
-        fprintf(stderr, "input_gifti_mesh_and_texture: "
-                "memory allocation failed\n");
-        gifti_free_image(image);
-        return ERROR;
-    }
-
-    for (k = 0; k < *n_values; k++)
-        (*values)[k] = (double) gifti_get_DA_value_2D(shape_da, k, 0);
-
-    gifti_free_image(image);
     return OK;
 }
 
@@ -1920,7 +1963,7 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
                   n_objects, object_list);
     } else if (filename_extension_matches(file, "gii")) {
         status = input_gifti(file, format,
-                  n_objects, object_list);
+                  n_objects, object_list, NULL, NULL);
     } else if (filename_extension_matches(file, "dfs")) {
         status = input_dfs(file, format,
                    n_objects, object_list);
