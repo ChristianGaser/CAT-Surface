@@ -86,6 +86,7 @@ bin_PROGRAMS = \
     CAT_SurfAngularDistortion \
     CAT_SurfMetricDistortion \
     CAT_SurfAverage \
+    CAT_SurfValuesAverage \
     CAT_SurfFixTopology \
     CAT_SurfIsometize \
     CAT_SurfWarp \

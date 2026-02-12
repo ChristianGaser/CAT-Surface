@@ -115,6 +115,7 @@ Status input_values_integer(char *, int *, int **);
 Status output_values_any_format(const char *, int, void *, int);
 Status input_graphics_any_format(char *, File_formats *, int *, object_struct  ***); 
 Status output_graphics_any_format(char *, File_formats, int, object_struct **, double *);
+int    input_gifti_mesh_and_texture(char *, File_formats *, int *, object_struct ***, int *, double **);
 Status output_txt(char *, int, double *);
 int    input_oogl(char *, File_formats *, int *, object_struct  ***);
 int    output_oogl(char *, File_formats, int, object_struct * []);

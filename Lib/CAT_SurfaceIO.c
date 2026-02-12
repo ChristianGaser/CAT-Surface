@@ -1334,6 +1334,75 @@ input_gifti_curv(char *file, int *vnum, double **input_values)
     return(OK);
 }
 
+/* ------------------------------------------------------------------ */
+/* input_gifti_mesh_and_texture                                        */
+/*                                                                     */
+/* Read a GIFTI file that contains both a surface mesh (POINTSET +     */
+/* TRIANGLE) and at least one SHAPE data array (texture/value).        */
+/*                                                                     */
+/* The mesh is returned through the usual object_list.                 */
+/* The first SHAPE data array is returned in *n_values / *values.      */
+/* Returns OK on success, ERROR otherwise.                             */
+/* ------------------------------------------------------------------ */
+int
+input_gifti_mesh_and_texture(char *file, File_formats *format,
+                             int *n_objects, object_struct ***object_list,
+                             int *n_values, double **values)
+{
+    int k, numDA;
+    gifti_image *image;
+    giiDataArray *shape_da = NULL;
+
+    *values   = NULL;
+    *n_values = 0;
+
+    /* read mesh via the standard path */
+    if (input_graphics_any_format(file, format, n_objects,
+                                  object_list) != OK) {
+        fprintf(stderr, "input_gifti_mesh_and_texture: "
+                "could not read mesh from %s\n", file);
+        return ERROR;
+    }
+
+    /* open the file again to extract texture (SHAPE) data */
+    image = gifti_read_image(file, 1);
+    if (image == NULL) {
+        fprintf(stderr, "input_gifti_mesh_and_texture: "
+                "could not read GIFTI image from %s\n", file);
+        return ERROR;
+    }
+
+    /* find the first SHAPE data array */
+    for (numDA = 0; numDA < image->numDA; numDA++) {
+        if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE) {
+            shape_da = image->darray[numDA];
+            break;
+        }
+    }
+
+    if (shape_da == NULL) {
+        fprintf(stderr, "input_gifti_mesh_and_texture: "
+                "no SHAPE data array found in %s\n", file);
+        gifti_free_image(image);
+        return ERROR;
+    }
+
+    *n_values = (int) shape_da->dims[0];
+    *values = (double *) malloc(sizeof(double) * (*n_values));
+    if (*values == NULL) {
+        fprintf(stderr, "input_gifti_mesh_and_texture: "
+                "memory allocation failed\n");
+        gifti_free_image(image);
+        return ERROR;
+    }
+
+    for (k = 0; k < *n_values; k++)
+        (*values)[k] = (double) gifti_get_DA_value_2D(shape_da, k, 0);
+
+    gifti_free_image(image);
+    return OK;
+}
+
 int
 output_freesurfer(char *file, File_formats format, int n_objects,
           object_struct *object_list[])
