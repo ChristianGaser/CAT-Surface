@@ -201,9 +201,23 @@ CAT_AverageValuesZscore(
 {
     int i, j;
     int n_objects, n_values, n_valid;
-    double *input_values, diff;
+    int cnt_nz = 0, cnt_ab = 0;
+    double *input_values, z;
+    double mean_nz = 0.0, mean_ab = 0.0, global_thresh, thresh8;
     File_formats format;
     object_struct **object_list;
+
+    /* compute global mean threshold (to exclude low-signal regions) */
+    for (j = 0; j < n_avg_values; j++) {
+        if (avg_values[j] != 0.0) { mean_nz += avg_values[j]; cnt_nz++; }
+    }
+    if (cnt_nz > 0) mean_nz /= (double) cnt_nz;
+    thresh8 = mean_nz / 8.0;
+    for (j = 0; j < n_avg_values; j++) {
+        if (avg_values[j] > thresh8) { mean_ab += avg_values[j]; cnt_ab++; }
+    }
+    if (cnt_ab > 0) mean_ab /= (double) cnt_ab;
+    global_thresh = 0.25 * mean_ab;
 
     for (i = 0; i < nfiles; i++) {
         if (verbose)
@@ -219,14 +233,15 @@ CAT_AverageValuesZscore(
         zscores[i] = 0.0;
         n_valid = 0;
         for (j = 0; j < n_avg_values; j++) {
-            if (std_values[j] == 0.0 || isnan(std_values[j]))
+            if (std_values[j] == 0.0 || isnan(std_values[j])
+                || avg_values[j] <= global_thresh)
                 continue;
-            diff = input_values[j] - avg_values[j];
-            zscores[i] += diff * diff / std_values[j];
+            z = (input_values[j] - avg_values[j]) / std_values[j];
+            zscores[i] += z * z * z * z;
             n_valid++;
         }
         if (n_valid > 0)
-            zscores[i] /= (double) n_valid;
+            zscores[i] = pow(zscores[i] / (double) n_valid, 0.25);
 
         free(input_values);
         delete_object_list(n_objects, object_list);

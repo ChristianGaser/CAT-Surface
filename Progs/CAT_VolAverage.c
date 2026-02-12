@@ -11,6 +11,7 @@
 #include "CAT_NiftiLib.h"
 
 #include <float.h>
+#include <math.h>
 #include <stdlib.h>
 #include "CAT_SafeAlloc.h"
 
@@ -40,7 +41,7 @@ int main(int argc, char *argv[])
 {
     char **infiles, *outfile;
     int i, j, nfiles, dims[3], n_voxels;
-    double *avg, *sum_squares, *input, voxelsize[3], *zscore, diff;
+    double *avg, *sum_squares, *input, voxelsize[3], *zscore;
     nifti_image *nii_ptr, *nii_ptr2;
     FILE *fid;
 
@@ -131,6 +132,20 @@ int main(int argc, char *argv[])
         }
         
         if ((zscore_filename != NULL) || (zscore_txt_filename != NULL)) {
+            /* compute global mean threshold (to exclude background) */
+            double mean_nz = 0.0, mean_ab = 0.0, global_thresh, thresh8, z;
+            int cnt_nz = 0, cnt_ab = 0;
+            for (j = 0; j < nii_ptr->nvox; j++) {
+                if (avg[j] != 0.0) { mean_nz += avg[j]; cnt_nz++; }
+            }
+            if (cnt_nz > 0) mean_nz /= (double)cnt_nz;
+            thresh8 = mean_nz / 8.0;
+            for (j = 0; j < nii_ptr->nvox; j++) {
+                if (avg[j] > thresh8) { mean_ab += avg[j]; cnt_ab++; }
+            }
+            if (cnt_ab > 0) mean_ab /= (double)cnt_ab;
+            global_thresh = 0.25 * mean_ab;
+
             for (i=0; i<nfiles; i++) {
                 fprintf(stdout,"run2 %5d/%d:\t%s\n",i+1, nfiles, infiles[i]);
                 nii_ptr = read_nifti_double(infiles[i], &input, 0);
@@ -142,13 +157,15 @@ int main(int argc, char *argv[])
                 zscore[i] = 0.0;
                 n_voxels = 0;
                 for (j=0; j<nii_ptr->nvox; j++) {
-                    if ((sum_squares[j]==0.0) || (isnan(sum_squares[j])))
+                    if ((sum_squares[j]==0.0) || (isnan(sum_squares[j]))
+                        || avg[j] <= global_thresh)
                         continue;
-                    diff = (input[j] - avg[j]);
-                    zscore[i] += diff*diff/sum_squares[j];
-                    n_voxels ++;
+                    z = (input[j] - avg[j]) / sum_squares[j];
+                    zscore[i] += z * z * z * z;
+                    n_voxels++;
                 }
-                zscore[i] = zscore[i]/(double)n_voxels;
+                if (n_voxels > 0)
+                    zscore[i] = pow(zscore[i] / (double)n_voxels, 0.25);
                 free(input);
             }
             if (zscore_filename != NULL) {
