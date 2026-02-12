@@ -82,6 +82,12 @@ If you move logic from a program into the library, the program should become a t
 4) writes results.
 
 ### Command-line tools (Progs/)
+- **New CLI tools must delegate as much logic as possible to library functions in `Lib/`.** The program in `Progs/` should be a thin wrapper that:
+	1) parses arguments,
+	2) loads input data,
+	3) calls one or more library functions to do the real work,
+	4) writes results.
+- When adding a new feature, first create a library module (`Include/CAT_<Feature>.h` + `Lib/CAT_<Feature>.c`), then write a slim CLI that calls it.
 - Each `Progs/CAT_*.c` usually depends on:
 	- `libCAT` (core algorithms in `Lib/`)
 	- `bicpl-surface` (polygons structs, mesh utilities, argument parsing)
@@ -118,6 +124,7 @@ When adding or changing a CLI tool:
 - Use C99 for compatibility with older environments.
 - Keep functions small and well documented.
 - For public C APIs, use clear comment blocks in headers and at function definitions.
+- **Library-first architecture:** place all non-trivial logic in `Lib/` library modules, not in `Progs/` CLI wrappers. CLI tools should only handle argument parsing, I/O, and calls to library functions.
 
 ## Ignore Rules
 - Coding agents should treat any files or folders matched by `.gitignore` as out of scope (do not search, edit, or base decisions on them) unless the user explicitly asks to work with those ignored paths.
