@@ -181,7 +181,7 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
         case 4: /* mean curvature */
             *curvparameter = (k1 + k2) / 2.0;
             break;
-        case 6: /* bending enegery */
+        case 6: /* bending energy */
             *curvparameter = (k1*k1 + k2*k2);
             break;
         case 7: /* sharpness */

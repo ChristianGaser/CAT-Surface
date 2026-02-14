@@ -292,53 +292,31 @@ get_vertex_areas(polygons_struct *polygons, double *vertex_areas)
     return surface_area;
 }
 
-/* assign each point the average of area values for neighboring polygons */
+/*
+ * Per-vertex surface area using FreeSurfer-compatible barycentric distribution:
+ * each polygon distributes 1/size of its area to every vertex it contains.
+ * The sum of all vertex areas equals the total mesh surface area.
+ *
+ * This is a thin wrapper around get_vertex_areas kept for backward
+ * compatibility of existing call-sites.
+ */
 /**
- * \brief Compute or return a derived quantity from the mesh.
+ * \brief Compute per-vertex area (FreeSurfer-compatible barycentric method).
  *
  * Function: get_area_of_points
  *
- * \param polygons (polygons_struct *)
- * \param area_values (double *)
- * \return See function description for return value semantics.
+ * Each polygon distributes `area / n_vertices_in_polygon` to each of its
+ * vertices, so the sum of all vertex areas equals total mesh area.  This
+ * matches the FreeSurfer convention used in `mrisComputeMetricProperties`.
+ *
+ * \param polygons       input mesh.
+ * \param area_values    output array of length \c n_points.
+ * \return total surface area of the mesh.
  */
 double
 get_area_of_points(polygons_struct *polygons, double *area_values)
 {
-    int *pcount;
-    int ptidx, poly, vertidx, size;
-    double poly_size, area;
-    double surface_area = 0.0;
-    Point points[MAX_POINTS_PER_POLYGON];
-
-    pcount = SAFE_MALLOC(int, polygons->n_points);
-    memset(pcount, 0, sizeof(int) * polygons->n_points);
-    memset(area_values, 0.0, sizeof(double) * polygons->n_points);
-
-    for (poly = 0; poly < polygons->n_items; poly++) {    
-        size = get_polygon_points(polygons, poly, points);
-        area = get_polygon_surface_area(size, points);
-        if (isnan(area)) area = 0.0;
-        surface_area += area;
-
-        poly_size = GET_OBJECT_SIZE(*polygons, poly);
-
-        for (vertidx = 0; vertidx < poly_size; vertidx++) {
-            ptidx = polygons->indices[
-                        POINT_INDEX(polygons->end_indices,
-                        poly, vertidx)];
-            pcount[ptidx]++;
-            area_values[ptidx] += area;
-        }
-    }
-
-    for (ptidx = 0; ptidx < polygons->n_points; ptidx++) 
-        if (pcount[ptidx] > 0)
-            area_values[ptidx] /= pcount[ptidx];
-  
-
-    free(pcount);
-    return(surface_area);
+    return get_vertex_areas(polygons, area_values);
 }
 
 /**
