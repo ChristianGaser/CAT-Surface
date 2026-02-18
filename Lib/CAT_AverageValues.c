@@ -27,6 +27,22 @@
 /* ================================================================== */
 /* CAT_AverageValuesCompute                                            */
 /* ================================================================== */
+/**
+ * \brief Compute average vertex values and mesh from GIFTI surfaces.
+ *
+ * Reads each GIFTI file (mesh + texture), validates consistent point/value
+ * counts, accumulates vertex coordinates and texture values, and returns the
+ * averaged mesh and per-vertex mean values. The output mesh inherits topology
+ * from the first file and has recomputed normals.
+ *
+ * \param infiles          (in)  array of input GIFTI filenames
+ * \param nfiles           (in)  number of input files
+ * \param verbose          (in)  non-zero to print progress
+ * \param avg_values_out   (out) allocated array of averaged values
+ * \param n_avg_values_out (out) number of averaged values
+ * \param out_object_out   (out) averaged mesh object (caller owns)
+ * \return 0 on success, negative value on error
+ */
 int
 CAT_AverageValuesCompute(
     char **infiles,
@@ -139,6 +155,20 @@ CAT_AverageValuesCompute(
 /* ================================================================== */
 /* CAT_AverageValuesStd                                                */
 /* ================================================================== */
+/**
+ * \brief Compute per-vertex standard deviation across GIFTI surfaces.
+ *
+ * Re-reads all input files, accumulates sum of squares of values, and
+ * computes the sample standard deviation using $n-1$ in the denominator.
+ * Requires precomputed average values and consistent value counts.
+ *
+ * \param infiles        (in)  array of input GIFTI filenames
+ * \param nfiles         (in)  number of input files (must be >= 2)
+ * \param avg_values     (in)  averaged values from CAT_AverageValuesCompute
+ * \param n_avg_values   (in)  number of averaged values
+ * \param std_values_out (out) allocated array of per-vertex std values
+ * \return 0 on success, negative value on error
+ */
 int
 CAT_AverageValuesStd(
     char **infiles,
@@ -189,6 +219,23 @@ CAT_AverageValuesStd(
 /* ================================================================== */
 /* CAT_AverageValuesZscore                                             */
 /* ================================================================== */
+/**
+ * \brief Compute per-file z-score summary from average and std values.
+ *
+ * For each file, computes a robust global z-score by accumulating the
+ * fourth power of standardized deviations over valid vertices, then
+ * taking the fourth-root of the mean. Low-signal regions are excluded
+ * using a global threshold derived from the mean of average values.
+ *
+ * \param infiles       (in)  array of input GIFTI filenames
+ * \param nfiles        (in)  number of input files
+ * \param avg_values    (in)  averaged values from CAT_AverageValuesCompute
+ * \param std_values    (in)  per-vertex std values from CAT_AverageValuesStd
+ * \param n_avg_values  (in)  number of values per file
+ * \param verbose       (in)  non-zero to print progress
+ * \param zscores       (out) array of per-file z-scores (length nfiles)
+ * \return 0 on success, negative value on error
+ */
 int
 CAT_AverageValuesZscore(
     char **infiles,

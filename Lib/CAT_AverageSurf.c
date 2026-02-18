@@ -13,6 +13,20 @@
 
 #include "CAT_AverageSurf.h"
 
+/**
+ * \brief Compute the average surface across a set of meshes.
+ *
+ * Copies the first surface as a template, then accumulates vertex coordinates
+ * from the remaining surfaces and divides by the number of surfaces. All input
+ * surfaces must share identical vertex counts and topology for the result to be
+ * meaningful. The output surface inherits connectivity from the first surface
+ * and has recomputed normals.
+ *
+ * \param surfaces   (in)  array of input surface pointers
+ * \param n_surfaces (in)  number of surfaces in the array
+ * \param avg_out    (out) output averaged surface (initialized by copy)
+ * \return 0 on success, negative value on error
+ */
 int
 CAT_SurfComputeAverage(
     polygons_struct **surfaces,
@@ -57,6 +71,20 @@ CAT_SurfComputeAverage(
     return 0;
 }
 
+/**
+ * \brief Compute per-vertex RMS deviation from an average surface.
+ *
+ * Accumulates squared distances from each surface to the average surface
+ * at every vertex, then computes the root-mean-square deviation. Uses
+ * $(n-1)$ in the denominator to match sample variance conventions. The input
+ * surfaces must share the same vertex count as the average surface.
+ *
+ * \param surfaces    (in)  array of input surfaces
+ * \param n_surfaces  (in)  number of surfaces (must be >= 2)
+ * \param avg_surface (in)  previously computed average surface
+ * \param rms_out     (out) per-vertex RMS values (length n_points)
+ * \return 0 on success, negative value on error
+ */
 int
 CAT_SurfComputeRMS(
     polygons_struct **surfaces,
