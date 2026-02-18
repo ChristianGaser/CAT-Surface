@@ -20,6 +20,17 @@
 
 #define PI2 0.6366197724  /* 2/pi */
 
+/**
+ * \brief Project a 3D vector onto a 2D plane defined by basis vectors.
+ *
+ * Computes the projection of a 3D vector onto a 2D coordinate system defined
+ * by two orthonormal basis vectors. Output is returned as a 2D vector (x, y)
+ * with z component set to 0.
+ *
+ * \param projected (in)  3D vector to project onto plane
+ * \param basis     (in)  basis[2]; two orthonormal vectors defining the plane
+ * \return               2D projection as Vector with z=0
+ */
 Vector
 projectToPlane(Vector projected, Vector basis[2])
 {
@@ -31,7 +42,17 @@ projectToPlane(Vector projected, Vector basis[2])
     return(xyz);
 }
 
-
+/**
+ * \brief Remove component of a vector perpendicular to a surface normal.
+ *
+ * Computes the component of a vector that lies in the tangent plane perpendicular
+ * to the given surface normal. Equivalent to removing the normal component while
+ * preserving the tangential component.
+ *
+ * \param vector (in) input 3D vector
+ * \param normal (in) surface normal vector
+ * \return          vector component in tangent plane (perpendicular to normal)
+ */
 Vector
 projectionVector(Vector vector, Vector normal)
 {
@@ -44,7 +65,25 @@ projectionVector(Vector vector, Vector normal)
     return(xyz);
 }
 
-
+/**
+ * \brief Compute principal surface curvatures using least-squares fitting.
+ *
+ * Fits a quadratic surface through sampled coordinate and normal differences,
+ * computing principal curvatures (k1, k2) via eigenvalue decomposition of the
+ * quadratic coefficient matrix.
+ *
+ * Algorithm:
+ *  1. Accumulate weighted sums of coordinate and normal differences
+ *  2. Form quadratic polynomial coefficients (a, b, c)
+ *  3. Compute characteristic polynomial of curvature tensor
+ *  4. Solve for eigenvalues (principal curvatures) k1 and k2
+ *
+ * \param num   (in)  number of neighboring points
+ * \param dc    (in)  Vector[num]; coordinate differences in tangent plane coordinates
+ * \param dn    (in)  Vector[num]; normal differences in tangent plane coordinates
+ * \param k1    (out) maximum principal curvature
+ * \param k2    (out) minimum principal curvature
+ */
 void
 leastSquares_curv(const int num, Vector dc[], Vector dn[], double *k1, double *k2)
 {
@@ -94,29 +133,31 @@ leastSquares_curv(const int num, Vector dc[], Vector dn[], double *k1, double *k
     }
 }
 
-
-/* ----------------------------- MNI Header -----------------------------------
-@NAME   : compute_points_centroid_and_normal_cg
-@INPUT    : polygons
-        pidx
-        n_neighbours
-        neighbours
-@OUTPUT   : centroid
-        normal
-        baselen
-        curvature
-@RETURNS  : 
-@DESCRIPTION: Computes the centroid and normal of the neighbours of a vertex,
-        as well as a measure of the size of the polygon defined by the
-        neighbours, and the relative curvature of the surface at the
-        vertex.
-@METHOD   : 
-@GLOBALS  : 
-@CALLS    : 
-@CREATED  :     1993    David MacDonald
-@MODIFIED : 
----------------------------------------------------------------------------- */
-
+/**
+ * \brief Compute vertex curvature type and centroid/normal of vertex neighborhood.
+ *
+ * Calculates principal curvatures (k1, k2) for a vertex using least-squares fitting
+ * to its neighborhood, then derives the requested curvature metric (Gaussian, mean,
+ * curvedness, shape index, bending energy, sharpness, folding index, or extremal
+ * curvatures).
+ *
+ * Algorithm:
+ *  1. Compute centroid and normal of neighbor points
+ *  2. Establish local tangent plane coordinate system
+ *  3. Project coordinate and normal differences into tangent plane
+ *  4. Fit quadratic surface via least-squares to compute principal curvatures
+ *  5. Compute requested curvature metric from k1 and k2
+ *
+ * \param polygons      (in)  surface mesh
+ * \param pidx          (in)  vertex index
+ * \param n_neighbours  (in)  number of neighbors
+ * \param neighbours    (in)  int[n_neighbours]; neighbor vertex indices
+ * \param centroid      (out) centroid of neighborhood
+ * \param normal        (out) normal of neighborhood
+ * \param baselen       (out) neighborhood size measure
+ * \param curvtype      (in)  curvature metric type (1=Gaussian, 2=curvedness, 3=shape index, 4=mean, 6=bending energy, 7=sharpness, 8=folding, 9=min, 10=max)
+ * \param curvparameter (out) computed curvature value
+ */
 void
 compute_points_centroid_and_normal_cg(polygons_struct *polygons,
                     int pidx, int n_neighbours,
@@ -205,26 +246,26 @@ compute_points_centroid_and_normal_cg(polygons_struct *polygons,
     }
 }
 
-
-/* ----------------------------- MNI Header -----------------------------------
-@NAME   : get_polygon_vertex_curvatures_cg
-@INPUT    : polygons
-        smoothing_distance
-        low_threshold
-@OUTPUT   : curvatures
-@RETURNS  : 
-@DESCRIPTION: Computes the curvatures at each vertex of the polygon, using
-        1 of two methods.  If smoothing distance is zero, computes
-        instantaneous curvature in terms of a fractional relative
-        curvature.  If non-zero, returns +/- angle in degrees of the
-        smoothed curvature.
-@METHOD   : 
-@GLOBALS  : 
-@CALLS    : 
-@CREATED  :     1994    David MacDonald
-@MODIFIED : 
----------------------------------------------------------------------------- */
-
+/**
+ * \brief Compute specified curvature metric for all vertices of a mesh.
+ *
+ * Computes curvature at each vertex using principal curvature fitting. Supports
+ * multiple curvature types (Gaussian, mean, shape index, etc.) and optional
+ * smoothing. Special modes: depth potential (curvtype>11), sulcal depth (curvtype=5).
+ *
+ * Algorithm:
+ *  1. If special curvature: compute depth potential or sulcal depth
+ *  2. Else: for each vertex, compute centroid/normal and fit principal curvatures
+ *  3. Extract requested curvature metric
+ *  4. If smoothing_distance > 0: smooth result with heat kernel diffusion
+ *
+ * \param polygons            (in)  surface mesh
+ * \param n_neighbours        (in)  int[n_points]; neighbors per vertex
+ * \param neighbours          (in)  int*[n_points]; neighbor indices per vertex
+ * \param smoothing_distance  (in)  FWHM for heat kernel smoothing (0=no smoothing)
+ * \param curvtype            (in)  1=Gaussian, 2=curvedness, 3=shape index, 4=mean, 5=sulcal, 6=bending, 7=sharpness, 8=folding, 9=min, 10=max, >11=depth potential
+ * \param curvatures          (out) double[n_points]; computed curvature values
+ */
 void
 get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbours[],
                  int *neighbours[], double smoothing_distance,
@@ -350,6 +391,22 @@ get_smoothed_curvatures(polygons_struct *polygons,
 
 }
 
+/**
+ * \brief Compute depth from surface to convex hull (sulcal depth measure).
+ *
+ * Computes the Euclidean distance from each surface vertex to the nearest point
+ * on the surface's convex hull. This distance measures how deep a vertex is
+ * within sulci and crevices of the cortical surface.
+ *
+ * Algorithm:
+ *  1. Compute convex hull of the surface mesh
+ *  2. Build spatial index (bintree) for convex hull
+ *  3. For each surface vertex: find closest point on convex hull
+ *  4. Store Euclidean distance as depth measure
+ *
+ * \param surface (in)  cortical surface mesh
+ * \param depth   (out) double[n_points]; distance to convex hull for each vertex
+ */
 void
 compute_sulcus_depth(polygons_struct *surface, double *depth)
 {
@@ -379,6 +436,24 @@ compute_sulcus_depth(polygons_struct *surface, double *depth)
 
 }
 
+/**
+ * \brief Compute local sharpness metric (maximum angular variation at vertices).
+ *
+ * Measures surface sharpness at each vertex as the maximum dihedral angle between
+ * triangles meeting at that vertex. High sharpness indicates sharp folds and ridges;
+ * low sharpness indicates smooth regions.
+ *
+ * Algorithm:
+ *  1. For each vertex: iterate through adjacent triangles
+ *  2. Compute triangle normal for each pair of consecutive neighbors
+ *  3. Compute dihedral angle (arc-cosine of normal dot product)
+ *  4. Store maximum angle as sharpness measure
+ *
+ * \param polygons    (in)  surface mesh
+ * \param n_neighbours (in)  int[n_points]; neighbors per vertex
+ * \param neighbours   (in)  int*[n_points]; neighbor vertex indices
+ * \param sharpness    (out) double[n_points]; sharpness measure per vertex (degrees)
+ */
 void
 compute_local_sharpness(polygons_struct *polygons, int n_neighbours[],
             int *neighbours[], double *sharpness)
@@ -414,6 +489,24 @@ compute_local_sharpness(polygons_struct *polygons, int n_neighbours[],
     }
 }
 
+/**
+ * \brief Compute local convexity as projection of neighborhood vector onto normal.
+ *
+ * Measures whether the neighborhood of each vertex points outward (convex) or
+ * inward (concave) relative to the surface normal. Positive convexity indicates
+ * gyral (convex) regions; negative indicates sulcal (concave) regions.
+ *
+ * Algorithm:
+ *  1. Compute vertex normals for mesh
+ *  2. For each vertex: compute mean neighbor position relative to vertex
+ *  3. Project relative position vector onto vertex normal
+ *  4. Store projection as convexity measure
+ *
+ * \param polygons     (in)  surface mesh
+ * \param n_neighbours (in)  int[n_points]; neighbors per vertex
+ * \param neighbours    (in)  int*[n_points]; neighbor vertex indices
+ * \param convexity     (out) double[n_points]; convexity measure per vertex
+ */
 void
 compute_convexity(polygons_struct *polygons, int n_neighbours[],
          int *neighbours[], double *convexity)
