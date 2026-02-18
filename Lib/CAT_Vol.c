@@ -1419,6 +1419,19 @@ void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist,
     free(buffer);
 }
 
+/**
+ * \brief Wrapper for morphological erosion (generic datatype).
+ *
+ * Applies dist_erode_float() by converting input to float, processing, and converting back.
+ * This allows erosion to work with any supported image datatype (uint8, uint16, float, etc.).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void dist_erode(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
@@ -1515,6 +1528,20 @@ void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist
     free(buffer);
 }
 
+/**
+ * \brief Wrapper for morphological dilation (generic datatype).
+ *
+ * Applies dist_dilate_float() by converting input to float, processing, and converting back.
+ * This allows dilation to work with any supported image datatype (uint8, uint16, float, etc.).
+ * Growth is computed using the Euclidean distance transform with padding to avoid border clipping.
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void dist_dilate(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
@@ -1536,6 +1563,23 @@ void dist_dilate(void *data, int dims[3], double voxelsize[3], double dist, doub
     free(buffer);
 }
 
+/**
+ * \brief Morphological closing (binary) using the Euclidean distance transform.
+ *
+ * Closing combines the operations:
+ *   1. Dilation: expand foreground by radius 'dist'
+ *   2. Erosion: shrink foreground by radius 'dist'
+ *
+ * This operation fills small holes (background regions surrounded by foreground)
+ * while preserving overall shape. Computed via distance transform with padding
+ * to prevent border clipping.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
 void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
@@ -1581,6 +1625,19 @@ void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist,
     free(buffer);
 }
 
+/**
+ * \brief Wrapper for morphological closing (generic datatype).
+ *
+ * Applies dist_close_float() by converting input to float, processing, and converting back.
+ * This allows closing to work with any supported image datatype (uint8, uint16, float, etc.).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void dist_close(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
@@ -1602,6 +1659,23 @@ void dist_close(void *data, int dims[3], double voxelsize[3], double dist, doubl
     free(buffer);
 }
 
+/**
+ * \brief Morphological opening (binary) using the Euclidean distance transform.
+ *
+ * Opening combines the operations:
+ *   1. Erosion: shrink foreground by radius 'dist'
+ *   2. Dilation: expand foreground by radius 'dist'
+ *
+ * This operation removes small foreground objects (noise) while preserving the
+ * shape of larger structures. Computed via distance transform on the thresholded
+ * input without explicit padding.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
 void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
 {
     float *buffer;
@@ -1640,6 +1714,19 @@ void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, 
     free(buffer);
 }
 
+/**
+ * \brief Wrapper for morphological opening (generic datatype).
+ *
+ * Applies dist_open_float() by converting input to float, processing, and converting back.
+ * This allows opening to work with any supported image datatype (uint8, uint16, float, etc.).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void dist_open(void *data, int dims[3], double voxelsize[3], double dist, double th, int datatype)
 {
     int nvox;
@@ -1661,6 +1748,18 @@ void dist_open(void *data, int dims[3], double voxelsize[3], double dist, double
     free(buffer);
 }
 
+/**
+ * \brief Binary morphological erosion using separable convolution.
+ *
+ * Thresholds input to a binary mask M = (vol > th * max(vol)), then applies
+ * erosion with a 3x3x3 cube structuring element repeated niter times.
+ * Erosion removes foreground voxels on the boundary, effectively shrinking objects.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of erosion iterations (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
 void morph_erode_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
@@ -1682,6 +1781,18 @@ void morph_erode_float(float *vol, int dims[3], int niter, double th)
     }
 }
 
+/**
+ * \brief Wrapper for binary morphological erosion (generic datatype).
+ *
+ * Applies morph_erode_float() by converting input to float, processing, and converting back.
+ * Erosion is performed using separable convolution with a 3x3x3 structuring element.
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of erosion iterations (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
@@ -1703,6 +1814,19 @@ void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
     free(buffer);
 }
 
+/**
+ * \brief Binary morphological dilation using separable convolution.
+ *
+ * Thresholds input to a binary mask M = (vol > th * max(vol)), then applies
+ * dilation with a 3x3x3 cube structuring element repeated niter times.
+ * Input image is padded with a zero band to avoid clipping at volume borders.
+ * Dilation expands foreground objects by niter voxels in all directions.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of dilation iterations (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
 void morph_dilate_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
@@ -1747,6 +1871,18 @@ void morph_dilate_float(float *vol, int dims[3], int niter, double th)
     
 }
 
+/**
+ * \brief Wrapper for binary morphological dilation (generic datatype).
+ *
+ * Applies morph_dilate_float() by converting input to float, processing, and converting back.
+ * Dilation is performed using separable convolution with a 3x3x3 structuring element applied iteratively.
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of dilation iterations (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
@@ -1768,6 +1904,21 @@ void morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
     free(buffer);
 }
 
+/**
+ * \brief Binary morphological closing (dilation followed by erosion).
+ *
+ * Thresholds input to a binary mask, then applies:
+ *   1. niter dilations (using 3x3x3 structuring element)
+ *   2. niter erosions (using 3x3x3 structuring element)
+ *
+ * Closing fills small holes (background regions) while preserving shape.
+ * Input is padded with zeros to avoid border clipping during growth.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ */
 void morph_close_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3]={1,1,1};
@@ -1819,6 +1970,18 @@ void morph_close_float(float *vol, int dims[3], int niter, double th)
     free(buffer);
 }
 
+/**
+ * \brief Wrapper for binary morphological closing (generic datatype).
+ *
+ * Applies morph_close_float() by converting input to float, processing, and converting back.
+ * Closing combines dilation followed by erosion using separable convolution.
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void morph_close(void *data, int dims[3], int niter, double th, int datatype)
 {
     int nvox;
@@ -1840,6 +2003,23 @@ void morph_close(void *data, int dims[3], int niter, double th, int datatype)
     free(buffer);
 }
 
+/**
+ * \brief Binary morphological opening (erosion followed by dilation).
+ *
+ * Thresholds input to a binary mask, then applies:
+ *   1. niter erosions (using 3x3x3 structuring element)
+ *   2. niter dilations (using 3x3x3 structuring element)
+ *
+ * Opening removes small foreground objects (noise) while preserving shape of larger structures.
+ * If keep_values > 0, output marks only zero regions (areas successfully removed) from input;
+ * otherwise outputs the binary result of opening.
+ *
+ * \param vol         (in/out) float[dims[0]*dims[1]*dims[2]]
+ * \param dims        (in)     {nx, ny, nz}
+ * \param niter       (in)     number of iterations for each operation (<=0: no-op)
+ * \param th          (in)     threshold as fraction of max(vol) in [0,1]
+ * \param keep_values (in)     if >0, preserve original foreground values and zero only removed regions
+ */
 void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_values)
 {
     unsigned char *buffer;
@@ -1889,6 +2069,19 @@ void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_va
     free(buffer);
 }
 
+/**
+ * \brief Wrapper for binary morphological opening (generic datatype).
+ *
+ * Applies morph_open_float() by converting input to float, processing, and converting back.
+ * Opening combines erosion followed by dilation using separable convolution.
+ *
+ * \param data        (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims        (in)     {nx, ny, nz}
+ * \param niter       (in)     number of iterations for each operation (<=0: no-op)
+ * \param th          (in)     threshold as fraction of max(data) in [0,1]
+ * \param keep_values (in)     if >0, preserve original values and zero only removed regions
+ * \param datatype    (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void morph_open(void *data, int dims[3], int niter, double th, int keep_values, int datatype)
 {
     int nvox;
@@ -1910,6 +2103,18 @@ void morph_open(void *data, int dims[3], int niter, double th, int keep_values, 
     free(buffer);
 }
 
+/**
+ * \brief Grey-scale morphological erosion.
+ *
+ * Applies minimum filtering (gray erosion) to the entire volume using localstat_double().
+ * Each voxel is set to the minimum value in its 3x3x3 neighborhood, repeated niter times.
+ * Erosion darkens the image and removes bright details (small peaks).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of erosion iterations (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void grey_erode(void *data, int dims[3], int niter, int datatype)
 {
     int nvox;
@@ -1931,6 +2136,18 @@ void grey_erode(void *data, int dims[3], int niter, int datatype)
     free(buffer);
 }
 
+/**
+ * \brief Grey-scale morphological dilation.
+ *
+ * Applies maximum filtering (gray dilation) to the entire volume using localstat_double().
+ * Each voxel is set to the maximum value in its 3x3x3 neighborhood, repeated niter times.
+ * Dilation brightens the image and removes dark details (small valleys).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of dilation iterations (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void grey_dilate(void *data, int dims[3], int niter, int datatype)
 {
     int nvox;
@@ -1952,6 +2169,18 @@ void grey_dilate(void *data, int dims[3], int niter, int datatype)
     free(buffer);
 }
 
+/**
+ * \brief Grey-scale morphological opening (erosion followed by dilation).
+ *
+ * Applies F_MIN (erosion) niter times, then F_MAX (dilation) niter times.
+ * Opening removes small bright isolated voxels while preserving overall structure.
+ * Implements gray opening = gray_dilate(gray_erode(vol)).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void grey_open(void *data, int dims[3], int niter, int datatype)
 {
     int nvox;
@@ -1974,6 +2203,18 @@ void grey_open(void *data, int dims[3], int niter, int datatype)
     free(buffer);
 }
 
+/**
+ * \brief Grey-scale morphological closing (dilation followed by erosion).
+ *
+ * Applies F_MAX (dilation) niter times, then F_MIN (erosion) niter times.
+ * Closing fills small dark isolated voxels while preserving overall structure.
+ * Implements gray closing = gray_erode(gray_dilate(vol)).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void grey_close(void *data, int dims[3], int niter, int datatype)
 {
     int nvox;
