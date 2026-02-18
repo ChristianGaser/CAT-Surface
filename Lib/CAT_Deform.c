@@ -468,10 +468,6 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
  *  taken from this geometry once (fixed across iterations) because polygons1 and polygons2
  *  are similarly folded, which reduces compute and improves stability.
  */
-void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
-                      polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
-                      double w[3], double sigma, float lim1, float lim2, 
-                      double *target_distance, int it, int verbose)
 /**
  * \brief Simultaneously deform two surfaces (e.g., white+pial) toward image gradients.
  *
@@ -499,7 +495,11 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
  * \param target_distance   (in/out) double[n_points]; desired separation between surfaces
  * \param it                (in)     number of deformation iterations
  * \param verbose           (in)     boolean; print iteration progress if true
- */ 
+ */
+void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
+                      polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
+                      double w[3], double sigma, float lim1, float lim2, 
+                      double *target_distance, int it, int verbose)
 {
     int i, j, k, v, dims[3], nvox, pidx, n_self_hits;
     int *n_neighbours, **neighbours;
