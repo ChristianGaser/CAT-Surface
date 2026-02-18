@@ -81,6 +81,18 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
                  int nc, int niters, int sub, int *dims, int pve, double weight_MRF, 
                  double *voxelsize, int niters_ICM, int verbose, 
                  int use_median, const double *mrf_class_weights, int use_multistep);
+/**
+ * \brief Public API for Pve5.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param src (in/out) Parameter of Pve5.
+ * \param prob (in/out) Parameter of Pve5.
+ * \param label (in/out) Parameter of Pve5.
+ * \param mean (in/out) Parameter of Pve5.
+ * \param dims (in/out) Parameter of Pve5.
+ * \return void (no return value).
+ */
 void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims);
 double ComputeGaussianLikelihood(double value, double mean , double var);
 double ComputeMarginalizedLikelihood(double value, double mean1 , double mean2, 

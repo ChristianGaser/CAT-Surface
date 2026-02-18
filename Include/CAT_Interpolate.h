@@ -20,6 +20,16 @@
 #define  BINTREE_FACTOR   0.5
 #define  NEW_COORDINATE_SYSTEM   1
 
+/**
+ * \brief Public API for interp_point_unit_sphere.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of interp_point_unit_sphere.
+ * \param param (in/out) Parameter of interp_point_unit_sphere.
+ * \param Point (in/out) Parameter of interp_point_unit_sphere.
+ * \return Return value of interp_point_unit_sphere.
+ */
 double interp_point_unit_sphere(polygons_struct *, double *, Point);
 double interp_point_sphere(polygons_struct *, double *, Point);
 double interp_uv_unit_sphere(polygons_struct *, double *, double, double);

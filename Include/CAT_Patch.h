@@ -20,6 +20,16 @@ struct patchinfo {
 object_struct ** extract_patch_around_polygon(polygons_struct *, int, int);
 object_struct ** extract_patch_around_point(polygons_struct *, int, int);
 object_struct ** extract_patch_polys(polygons_struct *, int *, int);
+/**
+ * \brief Public API for extract_patch_points.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of extract_patch_points.
+ * \param param (in/out) Parameter of extract_patch_points.
+ * \param int (in/out) Parameter of extract_patch_points.
+ * \return Return value of extract_patch_points.
+ */
 object_struct ** extract_patch_points(polygons_struct *, int *, int);
 
 #endif

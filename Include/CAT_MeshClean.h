@@ -35,9 +35,12 @@ typedef struct {
 } CAT_MeshCleanOptions;
 
 /**
- * Initialize mesh clean options with default values.
+ * \brief Public API for CAT_MeshCleanOptionsInit.
  *
- * @param opts Pointer to options struct to initialize.
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param opts (in/out) Parameter of CAT_MeshCleanOptionsInit.
+ * \return void (no return value).
  */
 void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts);
 
@@ -61,11 +64,12 @@ int CAT_SurfMeshClean(
 );
 
 /**
- * Count self-intersecting triangles in the mesh.
+ * \brief Public API for CAT_SurfCountIntersections.
  *
- * @param polygons Input surface mesh.
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
  *
- * @return Number of intersecting triangle pairs, or -1 on error.
+ * \param polygons (in/out) Parameter of CAT_SurfCountIntersections.
+ * \return Return value of CAT_SurfCountIntersections.
  */
 int CAT_SurfCountIntersections(polygons_struct *polygons);
 

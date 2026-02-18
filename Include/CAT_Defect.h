@@ -30,6 +30,17 @@ void expand_defects(polygons_struct *, int *, int *, int, int, int *, int **);
 void update_defects(polygons_struct *, int *, int *);
 void update_polydefects(polygons_struct *, int *, int *);
 Point get_defect_center(polygons_struct *, int *, int);
+/**
+ * \brief Public API for get_defect_size.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of get_defect_size.
+ * \param param (in/out) Parameter of get_defect_size.
+ * \param int (in/out) Parameter of get_defect_size.
+ * \param param (in/out) Parameter of get_defect_size.
+ * \return void (no return value).
+ */
 void get_defect_size(polygons_struct *, int *, int, double *);
 void bisect_defects(polygons_struct *, polygons_struct *,int *, int, int *, int *, int);
 void remap_defect(polygons_struct *, int *, int *, polygons_struct *, int *,

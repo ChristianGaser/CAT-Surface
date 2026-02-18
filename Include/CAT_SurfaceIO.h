@@ -110,10 +110,54 @@ int tri_arrays_to_polygons(polygons_struct *poly,
                                       int nv, int nf);
 int qem_target(int nf_total, int target);
 Status bicpl_to_facevertexdata(polygons_struct *, double **, double **);
+/**
+ * \brief Public API for input_values_any_format.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of input_values_any_format.
+ * \param param (in/out) Parameter of input_values_any_format.
+ * \param param (in/out) Parameter of input_values_any_format.
+ * \return Return value of input_values_any_format.
+ */
 Status input_values_any_format(char *, int *, double **);
 Status input_values_integer(char *, int *, int **);
+/**
+ * \brief Public API for output_values_any_format.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of output_values_any_format.
+ * \param int (in/out) Parameter of output_values_any_format.
+ * \param param (in/out) Parameter of output_values_any_format.
+ * \param int (in/out) Parameter of output_values_any_format.
+ * \return Return value of output_values_any_format.
+ */
 Status output_values_any_format(const char *, int, void *, int);
+/**
+ * \brief Public API for input_graphics_any_format.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of input_graphics_any_format.
+ * \param param (in/out) Parameter of input_graphics_any_format.
+ * \param param (in/out) Parameter of input_graphics_any_format.
+ * \param param (in/out) Parameter of input_graphics_any_format.
+ * \return Return value of input_graphics_any_format.
+ */
 Status input_graphics_any_format(char *, File_formats *, int *, object_struct  ***); 
+/**
+ * \brief Public API for output_graphics_any_format.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of output_graphics_any_format.
+ * \param File_formats (in/out) Parameter of output_graphics_any_format.
+ * \param int (in/out) Parameter of output_graphics_any_format.
+ * \param param (in/out) Parameter of output_graphics_any_format.
+ * \param param (in/out) Parameter of output_graphics_any_format.
+ * \return Return value of output_graphics_any_format.
+ */
 Status output_graphics_any_format(char *, File_formats, int, object_struct **, double *);
 int    input_gifti_mesh_and_texture(char *, File_formats *, int *, object_struct ***, int *, double **);
 Status output_txt(char *, int, double *);
@@ -122,6 +166,16 @@ int    output_oogl(char *, File_formats, int, object_struct * []);
 int    output_freesurfer(char *, File_formats, int, object_struct * []);
 int    output_freesurfer_curv(char *, int, double *);
 int    input_freesurfer(char *, File_formats *, int *, object_struct  ***);
+/**
+ * \brief Public API for input_freesurfer_curv.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of input_freesurfer_curv.
+ * \param param (in/out) Parameter of input_freesurfer_curv.
+ * \param param (in/out) Parameter of input_freesurfer_curv.
+ * \return Return value of input_freesurfer_curv.
+ */
 int    input_freesurfer_curv(char *, int *, double **);
 int    output_gifti(char *, File_formats, int, object_struct * [], double *);
 int    output_gifti_curv(char *, int, double *);
@@ -129,9 +183,54 @@ int    input_gifti(char *, File_formats *, int *, object_struct  ***, int *, dou
 int    input_gifti_curv(char *, int *, double **);
 int    input_dx(char *, File_formats *, int *, object_struct  ***);
 int    input_dfs(char *, File_formats *, int *, object_struct  ***);
+/**
+ * \brief Public API for read_pgm.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of read_pgm.
+ * \param param (in/out) Parameter of read_pgm.
+ * \param param (in/out) Parameter of read_pgm.
+ * \return Return value of read_pgm.
+ */
 double * read_pgm(char *, int *, int *);
+/**
+ * \brief Public API for write_pgm.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of write_pgm.
+ * \param param (in/out) Parameter of write_pgm.
+ * \param int (in/out) Parameter of write_pgm.
+ * \param int (in/out) Parameter of write_pgm.
+ * \return Return value of write_pgm.
+ */
 int    write_pgm(char *, double *, int, int);
+/**
+ * \brief Public API for read_annotation_table.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of read_annotation_table.
+ * \param param (in/out) Parameter of read_annotation_table.
+ * \param param (in/out) Parameter of read_annotation_table.
+ * \param param (in/out) Parameter of read_annotation_table.
+ * \param param (in/out) Parameter of read_annotation_table.
+ * \return Return value of read_annotation_table.
+ */
 int    read_annotation_table(char *, int *, int **, int *, ATABLE **);
+/**
+ * \brief Public API for write_annotation_table.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of write_annotation_table.
+ * \param int (in/out) Parameter of write_annotation_table.
+ * \param param (in/out) Parameter of write_annotation_table.
+ * \param int (in/out) Parameter of write_annotation_table.
+ * \param param (in/out) Parameter of write_annotation_table.
+ * \return Return value of write_annotation_table.
+ */
 int    write_annotation_table(char *, int, int *, int, ATABLE *);
 
 #endif

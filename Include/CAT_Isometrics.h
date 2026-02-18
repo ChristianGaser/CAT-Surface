@@ -40,9 +40,54 @@ struct pointdata {
         double *areas;
 };
 
+/**
+ * \brief Public API for getmetricdata.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of getmetricdata.
+ * \return Return value of getmetricdata.
+ */
 struct metricdata * getmetricdata(polygons_struct *);
+/**
+ * \brief Public API for smooth.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of smooth.
+ * \param param (in/out) Parameter of smooth.
+ * \param int (in/out) Parameter of smooth.
+ * \param int (in/out) Parameter of smooth.
+ * \param double (in/out) Parameter of smooth.
+ * \return Return value of smooth.
+ */
 int smooth(struct metricdata *, polygons_struct *, int, int, double);
+/**
+ * \brief Public API for distortcorrect.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of distortcorrect.
+ * \param param (in/out) Parameter of distortcorrect.
+ * \param int (in/out) Parameter of distortcorrect.
+ * \param int (in/out) Parameter of distortcorrect.
+ * \param double (in/out) Parameter of distortcorrect.
+ * \return Return value of distortcorrect.
+ */
 int distortcorrect(struct metricdata *, polygons_struct *, int, int, double);
+/**
+ * \brief Public API for stretch.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of stretch.
+ * \param param (in/out) Parameter of stretch.
+ * \param int (in/out) Parameter of stretch.
+ * \param int (in/out) Parameter of stretch.
+ * \param int (in/out) Parameter of stretch.
+ * \param double (in/out) Parameter of stretch.
+ * \return Return value of stretch.
+ */
 int stretch(struct metricdata *, polygons_struct *, int, int, int, double);
 
 #endif

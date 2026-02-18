@@ -20,6 +20,15 @@ struct csr_matrix {
   double * A;       // coefficients
 };
 
+/**
+ * \brief Public API for compute_depth_potential.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of compute_depth_potential.
+ * \param double (in/out) Parameter of compute_depth_potential.
+ * \return Return value of compute_depth_potential.
+ */
 double * compute_depth_potential( polygons_struct *, double);
 double * compute_areas( int, Point [], int *, 
                               int **, int );

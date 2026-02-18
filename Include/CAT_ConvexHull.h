@@ -27,6 +27,15 @@ extern int dbg2;
 
 static int KeyFactor = 100000;
 
+/**
+ * \brief Public API for surface_get_convex_hull.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of surface_get_convex_hull.
+ * \param param (in/out) Parameter of surface_get_convex_hull.
+ * \return Return value of surface_get_convex_hull.
+ */
 object_struct **  surface_get_convex_hull(polygons_struct *, polygons_struct * );
 private  int  get_points_of_region(polygons_struct  *, Point ** );
 private  void  get_convex_hull(int, Point *, polygons_struct * );

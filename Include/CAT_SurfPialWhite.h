@@ -38,9 +38,12 @@ typedef struct {
 } CAT_PialWhiteOptions;
 
 /**
- * Initialize pial/white estimation options with default values.
+ * \brief Public API for CAT_PialWhiteOptionsInit.
  *
- * @param opts Pointer to options structure.
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param opts (in/out) Parameter of CAT_PialWhiteOptionsInit.
+ * \return void (no return value).
  */
 void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts);
 

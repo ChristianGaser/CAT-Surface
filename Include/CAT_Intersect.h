@@ -20,9 +20,32 @@
 int intersect_poly_poly(int, int, polygons_struct *);
 int intersect_triangle_triangle(int [3], int [3], polygons_struct *);
 int intersect_segment_triangle(Point, Point, int [3], polygons_struct *);
+/**
+ * \brief Public API for find_selfintersections.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of find_selfintersections.
+ * \param param (in/out) Parameter of find_selfintersections.
+ * \param param (in/out) Parameter of find_selfintersections.
+ * \param int (in/out) Parameter of find_selfintersections.
+ * \return Return value of find_selfintersections.
+ */
 int find_selfintersections(polygons_struct *, int *, int *, int);
 int find_selfintersections_masked(polygons_struct *, int *, int *);
 int correct_simple_selfintersections(polygons_struct *, int *, int *, int *, int **);
+/**
+ * \brief Public API for join_intersections.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of join_intersections.
+ * \param param (in/out) Parameter of join_intersections.
+ * \param param (in/out) Parameter of join_intersections.
+ * \param param (in/out) Parameter of join_intersections.
+ * \param param (in/out) Parameter of join_intersections.
+ * \return Return value of join_intersections.
+ */
 int join_intersections(polygons_struct *, int *, int *, int *, int **);
 int find_remaining_intersections(polygons_struct *, int *, int *, int *,
                                  int **);

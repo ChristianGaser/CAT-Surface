@@ -32,10 +32,41 @@ typedef struct {
     double *map_src;   // Precomputed source curvatures
 } OptimizationParams;
 
+/**
+ * \brief Public API for rotate_polygons.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of rotate_polygons.
+ * \param param (in/out) Parameter of rotate_polygons.
+ * \param rotation_matrix (in/out) Parameter of rotate_polygons.
+ * \return void (no return value).
+ */
 void rotate_polygons(polygons_struct *, polygons_struct *, double *rotation_matrix);
+/**
+ * \brief Public API for rotation_to_matrix.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of rotation_to_matrix.
+ * \param double (in/out) Parameter of rotation_to_matrix.
+ * \param double (in/out) Parameter of rotation_to_matrix.
+ * \param gamma (in/out) Parameter of rotation_to_matrix.
+ * \return void (no return value).
+ */
 void rotation_to_matrix(double *, double, double, double gamma);          
 void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int);
 void apply_uv_warp(polygons_struct *, polygons_struct *, double *, double *, int );
+/**
+ * \brief Public API for average_xz_surf.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param param (in/out) Parameter of average_xz_surf.
+ * \param param (in/out) Parameter of average_xz_surf.
+ * \param param (in/out) Parameter of average_xz_surf.
+ * \return void (no return value).
+ */
 void average_xz_surf(polygons_struct *, polygons_struct *, polygons_struct *);
 void rotate_polygons_to_atlas(polygons_struct *, polygons_struct *,
              polygons_struct *, polygons_struct *, double, int, double *, int);
