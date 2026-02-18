@@ -18,6 +18,21 @@
 #include "CAT_ConvexHull.h"
 
 /* experimental, not finished (local areas should be better estimated) */
+/**
+ * \brief Compute global and local gyrification index using SPH-based resampling.
+ *
+ * Computes convex hull of the surface, maps both surface and convex hull to
+ * spheres, and estimates local and global gyrification as the ratio of surface
+ * area to convex hull area per vertex. Outputs local gyrification values to a
+ * file and returns the global ratio.
+ *
+ * \param surface     (in)  input cortical surface mesh
+ * \param sphere      (in)  spherical parameterization of the surface
+ * \param file        (in)  output filename for local gyrification values
+ * \param n_triangles (in)  triangle count for resampling (currently unused)
+ * \param reparam     (in)  optional reparameterized sphere (currently unused)
+ * \return Global gyrification index (area ratio)
+ */
 double
 gyrification_index_sph(polygons_struct *surface, polygons_struct *sphere,
             char *file, int n_triangles, polygons_struct *reparam)
