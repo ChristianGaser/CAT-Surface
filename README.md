@@ -51,6 +51,31 @@ make
 make               # Build all tools
 make install       # Optional: install system-wide
 ```
+
+## API Documentation (Doxygen)
+
+CAT-Surface includes a Doxygen configuration to generate API documentation from
+the C/C++ sources and public headers.
+
+Install Doxygen:
+
+- macOS: `brew install doxygen`
+- Linux: `sudo apt-get install doxygen`
+
+Generate docs:
+
+```bash
+./scripts/generate_doxygen_docs.sh
+```
+
+The generated HTML entry point is:
+
+- `docs/doxygen/html/index.html`
+
+Warnings are written to:
+
+- `docs/doxygen/warnings.log`
+
 ---
 ## Tools and Functions
 

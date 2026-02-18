@@ -32,6 +32,8 @@ lib_LTLIBRARIES = libCAT.la
 EXTRA_DIST = \
     configure.ac \
     autogen.sh \
+    Doxyfile \
+    scripts/generate_doxygen_docs.sh \
     3rdparty/gifticlib/LICENSE.gifti \
     3rdparty/gifticlib/README.gifti \
     $(m4_files)
@@ -391,4 +393,12 @@ libCAT_la_SOURCES = \
     Lib//CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
     Lib/CAT_SafeAlloc.c
+
+.PHONY: docs docs-clean
+
+docs:
+	cd $(top_srcdir) && ./scripts/generate_doxygen_docs.sh
+
+docs-clean:
+	rm -rf $(top_srcdir)/docs/doxygen
 
