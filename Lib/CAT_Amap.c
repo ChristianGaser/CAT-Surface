@@ -373,14 +373,22 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
  * E-mail: jussi.tohka@tut.fi
  */
 /**
- * \brief Convert tissue classification to partial volume estimates (CSF/GM/WM).\n *
+ * \brief Convert tissue classification to partial volume estimates (CSF/GM/WM).
+ *
  * Converts hard tissue labels (pure classes: CSF, GM, WM) and mixed boundaries
  * (GM-CSF, WM-GM) into five-tissue probability maps. For mixed voxels, computes
  * tissue fractions from intensity values and class means via linear interpolation.
  * Updates label array with proportional intensity values and stores normalized
  * probability estimates (0-255) across three tissue probability channels.
  *
- * \param src     (in)  input intensity image\n * \param prob    (out) probability maps (3*nvol length: CSF, GM, WM stacked)\n * \param label   (in/out) tissue labels; updated with PVE intensity estimates\n * \param mean    (in)  tissue class means [CS, GM, WM]\n * \param dims    (in)  array [nx, ny, nz] specifying volume dimensions\n * \return void\n */\nvoid Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims)
+ * \param src     (in)  input intensity image
+ * \param prob    (out) probability maps (3*nvol length: CSF, GM, WM stacked)
+ * \param label   (in/out) tissue labels; updated with PVE intensity estimates
+ * \param mean    (in)  tissue class means [CS, GM, WM]
+ * \param dims    (in)  array [nx, ny, nz] specifying volume dimensions
+ * \return void
+ */
+void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims)
 {
     int i, mxi;
     double w, mx;
@@ -464,13 +472,24 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
  */
 
 /**
- * \brief Estimate Markov Random Field (MRF) prior parameters from label configuration.\n *
- * Computes alpha (class frequencies) and beta (spatial regularization strength)\n * parameters from the distribution of tissue labeled voxels and their spatial
+ * \brief Estimate Markov Random Field (MRF) prior parameters from label configuration.
+ *
+ * Computes alpha (class frequencies) and beta (spatial regularization strength)
+ * parameters from the distribution of tissue labeled voxels and their spatial
  * neighborhoods. Analyzes 3x3x3 neighborhood configurations to estimate how much
  * spatial regularity should be imposed. Used in ICM (Iterated Conditional Modes)
  * to add anatomically-informed smoothness priors to tissue segmentation.
  *
- * \param label      (in)  tissue classification labels (hard assignments)\n * \param n_classes  (in)  total number of classes\n * \param alpha      (out) class prevalence/frequency array (length n_classes)\n * \param beta       (out) strength parameter [1] for MRF smoothing; NULL to skip\n * \param init       (in)  if 1, initialize alphas to 1.0; if 0, compute from data\n * \param dims       (in)  array [nx, ny, nz] specifying volume dimensions\n * \param verbose    (in)  1 to print parameters to stdout, 0 for silent\n * \return void\n */\nvoid MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, int init, int *dims, int verbose)
+ * \param label      (in)  tissue classification labels (hard assignments)
+ * \param n_classes  (in)  total number of classes
+ * \param alpha      (out) class prevalence/frequency array (length n_classes)
+ * \param beta       (out) strength parameter [1] for MRF smoothing; NULL to skip
+ * \param init       (in)  if 1, initialize alphas to 1.0; if 0, compute from data
+ * \param dims       (in)  array [nx, ny, nz] specifying volume dimensions
+ * \param verbose    (in)  1 to print parameters to stdout, 0 for silent
+ * \return void
+ */
+void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, int init, int *dims, int verbose)
 {
     int i, j, k, x, y, z;
     int fi, fj;
@@ -605,12 +624,18 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
 
 /* Computes likelihood of value given parameters mean and variance */
 /**
- * \brief Compute Gaussian probability density at a given value.\n *
+ * \brief Compute Gaussian probability density at a given value.
+ *
  * Evaluates the normalized Gaussian PDF (normal distribution) given a measured
  * value, class mean, and variance. Core likelihood function for statistical
  * tissue classification in EM-based segmentation algorithms.
  *
- * \param value  (in)  measured intensity value\n * \param mean   (in)  tissue class mean intensity\n * \param var    (in)  tissue class variance (spread)\n * \return Probability density p(value | mean, variance)\n */\ndouble ComputeGaussianLikelihood(double value, double mean, double var)
+ * \param value  (in)  measured intensity value
+ * \param mean   (in)  tissue class mean intensity
+ * \param var    (in)  tissue class variance (spread)
+ * \return Probability density p(value | mean, variance)
+ */
+double ComputeGaussianLikelihood(double value, double mean, double var)
 
 {
     return (exp(-(SQR(value - mean)) / (2.0 * var)) / SQRT2PI / sqrt(var));
@@ -630,7 +655,24 @@ function is primitive , but so is the mankind...
 Jussi Tohka
 */
 
-/**\n * \\brief Compute likelihood for mixed-tissue voxels via marginalized integration.\n *\n * Models voxel intensity as a mixture of two tissue classes via partial volume:\n * y = t*x1 + (1-t)*x2 where t is mixing fraction ∈ [0,1]. Integrates over all\n * possible mixing fractions to compute the likelihood of observing the measured\n * value. Uses numerical quadrature with user-specified interval count. Required\n * for accurate classification of boundary voxels in multi-tissue segmentation.\n *\n * \\param value           (in)  measured intensity value\n * \\param mean1           (in)  first tissue class mean\n * \\param mean2           (in)  second tissue class mean\n * \\param var1            (in)  first tissue class variance\n * \\param var2            (in)  second tissue class variance\n * \\param nof_intervals   (in)  number of integration steps (higher = more accurate, slower)\n * \\return Marginalized likelihood p(value | tissue1, tissue2)\n */\ndouble ComputeMarginalizedLikelihood(double value, double mean1, double mean2,
+/**
+ * \\brief Compute likelihood for mixed-tissue voxels via marginalized integration.
+ *
+ * Models voxel intensity as a mixture of two tissue classes via partial volume:
+ * y = t*x1 + (1-t)*x2 where t is mixing fraction ∈ [0,1]. Integrates over all
+ * possible mixing fractions to compute the likelihood of observing the measured
+ * value. Uses numerical quadrature with user-specified interval count. Required
+ * for accurate classification of boundary voxels in multi-tissue segmentation.
+ *
+ * \\param value           (in)  measured intensity value
+ * \\param mean1           (in)  first tissue class mean
+ * \\param mean2           (in)  second tissue class mean
+ * \\param var1            (in)  first tissue class variance
+ * \\param var2            (in)  second tissue class variance
+ * \\param nof_intervals   (in)  number of integration steps (higher = more accurate, slower)
+ * \\return Marginalized likelihood p(value | tissue1, tissue2)
+ */
+double ComputeMarginalizedLikelihood(double value, double mean1, double mean2,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 double var1, double var2, unsigned int nof_intervals)
 
 {
@@ -650,7 +692,19 @@ Jussi Tohka
 }
 
 /* Find maximum argument out of the n possibilities */
-/**\n * \\brief Find index of maximum value in array.\n *\n * Scans an array of likelihood or probability values and returns the\n * array index corresponding to the maximum value. Used to determine the\n * most likely tissue class for a given voxel during hard segmentation.\n * Returns 1-indexed class label (not 0-indexed).\n *\n * \\param val  (in)  array of likelihood or probability values\n * \\param n    (in)  length of array\n * \\return 1-indexed class label (tissue class), 1 to n\n */\nunsigned char MaxArg(double *val, unsigned char n)
+/**
+ * \\brief Find index of maximum value in array.
+ *
+ * Scans an array of likelihood or probability values and returns the
+ * array index corresponding to the maximum value. Used to determine the
+ * most likely tissue class for a given voxel during hard segmentation.
+ * Returns 1-indexed class label (not 0-indexed).
+ *
+ * \\param val  (in)  array of likelihood or probability values
+ * \\param n    (in)  length of array
+ * \\return 1-indexed class label (tissue class), 1 to n
+ */
+unsigned char MaxArg(double *val, unsigned char n)
 {
     double maximum;
     unsigned char i, index;
@@ -670,6 +724,18 @@ Jussi Tohka
 }
 
 /* Normalize values to an overall sum of 1 */
+/**
+ * \brief Scale array values to sum to 1.0 (probability normalization).
+ *
+ * Divides each element by the total sum, converting a set of values
+ * (e.g., likelihood or probability) into a normalized distribution.
+ * Handles zero-sum cases gracefully to avoid division by zero.
+ * In-place modification: input array is overwritten with normalized results.
+ *
+ * \param val  (in/out) array of values to normalize; modified in-place
+ * \param n    (in)  length of array
+ * \return void
+ */
 void Normalize(double *val, char n)
 {
     double sum_val = 0.0;
@@ -1092,8 +1158,35 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     }
 }
 
-/* perform adaptive MAP on given src and initial segmentation label */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
+/* perform adaptive MAP on given src and initial segmentation label *//**
+ * \brief Adaptive Segmentation atlas Mapping (Amap): tissue classification via EM.
+ *
+ * Core adaptive maximum-likelihood segmentation algorithm for brain tissue
+ * classification (CSF/GM/WM) from multimodal MRI. Implements unified EM loop
+ * with optional Markov Random Field smoothing via Iterated Conditional Modes
+ * (ICM) and partial volume estimation (PVE). Supports multi-step refinement
+ * schedules, edge-preserving MRF priors, and class-specific weighting. Adaptively
+ * adjusts class parameters and labels while iterating to convergence. Widely used
+ * as the foundational segmentation method in CAT12 preprocessing pipelines.
+ *
+ * \param src              (in)  input MRI intensity image
+ * \param label            (out) hard tissue classification labels (1=CSF, 3=GM, 5=WM)
+ * \param prob             (out) soft tissue probability maps (n_classes*nvol)
+ * \param mean             (in/out) class mean intensity estimates; updated in-place
+ * \param n_classes        (in)  number of tissue classes (typically 3-5)
+ * \param niters           (in)  maximum EM iterations
+ * \param sub              (in)  subsampling factor for speed/accuracy trade-off
+ * \param dims             (in)  array [nx, ny, nz] volume dimensions
+ * \param pve              (in)  1 for partial volume estimation, 0 to skip
+ * \param weight_MRF       (in)  MRF regularization strength (0=no smoothing, 1=strong)
+ * \param voxelsize        (in)  array [dx, dy, dz] voxel dimensions in mm
+ * \param niters_ICM       (in)  iterations of ICM mode refinement per EM step
+ * \param verbose          (in)  1 to print progress, 0 for silent
+ * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
+ * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
+ * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
+ * \return void
+ */void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
           double *voxelsize, int niters_ICM, int verbose,
           int use_median, const double *mrf_class_weights, int use_multistep)
