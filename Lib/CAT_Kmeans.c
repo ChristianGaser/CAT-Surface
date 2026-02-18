@@ -27,7 +27,34 @@
 
 #include "CAT_Kmeans.h"
 
-/* perform k-means algorithm given initial mean estimates */      
+/**
+ * \brief Estimate K-means cluster centers using histogram-based refinement.
+ *
+ * Performs iterative K-means refinement on quantized intensity histogram. Initializes
+ * cluster assignments based on intensity and iteratively updates cluster means until
+ * convergence or maximum iterations reached. Operates on 256-bin histogram for efficiency,
+ * then maps final labels back to original voxel data.
+ *
+ * Algorithm:
+ *  1. Build histogram of source intensities (0-255 scale)
+ *  2. Exclude histogram tails (< 1% or > 99% cumsum)
+ *  3. Iterate: assign histogram bins to nearest cluster mean, update means
+ *  4. Build lookup table mapping histogram bins to cluster labels
+ *  5. Apply lookup table to source voxels, respecting mask constraints
+ *  6. Return accumulated squared error of final classification
+ *
+ * \param src           (in)  float[nvox]; source image intensity values
+ * \param label         (out) unsigned char[nvox]; cluster assignments (can be NULL)
+ * \param mask          (in)  unsigned char[nvox]; voxel inclusion mask (can be NULL)
+ * \param n_classes     (in)  number of clusters (classes) to refine
+ * \param mean          (in/out) double[n_classes]; cluster mean intensities (updated)
+ * \param ni            (in)  maximum number of iterations
+ * \param dims          (in)  int[3]; volume dimensions {nx, ny, nz}
+ * \param thresh_mask   (in)  mask threshold; voxels with mask < thresh_mask get label 0
+ * \param thresh_kmeans (in)  threshold for histogram filtering
+ * \param max_src       (in)  maximum source intensity (used for 0-255 scaling)
+ * \return                    Sum of squared errors for final classification
+ */
 double EstimateKmeans(float *src, unsigned char *label, unsigned char *mask, int n_classes, double *mean, int ni, int *dims, int thresh_mask, int thresh_kmeans, double max_src)
 {
     int i, j, j0, v;
@@ -131,46 +158,32 @@ double EstimateKmeans(float *src, unsigned char *label, unsigned char *mask, int
 }
 
 /**
- * Kmeans - Performs K-means clustering on image data.
+ * \brief Perform K-means clustering on image data for tissue segmentation.
  *
- * This function implements a K-means clustering algorithm for segmenting image data into
- * a specified number of clusters. The algorithm iteratively refines the cluster centroids
- * based on the image intensity values. The clustering can be constrained by optional label
- * and mask arrays.
+ * Implements a K-means clustering algorithm for image segmentation, iteratively
+ * refining cluster centroids based on intensity values. Tests cluster counts from
+ * 2 up to n_clusters, selecting the optimal number based on variance reduction.
+ * Clustering can be constrained by optional mask and label arrays.
  *
- * @src: Pointer to the float array containing the source image data.
- *       The array should have 'vol' elements, where 'vol' is the product of the dimensions.
+ * Algorithm:
+ *  1. Find maximum intensity within masked region
+ *  2. For each cluster count (2 to n_clusters):
+ *  3.   Initialize centroids (Otsu's method for 2 clusters)
+ *  4.   Run K-means for NI iterations, updating cluster assignments and means
+ *  5.   Compute log-likelihood to select optimal cluster count
+ *  6. Return maximum intensity found
  *
- * @label: Pointer to an unsigned char array used as a label map. Can be NULL, in which case
- *         it is ignored. If provided, it should have 'vol' elements.
- *
- * @mask: Pointer to an unsigned char array used as a mask. Can be NULL, in which case all
- *        elements are considered. If provided, only elements where the mask has a non-zero
- *        value are considered in the clustering. Should have 'vol' elements.
- *
- * @NI: Integer specifying the number of iterations for the K-means algorithm.
- *
- * @n_clusters: Integer specifying the number of clusters to segment the data into.
- *
- * @mean: Pointer to a double array where the calculated mean values of the clusters will be stored.
- *        This array should have at least 'n_clusters' elements.
- *
- * @voxelsize: Pointer to a double array indicating the size of each voxel in the image data.
- *
- * @dims: Pointer to an integer array of size 3, indicating the dimensions of the image volume.
- *
- * @thresh_mask: Integer threshold value for the mask. Elements in 'src' are considered for clustering
- *               only if the corresponding mask value is greater than or equal to this threshold.
- *
- * @thresh_kmeans: Integer threshold value for K-means clustering. It is used within the algorithm
- *                 to determine the inclusion of elements in clusters.
- *
- * The function starts by finding the maximum intensity within the masked region of the image and
- * then performs K-means clustering for increasing numbers of clusters up to 'n_clusters'. For each
- * number of clusters, it refines the centroids and updates the mean values. The final cluster means
- * are stored in the 'mean' array. The function returns the maximum source intensity found.
- *
- * Return: The maximum intensity value found in the source image data.
+ * \param src           (in)  float[nvox]; source image intensity values
+ * \param label         (out) unsigned char[nvox]; cluster assignments (can be NULL)
+ * \param mask          (in)  unsigned char[nvox]; voxel inclusion mask (can be NULL)
+ * \param NI            (in)  number of K-means iterations
+ * \param n_clusters    (in)  maximum number of clusters to try (2..n_clusters)
+ * \param mean          (out) double[n_clusters]; cluster mean intensities
+ * \param voxelsize     (in)  double[3]; voxel spacing in mm (unused in current impl)
+ * \param dims          (in)  int[3]; volume dimensions {nx, ny, nz}
+ * \param thresh_mask   (in)  mask threshold; voxels with mask < thresh_mask excluded
+ * \param thresh_kmeans (in)  K-means threshold for clustering refinement
+ * \return                    Maximum intensity in the source image
  */
 double Kmeans(float *src, unsigned char *label, unsigned char *mask, int NI, int n_clusters, double *mean, double *voxelsize, int *dims, int thresh_mask, int thresh_kmeans)
 {
