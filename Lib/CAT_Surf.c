@@ -52,20 +52,15 @@ bound(int i, int j, int dm[])
         j = (j < 0) ? (-j - m2*(-j / m2) - 1) : (j - m2*(j / m2));
         if (dm[1] <= j)
             j1 = m2 - j - 1;
-        /**
-         * \brief Create a new pial/white surface without modifying the input mesh.
-         *
-         * Thin wrapper around \c central_to_pial that operates on a copy.
-         *
-         * \param polygons         (in)  central surface mesh
-         * \param thickness_values (in)  per-vertex thickness values
-         * \param extents          (in)  per-vertex displacement multipliers
-         * \param check_intersects (in)  if non-zero, remove near self-intersections
-         * \param sigma            (in)  smoothing sigma for displacement field
-         * \param iterations       (in)  smoothing iterations
-         * \param verbose          (in)  verbosity flag
-         * \return new object array containing a single POLYGONS object
-         */
+        else
+            j1 = j;
+    }
+
+    return(i1 + dm[0]*j1);
+}
+
+/**
+ * \brief Copy Point values to double array of length 3.
  *
  * Function: to_array
  *
@@ -82,7 +77,7 @@ to_array(Point *p, double *xyz) {
 }
 
 /**
- * \brief Mesh geometry utility.
+ * \brief Copy Point values from double array of length 3.
  *
  * Function: from_array
  *
@@ -1689,18 +1684,21 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
                     point_error[ptidx] = TRUE;
                     ++n_errors;
                 }
-/**
- * \brief Compute local per-vertex statistics on a surface.
- *
- * Computes mean/median/std/min/max over each vertex's 1-ring neighbors plus
- * the center vertex using precomputed polygon neighbors.
- *
- * \param polygons  (in)     input mesh
- * \param input     (in/out) per-vertex values (length n_points)
- * \param mask      (in)     optional mask (0 = skip), length n_points
- * \param stat_func (in)     F_MEAN, F_MEDIAN, F_STD, F_MIN, or F_MAX
- * \param iters     (in)     number of iterations (>=1)
- */
+#else
+                ccw_neighbours(&centroids[ptidx], &normal,
+                         new_points, n_nb,
+                         neighbours, point_error);
+#endif
+            }
+        }
+    }
+
+
+#ifdef DEBUG
+    n_errors = 0;
+    n_bad_points = 0;
+#endif
+    for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
         if (point_error[ptidx] > 0) {
 #ifdef DEBUG
             ++n_errors;
@@ -1709,24 +1707,26 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
                 printf(" %d", ptidx);
 #endif
             new_points[ptidx] = centroids[ptidx];
-        /**
-         * \brief Translate a mesh to align bounds with a target mesh.
-         *
-         * Subtracts the difference between source and target bounds from each vertex.
-         *
-         * \param polygons (in/out) mesh to translate
-         * \param target   (in)     target mesh defining desired bounds
-         */
+        }
+    }
+
+#ifdef DEBUG
+    if (n_errors > 0)
+        printf(": Shape errors %d/%d\n", n_errors, n_bad_points);
+#endif
+
+    free(point_error);
     free(centroids);
     free(point_done);
-/**
- * \brief Scale and translate a mesh to match target bounds.
- *
- * Scales each axis to match the target range, then translates to align bounds.
- *
- * \param polygons (in/out) mesh to scale and translate
- * \param target   (in)     target mesh defining desired bounds
+}
+
+/*
+ * Calls central_to_pial, but creates a new surface object and does not modify the original surface
+ * The direct implementation into central_to_pial was not working because of issues with the function 
+ * check_polygons_shape_integrity.
  */
+/**
+ * \brief Create a new pial/white surface from a central surface without modifying the input.
  *
  * Thin wrapper around \c central_to_pial that works on a copy (due to integrity checks).
  * \return new object array containing a single POLYGONS object.
@@ -1870,11 +1870,9 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
     return(surface_area);
 }
 
-/* objective function for finding the minimum of the difference to either a defined 
- * isovalue in a volume or to a reference mesh
-*/
 /**
- * \brief Compute or return a derived quantity from the mesh.
+ * \brief Finding the minimum of the difference to either a defined 
+ * isovalue in a volume or to a reference mesh
  *
  * Function: get_distance_mesh_correction
  *
