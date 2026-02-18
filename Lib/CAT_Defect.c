@@ -21,6 +21,17 @@ void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
                                         const double, const int, const double,
                                         const double, const double, const int);
 
+/**
+ * \brief Calculate average normal direction vector of a topological defect patch.
+ *
+ * Computes the mean normal vector across all vertices belonging to a specific defect.
+ * Used to determine the dominant orientation/direction of a filled hole or topology fix.
+ *
+ * \param surface (in) input mesh
+ * \param defects (in) per-vertex defect labels (0=no defect, >0=defect ID)
+ * \param defect  (in) defect ID to analyze
+ * \return Vector pointing in average direction of defect normals
+ */
 Vector
 defect_direction(polygons_struct *surface, int *defects, int defect)
 {
@@ -37,6 +48,24 @@ defect_direction(polygons_struct *surface, int *defects, int defect)
     return dir;
 }
 
+/**
+ * \brief Compute Euler characteristic of a defect patch within mesh topology.
+ *
+ * Calculates V - E + F (vertices - edges + faces) for a defect region.
+ * Returns the Euler characteristic which indicates topological genus:
+ * - E = 2: genus-0 (sphere, no holes)
+ * - E = 0: genus-1 (torus, 1 hole)
+ * - E = -2: genus-2 (2 holes), etc.
+ * Used for characterizing topological defects (holes vs handles).
+ *
+ * \param surface     (in) input mesh
+ * \param defects     (in) per-vertex defect labels
+ * \param polydefects (in/out) per-polygon defect labels (allocated if NULL)
+ * \param defect      (in) defect ID to analyze
+ * \param n_neighbours (in) per-vertex neighbor counts
+ * \param neighbours  (in) per-vertex neighbor lists
+ * \return Euler characteristic (typically 0, 2, -2, etc.)
+ */
 int
 defect_euler(polygons_struct *surface, int *defects, int *polydefects,
        int defect, int *n_neighbours, int **neighbours)
@@ -81,6 +110,21 @@ defect_euler(polygons_struct *surface, int *defects, int *polydefects,
     return (n_v + n_f - n_e);
 }
 
+/**
+ * \brief Check if a triangle polygon lies on the boundary of a defect patch.
+ *
+ * Tests whether a polygon has neighbors in different defect regions (i.e., crosses
+ * the defect/non-defect boundary). Useful for identifying edge triangles that need
+ * special handling during topology repair.
+ *
+ * \param surface      (in) input mesh
+ * \param defects      (in) per-vertex defect labels
+ * \param polydefects  (in) per-polygon defect labels
+ * \param n_neighbours (in) per-vertex neighbor counts
+ * \param neighbours   (in) per-vertex neighbor lists
+ * \param polygon      (in) polygon index to test
+ * \return 1 if polygon is on defect boundary; 0 otherwise
+ */
 int
 isedge(polygons_struct *surface, int *defects, int *polydefects,
      int *n_neighbours, int **neighbours, int polygon)
@@ -100,6 +144,22 @@ isedge(polygons_struct *surface, int *defects, int *polydefects,
     return 0;
 }
 
+/**
+ * \brief Detect topological defects (holes and handles) in a cortical surface mesh.
+ *
+ * Identifies regions where surface topology deviates from genus-0 (sphere).
+ * Uses Euler characteristic computation and loop analysis to locate and classify:
+ * - HOLE (defect=1): topological holes requiring closing/filling
+ * - HANDLE (defect=2): genus-1 handles requiring removal or closure
+ * Returns array of per-vertex defect labels for identified problems.
+ *
+ * \param surface      (in)  input mesh to analyze
+ * \param sphere       (in)  reference sphere for validation
+ * \param defects      (out) allocated per-vertex defect labels
+ * \param n_neighbours (in)  per-vertex neighbor counts
+ * \param neighbours   (in)  per-vertex neighbor lists
+ * \return number of defects found
+ */
 int
 find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
              int *defects, int *n_neighbours, int **neighbours)
@@ -149,6 +209,22 @@ find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
 /* expand defects to include neighboring points.  defect = 0 for all defects,
  * or can just expand one defect.
  */
+/**
+ * \brief Expand defect region by propagating labels to neighboring vertices.
+ *
+ * Grows a defect patch by N iterations of neighborhood dilation. Each iteration
+ * marks all neighbors of current defect vertices with the defect label. Used to
+ * enlarge isolated or small defect regions before processing/filling.
+ *
+ * \param surface      (in) input mesh
+ * \param defects      (in/out) per-vertex defect labels (modified in place)
+ * \param polydefects  (in/out) per-polygon defect labels (updated)
+ * \param defect       (in) defect ID to expand (0 for all)
+ * \param level        (in) number of dilation iterations
+ * \param n_neighbours (in) per-vertex neighbor counts
+ * \param neighbours   (in) per-vertex neighbor lists
+ * \return void
+ */
 void
 expand_defects(polygons_struct *surface, int *defects, int *polydefects,
         int defect, int level, int *n_neighbours, int **neighbours)
@@ -181,7 +257,30 @@ expand_defects(polygons_struct *surface, int *defects, int *polydefects,
 }
 
 
-/* Update the defect list from the polygon defect list */
+/**
+ * \brief Update per-vertex defect labels from per-polygon (triangle) defect labels.
+ *
+ * Propagates polygon-level defect assignments to all vertices of defective triangles.
+ * Ensure vertices of defective polygons are marked as defective. Clears deactivated
+ * vertex labels before propagating from polygons (memset to 0).
+ *
+ * \param surface     (in) input mesh
+ * \param polydefects (in) per-polygon defect labels
+ * \param defects     (out) per-vertex defect labels (cleared and updated)
+ * \return void
+ */
+/**
+ * \brief Update per-vertex defect labels from per-polygon (triangle) defect labels.
+ *
+ * Propagates defect information from the polygonal mesh level to the vertex level.
+ * Each vertex inherits the defect label of any polygon it belongs to; all three vertices
+ * of a defective polygon are marked with the same defect ID. Inverse of update_polydefects.
+ *
+ * \param surface    (in)  input mesh
+ * \param polydefects (in) per-polygon defect labels
+ * \param defects    (out) per-vertex defect labels (overwritten)
+ * \return void
+ */
 void
 update_defects(polygons_struct *surface, int *polydefects, int *defects)
 {
@@ -203,6 +302,17 @@ update_defects(polygons_struct *surface, int *polydefects, int *defects)
 
 
 /* Update the polygon defect list from the point defect list */
+/**
+ * \brief Update per-polygon (triangle) defect labels from per-vertex defect labels.
+ *
+ * Inverse of update_defects: marks all polygons containing any defective vertex
+ * as defective. Used after vertex-level defect propagation to propagate to face level.
+ *
+ * \param surface     (in) input mesh
+ * \param defects     (in) per-vertex defect labels
+ * \param polydefects (out) per-polygon defect labels (updated)
+ * \return void
+ */
 void
 update_polydefects(polygons_struct *surface, int *defects, int *polydefects)
 {
@@ -254,7 +364,17 @@ get_defect_bounds(polygons_struct *surface, int *defects, int defect,
 
 /* holes = 1, handles = 2, large errors = 3, ventricles = 4 */
 
-/* returns the center point of a defect */
+/**
+ * \brief Calculate the centroid (center point) of a defect patch.
+ *
+ * Computes the mean 3D position of all vertices belonging to a specific defect.
+ * Useful for locating/visualizing defect positions and for defect repair algorithms.
+ *
+ * \param surface (in) input mesh
+ * \param defects (in) per-vertex defect labels
+ * \param defect  (in) defect ID to analyze
+ * \return 3D point at center of mass of defect vertices
+ */
 Point
 get_defect_center(polygons_struct *surface, int *defects, int defect)
 {
@@ -277,7 +397,15 @@ get_defect_center(polygons_struct *surface, int *defects, int defect)
     return center;
 }
 
-/* returns size of detect in relation to overall surface size */
+/**
+ * \brief Calculate the relative size of each defect patch as fraction of total surface.
+ *
+ * Computes the number of vertices in each defect and normalizes by total mesh vertices.\n * Produces per-vertex size values: all vertices in defect d get assigned size[d].\n *
+ * \param surface       (in) input mesh
+ * \param defects       (in) per-vertex defect labels
+ * \param n_defects     (in) total number of defects
+ * \param defect_size   (out) per-vertex size values (normalized 0-1)\n * \return void
+ */
 void
 get_defect_size(polygons_struct *surface, int *defects, int n_defects, 
           double *defect_size)
@@ -308,7 +436,22 @@ get_defect_size(polygons_struct *surface, int *defects, int n_defects,
     free(size);
 }
 
-/* cut defects in half, saving top half of holes and bottom half of handles based on sulcal depth of inflated surface */
+/**
+ * \brief Bisect topological defects by sulcal depth to separate holes and handles.
+ *
+ * Splits defect regions along maximum sulcal depth gradient: keeps top half for holes,
+ * bottom half for handles. Uses inflated surface to estimate sulcal depth; falls back to
+ * Hausdorff distance if depth estimation fails. Marks bisected vertices in output array.
+ *
+ * \param surface      (in)  original mesh
+ * \param sphere       (in)  spherical reference mesh
+ * \param defects      (in)  per-vertex defect labels and IDs
+ * \param n_defects    (in)  number of distinct defects
+ * \param holes        (in/out) array identifying hole vs handle classification
+ * \param bisected     (out) per-vertex marking indicating bisection result
+ * \param detect_euler (in)  flag to compute Euler characteristic for classification
+ * \return void
+ */
 void
 bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, int n_defects,
          int *holes, int *bisected, int detect_euler)
@@ -401,6 +544,17 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 
 }
 
+/**
+ * \brief Inflate surface while preserving topology defects for visualization and analysis.
+ *
+ * Progressively inflates the mesh in four stages (smooth, regular inflated, very inflated, high smooth)
+ * with configurable iterations that scale with mesh size. Smooths fingers/protrusions between stages.
+ * Adds jitter noise to avoid subsequent convex hull computation artifacts. Used to enhance visual
+ * separation of holes and handles based on sulcal depth differences.
+ *
+ * \param polygons (in/out) surface mesh modified in place by inflation and smoothing operations
+ * \return void
+ */
 void
 inflate_surface_with_topology_defects(polygons_struct *polygons)
 {
@@ -466,8 +620,21 @@ inflate_surface_with_topology_defects(polygons_struct *polygons)
     compute_polygon_normals(polygons);
 }
 
-/* remap topological defects from the original spherical mapping to a new
- * spherical mapping
+/**
+ * \brief Remap topological defects from one spherical surface to another reference map.
+ *
+ * Transfers defect labels from source sphere to a new spherical coordinate system (target remap surface).
+ * For each defective vertex on the source sphere, finds the closest point on target surface, marks all
+ * vertices of that polygon with the same defect label. Uses spatial binning tree for efficient nearest-point
+ * queries. Updates both per-vertex and per-polygon defect representations on target.
+ *
+ * \param sphere           (in)  source spherical surface with defects
+ * \param defects          (in)  per-vertex defect labels on source
+ * \param polydefects      (in)  per-polygon defect labels on source
+ * \param remap            (in)  target spherical reference surface (bintree built if missing)
+ * \param remap_defects    (out) per-vertex defect labels on target
+ * \param remap_polydefects (out) per-polygon defect labels on target
+ * \return void
  */
 void
 remap_defect(polygons_struct *sphere, int *defects, int *polydefects,
