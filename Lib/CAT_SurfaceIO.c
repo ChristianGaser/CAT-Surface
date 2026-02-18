@@ -168,6 +168,18 @@ int qem_target(int nf_total, int target)
     return target;
 }
 
+/**
+ * \brief Convert BICPL polygons_struct to flat vertex and face arrays for external processing.
+ *
+ * Unpacks polygon coordinates into a flat vertex array (x,y,z interleaved as columns)
+ * and polygon indices into a flat face array. Outputs are column-major for compatibility with
+ * MATLAB-style array handling. Face indices are 1-indexed (MATLAB convention).
+ *
+ * \param polygons (in)  input mesh with points and indices
+ * \param faces    (out) allocated array of shape (n_items, 3) containing 1-indexed vertex indices
+ * \param vertices (out) allocated array of shape (3, n_points) with x,y,z coordinates
+ * \return OK on success; ERROR if any polygon is non-triangular
+ */
 Status
 bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
 {
@@ -573,6 +585,19 @@ gifti_set_DA_value_2D (giiDataArray* da, int row, int col, double value)
     return;
 }
 
+/**
+ * \brief Read OFF format mesh file (OOGL/Geomview format).
+ *
+ * Parses ASCII OFF (Object File Format) containing vertices and triangles.
+ * Allocates a polygons_struct, reads vertex coordinates and triangle indices,
+ * and computes per-vertex normals. Returns error if non-triangle faces are found.
+ *
+ * \param file         (in)  path to OFF file
+ * \param format       (out) set to ASCII_FORMAT
+ * \param n_objects    (out) set to 1 (single polygon object)
+ * \param object_list  (out) allocated array of objects (single POLYGONS object)
+ * \return OK on success; ERROR if file format is invalid or non-triangular faces found
+ */
 int
 input_oogl(char *file, File_formats *format, int *n_objects,
        object_struct ***object_list)
@@ -642,6 +667,19 @@ input_oogl(char *file, File_formats *format, int *n_objects,
     return(OK);
 }
 
+/**
+ * \brief Write polygons to OFF format file (OOGL/Geomview).
+ *
+ * Exports a polygon mesh to ASCII OFF format with vertex coordinates and triangle
+ * indices. Each polygon is written as a triangle face. Format is compatible with
+ * Geomview 3D visualization tool.
+ *
+ * \param file        (in) output file path
+ * \param format      (in) format specification (typically ASCII_FORMAT)
+ * \param n_objects   (in) number of objects to write (typically 1)
+ * \param object_list (in) array of objects; first must be a mesh
+ * \return OK on success; ERROR on file write failure
+ */
 int
 output_oogl(char *file, File_formats format, int n_objects,
       object_struct *object_list[])
@@ -678,6 +716,21 @@ output_oogl(char *file, File_formats format, int n_objects,
     return(OK);
 }
 
+/**
+ * \brief Write polygon mesh and optional scalar data to GIFTI format.
+ *
+ * Exports a triangular mesh to GIFTI (Geometry and Image Format for Interchange of
+ * Data on Surfaces and Brains) format. Supports both embedded (gzip+base64) and
+ * external binary (.gii + .dat pair) encoding. Includes optional per-vertex scalar
+ * data (e.g., cortical thickness, curvature). Optionally computes and exports vertex normals.
+ *
+ * \param fname       (in) output GIFTI filename (.gii); if .dat path given, triggers external binary storage
+ * \param format      (in) format specification
+ * \param n_objects   (in) number of mesh objects (typically 1)
+ * \param object_list (in) array of objects; first should be a POLYGONS mesh
+ * \param values      (in) optional scalar data array (per-vertex); NULL to skip
+ * \return 0 on success; -1 on allocation or write error
+ */
 int
 output_gifti(char *fname, File_formats format, int n_objects,
              object_struct *object_list[], double *values)
@@ -1034,6 +1087,18 @@ output_gifti(char *fname, File_formats format, int n_objects,
     return OK;
 }
 
+/**
+ * \brief Write per-vertex scalar data to GIFTI format (shape data).
+ *
+ * Saves a 1D array of scalar values (e.g., thickness, curvature) to GIFTI format.
+ * Supports both embedded and external binary encoding (selected by .dat extension).
+ * Creates a GIFTI file with NIFTI_INTENT_SHAPE metadata for morphometric analyses.
+ *
+ * \param fname     (in) output GIFTI filename (.gii); or .dat to trigger external binary pair
+ * \param nvertices (in) number of vertices (length of data array)
+ * \param data      (in) per-vertex scalar values (size nvertices)
+ * \return 0 on success; -1 on allocation or write error
+ */
 int
 output_gifti_curv(char *fname, int nvertices, double *data)
 {
@@ -1184,6 +1249,23 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     return OK;
 }
 
+/**
+ * \brief Read polygon mesh and optional texture data from GIFTI format.
+ *
+ * Parses GIFTI (.gii) format files containing surface mesh coordinates, topology,
+ * and optional per-vertex data. Handles both embedded (base64/gzip) and external
+ * binary (.gii + .dat pairs) encodings. Works around path resolution issues by
+ * temporarily changing to the GIFTI file's directory for reading paired .dat files.
+ * Allocates polygon structure and texture arrays as needed.
+ *
+ * \param file         (in)  path to GIFTI file (.gii)
+ * \param format       (out) set to ASCII_FORMAT
+ * \param n_objects    (out) number of objects loaded (typically 1)
+ * \param object_list  (out) allocated array of objects containing the mesh
+ * \param n_values     (out) number of per-vertex values (0 if no texture)
+ * \param values       (out) allocated shape data array (NULL if not present)
+ * \return OK on success; ERROR if file is invalid or corrupted
+ */
 int
 input_gifti(char *file, File_formats *format, int *n_objects,
          object_struct ***object_list, int *n_values, double **values)
@@ -1354,6 +1436,19 @@ input_gifti(char *file, File_formats *format, int *n_objects,
 
 }
 
+/**
+ * \brief Read per-vertex scalar data from GIFTI format.
+ *
+ * Parses shape data (thickness, curvature, gyrification) from a GIFTI file.
+ * Allocates and fills the data array with per-vertex values. Handles both
+ * embedded and external binary (.dat) encodings. Temporarily changes directory
+ * to resolve external file references.
+ *
+ * \param file     (in)  path to GIFTI file
+ * \param vnum     (out) number of vertices (length of data array)
+ * \param input_values (out) allocated array of per-vertex scalar values
+ * \return OK on success; ERROR if file format is invalid or corrupted
+ */
 int
 input_gifti_curv(char *file, int *vnum, double **input_values)
 {
@@ -1411,16 +1506,22 @@ input_gifti_curv(char *file, int *vnum, double **input_values)
     return(OK);
 }
 
-/* ------------------------------------------------------------------ */
-/* input_gifti_mesh_and_texture                                        */
-/*                                                                     */
-/* Read a GIFTI file that contains both a surface mesh (POINTSET +     */
-/* TRIANGLE) and at least one SHAPE data array (texture/value).        */
-/*                                                                     */
-/* The mesh is returned through the usual object_list.                 */
-/* The first SHAPE data array is returned in *n_values / *values.      */
-/* Returns OK on success, ERROR otherwise.                             */
-/* ------------------------------------------------------------------ */
+/**
+ * \brief Read both mesh and texture data from a single GIFTI file.
+ *
+ * Convenience function that reads geometry (vertices/triangles) and optionally
+ * per-vertex scalar data from the same GIFTI file. Combines functionality of
+ * input_gifti and input_gifti_curv for single-step reading of complete surfaces.
+ * Handles both embedded and external binary (.gii + .dat pairs) encodings.
+ *
+ * \param file         (in)  path to GIFTI file
+ * \param format       (out) file format identifier
+ * \param n_objects    (out) number of objects (typically 1)
+ * \param object_list  (out) allocated mesh objects
+ * \param n_values     (out) number of per-vertex scalar values
+ * \param values       (out) per-vertex data array
+ * \return OK on success; ERROR if file format is invalid
+ */
 int
 input_gifti_mesh_and_texture(char *file, File_formats *format,
                              int *n_objects, object_struct ***object_list,
@@ -1564,6 +1665,18 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
     return(OK);
 }
 
+/**
+ * \brief Read per-vertex scalar data from FreeSurfer curv format.
+ *
+ * Parses FreeSurfer curv files containing morphometric measurements per vertex
+ * (e.g., thickness, curvature, gyrification). Binary format with header followed
+ * by float32 values (one per vertex).
+ *
+ * \param file         (in)  path to FreeSurfer curv file
+ * \param vnum         (out) number of vertices
+ * \param input_values (out) allocated array of per-vertex data
+ * \return OK on success; ERROR on file read failure
+ */
 int
 input_freesurfer_curv(char *file, int *vnum, double **input_values)
 {
@@ -1601,6 +1714,17 @@ input_freesurfer_curv(char *file, int *vnum, double **input_values)
     return(OK);
 }
 
+/**
+ * \brief Read polygon mesh from OpenDX (Data Explorer) format.
+ *
+ * Parses OpenDX surface format (.dx files), extracting vertex coordinates and
+ * connectivity information. Allocates BICPL polygon structure for further processing.\n *
+ * \param file         (in)  path to OpenDX file
+ * \param format       (out) set to ASCII_FORMAT
+ * \param n_objects    (out) number of objects (typically 1)
+ * \param object_list  (out) allocated polygon mesh object
+ * \return OK on success; ERROR if file format is invalid
+ */
 int
 input_dx(char *file, File_formats *format, int *n_objects,
      object_struct  ***object_list)
@@ -1695,6 +1819,16 @@ input_dx(char *file, File_formats *format, int *n_objects,
     return(OK);
 }
 
+/**
+ * \brief Read polygon mesh from DFS (Freesurfer-specific) format.
+ *
+ * Parses DFS (Document File System) format files used by some FreeSurfer tools.
+ * Extracts vertex coordinates and triangle connectivity from binary DFS format.\n *
+ * \param file         (in)  path to DFS file
+ * \param format       (out) format identifier
+ * \param n_objects    (out) number of objects (typically 1)
+ * \param object_list  (out) allocated polygon mesh object
+ * \return OK on success; ERROR if format is not supported or invalid\n */
 int
 input_dfs(char *file, File_formats *format, int *n_objects,
       object_struct ***object_list)
@@ -1773,6 +1907,15 @@ input_dfs(char *file, File_formats *format, int *n_objects,
     return(OK);
 }
 
+/**
+ * \brief Read 2D image data from PGM (Portable Graymap) format.
+ *
+ * Parses ASCII or binary PGM format image files (P2 or P5 magic numbers).\n * Allocates and returns a 2D image array with per-pixel intensity values.\n *
+ * \param file (in)  path to PGM file
+ * \param nx   (out) image width (number of columns)
+ * \param ny   (out) image height (number of rows)
+ * \return allocated double array of size nx*ny (row-major order); NULL on error
+ */
 double *
 read_pgm(char *file, int *nx, int *ny)
 {
@@ -1820,6 +1963,17 @@ read_pgm(char *file, int *nx, int *ny)
     return(data);
 }
 
+/**
+ * \brief Write 2D image data to PGM (Portable Graymap) format.
+ *
+ * Exports a 2D image array to PGM format (P5 binary magic number) after scaling
+ * to 8-bit unsigned integer range [0, 255]. Computes min/max of input data for\n * automatic scaling. Useful for intermediate visualization of cortical metrics.\n *
+ * \param file (in) output PGM file path  
+ * \param data (in) 2D image array (size nx*ny, row-major order)
+ * \param nx   (in) image width (number of columns)
+ * \param ny   (in) image height (number of rows)
+ * \return 0 on success; -1 on file write error
+ */
 int
 write_pgm(char *file, double *data, int nx, int ny)
 {
@@ -1891,6 +2045,15 @@ input_txt_values(
 }
 
 
+/**
+ * \brief Read 1D scalar values from file in auto-detected format.
+ *
+ * Detects file format from extension and reads per-vertex or per-element scalar\n * data (e.g., thickness, curvature). Supports text and binary formats including\n * FreeSurfer curv, GIFTI, and simple whitespace-delimited text.\n *
+ * \param file     (in)  input file path
+ * \param n_values (out) number of values read
+ * \param values   (out) allocated array of scalar values
+ * \return OK on success; ERROR if format is unrecognized or read fails
+ */
 Status
 input_values_any_format(char *file, int *n_values, double **values)
 {
@@ -1908,6 +2071,19 @@ input_values_any_format(char *file, int *n_values, double **values)
 }
 
 
+/**
+ * \brief Write 1D scalar values to file in auto-detected format.
+ *
+ * Exports per-vertex or per-element scalar data to file based on extension.
+ * Automatically converts input to double precision and se lects appropriate format
+ * (FreeSurfer curv, GIFTI, or plain text) based on filename.
+ *
+ * \param file     (in) output file path
+ * \param n_values (in) number of scalar values
+ * \param values   (in) array of values (type determined by flag)
+ * \param flag     (in) data type: TYPE_DOUBLE, TYPE_INTEGER, or TYPE_CHAR
+ * \return OK on success; ERROR on write failure
+ */
 Status
 output_values_any_format(const char *file, int n_values, void *values, int flag)
 {
@@ -1949,6 +2125,16 @@ output_values_any_format(const char *file, int n_values, void *values, int flag)
     return(status);
 }
 
+/**
+ * \brief Read polygon mesh in auto-detected geometry format.
+ *
+ * Loads mesh from file with format detection based on file extension.\n * Supports OBJ, OFF (Geomview), GIFTI, FreeSurfer, DFS, and OpenDX formats.\n * Allocates polygon structure and returns both mesh object and format identifier.\n *
+ * \param file         (in)  mesh file path
+ * \param format       (out) detected file format
+ * \param n_objects    (out) number of mesh objects (typically 1)
+ * \param object_list  (out) allocated polygon mesh objects
+ * \return OK on success; ERROR if format unrecognized or read fails
+ */
 Status
 input_graphics_any_format(char *file, File_formats *format, int *n_objects,
               object_struct ***object_list)
@@ -1978,6 +2164,17 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
     return(status);
 }
 
+/**
+ * \brief Write polygon mesh to auto-detected output format.
+ *
+ * Saves mesh to file with format selection based on file extension.\n * Supports OBJ, OFF (Geomview), GIFTI, FreeSurfer, and other formats.\n * Optionally includes per-vertex scalar data (thickness, curvature) for formats\n * that support it (GIFTI, FreeSurfer curv).\n *
+ * \param file         (in) output mesh file path
+ * \param format       (in) format specification
+ * \param n_objects    (in) number of mesh objects (typically 1)
+ * \param object_list  (in) array of polygon mesh objects
+ * \param values       (in) optional per-vertex scalar data; NULL to skip
+ * \return OK on success; ERROR if format unrecognized or write fails
+ */
 Status
 output_graphics_any_format(char *file, File_formats format, int n_objects,
                object_struct **object_list, double *values)
@@ -2002,6 +2199,17 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
     return(status);
 }
 
+/**
+ * \brief Read FreeSurfer annotation table (ROI labels) from file.
+ *
+ * Parses FreeSurfer .annot format files containing per-vertex anatomical region\n * labels and color/naming information. Maps vertex indices to region labels\n * and returns label definitions (name, RGB color) for visualization.\n *
+ * \param file       (in)  path to .annot file
+ * \param n_array    (out) number of vertices in annotation
+ * \param out_array  (out) allocated array of per-vertex labels (indices into label table)
+ * \param n_labels   (out) number of unique labels in table
+ * \param out_atable (out) allocated label table with names and colors
+ * \return number of entries read on success; ERROR on read failure
+ */
 int
 read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, ATABLE **out_atable)
 {
@@ -2080,6 +2288,17 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
     return(OK);
 }
 
+/**
+ * \brief Write FreeSurfer annotation table (ROI labels) to file.
+ *
+ * Saves per-vertex anatomical region labels and label definitions (names, RGB colors)\n * to FreeSurfer .annot format. Used to store parcellation/segmentation results\n * for anatomical ROI-based analysis.\n *
+ * \param file     (in) output .annot file path
+ * \param n_array  (in) number of vertices to write
+ * \param array    (in) per-vertex label indices (size n_array)
+ * \param n_labels (in) number of labels in table
+ * \param atable   (in) label table with names and RGB colors
+ * \return OK on success; ERROR on write failure
+ */
 int
 write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE *atable)
 {
