@@ -138,6 +138,13 @@ When adding or changing a CLI tool:
 - Use C99 for compatibility with older environments.
 - Keep functions small and well documented.
 - For public C APIs, use clear comment blocks in headers and at function definitions.
+- **All public library functions used by CLI tools must be documented.**
+  Any function declared in `Include/CAT_*.h` that is called (directly or
+  indirectly) from `Progs/CAT_*.c` must have Doxygen-style documentation both:
+  1) at the declaration in the header, and
+  2) at the corresponding definition in `Lib/`.
+  Missing docs for CLI-used public APIs are considered a documentation bug and
+  should be fixed as part of the same change.
 - **Documentation Style:** All public functions and significant internal utilities use **Doxygen-style documentation** with the following pattern:
 
   ```c
