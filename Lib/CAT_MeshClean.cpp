@@ -22,7 +22,8 @@
 
 /* CAT interface - extern "C" for C linkage */
 /* NOTE: Include CAT headers BEFORE MeshFix to avoid name collisions */
-extern "C" {
+extern "C"
+{
 #include "CAT_MeshClean.h"
 }
 
@@ -32,12 +33,12 @@ extern "C" {
 #include "vertex.h"
 
 /* Typedefs to avoid namespace collision with Point/Vector */
-typedef T_MESH::Basic_TMesh    TMesh;
-typedef T_MESH::Node           TNode;
-typedef T_MESH::Vertex         TVertex;
-typedef T_MESH::Triangle       TTriangle;
-typedef T_MESH::ExtVertex      TExtVertex;
-typedef T_MESH::coord          TCoord;
+typedef T_MESH::Basic_TMesh TMesh;
+typedef T_MESH::Node TNode;
+typedef T_MESH::Vertex TVertex;
+typedef T_MESH::Triangle TTriangle;
+typedef T_MESH::ExtVertex TExtVertex;
+typedef T_MESH::coord TCoord;
 
 /**
  * \brief Convert a BICPL mesh into a MeshFix TMesh.
@@ -58,7 +59,8 @@ static int polygons_to_tmesh(const polygons_struct *polys, TMesh *mesh)
     int n_triangles = polys->n_items;
 
     /* Add vertices */
-    for (int i = 0; i < n_vertices; i++) {
+    for (int i = 0; i < n_vertices; i++)
+    {
         TCoord x = (TCoord)Point_x(polys->points[i]);
         TCoord y = (TCoord)Point_y(polys->points[i]);
         TCoord z = (TCoord)Point_z(polys->points[i]);
@@ -67,21 +69,25 @@ static int polygons_to_tmesh(const polygons_struct *polys, TMesh *mesh)
 
     /* Create ExtVertex array for indexed triangle creation */
     TExtVertex **var = (TExtVertex **)malloc(sizeof(TExtVertex *) * n_vertices);
-    if (!var) return -1;
+    if (!var)
+        return -1;
 
     int idx = 0;
     TNode *node;
     TVertex *v;
-    for (node = mesh->V.head(); node != NULL; node = node->next()) {
+    for (node = mesh->V.head(); node != NULL; node = node->next())
+    {
         v = (TVertex *)node->data;
         var[idx++] = new TExtVertex(v);
     }
 
     /* Add triangles */
     int poly_idx = 0;
-    for (int t = 0; t < n_triangles; t++) {
+    for (int t = 0; t < n_triangles; t++)
+    {
         int n_verts = polys->end_indices[t] - poly_idx;
-        if (n_verts != 3) {
+        if (n_verts != 3)
+        {
             /* Only triangles supported */
             fprintf(stderr, "CAT_MeshClean: Non-triangle face detected (polygon %d has %d vertices)\n", t, n_verts);
             poly_idx = polys->end_indices[t];
@@ -95,12 +101,14 @@ static int polygons_to_tmesh(const polygons_struct *polys, TMesh *mesh)
 
         if (i1 < 0 || i1 >= n_vertices ||
             i2 < 0 || i2 >= n_vertices ||
-            i3 < 0 || i3 >= n_vertices) {
+            i3 < 0 || i3 >= n_vertices)
+        {
             fprintf(stderr, "CAT_MeshClean: Invalid vertex index at triangle %d\n", t);
             continue;
         }
 
-        if (i1 == i2 || i2 == i3 || i3 == i1) {
+        if (i1 == i2 || i2 == i3 || i3 == i1)
+        {
             /* Degenerate triangle, skip */
             continue;
         }
@@ -109,7 +117,8 @@ static int polygons_to_tmesh(const polygons_struct *polys, TMesh *mesh)
     }
 
     /* Cleanup ExtVertex array */
-    for (int i = 0; i < n_vertices; i++) {
+    for (int i = 0; i < n_vertices; i++)
+    {
         delete var[i];
     }
     free(var);
@@ -141,26 +150,41 @@ static int tmesh_to_polygons(TMesh *mesh, polygons_struct *polys)
         return -1;
 
     /* Free old polygon data if present */
-    if (polys->n_points > 0 && polys->points) {
+    if (polys->n_points > 0 && polys->points)
+    {
         free(polys->points);
         polys->points = NULL;
     }
-    if (polys->n_items > 0) {
-        if (polys->normals) { free(polys->normals); polys->normals = NULL; }
-        if (polys->indices) { free(polys->indices); polys->indices = NULL; }
-        if (polys->end_indices) { free(polys->end_indices); polys->end_indices = NULL; }
+    if (polys->n_items > 0)
+    {
+        if (polys->normals)
+        {
+            free(polys->normals);
+            polys->normals = NULL;
+        }
+        if (polys->indices)
+        {
+            free(polys->indices);
+            polys->indices = NULL;
+        }
+        if (polys->end_indices)
+        {
+            free(polys->end_indices);
+            polys->end_indices = NULL;
+        }
     }
 
     /* Initialize polygon structure */
     polys->n_points = n_vertices;
     polys->n_items = n_triangles;
-    
+
     polys->points = (VIO_Point *)malloc(n_vertices * sizeof(VIO_Point));
     polys->normals = (VIO_Vector *)malloc(n_vertices * sizeof(VIO_Vector));
     polys->indices = (int *)malloc(n_triangles * 3 * sizeof(int));
     polys->end_indices = (int *)malloc(n_triangles * sizeof(int));
-    
-    if (!polys->points || !polys->normals || !polys->indices || !polys->end_indices) {
+
+    if (!polys->points || !polys->normals || !polys->indices || !polys->end_indices)
+    {
         return -1;
     }
 
@@ -168,7 +192,8 @@ static int tmesh_to_polygons(TMesh *mesh, polygons_struct *polys)
     TNode *node;
     TVertex *v;
     int idx = 0;
-    for (node = mesh->V.head(); node != NULL; node = node->next()) {
+    for (node = mesh->V.head(); node != NULL; node = node->next())
+    {
         v = (TVertex *)node->data;
         Point_x(polys->points[idx]) = (Real)v->x;
         Point_y(polys->points[idx]) = (Real)v->y;
@@ -181,7 +206,8 @@ static int tmesh_to_polygons(TMesh *mesh, polygons_struct *polys)
     /* Copy triangles */
     TTriangle *t;
     idx = 0;
-    for (node = mesh->T.head(); node != NULL; node = node->next()) {
+    for (node = mesh->T.head(); node != NULL; node = node->next())
+    {
         t = (TTriangle *)node->data;
         TVertex *v1 = t->v1();
         TVertex *v2 = t->v2();
@@ -206,193 +232,220 @@ static int tmesh_to_polygons(TMesh *mesh, polygons_struct *polys)
 
 /* C interface implementation */
 
-extern "C" {
-
-/**
- * \brief Initialize mesh cleaning options with defaults.
- *
- * \param opts (out) options structure to initialize
- * \return void
- */
-void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts)
+extern "C"
 {
-    if (!opts) return;
-    opts->max_iters = 10;
-    opts->inner_loops = 3;
-    opts->fill_holes = 1;
-    opts->verbose = 0;
-}
 
-/**
- * \brief Clean a surface mesh using MeshFix.
- *
- * Removes small components, optionally fills holes, and runs the MeshFix
- * meshclean routine to reduce self-intersections and degeneracies.
- *
- * \param polygons (in/out) surface mesh to clean
- * \param opts     (in)     options (NULL for defaults)
- * \return 0 on success, 1 if issues remain, -1 on error
- */
-int CAT_SurfMeshClean(
-    polygons_struct *polygons,
-    const CAT_MeshCleanOptions *opts
-)
-{
-    CAT_MeshCleanOptions default_opts;
-    if (!opts) {
-        CAT_MeshCleanOptionsInit(&default_opts);
-        opts = &default_opts;
+    /**
+     * \brief Initialize mesh cleaning options with defaults.
+     *
+     * \param opts (out) options structure to initialize
+     * \return void
+     */
+    void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts)
+    {
+        if (!opts)
+            return;
+        opts->max_iters = 10;
+        opts->inner_loops = 3;
+        opts->fill_holes = 1;
+        opts->verbose = 0;
     }
 
-    if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {
-        fprintf(stderr, "CAT_SurfMeshClean: Invalid input surface\n");
-        return -1;
-    }
-
-    /* Suppress MeshFix "INFO-" output unless verbose */
-    T_MESH::TMesh::quiet = !opts->verbose;
-
-    /* Create TMesh from polygons */
-    TMesh *mesh = new TMesh();
-    
-    if (polygons_to_tmesh(polygons, mesh) != 0) {
-        fprintf(stderr, "CAT_SurfMeshClean: Failed to convert surface to TMesh\n");
-        delete mesh;
-        return -1;
-    }
-
-    if (opts->verbose) {
-        printf("Input mesh: %d vertices, %d triangles\n",
-               mesh->V.numels(), mesh->T.numels());
-        printf("Boundaries: %d, Shells: %d\n",
-               mesh->boundaries(), mesh->shells());
-    }
-
-    /* Remove small components */
-    int sc = mesh->removeSmallestComponents();
-    if (sc && opts->verbose) {
-        printf("Removed %d small components\n", sc);
-    }
-
-    /* Fill holes if requested */
-    if (opts->fill_holes && mesh->boundaries()) {
-        if (opts->verbose) {
-            printf("Filling %d boundary holes...\n", mesh->boundaries());
+    /**
+     * \brief Clean a surface mesh using MeshFix.
+     *
+     * Removes small components, optionally fills holes, and runs the MeshFix
+     * meshclean routine to reduce self-intersections and degeneracies.
+     *
+     * \param polygons (in/out) surface mesh to clean
+     * \param opts     (in)     options (NULL for defaults)
+     * \return 0 on success, 1 if issues remain, -1 on error
+     */
+    int CAT_SurfMeshClean(
+        polygons_struct *polygons,
+        const CAT_MeshCleanOptions *opts)
+    {
+        CAT_MeshCleanOptions default_opts;
+        if (!opts)
+        {
+            CAT_MeshCleanOptionsInit(&default_opts);
+            opts = &default_opts;
         }
-        mesh->fillSmallBoundaries(0, true);
-    }
 
-    /* Run meshclean - the main intersection/degeneracy removal */
-    int result = 0;
-    if (!mesh->boundaries()) {
-        bool success = mesh->meshclean(opts->max_iters, opts->inner_loops);
-        if (!success) {
-            if (opts->verbose) {
-                fprintf(stderr, "MeshFix could not fix all issues\n");
+        if (!polygons || polygons->n_points < 3 || polygons->n_items < 1)
+        {
+            fprintf(stderr, "CAT_SurfMeshClean: Invalid input surface\n");
+            return -1;
+        }
+
+        /* Suppress MeshFix "INFO-" output unless verbose */
+        T_MESH::TMesh::quiet = !opts->verbose;
+
+        /* Create TMesh from polygons */
+        TMesh *mesh = new TMesh();
+
+        if (polygons_to_tmesh(polygons, mesh) != 0)
+        {
+            fprintf(stderr, "CAT_SurfMeshClean: Failed to convert surface to TMesh\n");
+            delete mesh;
+            return -1;
+        }
+
+        if (opts->verbose)
+        {
+            printf("Input mesh: %d vertices, %d triangles\n",
+                   mesh->V.numels(), mesh->T.numels());
+            printf("Boundaries: %d, Shells: %d\n",
+                   mesh->boundaries(), mesh->shells());
+        }
+
+        /* Remove small components */
+        int sc = mesh->removeSmallestComponents();
+        if (sc && opts->verbose)
+        {
+            printf("Removed %d small components\n", sc);
+        }
+
+        /* Fill holes if requested */
+        if (opts->fill_holes && mesh->boundaries())
+        {
+            if (opts->verbose)
+            {
+                printf("Filling %d boundary holes...\n", mesh->boundaries());
+            }
+            mesh->fillSmallBoundaries(0, true);
+        }
+
+        /* Run meshclean - the main intersection/degeneracy removal */
+        int result = 0;
+        if (!mesh->boundaries())
+        {
+            bool success = mesh->meshclean(opts->max_iters, opts->inner_loops);
+            if (!success)
+            {
+                if (opts->verbose)
+                {
+                    fprintf(stderr, "MeshFix could not fix all issues\n");
+                }
+                result = 1;
+            }
+        }
+        else
+        {
+            if (opts->verbose)
+            {
+                fprintf(stderr, "Mesh still has boundaries after hole filling\n");
             }
             result = 1;
         }
-    } else {
-        if (opts->verbose) {
-            fprintf(stderr, "Mesh still has boundaries after hole filling\n");
+
+        if (opts->verbose)
+        {
+            printf("Output mesh: %d vertices, %d triangles\n",
+                   mesh->V.numels(), mesh->T.numels());
         }
-        result = 1;
-    }
 
-    if (opts->verbose) {
-        printf("Output mesh: %d vertices, %d triangles\n",
-               mesh->V.numels(), mesh->T.numels());
-    }
+        /* Convert back to polygons */
+        if (tmesh_to_polygons(mesh, polygons) != 0)
+        {
+            fprintf(stderr, "CAT_SurfMeshClean: Failed to convert TMesh back to surface\n");
+            delete mesh;
+            return -1;
+        }
 
-    /* Convert back to polygons */
-    if (tmesh_to_polygons(mesh, polygons) != 0) {
-        fprintf(stderr, "CAT_SurfMeshClean: Failed to convert TMesh back to surface\n");
         delete mesh;
-        return -1;
+        return result;
     }
 
-    delete mesh;
-    return result;
-}
+    /**
+     * \brief Count intersecting triangle pairs using MeshFix.
+     *
+     * \param polygons (in) input surface mesh
+     * \return number of intersecting triangles, or -1 on error
+     */
+    int CAT_SurfCountIntersections(polygons_struct *polygons)
+    {
+        if (!polygons || polygons->n_points < 3 || polygons->n_items < 1)
+        {
+            return -1;
+        }
 
-/**
- * \brief Count intersecting triangle pairs using MeshFix.
- *
- * \param polygons (in) input surface mesh
- * \return number of intersecting triangles, or -1 on error
- */
-int CAT_SurfCountIntersections(polygons_struct *polygons)
-{
-    if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {
-        return -1;
-    }
+        /* Suppress MeshFix "INFO-" output */
+        T_MESH::TMesh::quiet = true;
 
-    /* Suppress MeshFix "INFO-" output */
-    T_MESH::TMesh::quiet = true;
+        /* Create TMesh from polygons */
+        TMesh *mesh = new TMesh();
 
-    /* Create TMesh from polygons */
-    TMesh *mesh = new TMesh();
-    
-    if (polygons_to_tmesh(polygons, mesh) != 0) {
+        if (polygons_to_tmesh(polygons, mesh) != 0)
+        {
+            delete mesh;
+            return -1;
+        }
+
+        /* Detect intersections */
+        mesh->deselectTriangles();
+        int count = mesh->selectIntersectingTriangles();
+
         delete mesh;
-        return -1;
+        return count;
     }
 
-    /* Detect intersections */
-    mesh->deselectTriangles();
-    int count = mesh->selectIntersectingTriangles();
+    /**
+     * \brief Build a per-triangle self-intersection mask using MeshFix.
+     *
+     * \param polygons   (in)  input surface mesh
+     * \param n_hits_out (out) number of intersecting triangles (can be NULL)
+     * \return allocated mask array (length n_items), or NULL on error
+     */
+    int *find_self_intersections_meshfix(polygons_struct *polygons, int *n_hits_out)
+    {
+        if (!polygons || polygons->n_points < 3 || polygons->n_items < 1)
+        {
+            if (n_hits_out)
+                *n_hits_out = 0;
+            return NULL;
+        }
 
-    delete mesh;
-    return count;
-}
+        int n_items = polygons->n_items;
+        int *mask = (int *)calloc(n_items, sizeof(int));
+        if (!mask)
+        {
+            if (n_hits_out)
+                *n_hits_out = 0;
+            return NULL;
+        }
 
-/**
- * \brief Build a per-triangle self-intersection mask using MeshFix.
- *
- * \param polygons   (in)  input surface mesh
- * \param n_hits_out (out) number of intersecting triangles (can be NULL)
- * \return allocated mask array (length n_items), or NULL on error
- */
-int *find_self_intersections_meshfix(polygons_struct *polygons, int *n_hits_out)
-{
-    if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {
-        if (n_hits_out) *n_hits_out = 0;
-        return NULL;
-    }
+        /* Suppress MeshFix "INFO-" output */
+        T_MESH::TMesh::quiet = true;
 
-    int n_items = polygons->n_items;
-    int *mask = (int *)calloc(n_items, sizeof(int));
-    if (!mask) {
-        if (n_hits_out) *n_hits_out = 0;
-        return NULL;
-    }
+        /* Create TMesh from polygons */
+        TMesh *mesh = new TMesh();
 
-    /* Suppress MeshFix "INFO-" output */
-    T_MESH::TMesh::quiet = true;
+        if (polygons_to_tmesh(polygons, mesh) != 0)
+        {
+            delete mesh;
+            if (n_hits_out)
+                *n_hits_out = 0;
+            return mask;
+        }
 
-    /* Create TMesh from polygons */
-    TMesh *mesh = new TMesh();
+        /* Detect intersections */
+        mesh->deselectTriangles();
+        int n_hits = mesh->selectIntersectingTriangles();
 
-    if (polygons_to_tmesh(polygons, mesh) != 0) {
+        /* Build per-triangle mask from selected triangles */
+        int idx = 0;
+        for (TNode *node = mesh->T.head(); node != NULL; node = node->next(), idx++)
+        {
+            TTriangle *tri = (TTriangle *)node->data;
+            if (IS_VISITED(tri))
+                mask[idx] = 1;
+        }
+
         delete mesh;
-        if (n_hits_out) *n_hits_out = 0;
+        if (n_hits_out)
+            *n_hits_out = n_hits;
         return mask;
     }
-
-    /* Detect intersections */
-    mesh->deselectTriangles();
-    int n_hits = mesh->selectIntersectingTriangles();
-
-    /* Build per-triangle mask from selected triangles */
-    int idx = 0;
-    for (TNode *node = mesh->T.head(); node != NULL; node = node->next(), idx++) {
-        TTriangle *tri = (TTriangle *)node->data;
-        if (IS_VISITED(tri)) mask[idx] = 1;
-    }
-
-    delete mesh;
-    if (n_hits_out) *n_hits_out = n_hits;
-    return mask;
-}
 
 } /* extern "C" */
