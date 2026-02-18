@@ -673,7 +673,7 @@ Jussi Tohka
  * \\return Marginalized likelihood p(value | tissue1, tissue2)
  */
 double ComputeMarginalizedLikelihood(double value, double mean1, double mean2,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                double var1, double var2, unsigned int nof_intervals)
+                                     double var1, double var2, unsigned int nof_intervals)
 
 {
     double lh, tmean, tvar, delta, step;
@@ -1158,35 +1158,36 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     }
 }
 
-/* perform adaptive MAP on given src and initial segmentation label *//**
- * \brief Adaptive Segmentation atlas Mapping (Amap): tissue classification via EM.
- *
- * Core adaptive maximum-likelihood segmentation algorithm for brain tissue
- * classification (CSF/GM/WM) from multimodal MRI. Implements unified EM loop
- * with optional Markov Random Field smoothing via Iterated Conditional Modes
- * (ICM) and partial volume estimation (PVE). Supports multi-step refinement
- * schedules, edge-preserving MRF priors, and class-specific weighting. Adaptively
- * adjusts class parameters and labels while iterating to convergence. Widely used
- * as the foundational segmentation method in CAT12 preprocessing pipelines.
- *
- * \param src              (in)  input MRI intensity image
- * \param label            (out) hard tissue classification labels (1=CSF, 3=GM, 5=WM)
- * \param prob             (out) soft tissue probability maps (n_classes*nvol)
- * \param mean             (in/out) class mean intensity estimates; updated in-place
- * \param n_classes        (in)  number of tissue classes (typically 3-5)
- * \param niters           (in)  maximum EM iterations
- * \param sub              (in)  subsampling factor for speed/accuracy trade-off
- * \param dims             (in)  array [nx, ny, nz] volume dimensions
- * \param pve              (in)  1 for partial volume estimation, 0 to skip
- * \param weight_MRF       (in)  MRF regularization strength (0=no smoothing, 1=strong)
- * \param voxelsize        (in)  array [dx, dy, dz] voxel dimensions in mm
- * \param niters_ICM       (in)  iterations of ICM mode refinement per EM step
- * \param verbose          (in)  1 to print progress, 0 for silent
- * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
- * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
- * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
- * \return void
- */void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
+/* perform adaptive MAP on given src and initial segmentation label */ /**
+                                                                        * \brief Adaptive Segmentation atlas Mapping (Amap): tissue classification via EM.
+                                                                        *
+                                                                        * Core adaptive maximum-likelihood segmentation algorithm for brain tissue
+                                                                        * classification (CSF/GM/WM) from multimodal MRI. Implements unified EM loop
+                                                                        * with optional Markov Random Field smoothing via Iterated Conditional Modes
+                                                                        * (ICM) and partial volume estimation (PVE). Supports multi-step refinement
+                                                                        * schedules, edge-preserving MRF priors, and class-specific weighting. Adaptively
+                                                                        * adjusts class parameters and labels while iterating to convergence. Widely used
+                                                                        * as the foundational segmentation method in CAT12 preprocessing pipelines.
+                                                                        *
+                                                                        * \param src              (in)  input MRI intensity image
+                                                                        * \param label            (out) hard tissue classification labels (1=CSF, 3=GM, 5=WM)
+                                                                        * \param prob             (out) soft tissue probability maps (n_classes*nvol)
+                                                                        * \param mean             (in/out) class mean intensity estimates; updated in-place
+                                                                        * \param n_classes        (in)  number of tissue classes (typically 3-5)
+                                                                        * \param niters           (in)  maximum EM iterations
+                                                                        * \param sub              (in)  subsampling factor for speed/accuracy trade-off
+                                                                        * \param dims             (in)  array [nx, ny, nz] volume dimensions
+                                                                        * \param pve              (in)  1 for partial volume estimation, 0 to skip
+                                                                        * \param weight_MRF       (in)  MRF regularization strength (0=no smoothing, 1=strong)
+                                                                        * \param voxelsize        (in)  array [dx, dy, dz] voxel dimensions in mm
+                                                                        * \param niters_ICM       (in)  iterations of ICM mode refinement per EM step
+                                                                        * \param verbose          (in)  1 to print progress, 0 for silent
+                                                                        * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
+                                                                        * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
+                                                                        * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
+                                                                        * \return void
+                                                                        */
+void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
           double *voxelsize, int niters_ICM, int verbose,
           int use_median, const double *mrf_class_weights, int use_multistep)

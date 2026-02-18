@@ -43,8 +43,7 @@
  * \param out_object_out   (out) averaged mesh object (caller owns)
  * \return 0 on success, negative value on error
  */
-int
-CAT_AverageValuesCompute(
+int CAT_AverageValuesCompute(
     char **infiles,
     int nfiles,
     int verbose,
@@ -64,14 +63,17 @@ CAT_AverageValuesCompute(
     if (!infiles || nfiles < 1)
         return -1;
 
-    for (i = 0; i < nfiles; i++) {
+    for (i = 0; i < nfiles; i++)
+    {
         if (verbose)
             fprintf(stdout, "%5d/%d: %s\n", i + 1, nfiles, infiles[i]);
 
         /* check GIFTI extension */
-        if (!filename_extension_matches(infiles[i], "gii")) {
+        if (!filename_extension_matches(infiles[i], "gii"))
+        {
             fprintf(stderr, "CAT_AverageValuesCompute: "
-                    "%s is not a GIFTI (.gii) file.\n", infiles[i]);
+                            "%s is not a GIFTI (.gii) file.\n",
+                    infiles[i]);
             free(avg_values);
             return -2;
         }
@@ -79,45 +81,53 @@ CAT_AverageValuesCompute(
         /* read mesh + texture */
         if (input_gifti_mesh_and_texture(infiles[i], &format,
                                          &n_objects, &object_list,
-                                         &n_values, &input_values) != OK) {
+                                         &n_values, &input_values) != OK)
+        {
             fprintf(stderr, "CAT_AverageValuesCompute: "
-                    "could not read mesh and texture from %s\n", infiles[i]);
+                            "could not read mesh and texture from %s\n",
+                    infiles[i]);
             free(avg_values);
             return -3;
         }
 
         n_pts = get_object_points(object_list[0], &pts);
 
-        if (i == 0) {
+        if (i == 0)
+        {
             /* first file: initialise accumulators */
-            out_object   = object_list[0];
-            n_avg_pts    = n_pts;
+            out_object = object_list[0];
+            n_avg_pts = n_pts;
             n_avg_values = n_values;
             get_object_points(out_object, &avg_pts);
 
-            avg_values = (double *) calloc(n_avg_values, sizeof(double));
-            if (!avg_values) {
+            avg_values = (double *)calloc(n_avg_values, sizeof(double));
+            if (!avg_values)
+            {
                 fprintf(stderr, "CAT_AverageValuesCompute: "
-                        "memory allocation failed.\n");
+                                "memory allocation failed.\n");
                 return -4;
             }
 
             for (j = 0; j < n_avg_values; j++)
-                avg_values[j] = input_values[j] / (double) nfiles;
+                avg_values[j] = input_values[j] / (double)nfiles;
 
             free(input_values);
-        } else {
+        }
+        else
+        {
             /* subsequent files: check dimensions, accumulate */
-            if (n_pts != n_avg_pts) {
+            if (n_pts != n_avg_pts)
+            {
                 fprintf(stderr, "CAT_AverageValuesCompute: "
-                        "mesh point count mismatch in %s (%d vs %d).\n",
+                                "mesh point count mismatch in %s (%d vs %d).\n",
                         infiles[i], n_pts, n_avg_pts);
                 free(avg_values);
                 return -5;
             }
-            if (n_values != n_avg_values) {
+            if (n_values != n_avg_values)
+            {
                 fprintf(stderr, "CAT_AverageValuesCompute: "
-                        "texture value count mismatch in %s (%d vs %d).\n",
+                                "texture value count mismatch in %s (%d vs %d).\n",
                         infiles[i], n_values, n_avg_values);
                 free(avg_values);
                 return -6;
@@ -130,7 +140,7 @@ CAT_AverageValuesCompute(
 
             /* accumulate texture values */
             for (j = 0; j < n_avg_values; j++)
-                avg_values[j] += input_values[j] / (double) nfiles;
+                avg_values[j] += input_values[j] / (double)nfiles;
 
             free(input_values);
             delete_object_list(n_objects, object_list);
@@ -145,9 +155,9 @@ CAT_AverageValuesCompute(
     if (get_object_type(out_object) == POLYGONS)
         compute_polygon_normals(get_polygons_ptr(out_object));
 
-    *avg_values_out   = avg_values;
+    *avg_values_out = avg_values;
     *n_avg_values_out = n_avg_values;
-    *out_object_out   = out_object;
+    *out_object_out = out_object;
 
     return 0;
 }
@@ -169,8 +179,7 @@ CAT_AverageValuesCompute(
  * \param std_values_out (out) allocated array of per-vertex std values
  * \return 0 on success, negative value on error
  */
-int
-CAT_AverageValuesStd(
+int CAT_AverageValuesStd(
     char **infiles,
     int nfiles,
     const double *avg_values,
@@ -186,14 +195,16 @@ CAT_AverageValuesStd(
     if (nfiles < 2)
         return -1;
 
-    sum_squares = (double *) calloc(n_avg_values, sizeof(double));
+    sum_squares = (double *)calloc(n_avg_values, sizeof(double));
     if (!sum_squares)
         return -2;
 
-    for (i = 0; i < nfiles; i++) {
+    for (i = 0; i < nfiles; i++)
+    {
         if (input_gifti_mesh_and_texture(infiles[i], &format,
                                          &n_objects, &object_list,
-                                         &n_values, &input_values) != OK) {
+                                         &n_values, &input_values) != OK)
+        {
             free(sum_squares);
             return -3;
         }
@@ -208,9 +219,7 @@ CAT_AverageValuesStd(
     /* std = sqrt( (sum_x2 - N * mean^2) / (N-1) ) */
     for (j = 0; j < n_avg_values; j++)
         sum_squares[j] = sqrt(
-            1.0 / ((double) nfiles - 1.0)
-            * (sum_squares[j] - (double) nfiles
-               * avg_values[j] * avg_values[j]));
+            1.0 / ((double)nfiles - 1.0) * (sum_squares[j] - (double)nfiles * avg_values[j] * avg_values[j]));
 
     *std_values_out = sum_squares;
     return 0;
@@ -236,8 +245,7 @@ CAT_AverageValuesStd(
  * \param zscores       (out) array of per-file z-scores (length nfiles)
  * \return 0 on success, negative value on error
  */
-int
-CAT_AverageValuesZscore(
+int CAT_AverageValuesZscore(
     char **infiles,
     int nfiles,
     const double *avg_values,
@@ -255,40 +263,54 @@ CAT_AverageValuesZscore(
     object_struct **object_list;
 
     /* compute global mean threshold (to exclude low-signal regions) */
-    for (j = 0; j < n_avg_values; j++) {
-        if (avg_values[j] != 0.0) { mean_nz += avg_values[j]; cnt_nz++; }
+    for (j = 0; j < n_avg_values; j++)
+    {
+        if (avg_values[j] != 0.0)
+        {
+            mean_nz += avg_values[j];
+            cnt_nz++;
+        }
     }
-    if (cnt_nz > 0) mean_nz /= (double) cnt_nz;
+    if (cnt_nz > 0)
+        mean_nz /= (double)cnt_nz;
     thresh8 = mean_nz / 8.0;
-    for (j = 0; j < n_avg_values; j++) {
-        if (avg_values[j] > thresh8) { mean_ab += avg_values[j]; cnt_ab++; }
+    for (j = 0; j < n_avg_values; j++)
+    {
+        if (avg_values[j] > thresh8)
+        {
+            mean_ab += avg_values[j];
+            cnt_ab++;
+        }
     }
-    if (cnt_ab > 0) mean_ab /= (double) cnt_ab;
+    if (cnt_ab > 0)
+        mean_ab /= (double)cnt_ab;
     global_thresh = 0.25 * mean_ab;
 
-    for (i = 0; i < nfiles; i++) {
+    for (i = 0; i < nfiles; i++)
+    {
         if (verbose)
             fprintf(stdout, "zscore %5d/%d: %s\n",
                     i + 1, nfiles, infiles[i]);
 
         if (input_gifti_mesh_and_texture(infiles[i], &format,
                                          &n_objects, &object_list,
-                                         &n_values, &input_values) != OK) {
+                                         &n_values, &input_values) != OK)
+        {
             return -1;
         }
 
         zscores[i] = 0.0;
         n_valid = 0;
-        for (j = 0; j < n_avg_values; j++) {
-            if (std_values[j] == 0.0 || isnan(std_values[j])
-                || avg_values[j] <= global_thresh)
+        for (j = 0; j < n_avg_values; j++)
+        {
+            if (std_values[j] == 0.0 || isnan(std_values[j]) || avg_values[j] <= global_thresh)
                 continue;
             z = (input_values[j] - avg_values[j]) / std_values[j];
             zscores[i] += z * z * z * z;
             n_valid++;
         }
         if (n_valid > 0)
-            zscores[i] = pow(zscores[i] / (double) n_valid, 0.25);
+            zscores[i] = pow(zscores[i] / (double)n_valid, 0.25);
 
         free(input_values);
         delete_object_list(n_objects, object_list);

@@ -27,12 +27,10 @@
  * \param avg_out    (out) output averaged surface (initialized by copy)
  * \return 0 on success, negative value on error
  */
-int
-CAT_SurfComputeAverage(
+int CAT_SurfComputeAverage(
     polygons_struct **surfaces,
     int n_surfaces,
-    polygons_struct *avg_out
-)
+    polygons_struct *avg_out)
 {
     int i, p;
     int n_points;
@@ -46,12 +44,15 @@ CAT_SurfComputeAverage(
     copy_polygons(surfaces[0], avg_out);
 
     /* Add remaining surfaces */
-    for (i = 1; i < n_surfaces; i++) {
-        if (surfaces[i]->n_points != n_points) {
+    for (i = 1; i < n_surfaces; i++)
+    {
+        if (surfaces[i]->n_points != n_points)
+        {
             fprintf(stderr, "CAT_SurfComputeAverage: point count mismatch\n");
             return -2;
         }
-        for (p = 0; p < n_points; p++) {
+        for (p = 0; p < n_points; p++)
+        {
             Point_x(avg_out->points[p]) += Point_x(surfaces[i]->points[p]);
             Point_y(avg_out->points[p]) += Point_y(surfaces[i]->points[p]);
             Point_z(avg_out->points[p]) += Point_z(surfaces[i]->points[p]);
@@ -59,7 +60,8 @@ CAT_SurfComputeAverage(
     }
 
     /* Compute average */
-    for (p = 0; p < n_points; p++) {
+    for (p = 0; p < n_points; p++)
+    {
         Point_x(avg_out->points[p]) /= (Real)n_surfaces;
         Point_y(avg_out->points[p]) /= (Real)n_surfaces;
         Point_z(avg_out->points[p]) /= (Real)n_surfaces;
@@ -85,13 +87,11 @@ CAT_SurfComputeAverage(
  * \param rms_out     (out) per-vertex RMS values (length n_points)
  * \return 0 on success, negative value on error
  */
-int
-CAT_SurfComputeRMS(
+int CAT_SurfComputeRMS(
     polygons_struct **surfaces,
     int n_surfaces,
     polygons_struct *avg_surface,
-    double *rms_out
-)
+    double *rms_out)
 {
     int i, p;
     int n_points;
@@ -108,21 +108,25 @@ CAT_SurfComputeRMS(
         rms_out[p] = 0.0;
 
     /* Accumulate squared differences */
-    for (i = 0; i < n_surfaces; i++) {
-        if (surfaces[i]->n_points != n_points) {
+    for (i = 0; i < n_surfaces; i++)
+    {
+        if (surfaces[i]->n_points != n_points)
+        {
             fprintf(stderr, "CAT_SurfComputeRMS: point count mismatch\n");
             return -2;
         }
-        for (p = 0; p < n_points; p++) {
+        for (p = 0; p < n_points; p++)
+        {
             dx = Point_x(surfaces[i]->points[p]) - Point_x(avg_surface->points[p]);
             dy = Point_y(surfaces[i]->points[p]) - Point_y(avg_surface->points[p]);
             dz = Point_z(surfaces[i]->points[p]) - Point_z(avg_surface->points[p]);
-            rms_out[p] += dx*dx + dy*dy + dz*dz;
+            rms_out[p] += dx * dx + dy * dy + dz * dz;
         }
     }
 
     /* Compute RMS (using n-1 for sample variance) */
-    for (p = 0; p < n_points; p++) {
+    for (p = 0; p < n_points; p++)
+    {
         rms_out[p] = sqrt(rms_out[p] / (double)(n_surfaces - 1));
     }
 

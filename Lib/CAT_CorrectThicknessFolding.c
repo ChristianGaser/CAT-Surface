@@ -32,6 +32,19 @@
 #include "CAT_Math.h"
 #include "CAT_Smooth.h"
 
+/**
+ * \brief Correct thickness values for folding-related variation (weighted).
+ *
+ * Builds a regression design matrix from multiple curvature measures and
+ * removes the projection from thickness values. Optionally applies a
+ * per-vertex weighting based on deviation from the mean thickness.
+ *
+ * \param polygons  (in)  surface mesh
+ * \param n_vals    (in)  number of thickness values (must match n_points)
+ * \param thickness (in/out) thickness values, corrected in-place
+ * \param slope     (in)  weighting slope (0.0 disables weighting)
+ * \return OK on success, ERROR otherwise
+ */
 Status
 CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
                                     double *thickness, double slope)
@@ -44,13 +57,13 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
     int *n_neighbours, **neighbours;
 
     if (polygons == NULL || thickness == NULL)
-        return(ERROR);
+        return (ERROR);
 
     if (n_vals <= 0 || polygons->n_points != n_vals)
-        return(ERROR);
+        return (ERROR);
 
     /* Keep original thickness for weighting, then remove mean for regression. */
-    orig_thickness = (double *) malloc(sizeof(double) * n_vals);
+    orig_thickness = (double *)malloc(sizeof(double) * n_vals);
     for (i = 0; i < n_vals; i++)
         orig_thickness[i] = thickness[i];
 
@@ -61,20 +74,21 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
 
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
 
-    curvatures = (double *) malloc(sizeof(double) * n_vals);
+    curvatures = (double *)malloc(sizeof(double) * n_vals);
 
     /* add gaussian curvature, curvedness, shape index, mean curvature to G */
     {
-        int curvtype[4] = { 1, 2, 3, 4 };
+        int curvtype[4] = {1, 2, 3, 4};
         int n_curvtypes = sizeof(curvtype) / sizeof(curvtype[0]);
         int n_beta = 1 + 2 * (n_curvtypes);
 
         ALLOC2D(G, n_vals, n_beta);
         ALLOC2D(invG, n_beta, n_vals);
-        beta = (double *) malloc(sizeof(double) * n_beta);
+        beta = (double *)malloc(sizeof(double) * n_beta);
 
         /* Create design matrix G using linear and squared terms */
-        for (j = 0; j < n_curvtypes; j++) {
+        for (j = 0; j < n_curvtypes; j++)
+        {
             get_polygon_vertex_curvatures_cg(polygons, n_neighbours,
                                              neighbours, 0.0, curvtype[j],
                                              curvatures);
@@ -100,23 +114,26 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
             G[i][n_beta - 1] = 1.0;
 
         /* Compute pseudo inverse from design matrix */
-        (void) pinv(n_vals, n_beta, G, invG);
+        (void)pinv(n_vals, n_beta, G, invG);
 
         /* Get betas */
-        for (i = 0; i < n_beta; i++) {
+        for (i = 0; i < n_beta; i++)
+        {
             beta[i] = 0.0;
             for (j = 0; j < n_vals; j++)
                 beta[i] += invG[i][j] * thickness[j];
         }
 
         /* Correct thickness by removing effects due to folding */
-        for (i = 0; i < n_vals; i++) {
+        for (i = 0; i < n_vals; i++)
+        {
             double proj = 0.0;
             double w = 1.0;
             for (j = 0; j < n_beta; j++)
                 proj += G[i][j] * beta[j];
 
-            if (slope != 0.0) {
+            if (slope != 0.0)
+            {
                 w = 1.0 + slope * (orig_thickness[i] - mean_thickness);
                 if (!isfinite(w) || w < 0.0)
                     w = 0.0;
@@ -140,18 +157,29 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
     /* Cleanup (get_all_polygon_point_neighbours allocates a single flat block for neighbours[0]). */
     if (n_neighbours)
         free(n_neighbours);
-    if (neighbours) {
+    if (neighbours)
+    {
         if (neighbours[0])
             free(neighbours[0]);
         free(neighbours);
     }
 
-    return(OK);
+    return (OK);
 }
 
+/**
+ * \brief Correct thickness values for folding-related variation (unweighted).
+ *
+ * Convenience wrapper that applies the weighted correction with slope 0.0.
+ *
+ * \param polygons  (in)  surface mesh
+ * \param n_vals    (in)  number of thickness values (must match n_points)
+ * \param thickness (in/out) thickness values, corrected in-place
+ * \return OK on success, ERROR otherwise
+ */
 Status
 CAT_CorrectThicknessFolding(polygons_struct *polygons, int n_vals,
                             double *thickness)
 {
-    return(CAT_CorrectThicknessFoldingWeighted(polygons, n_vals, thickness, 0.0));
+    return (CAT_CorrectThicknessFoldingWeighted(polygons, n_vals, thickness, 0.0));
 }
