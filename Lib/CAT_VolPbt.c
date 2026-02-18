@@ -294,3 +294,195 @@ CAT_VolComputePbt(
 
     return 0;
 }
+
+/**
+ * pmax - Calculate a conditional maximum value from a set of voxels.
+ *
+ * This function is used in the projection_based_thickness process to find the maximum value among
+ * the voxels that are in the range of White Matter Distance (WMD), considering certain constraints.
+ * It first finds the pure maximum based on several criteria and then calculates the mean of the 
+ * highest values under the same constraints.
+ *
+ * Parameters:
+ *  - GMT: Array of thickness/WMD values of neighbours.
+ *  - PPM: Array of projection values.
+ *  - SEG: Array of segmentation values.
+ *  - ND: Array of Euclidean distances.
+ *  - WMD: White Matter Distance for the current voxel.
+ *  - SEGI: Segmentation value of the current voxel.
+ *  - sA: Size of the arrays (number of elements to consider).
+ *
+ * Returns:
+ *  The calculated maximum value under the specified conditions.
+ *
+ * Notes:
+ *  The function applies several constraints based on segmentation and distance measures to determine
+ *  the relevant maximum value. This includes checking the range of projection, upper and lower distance 
+ *  boundaries, and segmentation-based conditions.
+ */
+static float
+pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, const float WMD, const float SEGI, const int sA)
+{
+    float maximum = WMD;
+    int i;
+
+    // Calculate the pure maximum under specified conditions
+    for (i = 0; i <= sA; i++) {
+        if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&              /* thickness/WMD of neighbours should be larger */
+                (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&   /* projection range */
+                (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                 /* upper boundary - maximum distance */
+                (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i] < 1.5)) && /* lower boundary - minimum distance - corrected values outside */
+                ((((SEGI * MAX(1.0,MIN(1.2, SEGI-1.5))) >= SEG[i])) || (SEG[i] < 1.5))) { /* for high values will project data over sulcal gaps */
+            maximum = GMT[i];
+        }
+    }
+
+    // Calculate the mean of the highest values under the same conditions
+    float maximum2 = maximum, m2n = 0.0; 
+    for (i = 0; i <= sA; i++) {
+        if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) && 
+                 (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) && 
+                 (((PPM[i] - ND[i] * 1.2) <= WMD)) && 
+                 (((PPM[i] - ND[i] * 0.5) >  WMD) || (SEG[i] < 1.5)) &&
+                 ((((SEGI * MAX(1.0,MIN(1.2, SEGI-1.5))) >= SEG[i])) || (SEG[i] < 1.5))) {
+            maximum2 += GMT[i]; 
+            m2n++;
+        } 
+    }
+    if (m2n > 0.0)
+        maximum = (maximum2 - maximum) / m2n;
+
+    return maximum;
+}
+
+/**
+ * projection_based_thickness - Calculate the thickness of segmented structures.
+ *
+ * This function estimates the projection-based thickness of segmented structures 
+ * in a 3D volume, typically used in medical imaging for brain tissue analysis. 
+ * It requires PVE label images and distance maps for WM and CSF.
+ *
+ * Parameters:
+ *  - SEG: PVE label image with labels for CSF, GM, and WM.
+ *  - WMD: White Matter distance map.
+ *  - CSFD: Cerebrospinal Fluid distance map.
+ *  - GMT: Output thickness image.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - voxelsize: Array containing the size of each voxel.
+ *
+ * Note:
+ *  - The function assumes specific labels for CSF (1), GM (2), and WM (3).
+ */
+void
+projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize)
+{
+    // Initialization and pre-processing
+    const int nvox = dims[0] * dims[1] * dims[2];
+    const int x = dims[0], y = dims[1], xy = x * y;
+    const float s2 = sqrt(2.0), s3 = sqrt(3.0);
+    const int   NI[14] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbour index offsets
+    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbour distances
+    enum { sN = (int) (sizeof(NI) / sizeof(NI[0])) }; // Number of neighbours
+
+    // Variables for processing
+    float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
+    float GMTi, CSFDi;
+    int i, n, ni, u, v, w, nu, nv, nw, count_WM = 0, count_CSF = 0;
+
+    /* GMT should be allocated */
+    if (!GMT) {
+        GMT = (float *)malloc(sizeof(float)*nvox);
+        if (!GMT) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+    }    
+
+    // Initial distance checks and assignment
+    for (i = 0; i < nvox; i++) {
+        // Initial GMT value and WM/CSF counts
+        GMT[i] = WMD[i] + 0.0;
+        
+        // proof distance input
+        if (SEG[i] >= GWM) count_WM++;
+        if (SEG[i] <= CGM) count_CSF++;
+    }
+
+    // Error checks for WM and CSF voxels
+    if (count_WM == 0) {
+        fprintf(stderr,"ERROR: no WM voxels\n");
+        exit(EXIT_FAILURE);
+    }    
+    if (count_CSF == 0) {
+        fprintf(stderr,"ERROR: no CSF voxels\n");
+        exit(EXIT_FAILURE);
+    }    
+
+    // Forward thickness calculation
+    for (i = 0; i < nvox; i++) {
+        // Process only GM voxels
+        if (SEG[i] > CSF && SEG[i] < WM) {
+            // Neighbourhood processing
+            ind2sub(i, &u, &v, &w, xy, x);
+
+            /* read neighbour values */
+            for (n = 0; n < sN; n++) {
+                ni = i + NI[n];
+                ind2sub(ni, &nu, &nv, &nw, xy, x);
+
+                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                    ni = i;
+
+                GMTN[n] = GMT[ni];
+                WMDN[n] = WMD[ni];
+                SEGN[n] = SEG[ni];
+            }
+
+            /* find minimum distance within the neighbourhood */
+            DNm = pmax(GMTN, WMDN, SEGN, ND, WMD[i], SEG[i], sN);
+            GMT[i] = DNm;
+        }
+    }
+
+    // Backward search for thickness correction
+    for (i = nvox - 1; i >= 0; i--) {
+        // Process only GM voxels
+        if (SEG[i] > CSF && SEG[i] < WM) {
+            ind2sub(i, &u, &v, &w, xy, x);
+
+            /* read neighbour values */
+            for (n = 0; n < sN; n++) {
+                ni = i - NI[n];
+                ind2sub(ni, &nu, &nv, &nw, xy, x);
+
+                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                    ni = i;
+
+                GMTN[n] = GMT[ni];
+                WMDN[n] = WMD[ni];
+                SEGN[n] = SEG[ni];
+            }
+
+            /* find minimum distance within the neighbourhood */
+            DNm = pmax(GMTN, WMDN, SEGN, ND, WMD[i], SEG[i], sN);
+            if ((GMT[i] < DNm) && (DNm > 0)) GMT[i] = DNm;
+        }
+    }
+
+    // Post-processing to refine GMT values
+    for (i = 0; i < nvox; i++) {
+        if (SEG[i] < CGM || SEG[i] > GWM)
+            GMT[i] = 0.0;
+    }
+
+    // Final GMT adjustment based on CSFD and WMD
+    for (i = 0; i < nvox; i++) {
+        if (SEG[i] >= CGM && SEG[i] <= GWM) {
+            GMTi = CSFD[i] + WMD[i];
+            CSFDi = GMT[i] - WMD[i];
+
+            /*if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;          
+            else GMT[i]  = GMTi;*/
+        }
+    }
+}

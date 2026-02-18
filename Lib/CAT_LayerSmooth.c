@@ -17,6 +17,7 @@
 #include <float.h>
 
 #include "CAT_Vol.h"
+#include "CAT_VolPbt.h"
 #include "CAT_LayerSmooth.h"
 #include "CAT_NiftiLib.h"
 

@@ -77,6 +77,22 @@ int CAT_VolComputePbt(
     const CAT_PbtOptions *opts
 );
 
+/**
+ * Calculate the thickness of segmented structures using projection-based method.
+ *
+ * This function estimates the projection-based thickness of segmented structures 
+ * in a 3D volume, typically used in medical imaging for brain tissue analysis. 
+ * It requires PVE label images and distance maps for WM and CSF.
+ *
+ * @param SEG      PVE label image with labels for CSF (1), GM (2), and WM (3).
+ * @param WMD      White Matter distance map.
+ * @param CSFD     Cerebrospinal Fluid distance map.
+ * @param GMT      Output thickness image.
+ * @param dims     Array containing the dimensions of the volume [nx, ny, nz].
+ * @param voxelsize Array containing the size of each voxel in mm [dx, dy, dz].
+ */
+void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
+
 #ifdef __cplusplus
 }
 #endif

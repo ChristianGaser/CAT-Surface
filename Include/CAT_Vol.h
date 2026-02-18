@@ -96,7 +96,6 @@ void cleanup_brain(unsigned char *probs, int dims[3], double voxelsize[3], int s
 void euclidean_distance(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
-void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype);
 void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, float *grad_z, int dims[3], double voxelsize[3]);
