@@ -135,6 +135,25 @@
     free(new_disp);
 }
 
+/**
+ * \brief Smooth a displacement field using neighborhood averaging with exponential decay.
+ *
+ * Iteratively blurs a per-vertex displacement field by averaging over vertex neighborhoods,
+ * then attenuating by exponential factor exp(-sigma). Used to regularize surface deformations
+ * and prevent erratic vertex motion during iterative mesh deformation.
+ *
+ * Algorithm:
+ *  1. For each vertex: accumulate displacements from all neighbors
+ *  2. Average and apply exponential attenuation exp(-sigma)
+ *  3. Repeat for specified number of iterations
+ *
+ * \param displacement_field (in/out) double[n_points][3]; per-vertex displacement vectors
+ * \param polygons            (in)    surface mesh
+ * \param n_neighbours        (in)    int[n_points]; vertex degree (number of neighbors)
+ * \param neighbours          (in)    int*[n_points]; neighbor indices per vertex
+ * \param iterations          (in)    number of smoothing passes
+ * \param sigma               (in)    exponential decay parameter of attenuation
+ */
 void smooth_displacement_field(double (*displacement_field)[3], polygons_struct *polygons, 
                                int *n_neighbours, int **neighbours, int iterations, double sigma) 
 {
@@ -169,27 +188,29 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
 }
 
 /**
- * @brief Deforms a 3D surface mesh using an external force field derived from an input volume.
-   This approach deforms a 3D surface mesh by computing forces from a reference image.
-   It moves each vertex based on a balance of:
-    - Internal forces → Maintain smoothness.
-    - External forces → Derived from image intensity gradients.
-    - Self-intersection prevention → Ensures a valid mesh.
-   This method is related to Active Contour Models (Snakes) and Level Set Methods, 
-   but explicitly operates on a mesh representation.
- 
-  This function iteratively moves each vertex of the input `polygons` mesh according to:
-  1. **Internal force**: Keeps the mesh smooth by averaging neighboring vertices.
-  2. **External force**: Derived from the intensity and gradient of an image.
-  3. **Constraints**: Prevents self-intersections using a spatial grid.
- 
-  @param polygons Pointer to the surface mesh (polygons_struct).
-  @param input Pointer to the intensity volume (3D image).
-  @param nii_ptr Pointer to the NIfTI image structure (contains volume metadata).
-  @param w Weight factors for internal smoothing and external forces (array of 3 floats).
-  @param lim Intensity threshold that controls the deformation limit.
-  @param it Number of deformation iterations.
-  @param remove_intersections Remove self intersections.
+ * \brief Deform a surface mesh toward intensity gradients from an external volume.
+ *
+ * Iteratively moves mesh vertices using active contour principles: balancing internal
+ * smoothness constraints with external image gradient forces. Optionally checks and
+ * removes self-intersections using a spatial voxel grid to prevent mesh degeneracy.
+ *
+ * Algorithm:
+ *  1. Compute per-voxel intensity gradients from input volume
+ *  2. For each iteration:
+ *  3.   Compute local smoothness forces from vertex neighborhoods  
+ *  4.   Accumulate external forces from image gradients
+ *  5.   Move vertices along combined force direction
+ *  6.   Check and correct self-intersections via grid-based collision detection
+ *
+ * \param polygons            (in/out) surface mesh (modified in-place)
+ * \param input               (in)     float[nvoxels]; intensity volume data
+ * \param nii_ptr             (in)     NIfTI header with volume dimensions and voxel size
+ * \param w                   (in)     double[3]; weight factors {smoothness, gradient_strength, ?}
+ * \param sigma               (in)     Gaussian smoothing parameter for displacement field
+ * \param lim                 (in)     intensity threshold controlling deformation magnitude
+ * \param it                  (in)     number of deformation iterations
+ * \param remove_intersections (in)    boolean; enable self-intersection removal
+ * \param verbose             (in)     boolean; print iteration progress if true
  */
 void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr, 
                  double w[3], double sigma, float lim, int it, int remove_intersections, int verbose)
@@ -450,7 +471,35 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
 void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2, 
                       polygons_struct *polygons_orig, float *input, nifti_image *nii_ptr, 
                       double w[3], double sigma, float lim1, float lim2, 
-                      double *target_distance, int it, int verbose) 
+                      double *target_distance, int it, int verbose)
+/**
+ * \brief Simultaneously deform two surfaces (e.g., white+pial) toward image gradients.
+ *
+ * Extends surf_deform to maintain consistent spacing between two surfaces (white matter
+ * and pial surface) while both deform toward intensity features. Both surfaces start
+ * from the same reference surface and deform with potentially different intensity thresholds,
+ * while maintaining a target distance between them.
+ *
+ * Algorithm:
+ *  1. Copy reference surface to both output surfaces
+ *  2. For each iteration: deform both surfaces toward image gradients
+ *  3. Optionally constrain distance between surfaces to match cortical thickness
+ *  4. Check and correct self-intersections in both surfaces
+ *  5. Update target distance array based on achieved surface separation
+ *
+ * \param polygons1         (in/out) first deformed surface (e.g., white matter)
+ * \param polygons2         (in/out) second deformed surface (e.g., pial surface)
+ * \param polygons_orig     (in)     reference surface (starting template)
+ * \param input             (in)     float[nvoxels]; intensity volume data
+ * \param nii_ptr           (in)     NIfTI header with volume dimensions and voxel size
+ * \param w                 (in)     double[3]; weight factors for deformation forces
+ * \param sigma             (in)     Gaussian smoothing parameter for displacement field
+ * \param lim1              (in)     intensity threshold for first surface deformation
+ * \param lim2              (in)     intensity threshold for second surface deformation
+ * \param target_distance   (in/out) double[n_points]; desired separation between surfaces
+ * \param it                (in)     number of deformation iterations
+ * \param verbose           (in)     boolean; print iteration progress if true
+ */ 
 {
     int i, j, k, v, dims[3], nvox, pidx, n_self_hits;
     int *n_neighbours, **neighbours;
