@@ -19,6 +19,18 @@
 
 
 /* get the slope */
+/**
+ * \brief Compute average discrete slope between successive samples.
+ *
+ * Calculates the mean of finite differences $(y[i]-y[i-1])/(x[i]-x[i-1])$
+ * across the array. Used for log-log regression in fractal dimension
+ * calculations.
+ *
+ * \param x    (in)  x-axis samples
+ * \param y    (in)  y-axis samples
+ * \param len  (in)  number of samples
+ * \return Average slope value
+ */
 double
 slope(double *x, double *y, int len)
 {
@@ -35,6 +47,18 @@ slope(double *x, double *y, int len)
 }
 
 /* get global FD values ... only use area values below the threshold */
+/**
+ * \brief Compute global fractal dimension from log-log slope.
+ *
+ * Converts inputs to log space and computes global fractal dimension
+ * as $2 + slope(log(x), log(y))$. This yields a global surface complexity
+ * estimate from scale-dependent area measurements.
+ *
+ * \param x    (in)  scale values (e.g., bandwidth or resolution)
+ * \param y    (in)  corresponding area ratios
+ * \param len  (in)  number of samples
+ * \return Global fractal dimension estimate
+ */
 double
 get_globalfd(double *x, double *y, int len)
 {
@@ -57,9 +81,24 @@ get_globalfd(double *x, double *y, int len)
 }
 
 /* get local FD values ... x is bandwidth or dimension. */
+/**
+ * \brief Compute per-vertex local fractal dimension values.
+ *
+ * Estimates a fractal dimension for each polygon using log-log slopes of
+ * area measurements across scales, then averages polygon values to vertices.
+ * Optionally smooths the resulting per-vertex map using heat kernel smoothing.
+ *
+ * \param polygons   (in)  surface mesh
+ * \param x          (in)  scale values (bandwidths or resolutions)
+ * \param areas      (in)  area ratios per scale and polygon
+ * \param x_len      (in)  number of scales
+ * \param fd         (out) per-vertex fractal dimension values
+ * \param smoothflag (in)  non-zero to apply smoothing
+ * \return void
+ */
 void
 get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
-      double *fd, int smoothflag)
+    double *fd, int smoothflag)
 {
     int xx, p, offset;
     double *logx, *logy;
@@ -121,6 +160,18 @@ get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
 }
 
 
+/**
+ * \brief Select next triangle count for multi-resolution resampling.
+ *
+ * Chooses the smallest of the three base triangle counts and multiplies
+ * that base by four for the next iteration. Used to schedule resampling
+ * densities across iterations.
+ *
+ * \param base6   (in/out) base triangle count for 6-subdivision
+ * \param base8   (in/out) base triangle count for 8-subdivision
+ * \param base20  (in/out) base triangle count for 20-subdivision
+ * \return Selected triangle count for this iteration
+ */
 int
 min_triangles_update(int *base6, int *base8, int *base20)
 {
@@ -143,6 +194,21 @@ min_triangles_update(int *base6, int *base8, int *base20)
 /*
  * Compute the direct fractal dimension by re-parametrizing the surface
  * using progressively fewer triangles & computing the area
+ */
+/**
+ * \brief Compute fractal dimension by multi-resolution surface resampling.
+ *
+ * Iteratively resamples the surface to lower triangle counts, computes
+ * normalized surface areas, and estimates global and local fractal
+ * dimensions from log-log slopes. Outputs local FD values to a file.
+ *
+ * \param surface    (in)  input surface mesh
+ * \param sphere     (in)  spherical parameterization of the surface
+ * \param maxiters   (in)  number of resampling iterations
+ * \param file       (in)  output filename for local FD values
+ * \param smoothflag (in)  non-zero to smooth local FD values
+ * \param debugflag  (in)  non-zero to write debug outputs
+ * \return Global fractal dimension estimate
  */
 double
 fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
@@ -250,6 +316,17 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
     return fd;
 }
 
+/**
+ * \brief Smooth per-vertex values using heat kernel smoothing.
+ *
+ * Applies heat kernel smoothing with the specified FWHM to values
+ * defined on mesh vertices. Neighbor lists are computed internally.
+ *
+ * \param polygons  (in)  surface mesh
+ * \param values    (in/out) per-vertex values to smooth
+ * \param fwhm      (in)  full-width at half-maximum in mm
+ * \return void
+ */
 void
 get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 {
@@ -268,6 +345,23 @@ double bws[SPH_ITERS] = {11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 23.0, 26.0, 2
 /*
  * Compute the fractal dimension using spherical harmonics: progressively
  * lower bandwidths & area computation.
+ */
+/**
+ * \brief Compute fractal dimension using spherical harmonics bandwidth reduction.
+ *
+ * Computes SPH coefficients for the surface, progressively limits bandwidth,
+ * reconstructs surfaces, and measures normalized areas to estimate global and
+ * local fractal dimensions. Outputs local FD values to a file and optionally
+ * writes debug artifacts.
+ *
+ * \param surface     (in)  input surface mesh
+ * \param sphere      (in)  spherical parameterization
+ * \param file        (in)  output filename for local FD values
+ * \param n_triangles (in)  triangle count for resampled surfaces
+ * \param reparam     (in)  reparameterized sphere for local FD computation
+ * \param smoothflag  (in)  non-zero to smooth local FD values
+ * \param debugflag   (in)  non-zero to write debug outputs
+ * \return Global fractal dimension estimate
  */
 double
 fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,

@@ -15,6 +15,16 @@
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
 
+/**
+ * \brief Compute sorted order of three class means.
+ *
+ * Determines the rank ordering of three values in descending order and
+ * returns the indices corresponding to the sorted order.
+ *
+ * \param mean   (in)  array of three mean values
+ * \param order  (out) index order from largest to smallest
+ * \return void
+ */
 void get_order(const double mean[3], int order[3]) {
     // Find the order of mean[0], mean[1], mean[2]
     if (mean[0] >= mean[1] && mean[0] >= mean[2]) {
@@ -32,6 +42,16 @@ void get_order(const double mean[3], int order[3]) {
     }
 }
 
+/**
+ * \brief Check if ordering of class means has changed.
+ *
+ * Computes the descending rank order of two mean vectors and compares
+ * the index order to detect class swaps between iterations.
+ *
+ * \param old_mean  (in)  previous class means (length 3)
+ * \param new_mean  (in)  updated class means (length 3)
+ * \return true if order changed, false otherwise
+ */
 bool is_order_changed(const double old_mean[3], const double new_mean[3]) {
     int old_order[3], new_order[3], i;
     get_order(old_mean, old_order);
@@ -45,6 +65,22 @@ bool is_order_changed(const double old_mean[3], const double new_mean[3]) {
 }
 
 /* Compute initial PVE labeling based on marginalized likelihood for Bmap*/
+/**
+ * \brief Initialize partial volume labels using marginalized likelihoods.
+ *
+ * Computes likelihoods for pure and mixed tissue classes and assigns
+ * per-voxel class labels and probabilities based on normalized posterior
+ * probabilities. Used to bootstrap partial volume estimation for Bmap.
+ *
+ * \param src            (in)  input intensity volume
+ * \param label          (in/out) initial labels, updated with PVE classes
+ * \param prob           (out) probability maps (stacked by class)
+ * \param mean           (in)  class means for pure tissues
+ * \param var            (in)  class variances for pure tissues
+ * \param n_pure_classes (in)  number of pure tissue classes
+ * \param dims           (in)  volume dimensions [nx, ny, nz]
+ * \return void
+ */
 void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, double *mean, double *var, int n_pure_classes, int *dims)
 {
     int x, y, z, z_area, y_dims, index, label_value;
@@ -105,6 +141,21 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
     }       
 } 
 
+/**
+ * \brief Compute 1D moving average along x-axis for bias estimation.
+ *
+ * Accumulates neighbor counts and bias sums over a window in x, limited
+ * to voxels with labels greater than or equal to background threshold.
+ *
+ * \param label  (in)  voxel labels
+ * \param bias   (in)  bias estimates per voxel
+ * \param n1     (out) neighbor counts per voxel
+ * \param bs     (out) bias sum per voxel
+ * \param bg     (in)  background label threshold
+ * \param a      (in)  half-window size along x
+ * \param dims   (in)  volume dimensions [nx, ny, nz]
+ * \return void
+ */
 void xaverage(unsigned char *label, float *bias, long *n1, double *bs, int bg, int a, int *dims)
 {
     int x,y,z,r;
@@ -129,6 +180,20 @@ void xaverage(unsigned char *label, float *bias, long *n1, double *bs, int bg, i
     }
 }
 
+/**
+ * \brief Compute 1D moving average along y-axis for bias estimation.
+ *
+ * Aggregates bias sums and counts from an x-averaged volume into a
+ * y-averaged representation used for bias correction.
+ *
+ * \param n1    (in)  x-averaged counts per voxel
+ * \param bs    (in)  x-averaged bias sums per voxel
+ * \param n2    (out) y-averaged counts per voxel
+ * \param bias  (out) y-averaged bias sums per voxel
+ * \param b     (in)  half-window size along y
+ * \param dims  (in)  volume dimensions [nx, ny, nz]
+ * \return void
+ */
 void yaverage(long *n1, double *bs, long *n2, float *bias, int b, int *dims)
 {
     int x,y,z,r;
@@ -152,6 +217,21 @@ void yaverage(long *n1, double *bs, long *n2, float *bias, int b, int *dims)
     }
 }
 
+/**
+ * \brief Compute 1D moving average along z-axis for bias estimation.
+ *
+ * Aggregates bias sums and counts from y-averaged data into a
+ * z-averaged representation used for final bias correction.
+ *
+ * \param n2    (in)  y-averaged counts per voxel
+ * \param bias  (in)  y-averaged bias sums per voxel
+ * \param n1    (out) z-averaged counts per voxel
+ * \param bs    (out) z-averaged bias sums per voxel
+ * \param bg    (in)  background label threshold
+ * \param c     (in)  half-window size along z
+ * \param dims  (in)  volume dimensions [nx, ny, nz]
+ * \return void
+ */
 void zaverage(long *n2, float *bias, long *n1, double *bs, int bg, int c, int *dims)
 {
     int x,y,z,r;
@@ -175,6 +255,21 @@ void zaverage(long *n2, float *bias, long *n1, double *bs, int bg, int c, int *d
     }
 }
 
+/**
+ * \brief Apply 3D moving average smoothing to bias field estimates.
+ *
+ * Performs separable window averaging in x, y, and z to smooth bias
+ * estimates, using only voxels with labels above the background class.
+ *
+ * \param label  (in)  voxel labels
+ * \param bias   (in/out) bias estimates per voxel
+ * \param BG     (in)  background label threshold
+ * \param a      (in)  half-window size along x
+ * \param b      (in)  half-window size along y
+ * \param c      (in)  half-window size along z
+ * \param dims   (in)  volume dimensions [nx, ny, nz]
+ * \return void
+ */
 void movingAverage(unsigned char *label, float *bias, int BG, int a, int b, int c, int *dims)
 {
     int i, j, x, y, z, r, l, h;
@@ -208,6 +303,30 @@ void movingAverage(unsigned char *label, float *bias, int BG, int a, int b, int 
     return;
 }
 
+/**
+ * \brief Bias-corrected tissue classification using EM-like updates.
+ *
+ * Performs tissue segmentation with bias field estimation by iteratively
+ * updating class means, variances, labels, and a multiplicative bias term.
+ * Uses a simplified ICM loop to maximize likelihood and optionally estimates
+ * partial volume labels using marginalized likelihoods.
+ *
+ * \param src      (in)  input intensity volume
+ * \param label    (in/out) initial labels, updated in-place
+ * \param prob     (out) class probability maps (stacked by class)
+ * \param mean     (in/out) class mean estimates
+ * \param n_classes (in) number of tissue classes
+ * \param BG       (in)  background label threshold
+ * \param niters   (in)  maximum number of iterations
+ * \param a        (in)  half-window size along x for bias smoothing
+ * \param b        (in)  half-window size along y for bias smoothing
+ * \param c        (in)  half-window size along z for bias smoothing
+ * \param bias     (in/out) bias field per voxel
+ * \param dims     (in)  volume dimensions [nx, ny, nz]
+ * \param pve      (in)  enable partial volume estimation if non-zero
+ * \param verbose  (in)  non-zero to print progress
+ * \return void
+ */
 void Bmap(float *src, unsigned char *label, unsigned char *prob, double *mean, 
         int n_classes, int BG, int niters, int a, int b, int c, 
         float *bias, int *dims, int pve, int verbose)

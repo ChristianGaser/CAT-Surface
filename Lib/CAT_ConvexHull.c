@@ -17,6 +17,19 @@
 int dbg = 0;
 int dbg2 = 0;
 
+/**
+ * \brief Compute convex hull surface and optionally resample to a target sphere.
+ *
+ * Extracts convex points from the input surface, builds a convex hull mesh,
+ * refines it to a minimum edge length, and optionally resamples the hull to
+ * a provided spherical parameterization. When a target sphere is given, the
+ * convex hull is mapped through a spherical representation to preserve
+ * correspondence with the original surface.
+ *
+ * \param polygons        (in)  input surface mesh
+ * \param polygons_sphere (in)  target spherical mesh (NULL to skip resampling)
+ * \return Newly allocated object list containing the convex hull surface
+ */
 object_struct **
 surface_get_convex_hull(polygons_struct  *polygons, polygons_struct  *polygons_sphere)
 {
