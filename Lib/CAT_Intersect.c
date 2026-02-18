@@ -179,6 +179,21 @@ double estimate_average_edge_length(polygons_struct *polygons, int *n_neighbours
  * \param n_hits_out (out) count of detected near-intersection vertices
  * \return array of vertex indices with near-intersections (dynamically allocated)
  */
+/**
+ * \brief Find pairs of near self-intersecting vertices above a distance threshold.
+ *
+ * Detects near-intersections between non-adjacent vertex pairs by scanning spatial
+ * grid cells and computing pairwise distances. Skips direct topological neighbors
+ * to avoid reporting true polygon boundaries. Uses a structured 3D spatial grid
+ * for efficient O(n) lookup of nearby points. This function identifies problematic
+ * geometry that may cause numerical instability in surface processing but does not
+ * constitute topological self-intersection (which is detected separately).
+ *
+ * \param polygons      (in)  source 3D polygonal mesh
+ * \param threshold_factor (in)  multiplier for average edge length to define search radius
+ * \param n_hits_out    (out) pointer to store count of found vertex pairs; set by function
+ * \return Allocated array of defect flags (length = n_points), caller must free; or NULL on error
+ */
 int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, int *n_hits_out)
 {
     int i, j, dx, dy, dz;
@@ -425,6 +440,20 @@ int intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
     return 1; /* I is in T */
 }
 
+/**
+ * \brief Find self-intersections restricted to high-curvature surface regions.
+ *
+ * Detects intersecting polygon pairs but restricts the search to regions where
+ * curvature indicates folded or problematic geometry. Computes vertex curvatures
+ * and masks the search to the 90th percentile of negative curvature values,
+ * reducing computation and false positives in low-curvature regions. This targeted
+ * approach accelerates intersection finding on partially folded surfaces.
+ *
+ * \param polygons     (in)  source 3D polygonal mesh with curvature computed
+ * \param defects      (in/out) array (length n_points) marking problematic vertices; updated
+ * \param polydefects  (in/out) array (length n_items) marking problem polygons; updated
+ * \return Number of self-intersection groups found
+ */
 int find_selfintersections_masked(polygons_struct *polygons, int *defects, int *polydefects)
 {
     int n_intersects, p;
@@ -1032,6 +1061,21 @@ void remove_intersections(polygons_struct *polygons, int verbose)
 }
 
 /* Find and remove near self-intersections */
+/**
+ * \brief Remove near-intersecting vertices by iterative vertex repositioning.
+ *
+ * Fixes near-intersection problems by finding pairs of non-adjacent vertices
+ * within a distance threshold and repositioning them toward the surface
+ * centroid. Applies iterative correction until no intersections remain or
+ * maximum iterations exceeded. Unlike remove_intersections() which handles
+ * topological self-intersections, this function targets geometric near-collisions
+ * that may not cause topological defects but indicate surface quality issues.
+ *
+ * \param polygons   (in)  source 3D polygonal mesh to be modified in-place
+ * \param threshold  (in)  distance threshold for near-intersection detection (typically 0.05-0.20 times edge length)
+ * \param verbose    (in)  1 to print progress messages to stdout, 0 for silent operation
+ * \return void
+ */
 void remove_near_intersections(polygons_struct *polygons, double threshold, int verbose)
 {
     int *polydefects, n_intersects = 0;

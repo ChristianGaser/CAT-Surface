@@ -19,6 +19,23 @@
 
 int euler_characteristic(polygons_struct *polygons, int verbose);
 
+/**
+ * \brief Correct topological defects in binary volume using Euler characteristic.
+ *
+ * Eliminates handles and cavities in a segmented volume using local Euler
+ * characteristic analysis. Iteratively evaluates 2x2x2 voxel cubes and corrects
+ * configurations that violate topology preservation conditions (Euler number
+ * should be 2 for 18-connected or -6 for 26-connected regions). Applies multiple
+ * iterations with alternating connectivity schemes to repair complex topologies.
+ * Modifies the input volume in-place.
+ *
+ * \param volume        (in/out) floating-point binary volume (0 or 1)
+ * \param thresh        (in)  threshold value; voxels >= thresh are considered foreground
+ * \param dims          (in)  array [nx, ny, nz] specifying volume dimensions
+ * \param conn_arr      (in)  array [6-connected, 26-connected] connectivity choices
+ * \param n_loops       (in)  number of correction passes to apply per iteration
+ * \return void
+ */
 void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2], int n_loops) {
     int loop, i, x, y, z, iter, val_corr;
     int V, E, F, conn, chi_local, n_errors, cube[8];
@@ -389,6 +406,31 @@ extract_surface(
 }
 
 void
+/**
+ * \brief Extract polygonal surface mesh from volumetric data using marching cubes.
+ *
+ * Generates an isosurface mesh from a 3D volume by sweeping slices through the data
+ * and applying the marching cubes algorithm. Handles multi-label images via
+ * min/max_label ranges and applies threshold bounding boxes. Stores mesh vertices
+ * in world coordinates using the NIfTI affine transformation matrix. Computes
+ * surface normals after extraction. Supports various marching cubes methods and
+ * hand-edness correction for proper normal orientation.
+ *
+ * \param vol             (in)  input 3D volume as linearized float array
+ * \param sizes           (in)  array [nx, ny, nz] dimensions of volume
+ * \param min_label       (in)  minimum label value for extraction (-1 to ignore)
+ * \param max_label       (in)  maximum label value for extraction (-1 to ignore)
+ * \param nii_mat         (in)  NIfTI affine 4x4 matrix (voxel to world coordinates)
+ * \param method          (in)  marching cubes algorithm variant
+ * \param binary_flag     (in)  treat volume as binary (0/1) if TRUE
+ * \param min_threshold   (in)  minimum intensity threshold for surface
+ * \param max_threshold   (in)  maximum intensity threshold for surface
+ * \param valid_low       (in)  lowest valid data value
+ * \param valid_high      (in)  highest valid data value
+ * \param polygons        (out) output mesh structure; allocated and populated by function
+ * \param verbose         (in)  1 to print progress, 0 for silent operation
+ * \return void
+ */
 extract_isosurface(
     float  *vol,
     int sizes[3],
@@ -494,6 +536,29 @@ extract_isosurface(
 }
 
 /* Function to apply marching cubes and extract polygons */
+/**
+ * \brief Extract brain surface mesh with advanced preprocessing and topology correction.
+ *
+ * Comprehensive surface extraction pipeline including smoothing, median filtering,
+ * gyral masking, and topology correction. Applies optional edge-preserving smoothing,
+ * median filter to strengthen structures, largest component selection, hole filling,
+ * and topology correction using Euler characteristic. Iteratively applies Laplacian
+ * smoothing and morphological post-processing. Creates separate inner and outer
+ * surfaces with appropriate labeling for CAT12 cortical mesh processing.
+ *
+ * \param input_float       (in)  input 3D probabilistic tissue segmentation
+ * \param nii_ptr           (in)  NIfTI image header with voxel dimensions and affine
+ * \param label             (in)  optional tissue label mask (NULL to skip)
+ * \param min_threshold     (in)  isosurface threshold value (typically 0.5 for probabilities)
+ * \param pre_fwhm          (in)  Gaussian smoothing FWHM in mm (0 to skip)
+ * \param iter_laplacian    (in)  number of Laplacian smoothing iterations
+ * \param dist_morph        (in)  distance offset for morphological expansion (mm)
+ * \param n_median_filter   (in)  iterations of median filtering to apply
+ * \param n_iter            (in)  total outer loop iterations
+ * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
+ * \param verbose           (in)  1 to print progress, 0 for silent
+ * \return Allocated object_struct containing pial surface polygons; caller must free
+ */
 object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                         float *label, double min_threshold, double pre_fwhm, 
                         int iter_laplacian, double dist_morph, int n_median_filter, 
@@ -791,6 +856,22 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 }
 
 /* Function to apply marching cubes and extract polygons without any corrections */
+/**
+ * \brief Fast surface mesh extraction with minimal preprocessing.
+ *
+ * Streamlined isosurface extraction optimized for speed, skipping topology correction
+ * and advanced filtering. Applies only essential preprocessing: largest component
+ * selection and genus-0 correction (optional). Suitable for rapid prototyping or
+ * when input data is already well-segmented with correct topology. Often used as a
+ * fallback when full preprocessing would introduce too many smoothing artifacts.
+ *
+ * \param input_float     (in)  input 3D volume (typically already binary/thresholded)
+ * \param nii_ptr         (in)  NIfTI image header with dimensions and affine transform
+ * \param min_threshold   (in)  isosurface threshold value
+ * \param iter_laplacian  (in)  number of Laplacian smoothing iterations post-extraction
+ * \param verbose         (in)  1 to print progress, 0 for silent operation
+ * \return Allocated object_struct containing surface polygons; caller must free
+ */
 object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_ptr,
                         double min_threshold, int iter_laplacian, int verbose) 
 {

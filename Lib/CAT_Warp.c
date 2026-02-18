@@ -17,6 +17,18 @@
 #include "CAT_Resample.h"
 #include "CAT_SafeAlloc.h"
 
+/**
+ * \brief Apply 3x3 rotation matrix to all vertices of a mesh.
+ *
+ * Transforms mesh coordinates via matrix multiplication: each vertex is rotated
+ * by the 9-element rotation matrix (stored in row-major order). Can modify in-place
+ * or write to separate output mesh. Used for surface reparameterization and alignment.
+ *
+ * \param polygons (in) source mesh
+ * \param rotated_polygons (out) output mesh (if NULL, modifies input in-place)
+ * \param rotation_matrix (in) 9-element row-major 3x3 rotation matrix
+ * \return void
+ */
 void
 rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygons,
         double *rotation_matrix)
@@ -43,6 +55,19 @@ rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygons,
     }
 }
 
+/**
+ * \brief Compute 3x3 rotation matrix from Euler angles (alpha, beta, gamma).
+ *
+ * Combines three rotation matrices (X, Y, Z axes) via sequential matrix multiplications:
+ * R_total = R_z(gamma) * R_y(beta) * R_x(alpha). Outputs 9-element row-major matrix.
+ * Standard aerospace/ZYX Euler angle convention.
+ *
+ * \param rotation_matrix (out) 9-element row-major result matrix
+ * \param alpha (in) rotation angle about X-axis (radians)
+ * \param beta (in) rotation angle about Y-axis (radians)
+ * \param gamma (in) rotation angle about Z-axis (radians)
+ * \return void
+ */
 void
 rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
            double gamma)
@@ -82,6 +107,21 @@ rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
     }
 }
 
+/**
+ * \brief Apply 2D deformation warp to surface using displacement field on sphere.
+ *
+ * Applies parameterized warping: deformation defined on 2D sphere parameter space
+ * (u,v coordinates) is transferred to 3D mesh via barycentric interpolation within
+ * spherical triangles. Supports inverse warping (reverse direction). Handles optional
+ * internal sphere creation if reference not provided.
+ *
+ * \param polygons (in/out) source mesh modified by warp
+ * \param sphere (in) reference spherical mapping (NULL creates unit sphere)
+ * \param deform (in) 2D deformation field (interleaved ux/vy values)
+ * \param dm (in) deformation field dimensions [width, height]
+ * \param inverse (in) 1 for inverse warp direction; 0 for forward
+ * \return void
+ */
 void
 apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
        int *dm, int inverse)
@@ -211,6 +251,20 @@ apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
     delete_the_bintree(&unit_sphere.bintree);
 }
 
+/**
+ * \brief Apply 2D UV-space deformation directly using separated u,v displacement fields.
+ *
+ * Like apply_warp() but takes separate u and v displacement arrays for flexibility.
+ * Better for workflows that compute displacement components independently. Still uses
+ * spherical triangle interpolation for mapping to 3D mesh.
+ *
+ * \param polygons (in/out) mesh modified by warp
+ * \param sphere (in) spherical reference surface
+ * \param ux (in) u-component displacement field
+ * \param vy (in) v-component displacement field (same size as ux)
+ * \param inverse (in) 1 for inverse warp; 0 for forward
+ * \return void
+ */
 void
 apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
         double *vy, int inverse)
@@ -482,6 +536,17 @@ void nelder_mead(double **simplex, double *f_values, int n, int max_iter, double
 }
 
 /* input 2 surfaces w/ weighting along x- or z-axes, output weighted average */
+/**
+ * \brief Average geometry between two surfaces storing result in second argument.
+ *
+ * Point-wise averaging: surface = (xsurf + surface) / 2. Used iteratively for
+ * surface registration to compute intermediate geometry. Modifies target surface in-place.
+ *
+ * \param xsurf (in) first surface
+ * \param zsurf (in/out) second surface (result stored here)
+ * \param surface (in) third surface parameter (unused)
+ * \return void
+ */
 void
 average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
         polygons_struct *surface)
@@ -538,6 +603,23 @@ average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
    the curvature maps of target and source using the Nelder-Mead (Downhill) approach 
    Optionally applies distortion correction weighting by sin(theta) for better
    2D-to-sphere registration on spherical surfaces */
+/**
+ * \brief Compute optimal 3D rotation to align source surface with atlas template.
+ *
+ * Optimization-based alignment: uses Nelder-Mead simplex method with curvature-based cost
+ * function to find best rotation. Returns result as matrix and can compute per-vertex
+ * correspondences. Highly computationally intensive but produces quality alignment.
+ *
+ * \param src (in) source surface to align
+ * \param src_sphere (in) source spherical parameterization
+ * \param trg (in) target atlas spherical reference (unused)
+ * \param trg_sphere (in) target atlas spherical parameterization
+ * \param threshold (in) optimization convergence threshold
+ * \param n_defects (in) number of defect regions
+ * \param rotation_matrix (out) optimal 3x3 rotation result
+ * \param verbose (in) 1 for progress output; 0 silent
+ * \return void
+ */
 void
 rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
              polygons_struct *trg, polygons_struct *trg_sphere,
