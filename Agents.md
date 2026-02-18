@@ -124,6 +124,25 @@ When adding or changing a CLI tool:
 - Use C99 for compatibility with older environments.
 - Keep functions small and well documented.
 - For public C APIs, use clear comment blocks in headers and at function definitions.
+- **Documentation Style:** All public functions and significant internal utilities use **Doxygen-style documentation** with the following pattern:
+  ```c
+  /**
+   * \brief One-line concise description of what the function does.
+   *
+   * Paragraph(s) explaining the algorithm, behavior, or special considerations.
+   * Use \brief followed by multiple descriptive paragraphs for clarity.
+   *
+   * \param param1 (in)  type and description of first parameter
+   * \param param2 (out) type and description of output parameter
+   * \param param3 (in/out) bidirectional parameter description
+   * \return Description of return value(s) or error codes
+   */
+  ```
+  - **\brief** provides a concise one-line summary
+  - **Paragraph descriptions** explain the algorithm and edge cases
+  - **\param** tags document all parameters with direction indicators: (in), (out), or (in/out)
+  - **\return** explains return values and error conditions
+  - Examples: [CAT_Vol.c morphological operations](Lib/CAT_Vol.c#L1388-L1410), [CAT_Math.c type conversions](Lib/CAT_Math.c#L95-L108)
 - **Library-first architecture:** place all non-trivial logic in `Lib/` library modules, not in `Progs/` CLI wrappers. CLI tools should only handle argument parsing, I/O, and calls to library functions.
 
 ## Ignore Rules
