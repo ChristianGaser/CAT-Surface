@@ -52,17 +52,20 @@ bound(int i, int j, int dm[])
         j = (j < 0) ? (-j - m2*(-j / m2) - 1) : (j - m2*(j / m2));
         if (dm[1] <= j)
             j1 = m2 - j - 1;
-        else
-            j1 = j;
-    }
-
-    return(i1 + dm[0]*j1);
-}
-
-
-/* copy Point values to/from double array of length 3 */
-/**
- * \brief Mesh geometry utility.
+        /**
+         * \brief Create a new pial/white surface without modifying the input mesh.
+         *
+         * Thin wrapper around \c central_to_pial that operates on a copy.
+         *
+         * \param polygons         (in)  central surface mesh
+         * \param thickness_values (in)  per-vertex thickness values
+         * \param extents          (in)  per-vertex displacement multipliers
+         * \param check_intersects (in)  if non-zero, remove near self-intersections
+         * \param sigma            (in)  smoothing sigma for displacement field
+         * \param iterations       (in)  smoothing iterations
+         * \param verbose          (in)  verbosity flag
+         * \return new object array containing a single POLYGONS object
+         */
  *
  * Function: to_array
  *
@@ -95,6 +98,17 @@ from_array(double *xyz, Point *p) {
     }
 }
 
+/**
+ * \brief Estimate local surface ratio within a spherical neighborhood.
+ *
+ * Builds a 256^3 accumulator of triangle areas and, for each vertex,
+ * integrates area inside a radius to estimate local folding density.
+ *
+ * \param radius    (in)  neighborhood radius in voxels; if <0, auto-estimate
+ * \param polygons  (in)  input surface mesh
+ * \param normalize (in)  if non-zero, normalize radius by total surface area
+ * \return newly allocated per-vertex surface ratio array
+ */
 double *
 get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
 {
@@ -260,9 +274,15 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     return(native_area);
 }
 
-/*
- * Sum-preserving per-vertex surface area: distribute each polygon's area
- * equally across its vertices. The sum of vertex areas equals total area.
+/**
+ * \brief Compute per-vertex areas using equal polygon distribution.
+ *
+ * Distributes each polygon's area equally across its vertices so that the
+ * sum of all vertex areas equals the total mesh surface area.
+ *
+ * \param polygons      (in)  input mesh
+ * \param vertex_areas  (out) per-vertex areas (length n_points)
+ * \return total surface area of the mesh
  */
 double
 get_vertex_areas(polygons_struct *polygons, double *vertex_areas)
@@ -303,15 +323,12 @@ get_vertex_areas(polygons_struct *polygons, double *vertex_areas)
 /**
  * \brief Compute per-vertex area (FreeSurfer-compatible barycentric method).
  *
- * Function: get_area_of_points
+ * Each polygon distributes area equally to its vertices, so the sum of all
+ * vertex areas equals the total mesh surface area.
  *
- * Each polygon distributes `area / n_vertices_in_polygon` to each of its
- * vertices, so the sum of all vertex areas equals total mesh area.  This
- * matches the FreeSurfer convention used in `mrisComputeMetricProperties`.
- *
- * \param polygons       input mesh.
- * \param area_values    output array of length \c n_points.
- * \return total surface area of the mesh.
+ * \param polygons    (in)  input mesh
+ * \param area_values (out) per-vertex areas (length n_points)
+ * \return total surface area of the mesh
  */
 double
 get_area_of_points(polygons_struct *polygons, double *area_values)
@@ -524,12 +541,12 @@ translate_to_center_of_mass(polygons_struct *polygons)
 }
 
 /**
- * \brief Compute or return a derived quantity from the mesh.
+ * \brief Compute the radius of a sphere enclosing the mesh.
  *
- * Function: get_sphere_radius
+ * Returns the maximum distance of any vertex from the origin.
  *
- * \param polygons (polygons_struct *)
- * \return See function description for return value semantics.
+ * \param polygons (in) input mesh
+ * \return radius (max vertex distance)
  */
 double
 get_sphere_radius(polygons_struct *polygons)
@@ -571,12 +588,10 @@ set_vector_length(Point *p, double newLength)
 }
 
 /**
- * \brief Compute or return a derived quantity from the mesh.
+ * \brief Compute per-vertex radius values from the origin.
  *
- * Function: get_radius_of_points
- *
- * \param polygons (polygons_struct *)
- * \param radius (double *)
+ * \param polygons (in)  input mesh
+ * \param radius   (out) per-vertex radii (length n_points)
  */
 void
 get_radius_of_points(polygons_struct *polygons, double *radius)
@@ -661,21 +676,16 @@ count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[], in
     return(n_edges);
 }
 
-/*
- * Calculate the mean of the closest distances between mesh1 and mesh2 and vice versa (Tfs).
- */
 /**
- * \brief Compute distances between meshes or vertices.
+ * \brief Compute mean symmetric closest-point distance between two meshes.
  *
- * Function: compute_point_distance_mean
+ * For each vertex, averages distances p->p2 and p2->p, then averages over vertices.
  *
- * For each vertex, computes the average of distances from p1[i]→mesh2 and p2[i]→mesh1,
- * then averages over all vertices.
- * \param p (polygons_struct *)
- * \param p2 (polygons_struct *)
- * \param dist (double *)
- * \param verbose (int)
- * \return See function description for return value semantics.
+ * \param p       (in)  first mesh
+ * \param p2      (in)  second mesh (same vertex count)
+ * \param dist    (out) per-vertex mean distances (length n_points)
+ * \param verbose (in)  if non-zero, print summary
+ * \return mean symmetric closest-point distance
  */
 double
 compute_point_distance_mean(polygons_struct *p, polygons_struct *p2, double *dist, int verbose)
@@ -716,21 +726,16 @@ compute_point_distance_mean(polygons_struct *p, polygons_struct *p2, double *dis
     return(avg_dist);
 }
 
-/*
- * Calculate the exact Hausdorff distance.  This assumes that the two
- * input meshes are the same size and of the same brain.
- */
 /**
- * \brief Compute Hausdorff distance between meshes.
+ * \brief Compute exact point-wise Hausdorff distance between meshes.
  *
- * Function: compute_exact_hausdorff
+ * Assumes same vertex ordering; returns max of per-vertex distances.
  *
- * Uses direct point-wise distances; returns the maximum (Hausdorff) and prints means if requested.
- * \param p (polygons_struct *)
- * \param p2 (polygons_struct *)
- * \param hd (double *)
- * \param verbose (int)
- * \return See function description for return value semantics.
+ * \param p       (in)  first mesh
+ * \param p2      (in)  second mesh (same vertex count)
+ * \param hd      (out) per-vertex distances (length n_points)
+ * \param verbose (in)  if non-zero, print summary
+ * \return Hausdorff distance (max of hd)
  */
 double
 compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
@@ -756,20 +761,16 @@ compute_exact_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int
     return(max_hd);
 }
 
-/*
- * Calculate the Hausdorff distance using mesh points only.
- */
 /**
- * \brief Compute Hausdorff distance between meshes.
+ * \brief Compute vertex-based Hausdorff distance between meshes.
  *
- * Function: compute_point_hausdorff
+ * Uses nearest-vertex distances in both directions; returns max distance.
  *
- * Computes directed Hausdorff from \c p→\c p2 using nearest vertices, then the reverse.
- * \param p (polygons_struct *)
- * \param p2 (polygons_struct *)
- * \param hd (double *)
- * \param verbose (int)
- * \return See function description for return value semantics.
+ * \param p       (in)  first mesh
+ * \param p2      (in)  second mesh
+ * \param hd      (out) per-vertex distances from p to p2 (length n_points)
+ * \param verbose (in)  if non-zero, print summary
+ * \return Hausdorff distance (max of forward distances)
  */
 double
 compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
@@ -824,19 +825,16 @@ compute_point_hausdorff(polygons_struct *p, polygons_struct *p2, double *hd, int
     return(max_hd);
 }
 
-/*
- * Calculate the closest distance using mesh points only from mesh1 to mesh2.
- */
 /**
- * \brief Compute distances between meshes or vertices.
+ * \brief Compute closest-point distances from one mesh to another.
  *
- * Function: compute_point_distance
+ * Uses nearest-vertex distances from p to p2.
  *
- * \param p (polygons_struct *)
- * \param p2 (polygons_struct *)
- * \param hd (double *)
- * \param verbose (int)
- * \return See function description for return value semantics.
+ * \param p       (in)  source mesh
+ * \param p2      (in)  target mesh
+ * \param hd      (out) per-vertex distances (length n_points)
+ * \param verbose (in)  if non-zero, print summary
+ * \return mean of hd
  */
 double
 compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd, int verbose)
@@ -862,12 +860,11 @@ compute_point_distance(polygons_struct *p, polygons_struct *p2, double *hd, int 
 }
 
 /**
- * \brief Euler characteristic \f$\chi = F + V - E\f$ computed from point neighbourhoods.
+ * \brief Compute Euler characteristic \f$\chi = F + V - E\f$ for a mesh.
  *
- * Function: euler_characteristic
- *
- * \param polygons (polygons_struct *)
- * \return See function description for return value semantics.
+ * \param polygons (in) input mesh
+ * \param verbose  (in) if non-zero, print duplicate edge info
+ * \return Euler characteristic
  */
 int
 euler_characteristic(polygons_struct *polygons, int verbose)
@@ -890,13 +887,12 @@ euler_characteristic(polygons_struct *polygons, int verbose)
 }
 
 /**
- * \brief Convert or project a mesh to spherical form.
+ * \brief Project an ellipsoid-like mesh onto a sphere with a target area.
  *
- * Function: convert_ellipsoid_to_sphere_with_surface_area
+ * Scales coordinates so that the resulting sphere has area desiredSurfaceArea.
  *
- * Scales coordinates so that the resulting sphere has area \c desiredSurfaceArea.
- * \param polygons (polygons_struct *)
- * \param desiredSurfaceArea (double)
+ * \param polygons           (in/out) mesh to project
+ * \param desiredSurfaceArea (in)     desired surface area
  */
 void
 convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *polygons,
@@ -951,13 +947,14 @@ convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *polygons,
 }
 
 /**
- * \brief Linear (umbrella) smoothing with optional edge-only passes and periodic spherical projection.
+ * \brief Linear (umbrella) smoothing with optional edge-only passes.
  *
- * \param strength in (0,1]; larger moves points more towards neighbour averages.
- * \param iters    number of iterations.
- * \param smoothEdgesEveryXIters apply smoothing every X iterations (0 disables).
- * \param smoothOnlyTheseNodes   optional mask (length \c n_points) of nodes to smooth when active.
- * \param projectToSphereEveryXIters project to sphere of current radius every X iterations (0 disables).
+ * \param polygons                   (in/out) mesh to smooth
+ * \param strength                   (in)     in (0,1]; larger moves more toward neighbor average
+ * \param iters                      (in)     number of iterations
+ * \param smoothEdgesEveryXIters     (in)     smooth only on these iterations (0 disables)
+ * \param smoothOnlyTheseNodes       (in)     optional mask (length n_points) for selective smoothing
+ * \param projectToSphereEveryXIters (in)     project to current sphere radius every X iterations (0 disables)
  */
 void
 linear_smoothing(polygons_struct *polygons, double strength, int iters,
@@ -1028,17 +1025,14 @@ linear_smoothing(polygons_struct *polygons, double strength, int iters,
 }
 
 /**
- * \brief Areal smoothing: neighbour influence weighted by local triangle areas around each node.
+ * \brief Areal smoothing with weights based on local triangle areas.
  *
- * Function: areal_smoothing
- *
- * See \c linear_smoothing for parameters; here, weights are proportional to incident tile areas.
- * \param polygons (polygons_struct *)
- * \param strength (double)
- * \param iters (int)
- * \param smoothEdgesEveryXIters (int)
- * \param smoothOnlyTheseNodes (int *)
- * \param projectToSphereEveryXIters (int)
+ * \param polygons                   (in/out) mesh to smooth
+ * \param strength                   (in)     smoothing strength
+ * \param iters                      (in)     number of iterations
+ * \param smoothEdgesEveryXIters     (in)     smooth only on these iterations (0 disables)
+ * \param smoothOnlyTheseNodes       (in)     optional mask (length n_points) for selective smoothing
+ * \param projectToSphereEveryXIters (in)     project to current sphere radius every X iterations (0 disables)
  */
 void
 areal_smoothing(polygons_struct *polygons, double strength, int iters,
@@ -1165,16 +1159,14 @@ double manhattan_distance_between_points(Point *p1, Point *p2) {
 }
 
 /**
- * \brief Surface smoothing on polygon meshes.
+ * \brief Distance-weighted smoothing using Manhattan neighbor distances.
  *
- * Function: distance_smoothing
- *
- * \param polygons (polygons_struct *)
- * \param strength (double)
- * \param iters (int)
- * \param smoothEdgesEveryXIters (int)
- * \param smoothOnlyTheseNodes (int *)
- * \param projectToSphereEveryXIters (int)
+ * \param polygons                   (in/out) mesh to smooth
+ * \param strength                   (in)     smoothing strength
+ * \param iters                      (in)     number of iterations
+ * \param smoothEdgesEveryXIters     (in)     smooth only on these iterations (0 disables)
+ * \param smoothOnlyTheseNodes       (in)     optional mask (length n_points) for selective smoothing
+ * \param projectToSphereEveryXIters (in)     project to current sphere radius every X iterations (0 disables)
  */
 void
 distance_smoothing(polygons_struct *polygons, double strength, int iters,
@@ -1248,20 +1240,19 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
 
 
 /**
- * \brief Surface smoothing on polygon meshes.
+ * \brief Inflate a surface while smoothing highly distorted regions.
  *
- * Function: inflate_surface_and_smooth_fingers
+ * Alternates inflation and smoothing; computes local distortion metrics
+ * to target finger-like artifacts.
  *
- * Alternates displacement (inflation) and smoothing; computes metrics 
- * (linear distortion, areal compression) to target highly distorted nodes.
- * \param polygonsIn (polygons_struct *)
- * \param n_smoothingCycles (const int)
- * \param regSmoothStrength (const double)
- * \param regSmoothIters (const int)
- * \param inflationFactorIn (const double)
- * \param compStretchThresh (const double)
- * \param fingerSmoothStrength (const double)
- * \param fingerSmoothIters (const int)
+ * \param polygonsIn           (in/out) mesh to inflate/smooth
+ * \param n_smoothingCycles    (in)     number of inflation cycles
+ * \param regSmoothStrength    (in)     regular smoothing strength
+ * \param regSmoothIters       (in)     regular smoothing iterations
+ * \param inflationFactorIn    (in)     inflation factor (>1 inflates)
+ * \param compStretchThresh    (in)     distortion threshold for targeted smoothing
+ * \param fingerSmoothStrength (in)     strength of targeted smoothing
+ * \param fingerSmoothIters    (in)     iterations of targeted smoothing
  */
 void
 inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
@@ -1698,21 +1689,18 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
                     point_error[ptidx] = TRUE;
                     ++n_errors;
                 }
-#else
-                ccw_neighbours(&centroids[ptidx], &normal,
-                         new_points, n_nb,
-                         neighbours, point_error);
-#endif
-            }
-        }
-    }
-
-
-#ifdef DEBUG
-    n_errors = 0;
-    n_bad_points = 0;
-#endif
-    for (ptidx = 0; ptidx < polygons->n_points; ptidx++) {
+/**
+ * \brief Compute local per-vertex statistics on a surface.
+ *
+ * Computes mean/median/std/min/max over each vertex's 1-ring neighbors plus
+ * the center vertex using precomputed polygon neighbors.
+ *
+ * \param polygons  (in)     input mesh
+ * \param input     (in/out) per-vertex values (length n_points)
+ * \param mask      (in)     optional mask (0 = skip), length n_points
+ * \param stat_func (in)     F_MEAN, F_MEDIAN, F_STD, F_MIN, or F_MAX
+ * \param iters     (in)     number of iterations (>=1)
+ */
         if (point_error[ptidx] > 0) {
 #ifdef DEBUG
             ++n_errors;
@@ -1721,26 +1709,24 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
                 printf(" %d", ptidx);
 #endif
             new_points[ptidx] = centroids[ptidx];
-        }
-    }
-
-#ifdef DEBUG
-    if (n_errors > 0)
-        printf(": Shape errors %d/%d\n", n_errors, n_bad_points);
-#endif
-
-    free(point_error);
+        /**
+         * \brief Translate a mesh to align bounds with a target mesh.
+         *
+         * Subtracts the difference between source and target bounds from each vertex.
+         *
+         * \param polygons (in/out) mesh to translate
+         * \param target   (in)     target mesh defining desired bounds
+         */
     free(centroids);
     free(point_done);
-}
-
-/*
- * Calls central_to_pial, but creates a new surface object and does not modify the original surface
- * The direct implementation into central_to_pial was not working because of issues with the function 
- * check_polygons_shape_integrity.
- */
 /**
- * \brief Create a new pial/white surface from a central surface without modifying the input.
+ * \brief Scale and translate a mesh to match target bounds.
+ *
+ * Scales each axis to match the target range, then translates to align bounds.
+ *
+ * \param polygons (in/out) mesh to scale and translate
+ * \param target   (in)     target mesh defining desired bounds
+ */
  *
  * Thin wrapper around \c central_to_pial that works on a copy (due to integrity checks).
  * \return new object array containing a single POLYGONS object.
@@ -1761,19 +1747,19 @@ central_to_new_pial(polygons_struct *polygons, double *thickness_values, double 
     return(objects_out);
 }
 
-/*
- * Estimate pial surface from central surface using cortical thickness values. In order to estimate the pial surface 
- * an extent of 0.5 should be used, while an extent of -0.5 results in the estimation of the white matter surface.
- */
 /**
- * \brief Displace a central surface along normals to estimate pial/white surfaces from thickness.
+ * \brief Displace a central surface along normals to estimate pial/white surfaces.
  *
- * Performs 20 incremental steps with optional smoothing of the displacement field; checks and
- * corrects integrity at each step; optionally removes near self-intersections.
+ * Uses per-vertex thickness values and extents (+0.5 for pial, -0.5 for white)
+ * with incremental steps and optional smoothing of the displacement field.
  *
- * \param extents signed per-vertex factors; +0.5 ~ pial, −0.5 ~ white.
- * \param sigma   Gaussian smoothing (if >0) for the displacement field.
- * \param iterations number of smoothing iterations (used when \c sigma>0).
+ * \param polygons         (in/out) mesh to deform
+ * \param thickness_values (in)     per-vertex thickness values
+ * \param extents          (in)     per-vertex displacement multipliers
+ * \param check_intersects (in)     if non-zero, remove near self-intersections
+ * \param sigma            (in)     smoothing sigma for displacement field
+ * \param iterations       (in)     smoothing iterations
+ * \param verbose          (in)     verbosity flag
  */
 void
 central_to_pial(polygons_struct *polygons, double *thickness_values, double *extents, 
@@ -1851,20 +1837,17 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     }
 }
 
-/*
- * Estimate area for each point of a surface that is shifted along normals by thickness extent 
- * Extent of 0.5 for a central surface results in pial surface while -0.5 leads to a white surface
- */
 /**
- * \brief Compute or return a derived quantity from the mesh.
+ * \brief Compute per-vertex areas for a thickness-shifted surface.
  *
- * Function: get_area_of_points_central_to_pial
+ * Builds a displaced surface using \c extent (0.5 pial, -0.5 white) and
+ * computes per-vertex areas on that surface.
  *
- * \param polygons (polygons_struct *)
- * \param area (double *)
- * \param thickness_values (double *)
- * \param extent (double)
- * \return See function description for return value semantics.
+ * \param polygons         (in)  input mesh
+ * \param area             (out) per-vertex areas (length n_points)
+ * \param thickness_values (in)  per-vertex thickness values
+ * \param extent           (in)  displacement extent
+ * \return total surface area of the displaced surface
  */
 double
 get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, double *thickness_values, double extent)
@@ -1945,25 +1928,18 @@ get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygon
     return(distance);
 }
 
-/*
- * Correct mesh in folded areas to compensate for the averaging effect in gyri and sulci.
- * We use a folding measure (i.e. mean curvature averaged) to estimate the compensation. The amount
- * of compensation is automatically estimated using the difference to either a defined 
- * isovalue in a volume or to a reference mesh.
-*/
 /**
- * \brief Correct mesh properties or alignment.
+ * \brief Correct folded mesh regions using curvature-driven displacement.
  *
- * Function: correct_mesh_folding
+ * Estimates an optimal weight by minimizing either intensity error to an isovalue
+ * in a volume or distance to a reference mesh, then applies the displacement.
  *
- * Estimates an optimal \c weight that minimizes an intensity/mesh distance objective, smooths curvature,
- * and applies the final displacement along vertex normals.
- * \param polygons (polygons_struct *)
- * \param polygons_reference (polygons_struct *)
- * \param vol (float *)
- * \param nii_ptr (nifti_image *)
- * \param isovalue (double)
- * \return See function description for return value semantics.
+ * \param polygons           (in/out) mesh to correct
+ * \param polygons_reference (in)     reference mesh (can be NULL if volume is used)
+ * \param vol                (in)     volume data (can be NULL if reference mesh is used)
+ * \param nii_ptr            (in)     NIfTI header for sampling (required if vol is used)
+ * \param isovalue           (in)     target isovalue in volume
+ * \return EXIT_SUCCESS on success, EXIT_FAILURE on failure
  */
 int
 correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_reference, float *vol, 
@@ -2049,33 +2025,17 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
 }
 
 /**
- * Reduce a triangle mesh using Quadric Error Metrics (QEM).
- *
- * This function mirrors the calling style used by spm_mesh_reduce.c: you specify
- * a target number of triangles and an aggressiveness value. Internally, the input
- * polygons are treated as triangles; non-triangle faces are fan-triangulated.
- *
- * Parameters
- * ----------
- * polygons        : (in/out) BICPL polygons_struct to be simplified in-place.
- * target_faces    : desired number of triangles after simplification. If <= 0,
- *                   half of the current triangle count is used.
- * aggressiveness  : simplifier aggressiveness (typical ~7.0; larger => stronger/rougher).
- * preserve_sharp  : if non-zero, prevent aggressive collapses across sharp edges.
- * verbose         : if non-zero, print progress and summary to stderr.
- *
- */
-/**
  * \brief Reduce mesh complexity using Quadric Error Metrics (QEM).
  *
- * Function: reduce_mesh_quadrics
+ * Treats the mesh as triangles (fan-triangulating if needed) and simplifies
+ * to a target triangle count.
  *
- * \param polygons (polygons_struct *)
- * \param target_faces (int)
- * \param aggressiveness (double)
- * \param preserve_sharp (int)
- * \param verbose (int)
- * \return See function description for return value semantics.
+ * \param polygons       (in/out) mesh to simplify
+ * \param target_faces   (in)     desired triangle count (<=0 uses half)
+ * \param aggressiveness (in)     simplifier aggressiveness (larger => stronger)
+ * \param preserve_sharp (in)     if non-zero, preserve sharp features
+ * \param verbose        (in)     if non-zero, print progress
+ * \return 0 on success, -1 on failure
  */
 int reduce_mesh_quadrics(polygons_struct *polygons,
                          int target_faces,
