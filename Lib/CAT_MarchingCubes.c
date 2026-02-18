@@ -9,6 +9,7 @@
 
 #include <bicpl/marching.h>
 #include "CAT_Vol.h"
+#include "CAT_VolPbt.h"
 #include "genus0.h"
 #include "CAT_Separate.h"
 #include "CAT_Smooth.h"
