@@ -40,7 +40,14 @@ typedef T_MESH::ExtVertex      TExtVertex;
 typedef T_MESH::coord          TCoord;
 
 /**
- * Convert bicpl polygons_struct to MeshFix TMesh.
+ * \brief Convert a BICPL mesh into a MeshFix TMesh.
+ *
+ * Allocates vertices and indexed triangles inside the MeshFix mesh and
+ * skips non-triangle faces or degenerate triangles.
+ *
+ * \param polys (in)  input BICPL mesh
+ * \param mesh  (out) MeshFix mesh to populate
+ * \return 0 on success, -1 on error
  */
 static int polygons_to_tmesh(const polygons_struct *polys, TMesh *mesh)
 {
@@ -114,7 +121,13 @@ static int polygons_to_tmesh(const polygons_struct *polys, TMesh *mesh)
 }
 
 /**
- * Convert MeshFix TMesh back to bicpl polygons_struct.
+ * \brief Convert a MeshFix TMesh into a BICPL mesh.
+ *
+ * Allocates and fills vertex/triangle arrays and recomputes normals.
+ *
+ * \param mesh  (in)  MeshFix mesh
+ * \param polys (out) output BICPL mesh (reinitialized)
+ * \return 0 on success, -1 on error
  */
 static int tmesh_to_polygons(TMesh *mesh, polygons_struct *polys)
 {
@@ -195,6 +208,12 @@ static int tmesh_to_polygons(TMesh *mesh, polygons_struct *polys)
 
 extern "C" {
 
+/**
+ * \brief Initialize mesh cleaning options with defaults.
+ *
+ * \param opts (out) options structure to initialize
+ * \return void
+ */
 void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts)
 {
     if (!opts) return;
@@ -204,6 +223,16 @@ void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts)
     opts->verbose = 0;
 }
 
+/**
+ * \brief Clean a surface mesh using MeshFix.
+ *
+ * Removes small components, optionally fills holes, and runs the MeshFix
+ * meshclean routine to reduce self-intersections and degeneracies.
+ *
+ * \param polygons (in/out) surface mesh to clean
+ * \param opts     (in)     options (NULL for defaults)
+ * \return 0 on success, 1 if issues remain, -1 on error
+ */
 int CAT_SurfMeshClean(
     polygons_struct *polygons,
     const CAT_MeshCleanOptions *opts
@@ -286,6 +315,12 @@ int CAT_SurfMeshClean(
     return result;
 }
 
+/**
+ * \brief Count intersecting triangle pairs using MeshFix.
+ *
+ * \param polygons (in) input surface mesh
+ * \return number of intersecting triangles, or -1 on error
+ */
 int CAT_SurfCountIntersections(polygons_struct *polygons)
 {
     if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {
@@ -311,6 +346,13 @@ int CAT_SurfCountIntersections(polygons_struct *polygons)
     return count;
 }
 
+/**
+ * \brief Build a per-triangle self-intersection mask using MeshFix.
+ *
+ * \param polygons   (in)  input surface mesh
+ * \param n_hits_out (out) number of intersecting triangles (can be NULL)
+ * \return allocated mask array (length n_items), or NULL on error
+ */
 int *find_self_intersections_meshfix(polygons_struct *polygons, int *n_hits_out)
 {
     if (!polygons || polygons->n_points < 3 || polygons->n_items < 1) {

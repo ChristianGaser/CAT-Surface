@@ -12,6 +12,19 @@
 
 #include "CAT_Vol2SurfUtils.h"
 
+/**
+ * \brief Evaluate a mapping function over sampled values.
+ *
+ * Supports mean/median/sum, min/max, and weighted averages using an optional
+ * kernel for weighted or exponential modes.
+ *
+ * \param val_array (in)  sampled values
+ * \param n_val     (in)  number of samples
+ * \param map_func  (in)  mapping function selector (F_MEAN, F_MAX, ...)
+ * \param kernel    (in)  optional kernel weights (length n_val)
+ * \param index_out (out) index of selected element for min/max modes (optional)
+ * \return evaluated value
+ */
 double
 CAT_Vol2SurfEvaluateFunction(const double *val_array, int n_val, int map_func,
                              const double *kernel, int *index_out)
@@ -96,6 +109,15 @@ CAT_Vol2SurfEvaluateFunction(const double *val_array, int n_val, int map_func,
     return result;
 }
 
+/**
+ * \brief Build a normalized exponential kernel for sampling weights.
+ *
+ * \param length_array (in)  distances or offsets (length n)
+ * \param n            (in)  number of entries
+ * \param exp_half     (in)  half-decay distance
+ * \param kernel_out   (out) output kernel (length n)
+ * \return void
+ */
 void
 CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_half,
                            double *kernel_out)
@@ -128,6 +150,14 @@ CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_half,
     }
 }
 
+/**
+ * \brief Build a normalized Gaussian kernel for weighted averaging.
+ *
+ * \param grid_steps  (in)  total grid steps
+ * \param grid_steps1 (in)  number of kernel samples
+ * \param kernel_out  (out) output kernel (length grid_steps1)
+ * \return void
+ */
 void
 CAT_Vol2SurfBuildGaussianKernel50(int grid_steps, int grid_steps1,
                                   double *kernel_out)

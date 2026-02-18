@@ -31,7 +31,16 @@
 #endif
 
 
-/* based on caret code for TFCE calculation in BrainModelVolumeTFCE.cxx */
+/**
+ * \brief Replace nonzero voxels with their connected-component sizes.
+ *
+ * Uses 26-neighborhood connectivity to label each cluster and writes the
+ * cluster size back into the input array.
+ *
+ * \param bw   (in/out) binary/label volume (size dims[0]*dims[1]*dims[2])
+ * \param dims (in)     volume dimensions (x,y,z)
+ * \return void
+ */
 void get_cluster_size(unsigned int *bw, int dims[3])
 {
     unsigned int valToAdd, *bw2;
@@ -104,9 +113,24 @@ void get_cluster_size(unsigned int *bw, int dims[3])
     free(bw2);
 }
 
+/**
+ * \brief Recursively mark neighbors around a vertex, optionally using a distance gate.
+ *
+ * When level is 0, only neighbors with a large distance between two
+ * corresponding surfaces are flagged to avoid discontinuities.
+ *
+ * \param surface      (in)  high-bandwidth surface
+ * \param lbw          (in)  low-bandwidth surface
+ * \param neighbours   (in)  neighbor lists
+ * \param n_neighbours (in)  neighbor counts
+ * \param p            (in)  start vertex index
+ * \param flag         (in/out) flag array (length n_points)
+ * \param level        (in)  recursion depth (0 uses distance test)
+ * \return void
+ */
 void
 add_neighbours(polygons_struct *surface, polygons_struct *lbw,
-        int **neighbours, int *n_neighbours, int p, int *flag, int level)
+    int **neighbours, int *n_neighbours, int p, int *flag, int level)
 {
     int n, idx;
     double dist;
@@ -141,6 +165,17 @@ add_neighbours(polygons_struct *surface, polygons_struct *lbw,
     }
 }
 
+/**
+ * \brief Resample defect labels onto an equal-area spherical mesh.
+ *
+ * \param sphere            (in)  input sphere mesh
+ * \param defects           (in)  per-vertex defect labels
+ * \param polydefects       (in)  per-polygon defect labels
+ * \param remap_defects     (out) resampled per-vertex defects
+ * \param remap_polydefects (out) resampled per-polygon defects
+ * \param n_items           (in)  number of triangles for the remapped sphere
+ * \return void
+ */
 void
 resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
            int *remap_defects, int *remap_polydefects, int n_items)
@@ -166,9 +201,25 @@ resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
     delete_object_list(1, objects);
 }
 
+/**
+ * \brief Post-correct a spherical reconstruction using defect labels.
+ *
+ * Combines high/low bandwidth reconstructions, patches defect regions, and
+ * smooths remaining self-intersections.
+ *
+ * \param surface    (in)  original surface
+ * \param sphere     (in)  spherical parameterization
+ * \param defects    (in)  per-vertex defect labels
+ * \param polydefects (in) per-polygon defect labels
+ * \param n_defects  (in)  number of defects
+ * \param holes      (in)  per-vertex hole/handle labels
+ * \param hbw        (in/out) high-bandwidth sphere
+ * \param lbw        (in)  low-bandwidth sphere
+ * \return void
+ */
 void
 sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects, 
-        int n_defects, int *holes, polygons_struct *hbw, polygons_struct *lbw)
+    int n_defects, int *holes, polygons_struct *hbw, polygons_struct *lbw)
 {
     object_struct *surface_object;
     double *sharpness;
@@ -272,6 +323,23 @@ sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects,
     free(hbw_holes);
 }
 
+/**
+ * \brief Fix topological defects on a sphere using spherical harmonics.
+ *
+ * Builds high/low bandwidth reconstructions, patches defects, and optionally
+ * refines the mesh to meet a maximum edge length.
+ *
+ * \param surface          (in)  original surface mesh
+ * \param sphere           (in)  spherical parameterization
+ * \param n_triangles      (in)  target triangle count for resampling
+ * \param bw               (in)  spherical harmonic bandwidth
+ * \param lim              (in)  Butterworth filter limit
+ * \param reparam_file     (in)  optional reparameterization sphere file
+ * \param max_refine_length (in) max edge length for refinement (<=0 disables)
+ * \param force            (in)  force label for holes/handles (0 = auto)
+ * \param laplace_thresh   (in)  Laplace filtering threshold (0 disables)
+ * \return object list containing corrected surface (POLYGONS)
+ */
 object_struct **
 fix_topology_sph(polygons_struct *surface, polygons_struct *sphere, int n_triangles, int bw, int lim, 
     char *reparam_file, double max_refine_length, int force, double laplace_thresh)
