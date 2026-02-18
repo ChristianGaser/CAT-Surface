@@ -100,6 +100,18 @@ pinv(int m, int n, double **A, double **Ainv)
  * uniform data format.
  *
  */
+/**
+ * \brief Convert arbitrary datatype array to double-precision buffer.
+ *
+ * Reads n elements from input data pointer and converts them to double values
+ * in a pre-allocated buffer. Supports all standard image datatypes (int8, uint8,
+ * int16, uint16, int32, uint32, float32, float64).
+ *
+ * \param data     (in)  void pointer to input array; interpretation based on datatype
+ * \param buffer   (out) double[n]; pre-allocated target array
+ * \param n        (in)  number of elements to convert
+ * \param datatype (in)  data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, DT_FLOAT64, etc.)
+ */
 void convert_input_type(void *data, double *buffer, int n, int datatype)
 {
     int i;
@@ -145,6 +157,17 @@ void convert_input_type(void *data, double *buffer, int n, int datatype)
     }
 }
 
+/**
+ * \brief Convert arbitrary datatype array to single-precision float buffer.
+ *
+ * Reads n elements from input data pointer and converts them to float values
+ * in a pre-allocated buffer. Supports all standard image datatypes.
+ *
+ * \param data     (in)  void pointer to input array; interpretation based on datatype
+ * \param buffer   (out) float[n]; pre-allocated target array
+ * \param n        (in)  number of elements to convert
+ * \param datatype (in)  data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, DT_FLOAT64, etc.)
+ */
 void convert_input_type_float(void *data, float *buffer, int n, int datatype)
 {
     int i;
@@ -218,6 +241,18 @@ void convert_input_type_float(void *data, float *buffer, int n, int datatype)
  * to its original or a different format as needed.
  *
  */
+/**
+ * \brief Convert double-precision buffer back to arbitrary output datatype.
+ *
+ * Reads n double values from buffer and converts them to the target datatype,
+ * writing back to the output data pointer. Values are clipped to the valid range
+ * for the target datatype.
+ *
+ * \param data     (out) void pointer to output array; interpretation based on datatype
+ * \param buffer   (in)  double[n]; source array with converted values
+ * \param n        (in)  number of elements to convert back
+ * \param datatype (in)  target data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void convert_output_type(void *data, double *buffer, int n, int datatype)
 {
     int i;
@@ -255,6 +290,18 @@ void convert_output_type(void *data, double *buffer, int n, int datatype)
     }
 }
 
+/**
+ * \brief Convert single-precision float buffer back to arbitrary output datatype.
+ *
+ * Reads n float values from buffer and converts them to the target datatype,
+ * writing back to the output data pointer. Values are clipped to the valid range
+ * for the target datatype.
+ *
+ * \param data     (out) void pointer to output array; interpretation based on datatype
+ * \param buffer   (in)  float[n]; source array with converted values
+ * \param n        (in)  number of elements to convert back
+ * \param datatype (in)  target data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void convert_output_type_float(void *data, float *buffer, int n, int datatype)
 {
     int i;
@@ -314,6 +361,18 @@ int compare_doubles(const void *a, const void *b)
  *  The median value of the array.
  *
  */
+/**
+ * \brief Get median value from double array with optional zero exclusion.
+ *
+ * Computes the median value from an array of doubles using quicksort-based sorting.
+ * Optionally excludes zero values from the median calculation. The input array
+ * is modified in-place during sorting.
+ *
+ * \param arr            (in/out) double[n]; array to compute median from; sorted in-place
+ * \param n              (in)     array size
+ * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
+ * \return               The median value (or median of non-zero values if exclude_zeros=1)
+ */
 double get_median_double(double *arr, int n, int exclude_zeros) 
 {
     int i, filtered_count = 0;
@@ -371,6 +430,16 @@ double get_median_double(double *arr, int n, int exclude_zeros)
  * Returns:
  *  The sum of the array elements.
  */
+/**
+ * \brief Get sum of elements in double array with optional zero exclusion.
+ *
+ * Computes the sum of array elements. Optionally excludes zero values.
+ *
+ * \param arr            (in)  double[n]; array to sum
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are excluded from sum
+ * \return               The sum (or sum of non-zero values if exclude_zeros=1)
+ */
 double get_sum_double(double *arr, int n, int exclude_zeros) 
 {
     int i;
@@ -399,6 +468,16 @@ double get_sum_double(double *arr, int n, int exclude_zeros)
  *
  * Returns:
  *  The mean value of the array.
+ */
+/**
+ * \brief Get mean value from double array with optional zero exclusion.
+ *
+ * Computes the arithmetic mean of array elements. Optionally excludes zero values.
+ *
+ * \param arr            (in)  double[n]; array to compute mean from
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are excluded from mean calculation
+ * \return               The mean value (or mean of non-zero values if exclude_zeros=1)
  */
 double get_mean_double(double *arr, int n, int exclude_zeros) 
 {
@@ -434,6 +513,17 @@ double get_mean_double(double *arr, int n, int exclude_zeros)
  *
  * Returns: The standard deviation of the array.
 */
+/**
+ * \brief Get standard deviation from double array with optional zero exclusion.
+ *
+ * Computes the standard deviation using the formula: sqrt(mean(x^2) - mean(x)^2).
+ * Optionally excludes zero values from computation.
+ *
+ * \param arr            (in)  double[n]; array to compute std dev from
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are excluded from calculation
+ * \return               The standard deviation (or std dev of non-zero values)
+ */
 double get_std_double(double *arr, int n, int exclude_zeros) 
 {
     int i, n0 = 0;
@@ -475,6 +565,16 @@ double get_std_double(double *arr, int n, int exclude_zeros)
  * Returns:
  *  The minimum value in the array.
  */
+/**
+ * \brief Get minimum value from double array with optional zero exclusion.
+ *
+ * Finds the minimum element in the array. Optionally excludes zero values.
+ *
+ * \param arr            (in)  double[n]; array to search
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are ignored (use DBL_MAX as minimum)
+ * \return               The minimum value (or minimum of non-zero values if exclude_zeros=1)
+ */
 double get_min_double(double *arr, int n, int exclude_zeros) 
 {
     int i;
@@ -505,6 +605,16 @@ double get_min_double(double *arr, int n, int exclude_zeros)
  *
  * Returns:
  *  The maximum value in the array.
+ */
+/**
+ * \brief Get maximum value from double array with optional zero exclusion.
+ *
+ * Finds the maximum element in the array. Optionally excludes zero values.
+ *
+ * \param arr            (in)  double[n]; array to search
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are ignored
+ * \return               The maximum value (or maximum of non-zero values if exclude_zeros=1)
  */
 double get_max_double(double *arr, int n, int exclude_zeros) 
 {
@@ -777,6 +887,18 @@ double get_corrcoef_double(const double* x, const double* y, int n, int exclude_
  *
  */
  
+/**
+ * \brief Get median from arbitrary datatype array.
+ *
+ * Wrapper for get_median_double() that converts input to double, computes median,
+ * and returns the result. Supports all standard image datatypes.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from median
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The median value
+ */
 double get_median(void *data, int n, int exclude_zeros, int datatype) 
 {
     double *buffer, result;
@@ -796,6 +918,18 @@ double get_median(void *data, int n, int exclude_zeros, int datatype)
     return(result);
 }
 
+/**
+ * \brief Get mean from arbitrary datatype array.
+ *
+ * Wrapper for get_mean_double() that converts input to double, computes mean,
+ * and returns the result. Supports all standard image datatypes.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from mean
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The mean value
+ */
 double get_mean(void *data, int n, int exclude_zeros, int datatype) 
 {
     double *buffer, result;
@@ -815,6 +949,18 @@ double get_mean(void *data, int n, int exclude_zeros, int datatype)
     return(result);
 }
 
+/**
+ * \brief Get sum from arbitrary datatype array.
+ *
+ * Wrapper for get_sum_double() that converts input to double, computes sum,
+ * and returns the result. Supports all standard image datatypes.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from sum
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The sum value
+ */
 double get_sum(void *data, int n, int exclude_zeros, int datatype) 
 {
     double *buffer, result;
@@ -834,6 +980,18 @@ double get_sum(void *data, int n, int exclude_zeros, int datatype)
     return(result);
 }
 
+/**
+ * \brief Get minimum from arbitrary datatype array.
+ *
+ * Wrapper for get_min_double() that converts input to double and finds minimum.
+ * Supports all standard image datatypes.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded (use DBL_MAX as min)
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The minimum value
+ */
 double get_min(void *data, int n, int exclude_zeros, int datatype) 
 {
     double *buffer, result;
@@ -853,6 +1011,18 @@ double get_min(void *data, int n, int exclude_zeros, int datatype)
     return(result);
 }
 
+/**
+ * \brief Get maximum from arbitrary datatype array.
+ *
+ * Wrapper for get_max_double() that converts input to double and finds maximum.
+ * Supports all standard image datatypes.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The maximum value
+ */
 double get_max(void *data, int n, int exclude_zeros, int datatype) 
 {
     double *buffer, result;
@@ -872,6 +1042,18 @@ double get_max(void *data, int n, int exclude_zeros, int datatype)
     return(result);
 }
 
+/**
+ * \brief Get standard deviation from arbitrary datatype array.
+ *
+ * Wrapper for get_std_double() that converts input to double and computes std dev.
+ * Supports all standard image datatypes.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from calculation
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The standard deviation
+ */
 double get_std(void *data, int n, int exclude_zeros, int datatype) 
 {
     double *buffer, result;

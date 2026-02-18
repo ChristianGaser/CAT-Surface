@@ -10,6 +10,18 @@
 #include <bicpl.h>
 #include "CAT_Smooth.h"
 
+
+/**
+ * \brief Extract all unique vertex neighbors for every point on a polygon mesh.
+ *
+ * Builds a complete neighbor adjacency structure by iterating through all polygons
+ * and collecting the direct neighbors (vertices connected by edges) of each point.
+ * Allocates compact neighbor arrays and returns them via output pointers.
+ *
+ * \param polygons                (in)  polygon mesh structure
+ * \param n_point_neighbours_ptr (out)  int[n_points]; count of neighbors for each point
+ * \param point_neighbours_ptr   (out)  int*[n_points]; neighbor vertex indices for each point
+ */
 void
 get_all_polygon_point_neighbours(polygons_struct *polygons,
                  int *n_point_neighbours_ptr[],
@@ -73,12 +85,39 @@ get_all_polygon_point_neighbours(polygons_struct *polygons,
     *point_neighbours_ptr = neighbours;
 }
 
+/**
+ * \brief Evaluate heat diffusion kernel for a given distance.
+ *
+ * Computes the Gaussian heat kernel: exp(-(x*x) / (2*sigma*sigma))
+ * Used in heat diffusion-based smoothing to weight influence based on distance.
+ *
+ * \param x     (in)  distance value
+ * \param sigma (in)  kernel bandwidth parameter
+ * \return            kernel weight in range (0, 1]
+ */
 double
 evaluate_heatkernel(double x, double sigma)
 {
     return(exp(-(x * x) / (2.0 * sigma * sigma)));
 }
 
+/**
+ * \brief Apply weighted averaging for a point using heat kernel distance weighting.
+ *
+ * Computes a weighted average of values at neighboring points on the mesh,
+ * using heat kernel weights based on geodesic distance. Both point positions
+ * and scalar values are smoothed.
+ *
+ * \param n_polygon_pts (in)  total number of points on mesh
+ * \param polygon_pts   (in)  Point[n_polygon_pts]; 3D coordinates of all mesh points
+ * \param values        (in)  double[n_polygon_pts]; scalar values at each point
+ * \param n_neighbours  (in)  number of neighbors to consider
+ * \param neighbours    (in)  int[n_neighbours]; neighbor vertex indices
+ * \param ptidx         (in)  current point index
+ * \param sigma         (in)  heat kernel bandwidth
+ * \param smooth_point  (out) Point; smoothed position
+ * \param value         (out) double; smoothed scalar value
+ */
 void
 heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
              double values[], int n_neighbours, int *neighbours,
@@ -139,6 +178,18 @@ heatkernel_blur_points(int n_polygon_pts, Point polygon_pts[],
     }
 }
 
+/**
+ * \brief Apply heat diffusion-based smoothing to polygon mesh scalar data.
+ *
+ * Iteratively applies Gaussian heat kernel smoothing to scalar values defined
+ * on mesh vertices. The smoothing kernel bandwidth (sigma) is automatically
+ * calculated from the mean vertex spacing. Multiple iterations can be specified
+ * for stronger smoothing effect.
+ *
+ * \param polygons  (in/out) polygon mesh structure; coordinates smoothed in-place
+ * \param values    (in/out) double[n_points]; scalar values; smoothed in-place
+ * \param fwhm      (in)     Gaussian smoothing FWHM in mm (converted to sigma internally)
+ */
 void
 smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
 {
@@ -247,6 +298,25 @@ smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
  * \param preserve_sharp (int)
  * \param verbose (int)
  * \return See function description for return value semantics.
+ */
+/**
+ * \brief Apply Laplacian smoothing to polygon mesh and scalar data.
+ *
+ * Implements iterative Laplacian smoothing (diffusion-like) where each vertex is
+ * updated as a weighted average of itself and its neighbors. The update rule
+ * is: new_vertex = (1-weight)*vertex + weight*neighbor_average. 
+ * Can optionally smooth associated scalar values using the same iterations.
+ *
+ * Algorithm:
+ *  1. For each iteration:
+ *  2.   For each vertex: compute weighted average of position and neighbors
+ *  3.   Optionally smooth scalar values with same iterations
+ *
+ * \param polygons      (in/out) polygon mesh; coordinates smoothed in-place
+ * \param values        (in/out) optional double array; scalar values to smooth (can be NULL)
+ * \param n_iterations  (in)     number of smoothing iterations
+ * \param weight        (in)     blending weight for smoothing (0..1); higher=stronger smoothing
+ * \return              0 on success; <0 on error
  */
 int smooth_laplacian(polygons_struct *polygons,
                          int iter,

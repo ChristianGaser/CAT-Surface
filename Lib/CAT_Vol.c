@@ -216,7 +216,17 @@ void localstat3(void *data, unsigned char *mask, int dims[3], int dist,
 }
 
 /**
- * wrapper to use localstat_double for median calculation for any data type 
+ * \brief Apply median filtering to a 3D volume.
+ *
+ * Applies median filtering using a 3x3x3 neighborhood with optional masking.
+ * Median filtering removes noise while preserving edges better than Gaussian smoothing.
+ * The computation is performed on a double-precision buffer regardless of input datatype.
+ *
+ * \param data      (in/out) void pointer to volume data; type given by datatype parameter
+ * \param mask      (in)     optional unsigned char mask (NULL to process entire volume)
+ * \param dims      (in)     {nx, ny, nz} dimension array
+ * \param iters     (in)     number of median filtering iterations
+ * \param datatype  (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
 void median3(void *data, unsigned char *mask, int dims[3], int iters, int datatype)
 {
@@ -242,28 +252,16 @@ void median3(void *data, unsigned char *mask, int dims[3], int iters, int dataty
 }
 
 /**
- * pmin - Finds the minimum positive value in an array and its index.
+ * \brief Find the minimum positive value in a float array.
  *
- * This function iterates through a given array of floats to find the minimum positive
- * value and the index at which this value occurs. It is specifically designed to ignore
- * non-positive values (i.e., values less than or equal to zero).
+ * Searches for the smallest positive (> 0) value in an array of floats,
+ * along with its array index. Non-positive values are ignored.
+ * Useful for finding the nearest positive voxel distance or similar applications.
  *
- * A: Pointer to the float array in which the minimum positive value is to be searched.
- *     The array should contain 'sA' elements.
- *
- * sA: Integer representing the size of the 'A' array.
- *
- * minimum: Pointer to a float where the minimum positive value found in the array will be stored.
- *           If no positive value is found, it will store FLT_MAX.
- *
- * index: Pointer to an integer where the index of the minimum positive value found in the array
- *         will be stored. If no positive value is found, it will store 0.
- *
- * The function initializes 'minimum' to the maximum float value (FLT_MAX) and 'index' to 0.
- * It then iterates through the array, updating 'minimum' and 'index' whenever it finds a
- * new minimum positive value. This is useful for tasks where identifying the smallest
- * positive element of an array and its position is required.
- *
+ * \param A        (in)  float array to search through
+ * \param sA       (in)  size of array A
+ * \param minimum  (out) pointer to store the minimum positive value found (FLT_MAX if none)
+ * \param index    (out) pointer to store the index of the minimum positive value (0 if none)
  */
 void pmin(float *A, int sA, float *minimum, int *index)
 {
@@ -1071,7 +1069,18 @@ void smooth_float(float *vol, int dims[3], double voxelsize[3], double fwhm[3], 
 }
 
 /**
- * wrapper to call smooth_float for any data type 
+ * \brief Smooth a 3D volume with a Gaussian filter.
+ *
+ * Applies Gaussian smoothing to a 3D volume with specified full-width half-maximum (FWHM).
+ * Smoothing is applied independently along x, y, and z axes using separable convolution.
+ * Handles automatic data type conversion for any supported datatype.
+ *
+ * \param data       (in/out) void pointer to volume data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz} dimension array
+ * \param voxelsize  (in)     voxel spacing in mm; used to scale FWHM to physical units
+ * \param fwhm       (in)     {fwhm_x, fwhm_y, fwhm_z} smoothing kernel FWHM in mm
+ * \param use_mask   (in)     unused/reserved for compatibility (pass 0)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
 void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int use_mask, int datatype)
 {
@@ -2490,39 +2499,27 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
 }
 
 /**
- * correct_bias_label - Performs bias correction on MRI images based on specified labels.
+ * \brief Bias correction on MRI images based on tissue labels.
  *
- * This function applies a bias correction process to an MRI image dataset. The correction
- * is performed based on the label values assigned to each voxel, allowing different
- * treatments for different tissue types (e.g., white matter, gray matter).
+ * Corrects multiplicative bias field in MRI images using tissue-specific label information.
+ * Computes mean intensities for each tissue class, then estimates and removes the bias field
+ * based on the ratio between actual and mean values. Different tissues can receive different
+ * corrections based on label thresholding.
  *
- * src: Pointer to the source image data (float array).
- *       This array is modified in place with the bias-corrected values.
+ * Algorithm:
+ *  1. Compute mean intensity for each tissue class from labeled regions
+ *  2. Estimate bias field as local ratio of actual intensity to class mean
+ *  3. Refine brain mask using morphological operations
+ *  4. Smooth bias field with specified FWHM Gaussian kernel
+ *  5. Divide source image by the estimated bias field
  *
- * label: Pointer to the label array (unsigned char array) indicating different
- *         tissue types in the MRI scan. Different values in this array represent
- *         different tissues such as white matter, gray matter, etc.
- *
- * dims: Pointer to an integer array of size 3, indicating the dimensions of the
- *        MRI volume (e.g., [width, height, depth]).
- *
- * voxelsize: Pointer to a double array of size 3, indicating the size of each
- *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
- *
- * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
- *             the Gaussian kernel used for smoothing in the bias correction
- *             process.
- *
- * label_th: An integer specifying the threshold label value for selecting
- *            specific tissues for bias correction. For example, using label_th = 2
- *            may focus the correction on white matter only.
- *
- * The function first calculates the mean intensity for each label class and then
- * estimates a bias field based on the ratio between actual voxel values and their
- * respective label class means. Morphological operations are used to refine the 
- * brain mask for the bias estimation. The bias field is then used to adjust the 
- * voxel intensities in the source image.
- *
+ * \param src       (in/out) float[nvox]; source image, modified in-place with bias correction
+ * \param biasfield (out)    float[nvox]; estimated bias field (can be NULL)
+ * \param label     (in)     unsigned char[nvox]; tissue label map (e.g., CSF=1, GM=2, WM=3)
+ * \param dims      (in)     {nx, ny, nz} volume dimensions
+ * \param voxelsize (in)     {sx, sy, sz} voxel spacing in mm
+ * \param bias_fwhm (in)     FWHM of Gaussian smoothing kernel for bias field (mm)
+ * \param label_th  (in)     label threshold for selective correction (e.g., 2 for WM only)
  */
 void correct_bias_label(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
 {
@@ -2635,39 +2632,27 @@ void correct_bias_label(float *src, float *biasfield, unsigned char *label, int 
 }
 
 /**
- * correct_bias - Applies bias correction to MRI data.
+ * \brief Adaptive bias correction for MRI images with optional subcortical refinement.
  *
- * This function performs bias correction on MRI images, specifically focusing on
- * white matter (WM) and, if specified, on gray matter (GM) as well. It uses a
- * local adaptive segmentation approach for additional GM correction.
+ * Performs bias field estimation and correction on MRI images with two stages:
+ * WM (white matter) correction followed by optional GM (gray matter) correction
+ * using local adaptive segmentation for subcortical regions.
  *
- * src: Pointer to the source image data (float array).
- *       This array is modified in place with the bias-corrected values.
+ * Algorithm:
+ *  1. Estimate and correct WM bias field
+ *  2. If weight_las > 0:
+ *     - Estimate and correct GM bias field with light smoothing
+ *     - Create distance map to subcortical/central brain regions
+ *     - Blend WM and GM corrections using distance weighting
  *
- * label: Pointer to the label array (unsigned char array) indicating different
- *         tissue types in the MRI scan. Typically, different values in this array
- *         represent different tissues such as WM, GM, and CSF.
- *
- * dims: Pointer to an integer array of size 3, indicating the dimensions of the
- *        MRI volume (e.g., [width, height, depth]).
- *
- * voxelsize: Pointer to a double array of size 3, indicating the size of each
- *             voxel in the MRI data (e.g., [size_x, size_y, size_z]).
- *
- * bias_fwhm: A double value indicating the full-width half-maximum (FWHM) of
- *             the Gaussian kernel used for smoothing in the bias correction
- *             process. This parameter is primarily used for WM correction.
- *
- * weight_las: A double value indicating the amount of weighting local adaptive 
- *              segmentation (LAS) that should be applied for additional GM correction. 
- *              If non-zero, LAS is applied (use values 0..1).
- *
- * The function first applies WM bias correction. If `weight_las` is non-zero, it
- * then performs GM correction with a small smoothing factor, creates a distance 
- * map for subcortical regions, and applies a weighted average to optimize the 
- * bias correction in these areas. The function modifies the `src` array in place 
- * with the corrected values.
- *
+ * \param src       (in/out) float[nvox]; source image, modified in-place with bias correction
+ * \param biasfield (out)    float[nvox]; estimated bias field (can be NULL)
+ * \param label     (in)     unsigned char[nvox]; tissue label map (CSF=1, GM=2, WM=3, etc.)
+ * \param dims      (in)     {nx, ny, nz} volume dimensions
+ * \param voxelsize (in)     {sx, sy, sz} voxel spacing in mm
+ * \param bias_fwhm (in)     FWHM of Gaussian smoothing kernel for WM correction (mm)
+ * \param weight_las (in)    weight for local adaptive segmentation GM correction (0..1);
+ *                            0 = WM only, >0 = blend WM and GM with distance weighting
  */
 void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las)
 {
@@ -2825,6 +2810,31 @@ void vol_approx(float *vol, int dims[3], double voxelsize[3])
     free(TAr);
 }
 
+/**
+ * \brief Clean up tissue probability map by morphological refinement.
+ *
+ * Refines a tissue probability array (containing CSF, GM, WM probabilities) by iteratively
+ * applying erosion and conditional dilation operations. This cleanup process improves
+ * tissue classification by removing small isolated regions and bridging small gaps,
+ * while preserving thin structures (e.g., cerebellum, deep brain structures) using
+ * distance-weighted operations.
+ *
+ * Algorithm:
+ *  1. Extract WM and GM probability maps from input array
+ *  2. Create distance map to tissue boundary (to weight central regions higher)
+ *  3. Initial erosion phase (2 iterations) to remove noise
+ *  4. Conditional dilation phase to restore shape while maintaining tissue separation
+ *  5. Prevent false gaps between hemispheres using morphological closing
+ *  6. Update probability map in-place with cleaned tissue probabilities
+ *
+ * \param prob     (in/out) unsigned char[3*nvox]; tissue probability array
+ *                          [0:nvox-1]=CSF, [nvox:2*nvox-1]=GM, [2*nvox:3*nvox-1]=WM
+ *                          Modified in-place by cleanup operations
+ * \param dims     (in)     {nx, ny, nz} volume dimensions
+ * \param voxelsize (in)     {sx, sy, sz} voxel spacing in mm; used for morphological scaling
+ * \param strength  (in)     cleanup strength (0..N); controls dilation threshold
+ *                           (higher = more aggressive cleanup)
+ */
 void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int strength)
 {
     double scale = 3.0/(voxelsize[0] + voxelsize[1] + voxelsize[2]);
@@ -3123,32 +3133,26 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
 }
 
 /**
- * fill_holes - Fill holes in a 3D volume after thresholding.
+ * \\brief Fill holes in a binary or thresholded volume.
  *
- * This function is designed to process a 3D volume by filling the holes 
- * created after applying a thresholding operation.
+ * Identifies and fills small background regions (holes) in a thresholded volume.
+ * Uses connected-component analysis to identify isolated background voxels and
+ * replaces them with estimated foreground or specified fill values.
  *
- * The process invoxves several steps:
- * 1. Conversion of input data to a floating-point buffer based on the given datatype.
- * 2. Creation of an inverted mask based on the threshold value, where values below 
- *    the threshold are set to 1 (indicating potential holes) and values above are set to 0.
- * 3. Identification and retention of the largest cluster in the inverted mask, typically 
- *    representing the background, using the `keep_largest_cluster_float` function.
- * 4. Filling the identified holes in the original data buffer by setting values corresponding 
- *    to the holes to the threshold value.
- * 5. Conversion of the processed data back to the original datatype.
+ * Algorithm:
+ *  1. Threshold input volume (values < thresh are potential holes)
+ *  2. Invert mask to identify connected background components
+ *  3. Keep only the largest background cluster (typically representing true background)
+ *  4. Fill identified holes with specified value or smooth estimate from neighbors
+ *  5. Convert result back to original datatype
  *
- * Parameters:
- *  data: Pointer to the input data buffer. This buffer is modified in-place.
- *  dims: Array of 3 integers representing the dimensions of the 3D volume 
- *        (width, height, depth).
- *  thresh: Threshold value used for identifying holes. Values below this threshold 
- *        are considered potential holes.
- *  fill_value: Value with which the hole should be filled. A negative value means
- *        that the filled value will be estimated based on the surrounding voxels.   
- *  datatype: An integer representing the datatype of the input data. This is used 
- *        to correctly interpret and manipulate the data buffer.
- *
+ * \\param data      (in/out) void pointer to volume data; type given by datatype parameter
+ * \\param dims      (in)     {nx, ny, nz} volume dimensions
+ * \\param thresh    (in)     threshold value; voxels < thresh are treated as potential holes
+ * \\param fill_value (in)    value to fill holes with;
+ *                            if negative, holes are filled with locally estimated values
+ *                            if >=0, holes are filled with this fixed value
+ * \\param datatype  (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
 void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype)
 {
