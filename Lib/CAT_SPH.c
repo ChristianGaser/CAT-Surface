@@ -681,12 +681,11 @@ void get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
  * \param force        (in) flag for forcing specific handling mode
  * \return void
  */
-void
-get_equally_sampled_coords_holes(polygons_struct *polygons,
-                                 polygons_struct *sphere, int *defects,
-                                 int n_defects, int *holes, int bandwidth,
-                                 double xcoord[], double ycoord[],
-                                 double zcoord[], int force)
+void get_equally_sampled_coords_holes(polygons_struct *polygons,
+                                      polygons_struct *sphere, int *defects,
+                                      int n_defects, int *holes, int bandwidth,
+                                      double xcoord[], double ycoord[],
+                                      double zcoord[], int force)
 {
     int i, j, x, y, *bisected;
     double value, u, v, r, radius;

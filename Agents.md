@@ -90,15 +90,17 @@ If you move logic from a program into the library, the program should become a t
 ### Command-line tools (Progs/)
 
 - **New CLI tools must delegate as much logic as possible to library functions in `Lib/`.** The program in `Progs/` should be a thin wrapper that:
+
  1) parses arguments,
  2) loads input data,
  3) calls one or more library functions to do the real work,
  4) writes results.
+
 - When adding a new feature, first create a library module (`Include/CAT_<Feature>.h` + `Lib/CAT_<Feature>.c`), then write a slim CLI that calls it.
 - Each `Progs/CAT_*.c` usually depends on:
- 	- `libCAT` (core algorithms in `Lib/`)
- 	- `bicpl-surface` (polygons structs, mesh utilities, argument parsing)
- 	- optional bundled IO libs (GIFTI/NIfTI)
+  - `libCAT` (core algorithms in `Lib/`)
+  - `bicpl-surface` (polygons structs, mesh utilities, argument parsing)
+  - optional bundled IO libs (GIFTI/NIfTI)
 
 ### Bundled third-party code (3rdparty/)
 
