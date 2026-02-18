@@ -118,9 +118,8 @@ CAT_Vol2SurfEvaluateFunction(const double *val_array, int n_val, int map_func,
  * \param kernel_out   (out) output kernel (length n)
  * \return void
  */
-void
-CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_half,
-                           double *kernel_out)
+void CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_half,
+                                double *kernel_out)
 {
     int j;
     double sum = 0.0;
@@ -158,9 +157,8 @@ CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_half,
  * \param kernel_out  (out) output kernel (length grid_steps1)
  * \return void
  */
-void
-CAT_Vol2SurfBuildGaussianKernel50(int grid_steps, int grid_steps1,
-                                  double *kernel_out)
+void CAT_Vol2SurfBuildGaussianKernel50(int grid_steps, int grid_steps1,
+                                       double *kernel_out)
 {
     int i;
     double sum = 0.0;

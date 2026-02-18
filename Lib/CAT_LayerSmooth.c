@@ -34,7 +34,9 @@
 #ifndef MIN
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 #endif
+#ifndef SQR
 #define SQR(x) ((x) * (x))
+#endif
 
 /**
  * Gaussian weight function
