@@ -2092,6 +2092,18 @@ void subsample_float(float *in, float *out, int dims[3], int dims_samp[3]) {
     }
 }
 
+/**
+ * \brief Resample a 3D volume to a different size using trilinear interpolation.
+ *
+ * Resizes a 3D volume from one dimension to another using trilinear interpolation.
+ * The routine handles automatic type conversion for different data types.
+ *
+ * \param in        (in)  input volume data (pointer to any supported datatype)
+ * \param out       (out) output volume data (pointer to pre-allocated array)
+ * \param dims      (in)  original volume dimensions {nx, ny, nz}
+ * \param dims_samp (in)  target volume dimensions {nx_new, ny_new, nz_new}
+ * \param datatype  (in)  data type descriptor (e.g., DT_FLOAT32, DT_UINT8)
+ */
 void subsample3(void *in, void *out, int dims[3], int dims_samp[3], int datatype)
 {
     int nvox_samp, nvox;
@@ -2234,74 +2246,6 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
     /* Free allocated memory */
     free(vol_samp);
     free(buffer);
-}
-
-/**
- * \brief Build a smooth “gyri/sulci mask” (gyri ≈ 0, sulci ≈ 1).
- *
- * This mask supports downstream operations that benefit from different behavior in
- * gyral vs. sulcal regions, e.g.:
- *  - **Surface extraction:** prevent sulcal closure by using a higher isovalue in sulci,
- *    and prevent cutting gyri by using a lower isovalue in gyri.
- *  - **Projection-based cortical thickness:** use different parameters over gyri vs. sulci.
- *
- * **Algorithm (overview)**
- *  1) **Initial thresholding** of the input scalar image `src` at `thresh * max(src)` to form
- *     a coarse tissue mask; then **distance-based closing** to fill sulcal gaps.
- *  2) **Gyri emphasis:** a slight **dilation** followed by a stronger **erosion** to
- *     preferentially shrink gyri crowns relative to sulcal regions.
- *  3) **Smoothing** to create a soft (0..1) transition between gyri and sulci.
- *  4) **CSF enforcement:** voxels clearly below tissue threshold (e.g., CSF) are set to 1
- *     (open sulci), followed by a light final smoothing to avoid hard borders.
- *
- * **Conventions**
- *  - Output `mask` is in **[0,1]** (float). Values close to **0** indicate gyri crowns;
- *    values close to **1** indicate sulcal fundi.
- *
- * \param src       (in)  float[nx*ny*nz] input scalar image (e.g., label map)
- * \param mask      (out) float[nx*ny*nz] output mask (0..1); pre-allocated by caller
- * \param dims      (in)  {nx, ny, nz}
- * \param voxelsize (in)  voxel spacing (e.g., mm) as {sx, sy, sz}
- * \param thresh    (in)  threshold for src; seeds the initial mask (recommended value for label map 1.5)
- * \param fwhm      (in)  smoothing FWHM for the main blur step (recommended value FWHM=8.0)
- *
- * \note The heuristic constants (closing 5, dilate 2, erode 5, CSF factor 0.75, final FWHM 2)
- *       follow the original intent and can be exposed as parameters if needed.
- */
-void smooth_gyri_mask(const float *src, float *mask,
-                      int dims[3], double voxelsize[3],
-                      double thresh, double fwhm)
-{
-    const int nx = dims[0], ny = dims[1], nz = dims[2];
-    const int nvox = nx * ny * nz;
-    int i;
-
-    /* Check inputs */
-    if (!src || !mask || nvox <= 0) return;
-
-    /* mask = (src > thresh) ? 1 : 0 */
-    for (i = 0; i < nvox; ++i)
-        mask[i] = (src[i] > thresh) ? 1.0f : 0.0f;
-
-    /* Close sulcal gaps with a modest distance closing radius */
-    dist_close_float(mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
-
-    /* Gyri emphasis: slight dilation then stronger erosion */
-    /* This sequence tends to suppress gyri crowns relative to sulci. */
-    dist_dilate_float(mask, dims, voxelsize, /*dist=*/2.0, /*th=*/0.5);
-    dist_erode_float (mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
-
-    /* Smooth transition between gyri (≈0) and sulci (≈1) */
-    double fwhm3[3];
-    fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm;
-    smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
-
-    /* Force obvious CSF to 1 (open sulci), then very light smoothing */
-    const float t_csf = 0.75f * thresh;  /* slightly below main threshold */
-    for (i = 0; i < nvox; ++i) if (src[i] < t_csf) mask[i] = 1.0f;
-
-    fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm/4.0;
-    smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
 }
 
 /**
@@ -2552,6 +2496,18 @@ void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
     }
 }
 
+/**
+ * \brief Approximate missing values in a volume by interpolating from neighbors.
+ *
+ * This function uses the Laplace approximation to fill zero and negative values
+ * by interpolating from their neighboring non-zero voxels. Internally, it applies
+ * a smoothing/interpolation procedure via euclidean_distance() and laplace3R() to
+ * estimate reasonable values for interior voxels that have been zeroed.
+ *
+ * \param vol       (in/out) float[dims[0]*dims[1]*dims[2]]; modified in place
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing in mm (or consistent units)
+ */
 void vol_approx(float *vol, int dims[3], double voxelsize[3])
 {
     int i, nvox;
@@ -2893,7 +2849,16 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
  * keep_largest_cluster - Identifies the largest cluster in a 3D volume.
  *
  * This function calls keep_largest_cluster_float and converts datatypes of
- * input and output
+ * input and output. It identifies connected components in a binary or labeled volume
+ * and retains only the largest cluster, optionally filtered by size constraints.
+ *
+ * \param data        (in/out) volume data (pointer to any supported datatype)
+ * \param thresh      (in)     threshold for connectivity; voxels above this connect
+ * \param dims        (in)     volume dimensions {nx, ny, nz}
+ * \param datatype    (in)     data type descriptor (e.g., DT_FLOAT32, DT_UINT8)
+ * \param min_size    (in)     minimum cluster size (if <0, retain clusters >= |min_size|)
+ * \param retain_above_th (in) if 1, set smaller clusters to 0; if 0, invert logic
+ * \param conn        (in)     connectivity: 6 (face), 18 (face+edge), 26 (face+edge+corner)
  */
 void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn)
 {
@@ -3039,7 +3004,21 @@ float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3
 }
 
 /**
- * Compute local gradient for a 3D volume
+ * \brief Compute local gradient magnitude and components for a 3D volume.
+ *
+ * Calculates the spatial gradient (first derivatives) at each voxel using
+ * finite differences, with boundary-aware handling at volume edges.
+ * Optionally outputs the gradient magnitude and individual x, y, z components.
+ *
+ * \param src       (in)  input volume float[dims[0]*dims[1]*dims[2]]
+ * \param grad_mag  (out) gradient magnitude; NULL to skip (optional)
+ * \param grad_x    (out) x-component of gradient; NULL to skip (optional)
+ * \param grad_y    (out) y-component of gradient; NULL to skip (optional)
+ * \param grad_z    (out) z-component of gradient; NULL to skip (optional)
+ * \param dims      (in)  volume dimensions {nx, ny, nz}
+ * \param voxelsize (in)  voxel spacing in mm {dx, dy, dz}
+ *
+ * \note Boundary voxels use one-sided differences to avoid out-of-bounds access.
  */
 void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, 
                           float *grad_z, int dims[3], double voxelsize[3]) {

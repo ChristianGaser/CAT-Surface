@@ -99,6 +99,4 @@ int sub2ind(int x, int y, int z, int s[]);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype);
 void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, float *grad_z, int dims[3], double voxelsize[3]);
-void smooth_gyri_mask(const float *src, float *mask, int dims[3], double voxelsize[3],
-                      double thresh, double fwhm);
 #endif

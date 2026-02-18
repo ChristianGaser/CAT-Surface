@@ -93,6 +93,41 @@ int CAT_VolComputePbt(
  */
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize);
 
+/**
+ * Build a smooth "gyri/sulci mask" (gyri ≈ 0, sulci ≈ 1).
+ *
+ * This mask supports downstream operations that benefit from different behavior in
+ * gyral vs. sulcal regions, e.g.:
+ *  - Surface extraction: prevent sulcal closure by using a higher isovalue in sulci,
+ *    and prevent cutting gyri by using a lower isovalue in gyri.
+ *  - Projection-based cortical thickness: use different parameters over gyri vs. sulci.
+ *
+ * Algorithm (overview):
+ *  1. Initial thresholding of the input scalar image at (thresh * max(src)) to form
+ *     a coarse tissue mask; then distance-based closing to fill sulcal gaps.
+ *  2. Gyri emphasis: a slight dilation followed by a stronger erosion to
+ *     preferentially shrink gyri crowns relative to sulcal regions.
+ *  3. Smoothing to create a soft (0..1) transition between gyri and sulci.
+ *  4. CSF enforcement: voxels clearly below tissue threshold (e.g., CSF) are set to 1
+ *     (open sulci), followed by a light final smoothing to avoid hard borders.
+ *
+ * Conventions:
+ *  - Output mask is in [0,1] (float). Values close to 0 indicate gyri crowns;
+ *    values close to 1 indicate sulcal fundi.
+ *
+ * @param src       Input scalar image (e.g., label map float[nx*ny*nz])
+ * @param mask      Output mask (0..1) pre-allocated by caller float[nx*ny*nz]
+ * @param dims      Volume dimensions {nx, ny, nz}
+ * @param voxelsize Voxel spacing in mm {sx, sy, sz}
+ * @param thresh    Threshold for src; seeds the initial mask (recommended: 1.5 for label map)
+ * @param fwhm      Smoothing FWHM for the main blur step (recommended: 8.0)
+ *
+ * @note The heuristic constants (closing=5, dilate=2, erode=5, CSF_factor=0.75, final_FWHM=2)
+ *       follow the original intent and can be exposed as parameters if needed.
+ */
+void smooth_gyri_mask(const float *src, float *mask, int dims[3], double voxelsize[3],
+                      double thresh, double fwhm);
+
 #ifdef __cplusplus
 }
 #endif

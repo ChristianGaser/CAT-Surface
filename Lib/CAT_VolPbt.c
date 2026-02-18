@@ -486,3 +486,200 @@ projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int 
         }
     }
 }
+
+/**
+ * \brief Build a smooth "gyri/sulci mask" (gyri ≈ 0, sulci ≈ 1).
+ *
+ * This mask supports downstream operations that benefit from different behavior in
+ * gyral vs. sulcal regions, e.g.:
+ *  - **Surface extraction:** prevent sulcal closure by using a higher isovalue in sulci,
+ *    and prevent cutting gyri by using a lower isovalue in gyri.
+ *  - **Projection-based cortical thickness:** use different parameters over gyri vs. sulci.
+ *
+ * **Algorithm (overview)**
+ *  1) **Initial thresholding** of the input scalar image `src` at `thresh * max(src)` to form
+ *     a coarse tissue mask; then **distance-based closing** to fill sulcal gaps.
+ *  2) **Gyri emphasis:** a slight **dilation** followed by a stronger **erosion** to
+ *     preferentially shrink gyri crowns relative to sulcal regions.
+ *  3) **Smoothing** to create a soft (0..1) transition between gyri and sulci.
+ *  4) **CSF enforcement:** voxels clearly below tissue threshold (e.g., CSF) are set to 1
+ *     (open sulci), followed by a light final smoothing to avoid hard borders.
+ *
+ * **Conventions**
+ *  - Output `mask` is in **[0,1]** (float). Values close to **0** indicate gyri crowns;
+ *    values close to **1** indicate sulcal fundi.
+ *
+ * \param src       (in)  float[nx*ny*nz] input scalar image (e.g., label map)
+ * \param mask      (out) float[nx*ny*nz] output mask (0..1); pre-allocated by caller
+ * \param dims      (in)  {nx, ny, nz}
+ * \param voxelsize (in)  voxel spacing (e.g., mm) as {sx, sy, sz}
+ * \param thresh    (in)  threshold for src; seeds the initial mask (recommended value for label map 1.5)
+ * \param fwhm      (in)  smoothing FWHM for the main blur step (recommended value FWHM=8.0)
+ *
+ * \note The heuristic constants (closing 5, dilate 2, erode 5, CSF factor 0.75, final FWHM 2)
+ *       follow the original intent and can be exposed as parameters if needed.
+ */
+void
+smooth_gyri_mask(const float *src, float *mask,
+                      int dims[3], double voxelsize[3],
+                      double thresh, double fwhm)
+{
+    const int nx = dims[0], ny = dims[1], nz = dims[2];
+    const int nvox = nx * ny * nz;
+    int i;
+
+    /* Check inputs */
+    if (!src || !mask || nvox <= 0) return;
+
+    /* mask = (src > thresh) ? 1 : 0 */
+    for (i = 0; i < nvox; ++i)
+        mask[i] = (src[i] > thresh) ? 1.0f : 0.0f;
+
+    /* Close sulcal gaps with a modest distance closing radius */
+    dist_close_float(mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
+
+    /* Gyri emphasis: slight dilation then stronger erosion */
+    /* This sequence tends to suppress gyri crowns relative to sulci. */
+    dist_dilate_float(mask, dims, voxelsize, /*dist=*/2.0, /*th=*/0.5);
+    dist_erode_float (mask, dims, voxelsize, /*dist=*/5.0, /*th=*/0.5);
+
+    /* Smooth transition between gyri (≈0) and sulci (≈1) */
+    double fwhm3[3];
+    fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm;
+    smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
+
+    /* Force obvious CSF to 1 (open sulci), then very light smoothing */
+    const float t_csf = 0.75f * thresh;  /* slightly below main threshold */
+    for (i = 0; i < nvox; ++i) if (src[i] < t_csf) mask[i] = 1.0f;
+
+    fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm/4.0;
+    smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
+}
+ * This function estimates the projection-based thickness of segmented structures 
+ * in a 3D volume, typically used in medical imaging for brain tissue analysis. 
+ * It requires PVE label images and distance maps for WM and CSF.
+ *
+ * Parameters:
+ *  - SEG: PVE label image with labels for CSF, GM, and WM.
+ *  - WMD: White Matter distance map.
+ *  - CSFD: Cerebrospinal Fluid distance map.
+ *  - GMT: Output thickness image.
+ *  - dims: Array containing the dimensions of the volume.
+ *  - voxelsize: Array containing the size of each voxel.
+ *
+ * Note:
+ *  - The function assumes specific labels for CSF (1), GM (2), and WM (3).
+ */
+void
+projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize)
+{
+    // Initialization and pre-processing
+    const int nvox = dims[0] * dims[1] * dims[2];
+    const int x = dims[0], y = dims[1], xy = x * y;
+    const float s2 = sqrt(2.0), s3 = sqrt(3.0);
+    const int   NI[14] = {0, -1, -x+1, -x, -x-1, -xy+1, -xy, -xy-1, -xy+x+1, -xy+x, -xy+x-1, -xy-x+1, -xy-x, -xy-x-1}; // Neighbour index offsets
+    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3}; // Neighbour distances
+    enum { sN = (int) (sizeof(NI) / sizeof(NI[0])) }; // Number of neighbours
+
+    // Variables for processing
+    float DN[sN], DI[sN], GMTN[sN], WMDN[sN], SEGN[sN], DNm;
+    float GMTi, CSFDi;
+    int i, n, ni, u, v, w, nu, nv, nw, count_WM = 0, count_CSF = 0;
+
+    /* GMT should be allocated */
+    if (!GMT) {
+        GMT = (float *)malloc(sizeof(float)*nvox);
+        if (!GMT) {
+            fprintf(stderr,"Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+    }    
+
+    // Initial distance checks and assignment
+    for (i = 0; i < nvox; i++) {
+        // Initial GMT value and WM/CSF counts
+        GMT[i] = WMD[i] + 0.0;
+        
+        // proof distance input
+        if (SEG[i] >= GWM) count_WM++;
+        if (SEG[i] <= CGM) count_CSF++;
+    }
+
+    // Error checks for WM and CSF voxels
+    if (count_WM == 0) {
+        fprintf(stderr,"ERROR: no WM voxels\n");
+        exit(EXIT_FAILURE);
+    }    
+    if (count_CSF == 0) {
+        fprintf(stderr,"ERROR: no CSF voxels\n");
+        exit(EXIT_FAILURE);
+    }    
+
+    // Forward thickness calculation
+    for (i = 0; i < nvox; i++) {
+        // Process only GM voxels
+        if (SEG[i] > CSF && SEG[i] < WM) {
+            // Neighbourhood processing
+            ind2sub(i, &u, &v, &w, xy, x);
+
+            /* read neighbour values */
+            for (n = 0; n < sN; n++) {
+                ni = i + NI[n];
+                ind2sub(ni, &nu, &nv, &nw, xy, x);
+
+                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                    ni = i;
+
+                GMTN[n] = GMT[ni];
+                WMDN[n] = WMD[ni];
+                SEGN[n] = SEG[ni];
+            }
+
+            /* find minimum distance within the neighbourhood */
+            DNm = pmax(GMTN, WMDN, SEGN, ND, WMD[i], SEG[i], sN);
+            GMT[i] = DNm;
+        }
+    }
+
+    // Backward search for thickness correction
+    for (i = nvox - 1; i >= 0; i--) {
+        // Process only GM voxels
+        if (SEG[i] > CSF && SEG[i] < WM) {
+            ind2sub(i, &u, &v, &w, xy, x);
+
+            /* read neighbour values */
+            for (n = 0; n < sN; n++) {
+                ni = i - NI[n];
+                ind2sub(ni, &nu, &nv, &nw, xy, x);
+
+                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
+                    ni = i;
+
+                GMTN[n] = GMT[ni];
+                WMDN[n] = WMD[ni];
+                SEGN[n] = SEG[ni];
+            }
+
+            /* find minimum distance within the neighbourhood */
+            DNm = pmax(GMTN, WMDN, SEGN, ND, WMD[i], SEG[i], sN);
+            if ((GMT[i] < DNm) && (DNm > 0)) GMT[i] = DNm;
+        }
+    }
+
+    // Post-processing to refine GMT values
+    for (i = 0; i < nvox; i++) {
+        if (SEG[i] < CGM || SEG[i] > GWM)
+            GMT[i] = 0.0;
+    }
+
+    // Final GMT adjustment based on CSFD and WMD
+    for (i = 0; i < nvox; i++) {
+        if (SEG[i] >= CGM && SEG[i] <= GWM) {
+            GMTi = CSFD[i] + WMD[i];
+            CSFDi = GMT[i] - WMD[i];
+
+            /*if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;          
+            else GMT[i]  = GMTi;*/
+        }
+    }
+}
