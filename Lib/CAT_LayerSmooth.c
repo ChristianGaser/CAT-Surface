@@ -57,13 +57,20 @@ static double fwhm_to_sigma(double fwhm)
 }
 
 /**
- * compute_cortical_depth - Compute cortical depth field
+ * \brief Compute cortical depth field from WM/CSF distance maps.
  *
- * Computes WM and CSF distances, then derives relative depth:
- *   depth = WMD / (WMD + CSFD)
+ * Computes WM and CSF distances, then derives relative depth as
+ * $depth = WMD / (WMD + CSFD)$. The extend parameter allows including
+ * voxels slightly outside the strict GM band.
  *
- * The 'extend' parameter allows including voxels slightly outside
- * the strict GM band (CGM < seg < GWM) by this distance in mm.
+ * \param seg        (in)  PVE segmentation image
+ * \param depth      (out) depth field (pre-allocated)
+ * \param dist_WM_out  (out) optional WM distance map (or NULL)
+ * \param dist_CSF_out (out) optional CSF distance map (or NULL)
+ * \param dims       (in)  volume dimensions [nx, ny, nz]
+ * \param voxelsize  (in)  voxel size in mm [dx, dy, dz]
+ * \param extend     (in)  extension outside GM band in mm
+ * \return void
  */
 void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float *dist_CSF_out,
                             int dims[3], double voxelsize[3], double extend)
@@ -178,17 +185,19 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
 }
 
 /**
- * smooth_within_cortex_float - Anisotropic smoothing along cortical layers
+ * \brief Anisotropic smoothing along cortical layers (float data).
  *
- * For each cortical voxel, smooths using a kernel that weights neighbors by:
- * 1. Euclidean distance (standard Gaussian)
- * 2. Depth similarity (penalizes smoothing across layers)
+ * For each cortical voxel, smooths using a kernel weighted by spatial
+ * distance, depth similarity, and local normal similarity to avoid
+ * cross-layer mixing and kissing sulci artifacts.
  *
- * The combined weight is:
- *   w = exp(-d_spatial^2 / (2*sigma_spatial^2)) * exp(-d_depth^2 / (2*sigma_depth^2))
- *
- * sigma_depth controls how strictly we stay within layers. A small value
- * means very strict layer preservation; larger values allow more cross-layer smoothing.
+ * \param data      (in/out) float data volume to smooth
+ * \param seg       (in)  PVE segmentation image
+ * \param dims      (in)  volume dimensions [nx, ny, nz]
+ * \param voxelsize (in)  voxel size in mm [dx, dy, dz]
+ * \param fwhm      (in)  spatial FWHM in mm
+ * \param extend    (in)  extension outside GM band in mm
+ * \return void
  */
 void smooth_within_cortex_float(float *data, float *seg, int dims[3], double voxelsize[3],
                                 double fwhm, double extend)
@@ -356,7 +365,19 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
 }
 
 /**
- * smooth_within_cortex - Wrapper for any datatype
+ * \brief Anisotropic smoothing along cortical layers (generic datatype).
+ *
+ * Converts input to float, applies smooth_within_cortex_float(), then
+ * converts back to the original datatype.
+ *
+ * \param data      (in/out) input/output volume
+ * \param seg       (in)  PVE segmentation image
+ * \param dims      (in)  volume dimensions [nx, ny, nz]
+ * \param voxelsize (in)  voxel size in mm [dx, dy, dz]
+ * \param fwhm      (in)  spatial FWHM in mm
+ * \param extend    (in)  extension outside GM band in mm
+ * \param datatype  (in)  NIfTI datatype of input
+ * \return void
  */
 void smooth_within_cortex(void *data, float *seg, int dims[3], double voxelsize[3],
                           double fwhm, double extend, int datatype)

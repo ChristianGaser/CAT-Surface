@@ -13,6 +13,16 @@
 #include "CAT_Isometrics.h"
 #include "CAT_SafeAlloc.h"
 
+/**
+ * \brief Build per-vertex metric data for isometric mapping.
+ *
+ * Computes neighbor lists, triangle areas, and edge lengths for each
+ * vertex, storing the results in a metricdata structure used by the
+ * isometric optimization routines.
+ *
+ * \param polygons (in)  input surface mesh
+ * \return Allocated metricdata structure (caller must free)
+ */
 struct metricdata *
 getmetricdata(polygons_struct *polygons)
 {
@@ -74,6 +84,16 @@ getmetricdata(polygons_struct *polygons)
     return brain;
 }
 
+/**
+ * \brief Compute mean area distortion between a surface and its map.
+ *
+ * Calculates the average absolute log10 area ratio per polygon, after
+ * normalizing for total surface area differences.
+ *
+ * \param brain (in)  metric data for the original surface
+ * \param map   (in)  mapped surface mesh
+ * \return Mean area distortion value
+ */
 double
 areadistortion(struct metricdata *brain, polygons_struct *map)
 {
@@ -103,9 +123,22 @@ areadistortion(struct metricdata *brain, polygons_struct *map)
     return (distortion / brain->polygons->n_items);
 }
 
+/**
+ * \brief Smooth the map to reduce area distortion.
+ *
+ * Iteratively updates vertex positions using area-weighted centers to
+ * minimize area distortion, with optional acceptance testing.
+ *
+ * \param brain      (in)  metric data for the original surface
+ * \param map        (in/out) map surface to optimize
+ * \param maxiters   (in)  maximum iterations
+ * \param selectflag (in)  SELECT_ON to accept only improvements
+ * \param tolerance  (in)  stopping tolerance for improvement
+ * \return Number of iterations performed
+ */
 int
 smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
-     int selectflag, double tolerance)
+    int selectflag, double tolerance)
 {
     int          i, n, it, p;
     Point        pts[3], *oldpts, *newpts, newcenter;
@@ -265,6 +298,19 @@ smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
     return it;
 }
 
+/**
+ * \brief Correct area distortion using weighted triangle centers.
+ *
+ * Iteratively relocates vertices based on normalized area ratios to
+ * reduce distortion, with optional acceptance testing.
+ *
+ * \param brain      (in)  metric data for the original surface
+ * \param map        (in/out) map surface to optimize
+ * \param maxiters   (in)  maximum iterations
+ * \param selectflag (in)  SELECT_ON to accept only improvements
+ * \param tolerance  (in)  stopping tolerance for improvement
+ * \return Number of iterations performed, or -1 on mismatch
+ */
 int
 distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
          int selectflag, double tolerance)
@@ -420,6 +466,20 @@ distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
     return it;
 }
 
+/**
+ * \brief Optimize stretch to preserve edge lengths and avoid flips.
+ *
+ * Moves vertices to reduce local edge length distortion while checking
+ * for triangle flips and optionally restricting updates to large errors.
+ *
+ * \param brain      (in)  metric data for the original surface
+ * \param map        (in/out) map surface to optimize
+ * \param maxiters   (in)  maximum iterations
+ * \param selectflag (in)  SELECT_ON to accept only improvements
+ * \param largeonly  (in)  LARGE_ONLY to restrict updates to large errors
+ * \param tolerance  (in)  stopping tolerance for improvement
+ * \return Number of iterations performed, or -1 on mismatch
+ */
 int
 stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
     int selectflag, int largeonly, double tolerance)

@@ -12,6 +12,19 @@ typedef struct {
 } HessianMatrix;
 
 // Function to calculate the Hessian matrix at a given voxel
+/**
+ * \brief Compute the 3x3 Hessian matrix at a voxel using finite differences.
+ *
+ * Uses second-order central differences to compute the diagonal and
+ * mixed derivatives at (x,y,z). Assumes the voxel is not on the image
+ * boundary (requires neighbors in all directions).
+ *
+ * \param image (in)  3D image array indexed as image[x][y][z]
+ * \param x     (in)  x-index of voxel (must be 1..width-2)
+ * \param y     (in)  y-index of voxel (must be 1..height-2)
+ * \param z     (in)  z-index of voxel (must be 1..depth-2)
+ * \return HessianMatrix with symmetric second derivatives
+ */
 HessianMatrix calculateHessianAtVoxel(double ***image, int x, int y, int z) {
     HessianMatrix hessian;
 
@@ -256,6 +269,17 @@ static void tql2(double V[n][n], double d[n], double e[n]) {
     }
 }
 
+/**
+ * \brief Eigen decomposition of a symmetric 3x3 matrix.
+ *
+ * Reduces the input matrix to tridiagonal form and computes eigenvalues
+ * and eigenvectors. Results are sorted by absolute eigenvalue magnitude.
+ *
+ * \param A (in)  symmetric 3x3 matrix
+ * \param V (out) eigenvector matrix (columns are eigenvectors)
+ * \param d (out) eigenvalues array
+ * \return void
+ */
 void eigen_decomposition(double A[n][n], double V[n][n], double d[n]) {
     double e[n];
     double da[3];
@@ -295,6 +319,19 @@ void eigen_decomposition(double A[n][n], double V[n][n], double d[n]) {
 }
 
 
+/**
+ * \brief MEX gateway for Hessian eigen decomposition.
+ *
+ * Accepts six input volumes for Hessian components (Dxx, Dxy, Dxz, Dyy,
+ * Dyz, Dzz) and returns three eigenvalue volumes and optionally the
+ * principal eigenvector components.
+ *
+ * \param nlhs (in) number of outputs
+ * \param plhs (out) output arrays
+ * \param nrhs (in) number of inputs
+ * \param prhs (in) input arrays
+ * \return void
+ */
 void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] ) {
     double *Dxx, *Dxy, *Dxz, *Dyy, *Dyz, *Dzz;
     double *Dvecx, *Dvecy, *Dvecz, *Deiga, *Deigb, *Deigc;
@@ -415,6 +452,15 @@ void mexFunction( int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[] ) {
 }
 
 // Main function
+/**
+ * \brief Example Hessian computation loop over a 3D image.
+ *
+ * Placeholder routine that iterates through a volume and computes the
+ * Hessian at each interior voxel. Intended as a template for integration
+ * with image loading and processing pipelines.
+ *
+ * \return 0 on success
+ */
 int calc_hessian() {
     // Load your 3D image into a 3D array (double***) here
     double ***image;
