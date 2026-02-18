@@ -18,6 +18,16 @@
 #include "CAT_SurfUtils.h"
 #include "CAT_Octree.h"
 
+/**
+ * \brief Compute axis-aligned bounds for a triangle.
+ *
+ * Populates the bounds array of the polynode with min/max coordinates
+ * of the triangle vertices.
+ *
+ * \param polygons (in)  source polygon mesh
+ * \param node     (in/out) triangle node with vertex indices set
+ * \return void
+ */
 void
 get_triangle_bounds(polygons_struct *polygons, struct polynode *node)
 {
@@ -60,6 +70,13 @@ get_triangle_bounds(polygons_struct *polygons, struct polynode *node)
 }
 
 /* x-, y- and z-intersect tests */
+/**
+ * \brief Test x-interval overlap between two bounds.
+ *
+ * \param bounds  (in) first bounds array
+ * \param bounds2 (in) second bounds array
+ * \return 1 if x intervals overlap, 0 otherwise
+ */
 unsigned char
 xintersect(double bounds[6], double bounds2[6])
 {
@@ -68,6 +85,13 @@ xintersect(double bounds[6], double bounds2[6])
     return 1;
 }
 
+/**
+ * \brief Test y-interval overlap between two bounds.
+ *
+ * \param bounds  (in) first bounds array
+ * \param bounds2 (in) second bounds array
+ * \return 1 if y intervals overlap, 0 otherwise
+ */
 unsigned char
 yintersect(double bounds[6], double bounds2[6])
 {
@@ -76,6 +100,13 @@ yintersect(double bounds[6], double bounds2[6])
     return 1;
 }
 
+/**
+ * \brief Test z-interval overlap between two bounds.
+ *
+ * \param bounds  (in) first bounds array
+ * \param bounds2 (in) second bounds array
+ * \return 1 if z intervals overlap, 0 otherwise
+ */
 unsigned char
 zintersect(double bounds[6], double bounds2[6])
 {
@@ -84,6 +115,13 @@ zintersect(double bounds[6], double bounds2[6])
     return 1;
 }
 
+/**
+ * \brief Test full 3D bounds overlap between two boxes.
+ *
+ * \param bounds  (in) first bounds array
+ * \param bounds2 (in) second bounds array
+ * \return 1 if all axes overlap, 0 otherwise
+ */
 unsigned char
 intersect(double bounds[6], double bounds2[6])
 {
@@ -94,6 +132,13 @@ intersect(double bounds[6], double bounds2[6])
     return 1;
 }
 
+/**
+ * \brief Check if a point lies within an axis-aligned bounding box.
+ *
+ * \param pt     (in) point to test
+ * \param bounds (in) bounds array
+ * \return 1 if inside, 0 otherwise
+ */
 unsigned char
 point_in_bounds(Point pt, double bounds[6])
 {
@@ -104,6 +149,15 @@ point_in_bounds(Point pt, double bounds[6])
     return 1;
 }
 
+/**
+ * \brief Insert a triangle node into all intersecting octree boxes.
+ *
+ * Duplicates nodes as needed when a triangle overlaps multiple boxes.
+ *
+ * \param tree (in/out) octree
+ * \param node (in) triangle node to insert
+ * \return void
+ */
 void
 insert_triangle(struct octree *tree, struct polynode *node)
 {
@@ -140,6 +194,15 @@ insert_triangle(struct octree *tree, struct polynode *node)
     }
 }
 
+/**
+ * \brief Build an octree for fast triangle lookup.
+ *
+ * Computes the global bounds, subdivides into fixed boxes, and inserts
+ * each triangle into the appropriate nodes based on bounds overlap.
+ *
+ * \param polygons (in) input triangular mesh
+ * \return Allocated octree or NULL on error
+ */
 struct octree *
 build_octree(polygons_struct *polygons)
 {
@@ -216,6 +279,12 @@ build_octree(polygons_struct *polygons)
 }
 
 /* helper function for deleting the octree */
+/**
+ * \brief Recursively free a linked list of polynode entries.
+ *
+ * \param n (in) head of list to free
+ * \return void
+ */
 void
 recursive_node_delete(struct polynode *n)
 {
@@ -225,6 +294,12 @@ recursive_node_delete(struct polynode *n)
 }
 
 /* delete the octree and all nodes */
+/**
+ * \brief Free an octree and all associated nodes.
+ *
+ * \param tree (in/out) octree to delete
+ * \return void
+ */
 void
 delete_octree(struct octree *tree) {
     int n;

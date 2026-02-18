@@ -61,6 +61,22 @@
 #define MAX_NTHREADS  16
 
 /* Function which compute the weighted average for one block */
+/**
+ * \brief Accumulate weighted block values for ONLM filtering.
+ *
+ * Adds squared intensity values from a 3D neighborhood into the
+ * running block accumulator, using mirrored boundary handling.
+ *
+ * \param ima             (in)  input image volume
+ * \param x               (in)  block center x index
+ * \param y               (in)  block center y index
+ * \param z               (in)  block center z index
+ * \param neighborhoodsize (in) half-size of block window
+ * \param average         (in/out) block accumulator array
+ * \param weight          (in)  weight for this block
+ * \param vol_size        (in)  volume dimensions [cols, rows, slices]
+ * \return void
+ */
 void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize,
                          float *average, float weight, const int* vol_size)
 {
@@ -98,6 +114,24 @@ void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize,
 }
 
 /* Function which computes the value assigned to each voxel */
+/**
+ * \brief Update voxel estimates from accumulated ONLM block weights.
+ *
+ * Converts accumulated block energies into denoised estimates and
+ * updates the running estimate and label (count) volumes.
+ *
+ * \param Estimate        (in/out) running estimate accumulator
+ * \param Label           (in/out) contribution counts per voxel
+ * \param x               (in)  block center x index
+ * \param y               (in)  block center y index
+ * \param z               (in)  block center z index
+ * \param neighborhoodsize (in) half-size of block window
+ * \param average         (in)  block accumulator array
+ * \param global_sum      (in)  sum of weights for this block
+ * \param vol_size        (in)  volume dimensions [cols, rows, slices]
+ * \param hh              (in)  2*sigma^2 term for Rician correction
+ * \return void
+ */
 void Value_block_ornlm(float *Estimate, unsigned char *Label, int x, int y, int z,
                        int neighborhoodsize, float *average, float global_sum,
                        const int* vol_size, float hh)
@@ -141,6 +175,25 @@ void Value_block_ornlm(float *Estimate, unsigned char *Label, int x, int y, int 
     }
 }
 
+/**
+ * \brief Compute patch distance between two 3D neighborhoods.
+ *
+ * Computes average squared difference between two patches centered at
+ * (x,y,z) and (nx,ny,nz), using mirrored boundary handling.
+ *
+ * \param ima (in)  input image volume
+ * \param x   (in)  first patch center x
+ * \param y   (in)  first patch center y
+ * \param z   (in)  first patch center z
+ * \param nx  (in)  second patch center x
+ * \param ny  (in)  second patch center y
+ * \param nz  (in)  second patch center z
+ * \param f   (in)  half-size of patch window
+ * \param sx  (in)  volume size in x
+ * \param sy  (in)  volume size in y
+ * \param sz  (in)  volume size in z
+ * \return Average squared distance between patches
+ */
 float distance_ornlm(float* ima, int x, int y, int z,
                      int nx, int ny, int nz, int f,
                      int sx, int sy, int sz)
@@ -207,6 +260,15 @@ unsigned int __stdcall
 #else
 void *
 #endif
+/**
+ * \brief Thread worker for optimized non-local means filtering.
+ *
+ * Processes a range of slices, computes patch distances and weights,
+ * and accumulates block estimates with optional Rician correction.
+ *
+ * \param pArguments (in) pointer to thread argument struct
+ * \return Thread exit code
+ */
 ThreadFunc_ornlm( void* pArguments )
 {
     myargument arg = *(myargument*)pArguments;
@@ -343,6 +405,21 @@ ThreadFunc_ornlm( void* pArguments )
 
 /* ----------------------- end multithreading additions ------------------- */
 
+/**
+ * \brief Optimized blockwise non-local means filter for 3D images.
+ *
+ * Applies the ONLM filter with optional Rician noise correction using
+ * multithreading. The image is normalized internally and restored to
+ * the original scale after filtering.
+ *
+ * \param ima   (in/out) input image volume, filtered in-place
+ * \param v     (in)  search window half-size
+ * \param f     (in)  patch window half-size
+ * \param h     (in)  filtering parameter
+ * \param sigma (in)  noise standard deviation for Rician correction
+ * \param dims  (in)  volume dimensions [cols, rows, slices]
+ * \return void
+ */
 void ornlm(float* ima, int v, int f, float h, float sigma, const int* dims)
 {
     float *means, *variances, *Estimate, *ima_out;
