@@ -15,15 +15,14 @@
  * based and SVD(A) and any singular values less than a tolerance of 1e-10
  * are treated as zero. The rank of the matrix A is returned.
  */
-int
-pinv(int m, int n, double **A, double **Ainv)
+int pinv(int m, int n, double **A, double **Ainv)
 {
     int i, j, k, r;
     double **U, **V, **S, *W, **Ut;
-  
+
     ALLOC2D(U, m, n);
     ALLOC2D(V, n, n);
-    ALLOC2D(S,  n, n);
+    ALLOC2D(S, n, n);
     ALLOC2D(Ut, n, m);
     ALLOC(W, n);
 
@@ -35,8 +34,8 @@ pinv(int m, int n, double **A, double **Ainv)
         for (j = 0; j < n; j++)
             U[i][j] = A[i][j];
 
-    (void) singular_value_decomposition(m, n, U, W, V);
-  
+    (void)singular_value_decomposition(m, n, U, W, V);
+
     /*
      * rank of matrix using a somewhat arbitrary value of 1e-10 as
      * tolerance for singular values
@@ -44,22 +43,29 @@ pinv(int m, int n, double **A, double **Ainv)
     r = 0;
     for (i = 0; i < n; i++)
         if (W[i] > TOLSVD)
-          r += 1;
+            r += 1;
 
-    if (r == 0) {
+    if (r == 0)
+    {
         for (i = 0; i < n; i++)
-          for (j = 0; j < m; j++)
-              Ainv[i][j] = 0.0;
-    } else {
-        for (i = 0; i < r; i++) {
-            for (j = 0; j < r; j++) {
-                if (i == j) S[i][j] = 1/(W[i] + EPS);
-                else S[i][j] = 0.0;
+            for (j = 0; j < m; j++)
+                Ainv[i][j] = 0.0;
+    }
+    else
+    {
+        for (i = 0; i < r; i++)
+        {
+            for (j = 0; j < r; j++)
+            {
+                if (i == j)
+                    S[i][j] = 1 / (W[i] + EPS);
+                else
+                    S[i][j] = 0.0;
             }
         }
 
         transpose(m, n, U, Ut);
-  
+
         matrix_multiply(n, n, n, V, S, S);
         matrix_multiply(n, n, m, S, Ut, Ainv);
     }
@@ -69,16 +75,16 @@ pinv(int m, int n, double **A, double **Ainv)
     FREE2D(S);
     FREE2D(V);
     FREE2D(Ut);
-  
-    return(r);
+
+    return (r);
 }
 
 /**
  * convert_input_type - Converts various data types to a floating point array.
  *
  * This function is designed to convert a data array of various types into an array
- * of floats. This is useful for standardizing data input types for functions that 
- * are specifically defined to work with floating point data, especially in contexts 
+ * of floats. This is useful for standardizing data input types for functions that
+ * are specifically defined to work with floating point data, especially in contexts
  * like image processing where data might come in various formats.
  *
  * data: Pointer to the input data array. The actual data type of this array is
@@ -95,8 +101,8 @@ pinv(int m, int n, double **A, double **Ainv)
  *            different data types like char, unsigned char, short, unsigned short, etc.
  *
  * The function iterates over the input array, converting each element to a float based
- * on the specified datatype, and stores the result in the output float array. This 
- * facilitates the use of functions that require floating point input by providing a 
+ * on the specified datatype, and stores the result in the output float array. This
+ * facilitates the use of functions that require floating point input by providing a
  * uniform data format.
  *
  */
@@ -116,35 +122,38 @@ void convert_input_type(void *data, double *buffer, int n, int datatype)
 {
     int i;
     double tmp;
-    
+
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
-    for (i = 0; i < n; i++) {
-        switch (datatype) {
+
+    for (i = 0; i < n; i++)
+    {
+        switch (datatype)
+        {
         case DT_INT8:
-            tmp = (double) ((char *)data)[i];
+            tmp = (double)((char *)data)[i];
             break;
         case DT_UINT8:
-            tmp = (double) ((unsigned char *)data)[i];
+            tmp = (double)((unsigned char *)data)[i];
             break;
         case DT_INT16:
-            tmp = (double) ((short *)data)[i];
+            tmp = (double)((short *)data)[i];
             break;
         case DT_UINT16:
-            tmp = (double) ((unsigned short *)data)[i];
+            tmp = (double)((unsigned short *)data)[i];
             break;
         case DT_INT32:
-            tmp = (double) ((int *)data)[i];
+            tmp = (double)((int *)data)[i];
             break;
         case DT_UINT32:
-            tmp = (double) ((unsigned int *)data)[i];
+            tmp = (double)((unsigned int *)data)[i];
             break;
         case DT_FLOAT32:
-            tmp = (double) ((float *)data)[i];
+            tmp = (double)((float *)data)[i];
             break;
         case DT_FLOAT64:
             tmp = ((double *)data)[i];
@@ -172,38 +181,41 @@ void convert_input_type_float(void *data, float *buffer, int n, int datatype)
 {
     int i;
     float tmp;
-    
+
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
-    for (i = 0; i < n; i++) {
-        switch (datatype) {
+
+    for (i = 0; i < n; i++)
+    {
+        switch (datatype)
+        {
         case DT_INT8:
-            tmp = (float) ((char *)data)[i];
+            tmp = (float)((char *)data)[i];
             break;
         case DT_UINT8:
-            tmp = (float) ((unsigned char *)data)[i];
+            tmp = (float)((unsigned char *)data)[i];
             break;
         case DT_INT16:
-            tmp = (float) ((short *)data)[i];
+            tmp = (float)((short *)data)[i];
             break;
         case DT_UINT16:
-            tmp = (float) ((unsigned short *)data)[i];
+            tmp = (float)((unsigned short *)data)[i];
             break;
         case DT_INT32:
-            tmp = (float) ((int *)data)[i];
+            tmp = (float)((int *)data)[i];
             break;
         case DT_UINT32:
-            tmp = (float) ((unsigned int *)data)[i];
+            tmp = (float)((unsigned int *)data)[i];
             break;
         case DT_FLOAT32:
-            tmp = (float) ((float *)data)[i];
+            tmp = (float)((float *)data)[i];
             break;
         case DT_FLOAT64:
-            tmp = (float) ((double *)data)[i];
+            tmp = (float)((double *)data)[i];
             break;
         default:
             fprintf(stderr, "Data type %d not handled\n", datatype);
@@ -212,7 +224,6 @@ void convert_input_type_float(void *data, float *buffer, int n, int datatype)
         buffer[i] = tmp;
     }
 }
-
 
 /**
  * convert_output_type - Converts a floating point array back to various data types.
@@ -235,9 +246,9 @@ void convert_input_type_float(void *data, float *buffer, int n, int datatype)
  *            This parameter uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.)
  *            to represent different data types like char, unsigned char, short, etc.
  *
- * The function iterates over the input float array, converting each float element back 
- * to the specified data type using rounding (via `roundf` function) and stores the 
- * result in the output array. This allows for the processed data to be converted back 
+ * The function iterates over the input float array, converting each float element back
+ * to the specified data type using rounding (via `roundf` function) and stores the
+ * result in the output array. This allows for the processed data to be converted back
  * to its original or a different format as needed.
  *
  */
@@ -257,31 +268,33 @@ void convert_output_type(void *data, double *buffer, int n, int datatype)
 {
     int i;
 
-    for (i = 0; i < n; i++) {
-        switch (datatype) {
+    for (i = 0; i < n; i++)
+    {
+        switch (datatype)
+        {
         case DT_INT8:
-            ((char*)data)[i] = (char) roundf(buffer[i]);
+            ((char *)data)[i] = (char)roundf(buffer[i]);
             break;
         case DT_UINT8:
-            ((unsigned char*)data)[i] = (unsigned char) roundf(buffer[i]);
+            ((unsigned char *)data)[i] = (unsigned char)roundf(buffer[i]);
             break;
         case DT_INT16:
-            ((short*)data)[i] = (short) roundf(buffer[i]);
+            ((short *)data)[i] = (short)roundf(buffer[i]);
             break;
         case DT_UINT16:
-            ((unsigned short*)data)[i] = (unsigned short) roundf(buffer[i]);
+            ((unsigned short *)data)[i] = (unsigned short)roundf(buffer[i]);
             break;
         case DT_INT32:
-            ((int*)data)[i] = (int) roundf(buffer[i]);
+            ((int *)data)[i] = (int)roundf(buffer[i]);
             break;
         case DT_UINT32:
-            ((unsigned int *)data)[i] = (unsigned int ) roundf(buffer[i]);
+            ((unsigned int *)data)[i] = (unsigned int)roundf(buffer[i]);
             break;
         case DT_FLOAT32:
-            ((float*)data)[i] = (float) buffer[i];
+            ((float *)data)[i] = (float)buffer[i];
             break;
         case DT_FLOAT64:
-            ((double*)data)[i] = (double) buffer[i];
+            ((double *)data)[i] = (double)buffer[i];
             break;
         default:
             fprintf(stderr, "Data type %d not handled\n", datatype);
@@ -306,31 +319,33 @@ void convert_output_type_float(void *data, float *buffer, int n, int datatype)
 {
     int i;
 
-    for (i = 0; i < n; i++) {
-        switch (datatype) {
+    for (i = 0; i < n; i++)
+    {
+        switch (datatype)
+        {
         case DT_INT8:
-            ((char*)data)[i] = (char) roundf(buffer[i]);
+            ((char *)data)[i] = (char)roundf(buffer[i]);
             break;
         case DT_UINT8:
-            ((unsigned char*)data)[i] = (unsigned char) roundf(buffer[i]);
+            ((unsigned char *)data)[i] = (unsigned char)roundf(buffer[i]);
             break;
         case DT_INT16:
-            ((short*)data)[i] = (short) roundf(buffer[i]);
+            ((short *)data)[i] = (short)roundf(buffer[i]);
             break;
         case DT_UINT16:
-            ((unsigned short*)data)[i] = (unsigned short) roundf(buffer[i]);
+            ((unsigned short *)data)[i] = (unsigned short)roundf(buffer[i]);
             break;
         case DT_INT32:
-            ((int*)data)[i] = (int) roundf(buffer[i]);
+            ((int *)data)[i] = (int)roundf(buffer[i]);
             break;
         case DT_UINT32:
-            ((unsigned int *)data)[i] = (unsigned int ) roundf(buffer[i]);
+            ((unsigned int *)data)[i] = (unsigned int)roundf(buffer[i]);
             break;
         case DT_FLOAT32:
-            ((float*)data)[i] = (float) buffer[i];
+            ((float *)data)[i] = (float)buffer[i];
             break;
         case DT_FLOAT64:
-            ((double*)data)[i] = (double) buffer[i];
+            ((double *)data)[i] = (double)buffer[i];
             break;
         default:
             fprintf(stderr, "Data type %d not handled\n", datatype);
@@ -340,10 +355,11 @@ void convert_output_type_float(void *data, float *buffer, int n, int datatype)
 }
 
 /* Comparison function for qsort */
-int compare_doubles(const void *a, const void *b) 
+int compare_doubles(const void *a, const void *b)
 {
     double diff = *(const double *)a - *(const double *)b;
-    return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
+    return (diff < 0) ? -1 : (diff > 0) ? 1
+                                        : 0;
 }
 
 /**
@@ -373,29 +389,33 @@ int compare_doubles(const void *a, const void *b)
  * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
  * \return               The median value (or median of non-zero values if exclude_zeros=1)
  */
-double get_median_double(double *arr, int n, int exclude_zeros) 
+double get_median_double(double *arr, int n, int exclude_zeros)
 {
     int i, filtered_count = 0;
     double median;
 
-    if (n <= 0) return NAN;  // Handle empty array
-        
+    if (n <= 0)
+        return NAN; // Handle empty array
+
     // Allocate memory for a copy of the data
     double *copy = malloc(n * sizeof(double));
-    if (copy == NULL) {
+    if (copy == NULL)
+    {
         fprintf(stderr, "Memory allocation failed");
         exit(EXIT_FAILURE);
     }
 
     // Copy data while optionally excluding zeros
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < n; i++)
+    {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue;
         copy[filtered_count++] = arr[i];
     }
 
     // Check if we have valid data points left
-    if (filtered_count == 0) {
+    if (filtered_count == 0)
+    {
         fprintf(stderr, "Error: No valid data points after filtering.\n");
         free(copy);
         exit(EXIT_FAILURE);
@@ -405,10 +425,13 @@ double get_median_double(double *arr, int n, int exclude_zeros)
     qsort(copy, filtered_count, sizeof(double), compare_doubles);
 
     // Compute the median
-    if (filtered_count % 2 == 0) {
+    if (filtered_count % 2 == 0)
+    {
         // Even number of elements: average of the two middle elements
         median = (copy[filtered_count / 2 - 1] + copy[filtered_count / 2]) / 2.0;
-    } else {
+    }
+    else
+    {
         // Odd number of elements: middle element
         median = copy[filtered_count / 2];
     }
@@ -440,19 +463,21 @@ double get_median_double(double *arr, int n, int exclude_zeros)
  * \param exclude_zeros  (in)  if non-zero, zero values are excluded from sum
  * \return               The sum (or sum of non-zero values if exclude_zeros=1)
  */
-double get_sum_double(double *arr, int n, int exclude_zeros) 
+double get_sum_double(double *arr, int n, int exclude_zeros)
 {
     int i;
     double sum = 0.0;
 
-    if (n <= 0) return NAN;  // Handle empty array
-    
-    for (i = 0; i < n; i++) {
+    if (n <= 0)
+        return NAN; // Handle empty array
+
+    for (i = 0; i < n; i++)
+    {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue;
         sum += arr[i];
     }
-    
+
     return sum;
 }
 
@@ -479,23 +504,26 @@ double get_sum_double(double *arr, int n, int exclude_zeros)
  * \param exclude_zeros  (in)  if non-zero, zero values are excluded from mean calculation
  * \return               The mean value (or mean of non-zero values if exclude_zeros=1)
  */
-double get_mean_double(double *arr, int n, int exclude_zeros) 
+double get_mean_double(double *arr, int n, int exclude_zeros)
 {
     int i, n0 = 0;
     double sum = 0.0;
 
-    if (n <= 0) return NAN;  // Handle empty array
-    
-    for (i = 0; i < n; i++) {
+    if (n <= 0)
+        return NAN; // Handle empty array
+
+    for (i = 0; i < n; i++)
+    {
 
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue; // Skip zero values if exclusion is enabled
-            
+
         sum += arr[i];
         n0++;
     }
 
-    if (n0 == 0) return NAN;  // Prevent division by zero
+    if (n0 == 0)
+        return NAN; // Prevent division by zero
 
     return sum / (double)n0;
 }
@@ -512,7 +540,7 @@ double get_mean_double(double *arr, int n, int exclude_zeros)
  *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
  *
  * Returns: The standard deviation of the array.
-*/
+ */
 /**
  * \brief Get standard deviation from double array with optional zero exclusion.
  *
@@ -524,27 +552,31 @@ double get_mean_double(double *arr, int n, int exclude_zeros)
  * \param exclude_zeros  (in)  if non-zero, zero values are excluded from calculation
  * \return               The standard deviation (or std dev of non-zero values)
  */
-double get_std_double(double *arr, int n, int exclude_zeros) 
+double get_std_double(double *arr, int n, int exclude_zeros)
 {
     int i, n0 = 0;
     double mean, variance = 0.0;
 
-    if (n <= 0) return NAN;  // Handle empty array
+    if (n <= 0)
+        return NAN; // Handle empty array
 
     mean = get_mean_double(arr, n, exclude_zeros);
 
-    if (isnan(mean)) return NAN;  // No valid elements
+    if (isnan(mean))
+        return NAN; // No valid elements
 
     /* Calculate variance */
-    for (i = 0; i < n; i++) {
+    for (i = 0; i < n; i++)
+    {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue; // Skip zero values if exclusion is enabled
-            
+
         variance += pow(arr[i] - mean, 2);
         n0++;
     }
 
-    if (n0 <= 1) return NAN;  // Prevent division by zero and invalid sqrt()
+    if (n0 <= 1)
+        return NAN; // Prevent division by zero and invalid sqrt()
 
     variance /= (double)(n0 - 1);
 
@@ -575,17 +607,19 @@ double get_std_double(double *arr, int n, int exclude_zeros)
  * \param exclude_zeros  (in)  if non-zero, zero values are ignored (use DBL_MAX as minimum)
  * \return               The minimum value (or minimum of non-zero values if exclude_zeros=1)
  */
-double get_min_double(double *arr, int n, int exclude_zeros) 
+double get_min_double(double *arr, int n, int exclude_zeros)
 {
     int i;
     double result = DBL_MAX;
 
-    if (n <= 0) return NAN;  // Handle empty array
-    
-    for (i = 0; i < n; i++) {
+    if (n <= 0)
+        return NAN; // Handle empty array
+
+    for (i = 0; i < n; i++)
+    {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue; // Skip zero values if exclusion is enabled
-            
+
         if (arr[i] < result)
             result = arr[i];
     }
@@ -616,17 +650,19 @@ double get_min_double(double *arr, int n, int exclude_zeros)
  * \param exclude_zeros  (in)  if non-zero, zero values are ignored
  * \return               The maximum value (or maximum of non-zero values if exclude_zeros=1)
  */
-double get_max_double(double *arr, int n, int exclude_zeros) 
+double get_max_double(double *arr, int n, int exclude_zeros)
 {
     int i;
     double result = -DBL_MAX;
 
-    if (n <= 0) return NAN;  // Handle empty array
-    
-    for (i = 0; i < n; i++) {
+    if (n <= 0)
+        return NAN; // Handle empty array
+
+    for (i = 0; i < n; i++)
+    {
         if ((exclude_zeros && arr[i] == 0.0) || isnan(arr[i]) || !isfinite(arr[i]))
             continue; // Skip zero values if exclusion is enabled
-            
+
         if (arr[i] > result)
             result = arr[i];
     }
@@ -638,9 +674,9 @@ double get_max_double(double *arr, int n, int exclude_zeros)
  * get_masked_mean_array_float - Calculates the mean of an array with an optional mask.
  *
  * This function computes the mean value of elements in a floating point array, optionally
- * considering only those elements that are flagged by a mask array. The mask allows for 
- * selective inclusion of elements in the mean calculation, which can be useful in 
- * situations where only specific parts of data (like certain regions in an image) are of 
+ * considering only those elements that are flagged by a mask array. The mask allows for
+ * selective inclusion of elements in the mean calculation, which can be useful in
+ * situations where only specific parts of data (like certain regions in an image) are of
  * interest.
  *
  * arr: Pointer to the float array whose mean is to be calculated.
@@ -667,11 +703,14 @@ double get_masked_mean_array_double(double *arr, int n, unsigned char *mask)
     double sum = 0.0;
     int i, count = 0;
 
-    if (n <= 0) return NAN;  // Handle empty array
-    
+    if (n <= 0)
+        return NAN; // Handle empty array
+
     /* Calculate mean */
-    for (i = 0; i < n; i++) {
-        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
+    for (i = 0; i < n; i++)
+    {
+        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask))
+        {
             sum += arr[i];
             count++;
         }
@@ -682,10 +721,10 @@ double get_masked_mean_array_double(double *arr, int n, unsigned char *mask)
 /**
  * get_masked_std_array_float - Calculates the standard deviation of an array with an optional mask.
  *
- * This function computes the standard deviation of elements in a floating point array, 
- * optionally considering only those elements that are flagged by a mask array. The mask 
- * allows for selective inclusion of elements in the standard deviation calculation, which 
- * can be useful in situations where variability of specific parts of data (like certain 
+ * This function computes the standard deviation of elements in a floating point array,
+ * optionally considering only those elements that are flagged by a mask array. The mask
+ * allows for selective inclusion of elements in the standard deviation calculation, which
+ * can be useful in situations where variability of specific parts of data (like certain
  * regions in an image or dataset) is of interest.
  *
  * arr: Pointer to the float array whose standard deviation is to be calculated.
@@ -699,13 +738,13 @@ double get_masked_mean_array_double(double *arr, int n, unsigned char *mask)
  *        of 'arr' are considered.
  *
  * The function first calculates the mean of the selected elements in the array. It then
- * iterates through the array a second time to compute the variance of the selected 
- * elements. Finally, the standard deviation is calculated as the square root of the 
- * variance. This method is useful in statistical analysis and data processing tasks 
+ * iterates through the array a second time to compute the variance of the selected
+ * elements. Finally, the standard deviation is calculated as the square root of the
+ * variance. This method is useful in statistical analysis and data processing tasks
  * where understanding the dispersion or variability of data is important.
  *
- * Return: The function returns the standard deviation of the selected elements as a double. 
- *         If no elements are selected (e.g., due to all being NaN or masked out), the 
+ * Return: The function returns the standard deviation of the selected elements as a double.
+ *         If no elements are selected (e.g., due to all being NaN or masked out), the
  *         behavior is not defined (potential division by zero).
  */
 double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
@@ -713,18 +752,22 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
     double mean = 0.0, variance = 0.0;
     int i, count = 0;
 
-    if (n <= 0) return NAN;  // Handle empty array
+    if (n <= 0)
+        return NAN; // Handle empty array
 
     /* Calculate mean */
-    for (i = 0; i < n; i++) {
-        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask)) {
+    for (i = 0; i < n; i++)
+    {
+        if (!isnan(arr[i]) && isfinite(arr[i]) && ((mask && mask[i] > 0) || !mask))
+        {
             mean += arr[i];
             count++;
         }
     }
     mean = mean / (double)count;
 
-    if (count <= 1) return NAN; // Prevent division by zero
+    if (count <= 1)
+        return NAN; // Prevent division by zero
 
     /* Calculate variance */
     for (i = 0; i < n; i++)
@@ -739,7 +782,7 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
 /**
  * get_prctile - Calculate percentile-based thresholds.
  *
- * This function computes two thresholds for a given data (src) based on the 
+ * This function computes two thresholds for a given data (src) based on the
  * specified percentiles. It can optionally exclude zeros from the calculation.
  * The calculated thresholds are stored in the 'threshold' array.
  *
@@ -753,42 +796,46 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
  * Notes:
  *  - The function uses a histogram-based approach to calculate the thresholds.
  */
-void get_prctile_double(double *data, int n, double threshold[2], 
-                           double prctile[2], int exclude_zeros) 
+void get_prctile_double(double *data, int n, double threshold[2],
+                        double prctile[2], int exclude_zeros)
 {
     int i, filtered_count = 0;
-    
+
     // Create a copy of the data for sorting
     double *copy = malloc(n * sizeof(double));
-    if(copy == NULL) {
+    if (copy == NULL)
+    {
         perror("Failed to allocate memory");
         exit(EXIT_FAILURE);
     }
-    
+
     // Copy data, optionally excluding zeros
-    for (i = 0; i < n; i++) {
-        if (!exclude_zeros || data[i] != 0.0) {
+    for (i = 0; i < n; i++)
+    {
+        if (!exclude_zeros || data[i] != 0.0)
+        {
             copy[filtered_count++] = data[i];
         }
     }
 
     // Check if we have enough valid data points
-    if (filtered_count == 0) {
+    if (filtered_count == 0)
+    {
         fprintf(stderr, "No valid data points after filtering.\n");
         free(copy);
         exit(EXIT_FAILURE);
     }
-            
+
     // Sort the copy
     qsort(copy, filtered_count, sizeof(double), compare_doubles);
-    
+
     // Calculate indices using the formula: index = round((n - 1) * (P/100))
     int lower_index = (int)round((filtered_count - 1) * prctile[0] / 100.0);
     int upper_index = (int)round((filtered_count - 1) * prctile[1] / 100.0);
-  
+
     threshold[0] = copy[lower_index];
     threshold[1] = copy[upper_index];
-        
+
     free(copy);
 }
 
@@ -804,21 +851,22 @@ void get_prctile_double(double *data, int n, double threshold[2],
  * Returns:
  *  Overwrites the array by the mean-corrected array.
  */
-void normalize_double(double *arr, int n) 
+void normalize_double(double *arr, int n)
 {
     int i;
 
     double mn = get_mean_double(arr, n, 0);
 
-    for (i = 0; i < n; i++) arr[i] -= mn;
+    for (i = 0; i < n; i++)
+        arr[i] -= mn;
 }
 
 /**
  * clip_double - Clip an array of doubles to specified bounds.
  *
- * This function iterates through an array of doubles and restricts each element 
- * to the range specified by the limits array. Values lower than the lower limit 
- * are set to the lower limit, and values higher than the upper limit are set to 
+ * This function iterates through an array of doubles and restricts each element
+ * to the range specified by the limits array. Values lower than the lower limit
+ * are set to the lower limit, and values higher than the upper limit are set to
  * the upper limit.
  *
  * Parameters:
@@ -829,20 +877,23 @@ void normalize_double(double *arr, int n)
  * Returns:
  *  Overwrites the array with the clipped values.
  */
- void clip_double(double *arr, int n, double limit[2]) 
+void clip_double(double *arr, int n, double limit[2])
 {
     int i;
-    for (i = 0; i < n; i++) {
-        if (arr[i] < limit[0]) arr[i] = limit[0];
-        if (arr[i] > limit[1]) arr[i] = limit[1];
+    for (i = 0; i < n; i++)
+    {
+        if (arr[i] < limit[0])
+            arr[i] = limit[0];
+        if (arr[i] > limit[1])
+            arr[i] = limit[1];
     }
 }
 
 /**
- * get_corrcoef_double - calculate Pearson correlation coefficient from two array 
+ * get_corrcoef_double - calculate Pearson correlation coefficient from two array
  *                       of doubles.
  *
- * This function iterates through two array of doubles to obtain Pearson correlation 
+ * This function iterates through two array of doubles to obtain Pearson correlation
  * coefficient.
  *
  * Parameters:
@@ -853,23 +904,24 @@ void normalize_double(double *arr, int n)
  * Returns:
  *  Pearson correlation coefficient.
  */
-double get_corrcoef_double(const double* x, const double* y, int n, int exclude_zeros) 
+double get_corrcoef_double(const double *x, const double *y, int n, int exclude_zeros)
 {
     double sum_x = 0, sum_y = 0, sum_xy = 0;
     double sum_x2 = 0, sum_y2 = 0;
     int i;
 
-    for (i = 0; i < n; ++i) {
+    for (i = 0; i < n; ++i)
+    {
         if ((exclude_zeros && ((x[i] == 0.0) || (y[i] == 0.0))))
             continue;
-        sum_x  += x[i];
-        sum_y  += y[i];
+        sum_x += x[i];
+        sum_y += y[i];
         sum_xy += x[i] * y[i];
         sum_x2 += x[i] * x[i];
         sum_y2 += y[i] * y[i];
     }
 
-    double numerator   = n * sum_xy - sum_x * sum_y;
+    double numerator = n * sum_xy - sum_x * sum_y;
     double denominator = sqrt((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y));
 
     // Avoid division by zero; correlation is undefined
@@ -886,7 +938,7 @@ double get_corrcoef_double(const double* x, const double* y, int n, int exclude_
  * and call the respective function for data type 'double'.
  *
  */
- 
+
 /**
  * \brief Get median from arbitrary datatype array.
  *
@@ -899,23 +951,24 @@ double get_corrcoef_double(const double* x, const double* y, int n, int exclude_
  * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
  * \return                The median value
  */
-double get_median(void *data, int n, int exclude_zeros, int datatype) 
+double get_median(void *data, int n, int exclude_zeros, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_median_double(buffer, n, exclude_zeros);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
 /**
@@ -930,23 +983,24 @@ double get_median(void *data, int n, int exclude_zeros, int datatype)
  * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
  * \return                The mean value
  */
-double get_mean(void *data, int n, int exclude_zeros, int datatype) 
+double get_mean(void *data, int n, int exclude_zeros, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_mean_double(buffer, n, exclude_zeros);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
 /**
@@ -961,23 +1015,24 @@ double get_mean(void *data, int n, int exclude_zeros, int datatype)
  * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
  * \return                The sum value
  */
-double get_sum(void *data, int n, int exclude_zeros, int datatype) 
+double get_sum(void *data, int n, int exclude_zeros, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_sum_double(buffer, n, exclude_zeros);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
 /**
@@ -992,23 +1047,24 @@ double get_sum(void *data, int n, int exclude_zeros, int datatype)
  * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
  * \return                The minimum value
  */
-double get_min(void *data, int n, int exclude_zeros, int datatype) 
+double get_min(void *data, int n, int exclude_zeros, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_min_double(buffer, n, exclude_zeros);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
 /**
@@ -1023,23 +1079,24 @@ double get_min(void *data, int n, int exclude_zeros, int datatype)
  * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
  * \return                The maximum value
  */
-double get_max(void *data, int n, int exclude_zeros, int datatype) 
+double get_max(void *data, int n, int exclude_zeros, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_max_double(buffer, n, exclude_zeros);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
 /**
@@ -1054,121 +1111,126 @@ double get_max(void *data, int n, int exclude_zeros, int datatype)
  * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
  * \return                The standard deviation
  */
-double get_std(void *data, int n, int exclude_zeros, int datatype) 
+double get_std(void *data, int n, int exclude_zeros, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_std_double(buffer, n, exclude_zeros);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
-double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatype) 
+double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_masked_mean_array_double(buffer, n, mask);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
-double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype) 
+double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype)
 {
     double *buffer, result;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     result = get_masked_std_array_double(buffer, n, mask);
-    
+
     free(buffer);
-    return(result);
+    return (result);
 }
 
-void clip_data(void *data, int n, double lower_limit, double upper_limit, int datatype) 
+void clip_data(void *data, int n, double lower_limit, double upper_limit, int datatype)
 {
     double *buffer;
     double limit[2] = {lower_limit, upper_limit};
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     clip_double(buffer, n, limit);
     convert_output_type(data, buffer, n, datatype);
-    
+
     free(buffer);
 }
 
-void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype) 
+void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype)
 {
     double *buffer;
-   
-    buffer = (double *)malloc(sizeof(double)*n);
+
+    buffer = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer) {
+    if (!buffer)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(data, buffer, n, datatype);
     get_prctile_double(buffer, n, threshold, prctile, exclude_zeros);
-    
+
     free(buffer);
 }
 
-double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype) 
+double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype)
 {
     double *buffer_x, *buffer_y;
-   
-    buffer_x = (double *)malloc(sizeof(double)*n);
-    buffer_y = (double *)malloc(sizeof(double)*n);
+
+    buffer_x = (double *)malloc(sizeof(double) * n);
+    buffer_y = (double *)malloc(sizeof(double) * n);
 
     /* check success of memory allocation */
-    if (!buffer_x | !buffer_y) {
+    if (!buffer_x | !buffer_y)
+    {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
-   
+
     convert_input_type(x, buffer_x, n, datatype);
     convert_input_type(y, buffer_y, n, datatype);
     double result = get_corrcoef_double(buffer_x, buffer_y, n, exclude_zeros);
-    
+
     free(buffer_x);
     free(buffer_y);
-    
-    return(result);
-}
 
+    return (result);
+}
