@@ -39,11 +39,11 @@ typedef struct SpatialGrid
 } SpatialGrid;
 
 /**
- * @brief Compute the axis-aligned bounding box (AABB) of a surface.
+ * \brief Compute the axis-aligned bounding box (AABB) of a surface.
  *
- * @param polygons The surface structure containing mesh points.
- * @param min Output: the minimum bounding box corner (x_min, y_min, z_min).
- * @param max Output: the maximum bounding box corner (x_max, y_max, z_max).
+ * \param polygons The surface structure containing mesh points.
+ * \param min Output: the minimum bounding box corner (x_min, y_min, z_min).
+ * \param max Output: the maximum bounding box corner (x_max, y_max, z_max).
  */
 void get_polygon_bounding_box(polygons_struct *polygons, Point *min, Point *max)
 {

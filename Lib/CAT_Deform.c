@@ -21,25 +21,25 @@
 #include <stdlib.h>
 
 /**
- * @brief Smooths a 3D displacement field with Jacobian- and curvature-based blending.
+ * \brief Smooths a 3D displacement field with Jacobian- and curvature-based blending.
  *
  * This function performs iterative smoothing of a displacement field associated with a surface mesh.
  * Blending weights increase smoothing in regions with small Jacobian determinants (non-diffeomorphic
  * risk) and optionally in regions with a selected curvature sign (e.g., sulci vs gyri), controlled by
  * a global curvature blending weight.
  *
- * @param displacement_field  2D array [n_points][3] of displacements per vertex (in/out).
- * @param polygons            Pointer to the surface mesh (polygons_struct).
- * @param n_neighbours        Array with number of neighbors per vertex.
- * @param neighbours          2D ragged array of neighbor indices per vertex.
- * @param iterations          Number of smoothing iterations to perform.
- * @param sigma               Smoothing decay factor applied to the neighbor average.
- * @param min_det             Minimum acceptable Jacobian determinant for diffeomorphism.
- * @param blend_strength      Logistic sharpness for Jacobian blending (higher = sharper).
- * @param curvature           Optional curvature array (size = polygons->n_points). Pass NULL to disable.
- * @param curvature_sign      Curvature sign selection: -1 = use only negative, +1 = only positive,
+ * \param displacement_field  2D array [n_points][3] of displacements per vertex (in/out).
+ * \param polygons            Pointer to the surface mesh (polygons_struct).
+ * \param n_neighbours        Array with number of neighbors per vertex.
+ * \param neighbours          2D ragged array of neighbor indices per vertex.
+ * \param iterations          Number of smoothing iterations to perform.
+ * \param sigma               Smoothing decay factor applied to the neighbor average.
+ * \param min_det             Minimum acceptable Jacobian determinant for diffeomorphism.
+ * \param blend_strength      Logistic sharpness for Jacobian blending (higher = sharper).
+ * \param curvature           Optional curvature array (size = polygons->n_points). Pass NULL to disable.
+ * \param curvature_sign      Curvature sign selection: -1 = use only negative, +1 = only positive,
  *                            0 = absolute (both). Values outside {-1,0,1} are clamped to 0.
- * @param curvature_weight    Global scaling for curvature-based blending contribution. Positive
+ * \param curvature_weight    Global scaling for curvature-based blending contribution. Positive
  *                            values increase smoothing in selected curvature regions; negative
  *                            values decrease smoothing there. Magnitudes >1 are clipped by
  *                            the final [0..1] clamp of the blend.
@@ -469,7 +469,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
 }
 /**
- * @brief Jointly deforms two homologous surface meshes (pial and white) with image forces,
+ * \brief Jointly deforms two homologous surface meshes (pial and white) with image forces,
  *        distance constraint, and curvature-/Jacobian-blended smoothing.
  *
  * This routine performs a coupled deformation of two meshes that share topology and vertex
