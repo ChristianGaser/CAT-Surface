@@ -30,7 +30,7 @@ If you do not have root access (e.g., in cloud or Codespaces environments), you 
   Use MSYS2 or Windows Subsystem for Linux, then install as on Linux.
 
 If you lack sudo rights, build FFTW3 in your home directory:
-```
+```bash
 wget http://www.fftw.org/fftw-3.3.10.tar.gz
 tar xzf fftw-3.3.10.tar.gz
 cd fftw-3.3.10
@@ -38,14 +38,14 @@ cd fftw-3.3.10
 make && make install
 ```
 Then compile CAT-Surface with:
-```
+```bash
 export PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH
 ./configure CPPFLAGS="-I$HOME/.local/include" LDFLAGS="-L$HOME/.local/lib"
 make
 ```
 
 **2. Build the tools:**
-```
+```bash
 ./autogen.sh       # Generate the configure script
 ./configure        # Configure the build (add --prefix if needed)
 make               # Build all tools
