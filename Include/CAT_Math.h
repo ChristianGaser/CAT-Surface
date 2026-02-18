@@ -34,7 +34,9 @@ enum
     F_RANGE,
     F_COUNT,
     F_WAVERAGE,
-    F_MULTI
+    F_MULTI,
+    F_CLOSE,
+    F_OPEN
 };
 
 #ifndef isfinite

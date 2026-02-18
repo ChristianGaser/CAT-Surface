@@ -28,7 +28,7 @@ int    verbose            = 0;
 static
 ArgvInfo argTable[] = {
     {"-stat", ARGV_INT, (char *) 1, (char *) &stat_func,
-         "Statistic function: 0=mean, 1=min, 2=max, 3=std, 7=median (default: 0=mean)."},
+         "Statistic function: 0=mean, 1=min, 2=max, 3=std, 7=median, 12=close, 13=open (default: 0=mean)."},
     {"-dist", ARGV_INT, (char *) 1, (char *) &dist,
          "Search distance from voxel center in voxels (1..10, default: 1)."},
     {"-iter", ARGV_INT, (char *) 1, (char *) &iters,
@@ -51,10 +51,12 @@ Usage: %s [options] <input.nii> [<output.nii>]\n\
 \n\
     Available statistics (-stat):\n\
         0  mean     (default)\n\
-        1  min\n\
-        2  max\n\
+        1  min      (erosion)\n\
+        2  max      (dilation)\n\
         3  std\n\
         7  median\n\
+       12  close    (grey closing: max then min)\n\
+       13  open     (grey opening: min then max)\n\
 \n\
 Options:\n\
     -stat   <int>    Statistic function (default: 0=mean).\n\
@@ -79,6 +81,8 @@ stat_name(int func)
     case F_MAX:    return "max";
     case F_STD:    return "std";
     case F_MEDIAN: return "median";
+    case F_CLOSE:  return "close";
+    case F_OPEN:   return "open";
     default:       return "stat";
     }
 }
@@ -104,7 +108,8 @@ main(int argc, char *argv[])
 
     /* Validate stat_func */
     if (stat_func != F_MEAN && stat_func != F_MIN && stat_func != F_MAX &&
-        stat_func != F_STD  && stat_func != F_MEDIAN) {
+        stat_func != F_STD  && stat_func != F_MEDIAN &&
+        stat_func != F_CLOSE && stat_func != F_OPEN) {
         fprintf(stderr, "Error: unsupported statistic function %d.\n", stat_func);
         exit(EXIT_FAILURE);
     }
@@ -130,7 +135,17 @@ main(int argc, char *argv[])
     dims[2] = nii_ptr->nz;
 
     /* Apply local statistic */
-    localstat3(input, NULL, dims, dist, stat_func, iters, use_euclidean_dist, DT_FLOAT32);
+    if (stat_func == F_CLOSE) {
+        /* Grey closing: dilation (max) followed by erosion (min) */
+        localstat3(input, NULL, dims, dist, F_MAX, iters, use_euclidean_dist, DT_FLOAT32);
+        localstat3(input, NULL, dims, dist, F_MIN, iters, use_euclidean_dist, DT_FLOAT32);
+    } else if (stat_func == F_OPEN) {
+        /* Grey opening: erosion (min) followed by dilation (max) */
+        localstat3(input, NULL, dims, dist, F_MIN, iters, use_euclidean_dist, DT_FLOAT32);
+        localstat3(input, NULL, dims, dist, F_MAX, iters, use_euclidean_dist, DT_FLOAT32);
+    } else {
+        localstat3(input, NULL, dims, dist, stat_func, iters, use_euclidean_dist, DT_FLOAT32);
+    }
 
     /* Build output filename */
     if (argc == 3) {
