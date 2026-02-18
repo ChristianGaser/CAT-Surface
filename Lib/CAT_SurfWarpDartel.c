@@ -15,6 +15,26 @@
 #include "CAT_Resample.h"
 #include "CAT_SafeAlloc.h"
 
+/**
+ * \brief Solve a multi-resolution DARTEL flow for spherical registration.
+ *
+ * Builds curvature maps on a sphere, runs coarse-to-fine DARTEL iterations
+ * to estimate a flow field, optionally performs an initial rotation, and
+ * outputs the final deformation field (and optionally Jacobian determinants).
+ *
+ * \param src        (in)  source surface mesh
+ * \param src_sphere (in)  spherical source mesh
+ * \param trg        (in)  target surface mesh
+ * \param trg_sphere (in)  spherical target mesh
+ * \param prm        (in)  DARTEL parameter array
+ * \param dm         (in)  sheet dimensions for 2D mapping
+ * \param n_steps    (in)  number of smoothing/registration steps
+ * \param rot        (in/out) rotation vector updated for initial alignment
+ * \param flow       (out) output flow field (2 * dm[0] * dm[1])
+ * \param n_loops    (in)  number of DARTEL loops per step
+ * \param opt        (in)  solver options
+ * \return OK on success, ERROR on failure
+ */
 Status CAT_SurfWarpSolveDartelFlow(
     polygons_struct *src,
     polygons_struct *src_sphere,

@@ -26,10 +26,16 @@
 #define GWM 2.5
 #endif
 
-void
-CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
+/**
+ * \brief Initialize pial/white estimation options with defaults.
+ *
+ * \param opts (out) options structure to initialize
+ * \return void
+ */
+void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
 {
-    if (!opts) return;
+    if (!opts)
+        return;
     opts->w1 = 0.05;
     opts->w2 = 0.05;
     opts->w3 = 0.05;
@@ -38,16 +44,30 @@ CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
     opts->verbose = 0;
 }
 
-int
-CAT_SurfEstimatePialWhite(
+/**
+ * \brief Estimate pial and white surfaces from a central surface.
+ *
+ * Creates initial pial/white surfaces from thickness values, applies
+ * curvature-guided smoothing to the pial surface, and performs a
+ * dual-surface deformation driven by tissue labels and gradients.
+ *
+ * \param central          (in)  central surface mesh
+ * \param thickness_values (in)  per-vertex thickness values
+ * \param labels           (in)  tissue label volume
+ * \param nii_ptr          (in)  NIfTI header for coordinate transforms
+ * \param pial_out         (out) pial surface mesh
+ * \param white_out        (out) white surface mesh
+ * \param opts             (in)  algorithm options
+ * \return 0 on success, non-zero on error
+ */
+int CAT_SurfEstimatePialWhite(
     polygons_struct *central,
     const double *thickness_values,
     float *labels,
     nifti_image *nii_ptr,
     polygons_struct *pial_out,
     polygons_struct *white_out,
-    const CAT_PialWhiteOptions *opts
-)
+    const CAT_PialWhiteOptions *opts)
 {
     int p;
     int n_points;
@@ -62,7 +82,7 @@ CAT_SurfEstimatePialWhite(
     double weights[3];
     double shifting[2] = {-0.25, 0.25};
 
-    if (!central || !thickness_values || !labels || !nii_ptr || 
+    if (!central || !thickness_values || !labels || !nii_ptr ||
         !pial_out || !white_out || !opts)
         return -1;
 
@@ -73,10 +93,14 @@ CAT_SurfEstimatePialWhite(
     weight = (double *)malloc(sizeof(double) * n_points);
     polygons_smoothed = (polygons_struct *)malloc(sizeof(polygons_struct));
 
-    if (!extents || !weight || !polygons_smoothed) {
-        if (extents) free(extents);
-        if (weight) free(weight);
-        if (polygons_smoothed) free(polygons_smoothed);
+    if (!extents || !weight || !polygons_smoothed)
+    {
+        if (extents)
+            free(extents);
+        if (weight)
+            free(weight);
+        if (polygons_smoothed)
+            free(polygons_smoothed);
         return -2;
     }
 
@@ -85,16 +109,18 @@ CAT_SurfEstimatePialWhite(
 
     /* Compute curvature-based weights (negative mean curvature -> smoothing) */
     get_polygon_vertex_curvatures_cg(central, n_neighbours, neighbours, 3.0, 0.0, weight);
-    for (p = 0; p < n_points; p++) {
+    for (p = 0; p < n_points; p++)
+    {
         weight[p] = fmin(0.0, weight[p]);   /* Only negative curvatures */
         weight[p] = fmax(-90.0, weight[p]); /* Clip at -90 */
         weight[p] /= -90.0;                 /* Normalize to [0..1] */
     }
 
     /* Initial estimate of pial surface */
-    for (p = 0; p < n_points; p++) extents[p] = 0.5;
-    objects_out = central_to_new_pial(central, (double *)thickness_values, extents, 
-                                       1, 0.5 * opts->sigma, 5, opts->verbose);
+    for (p = 0; p < n_points; p++)
+        extents[p] = 0.5;
+    objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
+                                      1, 0.5 * opts->sigma, 5, opts->verbose);
     polygons_pial = get_polygons_ptr(objects_out[0]);
 
     /* Smooth pial surface based on local curvature */
@@ -102,7 +128,8 @@ CAT_SurfEstimatePialWhite(
     smooth_heatkernel(polygons_smoothed, NULL, 5.0);
 
     /* Blend original and smoothed using curvature weights */
-    for (p = 0; p < n_points; p++) {
+    for (p = 0; p < n_points; p++)
+    {
         Point_x(polygons_pial->points[p]) = weight[p] * Point_x(polygons_smoothed->points[p]) +
                                             (1.0 - weight[p]) * Point_x(polygons_pial->points[p]);
         Point_y(polygons_pial->points[p]) = weight[p] * Point_y(polygons_smoothed->points[p]) +
@@ -112,9 +139,10 @@ CAT_SurfEstimatePialWhite(
     }
 
     /* Initial estimate of white surface */
-    for (p = 0; p < n_points; p++) extents[p] = -0.5;
+    for (p = 0; p < n_points; p++)
+        extents[p] = -0.5;
     objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
-                                       0, 0.5 * opts->sigma, 5, opts->verbose);
+                                      0, 0.5 * opts->sigma, 5, opts->verbose);
     polygons_white = get_polygons_ptr(objects_out[0]);
 
     /* Dual-surface deformation */
