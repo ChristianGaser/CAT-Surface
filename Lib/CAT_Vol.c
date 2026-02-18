@@ -201,7 +201,19 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
 }
 
 /**
- * wrapper to call localstat_double for any data type
+ * \brief Public API for localstat3.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param data (in/out) Parameter of localstat3.
+ * \param mask (in/out) Parameter of localstat3.
+ * \param dims (in/out) Parameter of localstat3.
+ * \param dist (in/out) Parameter of localstat3.
+ * \param stat_func (in/out) Parameter of localstat3.
+ * \param iters (in/out) Parameter of localstat3.
+ * \param use_euclidean_dist (in/out) Parameter of localstat3.
+ * \param datatype (in/out) Parameter of localstat3.
+ * \return void (no return value).
  */
 void localstat3(void *data, unsigned char *mask, int dims[3], int dist,
                 int stat_func, int iters, int use_euclidean_dist, int datatype)
@@ -300,24 +312,17 @@ void pmin(float *A, int sA, float *minimum, int *index)
 }
 
 /**
- * isoval - Calculate the linearly interpolated value in a 3D volume.
+ * \brief Public API for isoval.
  *
- * This function reads out the linear interpolated value of a volume at a specific position
- * in 3D space. If a NIfTI image pointer is provided, it first transforms the coordinates from
- * world to voxel space. It then performs linear interpolation using the nearest neighbours.
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
  *
- * Parameters:
- *  - vol: The 3D volume in which to interpolate.
- *  - x, y, z: Coordinates at which to interpolate the value.
- *  - dims: Array containing the dimensions of the volume.
- *  - nii_ptr: Pointer to a NIfTI image for coordinate transformation (optional).
- *
- * Returns:
- *  The interpolated value at the given coordinates. Returns NaN if unable to interpolate.
- *
- * Notes:
- *  - The function uses linear interpolation based on the values of the 8 nearest neighbours.
- *  - Coordinates are in C-notation. See 'ind2sub' for details on coordinate system.
+ * \param vol (in/out) Parameter of isoval.
+ * \param x (in/out) Parameter of isoval.
+ * \param y (in/out) Parameter of isoval.
+ * \param z (in/out) Parameter of isoval.
+ * \param dims (in/out) Parameter of isoval.
+ * \param nii_ptr (in/out) Parameter of isoval.
+ * \return Return value of isoval.
  */
 float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *nii_ptr)
 {
@@ -1263,38 +1268,16 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
 }
 
 /**
- * euclidean_distance - Calculate the voxel-wise Euclidean distance to an object in a 3D volume.
+ * \brief Public API for euclidean_distance.
  *
- * This function computes the Euclidean distance from each voxel within a given mask
- * to the nearest surface of an object in a 3D volume. The object is defined by voxels
- * with values below a threshold (typically 0.5, representing the boundary).
- * The input image is modified and returns the distance measure.
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
  *
- * Parameters:
- *   V: The input image (float) represented as a 3D volume. Voxels with zero value
- *       are considered non-elements of the object.
- *   M: An uint16 mask defining the region in which the distance calculations
- *       are performed. The mask should define a convex hull ensuring direct
- *       connections between the object and the estimation voxels.
- *       If the mask is NULL the distance calculations are performed for the whole image.
- *   dims: An integer array representing the dimensions of the 3D volume (width, height, depth).
- *   voxelsize: An float array representing the size of each voxel in the 3D volume, in millimeters.
- *              If voxelsize==NULL then the default voxelsize is 1mm.
- *   replace: An integer flag indicating whether to replace the values inside the mask with
- *            their neighbouring values. If set to 0, the function returns the voxel
- *            distance; otherwise, the original values outside the mask are retained,
- *            and inside the mask, the values are replaced.
- *
- * The function performs a forward and backward pass to calculate the minimum distance
- * from each voxel within the mask to the object's surface. The distances are calculated
- * using the voxel sizes to correct for anisotropy. However, the distance is defined in voxels
- * if the 'voxelsize' is NULL.
- *
- * If the 'replace' parameter is set, the function additionally replaces the values inside
- * the mask with the values from their nearest neighbour outside the object boundary. This
- * can be useful in scenarios where the original values inside the object are to be retained
- * for further analysis.
- *
+ * \param V (in/out) Parameter of euclidean_distance.
+ * \param M (in/out) Parameter of euclidean_distance.
+ * \param dims (in/out) Parameter of euclidean_distance.
+ * \param voxelsize (in/out) Parameter of euclidean_distance.
+ * \param replace (in/out) Parameter of euclidean_distance.
+ * \return void (no return value).
  */
 void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
 {
@@ -2729,6 +2712,19 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
     free(vol_samp);
     free(buffer);
 }
+/**
+ * \brief Public API for median_subsample3.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param data (in/out) Parameter of median_subsample3.
+ * \param dims (in/out) Parameter of median_subsample3.
+ * \param voxelsize (in/out) Parameter of median_subsample3.
+ * \param niter (in/out) Parameter of median_subsample3.
+ * \param samp_voxelsize (in/out) Parameter of median_subsample3.
+ * \param datatype (in/out) Parameter of median_subsample3.
+ * \return void (no return value).
+ */
 
 void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, double samp_voxelsize, int datatype)
 {

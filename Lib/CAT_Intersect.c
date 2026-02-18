@@ -480,6 +480,17 @@ int find_selfintersections_masked(polygons_struct *polygons, int *defects, int *
     free(curvatures);
     return n_intersects;
 }
+/**
+ * \brief Public API for find_selfintersections.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param polygons (in/out) Parameter of find_selfintersections.
+ * \param defects (in/out) Parameter of find_selfintersections.
+ * \param polydefects (in/out) Parameter of find_selfintersections.
+ * \param init (in/out) Parameter of find_selfintersections.
+ * \return Return value of find_selfintersections.
+ */
 
 int find_selfintersections(polygons_struct *polygons, int *defects, int *polydefects, int init)
 {

@@ -1170,6 +1170,18 @@ double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype
     free(buffer);
     return (result);
 }
+/**
+ * \brief Public API for clip_data.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param data (in/out) Parameter of clip_data.
+ * \param n (in/out) Parameter of clip_data.
+ * \param lower_limit (in/out) Parameter of clip_data.
+ * \param upper_limit (in/out) Parameter of clip_data.
+ * \param datatype (in/out) Parameter of clip_data.
+ * \return void (no return value).
+ */
 
 void clip_data(void *data, int n, double lower_limit, double upper_limit, int datatype)
 {
@@ -1191,6 +1203,19 @@ void clip_data(void *data, int n, double lower_limit, double upper_limit, int da
 
     free(buffer);
 }
+/**
+ * \brief Public API for get_prctile.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param data (in/out) Parameter of get_prctile.
+ * \param n (in/out) Parameter of get_prctile.
+ * \param threshold (in/out) Parameter of get_prctile.
+ * \param prctile (in/out) Parameter of get_prctile.
+ * \param exclude_zeros (in/out) Parameter of get_prctile.
+ * \param datatype (in/out) Parameter of get_prctile.
+ * \return void (no return value).
+ */
 
 void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype)
 {
@@ -1210,6 +1235,18 @@ void get_prctile(void *data, int n, double threshold[2], double prctile[2], int 
 
     free(buffer);
 }
+/**
+ * \brief Public API for get_corrcoef.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param x (in/out) Parameter of get_corrcoef.
+ * \param y (in/out) Parameter of get_corrcoef.
+ * \param n (in/out) Parameter of get_corrcoef.
+ * \param exclude_zeros (in/out) Parameter of get_corrcoef.
+ * \param datatype (in/out) Parameter of get_corrcoef.
+ * \return Return value of get_corrcoef.
+ */
 
 double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype)
 {

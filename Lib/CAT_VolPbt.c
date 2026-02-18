@@ -356,22 +356,17 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
 }
 
 /**
- * projection_based_thickness - Calculate the thickness of segmented structures.
+ * \brief Public API for projection_based_thickness.
  *
- * This function estimates the projection-based thickness of segmented structures 
- * in a 3D volume, typically used in medical imaging for brain tissue analysis. 
- * It requires PVE label images and distance maps for WM and CSF.
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
  *
- * Parameters:
- *  - SEG: PVE label image with labels for CSF, GM, and WM.
- *  - WMD: White Matter distance map.
- *  - CSFD: Cerebrospinal Fluid distance map.
- *  - GMT: Output thickness image.
- *  - dims: Array containing the dimensions of the volume.
- *  - voxelsize: Array containing the size of each voxel.
- *
- * Note:
- *  - The function assumes specific labels for CSF (1), GM (2), and WM (3).
+ * \param SEG (in/out) Parameter of projection_based_thickness.
+ * \param WMD (in/out) Parameter of projection_based_thickness.
+ * \param CSFD (in/out) Parameter of projection_based_thickness.
+ * \param GMT (in/out) Parameter of projection_based_thickness.
+ * \param dims (in/out) Parameter of projection_based_thickness.
+ * \param voxelsize (in/out) Parameter of projection_based_thickness.
+ * \return void (no return value).
  */
 void
 projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize)
