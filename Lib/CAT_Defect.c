@@ -7,7 +7,6 @@
  *
  */
 
-
 #include "CAT_SPH.h"
 #include "CAT_Intersect.h"
 #include "CAT_Defect.h"
@@ -40,7 +39,8 @@ defect_direction(polygons_struct *surface, int *defects, int defect)
 
     /* get the direction of the defect */
     fill_Vector(dir, 0.0, 0.0, 0.0);
-    for (p = 0; p < surface->n_points; p++) {
+    for (p = 0; p < surface->n_points; p++)
+    {
         if (defects[p] == defect)
             ADD_POINT_VECTOR(dir, dir, surface->normals[p]);
     }
@@ -66,30 +66,36 @@ defect_direction(polygons_struct *surface, int *defects, int defect)
  * \param neighbours  (in) per-vertex neighbor lists
  * \return Euler characteristic (typically 0, 2, -2, etc.)
  */
-int
-defect_euler(polygons_struct *surface, int *defects, int *polydefects,
-       int defect, int *n_neighbours, int **neighbours)
+int defect_euler(polygons_struct *surface, int *defects, int *polydefects,
+                 int defect, int *n_neighbours, int **neighbours)
 {
     int p, n, nn, n_v, n_e, n_f, n_dup_e;
     int free_polydefects = 0;
 
-    if (polydefects == NULL) {
-        polydefects = (int *) malloc(sizeof(int) * surface->n_items);
+    if (polydefects == NULL)
+    {
+        polydefects = (int *)malloc(sizeof(int) * surface->n_items);
         update_polydefects(surface, defects, polydefects);
         free_polydefects = 1;
     }
 
-    n_v = 0; n_e = 0; n_f = 0; n_dup_e = 0;
-    for (p = 0; p < surface->n_points; p++) {
+    n_v = 0;
+    n_e = 0;
+    n_f = 0;
+    n_dup_e = 0;
+    for (p = 0; p < surface->n_points; p++)
+    {
         if (defects[p] != defect)
             continue;
 
         n_v++; /* found a vertex */
 
-        for (n = 0; n < n_neighbours[p]; n++) {
+        for (n = 0; n < n_neighbours[p]; n++)
+        {
             if (defects[neighbours[p][n]] != defect)
                 continue;
-            for (nn = n+1; nn < n_neighbours[p]; nn++) {
+            for (nn = n + 1; nn < n_neighbours[p]; nn++)
+            {
                 if (neighbours[p][nn] == neighbours[p][n])
                     break;
             }
@@ -99,7 +105,8 @@ defect_euler(polygons_struct *surface, int *defects, int *polydefects,
                 n_e++;
         }
     }
-    for (p = 0; p < surface->n_items; p++) {
+    for (p = 0; p < surface->n_items; p++)
+    {
         if (polydefects[p] == defect)
             n_f++; /* found a face */
     }
@@ -125,18 +132,20 @@ defect_euler(polygons_struct *surface, int *defects, int *polydefects,
  * \param polygon      (in) polygon index to test
  * \return 1 if polygon is on defect boundary; 0 otherwise
  */
-int
-isedge(polygons_struct *surface, int *defects, int *polydefects,
-     int *n_neighbours, int **neighbours, int polygon)
+int isedge(polygons_struct *surface, int *defects, int *polydefects,
+           int *n_neighbours, int **neighbours, int polygon)
 {
     int i, p, n;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 3; i++)
+    {
         p = surface->indices[POINT_INDEX(surface->end_indices,
-                         polygon, i)];
+                                         polygon, i)];
 
-        for (n = 0; n < n_neighbours[p]; n++) {
-            if (defects[neighbours[p][n]] != defects[p]) {
+        for (n = 0; n < n_neighbours[p]; n++)
+        {
+            if (defects[neighbours[p][n]] != defects[p])
+            {
                 return 1; /* an edge! */
             }
         }
@@ -160,37 +169,40 @@ isedge(polygons_struct *surface, int *defects, int *polydefects,
  * \param neighbours   (in)  per-vertex neighbor lists
  * \return number of defects found
  */
-int
-find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
-             int *defects, int *n_neighbours, int **neighbours)
+int find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
+                             int *defects, int *n_neighbours, int **neighbours)
 {
     int d, pts[3], n_defects, n_euler, n_intersects;
     int size, i, n, p;
     int euler, *polydefects;
     struct looptree *ltree;
 
-    polydefects = (int *) calloc(sphere->n_items,sizeof(int));
+    polydefects = (int *)calloc(sphere->n_items, sizeof(int));
 
     n_intersects = find_selfintersections(sphere, defects, polydefects, 0);
     if (n_intersects == 0)
         return 0;
 
     n_intersects = join_intersections(sphere, defects, polydefects,
-                      n_neighbours, neighbours);
+                                      n_neighbours, neighbours);
 
     /* remove simple self-intersections */
-    for (d = 1; d <= n_intersects; d++) {
+    for (d = 1; d <= n_intersects; d++)
+    {
         euler = defect_euler(surface, defects, polydefects, d,
-                   n_neighbours, neighbours);
+                             n_neighbours, neighbours);
 
-        if (euler == 2) { /* not a defect, delete it */
-            for (p = 0; p < sphere->n_points; p++) {
+        if (euler == 2)
+        { /* not a defect, delete it */
+            for (p = 0; p < sphere->n_points; p++)
+            {
                 if (defects[p] == d)
                     defects[p] = 0;
                 if (defects[p] == n_intersects)
                     defects[p] = d;
             }
-            for (p = 0; p < sphere->n_items; p++) {
+            for (p = 0; p < sphere->n_items; p++)
+            {
                 if (polydefects[p] == d)
                     polydefects[p] = 0;
                 if (polydefects[p] == n_intersects)
@@ -204,7 +216,6 @@ find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
     free(polydefects);
     return n_intersects;
 }
-
 
 /* expand defects to include neighboring points.  defect = 0 for all defects,
  * or can just expand one defect.
@@ -225,27 +236,29 @@ find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
  * \param neighbours   (in) per-vertex neighbor lists
  * \return void
  */
-void
-expand_defects(polygons_struct *surface, int *defects, int *polydefects,
-        int defect, int level, int *n_neighbours, int **neighbours)
+void expand_defects(polygons_struct *surface, int *defects, int *polydefects,
+                    int defect, int level, int *n_neighbours, int **neighbours)
 {
     int *buffer, p, n;
 
-    buffer = (int *) malloc(sizeof(int) * surface->n_points);
+    buffer = (int *)malloc(sizeof(int) * surface->n_points);
     update_defects(surface, polydefects, defects);
 
-    while (level > 0) {
+    while (level > 0)
+    {
         for (p = 0; p < surface->n_points; p++)
             buffer[p] = defects[p];
 
-        for (p = 0; p < surface->n_points; p++) {
+        for (p = 0; p < surface->n_points; p++)
+        {
             if (buffer[p] == 0)
                 continue; /* skip */
 
             if (defect > 0 && buffer[p] != defect)
                 continue; /* skip */
 
-            for (n = 0; n < n_neighbours[p]; n++) {
+            for (n = 0; n < n_neighbours[p]; n++)
+            {
                 defects[neighbours[p][n]] = buffer[p];
             }
         }
@@ -255,7 +268,6 @@ expand_defects(polygons_struct *surface, int *defects, int *polydefects,
 
     free(buffer);
 }
-
 
 /**
  * \brief Update per-vertex defect labels from per-polygon (triangle) defect labels.
@@ -281,25 +293,25 @@ expand_defects(polygons_struct *surface, int *defects, int *polydefects,
  * \param defects    (out) per-vertex defect labels (overwritten)
  * \return void
  */
-void
-update_defects(polygons_struct *surface, int *polydefects, int *defects)
+void update_defects(polygons_struct *surface, int *polydefects, int *defects)
 {
     int p;
 
     memset(defects, 0, sizeof(int) * surface->n_points);
 
     /* update point defect list */
-    for (p = 0; p < surface->n_items; p++) {
-        if (polydefects[p] == 0) continue;
+    for (p = 0; p < surface->n_items; p++)
+    {
+        if (polydefects[p] == 0)
+            continue;
         defects[surface->indices[POINT_INDEX(surface->end_indices,
-                           p, 0)]] = polydefects[p];
+                                             p, 0)]] = polydefects[p];
         defects[surface->indices[POINT_INDEX(surface->end_indices,
-                           p, 1)]] = polydefects[p];
+                                             p, 1)]] = polydefects[p];
         defects[surface->indices[POINT_INDEX(surface->end_indices,
-                           p, 2)]] = polydefects[p];
+                                             p, 2)]] = polydefects[p];
     }
 }
-
 
 /* Update the polygon defect list from the point defect list */
 /**
@@ -313,36 +325,34 @@ update_defects(polygons_struct *surface, int *polydefects, int *defects)
  * \param polydefects (out) per-polygon defect labels (updated)
  * \return void
  */
-void
-update_polydefects(polygons_struct *surface, int *defects, int *polydefects)
+void update_polydefects(polygons_struct *surface, int *defects, int *polydefects)
 {
     int p, d;
 
     /* update polygon defect list */
-    for (p = 0; p < surface->n_items; p++) {
-        polydefects[p] = defects[surface->indices[
-                    POINT_INDEX(surface->end_indices, p, 0)]];
-        if (polydefects[p] == 0) continue;
-        polydefects[p] = defects[surface->indices[
-                    POINT_INDEX(surface->end_indices, p, 1)]];
-        if (polydefects[p] == 0) continue;
-        polydefects[p] = defects[surface->indices[
-                    POINT_INDEX(surface->end_indices, p, 2)]];
+    for (p = 0; p < surface->n_items; p++)
+    {
+        polydefects[p] = defects[surface->indices[POINT_INDEX(surface->end_indices, p, 0)]];
+        if (polydefects[p] == 0)
+            continue;
+        polydefects[p] = defects[surface->indices[POINT_INDEX(surface->end_indices, p, 1)]];
+        if (polydefects[p] == 0)
+            continue;
+        polydefects[p] = defects[surface->indices[POINT_INDEX(surface->end_indices, p, 2)]];
     }
 }
 
-
 /* returns the bounds of a defect */
-void
-get_defect_bounds(polygons_struct *surface, int *defects, int defect,
-          double bounds[6])
+void get_defect_bounds(polygons_struct *surface, int *defects, int defect,
+                       double bounds[6])
 {
     int p;
 
     bounds[0] = bounds[2] = bounds[4] = PINF;
     bounds[1] = bounds[3] = bounds[5] = NINF;
 
-    for (p = 0; p < surface->n_points; p++) {
+    for (p = 0; p < surface->n_points; p++)
+    {
         if (defects[p] != defect)
             continue;
 
@@ -361,7 +371,6 @@ get_defect_bounds(polygons_struct *surface, int *defects, int defect,
     }
 }
 
-
 /* holes = 1, handles = 2, large errors = 3, ventricles = 4 */
 
 /**
@@ -375,15 +384,15 @@ get_defect_bounds(polygons_struct *surface, int *defects, int defect,
  * \param defect  (in) defect ID to analyze
  * \return 3D point at center of mass of defect vertices
  */
-Point
-get_defect_center(polygons_struct *surface, int *defects, int defect)
+Point get_defect_center(polygons_struct *surface, int *defects, int defect)
 {
     Point center;
     int p, npts = 0;
 
     fill_Point(center, 0.0, 0.0, 0.0);
 
-    for (p = 0; p < surface->n_points; p++) {
+    for (p = 0; p < surface->n_points; p++)
+    {
         if (defects[p] != defect)
             continue;
 
@@ -406,19 +415,19 @@ get_defect_center(polygons_struct *surface, int *defects, int defect)
  * \param n_defects     (in) total number of defects
  * \param defect_size   (out) per-vertex size values (normalized 0-1)\n * \return void
  */
-void
-get_defect_size(polygons_struct *surface, int *defects, int n_defects, 
-          double *defect_size)
+void get_defect_size(polygons_struct *surface, int *defects, int n_defects,
+                     double *defect_size)
 {
     int i, p, d;
     double *size;
 
-    size = (double *) malloc(sizeof(double) * n_defects);
+    size = (double *)malloc(sizeof(double) * n_defects);
 
     memset(defect_size, 0, sizeof(double) * surface->n_points);
 
     /* get size of defect */
-    for (d = 1; d <= n_defects; d++) {
+    for (d = 1; d <= n_defects; d++)
+    {
         size[d] = 0.0;
         for (p = 0; p < surface->n_points; p++)
             if (defects[p] == d)
@@ -430,8 +439,8 @@ get_defect_size(polygons_struct *surface, int *defects, int n_defects,
 
     for (d = 1; d <= n_defects; d++)
         for (p = 0; p < surface->n_points; p++)
-            if (defects[p] == d) 
-                  defect_size[p] = size[d];
+            if (defects[p] == d)
+                defect_size[p] = size[d];
 
     free(size);
 }
@@ -452,9 +461,8 @@ get_defect_size(polygons_struct *surface, int *defects, int n_defects,
  * \param detect_euler (in)  flag to compute Euler characteristic for classification
  * \return void
  */
-void
-bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, int n_defects,
-         int *holes, int *bisected, int detect_euler)
+void bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, int n_defects,
+                    int *holes, int *bisected, int detect_euler)
 {
     int p, d, i, fillflag, euler;
     int npts, maxpts, *pts, *polydefects;
@@ -466,12 +474,12 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 
     memset(bisected, 0, sizeof(int) * surface->n_points);
 
-    pts = (int *) malloc(sizeof(int) * surface->n_points);
-    depth = (double *) malloc(sizeof(double) * surface->n_points);
+    pts = (int *)malloc(sizeof(int) * surface->n_points);
+    depth = (double *)malloc(sizeof(double) * surface->n_points);
 
     /* inflate surface roughly to an ellipsoid where holes and handles are still visible and have
        different height/depth on the surface */
-    objects = (object_struct **) malloc(sizeof(object_struct *));
+    objects = (object_struct **)malloc(sizeof(object_struct *));
     *objects = create_object(POLYGONS);
     inflated_surface = get_polygons_ptr(*objects);
     copy_polygons(surface, inflated_surface);
@@ -482,37 +490,43 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
     memset(depth, 0, sizeof(double) * surface->n_points);
     compute_sulcus_depth(inflated_surface, depth);
 
-    if (DUMP_FILES) {
-        output_values_any_format("depth.txt", surface->n_points, 
-                       depth, TYPE_DOUBLE);
+    if (DUMP_FILES)
+    {
+        output_values_any_format("depth.txt", surface->n_points,
+                                 depth, TYPE_DOUBLE);
         output_graphics_any_format("inflated.obj", ASCII_FORMAT,
-                       1, objects, NULL);
+                                   1, objects, NULL);
     }
-    
+
     /* estimate overall depth to check whether estimation was correct */
     sum = 0.0;
-    for (p = 0; p < surface->n_points; p++)  
+    for (p = 0; p < surface->n_points; p++)
         sum += depth[p];
-        
+
     /* use Hausdorff distance if sulcal depth estimation fails */
-    if (sum == 0.0) {
+    if (sum == 0.0)
+    {
         printf("WARNING: Hausdorff distance is used for bisectioning the defects because estimation of sulcal depth failed.\n");
         compute_point_hausdorff(inflated_surface, sphere, depth, 0);
     }
 
     /* prepare calculation of euler number to decide whether we have a handle or hole */
-    if (detect_euler) {
+    if (detect_euler)
+    {
         create_polygon_point_neighbours(sphere, FALSE, &n_neighbours,
-                    &neighbours, NULL, NULL);
+                                        &neighbours, NULL, NULL);
 
-        polydefects = (int *) malloc(sizeof(int) * sphere->n_items);
+        polydefects = (int *)malloc(sizeof(int) * sphere->n_items);
         update_polydefects(sphere, defects, polydefects);
     }
 
-    for (d = 1; d <= n_defects; d++) {
+    for (d = 1; d <= n_defects; d++)
+    {
         npts = 0;
-        for (p = 0; p < surface->n_points; p++) {
-            if (defects[p] == d) {
+        for (p = 0; p < surface->n_points; p++)
+        {
+            if (defects[p] == d)
+            {
                 pts[npts] = p;
                 npts++;
             }
@@ -520,28 +534,32 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
 
         /* estimate mean sulcal depth inside defect */
         avg = 0.0;
-        for (p = 0; p < npts; p++)  avg += depth[pts[p]];
+        for (p = 0; p < npts; p++)
+            avg += depth[pts[p]];
         avg /= (double)npts;
 
         /* we can use euler number to automatically decide whether we have a handle or hole */
-        if (detect_euler) {
+        if (detect_euler)
+        {
             euler = defect_euler(surface, defects, polydefects, d,
-                   n_neighbours, neighbours);
+                                 n_neighbours, neighbours);
             fillflag = (euler < 1) ? HOLE : HANDLE;
-        } else fillflag = holes[pts[0]]; /* otherwise use predefined decision */
+        }
+        else
+            fillflag = holes[pts[0]]; /* otherwise use predefined decision */
 
         /* indicate "bottom" (ground) of defect only as either hole or handle */
-        for (p = 0; p < npts; p++) {
+        for (p = 0; p < npts; p++)
+        {
             if (((fillflag == HOLE) & (depth[pts[p]] > avg)) | ((fillflag == HANDLE) & (depth[pts[p]] < avg)))
                 bisected[pts[p]] = fillflag;
         }
-             
     }
     free(pts);
     free(depth);
 
-    if (detect_euler) free(polydefects);
-
+    if (detect_euler)
+        free(polydefects);
 }
 
 /**
@@ -555,68 +573,70 @@ bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, 
  * \param polygons (in/out) surface mesh modified in place by inflation and smoothing operations
  * \return void
  */
-void
-inflate_surface_with_topology_defects(polygons_struct *polygons)
+void inflate_surface_with_topology_defects(polygons_struct *polygons)
 {
-    int        i;
-    double       factor;
-    
+    int i;
+    double factor;
 
     /* use more iterations for larger surfaces */
-    if (polygons->n_items > 350000) {
-        factor = (double)polygons->n_items/350000.0;
+    if (polygons->n_items > 350000)
+    {
+        factor = (double)polygons->n_items / 350000.0;
         printf("Large number polygons -> Increase # of iterations by factor %g.\n",
-              factor);
-    } else factor = 1.0;
+               factor);
+    }
+    else
+        factor = 1.0;
 
     /* low smooth */
     inflate_surface_and_smooth_fingers(polygons,
-          /*           cycles */ 1,
-          /* regular smoothing strength */ 0.2,
-          /*  regular smoothing iters */ round(factor*50),
-          /*       inflation factor */ 1.0,
-          /* finger comp/stretch thresh */ 3.0,
-          /*   finger smooth strength */ 1.0,
-          /*    finger smooth iters */ 0);
+                                       /*           cycles */ 1,
+                                       /* regular smoothing strength */ 0.2,
+                                       /*  regular smoothing iters */ round(factor * 50),
+                                       /*       inflation factor */ 1.0,
+                                       /* finger comp/stretch thresh */ 3.0,
+                                       /*   finger smooth strength */ 1.0,
+                                       /*    finger smooth iters */ 0);
 
-        /* inflated */
+    /* inflated */
     inflate_surface_and_smooth_fingers(polygons,
-          /*           cycles */ 2,
-          /* regular smoothing strength */ 1.0,
-          /*  regular smoothing iters */ round(factor*30),
-          /*       inflation factor */ 1.4,
-          /* finger comp/stretch thresh */ 3.0,
-          /*   finger smooth strength */ 1.0,
-          /*    finger smooth iters */ 0);
+                                       /*           cycles */ 2,
+                                       /* regular smoothing strength */ 1.0,
+                                       /*  regular smoothing iters */ round(factor * 30),
+                                       /*       inflation factor */ 1.4,
+                                       /* finger comp/stretch thresh */ 3.0,
+                                       /*   finger smooth strength */ 1.0,
+                                       /*    finger smooth iters */ 0);
 
-        /* very inflated */
+    /* very inflated */
     inflate_surface_and_smooth_fingers(polygons,
-          /*           cycles */ 4,
-          /* regular smoothing strength */ 1.0,
-          /*  regular smoothing iters */ round(factor*30),
-          /*       inflation factor */ 1.1,
-          /* finger comp/stretch thresh */ 3.0,
-          /*   finger smooth strength */ 1.0,
-          /*    finger smooth iters */ 0);
+                                       /*           cycles */ 4,
+                                       /* regular smoothing strength */ 1.0,
+                                       /*  regular smoothing iters */ round(factor * 30),
+                                       /*       inflation factor */ 1.1,
+                                       /* finger comp/stretch thresh */ 3.0,
+                                       /*   finger smooth strength */ 1.0,
+                                       /*    finger smooth iters */ 0);
 
-         /* high smooth */
+    /* high smooth */
     inflate_surface_and_smooth_fingers(polygons,
-          /*           cycles */ 3,
-          /* regular smoothing strength */ 1.0,
-          /*  regular smoothing iters */ round(factor*40),
-          /*       inflation factor */ 1.4,
-          /* finger comp/stretch thresh */ 3.0,
-          /*   finger smooth strength */ 1.0,
-          /*    finger smooth iters */ 60);
+                                       /*           cycles */ 3,
+                                       /* regular smoothing strength */ 1.0,
+                                       /*  regular smoothing iters */ round(factor * 40),
+                                       /*       inflation factor */ 1.4,
+                                       /* finger comp/stretch thresh */ 3.0,
+                                       /*   finger smooth strength */ 1.0,
+                                       /*    finger smooth iters */ 60);
 
     /* add some noise to the surface because of difficulties with the subsequent convex hull approach */
     srand(0);
-    for (i = 0; i < polygons->n_points; i++) {
-        Point_x(polygons->points[i]) += (double) (rand() % 10)/20.0;
-        Point_y(polygons->points[i]) += (double) (rand() % 10)/20.0;
-        Point_z(polygons->points[i]) += (double) (rand() % 10)/20.0;    
+    for (i = 0; i < polygons->n_points; i++)
+    {
+        Point_x(polygons->points[i]) += (double)(rand() % 10) / 20.0;
+        Point_y(polygons->points[i]) += (double)(rand() % 10) / 20.0;
+        Point_z(polygons->points[i]) += (double)(rand() % 10) / 20.0;
     }
-    
+
     compute_polygon_normals(polygons);
 }
 
@@ -636,31 +656,34 @@ inflate_surface_with_topology_defects(polygons_struct *polygons)
  * \param remap_polydefects (out) per-polygon defect labels on target
  * \return void
  */
-void
-remap_defect(polygons_struct *sphere, int *defects, int *polydefects,
-       polygons_struct *remap, int *remap_defects, int *remap_polydefects)
+void remap_defect(polygons_struct *sphere, int *defects, int *polydefects,
+                  polygons_struct *remap, int *remap_defects, int *remap_polydefects)
 {
     int p, size, i, idx, poly;
     Point closest_pt;
     progress_struct progress;
 
-    if (remap->bintree == NULL) {
-        create_polygons_bintree(remap, round((double) remap->n_items *
-                        BINTREE_FACTOR));
+    if (remap->bintree == NULL)
+    {
+        create_polygons_bintree(remap, round((double)remap->n_items *
+                                             BINTREE_FACTOR));
     }
 
     initialize_progress_report(&progress, FALSE, remap->n_points,
-                   "remap_defect");
+                               "remap_defect");
 
-    for (p = 0; p < sphere->n_points; p++) {
-        if (defects[p] == 0) continue; /* skip */
+    for (p = 0; p < sphere->n_points; p++)
+    {
+        if (defects[p] == 0)
+            continue; /* skip */
 
         poly = find_closest_polygon_point(&sphere->points[p], remap,
-                          &closest_pt);
+                                          &closest_pt);
         size = GET_OBJECT_SIZE(*remap, poly);
-        for (i = 0; i < size; i++) {
+        for (i = 0; i < size; i++)
+        {
             idx = remap->indices[POINT_INDEX(remap->end_indices,
-                          poly, i)];
+                                             poly, i)];
             remap_defects[idx] = defects[p];
         }
         update_progress_report(&progress, p);
@@ -671,9 +694,8 @@ remap_defect(polygons_struct *sphere, int *defects, int *polydefects,
     update_polydefects(remap, remap_defects, remap_polydefects);
 }
 
-int
-find_artifacts(polygons_struct *surface, polygons_struct *sph,
-         int *artifacts, int *n_neighbours, int **neighbours, double dist)
+int find_artifacts(polygons_struct *surface, polygons_struct *sph,
+                   int *artifacts, int *n_neighbours, int **neighbours, double dist)
 {
     int d, euler, aval, aval2;
     int size, i, n, p, poly, done;
@@ -683,68 +705,88 @@ find_artifacts(polygons_struct *surface, polygons_struct *sph,
 
     /* estimate the Hausdorff distance */
     n_artifacts = 0;
-    create_polygons_bintree(sph, ROUND((double) sph->n_items * 0.5));
+    create_polygons_bintree(sph, ROUND((double)sph->n_items * 0.5));
 
-    for (i = 0; i < surface->n_points; i++) {
+    for (i = 0; i < surface->n_points; i++)
+    {
         poly = find_closest_polygon_point(&surface->points[i],
-                          sph, &closest);
+                                          sph, &closest);
         hd = distance_between_points(&surface->points[i], &closest);
 
-        if (hd > dist) {
+        if (hd > dist)
+        {
             artifacts[i] = (++n_artifacts);
-        } else {
+        }
+        else
+        {
             artifacts[i] = 0;
         }
     }
 
     /* consolidate artifact points */
     done = 0;
-    while (!done) {
+    while (!done)
+    {
         done = 1;
-        for (i = 0; i < surface->n_points; i++) {
-            if (artifacts[i] == 0) continue;
+        for (i = 0; i < surface->n_points; i++)
+        {
+            if (artifacts[i] == 0)
+                continue;
             aval = artifacts[i];
 
-            for (n = 0; n < n_neighbours[i]; n++) {
-                 aval2 = artifacts[neighbours[i][n]];
-                 if (aval2 == 0 || aval2 == aval) continue;
+            for (n = 0; n < n_neighbours[i]; n++)
+            {
+                aval2 = artifacts[neighbours[i][n]];
+                if (aval2 == 0 || aval2 == aval)
+                    continue;
 
-                 done = 0;
-                 if (aval2 < aval)
-                     artifacts[i] = aval2;
-                 else
-                     artifacts[neighbours[i][n]] = aval;
+                done = 0;
+                if (aval2 < aval)
+                    artifacts[i] = aval2;
+                else
+                    artifacts[neighbours[i][n]] = aval;
             }
         }
     }
 
     /* renumber */
     n_artifacts++;
-    for (i = 0; i < surface->n_points; i++) {
-        if (artifacts[i] == 0 || artifacts[i] < n_artifacts) continue;
+    for (i = 0; i < surface->n_points; i++)
+    {
+        if (artifacts[i] == 0 || artifacts[i] < n_artifacts)
+            continue;
         aval = (++n_artifacts);
 
-        for (p = 0; p < surface->n_points; p++) {
-             if (artifacts[p] == artifacts[i])
-                 artifacts[p] = n_artifacts;
+        for (p = 0; p < surface->n_points; p++)
+        {
+            if (artifacts[p] == artifacts[i])
+                artifacts[p] = n_artifacts;
         }
         artifacts[i] = n_artifacts;
     }
 
     /* delete if < 4 points */
-    for (i = 1; i <= n_artifacts; i++) {
+    for (i = 1; i <= n_artifacts; i++)
+    {
         size = 0;
 
-        for (p = 0; p < surface->n_points; p++) {
-            if (artifacts[p] == i) {
+        for (p = 0; p < surface->n_points; p++)
+        {
+            if (artifacts[p] == i)
+            {
                 size++;
             }
         }
-        if (size <= 4) { /* delete it */
-            for (p = 0; p < surface->n_points; p++) {
-                if (artifacts[p] == i) {
+        if (size <= 4)
+        { /* delete it */
+            for (p = 0; p < surface->n_points; p++)
+            {
+                if (artifacts[p] == i)
+                {
                     artifacts[p] = 0;
-                } else if (artifacts[p] == n_artifacts) {
+                }
+                else if (artifacts[p] == n_artifacts)
+                {
                     artifacts[p] = i;
                 }
             }
@@ -753,25 +795,32 @@ find_artifacts(polygons_struct *surface, polygons_struct *sph,
         }
     }
 
-    polyart = (int *) malloc(sizeof(int) * surface->n_items);
+    polyart = (int *)malloc(sizeof(int) * surface->n_items);
     update_polydefects(surface, artifacts, polyart);
     expand_defects(surface, artifacts, polyart, 0, 3,
-             n_neighbours, neighbours);
-
-    for (i = 1; i <= n_artifacts; i++) {
-        euler = defect_euler(surface, artifacts, polyart, i,
                    n_neighbours, neighbours);
 
-        if (euler < 0) { /* not an artifact, delete it */
-            for (p = 0; p < surface->n_points; p++) {
-                if (artifacts[p] == i) {
+    for (i = 1; i <= n_artifacts; i++)
+    {
+        euler = defect_euler(surface, artifacts, polyart, i,
+                             n_neighbours, neighbours);
+
+        if (euler < 0)
+        { /* not an artifact, delete it */
+            for (p = 0; p < surface->n_points; p++)
+            {
+                if (artifacts[p] == i)
+                {
                     artifacts[p] = 0;
-                } else if (artifacts[p] == n_artifacts) {
+                }
+                else if (artifacts[p] == n_artifacts)
+                {
                     artifacts[p] = i;
                 }
             }
 
-            for (p = 0; p < surface->n_items; p++) {
+            for (p = 0; p < surface->n_items; p++)
+            {
                 if (polyart[p] == i)
                     polyart[p] = 0;
                 if (polyart[p] == n_artifacts)
