@@ -15,24 +15,25 @@
 #include <string.h>
 #include <unistd.h>
 
-static const char* basename(const char* path) {
-    const char* base = strrchr(path, '/');
+static const char *basename(const char *path)
+{
+    const char *base = strrchr(path, '/');
     return base ? base + 1 : path;
 }
 
-static const char* basename_no_path(const char* p)
+static const char *basename_no_path(const char *p)
 {
     const char *s1 = strrchr(p, '/');
 #ifdef _WIN32
     const char *s2 = strrchr(p, '\\');
-    if (s2 && (!s1 || s2 > s1)) s1 = s2;
+    if (s2 && (!s1 || s2 > s1))
+        s1 = s2;
 #endif
     return s1 ? s1 + 1 : p;
 }
 
-
 /**
- * \brief Convert a BICPL polygons_struct into flat arrays (V,F) of vertices and 
+ * \brief Convert a BICPL polygons_struct into flat arrays (V,F) of vertices and
  * triangles for quadric.c.
  *
  * - Copies points to V[0..nv-1].
@@ -49,55 +50,78 @@ static const char* basename_no_path(const char* p)
  * \return 0 on success, -1 on allocation/argument errors or if no triangles produced
  */
 int polygons_to_tri_arrays(const polygons_struct *poly,
-                                      vec3d **V, vec3i **F,
-                                      int *nv, int *nf, int *fan_used)
+                           vec3d **V, vec3i **F,
+                           int *nv, int *nf, int *fan_used)
 {
     if (!poly || poly->n_points <= 0 || poly->n_items <= 0 ||
-        !V || !F || !nv || !nf || !fan_used) return -1;
+        !V || !F || !nv || !nf || !fan_used)
+        return -1;
 
     const int npoints = poly->n_points;
-    const int nfaces  = poly->n_items;
+    const int nfaces = poly->n_items;
     int i, k;
 
     /* Count triangles after fan-triangulating n-gons */
     int tri_count = 0, fan = 0;
-    for (i = 0; i < nfaces; ++i) {
+    for (i = 0; i < nfaces; ++i)
+    {
         int sz = GET_OBJECT_SIZE(*poly, i);
-        if      (sz == 3) tri_count += 1;
-        else if (sz >  3) { tri_count += (sz - 2); fan = 1; }
+        if (sz == 3)
+            tri_count += 1;
+        else if (sz > 3)
+        {
+            tri_count += (sz - 2);
+            fan = 1;
+        }
         /* sz < 3: ignore degenerate */
     }
-    if (tri_count <= 0) return -1;
+    if (tri_count <= 0)
+        return -1;
 
     /* Allocate and fill vertices */
-    vec3d *v = (vec3d*)malloc(sizeof(vec3d) * npoints);
-    if (!v) return -1;
-    for (i = 0; i < npoints; ++i) {
+    vec3d *v = (vec3d *)malloc(sizeof(vec3d) * npoints);
+    if (!v)
+        return -1;
+    for (i = 0; i < npoints; ++i)
+    {
         v[i].x = Point_x(poly->points[i]);
         v[i].y = Point_y(poly->points[i]);
         v[i].z = Point_z(poly->points[i]);
     }
 
     /* Allocate and fill faces (triangulate if needed) */
-    vec3i *f = (vec3i*)malloc(sizeof(vec3i) * tri_count);
-    if (!f) { free(v); return -1; }
+    vec3i *f = (vec3i *)malloc(sizeof(vec3i) * tri_count);
+    if (!f)
+    {
+        free(v);
+        return -1;
+    }
 
     int w = 0;
-    for (i = 0; i < nfaces; ++i) {
+    for (i = 0; i < nfaces; ++i)
+    {
         int sz = GET_OBJECT_SIZE(*poly, i);
-        if (sz < 3) continue;
-        int base = (i == 0) ? 0 : poly->end_indices[i-1]; /* EXCLUSIVE */
+        if (sz < 3)
+            continue;
+        int base = (i == 0) ? 0 : poly->end_indices[i - 1]; /* EXCLUSIVE */
         int v0 = poly->indices[base + 0];
 
-        for (k = 1; k < sz - 1; ++k) {
+        for (k = 1; k < sz - 1; ++k)
+        {
             int v1 = poly->indices[base + k];
             int v2 = poly->indices[base + k + 1];
-            f[w].x = v0; f[w].y = v1; f[w].z = v2;
+            f[w].x = v0;
+            f[w].y = v1;
+            f[w].z = v2;
             ++w;
         }
     }
 
-    *V = v; *F = f; *nv = npoints; *nf = tri_count; *fan_used = fan;
+    *V = v;
+    *F = f;
+    *nv = npoints;
+    *nf = tri_count;
+    *fan_used = fan;
     return 0;
 }
 
@@ -116,41 +140,48 @@ int polygons_to_tri_arrays(const polygons_struct *poly,
  * \return 0 on success, -1 on allocation errors
  */
 int tri_arrays_to_polygons(polygons_struct *poly,
-                                      const vec3d *V, const vec3i *F,
-                                      int nv, int nf)
+                           const vec3d *V, const vec3i *F,
+                           int nv, int nf)
 {
-    if (!poly || !V || !F || nv <= 0 || nf <= 0) return -1;
+    if (!poly || !V || !F || nv <= 0 || nf <= 0)
+        return -1;
     int i;
 
     /* Points */
-    Point *pts = (Point*)realloc(poly->points, sizeof(Point) * nv);
-    if (!pts) return -1;
-    poly->points   = pts;
+    Point *pts = (Point *)realloc(poly->points, sizeof(Point) * nv);
+    if (!pts)
+        return -1;
+    poly->points = pts;
     poly->n_points = nv;
-    for (i = 0; i < nv; ++i) fill_Point(poly->points[i], V[i].x, V[i].y, V[i].z);
+    for (i = 0; i < nv; ++i)
+        fill_Point(poly->points[i], V[i].x, V[i].y, V[i].z);
 
     /* Indices / end_indices (triangles only) */
-    int *idx = (int*)realloc(poly->indices, sizeof(int) * (nf * 3));
-    int *end = (int*)realloc(poly->end_indices, sizeof(int) * nf);
-    if (!idx || !end) {
-        if (idx) poly->indices = idx;
-        if (end) poly->end_indices = end;
+    int *idx = (int *)realloc(poly->indices, sizeof(int) * (nf * 3));
+    int *end = (int *)realloc(poly->end_indices, sizeof(int) * nf);
+    if (!idx || !end)
+    {
+        if (idx)
+            poly->indices = idx;
+        if (end)
+            poly->end_indices = end;
         return -1;
     }
-    poly->indices     = idx;
+    poly->indices = idx;
     poly->end_indices = end;
-    poly->n_items     = nf;
+    poly->n_items = nf;
 
-    for (i = 0; i < nf; ++i) {
-        poly->indices[3*i+0] = F[i].x;
-        poly->indices[3*i+1] = F[i].y;
-        poly->indices[3*i+2] = F[i].z;
-        poly->end_indices[i] = 3 * (i + 1);  /* EXCLUSIVE cumulative count */
+    for (i = 0; i < nf; ++i)
+    {
+        poly->indices[3 * i + 0] = F[i].x;
+        poly->indices[3 * i + 1] = F[i].y;
+        poly->indices[3 * i + 2] = F[i].z;
+        poly->end_indices[i] = 3 * (i + 1); /* EXCLUSIVE cumulative count */
     }
 
     /* Housekeeping */
     poly->bintree = (bintree_struct_ptr)NULL;
-    poly->normals = (Vector*)realloc(poly->normals, sizeof(Vector)*nv);
+    poly->normals = (Vector *)realloc(poly->normals, sizeof(Vector) * nv);
     compute_polygon_normals(poly);
     return 0;
 }
@@ -162,9 +193,12 @@ int tri_arrays_to_polygons(polygons_struct *poly,
  */
 int qem_target(int nf_total, int target)
 {
-    if (target <= 0) target = nf_total / 2;
-    if (target < 1)  target = 1;
-    if (target > nf_total) target = nf_total;
+    if (target <= 0)
+        target = nf_total / 2;
+    if (target < 1)
+        target = 1;
+    if (target > nf_total)
+        target = nf_total;
     return target;
 }
 
@@ -186,267 +220,283 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
     int i, j;
     Status status;
 
-    status = OK;    
-    for (i = 0; i < polygons->n_points; i++) {
-         (*vertices)[i] = Point_x(polygons->points[i]);
-         (*vertices)[i+polygons->n_points]   = Point_y(polygons->points[i]);
-         (*vertices)[i+2*polygons->n_points] = Point_z(polygons->points[i]);
+    status = OK;
+    for (i = 0; i < polygons->n_points; i++)
+    {
+        (*vertices)[i] = Point_x(polygons->points[i]);
+        (*vertices)[i + polygons->n_points] = Point_y(polygons->points[i]);
+        (*vertices)[i + 2 * polygons->n_points] = Point_z(polygons->points[i]);
     }
-    
-    for (i = 0; i < polygons->n_items; i++) {
-        if (GET_OBJECT_SIZE(*polygons, i) != 3) {
+
+    for (i = 0; i < polygons->n_items; i++)
+    {
+        if (GET_OBJECT_SIZE(*polygons, i) != 3)
+        {
             status = ERROR;
-            return(status);
+            return (status);
         }
-           
+
         /* add "1" to faces (for matlab arrays) */
-        for (j = 0; j < 3; j++) {
-            (*faces)[i + j*polygons->n_items] = polygons->indices[POINT_INDEX(
-                          polygons->end_indices, i, j)] + 1;
+        for (j = 0; j < 3; j++)
+        {
+            (*faces)[i + j * polygons->n_items] = polygons->indices[POINT_INDEX(
+                                                      polygons->end_indices, i, j)] +
+                                                  1;
         }
     }
 
-    return(status);
-  
+    return (status);
 }
 
-void
-swapFloat(float *n)
+void swapFloat(float *n)
 {
-    char *by = (char *) n;
+    char *by = (char *)n;
     char sw[4] = {by[3], by[2], by[1], by[0]};
-  
-    *n =* (float *) sw;
+
+    *n = *(float *)sw;
 }
 
-void
-swapInt(int *n)
+void swapInt(int *n)
 {
-    char *by = (char *) n;
+    char *by = (char *)n;
     char sw[4] = {by[3], by[2], by[1], by[0]};
-  
-    *n =* (int *) sw;
+
+    *n = *(int *)sw;
 }
 
-void
-swapShort(short *n)
+void swapShort(short *n)
 {
-    char *by = (char *) n;
+    char *by = (char *)n;
     char sw[2] = {by[1], by[0]};
-  
-    *n =* (short *) sw;
+
+    *n = *(short *)sw;
 }
 
-int
-fwriteFloat(float f, FILE *fp)
+int fwriteFloat(float f, FILE *fp)
 {
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-     swapFloat(&f);  
+    swapFloat(&f);
 #endif
-     return(fwrite(&f, sizeof(float), 1, fp));
+    return (fwrite(&f, sizeof(float), 1, fp));
 }
 
-int
-fwriteInt(int v, FILE *fp)
+int fwriteInt(int v, FILE *fp)
 {
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&v);
 #endif
-    return(fwrite(&v, sizeof(int), 1, fp));
+    return (fwrite(&v, sizeof(int), 1, fp));
 }
 
-int
-fwrite3(int v, FILE *fp)
+int fwrite3(int v, FILE *fp)
 {
     int i = (v << 8);
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&i);
 #endif
-    return(fwrite(&i, 3, 1, fp));
+    return (fwrite(&i, 3, 1, fp));
 }
 
-int
-freadInt(FILE *fp)
+int freadInt(FILE *fp)
 {
     int temp;
     int count;
-  
+
     count = fread(&temp, 4, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&temp);
 #endif
-    return(temp);
+    return (temp);
 }
 
-float
-freadFloat(FILE *fp)
+float freadFloat(FILE *fp)
 {
     float temp;
     int count;
-  
+
     count = fread(&temp, 4, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapFloat(&temp);
 #endif
-    return(temp);  
+    return (temp);
 }
 
-int
-fread3(int *v, FILE *fp)
+int fread3(int *v, FILE *fp)
 {
     int i = 0;
-    int  ret;
+    int ret;
 
     ret = fread(&i, 3, 1, fp);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&i);
 #endif
     *v = ((i >> 8) & 0xffffff);
-    return(ret);
+    return (ret);
 }
 
-static giiDataArray* 
-gifti_alloc_and_add_darray (gifti_image* image)
+static giiDataArray *
+gifti_alloc_and_add_darray(gifti_image *image)
 {
-    if (!image) {
-        fprintf (stderr,"** gifti_alloc_and_add_darray: NULL image\n");
+    if (!image)
+    {
+        fprintf(stderr, "** gifti_alloc_and_add_darray: NULL image\n");
         return NULL;
     }
 
     /* Try to add an empty array. */
-    if (gifti_add_empty_darray(image,1)) {
-        fprintf (stderr,"** gifti_alloc_and_add_darray: gifti_add_empty_darray "
-                         "failed\n");
+    if (gifti_add_empty_darray(image, 1))
+    {
+        fprintf(stderr, "** gifti_alloc_and_add_darray: gifti_add_empty_darray "
+                        "failed\n");
         return NULL;
     }
 
     /* Return the array we just allocated. */
-    return image->darray[image->numDA-1];
+    return image->darray[image->numDA - 1];
 }
 
-static double 
-gifti_get_DA_value_2D (giiDataArray* da, int row, int col)
+static double
+gifti_get_DA_value_2D(giiDataArray *da, int row, int col)
 {
     int dim0_index, dim1_index;
-    int dims_0=0, dims_1=0;
+    int dims_0 = 0, dims_1 = 0;
 
-    if (!da || !da->data) {
-        fprintf (stderr,"** gifti_get_DA_value_2D, invalid params: data=%p\n", da);
+    if (!da || !da->data)
+    {
+        fprintf(stderr, "** gifti_get_DA_value_2D, invalid params: data=%p\n", da);
         exit(1);
     }
 
-    if (da->num_dim == 1) {
+    if (da->num_dim == 1)
+    {
         // support for using this routine to read 1D data, under one condition...
         if (col != 0)
         {
-            fprintf (stderr,"** gifti_get_DA_value_2D, array dim is 1 "
-                "but trying to access 2D data element (col=%d)\n",col);
+            fprintf(stderr, "** gifti_get_DA_value_2D, array dim is 1 "
+                            "but trying to access 2D data element (col=%d)\n",
+                    col);
             exit(1);
         }
         dims_0 = da->dims[0];
         dims_1 = 1; // 1D data
     }
-    else if (da->num_dim != 2) {
-        fprintf (stderr,"** gifti_get_DA_value_2D, array dim is %d\n", da->num_dim);
+    else if (da->num_dim != 2)
+    {
+        fprintf(stderr, "** gifti_get_DA_value_2D, array dim is %d\n", da->num_dim);
         exit(1);
     }
-    else {
+    else
+    {
         dims_0 = da->dims[0];
         dims_1 = da->dims[1];
     }
 
     /* Get the dim0 and dims[1] indices based on our order. */
-    if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord) {
+    if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+    {
         dim0_index = row;
         dim1_index = col;
     }
-    else if (GIFTI_IND_ORD_COL_MAJOR == da->ind_ord) {
+    else if (GIFTI_IND_ORD_COL_MAJOR == da->ind_ord)
+    {
         // NJS NOTE: notice that order is treated as row/col, so that the
         // calling sequence can just assume row major
-        dim0_index = row;//col;
-        dim1_index = col;//row;
+        dim0_index = row; // col;
+        dim1_index = col; // row;
     }
-    else {
-        fprintf (stderr,"** gifti_get_DA_value_2D, unknown ind_ord: %d\n", da->ind_ord);
+    else
+    {
+        fprintf(stderr, "** gifti_get_DA_value_2D, unknown ind_ord: %d\n", da->ind_ord);
         exit(1);
     }
-    if (da->num_dim == 1) /* support for using this routine to read 1D data */ {
+    if (da->num_dim == 1) /* support for using this routine to read 1D data */
+    {
         dim0_index = row;
         dim1_index = col;
     }
 
     /* Check the indices. */
-    if (dim0_index < 0 || dim0_index >= dims_0 || dim1_index < 0 || dim1_index >= dims_1) {
-        fprintf(stderr,"** gifti_get_DA_value_2D, invalid params: "
-            "dim0_index=%d (max=%d), dim1_index=%d (max=%d)\n",
-            dim0_index, dims_0, dim1_index, dims_1);
+    if (dim0_index < 0 || dim0_index >= dims_0 || dim1_index < 0 || dim1_index >= dims_1)
+    {
+        fprintf(stderr, "** gifti_get_DA_value_2D, invalid params: "
+                        "dim0_index=%d (max=%d), dim1_index=%d (max=%d)\n",
+                dim0_index, dims_0, dim1_index, dims_1);
         exit(1);
     }
 
     /* Switch on the data type and return the appropriate
          element. Indexing depends on the data order. */
-    switch (da->datatype) {
-    default :
-        fprintf(stderr,"** gifti_get_DA_value_2D, unsupported type %d-"
-            "unknown, or can't convert to double\n",da->datatype);
+    switch (da->datatype)
+    {
+    default:
+        fprintf(stderr, "** gifti_get_DA_value_2D, unsupported type %d-"
+                        "unknown, or can't convert to double\n",
+                da->datatype);
         exit(1);
-    case NIFTI_TYPE_UINT8: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((unsigned char*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_UINT8:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((unsigned char *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((unsigned char*)
-            (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((unsigned char *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_INT16: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((short*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_INT16:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((short *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((short*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((short *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_INT32: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((int*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_INT32:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((int *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((int*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((int *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_FLOAT32: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((float*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_FLOAT32:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((float *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((float*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((float *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_FLOAT64: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((double*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_FLOAT64:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((double *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((double*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((double *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_INT8: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((char*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_INT8:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((char *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((char*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((char *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_UINT16: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((unsigned short*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_UINT16:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((unsigned short *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((unsigned short*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((unsigned short *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
-    case NIFTI_TYPE_UINT32: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            return (double)*((unsigned int*) (da->data) + (dim0_index*dims_1) + dim1_index);
+    case NIFTI_TYPE_UINT32:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            return (double)*((unsigned int *)(da->data) + (dim0_index * dims_1) + dim1_index);
         else
-            return (double)*((unsigned int*) (da->data) + dim0_index + (dim1_index*dims_0));
+            return (double)*((unsigned int *)(da->data) + dim0_index + (dim1_index * dims_0));
         break;
     }
     }
@@ -454,129 +504,147 @@ gifti_get_DA_value_2D (giiDataArray* da, int row, int col)
     exit(1);
 }
 
-
 /*
  *
  */
-static void 
-gifti_set_DA_value_2D (giiDataArray* da, int row, int col, double value)
+static void
+gifti_set_DA_value_2D(giiDataArray *da, int row, int col, double value)
 {
     int dim0_index, dim1_index;
-    int dims_0=0, dims_1=0;
+    int dims_0 = 0, dims_1 = 0;
 
-    if (!da || !da->data) {
-        fprintf (stderr,"** gifti_set_DA_value_2D, invalid params: data=%p\n", da);
+    if (!da || !da->data)
+    {
+        fprintf(stderr, "** gifti_set_DA_value_2D, invalid params: data=%p\n", da);
         exit(1);
     }
 
-    if (da->num_dim == 1) {
+    if (da->num_dim == 1)
+    {
         // support for using this routine to write 1D data, under one condition...
-        if (col != 0) {
-            fprintf (stderr,"** gifti_set_DA_value_2D, array dim is 1 "
-                "but trying to access 2D data element (col=%d)\n",col);
+        if (col != 0)
+        {
+            fprintf(stderr, "** gifti_set_DA_value_2D, array dim is 1 "
+                            "but trying to access 2D data element (col=%d)\n",
+                    col);
             exit(1);
         }
         dims_0 = da->dims[0];
         dims_1 = 1; // 1D data
     }
-    else if (da->num_dim != 2) {
-        fprintf (stderr,"** gifti_set_DA_value_2D, array dim is %d\n", da->num_dim);
+    else if (da->num_dim != 2)
+    {
+        fprintf(stderr, "** gifti_set_DA_value_2D, array dim is %d\n", da->num_dim);
         exit(1);
     }
-    else {
+    else
+    {
         dims_0 = da->dims[0];
         dims_1 = da->dims[1];
     }
 
     /* Get the dim0 and dims[1] indices based on our order. */
-    if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord) {
+    if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+    {
         dim0_index = row;
         dim1_index = col;
     }
-    else {
+    else
+    {
         dim0_index = col;
         dim1_index = row;
     }
-    if (da->num_dim == 1) /* support for using this routine to read 1D data */ {
+    if (da->num_dim == 1) /* support for using this routine to read 1D data */
+    {
         dim0_index = row;
         dim1_index = col;
     }
 
     /* Check the indices. */
-    if (dim0_index < 0 || dim0_index >= dims_0 || dim1_index < 0 || dim1_index >= dims_1) {
-        fprintf(stderr,"** gifti_set_DA_value_2D, invalid params: "
-            "dim0_index=%d (max=%d), dim1_index=%d (max=%d)\n",
-            dim0_index, dims_0, dim1_index, dims_1);
+    if (dim0_index < 0 || dim0_index >= dims_0 || dim1_index < 0 || dim1_index >= dims_1)
+    {
+        fprintf(stderr, "** gifti_set_DA_value_2D, invalid params: "
+                        "dim0_index=%d (max=%d), dim1_index=%d (max=%d)\n",
+                dim0_index, dims_0, dim1_index, dims_1);
         return;
     }
 
     /* Switch on the data type and write the appropriate
          element. Indexing depends on the data order. */
-    switch (da->datatype) {
-    default :
-        fprintf(stderr,"** gifti_set_DA_value_2D, unsupported type %d-"
-            "unknown, or can't convert to double\n",da->datatype);
+    switch (da->datatype)
+    {
+    default:
+        fprintf(stderr, "** gifti_set_DA_value_2D, unsupported type %d-"
+                        "unknown, or can't convert to double\n",
+                da->datatype);
         return;
-    case NIFTI_TYPE_UINT8: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((unsigned char*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_UINT8:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((unsigned char *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (unsigned char)value;
         else
-            *((unsigned char*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((unsigned char *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (unsigned char)value;
         break;
     }
-    case NIFTI_TYPE_INT16: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((short*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_INT16:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((short *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (short)value;
         else
-            *((short*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((short *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (short)value;
         break;
     }
-    case NIFTI_TYPE_INT32: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((int*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_INT32:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((int *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (int)value;
         else
-            *((int*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((int *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (int)value;
         break;
     }
-    case NIFTI_TYPE_FLOAT32: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((float*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_FLOAT32:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((float *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (float)value;
         else
-            *((float*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((float *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (float)value;
         break;
     }
-    case NIFTI_TYPE_INT8: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((char*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_INT8:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((char *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (char)value;
         else
-            *((char*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((char *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (char)value;
         break;
     }
-    case NIFTI_TYPE_UINT16: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((unsigned short*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_UINT16:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((unsigned short *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (unsigned short)value;
         else
-            *((unsigned short*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((unsigned short *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (unsigned short)value;
         break;
     }
-    case NIFTI_TYPE_UINT32: {
-        if ( GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord )
-            *((unsigned int*)(da->data) + (dim0_index*dims_1) + dim1_index) =
+    case NIFTI_TYPE_UINT32:
+    {
+        if (GIFTI_IND_ORD_ROW_MAJOR == da->ind_ord)
+            *((unsigned int *)(da->data) + (dim0_index * dims_1) + dim1_index) =
                 (unsigned int)value;
         else
-            *((unsigned int*)(da->data) + dim0_index + (dim1_index*dims_0)) =
+            *((unsigned int *)(da->data) + dim0_index + (dim1_index * dims_0)) =
                 (unsigned int)value;
         break;
     }
@@ -598,16 +666,15 @@ gifti_set_DA_value_2D (giiDataArray* da, int row, int col, double value)
  * \param object_list  (out) allocated array of objects (single POLYGONS object)
  * \return OK on success; ERROR if file format is invalid or non-triangular faces found
  */
-int
-input_oogl(char *file, File_formats *format, int *n_objects,
-       object_struct ***object_list)
+int input_oogl(char *file, File_formats *format, int *n_objects,
+               object_struct ***object_list)
 {
-    FILE        *fp;
-    int         i, f, n_edges, dummy;
-    char        line[1000];
-    polygons_struct   *polygons;
-    Point       point;
-    object_struct   *object;
+    FILE *fp;
+    int i, f, n_edges, dummy;
+    char line[1000];
+    polygons_struct *polygons;
+    Point point;
+    object_struct *object;
 
     /* prepare object and polygons */
     *n_objects = 0;
@@ -621,50 +688,56 @@ input_oogl(char *file, File_formats *format, int *n_objects,
 
     fscanf(fp, "%s", line);
 
-    if (!strcmp(line,"OFF")) {
+    if (!strcmp(line, "OFF"))
+    {
         fscanf(fp, "%d %d %d", &polygons->n_points,
-             &polygons->n_items, &dummy);
+               &polygons->n_items, &dummy);
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
 
-        polygons->bintree = (bintree_struct_ptr) NULL;
+        polygons->bintree = (bintree_struct_ptr)NULL;
 
-        for (i = 0; i < polygons->n_points; i++) {
+        for (i = 0; i < polygons->n_points; i++)
+        {
             fscanf(fp, "%f %f %f\n", &Point_x(point),
-                 &Point_y(point), &Point_z(point)); 
+                   &Point_y(point), &Point_z(point));
             polygons->points[i] = point;
         }
-  
+
         for (i = 0; i < (polygons->n_items); i++)
             polygons->end_indices[i] = (i + 1) * 3;
 
         ALLOC(polygons->indices,
-            polygons->end_indices[polygons->n_items-1]);
-        for (f = 0; f < polygons->n_items; f++) {
-            fscanf(fp, "%d %d %d %d\n", &n_edges, 
-                 &polygons->indices[POINT_INDEX(
-                         polygons->end_indices, f, 0)],
-                 &polygons->indices[POINT_INDEX(
-                         polygons->end_indices, f, 1)],
-                 &polygons->indices[POINT_INDEX(
-                         polygons->end_indices, f, 2)]);
-            if (n_edges != 3) {
+              polygons->end_indices[polygons->n_items - 1]);
+        for (f = 0; f < polygons->n_items; f++)
+        {
+            fscanf(fp, "%d %d %d %d\n", &n_edges,
+                   &polygons->indices[POINT_INDEX(
+                       polygons->end_indices, f, 0)],
+                   &polygons->indices[POINT_INDEX(
+                       polygons->end_indices, f, 1)],
+                   &polygons->indices[POINT_INDEX(
+                       polygons->end_indices, f, 2)]);
+            if (n_edges != 3)
+            {
                 fprintf(stderr,
-                    "Only 3 elements per item allowed.\n");
-                return(ERROR);
+                        "Only 3 elements per item allowed.\n");
+                return (ERROR);
             }
         }
-  
+
         /* compute normals */
         compute_polygon_normals(polygons);
-    } else {
-        fprintf(stderr, "Wrong oogl format\n");
-        return(ERROR);
     }
-  
+    else
+    {
+        fprintf(stderr, "Wrong oogl format\n");
+        return (ERROR);
+    }
+
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -680,13 +753,12 @@ input_oogl(char *file, File_formats *format, int *n_objects,
  * \param object_list (in) array of objects; first must be a mesh
  * \return OK on success; ERROR on file write failure
  */
-int
-output_oogl(char *file, File_formats format, int n_objects,
-      object_struct *object_list[])
+int output_oogl(char *file, File_formats format, int n_objects,
+                object_struct *object_list[])
 {
     int i, e, f, index, n_face_edges;
-    FILE  *fp;
-    polygons_struct   *polygons;
+    FILE *fp;
+    polygons_struct *polygons;
 
     fp = SAFE_FOPEN(file, "w");
 
@@ -694,26 +766,29 @@ output_oogl(char *file, File_formats format, int n_objects,
 
     fprintf(fp, "OFF\n");
     fprintf(fp, "%d %d %d\n", polygons->n_points, polygons->n_items, -1);
-    for (i = 0; i < polygons->n_points; i++) {
-        fprintf(fp, "%f %f %f\n", 
-            Point_x(polygons->points[i]),
-            Point_y(polygons->points[i]), 
-            Point_z(polygons->points[i]));
+    for (i = 0; i < polygons->n_points; i++)
+    {
+        fprintf(fp, "%f %f %f\n",
+                Point_x(polygons->points[i]),
+                Point_y(polygons->points[i]),
+                Point_z(polygons->points[i]));
     }
-    for (f = 0; f < polygons->n_items; f++) {
+    for (f = 0; f < polygons->n_items; f++)
+    {
         n_face_edges = GET_OBJECT_SIZE(*polygons, f);
 
         fprintf(fp, "%d ", n_face_edges);
-        for (e = 0; e < n_face_edges; e++) {
+        for (e = 0; e < n_face_edges; e++)
+        {
             index = polygons->indices[POINT_INDEX(
-                          polygons->end_indices, f, e)];
+                polygons->end_indices, f, e)];
             fprintf(fp, "%d ", index);
         }
         fprintf(fp, "\n");
     }
     fprintf(fp, "\n");
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -731,9 +806,8 @@ output_oogl(char *file, File_formats format, int n_objects,
  * \param values      (in) optional scalar data array (per-vertex); NULL to skip
  * \return 0 on success; -1 on allocation or write error
  */
-int
-output_gifti(char *fname, File_formats format, int n_objects,
-             object_struct *object_list[], double *values)
+int output_gifti(char *fname, File_formats format, int n_objects,
+                 object_struct *object_list[], double *values)
 {
     int j, k, r, c, v, ia;
     polygons_struct *polygons;
@@ -749,21 +823,26 @@ output_gifti(char *fname, File_formats format, int n_objects,
     char dat_fname[1024];
     char *out_name = fname;
 
-    if (use_extbin) {
+    if (use_extbin)
+    {
         /* .gii header name */
         strncpy(header_fname, fname, sizeof(header_fname) - 1);
         header_fname[sizeof(header_fname) - 1] = '\0';
         char *dot = strrchr(header_fname, '.');
-        if (dot) strcpy(dot, ".gii");
-        else     strcat(header_fname, ".gii");
+        if (dot)
+            strcpy(dot, ".gii");
+        else
+            strcat(header_fname, ".gii");
         out_name = header_fname;
 
         /* .dat payload name (same basename) */
         strncpy(dat_fname, fname, sizeof(dat_fname) - 1);
         dat_fname[sizeof(dat_fname) - 1] = '\0';
         dot = strrchr(dat_fname, '.');
-        if (dot) strcpy(dot, ".dat");
-        else     strcat(dat_fname, ".dat");
+        if (dot)
+            strcpy(dot, ".dat");
+        else
+            strcat(dat_fname, ".dat");
 
         /* remove possibly pre-existing .dat to start clean */
         remove(dat_fname);
@@ -772,13 +851,14 @@ output_gifti(char *fname, File_formats format, int n_objects,
     /* ------------------------------------------------------------ */
     /* allocate gifti image                                         */
     /* ------------------------------------------------------------ */
-    gifti_image *image = (gifti_image *) calloc(1, sizeof(gifti_image));
-    if (!image) {
+    gifti_image *image = (gifti_image *)calloc(1, sizeof(gifti_image));
+    if (!image)
+    {
         fprintf(stderr, "output_gifti: couldn't allocate image\n");
         return -1;
     }
 
-    image->version = (char *) calloc(strlen(GIFTI_XML_VERSION) + 1, sizeof(char));
+    image->version = (char *)calloc(strlen(GIFTI_XML_VERSION) + 1, sizeof(char));
     strcpy(image->version, GIFTI_XML_VERSION);
 
     gifti_add_to_meta(&image->meta, "Name", out_name, 1);
@@ -789,7 +869,8 @@ output_gifti(char *fname, File_formats format, int n_objects,
     /* open .dat file (if EXTBIN)                                   */
     /* ------------------------------------------------------------ */
     FILE *fdat = NULL;
-    if (use_extbin) {
+    if (use_extbin)
+    {
         fdat = SAFE_FOPEN(dat_fname, "wb");
     }
 
@@ -797,32 +878,34 @@ output_gifti(char *fname, File_formats format, int n_objects,
     /* COORDS (POINTSET)                                            */
     /* ============================================================ */
     giiDataArray *coords = gifti_alloc_and_add_darray(image);
-    if (!coords) {
+    if (!coords)
+    {
         fprintf(stderr, "output_gifti: couldn't allocate coords giiDataArray\n");
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
 
-    coords->intent   = NIFTI_INTENT_POINTSET;
+    coords->intent = NIFTI_INTENT_POINTSET;
     coords->datatype = NIFTI_TYPE_FLOAT32;
-    coords->ind_ord  = use_extbin ? GIFTI_IND_ORD_COL_MAJOR : GIFTI_IND_ORD_ROW_MAJOR;
-    coords->num_dim  = 2;
+    coords->ind_ord = use_extbin ? GIFTI_IND_ORD_COL_MAJOR : GIFTI_IND_ORD_ROW_MAJOR;
+    coords->num_dim = 2;
     /* Always expose standard shape N x 3. For EXTBIN we only change
        ind_ord and storage order so SPM does not need to permute file_array. */
-    coords->dims[0]  = polygons->n_points;
-    coords->dims[1]  = 3;
+    coords->dims[0] = polygons->n_points;
+    coords->dims[1] = 3;
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-    coords->endian   = GIFTI_ENDIAN_LITTLE;
+    coords->endian = GIFTI_ENDIAN_LITTLE;
 #else
-    coords->endian   = GIFTI_ENDIAN_BIG;
+    coords->endian = GIFTI_ENDIAN_BIG;
 #endif
 
     gifti_add_empty_CS(coords);
-    coords->coordsys[0]->dataspace  = (char *) calloc(strlen("NIFTI_XFORM_UNKNOWN")   + 1, sizeof(char));
-    coords->coordsys[0]->xformspace = (char *) calloc(strlen("NIFTI_XFORM_TALAIRACH") + 1, sizeof(char));
-    strcpy(coords->coordsys[0]->dataspace,  "NIFTI_XFORM_UNKNOWN");
+    coords->coordsys[0]->dataspace = (char *)calloc(strlen("NIFTI_XFORM_UNKNOWN") + 1, sizeof(char));
+    coords->coordsys[0]->xformspace = (char *)calloc(strlen("NIFTI_XFORM_TALAIRACH") + 1, sizeof(char));
+    strcpy(coords->coordsys[0]->dataspace, "NIFTI_XFORM_UNKNOWN");
     strcpy(coords->coordsys[0]->xformspace, "NIFTI_XFORM_TALAIRACH");
     for (r = 0; r < 4; r++)
         for (c = 0; c < 4; c++)
@@ -833,44 +916,54 @@ output_gifti(char *fname, File_formats format, int n_objects,
 
     /* allocate and fill */
     coords->data = calloc(coords->nvals, coords->nbyper);
-    if (!coords->data) {
+    if (!coords->data)
+    {
         fprintf(stderr, "output_gifti: couldn't allocate coords data (%d * %d)\n",
                 (int)coords->nvals, coords->nbyper);
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
 
     /* fill vertex data */
-    for (v = 0; v < polygons->n_points; v++) {
-        if (use_extbin) {
+    for (v = 0; v < polygons->n_points; v++)
+    {
+        if (use_extbin)
+        {
             /* da->ind_ord is COL_MAJOR: gifti_set_DA_value_2D swaps row/col
                internally, so swap arguments here to write values at (v,axis). */
             gifti_set_DA_value_2D(coords, 0, v, Point_x(polygons->points[v]));
             gifti_set_DA_value_2D(coords, 1, v, Point_y(polygons->points[v]));
             gifti_set_DA_value_2D(coords, 2, v, Point_z(polygons->points[v]));
-        } else {
+        }
+        else
+        {
             gifti_set_DA_value_2D(coords, v, 0, Point_x(polygons->points[v]));
             gifti_set_DA_value_2D(coords, v, 1, Point_y(polygons->points[v]));
             gifti_set_DA_value_2D(coords, v, 2, Point_z(polygons->points[v]));
         }
     }
 
-    if (use_extbin) {
-        coords->encoding   = GIFTI_ENCODING_EXTBIN;
-        coords->ext_fname  = strdup(basename_no_path(dat_fname)); /* nur Basename */
+    if (use_extbin)
+    {
+        coords->encoding = GIFTI_ENCODING_EXTBIN;
+        coords->ext_fname = strdup(basename_no_path(dat_fname)); /* nur Basename */
         coords->ext_offset = ext_off;
 
         /* write binary block */
         size_t wrote = fwrite(coords->data, coords->nbyper, coords->nvals, fdat);
-        if (wrote != (size_t)coords->nvals) {
+        if (wrote != (size_t)coords->nvals)
+        {
             fprintf(stderr, "output_gifti: failed writing coords to %s\n", dat_fname);
             fclose(fdat);
             gifti_free_image(image);
             return -1;
         }
         ext_off += coords->nvals * coords->nbyper;
-    } else {
+    }
+    else
+    {
         coords->encoding = GIFTI_ENCODING_B64GZ;
     }
 
@@ -878,25 +971,27 @@ output_gifti(char *fname, File_formats format, int n_objects,
     /* FACES (TRIANGLE)                                             */
     /* ============================================================ */
     giiDataArray *faces = gifti_alloc_and_add_darray(image);
-    if (!faces) {
+    if (!faces)
+    {
         fprintf(stderr, "output_gifti: couldn't allocate faces giiDataArray\n");
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
 
     const int numFaces = polygons->n_items;
 
-    faces->intent   = NIFTI_INTENT_TRIANGLE;
+    faces->intent = NIFTI_INTENT_TRIANGLE;
     faces->datatype = NIFTI_TYPE_INT32;
-    faces->ind_ord  = use_extbin ? GIFTI_IND_ORD_COL_MAJOR : GIFTI_IND_ORD_ROW_MAJOR;
-    faces->num_dim  = 2;
-    faces->dims[0]  = numFaces;
-    faces->dims[1]  = 3;
+    faces->ind_ord = use_extbin ? GIFTI_IND_ORD_COL_MAJOR : GIFTI_IND_ORD_ROW_MAJOR;
+    faces->num_dim = 2;
+    faces->dims[0] = numFaces;
+    faces->dims[1] = 3;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-    faces->endian   = GIFTI_ENDIAN_LITTLE;
+    faces->endian = GIFTI_ENDIAN_LITTLE;
 #else
-    faces->endian   = GIFTI_ENDIAN_BIG;
+    faces->endian = GIFTI_ENDIAN_BIG;
 #endif
     faces->coordsys = NULL;
 
@@ -904,110 +999,146 @@ output_gifti(char *fname, File_formats format, int n_objects,
     gifti_datatype_sizes(faces->datatype, &faces->nbyper, NULL);
 
     faces->data = calloc(faces->nvals, faces->nbyper);
-    if (!faces->data) {
+    if (!faces->data)
+    {
         fprintf(stderr, "output_gifti: couldn't allocate faces data (%d * %d)\n",
                 (int)faces->nvals, faces->nbyper);
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
 
     /* Copy faces (assume indices are already 0-based!) */
     int face_index;
-    for (face_index = 0; face_index < polygons->n_items; face_index++) {
-        for (j = 0; j < 3; j++) {
-            if (use_extbin) {
+    for (face_index = 0; face_index < polygons->n_items; face_index++)
+    {
+        for (j = 0; j < 3; j++)
+        {
+            if (use_extbin)
+            {
                 /* write at (face_index, j) while using COL_MAJOR storage */
                 gifti_set_DA_value_2D(
                     faces, j, face_index,
-                    polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]
-                );
-            } else {
+                    polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]);
+            }
+            else
+            {
                 gifti_set_DA_value_2D(
                     faces, face_index, j,
-                    polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]
-                );
+                    polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)]);
             }
         }
     }
 
-    if (use_extbin) {
-        faces->encoding   = GIFTI_ENCODING_EXTBIN;
-        faces->ext_fname  = strdup(basename_no_path(dat_fname));
+    if (use_extbin)
+    {
+        faces->encoding = GIFTI_ENCODING_EXTBIN;
+        faces->ext_fname = strdup(basename_no_path(dat_fname));
         faces->ext_offset = ext_off;
 
         size_t wrote = fwrite(faces->data, faces->nbyper, faces->nvals, fdat);
-        if (wrote != (size_t)faces->nvals) {
+        if (wrote != (size_t)faces->nvals)
+        {
             fprintf(stderr, "output_gifti: failed writing faces to %s\n", dat_fname);
             fclose(fdat);
             gifti_free_image(image);
             return -1;
         }
         ext_off += faces->nvals * faces->nbyper;
-    } else {
+    }
+    else
+    {
         faces->encoding = GIFTI_ENCODING_B64GZ;
     }
 
     /* ------------------------------------------------------------ */
     /* set standard surface meta                                    */
     /* ------------------------------------------------------------ */
-    if (fname) {
+    if (fname)
+    {
         const char *primary = NULL, *secondary = NULL, *geotype = NULL;
         const char *topotype = "Closed";
 
-        if (strstr(fname, "lh."))        primary = "CortexLeft";
-        if (strstr(fname, "rh."))        primary = "CortexRight";
-        if (strstr(fname, ".orig"))      secondary = "GrayWhite";
-        if (strstr(fname, ".smoothwm"))  secondary = "GrayWhite";
-        if (strstr(fname, ".white"))     secondary = "GrayWhite";
-        if (strstr(fname, ".central"))   secondary = "Central (Layer 4)";
-        if (strstr(fname, ".graymid"))   secondary = "MidThickness";
-        if (strstr(fname, ".gray"))      secondary = "Pial";
-        if (strstr(fname, ".pial"))      secondary = "Pial";
+        if (strstr(fname, "lh."))
+            primary = "CortexLeft";
+        if (strstr(fname, "rh."))
+            primary = "CortexRight";
+        if (strstr(fname, ".orig"))
+            secondary = "GrayWhite";
+        if (strstr(fname, ".smoothwm"))
+            secondary = "GrayWhite";
+        if (strstr(fname, ".white"))
+            secondary = "GrayWhite";
+        if (strstr(fname, ".central"))
+            secondary = "Central (Layer 4)";
+        if (strstr(fname, ".graymid"))
+            secondary = "MidThickness";
+        if (strstr(fname, ".gray"))
+            secondary = "Pial";
+        if (strstr(fname, ".pial"))
+            secondary = "Pial";
 
-        if (strstr(fname, ".orig"))      geotype = "Reconstruction";
-        if (strstr(fname, ".smoothwm"))  geotype = "Anatomical";
-        if (strstr(fname, ".white"))     geotype = "Anatomical";
-        if (strstr(fname, ".central"))   geotype = "Anatomical";
-        if (strstr(fname, ".gray"))      geotype = "Anatomical";
-        if (strstr(fname, ".graymid"))   geotype = "Anatomical";
-        if (strstr(fname, ".pial"))      geotype = "Anatomical";
-        if (strstr(fname, ".inflated"))  geotype = "Inflated";
-        if (strstr(fname, ".sphere"))    geotype = "Sphere";
-        if (strstr(fname, ".qsphere"))   geotype = "Sphere";
-        if (strstr(fname, "pial-outer")) geotype = "Hull";
+        if (strstr(fname, ".orig"))
+            geotype = "Reconstruction";
+        if (strstr(fname, ".smoothwm"))
+            geotype = "Anatomical";
+        if (strstr(fname, ".white"))
+            geotype = "Anatomical";
+        if (strstr(fname, ".central"))
+            geotype = "Anatomical";
+        if (strstr(fname, ".gray"))
+            geotype = "Anatomical";
+        if (strstr(fname, ".graymid"))
+            geotype = "Anatomical";
+        if (strstr(fname, ".pial"))
+            geotype = "Anatomical";
+        if (strstr(fname, ".inflated"))
+            geotype = "Inflated";
+        if (strstr(fname, ".sphere"))
+            geotype = "Sphere";
+        if (strstr(fname, ".qsphere"))
+            geotype = "Sphere";
+        if (strstr(fname, "pial-outer"))
+            geotype = "Hull";
 
-        if (primary)   gifti_add_to_meta(&coords->meta, "AnatomicalStructurePrimary",   primary,   1);
-        if (secondary) gifti_add_to_meta(&coords->meta, "AnatomicalStructureSecondary", secondary, 1);
-        if (geotype)   gifti_add_to_meta(&coords->meta, "GeometricType",                geotype,   1);
+        if (primary)
+            gifti_add_to_meta(&coords->meta, "AnatomicalStructurePrimary", primary, 1);
+        if (secondary)
+            gifti_add_to_meta(&coords->meta, "AnatomicalStructureSecondary", secondary, 1);
+        if (geotype)
+            gifti_add_to_meta(&coords->meta, "GeometricType", geotype, 1);
 
-        gifti_add_to_meta(&faces->meta,  "TopologicalType", topotype, 1);
+        gifti_add_to_meta(&faces->meta, "TopologicalType", topotype, 1);
         gifti_add_to_meta(&coords->meta, "Name", out_name, 1);
-        gifti_add_to_meta(&faces->meta,  "Name", out_name, 1);
+        gifti_add_to_meta(&faces->meta, "Name", out_name, 1);
     }
 
     /* ============================================================ */
     /* SHAPE (optional, e.g. curvature or thickness)                */
     /* ============================================================ */
-    if (values) {
+    if (values)
+    {
         giiDataArray *shape = gifti_alloc_and_add_darray(image);
-        if (!shape) {
+        if (!shape)
+        {
             fprintf(stderr, "output_gifti: couldn't allocate shape giiDataArray\n");
-            if (fdat) fclose(fdat);
+            if (fdat)
+                fclose(fdat);
             gifti_free_image(image);
             return -1;
         }
 
-        shape->intent   = NIFTI_INTENT_SHAPE;
+        shape->intent = NIFTI_INTENT_SHAPE;
         shape->datatype = NIFTI_TYPE_FLOAT32;
-        shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
-        shape->num_dim  = 1;
-        shape->dims[0]  = polygons->n_points;
-        shape->dims[1]  = 0;
+        shape->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
+        shape->num_dim = 1;
+        shape->dims[0] = polygons->n_points;
+        shape->dims[1] = 0;
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-        shape->endian   = GIFTI_ENDIAN_LITTLE;
+        shape->endian = GIFTI_ENDIAN_LITTLE;
 #else
-        shape->endian   = GIFTI_ENDIAN_BIG;
+        shape->endian = GIFTI_ENDIAN_BIG;
 #endif
         shape->coordsys = NULL;
 
@@ -1015,10 +1146,12 @@ output_gifti(char *fname, File_formats format, int n_objects,
         gifti_datatype_sizes(shape->datatype, &shape->nbyper, NULL);
 
         shape->data = calloc(shape->nvals, shape->nbyper);
-        if (!shape->data) {
+        if (!shape->data)
+        {
             fprintf(stderr, "output_gifti: couldn't allocate shape data (%d * %d)\n",
                     (int)shape->nvals, shape->nbyper);
-            if (fdat) fclose(fdat);
+            if (fdat)
+                fclose(fdat);
             gifti_free_image(image);
             return -1;
         }
@@ -1026,64 +1159,78 @@ output_gifti(char *fname, File_formats format, int n_objects,
         for (k = 0; k < polygons->n_points; k++)
             gifti_set_DA_value_2D(shape, k, 0, values[k]);
 
-        if (use_extbin) {
-            shape->encoding   = GIFTI_ENCODING_EXTBIN;
-            shape->ext_fname  = strdup(basename_no_path(dat_fname));
+        if (use_extbin)
+        {
+            shape->encoding = GIFTI_ENCODING_EXTBIN;
+            shape->ext_fname = strdup(basename_no_path(dat_fname));
             shape->ext_offset = ext_off;
 
             size_t wrote = fwrite(shape->data, shape->nbyper, shape->nvals, fdat);
-            if (wrote != (size_t)shape->nvals) {
+            if (wrote != (size_t)shape->nvals)
+            {
                 fprintf(stderr, "output_gifti: failed writing shape to %s\n", dat_fname);
                 fclose(fdat);
                 gifti_free_image(image);
                 return -1;
             }
             ext_off += shape->nvals * shape->nbyper;
-        } else {
+        }
+        else
+        {
             shape->encoding = GIFTI_ENCODING_B64GZ;
         }
     }
 
-    if (fdat) fclose(fdat);
+    if (fdat)
+        fclose(fdat);
 
     /* ------------------------------------------------------------ */
     /* GIFTI compliance check                                       */
     /* ------------------------------------------------------------ */
-    int valid = gifti_valid_gifti_image (image, 1);
-    if (valid == 0) {
-        fprintf (stderr,"output_gifti: GIFTI file %s is invalid!\n", out_name);
-        if (fdat) fclose(fdat);
-        gifti_free_image (image);
-        return(ERROR);
+    int valid = gifti_valid_gifti_image(image, 1);
+    if (valid == 0)
+    {
+        fprintf(stderr, "output_gifti: GIFTI file %s is invalid!\n", out_name);
+        if (fdat)
+            fclose(fdat);
+        gifti_free_image(image);
+        return (ERROR);
     }
 
     /* Wenn wir EXTBIN benutzt haben, haben wir die Daten bereits geschrieben.
        Also: Datenzeiger optional freigeben und NULL setzen, dann NUR XML schreiben. */
-    if (use_extbin) {
+    if (use_extbin)
+    {
         /* optional, aber empfehlenswert: Speicher freigeben, um doppelte Writes zu verhindern */
-        for (ia = 0; ia < image->numDA; ia++) {
-            if (image->darray[ia]->data) {
+        for (ia = 0; ia < image->numDA; ia++)
+        {
+            if (image->darray[ia]->data)
+            {
                 free(image->darray[ia]->data);
                 image->darray[ia]->data = NULL;
             }
         }
 
         /* Write only the header/XML */
-        if (gifti_write_image (image, out_name, 0)) {
-            fprintf (stderr,"output_gifti: couldn't write XML header %s\n", out_name);
-            gifti_free_image (image);
-            return(ERROR);
+        if (gifti_write_image(image, out_name, 0))
+        {
+            fprintf(stderr, "output_gifti: couldn't write XML header %s\n", out_name);
+            gifti_free_image(image);
+            return (ERROR);
         }
-    } else {
+    }
+    else
+    {
         /* interne Encodings -> libgifti darf schreiben */
-        if (gifti_write_image (image, out_name, 1)) {
-            fprintf (stderr,"output_gifti: couldn't write image %s\n", out_name);
-            gifti_free_image (image);
-            return(ERROR);
+        if (gifti_write_image(image, out_name, 1))
+        {
+            fprintf(stderr, "output_gifti: couldn't write image %s\n", out_name);
+            gifti_free_image(image);
+            return (ERROR);
         }
     }
 
-    gifti_free_image (image);
+    gifti_free_image(image);
     return OK;
 }
 
@@ -1099,44 +1246,50 @@ output_gifti(char *fname, File_formats format, int n_objects,
  * \param data      (in) per-vertex scalar values (size nvertices)
  * \return 0 on success; -1 on allocation or write error
  */
-int
-output_gifti_curv(char *fname, int nvertices, double *data)
+int output_gifti_curv(char *fname, int nvertices, double *data)
 {
     int k;
 
     /* handle ExternalFileBinary .dat output (triggered by *.dat given as fname) */
-    size_t ext_off   = 0;
-    int    use_extbin = filename_extension_matches(fname, "dat");
+    size_t ext_off = 0;
+    int use_extbin = filename_extension_matches(fname, "dat");
 
     char header_fname[1024];
     char dat_fname[1024];
     char *out_name = fname;
     FILE *fdat = NULL;
 
-    if (use_extbin) {
+    if (use_extbin)
+    {
         /* header (.gii) */
-        strncpy(header_fname, fname, sizeof(header_fname)-1);
-        header_fname[sizeof(header_fname)-1] = '\0';
+        strncpy(header_fname, fname, sizeof(header_fname) - 1);
+        header_fname[sizeof(header_fname) - 1] = '\0';
         char *dot = strrchr(header_fname, '.');
-        if (dot) strcpy(dot, ".gii");
-        else     strcat(header_fname, ".gii");
+        if (dot)
+            strcpy(dot, ".gii");
+        else
+            strcat(header_fname, ".gii");
         out_name = header_fname;
 
         /* data (.dat) */
-        strncpy(dat_fname, fname, sizeof(dat_fname)-1);
-        dat_fname[sizeof(dat_fname)-1] = '\0';
+        strncpy(dat_fname, fname, sizeof(dat_fname) - 1);
+        dat_fname[sizeof(dat_fname) - 1] = '\0';
         dot = strrchr(dat_fname, '.');
-        if (dot) strcpy(dot, ".dat");
-        else     strcat(dat_fname, ".dat");
+        if (dot)
+            strcpy(dot, ".dat");
+        else
+            strcat(dat_fname, ".dat");
 
         remove(dat_fname); /* start clean */
         fdat = SAFE_FOPEN(dat_fname, "wb");
     }
 
     gifti_image *image = (gifti_image *)calloc(1, sizeof(gifti_image));
-    if (!image) {
+    if (!image)
+    {
         fprintf(stderr, "output_gifti_curv: couldn't allocate image\n");
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         return -1;
     }
 
@@ -1146,56 +1299,70 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     gifti_add_to_meta(&image->meta, "Name", out_name, 1);
 
     giiDataArray *shape = gifti_alloc_and_add_darray(image);
-    if (!shape) {
+    if (!shape)
+    {
         fprintf(stderr, "output_gifti_curv: couldn't allocate giiDataArray\n");
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
 
     /* attributes */
-    shape->intent   = NIFTI_INTENT_SHAPE;
+    shape->intent = NIFTI_INTENT_SHAPE;
     shape->datatype = NIFTI_TYPE_FLOAT32;
-    shape->ind_ord  = GIFTI_IND_ORD_ROW_MAJOR;
-    shape->num_dim  = 1;
-    shape->dims[0]  = nvertices;
-    shape->dims[1]  = 0;
+    shape->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
+    shape->num_dim = 1;
+    shape->dims[0] = nvertices;
+    shape->dims[1] = 0;
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
-    shape->endian   = GIFTI_ENDIAN_LITTLE;
+    shape->endian = GIFTI_ENDIAN_LITTLE;
 #else
-    shape->endian   = GIFTI_ENDIAN_BIG;
+    shape->endian = GIFTI_ENDIAN_BIG;
 #endif
 
     shape->coordsys = NULL;
-    shape->nvals    = gifti_darray_nvals(shape);
+    shape->nvals = gifti_darray_nvals(shape);
     gifti_datatype_sizes(shape->datatype, &shape->nbyper, NULL);
 
-    if (use_extbin) {
-        shape->encoding   = GIFTI_ENCODING_EXTBIN;
-        shape->ext_fname  = strdup(basename_no_path(dat_fname));
+    if (use_extbin)
+    {
+        shape->encoding = GIFTI_ENCODING_EXTBIN;
+        shape->ext_fname = strdup(basename_no_path(dat_fname));
         shape->ext_offset = ext_off;
-    } else {
+    }
+    else
+    {
         shape->encoding = GIFTI_ENCODING_B64GZ;
     }
 
     /* metadata */
     gifti_add_to_meta(&shape->meta, "Name", out_name, 1);
     const char *meta = NULL;
-    if (strstr(fname, ".thickness")) meta = "Thickness";
-    if (strstr(fname, ".curv"))      meta = "CurvatureRadial";
-    if (strstr(fname, ".sulc"))      meta = "SulcalDepth";
-    if (strstr(fname, ".area"))      meta = "Area";
-    if (strstr(fname, ".volume"))    meta = "Volume";
-    if (strstr(fname, ".jacobian"))  meta = "Jacobian";
-    if (meta) gifti_add_to_meta(&shape->meta, "ShapeDataType", meta, 1);
+    if (strstr(fname, ".thickness"))
+        meta = "Thickness";
+    if (strstr(fname, ".curv"))
+        meta = "CurvatureRadial";
+    if (strstr(fname, ".sulc"))
+        meta = "SulcalDepth";
+    if (strstr(fname, ".area"))
+        meta = "Area";
+    if (strstr(fname, ".volume"))
+        meta = "Volume";
+    if (strstr(fname, ".jacobian"))
+        meta = "Jacobian";
+    if (meta)
+        gifti_add_to_meta(&shape->meta, "ShapeDataType", meta, 1);
 
     /* allocate & fill */
     shape->data = calloc(shape->nvals, shape->nbyper);
-    if (!shape->data) {
+    if (!shape->data)
+    {
         fprintf(stderr, "output_gifti_curv: couldn't allocate shape data (%d * %d)\n",
                 (int)shape->nvals, shape->nbyper);
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
@@ -1204,9 +1371,11 @@ output_gifti_curv(char *fname, int nvertices, double *data)
         gifti_set_DA_value_2D(shape, k, 0, data[k]);
 
     /* If EXTBIN: write raw block now, maintain offset, then null data to avoid libgifti rewrite */
-    if (use_extbin) {
+    if (use_extbin)
+    {
         size_t wrote = fwrite(shape->data, shape->nbyper, shape->nvals, fdat);
-        if (wrote != (size_t)shape->nvals) {
+        if (wrote != (size_t)shape->nvals)
+        {
             fprintf(stderr, "output_gifti_curv: failed writing data to %s\n", dat_fname);
             fclose(fdat);
             gifti_free_image(image);
@@ -1216,29 +1385,38 @@ output_gifti_curv(char *fname, int nvertices, double *data)
     }
 
     /* validity */
-    if (!gifti_valid_gifti_image(image, 1)) {
+    if (!gifti_valid_gifti_image(image, 1))
+    {
         fprintf(stderr, "output_gifti_curv: GIFTI file %s is invalid!\n", out_name);
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
         gifti_free_image(image);
         return -1;
     }
 
     /* write header */
-    if (use_extbin) {
+    if (use_extbin)
+    {
         /* avoid second write by the library */
-        if (shape->data) {
+        if (shape->data)
+        {
             free(shape->data);
             shape->data = NULL;
         }
-        if (fdat) fclose(fdat);
+        if (fdat)
+            fclose(fdat);
 
-        if (gifti_write_image(image, out_name, 0)) {
+        if (gifti_write_image(image, out_name, 0))
+        {
             fprintf(stderr, "output_gifti_curv: couldn't write XML header %s\n", out_name);
             gifti_free_image(image);
             return -1;
         }
-    } else {
-        if (gifti_write_image(image, out_name, 1)) {
+    }
+    else
+    {
+        if (gifti_write_image(image, out_name, 1))
+        {
             fprintf(stderr, "output_gifti_curv: couldn't write image %s\n", out_name);
             gifti_free_image(image);
             return -1;
@@ -1266,15 +1444,14 @@ output_gifti_curv(char *fname, int nvertices, double *data)
  * \param values       (out) allocated shape data array (NULL if not present)
  * \return OK on success; ERROR if file is invalid or corrupted
  */
-int
-input_gifti(char *file, File_formats *format, int *n_objects,
-         object_struct ***object_list, int *n_values, double **values)
+int input_gifti(char *file, File_formats *format, int *n_objects,
+                object_struct ***object_list, int *n_values, double **values)
 {
 
-    int         i, j, k, valid, numDA;
-    polygons_struct   *polygons;
-    Point       point;
-    object_struct   *object;
+    int i, j, k, valid, numDA;
+    polygons_struct *polygons;
+    Point point;
+    object_struct *object;
 
     /*
      * For .gii/.dat pairs the ExternalFileName stored in the XML is
@@ -1286,37 +1463,41 @@ input_gifti(char *file, File_formats *format, int *n_objects,
     char saved_cwd[4096];
     char gii_dir[4096];
     const char *gii_basename = file;
-    int  did_chdir = 0;
+    int did_chdir = 0;
 
     saved_cwd[0] = '\0';
-    gii_dir[0]   = '\0';
+    gii_dir[0] = '\0';
 
     const char *last_sep = strrchr(file, '/');
-    if (last_sep) {
+    if (last_sep)
+    {
         size_t dir_len = (size_t)(last_sep - file);
-        if (dir_len > 0 && dir_len < sizeof(gii_dir)) {
+        if (dir_len > 0 && dir_len < sizeof(gii_dir))
+        {
             memcpy(gii_dir, file, dir_len);
             gii_dir[dir_len] = '\0';
             gii_basename = last_sep + 1;
-            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL) {
+            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL)
+            {
                 if (chdir(gii_dir) == 0)
                     did_chdir = 1;
             }
         }
     }
 
-    gifti_image* image = gifti_read_image(
+    gifti_image *image = gifti_read_image(
         did_chdir ? gii_basename : file, 1);
 
     /* restore original working directory */
     if (did_chdir)
-        (void) chdir(saved_cwd);
+        (void)chdir(saved_cwd);
 
-    valid = gifti_valid_gifti_image (image, 1);
-    if (valid == 0) {
-        fprintf (stderr,"input_gifti: GIFTI file %s is invalid!\n", file);
-        gifti_free_image (image);
-        return(ERROR);
+    valid = gifti_valid_gifti_image(image, 1);
+    if (valid == 0)
+    {
+        fprintf(stderr, "input_gifti: GIFTI file %s is invalid!\n", file);
+        gifti_free_image(image);
+        return (ERROR);
     }
 
     /* prepare object and polygons */
@@ -1327,113 +1508,128 @@ input_gifti(char *file, File_formats *format, int *n_objects,
     initialize_polygons(polygons, WHITE, NULL);
     *format = ASCII_FORMAT;
 
-    giiDataArray* coords = NULL;
-    giiDataArray* faces  = NULL;
+    giiDataArray *coords = NULL;
+    giiDataArray *faces = NULL;
 
-    for (numDA = 0; numDA < image->numDA; numDA++) {
-        if (image->darray[numDA]->intent == NIFTI_INTENT_POINTSET) {
+    for (numDA = 0; numDA < image->numDA; numDA++)
+    {
+        if (image->darray[numDA]->intent == NIFTI_INTENT_POINTSET)
+        {
             coords = image->darray[numDA];
         }
-        else if (image->darray[numDA]->intent == NIFTI_INTENT_TRIANGLE) {
+        else if (image->darray[numDA]->intent == NIFTI_INTENT_TRIANGLE)
+        {
             faces = image->darray[numDA];
         }
     }
 
-    if (coords && faces) {
-    
+    if (coords && faces)
+    {
+
         /* Check the number of vertices and faces. */
         long long num_vertices = 0;
         long long num_cols = 0;
         if (coords->ind_ord == GIFTI_IND_ORD_ROW_MAJOR) // RowMajorOrder
-            gifti_DA_rows_cols (coords, &num_vertices, &num_cols);
+            gifti_DA_rows_cols(coords, &num_vertices, &num_cols);
         else // ColumnMajorOrder
-            gifti_DA_rows_cols (coords, &num_cols, &num_vertices);
+            gifti_DA_rows_cols(coords, &num_cols, &num_vertices);
 
-        if (num_vertices <= 0 || num_cols != 3) {
-            fprintf (stderr,"input_gifti: malformed coords data array in file "
-                "%s: num_vertices=%d num_cols=%d\n",
-                file, (int)num_vertices, (int)num_cols);
-            gifti_free_image (image);
-            return(ERROR);
+        if (num_vertices <= 0 || num_cols != 3)
+        {
+            fprintf(stderr, "input_gifti: malformed coords data array in file "
+                            "%s: num_vertices=%d num_cols=%d\n",
+                    file, (int)num_vertices, (int)num_cols);
+            gifti_free_image(image);
+            return (ERROR);
         }
 
         long long num_faces = 0;
         num_cols = 0;
         if (faces->ind_ord == GIFTI_IND_ORD_ROW_MAJOR) // RowMajorOrder
-            gifti_DA_rows_cols (faces, &num_faces, &num_cols);
+            gifti_DA_rows_cols(faces, &num_faces, &num_cols);
         else // ColumnMajorOrder
-            gifti_DA_rows_cols (faces, &num_cols, &num_faces);
+            gifti_DA_rows_cols(faces, &num_cols, &num_faces);
 
-        if (num_faces <= 0 || num_cols != 3) {
-            fprintf (stderr,"mrisReadGIFTIfile: malformed faces data array in file "
-                "%s: num_faces=%d num_cols=%d\n",
-                file, (int)num_faces, (int)num_cols);
-            gifti_free_image (image);
-            return(ERROR);
+        if (num_faces <= 0 || num_cols != 3)
+        {
+            fprintf(stderr, "mrisReadGIFTIfile: malformed faces data array in file "
+                            "%s: num_faces=%d num_cols=%d\n",
+                    file, (int)num_faces, (int)num_cols);
+            gifti_free_image(image);
+            return (ERROR);
         }
-        
+
         polygons->n_points = num_vertices;
         polygons->n_items = num_faces;
 
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
-        polygons->bintree = (bintree_struct_ptr) NULL;
+        polygons->bintree = (bintree_struct_ptr)NULL;
         for (i = 0; i < polygons->n_items; i++)
             polygons->end_indices[i] = (i + 1) * 3;
         ALLOC(polygons->indices,
-            polygons->end_indices[polygons->n_items-1]);
+              polygons->end_indices[polygons->n_items - 1]);
 
         int vertex_index;
-        for (vertex_index = 0; vertex_index < polygons->n_points; vertex_index++) {
-            Point_x(polygons->points[vertex_index]) = (float) gifti_get_DA_value_2D (coords, vertex_index, 0);
-            Point_y(polygons->points[vertex_index]) = (float) gifti_get_DA_value_2D (coords, vertex_index, 1);
-            Point_z(polygons->points[vertex_index]) = (float) gifti_get_DA_value_2D (coords, vertex_index, 2);
+        for (vertex_index = 0; vertex_index < polygons->n_points; vertex_index++)
+        {
+            Point_x(polygons->points[vertex_index]) = (float)gifti_get_DA_value_2D(coords, vertex_index, 0);
+            Point_y(polygons->points[vertex_index]) = (float)gifti_get_DA_value_2D(coords, vertex_index, 1);
+            Point_z(polygons->points[vertex_index]) = (float)gifti_get_DA_value_2D(coords, vertex_index, 2);
         }
 
         int face_index;
         for (face_index = 0; face_index < polygons->n_items; face_index++)
             for (j = 0; j < 3; j++)
-                polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)] = gifti_get_DA_value_2D (faces, face_index, j);
+                polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)] = gifti_get_DA_value_2D(faces, face_index, j);
 
         /* compute normals */
         compute_polygon_normals(polygons);
-    } else {
-        fprintf (stderr,"input_gifti: GIFTI file %s does not contain vertices and faces!\n", file);
-        gifti_free_image (image);
-        return(ERROR);
+    }
+    else
+    {
+        fprintf(stderr, "input_gifti: GIFTI file %s does not contain vertices and faces!\n", file);
+        gifti_free_image(image);
+        return (ERROR);
     }
 
     /* Read SHAPE data if the caller wants it */
-    if (n_values != NULL && values != NULL) {
+    if (n_values != NULL && values != NULL)
+    {
         giiDataArray *shape_da = NULL;
 
-        for (numDA = 0; numDA < image->numDA; numDA++) {
-            if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE) {
+        for (numDA = 0; numDA < image->numDA; numDA++)
+        {
+            if (image->darray[numDA]->intent == NIFTI_INTENT_SHAPE)
+            {
                 shape_da = image->darray[numDA];
                 break;
             }
         }
 
-        if (shape_da != NULL) {
-            *n_values = (int) shape_da->dims[0];
-            *values = (double *) malloc(sizeof(double) * (*n_values));
-            if (*values == NULL) {
+        if (shape_da != NULL)
+        {
+            *n_values = (int)shape_da->dims[0];
+            *values = (double *)malloc(sizeof(double) * (*n_values));
+            if (*values == NULL)
+            {
                 fprintf(stderr, "input_gifti: memory allocation failed\n");
                 gifti_free_image(image);
-                return(ERROR);
+                return (ERROR);
             }
             for (k = 0; k < *n_values; k++)
-                (*values)[k] = (double) gifti_get_DA_value_2D(shape_da, k, 0);
-        } else {
+                (*values)[k] = (double)gifti_get_DA_value_2D(shape_da, k, 0);
+        }
+        else
+        {
             *n_values = 0;
-            *values   = NULL;
+            *values = NULL;
         }
     }
 
     gifti_free_image(image);
-    return(OK);
-
+    return (OK);
 }
 
 /**
@@ -1449,8 +1645,7 @@ input_gifti(char *file, File_formats *format, int *n_objects,
  * \param input_values (out) allocated array of per-vertex scalar values
  * \return OK on success; ERROR if file format is invalid or corrupted
  */
-int
-input_gifti_curv(char *file, int *vnum, double **input_values)
+int input_gifti_curv(char *file, int *vnum, double **input_values)
 {
     int k, valid, numDA;
 
@@ -1461,49 +1656,54 @@ input_gifti_curv(char *file, int *vnum, double **input_values)
     char saved_cwd[4096];
     char gii_dir[4096];
     const char *gii_basename = file;
-    int  did_chdir = 0;
+    int did_chdir = 0;
 
     saved_cwd[0] = '\0';
-    gii_dir[0]   = '\0';
+    gii_dir[0] = '\0';
 
     const char *last_sep = strrchr(file, '/');
-    if (last_sep) {
+    if (last_sep)
+    {
         size_t dir_len = (size_t)(last_sep - file);
-        if (dir_len > 0 && dir_len < sizeof(gii_dir)) {
+        if (dir_len > 0 && dir_len < sizeof(gii_dir))
+        {
             memcpy(gii_dir, file, dir_len);
             gii_dir[dir_len] = '\0';
             gii_basename = last_sep + 1;
-            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL) {
+            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL)
+            {
                 if (chdir(gii_dir) == 0)
                     did_chdir = 1;
             }
         }
     }
 
-    gifti_image* image = gifti_read_image(
+    gifti_image *image = gifti_read_image(
         did_chdir ? gii_basename : file, 1);
 
     if (did_chdir)
-        (void) chdir(saved_cwd);
-    if (NULL == image) {
-        fprintf (stderr,"input_gifti_curv: cannot read image\n");
-        return(ERROR);
+        (void)chdir(saved_cwd);
+    if (NULL == image)
+    {
+        fprintf(stderr, "input_gifti_curv: cannot read image\n");
+        return (ERROR);
     }
 
-    valid = gifti_valid_gifti_image (image, 1);
-    if (valid == 0) {
-        fprintf (stderr,"input_gifti_curv: GIFTI file %s is invalid!\n", file);
-        gifti_free_image (image);
-        return(ERROR);
+    valid = gifti_valid_gifti_image(image, 1);
+    if (valid == 0)
+    {
+        fprintf(stderr, "input_gifti_curv: GIFTI file %s is invalid!\n", file);
+        gifti_free_image(image);
+        return (ERROR);
     }
 
     *vnum = image->darray[0]->dims[0];
     ALLOC(*input_values, image->darray[0]->dims[0]);
 
     for (k = 0; k < image->darray[0]->dims[0]; k++)
-        (*input_values)[k] = (double) gifti_get_DA_value_2D (image->darray[0], k, 0);
+        (*input_values)[k] = (double)gifti_get_DA_value_2D(image->darray[0], k, 0);
 
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -1522,46 +1722,48 @@ input_gifti_curv(char *file, int *vnum, double **input_values)
  * \param values       (out) per-vertex data array
  * \return OK on success; ERROR if file format is invalid
  */
-int
-input_gifti_mesh_and_texture(char *file, File_formats *format,
-                             int *n_objects, object_struct ***object_list,
-                             int *n_values, double **values)
+int input_gifti_mesh_and_texture(char *file, File_formats *format,
+                                 int *n_objects, object_struct ***object_list,
+                                 int *n_values, double **values)
 {
-    *values   = NULL;
+    *values = NULL;
     *n_values = 0;
 
     /* read mesh and SHAPE data in a single pass */
     if (input_gifti(file, format, n_objects, object_list,
-                    n_values, values) != OK) {
+                    n_values, values) != OK)
+    {
         fprintf(stderr, "input_gifti_mesh_and_texture: "
-                "could not read mesh from %s\n", file);
+                        "could not read mesh from %s\n",
+                file);
         return ERROR;
     }
 
-    if (*values == NULL || *n_values == 0) {
+    if (*values == NULL || *n_values == 0)
+    {
         fprintf(stderr, "input_gifti_mesh_and_texture: "
-                "no SHAPE data array found in %s\n", file);
+                        "no SHAPE data array found in %s\n",
+                file);
         return ERROR;
     }
 
     return OK;
 }
 
-int
-output_freesurfer(char *file, File_formats format, int n_objects,
-          object_struct *object_list[])
+int output_freesurfer(char *file, File_formats format, int n_objects,
+                      object_struct *object_list[])
 {
-    FILE        *fp;
-    int         i,n;
-    unsigned char   buffer;
-    polygons_struct   *polygons;
+    FILE *fp;
+    int i, n;
+    unsigned char buffer;
+    polygons_struct *polygons;
 
     fp = SAFE_FOPEN(file, "w");
-    
+
     polygons = get_polygons_ptr(object_list[0]);
 
     /* write 3 byte magic number for triangle */
-    fwrite3(TRIANGLE_FILE_MAGIC_NUMBER,fp);
+    fwrite3(TRIANGLE_FILE_MAGIC_NUMBER, fp);
     fprintf(fp, "created with CAT\n");
 
     /* # of vertices and faces */
@@ -1569,53 +1771,53 @@ output_freesurfer(char *file, File_formats format, int n_objects,
     fwriteInt(polygons->n_items, fp);
 
     /* write points */
-    for (i = 0; i < (polygons->n_points); i++) {
+    for (i = 0; i < (polygons->n_points); i++)
+    {
         fwriteFloat(Point_x(polygons->points[i]), fp);
         fwriteFloat(Point_y(polygons->points[i]), fp);
         fwriteFloat(Point_z(polygons->points[i]), fp);
     }
-  
+
     /* write indices */
-    for (i = 0; i < polygons->n_items;i++) 
-        for (n = 0; n < 3; n++) 
-            fwriteInt(polygons->indices[POINT_INDEX(polygons->end_indices, i, n)],fp);
+    for (i = 0; i < polygons->n_items; i++)
+        for (n = 0; n < 3; n++)
+            fwriteInt(polygons->indices[POINT_INDEX(polygons->end_indices, i, n)], fp);
 
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
-int
-output_freesurfer_curv(char *fname, int nvertices, double *data)
+int output_freesurfer_curv(char *fname, int nvertices, double *data)
 {
     FILE *fp;
     double f;
     int k;
 
     fp = SAFE_FOPEN(fname, "wb");
-    fwrite3(NEW_VERSION_MAGIC_NUMBER, fp); 
+    fwrite3(NEW_VERSION_MAGIC_NUMBER, fp);
     fwriteInt(nvertices, fp);
     fwriteInt(0, fp);
     fwriteInt(1, fp);
-    for (k = 0; k < nvertices; k++) {
+    for (k = 0; k < nvertices; k++)
+    {
         f = data[k];
         fwriteFloat(f, fp);
     }
     fclose(fp);
 
-    return(OK);
+    return (OK);
 }
 
-int
-input_freesurfer(char *file, File_formats *format, int *n_objects,
-         object_struct ***object_list)
+int input_freesurfer(char *file, File_formats *format, int *n_objects,
+                     object_struct ***object_list)
 {
-    FILE        *fp;
-    int         i, magic;
-    char        line[1024];
-    polygons_struct   *polygons;
-    Point       point;
-    object_struct   *object;
-    
+    FILE *fp;
+    int i, magic;
+    char line[1024];
+    polygons_struct *polygons;
+    Point point;
+    object_struct *object;
+
     /* prepare object and polygons */
     *n_objects = 0;
     object = create_object(POLYGONS);
@@ -1628,10 +1830,13 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
 
     /* read magic number for checking filetype */
     fread3(&magic, fp);
-    if (magic == QUAD_FILE_MAGIC_NUMBER) {
+    if (magic == QUAD_FILE_MAGIC_NUMBER)
+    {
         fprintf(stderr, "QUAD_FILE_MAGIC_NUMBER not yet prepared.\n");
-        return(ERROR);
-    } else if (magic == TRIANGLE_FILE_MAGIC_NUMBER) {
+        return (ERROR);
+    }
+    else if (magic == TRIANGLE_FILE_MAGIC_NUMBER)
+    {
         fgets(line, 1024, fp);
         fscanf(fp, "\n");
         /* read # of vertices and faces */
@@ -1640,29 +1845,32 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
-        polygons->bintree = (bintree_struct_ptr) NULL;
+        polygons->bintree = (bintree_struct_ptr)NULL;
         for (i = 0; i < polygons->n_items; i++)
             polygons->end_indices[i] = (i + 1) * 3;
         ALLOC(polygons->indices,
-            polygons->end_indices[polygons->n_items-1]);
-        for (i = 0; i < polygons->n_points; i++) {
+              polygons->end_indices[polygons->n_items - 1]);
+        for (i = 0; i < polygons->n_points; i++)
+        {
             Point_x(point) = freadFloat(fp);
             Point_y(point) = freadFloat(fp);
             Point_z(point) = freadFloat(fp);
             polygons->points[i] = point;
         }
-        for (i = 0; i < 3*(polygons->n_items); i++) 
+        for (i = 0; i < 3 * (polygons->n_items); i++)
             polygons->indices[i] = freadInt(fp);
-        
+
         /* compute normals */
         compute_polygon_normals(polygons);
-    } else {
+    }
+    else
+    {
         fprintf(stderr, "input_freesurfer: Unknown magic identifier: %d.\n", magic);
-        return(ERROR);
+        return (ERROR);
     }
 
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -1677,41 +1885,45 @@ input_freesurfer(char *file, File_formats *format, int *n_objects,
  * \param input_values (out) allocated array of per-vertex data
  * \return OK on success; ERROR on file read failure
  */
-int
-input_freesurfer_curv(char *file, int *vnum, double **input_values)
+int input_freesurfer_curv(char *file, int *vnum, double **input_values)
 {
-    FILE  *fp;
-    int   i, magic, fnum, vals_per_vertex;
-    double  value;
-    
+    FILE *fp;
+    int i, magic, fnum, vals_per_vertex;
+    double value;
+
     *vnum = 0;
-  
+
     fp = SAFE_FOPEN(file, "rb");
 
     /* read magic number for checking filetype */
-    fread3(&magic,fp);
-  
-    if (magic != NEW_VERSION_MAGIC_NUMBER) {
+    fread3(&magic, fp);
+
+    if (magic != NEW_VERSION_MAGIC_NUMBER)
+    {
         fprintf(stderr, "MAGIC_NUMBER %d not yet prepared.\n", magic);
-        return(ERROR);
-    } else {
+        return (ERROR);
+    }
+    else
+    {
         /* read # of vertices and faces */
         *vnum = freadInt(fp);
         fnum = freadInt(fp);
         vals_per_vertex = freadInt(fp);
-        if (vals_per_vertex != 1) {
+        if (vals_per_vertex != 1)
+        {
             fprintf(stderr, "Only one value per vertex allowed.\n");
-            return(ERROR);
+            return (ERROR);
         }
         ALLOC(*input_values, *vnum);
-        for (i = 0; i < *vnum; i++) {
+        for (i = 0; i < *vnum; i++)
+        {
             value = freadFloat(fp);
-            (*input_values)[i]= value;
+            (*input_values)[i] = value;
         }
     }
 
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -1725,19 +1937,18 @@ input_freesurfer_curv(char *file, int *vnum, double **input_values)
  * \param object_list  (out) allocated polygon mesh object
  * \return OK on success; ERROR if file format is invalid
  */
-int
-input_dx(char *file, File_formats *format, int *n_objects,
-     object_struct  ***object_list)
+int input_dx(char *file, File_formats *format, int *n_objects,
+             object_struct ***object_list)
 {
-    FILE        *fp;
-    int         i, pos;
-    char        line[1000];
-    char        ch;
-    polygons_struct   *polygons;
-    Point       point;
-    object_struct   *object;
-    Status        status;
-    
+    FILE *fp;
+    int i, pos;
+    char line[1000];
+    char ch;
+    polygons_struct *polygons;
+    Point point;
+    object_struct *object;
+    Status status;
+
     /* prepare object and polygons */
     *n_objects = 0;
     object = create_object(POLYGONS);
@@ -1752,26 +1963,29 @@ input_dx(char *file, File_formats *format, int *n_objects,
 
     fgets(line, 54, fp);
     if (equal_strings(line,
-      "object 1 class array type float rank 1 shape 3 items " )) {
+                      "object 1 class array type float rank 1 shape 3 items "))
+    {
         pos = 0;
         status = OK;
 
-        do {
+        do
+        {
             status = input_character(fp, &ch);
             pos++;
         } while (status == OK && ch != ' ');
 
         fseek(fp, -pos, SEEK_CUR);
         fgets(line, pos, fp);
-        sscanf(line,"%d", &polygons->n_points);
+        sscanf(line, "%d", &polygons->n_points);
 
-        polygons->bintree = (bintree_struct_ptr) NULL;
+        polygons->bintree = (bintree_struct_ptr)NULL;
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
-        for (i = 0; i <= polygons->n_points; i++) {
+        for (i = 0; i <= polygons->n_points; i++)
+        {
             fgets(line, 1000, fp);
             sscanf(line, "%f %f %f", &Point_x(point),
-                 &Point_y(point), &Point_z(point));
+                   &Point_y(point), &Point_z(point));
             polygons->points[i] = point;
         }
         fgets(line, 1000, fp);
@@ -1779,21 +1993,25 @@ input_dx(char *file, File_formats *format, int *n_objects,
         fgets(line, 52, fp);
 
         if (equal_strings(line,
-          "object 2 class array type int rank 1 shape 3 items ")) {
+                          "object 2 class array type int rank 1 shape 3 items "))
+        {
             pos = 0;
             status = OK;
 
-            do {
+            do
+            {
                 status = input_character(fp, &ch);
                 pos++;
             } while (status == OK && ch != ' ');
 
             fseek(fp, -pos, SEEK_CUR);
             fgets(line, pos, fp);
-            sscanf(line,"%d", &polygons->n_items);
-        } else {
+            sscanf(line, "%d", &polygons->n_items);
+        }
+        else
+        {
             fprintf(stderr, "input_dx: Error reading %s\n", file);
-            return(ERROR);
+            return (ERROR);
         }
 
         ALLOC(polygons->end_indices, polygons->n_items);
@@ -1801,22 +2019,25 @@ input_dx(char *file, File_formats *format, int *n_objects,
             polygons->end_indices[i] = (i + 1) * 3;
 
         ALLOC(polygons->indices,
-            polygons->end_indices[polygons->n_items-1]);
+              polygons->end_indices[polygons->n_items - 1]);
 
-        for (i = 0; i <= polygons->n_items; i++) {
+        for (i = 0; i <= polygons->n_items; i++)
+        {
             fgets(line, 1000, fp);
-            sscanf(line, "%d %d %d", &polygons->indices[3*i],
-                 &polygons->indices[3*i + 1],
-                 &polygons->indices[3*i + 2]);
+            sscanf(line, "%d %d %d", &polygons->indices[3 * i],
+                   &polygons->indices[3 * i + 1],
+                   &polygons->indices[3 * i + 2]);
         }
         compute_polygon_normals(polygons);
-    } else {
+    }
+    else
+    {
         fprintf(stderr, "input_dx: Unknown dx format..\n");
-        return(ERROR);
+        return (ERROR);
     }
 
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -1829,22 +2050,21 @@ input_dx(char *file, File_formats *format, int *n_objects,
  * \param n_objects    (out) number of objects (typically 1)
  * \param object_list  (out) allocated polygon mesh object
  * \return OK on success; ERROR if format is not supported or invalid\n */
-int
-input_dfs(char *file, File_formats *format, int *n_objects,
-      object_struct ***object_list)
+int input_dfs(char *file, File_formats *format, int *n_objects,
+              object_struct ***object_list)
 {
-    FILE        *fp;
-    int         i, hdr_size, mdoffset, pdoffset, nStrips, stripSize, normals;
-    int         uvStart, vcoffset, labelOffset, vertexAttributes, tmp;
-    char        dummy[256], pad2[124];
-    float       tmp2;
-    polygons_struct   *polygons;
-    Point       point;
-    object_struct   *object;
-    
-    fprintf(stderr,"Input of DFS data not working.\n");      
-    return(ERROR);
-    
+    FILE *fp;
+    int i, hdr_size, mdoffset, pdoffset, nStrips, stripSize, normals;
+    int uvStart, vcoffset, labelOffset, vertexAttributes, tmp;
+    char dummy[256], pad2[124];
+    float tmp2;
+    polygons_struct *polygons;
+    Point point;
+    object_struct *object;
+
+    fprintf(stderr, "Input of DFS data not working.\n");
+    return (ERROR);
+
     /* prepare object and polygons */
     *n_objects = 0;
     object = create_object(POLYGONS);
@@ -1864,7 +2084,7 @@ input_dfs(char *file, File_formats *format, int *n_objects,
     fread(&polygons->n_points, 4, 1, fp); /* Number of triangles */
     fread(&polygons->n_items, 4, 1, fp);  /* Number of vertices */
     fprintf(stderr, "%s %d %d %d\n", dummy, hdr_size,
-        polygons->n_points, polygons->n_items);
+            polygons->n_points, polygons->n_items);
     fread(&nStrips, 4, 1, fp);
     fread(&stripSize, 4, 1, fp);
     fread(&normals, 4, 1, fp);
@@ -1875,9 +2095,9 @@ input_dfs(char *file, File_formats *format, int *n_objects,
 
     fread(&pad2, sizeof(char), 124, fp);
 
-    fseek(fp, hdr_size, -1); 
+    fseek(fp, hdr_size, -1);
 
-    polygons->bintree = (bintree_struct_ptr) NULL;
+    polygons->bintree = (bintree_struct_ptr)NULL;
 
     ALLOC(polygons->points, polygons->n_points);
     ALLOC(polygons->normals, polygons->n_points);
@@ -1886,25 +2106,30 @@ input_dfs(char *file, File_formats *format, int *n_objects,
     for (i = 0; i < polygons->n_items; i++)
         polygons->end_indices[i] = (i + 1) * 3;
 
-    ALLOC(polygons->indices, polygons->end_indices[polygons->n_items-1]);
+    ALLOC(polygons->indices, polygons->end_indices[polygons->n_items - 1]);
 
-    for (i = 0; i < 3*(polygons->n_items); i++) {
+    for (i = 0; i < 3 * (polygons->n_items); i++)
+    {
         fread(&tmp, 4, 1, fp);
         polygons->indices[i] = tmp;
     }
-    
-    for (i = 0; i < polygons->n_points; i++) {
-        fread(&tmp2, 4, 1, fp); Point_x(point) = tmp2;
-        fread(&tmp2, 4, 1, fp); Point_y(point) = tmp2;
-        fread(&tmp2, 4, 1, fp); Point_z(point) = tmp2;
+
+    for (i = 0; i < polygons->n_points; i++)
+    {
+        fread(&tmp2, 4, 1, fp);
+        Point_x(point) = tmp2;
+        fread(&tmp2, 4, 1, fp);
+        Point_y(point) = tmp2;
+        fread(&tmp2, 4, 1, fp);
+        Point_z(point) = tmp2;
         polygons->points[i] = point;
     }
 
     /* compute normals */
     compute_polygon_normals(polygons);
-  
+
     fclose(fp);
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -1919,20 +2144,21 @@ input_dfs(char *file, File_formats *format, int *n_objects,
 double *
 read_pgm(char *file, int *nx, int *ny)
 {
-    FILE      *fp;
-    int       i, size, max_val;
-    char      line[1000];
+    FILE *fp;
+    int i, size, max_val;
+    char line[1000];
     unsigned char *data_char;
-    double      *data;
-      
+    double *data;
+
     fp = SAFE_FOPEN(file, "r");
-  
+
     /* read PGM header */
     fgets(line, 256, fp);
-    if (strncmp(line, "P5", 2)) {
+    if (strncmp(line, "P5", 2))
+    {
         fprintf(stderr, "read_pgm: Can only read PGM binary files.\n");
         *nx = *ny = 0;
-        return(NULL);
+        return (NULL);
     }
 
     fgets(line, 256, fp);
@@ -1947,20 +2173,22 @@ read_pgm(char *file, int *nx, int *ny)
     size = (*nx) * (*ny);
     ALLOC(data_char, size);
 
-    if (fread(data_char, sizeof(unsigned char), size, fp) != size) {
+    if (fread(data_char, sizeof(unsigned char), size, fp) != size)
+    {
         fprintf(stderr, "Error reading data.\n");
         *nx = *ny = 0;
-        return(NULL);
+        return (NULL);
     }
 
-    ALLOC(data, size);   
-    for (i = 0; i < size; i++) {
-        data[i] = (double) data_char[i];
+    ALLOC(data, size);
+    for (i = 0; i < size; i++)
+    {
+        data[i] = (double)data_char[i];
     }
 
     FREE(data_char);
     fclose(fp);
-    return(data);
+    return (data);
 }
 
 /**
@@ -1968,27 +2196,27 @@ read_pgm(char *file, int *nx, int *ny)
  *
  * Exports a 2D image array to PGM format (P5 binary magic number) after scaling
  * to 8-bit unsigned integer range [0, 255]. Computes min/max of input data for\n * automatic scaling. Useful for intermediate visualization of cortical metrics.\n *
- * \param file (in) output PGM file path  
+ * \param file (in) output PGM file path
  * \param data (in) 2D image array (size nx*ny, row-major order)
  * \param nx   (in) image width (number of columns)
  * \param ny   (in) image height (number of rows)
  * \return 0 on success; -1 on file write error
  */
-int
-write_pgm(char *file, double *data, int nx, int ny)
+int write_pgm(char *file, double *data, int nx, int ny)
 {
-    FILE  *fp;
-    double    min_value, max_value, scale, offset;
-    int   i;
-    char  *data_char;
-  
-    ALLOC(data_char, nx*ny);
-  
+    FILE *fp;
+    double min_value, max_value, scale, offset;
+    int i;
+    char *data_char;
+
+    ALLOC(data_char, nx * ny);
+
     min_value = 1e15;
     max_value = -1e15;
 
     /* calculate min/max */
-    for (i = 0; i < nx*ny; i++) {
+    for (i = 0; i < nx * ny; i++)
+    {
         if (data[i] < min_value)
             min_value = data[i];
         if (data[i] > max_value)
@@ -1998,52 +2226,50 @@ write_pgm(char *file, double *data, int nx, int ny)
     offset = min_value;
     scale = 255 / (max_value - min_value);
     /* scale image */
-    for (i = 0; i < nx*ny; i++)
-        data_char[i] = (char) ROUND((data[i] - offset) * scale);
-  
+    for (i = 0; i < nx * ny; i++)
+        data_char[i] = (char)ROUND((data[i] - offset) * scale);
+
     fp = SAFE_FOPEN(file, "w");
-  
+
     /* write PGM header */
     fprintf(fp, "P5\n");
     /* modification to include scaling and offset */
     fprintf(fp, "# Scale: %3.5f Offset: %3.5f\n", scale, offset);
-    fprintf(fp, "%d %d\n",nx,ny);
+    fprintf(fp, "%d %d\n", nx, ny);
     fprintf(fp, "255\n");
-  
-    if (fwrite(data_char, sizeof(char), nx * ny, fp) != nx * ny) {
+
+    if (fwrite(data_char, sizeof(char), nx * ny, fp) != nx * ny)
+    {
         fprintf(stderr, "Error writing data.\n");
-        return(1);
+        return (1);
     }
-  
+
     fclose(fp);
-    return(0);
+    return (0);
 }
 
 Status
 input_txt_values(
-    STRING       filename,
-    int        *n_values,
-    double     *values[] )
+    STRING filename,
+    int *n_values,
+    double *values[])
 {
-    FILE       *fp;
-    Status       status;
-    double     value;
-  
-  
+    FILE *fp;
+    Status status;
+    double value;
+
     fp = SAFE_FOPEN(filename, "r");
-  
+
     *n_values = 0;
     *values = NULL;
-  
-    while( input_real( fp, &value ) == OK )
-        ADD_ELEMENT_TO_ARRAY( *values, *n_values, value, DEFAULT_CHUNK_SIZE );
-  
-    (void) close_file( fp );
-  
-  
-    return( OK );
-}
 
+    while (input_real(fp, &value) == OK)
+        ADD_ELEMENT_TO_ARRAY(*values, *n_values, value, DEFAULT_CHUNK_SIZE);
+
+    (void)close_file(fp);
+
+    return (OK);
+}
 
 /**
  * \brief Read 1D scalar values from file in auto-detected format.
@@ -2058,18 +2284,17 @@ Status
 input_values_any_format(char *file, int *n_values, double **values)
 {
     Status status;
-    FILE   *fp;
+    FILE *fp;
 
-    if (filename_extension_matches(file,"txt"))
+    if (filename_extension_matches(file, "txt"))
         status = input_txt_values(file, n_values, values);
-    else if (filename_extension_matches(file,"gii"))
+    else if (filename_extension_matches(file, "gii"))
         status = input_gifti_curv(file, n_values, values);
     else
         status = input_freesurfer_curv(file, n_values, values);
 
-    return(status);
+    return (status);
 }
-
 
 /**
  * \brief Write 1D scalar values to file in auto-detected format.
@@ -2090,39 +2315,46 @@ output_values_any_format(const char *file, int n_values, void *values, int flag)
     Status status;
     double *buffer;
     double *d;
-    int    i, *r;
-    FILE   *fp;
+    int i, *r;
+    FILE *fp;
 
-    buffer = (double *) malloc(sizeof(double) * n_values);
+    buffer = (double *)malloc(sizeof(double) * n_values);
 
-    if (flag == TYPE_DOUBLE) {
-        d = (double *) values;
+    if (flag == TYPE_DOUBLE)
+    {
+        d = (double *)values;
         for (i = 0; i < n_values; i++)
-            buffer[i] = (double) d[i];
-    } else if (flag == TYPE_INTEGER) {
-        r = (int *) values;
+            buffer[i] = (double)d[i];
+    }
+    else if (flag == TYPE_INTEGER)
+    {
+        r = (int *)values;
         for (i = 0; i < n_values; i++)
-            buffer[i] = (double) r[i];
+            buffer[i] = (double)r[i];
     }
 
-    if (filename_extension_matches((char *) file, "txt")) {
-        fp = SAFE_FOPEN((char *) file, "w");
-        for (i = 0; i < n_values; i++) {
+    if (filename_extension_matches((char *)file, "txt"))
+    {
+        fp = SAFE_FOPEN((char *)file, "w");
+        for (i = 0; i < n_values; i++)
+        {
             if (flag == TYPE_DOUBLE)
-                fprintf(fp, "%f\n",d[i]);
-            else  fprintf(fp, "%d\n",r[i]);
+                fprintf(fp, "%f\n", d[i]);
+            else
+                fprintf(fp, "%d\n", r[i]);
         }
-            
+
         fclose(fp);
-    } else if (filename_extension_matches((char *) file, "gii") ||
-               filename_extension_matches((char *) file, "dat"))
-        status = output_gifti_curv((char *) file, n_values, buffer);
+    }
+    else if (filename_extension_matches((char *)file, "gii") ||
+             filename_extension_matches((char *)file, "dat"))
+        status = output_gifti_curv((char *)file, n_values, buffer);
     else
-        status = output_freesurfer_curv((char *) file, n_values, buffer);
+        status = output_freesurfer_curv((char *)file, n_values, buffer);
 
     free(buffer);
 
-    return(status);
+    return (status);
 }
 
 /**
@@ -2137,31 +2369,42 @@ output_values_any_format(const char *file, int n_values, void *values, int flag)
  */
 Status
 input_graphics_any_format(char *file, File_formats *format, int *n_objects,
-              object_struct ***object_list)
+                          object_struct ***object_list)
 {
     Status status;
 
-    if (filename_extension_matches(file, "obj")) {
+    if (filename_extension_matches(file, "obj"))
+    {
         status = input_graphics_file(file, format,
-                       n_objects, object_list);
-    } else if (filename_extension_matches(file, "off")) {
+                                     n_objects, object_list);
+    }
+    else if (filename_extension_matches(file, "off"))
+    {
         status = input_oogl(file, format,
-                  n_objects, object_list);
-    } else if (filename_extension_matches(file, "gii")) {
+                            n_objects, object_list);
+    }
+    else if (filename_extension_matches(file, "gii"))
+    {
         status = input_gifti(file, format,
-                  n_objects, object_list, NULL, NULL);
-    } else if (filename_extension_matches(file, "dfs")) {
+                             n_objects, object_list, NULL, NULL);
+    }
+    else if (filename_extension_matches(file, "dfs"))
+    {
         status = input_dfs(file, format,
-                   n_objects, object_list);
-    } else if (filename_extension_matches(file, "dx")) {
+                           n_objects, object_list);
+    }
+    else if (filename_extension_matches(file, "dx"))
+    {
         status = input_dx(file, format,
-                  n_objects, object_list);
-    } else {
+                          n_objects, object_list);
+    }
+    else
+    {
         status = input_freesurfer(file, format,
-                      n_objects, object_list);
+                                  n_objects, object_list);
     }
 
-    return(status);
+    return (status);
 }
 
 /**
@@ -2177,26 +2420,33 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
  */
 Status
 output_graphics_any_format(char *file, File_formats format, int n_objects,
-               object_struct **object_list, double *values)
+                           object_struct **object_list, double *values)
 {
-    Status     status;
+    Status status;
 
-    if (filename_extension_matches(file, "obj")) {
+    if (filename_extension_matches(file, "obj"))
+    {
         status = output_graphics_file(file, format,
-                n_objects, object_list);
-    } else if (filename_extension_matches(file, "off")) {
+                                      n_objects, object_list);
+    }
+    else if (filename_extension_matches(file, "off"))
+    {
         status = output_oogl(file, format,
-                n_objects, object_list);
-    } else if (filename_extension_matches(file, "gii") ||
-               filename_extension_matches(file, "dat")) {
+                             n_objects, object_list);
+    }
+    else if (filename_extension_matches(file, "gii") ||
+             filename_extension_matches(file, "dat"))
+    {
         status = output_gifti(file, format,
-                n_objects, object_list, values);
-    } else {
+                              n_objects, object_list, values);
+    }
+    else
+    {
         status = output_freesurfer(file, format,
-                n_objects, object_list);
+                                   n_objects, object_list);
     }
 
-    return(status);
+    return (status);
 }
 
 /**
@@ -2210,67 +2460,77 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
  * \param out_atable (out) allocated label table with names and colors
  * \return number of entries read on success; ERROR on read failure
  */
-int
-read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, ATABLE **out_atable)
+int read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, ATABLE **out_atable)
 {
-    FILE  *fp;
-    char  annot_name[1000], **struct_names;
-    int   i, flag, label, len, vno, tag, *array;
-    int   version, structure;
+    FILE *fp;
+    char annot_name[1000], **struct_names;
+    int i, flag, label, len, vno, tag, *array;
+    int version, structure;
     ATABLE *atable;
 
     fp = SAFE_FOPEN(file, "r");
 
     *n_array = freadInt(fp);
-    array = (int*) calloc (*n_array, sizeof(int));
+    array = (int *)calloc(*n_array, sizeof(int));
 
-    for (i = 0; i < *n_array; i++) {
+    for (i = 0; i < *n_array; i++)
+    {
         vno = freadInt(fp);
         label = freadInt(fp);
-        if (vno >= *n_array || vno < 0) {
+        if (vno >= *n_array || vno < 0)
+        {
             fprintf(stderr, "Vertex index out of range: "
-              "%d i=%8.8X, array_size=%d\n",
-              vno,label,*n_array);
-        } else  array[vno] = label;
+                            "%d i=%8.8X, array_size=%d\n",
+                    vno, label, *n_array);
+        }
+        else
+            array[vno] = label;
     }
 
     *out_array = array;
-    
-    tag = freadInt (fp);
-    if (feof(fp)) {
+
+    tag = freadInt(fp);
+    if (feof(fp))
+    {
         fclose(fp);
         fprintf(stderr, "No colortable found\n");
-        return(OK);
+        return (OK);
     }
-    
+
     *n_labels = freadInt(fp);
-    
-    if (*n_labels > 0) {
-        atable = (ATABLE*) malloc(*n_labels * sizeof(ATABLE));
+
+    if (*n_labels > 0)
+    {
+        atable = (ATABLE *)malloc(*n_labels * sizeof(ATABLE));
         len = freadInt(fp);
         fread(&annot_name, sizeof(char), len, fp);
-        for (i = 0; i < *n_labels; i++) {
+        for (i = 0; i < *n_labels; i++)
+        {
             len = freadInt(fp);
             fread(&atable[i].name, sizeof(char), len, fp);
             atable[i].r = freadInt(fp);
             atable[i].g = freadInt(fp);
             atable[i].b = freadInt(fp);
             flag = freadInt(fp);
-            atable[i].annotation = atable[i].r+atable[i].g*256+atable[i].b*65536;
+            atable[i].annotation = atable[i].r + atable[i].g * 256 + atable[i].b * 65536;
         }
-    } else {
+    }
+    else
+    {
         version = -(*n_labels);
-        if (feof(fp)) {
+        if (feof(fp))
+        {
             fclose(fp);
-            fprintf(stderr, "Does not handle version %d\n",version);
-            return(OK);
+            fprintf(stderr, "Does not handle version %d\n", version);
+            return (OK);
         }
         *n_labels = freadInt(fp);
         len = freadInt(fp);
         fread(&annot_name, sizeof(char), len, fp);
         *n_labels = freadInt(fp);
-        atable = (ATABLE*) malloc(*n_labels * sizeof(ATABLE));
-        for (i = 0; i < *n_labels; i++) {
+        atable = (ATABLE *)malloc(*n_labels * sizeof(ATABLE));
+        for (i = 0; i < *n_labels; i++)
+        {
             structure = freadInt(fp) + 1;
             len = freadInt(fp);
             fread(&atable[i].name, sizeof(char), len, fp);
@@ -2278,14 +2538,14 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
             atable[i].g = freadInt(fp);
             atable[i].b = freadInt(fp);
             flag = freadInt(fp);
-            atable[i].annotation = atable[i].r+atable[i].g*256+atable[i].b*65536;
+            atable[i].annotation = atable[i].r + atable[i].g * 256 + atable[i].b * 65536;
         }
     }
     *out_atable = atable;
-    
+
     fclose(fp);
 
-    return(OK);
+    return (OK);
 }
 
 /**
@@ -2299,34 +2559,35 @@ read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, 
  * \param atable   (in) label table with names and RGB colors
  * \return OK on success; ERROR on write failure
  */
-int
-write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE *atable)
+int write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE *atable)
 {
-    FILE  *fp;
-    char  **struct_names;
-    int   i, flag, label, len, vno, tag;
-    int   version, structure;
+    FILE *fp;
+    char **struct_names;
+    int i, flag, label, len, vno, tag;
+    int version, structure;
 
     fp = SAFE_FOPEN(file, "w");
 
     fwriteInt(n_array, fp);
 
-    for (i = 0; i < n_array; i++) {
+    for (i = 0; i < n_array; i++)
+    {
         fwriteInt(i, fp);
         fwriteInt(array[i], fp);
     }
-    
-    fwriteInt (1, fp);      
-    fwriteInt(-2, fp);      
-    fwriteInt(n_labels, fp);    
-    fwriteInt(22, fp);      
+
+    fwriteInt(1, fp);
+    fwriteInt(-2, fp);
+    fwriteInt(n_labels, fp);
+    fwriteInt(22, fp);
     fwrite("write_annotation_table", sizeof(char), 22, fp);
-    fwriteInt(n_labels, fp);    
-    
-    for (i = 0; i < n_labels; i++) {
+    fwriteInt(n_labels, fp);
+
+    for (i = 0; i < n_labels; i++)
+    {
         fwriteInt(i, fp);
-        fwriteInt(strlen(atable[i].name)+1, fp);
-        fwrite(strcat(atable[i].name," "), sizeof(char), strlen(atable[i].name), fp);
+        fwriteInt(strlen(atable[i].name) + 1, fp);
+        fwrite(strcat(atable[i].name, " "), sizeof(char), strlen(atable[i].name), fp);
         fwriteInt(atable[i].r, fp);
         fwriteInt(atable[i].g, fp);
         fwriteInt(atable[i].b, fp);
@@ -2335,5 +2596,5 @@ write_annotation_table(char *file, int n_array, int *array, int n_labels, ATABLE
 
     fclose(fp);
 
-    return(OK);
+    return (OK);
 }
