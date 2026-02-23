@@ -77,12 +77,12 @@ jobs:
       # ---------------- Build ----------------
       - name: Build
         if: matrix.os != 'windows-latest'
-        run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+        run: make -O2 -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
 
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
-        run: make -j$(nproc)
+        run: make -O2 -j$(nproc)
 
       # ---------------- Package ----------------
       - name: Package binaries
