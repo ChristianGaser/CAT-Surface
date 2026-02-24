@@ -3,6 +3,23 @@
 > Full agent context is in [`Agents.md`](Agents.md). This file is the concise
 > quick-reference loaded automatically by Claude Code.
 
+## Sub-Agent Routing Rules
+- **Always sequential:** All tasks (security, performance, style, refactoring) must be processed sequentially.
+- **No parallelization:** Only one sub-agent or one check may be active at a time.
+- **Workflow:** First execute `security`, then `performance`, then `style`. Wait for each step to complete.
+- **Dependencies:** B tasks must wait for the output of A tasks.
+
+## Background Execution Rules
+ 
+Run in background automatically:
+ 
+- Web research and documentation lookups
+- Codebase exploration and analysis
+- Security audits and performance profiling
+- Any task where results aren't immediately needed
+- Research or analysis tasks (not file modifications)
+- Results aren't blocking your current work
+
 ## Project at a glance
 
 C library + 70+ CLI tools for cortical surface mesh processing (neuroimaging).
