@@ -169,7 +169,6 @@ main(int argc, char *argv[])
     /* Cleanup */
     delete_object_list(n_objects, object_list);
     free(thickness_values);
-    nifti_image_free(nii_ptr);
     delete_object(object_pial);
     delete_object(object_white);
 

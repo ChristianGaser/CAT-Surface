@@ -160,12 +160,6 @@ int CAT_SurfEstimatePialWhite(
     /* Cleanup */
     free(extents);
     free(weight);
-    delete_polygon_point_neighbours(central, n_neighbours, neighbours, NULL, NULL);
-    /* Note: polygons_pial/white are managed by objects_out, don't double-free */
-    free(polygons_smoothed->points);
-    free(polygons_smoothed->normals);
-    free(polygons_smoothed->indices);
-    free(polygons_smoothed->end_indices);
     free(polygons_smoothed);
 
     return 0;
