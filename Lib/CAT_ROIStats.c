@@ -22,17 +22,6 @@
  * \param id       (in)  annotation id
  * \return Name string for the id
  */
-/**
- * \brief Resolve an annotation id to a name string.
- *
- * Searches an annotation table for the given id and returns the name
- * or "unknown" if not found.
- *
- * \param atable   (in)  annotation table
- * \param n_labels (in)  number of entries in table
- * \param id       (in)  annotation id
- * \return Name string for the id
- */
 static const char *cat_name_for_id(const ATABLE *atable, int n_labels, int id)
 {
     int i;
@@ -49,18 +38,6 @@ static const char *cat_name_for_id(const ATABLE *atable, int n_labels, int id)
     return "unknown";
 }
 
-/**
- * \brief Resample integer annotation labels onto a target sphere.
- *
- * Converts label arrays to double, uses label-aware interpolation, and
- * converts back to integer labels on the target sphere.
- *
- * \param src_sphere (in)  source sphere mesh
- * \param trg_sphere (in)  target sphere mesh
- * \param labels_src (in)  source labels per vertex
- * \param labels_trg (out) allocated target labels per vertex
- * \return OK on success, ERROR otherwise
- */
 /**
  * \brief Resample integer annotation labels onto a target sphere.
  *
@@ -139,21 +116,6 @@ Status CAT_ResampleAnnotationLabels(
  * \param atable     (in)  annotation table (can be NULL)
  * \param n_labels   (in)  number of annotation entries
  * \param out_stats  (out) allocated stats array
- * \param out_n_stats (out) number of stats entries
- * \return OK on success, ERROR otherwise
- */
-/**
- * \brief Compute per-label sums and sample counts for ROI statistics.
- *
- * Aggregates values for each label, skipping NaNs, and returns an array
- * of CAT_ROIStat entries with sums and counts.
- *
- * \param labels      (in)  integer labels per vertex
- * \param vals        (in)  values per vertex
- * \param n_points    (in)  number of vertices
- * \param atable      (in)  annotation table (can be NULL)
- * \param n_labels    (in)  number of annotation entries
- * \param out_stats   (out) allocated stats array
  * \param out_n_stats (out) number of stats entries
  * \return OK on success, ERROR otherwise
  */
