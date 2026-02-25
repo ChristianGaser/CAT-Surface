@@ -293,18 +293,18 @@ void downcut3(void *labels, void *intensity, void *dist,
 /**
  * \brief Blood-vessel correction for float PVE label maps.
  *
- * Implements NBVC correction on PVE labels in [0..3] using downcut growing,
+ * Implements blood-vessel correction on PVE labels in [0..3] using downcut growing,
  * distance-based morphology, and masked median filtering.
  *
  * \param Yp0     (in/out) float PVE label map
  * \param dims    (in)     dimensions {nx, ny, nz}
  * \param vx_vol  (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  */
-void nbvc_float(float *Yp0, int dims[3], double vx_vol[3]);
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]);
 /**
- * \brief Datatype-generic wrapper for NBVC blood-vessel correction.
+ * \brief Datatype-generic wrapper for PVE blood-vessel correction.
  *
- * Converts input volume to float, applies `nbvc_float()`, then converts back
+ * Converts input volume to float, applies `blood_vessel_correction_pve_float()`, then converts back
  * to the specified datatype.
  *
  * \param data      (in/out) PVE label volume
@@ -312,7 +312,7 @@ void nbvc_float(float *Yp0, int dims[3], double vx_vol[3]);
  * \param vx_vol    (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  * \param datatype  (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void nbvc(void *data, int dims[3], double vx_vol[3], int datatype);
+void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype);
 void ind2sub(int i, int *x, int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);

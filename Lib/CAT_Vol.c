@@ -1755,7 +1755,7 @@ void downcut3(void *labels, void *intensity, void *dist,
 /**
  * \brief Blood-vessel correction for PVE label maps.
  *
- * Implements the NBVC workflow for a PVE map in the range [0..3].
+ * Implements blood-vessel correction for a PVE map in the range [0..3].
  * A safe WM seed region is estimated by thresholding and distance-based opening,
  * then expanded with downcut region growing constrained by transformed intensities.
  * Identified vessel-like WM outliers are reset and locally median-smoothed.
@@ -1769,7 +1769,7 @@ void downcut3(void *labels, void *intensity, void *dist,
  * \param dims    (in)     dimensions {nx, ny, nz}
  * \param vx_vol  (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  */
-void nbvc_float(float *Yp0, int dims[3], double vx_vol[3])
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3])
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     double vx_local[3] = {1.0, 1.0, 1.0};
@@ -1784,7 +1784,7 @@ void nbvc_float(float *Yp0, int dims[3], double vx_vol[3])
 
     if (!Yp0 || !dims)
     {
-        fprintf(stderr, "Invalid NULL input in nbvc_float\n");
+        fprintf(stderr, "Invalid NULL input in blood_vessel_correction_pve_float\n");
         exit(EXIT_FAILURE);
     }
 
@@ -1812,7 +1812,7 @@ void nbvc_float(float *Yp0, int dims[3], double vx_vol[3])
         free(Yd);
         free(Yp0s);
         free(Ymsk);
-        fprintf(stderr, "Memory allocation error in nbvc_float\n");
+        fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve_float\n");
         exit(EXIT_FAILURE);
     }
 
@@ -1893,9 +1893,9 @@ void nbvc_float(float *Yp0, int dims[3], double vx_vol[3])
 }
 
 /**
- * \brief Datatype-generic NBVC wrapper.
+ * \brief Datatype-generic blood-vessel correction wrapper for PVE labels.
  *
- * Converts input PVE labels to float, runs `nbvc_float()`, and converts back
+ * Converts input PVE labels to float, runs `blood_vessel_correction_pve_float()`, and converts back
  * to the requested datatype.
  *
  * \param data      (in/out) PVE label volume data
@@ -1903,26 +1903,26 @@ void nbvc_float(float *Yp0, int dims[3], double vx_vol[3])
  * \param vx_vol    (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  * \param datatype  (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void nbvc(void *data, int dims[3], double vx_vol[3], int datatype)
+void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype)
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     float *buffer;
 
     if (!data || !dims)
     {
-        fprintf(stderr, "Invalid NULL input in nbvc\n");
+        fprintf(stderr, "Invalid NULL input in blood_vessel_correction_pve\n");
         exit(EXIT_FAILURE);
     }
 
     buffer = (float *)malloc((size_t)nvox * sizeof(float));
     if (!buffer)
     {
-        fprintf(stderr, "Memory allocation error in nbvc\n");
+        fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve\n");
         exit(EXIT_FAILURE);
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    nbvc_float(buffer, dims, vx_vol);
+    blood_vessel_correction_pve_float(buffer, dims, vx_vol);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
