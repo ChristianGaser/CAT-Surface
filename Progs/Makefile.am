@@ -120,6 +120,7 @@ bin_PROGRAMS = \
     CAT_VolLocalStat \
     CAT_VolThicknessPbt \
     CAT_VolLayerSmooth \
+    CAT_VolBloodVesselCorrection \
     CAT_SurfResampleSphericalSPH \
     CAT_Surf2SPH \
     CAT_SurfDeform \
