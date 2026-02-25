@@ -1459,7 +1459,7 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
  * `cat_vol_downcut` MEX implementation, including support for a legacy default
  * intensity cost when `dd == NULL`.
  *
- * 
+ *
  *
  * \param labels     (in/out) float seed label map; 0 marks unlabeled voxels
  * \param intensity  (in)     float intensity image used for monotonic growth constraint
@@ -1750,6 +1750,182 @@ void downcut3(void *labels, void *intensity, void *dist,
     free(intensity_f);
     free(dist_d);
     free(dist_f);
+}
+
+/**
+ * \brief Blood-vessel correction for PVE label maps.
+ *
+ * Implements the NBVC workflow for a PVE map in the range [0..3].
+ * A safe WM seed region is estimated by thresholding and distance-based opening,
+ * then expanded with downcut region growing constrained by transformed intensities.
+ * Identified vessel-like WM outliers are reset and locally median-smoothed.
+ *
+ * This implementation uses CAT-Surface library tools only:
+ * - `downcut_float()` for constrained region growing
+ * - `dist_open_float()` / `dist_dilate_float()` for distance morphology
+ * - `median3()` for masked local smoothing
+ *
+ * \param Yp0     (in/out) float PVE label image in [0..3]
+ * \param dims    (in)     dimensions {nx, ny, nz}
+ * \param vx_vol  (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ */
+void nbvc_float(float *Yp0, int dims[3], double vx_vol[3])
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    double vx_local[3] = {1.0, 1.0, 1.0};
+    float *F;
+    float *YwmA;
+    float *YwmB;
+    float *Ywm;
+    float *Yd;
+    float *Yp0s;
+    unsigned char *Ymsk;
+    int i;
+
+    if (!Yp0 || !dims)
+    {
+        fprintf(stderr, "Invalid NULL input in nbvc_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (vx_vol)
+    {
+        vx_local[0] = vx_vol[0];
+        vx_local[1] = vx_vol[1];
+        vx_local[2] = vx_vol[2];
+    }
+
+    F = (float *)malloc((size_t)nvox * sizeof(float));
+    YwmA = (float *)malloc((size_t)nvox * sizeof(float));
+    YwmB = (float *)malloc((size_t)nvox * sizeof(float));
+    Ywm = (float *)malloc((size_t)nvox * sizeof(float));
+    Yd = (float *)malloc((size_t)nvox * sizeof(float));
+    Yp0s = (float *)malloc((size_t)nvox * sizeof(float));
+    Ymsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+
+    if (!F || !YwmA || !YwmB || !Ywm || !Yd || !Yp0s || !Ymsk)
+    {
+        free(F);
+        free(YwmA);
+        free(YwmB);
+        free(Ywm);
+        free(Yd);
+        free(Yp0s);
+        free(Ymsk);
+        fprintf(stderr, "Memory allocation error in nbvc_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /*
+     * F = max(0, Yp0 - 1); F(Yp0 <= 1.1) = inf;
+     */
+    for (i = 0; i < nvox; ++i)
+    {
+        float fval = Yp0[i] - 1.0f;
+        if (fval < 0.0f)
+            fval = 0.0f;
+        if (Yp0[i] <= 1.1f)
+            fval = FLT_MAX;
+        F[i] = fval;
+    }
+
+    /*
+     * Ywm = morph(Yp0>2.5,'ldo',2,vx) | morph(Yp0>2.75,'ldo',1,vx)
+     * Approximated with distance-based opening for logical masks.
+     */
+    for (i = 0; i < nvox; ++i)
+    {
+        YwmA[i] = (Yp0[i] > 2.5f) ? 1.0f : 0.0f;
+        YwmB[i] = (Yp0[i] > 2.75f) ? 1.0f : 0.0f;
+    }
+    dist_open_float(YwmA, dims, vx_local, 2.0, 0.5);
+    dist_open_float(YwmB, dims, vx_local, 1.0, 0.5);
+    keep_largest_cluster(YwmA, 0.5, dims, DT_FLOAT32, 0, 1, 18);
+    keep_largest_cluster(YwmB, 0.5, dims, DT_FLOAT32, 0, 1, 18);
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (YwmA[i] > 0.0f || YwmB[i] > 0.0f) ? 1.0f : 0.0f;
+
+    /*
+     * [~,Yd] = cat_vol_downcut(single(Ywm), F, -0.001)
+     */
+    downcut_float(Ywm, F, Yd, dims, -0.001, vx_local, NULL);
+
+    /*
+     * Ymsk = Yd > 1000000 & Yp0 > 2
+     */
+    for (i = 0; i < nvox; ++i)
+        Ymsk[i] = (Yd[i] > 1000000.0f && Yp0[i] > 2.0f) ? 1 : 0;
+
+    /*
+     * Yp0(Ymsk) = 2
+     */
+    for (i = 0; i < nvox; ++i)
+        if (Ymsk[i])
+            Yp0[i] = 2.0f;
+
+    /*
+     * Ymsk = cat_vol_morph(Ymsk,'dd',1,vx) & Yp0>1.5
+     * 'dd' maps to distance-based dilation.
+     */
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (float)Ymsk[i];
+    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5);
+    for (i = 0; i < nvox; ++i)
+        Ymsk[i] = (Ywm[i] > 0.0f && Yp0[i] > 1.5f) ? 1 : 0;
+
+    /*
+     * Yp0s = cat_vol_median3(Yp0, Ymsk)
+     * Yp0(Ymsk) = Yp0s(Ymsk)
+     */
+    memcpy(Yp0s, Yp0, (size_t)nvox * sizeof(float));
+    median3(Yp0s, Ymsk, dims, 1, DT_FLOAT32);
+    for (i = 0; i < nvox; ++i)
+        if (Ymsk[i])
+            Yp0[i] = Yp0s[i];
+
+    free(F);
+    free(YwmA);
+    free(YwmB);
+    free(Ywm);
+    free(Yd);
+    free(Yp0s);
+    free(Ymsk);
+}
+
+/**
+ * \brief Datatype-generic NBVC wrapper.
+ *
+ * Converts input PVE labels to float, runs `nbvc_float()`, and converts back
+ * to the requested datatype.
+ *
+ * \param data      (in/out) PVE label volume data
+ * \param dims      (in)     dimensions {nx, ny, nz}
+ * \param vx_vol    (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param datatype  (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void nbvc(void *data, int dims[3], double vx_vol[3], int datatype)
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    float *buffer;
+
+    if (!data || !dims)
+    {
+        fprintf(stderr, "Invalid NULL input in nbvc\n");
+        exit(EXIT_FAILURE);
+    }
+
+    buffer = (float *)malloc((size_t)nvox * sizeof(float));
+    if (!buffer)
+    {
+        fprintf(stderr, "Memory allocation error in nbvc\n");
+        exit(EXIT_FAILURE);
+    }
+
+    convert_input_type_float(data, buffer, nvox, datatype);
+    nbvc_float(buffer, dims, vx_vol);
+    convert_output_type_float(data, buffer, nvox, datatype);
+
+    free(buffer);
 }
 
 /**
