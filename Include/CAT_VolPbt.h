@@ -47,23 +47,10 @@ typedef struct {
 void CAT_PbtOptionsInit(CAT_PbtOptions *opts);
 
 /**
- * Compute projection-based cortical thickness and percentage position map.
+ * \brief Compute projection-based cortical thickness and percentage position map.
  *
  * This function implements the complete PBT pipeline:
  * 1. Distance estimation in WM and CSF by shifting GM borders
-/**
- * \brief Public API for projection_based_thickness.
- *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of projection_based_thickness.
- * \param ny (in/out) Parameter of projection_based_thickness.
- * \param dx (in/out) Parameter of projection_based_thickness.
- * \param dy (in/out) Parameter of projection_based_thickness.
- * \param success (in/out) Parameter of projection_based_thickness.
- * \param opts (in/out) Parameter of projection_based_thickness.
- * \return Return value of projection_based_thickness.
- */
  * 2. Thickness estimation via projection_based_thickness()
  * 3. PPM calculation with gyrus/sulcus blending
  * 4. Optional median filtering for topology artifact reduction
