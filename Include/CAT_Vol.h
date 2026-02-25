@@ -18,36 +18,39 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Math.h"
 
-#define index(A,B,C,DIM) ((C)*DIM[0]*DIM[1] + (B)*DIM[0] + (A))
+#define index(A, B, C, DIM) ((C) * DIM[0] * DIM[1] + (B) * DIM[0] + (A))
 
-#define CSF    1.0
-#define CGM    1.5
-#define GM     2.0
-#define GWM    2.5
-#define WM     3.0
+#define CSF 1.0
+#define CGM 1.5
+#define GM 2.0
+#define GWM 2.5
+#define WM 3.0
 
 #define MAX_NC 6
 
 /* --------------------------- Thread args --------------------------- */
-typedef struct {
+typedef struct
+{
     float *out;
     int xdim, ydim;
     const double *filtx, *filty;
     int fxdim, fydim;
     int xoff, yoff;
-    int ini, fin;           /* range on outer index: rows for row-pass, cols for col-pass */
+    int ini, fin; /* range on outer index: rows for row-pass, cols for col-pass */
 } conv_args_row;
 
-typedef struct {
+typedef struct
+{
     float *out;
     int xdim, ydim;
     const double *filtx, *filty;
     int fxdim, fydim;
     int xoff, yoff;
-    int ini, fin;           /* columns range */
+    int ini, fin; /* columns range */
 } conv_args_col;
 
-typedef struct {
+typedef struct
+{
     /* inputs */
     const float *iVol;
     int xdim, ydim, zdim;
@@ -55,19 +58,20 @@ typedef struct {
     int fxdim, fydim;
     int xoff, yoff;
     /* outputs */
-    float *convxy_vol;      /* [zdim * xdim * ydim] */
+    float *convxy_vol; /* [zdim * xdim * ydim] */
     /* range */
-    int z_ini, z_fin;       /* [z_ini, z_fin) */
+    int z_ini, z_fin; /* [z_ini, z_fin) */
 } convxyz_s1_args_t;
 
-typedef struct {
+typedef struct
+{
     const float *convxy_vol; /* [zdim * xdim * ydim] */
     float *oVol;             /* [zdim * xdim * ydim] */
     int xdim, ydim, zdim;
     const double *filtz;
     int fzdim;
     int zoff;
-    int z_out_ini, z_out_fin;  /* [z_out_ini, z_out_fin) */
+    int z_out_ini, z_out_fin; /* [z_out_ini, z_out_fin) */
 } convxyz_s2_args_t;
 
 /**
@@ -286,7 +290,7 @@ void downcut_float(float *labels, const float *intensity, float *dist,
 void downcut3(void *labels, void *intensity, void *dist,
               int dims[3], double limit, double voxelsize[3], double dd[2],
               int labels_datatype, int intensity_datatype, int dist_datatype);
-void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
+void ind2sub(int i, int *x, int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 /**
