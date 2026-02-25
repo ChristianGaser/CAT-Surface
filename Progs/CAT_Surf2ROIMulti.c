@@ -188,10 +188,10 @@ static int add_unit_cb(char *dst, char *key, char *nextArg)
 }
 
 static ArgvInfo argTable[] = {
-            { "-unit", ARGV_FUNC,  (char *)add_unit_cb, NULL,
-                "Add a unit: src_sphere=...,trg_sphere=...,annot=...,vals=...[,hemi=lh|rh]" },
-    { "-out",  ARGV_STRING, (char *)1, (char *)&g_out,
-      "Output JSON file" },
+    { "-unit", ARGV_FUNC,  (char *)add_unit_cb, NULL,
+          "Add a unit: src_sphere=...,trg_sphere=...,annot=...,vals=...[,hemi=lh|rh]" },
+          { "-out",  ARGV_STRING, (char *)1, (char *)&g_out,
+          "Output JSON file" },
     { NULL, ARGV_END, NULL, NULL, NULL }
 };
 
@@ -230,7 +230,7 @@ static void write_roi_array(FILE *fp, const char *key, roi_stat_t *arr, int coun
     fprintf(fp, "%*s\"%s\": [\n", indent, "", key);
     for (i = 0; i < count; i++) {
         double mean = (arr[i].count > 0) ? (arr[i].sum / (double) arr[i].count) : NAN;
-        fprintf(fp, "%*s{ \"id\": %d, \"name\": \"%s\", \"mean\": %.10g, \"n\": %d }%s\n",
+        fprintf(fp, "%*s{ \"ROIid\": %d, \"ROIname\": \"%s\", \"mean\": %.10g, \"n\": %d }%s\n",
                 indent + 2, "", arr[i].id,
                 arr[i].name ? arr[i].name : "unknown",
                 mean, arr[i].count,
@@ -246,6 +246,7 @@ int main(int argc, char *argv[])
     roi_stat_t *rois[3] = { NULL, NULL, NULL };
     int roi_count[3] = { 0, 0, 0 };
     int roi_cap[3]   = { 0, 0, 0 };
+    char *str;
 
     initialize_argument_processing(argc, argv);
 
@@ -257,6 +258,10 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: CAT_Surf2ROIMulti -unit src_sphere=...,trg_sphere=...,annot=...,vals=...[,hemi=lh|rh] [-unit ...] -out output.json\n");
         return EXIT_FAILURE;
     }
+
+    /* Write JSON */
+    FILE *fp = SAFE_FOPEN(g_out, "w");
+    fprintf(fp, "{\n");
 
     for (i = 0; i < g_nunits; i++) {
         unit_t *u = &g_units[i];
@@ -330,6 +335,11 @@ int main(int argc, char *argv[])
                           stats[j].id, nm, stats[j].sum, stats[j].n);
         }
 
+        if (hemi_idx == HEMI_LH) str = "lh";
+        else if (hemi_idx == HEMI_RH) str = "rh";
+        else str = "unknown";
+        write_roi_array(fp, str, rois[hemi_idx], roi_count[hemi_idx], 2, i < (g_nunits-1));
+
         if (stats) free(stats);
         if (labels_trg) free(labels_trg);
         if (vals) FREE(vals);
@@ -339,23 +349,6 @@ int main(int argc, char *argv[])
         if (obj_trg_sph) delete_object_list(1, obj_trg_sph);
     }
 
-    /* Write JSON */
-    FILE *fp = SAFE_FOPEN(g_out, "w");
-    fprintf(fp, "{\n");
-    int has_lh = roi_count[HEMI_LH] > 0;
-    int has_rh = roi_count[HEMI_RH] > 0;
-    int has_unknown = roi_count[HEMI_UNKNOWN] > 0;
-    int remaining = has_lh + has_rh + has_unknown;
-
-    if (has_lh) {
-        write_roi_array(fp, "lh", rois[HEMI_LH], roi_count[HEMI_LH], 2, --remaining > 0);
-    }
-    if (has_rh) {
-        write_roi_array(fp, "rh", rois[HEMI_RH], roi_count[HEMI_RH], 2, --remaining > 0);
-    }
-    if (has_unknown) {
-        write_roi_array(fp, "unknown", rois[HEMI_UNKNOWN], roi_count[HEMI_UNKNOWN], 2, --remaining > 0);
-    }
     fprintf(fp, "}\n");
     fclose(fp);
 
