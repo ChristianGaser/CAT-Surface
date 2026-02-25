@@ -250,6 +250,42 @@ void cleanup_brain(unsigned char *probs, int dims[3], double voxelsize[3], int s
  * \return void (no return value).
  */
 void euclidean_distance(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
+/**
+ * \brief Intensity-limited region growing with distance/intensity path cost.
+ *
+ * Grows labels from seeded voxels into unlabeled voxels under a monotonic
+ * intensity constraint and weighted path cost. This is the float core function.
+ *
+ * \param labels     (in/out) seed label map; 0 means unlabeled
+ * \param intensity  (in)     intensity image controlling growth
+ * \param dist       (out)    path-cost map (NULL allowed)
+ * \param dims       (in)     dimensions {nx, ny, nz}
+ * \param limit      (in)     neighbour intensity limit
+ * \param voxelsize  (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param dd         (in)     weights {distance_weight, intensity_weight}; NULL -> defaults
+ */
+void downcut_float(float *labels, const float *intensity, float *dist,
+                   int dims[3], double limit, double voxelsize[3], double dd[2]);
+/**
+ * \brief Datatype-generic wrapper for downcut region growing.
+ *
+ * Converts labels/intensity with convert_input_type(), runs downcut_float(), then
+ * converts output buffers with convert_output_type().
+ *
+ * \param labels             (in/out) labels buffer in labels_datatype
+ * \param intensity          (in)     intensity buffer in intensity_datatype
+ * \param dist               (out)    distance buffer in dist_datatype (NULL allowed)
+ * \param dims               (in)     dimensions {nx, ny, nz}
+ * \param limit              (in)     neighbour intensity limit
+ * \param voxelsize          (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param dd                 (in)     weights {distance_weight, intensity_weight}; NULL -> defaults
+ * \param labels_datatype    (in)     datatype code for labels input/output
+ * \param intensity_datatype (in)     datatype code for intensity input
+ * \param dist_datatype      (in)     datatype code for distance output
+ */
+void downcut3(void *labels, void *intensity, void *dist,
+              int dims[3], double limit, double voxelsize[3], double dd[2],
+              int labels_datatype, int intensity_datatype, int dist_datatype);
 void ind2sub(int i,int *x,int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);

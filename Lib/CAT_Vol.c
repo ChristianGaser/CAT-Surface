@@ -1444,6 +1444,315 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
 }
 
 /**
+ * \brief Intensity-limited region growing with distance- and intensity-weighted path cost.
+ *
+ * Grows labels from an initial seed map into unlabeled voxels while enforcing a
+ * monotonic intensity constraint:
+ *
+ *   intensity(neighbour) <= intensity(current) + limit
+ *
+ * The propagation cost combines geometric neighbour distance and an intensity term:
+ *
+ *   cost = w_dist * neighbour_distance + w_int * intensity_cost
+ *
+ * with weights `dd = {w_dist, w_int}`. The behaviour matches the historical
+ * `cat_vol_downcut` MEX implementation, including support for a legacy default
+ * intensity cost when `dd == NULL`.
+ *
+ * 
+ *
+ * \param labels     (in/out) float seed label map; 0 marks unlabeled voxels
+ * \param intensity  (in)     float intensity image used for monotonic growth constraint
+ * \param dist       (out)    float distance/path-cost map (may be NULL if not needed)
+ * \param dims       (in)     volume dimensions {nx, ny, nz}
+ * \param limit      (in)     intensity limit for neighbour acceptance
+ * \param voxelsize  (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param dd         (in)     distance/intensity weights {w_dist, w_int}; NULL -> {0.1, 10}
+ */
+void downcut_float(float *labels, const float *intensity, float *dist,
+                   int dims[3], double limit, double voxelsize[3], double dd[2])
+{
+    static const int DX[26] = {
+        1, -1, 0, 0, 0, 0,
+        -1, 1, -1, 1,
+        -1, 1, -1, 1,
+        0, 0, 0, 0,
+        -1, 1, -1, 1,
+        -1, 1, -1, 1};
+    static const int DY[26] = {
+        0, 0, 1, -1, 0, 0,
+        -1, -1, 1, 1,
+        0, 0, 0, 0,
+        -1, 1, -1, 1,
+        -1, -1, 1, 1,
+        -1, -1, 1, 1};
+    static const int DZ[26] = {
+        0, 0, 0, 0, 1, -1,
+        0, 0, 0, 0,
+        -1, -1, 1, 1,
+        -1, -1, 1, 1,
+        -1, -1, -1, -1,
+        1, 1, 1, 1};
+
+    const int nx = dims[0];
+    const int ny = dims[1];
+    const int nz = dims[2];
+    const int xy = nx * ny;
+    const int nvox = nx * ny * nz;
+
+    float *seed_labels;
+    float *dist_map;
+    int i, n;
+    int active_count = 0;
+    int changed = 1;
+    int iter = 0;
+    const int maxiter = 2000;
+    int offsets[26];
+    float ndist[26];
+    int own_dist = 0;
+    const int use_legacy_default_cost = (dd == NULL);
+
+    float sx = 1.0f, sy = 1.0f, sz = 1.0f;
+    float w_dist = 0.1f, w_int = 10.0f;
+    const float limit_f = (float)limit;
+
+    if (!labels || !intensity || !dims)
+    {
+        fprintf(stderr, "Invalid NULL input in downcut_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (voxelsize)
+    {
+        sx = (float)fabs(voxelsize[0]);
+        sy = (float)fabs(voxelsize[1]);
+        sz = (float)fabs(voxelsize[2]);
+    }
+
+    if (dd)
+    {
+        w_dist = (float)dd[0];
+        w_int = (float)dd[1];
+    }
+
+    seed_labels = (float *)malloc((size_t)nvox * sizeof(float));
+    if (!seed_labels)
+    {
+        fprintf(stderr, "Memory allocation error in downcut_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (dist)
+        dist_map = dist;
+    else
+    {
+        dist_map = (float *)malloc((size_t)nvox * sizeof(float));
+        if (!dist_map)
+        {
+            free(seed_labels);
+            fprintf(stderr, "Memory allocation error in downcut_float\n");
+            exit(EXIT_FAILURE);
+        }
+        own_dist = 1;
+    }
+
+    const float s12 = (float)sqrt((double)sx * sx + (double)sy * sy);
+    const float s13 = (float)sqrt((double)sx * sx + (double)sz * sz);
+    const float s23 = (float)sqrt((double)sy * sy + (double)sz * sz);
+    const float s123 = (float)sqrt((double)s12 * s12 + (double)sz * sz);
+
+    const float nd_template[26] = {
+        sx, sx, sy, sy, sz, sz,
+        s12, s12, s12, s12,
+        s13, s13, s13, s13,
+        s23, s23, s23, s23,
+        s123, s123, s123, s123,
+        s123, s123, s123, s123};
+
+    for (n = 0; n < 26; ++n)
+    {
+        offsets[n] = DX[n] + (DY[n] * nx) + (DZ[n] * xy);
+        ndist[n] = nd_template[n];
+    }
+
+    for (i = 0; i < nvox; ++i)
+    {
+        float seed = labels[i];
+
+        if (!isfinite(seed))
+            seed = 0.0f;
+
+        seed_labels[i] = seed;
+        labels[i] = seed;
+
+        if (seed == 0.0f)
+            dist_map[i] = FLT_MAX;
+        else if (seed == -FLT_MAX)
+            dist_map[i] = -FLT_MAX;
+        else
+        {
+            dist_map[i] = 0.0f;
+            active_count++;
+        }
+    }
+
+    while (active_count > 0 && iter < maxiter && changed > 0)
+    {
+        iter++;
+        changed = 0;
+
+        for (i = 0; i < nvox; ++i)
+        {
+            if (dist_map[i] <= 0.0f && dist_map[i] != -FLT_MAX)
+            {
+                int x, y, z;
+                const int plane_offset = i % xy;
+
+                if (dist_map[i] < 0.0f)
+                    dist_map[i] = -dist_map[i];
+
+                active_count--;
+
+                z = i / xy;
+                y = plane_offset / nx;
+                x = plane_offset % nx;
+
+                for (n = 0; n < 26; ++n)
+                {
+                    const int xn = x + DX[n];
+                    const int yn = y + DY[n];
+                    const int zn = z + DZ[n];
+                    const int ni = i + offsets[n];
+
+                    if (xn < 0 || xn >= nx || yn < 0 || yn >= ny || zn < 0 || zn >= nz)
+                        continue;
+
+                    if ((intensity[i] + limit_f) >= intensity[ni] && seed_labels[ni] == 0.0f)
+                    {
+                        float intensity_cost;
+                        float distn;
+
+                        if (use_legacy_default_cost)
+                            intensity_cost = fmaxf(0.0f, 4.0f - fmaxf(0.0f, intensity[ni]));
+                        else
+                            intensity_cost = fmaxf(0.0f, fminf(1.0f, intensity[ni]));
+
+                        distn = dist_map[i] + (w_dist * ndist[n]) + (w_int * intensity_cost);
+
+                        if (dist_map[ni] != -FLT_MAX && fabsf(dist_map[ni]) > fabsf(distn))
+                        {
+                            if (dist_map[ni] > 0.0f)
+                                active_count++;
+
+                            changed++;
+                            dist_map[ni] = -distn;
+                            labels[ni] = labels[i];
+                        }
+                    }
+                }
+
+                if (dist_map[i] == 0.0f)
+                    dist_map[i] = -FLT_MAX;
+            }
+        }
+    }
+
+    if (own_dist)
+        free(dist_map);
+    free(seed_labels);
+}
+
+/**
+ * \brief Datatype-generic wrapper for downcut region growing.
+ *
+ * Converts `labels` and `intensity` from their input datatypes to floating-point,
+ * runs downcut propagation, then converts results back to requested output datatypes
+ * using `convert_input_type` and `convert_output_type`.
+ *
+ * \param labels            (in/out) generic label buffer
+ * \param intensity         (in)     generic intensity buffer
+ * \param dist              (out)    generic distance/path-cost buffer (NULL allowed)
+ * \param dims              (in)     volume dimensions {nx, ny, nz}
+ * \param limit             (in)     intensity limit for neighbour acceptance
+ * \param voxelsize         (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param dd                (in)     distance/intensity weights {w_dist, w_int}; NULL -> defaults
+ * \param labels_datatype   (in)     datatype code of labels input/output
+ * \param intensity_datatype(in)     datatype code of intensity input
+ * \param dist_datatype     (in)     datatype code of dist output (ignored if dist==NULL)
+ */
+void downcut3(void *labels, void *intensity, void *dist,
+              int dims[3], double limit, double voxelsize[3], double dd[2],
+              int labels_datatype, int intensity_datatype, int dist_datatype)
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    double *labels_d;
+    double *intensity_d;
+    double *dist_d = NULL;
+    float *labels_f;
+    float *intensity_f;
+    float *dist_f = NULL;
+    int i;
+
+    if (!labels || !intensity || !dims)
+    {
+        fprintf(stderr, "Invalid NULL input in downcut3\n");
+        exit(EXIT_FAILURE);
+    }
+
+    labels_d = (double *)malloc((size_t)nvox * sizeof(double));
+    intensity_d = (double *)malloc((size_t)nvox * sizeof(double));
+    labels_f = (float *)malloc((size_t)nvox * sizeof(float));
+    intensity_f = (float *)malloc((size_t)nvox * sizeof(float));
+
+    if (dist)
+    {
+        dist_d = (double *)malloc((size_t)nvox * sizeof(double));
+        dist_f = (float *)malloc((size_t)nvox * sizeof(float));
+    }
+
+    if (!labels_d || !intensity_d || !labels_f || !intensity_f || (dist && (!dist_d || !dist_f)))
+    {
+        free(labels_d);
+        free(intensity_d);
+        free(labels_f);
+        free(intensity_f);
+        free(dist_d);
+        free(dist_f);
+        fprintf(stderr, "Memory allocation error in downcut3\n");
+        exit(EXIT_FAILURE);
+    }
+
+    convert_input_type(labels, labels_d, nvox, labels_datatype);
+    convert_input_type(intensity, intensity_d, nvox, intensity_datatype);
+
+    for (i = 0; i < nvox; ++i)
+    {
+        labels_f[i] = (float)labels_d[i];
+        intensity_f[i] = (float)intensity_d[i];
+    }
+
+    downcut_float(labels_f, intensity_f, dist_f, dims, limit, voxelsize, dd);
+
+    for (i = 0; i < nvox; ++i)
+        labels_d[i] = (double)labels_f[i];
+    convert_output_type(labels, labels_d, nvox, labels_datatype);
+
+    if (dist)
+    {
+        for (i = 0; i < nvox; ++i)
+            dist_d[i] = (double)dist_f[i];
+        convert_output_type(dist, dist_d, nvox, dist_datatype);
+    }
+
+    free(labels_d);
+    free(intensity_d);
+    free(labels_f);
+    free(intensity_f);
+    free(dist_d);
+    free(dist_f);
+}
+
+/**
  * laplace3R - Apply Laplace filter on a 3D volume.
  *
  * This function performs Laplace filtering on a 3D volume. It filters the volume
