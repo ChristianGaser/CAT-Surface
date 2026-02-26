@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
 
-    blood_vessel_correction_pve_float(input, dims, voxelsize);
+    blood_vessel_correction_pve_float(input, dims, voxelsize, NULL);
 
     if (argc == 3)
         (void)sprintf(outfile, "%s", argv[2]);

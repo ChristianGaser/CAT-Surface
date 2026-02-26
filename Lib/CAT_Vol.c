@@ -1765,14 +1765,16 @@ void downcut3(void *labels, void *intensity, void *dist,
  * - `dist_open_float()` / `dist_dilate_float()` for distance morphology
  * - `median3()` for masked local smoothing
  *
- * \param Yp0     (in/out) float PVE label image in [0..3]
- * \param dims    (in)     dimensions {nx, ny, nz}
- * \param vx_vol  (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param Yp0          (in/out) float PVE label image in [0..3]
+ * \param dims         (in)     dimensions {nx, ny, nz}
+ * \param vx_vol       (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param changed_map  (out)    optional float output map (1.0 changed, 0.0 unchanged); NULL to ignore
  */
-void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3])
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3], float *changed_map)
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     double vx_local[3] = {1.0, 1.0, 1.0};
+    float *Yp0_init = NULL;
     float *F;
     float *YwmA;
     float *YwmB;
@@ -1793,6 +1795,17 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         vx_local[0] = vx_vol[0];
         vx_local[1] = vx_vol[1];
         vx_local[2] = vx_vol[2];
+    }
+
+    if (changed_map)
+    {
+        Yp0_init = (float *)malloc((size_t)nvox * sizeof(float));
+        if (!Yp0_init)
+        {
+            fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve_float\n");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(Yp0_init, Yp0, (size_t)nvox * sizeof(float));
     }
 
     F = (float *)malloc((size_t)nvox * sizeof(float));
@@ -1883,6 +1896,12 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         if (Ymsk[i])
             Yp0[i] = Yp0s[i];
 
+    if (changed_map)
+    {
+        for (i = 0; i < nvox; ++i)
+            changed_map[i] = (fabsf(Yp0[i] - Yp0_init[i]) > 1e-6f) ? 1.0f : 0.0f;
+    }
+
     free(F);
     free(YwmA);
     free(YwmB);
@@ -1890,6 +1909,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     free(Yd);
     free(Yp0s);
     free(Ymsk);
+    free(Yp0_init);
 }
 
 /**
@@ -1903,7 +1923,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
  * \param vx_vol    (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  * \param datatype  (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype)
+void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype, float *changed_map)
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     float *buffer;
@@ -1922,7 +1942,7 @@ void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int 
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    blood_vessel_correction_pve_float(buffer, dims, vx_vol);
+    blood_vessel_correction_pve_float(buffer, dims, vx_vol, changed_map);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
