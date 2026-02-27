@@ -1765,22 +1765,26 @@ void downcut3(void *labels, void *intensity, void *dist,
  * - `dist_open_float()` / `dist_dilate_float()` for distance morphology
  * - `median3()` for masked local smoothing
  *
- * \param Yp0          (in/out) float PVE label image in [0..3]
- * \param dims         (in)     dimensions {nx, ny, nz}
- * \param vx_vol       (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
- * \param changed_map  (out)    optional float output map (1.0 changed, 0.0 unchanged); NULL to ignore
+ * \param Yp0              (in/out) float PVE label image in [0..3]
+ * \param Ygmt             (in)     optional local gray-matter thickness map (NULL -> scalar replacement)
+ * \param dims             (in)     dimensions {nx, ny, nz}
+ * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param replace_val      (in)     scalar replacement value if Ygmt==NULL
+ * \param thickness_lower  (in)     lower GMT bound: GMT<=lower -> replace 2.0
+ * \param thickness_upper  (in)     upper GMT bound: GMT>=upper -> replace 1.0
  */
-void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3], float *changed_map)
+void blood_vessel_correction_pve_float(float *Yp0, float *Ygmt, int dims[3], double vx_vol[3],
+                                       float replace_val, float thickness_lower, float thickness_upper)
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     double vx_local[3] = {1.0, 1.0, 1.0};
-    float *Yp0_init = NULL;
     float *F;
     float *YwmA;
     float *YwmB;
     float *Ywm;
     float *Yd;
     float *Yp0s;
+    float replace_lower = 1.5, replace_upper = 2.0;
     unsigned char *Ymsk;
     int i;
 
@@ -1790,22 +1794,30 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         exit(EXIT_FAILURE);
     }
 
+    if (thickness_upper < thickness_lower)
+    {
+        float tmp = thickness_lower;
+        thickness_lower = thickness_upper;
+        thickness_upper = tmp;
+    }
+
+    if ((replace_val < 1.0) && (replace_val > 0.0))
+    {
+        fprintf(stdout, "Value to fill detected vessels should be >= 1.0. Set value to 1.0\n");
+        replace_val = 1.0;
+    }
+
+    if (replace_val > 2.5)
+    {
+        fprintf(stdout, "Value to fill detected vessels should be <= 2.5. Set value to 2.5\n");
+        replace_val = 2.5;
+    }
+
     if (vx_vol)
     {
         vx_local[0] = vx_vol[0];
         vx_local[1] = vx_vol[1];
         vx_local[2] = vx_vol[2];
-    }
-
-    if (changed_map)
-    {
-        Yp0_init = (float *)malloc((size_t)nvox * sizeof(float));
-        if (!Yp0_init)
-        {
-            fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve_float\n");
-            exit(EXIT_FAILURE);
-        }
-        memcpy(Yp0_init, Yp0, (size_t)nvox * sizeof(float));
     }
 
     F = (float *)malloc((size_t)nvox * sizeof(float));
@@ -1874,7 +1886,30 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
      */
     for (i = 0; i < nvox; ++i)
         if (Ymsk[i])
-            Yp0[i] = 2.0f;
+        {
+            float local_replace = replace_val;
+
+            if (Ygmt)
+            {
+                const float gmt = Ygmt[i];
+
+                if (isfinite(gmt))
+                {
+                    if (gmt <= thickness_lower)
+                        local_replace = replace_upper;
+                    else if (gmt >= thickness_upper)
+                        local_replace = replace_lower;
+                    else
+                    {
+                        float t = (gmt - thickness_lower) / (thickness_upper - thickness_lower);
+                        t *=  (replace_upper - replace_lower);
+                        local_replace = replace_upper - t;
+                    }
+                }
+            }
+
+            Yp0[i] = local_replace;
+        }
 
     /*
      * Ymsk = cat_vol_morph(Ymsk,'dd',1,vx) & Yp0>1.5
@@ -1884,7 +1919,30 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         Ywm[i] = (float)Ymsk[i];
     dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5);
     for (i = 0; i < nvox; ++i)
-        Ymsk[i] = (Ywm[i] > 0.0f && Yp0[i] > 1.5f) ? 1 : 0;
+    {
+        float local_replace = replace_val;
+
+        if (Ygmt)
+        {
+            const float gmt = Ygmt[i];
+
+            if (isfinite(gmt))
+            {
+                if (gmt <= thickness_lower)
+                    local_replace = replace_upper;
+                else if (gmt >= thickness_upper)
+                    local_replace = replace_lower;
+                else
+                {
+                    float t = (gmt - thickness_lower) / (thickness_upper - thickness_lower);
+                    t *=  (replace_upper - replace_lower);
+                    local_replace = replace_upper - t;
+                }
+            }
+        }
+
+        Ymsk[i] = (Ywm[i] > 0.0f && Yp0[i] > (local_replace - 0.5f)) ? 1 : 0;
+    }
 
     /*
      * Yp0s = cat_vol_median3(Yp0, Ymsk)
@@ -1896,12 +1954,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         if (Ymsk[i])
             Yp0[i] = Yp0s[i];
 
-    if (changed_map)
-    {
-        for (i = 0; i < nvox; ++i)
-            changed_map[i] = (fabsf(Yp0[i] - Yp0_init[i]) > 1e-6f) ? 1.0f : 0.0f;
-    }
-
     free(F);
     free(YwmA);
     free(YwmB);
@@ -1909,7 +1961,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     free(Yd);
     free(Yp0s);
     free(Ymsk);
-    free(Yp0_init);
 }
 
 /**
@@ -1918,15 +1969,21 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
  * Converts input PVE labels to float, runs `blood_vessel_correction_pve_float()`, and converts back
  * to the requested datatype.
  *
- * \param data      (in/out) PVE label volume data
- * \param dims      (in)     dimensions {nx, ny, nz}
- * \param vx_vol    (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
- * \param datatype  (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ * \param data             (in/out) PVE label volume data
+ * \param Ygmt             (in)     optional local gray-matter thickness map (NULL -> scalar replacement)
+ * \param dims             (in)     dimensions {nx, ny, nz}
+ * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param datatype         (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ * \param replace_val      (in)     scalar replacement value if Ygmt==NULL
+ * \param thickness_lower  (in)     lower GMT bound: GMT<=lower -> replace 2.0
+ * \param thickness_upper  (in)     upper GMT bound: GMT>=upper -> replace 1.0
  */
-void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype, float *changed_map)
+void blood_vessel_correction_pve(void *data, void *Ygmt, int dims[3], double vx_vol[3], int datatype,
+                                 float replace_val, float thickness_lower, float thickness_upper, int gmt_datatype)
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     float *buffer;
+    float *gmt_buffer = NULL;
 
     if (!data || !dims)
     {
@@ -1935,17 +1992,25 @@ void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int 
     }
 
     buffer = (float *)malloc((size_t)nvox * sizeof(float));
-    if (!buffer)
+    if (Ygmt)
+        gmt_buffer = (float *)malloc((size_t)nvox * sizeof(float));
+    if (!buffer || (Ygmt && !gmt_buffer))
     {
+        free(gmt_buffer);
         fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve\n");
         exit(EXIT_FAILURE);
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    blood_vessel_correction_pve_float(buffer, dims, vx_vol, changed_map);
+    if (Ygmt)
+        convert_input_type_float(Ygmt, gmt_buffer, nvox, gmt_datatype);
+
+    blood_vessel_correction_pve_float(buffer, gmt_buffer, dims, vx_vol, replace_val,
+                                      thickness_lower, thickness_upper);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
+    free(gmt_buffer);
 }
 
 /**
