@@ -1784,7 +1784,7 @@ void blood_vessel_correction_pve_float(float *Yp0, float *Ygmt, int dims[3], dou
     float *Ywm;
     float *Yd;
     float *Yp0s;
-    float replace_lower = 1.5, replace_upper = 2.0;
+    float replace_lower = 1.5, replace_upper = 2.0; /* GWM and WM */
     unsigned char *Ymsk;
     int i;
 
@@ -1884,9 +1884,13 @@ void blood_vessel_correction_pve_float(float *Yp0, float *Ygmt, int dims[3], dou
     /*
      * Yp0(Ymsk) = 2
      */
+    float count_msk = 0.0;
     for (i = 0; i < nvox; ++i)
+    {
         if (Ymsk[i])
         {
+            /* only count WM-voxels inside mask, since these are more likeky vessels */
+            if (Yp0[i] > 2.5) count_msk++;
             float local_replace = replace_val;
 
             if (Ygmt)
@@ -1910,6 +1914,7 @@ void blood_vessel_correction_pve_float(float *Yp0, float *Ygmt, int dims[3], dou
 
             Yp0[i] = local_replace;
         }
+    }
 
     /*
      * Ymsk = cat_vol_morph(Ymsk,'dd',1,vx) & Yp0>1.5
@@ -1917,7 +1922,9 @@ void blood_vessel_correction_pve_float(float *Yp0, float *Ygmt, int dims[3], dou
      */
     for (i = 0; i < nvox; ++i)
         Ywm[i] = (float)Ymsk[i];
-    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5);
+        
+    /* dilate more if more vessels were potentially found */
+    dist_dilate_float(Ywm, dims, vx_local, 20*SQR(100.0*count_msk/(float)nvox), 0.5);
     for (i = 0; i < nvox; ++i)
     {
         float local_replace = replace_val;
