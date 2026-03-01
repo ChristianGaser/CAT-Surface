@@ -24,13 +24,11 @@ int fast = 0;
 int verbose = 0;
 int n_avgs = 2;
 int n_median_filter = 2;
+int blood_vessel_correction = 1;
 double range = 0.45;
 double downsample = 0.0;
 double fill_thresh = 0.5;
 double correct_voxelsize = 0.5;
-double blood_vessel_correction = 1.5;
-double bvc_thickness_lower = 1.75;
-double bvc_thickness_upper = 3.0;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -40,19 +38,11 @@ static ArgvInfo argTable[] = {
     {"-fast", ARGV_CONSTANT, (char *)1, (char *)&fast,
      "Enable fast mode in order to get a very quick and rougher estimate of thickness only."},
 
-    {"-blood-vessel-correction", ARGV_FLOAT, (char *)1, (char *)&blood_vessel_correction,
-     "Apply blood-vessel correction and fill detected vessels with defined value.\n\
-     Value should be in the range 1.0 (CSF) to 2.5 (GWM). Meaningful values are \n\
-     1.5 (CGM) or 2.0 (GM). Use 0 to disable this correction."},
+    {"-blood-vessel-correction", ARGV_CONSTANT, (char *)1, (char *)&blood_vessel_correction,
+     "Enable blood-vessel correction before thickness estimation (0 disables, >0 enables)."},
 
-    {"-bvc", ARGV_FLOAT, (char *)1, (char *)&blood_vessel_correction,
+    {"-bvc", ARGV_CONSTANT, (char *)1, (char *)&blood_vessel_correction,
      "Alias for -blood-vessel-correction."},
-
-    {"-bvc-thickness-lower", ARGV_FLOAT, (char *)1, (char *)&bvc_thickness_lower,
-     "Lower GMT bound in mm for local blood-vessel replacement: GMT<=lower -> replace 2.0."},
-
-    {"-bvc-thickness-upper", ARGV_FLOAT, (char *)1, (char *)&bvc_thickness_upper,
-     "Upper GMT bound in mm for local blood-vessel replacement: GMT>=upper -> replace 1.0."},
 
     {"-n-avgs", ARGV_INT, (char *)1, (char *)&n_avgs,
      "Specify the number of averages for distance estimation. Used for averaging\n\
@@ -178,25 +168,6 @@ int main(int argc, char *argv[])
 #endif
     }
 
-    if ((blood_vessel_correction < 1.0) && (blood_vessel_correction > 0.0))
-    {
-        fprintf(stdout, "Value to fill detected vessels should be >= 1.0. Set value to 1.0\n");
-        blood_vessel_correction = 1.0;
-    }
-
-    if (blood_vessel_correction > 2.5)
-    {
-        fprintf(stdout, "Value to fill detected vessels should be <= 2.5. Set value to 2.5\n");
-        blood_vessel_correction = 2.5;
-    }
-
-    if (bvc_thickness_upper < bvc_thickness_lower)
-    {
-        const double tmp = bvc_thickness_lower;
-        bvc_thickness_lower = bvc_thickness_upper;
-        bvc_thickness_upper = tmp;
-    }
-
     /* read source image */
     nifti_image *src_ptr = read_nifti_float(infile, &src, 0);
     if (!src_ptr)
@@ -251,53 +222,11 @@ int main(int argc, char *argv[])
     n_avgs = (n_avgs < 1) ? 1 : n_avgs;
 
     /* Optional blood-vessel correction before any other operation */
-    if (blood_vessel_correction >= 1.0)
+    if (blood_vessel_correction > 0.0)
     {
-
-        /* Initialize distances for CSF and WM */
-        for (i = 0; i < nvox; i++)
-        {
-            dist_CSF[i] = 0.0;
-            dist_WM[i] = 0.0;
-        }
-
-        /* prepare map outside CSF and mask to obtain distance map for CSF */
-        for (i = 0; i < nvox; i++)
-        {
-            input[i] = (src[i] < CGM) ? 1.0f : 0.0f;
-            mask[i] = (src[i] < (GWM + range)) ? 1 : 0;
-        }
-
-        /* obtain CSF distance map */
-        euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < nvox; i++)
-            dist_CSF[i] += input[i];
-
-        /* prepare map outside WM and mask to obtain distance map for WN */
-        for (i = 0; i < nvox; i++)
-        {
-            input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
-            mask[i] = (src[i] > (CGM - range)) ? 1 : 0;
-        }
-
-        /* obtain WM distance map */
-        euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < nvox; i++)
-            dist_WM[i] += input[i];
-
-        /* we need the inverse of src: 4 - src */
-        for (i = 0; i < nvox; i++)
-            input[i] = roundf(4.0 - src[i]);
-
-        /* Then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
-        projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
-
         if (verbose)
             fprintf(stderr, "Apply blood-vessel correction on input PVE map.\n");
-        blood_vessel_correction_pve_float(src, GMT2, dims, voxelsize,
-                                          blood_vessel_correction,
-                                          (float)bvc_thickness_lower,
-                                          (float)bvc_thickness_upper);
+        blood_vessel_correction_pve_float(src, dims, voxelsize);
     }
 
     /* Initialize distances for CSF and WM */
