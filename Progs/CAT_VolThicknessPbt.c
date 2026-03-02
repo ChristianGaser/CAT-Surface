@@ -38,11 +38,11 @@ static ArgvInfo argTable[] = {
     {"-fast", ARGV_CONSTANT, (char *)1, (char *)&fast,
      "Enable fast mode in order to get a very quick and rougher estimate of thickness only."},
 
-    {"-blood-vessel-correction", ARGV_CONSTANT, (char *)1, (char *)&blood_vessel_correction,
+    {"-no-blood-vessel-correction", ARGV_CONSTANT, (char *)0, (char *)&blood_vessel_correction,
      "Enable blood-vessel correction before thickness estimation (0 disables, >0 enables)."},
 
-    {"-bvc", ARGV_CONSTANT, (char *)1, (char *)&blood_vessel_correction,
-     "Alias for -blood-vessel-correction."},
+    {"-no-bvc", ARGV_CONSTANT, (char *)0, (char *)&blood_vessel_correction,
+     "Enable blood-vessel correction before thickness estimation (0 disables, >0 enables)."},
 
     {"-n-avgs", ARGV_INT, (char *)1, (char *)&n_avgs,
      "Specify the number of averages for distance estimation. Used for averaging\n\
