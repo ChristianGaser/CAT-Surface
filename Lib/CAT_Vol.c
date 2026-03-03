@@ -1781,7 +1781,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     float *Ywm;
     float *Yd;
     float *Yp0s;
-    double *ringVals;
     float *Ynn;
     unsigned char *Ymsk;
     unsigned char *Yring;
@@ -1810,7 +1809,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     Ywm = (float *)malloc((size_t)nvox * sizeof(float));
     Yd = (float *)malloc((size_t)nvox * sizeof(float));
     Yp0s = (float *)malloc((size_t)nvox * sizeof(float));
-    ringVals = (double *)malloc((size_t)nvox * sizeof(double));
     Ynn = (float *)malloc((size_t)nvox * sizeof(float));
     Ymsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
     Yring = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
@@ -1819,7 +1817,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     fillMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
     Icon = (float *)malloc((size_t)nvox * sizeof(float));
 
-    if (!F || !YwmA || !YwmB || !Ywm || !Yd || !Yp0s || !ringVals || !Ynn ||
+    if (!F || !YwmA || !YwmB || !Ywm || !Yd || !Yp0s || !Ynn ||
         !Ymsk || !Yring || !Yfill || !nanMsk || !fillMsk || !Icon)
     {
         free(F);
@@ -1828,7 +1826,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         free(Ywm);
         free(Yd);
         free(Yp0s);
-        free(ringVals);
         free(Ynn);
         free(Ymsk);
         free(Yring);
@@ -1862,8 +1859,9 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         YwmA[i] = (Yp0[i] > 2.5f) ? 1.0f : 0.0f;
         YwmB[i] = (Yp0[i] > 2.75f) ? 1.0f : 0.0f;
     }
+    double vx1[3] = {1.0, 1.0, 1.0};
     dist_open_float(YwmA, dims, vx_local, 2.0, 0.5);
-    dist_open_float(YwmB, dims, vx_local, 1.0, 0.5);
+    dist_open_float(YwmB, dims, vx1, 1.0, 0.5);
     keep_largest_cluster(YwmA, 0.5, dims, DT_FLOAT32, 0, 1, 18);
     keep_largest_cluster(YwmB, 0.5, dims, DT_FLOAT32, 0, 1, 18);
     for (i = 0; i < nvox; ++i)
@@ -1877,8 +1875,14 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     /*
      * Ymsk = Yd > 1000000 & Yp0 > 2
      */
+    float th_wm = 2.1f;
     for (i = 0; i < nvox; ++i)
-        Ymsk[i] = (Yd[i] > 1000000.0f && Yp0[i] > 2.25f) ? 1 : 0;
+    {
+        Ywm[i] = Yp0[i] > th_wm;
+        Ymsk[i] = (Yd[i] > 1000000.0f && Ywm[i] > 0) ? 1 : 0;
+        if (Ymsk[i])
+            Yp0[i] = NAN;
+    }
 
     /*
      * Ring-constrained inpainting.
@@ -1887,6 +1891,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
      * 3) fallback nearest-value propagation for remaining NaNs
      * 4) class-aware clamp inside vessel mask using 75th percentile of ring values
      */
+
     for (i = 0; i < nvox; ++i)
         if (Ymsk[i])
             Yp0[i] = NAN;
@@ -1967,8 +1972,47 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
                 }
             }
 
-            memcpy(Yp0s, Yp0, (size_t)nvox * sizeof(float));
-            median3(Yp0s, fillMsk, dims, 1, DT_FLOAT32);
+            /*
+             * Compute mean of non-NaN 26-connected neighbours for each
+             * fillMsk voxel.  We cannot use median3() here because
+             * localstat_double() unconditionally skips NaN centre voxels,
+             * so the median filter never writes a replacement value.
+             * Additionally, the mask parameter would exclude the valid
+             * (non-NaN) neighbours whose mask bit is 0.
+             */
+
+            for (i = 0; i < nvox; ++i)
+            {
+                if (!fillMsk[i])
+                    continue;
+                {
+                    const int ix = i % nx;
+                    const int iy = (i / nx) % ny;
+                    const int iz = i / xy;
+                    float sum = 0.0f;
+                    int cnt = 0;
+                    int zz, yy, xx;
+                    const int zmin_l = (iz > 0) ? (iz - 1) : iz;
+                    const int zmax_l = (iz + 1 < nz) ? (iz + 1) : iz;
+                    const int ymin_l = (iy > 0) ? (iy - 1) : iy;
+                    const int ymax_l = (iy + 1 < ny) ? (iy + 1) : iy;
+                    const int xmin_l = (ix > 0) ? (ix - 1) : ix;
+                    const int xmax_l = (ix + 1 < nx) ? (ix + 1) : ix;
+
+                    for (zz = zmin_l; zz <= zmax_l; ++zz)
+                        for (yy = ymin_l; yy <= ymax_l; ++yy)
+                            for (xx = xmin_l; xx <= xmax_l; ++xx)
+                            {
+                                const int nidx = xx + yy * nx + zz * xy;
+                                if (!isnan(Yp0[nidx]))
+                                {
+                                    sum += Yp0[nidx];
+                                    cnt++;
+                                }
+                            }
+                    Yp0s[i] = (cnt > 0) ? (sum / (float)cnt) : NAN;
+                }
+            }
 
             for (i = 0; i < nvox; ++i)
             {
@@ -1987,6 +2031,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     }
 
     /* Fallback for remaining NaNs: nearest value from non-vessel support. */
+
     for (i = 0; i < nvox; ++i)
     {
         Ynn[i] = (!Ymsk[i] && !isnan(Yp0[i])) ? (Yp0[i] + 1.0f) : 0.0f;
@@ -2008,48 +2053,12 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         }
     }
 
-    /* Class-aware clamp inside vessel mask. */
-    {
-        int ringCount = 0;
-        float pveMaxVessel = 2.45f;
-        double threshold[2] = {0.0, 0.0};
-        double prctile[2] = {75.0, 75.0};
-
-        for (i = 0; i < nvox; ++i)
-        {
-            if (Yring[i] && !isnan(Yp0[i]))
-                ringVals[ringCount++] = (double)Yp0[i];
-        }
-
-        if (ringCount > 0)
-        {
-            get_prctile_double(ringVals, ringCount, threshold, prctile, 0);
-            pveMaxVessel = (float)threshold[0];
-            if (pveMaxVessel < 2.10f)
-                pveMaxVessel = 2.10f;
-            if (pveMaxVessel > 2.45f)
-                pveMaxVessel = 2.45f;
-        }
-
-        for (i = 0; i < nvox; ++i)
-        {
-            if (Ymsk[i])
-            {
-                if (Yp0[i] < 1.0f)
-                    Yp0[i] = 1.0f;
-                else if (Yp0[i] > pveMaxVessel)
-                    Yp0[i] = pveMaxVessel;
-            }
-        }
-    }
-
     free(F);
     free(YwmA);
     free(YwmB);
     free(Ywm);
     free(Yd);
     free(Yp0s);
-    free(ringVals);
     free(Ynn);
     free(Ymsk);
     free(Yring);
