@@ -103,17 +103,28 @@ int CAT_VolComputePbt(
     gyrus_mask = (float *)malloc(sizeof(float) * nvox);
     src_copy = (float *)malloc(sizeof(float) * nvox);
 
-    if (!mask || !input || !dist_CSF || !dist_WM || !GMT || !GMT1 || !GMT2 || !PPM || !gyrus_mask || !src_copy) {
-        if (mask) free(mask);
-        if (input) free(input);
-        if (dist_CSF) free(dist_CSF);
-        if (dist_WM) free(dist_WM);
-        if (GMT) free(GMT);
-        if (GMT1) free(GMT1);
-        if (GMT2) free(GMT2);
-        if (PPM) free(PPM);
-        if (gyrus_mask) free(gyrus_mask);
-        if (src_copy) free(src_copy);
+    if (!mask || !input || !dist_CSF || !dist_WM || !GMT || !GMT1 || !GMT2 || !PPM || !gyrus_mask || !src_copy)
+    {
+        if (mask)
+            free(mask);
+        if (input)
+            free(input);
+        if (dist_CSF)
+            free(dist_CSF);
+        if (dist_WM)
+            free(dist_WM);
+        if (GMT)
+            free(GMT);
+        if (GMT1)
+            free(GMT1);
+        if (GMT2)
+            free(GMT2);
+        if (PPM)
+            free(PPM);
+        if (gyrus_mask)
+            free(gyrus_mask);
+        if (src_copy)
+            free(src_copy);
         return -2;
     }
 
