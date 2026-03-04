@@ -208,13 +208,13 @@ void grey_dilate(void *data, int dims[3], int niter, int datatype);
 void grey_open(void *data, int dims[3], int niter, int datatype);
 void grey_close(void *data, int dims[3], int niter, int datatype);
 void dist_close(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
+void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
 void dist_open(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
+void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
 void dist_erode(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
+void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
 void dist_dilate(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th);
+void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
 /**
  * \brief Public API for subsample3.
  *

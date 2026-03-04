@@ -1860,8 +1860,8 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         YwmB[i] = (Yp0[i] > 2.75f) ? 1.0f : 0.0f;
     }
     double vx1[3] = {1.0, 1.0, 1.0};
-    dist_open_float(YwmA, dims, vx_local, 2.0, 0.5);
-    dist_open_float(YwmB, dims, vx1, 1.0, 0.5);
+    dist_open_float(YwmA, dims, vx_local, 2.0, 0.5, NULL);
+    dist_open_float(YwmB, dims, vx1, 1.0, 0.5, NULL);
     keep_largest_cluster(YwmA, 0.5, dims, DT_FLOAT32, 0, 1, 18);
     keep_largest_cluster(YwmB, 0.5, dims, DT_FLOAT32, 0, 1, 18);
     for (i = 0; i < nvox; ++i)
@@ -1898,7 +1898,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
 
     for (i = 0; i < nvox; ++i)
         Ywm[i] = (float)Ymsk[i];
-    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5);
+    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, NULL);
 
     for (i = 0; i < nvox; ++i)
     {
@@ -2235,8 +2235,13 @@ void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH)
  * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
  * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                            Voxels with mask==0 keep their original foreground/background
+ *                            classification and are excluded from the EDT sweep, which
+ *                            speeds up computation when most of the volume is irrelevant.
  */
-void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th,
+                      unsigned char *mask)
 {
     if (dist <= 0.0)
         return;
@@ -2260,13 +2265,16 @@ void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist,
         buffer[i] = (vol[i] > thr) ? 0.0f : 1.0f;
 
     /* Distance to background, then keep voxels farther than dist from background */
-    euclidean_distance(buffer, NULL, dims, voxelsize, 0);
-    for (i = 0; i < nvox; ++i)
-        buffer[i] = (buffer[i] > (float)dist) ? 1.0f : 0.0f;
+    euclidean_distance(buffer, mask, dims, voxelsize, 0);
 
-    /* Write back binary result */
+    /* Threshold EDT result; outside-mask voxels keep original classification */
     for (i = 0; i < nvox; ++i)
-        vol[i] = buffer[i];
+    {
+        if (mask && !mask[i])
+            vol[i] = (vol[i] > thr) ? 1.0f : 0.0f;
+        else
+            vol[i] = (buffer[i] > (float)dist) ? 1.0f : 0.0f;
+    }
 
     free(buffer);
 }
@@ -2300,7 +2308,7 @@ void dist_erode(void *data, int dims[3], double voxelsize[3], double dist, doubl
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    dist_erode_float(buffer, dims, voxelsize, dist, th);
+    dist_erode_float(buffer, dims, voxelsize, dist, th, NULL);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
@@ -2328,8 +2336,12 @@ void dist_erode(void *data, int dims[3], double voxelsize[3], double dist, doubl
  * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
  * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                            Voxels with mask==0 keep their original foreground/background
+ *                            classification and are excluded from the EDT sweep.
  */
-void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th,
+                       unsigned char *mask)
 {
     if (dist <= 0.0)
         return;
@@ -2358,6 +2370,24 @@ void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist
     float max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     const float thr = (float)(th * (double)max_vol);
 
+    /* Create padded mask when a ROI mask is provided */
+    unsigned char *padded_mask = NULL;
+    if (mask)
+    {
+        padded_mask = (unsigned char *)calloc((size_t)nvox2, sizeof(unsigned char));
+        if (!padded_mask)
+        {
+            free(buffer);
+            fprintf(stderr, "Memory allocation error in dist_dilate_float\n");
+            exit(EXIT_FAILURE);
+        }
+        for (z = 0; z < nz; ++z)
+            for (y = 0; y < ny; ++y)
+                for (x = 0; x < nx; ++x)
+                    padded_mask[sub2ind(x + band, y + band, z + band, dims2)] =
+                        mask[sub2ind(x, y, z, dims)];
+    }
+
     /* Embed thresholded mask into padded buffer at offset 'band' */
     for (z = 0; z < nz; ++z)
         for (y = 0; y < ny; ++y)
@@ -2369,21 +2399,25 @@ void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist
             }
 
     /* Distance to foreground, then keep voxels within dist of the original mask */
-    euclidean_distance(buffer, NULL, dims2, voxelsize, 0);
+    euclidean_distance(buffer, padded_mask, dims2, voxelsize, 0);
     for (i = 0; i < nvox2; ++i)
         buffer[i] = (buffer[i] <= (float)dist) ? 1.0f : 0.0f;
 
-    /* Copy center region back to 'vol' */
+    /* Copy center region back; outside-mask voxels keep original classification */
     for (z = 0; z < nz; ++z)
         for (y = 0; y < ny; ++y)
             for (x = 0; x < nx; ++x)
             {
                 int src = sub2ind(x + band, y + band, z + band, dims2);
                 int dst = sub2ind(x, y, z, dims);
-                vol[dst] = buffer[src];
+                if (mask && !mask[dst])
+                    vol[dst] = (vol[dst] > thr) ? 1.0f : 0.0f;
+                else
+                    vol[dst] = buffer[src];
             }
 
     free(buffer);
+    free(padded_mask);
 }
 
 /**
@@ -2416,7 +2450,7 @@ void dist_dilate(void *data, int dims[3], double voxelsize[3], double dist, doub
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    dist_dilate_float(buffer, dims, voxelsize, dist, th);
+    dist_dilate_float(buffer, dims, voxelsize, dist, th, NULL);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
@@ -2438,8 +2472,12 @@ void dist_dilate(void *data, int dims[3], double voxelsize[3], double dist, doub
  * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
  * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                            When provided, the close is decomposed into a masked
+ *                            dilation followed by a masked erosion for efficiency.
  */
-void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th,
+                      unsigned char *mask)
 {
     float *buffer;
     int i, x, y, z, j, band, dims2[3];
@@ -2448,6 +2486,14 @@ void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist,
 
     if (dist <= 0.0)
         return;
+
+    /* With a mask, decompose into masked dilate + erode for correct handling */
+    if (mask)
+    {
+        dist_dilate_float(vol, dims, voxelsize, dist, th, mask);
+        dist_erode_float(vol, dims, voxelsize, dist, 0.5, mask);
+        return;
+    }
 
     max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
@@ -2520,7 +2566,7 @@ void dist_close(void *data, int dims[3], double voxelsize[3], double dist, doubl
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    dist_close_float(buffer, dims, voxelsize, dist, th);
+    dist_close_float(buffer, dims, voxelsize, dist, th, NULL);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
@@ -2542,8 +2588,12 @@ void dist_close(void *data, int dims[3], double voxelsize[3], double dist, doubl
  * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
  * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                            When provided, the open is decomposed into a masked
+ *                            erosion followed by a masked dilation for efficiency.
  */
-void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th)
+void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th,
+                     unsigned char *mask)
 {
     float *buffer;
     int i, j;
@@ -2552,6 +2602,14 @@ void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, 
 
     if (dist <= 0.0)
         return;
+
+    /* With a mask, decompose into masked erode + dilate for correct handling */
+    if (mask)
+    {
+        dist_erode_float(vol, dims, voxelsize, dist, th, mask);
+        dist_dilate_float(vol, dims, voxelsize, dist, 0.5, mask);
+        return;
+    }
 
     max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
@@ -2612,7 +2670,7 @@ void dist_open(void *data, int dims[3], double voxelsize[3], double dist, double
     }
 
     convert_input_type_float(data, buffer, nvox, datatype);
-    dist_open_float(buffer, dims, voxelsize, dist, th);
+    dist_open_float(buffer, dims, voxelsize, dist, th, NULL);
     convert_output_type_float(data, buffer, nvox, datatype);
 
     free(buffer);
