@@ -1320,10 +1320,10 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
      * self-entry at position 0 which is never selected.
      *   dx,dy,dz give the coordinate offsets; nd the step cost.
      */
-    static const int dx[14] = {0, -1, 1, 0, -1, 1, 0, -1, 1, 0, -1, 1, 0, -1};
-    static const int dy[14] = {0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1};
+    static const int dx[14] = {0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1};
+    static const int dy[14] = {0, 0, 1, 1, 1, 0, 0, 0, -1, -1, -1, 1, 1, 1};
     /* dz: first 5 are dz=0 (same slice), next 9 are dz=1 (previous slice) */
-    static const int dz[14] = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+    static const int dz[14] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     /* Neighbour step distances -- filled in below from voxel sizes */
     const float nd[14] = {0.0, s1, s12, s2, s12, s13, s3, s13, s123, s23, s123, s123, s23, s123};
 
