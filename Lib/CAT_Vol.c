@@ -1270,30 +1270,38 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
 /**
  * \brief Public API for euclidean_distance.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * For every voxel whose input value is <= 0 or NaN the function computes the
+ * Euclidean distance (in physical units given by `voxelsize`) to the nearest
+ * positive-valued voxel. An optional binary mask `M` restricts the computation:
+ * voxels with M[i]==0 are left at distance 0 and are never updated.
  *
- * \param V (in/out) Parameter of euclidean_distance.
- * \param M (in/out) Parameter of euclidean_distance.
- * \param dims (in/out) Parameter of euclidean_distance.
- * \param voxelsize (in/out) Parameter of euclidean_distance.
- * \param replace (in/out) Parameter of euclidean_distance.
- * \return void (no return value).
+ * When `replace > 0` the output is not the distance field but a
+ * nearest-neighbour interpolation: every masked voxel receives the *value* of
+ * the closest positive source voxel.
+ *
+ * Algorithm: two-pass (forward + backward) chamfer propagation over a
+ * 14-connected half-neighbourhood. Coordinates are tracked explicitly
+ * (x/y/z loops) to avoid per-voxel ind2sub/sub2ind overhead and to allow
+ * inlined boundary checks without costly abs() comparisons.
+ *
+ * \param V         (in/out) float volume; positive values are distance sources
+ * \param M         (in)     optional uint8 mask (same dims); NULL = all-ones
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing; NULL -> {1,1,1}
+ * \param replace   (in)     0 = output distances; >0 = output nearest values
  */
 void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
 {
-
-    /* main information about input data (size, dimensions, ...) */
-    const int nvox = dims[0] * dims[1] * dims[2];
-    const int x = dims[0];
-    const int y = dims[1];
-    const int xy = x * y;
+    const int nx = dims[0];
+    const int ny = dims[1];
+    const int nz = dims[2];
+    const int nxy = nx * ny;
+    const int nvox = nxy * nz;
 
     float s1, s2, s3;
-
-    // use default voxel size of 1mm to get distance in voxel-space
     if (!voxelsize)
     {
-        s1 = s2 = s3 = 1.0;
+        s1 = s2 = s3 = 1.0f;
     }
     else
     {
@@ -1301,135 +1309,178 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
         s2 = (float)fabs(voxelsize[1]);
         s3 = (float)fabs(voxelsize[2]);
     }
-    const float s12 = (float)sqrt((double)s1 * s1 + s2 * s2);    /* xy - voxel size */
-    const float s13 = (float)sqrt((double)s1 * s1 + s3 * s3);    /* xz - voxel size */
-    const float s23 = (float)sqrt((double)s2 * s2 + s3 * s3);    /* yz - voxel size */
-    const float s123 = (float)sqrt((double)s12 * s12 + s3 * s3); /* xyz - voxel size */
+    const float s12 = sqrtf(s1 * s1 + s2 * s2);
+    const float s13 = sqrtf(s1 * s1 + s3 * s3);
+    const float s23 = sqrtf(s2 * s2 + s3 * s3);
+    const float s123 = sqrtf(s1 * s1 + s2 * s2 + s3 * s3);
 
-    /* indices of the neighbour Ni (index distance) and euclidean distance NW */
-    const int NI[14] = {0, -1, -x + 1, -x, -x - 1, -xy + 1, -xy, -xy - 1, -xy + x + 1, -xy + x, -xy + x - 1, -xy - x + 1, -xy - x, -xy - x - 1};
-    const float ND[14] = {0.0, s1, s12, s2, s12, s13, s3, s13, s123, s23, s123, s123, s23, s123};
-    enum
-    {
-        sN = (int)(sizeof(NI) / sizeof(NI[0]))
-    }; // Number of neighbours
-    float DN[sN];
-    float DNm = FLT_MAX;
-    int i, n, ni, DNi, init_M = 0;
-    int u, v, w, nu, nv, nw;
+    /*
+     * Half-neighbourhood: 13 neighbours with index < current in the
+     * forward scan (and > current in the backward scan), plus the
+     * self-entry at position 0 which is never selected.
+     *   dx,dy,dz give the coordinate offsets; nd the step cost.
+     */
+    static const int dx[14] = {0, -1, 1, 0, -1, 1, 0, -1, 1, 0, -1, 1, 0, -1};
+    static const int dy[14] = {0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1};
+    /* dz: first 5 are dz=0 (same slice), next 9 are dz=1 (previous slice) */
+    static const int dz[14] = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1};
+    /* Neighbour step distances -- filled in below from voxel sizes */
+    const float nd[14] = {0.0, s1, s12, s2, s12, s13, s3, s13, s123, s23, s123, s123, s23, s123};
 
-    /* data */
-    float *D, *buffer;
+    float *D;
+    float *buffer = NULL;
     unsigned int *I;
+    int init_M = 0;
+    int i;
 
-    I = (unsigned int *)malloc(sizeof(unsigned int) * nvox);
     D = (float *)malloc(sizeof(float) * nvox);
-
-    /* save original input in buffer if we want to replace values */
+    I = (unsigned int *)malloc(sizeof(unsigned int) * nvox);
     if (replace > 0)
     {
         buffer = (float *)malloc(sizeof(float) * nvox);
-        memcpy(buffer, V, nvox * sizeof(float));
+        if (buffer)
+            memcpy(buffer, V, nvox * sizeof(float));
     }
-
     if (!D || !I || ((replace > 0) && !buffer))
     {
-        fprintf(stderr, "Memory allocation error\n");
+        fprintf(stderr, "Memory allocation error in euclidean_distance\n");
         exit(EXIT_FAILURE);
     }
 
-    /* Initialize mask with ones if not defined */
     if (!M)
     {
         M = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
         if (!M)
         {
-            fprintf(stderr, "Memory allocation error\n");
+            fprintf(stderr, "Memory allocation error in euclidean_distance\n");
             exit(EXIT_FAILURE);
         }
         init_M = 1;
-        for (i = 0; i < nvox; i++)
-            M[i] = 1;
+        memset(M, 1, (size_t)nvox);
     }
 
-    /* initialisation of D and I */
+    /* Initialise D (distance) and I (source index) */
     for (i = 0; i < nvox; i++)
     {
-        /* check for zero or small values that should be filled */
-        if ((V[i] <= 0.000001f) || isnan(V[i]))
+        if (V[i] <= 0.000001f || isnan(V[i]))
             D[i] = FLT_MAX;
         else
-            D[i] = 0.0;
+            D[i] = 0.0f;
         I[i] = (unsigned int)i;
     }
 
-    /* forward direction that consider all points smaller than i */
-    for (i = 0; i < nvox; i++)
+    /* ---- Forward pass (increasing linear index) ---- */
     {
-        if ((D[i] > 0) && (M[i] > 0))
+        int x, y, z;
+        for (z = 0; z < nz; ++z)
         {
-            ind2sub(i, &u, &v, &w, xy, x);
-
-            /* read neighbour values */
-            for (n = 0; n < sN; n++)
+            for (y = 0; y < ny; ++y)
             {
-                ni = i + NI[n];
-                ind2sub(ni, &nu, &nv, &nw, xy, x);
-                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
-                    ni = i;
-                DN[n] = D[ni] + ND[n];
-            }
+                for (x = 0; x < nx; ++x)
+                {
+                    const int idx = x + y * nx + z * nxy;
+                    if (D[idx] == 0.0f || M[idx] == 0)
+                        continue;
 
-            /* find minimum distance within the neighbourhood */
-            pmin(DN, sN, &DNm, &DNi);
+                    float bestD = D[idx];
+                    int bestN = 0;
+                    int n;
 
-            /* update values */
-            if (DNi > 0)
-            {
-                I[i] = (unsigned int)I[i + NI[DNi]];
-                D[i] = DNm;
-                ind2sub((int)I[i], &nu, &nv, &nw, xy, x);
-                D[i] = (float)sqrt(pow((double)(u - nu) * s1, 2) + pow((double)(v - nv) * s2, 2) + pow((double)(w - nw) * s3, 2));
+                    for (n = 1; n < 14; ++n)
+                    {
+                        const int nx2 = x - dx[n];
+                        const int ny2 = y - dy[n];
+                        const int nz2 = z - dz[n];
+                        if (nx2 < 0 || nx2 >= nx ||
+                            ny2 < 0 || ny2 >= ny ||
+                            nz2 < 0 || nz2 >= nz)
+                            continue;
+                        const int ni = nx2 + ny2 * nx + nz2 * nxy;
+                        const float cand = D[ni] + nd[n];
+                        if (cand < bestD)
+                        {
+                            bestD = cand;
+                            bestN = n;
+                        }
+                    }
+
+                    if (bestN > 0)
+                    {
+                        const int ni = (x - dx[bestN]) + (y - dy[bestN]) * nx + (z - dz[bestN]) * nxy;
+                        I[idx] = I[ni];
+                        /* Exact Euclidean distance from source voxel */
+                        const int si = (int)I[idx];
+                        const int sx2 = si % nx;
+                        const int sy2 = (si / nx) % ny;
+                        const int sz2 = si / nxy;
+                        const float ddx = (float)(x - sx2) * s1;
+                        const float ddy = (float)(y - sy2) * s2;
+                        const float ddz = (float)(z - sz2) * s3;
+                        D[idx] = sqrtf(ddx * ddx + ddy * ddy + ddz * ddz);
+                    }
+                }
             }
         }
     }
 
-    /* backward direction that consider all points larger than i */
-    for (i = nvox - 1; i >= 0; i--)
+    /* ---- Backward pass (decreasing linear index) ---- */
     {
-        if ((D[i] > 0) && (M[i] > 0))
+        int x, y, z;
+        for (z = nz - 1; z >= 0; --z)
         {
-            ind2sub(i, &u, &v, &w, xy, x);
-
-            /* read neighbour values */
-            for (n = 0; n < sN; n++)
+            for (y = ny - 1; y >= 0; --y)
             {
-                ni = i - NI[n];
-                ind2sub(ni, &nu, &nv, &nw, xy, x);
-                if ((ni < 0) || (ni >= nvox) || (abs(nu - u) > 1) || (abs(nv - v) > 1) || (abs(nw - w) > 1))
-                    ni = i;
-                DN[n] = D[ni] + ND[n];
-            }
+                for (x = nx - 1; x >= 0; --x)
+                {
+                    const int idx = x + y * nx + z * nxy;
+                    if (D[idx] == 0.0f || M[idx] == 0)
+                        continue;
 
-            /* find minimum distance within the neighbourhood */
-            pmin(DN, sN, &DNm, &DNi);
+                    float bestD = D[idx];
+                    int bestN = 0;
+                    int n;
 
-            /* update values */
-            if (DNi > 0)
-            {
-                I[i] = (unsigned int)I[i - NI[DNi]];
-                D[i] = DNm;
-                ind2sub((int)I[i], &nu, &nv, &nw, xy, x);
-                D[i] = (float)sqrt(pow((double)(u - nu) * s1, 2) + pow((double)(v - nv) * s2, 2) + pow((double)(w - nw) * s3, 2));
+                    for (n = 1; n < 14; ++n)
+                    {
+                        /* Reverse direction: add offsets instead of subtracting */
+                        const int nx2 = x + dx[n];
+                        const int ny2 = y + dy[n];
+                        const int nz2 = z + dz[n];
+                        if (nx2 < 0 || nx2 >= nx ||
+                            ny2 < 0 || ny2 >= ny ||
+                            nz2 < 0 || nz2 >= nz)
+                            continue;
+                        const int ni = nx2 + ny2 * nx + nz2 * nxy;
+                        const float cand = D[ni] + nd[n];
+                        if (cand < bestD)
+                        {
+                            bestD = cand;
+                            bestN = n;
+                        }
+                    }
+
+                    if (bestN > 0)
+                    {
+                        const int ni = (x + dx[bestN]) + (y + dy[bestN]) * nx + (z + dz[bestN]) * nxy;
+                        I[idx] = I[ni];
+                        const int si = (int)I[idx];
+                        const int sx2 = si % nx;
+                        const int sy2 = (si / nx) % ny;
+                        const int sz2 = si / nxy;
+                        const float ddx = (float)(x - sx2) * s1;
+                        const float ddy = (float)(y - sy2) * s2;
+                        const float ddz = (float)(z - sz2) * s3;
+                        D[idx] = sqrtf(ddx * ddx + ddy * ddy + ddz * ddz);
+                    }
+                }
             }
         }
     }
 
-    /* finally return output to original variable V */
+    /* Write output */
     for (i = 0; i < nvox; i++)
-        V[i] = ((M[i] == 0) || (D[i] == FLT_MAX)) ? 0.0 : D[i];
+        V[i] = (M[i] == 0 || D[i] == FLT_MAX) ? 0.0f : D[i];
 
-    /* finally replace values inside mask */
     if (replace > 0)
     {
         for (i = 0; i < nvox; ++i)
@@ -1787,6 +1838,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     unsigned char *Yfill;
     unsigned char *nanMsk;
     unsigned char *fillMsk;
+    unsigned char *brainMsk;
     float *Icon;
     int i;
 
@@ -1815,10 +1867,11 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     Yfill = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
     nanMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
     fillMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    brainMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
     Icon = (float *)malloc((size_t)nvox * sizeof(float));
 
     if (!F || !YwmA || !YwmB || !Ywm || !Yd || !Yp0s || !Ynn ||
-        !Ymsk || !Yring || !Yfill || !nanMsk || !fillMsk || !Icon)
+        !Ymsk || !Yring || !Yfill || !nanMsk || !fillMsk || !brainMsk || !Icon)
     {
         free(F);
         free(YwmA);
@@ -1832,6 +1885,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         free(Yfill);
         free(nanMsk);
         free(fillMsk);
+        free(brainMsk);
         free(Icon);
         fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve_float\n");
         exit(EXIT_FAILURE);
@@ -1851,6 +1905,17 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     }
 
     /*
+     * Build a brain ROI mask covering GM+WM (Yp0 > 1.0) dilated by 5 mm.
+     * This is passed to the distance-morphology functions so they can skip
+     * voxels deep in the background/CSF, giving a significant speedup.
+     */
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (Yp0[i] > 1.0f) ? 1.0f : 0.0f;
+    dist_dilate_float(Ywm, dims, vx_local, 5.0, 0.5, NULL);
+    for (i = 0; i < nvox; ++i)
+        brainMsk[i] = (Ywm[i] > 0.0f) ? 1 : 0;
+
+    /*
      * Ywm = morph(Yp0>2.5,'ldo',2,vx) | morph(Yp0>2.75,'ldo',1,vx)
      * Approximated with distance-based opening for logical masks.
      */
@@ -1860,8 +1925,8 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
         YwmB[i] = (Yp0[i] > 2.75f) ? 1.0f : 0.0f;
     }
     double vx1[3] = {1.0, 1.0, 1.0};
-    dist_open_float(YwmA, dims, vx_local, 2.0, 0.5, NULL);
-    dist_open_float(YwmB, dims, vx1, 1.0, 0.5, NULL);
+    dist_open_float(YwmA, dims, vx_local, 2.0, 0.5, brainMsk);
+    dist_open_float(YwmB, dims, vx1, 1.0, 0.5, brainMsk);
     keep_largest_cluster(YwmA, 0.5, dims, DT_FLOAT32, 0, 1, 18);
     keep_largest_cluster(YwmB, 0.5, dims, DT_FLOAT32, 0, 1, 18);
     for (i = 0; i < nvox; ++i)
@@ -1898,7 +1963,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
 
     for (i = 0; i < nvox; ++i)
         Ywm[i] = (float)Ymsk[i];
-    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, NULL);
+    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, brainMsk);
 
     for (i = 0; i < nvox; ++i)
     {
@@ -2065,6 +2130,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     free(Yfill);
     free(nanMsk);
     free(fillMsk);
+    free(brainMsk);
     free(Icon);
 }
 
