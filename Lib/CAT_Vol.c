@@ -1816,7 +1816,7 @@ void downcut3(void *labels, void *intensity, void *dist,
  * This implementation uses CAT-Surface library tools only:
  * - `downcut_float()` for constrained region growing
  * - `dist_open_float()` / `dist_dilate_float()` for distance morphology
- * - `median3()` for masked local smoothing/inpainting
+ * - `get_median_double()` for local inpainting statistics
  *
  * \param Yp0              (in/out) float PVE label image in [0..3]
  * \param dims             (in)     dimensions {nx, ny, nz}
@@ -2038,12 +2038,8 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
             }
 
             /*
-             * Compute mean of non-NaN 26-connected neighbours for each
-             * fillMsk voxel.  We cannot use median3() here because
-             * localstat_double() unconditionally skips NaN centre voxels,
-             * so the median filter never writes a replacement value.
-             * Additionally, the mask parameter would exclude the valid
-             * (non-NaN) neighbours whose mask bit is 0.
+             * Compute median of non-NaN
+             * 26-connected neighbours for each fillMsk voxel.
              */
 
             for (i = 0; i < nvox; ++i)
@@ -2054,7 +2050,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
                     const int ix = i % nx;
                     const int iy = (i / nx) % ny;
                     const int iz = i / xy;
-                    float sum = 0.0f;
+                    double vals[27];
                     int cnt = 0;
                     int zz, yy, xx;
                     const int zmin_l = (iz > 0) ? (iz - 1) : iz;
@@ -2071,11 +2067,14 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
                                 const int nidx = xx + yy * nx + zz * xy;
                                 if (!isnan(Yp0[nidx]))
                                 {
-                                    sum += Yp0[nidx];
-                                    cnt++;
+                                    vals[cnt++] = (double)Yp0[nidx];
                                 }
                             }
-                    Yp0s[i] = (cnt > 0) ? (sum / (float)cnt) : NAN;
+
+                    if (cnt > 0)
+                        Yp0s[i] = (float)get_median_double(vals, cnt, 0);
+                    else
+                        Yp0s[i] = NAN;
                 }
             }
 
@@ -2133,6 +2132,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     free(brainMsk);
     free(Icon);
 }
+
 
 /**
  * \brief Datatype-generic blood-vessel correction wrapper for PVE labels.
