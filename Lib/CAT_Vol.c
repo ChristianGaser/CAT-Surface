@@ -8,6 +8,7 @@
 
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
+#include "CAT_VolPbt.h"
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -1822,23 +1823,13 @@ void downcut3(void *labels, void *intensity, void *dist,
  * \param dims             (in)     dimensions {nx, ny, nz}
  * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  */
-void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3])
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3], 
+                                       double vx_vol[3])
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     double vx_local[3] = {1.0, 1.0, 1.0};
-    float *F;
-    float *YwmA;
-    float *YwmB;
-    float *Ywm;
-    float *Yd;
-    float *Yp0s;
-    float *Ynn;
-    unsigned char *Ymsk;
-    unsigned char *Yring;
-    unsigned char *Yfill;
-    unsigned char *nanMsk;
-    unsigned char *fillMsk;
-    unsigned char *brainMsk;
+    float *F, *YwmA, *YwmB, *Ywm, *Yd, *Yp0s, *Ynn, local_replace;
+    unsigned char *Ymsk, *Yring, *Yfill, *nanMsk, *fillMsk, *brainMsk;
     float *Icon;
     int i;
 
@@ -1938,17 +1929,30 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     downcut_float(Ywm, F, Yd, dims, -0.001, vx_local, NULL);
 
     /*
-     * Ymsk = Yd > 1000000 & Yp0 > 2
+     * Ymsk = Yd > 1000000 & Yp0 > 2.1
      */
     float th_wm = 2.1f;
     for (i = 0; i < nvox; ++i)
     {
         Ywm[i] = Yp0[i] > th_wm;
-        Ymsk[i] = (Yd[i] > 1000000.0f && Ywm[i] > 0) ? 1 : 0;
+        Ymsk[i] = (Yd[i] > 1000000.0f && Ywm[i]) ? 1 : 0;
+        if (Ymsk[i] > 0)
+            Ywm[i] = 0;
+    }
+    morph_close(Ywm, dims, 2, 0.5, DT_FLOAT32);
+    for (i = 0; i < nvox; ++i)
+    {
+        if (Ymsk[i])
+            Ymsk[i] = (Ywm[i]) ? 0 : Ymsk[i];
         if (Ymsk[i])
             Yp0[i] = NAN;
     }
-
+    
+    
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (float)Ymsk[i];
+    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, brainMsk);
+    
     /*
      * Ring-constrained inpainting.
      * 1) set vessel mask to NaN
@@ -1956,15 +1960,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
      * 3) fallback nearest-value propagation for remaining NaNs
      * 4) class-aware clamp inside vessel mask using 75th percentile of ring values
      */
-
-    for (i = 0; i < nvox; ++i)
-        if (Ymsk[i])
-            Yp0[i] = NAN;
-
-    for (i = 0; i < nvox; ++i)
-        Ywm[i] = (float)Ymsk[i];
-    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, brainMsk);
-
     for (i = 0; i < nvox; ++i)
     {
         const int is_nan = isnan(Yp0[i]) ? 1 : 0;
@@ -2092,28 +2087,28 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
             if (!changed)
                 break;
         }
-    }
-
-    /* Fallback for remaining NaNs: nearest value from non-vessel support. */
-
-    for (i = 0; i < nvox; ++i)
-    {
-        Ynn[i] = (!Ymsk[i] && !isnan(Yp0[i])) ? (Yp0[i] + 1.0f) : 0.0f;
-        Icon[i] = 0.0f;
-    }
-    {
+    
+        /* Fallback for remaining NaNs: nearest value from non-vessel support. */
+    
+        for (i = 0; i < nvox; ++i)
+        {
+            Ynn[i] = (!Ymsk[i] && !isnan(Yp0[i])) ? (Yp0[i] + 1.0f) : 0.0f;
+            Icon[i] = 0.0f;
+        }
+        
         double dd_nn[2] = {1.0, 0.0};
         downcut_float(Ynn, Icon, NULL, dims, 0.0, vx_local, dd_nn);
-    }
-    for (i = 0; i < nvox; ++i)
-    {
-        if (nanMsk[i])
+        
+        for (i = 0; i < nvox; ++i)
         {
-            if (Ynn[i] > 0.0f)
-                Yp0[i] = Ynn[i] - 1.0f;
-            else
-                Yp0[i] = 2.0f;
-            nanMsk[i] = 0;
+            if (nanMsk[i])
+            {
+                if (Ynn[i] > 0.0f)
+                    Yp0[i] = Ynn[i] - 1.0f;
+                else
+                    Yp0[i] = 2.0f;
+                nanMsk[i] = 0;
+            }
         }
     }
 
@@ -2133,7 +2128,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
     free(Icon);
 }
 
-
 /**
  * \brief Datatype-generic blood-vessel correction wrapper for PVE labels.
  *
@@ -2141,6 +2135,7 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]
  * to the requested datatype.
  *
  * \param data             (in/out) PVE label volume data
+ * \param Ygmt             (in)     optional local gray-matter thickness map (NULL -> scalar replacement)
  * \param dims             (in)     dimensions {nx, ny, nz}
  * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  * \param datatype         (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
