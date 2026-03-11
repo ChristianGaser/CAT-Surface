@@ -108,10 +108,13 @@ Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii ou
 \n\
 Options:\n\
     -verbose                   Enable verbose mode for detailed output during processing.\n\
-    -blood-vessel-correction   Apply blood-vessel correction before all other operations.\n\
+    -range <float>             Extend range for masking of euclidean distance estimation.\n\
+    -no-bvc                    Disable blood-vessel correction.\n\
+    -fast                      Enable fast mode in order to get a very quick and rougher estimate of thickness only.\n\
     -n-avgs <int>              Set the number of averages for distance estimation.\n\
     -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
+    -median-filter <float>     Specify the number of iterations to apply a median filter.\n\
     -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
 \n\
 Example:\n\
@@ -123,12 +126,9 @@ Example:\n\
 int main(int argc, char *argv[])
 {
     char out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
-    char out_GMT1[1024], out_GMT2[1024];
-    int i, j, dims[3], dims_reduced[3], replace = 0;
+    int i, j, dims[3], dims_reduced[3];
     float *src;
-    float sum_dist, abs_dist;
-    double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope, add_value;
-    double threshold[2], prctile[2];
+    double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope;
 
     initialize_argument_processing(argc, argv);
 
@@ -142,11 +142,6 @@ int main(int argc, char *argv[])
     char *infile = argv[1];
 
     /* Determine output filenames based on input filename or command-line arguments */
-    if (argc == 8)
-    {
-        (void)sprintf(out_GMT1, "%s", argv[6]);
-        (void)sprintf(out_GMT2, "%s", argv[7]);
-    }
     if (argc >= 6)
     {
         (void)sprintf(out_WMD, "%s", argv[4]);
@@ -190,20 +185,13 @@ int main(int argc, char *argv[])
     dims[0] = src_ptr->nx;
     dims[1] = src_ptr->ny;
     dims[2] = src_ptr->nz;
-    float mean_vx_size = (voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0;
-
-    unsigned char *mask = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
-    float *input = (float *)malloc(sizeof(float) * nvox);
     float *dist_CSF = (float *)malloc(sizeof(float) * nvox);
     float *dist_WM = (float *)malloc(sizeof(float) * nvox);
     float *GMT = (float *)malloc(sizeof(float) * nvox);
-    float *GMT1 = (float *)malloc(sizeof(float) * nvox);
-    float *GMT2 = (float *)malloc(sizeof(float) * nvox);
     float *PPM = (float *)malloc(sizeof(float) * nvox);
-    float *gyrus_mask = (float *)malloc(sizeof(float) * nvox);
 
     /* check for memory faults */
-    if (!input || !mask || !dist_CSF || !dist_WM || !GMT || !GMT2 || !PPM)
+    if (!dist_CSF || !dist_WM || !GMT || !PPM)
     {
         fprintf(stderr, "Memory allocation error\n");
         exit(EXIT_FAILURE);
@@ -229,210 +217,24 @@ int main(int argc, char *argv[])
         blood_vessel_correction_pve_float(src, dims, voxelsize);
     }
 
-    /* Initialize distances for CSF and WM */
-    for (i = 0; i < nvox; i++)
+    CAT_PbtOptions opts;
+    CAT_PbtOptionsInit(&opts);
+    opts.n_avgs = n_avgs;
+    opts.n_median_filter = n_median_filter;
+    opts.range = range;
+    opts.fill_thresh = fill_thresh;
+    opts.correct_voxelsize = correct_voxelsize;
+    opts.fast = fast;
+    opts.verbose = verbose;
+
+    if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {
-        dist_CSF[i] = 0.0;
-        dist_WM[i] = 0.0;
+        fprintf(stderr, "Error computing projection-based thickness.\n");
+        exit(EXIT_FAILURE);
     }
-
-    /* Median-filtering of input with euclidean distance helps a bit */
-    localstat3(src, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
-
-    /* Process each average for distance estimation */
-    for (j = 0; j < n_avgs; j++)
-    {
-
-        /* estimate value for shifting the border to obtain a less noisy measure by averaging distances */
-        add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
-
-        /* prepare map outside CSF and mask to obtain distance map for CSF */
-        for (i = 0; i < nvox; i++)
-        {
-            input[i] = (src[i] < (CGM + add_value)) ? 1.0f : 0.0f;
-            mask[i] = (src[i] < (GWM + range)) ? 1 : 0;
-        }
-
-        /* obtain CSF distance map */
-        if (verbose && (j == 0))
-            fprintf(stderr, "Estimate CSF distance map.\n");
-        euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < nvox; i++)
-            dist_CSF[i] += input[i];
-
-        /* prepare map outside WM and mask to obtain distance map for WN */
-        for (i = 0; i < nvox; i++)
-        {
-            input[i] = (src[i] > (GWM + add_value)) ? 1.0f : 0.0f;
-            mask[i] = (src[i] > (CGM - range)) ? 1 : 0;
-        }
-
-        /* obtain WM distance map */
-        if (verbose && (j == 0))
-            fprintf(stderr, "Estimate WM distance map.\n");
-        euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < nvox; i++)
-            dist_WM[i] += input[i];
-    }
-
-    /* Calculate average distances if n_avgs > 1 */
-    if (n_avgs > 1)
-    {
-        for (i = 0; i < nvox; i++)
-        {
-            dist_CSF[i] /= (float)n_avgs;
-            dist_WM[i] /= (float)n_avgs;
-        }
-    }
-
-    /* Estimate cortical thickness (first using sulci measures */
-    if (verbose)
-        fprintf(stderr, "Estimate thickness map.\n");
-    for (i = 0; i < nvox; i++)
-        input[i] = roundf(src[i]);
-
-    projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
-
-    /* use both reconstruction of sulci as well as gyri and use minimum of both */
-    /* we need the inverse of src: 4 - src */
-    for (i = 0; i < nvox; i++)
-        input[i] = roundf(4.0 - src[i]);
-
-    /* Then reconstruct gyri by using the inverse of src and switching the WM and CSF distance */
-    projection_based_thickness(input, dist_CSF, dist_WM, GMT2, dims, voxelsize);
-
-    /* Use minimum/maximum to reduce issues with meninges */
-    for (i = 0; i < nvox; i++)
-    {
-        sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT1[i] = MIN(sum_dist, MAX(0.0, GMT1[i] - 0.125 * (GMT1[i] < sum_dist)));
-
-        /* Limit GMT2 to thick regions */
-        GMT2[i] = (GMT2[i] > 0.0) * MAX(GMT2[i], 1.75 / mean_vx_size);
-
-        GMT2[i] = MIN(sum_dist, MAX(0.0, GMT2[i] - 0.125 * (GMT2[i] < sum_dist)));
-    }
-
-    /* Approximate thickness values outside GM */
-    if (verbose)
-        fprintf(stderr, "Fill values using Euclidean distance approach\n");
-
-    euclidean_distance(GMT1, NULL, dims, NULL, 1);
-    euclidean_distance(GMT2, NULL, dims, NULL, 1);
-
-    /* Apply iterative median filter with 4 iterations on a 2 mm resampled image */
-    median_subsample3(GMT1, dims, voxelsize, 4, 2.0, DT_FLOAT32);
-    median_subsample3(GMT2, dims, voxelsize, 4, 2.0, DT_FLOAT32);
-
-    /* Use minimum of thickness measures */
-    for (i = 0; i < nvox; i++)
-        GMT[i] = MIN(GMT1[i], GMT2[i]);
-
-    for (i = 0; i < nvox; i++)
-        mask[i] = (GMT[i] > 1.0) ? 1 : 0;
-
-    median3(GMT, mask, dims, 3, DT_FLOAT32);
-
-    /* Re-estimate CSF distance using corrected GM thickness */
-    for (i = 0; i < nvox; i++)
-    {
-        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
-            dist_CSF[i] = MIN(dist_CSF[i], GMT[i] - dist_WM[i]);
-    }
-    clip_data(dist_CSF, nvox, 0.0, 1E15, DT_FLOAT32);
-
-    for (i = 0; i < nvox; i++)
-        mask[i] = (src[i] > CGM && src[i] < GWM) ? 0 : 1;
-
-    /* Initialize and estimate percentage position map (PPM) */
-    for (i = 0; i < nvox; i++)
-        PPM[i] = (src[i] >= GWM) ? 1.0f : 0.0f;
-
-    /* Estimate percentage position map (PPM)
-       We use a smooth map that indicates gyri and sulci to mix the separate
-       estimates of PPM for gyri and sulci */
-    if (verbose)
-        fprintf(stderr, "Estimate percentage position map.\n");
-    smooth_gyri_mask(src, gyrus_mask, dims, voxelsize, CGM, 8.0);
-    for (i = 0; i < nvox; i++)
-    {
-        if ((src[i] > CGM) && (src[i] < GWM) && (GMT[i] > 1e-15))
-        {
-            float PPM_sulci = MAX(0.0, GMT[i] - dist_WM[i]) / GMT[i];
-            float PPM_gyri = MAX(0.0, GMT1[i] - dist_WM[i]) / GMT1[i];
-            PPM[i] = gyrus_mask[i] * PPM_sulci + (1.0 - gyrus_mask[i]) * PPM_gyri;
-        }
-    }
-    clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
-
-    /* Fill remaining holes with ones that may otherwise cause topology artefacts */
-    if (fill_thresh > 0.0)
-        fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
-
-    /* 2x Median-filtering of PPM with euclidean distance */
-    if (!fast)
-        localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
-
-    /* Apply voxel size correction */
-    for (i = 0; i < nvox; i++)
-    {
-        GMT[i] += correct_voxelsize;
-        GMT[i] *= mean_vx_size;
-    }
-
-    /* Preprocessing with Median Filter:
-       - Apply an iterative median filter to areas where the gradient of
-         the thresholded image indicates larger clusters.
-       - Use a weighted average of the original and median filtered images.
-       - Weighting is estimated using gradient of the input image and.
-         morphological operations to find larger clusters */
-    if (n_median_filter)
-    {
-        float *vol_smoothed = (float *)malloc(sizeof(float) * nvox);
-
-        for (i = 0; i < nvox; i++)
-            vol_smoothed[i] = PPM[i];
-
-        s[0] = s[1] = s[2] = 4.0;
-        smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
-
-        for (i = 0; i < nvox; i++)
-            vol_smoothed[i] = PPM[i] - vol_smoothed[i];
-
-        prctile[0] = 0.1;
-        prctile[1] = 99.0;
-        get_prctile(vol_smoothed, dims[0] * dims[1] * dims[2], threshold, prctile, 1, DT_FLOAT32);
-
-        /* Threshold the difference image */
-        for (i = 0; i < nvox; i++)
-            vol_smoothed[i] = ((vol_smoothed[i] > threshold[1]) && (GMT[i] > 1.5)) ? 1.0 : 0.0;
-
-        /* Apply morphological operations to find and slightly increase
-           regions with larger clusters */
-        morph_close(vol_smoothed, dims, 1, 0.5, DT_FLOAT32);
-        morph_open(vol_smoothed, dims, 1, 0.0, 0, DT_FLOAT32);
-        morph_dilate(vol_smoothed, dims, 3, 0.0, DT_FLOAT32);
-
-        /* Smooth the gradient image to later apply weighted average */
-        s[0] = s[1] = s[2] = 3.0;
-        smooth3(vol_smoothed, dims, voxelsize, s, 0, DT_FLOAT32);
-
-        for (i = 0; i < nvox; i++)
-            input[i] = PPM[i];
-
-        /* Apply iterative median filter with Euclidean distance */
-        localstat3(input, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_FLOAT32);
-
-        /* Calculate weighted average of filtered and original input */
-        for (i = 0; i < nvox; i++)
-            PPM[i] = (1.0 - vol_smoothed[i]) * PPM[i] + vol_smoothed[i] * input[i];
-
-        free(vol_smoothed);
-    }
-
-    clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
 
     /* Downsample images */
+    slope = 1.0;
     if (downsample > 0.0)
     {
 
@@ -463,7 +265,6 @@ int main(int argc, char *argv[])
         smooth3(PPM, dims, voxelsize, s, 0, DT_FLOAT32);
 
         /* Save GMT and PPM image */
-        slope = 1.0;
         float *vol_reduced = (float *)malloc(sizeof(float) * out_ptr_reduced->nvox);
 
         subsample3(GMT, vol_reduced, dims, dims_reduced, DT_FLOAT32);
@@ -493,32 +294,14 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
     }
 
-    if (argc == 8)
-    {
-        for (i = 0; i < nvox; i++)
-            mask[i] = (GMT1[i] > 1.0) ? 1 : 0;
-        median3(GMT1, mask, dims, 3, DT_FLOAT32);
-        median3(GMT2, mask, dims, 3, DT_FLOAT32);
-        for (i = 0; i < nvox; i++)
-        {
-            GMT1[i] *= mean_vx_size;
-            GMT2[i] *= mean_vx_size;
-        }
-        if (!write_nifti_float(out_GMT1, GMT1, DT_FLOAT32, slope, dims, voxelsize, out_ptr))
-            exit(EXIT_FAILURE);
-        if (!write_nifti_float(out_GMT2, GMT2, DT_FLOAT32, slope, dims, voxelsize, out_ptr))
-            exit(EXIT_FAILURE);
-    }
-
-    free(mask);
     free(dist_CSF);
     free(dist_WM);
     free(GMT);
-    free(GMT1);
-    free(GMT2);
     free(PPM);
-    free(input);
-    free(gyrus_mask);
+    free(src);
+    nifti_image_free(src_ptr);
+    nifti_image_free(out_ptr);
+    nifti_image_free(out_ptr_reduced);
 
     return (EXIT_SUCCESS);
 }

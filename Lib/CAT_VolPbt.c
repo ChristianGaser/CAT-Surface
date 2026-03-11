@@ -196,6 +196,8 @@ int CAT_VolComputePbt(
     {
         sum_dist = dist_WM[i] + dist_CSF[i];
         GMT1[i] = fminf(sum_dist, fmaxf(0.0f, GMT1[i] - 0.125f * (GMT1[i] < sum_dist)));
+
+        /* Limit GMT2 to thick regions */
         GMT2[i] = (GMT2[i] > 0.0f) * fmaxf(GMT2[i], 1.75f / mean_vx_size);
         GMT2[i] = fminf(sum_dist, fmaxf(0.0f, GMT2[i] - 0.125f * (GMT2[i] < sum_dist)));
     }
