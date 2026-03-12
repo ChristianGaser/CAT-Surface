@@ -151,24 +151,21 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
         for (j = 0; j < n_beta; j++)
             proj += G[i][j] * beta[j];
 
-        if (slope != 0.0)
-        {
-            double signed_feature;
+        double signed_feature;
 
-            signed_feature = (orig_thickness[i] - mean_thickness) / std_thickness;
+        signed_feature = (orig_thickness[i] - mean_thickness) / std_thickness;
 
-            /*
-             * Bound the weighting response to avoid extreme correction strength
-             * while preserving directionality (larger feature -> larger weight).
-             */
-            if (mean_curvatures[i] < 0)
-                w = 0.0;
-            else
-                w = 1.0 + fabs(slope) * tanh(signed_feature);
+        /*
+         * Bound the weighting response to avoid extreme correction strength
+         * while preserving directionality (larger feature -> larger weight).
+         */
+        if (mean_curvatures[i] < 0)
+            w = 0.0;
+        else
+            w = 1.0 + slope * tanh(signed_feature);
 
-            if (!isfinite(w) || w < 0.0)
-                w = 0.0;
-        }
+        if (!isfinite(w) || w < 0.0)
+            w = 0.0;
 
         thickness[i] -= w * proj;
     }
