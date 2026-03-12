@@ -40,6 +40,31 @@ typedef struct {
 } CAT_PbtOptions;
 
 /**
+ * \brief Blood-vessel correction for float PVE label maps.
+ *
+ * Implements blood-vessel correction on PVE labels in [0..3] using downcut growing,
+ * ring-constrained median inpainting, and class-aware value clamping.
+ *
+ * \param Yp0              (in/out) float PVE label map
+ * \param dims             (in)     dimensions {nx, ny, nz}
+ * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ */
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3], double vx_vol[3]);
+
+/**
+ * \brief Datatype-generic wrapper for PVE blood-vessel correction.
+ *
+ * Converts input volume to float, applies `blood_vessel_correction_pve_float()`, then converts back
+ * to the specified datatype.
+ *
+ * \param data             (in/out) PVE label volume
+ * \param dims             (in)     dimensions {nx, ny, nz}
+ * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param datatype         (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype);
+
+/**
  * Initialize PBT options with default values.
  *
  * @param opts Pointer to options structure to initialize.

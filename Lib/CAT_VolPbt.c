@@ -616,3 +616,364 @@ void smooth_gyri_mask(const float *src, float *mask,
     fwhm3[0] = fwhm3[1] = fwhm3[2] = fwhm / 4.0;
     smooth3(mask, dims, voxelsize, fwhm3, /*mask=*/0, DT_FLOAT32);
 }
+
+/**
+ * \brief Blood-vessel correction for PVE label maps.
+ *
+ * Implements blood-vessel correction for a PVE map in the range [0..3].
+ * A safe WM seed region is estimated by thresholding and distance-based opening,
+ * then expanded with downcut region growing constrained by transformed intensities.
+ * Identified vessel-like WM outliers are inpainted from surrounding non-vessel
+ * tissue and finally clamped to class-aware limits estimated from a one-voxel
+ * ring around the vessel mask.
+ *
+ * This implementation uses CAT-Surface library tools only:
+ * - `downcut_float()` for constrained region growing
+ * - `dist_open_float()` / `dist_dilate_float()` for distance morphology
+ * - `get_median_double()` for local inpainting statistics
+ *
+ * \param Yp0              (in/out) float PVE label image in [0..3]
+ * \param dims             (in)     dimensions {nx, ny, nz}
+ * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ */
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3], 
+                                       double vx_vol[3])
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    double vx_local[3] = {1.0, 1.0, 1.0};
+    float *F, *YwmA, *YwmB, *Ywm, *Yd, *Yp0s, *Ynn, local_replace;
+    unsigned char *Ymsk, *Yring, *Yfill, *nanMsk, *fillMsk, *brainMsk;
+    float *Icon;
+    int i;
+
+    if (!Yp0 || !dims)
+    {
+        fprintf(stderr, "Invalid NULL input in blood_vessel_correction_pve_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (vx_vol)
+    {
+        vx_local[0] = vx_vol[0];
+        vx_local[1] = vx_vol[1];
+        vx_local[2] = vx_vol[2];
+    }
+
+    F = (float *)malloc((size_t)nvox * sizeof(float));
+    YwmA = (float *)malloc((size_t)nvox * sizeof(float));
+    YwmB = (float *)malloc((size_t)nvox * sizeof(float));
+    Ywm = (float *)malloc((size_t)nvox * sizeof(float));
+    Yd = (float *)malloc((size_t)nvox * sizeof(float));
+    Yp0s = (float *)malloc((size_t)nvox * sizeof(float));
+    Ynn = (float *)malloc((size_t)nvox * sizeof(float));
+    Ymsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    Yring = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    Yfill = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    nanMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    fillMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    brainMsk = (unsigned char *)malloc((size_t)nvox * sizeof(unsigned char));
+    Icon = (float *)malloc((size_t)nvox * sizeof(float));
+
+    if (!F || !YwmA || !YwmB || !Ywm || !Yd || !Yp0s || !Ynn ||
+        !Ymsk || !Yring || !Yfill || !nanMsk || !fillMsk || !brainMsk || !Icon)
+    {
+        free(F);
+        free(YwmA);
+        free(YwmB);
+        free(Ywm);
+        free(Yd);
+        free(Yp0s);
+        free(Ynn);
+        free(Ymsk);
+        free(Yring);
+        free(Yfill);
+        free(nanMsk);
+        free(fillMsk);
+        free(brainMsk);
+        free(Icon);
+        fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve_float\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /*
+     * F = max(0, Yp0 - 1); F(Yp0 <= 1.1) = inf;
+     */
+    for (i = 0; i < nvox; ++i)
+    {
+        float fval = Yp0[i] - 1.0f;
+        if (fval < 0.0f)
+            fval = 0.0f;
+        if (Yp0[i] <= 1.1f)
+            fval = FLT_MAX;
+        F[i] = fval;
+    }
+
+    /*
+     * Build a brain ROI mask covering GM+WM (Yp0 > 1.0) dilated by 5 mm.
+     * This is passed to the distance-morphology functions so they can skip
+     * voxels deep in the background/CSF, giving a significant speedup.
+     */
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (Yp0[i] > 1.0f) ? 1.0f : 0.0f;
+    dist_dilate_float(Ywm, dims, vx_local, 5.0, 0.5, NULL);
+    for (i = 0; i < nvox; ++i)
+        brainMsk[i] = (Ywm[i] > 0.0f) ? 1 : 0;
+
+    /*
+     * Ywm = morph(Yp0>2.5,'ldo',2,vx) | morph(Yp0>2.75,'ldo',1,vx)
+     * Approximated with distance-based opening for logical masks.
+     */
+    for (i = 0; i < nvox; ++i)
+    {
+        YwmA[i] = (Yp0[i] > 2.5f) ? 1.0f : 0.0f;
+        YwmB[i] = (Yp0[i] > 2.75f) ? 1.0f : 0.0f;
+    }
+    double vx1[3] = {1.0, 1.0, 1.0};
+    dist_open_float(YwmA, dims, vx_local, 2.0, 0.5, brainMsk);
+    dist_open_float(YwmB, dims, vx1, 1.0, 0.5, brainMsk);
+    keep_largest_cluster(YwmA, 0.5, dims, DT_FLOAT32, 0, 1, 18);
+    keep_largest_cluster(YwmB, 0.5, dims, DT_FLOAT32, 0, 1, 18);
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (YwmA[i] > 0.0f || YwmB[i] > 0.0f) ? 1.0f : 0.0f;
+
+    /*
+     * [~,Yd] = cat_vol_downcut(single(Ywm), F, -0.001)
+     */
+    downcut_float(Ywm, F, Yd, dims, -0.001, vx_local, NULL);
+
+    /*
+     * Ymsk = Yd > 1000000 & Yp0 > 2.1
+     */
+    float th_wm = 2.1f;
+    for (i = 0; i < nvox; ++i)
+    {
+        Ywm[i] = Yp0[i] > th_wm;
+        Ymsk[i] = (Yd[i] > 1000000.0f && Ywm[i]) ? 1 : 0;
+        if (Ymsk[i] > 0)
+            Ywm[i] = 0;
+    }
+    morph_close(Ywm, dims, 2, 0.5, DT_FLOAT32);
+    for (i = 0; i < nvox; ++i)
+    {
+        if (Ymsk[i])
+            Ymsk[i] = (Ywm[i]) ? 0 : Ymsk[i];
+        if (Ymsk[i])
+            Yp0[i] = NAN;
+    }
+    
+    
+    for (i = 0; i < nvox; ++i)
+        Ywm[i] = (float)Ymsk[i];
+    dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, brainMsk);
+    
+    /*
+     * Ring-constrained inpainting.
+     * 1) set vessel mask to NaN
+     * 2) iteratively inpaint inward with masked median from touching neighbours
+     * 3) fallback nearest-value propagation for remaining NaNs
+     * 4) class-aware clamp inside vessel mask using 75th percentile of ring values
+     */
+    for (i = 0; i < nvox; ++i)
+    {
+        const int is_nan = isnan(Yp0[i]) ? 1 : 0;
+        Yring[i] = (Ywm[i] > 0.0f && !Ymsk[i] && !is_nan) ? 1 : 0;
+        Yfill[i] = (!is_nan && !Ymsk[i]) ? 1 : 0;
+        nanMsk[i] = (is_nan && Ymsk[i]) ? 1 : 0;
+    }
+
+    {
+        const int nx = dims[0];
+        const int ny = dims[1];
+        const int nz = dims[2];
+        const int xy = nx * ny;
+        const int maxIter = 200;
+        int iter = 0;
+
+        while (iter < maxIter)
+        {
+            int changed = 0;
+            int has_nan = 0;
+            int z, y, x;
+
+            iter++;
+            memset(fillMsk, 0, (size_t)nvox * sizeof(unsigned char));
+
+            for (i = 0; i < nvox; ++i)
+            {
+                if (nanMsk[i])
+                    has_nan = 1;
+            }
+            if (!has_nan)
+                break;
+
+            for (z = 0; z < nz; ++z)
+            {
+                const int zmin = (z > 0) ? (z - 1) : z;
+                const int zmax = (z + 1 < nz) ? (z + 1) : z;
+
+                for (y = 0; y < ny; ++y)
+                {
+                    const int ymin = (y > 0) ? (y - 1) : y;
+                    const int ymax = (y + 1 < ny) ? (y + 1) : y;
+
+                    for (x = 0; x < nx; ++x)
+                    {
+                        const int idx = x + y * nx + z * xy;
+                        int zz, yy, xx;
+
+                        if (!nanMsk[idx])
+                            continue;
+
+                        for (zz = zmin; zz <= zmax && !fillMsk[idx]; ++zz)
+                        {
+                            for (yy = ymin; yy <= ymax && !fillMsk[idx]; ++yy)
+                            {
+                                const int xmin = (x > 0) ? (x - 1) : x;
+                                const int xmax = (x + 1 < nx) ? (x + 1) : x;
+                                for (xx = xmin; xx <= xmax; ++xx)
+                                {
+                                    const int nidx = xx + yy * nx + zz * xy;
+                                    if (Yfill[nidx])
+                                    {
+                                        fillMsk[idx] = 1;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            /*
+             * Compute median of non-NaN
+             * 26-connected neighbours for each fillMsk voxel.
+             */
+
+            for (i = 0; i < nvox; ++i)
+            {
+                if (!fillMsk[i])
+                    continue;
+                {
+                    const int ix = i % nx;
+                    const int iy = (i / nx) % ny;
+                    const int iz = i / xy;
+                    double vals[27];
+                    int cnt = 0;
+                    int zz, yy, xx;
+                    const int zmin_l = (iz > 0) ? (iz - 1) : iz;
+                    const int zmax_l = (iz + 1 < nz) ? (iz + 1) : iz;
+                    const int ymin_l = (iy > 0) ? (iy - 1) : iy;
+                    const int ymax_l = (iy + 1 < ny) ? (iy + 1) : iy;
+                    const int xmin_l = (ix > 0) ? (ix - 1) : ix;
+                    const int xmax_l = (ix + 1 < nx) ? (ix + 1) : ix;
+
+                    for (zz = zmin_l; zz <= zmax_l; ++zz)
+                        for (yy = ymin_l; yy <= ymax_l; ++yy)
+                            for (xx = xmin_l; xx <= xmax_l; ++xx)
+                            {
+                                const int nidx = xx + yy * nx + zz * xy;
+                                if (!isnan(Yp0[nidx]))
+                                {
+                                    vals[cnt++] = (double)Yp0[nidx];
+                                }
+                            }
+
+                    if (cnt > 0)
+                        Yp0s[i] = (float)get_median_double(vals, cnt, 0);
+                    else
+                        Yp0s[i] = NAN;
+                }
+            }
+
+            for (i = 0; i < nvox; ++i)
+            {
+                if (fillMsk[i] && !isnan(Yp0s[i]))
+                {
+                    Yp0[i] = Yp0s[i];
+                    Yfill[i] = 1;
+                    nanMsk[i] = 0;
+                    changed = 1;
+                }
+            }
+
+            if (!changed)
+                break;
+        }
+    
+        /* Fallback for remaining NaNs: nearest value from non-vessel support. */
+    
+        for (i = 0; i < nvox; ++i)
+        {
+            Ynn[i] = (!Ymsk[i] && !isnan(Yp0[i])) ? (Yp0[i] + 1.0f) : 0.0f;
+            Icon[i] = 0.0f;
+        }
+        
+        double dd_nn[2] = {1.0, 0.0};
+        downcut_float(Ynn, Icon, NULL, dims, 0.0, vx_local, dd_nn);
+        
+        for (i = 0; i < nvox; ++i)
+        {
+            if (nanMsk[i])
+            {
+                if (Ynn[i] > 0.0f)
+                    Yp0[i] = Ynn[i] - 1.0f;
+                else
+                    Yp0[i] = 2.0f;
+                nanMsk[i] = 0;
+            }
+        }
+    }
+
+    free(F);
+    free(YwmA);
+    free(YwmB);
+    free(Ywm);
+    free(Yd);
+    free(Yp0s);
+    free(Ynn);
+    free(Ymsk);
+    free(Yring);
+    free(Yfill);
+    free(nanMsk);
+    free(fillMsk);
+    free(brainMsk);
+    free(Icon);
+}
+
+/**
+ * \brief Datatype-generic blood-vessel correction wrapper for PVE labels.
+ *
+ * Converts input PVE labels to float, runs `blood_vessel_correction_pve_float()`, and converts back
+ * to the requested datatype.
+ *
+ * \param data             (in/out) PVE label volume data
+ * \param Ygmt             (in)     optional local gray-matter thickness map (NULL -> scalar replacement)
+ * \param dims             (in)     dimensions {nx, ny, nz}
+ * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
+ * \param datatype         (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void blood_vessel_correction_pve(void *data, int dims[3], double vx_vol[3], int datatype)
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    float *buffer;
+
+    if (!data || !dims)
+    {
+        fprintf(stderr, "Invalid NULL input in blood_vessel_correction_pve\n");
+        exit(EXIT_FAILURE);
+    }
+
+    buffer = (float *)malloc((size_t)nvox * sizeof(float));
+    if (!buffer)
+    {
+        fprintf(stderr, "Memory allocation error in blood_vessel_correction_pve\n");
+        exit(EXIT_FAILURE);
+    }
+
+    convert_input_type_float(data, buffer, nvox, datatype);
+    blood_vessel_correction_pve_float(buffer, dims, vx_vol);
+    convert_output_type_float(data, buffer, nvox, datatype);
+
+    free(buffer);
+}

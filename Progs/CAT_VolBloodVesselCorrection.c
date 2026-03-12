@@ -15,7 +15,7 @@
 
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
-#include "CAT_Vol.h"
+#include "CAT_VolPbt.h"
 
 int verbose = 0;
 
