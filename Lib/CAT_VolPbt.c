@@ -248,8 +248,8 @@ int CAT_VolComputePbt(
     {
         if ((src_copy[i] > CGM) && (src_copy[i] < GWM) && (GMT[i] > 1e-15f))
         {
-            float PPM_sulci = fmaxf(0.0f, GMT[i] - dist_WM[i]) / GMT[i];
-            float PPM_gyri = fmaxf(0.0f, GMT1[i] - dist_WM[i]) / GMT1[i];
+            float PPM_sulci = fmaxf(0.0f, GMT2[i] - dist_WM[i]) / GMT2[i];
+            float PPM_gyri = fmaxf(0.0f, GMT[i] - dist_WM[i]) / GMT[i];
             PPM[i] = gyrus_mask[i] * PPM_sulci + (1.0f - gyrus_mask[i]) * PPM_gyri;
         }
     }
