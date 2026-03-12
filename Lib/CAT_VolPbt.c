@@ -65,7 +65,6 @@ int CAT_VolComputePbt(
     float *GMT1 = NULL;
     float *GMT2 = NULL;
     float *PPM = NULL;
-    float *gyrus_mask = NULL;
     float *src_copy = NULL;
 
     if (!src || !GMT_out || !PPM_out || !dims || !voxelsize || !opts)
@@ -100,10 +99,9 @@ int CAT_VolComputePbt(
     GMT1 = (float *)malloc(sizeof(float) * nvox);
     GMT2 = (float *)malloc(sizeof(float) * nvox);
     PPM = (float *)malloc(sizeof(float) * nvox);
-    gyrus_mask = (float *)malloc(sizeof(float) * nvox);
     src_copy = (float *)malloc(sizeof(float) * nvox);
 
-    if (!mask || !input || !dist_CSF || !dist_WM || !GMT || !GMT1 || !GMT2 || !PPM || !gyrus_mask || !src_copy)
+    if (!mask || !input || !dist_CSF || !dist_WM || !GMT || !GMT1 || !GMT2 || !PPM || !src_copy)
     {
         if (mask)
             free(mask);
@@ -121,8 +119,6 @@ int CAT_VolComputePbt(
             free(GMT2);
         if (PPM)
             free(PPM);
-        if (gyrus_mask)
-            free(gyrus_mask);
         if (src_copy)
             free(src_copy);
         return -2;
@@ -221,7 +217,7 @@ int CAT_VolComputePbt(
         float min_GMT = fminf(GMT1[i],GMT2[i]);
         float d1 = fabsf(GMT1[i] - median_GMT);
         float d2 = fabsf(min_GMT - median_GMT);
-        GMT[i] = (d1 <= d2) ? GMT1[i] : min_GMT;
+        GMT[i] = (d1 < d2) ? GMT1[i] : min_GMT;
     }
      
     for (i = 0; i < nvox; i++)
@@ -236,22 +232,17 @@ int CAT_VolComputePbt(
     }
     clip_data(dist_CSF, nvox, 0.0, 1e15, DT_FLOAT32);
 
+    if (verbose)
+        fprintf(stderr, "Estimate percentage position map.\n");
+
     /* PPM estimation */
     for (i = 0; i < nvox; i++)
         PPM[i] = (src_copy[i] >= GWM) ? 1.0f : 0.0f;
 
-    if (verbose)
-        fprintf(stderr, "Estimate percentage position map.\n");
-    smooth_gyri_mask(src_copy, gyrus_mask, dims, voxelsize, CGM, 8.0);
-
     for (i = 0; i < nvox; i++)
     {
         if ((src_copy[i] > CGM) && (src_copy[i] < GWM) && (GMT[i] > 1e-15f))
-        {
-            float PPM_sulci = fmaxf(0.0f, GMT2[i] - dist_WM[i]) / GMT2[i];
-            float PPM_gyri = fmaxf(0.0f, GMT[i] - dist_WM[i]) / GMT[i];
-            PPM[i] = gyrus_mask[i] * PPM_sulci + (1.0f - gyrus_mask[i]) * PPM_gyri;
-        }
+            PPM[i] = fmaxf(0.0f, GMT[i] - dist_WM[i]) / GMT[i];
     }
     clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
 
@@ -273,6 +264,8 @@ int CAT_VolComputePbt(
     /* Median filter preprocessing for topology artifact reduction */
     if (n_median_filter)
     {
+        if (verbose)
+            fprintf(stderr, "Local median filtering.\n");
         float *vol_smoothed = (float *)malloc(sizeof(float) * nvox);
         if (vol_smoothed)
         {
@@ -338,7 +331,6 @@ int CAT_VolComputePbt(
     free(GMT1);
     free(GMT2);
     free(PPM);
-    free(gyrus_mask);
     free(src_copy);
 
     return 0;
