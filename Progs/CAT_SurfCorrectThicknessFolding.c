@@ -14,18 +14,16 @@
 #include "CAT_Math.h"
 #include "CAT_CorrectThicknessFolding.h"
 
-double max_dist = 6.0;           /* maximal thickness */
-double slope = 0.0;              /* thickness-dependent correction slope */
+double max_dist = 6.0; /* maximal thickness */
+double slope = 0.0;    /* thickness-dependent correction slope */
 
 /* the argument table */
 static ArgvInfo argTable[] = {
-  {"-max", ARGV_FLOAT, (char *) TRUE, (char *) &max_dist, "Define maximum thickness, where all values exceeding that will be cut."},
-    {"-slope", ARGV_FLOAT, (char *) TRUE, (char *) &slope, "Linear weighting slope: smaller thickness values are corrected less strongly than larger thickness values. 0 disables weighting."},
-  { NULL, ARGV_END, NULL, NULL, NULL }
-};
+    {"-max", ARGV_FLOAT, (char *)TRUE, (char *)&max_dist, "Define maximum thickness, where all values exceeding that will be cut."},
+    {"-slope", ARGV_FLOAT, (char *)TRUE, (char *)&slope, "Thickness-based weighting strength: larger thickness values are corrected more strongly. Applied only for positive mean curvature. 0 disables weighting."},
+    {NULL, ARGV_END, NULL, NULL, NULL}};
 
-void
-usage(char *executable)
+void usage(char *executable)
 {
     char *usage_str = "\n\
 Usage: %s   [options] surface_file thickness_file output_thickness_file\n\n\
@@ -37,9 +35,8 @@ Usage: %s   [options] surface_file thickness_file output_thickness_file\n\n\
 
     fprintf(stderr, usage_str, executable);
 }
-  
-int
-main(int argc, char *argv[])
+
+int main(int argc, char *argv[])
 {
     double *thickness;
     int n_objects, n_vals;
@@ -49,7 +46,8 @@ main(int argc, char *argv[])
     polygons_struct *polygons;
 
     /* Call ParseArgv */
-    if (ParseArgv(&argc, argv, argTable, 0)) {
+    if (ParseArgv(&argc, argv, argTable, 0))
+    {
         usage(argv[0]);
         fprintf(stderr, "       %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
@@ -57,15 +55,16 @@ main(int argc, char *argv[])
 
     initialize_argument_processing(argc, argv);
 
-    if (!get_string_argument( NULL, &surface_file) ||
-        !get_string_argument( NULL, &thickness_file) ||
-        !get_string_argument( NULL, &output_thickness_file)) {
-          usage(argv[0]);
-          exit(EXIT_FAILURE);
+    if (!get_string_argument(NULL, &surface_file) ||
+        !get_string_argument(NULL, &thickness_file) ||
+        !get_string_argument(NULL, &output_thickness_file))
+    {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
     }
 
     if (input_graphics_any_format(surface_file, &format, &n_objects,
-                    &objects) != OK)
+                                  &objects) != OK)
         exit(EXIT_FAILURE);
 
     if (input_values_any_format(thickness_file, &n_vals, &thickness) != OK)
@@ -76,14 +75,13 @@ main(int argc, char *argv[])
     if (CAT_CorrectThicknessFoldingWeighted(polygons, n_vals, thickness, slope) != OK)
         exit(EXIT_FAILURE);
 
-    clip_data(thickness, n_vals, 1E-10, max_dist, DT_FLOAT64); 
-    
+    clip_data(thickness, n_vals, 1E-10, max_dist, DT_FLOAT64);
+
     output_values_any_format(output_thickness_file, n_vals,
-                 thickness, TYPE_DOUBLE);
+                             thickness, TYPE_DOUBLE);
 
     delete_object_list(n_objects, objects);
     free(thickness);
 
-    return(OK);
-
+    return (OK);
 }
