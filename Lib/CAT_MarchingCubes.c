@@ -863,7 +863,6 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                 return (NULL);
 
             /* save changes */
-            count_change = 0;
             for (i = 0; i < nvol; i++)
             {
                 vol_changed[i] += (float)(count + 1) * ((float)g0->output[i] - (float)g0->input[i]);
@@ -910,12 +909,17 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         EC = euler_characteristic(polygons, verbose);
         count++;
         if (verbose)
-            printf("Euler characteristics after %d iterations: %d (%d voxel changed).\n", count, EC, count_change);
+            printf("Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
+                count, EC, count_change);
 
         /* save results as next input */
         for (i = 0; i < nvol; i++)
             vol_uint16[i] = g0->output[i];
     }
+
+    if (!verbose) 
+        printf("Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
+            count, EC, count_change);
 
     /* Laplacian smoothing to reduce noise in the mesh */
     if (iter_laplacian > 0)
