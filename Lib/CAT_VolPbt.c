@@ -211,11 +211,19 @@ int CAT_VolComputePbt(
     /* Iterative median filter */
     median_subsample3(GMT1, dims, voxelsize, 4, 2.0, DT_FLOAT32);
     median_subsample3(GMT2, dims, voxelsize, 4, 2.0, DT_FLOAT32);
+    
+    /* Get median of GMT1 to decide whether GMT1 or GMT2 are closer to median */
+    float median_GMT = get_median(GMT1, nvox, 1, DT_FLOAT32);
 
-    /* Use minimum of thickness measures */
+    /* Use that thickness measure that is closer to the median thickness */
     for (i = 0; i < nvox; i++)
-        GMT[i] = fminf(GMT1[i], GMT2[i]);
-
+    {
+        float min_GMT = fminf(GMT1[i],GMT2[i]);
+        float d1 = fabsf(GMT1[i] - median_GMT);
+        float d2 = fabsf(min_GMT - median_GMT);
+        GMT[i] = (d1 <= d2) ? GMT1[i] : min_GMT;
+    }
+     
     for (i = 0; i < nvox; i++)
         mask[i] = (GMT[i] > 1.0f) ? 1 : 0;
     median3(GMT, mask, dims, 3, DT_FLOAT32);
