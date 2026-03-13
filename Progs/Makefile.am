@@ -118,6 +118,7 @@ bin_PROGRAMS = \
     CAT_VolSanlm \
     CAT_VolOrnlm \
     CAT_VolLocalStat \
+    CAT_VolCorrectMyelination \
     CAT_VolThicknessPbt \
     CAT_VolLayerSmooth \
     CAT_VolBloodVesselCorrection \

@@ -273,6 +273,7 @@ noinst_HEADERS = \
     Include/CAT_SurfWarpDartel.h \
     Include/CAT_ROIStats.h \
     Include/CAT_Vol2SurfUtils.h \
+    Include/CAT_VolMyelinCorrection.h \
     Include/CAT_VolPbt.h \
     Include/CAT_AverageSurf.h \
     Include/CAT_AverageValues.h \
@@ -356,6 +357,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_SurfWarpDartel.c \
     Lib/CAT_ROIStats.c \
     Lib/CAT_Vol2SurfUtils.c \
+    Lib/CAT_VolMyelinCorrection.c \
     Lib/CAT_VolPbt.c \
     Lib/CAT_AverageSurf.c \
     Lib/CAT_AverageValues.c \
