@@ -176,7 +176,6 @@ int main(int argc, char *argv[])
 
     /* Prepare output NIfTI images */
     nifti_image *out_ptr = nifti_copy_nim_info(src_ptr);
-    nifti_image *out_ptr_reduced = nifti_copy_nim_info(src_ptr);
 
     /* Retrieve dimensions and voxel size from source image */
     voxelsize[0] = src_ptr->dx;
@@ -237,6 +236,8 @@ int main(int argc, char *argv[])
     slope = 1.0;
     if (downsample > 0.0)
     {
+
+        nifti_image *out_ptr_reduced = nifti_copy_nim_info(src_ptr);
 
         for (i = 0; i < 3; i++)
         {
@@ -299,9 +300,6 @@ int main(int argc, char *argv[])
     free(GMT);
     free(PPM);
     free(src);
-    nifti_image_free(src_ptr);
-    nifti_image_free(out_ptr);
-    nifti_image_free(out_ptr_reduced);
 
     return (EXIT_SUCCESS);
 }
