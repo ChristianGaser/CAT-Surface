@@ -38,9 +38,9 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
         return;
     opts->w1 = 0.05;
     opts->w2 = 0.05;
-    opts->w3 = 0.05;
+    opts->w3 = 0.1;
     opts->sigma = 0.2;
-    opts->iterations = 100;
+    opts->iterations = 200;
     opts->verbose = 0;
 }
 
@@ -81,7 +81,7 @@ int CAT_SurfEstimatePialWhite(
     polygons_struct *polygons_smoothed = NULL;
     double weights[3];
     double shifting[2] = {-0.25, 0.25};
-
+    
     if (!central || !thickness_values || !labels || !nii_ptr ||
         !pial_out || !white_out || !opts)
         return -1;

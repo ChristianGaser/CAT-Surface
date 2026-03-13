@@ -685,12 +685,12 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             // Compute final displacement with gating: stop updates if counters exceeded
             if (counter1 == 0)
             {
+                /* for the pial surface we double smoothing weight to prevent self
+                   intersections */
                 for (k = 0; k < 3; k++)
-                {
-                    displacement_field1[v][k] = w[0] * (c1[k] - p1[k]) +
+                    displacement_field1[v][k] = 2.0*w[0] * (c1[k] - p1[k]) +
                                                 ((w[1] * f2_1 + w3_scaled1) * f3_1) *
                                                     n1[k];
-                }
             }
             else
             {
@@ -701,11 +701,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             if (counter2 == 0)
             {
                 for (k = 0; k < 3; k++)
-                {
                     displacement_field2[v][k] = w[0] * (c2[k] - p2[k]) +
                                                 ((w[1] * f2_2 + w3_scaled2) * f3_2) *
                                                     n2[k];
-                }
             }
             else
             {
