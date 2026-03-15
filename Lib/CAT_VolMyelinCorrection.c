@@ -39,6 +39,7 @@ void CAT_MyelinCorrOptionsInit(CAT_MyelinCorrOptions *opts)
     opts->dist_mm = 2.0;
     opts->max_correction = 0.5;
     opts->min_cluster_mm3 = 5.0;
+    opts->cortex_thickness_mm = 2.5;
     opts->n_median_filter = 1;
     opts->correct_wm = 1;
     opts->correct_csf = 1;
@@ -89,6 +90,7 @@ correct_boundary(const float *pve, const float *t1w,
     unsigned char *band_mask = NULL;
     unsigned char *brain_mask = NULL;
     float *dist_to_core = NULL;
+    float *dist_to_csf = NULL;
     double core_mean, core_std, intensity_thresh, grad_thresh;
 
     const char *label = (side > 0) ? "WM/GM" : "GM/CSF";
@@ -146,6 +148,7 @@ correct_boundary(const float *pve, const float *t1w,
         free(band_mask);
         free(brain_mask);
         free(dist_to_core);
+        free(dist_to_csf);
         return 0;
     }
 
@@ -176,6 +179,33 @@ correct_boundary(const float *pve, const float *t1w,
         brain_mask[i] = (pve[i] > 0.0f) ? 1 : 0;
     }
     euclidean_distance(dist_to_core, brain_mask, dims, voxelsize, 0);
+
+    /* For WM side: compute distance to CSF to modulate sensitivity.
+     * In cortical regions (WM close to CSF), the intensity threshold
+     * is relaxed to catch myelinated GM that is only slightly dimmer
+     * than deep WM.  Deep structures (far from CSF) keep original k. */
+    if (side > 0 && opts->cortex_thickness_mm > 0.0)
+    {
+        dist_to_csf = (float *)calloc(nvox, sizeof(float));
+        if (!dist_to_csf)
+        {
+            free(tissue_core);
+            free(core_mask);
+            free(band_mask);
+            free(brain_mask);
+            free(dist_to_core);
+            fprintf(stderr, "Memory allocation error in correct_boundary (%s)\n", label);
+            return -2;
+        }
+        for (i = 0; i < nvox; i++)
+            dist_to_csf[i] = (pve[i] > 0.0f && pve[i] < 1.5f) ? 1.0f : 0.0f;
+        euclidean_distance(dist_to_csf, brain_mask, dims, voxelsize, 0);
+
+        if (opts->verbose)
+            fprintf(stderr, "  %s: CSF-distance modulation enabled "
+                            "(cortex_thickness = %.1f mm)\n",
+                    label, opts->cortex_thickness_mm);
+    }
 
     /* ===== Step 4: Boundary band ===== */
     n_band = 0;
@@ -216,6 +246,7 @@ correct_boundary(const float *pve, const float *t1w,
         free(band_mask);
         free(brain_mask);
         free(dist_to_core);
+        free(dist_to_csf);
         return 0;
     }
 
@@ -229,6 +260,7 @@ correct_boundary(const float *pve, const float *t1w,
             free(band_mask);
             free(brain_mask);
             free(dist_to_core);
+            free(dist_to_csf);
             return -2;
         }
 
@@ -266,8 +298,19 @@ correct_boundary(const float *pve, const float *t1w,
         /* Conjunction of three criteria */
         int crit_intensity, crit_gradient, crit_distance;
 
+        /* For WM side with CSF-distance modulation: relax threshold
+         * where cortex appears thin (WM close to CSF = myelination).
+         * effective_k = k * min(1, dist_csf / expected_thickness)
+         * Deep structures keep original k; thin cortex gets lower k. */
+        double local_thresh = intensity_thresh;
+        if (side > 0 && dist_to_csf != NULL)
+        {
+            double ratio = fmin(1.0, dist_to_csf[i] / opts->cortex_thickness_mm);
+            local_thresh = core_mean - opts->k_intensity * ratio * core_std;
+        }
+
         if (side > 0)
-            crit_intensity = (t1_val < intensity_thresh); /* too dark for WM */
+            crit_intensity = (t1_val < local_thresh); /* too dark for WM */
         else
             crit_intensity = (t1_val > intensity_thresh); /* too bright for CSF */
 
@@ -280,7 +323,7 @@ correct_boundary(const float *pve, const float *t1w,
             double w_int, w_grad, w_dist;
 
             if (side > 0)
-                w_int = fmin(1.0, (intensity_thresh - t1_val) /
+                w_int = fmin(1.0, (local_thresh - t1_val) /
                                       (opts->k_intensity * core_std + 1e-10));
             else
                 w_int = fmin(1.0, (t1_val - intensity_thresh) /
@@ -365,6 +408,7 @@ correct_boundary(const float *pve, const float *t1w,
     free(band_mask);
     free(brain_mask);
     free(dist_to_core);
+    free(dist_to_csf);
 
     return n_flagged;
 }

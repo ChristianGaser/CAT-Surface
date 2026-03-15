@@ -35,9 +35,10 @@ double grad_percentile = 25.0;
 double dist_mm = 2.0;
 double max_correction = 0.5;
 double min_cluster_mm3 = 5.0;
+double cortex_thickness_mm = 0;
 int n_median_filter = 1;
 int no_wm_corr = 0;
-int no_csf_corr = 0;
+int csf_corr = 0;
 int verbose = 0;
 
 static ArgvInfo argTable[] = {
@@ -53,11 +54,15 @@ static ArgvInfo argTable[] = {
      "Maximum PVE shift toward GM (default: 0.5)."},
     {"-min-cluster", ARGV_FLOAT, (char *)TRUE, (char *)&min_cluster_mm3,
      "Minimum cluster volume in mm^3 to keep (default: 5.0)."},
+    {"-cortex-thickness", ARGV_FLOAT, (char *)TRUE, (char *)&cortex_thickness_mm,
+     "Expected cortical thickness (mm) for CSF-distance modulation (default: 2.5). "
+     "Relaxes the intensity threshold where WM is close to CSF (thin cortex = myelination). "
+     "Set to 0 to disable modulation."},
     {"-median", ARGV_INT, (char *)TRUE, (char *)&n_median_filter,
      "Iterations of 3x3x3 median filter on correction field (default: 1)."},
     {"-no-wm-corr", ARGV_CONSTANT, (char *)TRUE, (char *)&no_wm_corr,
      "Disable WM/GM (myelination) boundary correction."},
-    {"-no-csf-corr", ARGV_CONSTANT, (char *)TRUE, (char *)&no_csf_corr,
+    {"-csf-corr", ARGV_CONSTANT, (char *)TRUE, (char *)&csf_corr,
      "Disable GM/CSF (pial) boundary correction."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
@@ -74,7 +79,7 @@ usage(const char *executable)
             "that were likely misclassified due to myelination or PVE effects,\n"
             "and shifts their PVE values toward GM.\n\n"
             "Both corrections are enabled by default. Use -no-wm-corr or\n"
-            "-no-csf-corr to disable either side individually.\n\n"
+            "-csf-corr to disable/enable either side individually.\n\n"
             "The corrected PVE map can then be used for thickness estimation\n"
             "(e.g., CAT_VolThicknessPbt) with reduced boundary bias.\n\n",
             executable);
@@ -147,8 +152,9 @@ int main(int argc, char *argv[])
     opts.max_correction = max_correction;
     opts.n_median_filter = n_median_filter;
     opts.min_cluster_mm3 = min_cluster_mm3;
+    opts.cortex_thickness_mm = cortex_thickness_mm;
     opts.correct_wm = !no_wm_corr;
-    opts.correct_csf = !no_csf_corr;
+    opts.correct_csf = csf_corr;
     opts.verbose = verbose;
 
     /* Apply correction */

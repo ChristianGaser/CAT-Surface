@@ -66,6 +66,7 @@ typedef struct
     double dist_mm;         /**< Min distance (mm) from tissue core to be suspicious (default: 2.0) */
     double max_correction;  /**< Maximum PVE shift toward GM (default: 0.8) */
     double min_cluster_mm3; /**< Minimum flagged-cluster volume in mm^3 (default: 20.0). Clusters smaller than this are discarded to prevent noisy, isolated corrections. */
+    double cortex_thickness_mm; /**< Expected cortical thickness (mm) for CSF-distance modulation (default: 2.5). Where WM-boundary voxels are closer to CSF than this value, the intensity threshold is relaxed to increase sensitivity to myelinated cortex. Deep structures (far from CSF) keep the original k_intensity. */
     int n_median_filter;    /**< Iterations of 3x3x3 median filter on the correction field (default: 2). Removes noisy isolated corrections while preserving coherent boundary shifts. Set to 0 to disable. */
     int correct_wm;         /**< Apply WM/GM (myelination) correction (default: 1) */
     int correct_csf;        /**< Apply GM/CSF (pial) correction (default: 1) */
