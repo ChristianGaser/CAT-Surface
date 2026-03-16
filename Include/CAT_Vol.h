@@ -146,6 +146,25 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
  * \param nii_ptr (in/out) Parameter of isoval.
  * \return Return value of isoval.
  */
+/**
+ * \brief Public API for localstat_subsample3.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param data (in/out) Parameter of median_subsample3.
+ * \param dims (in/out) Parameter of median_subsample3.
+ * \param voxelsize (in/out) Parameter of median_subsample3.
+ * \param dist (in/out) Parameter of localstat3.
+ * \param stat_func (in/out) Parameter of localstat3.
+ * \param iters (in/out) Parameter of localstat3.
+ * \param use_euclidean_dist (in/out) Parameter of localstat3.
+ * \param samp_voxelsize (in/out) Parameter of median_subsample3.
+ * \param datatype (in/out) Parameter of median_subsample3.
+ * \return void (no return value).
+ */
+void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist,
+                int stat_func, int niter, int use_euclidean_dist, 
+                double samp_voxelsize, int datatype);
 float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
 /**
  * \brief Public API for correct_bias.

@@ -3132,6 +3132,7 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
     free(vol_samp);
     free(buffer);
 }
+
 /**
  * \brief Public API for median_subsample3.
  *
@@ -3147,6 +3148,30 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
  */
 
 void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, double samp_voxelsize, int datatype)
+{
+    localstat_subsample3(data, dims, voxelsize, 1, F_MEDIAN, niter, 0, 
+                samp_voxelsize, datatype);
+}
+
+/**
+ * \brief Public API for localstat_subsample3.
+ *
+ * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ *
+ * \param data (in/out) Parameter of median_subsample3.
+ * \param dims (in/out) Parameter of median_subsample3.
+ * \param voxelsize (in/out) Parameter of median_subsample3.
+ * \param dist (in/out) Parameter of localstat3.
+ * \param stat_func (in/out) Parameter of localstat3.
+ * \param iters (in/out) Parameter of localstat3.
+ * \param use_euclidean_dist (in/out) Parameter of localstat3.
+ * \param samp_voxelsize (in/out) Parameter of median_subsample3.
+ * \param datatype (in/out) Parameter of median_subsample3.
+ * \return void (no return value).
+ */
+void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist,
+                int stat_func, int niter, int use_euclidean_dist, 
+                double samp_voxelsize, int datatype)
 {
     int i, nvox_samp, nvox;
     int dims_samp[3];
@@ -3173,10 +3198,11 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
     /* Subsample to lower resolution */
     subsample_float(buffer, vol_samp, dims, dims_samp);
 
-    /* Apply median */
-    localstat3(vol_samp, NULL, dims_samp, 1, F_MEDIAN, niter, 0, DT_FLOAT32);
+    /* Apply localstat */
+    localstat3(vol_samp, NULL, dims_samp, dist, stat_func, niter, 
+        use_euclidean_dist, DT_FLOAT32);
 
-    /* Upsample back to original resolution and data type*/
+    /* Upsample back to original resolution and data type */
     subsample_float(vol_samp, buffer, dims_samp, dims);
     convert_output_type_float(data, buffer, nvox, datatype);
 
