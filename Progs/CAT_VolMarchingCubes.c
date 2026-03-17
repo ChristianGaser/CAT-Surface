@@ -19,7 +19,7 @@ double strength_gyri_mask = 0.1;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
-int n_iter = 10;
+int n_iter = 5;
 int fast = 0;
 
 /* the argument table */
@@ -62,7 +62,7 @@ static ArgvInfo argTable[] = {
      improving the quality of the surface reconstruction in subsequent steps."},
   
   {"-iter", ARGV_INT, (char *) TRUE, (char *) &n_iter,
-    "Number of iterations."},
+    "Maximum number of iterations."},
   
   {"-fast", ARGV_CONSTANT, (char *) TRUE, (char *) &fast,
     "Enable fast processing without any preprocessing, smoothing, or topology \n\
