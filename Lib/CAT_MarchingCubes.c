@@ -24,80 +24,94 @@ int euler_characteristic(polygons_struct *polygons, int verbose);
  *
  * Eliminates handles and cavities in a segmented volume using local Euler
  * characteristic analysis. Iteratively evaluates 2x2x2 voxel cubes and corrects
- * configurations that violate topology preservation conditions (Euler number
- * should be 2 for 18-connected or -6 for 26-connected regions). Applies multiple
- * iterations with alternating connectivity schemes to repair complex topologies.
- * Modifies the input volume in-place.
+ * configurations that violate topology preservation conditions:
+ *   - chi_local = 2  for 18-connected foreground (diagonal crossing / handle)
+ *   - chi_local = -6 for 26-connected foreground (bridge / near-full cube defect)
  *
- * \param volume        (in/out) floating-point binary volume (0 or 1)
- * \param thresh        (in)  threshold value; voxels >= thresh are considered foreground
- * \param dims          (in)  array [nx, ny, nz] specifying volume dimensions
- * \param conn_arr      (in)  array [6-connected, 26-connected] connectivity choices
- * \param n_loops       (in)  number of correction passes to apply per iteration
+ * Corner layout of each 2x2x2 cube:
+ *   0:(x,y,z)     1:(x+1,y,z)   2:(x,y+1,z)   3:(x+1,y+1,z)
+ *   4:(x,y,z+1)   5:(x+1,y,z+1) 6:(x,y+1,z+1) 7:(x+1,y+1,z+1)
+ *
+ * Per iteration:
+ *   1. Resets the working copy from the current volume state.
+ *   2. Scans all non-empty 2x2x2 cubes and computes chi_local = V - E + F.
+ *   3. For each defective cube, finds the single corner flip that resolves
+ *      the defect, preferring the corner whose original probability is
+ *      closest to thresh (most ambiguous voxel). Falls back to flipping all
+ *      foreground corners if no single flip suffices.
+ *   4. Applies accumulated changes back to volume.
+ *
+ * Edge tables use corrected connectivity definitions:
+ *   18-conn: 12 face edges + 12 face diagonals = 24 pairs
+ *   26-conn: above + 4 space diagonals          = 28 pairs
+ *
+ * \param volume        (in/out) floating-point volume (probability or binary)
+ * \param thresh        (in)     voxels >= thresh are foreground
+ * \param dims          (in)     [nx, ny, nz] volume dimensions
+ * \param conn_arr      (in)     two connectivity values, e.g. {18, 26}
+ * \param n_loops       (in)     passes per outer iteration (typically 2)
+ * \param prefer_remove (in)     if non-zero, skip the background-filling pass;
+ *                               recommended when over-filling drives errors
  * \return void
  */
-void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2], int n_loops)
+void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
+                      int n_loops, int prefer_remove)
 {
-    int loop, i, x, y, z, iter, val_corr;
-    int V, E, F, conn, chi_local, n_errors, cube[8];
-    int edges18[18][2] = {
-        {0, 1}, {1, 3}, {3, 2}, {2, 0}, // Bottom face edges
-        {4, 5},
-        {5, 7},
-        {7, 6},
-        {6, 4}, // Top face edges
-        {0, 4},
-        {1, 5},
-        {2, 6},
-        {3, 7}, // Vertical edges
-        {0, 5},
-        {1, 4},
-        {2, 7},
-        {3, 6}, // Diagonal edges across faces
-        {0, 7},
-        {3, 4} // Extended diagonal connections
+    /*
+     * 18-connectivity: pairs differing in exactly 1 or 2 bit positions
+     *   = 12 face edges (1-bit diff) + 12 face diagonals (2-bit diff) = 24
+     */
+    int edges_18conn[24][2] = {
+        /* 12 face edges */
+        {0,1},{1,3},{3,2},{2,0},   /* z=0 face */
+        {4,5},{5,7},{7,6},{6,4},   /* z=1 face */
+        {0,4},{1,5},{2,6},{3,7},   /* vertical */
+        /* 12 face diagonals */
+        {0,3},{1,2},               /* z=0 face diagonals */
+        {4,7},{5,6},               /* z=1 face diagonals */
+        {0,5},{1,4},               /* y=0 face diagonals */
+        {2,7},{3,6},               /* y=1 face diagonals */
+        {0,6},{2,4},               /* x=0 face diagonals */
+        {1,7},{3,5}                /* x=1 face diagonals */
     };
-    int edges26[26][2] = {
-        {0, 1}, {1, 3}, {3, 2}, {2, 0}, // Bottom face edges
-        {4, 5},
-        {5, 7},
-        {7, 6},
-        {6, 4}, // Top face edges
-        {0, 4},
-        {1, 5},
-        {2, 6},
-        {3, 7}, // Vertical edges
-        {0, 5},
-        {1, 4},
-        {2, 7},
-        {3, 6}, // Diagonal edges across faces
-        {0, 7},
-        {3, 4},
-        {2, 5},
-        {1, 6}, // Extended diagonal connections
-        {0, 6},
-        {1, 7},
-        {2, 4},
-        {3, 5} // Corner-to-corner vertex edges
+
+    /*
+     * 26-connectivity: all pairs = 18-conn edges + 4 space diagonals (3-bit diff)
+     *   = 24 + 4 = 28
+     */
+    int edges_26conn[28][2] = {
+        /* 12 face edges */
+        {0,1},{1,3},{3,2},{2,0},
+        {4,5},{5,7},{7,6},{6,4},
+        {0,4},{1,5},{2,6},{3,7},
+        /* 12 face diagonals */
+        {0,3},{1,2},
+        {4,7},{5,6},
+        {0,5},{1,4},
+        {2,7},{3,6},
+        {0,6},{2,4},
+        {1,7},{3,5},
+        /* 4 space diagonals */
+        {0,7},{1,6},{2,5},{3,4}
     };
-    // Count faces (6 faces in a cube)
+
+    /* 6 quad faces of the cube */
     int faces[6][4] = {
-        {0, 1, 3, 2}, {4, 5, 7, 6}, // XY faces
-        {0, 2, 6, 4},
-        {1, 3, 7, 5}, // YZ faces
-        {0, 1, 5, 4},
-        {2, 3, 7, 6} // XZ faces
+        {0,1,3,2},{4,5,7,6},   /* z=const */
+        {0,2,6,4},{1,3,7,5},   /* x=const */
+        {0,1,5,4},{2,3,7,6}    /* y=const */
     };
 
     int nx = dims[0], ny = dims[1], nz = dims[2];
     int nvol = nx * ny * nz;
+    int loop, i, j, x, y, z, iter;
 
-    double mn = get_min(volume, nvol, 0, DT_FLOAT32);
+    double mn = get_min(volume, nvol, 1, DT_FLOAT32);
     double mx = get_max(volume, nvol, 0, DT_FLOAT32);
 
-    float *vol_euler = (float *)malloc(sizeof(float) * nvol);
-    float *vol_euler_orig = (float *)malloc(sizeof(float) * nvol);
-    unsigned short *vol_bin = (unsigned short *)malloc(sizeof(unsigned short) * nvol);
+    float          *vol_euler      = (float *)malloc(sizeof(float) * nvol);
+    float          *vol_euler_orig = (float *)malloc(sizeof(float) * nvol);
+    unsigned short *vol_bin        = (unsigned short *)malloc(sizeof(unsigned short) * nvol);
 
     if (!vol_euler || !vol_euler_orig || !vol_bin)
     {
@@ -105,25 +119,34 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
         exit(EXIT_FAILURE);
     }
 
-    // Initialize Euler map
-    for (i = 0; i < nvol; i++)
-    {
-        vol_euler[i] = (volume[i] >= thresh) ? 1.0 : 0.0;
-        vol_euler_orig[i] = vol_euler[i];
-    }
-
     for (iter = 0; iter < 50; iter++)
     {
-        n_errors = 0;
+        /* Reset working copy from the current volume state each iteration so
+         * that corrections from previous iterations are the new baseline.   */
+        for (i = 0; i < nvol; i++)
+        {
+            vol_euler[i]      = (volume[i] >= thresh) ? 1.0f : 0.0f;
+            vol_euler_orig[i] = vol_euler[i];
+        }
+
+        int n_errors = 0;
+
         for (loop = 0; loop < n_loops; loop++)
         {
+            /* Skip the background-filling pass when prefer_remove is set.
+             * loop=0 removes foreground voxels; loop=1 adds them.           */
+            if (prefer_remove && loop != 0)
+                continue;
 
-            // Threshold volume
+            /* Binarise: loop=0 → normal; loop=1 → inverted (background) */
             for (i = 0; i < nvol; i++)
-                vol_bin[i] = (volume[i] > thresh) ? 1.0 - (float)loop : 0.0 + (float)loop;
+                vol_bin[i] = (unsigned short)((volume[i] >= thresh) ? (1 - loop) : loop);
 
-            conn = conn_arr[((loop + iter) % 2)];
-            val_corr = (loop == 0) ? 0.0 : 1.0;
+            int conn     = conn_arr[(loop + iter) % 2];
+            int val_corr = (loop == 0) ? 0 : 1;
+            int bad_chi  = (conn == 18) ? 2 : -6;
+            int n_edges  = (conn == 18) ? 24 : 28;
+            int (*edges)[2] = (conn == 18) ? edges_18conn : edges_26conn;
 
             for (z = 0; z < nz - 1; z++)
             {
@@ -131,72 +154,106 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
                 {
                     for (x = 0; x < nx - 1; x++)
                     {
+                        /* Linear indices for the 8 corners */
+                        int cidx[8] = {
+                            IDX(x,   y,   z,   nx, ny),
+                            IDX(x+1, y,   z,   nx, ny),
+                            IDX(x,   y+1, z,   nx, ny),
+                            IDX(x+1, y+1, z,   nx, ny),
+                            IDX(x,   y,   z+1, nx, ny),
+                            IDX(x+1, y,   z+1, nx, ny),
+                            IDX(x,   y+1, z+1, nx, ny),
+                            IDX(x+1, y+1, z+1, nx, ny)
+                        };
 
-                        // Extract 2x2x2 voxel cube
-                        cube[0] = vol_bin[IDX(x, y, z, nx, ny)];
-                        cube[1] = vol_bin[IDX(x + 1, y, z, nx, ny)];
-                        cube[2] = vol_bin[IDX(x, y + 1, z, nx, ny)];
-                        cube[3] = vol_bin[IDX(x + 1, y + 1, z, nx, ny)];
-                        cube[4] = vol_bin[IDX(x, y, z + 1, nx, ny)];
-                        cube[5] = vol_bin[IDX(x + 1, y, z + 1, nx, ny)];
-                        cube[6] = vol_bin[IDX(x, y + 1, z + 1, nx, ny)];
-                        cube[7] = vol_bin[IDX(x + 1, y + 1, z + 1, nx, ny)];
+                        int cube[8];
+                        for (i = 0; i < 8; i++)
+                            cube[i] = vol_bin[cidx[i]];
 
-                        // Count vertices, edges, faces
-                        V = 0;
-                        E = 0;
-                        F = 0;
-
-                        // Count vertices (fully occupied corners)
+                        /* Compute chi_local = V - E + F */
+                        int V = 0, E = 0, F = 0;
                         for (i = 0; i < 8; i++)
                             V += cube[i];
 
-                        if (conn == 18)
-                        {
-                            for (i = 0; i < 18; i++)
-                                if (cube[edges18[i][0]] && cube[edges18[i][1]])
-                                    E++;
-                        }
-                        else if (conn == 26)
-                        {
-                            for (i = 0; i < 26; i++)
-                                if (cube[edges26[i][0]] && cube[edges26[i][1]])
-                                    E++;
-                        }
+                        /* Skip empty cubes — nothing to correct */
+                        if (V == 0)
+                            continue;
+
+                        for (i = 0; i < n_edges; i++)
+                            if (cube[edges[i][0]] && cube[edges[i][1]])
+                                E++;
 
                         for (i = 0; i < 6; i++)
-                            if (cube[faces[i][0]] && cube[faces[i][1]] && cube[faces[i][2]] && cube[faces[i][3]])
+                            if (cube[faces[i][0]] && cube[faces[i][1]] &&
+                                cube[faces[i][2]] && cube[faces[i][3]])
                                 F++;
 
-                        // Compute local Euler number
-                        chi_local = V - E + F;
+                        if (V - E + F != bad_chi)
+                            continue;
 
-                        if (vol_bin[IDX(x, y, z, nx, ny)] > 0)
+                        /* Find the single foreground-corner flip that resolves
+                         * the defect. Among valid candidates, prefer the corner
+                         * whose original probability is closest to thresh (most
+                         * ambiguous voxel = least anatomical commitment).      */
+                        int   best_corner = -1;
+                        float best_dist   = FLT_MAX;
+
+                        for (i = 0; i < 8; i++)
                         {
-                            if (((conn == 18) && (chi_local == 2)) ||
-                                ((conn == 26) && (chi_local == -6)))
+                            if (!cube[i])
+                                continue;  /* only flip corners that are foreground */
+
+                            int test[8];
+                            for (j = 0; j < 8; j++) test[j] = cube[j];
+                            test[i] = val_corr;
+
+                            int tV = 0, tE = 0, tF = 0;
+                            for (j = 0; j < 8; j++) tV += test[j];
+                            for (j = 0; j < n_edges; j++)
+                                if (test[edges[j][0]] && test[edges[j][1]])
+                                    tE++;
+                            for (j = 0; j < 6; j++)
+                                if (test[faces[j][0]] && test[faces[j][1]] &&
+                                    test[faces[j][2]] && test[faces[j][3]])
+                                    tF++;
+
+                            if (tV - tE + tF == bad_chi)
+                                continue;  /* flip does not resolve the defect */
+
+                            float dist = (float)fabs((double)volume[cidx[i]] - (double)thresh);
+                            if (dist < best_dist)
                             {
-                                vol_euler[IDX(x, y, z, nx, ny)] = val_corr;
-                                vol_euler[IDX(x + 1, y, z, nx, ny)] = val_corr;
-                                vol_euler[IDX(x, y + 1, z, nx, ny)] = val_corr;
-                                vol_euler[IDX(x + 1, y + 1, z, nx, ny)] = val_corr;
-                                vol_euler[IDX(x, y, z + 1, nx, ny)] = val_corr;
-                                vol_euler[IDX(x + 1, y, z + 1, nx, ny)] = val_corr;
-                                vol_euler[IDX(x, y + 1, z + 1, nx, ny)] = val_corr;
-                                vol_euler[IDX(x + 1, y + 1, z + 1, nx, ny)] = val_corr;
-                                n_errors++;
+                                best_dist   = dist;
+                                best_corner = i;
                             }
                         }
+
+                        if (best_corner >= 0)
+                        {
+                            /* Minimal fix: flip just the most ambiguous corner */
+                            vol_euler[cidx[best_corner]] = (float)val_corr;
+                        }
+                        else
+                        {
+                            /* No single flip resolves the defect — flip all
+                             * foreground corners of this cube as fallback.    */
+                            for (i = 0; i < 8; i++)
+                                if (cube[i])
+                                    vol_euler[cidx[i]] = (float)val_corr;
+                        }
+                        n_errors++;
                     }
                 }
             }
         }
 
-        /* Apply changes to volume */
+        /* Apply accumulated changes back to volume */
         for (i = 0; i < nvol; i++)
         {
-            volume[i] = (vol_euler[i] < vol_euler_orig[i]) ? mn : volume[i];
-            volume[i] = (vol_euler[i] > vol_euler_orig[i]) ? mx : volume[i];
+            if (vol_euler[i] < vol_euler_orig[i])
+                volume[i] = (float)mn;
+            else if (vol_euler[i] > vol_euler_orig[i])
+                volume[i] = (float)mx;
         }
 
         if (n_errors == 0)
@@ -204,8 +261,8 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
     }
 
     free(vol_euler);
-    free(vol_bin);
     free(vol_euler_orig);
+    free(vol_bin);
 }
 
 private void
@@ -712,7 +769,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     for (i = 0; i < nvol; i++)
         mask[i] = input_float[i] != 0;
 
-    median3(input_float, mask, dims, 3, DT_FLOAT32);
+    median3(input_float, mask, dims, 2, DT_FLOAT32);
     free(mask);
 
     /* Keep largest cluster and fill holes */
@@ -721,7 +778,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
     /* Correct topology */
     int conn_arr[2] = {18, 26};
-    correct_topology(input_float, min_threshold, dims, conn_arr, 2);
+    correct_topology(input_float, min_threshold, dims, conn_arr, 2, 1);
 
     /* Apply genus-0 correction */
     genus0parameters g0[1];

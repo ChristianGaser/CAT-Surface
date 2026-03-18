@@ -17,11 +17,12 @@
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
 
 void correct_topology(
-    float *volume, 
-    float thresh, 
-    int dims[3], 
-    int conn_arr[2], 
-    int n_loops);
+    float *volume,
+    float thresh,
+    int   dims[3],
+    int   conn_arr[2],
+    int   n_loops,
+    int   prefer_remove);
 
 object_struct *apply_marching_cubes(
     float *input_float, 
