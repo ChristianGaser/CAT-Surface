@@ -239,8 +239,6 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
  *      This avoids oscillation where 18-conn fixes create 26-conn defects and
  *      vice versa — the second pass is only needed when cross-type defects
  *      were actually introduced.
- *   3. An optional background-filling sub-pass runs only if the foreground
- *      passes made changes, and is suppressed entirely by prefer_remove.
  *
  * Anatomical confidence weighting: a snapshot of the original probability
  * volume is taken once before any iterations. The per-corner selection of
@@ -253,19 +251,13 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
  * \param thresh        (in)     voxels >= thresh are foreground
  * \param dims          (in)     [nx, ny, nz] volume dimensions
  * \param conn_arr      (in)     two connectivity values, e.g. {18, 26}
- * \param n_loops       (in)     kept for API compatibility; unused internally
- * \param prefer_remove (in)     if non-zero, skip the background-filling pass;
- *                               recommended when over-filling drives errors
  * \return void
  */
-void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
-                      int n_loops, int prefer_remove)
+void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2])
 {
     int i, iter;
     int nx   = dims[0], ny = dims[1], nz = dims[2];
     int nvol = nx * ny * nz;
-
-    (void)n_loops;  /* superseded by the adaptive alternation strategy */
 
     float mn = (float)get_min(volume, nvol, 1, DT_FLOAT32);
     float mx = (float)get_max(volume, nvol, 0, DT_FLOAT32);
@@ -314,18 +306,6 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2],
         {
             n_err = run_topology_pass(volume, vol_prob, thresh, mn, mx,
                                       nx, ny, nz, conn_arr[ci1], 0,
-                                      vol_euler, vol_euler_orig, vol_bin);
-            n_total += n_err;
-        }
-
-        /* --- Background-filling pass (adaptive, gated by prefer_remove) ---
-         * Only run if the foreground passes made changes, since background
-         * defects (cavities) are most likely created by foreground removal.
-         * Suppressed entirely when prefer_remove is set.                     */
-        if (!prefer_remove && n_total > 0)
-        {
-            n_err = run_topology_pass(volume, vol_prob, thresh, mn, mx,
-                                      nx, ny, nz, conn_arr[ci0], 1,
                                       vol_euler, vol_euler_orig, vol_bin);
             n_total += n_err;
         }
@@ -853,7 +833,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
     /* Correct topology */
     int conn_arr[2] = {18, 26};
-    correct_topology(input_float, min_threshold, dims, conn_arr, 2, 1);
+    correct_topology(input_float, min_threshold, dims, conn_arr);
 
     /* Apply genus-0 correction */
     genus0parameters g0[1];

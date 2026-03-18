@@ -20,9 +20,7 @@ void correct_topology(
     float *volume,
     float thresh,
     int   dims[3],
-    int   conn_arr[2],
-    int   n_loops,
-    int   prefer_remove);
+    int   conn_arr[2]);
 
 object_struct *apply_marching_cubes(
     float *input_float, 
