@@ -31,6 +31,7 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->n_avgs = 2;
     opts->n_median_filter = 2;
     opts->range = 0.45;
+    opts->median_subsample = 4;
     opts->fill_thresh = 0.5;
     opts->correct_voxelsize = 0.5;
     opts->fast = 0;
@@ -49,7 +50,7 @@ int CAT_VolComputePbt(
 {
     int i, j;
     int nvox;
-    int n_avgs, n_median_filter;
+    int n_avgs, n_median_filter, subsample;
     double range, fill_thresh, correct_voxelsize;
     int verbose;
     float mean_vx_size;
@@ -80,6 +81,7 @@ int CAT_VolComputePbt(
     fill_thresh = opts->fill_thresh;
     correct_voxelsize = opts->correct_voxelsize;
     verbose = opts->verbose;
+    subsample = opts->median_subsample;
 
     if (opts->fast)
     {
@@ -205,8 +207,8 @@ int CAT_VolComputePbt(
     euclidean_distance(GMT2, NULL, dims, NULL, 1);
 
     /* Iterative median filter */
-    median_subsample3(GMT1, dims, voxelsize, 4, 2.0, DT_FLOAT32);
-    median_subsample3(GMT2, dims, voxelsize, 4, 2.0, DT_FLOAT32);
+    median_subsample3(GMT1, dims, voxelsize, subsample, 2.0, DT_FLOAT32);
+    median_subsample3(GMT2, dims, voxelsize, subsample, 2.0, DT_FLOAT32);
     
     /* Get median of GMT1 to decide whether GMT1 or GMT2 are closer to median */
     float median_GMT = get_median(GMT1, nvox, 1, DT_FLOAT32);

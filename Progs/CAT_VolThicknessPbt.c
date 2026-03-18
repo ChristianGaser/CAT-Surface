@@ -24,6 +24,7 @@ int fast = 0;
 int verbose = 0;
 int n_avgs = 2;
 int n_median_filter = 2;
+int median_subsample = 4;
 int blood_vessel_correction = 1;
 double range = 0.45;
 double downsample = 0.0;
@@ -69,6 +70,10 @@ static ArgvInfo argTable[] = {
      These clusters may point to potential topology artifacts and regions\n\
      with high local variations. This process helps to smooth these areas, \n\
      improving the quality of the surface reconstruction in subsequent steps."},
+
+    {"-median-subsample", ARGV_INT, (char *)TRUE, (char *)&median_subsample,
+     "Specify the size of subsampling for the median filter to smooth local\n\
+     thickness values"},
 
     {"-correct-voxelsize", ARGV_FLOAT, (char *)1, (char *)&correct_voxelsize,
      "Amount of thickness correction for voxel-size, since we observed a systematic \n\
@@ -225,6 +230,7 @@ int main(int argc, char *argv[])
     opts.correct_voxelsize = correct_voxelsize;
     opts.fast = fast;
     opts.verbose = verbose;
+    opts.median_subsample = median_subsample;
 
     if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {

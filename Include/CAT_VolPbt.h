@@ -32,6 +32,7 @@ extern "C" {
 typedef struct {
     int n_avgs;              /**< Number of averages for distance estimation (default: 2) */
     int n_median_filter;     /**< Iterations of median filter for topology cleanup (default: 2) */
+    int median_subsample;    /**< Subsampling for median filter to smooth thickness values */
     double range;            /**< Extended range for masking euclidean distance (default: 0.45) */
     double fill_thresh;      /**< Threshold for filling holes in PPM (default: 0.5, 0=disable) */
     double correct_voxelsize;/**< Amount of thickness correction for voxel-size (default: 0.5) */
