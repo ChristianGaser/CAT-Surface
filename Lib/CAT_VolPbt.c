@@ -277,17 +277,20 @@ int CAT_VolComputePbt(
     if (fill_thresh > 0.0)
         fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
-    /* Median-filtering of PPM with use of euclidean distance */
+    /* Use the maximum between the median and the PPM for values above the 
+       isovalue of 0.5 (which are rather gyral), and the minimum otherwise, 
+       to strengthen gyri and weaken sulci. */
     if (!opts->fast)
     {
         /* Rescue unfiltered PPM */
         memcpy(src_copy, PPM, sizeof(float) * nvox);
+
+        /* Median-filtering of PPM with use of euclidean distance */
         localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
         
-        /* Use the maximum between the median and the PPM for values above the 
-           isovalue of 0.5 (which are rather gyral), and the minimum otherwise, 
-           to strengthen gyri and weaken sulci. */
-        PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);        
+        /* Use either minimum or maximum of median and PPM w.r.t. threshold of 0.5 */
+        for (i = 0; i < nvox; i++)
+            PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);        
     }
 
     /* Voxel size correction */
