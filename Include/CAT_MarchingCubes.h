@@ -18,6 +18,7 @@
 
 void correct_topology(
     float *volume,
+    float *vol_changed,
     float thresh,
     int   dims[3],
     int   conn_arr[2]);

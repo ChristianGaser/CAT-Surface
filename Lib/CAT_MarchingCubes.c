@@ -69,10 +69,9 @@ static const int g_faces[6][4] = {
 /**
  * \brief Run one topology-correction scan pass over all 2x2x2 cubes.
  *
- * Binarises volume according to the pass polarity (val_corr=0 removes
- * foreground voxels; val_corr=1 fills background holes), scans every
- * non-empty 2x2x2 cube, and corrects configurations where chi_local equals
- * the bad value for the given connectivity. For each defective cube the
+ * Binarises volume according to the pass polarity, scans every non-empty
+ * 2x2x2 cube, and corrects configurations where chi_local equals the
+ * bad value for the given connectivity. For each defective cube the
  * single foreground corner whose flip resolves the defect is chosen by
  * proximity of vol_prob[corner] to thresh — the most probability-ambiguous
  * voxel is preferred because it has the least anatomical commitment. Falls
@@ -86,25 +85,21 @@ static const int g_faces[6][4] = {
  * \param mx            (in)     value written when a voxel is added
  * \param nx,ny,nz      (in)     volume dimensions
  * \param conn          (in)     connectivity: 18 or 26
- * \param val_corr      (in)     target value for corrected voxels (0 or 1)
  * \param vol_euler     (in/out) scratch buffer, nvol floats
  * \param vol_euler_orig(in/out) scratch buffer, nvol floats
  * \param vol_bin       (in/out) scratch buffer, nvol unsigned shorts
  * \return number of defective cubes corrected
  */
 static int
-run_topology_pass(float *volume, const float *vol_prob, float thresh,
-                  float mn, float mx, int nx, int ny, int nz,
-                  int conn, int val_corr,
-                  float *vol_euler, float *vol_euler_orig,
+run_topology_pass(float *volume,float *vol_changed,  const float *vol_prob, 
+                  float thresh, float mn, float mx, int nx, int ny, int nz,
+                  int conn, float *vol_euler, float *vol_euler_orig,
                   unsigned short *vol_bin)
 {
     int i, j, x, y, z;
     int nvol    = nx * ny * nz;
     int bad_chi = (conn == 18) ? 2 : -6;
     int n_edges = (conn == 18) ? 24 : 28;
-    /* loop polarity: 0 = remove foreground, 1 = fill background */
-    int loop    = (val_corr == 0) ? 0 : 1;
     const int (*edges)[2] = (conn == 18) ? g_edges_18conn : g_edges_26conn;
 
     /* Reset working copies from current volume state */
@@ -116,7 +111,7 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
 
     /* Binarise according to this pass's polarity */
     for (i = 0; i < nvol; i++)
-        vol_bin[i] = (unsigned short)((volume[i] >= thresh) ? (1 - loop) : loop);
+        vol_bin[i] = (unsigned short)((volume[i] >= thresh) ? 1 : 0);
 
     int n_errors = 0;
 
@@ -175,7 +170,7 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
 
                     int test[8];
                     for (j = 0; j < 8; j++) test[j] = cube[j];
-                    test[i] = val_corr;
+                    test[i] = 0;
 
                     int tV = 0, tE = 0, tF = 0;
                     for (j = 0; j < 8; j++) tV += test[j];
@@ -199,7 +194,7 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
                 if (best_corner >= 0)
                 {
                     /* Minimal fix: flip just the most ambiguous corner */
-                    vol_euler[cidx[best_corner]] = (float)val_corr;
+                    vol_euler[cidx[best_corner]] = 0.0f;
                 }
                 else
                 {
@@ -207,7 +202,7 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
                      * corners of this cube as fallback                        */
                     for (i = 0; i < 8; i++)
                         if (cube[i])
-                            vol_euler[cidx[i]] = (float)val_corr;
+                            vol_euler[cidx[i]] = 0.0f;
                 }
                 n_errors++;
             }
@@ -218,9 +213,14 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
     for (i = 0; i < nvol; i++)
     {
         if (vol_euler[i] < vol_euler_orig[i])
+        {
             volume[i] = mn;
-        else if (vol_euler[i] > vol_euler_orig[i])
+            vol_changed[i] = -1.0f;
+        } else if (vol_euler[i] > vol_euler_orig[i])
+        {
             volume[i] = mx;
+            vol_changed[i] = 1.0f;
+        }
     }
 
     return n_errors;
@@ -253,7 +253,7 @@ run_topology_pass(float *volume, const float *vol_prob, float thresh,
  * \param conn_arr      (in)     two connectivity values, e.g. {18, 26}
  * \return void
  */
-void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2])
+void correct_topology(float *volume, float *vol_changed, float thresh, int dims[3], int conn_arr[2])
 {
     int i, iter;
     int nx   = dims[0], ny = dims[1], nz = dims[2];
@@ -292,8 +292,8 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2])
         int ci1 = 1 - ci0;        /* index of the following connectivity   */
 
         /* --- Foreground-removal pass, leading connectivity (always runs) --- */
-        n_err = run_topology_pass(volume, vol_prob, thresh, mn, mx,
-                                  nx, ny, nz, conn_arr[ci0], 0,
+        n_err = run_topology_pass(volume, vol_changed, vol_prob, thresh, mn, mx,
+                                  nx, ny, nz, conn_arr[ci0],
                                   vol_euler, vol_euler_orig, vol_bin);
         n_total += n_err;
 
@@ -304,8 +304,8 @@ void correct_topology(float *volume, float thresh, int dims[3], int conn_arr[2])
          * that can pin the iteration count at the maximum.                   */
         if (n_err > 0)
         {
-            n_err = run_topology_pass(volume, vol_prob, thresh, mn, mx,
-                                      nx, ny, nz, conn_arr[ci1], 0,
+            n_err = run_topology_pass(volume, vol_changed, vol_prob, thresh, mn, mx,
+                                      nx, ny, nz, conn_arr[ci1],
                                       vol_euler, vol_euler_orig, vol_bin);
             n_total += n_err;
         }
@@ -824,7 +824,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     for (i = 0; i < nvol; i++)
         mask[i] = input_float[i] != 0;
 
-    median3(input_float, mask, dims, 2, DT_FLOAT32);
+    median3(input_float, mask, dims, n_median_filter, DT_FLOAT32);
     free(mask);
 
     /* Keep largest cluster and fill holes */
@@ -833,7 +833,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
     /* Correct topology */
     int conn_arr[2] = {18, 26};
-    correct_topology(input_float, min_threshold, dims, conn_arr);
+    correct_topology(input_float, vol_changed, min_threshold, dims, conn_arr);
 
     /* Apply genus-0 correction */
     genus0parameters g0[1];
@@ -963,7 +963,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
             /* save changes */
             for (i = 0; i < nvol; i++)
-                vol_changed[i] += (float)(count + 1) * ((float)g0->output[i] - (float)g0->input[i]);
+                vol_changed[i] += (float)(count + 2) * ((float)g0->output[i] - (float)g0->input[i]);
 
             /* call genus0 a 2nd time with other parameters */
             g0->input = vol_uint16;
@@ -977,7 +977,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             /* save changes */
             for (i = 0; i < nvol; i++)
             {
-                vol_changed[i] += (float)(count + 1) * ((float)g0->output[i] - (float)g0->input[i]);
+                vol_changed[i] += (float)(count + 2) * ((float)g0->output[i] - (float)g0->input[i]);
                 if (vol_changed[i] != 0.0)
                     count_change++;
             }
