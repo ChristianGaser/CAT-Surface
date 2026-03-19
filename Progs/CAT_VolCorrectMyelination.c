@@ -35,7 +35,8 @@ double grad_percentile = 25.0;
 double dist_mm = 2.0;
 double max_correction = 0.5;
 double min_cluster_mm3 = 5.0;
-double cortex_thickness_mm = 0;
+double gm_grad_pct = 50.0;
+double max_gm_grad_dist = 3.0;
 int n_median_filter = 1;
 int no_wm_corr = 0;
 int csf_corr = 0;
@@ -54,10 +55,11 @@ static ArgvInfo argTable[] = {
      "Maximum PVE shift toward GM (default: 0.5)."},
     {"-min-cluster", ARGV_FLOAT, (char *)TRUE, (char *)&min_cluster_mm3,
      "Minimum cluster volume in mm^3 to keep (default: 5.0)."},
-    {"-cortex-thickness", ARGV_FLOAT, (char *)TRUE, (char *)&cortex_thickness_mm,
-     "Expected cortical thickness (mm) for CSF-distance modulation (default: 2.5). "
-     "Relaxes the intensity threshold where WM is close to CSF (thin cortex = myelination). "
-     "Set to 0 to disable modulation."},
+    {"-gm-grad-pct", ARGV_FLOAT, (char *)TRUE, (char *)&gm_grad_pct,
+     "Percentile of GM gradient for double-gradient detection (default: 50.0)."},
+    {"-max-gm-dist", ARGV_FLOAT, (char *)TRUE, (char *)&max_gm_grad_dist,
+     "Max distance (mm) from high-gradient GM for myelination detection (default: 3.0). "
+     "Set to 0 to disable."},
     {"-median", ARGV_INT, (char *)TRUE, (char *)&n_median_filter,
      "Iterations of 3x3x3 median filter on correction field (default: 1)."},
     {"-no-wm-corr", ARGV_CONSTANT, (char *)TRUE, (char *)&no_wm_corr,
@@ -152,7 +154,8 @@ int main(int argc, char *argv[])
     opts.max_correction = max_correction;
     opts.n_median_filter = n_median_filter;
     opts.min_cluster_mm3 = min_cluster_mm3;
-    opts.cortex_thickness_mm = cortex_thickness_mm;
+    opts.gm_grad_pct = gm_grad_pct;
+    opts.max_gm_grad_dist = max_gm_grad_dist;
     opts.correct_wm = !no_wm_corr;
     opts.correct_csf = csf_corr;
     opts.verbose = verbose;

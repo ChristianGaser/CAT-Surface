@@ -252,7 +252,7 @@ int CAT_VolComputePbt(
     if (fill_thresh > 0.0)
         fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
-    /* Median-filtering of PPM */
+    /* Median-filtering of PPM with use of euclidean distance */
     if (!opts->fast)
         localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 

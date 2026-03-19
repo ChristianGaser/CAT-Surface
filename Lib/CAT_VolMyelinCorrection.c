@@ -39,7 +39,8 @@ void CAT_MyelinCorrOptionsInit(CAT_MyelinCorrOptions *opts)
     opts->dist_mm = 2.0;
     opts->max_correction = 0.5;
     opts->min_cluster_mm3 = 5.0;
-    opts->cortex_thickness_mm = 2.5;
+    opts->gm_grad_pct = 50.0;
+    opts->max_gm_grad_dist = 3.0;
     opts->n_median_filter = 1;
     opts->correct_wm = 1;
     opts->correct_csf = 1;
@@ -90,8 +91,9 @@ correct_boundary(const float *pve, const float *t1w,
     unsigned char *band_mask = NULL;
     unsigned char *brain_mask = NULL;
     float *dist_to_core = NULL;
-    float *dist_to_csf = NULL;
+    float *dist_gm_grad = NULL;
     double core_mean, core_std, intensity_thresh, grad_thresh;
+    double gm_grad_thresh = 0.0;
 
     const char *label = (side > 0) ? "WM/GM" : "GM/CSF";
 
@@ -148,7 +150,7 @@ correct_boundary(const float *pve, const float *t1w,
         free(band_mask);
         free(brain_mask);
         free(dist_to_core);
-        free(dist_to_csf);
+        free(dist_gm_grad);
         return 0;
     }
 
@@ -179,33 +181,6 @@ correct_boundary(const float *pve, const float *t1w,
         brain_mask[i] = (pve[i] > 0.0f) ? 1 : 0;
     }
     euclidean_distance(dist_to_core, brain_mask, dims, voxelsize, 0);
-
-    /* For WM side: compute distance to CSF to modulate sensitivity.
-     * In cortical regions (WM close to CSF), the intensity threshold
-     * is relaxed to catch myelinated GM that is only slightly dimmer
-     * than deep WM.  Deep structures (far from CSF) keep original k. */
-    if (side > 0 && opts->cortex_thickness_mm > 0.0)
-    {
-        dist_to_csf = (float *)calloc(nvox, sizeof(float));
-        if (!dist_to_csf)
-        {
-            free(tissue_core);
-            free(core_mask);
-            free(band_mask);
-            free(brain_mask);
-            free(dist_to_core);
-            fprintf(stderr, "Memory allocation error in correct_boundary (%s)\n", label);
-            return -2;
-        }
-        for (i = 0; i < nvox; i++)
-            dist_to_csf[i] = (pve[i] > 0.0f && pve[i] < 1.5f) ? 1.0f : 0.0f;
-        euclidean_distance(dist_to_csf, brain_mask, dims, voxelsize, 0);
-
-        if (opts->verbose)
-            fprintf(stderr, "  %s: CSF-distance modulation enabled "
-                            "(cortex_thickness = %.1f mm)\n",
-                    label, opts->cortex_thickness_mm);
-    }
 
     /* ===== Step 4: Boundary band ===== */
     n_band = 0;
@@ -246,7 +221,7 @@ correct_boundary(const float *pve, const float *t1w,
         free(band_mask);
         free(brain_mask);
         free(dist_to_core);
-        free(dist_to_csf);
+        free(dist_gm_grad);
         return 0;
     }
 
@@ -260,7 +235,7 @@ correct_boundary(const float *pve, const float *t1w,
             free(band_mask);
             free(brain_mask);
             free(dist_to_core);
-            free(dist_to_csf);
+            free(dist_gm_grad);
             return -2;
         }
 
@@ -284,6 +259,62 @@ correct_boundary(const float *pve, const float *t1w,
         free(band_grads);
     }
 
+    /* ===== Step 5b: Distance to high-gradient GM (WM side only) =====
+     * In myelinated motor cortex, WM-boundary voxels sit on a bright
+     * plateau between two gradient peaks.  The second peak lies within
+     * GM-labeled tissue (transition from myelinated to normal GM).
+     * Detecting elevated gradient inside GM near the WM band identifies
+     * these double-gradient regions and allows flagging bright WM-band
+     * voxels that do not satisfy the intensity criterion alone. */
+    if (side > 0 && opts->gm_grad_pct > 0.0 && opts->max_gm_grad_dist > 0.0)
+    {
+        int n_gm = 0;
+        for (i = 0; i < nvox; i++)
+            if (pve[i] >= 1.5f && pve[i] < 2.3f)
+                n_gm++;
+
+        if (n_gm > 100)
+        {
+            double *gm_grads = (double *)malloc(sizeof(double) * n_gm);
+            if (gm_grads)
+            {
+                int cnt = 0;
+                for (i = 0; i < nvox; i++)
+                    if (pve[i] >= 1.5f && pve[i] < 2.3f)
+                        gm_grads[cnt++] = (double)grad_mag[i];
+
+                double gm_pct_th[2], gm_pct_v[2];
+                gm_pct_v[0] = opts->gm_grad_pct;
+                gm_pct_v[1] = 100.0;
+                get_prctile_double(gm_grads, n_gm, gm_pct_th,
+                                   gm_pct_v, 0);
+                gm_grad_thresh = gm_pct_th[0];
+                free(gm_grads);
+
+                /* Distance from each voxel to nearest high-gradient GM */
+                dist_gm_grad = (float *)calloc(nvox, sizeof(float));
+                if (dist_gm_grad)
+                {
+                    for (i = 0; i < nvox; i++)
+                        dist_gm_grad[i] =
+                            (pve[i] >= 1.5f && pve[i] < 2.3f &&
+                             grad_mag[i] > gm_grad_thresh)
+                                ? 1.0f
+                                : 0.0f;
+                    euclidean_distance(dist_gm_grad, brain_mask, dims,
+                                       voxelsize, 0);
+                }
+
+                if (opts->verbose)
+                    fprintf(stderr,
+                            "  %s: GM gradient threshold (%.0f%%) = %.4f, "
+                            "double-gradient detection (max dist = %.1f mm)\n",
+                            label, opts->gm_grad_pct, gm_grad_thresh,
+                            opts->max_gm_grad_dist);
+            }
+        }
+    }
+
     /* ===== Step 6: Flag voxels and compute correction ===== */
     n_flagged = 0;
     for (i = 0; i < nvox; i++)
@@ -295,35 +326,23 @@ correct_boundary(const float *pve, const float *t1w,
         float gm_val = grad_mag[i];
         float dist_val = dist_to_core[i];
 
-        /* Conjunction of three criteria */
+        /* --- Path A: Three-criterion conjunction (original) --- */
         int crit_intensity, crit_gradient, crit_distance;
 
-        /* For WM side with CSF-distance modulation: relax threshold
-         * where cortex appears thin (WM close to CSF = myelination).
-         * effective_k = k * min(1, dist_csf / expected_thickness)
-         * Deep structures keep original k; thin cortex gets lower k. */
-        double local_thresh = intensity_thresh;
-        if (side > 0 && dist_to_csf != NULL)
-        {
-            double ratio = fmin(1.0, dist_to_csf[i] / opts->cortex_thickness_mm);
-            local_thresh = core_mean - opts->k_intensity * ratio * core_std;
-        }
-
         if (side > 0)
-            crit_intensity = (t1_val < local_thresh); /* too dark for WM */
+            crit_intensity = (t1_val < intensity_thresh);
         else
-            crit_intensity = (t1_val > intensity_thresh); /* too bright for CSF */
+            crit_intensity = (t1_val > intensity_thresh);
 
         crit_gradient = (gm_val < grad_thresh);
         crit_distance = (dist_val > opts->dist_mm);
 
         if (crit_intensity && crit_gradient && crit_distance)
         {
-            /* Weight by how strongly each criterion is satisfied [0, 1] */
             double w_int, w_grad, w_dist;
 
             if (side > 0)
-                w_int = fmin(1.0, (local_thresh - t1_val) /
+                w_int = fmin(1.0, (intensity_thresh - t1_val) /
                                       (opts->k_intensity * core_std + 1e-10));
             else
                 w_int = fmin(1.0, (t1_val - intensity_thresh) /
@@ -339,18 +358,38 @@ correct_boundary(const float *pve, const float *t1w,
             double pve_excess, shift;
             if (side > 0)
             {
-                /* WM side: how far above GM (2.0) */
                 pve_excess = pve[i] - GM;
                 shift = opts->max_correction * w_combined *
                         fmin(1.0, pve_excess / (WM - GM));
             }
             else
             {
-                /* CSF side: how far below GM (2.0) */
                 pve_excess = GM - pve[i];
                 shift = opts->max_correction * w_combined *
                         fmin(1.0, pve_excess / (GM - CSF));
             }
+
+            correction[i] += (float)shift;
+            n_flagged++;
+        }
+        /* --- Path B: Double-gradient myelination detection (WM only) ---
+         * WM-boundary voxels on a bright myelinated plateau: low local
+         * gradient, but nearby GM tissue has elevated gradient (the true
+         * myelinated-to-normal GM transition). */
+        else if (side > 0 && dist_gm_grad != NULL &&
+                 dist_gm_grad[i] < opts->max_gm_grad_dist &&
+                 crit_gradient && crit_distance)
+        {
+            double w_prox = 1.0 - dist_gm_grad[i] / opts->max_gm_grad_dist;
+            double w_grad = fmin(1.0, (grad_thresh - gm_val) /
+                                          (grad_thresh + 1e-10));
+            double w_dist = fmin(1.0, (dist_val - opts->dist_mm) /
+                                          (opts->dist_mm + 1e-10));
+            double w_combined = cbrt(w_prox * w_grad * w_dist);
+
+            double pve_excess = pve[i] - GM;
+            double shift = opts->max_correction * w_combined *
+                           fmin(1.0, pve_excess / (WM - GM));
 
             correction[i] += (float)shift;
             n_flagged++;
@@ -408,7 +447,7 @@ correct_boundary(const float *pve, const float *t1w,
     free(band_mask);
     free(brain_mask);
     free(dist_to_core);
-    free(dist_to_csf);
+    free(dist_gm_grad);
 
     return n_flagged;
 }
