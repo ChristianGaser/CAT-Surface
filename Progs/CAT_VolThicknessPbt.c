@@ -65,11 +65,13 @@ static ArgvInfo argTable[] = {
     spatial resolution for the subsequent steps. Set to '0' to disable downsampling."},
 
     {"-median-filter", ARGV_INT, (char *)TRUE, (char *)&n_median_filter,
-     "Specify the number of iterations to apply a median filter to areas\n\
-     where the gradient of the thresholded image indicates larger clusters.\n\
-     These clusters may point to potential topology artifacts and regions\n\
-     with high local variations. This process helps to smooth these areas, \n\
-     improving the quality of the surface reconstruction in subsequent steps."},
+        "Specify the number of iterations for weighted local median filtering of the\n\
+        final PPM image. The filter is not applied uniformly: CAT first estimates a\n\
+        topology-artifact weight map from the positive residual PPM - smooth(PPM),\n\
+        keeps only high-residual voxels in sufficiently thick cortex, regularizes this\n\
+        mask by close/open/dilate and smoothing, and then blends original PPM with the\n\
+        locally median-filtered PPM. Higher weights mean stronger median-filter\n\
+        influence. Set to 0 to disable this cleanup."},
 
     {"-median-subsample", ARGV_INT, (char *)TRUE, (char *)&median_subsample,
      "Specify the size of subsampling for the median filter to smooth local\n\
@@ -119,7 +121,7 @@ Options:\n\
     -n-avgs <int>              Set the number of averages for distance estimation.\n\
     -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
-    -median-filter <float>     Specify the number of iterations to apply a median filter.\n\
+    -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
 \n\
 Example:\n\

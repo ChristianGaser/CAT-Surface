@@ -31,7 +31,7 @@ extern "C" {
  */
 typedef struct {
     int n_avgs;              /**< Number of averages for distance estimation (default: 2) */
-    int n_median_filter;     /**< Iterations of median filter for topology cleanup (default: 2) */
+    int n_median_filter;     /**< Iterations of local median filtering for PPM cleanup (default: 2). The filter is blended in only where a topology-artifact weight map is high: the weight is estimated from the positive residual PPM - smooth(PPM), restricted to sufficiently thick cortex, cleaned morphologically, then smoothed before mixing original and median-filtered PPM. Set to 0 to disable. */
     int median_subsample;    /**< Subsampling for median filter to smooth thickness values */
     double range;            /**< Extended range for masking euclidean distance (default: 0.45) */
     double fill_thresh;      /**< Threshold for filling holes in PPM (default: 0.5, 0=disable) */
@@ -79,7 +79,15 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts);
  * 1. Distance estimation in WM and CSF by shifting GM borders
  * 2. Thickness estimation via projection_based_thickness()
  * 3. PPM calculation with gyrus/sulcus blending
- * 4. Optional median filtering for topology artifact reduction
+ * 4. Optional weighted local median filtering for topology artifact reduction
+ *
+ * If opts->n_median_filter > 0, the final PPM cleanup is applied only
+ * where a topology-artifact likelihood map is high rather than everywhere
+ * uniformly. This likelihood is estimated from the positive residual between
+ * the PPM and a smoothed PPM, restricted to thicker cortex (GMT > 1.5), then
+ * regularized by close/open/dilate operations and smoothing. The resulting
+ * soft weight in [0,1] blends the original PPM with a locally median-filtered
+ * PPM, so stronger suspected artifacts receive more median-filter influence.
  *
  * @param src         Input PVE label image (CSF=1, GM=2, WM=3 with partial volumes).
  * @param GMT_out     Output: Gray matter thickness map (caller must allocate nvox floats).
@@ -88,7 +96,8 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts);
  * @param dist_WM_out  Optional output: WM distance map (can be NULL).
  * @param dims        Volume dimensions [nx, ny, nz].
  * @param voxelsize   Voxel sizes in mm [dx, dy, dz].
- * @param opts        Options controlling the algorithm behavior.
+ * @param opts        Options controlling the algorithm behavior, including
+ *                    n_median_filter for the weighted local PPM cleanup.
  *
  * @return 0 on success, non-zero on error.
  */

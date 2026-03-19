@@ -38,6 +38,31 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->verbose = 0;
 }
 
+/**
+ * \brief Compute projection-based cortical thickness and percentage position map.
+ *
+ * Implements the full PBT pipeline consisting of averaged WM/CSF distance
+ * estimation, sulcal and gyral thickness estimation, PPM construction, and an
+ * optional weighted local median-filter cleanup of the final PPM.
+ *
+ * If opts->n_median_filter > 0, the median filter is not applied globally.
+ * Instead, a topology-artifact likelihood map is estimated from the positive
+ * residual PPM - smooth(PPM), restricted to sufficiently thick cortex
+ * (GMT > 1.5), regularized morphologically, then smoothed. This soft weight
+ * map blends the original PPM with a locally median-filtered PPM so that only
+ * likely topology-artifact regions receive strong filtering.
+ *
+ * \param src            (in)  input PVE label image (CSF=1, GM=2, WM=3)
+ * \param GMT_out        (out) output gray matter thickness map
+ * \param PPM_out        (out) output percentage position map
+ * \param dist_CSF_out   (out) optional output CSF distance map, or NULL
+ * \param dist_WM_out    (out) optional output WM distance map, or NULL
+ * \param dims           (in)  volume dimensions [nx, ny, nz]
+ * \param voxelsize      (in)  voxel sizes in mm [dx, dy, dz]
+ * \param opts           (in)  algorithm options, including n_median_filter for
+ *                             weighted local PPM cleanup
+ * \return 0 on success, non-zero on error
+ */
 int CAT_VolComputePbt(
     const float *src,
     float *GMT_out,
@@ -254,7 +279,16 @@ int CAT_VolComputePbt(
 
     /* Median-filtering of PPM with use of euclidean distance */
     if (!opts->fast)
+    {
+        /* Rescue unfiltered PPM */
+        memcpy(src_copy, PPM, sizeof(float) * nvox);
         localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
+        
+        /* Use the maximum between the median and the PPM for values above the 
+           isovalue of 0.5 (which are rather gyral), and the minimum otherwise, 
+           to strengthen gyri and weaken sulci. */
+        PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);        
+    }
 
     /* Voxel size correction */
     for (i = 0; i < nvox; i++)
