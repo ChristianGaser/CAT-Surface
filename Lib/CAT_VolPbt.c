@@ -297,7 +297,13 @@ int CAT_VolComputePbt(
         GMT[i] *= mean_vx_size;
     }
 
-    /* Median filter preprocessing for topology artifact reduction */
+    /* Median filter preprocessing for topology artifact reduction
+     * A topology-artifact likelihood map is estimated from the positive
+     * residual PPM - smooth(PPM), restricted to sufficiently thick cortex
+     * (GMT > 1.5), regularized morphologically, then smoothed. This soft weight
+     * map blends the original PPM with a locally median-filtered PPM so that only
+     * likely topology-artifact regions receive strong filtering.
+    */
     if (n_median_filter)
     {
         if (verbose)
