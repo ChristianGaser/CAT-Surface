@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
 
       # ---------------- Windows ----------------
       - name: Set up MSYS2
@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install -y \
             autoconf automake libtool autoconf-archive build-essential \
             pkg-config libfftw3-dev zip
-            
+
       # ---------------- macOS ----------------
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
@@ -95,7 +95,7 @@ jobs:
         run: zip -r ${{ matrix.artifact }}.zip Progs
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.zip
