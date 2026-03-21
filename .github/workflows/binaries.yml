@@ -60,7 +60,7 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          export CPPFLAGS="-I/opt/homebrew/include"
+          export {C,CXX,CPP}FLAGS="-O2 -I/opt/homebrew/include"
           export LDFLAGS="-L/opt/homebrew/lib"
           ./configure --enable-static --disable-shared --disable-doc
 
@@ -70,19 +70,19 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          export CPPFLAGS="-I/mingw64/include"
+          export {C,CXX,CPP}FLAGS="-O2 -I/mingw64/include"
           export LDFLAGS="-L/mingw64/lib"
           ./configure --enable-static --disable-shared --disable-doc
 
       # ---------------- Build ----------------
       - name: Build
         if: matrix.os != 'windows-latest'
-        run: make -O2 -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+        run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
 
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
-        run: make -O2 -j$(nproc)
+        run: make -j$(nproc)
 
       # ---------------- Package ----------------
       - name: Package binaries
