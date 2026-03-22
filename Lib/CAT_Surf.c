@@ -908,6 +908,11 @@ convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *polygons,
     B = (fabs(bounds[2]) + fabs(bounds[3])) * 0.5;
     C = (fabs(bounds[4]) + fabs(bounds[5])) * 0.5;
 
+    /* Guard against degenerate axes */
+    if (A < 1e-20) A = 1e-20;
+    if (B < 1e-20) B = 1e-20;
+    if (C < 1e-20) C = 1e-20;
+
     /* Convert the coordinates from ellipsoid to sphere */
     A2 = A * A;
     B2 = B * B;
@@ -1287,8 +1292,10 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     /* Get bounds of fiducial surface */
     get_bounds(polygons, bounds);
 
-    for (j = 0; j < 3; j++) 
+    for (j = 0; j < 3; j++) {
         diff_bound[j] = bounds[2*j+1] - bounds[2*j];
+        if (diff_bound[j] < 1e-20) diff_bound[j] = 1e-20;
+    }
 
     /* Translate the fiducial to center of mass */
     translate_to_center_of_mass(polygonsIn);
@@ -1304,6 +1311,12 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     area_valuesIn  = SAFE_MALLOC(double, polygons->n_points);
     needSmoothing  = SAFE_MALLOC(int, polygons->n_points);
     SA_ratio = 0.0;
+
+    /* Compute neighbours and fiducial area once (polygons is a
+       static copy that never changes during inflation). */
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                    &neighbours, NULL, NULL);
+    get_area_of_points(polygons, area_values);
 
     for (cycle = 0; cycle < (n_smoothingCycles + 1); cycle++) {
         if (cycle < n_smoothingCycles) {
@@ -1336,10 +1349,6 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
         /* Ratio of inflated and spherical surfaces */
         SA_ratio = inflatedSA / SA;
 
-        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
-                        &neighbours, NULL, NULL);
-
-        get_area_of_points(polygons, area_values);
         get_area_of_points(polygonsIn, area_valuesIn);
 
         // Step 6d: Calculate compress/stretched value for each node
@@ -1460,6 +1469,8 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     
     compute_polygon_normals(polygonsIn);
     
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
     delete_object(out_object);
     free(area_values);
     free(area_valuesIn);
@@ -1469,8 +1480,6 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
     free(compStretch);
     free(stretching);
     free(needSmoothing);
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
 }
 
 /**
