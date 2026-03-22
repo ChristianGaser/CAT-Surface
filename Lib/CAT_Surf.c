@@ -1043,18 +1043,27 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
     int n1, n2, next;
     int *n_neighbours, **neighbours;
     double *area_values;
-    Point pts[1000];
-    double tileAreas[32], tileCenters[32*3];
+    Point pts[3];
+    double *tileAreas, *tileCenters;
     double xyz[3], pt1[3], pt2[3], pt3[3];
     double totalArea, weight;
     BOOLEAN smoothSubsetOfNodes = 0;
     BOOLEAN smoothEdges, smoothIt;
     double invstr = 1.0 - strength;
     double radius = get_sphere_radius(polygons);
+    int max_nbs;
 
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
-  
+
+    /* Allocate tile arrays based on actual max neighbour count */
+    max_nbs = 0;
+    for (i = 0; i < polygons->n_points; i++)
+        if (n_neighbours[i] > max_nbs) max_nbs = n_neighbours[i];
+    if (max_nbs < 1) max_nbs = 1;
+    tileAreas   = SAFE_MALLOC(double, max_nbs);
+    tileCenters = SAFE_MALLOC(double, max_nbs * 3);
+
     if (smoothOnlyTheseNodes != NULL)
         smoothSubsetOfNodes = 1;
 
@@ -1137,6 +1146,8 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
             }
         }
     }
+    free(tileAreas);
+    free(tileCenters);
     delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);
 }
@@ -1175,15 +1186,22 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
 {
     int i, j, k, l, pidx;
     int *n_neighbours, **neighbours;
-    double tileDist[MAX_POINTS_PER_POLYGON];
+    double *tileDist;
     double pt[3];
     double weight;
     double invstr = 1.0 - strength;
     double radius = get_sphere_radius(polygons);
     BOOLEAN smoothSubsetOfNodes = (smoothOnlyTheseNodes != NULL);
+    int max_nbs;
   
     create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
                     &neighbours, NULL, NULL);
+
+    /* Allocate tileDist based on actual max neighbour count */
+    max_nbs = 0;
+    for (i = 0; i < polygons->n_points; i++)
+        if (n_neighbours[i] > max_nbs) max_nbs = n_neighbours[i];
+    tileDist = SAFE_MALLOC(double, max_nbs > 0 ? max_nbs : 1);
 
     for (k = 1; k < iters; k++) {
         /* should the edges be smoothed? */
@@ -1234,6 +1252,7 @@ distance_smoothing(polygons_struct *polygons, double strength, int iters,
         }
     }
     
+    free(tileDist);
     delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);
 }
