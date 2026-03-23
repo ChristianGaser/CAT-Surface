@@ -65,7 +65,7 @@ static ArgvInfo argTable[] = {
     spatial resolution for the subsequent steps. Set to '0' to disable downsampling."},
 
     {"-median-filter", ARGV_INT, (char *)TRUE, (char *)&n_median_filter,
-        "Specify the number of iterations for weighted local median filtering of the\n\
+     "Specify the number of iterations for weighted local median filtering of the\n\
         final PPM image. The filter is not applied uniformly: CAT first estimates a\n\
         topology-artifact weight map from the positive residual PPM - smooth(PPM),\n\
         keeps only high-residual voxels in sufficiently thick cortex, regularizes this\n\

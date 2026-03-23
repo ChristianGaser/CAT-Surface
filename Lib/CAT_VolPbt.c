@@ -234,19 +234,19 @@ int CAT_VolComputePbt(
     /* Iterative median filter */
     median_subsample3(GMT1, dims, voxelsize, subsample, 2.0, DT_FLOAT32);
     median_subsample3(GMT2, dims, voxelsize, subsample, 2.0, DT_FLOAT32);
-    
+
     /* Get median of GMT1 to decide whether GMT1 or GMT2 are closer to median */
     float median_GMT = get_median(GMT1, nvox, 1, DT_FLOAT32);
 
     /* Use that thickness measure that is closer to the median thickness */
     for (i = 0; i < nvox; i++)
     {
-        float min_GMT = fminf(GMT1[i],GMT2[i]);
+        float min_GMT = fminf(GMT1[i], GMT2[i]);
         float d1 = fabsf(GMT1[i] - median_GMT);
         float d2 = fabsf(min_GMT - median_GMT);
         GMT[i] = (d1 < d2) ? GMT1[i] : min_GMT;
     }
-     
+
     for (i = 0; i < nvox; i++)
         mask[i] = (GMT[i] > 1.0f) ? 1 : 0;
     median3(GMT, mask, dims, 3, DT_FLOAT32);
@@ -277,8 +277,8 @@ int CAT_VolComputePbt(
     if (fill_thresh > 0.0)
         fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
-    /* Use the maximum between the median and the PPM for values above the 
-       isovalue of 0.5 (which are rather gyral), and the minimum otherwise, 
+    /* Use the maximum between the median and the PPM for values above the
+       isovalue of 0.5 (which are rather gyral), and the minimum otherwise,
        to strengthen gyri and weaken sulci. */
     if (!opts->fast)
     {
@@ -287,10 +287,10 @@ int CAT_VolComputePbt(
 
         /* Median-filtering of PPM with use of euclidean distance */
         localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
-        
+
         /* Use either minimum or maximum of median and PPM w.r.t. threshold of 0.5 */
         for (i = 0; i < nvox; i++)
-            PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);        
+            PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);
     }
 
     /* Voxel size correction */
@@ -306,7 +306,7 @@ int CAT_VolComputePbt(
      * (GMT > 1.5), regularized morphologically, then smoothed. This soft weight
      * map blends the original PPM with a locally median-filtered PPM so that only
      * likely topology-artifact regions receive strong filtering.
-    */
+     */
     if (n_median_filter)
     {
         if (verbose)
@@ -681,7 +681,7 @@ void smooth_gyri_mask(const float *src, float *mask,
  * \param dims             (in)     dimensions {nx, ny, nz}
  * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  */
-void blood_vessel_correction_pve_float(float *Yp0, int dims[3], 
+void blood_vessel_correction_pve_float(float *Yp0, int dims[3],
                                        double vx_vol[3])
 {
     const int nvox = dims[0] * dims[1] * dims[2];
@@ -805,12 +805,11 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3],
         if (Ymsk[i])
             Yp0[i] = NAN;
     }
-    
-    
+
     for (i = 0; i < nvox; ++i)
         Ywm[i] = (float)Ymsk[i];
     dist_dilate_float(Ywm, dims, vx_local, 1.0, 0.5, brainMsk);
-    
+
     /*
      * Ring-constrained inpainting.
      * 1) set vessel mask to NaN
@@ -945,18 +944,18 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3],
             if (!changed)
                 break;
         }
-    
+
         /* Fallback for remaining NaNs: nearest value from non-vessel support. */
-    
+
         for (i = 0; i < nvox; ++i)
         {
             Ynn[i] = (!Ymsk[i] && !isnan(Yp0[i])) ? (Yp0[i] + 1.0f) : 0.0f;
             Icon[i] = 0.0f;
         }
-        
+
         double dd_nn[2] = {1.0, 0.0};
         downcut_float(Ynn, Icon, NULL, dims, 0.0, vx_local, dd_nn);
-        
+
         for (i = 0; i < nvox; ++i)
         {
             if (nanMsk[i])
