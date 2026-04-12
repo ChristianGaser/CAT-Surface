@@ -25,9 +25,10 @@
 #endif
 
 /* Forward declarations of static helpers */
-static void correct_ppm_sulci(const float *src, float *PPM,
-                              const float *dist_CSF, int dims[3],
-                              double voxelsize[3], double sulcal_width);
+static void correct_ppm_sulci(const float *src, float *PPM, float *GMT,
+                              const float *dist_CSF, const float *dist_WM,
+                              int dims[3], double voxelsize[3],
+                              double sulcal_width);
 
 void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
 {
@@ -291,13 +292,14 @@ int CAT_VolComputePbt(
             PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);
     }
 
-    /* Correct PPM in sulci using CSF proximity to prevent sulcal gluing */
+    /* Correct PPM and GMT in sulci using CSF proximity to prevent sulcal gluing */
     if (opts->sulcal_width > 0.0)
     {
         if (verbose)
-            fprintf(stderr, "Correct PPM in sulci using CSF proximity (width=%.1f mm).\n",
+            fprintf(stderr, "Correct PPM and GMT in sulci using CSF proximity (width=%.1f mm).\n",
                     opts->sulcal_width);
-        correct_ppm_sulci(src, PPM, dist_CSF, dims, voxelsize, opts->sulcal_width);
+        correct_ppm_sulci(src, PPM, GMT, dist_CSF, dist_WM, dims, voxelsize,
+                          opts->sulcal_width);
     }
 
     /* Voxel size correction */
@@ -595,6 +597,12 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
  * attenuates PPM where the original PVE label indicates CSF proximity,
  * effectively carving a thin separator through sulcal fundi.
  *
+ * Additionally, GMT (cortical thickness) is corrected in the same region.
+ * Where CSF reconstruction failed, dist_CSF is overestimated, leading to
+ * inflated thickness values. For near-CSF voxels the thickness is capped at
+ * 2 * dist_WM (the cortex cannot be thicker than twice the WM distance when
+ * the CSF boundary is nearby), blended with the same quadratic weight.
+ *
  * For cortical voxels in the GM/CSF partial-volume zone (CGM <= src < GM)
  * that lie close to the CSF boundary (dist_CSF < sulcal_width), PPM is
  * clamped to a tissue-composition-based maximum: max_ppm = (src - 1) / 2,
@@ -603,14 +611,17 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
  *
  * \param src          (in)     PVE label image (CSF=1, GM=2, WM=3)
  * \param PPM          (in/out) percentage position map to correct
+ * \param GMT          (in/out) gray matter thickness to correct (voxel units)
  * \param dist_CSF     (in)     distance-to-CSF boundary (in voxel units)
+ * \param dist_WM      (in)     distance-to-WM boundary (in voxel units)
  * \param dims         (in)     volume dimensions {nx, ny, nz}
  * \param voxelsize    (in)     voxel spacing in mm {dx, dy, dz}
  * \param sulcal_width (in)     max distance from CSF to correct (mm)
  */
-static void correct_ppm_sulci(const float *src, float *PPM,
-                              const float *dist_CSF, int dims[3],
-                              double voxelsize[3], double sulcal_width)
+static void correct_ppm_sulci(const float *src, float *PPM, float *GMT,
+                              const float *dist_CSF, const float *dist_WM,
+                              int dims[3], double voxelsize[3],
+                              double sulcal_width)
 {
     const int nvox = dims[0] * dims[1] * dims[2];
     const float mean_vx = (float)(voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0f;
@@ -637,9 +648,17 @@ static void correct_ppm_sulci(const float *src, float *PPM,
                 /* Expected max PPM from tissue composition:
                  * CSF (1.0) -> 0.0, GM (2.0) -> 0.5 */
                 float max_ppm = (src[i] - 1.0f) * 0.5f;
-                float corrected = fminf(PPM[i], max_ppm);
+                float corrected_ppm = fminf(PPM[i], max_ppm);
+                PPM[i] = (1.0f - weight) * PPM[i] + weight * corrected_ppm;
 
-                PPM[i] = (1.0f - weight) * PPM[i] + weight * corrected;
+                /* Cap thickness: near CSF the cortex cannot be thicker
+                 * than approximately 2 * dist_WM */
+                if (GMT[i] > 0.0f && dist_WM[i] > 0.0f)
+                {
+                    float max_gmt = 2.0f * dist_WM[i];
+                    float corrected_gmt = fminf(GMT[i], max_gmt);
+                    GMT[i] = (1.0f - weight) * GMT[i] + weight * corrected_gmt;
+                }
             }
         }
     }
