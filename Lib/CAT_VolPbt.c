@@ -24,6 +24,11 @@
 #define GWM 2.5
 #endif
 
+/* Forward declarations of static helpers */
+static void correct_ppm_sulci(const float *src, float *PPM,
+                              const float *dist_CSF, int dims[3],
+                              double voxelsize[3], double sulcal_width);
+
 void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
 {
     if (!opts)
@@ -34,6 +39,7 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->median_subsample = 4;
     opts->fill_thresh = 0.5;
     opts->correct_voxelsize = 0.5;
+    opts->sulcal_width = 2.5;
     opts->fast = 0;
     opts->verbose = 0;
 }
@@ -285,6 +291,15 @@ int CAT_VolComputePbt(
             PPM[i] = (src_copy[i] > 0.5) ? fmaxf(src_copy[i], PPM[i]) : fminf(src_copy[i], PPM[i]);
     }
 
+    /* Correct PPM in sulci using CSF proximity to prevent sulcal gluing */
+    if (opts->sulcal_width > 0.0)
+    {
+        if (verbose)
+            fprintf(stderr, "Correct PPM in sulci using CSF proximity (width=%.1f mm).\n",
+                    opts->sulcal_width);
+        correct_ppm_sulci(src, PPM, dist_CSF, dims, voxelsize, opts->sulcal_width);
+    }
+
     /* Voxel size correction */
     for (i = 0; i < nvox; i++)
     {
@@ -408,7 +423,7 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
     for (i = 0; i <= sA; i++)
     {
         if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&           /* thickness/WMD of neighbours should be larger */
-            (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&    /* projection range */
+            (SEG[i] >= 1.0) && (SEGI > 1.25 && SEGI <= 2.75) &&   /* projection range */
             (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                  /* upper boundary - maximum distance */
             (((PPM[i] - ND[i] * 0.5) > WMD) || (SEG[i] < 1.5)) && /* lower boundary - minimum distance - corrected values outside */
             ((((SEGI * MAX(1.0, MIN(1.2, SEGI - 1.5))) >= SEG[i])) || (SEG[i] < 1.5)))
@@ -422,7 +437,7 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
     for (i = 0; i <= sA; i++)
     {
         if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) &&
-            (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&
+            (SEG[i] >= 1.0) && (SEGI > 1.25 && SEGI <= 2.75) &&
             (((PPM[i] - ND[i] * 1.2) <= WMD)) &&
             (((PPM[i] - ND[i] * 0.5) > WMD) || (SEG[i] < 1.5)) &&
             ((((SEGI * MAX(1.0, MIN(1.2, SEGI - 1.5))) >= SEG[i])) || (SEG[i] < 1.5)))
@@ -456,8 +471,9 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
     const int nvox = dims[0] * dims[1] * dims[2];
     const int x = dims[0], y = dims[1], xy = x * y;
     const float s2 = sqrt(2.0), s3 = sqrt(3.0);
-    const int NI[14] = {0, -1, -x + 1, -x, -x - 1, -xy + 1, -xy, -xy - 1, -xy + x + 1, -xy + x, -xy + x - 1, -xy - x + 1, -xy - x, -xy - x - 1}; // Neighbour index offsets
-    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3};                                                           // Neighbour distances
+    const int NI[14] = {0, -1, -x + 1, -x, -x - 1, -xy + 1, -xy, -xy - 1,
+                        -xy + x + 1, -xy + x, -xy + x - 1, -xy - x + 1, -xy - x, -xy - x - 1}; // Neighbour index offsets
+    const float ND[14] = {0.0, 1.0, s2, 1.0, s2, s2, 1.0, s2, s3, s2, s3, s3, s2, s3};         // Neighbour distances
     enum
     {
         sN = (int)(sizeof(NI) / sizeof(NI[0]))
@@ -568,17 +584,63 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
         if (SEG[i] < CGM || SEG[i] > GWM)
             GMT[i] = 0.0;
     }
+}
 
-    // Final GMT adjustment based on CSFD and WMD
+/**
+ * \brief Correct PPM in sulci using CSF tissue values to prevent sulcal gluing.
+ *
+ * Segmentation errors or blood vessels can produce elevated PPM values inside
+ * sulci. When the central surface is extracted at isovalue 0.5, these elevated
+ * values cause opposing sulcal banks to merge ("glued sulci"). This function
+ * attenuates PPM where the original PVE label indicates CSF proximity,
+ * effectively carving a thin separator through sulcal fundi.
+ *
+ * For cortical voxels in the GM/CSF partial-volume zone (CGM <= src < GM)
+ * that lie close to the CSF boundary (dist_CSF < sulcal_width), PPM is
+ * clamped to a tissue-composition-based maximum: max_ppm = (src - 1) / 2,
+ * which maps CSF (1.0) -> 0.0 and GM (2.0) -> 0.5. A smooth quadratic
+ * falloff prevents hard edges.
+ *
+ * \param src          (in)     PVE label image (CSF=1, GM=2, WM=3)
+ * \param PPM          (in/out) percentage position map to correct
+ * \param dist_CSF     (in)     distance-to-CSF boundary (in voxel units)
+ * \param dims         (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize    (in)     voxel spacing in mm {dx, dy, dz}
+ * \param sulcal_width (in)     max distance from CSF to correct (mm)
+ */
+static void correct_ppm_sulci(const float *src, float *PPM,
+                              const float *dist_CSF, int dims[3],
+                              double voxelsize[3], double sulcal_width)
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    const float mean_vx = (float)(voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0f;
+    /* Convert sulcal_width from mm to voxel units */
+    const float sw_vox = (float)(sulcal_width / mean_vx);
+    int i;
+
+    if (sw_vox <= 0.0f)
+        return;
+
     for (i = 0; i < nvox; i++)
     {
-        if (SEG[i] >= CGM && SEG[i] <= GWM)
+        /* Only act on GM/CSF partial-volume zone with non-zero PPM */
+        if (src[i] >= CGM && src[i] < GM && PPM[i] > 0.0f)
         {
-            GMTi = CSFD[i] + WMD[i];
-            CSFDi = GMT[i] - WMD[i];
+            float csf_prox = dist_CSF[i]; /* distance to CSF in voxel units */
 
-            /*if ( CSFD[i]>CSFDi ) CSFD[i] = CSFDi;
-            else GMT[i]  = GMTi;*/
+            if (csf_prox < sw_vox)
+            {
+                /* Smooth quadratic falloff: strongest near CSF */
+                float weight = 1.0f - csf_prox / sw_vox;
+                weight *= weight;
+
+                /* Expected max PPM from tissue composition:
+                 * CSF (1.0) -> 0.0, GM (2.0) -> 0.5 */
+                float max_ppm = (src[i] - 1.0f) * 0.5f;
+                float corrected = fminf(PPM[i], max_ppm);
+
+                PPM[i] = (1.0f - weight) * PPM[i] + weight * corrected;
+            }
         }
     }
 }

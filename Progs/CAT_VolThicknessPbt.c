@@ -30,6 +30,7 @@ double range = 0.45;
 double downsample = 0.0;
 double fill_thresh = 0.5;
 double correct_voxelsize = 0.5;
+double sulcal_width = 2.5;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -81,6 +82,11 @@ static ArgvInfo argTable[] = {
      "Amount of thickness correction for voxel-size, since we observed a systematic \n\
      shift to smaller thickness values of half voxel-size."},
 
+    {"-sulcal-width", ARGV_FLOAT, (char *)1, (char *)&sulcal_width,
+     "Maximum distance from CSF boundary (mm) for sulcal PPM correction. Voxels in\n\
+     the GM/CSF partial-volume zone within this distance are attenuated to prevent\n\
+     sulcal gluing in the central surface. Set to 0 to disable."},
+
     {NULL, ARGV_END, NULL, NULL, NULL}};
 
 private void usage(char *executable)
@@ -123,6 +129,7 @@ Options:\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
+    -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
 \n\
 Example:\n\
     %s -verbose -n-avgs 4 input.nii gmt_output.nii ppm_output.nii\n\n";
@@ -233,6 +240,7 @@ int main(int argc, char *argv[])
     opts.fast = fast;
     opts.verbose = verbose;
     opts.median_subsample = median_subsample;
+    opts.sulcal_width = sulcal_width;
 
     if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {

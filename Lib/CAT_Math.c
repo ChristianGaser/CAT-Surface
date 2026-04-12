@@ -354,12 +354,11 @@ void convert_output_type_float(void *data, float *buffer, int n, int datatype)
     }
 }
 
-/* Comparison function for qsort */
+/* Comparison functions for qsort */
 int compare_doubles(const void *a, const void *b)
 {
     double diff = *(const double *)a - *(const double *)b;
-    return (diff < 0) ? -1 : (diff > 0) ? 1
-                                        : 0;
+    return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 }
 
 /**
