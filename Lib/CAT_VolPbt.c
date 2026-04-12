@@ -15,6 +15,7 @@
 #include "CAT_VolPbt.h"
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
+#include "CAT_Nlm.h"
 
 /* Tissue class thresholds (from CAT_Vol.h) */
 #ifndef CGM
@@ -276,6 +277,14 @@ int CAT_VolComputePbt(
     if (fill_thresh > 0.0)
         fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
+    /* We use GMT2 as temporary variable to get ORNLM-filtered PPM */
+    for (i = 0; i < nvox; i++)
+        GMT2[i] = PPM[i];
+    ornlm(GMT2, 3, 1, 0.005, 0.005, dims);
+    /* Finally use minimum of original and filtered output */
+    for (i = 0; i < nvox; i++)
+        PPM[i] = MIN(GMT2[i], PPM[i]);
+
     /* Use the maximum between the median and the PPM for values above the
        isovalue of 0.5 (which are rather gyral), and the minimum otherwise,
        to strengthen gyri and weaken sulci. */
@@ -425,7 +434,7 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
     for (i = 0; i <= sA; i++)
     {
         if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&           /* thickness/WMD of neighbours should be larger */
-            (SEG[i] >= 1.0) && (SEGI > 1.25 && SEGI <= 2.75) &&   /* projection range */
+            (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&   /* projection range */
             (((PPM[i] - ND[i] * 1.2) <= WMD)) &&                  /* upper boundary - maximum distance */
             (((PPM[i] - ND[i] * 0.5) > WMD) || (SEG[i] < 1.5)) && /* lower boundary - minimum distance - corrected values outside */
             ((((SEGI * MAX(1.0, MIN(1.2, SEGI - 1.5))) >= SEG[i])) || (SEG[i] < 1.5)))
@@ -439,7 +448,7 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
     for (i = 0; i <= sA; i++)
     {
         if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) &&
-            (SEG[i] >= 1.0) && (SEGI > 1.25 && SEGI <= 2.75) &&
+            (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&
             (((PPM[i] - ND[i] * 1.2) <= WMD)) &&
             (((PPM[i] - ND[i] * 0.5) > WMD) || (SEG[i] < 1.5)) &&
             ((((SEGI * MAX(1.0, MIN(1.2, SEGI - 1.5))) >= SEG[i])) || (SEG[i] < 1.5)))
@@ -496,6 +505,14 @@ void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT,
             exit(EXIT_FAILURE);
         }
     }
+
+    /* We use GMT as temporary variable to get ORNLM-filtered SEG */
+    for (i = 0; i < nvox; i++)
+        GMT[i] = SEG[i];
+    ornlm(GMT, 3, 1, 0.005, 0.005, dims);
+    /* Finally use minimum of original and filtered output */
+    for (i = 0; i < nvox; i++)
+        SEG[i] = MIN(GMT[i], SEG[i]);
 
     // Initial distance checks and assignment
     for (i = 0; i < nvox; i++)
