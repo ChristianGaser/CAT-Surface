@@ -277,14 +277,6 @@ int CAT_VolComputePbt(
     if (fill_thresh > 0.0)
         fill_holes(PPM, dims, fill_thresh, 1.0, DT_FLOAT32);
 
-    /* We use GMT2 as temporary variable to get ORNLM-filtered PPM */
-    for (i = 0; i < nvox; i++)
-        GMT2[i] = PPM[i];
-    ornlm(GMT2, 3, 1, 0.005, 0.005, dims);
-    /* Finally use minimum of original and filtered output */
-    for (i = 0; i < nvox; i++)
-        PPM[i] = MIN(GMT2[i], PPM[i]);
-
     /* Use the maximum between the median and the PPM for values above the
        isovalue of 0.5 (which are rather gyral), and the minimum otherwise,
        to strengthen gyri and weaken sulci. */
