@@ -245,10 +245,10 @@ int CAT_VolComputePbt(
 
     /* Use the smaller thickness measure */
     for (i = 0; i < nvox; i++)
-        GMT[i] = fminf(GMT1[i], GMT2[i]);
-
-    for (i = 0; i < nvox; i++)
+    {
+        GMT[i] = fminf(GMT1[i], GMT2[i]);    
         mask[i] = (GMT[i] > 1.0f) ? 1 : 0;
+    }
     median3(GMT, mask, dims, 3, DT_FLOAT32);
 
     /* Re-estimate CSF distance */

@@ -93,6 +93,7 @@ private void usage(char *executable)
 {
     char *usage_str = "\n\
 Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii output_CSD.nii GMT1.nii GMT2.nii]\n\
+Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii output_CSD.nii]\n\
 \n\
     This program performs projection-based cortical thickness estimation and\n\
     percentage position mapping (PPM) from a given PVE label image described in:\n\
