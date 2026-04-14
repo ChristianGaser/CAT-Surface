@@ -10,6 +10,10 @@
 #include "CAT_Math.h"
 #include "CAT_VolPbt.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <process.h> /* _beginthreadex, _endthreadex */
@@ -97,8 +101,7 @@ int sub2ind(int x, int y, int z, int s[3])
 void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
                       int stat_func, int iters, int use_euclidean_dist)
 {
-    double *arr;
-    int i, j, k, ind, ni, x, y, z, n, it;
+    int i, j, k, ind, it;
     double *buffer;
     int nvox = dims[0] * dims[1] * dims[2], size_kernel;
 
@@ -113,10 +116,9 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
 
     // Memory allocation
     buffer = (double *)malloc(sizeof(double) * nvox);
-    arr = (double *)malloc(sizeof(double) * size_kernel * size_kernel * size_kernel);
 
     // Check memory allocation success
-    if (!buffer || !arr)
+    if (!buffer)
     {
         printf("Memory allocation error\n");
         exit(EXIT_FAILURE);
@@ -129,68 +131,84 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
     // Main filter process
     for (it = 0; it < iters; it++)
     {
-        for (z = 0; z < dims[2]; z++)
-            for (y = 0; y < dims[1]; y++)
-                for (x = 0; x < dims[0]; x++)
-                {
-                    ind = sub2ind(x, y, z, dims);
-                    n = 0;
+        #pragma omp parallel
+        {
+            int x, y, z, n, ni;
+            double *arr = (double *)malloc(sizeof(double) * size_kernel * size_kernel * size_kernel);
 
-                    memset(arr, 0.0, size_kernel * size_kernel * size_kernel * sizeof(double));
-                    // Iterate through kernel
-                    for (i = -dist; i <= dist; i++)
-                        for (j = -dist; j <= dist; j++)
-                            for (k = -dist; k <= dist; k++)
-                            {
-                                ni = sub2ind(x + i, y + j, z + k, dims);
+            if (!arr)
+            {
+                fprintf(stderr, "Memory allocation error\n");
+                exit(EXIT_FAILURE);
+            }
 
-                                // Check for NaNs, Infinities
-                                if (isnan(input[ni]) || !isfinite(input[ni]))
-                                    continue;
-
-                                // Check for optional mask
-                                if (mask && mask[ni] == 0)
-                                    continue;
-
-                                // Check for Euclidean distance if required
-                                if (use_euclidean_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)dist)
-                                    continue;
-
-                                arr[n] = input[ni];
-                                n++;
-                            }
-
-                    // Check for NaNs, Infinities
-                    if (isnan(input[ind]) || !isfinite(input[ind]))
-                        continue;
-
-                    // Check for optional mask
-                    if (mask && mask[ind] == 0)
-                        continue;
-
-                    // Calculate local statistics based on the selected function
-                    switch (stat_func)
+            #pragma omp for schedule(dynamic) collapse(2)
+            for (z = 0; z < dims[2]; z++)
+                for (y = 0; y < dims[1]; y++)
+                    for (x = 0; x < dims[0]; x++)
                     {
-                    case F_MEAN:
-                        buffer[ind] = (double)get_mean_double(arr, n, 0);
-                        break;
-                    case F_MEDIAN:
-                        buffer[ind] = (double)get_median_double(arr, n, 0);
-                        break;
-                    case F_STD:
-                        buffer[ind] = (double)get_std_double(arr, n, 0);
-                        break;
-                    case F_MIN:
-                        buffer[ind] = (double)get_min_double(arr, n, 0);
-                        break;
-                    case F_MAX:
-                        buffer[ind] = (double)get_max_double(arr, n, 0);
-                        break;
-                    default:
-                        fprintf(stderr, "Data Function %d not handled\n", stat_func);
-                        break;
+                        ind = sub2ind(x, y, z, dims);
+                        n = 0;
+
+                        // Check for NaNs, Infinities
+                        if (isnan(input[ind]) || !isfinite(input[ind]))
+                            continue;
+
+                        // Check for optional mask
+                        if (mask && mask[ind] == 0)
+                            continue;
+
+                        memset(arr, 0, size_kernel * size_kernel * size_kernel * sizeof(double));
+                        // Iterate through kernel
+                        for (i = -dist; i <= dist; i++)
+                            for (j = -dist; j <= dist; j++)
+                                for (k = -dist; k <= dist; k++)
+                                {
+                                    ni = sub2ind(x + i, y + j, z + k, dims);
+
+                                    // Check for NaNs, Infinities
+                                    if (isnan(input[ni]) || !isfinite(input[ni]))
+                                        continue;
+
+                                    // Check for optional mask
+                                    if (mask && mask[ni] == 0)
+                                        continue;
+
+                                    // Check for Euclidean distance if required
+                                    if (use_euclidean_dist && sqrtf((float)((i * i) + (j * j) + (k * k))) > (float)dist)
+                                        continue;
+
+                                    arr[n] = input[ni];
+                                    n++;
+                                }
+
+                        // Calculate local statistics based on the selected function
+                        switch (stat_func)
+                        {
+                        case F_MEAN:
+                            buffer[ind] = (double)get_mean_double(arr, n, 0);
+                            break;
+                        case F_MEDIAN:
+                            buffer[ind] = (double)get_median_double(arr, n, 0);
+                            break;
+                        case F_STD:
+                            buffer[ind] = (double)get_std_double(arr, n, 0);
+                            break;
+                        case F_MIN:
+                            buffer[ind] = (double)get_min_double(arr, n, 0);
+                            break;
+                        case F_MAX:
+                            buffer[ind] = (double)get_max_double(arr, n, 0);
+                            break;
+                        default:
+                            fprintf(stderr, "Data Function %d not handled\n", stat_func);
+                            break;
+                        }
                     }
-                }
+
+            free(arr);
+        }
+
         // Copy results back to input array
         for (i = 0; i < nvox; i++)
             input[i] = buffer[i];
@@ -198,7 +216,6 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
 
     // Free allocated memory
     free(buffer);
-    free(arr);
 }
 
 /**
@@ -2960,6 +2977,7 @@ void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
         samp[i] = (double)dims[i] / (double)dims_samp[i];
     }
 
+    #pragma omp parallel for private(z, y, x, z0, y0, x0, dz1, dz2, dy1, dy2, dx1, dx2, zi, yi, xi, i, off1, off2, k111, k112, k121, k122, k211, k212, k221, k222) schedule(static)
     for (z = 0; z < dims_samp[2]; z++)
     {
         zi = z * samp[2];
@@ -4038,6 +4056,7 @@ void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
     int i, j, k, index;
     float gradx, grady, gradz;
 
+    #pragma omp parallel for private(i, j, k, index, gradx, grady, gradz) schedule(static) collapse(2)
     for (i = 0; i < dims[0]; ++i)
     {
         for (j = 0; j < dims[1]; ++j)
