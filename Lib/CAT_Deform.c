@@ -20,6 +20,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 /**
  * \brief Smooths a 3D displacement field with Jacobian- and curvature-based blending.
  *
@@ -66,6 +70,7 @@ void smooth_displacement_field_blended(double (*displacement_field)[3],
 
     for (it = 0; it < iterations; it++)
     {
+        #pragma omp parallel for private(v, j, k, pidx) schedule(static)
         for (v = 0; v < polygons->n_points; v++)
         {
             double J[3][3], detJ;
@@ -181,6 +186,7 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
 
     for (it = 0; it < iterations; it++)
     {
+        #pragma omp parallel for private(v, j, k, pidx) schedule(static)
         for (v = 0; v < polygons->n_points; v++)
         {
             double smoothed[3] = {0.0, 0.0, 0.0};
@@ -294,6 +300,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     {
         s = 0.0;
 
+        #pragma omp parallel for private(v, j, k, pidx) reduction(+:s) schedule(static)
         for (v = 0; v < polygons->n_points; v++)
         {
             // Compute centroid of neighboring vertices for smoothing
@@ -620,6 +627,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         double s1 = 0.0, s2 = 0.0;
 
         // Process both surfaces
+        #pragma omp parallel for private(v, j, k, pidx) reduction(+:s1,s2) schedule(static)
         for (v = 0; v < polygons1->n_points; v++)
         {
 

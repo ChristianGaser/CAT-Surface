@@ -131,7 +131,7 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
     // Main filter process
     for (it = 0; it < iters; it++)
     {
-        #pragma omp parallel
+#pragma omp parallel
         {
             int x, y, z, n, ni;
             double *arr = (double *)malloc(sizeof(double) * size_kernel * size_kernel * size_kernel);
@@ -142,7 +142,7 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
                 exit(EXIT_FAILURE);
             }
 
-            #pragma omp for schedule(dynamic) collapse(2)
+#pragma omp for schedule(dynamic) collapse(2)
             for (z = 0; z < dims[2]; z++)
                 for (y = 0; y < dims[1]; y++)
                     for (x = 0; x < dims[0]; x++)
@@ -1821,7 +1821,6 @@ void downcut3(void *labels, void *intensity, void *dist,
     free(dist_f);
 }
 
-
 /**
  * laplace3R - Apply Laplace filter on a 3D volume.
  *
@@ -2977,7 +2976,7 @@ void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
         samp[i] = (double)dims[i] / (double)dims_samp[i];
     }
 
-    #pragma omp parallel for private(z, y, x, z0, y0, x0, dz1, dz2, dy1, dy2, dx1, dx2, zi, yi, xi, i, off1, off2, k111, k112, k121, k122, k211, k212, k221, k222) schedule(static)
+#pragma omp parallel for private(z, y, x, z0, y0, x0, dz1, dz2, dy1, dy2, dx1, dx2, zi, yi, xi, i, off1, off2, k111, k112, k121, k122, k211, k212, k221, k222) schedule(static)
     for (z = 0; z < dims_samp[2]; z++)
     {
         zi = z * samp[2];
@@ -3167,8 +3166,8 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
 
 void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, double samp_voxelsize, int datatype)
 {
-    localstat_subsample3(data, dims, voxelsize, 1, F_MEDIAN, niter, 0, 
-                samp_voxelsize, datatype);
+    localstat_subsample3(data, dims, voxelsize, 1, F_MEDIAN, niter, 0,
+                         samp_voxelsize, datatype);
 }
 
 /**
@@ -3188,8 +3187,8 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
  * \return void (no return value).
  */
 void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist,
-                int stat_func, int niter, int use_euclidean_dist, 
-                double samp_voxelsize, int datatype)
+                          int stat_func, int niter, int use_euclidean_dist,
+                          double samp_voxelsize, int datatype)
 {
     int i, nvox_samp, nvox;
     int dims_samp[3];
@@ -3217,8 +3216,8 @@ void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist
     subsample_float(buffer, vol_samp, dims, dims_samp);
 
     /* Apply localstat */
-    localstat3(vol_samp, NULL, dims_samp, dist, stat_func, niter, 
-        use_euclidean_dist, DT_FLOAT32);
+    localstat3(vol_samp, NULL, dims_samp, dist, stat_func, niter,
+               use_euclidean_dist, DT_FLOAT32);
 
     /* Upsample back to original resolution and data type */
     subsample_float(vol_samp, buffer, dims_samp, dims);
@@ -4056,7 +4055,7 @@ void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
     int i, j, k, index;
     float gradx, grady, gradz;
 
-    #pragma omp parallel for private(i, j, k, index, gradx, grady, gradz) schedule(static) collapse(2)
+#pragma omp parallel for private(i, j, k, index, gradx, grady, gradz) schedule(static) collapse(2)
     for (i = 0; i < dims[0]; ++i)
     {
         for (j = 0; j < dims[1]; ++j)
