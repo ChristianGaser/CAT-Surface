@@ -24,10 +24,11 @@ if WINDOWS
 else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
-AM_CPPFLAGS=${AM_CFLAGS}
-AM_CXXFLAGS=${AM_CFLAGS} -std=c++11
+AM_CPPFLAGS = @OPENMP_CFLAGS@ ${AM_CFLAGS}
+AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
 
 lib_LTLIBRARIES = libCAT.la
+libCAT_la_LIBADD = @OPENMP_LIBS@
 
 EXTRA_DIST = \
     configure.ac \
