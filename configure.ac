@@ -44,7 +44,45 @@ AM_CONDITIONAL([LINUX], [test "$build_linux" = "yes"])
 AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
 AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
 
-AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
+# --- FFTW3 detection ---
+# Prefer the bundled static library in 3rdparty/fftw/lib/ so that binaries
+# are self-contained.  Fall back to the system-installed library.
+AC_MSG_CHECKING([for bundled static FFTW3])
+fftw_srcdir=$(cd "$srcdir" && pwd)/3rdparty/fftw
+fftw_found=no
+
+# Map host_os / host_cpu to our naming: libfftw3-{os}-{arch}.a
+case "${host_os}" in
+  darwin*)  fftw_os=darwin ;;
+  linux*)   fftw_os=linux  ;;
+  mingw*|cygwin*) fftw_os=mingw ;;
+  *)        fftw_os="" ;;
+esac
+case "${host_cpu}" in
+  x86_64|amd64) fftw_arch=x86_64 ;;
+  aarch64|arm64|arm) fftw_arch=arm64 ;;
+  i?86)         fftw_arch=i586 ;;
+  *)            fftw_arch="" ;;
+esac
+
+if test -n "$fftw_os" && test -n "$fftw_arch"; then
+  fftw_lib="$fftw_srcdir/lib/libfftw3-${fftw_os}-${fftw_arch}.a"
+  if test -f "$fftw_lib"; then
+    FFTW3_CFLAGS="-I${fftw_srcdir}/include"
+    FFTW3_LIBS="$fftw_lib"
+    fftw_found=yes
+    AC_MSG_RESULT([yes ($fftw_os-$fftw_arch)])
+  fi
+fi
+
+AS_IF([test "$fftw_found" = "no"],
+  [AC_MSG_RESULT([no – trying system library])
+   FFTW3_CFLAGS=""
+   AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
+   FFTW3_LIBS="-lfftw3"])
+
+AC_SUBST([FFTW3_CFLAGS])
+AC_SUBST([FFTW3_LIBS])
 
 AC_CHECK_HEADERS(values.h malloc.h)
 
@@ -58,8 +96,8 @@ AC_OPENMP
 AS_IF([test "x$ac_cv_prog_c_openmp" = "xunsupported" && test "$build_mac" = "yes"],
   [AC_MSG_CHECKING([for static libomp on macOS])
    omp_found=no
-   # Detect host CPU to pick the right arch-specific static library
-   omp_arch=$(uname -m)
+   # Reuse fftw_arch (derived from host_cpu) for the arch-specific library name
+   omp_arch="$fftw_arch"
    omp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libomp
    # 1) Bundled arch-specific library in 3rdparty/libomp/lib/
    if test -f "$omp_srcdir/lib/libomp-${omp_arch}.a"; then

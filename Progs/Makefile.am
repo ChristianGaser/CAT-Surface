@@ -10,7 +10,7 @@ AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel 
     -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
     -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
 
-AM_CPPFLAGS = @OPENMP_CFLAGS@ ${AM_CFLAGS}
+AM_CPPFLAGS = @OPENMP_CFLAGS@ @FFTW3_CFLAGS@ ${AM_CFLAGS}
 
 # Initialize before any '+=' (automake requirement).
 AM_LDFLAGS =
@@ -45,9 +45,9 @@ LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 # causing "multiple definition" errors. Linking directly against the static
 # archive avoids pulling libCAT.la dependency_libs into the final link.
 if WINDOWS
-LDADD = ../.libs/libCAT.a -lm -lfftw3 @OPENMP_LIBS@
+LDADD = ../.libs/libCAT.a -lm @FFTW3_LIBS@ @OPENMP_LIBS@
 else
-LDADD = ../libCAT.la -lm -lfftw3 @OPENMP_LIBS@
+LDADD = ../libCAT.la -lm @FFTW3_LIBS@ @OPENMP_LIBS@
 endif
 
 # Distribute scripts
