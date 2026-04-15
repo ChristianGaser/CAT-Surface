@@ -19,10 +19,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
+#include <string.h>
 
 /**
  * \brief Smooths a 3D displacement field with Jacobian- and curvature-based blending.
@@ -70,7 +67,6 @@ void smooth_displacement_field_blended(double (*displacement_field)[3],
 
     for (it = 0; it < iterations; it++)
     {
-        #pragma omp parallel for private(v, j, k, pidx) schedule(static)
         for (v = 0; v < polygons->n_points; v++)
         {
             double J[3][3], detJ;
@@ -147,13 +143,7 @@ void smooth_displacement_field_blended(double (*displacement_field)[3],
         }
 
         // Commit updates
-        for (v = 0; v < polygons->n_points; v++)
-        {
-            for (k = 0; k < 3; k++)
-            {
-                displacement_field[v][k] = new_disp[v][k];
-            }
-        }
+        memcpy(displacement_field[0], new_disp[0], sizeof(double[3]) * polygons->n_points);
     }
 
     free(new_disp);
@@ -186,7 +176,6 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
 
     for (it = 0; it < iterations; it++)
     {
-        #pragma omp parallel for private(v, j, k, pidx) schedule(static)
         for (v = 0; v < polygons->n_points; v++)
         {
             double smoothed[3] = {0.0, 0.0, 0.0};
@@ -205,13 +194,7 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
         }
 
         // Update displacement field
-        for (v = 0; v < polygons->n_points; v++)
-        {
-            for (k = 0; k < 3; k++)
-            {
-                displacement_field[v][k] = new_displacement[v][k];
-            }
-        }
+        memcpy(displacement_field[0], new_displacement[0], sizeof(double[3]) * polygons->n_points);
     }
 
     free(new_displacement);
@@ -300,7 +283,6 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     {
         s = 0.0;
 
-        #pragma omp parallel for private(v, j, k, pidx) reduction(+:s) schedule(static)
         for (v = 0; v < polygons->n_points; v++)
         {
             // Compute centroid of neighboring vertices for smoothing
@@ -627,7 +609,6 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         double s1 = 0.0, s2 = 0.0;
 
         // Process both surfaces
-        #pragma omp parallel for private(v, j, k, pidx) reduction(+:s1,s2) schedule(static)
         for (v = 0; v < polygons1->n_points; v++)
         {
 
@@ -696,7 +677,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                 /* for the pial surface we double smoothing weight to prevent self
                    intersections */
                 for (k = 0; k < 3; k++)
-                    displacement_field1[v][k] = 2.0*w[0] * (c1[k] - p1[k]) +
+                    displacement_field1[v][k] = 2.0 * w[0] * (c1[k] - p1[k]) +
                                                 ((w[1] * f2_1 + w3_scaled1) * f3_1) *
                                                     n1[k];
             }
