@@ -38,7 +38,7 @@ jobs:
           msystem: MINGW32
           install: >
             autoconf automake libtool autoconf-archive make pkgconf gcc
-            mingw-w64-x86_64-expat mingw-w64-x86_64-fftw zip
+            mingw-w64-x86_64-expat zip
 
       # ---------------- Ubuntu ----------------
       - name: Install dependencies (Ubuntu)
@@ -52,7 +52,7 @@ jobs:
       # ---------------- macOS ----------------
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: brew install autoconf automake libtool autoconf-archive fftw
+        run: brew install autoconf automake libtool autoconf-archive
 
       # ---------------- Configure ----------------
       - name: Configure (non-Windows)
@@ -60,8 +60,7 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          export {C,CXX,CPP}FLAGS="-O2 -I/opt/homebrew/include"
-          export LDFLAGS="-L/opt/homebrew/lib"
+          export {C,CXX,CPP}FLAGS="-O2"
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Configure (Windows)
@@ -70,8 +69,7 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          export {C,CXX,CPP}FLAGS="-O2 -I/mingw64/include"
-          export LDFLAGS="-L/mingw64/lib"
+          export {C,CXX,CPP}FLAGS="-O2"
           ./configure --enable-static --disable-shared --disable-doc
 
       # ---------------- Build ----------------
