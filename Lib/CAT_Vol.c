@@ -14,6 +14,10 @@
 #include <omp.h>
 #endif
 
+/* volume_io/basic.h defines 'private' as 'static', which breaks
+   the OpenMP private() clause.  Undo that macro here. */
+#undef private
+
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <process.h> /* _beginthreadex, _endthreadex */

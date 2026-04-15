@@ -9,6 +9,10 @@
 #include <omp.h>
 #endif
 
+/* volume_io/basic.h defines 'private' as 'static', which breaks
+   the OpenMP private() clause.  Undo that macro here. */
+#undef private
+
 static int
 bound(int i, int j, int dm[])
 {

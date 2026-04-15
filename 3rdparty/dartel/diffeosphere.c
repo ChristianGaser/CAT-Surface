@@ -11,6 +11,10 @@
 #include <omp.h>
 #endif
 
+/* volume_io/basic.h defines 'private' as 'static', which breaks
+   the OpenMP private() clause.  Undo that macro here. */
+#undef private
+
 void composition(int dm[], double *A, double *B, double *C)
 {
     double *Ax, *Ay, *Bx, *By, *Cx, *Cy;
