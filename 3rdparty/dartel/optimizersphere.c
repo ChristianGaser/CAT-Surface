@@ -266,7 +266,7 @@ sumsq_me(int dm[], double a[], double b[], double s[], double u[])
     w01 = s[2] * (-s[1] * s[1]);
     w10 = s[2] * (-s[0] * s[0]);
 
-#pragma omp parallel for collapse(2) private(i) reduction(+ : ss)
+#pragma omp parallel for private(i) reduction(+ : ss)
     for (j = 0; j < dm[1]; j++)
     {
         double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
@@ -437,7 +437,7 @@ sumsq_be(int dm[], double a[], double b[], double s[], double u[])
     w11 = s[2] * (2 * s[0] * s[0] * s[1] * s[1]);
     w20 = s[2] * (s[0] * s[0] * s[0] * s[0]);
 
-#pragma omp parallel for collapse(2) private(i) reduction(+ : ss)
+#pragma omp parallel for private(i) reduction(+ : ss)
     for (j = 0; j < dm[1]; j++)
     {
         double *pux, *puy, *pbx, *pby, *paxx, *paxy, *payy;
@@ -517,7 +517,7 @@ void LtLf_be(int dm[], double f[], double s[], double g[])
     w11 = s[2] * (2 * s[0] * s[0] * s[1] * s[1]);
     w20 = s[2] * (s[0] * s[0] * s[0] * s[0]);
 
-#pragma omp parallel for collapse(2) private(i, pgx, pgy, pfx, pfy, jm1, jp1, jm2, jp2, im1, ip1, im2, ip2)
+#pragma omp parallel for private(i, pgx, pgy, pfx, pfy, jm1, jp1, jm2, jp2, im1, ip1, im2, ip2)
     for (j = 0; j < dm[1]; j++)
     {
         pgx = g + dm[0] * j;

@@ -75,6 +75,13 @@ AS_IF([test "x$ac_cv_prog_c_openmp" = "xunsupported" && test "$build_mac" = "yes
 # the library is linked implicitly.  Provide an empty OPENMP_LIBS fallback.
 AS_IF([test "x$OPENMP_LIBS" = "x"], [OPENMP_LIBS=""])
 
+# On GCC (Linux, Windows/Cygwin/MinGW), the compiler driver links libgomp
+# automatically when -fopenmp is passed at link time.  Propagate the flag to
+# OPENMP_LIBS so it reaches LDADD.
+if test -n "$OPENMP_CFLAGS" && test -z "$OPENMP_LIBS"; then
+  OPENMP_LIBS="$OPENMP_CFLAGS"
+fi
+
 AC_SUBST([OPENMP_CFLAGS])
 AC_SUBST([OPENMP_LIBS])
 
