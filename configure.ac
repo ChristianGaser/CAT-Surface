@@ -51,25 +51,38 @@ AC_CHECK_HEADERS(values.h malloc.h)
 # --- OpenMP detection (optional) ---
 # Try the standard AC_OPENMP first.  On macOS with Apple Clang this will
 # fail because Apple ships Clang without -fopenmp support.  In that case
-# we fall back to the Homebrew-installed libomp (brew install libomp).
+# we look for the bundled static libomp in 3rdparty/libomp/ (arch-specific),
+# then fall back to /usr/local/lib.
 AC_OPENMP
 
 AS_IF([test "x$ac_cv_prog_c_openmp" = "xunsupported" && test "$build_mac" = "yes"],
   [AC_MSG_CHECKING([for static libomp on macOS])
    omp_found=no
-   for d in /usr/local/lib /usr/lib; do
-     if test -f "$d/libomp.a"; then
-       OPENMP_CFLAGS="-Xpreprocessor -fopenmp"
-       OPENMP_LIBS="$d/libomp.a"
-       omp_found=yes
-       AC_MSG_RESULT([yes ($d/libomp.a)])
-       break
-     fi
-   done
+   # Detect host CPU to pick the right arch-specific static library
+   omp_arch=$(uname -m)
+   omp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libomp
+   # 1) Bundled arch-specific library in 3rdparty/libomp/lib/
+   if test -f "$omp_srcdir/lib/libomp-${omp_arch}.a"; then
+     OPENMP_CFLAGS="-Xpreprocessor -fopenmp -I${omp_srcdir}/include"
+     OPENMP_LIBS="${omp_srcdir}/lib/libomp-${omp_arch}.a"
+     omp_found=yes
+     AC_MSG_RESULT([yes (bundled $omp_arch)])
+   fi
+   # 2) System-wide static library
+   AS_IF([test "$omp_found" = "no"],
+     [for d in /usr/local/lib /usr/lib; do
+        if test -f "$d/libomp.a"; then
+          OPENMP_CFLAGS="-Xpreprocessor -fopenmp"
+          OPENMP_LIBS="$d/libomp.a"
+          omp_found=yes
+          AC_MSG_RESULT([yes ($d/libomp.a)])
+          break
+        fi
+      done])
    AS_IF([test "$omp_found" = "no"],
      [OPENMP_CFLAGS=""
       OPENMP_LIBS=""
-      AC_MSG_RESULT([no – place libomp.a in /usr/local/lib])])])
+      AC_MSG_RESULT([no – OpenMP disabled])])])
 
 # When AC_OPENMP succeeds on Linux/GCC the flags are in $OPENMP_CFLAGS and
 # the library is linked implicitly.  Provide an empty OPENMP_LIBS fallback.

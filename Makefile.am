@@ -28,7 +28,7 @@ AM_CPPFLAGS = @OPENMP_CFLAGS@ ${AM_CFLAGS}
 AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
 
 lib_LTLIBRARIES = libCAT.la
-libCAT_la_LIBADD = @OPENMP_LIBS@
+libCAT_la_LIBADD =
 
 EXTRA_DIST = \
     configure.ac \
