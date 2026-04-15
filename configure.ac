@@ -55,21 +55,21 @@ AC_CHECK_HEADERS(values.h malloc.h)
 AC_OPENMP
 
 AS_IF([test "x$ac_cv_prog_c_openmp" = "xunsupported" && test "$build_mac" = "yes"],
-  [AC_MSG_CHECKING([for Homebrew libomp on macOS])
-   omp_prefix=""
-   for d in /opt/homebrew /usr/local; do
-     if test -f "$d/opt/libomp/lib/libomp.dylib"; then
-       omp_prefix="$d/opt/libomp"
+  [AC_MSG_CHECKING([for static libomp on macOS])
+   omp_found=no
+   for d in /usr/local/lib /usr/lib; do
+     if test -f "$d/libomp.a"; then
+       OPENMP_CFLAGS="-Xpreprocessor -fopenmp"
+       OPENMP_LIBS="$d/libomp.a"
+       omp_found=yes
+       AC_MSG_RESULT([yes ($d/libomp.a)])
        break
      fi
    done
-   AS_IF([test -n "$omp_prefix"],
-     [OPENMP_CFLAGS="-Xpreprocessor -fopenmp -I${omp_prefix}/include"
-      OPENMP_LIBS="-L${omp_prefix}/lib -lomp"
-      AC_MSG_RESULT([yes ($omp_prefix)])],
+   AS_IF([test "$omp_found" = "no"],
      [OPENMP_CFLAGS=""
       OPENMP_LIBS=""
-      AC_MSG_RESULT([no – install with: brew install libomp])])])
+      AC_MSG_RESULT([no – place libomp.a in /usr/local/lib])])])
 
 # When AC_OPENMP succeeds on Linux/GCC the flags are in $OPENMP_CFLAGS and
 # the library is linked implicitly.  Provide an empty OPENMP_LIBS fallback.
