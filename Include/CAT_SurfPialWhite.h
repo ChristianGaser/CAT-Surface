@@ -34,6 +34,7 @@ typedef struct {
     double w3;          /**< Balloon force weight (default: 0.05) */
     double sigma;       /**< Displacement smoothing sigma (default: 0.2) */
     int iterations;     /**< Number of deformation iterations (default: 100) */
+    int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
     int verbose;        /**< Verbose output (default: 0) */
 } CAT_PialWhiteOptions;
 

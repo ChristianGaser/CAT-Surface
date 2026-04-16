@@ -24,6 +24,7 @@ double w3 = 0.1;
 double sigma = 0.2;
 int verbose = 0;
 int iterations = 200;
+int gradient_iterations = 30;
 
 /* Argument table for command-line parsing */
 static ArgvInfo argTable[] = {
@@ -37,6 +38,8 @@ static ArgvInfo argTable[] = {
      "Define sigma for smoothing the displacement field."},
     {"-iter",    ARGV_INT,      (char *) TRUE, (char *) &iterations,
      "Set number of deformation iterations."},
+    {"-giter",   ARGV_INT,      (char *) TRUE, (char *) &gradient_iterations,
+     "Set number of gradient refinement iterations (0 to disable)."},
     {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}
@@ -147,6 +150,7 @@ main(int argc, char *argv[])
     opts.w3         = w3;
     opts.sigma      = sigma;
     opts.iterations = iterations;
+    opts.gradient_iterations = gradient_iterations;
     opts.verbose    = verbose;
 
     /* Run the library estimation */

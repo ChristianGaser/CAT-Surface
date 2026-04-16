@@ -839,3 +839,307 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     free(curv);
     delete_polygon_point_neighbours(polygons1, n_neighbours, neighbours, NULL, NULL);
 }
+
+/**
+ * \brief Refine pial and white surfaces toward image intensity edges using
+ *        normal-ray gradient estimation (FreeSurfer-inspired approach).
+ *
+ * After surf_deform_dual has positioned the surfaces near their targets,
+ * this function performs additional refinement by estimating the distance
+ * to the intensity edge along each vertex normal using Newton's method
+ * (d = -intensity_offset / gradient_normal), then moving vertices toward
+ * that estimated edge location.
+ *
+ * This produces surfaces that follow the actual image gradient more closely
+ * than the balloon + gradient force approach of surf_deform_dual, resulting
+ * in better alignment with tissue boundaries.
+ *
+ * Each iteration:
+ *  1. For each vertex, compute intensity offset from threshold
+ *  2. Project volume gradient onto vertex normal
+ *  3. Estimate distance to edge via Newton step: d = -offset / grad_normal
+ *  4. Add tangential smoothing (centroid attraction projected onto tangent plane)
+ *  5. Apply a thickness constraint to prevent pial-white collapse
+ *  6. Apply light displacement smoothing
+ *  7. Check and revert self-intersecting vertices
+ *
+ * \param polygons1        (in/out) pial surface mesh
+ * \param polygons2        (in/out) white surface mesh
+ * \param input            (in)     intensity volume data
+ * \param nii_ptr          (in)     NIfTI header for dimensions and transforms
+ * \param lim1             (in)     intensity threshold for pial surface
+ * \param lim2             (in)     intensity threshold for white surface
+ * \param target_distance  (in)     desired pial-white spacing per vertex
+ * \param it               (in)     number of refinement iterations
+ * \param verbose          (in)     if nonzero, print progress
+ */
+void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *polygons2,
+                               float *input, nifti_image *nii_ptr,
+                               float lim1, float lim2,
+                               double *target_distance, int it, int verbose)
+{
+    int i, j, k, v, dims[3], nvox, pidx, n_self_hits;
+    int *n_neighbours, **neighbours;
+    double vx[3];
+
+    int n_points = polygons1->n_points;
+
+    dims[0] = nii_ptr->nx;
+    dims[1] = nii_ptr->ny;
+    dims[2] = nii_ptr->nz;
+    nvox = dims[0] * dims[1] * dims[2];
+    vx[0] = nii_ptr->dx;
+    vx[1] = nii_ptr->dy;
+    vx[2] = nii_ptr->dz;
+
+    /* Precompute volume gradients */
+    float *gradient_x = (float *)malloc(sizeof(float) * nvox);
+    float *gradient_y = (float *)malloc(sizeof(float) * nvox);
+    float *gradient_z = (float *)malloc(sizeof(float) * nvox);
+    if (!gradient_x || !gradient_y || !gradient_z)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    gradient3D(input, NULL, gradient_x, gradient_y, gradient_z, dims, vx);
+
+    /* Setup neighbors (shared topology) */
+    compute_polygon_normals(polygons1);
+    compute_polygon_normals(polygons2);
+    create_polygon_point_neighbours(polygons1, TRUE, &n_neighbours, &neighbours, NULL, NULL);
+
+    /* Displacement fields */
+    double (*disp1)[3] = malloc(sizeof(double[3]) * n_points);
+    double (*disp2)[3] = malloc(sizeof(double[3]) * n_points);
+    if (!disp1 || !disp2)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Refinement parameters */
+    const double step_size = 0.4;          /* fraction of Newton step to apply */
+    const double max_disp = 0.5;           /* max displacement per iteration (mm) */
+    const double smooth_weight = 0.05;     /* tangential smoothing weight */
+    const double min_grad_n = 0.1;         /* minimum normal gradient for Newton step */
+    const double min_thickness_frac = 0.5; /* minimum thickness fraction allowed */
+
+    double err1_prev = FLT_MAX, err2_prev = FLT_MAX;
+    int counter1 = 0, counter2 = 0;
+
+    for (i = 0; i < it; i++)
+    {
+        double err1 = 0.0, err2 = 0.0;
+
+        for (v = 0; v < n_points; v++)
+        {
+            /* ---- PIAL SURFACE (polygons1) ---- */
+            double p1[3] = {Point_x(polygons1->points[v]),
+                            Point_y(polygons1->points[v]),
+                            Point_z(polygons1->points[v])};
+            double n1[3] = {Point_x(polygons1->normals[v]),
+                            Point_y(polygons1->normals[v]),
+                            Point_z(polygons1->normals[v])};
+
+            /* Normalize normal */
+            double len = sqrt(n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]);
+            if (len > 1e-10)
+            {
+                n1[0] /= len;
+                n1[1] /= len;
+                n1[2] /= len;
+            }
+
+            /* Intensity offset from target */
+            double di1 = isoval(input, p1[0], p1[1], p1[2], dims, nii_ptr) - lim1;
+
+            /* Gradient projected onto normal */
+            double grad_n1 = isoval(gradient_x, p1[0], p1[1], p1[2], dims, nii_ptr) * n1[0] +
+                             isoval(gradient_y, p1[0], p1[1], p1[2], dims, nii_ptr) * n1[1] +
+                             isoval(gradient_z, p1[0], p1[1], p1[2], dims, nii_ptr) * n1[2];
+
+            /* Newton step: d = -di / grad_n, clamped to max_disp */
+            double d1 = 0.0;
+            if (counter1 == 0 && fabs(grad_n1) > min_grad_n)
+            {
+                d1 = -di1 / grad_n1;
+                d1 = fmax(-max_disp, fmin(max_disp, d1));
+            }
+
+            /* Tangential smoothing: centroid attraction projected onto tangent plane */
+            double c1[3] = {0.0, 0.0, 0.0};
+            for (j = 0; j < n_neighbours[v]; j++)
+            {
+                pidx = neighbours[v][j];
+                c1[0] += Point_x(polygons1->points[pidx]);
+                c1[1] += Point_y(polygons1->points[pidx]);
+                c1[2] += Point_z(polygons1->points[pidx]);
+            }
+            for (k = 0; k < 3; k++)
+                c1[k] /= n_neighbours[v];
+
+            double tc1[3] = {c1[0] - p1[0], c1[1] - p1[1], c1[2] - p1[2]};
+            double dot1 = tc1[0] * n1[0] + tc1[1] * n1[1] + tc1[2] * n1[2];
+            for (k = 0; k < 3; k++)
+                tc1[k] -= dot1 * n1[k];
+
+            /* Final displacement: Newton step along normal + tangential smoothing */
+            for (k = 0; k < 3; k++)
+                disp1[v][k] = step_size * d1 * n1[k] + smooth_weight * tc1[k];
+
+            err1 += di1 * di1;
+
+            /* ---- WHITE SURFACE (polygons2) ---- */
+            double p2[3] = {Point_x(polygons2->points[v]),
+                            Point_y(polygons2->points[v]),
+                            Point_z(polygons2->points[v])};
+            double n2[3] = {Point_x(polygons2->normals[v]),
+                            Point_y(polygons2->normals[v]),
+                            Point_z(polygons2->normals[v])};
+
+            len = sqrt(n2[0] * n2[0] + n2[1] * n2[1] + n2[2] * n2[2]);
+            if (len > 1e-10)
+            {
+                n2[0] /= len;
+                n2[1] /= len;
+                n2[2] /= len;
+            }
+
+            double di2 = isoval(input, p2[0], p2[1], p2[2], dims, nii_ptr) - lim2;
+
+            double grad_n2 = isoval(gradient_x, p2[0], p2[1], p2[2], dims, nii_ptr) * n2[0] +
+                             isoval(gradient_y, p2[0], p2[1], p2[2], dims, nii_ptr) * n2[1] +
+                             isoval(gradient_z, p2[0], p2[1], p2[2], dims, nii_ptr) * n2[2];
+
+            double d2 = 0.0;
+            if (counter2 == 0 && fabs(grad_n2) > min_grad_n)
+            {
+                d2 = -di2 / grad_n2;
+                d2 = fmax(-max_disp, fmin(max_disp, d2));
+            }
+
+            double c2[3] = {0.0, 0.0, 0.0};
+            for (j = 0; j < n_neighbours[v]; j++)
+            {
+                pidx = neighbours[v][j];
+                c2[0] += Point_x(polygons2->points[pidx]);
+                c2[1] += Point_y(polygons2->points[pidx]);
+                c2[2] += Point_z(polygons2->points[pidx]);
+            }
+            for (k = 0; k < 3; k++)
+                c2[k] /= n_neighbours[v];
+
+            double tc2[3] = {c2[0] - p2[0], c2[1] - p2[1], c2[2] - p2[2]};
+            double dot2 = tc2[0] * n2[0] + tc2[1] * n2[1] + tc2[2] * n2[2];
+            for (k = 0; k < 3; k++)
+                tc2[k] -= dot2 * n2[k];
+
+            for (k = 0; k < 3; k++)
+                disp2[v][k] = step_size * d2 * n2[k] + smooth_weight * tc2[k];
+
+            err2 += di2 * di2;
+
+            /* ---- THICKNESS CONSTRAINT ---- */
+            /* Dampen displacements that would push surfaces too close together */
+            double p1_new[3], p2_new[3];
+            for (k = 0; k < 3; k++)
+            {
+                p1_new[k] = p1[k] + disp1[v][k];
+                p2_new[k] = p2[k] + disp2[v][k];
+            }
+            double ddx = p1_new[0] - p2_new[0];
+            double ddy = p1_new[1] - p2_new[1];
+            double ddz = p1_new[2] - p2_new[2];
+            double new_dist = sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
+
+            if (new_dist < min_thickness_frac * target_distance[v])
+            {
+                for (k = 0; k < 3; k++)
+                {
+                    disp1[v][k] *= 0.5;
+                    disp2[v][k] *= 0.5;
+                }
+            }
+        }
+
+        /* Early termination if both surfaces stopped improving */
+        if (err1 > err1_prev)
+            counter1++;
+        if (err2 > err2_prev)
+            counter2++;
+        if (counter1 > 0 && counter2 > 0)
+            break;
+
+        /* Light displacement smoothing */
+        smooth_displacement_field(disp1, polygons1, n_neighbours, neighbours, 2, 0.2);
+        smooth_displacement_field(disp2, polygons2, n_neighbours, neighbours, 2, 0.2);
+
+        /* Apply displacements */
+        for (v = 0; v < n_points; v++)
+        {
+            Point_x(polygons1->points[v]) += disp1[v][0];
+            Point_y(polygons1->points[v]) += disp1[v][1];
+            Point_z(polygons1->points[v]) += disp1[v][2];
+        }
+        for (v = 0; v < n_points; v++)
+        {
+            Point_x(polygons2->points[v]) += disp2[v][0];
+            Point_y(polygons2->points[v]) += disp2[v][1];
+            Point_z(polygons2->points[v]) += disp2[v][2];
+        }
+
+        /* Self-intersection check and revert */
+        n_self_hits = 0;
+        int *flags1 = find_near_self_intersections(polygons1, 0.75, &n_self_hits);
+        for (v = 0; v < n_points; v++)
+        {
+            if (flags1[v])
+            {
+                Point_x(polygons1->points[v]) -= disp1[v][0];
+                Point_y(polygons1->points[v]) -= disp1[v][1];
+                Point_z(polygons1->points[v]) -= disp1[v][2];
+            }
+        }
+
+        int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
+        for (v = 0; v < n_points; v++)
+        {
+            if (flags2[v])
+            {
+                Point_x(polygons2->points[v]) -= disp2[v][0];
+                Point_y(polygons2->points[v]) -= disp2[v][1];
+                Point_z(polygons2->points[v]) -= disp2[v][2];
+            }
+        }
+
+        /* Update normals for next iteration */
+        compute_polygon_normals(polygons1);
+        compute_polygon_normals(polygons2);
+
+        if (verbose)
+        {
+            fprintf(stdout, "\rMesh: gradient refine: iter %03d | Errors: %6.4f/%6.4f",
+                    i + 1, sqrt(err1 / n_points), sqrt(err2 / n_points));
+            fflush(stdout);
+        }
+
+        err1_prev = err1;
+        err2_prev = err2;
+    }
+    if (verbose)
+        fprintf(stdout, "\n");
+
+    /* Final light intersection removal and Laplacian smoothing */
+    remove_near_intersections(polygons1, 0.75, verbose);
+    remove_near_intersections(polygons2, 0.75, verbose);
+    smooth_laplacian(polygons1, 5, 0.1, 0.5);
+    smooth_laplacian(polygons2, 5, 0.1, 0.5);
+
+    /* Cleanup */
+    free(gradient_x);
+    free(gradient_y);
+    free(gradient_z);
+    free(disp1);
+    free(disp2);
+    delete_polygon_point_neighbours(polygons1, n_neighbours, neighbours, NULL, NULL);
+}

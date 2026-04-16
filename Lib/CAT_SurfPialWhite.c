@@ -41,6 +41,7 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
     opts->w3 = 0.1;
     opts->sigma = 0.2;
     opts->iterations = 200;
+    opts->gradient_iterations = 30;
     opts->verbose = 0;
 }
 
@@ -152,6 +153,13 @@ int CAT_SurfEstimatePialWhite(
     surf_deform_dual(polygons_pial, polygons_white, central, labels, nii_ptr,
                      weights, opts->sigma, CGM + shifting[0], GWM + shifting[1],
                      (double *)thickness_values, opts->iterations, opts->verbose);
+
+    /* Gradient-based refinement pass to improve edge alignment */
+    if (opts->gradient_iterations > 0)
+        surf_deform_gradient_dual(polygons_pial, polygons_white, labels, nii_ptr,
+                                  CGM + shifting[0], GWM + shifting[1],
+                                  (double *)thickness_values,
+                                  opts->gradient_iterations, opts->verbose);
 
     /* Copy results to output */
     copy_polygons(polygons_pial, pial_out);
