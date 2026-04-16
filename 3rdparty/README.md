@@ -12,6 +12,7 @@ downloads are needed during compilation.
 | **volume_io** | Volume I/O and geometry utilities from MINC | MIT-like (MNI) | [BIC-MNI/minc](https://github.com/BIC-MNI/minc) |
 | **nifti** | NIfTI-1 I/O library | Public Domain | [NIFTI](http://nifti.nimh.nih.gov/) |
 | **gifticlib** | GIFTI I/O library | Public Domain | [NITRC](http://www.nitrc.org/projects/gifti) |
+| **fftw** | Library for computing the discrete Fourier transform (DFT)  | GPL/FFTW License | [FFTW](https://fftw.org/) |
 | **zlib** | Compression library | zlib License | [zlib.net](https://zlib.net/) |
 | **expat** | XML parsing library | MIT License | [libexpat](https://libexpat.github.io/) |
 | **nii2mesh** | Mesh simplification (quadric decimation) | BSD-2-Clause | [neurolabusc/nii2mesh](https://github.com/neurolabusc/nii2mesh) |
@@ -41,6 +42,7 @@ The following libraries have been modified from their original versions:
 - **bicpl-surface**: Based on bicpl-1.4.6, with all volume function dependencies
   removed (using NIfTI functions instead). ParseArgv.c added from minc-1.5.1.
 - **volume_io**: From minc-1.5.1, geometry and utility functions only.
+- **dartel**: Added more OpenMP support.
 
 ## References
 
