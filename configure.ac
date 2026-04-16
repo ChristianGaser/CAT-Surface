@@ -44,45 +44,29 @@ AM_CONDITIONAL([LINUX], [test "$build_linux" = "yes"])
 AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
 AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
 
-# --- FFTW3 detection ---
-# Prefer the bundled static library in 3rdparty/fftw/lib/ so that binaries
-# are self-contained.  Fall back to the system-installed library.
-AC_MSG_CHECKING([for bundled static FFTW3])
-fftw_srcdir=$(cd "$srcdir" && pwd)/3rdparty/fftw
-fftw_found=no
-
-# Map host_os / host_cpu to our naming: libfftw3-{os}-{arch}.a
-case "${host_os}" in
-  darwin*)  fftw_os=darwin ;;
-  linux*)   fftw_os=linux  ;;
-  mingw*|cygwin*) fftw_os=mingw ;;
-  *)        fftw_os="" ;;
-esac
-case "${host_cpu}" in
-  x86_64|amd64) fftw_arch=x86_64 ;;
-  aarch64|arm64|arm) fftw_arch=arm64 ;;
-  i?86)         fftw_arch=i586 ;;
-  *)            fftw_arch="" ;;
-esac
-
-if test -n "$fftw_os" && test -n "$fftw_arch"; then
-  fftw_lib="$fftw_srcdir/lib/libfftw3-${fftw_os}-${fftw_arch}.a"
-  if test -f "$fftw_lib"; then
-    FFTW3_CFLAGS="-I${fftw_srcdir}/include"
-    FFTW3_LIBS="$fftw_lib"
-    fftw_found=yes
-    AC_MSG_RESULT([yes ($fftw_os-$fftw_arch)])
-  fi
-fi
-
-AS_IF([test "$fftw_found" = "no"],
-  [AC_MSG_RESULT([no – trying system library])
-   FFTW3_CFLAGS=""
-   AC_CHECK_LIB(fftw3,fftw_execute,,AC_MSG_ERROR(The fftw3 library is required.))
-   FFTW3_LIBS="-lfftw3"])
-
+# --- FFTW3 (bundled source in 3rdparty/fftw/) ---
+# Configure the bundled FFTW3 directly from this configure script so that
+# autoreconf does not recurse into the FFTW3 source tree (its Makefile.am
+# uses GNU-make extensions that cause automake warnings/errors).
+fftw_abs_srcdir=$(cd "$srcdir" && pwd)/3rdparty/fftw
+FFTW3_CFLAGS="-I${fftw_abs_srcdir}/api"
+FFTW3_LIBS='$(top_builddir)/3rdparty/fftw-build/.libs/libfftw3.a'
 AC_SUBST([FFTW3_CFLAGS])
 AC_SUBST([FFTW3_LIBS])
+
+# Run FFTW3's own pre-generated configure in a build sub-directory.
+# Pass the same CC, CFLAGS, host/build triplets for cross-compilation.
+AC_MSG_NOTICE([configuring bundled FFTW3...])
+fftw_builddir="$ac_pwd/3rdparty/fftw-build"
+AS_MKDIR_P(["$fftw_builddir"])
+fftw_configure_args="--enable-static --disable-shared --disable-fortran --disable-doc"
+test -n "$host_alias" && fftw_configure_args="$fftw_configure_args --host=$host_alias"
+test -n "$build_alias" && fftw_configure_args="$fftw_configure_args --build=$build_alias"
+(cd "$fftw_builddir" && \
+ "$fftw_abs_srcdir/configure" \
+   CC="$CC" CFLAGS="$CFLAGS" \
+   $fftw_configure_args --quiet) || \
+  AC_MSG_ERROR([bundled FFTW3 configure failed])
 
 AC_CHECK_HEADERS(values.h malloc.h)
 
@@ -96,8 +80,12 @@ AC_OPENMP
 AS_IF([test "x$ac_cv_prog_c_openmp" = "xunsupported" && test "$build_mac" = "yes"],
   [AC_MSG_CHECKING([for static libomp on macOS])
    omp_found=no
-   # Reuse fftw_arch (derived from host_cpu) for the arch-specific library name
-   omp_arch="$fftw_arch"
+   # Derive arch from host_cpu for the arch-specific library name
+   case "${host_cpu}" in
+     x86_64|amd64) omp_arch=x86_64 ;;
+     aarch64|arm64|arm) omp_arch=arm64 ;;
+     *) omp_arch="" ;;
+   esac
    omp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libomp
    # 1) Bundled arch-specific library in 3rdparty/libomp/lib/
    if test -f "$omp_srcdir/lib/libomp-${omp_arch}.a"; then

@@ -3,6 +3,20 @@ SUBDIRS = . Progs tests
 AUTOMAKE_OPTIONS = subdir-objects
 ACLOCAL_AMFLAGS = -I m4
 
+# --- Build the bundled FFTW3 library before libCAT ---
+# configure.ac runs FFTW3's own configure in 3rdparty/fftw-build/.
+# Here we just run make to build the static library.
+FFTW3_BUILDDIR = $(top_builddir)/3rdparty/fftw-build
+
+$(FFTW3_BUILDDIR)/.libs/libfftw3.a:
+	cd $(FFTW3_BUILDDIR) && $(MAKE) $(AM_MAKEFLAGS)
+
+clean-local:
+	-cd $(FFTW3_BUILDDIR) && $(MAKE) $(AM_MAKEFLAGS) clean
+
+distclean-local:
+	-cd $(FFTW3_BUILDDIR) && $(MAKE) $(AM_MAKEFLAGS) distclean
+
 CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti \
     -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 \
@@ -29,6 +43,7 @@ AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
 
 lib_LTLIBRARIES = libCAT.la
 libCAT_la_LIBADD =
+EXTRA_libCAT_la_DEPENDENCIES = $(FFTW3_BUILDDIR)/.libs/libfftw3.a
 
 EXTRA_DIST = \
     configure.ac \
