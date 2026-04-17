@@ -82,7 +82,7 @@ int CAT_SurfEstimatePialWhite(
     polygons_struct *polygons_smoothed = NULL;
     double weights[3];
     double shifting[2] = {-0.25, 0.25};
-    
+
     if (!central || !thickness_values || !labels || !nii_ptr ||
         !pial_out || !white_out || !opts)
         return -1;

@@ -22,59 +22,60 @@
 #include "CAT_NiftiLib.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/**
- * Options for pial/white surface estimation.
- */
-typedef struct {
-    double w1;          /**< Internal smoothness weight (default: 0.05) */
-    double w2;          /**< Gradient alignment weight (default: 0.05) */
-    double w3;          /**< Balloon force weight (default: 0.05) */
-    double sigma;       /**< Displacement smoothing sigma (default: 0.2) */
-    int iterations;     /**< Number of deformation iterations (default: 100) */
-    int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
-    int verbose;        /**< Verbose output (default: 0) */
-} CAT_PialWhiteOptions;
+    /**
+     * Options for pial/white surface estimation.
+     */
+    typedef struct
+    {
+        double w1;               /**< Internal smoothness weight (default: 0.05) */
+        double w2;               /**< Gradient alignment weight (default: 0.05) */
+        double w3;               /**< Balloon force weight (default: 0.05) */
+        double sigma;            /**< Displacement smoothing sigma (default: 0.2) */
+        int iterations;          /**< Number of deformation iterations (default: 100) */
+        int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
+        int verbose;             /**< Verbose output (default: 0) */
+    } CAT_PialWhiteOptions;
 
-/**
- * \brief Public API for CAT_PialWhiteOptionsInit.
- *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param opts (in/out) Parameter of CAT_PialWhiteOptionsInit.
- * \return void (no return value).
- */
-void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts);
+    /**
+     * \brief Public API for CAT_PialWhiteOptionsInit.
+     *
+     * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+     *
+     * \param opts (in/out) Parameter of CAT_PialWhiteOptionsInit.
+     * \return void (no return value).
+     */
+    void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts);
 
-/**
- * Estimate pial and white matter surfaces from central surface.
- *
- * This function:
- * 1. Creates initial pial/white estimates using thickness values
- * 2. Smooths pial surface with curvature-guided blending
- * 3. Performs dual-surface deformation using intensity gradients
- *
- * @param central           Input central surface.
- * @param thickness_values  Per-vertex thickness values.
- * @param labels            NIfTI label volume (tissue classes).
- * @param nii_ptr           NIfTI image header for coordinate transforms.
- * @param pial_out          Output: pial surface (caller must allocate).
- * @param white_out         Output: white surface (caller must allocate).
- * @param opts              Options controlling the algorithm.
- *
- * @return 0 on success, non-zero on error.
- */
-int CAT_SurfEstimatePialWhite(
-    polygons_struct *central,
-    const double *thickness_values,
-    float *labels,
-    nifti_image *nii_ptr,
-    polygons_struct *pial_out,
-    polygons_struct *white_out,
-    const CAT_PialWhiteOptions *opts
-);
+    /**
+     * Estimate pial and white matter surfaces from central surface.
+     *
+     * This function:
+     * 1. Creates initial pial/white estimates using thickness values
+     * 2. Smooths pial surface with curvature-guided blending
+     * 3. Performs dual-surface deformation using intensity gradients
+     *
+     * @param central           Input central surface.
+     * @param thickness_values  Per-vertex thickness values.
+     * @param labels            NIfTI label volume (tissue classes).
+     * @param nii_ptr           NIfTI image header for coordinate transforms.
+     * @param pial_out          Output: pial surface (caller must allocate).
+     * @param white_out         Output: white surface (caller must allocate).
+     * @param opts              Options controlling the algorithm.
+     *
+     * @return 0 on success, non-zero on error.
+     */
+    int CAT_SurfEstimatePialWhite(
+        polygons_struct *central,
+        const double *thickness_values,
+        float *labels,
+        nifti_image *nii_ptr,
+        polygons_struct *pial_out,
+        polygons_struct *white_out,
+        const CAT_PialWhiteOptions *opts);
 
 #ifdef __cplusplus
 }

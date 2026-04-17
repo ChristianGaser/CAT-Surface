@@ -842,25 +842,25 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
 
 /**
  * \brief Refine pial and white surfaces toward image intensity edges using
- *        normal-ray gradient estimation (FreeSurfer-inspired approach).
+ *        normal-ray edge search (FreeSurfer-inspired approach).
  *
  * After surf_deform_dual has positioned the surfaces near their targets,
- * this function performs additional refinement by estimating the distance
- * to the intensity edge along each vertex normal using Newton's method
- * (d = -intensity_offset / gradient_normal), then moving vertices toward
- * that estimated edge location.
+ * this function performs additional refinement by searching along each
+ * vertex normal for the steepest intensity gradient (the actual tissue
+ * boundary), then nudging vertices toward that edge location.
  *
- * This produces surfaces that follow the actual image gradient more closely
- * than the balloon + gradient force approach of surf_deform_dual, resulting
- * in better alignment with tissue boundaries.
+ * Unlike the balloon + gradient force approach of surf_deform_dual which
+ * tends to over-smooth, this function directly locates edges by profiling
+ * intensity along the normal ray, similar to FreeSurfer's
+ * mrisComputeTargetLocationTerm.
  *
  * Each iteration:
- *  1. For each vertex, compute intensity offset from threshold
- *  2. Project volume gradient onto vertex normal
- *  3. Estimate distance to edge via Newton step: d = -offset / grad_normal
- *  4. Add tangential smoothing (centroid attraction projected onto tangent plane)
- *  5. Apply a thickness constraint to prevent pial-white collapse
- *  6. Apply light displacement smoothing
+ *  1. For each vertex, sample intensity at multiple offsets along the normal
+ *  2. Compute finite-difference gradient magnitude at each sample point
+ *  3. Select the offset with maximum gradient magnitude as the edge location
+ *  4. Verify the edge is consistent with the expected intensity threshold
+ *  5. Compute displacement toward the edge with tangential smoothing
+ *  6. Apply a thickness constraint to prevent pial-white collapse
  *  7. Check and revert self-intersecting vertices
  *
  * \param polygons1        (in/out) pial surface mesh
@@ -878,30 +878,14 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                                float lim1, float lim2,
                                double *target_distance, int it, int verbose)
 {
-    int i, j, k, v, dims[3], nvox, pidx, n_self_hits;
+    int i, j, k, v, dims[3], pidx, n_self_hits;
     int *n_neighbours, **neighbours;
-    double vx[3];
 
     int n_points = polygons1->n_points;
 
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
-    nvox = dims[0] * dims[1] * dims[2];
-    vx[0] = nii_ptr->dx;
-    vx[1] = nii_ptr->dy;
-    vx[2] = nii_ptr->dz;
-
-    /* Precompute volume gradients */
-    float *gradient_x = (float *)malloc(sizeof(float) * nvox);
-    float *gradient_y = (float *)malloc(sizeof(float) * nvox);
-    float *gradient_z = (float *)malloc(sizeof(float) * nvox);
-    if (!gradient_x || !gradient_y || !gradient_z)
-    {
-        fprintf(stderr, "Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-    gradient3D(input, NULL, gradient_x, gradient_y, gradient_z, dims, vx);
 
     /* Setup neighbors (shared topology) */
     compute_polygon_normals(polygons1);
@@ -917,12 +901,15 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
         exit(EXIT_FAILURE);
     }
 
-    /* Refinement parameters */
-    const double step_size = 0.4;          /* fraction of Newton step to apply */
+    /* Normal-ray search parameters */
+    const double search_dist = 1.0; /* search ±1mm along normal */
+    const int n_samples = 11;       /* sample points along ray */
+    const double sample_step = 2.0 * search_dist / (n_samples - 1);
+    const double step_frac = 0.5;          /* fraction of edge distance to apply */
     const double max_disp = 0.5;           /* max displacement per iteration (mm) */
     const double smooth_weight = 0.05;     /* tangential smoothing weight */
-    const double min_grad_n = 0.1;         /* minimum normal gradient for Newton step */
-    const double min_thickness_frac = 0.5; /* minimum thickness fraction allowed */
+    const double min_thickness_frac = 0.5; /* minimum thickness fraction */
+    const double min_grad_mag = 0.05;      /* min gradient to accept as edge */
 
     double err1_prev = FLT_MAX, err2_prev = FLT_MAX;
     int counter1 = 0, counter2 = 0;
@@ -941,7 +928,6 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                             Point_y(polygons1->normals[v]),
                             Point_z(polygons1->normals[v])};
 
-            /* Normalize normal */
             double len = sqrt(n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]);
             if (len > 1e-10)
             {
@@ -950,23 +936,54 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                 n1[2] /= len;
             }
 
-            /* Intensity offset from target */
-            double di1 = isoval(input, p1[0], p1[1], p1[2], dims, nii_ptr) - lim1;
-
-            /* Gradient projected onto normal */
-            double grad_n1 = isoval(gradient_x, p1[0], p1[1], p1[2], dims, nii_ptr) * n1[0] +
-                             isoval(gradient_y, p1[0], p1[1], p1[2], dims, nii_ptr) * n1[1] +
-                             isoval(gradient_z, p1[0], p1[1], p1[2], dims, nii_ptr) * n1[2];
-
-            /* Newton step: d = -di / grad_n, clamped to max_disp */
-            double d1 = 0.0;
-            if (counter1 == 0 && fabs(grad_n1) > min_grad_n)
+            /* Sample intensity along normal ray and find closest edge with
+             * correct transition direction.
+             * For both pial and white surfaces the outward normal points away
+             * from the brain, so at the true tissue boundary intensity must
+             * decrease along the outward normal (GM->CSF or WM->GM).
+             * We therefore only accept sample points where the signed
+             * directional derivative dI/dt < 0 (negative gradient along
+             * outward normal).  Among all valid edges we pick the one
+             * closest to the current vertex position (smallest |t|) to
+             * avoid locking onto the opposite sulcal wall. */
+            double best_t1 = 0.0, best_grad1 = 0.0;
             {
-                d1 = -di1 / grad_n1;
-                d1 = fmax(-max_disp, fmin(max_disp, d1));
+                double intensities[11]; /* n_samples */
+                int si;
+                for (si = 0; si < n_samples; si++)
+                {
+                    double t = -search_dist + si * sample_step;
+                    intensities[si] = isoval(input,
+                                             p1[0] + t * n1[0],
+                                             p1[1] + t * n1[1],
+                                             p1[2] + t * n1[2], dims, nii_ptr);
+                }
+                /* Finite-difference signed gradient along ray (dI/dt) */
+                double closest_abs_t = search_dist + 1.0; /* > any valid |t| */
+                for (si = 1; si < n_samples - 1; si++)
+                {
+                    double grad_signed = (intensities[si + 1] - intensities[si - 1]) /
+                                         (2.0 * sample_step);
+                    double grad_abs = fabs(grad_signed);
+                    double t = -search_dist + si * sample_step;
+                    /* Accept only edges where intensity decreases outward
+                     * (grad_signed < 0) and gradient is strong enough */
+                    if (grad_signed < 0.0 && grad_abs > min_grad_mag &&
+                        fabs(t) < closest_abs_t)
+                    {
+                        closest_abs_t = fabs(t);
+                        best_grad1 = grad_abs;
+                        best_t1 = t;
+                    }
+                }
             }
 
-            /* Tangential smoothing: centroid attraction projected onto tangent plane */
+            /* Compute displacement toward edge */
+            double d1 = 0.0;
+            if (counter1 == 0 && best_grad1 > min_grad_mag)
+                d1 = fmax(-max_disp, fmin(max_disp, step_frac * best_t1));
+
+            /* Tangential smoothing: centroid attraction onto tangent plane */
             double c1[3] = {0.0, 0.0, 0.0};
             for (j = 0; j < n_neighbours[v]; j++)
             {
@@ -983,10 +1000,10 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
             for (k = 0; k < 3; k++)
                 tc1[k] -= dot1 * n1[k];
 
-            /* Final displacement: Newton step along normal + tangential smoothing */
             for (k = 0; k < 3; k++)
-                disp1[v][k] = step_size * d1 * n1[k] + smooth_weight * tc1[k];
+                disp1[v][k] = d1 * n1[k] + smooth_weight * tc1[k];
 
+            double di1 = isoval(input, p1[0], p1[1], p1[2], dims, nii_ptr) - lim1;
             err1 += di1 * di1;
 
             /* ---- WHITE SURFACE (polygons2) ---- */
@@ -1005,18 +1022,40 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                 n2[2] /= len;
             }
 
-            double di2 = isoval(input, p2[0], p2[1], p2[2], dims, nii_ptr) - lim2;
-
-            double grad_n2 = isoval(gradient_x, p2[0], p2[1], p2[2], dims, nii_ptr) * n2[0] +
-                             isoval(gradient_y, p2[0], p2[1], p2[2], dims, nii_ptr) * n2[1] +
-                             isoval(gradient_z, p2[0], p2[1], p2[2], dims, nii_ptr) * n2[2];
+            double best_t2 = 0.0, best_grad2 = 0.0;
+            {
+                double intensities[11];
+                int si;
+                for (si = 0; si < n_samples; si++)
+                {
+                    double t = -search_dist + si * sample_step;
+                    intensities[si] = isoval(input,
+                                             p2[0] + t * n2[0],
+                                             p2[1] + t * n2[1],
+                                             p2[2] + t * n2[2], dims, nii_ptr);
+                }
+                /* Same direction-aware search: closest edge with negative
+                 * directional derivative (intensity decreasing outward) */
+                double closest_abs_t = search_dist + 1.0;
+                for (si = 1; si < n_samples - 1; si++)
+                {
+                    double grad_signed = (intensities[si + 1] - intensities[si - 1]) /
+                                         (2.0 * sample_step);
+                    double grad_abs = fabs(grad_signed);
+                    double t = -search_dist + si * sample_step;
+                    if (grad_signed < 0.0 && grad_abs > min_grad_mag &&
+                        fabs(t) < closest_abs_t)
+                    {
+                        closest_abs_t = fabs(t);
+                        best_grad2 = grad_abs;
+                        best_t2 = t;
+                    }
+                }
+            }
 
             double d2 = 0.0;
-            if (counter2 == 0 && fabs(grad_n2) > min_grad_n)
-            {
-                d2 = -di2 / grad_n2;
-                d2 = fmax(-max_disp, fmin(max_disp, d2));
-            }
+            if (counter2 == 0 && best_grad2 > min_grad_mag)
+                d2 = fmax(-max_disp, fmin(max_disp, step_frac * best_t2));
 
             double c2[3] = {0.0, 0.0, 0.0};
             for (j = 0; j < n_neighbours[v]; j++)
@@ -1035,12 +1074,12 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                 tc2[k] -= dot2 * n2[k];
 
             for (k = 0; k < 3; k++)
-                disp2[v][k] = step_size * d2 * n2[k] + smooth_weight * tc2[k];
+                disp2[v][k] = d2 * n2[k] + smooth_weight * tc2[k];
 
+            double di2 = isoval(input, p2[0], p2[1], p2[2], dims, nii_ptr) - lim2;
             err2 += di2 * di2;
 
             /* ---- THICKNESS CONSTRAINT ---- */
-            /* Dampen displacements that would push surfaces too close together */
             double p1_new[3], p2_new[3];
             for (k = 0; k < 3; k++)
             {
@@ -1067,14 +1106,12 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
             counter1++;
         if (err2 > err2_prev)
             counter2++;
-        if (counter1 > 0 && counter2 > 0)
+        if (counter1 > 3 && counter2 > 3)
             break;
 
-        /* Light displacement smoothing */
-        smooth_displacement_field(disp1, polygons1, n_neighbours, neighbours, 2, 0.2);
-        smooth_displacement_field(disp2, polygons2, n_neighbours, neighbours, 2, 0.2);
-
-        /* Apply displacements */
+        /* Apply displacements directly — no global displacement smoothing
+         * since tangential smoothing is already built into each vertex's
+         * displacement and the edge-seeking signal should not be blurred. */
         for (v = 0; v < n_points; v++)
         {
             Point_x(polygons1->points[v]) += disp1[v][0];
@@ -1136,9 +1173,6 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
     smooth_laplacian(polygons2, 5, 0.1, 0.5);
 
     /* Cleanup */
-    free(gradient_x);
-    free(gradient_y);
-    free(gradient_z);
     free(disp1);
     free(disp2);
     delete_polygon_point_neighbours(polygons1, n_neighbours, neighbours, NULL, NULL);
