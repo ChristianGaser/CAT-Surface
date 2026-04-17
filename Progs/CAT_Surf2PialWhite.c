@@ -20,11 +20,11 @@
  * ----------------------------------------------- */
 double w1 = 0.05;
 double w2 = 0.05;
-double w3 = 0.1;
+double w3 = 0.05;
 double sigma = 0.2;
 int verbose = 0;
-int iterations = 200;
-int gradient_iterations = 30;
+int iterations = 100;
+int gradient_iterations = 00;
 
 /* Argument table for command-line parsing */
 static ArgvInfo argTable[] = {
