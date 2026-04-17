@@ -25,6 +25,7 @@ double sigma = 0.2;
 int verbose = 0;
 int iterations = 100;
 int gradient_iterations = 00;
+int method = 0;
 
 /* Argument table for command-line parsing */
 static ArgvInfo argTable[] = {
@@ -40,6 +41,8 @@ static ArgvInfo argTable[] = {
      "Set number of deformation iterations."},
     {"-giter", ARGV_INT, (char *)TRUE, (char *)&gradient_iterations,
      "Set number of gradient refinement iterations (0 to disable)."},
+    {"-method", ARGV_INT, (char *)TRUE, (char *)&method,
+     "Method: 0 = deformation (default), 1 = Laplacian, 2 = ADE."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
@@ -154,6 +157,7 @@ int main(int argc, char *argv[])
     opts.sigma = sigma;
     opts.iterations = iterations;
     opts.gradient_iterations = gradient_iterations;
+    opts.method = method;
     opts.verbose = verbose;
 
     /* Run the library estimation */

@@ -37,6 +37,7 @@ extern "C"
         double sigma;            /**< Displacement smoothing sigma (default: 0.2) */
         int iterations;          /**< Number of deformation iterations (default: 100) */
         int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
+        int method;              /**< 0 = deformation (default), 1 = Laplacian, 2 = ADE */
         int verbose;             /**< Verbose output (default: 0) */
     } CAT_PialWhiteOptions;
 

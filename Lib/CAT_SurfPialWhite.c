@@ -17,6 +17,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Deform.h"
 #include "CAT_Curvature.h"
+#include "CAT_SurfLaplacian.h"
 
 /* Tissue class thresholds */
 #ifndef CGM
@@ -42,6 +43,7 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
     opts->sigma = 0.2;
     opts->iterations = 200;
     opts->gradient_iterations = 30;
+    opts->method = 0;
     opts->verbose = 0;
 }
 
@@ -88,6 +90,30 @@ int CAT_SurfEstimatePialWhite(
         return -1;
 
     n_points = central->n_points;
+
+    /* ------ Laplacian streamline method (method == 1) ------ */
+    if (opts->method == 1)
+    {
+        double shifting[2] = {-0.25, 0.25};
+        return surf_laplacian_pial_white(
+            central, labels, nii_ptr,
+            CGM + shifting[0], GWM + shifting[1],
+            thickness_values,
+            pial_out, white_out, opts->verbose);
+    }
+
+    /* ------ Adaptive Diffusion Equation method (method == 2) ------ */
+    if (opts->method == 2)
+    {
+        double shifting[2] = {-0.25, 0.25};
+        return surf_ade_pial_white(
+            central, labels, nii_ptr,
+            CGM + shifting[0], GWM + shifting[1],
+            thickness_values,
+            pial_out, white_out, opts->verbose);
+    }
+
+    /* ------ Deformation method (method == 0, default) ------ */
 
     /* Allocate working arrays */
     extents = (double *)malloc(sizeof(double) * n_points);
