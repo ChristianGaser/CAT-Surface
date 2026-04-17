@@ -22,6 +22,7 @@ build-*
 log*
 INSTALL
 Progs/CAT_[A-Za-z0-9_]*
-!Progs/CAT_*.c*
 tests/test_math.out
 docs/doxygen/
+!Progs/CAT_*.c*
+3rdparty
