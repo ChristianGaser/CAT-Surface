@@ -215,7 +215,6 @@ solve_ade_ribbon(const float *labels, int dims[3],
  *   phi_stop = (target - ribbon_white) / (ribbon_pial - ribbon_white)
  * This means changing lim_pial/lim_white actually moves the surfaces.
  */
-int
 int surf_ade_pial_white(polygons_struct *central,
                         float *labels,
                         nifti_image *nii_ptr,
