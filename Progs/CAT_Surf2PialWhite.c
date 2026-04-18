@@ -24,7 +24,7 @@ double w3 = 0.05;
 double sigma = 0.2;
 int verbose = 0;
 int iterations = 100;
-int gradient_iterations = 00;
+int gradient_iterations = 0;
 int method = 0;
 
 /* Argument table for command-line parsing */

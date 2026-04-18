@@ -216,15 +216,15 @@ solve_ade_ribbon(const float *labels, int dims[3],
  * This means changing lim_pial/lim_white actually moves the surfaces.
  */
 int
-surf_ade_pial_white(polygons_struct *central,
-                    float *labels,
-                    nifti_image *nii_ptr,
-                    float lim_pial,
-                    float lim_white,
-                    const double *thickness_values,
-                    polygons_struct *pial_out,
-                    polygons_struct *white_out,
-                    int verbose)
+int surf_ade_pial_white(polygons_struct *central,
+                        float *labels,
+                        nifti_image *nii_ptr,
+                        float lim_pial,
+                        float lim_white,
+                        const double *thickness_values,
+                        polygons_struct *pial_out,
+                        polygons_struct *white_out,
+                        int verbose)
 {
     int v, step, dims[3], nvox;
     double vx[3];
@@ -245,10 +245,14 @@ surf_ade_pial_white(polygons_struct *central,
     float phi_stop_white = (lim_white - ribbon_white) / (ribbon_pial - ribbon_white);
 
     /* Clamp to sensible range */
-    if (phi_stop_pial  > 0.99f) phi_stop_pial  = 0.999f;
-    if (phi_stop_pial  < 0.01f) phi_stop_pial  = 0.50f;
-    if (phi_stop_white > 0.99f) phi_stop_white = 0.50f;
-    if (phi_stop_white < 0.01f) phi_stop_white = 0.001f;
+    if (phi_stop_pial > 0.99f)
+        phi_stop_pial = 0.999f;
+    if (phi_stop_pial < 0.01f)
+        phi_stop_pial = 0.50f;
+    if (phi_stop_white > 0.99f)
+        phi_stop_white = 0.50f;
+    if (phi_stop_white < 0.01f)
+        phi_stop_white = 0.001f;
 
     /* Streamline parameters */
     const double step_size = 0.1; /* mm per integration step          */
@@ -294,9 +298,12 @@ surf_ade_pial_white(polygons_struct *central,
     {
         fprintf(stderr, "surf_pde_pial_white: alloc error (gradient)\n");
         free(phi);
-        if (grad_x) free(grad_x);
-        if (grad_y) free(grad_y);
-        if (grad_z) free(grad_z);
+        if (grad_x)
+            free(grad_x);
+        if (grad_y)
+            free(grad_y);
+        if (grad_z)
+            free(grad_z);
         return -3;
     }
 

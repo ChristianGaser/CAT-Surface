@@ -798,6 +798,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                     Point_z(polygons1->points[v]) -= displacement_field1[v][2];
                 }
             }
+            free(flags1);
         }
 
         if (have2)
@@ -813,6 +814,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                     Point_z(polygons2->points[v]) -= displacement_field2[v][2];
                 }
             }
+            free(flags2);
         }
 
         if (have1)
@@ -1211,6 +1213,7 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                 Point_z(polygons1->points[v]) -= disp1[v][2];
             }
         }
+        free(flags1);
 
         int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
         for (v = 0; v < n_points; v++)
@@ -1222,6 +1225,7 @@ void surf_deform_gradient_dual(polygons_struct *polygons1, polygons_struct *poly
                 Point_z(polygons2->points[v]) -= disp2[v][2];
             }
         }
+        free(flags2);
 
         /* Update normals for next iteration */
         compute_polygon_normals(polygons1);

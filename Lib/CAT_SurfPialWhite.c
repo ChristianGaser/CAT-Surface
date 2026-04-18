@@ -90,7 +90,7 @@ int CAT_SurfEstimatePialWhite(
         return -1;
 
     n_points = central->n_points;
-    
+
     /* ------ Adaptive Diffusion Equation method (method == 1) ------ */
     if (opts->method == 1)
     {
@@ -109,10 +109,10 @@ int CAT_SurfEstimatePialWhite(
             weights[1] = opts->w2;
             weights[2] = opts->w3;
             surf_deform_dual(pial_out, white_out, central, labels, nii_ptr,
-                                 weights, opts->sigma,
-                                 CGM + shifting[0], GWM + shifting[1],
-                                 (double *)thickness_values,
-                                 opts->iterations, opts->verbose);
+                             weights, opts->sigma,
+                             CGM + shifting[0], GWM + shifting[1],
+                             (double *)thickness_values,
+                             opts->iterations, opts->verbose);
         }
         if (opts->gradient_iterations > 0)
             surf_deform_gradient_dual(pial_out, white_out, labels, nii_ptr,
