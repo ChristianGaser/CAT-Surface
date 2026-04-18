@@ -94,10 +94,9 @@ int CAT_SurfEstimatePialWhite(
     /* ------ Laplacian streamline method (method == 1) ------ */
     if (opts->method == 1)
     {
-        double shifting[2] = {-0.25, 0.25};
         return surf_laplacian_pial_white(
             central, labels, nii_ptr,
-            CGM + shifting[0], GWM + shifting[1],
+            CGM, GWM,
             thickness_values,
             pial_out, white_out, opts->verbose);
     }
@@ -105,10 +104,9 @@ int CAT_SurfEstimatePialWhite(
     /* ------ Adaptive Diffusion Equation method (method == 2) ------ */
     if (opts->method == 2)
     {
-        double shifting[2] = {-0.25, 0.25};
         return surf_ade_pial_white(
             central, labels, nii_ptr,
-            CGM + shifting[0], GWM + shifting[1],
+            CGM, GWM,
             thickness_values,
             pial_out, white_out, opts->verbose);
     }

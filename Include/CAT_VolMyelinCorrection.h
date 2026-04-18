@@ -60,18 +60,18 @@
  */
 typedef struct
 {
-    double erosion_mm;      /**< Erosion radius (mm) for deep tissue cores (default: 3.0) */
-    double k_intensity;     /**< Std-dev factor for intensity threshold (default: 1.0) */
-    double grad_percentile; /**< Percentile of boundary gradient below which gradient is "weak" (default: 25.0) */
-    double dist_mm;         /**< Min distance (mm) from tissue core to be suspicious (default: 2.0) */
-    double max_correction;  /**< Maximum PVE shift toward GM (default: 0.8) */
-    double min_cluster_mm3; /**< Minimum flagged-cluster volume in mm^3 (default: 20.0). Clusters smaller than this are discarded to prevent noisy, isolated corrections. */
-    double gm_grad_pct;     /**< Percentile of GM gradient magnitude above which gradient is "high" (default: 50.0). Used for double-gradient myelination detection in motor cortex. */
+    double erosion_mm;       /**< Erosion radius (mm) for deep tissue cores (default: 3.0) */
+    double k_intensity;      /**< Std-dev factor for intensity threshold (default: 1.0) */
+    double grad_percentile;  /**< Percentile of boundary gradient below which gradient is "weak" (default: 25.0) */
+    double dist_mm;          /**< Min distance (mm) from tissue core to be suspicious (default: 2.0) */
+    double max_correction;   /**< Maximum PVE shift toward GM (default: 0.8) */
+    double min_cluster_mm3;  /**< Minimum flagged-cluster volume in mm^3 (default: 20.0). Clusters smaller than this are discarded to prevent noisy, isolated corrections. */
+    double gm_grad_pct;      /**< Percentile of GM gradient magnitude above which gradient is "high" (default: 50.0). Used for double-gradient myelination detection in motor cortex. */
     double max_gm_grad_dist; /**< Max distance (mm) from high-gradient GM for double-gradient detection (default: 3.0). WM-boundary voxels within this distance of elevated-gradient GM tissue are flagged as likely myelinated GM. Set to 0 to disable. */
-    int n_median_filter;    /**< Iterations of 3x3x3 median filter on the correction field (default: 2). Removes noisy isolated corrections while preserving coherent boundary shifts. Set to 0 to disable. */
-    int correct_wm;         /**< Apply WM/GM (myelination) correction (default: 1) */
-    int correct_csf;        /**< Apply GM/CSF (pial) correction (default: 1) */
-    int verbose;            /**< Print progress messages (default: 0) */
+    int n_median_filter;     /**< Iterations of 3x3x3 median filter on the correction field (default: 2). Removes noisy isolated corrections while preserving coherent boundary shifts. Set to 0 to disable. */
+    int correct_wm;          /**< Apply WM/GM (myelination) correction (default: 1) */
+    int correct_csf;         /**< Apply GM/CSF (pial) correction (default: 1) */
+    int verbose;             /**< Print progress messages (default: 0) */
 } CAT_MyelinCorrOptions;
 
 /**

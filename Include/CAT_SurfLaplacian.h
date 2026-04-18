@@ -44,18 +44,19 @@ extern "C"
      *        Laplacian streamline tracing through the cortical ribbon.
      *
      * Solves the Laplace equation nabla^2 phi = 0 in the cortical ribbon
-     * (voxels with tissue label between lim_pial and lim_white), with
-     * boundary conditions phi = 1 at the pial (CSF) side and phi = 0 at
-     * the white (WM) side.  For each vertex of the central surface,
-     * streamlines are traced along +grad(phi) (toward pial) and
-     * -grad(phi) (toward white).  The endpoints define the output
-     * surface positions.
+     * between lim_pial and lim_white, with boundary conditions phi = 1
+     * at the pial side and phi = 0 at the white side.  The ribbon
+     * boundaries are set directly at the target isovalues, so changing
+     * them moves both the PDE domain and the resulting surfaces.
+     * For each vertex of the central surface, streamlines are traced
+     * along +grad(phi) (toward pial) and -grad(phi) (toward white)
+     * until phi reaches the boundary.
      *
      * \param central          (in)  central surface mesh (must have normals)
      * \param labels           (in)  tissue label / intensity volume
      * \param nii_ptr          (in)  NIfTI header for coordinate transforms
-     * \param lim_pial         (in)  intensity threshold for the pial boundary
-     * \param lim_white        (in)  intensity threshold for the white boundary
+     * \param lim_pial         (in)  pial boundary isovalue (e.g. CGM=1.5)
+     * \param lim_white        (in)  white boundary isovalue (e.g. GWM=2.5)
      * \param thickness_values (in)  per-vertex cortical thickness (for max
      *                               travel distance and fallback placement)
      * \param pial_out         (out) output pial surface (copy of central,
