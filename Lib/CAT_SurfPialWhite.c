@@ -83,32 +83,75 @@ int CAT_SurfEstimatePialWhite(
     polygons_struct *polygons_white;
     polygons_struct *polygons_smoothed = NULL;
     double weights[3];
-    double shifting[2] = {-0.25, 0.25};
+    double shifting[2] = {-0.25, 0.2};
 
     if (!central || !thickness_values || !labels || !nii_ptr ||
         !pial_out || !white_out || !opts)
         return -1;
 
     n_points = central->n_points;
-
+    
     /* ------ Laplacian streamline method (method == 1) ------ */
     if (opts->method == 1)
     {
-        return surf_laplacian_pial_white(
+        int rc = surf_laplacian_pial_white(
             central, labels, nii_ptr,
             CGM, GWM,
             thickness_values,
             pial_out, white_out, opts->verbose);
+        if (rc != 0)
+            return rc;
+
+        /* Optional deformation refinement for vertices where
+         * the streamline did not converge (thickness-limited etc.) */
+        if (opts->iterations > 0)
+        {
+            weights[0] = opts->w1;
+            weights[1] = opts->w2;
+            weights[2] = opts->w3;
+            surf_deform_dual(pial_out, white_out, central, labels, nii_ptr,
+                             weights, opts->sigma,
+                             CGM + shifting[0], GWM + shifting[1],
+                             (double *)thickness_values,
+                             opts->iterations, opts->verbose);
+        }
+        if (opts->gradient_iterations > 0)
+            surf_deform_gradient_dual(pial_out, white_out, labels, nii_ptr,
+                                      CGM + shifting[0], GWM + shifting[1],
+                                      (double *)thickness_values,
+                                      opts->gradient_iterations, opts->verbose);
+        return 0;
     }
 
     /* ------ Adaptive Diffusion Equation method (method == 2) ------ */
     if (opts->method == 2)
     {
-        return surf_ade_pial_white(
+        int rc = surf_ade_pial_white(
             central, labels, nii_ptr,
             CGM, GWM,
             thickness_values,
             pial_out, white_out, opts->verbose);
+        if (rc != 0)
+            return rc;
+
+        /* Optional deformation refinement for unconverged vertices */
+        if (opts->iterations > 0)
+        {
+            weights[0] = opts->w1;
+            weights[1] = opts->w2;
+            weights[2] = opts->w3;
+            surf_deform_dual(pial_out, white_out, central, labels, nii_ptr,
+                                 weights, opts->sigma,
+                                 CGM + shifting[0], GWM + shifting[1],
+                                 (double *)thickness_values,
+                                 opts->iterations, opts->verbose);
+        }
+        if (opts->gradient_iterations > 0)
+            surf_deform_gradient_dual(pial_out, white_out, labels, nii_ptr,
+                                      CGM + shifting[0], GWM + shifting[1],
+                                      (double *)thickness_values,
+                                      opts->gradient_iterations, opts->verbose);
+        return 0;
     }
 
     /* ------ Deformation method (method == 0, default) ------ */

@@ -366,15 +366,15 @@ surf_pde_pial_white_internal(polygons_struct *central,
     float *grad_x = NULL, *grad_y = NULL, *grad_z = NULL;
 
     /* Wide ribbon boundaries for the PDE solver (CSF to WM) */
-    const float ribbon_pial  = 1.5f;   /* CSF label — pial side (phi = 1) */
-    const float ribbon_white = 2.5f;   /* WM label  — white side (phi = 0) */
+    const float ribbon_pial = 1.5f;  /* CSF label — pial side (phi = 1) */
+    const float ribbon_white = 2.5f; /* WM label  — white side (phi = 0) */
 
     /* Map target isovalues to phi stop thresholds.
      * phi = 1 at ribbon_pial (1.0), phi = 0 at ribbon_white (3.0).
      * Linear mapping:  phi = (target - ribbon_white) / (ribbon_pial - ribbon_white)
      * Example: lim_pial=1.5 -> phi_stop_pial = (1.5 - 3.0) / (1.0 - 3.0) = 0.75
      *          lim_white=2.5 -> phi_stop_white = (2.5 - 3.0) / (1.0 - 3.0) = 0.25 */
-    float phi_stop_pial  = (lim_pial  - ribbon_white) / (ribbon_pial - ribbon_white);
+    float phi_stop_pial = (lim_pial - ribbon_white) / (ribbon_pial - ribbon_white);
     float phi_stop_white = (lim_white - ribbon_white) / (ribbon_pial - ribbon_white);
 
     /* Clamp to sensible range */
@@ -384,9 +384,9 @@ surf_pde_pial_white_internal(polygons_struct *central,
     if (phi_stop_white < 0.01f) phi_stop_white = 0.001f;
 
     /* Streamline parameters */
-    const double step_size = 0.1;  /* mm per integration step          */
-    const int    max_steps = 120;  /* max steps = 12 mm travel         */
-    const double min_grad  = 1e-6; /* gradient magnitude floor         */
+    const double step_size = 0.1; /* mm per integration step          */
+    const int max_steps = 120;    /* max steps = 12 mm travel         */
+    const double min_grad = 1e-6; /* gradient magnitude floor         */
 
     if (!central || !labels || !nii_ptr || !pial_out || !white_out)
         return -1;
@@ -458,7 +458,6 @@ surf_pde_pial_white_internal(polygons_struct *central,
         double nx, ny, nz, nlen; /* surface normal (fallback) */
         double pos[3];
         double gx, gy, gz, glen;
-        double max_travel, dist;
         int found;
         float phi_val;
 
@@ -478,21 +477,13 @@ surf_pde_pial_white_internal(polygons_struct *central,
             nz /= nlen;
         }
 
-        /* Limit travel distance using cortical thickness */
-        max_travel = thickness_values
-                         ? fabs(thickness_values[v]) * 1.0
-                         : 4.0;
-        if (max_travel < 0.5)  max_travel = 0.5;
-        if (max_travel > 6.0)  max_travel = 6.0;
-
         /* ---- trace toward PIAL (follow +grad phi, toward phi = 1) ---- */
         pos[0] = cx;
         pos[1] = cy;
         pos[2] = cz;
-        dist = 0.0;
         found = 0;
 
-        for (step = 0; step < max_steps && dist < max_travel; step++)
+        for (step = 0; step < max_steps; step++)
         {
             gx = isoval(grad_x, pos[0], pos[1], pos[2], dims, nii_ptr);
             gy = isoval(grad_y, pos[0], pos[1], pos[2], dims, nii_ptr);
@@ -516,7 +507,6 @@ surf_pde_pial_white_internal(polygons_struct *central,
             pos[0] += step_size * gx;
             pos[1] += step_size * gy;
             pos[2] += step_size * gz;
-            dist += step_size;
 
             /* Stop when phi reaches the target pial isovalue */
             phi_val = isoval(phi, pos[0], pos[1], pos[2], dims, nii_ptr);
@@ -544,10 +534,9 @@ surf_pde_pial_white_internal(polygons_struct *central,
         pos[0] = cx;
         pos[1] = cy;
         pos[2] = cz;
-        dist = 0.0;
         found = 0;
 
-        for (step = 0; step < max_steps && dist < max_travel; step++)
+        for (step = 0; step < max_steps; step++)
         {
             gx = isoval(grad_x, pos[0], pos[1], pos[2], dims, nii_ptr);
             gy = isoval(grad_y, pos[0], pos[1], pos[2], dims, nii_ptr);
@@ -572,7 +561,6 @@ surf_pde_pial_white_internal(polygons_struct *central,
             pos[0] -= step_size * gx;
             pos[1] -= step_size * gy;
             pos[2] -= step_size * gz;
-            dist += step_size;
 
             /* Stop when phi reaches the target white isovalue */
             phi_val = isoval(phi, pos[0], pos[1], pos[2], dims, nii_ptr);
@@ -600,12 +588,6 @@ surf_pde_pial_white_internal(polygons_struct *central,
         fprintf(stdout, "%s streamlines: pial %d/%d  white %d/%d converged\n",
                 use_ade ? "ADE" : "Laplacian",
                 n_pial_ok, n_points, n_white_ok, n_points);
-
-    /* ================================================================
-     * Step 5 — Light Laplacian smoothing for regularisation
-     * ================================================================ */
-    smooth_laplacian(pial_out, 5, 0.1, 0.5);
-    smooth_laplacian(white_out, 5, 0.1, 0.5);
 
     /* Recompute normals for output */
     compute_polygon_normals(pial_out);
