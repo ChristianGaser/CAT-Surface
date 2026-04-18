@@ -28,136 +28,6 @@
 #define MASK_WHITE 3  /* white boundary   (phi = 0 fixed)  */
 
 /* -------------------------------------------------------------------
- * solve_laplace_ribbon
- * -------------------------------------------------------------------*/
-
-/**
- * \brief Solve the Laplace equation in the cortical ribbon using SOR.
- *
- * Boundary conditions:
- *   phi = 1  where 0.5 < label <= lim_pial  (CSF / pial side)
- *   phi = 0  where label >= lim_white        (WM / white side)
- * The cortical ribbon is the set of voxels with lim_pial < label < lim_white.
- *
- * Uses Successive Over-Relaxation (SOR) with omega = 1.7 for fast
- * convergence.  The initial guess is a linear interpolation of the
- * label value inside the ribbon, which is close to the true solution
- * and accelerates convergence.
- *
- * \param labels      (in)     tissue label volume
- * \param dims        (in)     volume dimensions [nx, ny, nz]
- * \param ribbon_pial (in)     pial-side ribbon boundary (phi = 1 fixed)
- * \param ribbon_white(in)     white-side ribbon boundary (phi = 0 fixed)
- * \param phi         (out)    solution volume (pre-allocated, same dims)
- * \param max_iter    (in)     maximum SOR iterations
- * \param tol         (in)     convergence tolerance (max abs change)
- * \param verbose     (in)     print progress
- */
-static void
-solve_laplace_ribbon(const float *labels, int dims[3],
-                     float ribbon_pial, float ribbon_white,
-                     float *phi, int max_iter, float tol,
-                     int verbose)
-{
-    int nx = dims[0], ny = dims[1], nz = dims[2];
-    int nxy = nx * ny;
-    int nvox = nxy * nz;
-    int x, y, z, idx, iter, n;
-    unsigned char *mask;
-    float denom, sum, gs, new_val, change, max_change;
-    const float omega = 1.7f;
-
-    mask = (unsigned char *)calloc(nvox, sizeof(unsigned char));
-    if (!mask)
-    {
-        fprintf(stderr, "solve_laplace_ribbon: memory allocation error\n");
-        return;
-    }
-
-    /* ---- Classify voxels and initialise phi ---- */
-    denom = ribbon_pial - ribbon_white; /* negative, used for linear init */
-    for (idx = 0; idx < nvox; idx++)
-    {
-        float val = labels[idx];
-        if (val > 0.5f && val <= ribbon_pial)
-        {
-            mask[idx] = MASK_PIAL;
-            phi[idx] = 1.0f;
-        }
-        else if (val >= ribbon_white)
-        {
-            mask[idx] = MASK_WHITE;
-            phi[idx] = 0.0f;
-        }
-        else if (val > ribbon_pial && val < ribbon_white)
-        {
-            mask[idx] = MASK_RIBBON;
-            /* Linear interpolation: phi = 1 at ribbon_pial, phi = 0 at ribbon_white */
-            phi[idx] = (val - ribbon_white) / denom;
-        }
-        else
-        {
-            mask[idx] = MASK_BG;
-            phi[idx] = 0.0f;
-        }
-    }
-
-    /* ---- SOR iteration ---- */
-    for (iter = 0; iter < max_iter; iter++)
-    {
-        max_change = 0.0f;
-
-        for (z = 1; z < nz - 1; z++)
-        {
-            for (y = 1; y < ny - 1; y++)
-            {
-                idx = 1 + y * nx + z * nxy;
-                for (x = 1; x < nx - 1; x++, idx++)
-                {
-                    if (mask[idx] != MASK_RIBBON)
-                        continue;
-
-                    /* 6-connectivity average, skipping background */
-                    sum = 0.0f;
-                    n = 0;
-
-                    if (mask[idx - 1]  > 0) { sum += phi[idx - 1];  n++; }
-                    if (mask[idx + 1]  > 0) { sum += phi[idx + 1];  n++; }
-                    if (mask[idx - nx] > 0) { sum += phi[idx - nx]; n++; }
-                    if (mask[idx + nx] > 0) { sum += phi[idx + nx]; n++; }
-                    if (mask[idx - nxy] > 0) { sum += phi[idx - nxy]; n++; }
-                    if (mask[idx + nxy] > 0) { sum += phi[idx + nxy]; n++; }
-
-                    if (n == 0)
-                        continue;
-
-                    gs = sum / (float)n;
-                    new_val = (1.0f - omega) * phi[idx] + omega * gs;
-                    change = fabsf(new_val - phi[idx]);
-                    if (change > max_change)
-                        max_change = change;
-                    phi[idx] = new_val;
-                }
-            }
-        }
-
-        if (verbose && ((iter + 1) % 200 == 0 || max_change < tol))
-            fprintf(stdout, "\rLaplace solver: iter %4d/%d  max_change %.2e    ",
-                    iter + 1, max_iter, max_change);
-
-        if (max_change < tol)
-            break;
-    }
-
-    if (verbose)
-        fprintf(stdout, "\rLaplace solver: converged in %d iterations (max_change %.2e)\n",
-                iter < max_iter ? iter + 1 : max_iter,
-                max_change);
-
-    free(mask);
-}
-
-/* -------------------------------------------------------------------
  * solve_ade_ribbon  — Adaptive Diffusion Equation solver
  * -------------------------------------------------------------------*/
 
@@ -330,34 +200,31 @@ solve_ade_ribbon(const float *labels, int dims[3],
 }
 
 /* -------------------------------------------------------------------
- * surf_laplacian_pial_white  /  surf_ade_pial_white
+ * surf_ade_pial_white
  *
- * Both share the same streamline tracing logic; only the PDE solver
- * differs (Laplace vs ADE).
+ * Solves the ADE in the cortical ribbon, then traces streamlines from
+ * the central surface to place pial and white surfaces.
  * -------------------------------------------------------------------*/
 
 /**
- * \brief Internal: solve PDE + trace streamlines.
+ * \brief Solve ADE + trace streamlines to place pial and white surfaces.
  *
- * The PDE is always solved on a wide ribbon from CSF (1.0) to WM (3.0)
+ * The ADE is always solved on a wide ribbon from CSF (1.0) to WM (3.0)
  * so the phi field has enough room for smooth gradients.  The target
  * isovalues lim_pial and lim_white are mapped to phi stop values:
  *   phi_stop = (target - ribbon_white) / (ribbon_pial - ribbon_white)
  * This means changing lim_pial/lim_white actually moves the surfaces.
- *
- * \param use_ade  0 = Laplace equation,  1 = Adaptive Diffusion Equation
  */
-static int
-surf_pde_pial_white_internal(polygons_struct *central,
-                             float *labels,
-                             nifti_image *nii_ptr,
-                             float lim_pial,
-                             float lim_white,
-                             const double *thickness_values,
-                             polygons_struct *pial_out,
-                             polygons_struct *white_out,
-                             int use_ade,
-                             int verbose)
+int
+surf_ade_pial_white(polygons_struct *central,
+                    float *labels,
+                    nifti_image *nii_ptr,
+                    float lim_pial,
+                    float lim_white,
+                    const double *thickness_values,
+                    polygons_struct *pial_out,
+                    polygons_struct *white_out,
+                    int verbose)
 {
     int v, step, dims[3], nvox;
     double vx[3];
@@ -410,12 +277,8 @@ surf_pde_pial_white_internal(polygons_struct *central,
         return -2;
     }
 
-    if (use_ade)
-        solve_ade_ribbon(labels, dims, ribbon_pial, ribbon_white,
-                         phi, 2000, 1e-5f, verbose);
-    else
-        solve_laplace_ribbon(labels, dims, ribbon_pial, ribbon_white,
-                             phi, 2000, 1e-5f, verbose);
+    solve_ade_ribbon(labels, dims, ribbon_pial, ribbon_white,
+                     phi, 2000, 1e-5f, verbose);
 
     if (verbose)
         fprintf(stdout, "Phi stop thresholds: pial >= %.3f  white <= %.3f\n",
@@ -585,8 +448,7 @@ surf_pde_pial_white_internal(polygons_struct *central,
     }
 
     if (verbose)
-        fprintf(stdout, "%s streamlines: pial %d/%d  white %d/%d converged\n",
-                use_ade ? "ADE" : "Laplacian",
+        fprintf(stdout, "ADE streamlines: pial %d/%d  white %d/%d converged\n",
                 n_pial_ok, n_points, n_white_ok, n_points);
 
     /* Recompute normals for output */
@@ -602,42 +464,4 @@ surf_pde_pial_white_internal(polygons_struct *central,
     free(grad_z);
 
     return 0;
-}
-
-/* -------------------------------------------------------------------
- * Public wrappers
- * -------------------------------------------------------------------*/
-
-int surf_laplacian_pial_white(polygons_struct *central,
-                              float *labels,
-                              nifti_image *nii_ptr,
-                              float lim_pial,
-                              float lim_white,
-                              const double *thickness_values,
-                              polygons_struct *pial_out,
-                              polygons_struct *white_out,
-                              int verbose)
-{
-    return surf_pde_pial_white_internal(central, labels, nii_ptr,
-                                        lim_pial, lim_white,
-                                        thickness_values,
-                                        pial_out, white_out,
-                                        0, verbose);
-}
-
-int surf_ade_pial_white(polygons_struct *central,
-                        float *labels,
-                        nifti_image *nii_ptr,
-                        float lim_pial,
-                        float lim_white,
-                        const double *thickness_values,
-                        polygons_struct *pial_out,
-                        polygons_struct *white_out,
-                        int verbose)
-{
-    return surf_pde_pial_white_internal(central, labels, nii_ptr,
-                                        lim_pial, lim_white,
-                                        thickness_values,
-                                        pial_out, white_out,
-                                        1, verbose);
 }

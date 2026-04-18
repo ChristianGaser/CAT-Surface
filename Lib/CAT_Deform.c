@@ -544,7 +544,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     /* Need at least one surface */
     if (!have1 && !have2)
         return;
-    
+
     /* We need other weightings for white surface */
     w2[0] = 0.2 * w[0];
     w2[1] = 0.2 * w[1];
@@ -598,8 +598,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     gradient3D(input, NULL, gradient_x, gradient_y, gradient_z, dims, vx);
 
     // Compute surface normals and neighbors
-    if (have1) compute_polygon_normals(polygons1);
-    if (have2) compute_polygon_normals(polygons2);
+    if (have1)
+        compute_polygon_normals(polygons1);
+    if (have2)
+        compute_polygon_normals(polygons2);
 
     // Neighbours from active surface (all share the same topology)
     create_polygon_point_neighbours(active, TRUE, &n_neighbours, &neighbours, NULL, NULL);
@@ -611,12 +613,20 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     if (have1)
     {
         displacement_field1 = malloc(sizeof(double[3]) * n_points);
-        if (!displacement_field1) { fprintf(stderr, "Memory allocation error\n"); exit(EXIT_FAILURE); }
+        if (!displacement_field1)
+        {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
     }
     if (have2)
     {
         displacement_field2 = malloc(sizeof(double[3]) * n_points);
-        if (!displacement_field2) { fprintf(stderr, "Memory allocation error\n"); exit(EXIT_FAILURE); }
+        if (!displacement_field2)
+        {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     // Curvature array computed once from the initial/reference mesh.
@@ -634,8 +644,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     double curv_weight_less = -0.9; // tuneable: negative reduces smoothing
 
     /* If a surface is NULL, mark its counter as already stopped */
-    if (!have1) counter1 = 1;
-    if (!have2) counter2 = 1;
+    if (!have1)
+        counter1 = 1;
+    if (!have2)
+        counter2 = 1;
 
     for (i = 0; i < it; i++)
     {
@@ -803,8 +815,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             }
         }
 
-        if (have1) compute_polygon_normals(polygons1);
-        if (have2) compute_polygon_normals(polygons2);
+        if (have1)
+            compute_polygon_normals(polygons1);
+        if (have2)
+            compute_polygon_normals(polygons2);
 
         if (verbose)
         {
@@ -820,8 +834,10 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             fflush(stdout);
         }
 
-        if (have1) s1_prev = s1;
-        if (have2) s2_prev = s2;
+        if (have1)
+            s1_prev = s1;
+        if (have2)
+            s2_prev = s2;
     }
     if (verbose)
         fprintf(stdout, "\n");
@@ -875,19 +891,25 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
 
     if (verbose)
         fprintf(stdout, "\n");
-    if (have1) remove_near_intersections(polygons1, 0.75, verbose);
-    if (have2) remove_near_intersections(polygons2, 0.75, verbose);
+    if (have1)
+        remove_near_intersections(polygons1, 0.75, verbose);
+    if (have2)
+        remove_near_intersections(polygons2, 0.75, verbose);
 
     // Final Laplacian smoothing
-    if (have1) smooth_laplacian(polygons1, 10, 0.1, 0.5);
-    if (have2) smooth_laplacian(polygons2, 10, 0.1, 0.5);
+    if (have1)
+        smooth_laplacian(polygons1, 10, 0.1, 0.5);
+    if (have2)
+        smooth_laplacian(polygons2, 10, 0.1, 0.5);
 
     // Free allocated memory
     free(gradient_x);
     free(gradient_y);
     free(gradient_z);
-    if (displacement_field1) free(displacement_field1);
-    if (displacement_field2) free(displacement_field2);
+    if (displacement_field1)
+        free(displacement_field1);
+    if (displacement_field2)
+        free(displacement_field2);
     free(curv);
     delete_polygon_point_neighbours(active, n_neighbours, neighbours, NULL, NULL);
 }

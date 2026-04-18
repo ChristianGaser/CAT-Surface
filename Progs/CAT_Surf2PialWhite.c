@@ -42,7 +42,7 @@ static ArgvInfo argTable[] = {
     {"-giter", ARGV_INT, (char *)TRUE, (char *)&gradient_iterations,
      "Set number of gradient refinement iterations (0 to disable)."},
     {"-method", ARGV_INT, (char *)TRUE, (char *)&method,
-     "Method: 0 = deformation (default), 1 = Laplacian, 2 = ADE."},
+     "Method: 0 = deformation (default), 1 = ADE."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
