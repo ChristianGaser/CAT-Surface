@@ -2,6 +2,12 @@ name: Build Python Wheels
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version (e.g. v1.0.0). Leave empty to auto-detect from git tag on HEAD."
+        required: false
+        type: string
+        default: ""
   workflow_call:
     inputs:
       release_version:
@@ -132,12 +138,18 @@ jobs:
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
         run: |
+          # 1) Explicit input from workflow_call or workflow_dispatch
           RAW_VERSION='${{ inputs.release_version }}'
+          # 2) Fallback: tag ref (push-tag trigger)
           if [[ -z "$RAW_VERSION" && "${GITHUB_REF}" == refs/tags/* ]]; then
             RAW_VERSION="${GITHUB_REF_NAME}"
           fi
-          RAW_VERSION="${RAW_VERSION#refs/tags/}"
+          # 3) Fallback: detect tag on HEAD via git
+          if [[ -z "$RAW_VERSION" ]]; then
+            RAW_VERSION=$(git -C "$GITHUB_WORKSPACE" describe --tags --exact-match HEAD 2>/dev/null || true)
+          fi
 
+          RAW_VERSION="${RAW_VERSION#refs/tags/}"
           if [[ "$RAW_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
             export SETUPTOOLS_SCM_PRETEND_VERSION="${RAW_VERSION#v}"
           else
@@ -232,12 +244,18 @@ jobs:
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
         run: |
+          # 1) Explicit input from workflow_call or workflow_dispatch
           RAW_VERSION='${{ inputs.release_version }}'
+          # 2) Fallback: tag ref (push-tag trigger)
           if [[ -z "$RAW_VERSION" && "${GITHUB_REF}" == refs/tags/* ]]; then
             RAW_VERSION="${GITHUB_REF_NAME}"
           fi
-          RAW_VERSION="${RAW_VERSION#refs/tags/}"
+          # 3) Fallback: detect tag on HEAD via git
+          if [[ -z "$RAW_VERSION" ]]; then
+            RAW_VERSION=$(git -C "$GITHUB_WORKSPACE" describe --tags --exact-match HEAD 2>/dev/null || true)
+          fi
 
+          RAW_VERSION="${RAW_VERSION#refs/tags/}"
           if [[ "$RAW_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
             export SETUPTOOLS_SCM_PRETEND_VERSION="${RAW_VERSION#v}"
           else
