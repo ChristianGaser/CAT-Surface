@@ -54,6 +54,25 @@ from cat_surf._surf import (
     reduce_mesh,
     sphere_radius,
     smooth_mesh,
+    surf_to_sphere,
+    get_area_normalized,
+    surf_average,
+    correct_thickness_folding,
+    remove_intersections,
+    count_intersections,
+    resample_to_sphere,
+    surf_deform,
+    surf_to_pial_white,
+    central_to_pial,
+)
+
+# --- Volume operations ---
+from cat_surf._vol import (
+    vol_sanlm,
+    vol_blood_vessel_correction,
+    vol_thickness_pbt,
+    vol_amap,
+    vol_marching_cubes,
 )
 
 __all__ = [
@@ -74,4 +93,20 @@ __all__ = [
     "reduce_mesh",
     "sphere_radius",
     "smooth_mesh",
+    "surf_to_sphere",
+    "get_area_normalized",
+    "surf_average",
+    "correct_thickness_folding",
+    "remove_intersections",
+    "count_intersections",
+    "resample_to_sphere",
+    "surf_deform",
+    "surf_to_pial_white",
+    "central_to_pial",
+    # Volume operations
+    "vol_sanlm",
+    "vol_blood_vessel_correction",
+    "vol_thickness_pbt",
+    "vol_amap",
+    "vol_marching_cubes",
 ]

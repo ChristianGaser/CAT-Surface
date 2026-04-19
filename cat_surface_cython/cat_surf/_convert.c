@@ -44,6 +44,7 @@
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/nii2mesh",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/zlib",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/expat",
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/dartel",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64"
         ],
         "language": "c",

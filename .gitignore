@@ -21,6 +21,7 @@ Makefile
 build-*
 log*
 INSTALL
+__pycache__
 Progs/CAT_[A-Za-z0-9_]*
 tests/test_math.out
 docs/doxygen/
