@@ -26,7 +26,7 @@ GENERATE_XML           = YES
 XML_OUTPUT             = xml
 
 # Source parsing
-INPUT                  = Include Lib Progs cat_surface_python
+INPUT                  = Include Lib Progs cat_surface_cython
 FILE_PATTERNS          = *.h *.c *.cpp *.cc *.cxx *.py
 RECURSIVE              = YES
 EXCLUDE                = 3rdparty build-native-arm64 deprecated .git .venv .vscode

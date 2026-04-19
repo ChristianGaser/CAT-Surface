@@ -164,7 +164,6 @@ jobs:
           tar czf cat_surface_cython/_build_src.tar.gz \
             --exclude='./build-*' \
             --exclude='./cat_surface_cython' \
-            --exclude='./cat_surface_python' \
             --exclude='./deprecated' \
             --exclude='./docs' \
             --exclude='./.git' \

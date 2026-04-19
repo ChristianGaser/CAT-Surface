@@ -57,7 +57,7 @@ CAT-Surface/
 ├── Progs/
 │   ├── CAT_*.c                 # CLI entry points; typically thin wrappers over libCAT
 │   └── ...
-├── cat_surface_python/         # Pure-Python subprocess wrapper around CLI tools
+├── cat_surface_cython/         # Cython bindings exposing libCAT to Python
 ├── tests/                      # Small C unit tests (minunit)
 ├── ...
 ├── Makefile.am
