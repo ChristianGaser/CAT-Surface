@@ -1,0 +1,38 @@
+name: Publish Python Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-wheels:
+    uses: ./.github/workflows/python-wheels.yml
+
+  publish:
+    needs: build-wheels
+    runs-on: ubuntu-22.04
+    permissions:
+      id-token: write
+      contents: read
+    environment:
+      name: pypi
+
+    steps:
+      - name: Download wheels artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: all-wheels
+          path: dist/
+
+      - name: Verify package files
+        run: |
+          ls -lh dist/
+          python -m pip install --upgrade pip twine
+          twine check dist/*
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
