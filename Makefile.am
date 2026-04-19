@@ -42,8 +42,7 @@ AM_CPPFLAGS = @OPENMP_CFLAGS@ @FFTW3_CFLAGS@ ${AM_CFLAGS}
 AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
 
 lib_LTLIBRARIES = libCAT.la
-libCAT_la_LIBADD =
-EXTRA_libCAT_la_DEPENDENCIES = $(FFTW3_BUILDDIR)/.libs/libfftw3.a
+libCAT_la_LIBADD = $(FFTW3_BUILDDIR)/libfftw3.la
 
 EXTRA_DIST = \
     configure.ac \

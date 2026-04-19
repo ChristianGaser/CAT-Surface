@@ -47,7 +47,7 @@ LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 if WINDOWS
 LDADD = ../.libs/libCAT.a -lm $(top_builddir)/3rdparty/fftw-build/.libs/libfftw3.a @OPENMP_LIBS@
 else
-LDADD = ../libCAT.la -lm @FFTW3_LIBS@ @OPENMP_LIBS@
+LDADD = ../libCAT.la -lm @OPENMP_LIBS@
 endif
 
 # Distribute scripts

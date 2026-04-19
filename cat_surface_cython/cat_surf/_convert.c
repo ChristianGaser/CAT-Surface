@@ -28,9 +28,9 @@
         ],
         "extra_link_args": [
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64/.libs/libCAT.a",
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64/3rdparty/fftw-build/.libs/libfftw3.a",
             "-lm",
             "-lz",
-            "-lfftw3",
             "-lexpat",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/libomp/lib/libomp-arm64.a"
         ],
