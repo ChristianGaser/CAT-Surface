@@ -8,7 +8,7 @@ ACLOCAL_AMFLAGS = -I m4
 # Here we just run make to build the static library.
 FFTW3_BUILDDIR = $(top_builddir)/3rdparty/fftw-build
 
-$(FFTW3_BUILDDIR)/.libs/libfftw3.a:
+$(FFTW3_BUILDDIR)/libfftw3.la:
 	cd $(FFTW3_BUILDDIR) && $(MAKE) $(AM_MAKEFLAGS)
 
 clean-local:
