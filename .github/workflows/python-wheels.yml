@@ -90,6 +90,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-tags: true
+
+      - name: Determine version
+        id: version
+        run: |
+          RAW='${{ inputs.release_version }}'
+          if [[ -z "$RAW" && "${GITHUB_REF}" == refs/tags/* ]]; then
+            RAW="${GITHUB_REF_NAME}"
+          fi
+          if [[ -z "$RAW" ]]; then
+            RAW=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+          fi
+          RAW="${RAW#refs/tags/}"
+          RAW="${RAW#v}"
+          if [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
+            echo "value=$RAW" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=0.0.dev0" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
 
       - name: Download libCAT artifact
         uses: actions/download-artifact@v4
@@ -137,26 +158,10 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.version.outputs.value }}
+          CIBW_ENVIRONMENT: "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.version.outputs.value }}"
         run: |
-          # 1) Explicit input from workflow_call or workflow_dispatch
-          RAW_VERSION='${{ inputs.release_version }}'
-          # 2) Fallback: tag ref (push-tag trigger)
-          if [[ -z "$RAW_VERSION" && "${GITHUB_REF}" == refs/tags/* ]]; then
-            RAW_VERSION="${GITHUB_REF_NAME}"
-          fi
-          # 3) Fallback: detect tag on HEAD via git
-          if [[ -z "$RAW_VERSION" ]]; then
-            RAW_VERSION=$(git -C "$GITHUB_WORKSPACE" describe --tags --exact-match HEAD 2>/dev/null || true)
-          fi
-
-          RAW_VERSION="${RAW_VERSION#refs/tags/}"
-          if [[ "$RAW_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
-            export SETUPTOOLS_SCM_PRETEND_VERSION="${RAW_VERSION#v}"
-          else
-            export SETUPTOOLS_SCM_PRETEND_VERSION="0.0.dev0"
-          fi
-          export CIBW_ENVIRONMENT="SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
-          echo "Using SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "Building with SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
           cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
@@ -190,6 +195,27 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-tags: true
+
+      - name: Determine version
+        id: version
+        run: |
+          RAW='${{ inputs.release_version }}'
+          if [[ -z "$RAW" && "${GITHUB_REF}" == refs/tags/* ]]; then
+            RAW="${GITHUB_REF_NAME}"
+          fi
+          if [[ -z "$RAW" ]]; then
+            RAW=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+          fi
+          RAW="${RAW#refs/tags/}"
+          RAW="${RAW#v}"
+          if [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
+            echo "value=$RAW" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=0.0.dev0" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
 
       # Bundle the source tree so it's available inside the container.
       - name: Create source tarball for container build
@@ -217,6 +243,8 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.version.outputs.value }}
+          CIBW_ENVIRONMENT: "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.version.outputs.value }}"
           # Build libCAT.a from source inside the manylinux container
           # so the C++ ABI (MeshFix) matches the container's libstdc++.
           CIBW_BEFORE_ALL_LINUX: |
@@ -244,25 +272,7 @@ jobs:
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
         run: |
-          # 1) Explicit input from workflow_call or workflow_dispatch
-          RAW_VERSION='${{ inputs.release_version }}'
-          # 2) Fallback: tag ref (push-tag trigger)
-          if [[ -z "$RAW_VERSION" && "${GITHUB_REF}" == refs/tags/* ]]; then
-            RAW_VERSION="${GITHUB_REF_NAME}"
-          fi
-          # 3) Fallback: detect tag on HEAD via git
-          if [[ -z "$RAW_VERSION" ]]; then
-            RAW_VERSION=$(git -C "$GITHUB_WORKSPACE" describe --tags --exact-match HEAD 2>/dev/null || true)
-          fi
-
-          RAW_VERSION="${RAW_VERSION#refs/tags/}"
-          if [[ "$RAW_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
-            export SETUPTOOLS_SCM_PRETEND_VERSION="${RAW_VERSION#v}"
-          else
-            export SETUPTOOLS_SCM_PRETEND_VERSION="0.0.dev0"
-          fi
-          export CIBW_ENVIRONMENT="SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
-          echo "Using SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "Building with SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
           cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
