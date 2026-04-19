@@ -124,5 +124,9 @@ fi
 AC_SUBST([OPENMP_CFLAGS])
 AC_SUBST([OPENMP_LIBS])
 
+# On older glibc (< 2.17), clock_gettime lives in librt.  libgomp (OpenMP)
+# needs it, so pull in -lrt when required.
+AC_SEARCH_LIBS([clock_gettime], [rt])
+
 AC_CONFIG_FILES([Makefile Progs/Makefile tests/Makefile])
 AC_OUTPUT
