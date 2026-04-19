@@ -6,45 +6,10 @@ These tools are integral to the [CAT12 toolbox](https://github.com/ChristianGase
 
 The repository also contains additional third-party libraries (see `3rdparty/`) for mesh handling and image I/O, bundled to simplify compilation and avoid dependency issues. These packages are not maintained within this project but are bundled for convenience so that no extra downloads are needed during compilation.
 
-## External Dependencies
-
-The only external library required to build CAT-Surface is:
-
-- [FFTW3](https://www.fftw.org) (Fastest Fourier Transform in the West)  
-  FFTW3 is used for efficient spectral filtering and smoothing operations on surface data.
-
-If you do not have root access (e.g., in cloud or Codespaces environments), you can [build FFTW3 locally](#installing-fftw3-without-root-access).
-
----
 
 ## Build Instructions
 
-**1. Install FFTW3:**
-
-- **Linux:**  
-  With root: `sudo apt-get install libfftw3-dev`  
-  Without root: see below.
-- **macOS:**  
-  `brew install fftw`
-- **Windows:**  
-  Use MSYS2 or Windows Subsystem for Linux, then install as on Linux.
-
-If you lack sudo rights, build FFTW3 in your home directory:
-```bash
-wget http://www.fftw.org/fftw-3.3.10.tar.gz
-tar xzf fftw-3.3.10.tar.gz
-cd fftw-3.3.10
-./configure --prefix=$HOME/.local
-make && make install
-```
-Then compile CAT-Surface with:
-```bash
-export PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH
-./configure CPPFLAGS="-I$HOME/.local/include" LDFLAGS="-L$HOME/.local/lib"
-make
-```
-
-**2. Build the tools:**
+**1. Build the tools:**
 ```bash
 ./autogen.sh       # Generate the configure script
 ./configure        # Configure the build (add --prefix if needed)
