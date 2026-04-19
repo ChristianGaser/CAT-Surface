@@ -49,6 +49,11 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | Tool                        | Description |
 |-----------------------------|-------------|
 | **CAT_Vol2Surf**                | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
+| **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. |
+| **CAT_VolBloodVesselCorrection**| Reduces blood-vessel-related intensity artifacts in volumetric scans before downstream analysis. |
+| **CAT_VolMarchingCubes**        | Extracts a surface mesh from volumetric data using a marching cubes isosurface algorithm. |
+| **CAT_VolSanlm**                | Applies spatially adaptive non-local means denoising to volumetric MRI images. |
+| **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. |
 | **CAT_SurfApplyWarp**           | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
 | **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
 | **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
@@ -57,14 +62,21 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfCorrectThicknessFolding** | Corrects cortical thickness values for folding-related variation (optionally using linear thickness-dependent weighting via `-slope`). |
 | **CAT_DumpCurv_ui**             | GUI batch interface for CAT_DumpCurv to process large collections of surface files. |
 | **CAT_SurfArea**                | Calculates total and/or local surface area metrics from cortical meshes. |
+| **CAT_SurfAverage**             | Computes an average surface from multiple aligned input meshes. |
 | **CAT_SurfConvert**             | Converts between surface mesh file formats: BIC (obj), Freesurfer, and OOGL. |
+| **CAT_SurfDistance**            | Computes pointwise and/or aggregate geometric distances between surface meshes. |
 | **CAT_SurfMeasure2Txt**         | Converts Freesurfer curvature (`.curv`) files to plain text format. |
 | **CAT_SurfPlotValuesAtMaximum** | For a given reference, extracts or plots the values at the vertex of maximum value for each surface file. |
 | **CAT_SurfPlotValuesAtPoint**   | Extracts or plots the values at specified (x, y, z) coordinates for each input surface. |
+| **CAT_SurfReduce**              | Simplifies a surface mesh by reducing vertex/triangle count while preserving geometry. |
+| **CAT_SurfRemoveIntersections** | Detects and repairs self-intersections in surface meshes. |
+| **CAT_SurfResample**            | Resamples surface geometry or vertex-wise values onto a target mesh/grid resolution. |
 | **CAT_SurfResampleSpherical**   | Resamples a spherical surface mesh onto a standard sphere (for surface-based morphometry or group analysis). |
 | **CAT_SurfSheet2Surf**          | Maps a 2D image (PGM format) onto a surface mesh. |
+| **CAT_Surf2PialWhite**          | Derives pial and white matter surfaces from a central cortical surface representation. |
 | **CAT_Surf2Sheet**              | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
 | **CAT_Surf2Sphere**             | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
+| **CAT_SurfWarp**                | Warps one surface to another using non-linear surface-based registration. |
 
 ### External binary GIFTI files
 
