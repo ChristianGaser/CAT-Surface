@@ -106,11 +106,15 @@ jobs:
           RAW="${RAW#refs/tags/}"
           RAW="${RAW#v}"
           if [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
-            echo "value=$RAW" >> "$GITHUB_OUTPUT"
+            VER="$RAW"
           else
-            echo "value=0.0.dev0" >> "$GITHUB_OUTPUT"
+            VER="0.0.dev0"
           fi
-          cat "$GITHUB_OUTPUT"
+          echo "value=$VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VER"
+
+      - name: Write VERSION file
+        run: echo '${{ steps.version.outputs.value }}' > cat_surface_cython/VERSION
 
       - name: Download libCAT artifact
         uses: actions/download-artifact@v4
@@ -158,10 +162,8 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.version.outputs.value }}
-          CIBW_ENVIRONMENT: "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.version.outputs.value }}"
         run: |
-          echo "Building with SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "VERSION file contains: $(cat VERSION)"
           cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
@@ -211,11 +213,15 @@ jobs:
           RAW="${RAW#refs/tags/}"
           RAW="${RAW#v}"
           if [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
-            echo "value=$RAW" >> "$GITHUB_OUTPUT"
+            VER="$RAW"
           else
-            echo "value=0.0.dev0" >> "$GITHUB_OUTPUT"
+            VER="0.0.dev0"
           fi
-          cat "$GITHUB_OUTPUT"
+          echo "value=$VER" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $VER"
+
+      - name: Write VERSION file
+        run: echo '${{ steps.version.outputs.value }}' > cat_surface_cython/VERSION
 
       # Bundle the source tree so it's available inside the container.
       - name: Create source tarball for container build
@@ -243,8 +249,6 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
-          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.version.outputs.value }}
-          CIBW_ENVIRONMENT: "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.version.outputs.value }}"
           # Build libCAT.a from source inside the manylinux container
           # so the C++ ABI (MeshFix) matches the container's libstdc++.
           CIBW_BEFORE_ALL_LINUX: |
@@ -272,7 +276,7 @@ jobs:
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
         run: |
-          echo "Building with SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "VERSION file contains: $(cat VERSION)"
           cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
