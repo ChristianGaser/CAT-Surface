@@ -125,7 +125,14 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
-        run: cibuildwheel --output-dir wheelhouse
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            export SETUPTOOLS_SCM_PRETEND_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            export SETUPTOOLS_SCM_PRETEND_VERSION="0.0.dev0"
+          fi
+          export CIBW_ENVIRONMENT="SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -211,7 +218,14 @@ jobs:
               mkdir -p "$V/3rdparty/$d"
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
-        run: cibuildwheel --output-dir wheelhouse
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            export SETUPTOOLS_SCM_PRETEND_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            export SETUPTOOLS_SCM_PRETEND_VERSION="0.0.dev0"
+          fi
+          export CIBW_ENVIRONMENT="SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
