@@ -3,6 +3,12 @@ name: Build Python Wheels
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      release_version:
+        description: "Release tag or version to force into wheel builds (e.g. v1.0.0 or 1.0.0)"
+        required: false
+        type: string
+        default: ""
   push:
     tags:
       - "v*"
@@ -126,12 +132,16 @@ jobs:
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            export SETUPTOOLS_SCM_PRETEND_VERSION="${GITHUB_REF_NAME#v}"
-          else
-            export SETUPTOOLS_SCM_PRETEND_VERSION="0.0.dev0"
+          RAW_VERSION='${{ inputs.release_version }}'
+          if [[ -z "$RAW_VERSION" && "${GITHUB_REF}" == refs/tags/* ]]; then
+            RAW_VERSION="${GITHUB_REF_NAME}"
           fi
+          if [[ -z "$RAW_VERSION" ]]; then
+            RAW_VERSION="0.0.dev0"
+          fi
+          export SETUPTOOLS_SCM_PRETEND_VERSION="${RAW_VERSION#v}"
           export CIBW_ENVIRONMENT="SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "Using SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
           cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
@@ -219,12 +229,16 @@ jobs:
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            export SETUPTOOLS_SCM_PRETEND_VERSION="${GITHUB_REF_NAME#v}"
-          else
-            export SETUPTOOLS_SCM_PRETEND_VERSION="0.0.dev0"
+          RAW_VERSION='${{ inputs.release_version }}'
+          if [[ -z "$RAW_VERSION" && "${GITHUB_REF}" == refs/tags/* ]]; then
+            RAW_VERSION="${GITHUB_REF_NAME}"
           fi
+          if [[ -z "$RAW_VERSION" ]]; then
+            RAW_VERSION="0.0.dev0"
+          fi
+          export SETUPTOOLS_SCM_PRETEND_VERSION="${RAW_VERSION#v}"
           export CIBW_ENVIRONMENT="SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+          echo "Using SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}"
           cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels

@@ -9,6 +9,8 @@ on:
 jobs:
   build-wheels:
     uses: ./.github/workflows/python-wheels.yml
+    with:
+      release_version: ${{ github.ref_name }}
 
   publish:
     needs: build-wheels
