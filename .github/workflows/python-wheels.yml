@@ -1,0 +1,206 @@
+name: Build Python Wheels
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  # =====================================================================
+  # Stage 1 — Build the static libCAT.a on each platform / architecture
+  # =====================================================================
+  build-libcat:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+            artifact: libcat-macos-arm64
+          - os: macos-15-intel
+            arch: x64
+            artifact: libcat-macos-x86_64
+          - os: ubuntu-22.04
+            arch: x64
+            artifact: libcat-linux-x86_64
+          - os: ubuntu-22.04-arm
+            arch: arm64
+            artifact: libcat-linux-aarch64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # ---------- Dependencies ----------
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake libtool autoconf-archive build-essential \
+            pkg-config
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: brew install autoconf automake libtool autoconf-archive
+
+      # ---------- Configure + Build ----------
+      - name: Configure
+        run: |
+          autoupdate
+          autoreconf -fi
+          export {C,CXX,CPP}FLAGS="-O2 -fPIC"
+          ./configure --enable-static --disable-shared --disable-doc
+
+      - name: Build libCAT.a
+        run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu) libCAT.la
+
+      # ---------- Upload build tree artifacts ----------
+      - name: Collect build artifacts
+        run: |
+          mkdir -p _staging
+          cp .libs/libCAT.a                       _staging/
+          cp config.h                             _staging/
+          cp 3rdparty/fftw-build/.libs/libfftw3.a _staging/
+
+      - name: Upload libCAT artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: _staging/
+          retention-days: 1
+
+  # =====================================================================
+  # Stage 2 — Build Python wheels using cibuildwheel
+  #
+  # We stage all compile-time dependencies (headers + static archives)
+  # into cat_surface_cython/_vendor/ so the package directory is fully
+  # self-contained.  This is required because cibuildwheel on Linux
+  # copies the package directory into a Docker container.
+  # =====================================================================
+  build-wheels:
+    needs: build-libcat
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # --- macOS ---
+          - os: macos-15
+            arch: arm64
+            libcat-artifact: libcat-macos-arm64
+            cibw-archs: arm64
+          - os: macos-15-intel
+            arch: x64
+            libcat-artifact: libcat-macos-x86_64
+            cibw-archs: x86_64
+          # --- Linux ---
+          - os: ubuntu-22.04
+            arch: x64
+            libcat-artifact: libcat-linux-x86_64
+            cibw-archs: x86_64
+          - os: ubuntu-22.04-arm
+            arch: arm64
+            libcat-artifact: libcat-linux-aarch64
+            cibw-archs: aarch64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download libCAT artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.libcat-artifact }}
+          path: _libcat/
+
+      # ------------------------------------------------------------------
+      # Stage a self-contained _vendor/ tree inside cat_surface_cython/
+      # so setup.py can find everything inside a cibuildwheel container.
+      #
+      # Layout:
+      #   _vendor/
+      #     Include/          ← CAT public headers
+      #     3rdparty/         ← third-party headers + bundled OpenMP
+      #     build/
+      #       .libs/libCAT.a
+      #       config.h
+      #       3rdparty/fftw-build/.libs/libfftw3.a
+      # ------------------------------------------------------------------
+      - name: Stage _vendor tree
+        run: |
+          V=cat_surface_cython/_vendor
+
+          # --- Headers (compile-time only) ---
+          cp -r Include "$V/Include"
+
+          mkdir -p "$V/3rdparty"
+          for d in bicpl-surface/Include volume_io/Include; do
+            mkdir -p "$V/3rdparty/$d"
+            cp -r "3rdparty/$d/"* "$V/3rdparty/$d/"
+          done
+          for d in nifti gifticlib nii2mesh zlib expat dartel; do
+            mkdir -p "$V/3rdparty/$d"
+            cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
+            cp 3rdparty/$d/*.c "$V/3rdparty/$d/" 2>/dev/null || true
+          done
+
+          # Bundled static libomp for macOS
+          if [ -d 3rdparty/libomp/lib ]; then
+            mkdir -p "$V/3rdparty/libomp/lib"
+            cp 3rdparty/libomp/lib/*.a "$V/3rdparty/libomp/lib/" 2>/dev/null || true
+          fi
+
+          # --- Static archives + config.h ---
+          mkdir -p "$V/build/.libs" "$V/build/3rdparty/fftw-build/.libs"
+          cp _libcat/libCAT.a   "$V/build/.libs/"
+          cp _libcat/config.h   "$V/build/"
+          cp _libcat/libfftw3.a "$V/build/3rdparty/fftw-build/.libs/"
+
+          echo "--- _vendor tree ---"
+          find "$V" -type f | head -40
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cibuildwheel
+        run: pip install cibuildwheel==2.23.3
+
+      - name: Build wheels
+        working-directory: cat_surface_cython
+        env:
+          CIBW_ARCHS: ${{ matrix.cibw-archs }}
+        run: cibuildwheel --output-dir wheelhouse
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.libcat-artifact }}
+          path: cat_surface_cython/wheelhouse/*.whl
+
+  # =====================================================================
+  # Stage 3 — Merge all wheel artifacts
+  # =====================================================================
+  merge-wheels:
+    needs: build-wheels
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist/
+
+      - name: List wheels
+        run: ls -lh dist/
+
+      - name: Upload combined wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-wheels
+          path: dist/
+          retention-days: 30
