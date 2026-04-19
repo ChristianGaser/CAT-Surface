@@ -135,9 +135,11 @@ jobs:
   # =====================================================================
   # Stage 2b — Linux wheels (build libCAT.a inside the manylinux container)
   #
-  # cibuildwheel mounts the full repo at /project inside the Docker
-  # container.  CIBW_BEFORE_ALL runs the autotools build once, then
-  # stages the result into _vendor/ where setup.py finds it.
+  # cibuildwheel only mounts cat_surface_cython/ at /project inside the
+  # Docker container — the rest of the repo is NOT available.  We bundle
+  # the full source tree as a tarball so CIBW_BEFORE_ALL can extract it,
+  # build libCAT.a with the container's own GCC/libstdc++ (avoiding C++
+  # ABI mismatches), and stage the results into _vendor/.
   # =====================================================================
   build-wheels-linux:
     strategy:
@@ -156,6 +158,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Bundle the source tree so it's available inside the container.
+      - name: Create source tarball for container build
+        run: |
+          tar czf cat_surface_cython/_build_src.tar.gz \
+            --exclude='./build-*' \
+            --exclude='./cat_surface_cython' \
+            --exclude='./cat_surface_python' \
+            --exclude='./deprecated' \
+            --exclude='./docs' \
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='*.o' --exclude='*.lo' \
+            --exclude='.libs' \
+            --exclude='autom4te.cache' \
+            .
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -170,22 +188,20 @@ jobs:
           # Build libCAT.a from source inside the manylinux container
           # so the C++ ABI (MeshFix) matches the container's libstdc++.
           CIBW_BEFORE_ALL_LINUX: |
-            yum install -y autoconf automake libtool make gcc gcc-c++ \
-                           expat-devel 2>/dev/null || \
-            apt-get update && apt-get install -y autoconf automake libtool \
-                           make gcc g++ libexpat1-dev 2>/dev/null || true
-            cd /project
+            set -e
+            yum install -y autoconf automake libtool make gcc gcc-c++ expat-devel
+            mkdir /tmp/cat-build && cd /tmp/cat-build
+            tar xzf /project/_build_src.tar.gz
             autoreconf -fi
-            export CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
-            ./configure --enable-static --disable-shared --disable-doc
+            ./configure --enable-static --disable-shared --disable-doc \
+              CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
             make -j$(nproc) libCAT.la
-            # Stage into _vendor/ for setup.py
-            V=/project/cat_surface_cython/_vendor
+            V=/project/_vendor
             mkdir -p "$V/build/.libs" "$V/build/3rdparty/fftw-build/.libs"
-            cp .libs/libCAT.a   "$V/build/.libs/"
-            cp config.h         "$V/build/"
+            cp .libs/libCAT.a         "$V/build/.libs/"
+            cp config.h               "$V/build/"
             cp 3rdparty/fftw-build/.libs/libfftw3.a "$V/build/3rdparty/fftw-build/.libs/"
-            cp -r Include "$V/Include"
+            cp -r Include             "$V/Include"
             mkdir -p "$V/3rdparty"
             for d in bicpl-surface/Include volume_io/Include; do
               mkdir -p "$V/3rdparty/$d"

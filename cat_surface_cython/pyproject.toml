@@ -40,6 +40,3 @@ build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = "*-musllinux_*"
 test-requires = "numpy"
 test-command = "python -c \"import cat_surf; print('cat_surf', cat_surf.__version__, 'OK')\""
-
-[tool.cibuildwheel.linux]
-before-build = "yum install -y expat-devel 2>/dev/null || apt-get install -y libexpat1-dev 2>/dev/null || true"
