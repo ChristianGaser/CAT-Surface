@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=64", "wheel", "Cython>=3.0", "numpy>=2.0"]
+requires = ["setuptools>=64", "setuptools_scm[toml]>=8", "wheel", "Cython>=3.0", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cat-surf"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Cython bindings to the CAT-Surface library (libCAT) for cortical surface analysis"
 readme = "README.md"
 license = "GPL-2.0-only"
@@ -34,6 +34,14 @@ Repository = "https://github.com/ChristianGaser/CAT-Surface"
 
 [tool.setuptools.packages.find]
 include = ["cat_surf*"]
+
+[tool.setuptools_scm]
+# Tags like v1.0.0 -> version 1.0.0
+tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[abrc]\\d+)?)$"
+# pyproject.toml lives in cat_surface_cython/, git tags are at repo root.
+root = ".."
+fallback_version = "0.0.dev0"
+write_to = "cat_surf/_version.py"
 
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
