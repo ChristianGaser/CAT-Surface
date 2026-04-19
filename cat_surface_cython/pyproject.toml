@@ -41,7 +41,7 @@ tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[abrc]\\d+)?)$"
 # pyproject.toml lives in cat_surface_cython/, git tags are at repo root.
 root = ".."
 fallback_version = "0.0.dev0"
-write_to = "cat_surf/_version.py"
+version_file = "cat_surf/_version.py"
 
 [tool.cibuildwheel]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
