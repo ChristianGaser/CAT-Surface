@@ -132,6 +132,7 @@ jobs:
       - name: Stage _vendor tree
         run: |
           V=cat_surface_cython/_vendor
+          mkdir -p "$V"
 
           # --- Headers (compile-time only) ---
           cp -r Include "$V/Include"
