@@ -57,22 +57,41 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | Function | Description |
 |---|---|
 | `read_surface` / `write_surface` | Multi-format surface I/O (GIFTI, FreeSurfer, BIC) |
+| `read_values` / `write_values` | Per-vertex scalar I/O |
 | `get_area` | Per-vertex and total surface area |
+| `get_area_normalized` | Area normalized by a reference sphere |
 | `euler_characteristic` | Topological integrity check |
 | `smooth_heatkernel` | Heat-kernel smoothing of per-vertex data |
+| `smooth_mesh` | Laplacian/Taubin mesh vertex smoothing |
 | `smoothed_curvatures` | Mean curvature estimation |
 | `sulcus_depth` | Sulcal depth via depth potential |
 | `reduce_mesh` | Quadric mesh decimation |
 | `remove_intersections` | Self-intersection repair |
+| `count_intersections` | Count self-intersecting faces |
 | `surf_average` | Vertex-wise averaging across surfaces |
+| `surf_to_sphere` | Inflate surface to sphere |
+| `sphere_radius` | Mean radius of a spherical surface |
 | `correct_thickness_folding` | Folding-based thickness correction |
+| `point_distance` | Vertex-to-surface point distances (symmetric) |
+| `point_distance_mean` | Mean vertex-to-surface distance |
+| `hausdorff_distance` | Hausdorff distance between two surfaces |
 
 ### Volume operations
 
 | Function | Description |
 |---|---|
-| `read_values` / `write_values` | Per-vertex scalar I/O |
-| `sanlm_filter` | Spatial-adaptive non-local means denoising |
+| `vol_sanlm` | Structure-adaptive non-local means denoising |
+| `vol_blood_vessel_correction` | Blood vessel intensity correction |
+| `vol_thickness_pbt` | Cortical thickness via projection-based method |
+| `vol_amap` | Adaptive maximum a posteriori tissue segmentation |
+| `vol_marching_cubes` | Isosurface extraction from a volume file |
+
+### Conversion utilities
+
+| Function | Description |
+|---|---|
+| `arrays_to_polygons` | Convert NumPy vertex/face arrays to internal polygon mesh |
+| `polygons_to_arrays` | Convert internal polygon mesh back to NumPy arrays |
 
 ---
 
@@ -87,8 +106,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 
 ## Citation / provenance
 
-If you use this package in research, please cite the CAT12/CAT-Surface methodology
-used in your workflow and mention the `cat-surf` package version for reproducibility.
+If you use this package in research, please cite [Dahnke et al., 2013](https://doi.org/10.1016/j.neuroimage.2012.09.050) and mention the `cat-surf` package version for reproducibility.
 
 ---
 
