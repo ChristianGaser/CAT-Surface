@@ -22,10 +22,11 @@
 #include "CAT_SurfLaplacian.h"
 
 /* Voxel classification for the Laplace solver */
-#define MASK_BG 0     /* background / outside brain        */
-#define MASK_RIBBON 1 /* cortical ribbon  (solve here)     */
-#define MASK_PIAL 2   /* pial boundary    (phi = 1 fixed)  */
-#define MASK_WHITE 3  /* white boundary   (phi = 0 fixed)  */
+#define MASK_BG 0      /* background / outside brain        */
+#define MASK_RIBBON 1  /* cortical ribbon  (solve here)     */
+#define MASK_PIAL 2    /* pial boundary    (phi = 1 fixed)  */
+#define MASK_WHITE 3   /* white boundary   (phi = 0 fixed)  */
+#define MASK_FROZEN 4  /* frozen collision zone              */
 
 /* -------------------------------------------------------------------
  * solve_ade_ribbon  — Adaptive Diffusion Equation solver
@@ -37,6 +38,15 @@
  * Solves  div( f(x) grad(phi) ) = 0  where f(x) is a gray-matter
  * fraction derived from the tissue label volume.  Boundary conditions
  * are identical to the Laplace solver (phi=1 pial, phi=0 white).
+ *
+ * Before solving, collision barriers are inserted to prevent the phi
+ * field from mixing across sulcal banks.  The pial boundary is split
+ * into connected components (each component is one sulcal bank, since
+ * opposite banks are separated by CSF/background).  A BFS flood-fill
+ * assigns each ribbon voxel to its nearest pial component.  Ribbon
+ * voxels at territory boundaries (adjacent to a voxel belonging to a
+ * different pial component) are frozen.  This creates thin barrier
+ * walls inside narrow sulci that keep the phi field bank-separated.
  *
  * The diffusivity f is set proportional to the GM fraction:
  *   - pure GM (label == 2.0): f = 1
@@ -54,15 +64,17 @@
  *
  * \param labels      (in)     tissue label volume
  * \param dims        (in)     volume dimensions [nx, ny, nz]
+ * \param vx          (in)     voxel sizes [dx, dy, dz]
  * \param ribbon_pial (in)     pial-side ribbon boundary (phi = 1 fixed)
  * \param ribbon_white(in)     white-side ribbon boundary (phi = 0 fixed)
  * \param phi         (out)    solution volume (pre-allocated)
+ * \param nii_ptr     (in)     NIfTI header for optional debug output
  * \param max_iter    (in)     maximum SOR iterations
  * \param tol         (in)     convergence tolerance
  * \param verbose     (in)     print progress
  */
 static void
-solve_ade_ribbon(const float *labels, int dims[3],
+solve_ade_ribbon(const float *labels, int dims[3], double vx[3],
                  float ribbon_pial, float ribbon_white,
                  float *phi, int max_iter, float tol,
                  int verbose)
@@ -128,6 +140,208 @@ solve_ade_ribbon(const float *labels, int dims[3],
         }
     }
 
+    /* ================================================================
+     * Territory labeling: find connected components of MASK_PIAL,
+     * flood-fill into MASK_RIBBON, create soft barriers at territory
+     * boundaries by reducing diffusivity.
+     *
+     * In a sulcus the pial boundary on bank A and bank B are separate
+     * connected components (CSF/background between them).  We label
+     * each component, then BFS into the ribbon so every ribbon voxel
+     * is assigned to its nearest pial component.  Where two territories
+     * meet we set the diffusivity to a very low value (soft barrier).
+     * This prevents cross-bank blending while still allowing phi to
+     * flow from pial to white within each territory.
+     *
+     * Tiny components (< min_comp_size voxels) are ignored to avoid
+     * spurious barriers from partial-volume noise.
+     * ================================================================ */
+    {
+        int *territory;     /* per-voxel pial component label (0 = unlabeled) */
+        int *comp_size;     /* number of voxels per component                 */
+        int *queue;         /* BFS queue (indices into volume)                */
+        int qhead, qtail;
+        int n_components = 0;
+        int n_large = 0;
+        int n_barrier = 0;
+        int nb_offsets[6];
+        const int min_comp_size = 50; /* ignore components smaller than this */
+        const float barrier_frac = eps; /* soft barrier diffusivity          */
+
+        nb_offsets[0] = -1;
+        nb_offsets[1] = +1;
+        nb_offsets[2] = -nx;
+        nb_offsets[3] = +nx;
+        nb_offsets[4] = -nxy;
+        nb_offsets[5] = +nxy;
+
+        territory = (int *)calloc(nvox, sizeof(int));
+        queue     = (int *)malloc(sizeof(int) * nvox);
+        if (!territory || !queue)
+        {
+            fprintf(stderr, "solve_ade_ribbon: territory alloc error\n");
+            if (territory) free(territory);
+            if (queue)     free(queue);
+            goto skip_territory;
+        }
+
+        /* Step 1: Connected-component labeling of MASK_PIAL (6-connected BFS).
+         * We temporarily store component sizes to filter small ones later. */
+        for (idx = 0; idx < nvox; idx++)
+        {
+            int k;
+            if (mask[idx] != MASK_PIAL || territory[idx] != 0)
+                continue;
+
+            n_components++;
+            territory[idx] = n_components;
+            qhead = 0;
+            qtail = 0;
+            queue[qtail++] = idx;
+
+            while (qhead < qtail)
+            {
+                int cur = queue[qhead++];
+                int cx_v = cur % nx;
+                int cy_v = (cur / nx) % ny;
+                int cz_v = cur / nxy;
+
+                for (k = 0; k < 6; k++)
+                {
+                    int nb = cur + nb_offsets[k];
+                    if (k == 0 && cx_v == 0)    continue;
+                    if (k == 1 && cx_v == nx-1) continue;
+                    if (k == 2 && cy_v == 0)    continue;
+                    if (k == 3 && cy_v == ny-1) continue;
+                    if (k == 4 && cz_v == 0)    continue;
+                    if (k == 5 && cz_v == nz-1) continue;
+
+                    if (nb < 0 || nb >= nvox)
+                        continue;
+                    if (mask[nb] != MASK_PIAL || territory[nb] != 0)
+                        continue;
+
+                    territory[nb] = n_components;
+                    queue[qtail++] = nb;
+                }
+            }
+        }
+
+        /* Count component sizes */
+        comp_size = (int *)calloc(n_components + 1, sizeof(int));
+        if (comp_size)
+        {
+            for (idx = 0; idx < nvox; idx++)
+                if (territory[idx] > 0)
+                    comp_size[territory[idx]]++;
+
+            /* Zero out territory labels for small components */
+            for (idx = 0; idx < nvox; idx++)
+            {
+                if (territory[idx] > 0 &&
+                    comp_size[territory[idx]] < min_comp_size)
+                    territory[idx] = 0;
+            }
+
+            for (idx = 1; idx <= n_components; idx++)
+                if (comp_size[idx] >= min_comp_size)
+                    n_large++;
+
+            free(comp_size);
+        }
+        else
+        {
+            n_large = n_components; /* can't filter, keep all */
+        }
+
+        if (verbose)
+            fprintf(stdout, "ADE: %d pial components, %d large (>= %d voxels)\n",
+                    n_components, n_large, min_comp_size);
+
+        /* Step 2: BFS flood-fill from large-component pial voxels into
+         * MASK_RIBBON.  Each ribbon voxel inherits the territory label
+         * of the nearest pial component (first-to-arrive wins). */
+        qhead = 0;
+        qtail = 0;
+
+        for (idx = 0; idx < nvox; idx++)
+        {
+            if (mask[idx] == MASK_PIAL && territory[idx] > 0)
+                queue[qtail++] = idx;
+        }
+
+        while (qhead < qtail)
+        {
+            int cur = queue[qhead++];
+            int cx_v = cur % nx;
+            int cy_v = (cur / nx) % ny;
+            int cz_v = cur / nxy;
+            int k;
+
+            for (k = 0; k < 6; k++)
+            {
+                int nb = cur + nb_offsets[k];
+                if (k == 0 && cx_v == 0)    continue;
+                if (k == 1 && cx_v == nx-1) continue;
+                if (k == 2 && cy_v == 0)    continue;
+                if (k == 3 && cy_v == ny-1) continue;
+                if (k == 4 && cz_v == 0)    continue;
+                if (k == 5 && cz_v == nz-1) continue;
+
+                if (nb < 0 || nb >= nvox)
+                    continue;
+                if (mask[nb] != MASK_RIBBON)
+                    continue;
+                if (territory[nb] != 0)
+                    continue; /* already claimed */
+
+                territory[nb] = territory[cur];
+                queue[qtail++] = nb;
+            }
+        }
+
+        /* Step 3: Soft barriers — reduce diffusivity at territory
+         * boundaries instead of freezing.  The voxel stays MASK_RIBBON
+         * so it still participates in the solve; only the conductance
+         * is reduced, discouraging cross-bank diffusion while allowing
+         * phi to flow from pial to white within each territory. */
+        for (z = 1; z < nz - 1; z++)
+        {
+            for (y = 1; y < ny - 1; y++)
+            {
+                idx = 1 + y * nx + z * nxy;
+                for (x = 1; x < nx - 1; x++, idx++)
+                {
+                    int k, my_label;
+                    if (mask[idx] != MASK_RIBBON || territory[idx] == 0)
+                        continue;
+
+                    my_label = territory[idx];
+                    for (k = 0; k < 6; k++)
+                    {
+                        int nb = idx + nb_offsets[k];
+                        if ((mask[nb] == MASK_RIBBON || mask[nb] == MASK_PIAL) &&
+                            territory[nb] != 0 && territory[nb] != my_label)
+                        {
+                            frac[idx] = barrier_frac;
+                            n_barrier++;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (verbose)
+            fprintf(stdout, "ADE: %d soft-barrier voxels at territory boundaries\n",
+                    n_barrier);
+
+        free(territory);
+        free(queue);
+    }
+
+skip_territory:
+
     /* ---- SOR iteration with weighted Laplacian ---- */
     for (iter = 0; iter < max_iter; iter++)
     {
@@ -148,17 +362,17 @@ solve_ade_ribbon(const float *labels, int dims[3],
                     wtotal = 0.0f;
 
                     /* 6-connected neighbors, harmonic mean conductance */
-#define ADE_NEIGHBOR(OFF)                            \
-    do                                               \
-    {                                                \
-        int nb = (OFF);                              \
-        if (mask[idx + nb] > 0)                      \
-        {                                            \
-            fj = frac[idx + nb];                     \
+#define ADE_NEIGHBOR(OFF)                             \
+    do                                                \
+    {                                                 \
+        int nb = (OFF);                               \
+        if (mask[idx + nb] > 0)                       \
+        {                                             \
+            fj = frac[idx + nb];                      \
             w = 2.0f * fi * fj / (fi + fj + 1e-30f); \
-            wsum += w * phi[idx + nb];               \
-            wtotal += w;                             \
-        }                                            \
+            wsum += w * phi[idx + nb];                \
+            wtotal += w;                              \
+        }                                             \
     } while (0)
 
                     ADE_NEIGHBOR(-1);
@@ -253,6 +467,7 @@ int surf_ade_pial_white(polygons_struct *central,
     if (phi_stop_white < 0.01f)
         phi_stop_white = 0.001f;
 
+
     /* Streamline parameters */
     const double step_size = 0.1; /* mm per integration step          */
     const int max_steps = 120;    /* max steps = 12 mm travel         */
@@ -280,7 +495,7 @@ int surf_ade_pial_white(polygons_struct *central,
         return -2;
     }
 
-    solve_ade_ribbon(labels, dims, ribbon_pial, ribbon_white,
+    solve_ade_ribbon(labels, dims, vx, ribbon_pial, ribbon_white,
                      phi, 2000, 1e-5f, verbose);
 
     if (verbose)
