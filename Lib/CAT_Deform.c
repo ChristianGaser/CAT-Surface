@@ -517,8 +517,8 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
  *  4. Check and correct self-intersections in both surfaces
  *  5. Update target distance array based on achieved surface separation
  *
- * \param polygons1         (in/out) first deformed surface (e.g., white matter)
- * \param polygons2         (in/out) second deformed surface (e.g., pial surface)
+ * \param polygons1         (in/out) first deformed surface (e.g., pial matter)
+ * \param polygons2         (in/out) second deformed surface (e.g., white surface)
  * \param polygons_orig     (in)     reference surface (starting template)
  * \param input             (in)     float[nvoxels]; intensity volume data
  * \param nii_ptr           (in)     NIfTI header with volume dimensions and voxel size
@@ -537,7 +537,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
 {
     int i, j, k, v, dims[3], nvox, pidx, n_self_hits;
     int *n_neighbours, **neighbours;
-    double vx[3], w2[3];
+    double vx[3], w2[3], scale_field;
     int have1 = (polygons1 != NULL);
     int have2 = (polygons2 != NULL);
 
@@ -546,9 +546,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         return;
 
     /* We need other weightings for white surface */
-    w2[0] = 0.2 * w[0];
-    w2[1] = 0.2 * w[1];
-    w2[2] = 5.0 * w[2];
+    w2[0] = 0.3 * w[0];
+    w2[1] = 0.3 * w[1];
+    w2[2] = 3.0 * w[2];
 
     /* The "active" surface is the one used for topology (neighbours etc.) */
     polygons_struct *active = have1 ? polygons1 : polygons2;
@@ -587,8 +587,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     float *gradient_x = (float *)malloc(sizeof(float) * nvox);
     float *gradient_y = (float *)malloc(sizeof(float) * nvox);
     float *gradient_z = (float *)malloc(sizeof(float) * nvox);
+    int *flags = (int *)calloc(n_points, sizeof(int));
 
-    if (!gradient_x || !gradient_y || !gradient_z)
+    if (!gradient_x || !gradient_y || !gradient_z || !flags)
     {
         fprintf(stderr, "Memory allocation error\n");
         exit(EXIT_FAILURE);
@@ -642,12 +643,6 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     double s1_prev = FLT_MAX, s2_prev = FLT_MAX;
     int counter1 = 0, counter2 = 0;
     double curv_weight_less = -0.9; // tuneable: negative reduces smoothing
-
-    /* If a surface is NULL, mark its counter as already stopped */
-    if (!have1)
-        counter1 = 1;
-    if (!have2)
-        counter2 = 1;
 
     for (i = 0; i < it; i++)
     {
@@ -749,9 +744,8 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             counter1++;
         if (have2 && s2 > s2_prev)
             counter2++;
-
-        // Stop if all active meshes are not decreasing error anymore
-        if (counter1 > 0 && counter2 > 0)
+        // Stop only after 5 consecutive non-improving iterations on both surfaces
+        if ((!have1 || counter1 > 1) && (!have2 || counter2 > 1))
             break;
 
         // Curvature-aware smoothing
@@ -769,9 +763,13 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         {
             for (v = 0; v < n_points; v++)
             {
-                Point_x(polygons1->points[v]) += displacement_field1[v][0];
-                Point_y(polygons1->points[v]) += displacement_field1[v][1];
-                Point_z(polygons1->points[v]) += displacement_field1[v][2];
+                if ((i>0) && (flags[v]>0)) {
+                    scale_field = 0.1*fmax(0.0, 10.0-(float)flags[v]);
+                } else
+                    scale_field = 1.0;
+                Point_x(polygons1->points[v]) += scale_field*displacement_field1[v][0];
+                Point_y(polygons1->points[v]) += scale_field*displacement_field1[v][1];
+                Point_z(polygons1->points[v]) += scale_field*displacement_field1[v][2];
             }
         }
         if (have2)
@@ -793,10 +791,11 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             {
                 if (flags1[v])
                 {
-                    Point_x(polygons1->points[v]) -= displacement_field1[v][0];
-                    Point_y(polygons1->points[v]) -= displacement_field1[v][1];
-                    Point_z(polygons1->points[v]) -= displacement_field1[v][2];
-                }
+                    flags[v]++;
+                    Point_x(polygons1->points[v]) -= 1.5*displacement_field1[v][0];
+                    Point_y(polygons1->points[v]) -= 1.5*displacement_field1[v][1];
+                    Point_z(polygons1->points[v]) -= 1.5*displacement_field1[v][2];
+                } else flags[v] = 0;
             }
             free(flags1);
         }
@@ -809,10 +808,11 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             {
                 if (flags2[v])
                 {
+                    flags[v]++;
                     Point_x(polygons2->points[v]) -= displacement_field2[v][0];
                     Point_y(polygons2->points[v]) -= displacement_field2[v][1];
                     Point_z(polygons2->points[v]) -= displacement_field2[v][2];
-                }
+                } else if (!have1) flags[v] = 0;
             }
             free(flags2);
         }
@@ -908,6 +908,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     free(gradient_x);
     free(gradient_y);
     free(gradient_z);
+    free(flags);
     if (displacement_field1)
         free(displacement_field1);
     if (displacement_field2)
