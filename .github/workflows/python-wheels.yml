@@ -2,10 +2,6 @@ name: Build Python Wheels
 
 on:
   workflow_dispatch:
-  workflow_call:
-  push:
-    tags:
-      - "v*"
 
 jobs:
   # =====================================================================

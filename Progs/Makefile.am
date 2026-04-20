@@ -53,13 +53,7 @@ endif
 # Distribute scripts
 dist_bin_SCRIPTS = \
     CAT_ResampleFS_ui \
-    CAT_FractalDimensionFS_ui \
-    CAT_Resample_ui \
-    CAT_FractalDimension_ui \
-    CAT_DumpCurvL4FS_ui \
-    CAT_DumpSurfArea_ui \
-    CAT_SulcusDepth_ui \
-    CAT_DumpCurv_ui
+    CAT_Resample_ui 
 
 # Programs to build
 bin_PROGRAMS = \
