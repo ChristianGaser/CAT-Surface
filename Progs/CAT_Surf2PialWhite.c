@@ -42,7 +42,7 @@ static ArgvInfo argTable[] = {
     {"-giter", ARGV_INT, (char *)TRUE, (char *)&gradient_iterations,
      "Set number of gradient refinement iterations (0 to disable)."},
     {"-method", ARGV_INT, (char *)TRUE, (char *)&method,
-     "Method: 0 = deformation (default), 1 = ADE."},
+     "Method: 0 = deformation (default), 1 = ADE, 2 = deformation:pial | ADE:white."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
@@ -71,6 +71,7 @@ usage(const char *executable)
             "  -w2     Gradient alignment force (edges attraction).\n"
             "  -w3     Balloon force, based on isovalue distance.\n"
             "  -sigma  Controls displacement smoothing.\n"
+            "  -method Controls general approach (ADE or deformation).\n"
             "  -iter   Number of iterations (e.g. 50).\n\n",
             executable);
 }

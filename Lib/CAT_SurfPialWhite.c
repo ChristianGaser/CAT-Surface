@@ -79,8 +79,8 @@ int CAT_SurfEstimatePialWhite(
     int *n_neighbours = NULL;
     int **neighbours = NULL;
     object_struct **objects_out;
-    polygons_struct *polygons_pial;
-    polygons_struct *polygons_white;
+    polygons_struct *polygons_pial = NULL;
+    polygons_struct *polygons_white = NULL;
     polygons_struct *polygons_smoothed = NULL;
     double weights[3];
     double shifting[2] = {-0.25, 0.2};
@@ -92,7 +92,7 @@ int CAT_SurfEstimatePialWhite(
     n_points = central->n_points;
 
     /* ------ Adaptive Diffusion Equation method (method == 1) ------ */
-    if (opts->method == 1)
+    if (opts->method > 0)
     {
         int rc = surf_ade_pial_white(
             central, labels, nii_ptr,
@@ -102,24 +102,11 @@ int CAT_SurfEstimatePialWhite(
         if (rc != 0)
             return rc;
 
-        /* Optional deformation refinement for unconverged vertices */
-        if (opts->iterations > 0)
-        {
-            weights[0] = opts->w1;
-            weights[1] = opts->w2;
-            weights[2] = opts->w3;
-            surf_deform_dual(pial_out, white_out, central, labels, nii_ptr,
-                             weights, opts->sigma,
-                             CGM + shifting[0], GWM + shifting[1],
-                             (double *)thickness_values,
-                             opts->iterations, opts->verbose);
-        }
-        if (opts->gradient_iterations > 0)
-            surf_deform_gradient_dual(pial_out, white_out, labels, nii_ptr,
-                                      CGM + shifting[0], GWM + shifting[1],
-                                      (double *)thickness_values,
-                                      opts->gradient_iterations, opts->verbose);
-        return 0;
+        /* Continue with the standard deformation pipeline using
+         * method-1 initialization as the starting surfaces. */
+        polygons_pial = pial_out;
+        polygons_white = white_out;
+
     }
 
     /* ------ Deformation method (method == 0, default) ------ */
@@ -153,11 +140,14 @@ int CAT_SurfEstimatePialWhite(
     }
 
     /* Initial estimate of pial surface */
-    for (p = 0; p < n_points; p++)
-        extents[p] = 0.5;
-    objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
-                                      1, 0.5 * opts->sigma, 5, opts->verbose);
-    polygons_pial = get_polygons_ptr(objects_out[0]);
+    if (opts->method == 0 || opts->method == 2)
+    {
+        for (p = 0; p < n_points; p++)
+            extents[p] = 0.5;
+        objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
+                                          1, 0.5 * opts->sigma, 5, opts->verbose);
+        polygons_pial = get_polygons_ptr(objects_out[0]);
+    }
 
     /* Smooth pial surface based on local curvature */
     copy_polygons(polygons_pial, polygons_smoothed);
@@ -175,12 +165,23 @@ int CAT_SurfEstimatePialWhite(
     }
 
     /* Initial estimate of white surface */
-    for (p = 0; p < n_points; p++)
-        extents[p] = -0.5;
-    objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
-                                      0, 0.5 * opts->sigma, 5, opts->verbose);
-    polygons_white = get_polygons_ptr(objects_out[0]);
+    if (opts->method == 0)
+    {
+        for (p = 0; p < n_points; p++)
+            extents[p] = -0.5;
+        objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
+                                          0, 0.5 * opts->sigma, 5, opts->verbose);
+        polygons_white = get_polygons_ptr(objects_out[0]);
+    }
 
+    if (!polygons_pial || !polygons_white)
+    {
+        free(extents);
+        free(weight);
+        free(polygons_smoothed);
+        return -3;
+    }
+    
     /* Dual-surface deformation */
     weights[0] = opts->w1;
     weights[1] = opts->w2;
@@ -196,14 +197,19 @@ int CAT_SurfEstimatePialWhite(
                                   (double *)thickness_values,
                                   opts->gradient_iterations, opts->verbose);
 
-    /* Copy results to output */
-    copy_polygons(polygons_pial, pial_out);
-    copy_polygons(polygons_white, white_out);
+    /* Copy results to output.
+     * In method 1, polygons_pial/polygons_white may already be pial_out/white_out. */
+    if (polygons_pial != pial_out)
+        copy_polygons(polygons_pial, pial_out);
+    if (polygons_white != white_out)
+        copy_polygons(polygons_white, white_out);
 
     /* Cleanup */
     free(extents);
     free(weight);
     free(polygons_smoothed);
+//    if (n_neighbours && neighbours)
+//        delete_polygon_point_neighbours(central, n_neighbours, neighbours, NULL, NULL);
 
     return 0;
 }
