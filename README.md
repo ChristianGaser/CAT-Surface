@@ -1,8 +1,8 @@
 # CAT: Cortex Analysis Tools
 Christian Gaser christian.gaser@uni-jena.de Jena University Hospital, Germany.
 
-CAT-Surface provides high-performance command-line tools for surface-based neuroimaging analysis, focusing on the processing, conversion, and analysis of cortical surface meshes.
-These tools are integral to the [CAT12 toolbox](https://github.com/ChristianGaser/cat12) for SPM, and serve as the backend for most of CAT12’s surface-based processing, including extraction, smoothing, morphometric analysis, and format conversion. The tools are written in portable C and optimized for efficient batch processing of large cohorts in neuroimaging studies.
+CAT-Surface provides high-performance command-line tools for surface-based neuroimaging analysis, focusing on the processing and analysis of cortical surface meshes.
+These tools are integral to the [CAT toolbox](https://github.com/ChristianGaser/cat12) for SPM, and serve as the backend for most of CAT’s surface-based processing, including extraction, smoothing, morphometric analysis, and format conversion. The tools are written in portable C and optimized for efficient batch processing of large cohorts in neuroimaging studies.
 
 The repository also contains additional third-party libraries (see `3rdparty/`) for mesh handling and image I/O, bundled to simplify compilation and avoid dependency issues. These packages are not maintained within this project but are bundled for convenience so that no extra downloads are needed during compilation.
 
