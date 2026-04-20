@@ -2,19 +2,7 @@ name: Build Python Wheels
 
 on:
   workflow_dispatch:
-    inputs:
-      release_version:
-        description: "Release version (e.g. v1.0.0). Leave empty to auto-detect from git tag on HEAD."
-        required: false
-        type: string
-        default: ""
   workflow_call:
-    inputs:
-      release_version:
-        description: "Release tag or version to force into wheel builds (e.g. v1.0.0 or 1.0.0)"
-        required: false
-        type: string
-        default: ""
   push:
     tags:
       - "v*"
@@ -90,31 +78,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-tags: true
-
-      - name: Determine version
-        id: version
-        run: |
-          RAW='${{ inputs.release_version }}'
-          if [[ -z "$RAW" && "${GITHUB_REF}" == refs/tags/* ]]; then
-            RAW="${GITHUB_REF_NAME}"
-          fi
-          if [[ -z "$RAW" ]]; then
-            RAW=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
-          fi
-          RAW="${RAW#refs/tags/}"
-          RAW="${RAW#v}"
-          if [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
-            VER="$RAW"
-          else
-            VER="0.0.dev0"
-          fi
-          echo "value=$VER" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: $VER"
-
-      - name: Write VERSION file
-        run: echo '${{ steps.version.outputs.value }}' > cat_surface_cython/VERSION
 
       - name: Download libCAT artifact
         uses: actions/download-artifact@v4
@@ -162,9 +125,7 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
-        run: |
-          echo "VERSION file contains: $(cat VERSION)"
-          cibuildwheel --output-dir wheelhouse
+        run: cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -197,31 +158,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-tags: true
-
-      - name: Determine version
-        id: version
-        run: |
-          RAW='${{ inputs.release_version }}'
-          if [[ -z "$RAW" && "${GITHUB_REF}" == refs/tags/* ]]; then
-            RAW="${GITHUB_REF_NAME}"
-          fi
-          if [[ -z "$RAW" ]]; then
-            RAW=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
-          fi
-          RAW="${RAW#refs/tags/}"
-          RAW="${RAW#v}"
-          if [[ "$RAW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([abrc][0-9]+)?$ ]]; then
-            VER="$RAW"
-          else
-            VER="0.0.dev0"
-          fi
-          echo "value=$VER" >> "$GITHUB_OUTPUT"
-          echo "Resolved version: $VER"
-
-      - name: Write VERSION file
-        run: echo '${{ steps.version.outputs.value }}' > cat_surface_cython/VERSION
 
       # Bundle the source tree so it's available inside the container.
       - name: Create source tarball for container build
@@ -275,9 +211,7 @@ jobs:
               mkdir -p "$V/3rdparty/$d"
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
-        run: |
-          echo "VERSION file contains: $(cat VERSION)"
-          cibuildwheel --output-dir wheelhouse
+        run: cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
