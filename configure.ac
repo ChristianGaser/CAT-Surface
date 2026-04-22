@@ -70,120 +70,62 @@ test -n "$build_alias" && fftw_configure_args="$fftw_configure_args --build=$bui
 
 AC_CHECK_HEADERS(values.h malloc.h)
 
-# --- OpenMP detection (optional) ---
-# Try the standard AC_OPENMP first.  On macOS with Apple Clang this will
-# fail because Apple ships Clang without -fopenmp support.  In that case
-# we look for the bundled static libomp in 3rdparty/libomp/ (arch-specific),
-# then fall back to /usr/local/lib.
+# --- OpenMP detection (bundled-static only) ---
+# Policy: enable OpenMP only when a matching static runtime archive is present
+# in 3rdparty and links successfully for the current target.
 AC_OPENMP
 
-AS_IF([test "x$ac_cv_prog_c_openmp" = "xunsupported" && test "$build_mac" = "yes"],
-  [AC_MSG_CHECKING([for static libomp on macOS])
-   omp_found=no
-   # Derive arch from host_cpu for the arch-specific library name
-   case "${host_cpu}" in
-     x86_64|amd64) omp_arch=x86_64 ;;
-     aarch64|arm64|arm) omp_arch=arm64 ;;
-     *) omp_arch="" ;;
-   esac
-   omp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libomp
-   # 1) Bundled arch-specific library in 3rdparty/libomp/lib/
-   if test -f "$omp_srcdir/lib/libomp-${omp_arch}.a"; then
-     OPENMP_CFLAGS="-Xpreprocessor -fopenmp -I${omp_srcdir}/include"
-     OPENMP_LIBS="${omp_srcdir}/lib/libomp-${omp_arch}.a"
-     omp_found=yes
-     AC_MSG_RESULT([yes (bundled $omp_arch)])
-   fi
-   # 2) System-wide static library
-   AS_IF([test "$omp_found" = "no"],
-     [for d in /usr/local/lib /usr/lib; do
-        if test -f "$d/libomp.a"; then
-          OPENMP_CFLAGS="-Xpreprocessor -fopenmp"
-          OPENMP_LIBS="$d/libomp.a"
-          omp_found=yes
-          AC_MSG_RESULT([yes ($d/libomp.a)])
-          break
-        fi
-      done])
-   AS_IF([test "$omp_found" = "no"],
-     [OPENMP_CFLAGS=""
-      OPENMP_LIBS=""
-      AC_MSG_RESULT([no – OpenMP disabled])])])
+OPENMP_BUNDLED_FOUND=no
+OPENMP_BUNDLED_CFLAGS=""
+OPENMP_BUNDLED_LIBS=""
 
-# When AC_OPENMP succeeds on Linux/GCC the flags are in $OPENMP_CFLAGS and
-# the library is linked implicitly.  Provide an empty OPENMP_LIBS fallback.
-AS_IF([test "x$OPENMP_LIBS" = "x"], [OPENMP_LIBS=""])
+case "${host_cpu}" in
+  x86_64|amd64) omp_arch=x86_64 ;;
+  aarch64|arm64|arm) omp_arch=arm64 ;;
+  *) omp_arch="" ;;
+esac
 
-# On GCC (Linux, Windows/Cygwin/MinGW), the compiler driver links libgomp
-# automatically when -fopenmp is passed at link time.  Propagate the flag to
-# OPENMP_LIBS so it reaches LDADD.
-if test -n "$OPENMP_CFLAGS" && test -z "$OPENMP_LIBS"; then
-  OPENMP_LIBS="$OPENMP_CFLAGS"
-fi
-
-# On MinGW, explicitly link libgomp statically to avoid a runtime dependency
-# on libgomp-1.dll in distributed binaries.
-if test "$build_windows" = "yes" && test -n "$OPENMP_CFLAGS"; then
-  OPENMP_LIBS="-Wl,-Bstatic -lgomp -Wl,-Bdynamic"
-fi
-
-# On Linux, prefer a bundled static libgomp archive from 3rdparty/libgomp/
-# (similar to the macOS bundled libomp setup). If unavailable, fall back to a
-# compiler-provided static archive.
-if test "$build_linux" = "yes" && test -n "$OPENMP_CFLAGS"; then
-  AC_MSG_NOTICE([checking static libgomp candidates on Linux...])
-  gomp_found=no
-  case "${host_cpu}" in
-    x86_64|amd64) gomp_arch=x86_64 ;;
-    aarch64|arm64|arm) gomp_arch=arm64 ;;
-    *) gomp_arch="" ;;
-  esac
+if test "$build_mac" = "yes"; then
+  omp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libomp
+  if test -n "$omp_arch" && test -f "$omp_srcdir/lib/libomp-${omp_arch}.a"; then
+    OPENMP_BUNDLED_CFLAGS="-Xpreprocessor -fopenmp -I${omp_srcdir}/include"
+    OPENMP_BUNDLED_LIBS="${omp_srcdir}/lib/libomp-${omp_arch}.a"
+    OPENMP_BUNDLED_FOUND=yes
+  fi
+elif test "$build_linux" = "yes" || test "$build_windows" = "yes"; then
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
-  gomp_bundled=""
-  gomp_system=""
-
-  if test -n "$gomp_arch" && test -f "$gomp_srcdir/lib/libgomp-${gomp_arch}.a"; then
-    gomp_bundled="$gomp_srcdir/lib/libgomp-${gomp_arch}.a"
+  if test -n "$omp_arch" && test -f "$gomp_srcdir/lib/libgomp-${omp_arch}.a"; then
+    OPENMP_BUNDLED_CFLAGS="-fopenmp"
+    OPENMP_BUNDLED_LIBS="${gomp_srcdir}/lib/libgomp-${omp_arch}.a"
+    OPENMP_BUNDLED_FOUND=yes
   fi
+fi
 
-  gomp_static=`$CC -print-file-name=libgomp.a 2>/dev/null`
-  if test "x$gomp_static" != "xlibgomp.a" && test -f "$gomp_static"; then
-    gomp_system="$gomp_static"
-  fi
-
-  for gomp_candidate in "$gomp_bundled" "$gomp_system"; do
-    test -z "$gomp_candidate" && continue
-
-    AC_MSG_CHECKING([whether $gomp_candidate links with default PIE settings])
-    cat > conftest_libgomp.c <<'EOF'
+if test "$OPENMP_BUNDLED_FOUND" = "yes"; then
+  AC_MSG_NOTICE([found bundled OpenMP runtime: $OPENMP_BUNDLED_LIBS])
+  AC_MSG_CHECKING([whether bundled OpenMP runtime links])
+  cat > conftest_openmp_runtime.c <<'EOF'
 int main(void) { return 0; }
 EOF
-
-    if $CC $CPPFLAGS $CFLAGS $LDFLAGS conftest_libgomp.c "$gomp_candidate" -pthread -o conftest_libgomp$ac_exeext >/dev/null 2>&1; then
-      OPENMP_LIBS="$gomp_candidate"
-      gomp_found=yes
-      AC_MSG_RESULT([yes])
-    else
-      AC_MSG_RESULT([no])
-      AC_MSG_CHECKING([whether $gomp_candidate links with -no-pie])
-      if $CC $CPPFLAGS $CFLAGS $LDFLAGS -no-pie conftest_libgomp.c "$gomp_candidate" -pthread -o conftest_libgomp$ac_exeext >/dev/null 2>&1; then
-        OPENMP_LIBS="-no-pie $gomp_candidate"
-        gomp_found=yes
-        AC_MSG_RESULT([yes])
-      else
-        AC_MSG_RESULT([no])
-      fi
-    fi
-
-    rm -f conftest_libgomp.c conftest_libgomp$ac_exeext
-    test "$gomp_found" = "yes" && break
-  done
-
-  if test "$gomp_found" = "no"; then
-    AC_MSG_WARN([static libgomp not found; falling back to default OpenMP linkage])
+  if $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS -pthread -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
+    OPENMP_CFLAGS="$OPENMP_BUNDLED_CFLAGS"
+    OPENMP_LIBS="$OPENMP_BUNDLED_LIBS"
+    AC_MSG_RESULT([yes])
+  elif test "$build_linux" = "yes" && $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS -no-pie conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS -pthread -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
+    OPENMP_CFLAGS="$OPENMP_BUNDLED_CFLAGS"
+    OPENMP_LIBS="-no-pie $OPENMP_BUNDLED_LIBS"
+    AC_MSG_RESULT([yes (with -no-pie)])
   else
-    AC_MSG_NOTICE([using static libgomp linkage: $OPENMP_LIBS])
+    OPENMP_CFLAGS=""
+    OPENMP_LIBS=""
+    AC_MSG_RESULT([no])
+    AC_MSG_WARN([bundled OpenMP runtime failed to link; OpenMP disabled for this target])
   fi
+  rm -f conftest_openmp_runtime.c conftest_openmp_runtime$ac_exeext
+else
+  OPENMP_CFLAGS=""
+  OPENMP_LIBS=""
+  AC_MSG_NOTICE([no bundled static OpenMP runtime for this target; OpenMP disabled])
 fi
 
 AC_SUBST([OPENMP_CFLAGS])
