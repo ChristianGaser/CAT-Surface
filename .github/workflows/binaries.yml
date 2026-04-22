@@ -35,10 +35,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW32
+          msystem: MINGW64
           install: >
-            autoconf automake libtool autoconf-archive make pkgconf gcc
-            mingw-w64-x86_64-expat zip
+            autoconf automake libtool autoconf-archive make zip
+            mingw-w64-x86_64-toolchain mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-expat
 
       # ---------------- Ubuntu ----------------
       - name: Install dependencies (Ubuntu)
@@ -70,7 +71,9 @@ jobs:
           autoupdate
           autoreconf -fi
           export {C,CXX,CPP}FLAGS="-O2 -I/mingw64/include"
-          export LDFLAGS="-L/mingw64/lib"
+          export LDFLAGS="-L/mingw64/lib -static -static-libgcc -static-libstdc++"
+          # Keep OpenMP enabled but force static libgomp to avoid libgomp-1.dll.
+          export OPENMP_LIBS="-Wl,-Bstatic -lgomp -Wl,-Bdynamic"
           ./configure --enable-static --disable-shared --disable-doc
 
       # ---------------- Build ----------------

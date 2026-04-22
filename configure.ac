@@ -121,6 +121,12 @@ if test -n "$OPENMP_CFLAGS" && test -z "$OPENMP_LIBS"; then
   OPENMP_LIBS="$OPENMP_CFLAGS"
 fi
 
+# On MinGW, explicitly link libgomp statically to avoid a runtime dependency
+# on libgomp-1.dll in distributed binaries.
+if test "$build_windows" = "yes" && test -n "$OPENMP_CFLAGS"; then
+  OPENMP_LIBS="-Wl,-Bstatic -lgomp -Wl,-Bdynamic"
+fi
+
 AC_SUBST([OPENMP_CFLAGS])
 AC_SUBST([OPENMP_LIBS])
 
