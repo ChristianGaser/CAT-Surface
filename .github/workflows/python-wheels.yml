@@ -33,6 +33,7 @@ jobs:
 
       - name: Configure
         run: |
+          autoupdate
           autoreconf -fi
           export {C,CXX,CPP}FLAGS="-O2 -fPIC"
           ./configure --enable-static --disable-shared --disable-doc
@@ -185,9 +186,10 @@ jobs:
           # so the C++ ABI (MeshFix) matches the container's libstdc++.
           CIBW_BEFORE_ALL_LINUX: |
             set -e
-            yum install -y autoconf automake libtool make gcc gcc-c++ expat-devel
+            yum install -y autoconf automake libtool autoconf-archive make gcc gcc-c++ expat-devel
             mkdir /tmp/cat-build && cd /tmp/cat-build
             tar xzf /project/_build_src.tar.gz
+            autoupdate
             autoreconf -fi
             ./configure --enable-static --disable-shared --disable-doc \
               CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
