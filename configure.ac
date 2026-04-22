@@ -103,18 +103,30 @@ fi
 
 if test "$OPENMP_BUNDLED_FOUND" = "yes"; then
   AC_MSG_NOTICE([found bundled OpenMP runtime: $OPENMP_BUNDLED_LIBS])
-  AC_MSG_CHECKING([whether bundled OpenMP runtime links])
+  AC_MSG_CHECKING([whether bundled OpenMP runtime links with real OpenMP code])
+  # Use an actual OpenMP translation unit so the linker must resolve gomp
+  # symbols from the archive.  A trivial int-main would not pull in any
+  # archive objects and would silently succeed even with a non-PIC archive.
   cat > conftest_openmp_runtime.c <<'EOF'
-int main(void) { return 0; }
+#ifdef _MSC_VER
+# include <omp.h>
+#else
+# include <omp.h>
+#endif
+int main(void)
+{
+    int n = 0;
+#pragma omp parallel reduction(+:n)
+    n += omp_get_num_threads();
+    return n == 0;
+}
 EOF
-  if $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS -pthread -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
+  if $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS \
+        conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS -pthread \
+        -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
     OPENMP_CFLAGS="$OPENMP_BUNDLED_CFLAGS"
     OPENMP_LIBS="$OPENMP_BUNDLED_LIBS"
     AC_MSG_RESULT([yes])
-  elif test "$build_linux" = "yes" && $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS -no-pie conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS -pthread -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
-    OPENMP_CFLAGS="$OPENMP_BUNDLED_CFLAGS"
-    OPENMP_LIBS="-no-pie $OPENMP_BUNDLED_LIBS"
-    AC_MSG_RESULT([yes (with -no-pie)])
   else
     OPENMP_CFLAGS=""
     OPENMP_LIBS=""
