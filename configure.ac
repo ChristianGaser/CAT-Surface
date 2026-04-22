@@ -131,7 +131,7 @@ fi
 # (similar to the macOS bundled libomp setup). If unavailable, fall back to a
 # compiler-provided static archive.
 if test "$build_linux" = "yes" && test -n "$OPENMP_CFLAGS"; then
-  AC_MSG_CHECKING([for static libgomp on Linux])
+  AC_MSG_NOTICE([checking static libgomp candidates on Linux...])
   gomp_found=no
   case "${host_cpu}" in
     x86_64|amd64) gomp_arch=x86_64 ;;
@@ -139,25 +139,50 @@ if test "$build_linux" = "yes" && test -n "$OPENMP_CFLAGS"; then
     *) gomp_arch="" ;;
   esac
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
+  gomp_bundled=""
+  gomp_system=""
 
   if test -n "$gomp_arch" && test -f "$gomp_srcdir/lib/libgomp-${gomp_arch}.a"; then
-    OPENMP_LIBS="$gomp_srcdir/lib/libgomp-${gomp_arch}.a"
-    gomp_found=yes
-    AC_MSG_RESULT([yes (bundled $gomp_arch)])
+    gomp_bundled="$gomp_srcdir/lib/libgomp-${gomp_arch}.a"
   fi
 
-  if test "$gomp_found" = "no"; then
-    gomp_static=`$CC -print-file-name=libgomp.a 2>/dev/null`
-    if test "x$gomp_static" != "xlibgomp.a" && test -f "$gomp_static"; then
-      OPENMP_LIBS="$gomp_static"
+  gomp_static=`$CC -print-file-name=libgomp.a 2>/dev/null`
+  if test "x$gomp_static" != "xlibgomp.a" && test -f "$gomp_static"; then
+    gomp_system="$gomp_static"
+  fi
+
+  for gomp_candidate in "$gomp_bundled" "$gomp_system"; do
+    test -z "$gomp_candidate" && continue
+
+    AC_MSG_CHECKING([whether $gomp_candidate links with default PIE settings])
+    cat > conftest_libgomp.c <<'EOF'
+int main(void) { return 0; }
+EOF
+
+    if $CC $CPPFLAGS $CFLAGS $LDFLAGS conftest_libgomp.c "$gomp_candidate" -pthread -o conftest_libgomp$ac_exeext >/dev/null 2>&1; then
+      OPENMP_LIBS="$gomp_candidate"
       gomp_found=yes
-      AC_MSG_RESULT([yes ($gomp_static)])
+      AC_MSG_RESULT([yes])
+    else
+      AC_MSG_RESULT([no])
+      AC_MSG_CHECKING([whether $gomp_candidate links with -no-pie])
+      if $CC $CPPFLAGS $CFLAGS $LDFLAGS -no-pie conftest_libgomp.c "$gomp_candidate" -pthread -o conftest_libgomp$ac_exeext >/dev/null 2>&1; then
+        OPENMP_LIBS="-no-pie $gomp_candidate"
+        gomp_found=yes
+        AC_MSG_RESULT([yes])
+      else
+        AC_MSG_RESULT([no])
+      fi
     fi
-  fi
+
+    rm -f conftest_libgomp.c conftest_libgomp$ac_exeext
+    test "$gomp_found" = "yes" && break
+  done
 
   if test "$gomp_found" = "no"; then
-    AC_MSG_RESULT([no])
     AC_MSG_WARN([static libgomp not found; falling back to default OpenMP linkage])
+  else
+    AC_MSG_NOTICE([using static libgomp linkage: $OPENMP_LIBS])
   fi
 fi
 
