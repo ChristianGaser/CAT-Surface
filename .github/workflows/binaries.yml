@@ -89,7 +89,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          mapfile -t bins < <(find Progs -maxdepth 1 -type f -executable -name 'CAT_*' | sort)
+          mapfile -t bins < <(find Progs -maxdepth 1 -type f -executable -name 'CAT_*' ! -name '*_ui' | sort)
           if [ ${#bins[@]} -eq 0 ]; then
             echo "No CAT binaries found in Progs/."
             exit 1
