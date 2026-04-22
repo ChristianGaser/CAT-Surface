@@ -83,6 +83,79 @@ jobs:
         shell: msys2 {0}
         run: make -j$(nproc)
 
+      # ---------------- Verify binaries ----------------
+      - name: Verify binaries (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu-22.04')
+        run: |
+          set -euo pipefail
+
+          mapfile -t bins < <(find Progs -maxdepth 1 -type f -executable -name 'CAT_*' | sort)
+          if [ ${#bins[@]} -eq 0 ]; then
+            echo "No CAT binaries found in Progs/."
+            exit 1
+          fi
+
+          for bin in "${bins[@]}"; do
+            echo "Checking ${bin}"
+
+            set +e
+            timeout 5s "$bin" --help >/dev/null 2>&1
+            rc=$?
+            set -e
+
+            if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
+              echo "Execution failed for ${bin} (exit code ${rc})."
+              exit 1
+            fi
+
+            deps="$(ldd "$bin" 2>&1 || true)"
+            echo "$deps"
+
+            if echo "$deps" | grep -qi "not found"; then
+              echo "Missing runtime dependency detected in ${bin}."
+              exit 1
+            fi
+
+            if echo "$deps" | grep -qiE 'fftw|gomp'; then
+              echo "Forbidden dynamic dependency detected in ${bin}."
+              exit 1
+            fi
+          done
+
+      - name: Verify binaries (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+
+          mapfile -t bins < <(find Progs -maxdepth 1 -type f -name 'CAT_*.exe' | sort)
+          if [ ${#bins[@]} -eq 0 ]; then
+            echo "No CAT executables found in Progs/."
+            exit 1
+          fi
+
+          for bin in "${bins[@]}"; do
+            echo "Checking ${bin}"
+
+            set +e
+            "$bin" --help >/dev/null 2>&1
+            rc=$?
+            set -e
+
+            if [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ]; then
+              echo "Execution failed for ${bin} (exit code ${rc})."
+              exit 1
+            fi
+
+            deps="$(objdump -p "$bin" | sed -n 's/^[[:space:]]*DLL Name: //p' | tr '[:upper:]' '[:lower:]')"
+            echo "$deps"
+
+            if echo "$deps" | grep -qE 'fftw|gomp'; then
+              echo "Forbidden dynamic dependency detected in ${bin}."
+              exit 1
+            fi
+          done
+
       # ---------------- Package ----------------
       - name: Package binaries
         if: matrix.os != 'windows-latest'
