@@ -127,6 +127,40 @@ if test "$build_windows" = "yes" && test -n "$OPENMP_CFLAGS"; then
   OPENMP_LIBS="-Wl,-Bstatic -lgomp -Wl,-Bdynamic"
 fi
 
+# On Linux, prefer a bundled static libgomp archive from 3rdparty/libgomp/
+# (similar to the macOS bundled libomp setup). If unavailable, fall back to a
+# compiler-provided static archive.
+if test "$build_linux" = "yes" && test -n "$OPENMP_CFLAGS"; then
+  AC_MSG_CHECKING([for static libgomp on Linux])
+  gomp_found=no
+  case "${host_cpu}" in
+    x86_64|amd64) gomp_arch=x86_64 ;;
+    aarch64|arm64|arm) gomp_arch=arm64 ;;
+    *) gomp_arch="" ;;
+  esac
+  gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
+
+  if test -n "$gomp_arch" && test -f "$gomp_srcdir/lib/libgomp-${gomp_arch}.a"; then
+    OPENMP_LIBS="$gomp_srcdir/lib/libgomp-${gomp_arch}.a"
+    gomp_found=yes
+    AC_MSG_RESULT([yes (bundled $gomp_arch)])
+  fi
+
+  if test "$gomp_found" = "no"; then
+    gomp_static=`$CC -print-file-name=libgomp.a 2>/dev/null`
+    if test "x$gomp_static" != "xlibgomp.a" && test -f "$gomp_static"; then
+      OPENMP_LIBS="$gomp_static"
+      gomp_found=yes
+      AC_MSG_RESULT([yes ($gomp_static)])
+    fi
+  fi
+
+  if test "$gomp_found" = "no"; then
+    AC_MSG_RESULT([no])
+    AC_MSG_WARN([static libgomp not found; falling back to default OpenMP linkage])
+  fi
+fi
+
 AC_SUBST([OPENMP_CFLAGS])
 AC_SUBST([OPENMP_LIBS])
 

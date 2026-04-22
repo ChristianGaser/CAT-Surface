@@ -29,4 +29,9 @@ Progs/CAT_[A-Za-z0-9_]*
 tests/test_math.out
 docs/doxygen/
 !Progs/CAT_*.c*
-3rdparty
+3rdparty/*
+!3rdparty/libgomp/
+!3rdparty/libgomp/README.md
+!3rdparty/libgomp/lib/
+!3rdparty/libgomp/lib/libgomp-x86_64.a
+!3rdparty/libgomp/lib/libgomp-arm64.a
