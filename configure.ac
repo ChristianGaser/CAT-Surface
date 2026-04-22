@@ -92,7 +92,14 @@ if test "$build_mac" = "yes"; then
     OPENMP_BUNDLED_LIBS="${omp_srcdir}/lib/libomp-${omp_arch}.a"
     OPENMP_BUNDLED_FOUND=yes
   fi
-elif test "$build_linux" = "yes" || test "$build_windows" = "yes"; then
+elif test "$build_windows" = "yes"; then
+  # On Windows/MinGW the toolchain ships its own libgomp.a.  Reference it
+  # with linker-flag syntax so MinGW ld.exe picks the COFF archive rather
+  # than the Linux ELF archive in 3rdparty/libgomp which it cannot read.
+  OPENMP_BUNDLED_CFLAGS="-fopenmp"
+  OPENMP_BUNDLED_LIBS="-Wl,-Bstatic,-lgomp,-Wl,-Bdynamic"
+  OPENMP_BUNDLED_FOUND=yes
+elif test "$build_linux" = "yes"; then
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
   if test -n "$omp_arch" && test -f "$gomp_srcdir/lib/libgomp-${omp_arch}.a"; then
     OPENMP_BUNDLED_CFLAGS="-fopenmp"
