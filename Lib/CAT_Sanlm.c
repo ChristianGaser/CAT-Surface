@@ -537,11 +537,6 @@ void Regularize(float *in, float *out, int r, int sx, int sy, int sz)
     return;
 }
 
-#if defined(_WIN32)
-unsigned int
-#else
-void *
-#endif
 /**
  * \brief Thread worker for SANLM filtering.
  *
@@ -551,6 +546,7 @@ void *
  * \param pArguments (in) thread argument struct
  * \return Thread exit code
  */
+static void *
 ThreadFunc(void *pArguments)
 {
     float *bias, *Estimate, *ima, *means, *variances, *average;
@@ -741,14 +737,8 @@ ThreadFunc(void *pArguments)
                 }
             }
 
-#if defined(_WIN32)
-    return 0;
-#else
-    pthread_exit(0);
-#endif
-
     free(average);
-    return 0;
+    return NULL;
 }
 
 /**

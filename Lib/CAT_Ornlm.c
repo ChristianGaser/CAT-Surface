@@ -284,7 +284,7 @@ typedef struct
     const int *dims; /* dims pointer for Average_block_ornlm */
 } myargument;
 
-void *
+static void *
 ThreadFunc_ornlm(void *pArguments)
 {
     myargument arg = *(myargument *)pArguments;
