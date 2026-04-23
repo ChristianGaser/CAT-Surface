@@ -565,7 +565,6 @@ void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
 
 #if defined(_WIN32) || defined(_WIN64)
         /* Sequential execution on Windows (no pthread dependency) */
-        myargument *ThreadArgs;
         ThreadArgs = SAFE_MALLOC(myargument, Nthreads);
 
         for (i = 0; i < Nthreads; i++)

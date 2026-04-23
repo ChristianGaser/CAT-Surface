@@ -777,9 +777,7 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
 
     myargument *ThreadArgs;
 
-#if defined(_WIN32)
-    HANDLE *ThreadList;
-#else
+#if !defined(_WIN32)
     pthread_t *ThreadList;
 #endif
 
@@ -895,7 +893,6 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
 
 #if defined(_WIN32)
     /* Sequential execution on Windows (no pthread dependency) */
-    ThreadList = (HANDLE *)malloc(Nthreads * sizeof(HANDLE));
     ThreadArgs = (myargument *)malloc(Nthreads * sizeof(myargument));
 
     for (i = 0; i < Nthreads; i++)
