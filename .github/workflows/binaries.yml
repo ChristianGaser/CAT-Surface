@@ -71,7 +71,7 @@ jobs:
           autoupdate
           autoreconf -fi
           export {C,CXX,CPP}FLAGS="-O2 -I/mingw64/include"
-          export LDFLAGS="-L/mingw64/lib -static-libgcc -static-libstdc++"
+          export LDFLAGS="-L/mingw64/lib -static -static-libgcc -static-libstdc++"
           ./configure --enable-static --disable-shared --disable-doc
 
       # ---------------- Build ----------------

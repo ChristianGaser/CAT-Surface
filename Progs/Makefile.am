@@ -45,7 +45,7 @@ LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
 # causing "multiple definition" errors. Linking directly against the static
 # archive avoids pulling libCAT.la dependency_libs into the final link.
 if WINDOWS
-LDADD = ../.libs/libCAT.a -lm $(top_builddir)/3rdparty/fftw-build/.libs/libfftw3.a @OPENMP_LIBS@ @WINDOWS_PTHREAD_LIBS@
+LDADD = ../.libs/libCAT.a -lm $(top_builddir)/3rdparty/fftw-build/.libs/libfftw3.a @OPENMP_LIBS@
 else
 LDADD = ../libCAT.la -lm @OPENMP_LIBS@
 endif
