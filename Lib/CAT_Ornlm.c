@@ -628,10 +628,9 @@ void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
 
         for (i = 0; i < Nthreads; i++)
             pthread_join(ThreadList[i], NULL);
-#endif
-
         free(ThreadList);
         free(ThreadArgs);
+#endif
     }
     /* ------------------- end multithreaded filter ---------------------- */
 

@@ -991,8 +991,6 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
         }
     }
 
-    free(ThreadList);
-    free(ThreadArgs);
     free(means);
     free(variances);
     free(Estimate);
