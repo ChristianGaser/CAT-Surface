@@ -96,9 +96,16 @@ elif test "$build_windows" = "yes"; then
   # On Windows/MinGW the toolchain ships its own libgomp.a.  Reference it
   # with linker-flag syntax so MinGW ld.exe picks the COFF archive rather
   # than the Linux ELF archive in 3rdparty/libgomp which it cannot read.
-  OPENMP_BUNDLED_CFLAGS="-fopenmp"
-  OPENMP_BUNDLED_LIBS="-Wl,-Bstatic,-lgomp,-Wl,-Bdynamic"
-  OPENMP_BUNDLED_FOUND=yes
+  # Also statically link libwinpthread (bundled in 3rdparty/libwinpthread) so
+  # libwinpthread-1.dll is not required at runtime on end-user Windows systems.
+  winpthread_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libwinpthread
+  if test -n "$omp_arch" && test -f "$winpthread_srcdir/lib/libwinpthread-${omp_arch}.a"; then
+    OPENMP_BUNDLED_CFLAGS="-fopenmp"
+    OPENMP_BUNDLED_LIBS="-Wl,-Bstatic,-lgomp,${winpthread_srcdir}/lib/libwinpthread-${omp_arch}.a,-Wl,-Bdynamic"
+    OPENMP_BUNDLED_FOUND=yes
+  else
+    AC_MSG_WARN([bundled libwinpthread-${omp_arch}.a not found in 3rdparty/libwinpthread/lib; OpenMP disabled for Windows to avoid libwinpthread-1.dll runtime dependency])
+  fi
 elif test "$build_linux" = "yes"; then
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
   if test -n "$omp_arch" && test -f "$gomp_srcdir/lib/libgomp-${omp_arch}.a"; then

@@ -151,7 +151,7 @@ jobs:
             deps="$(objdump -p "$bin" | sed -n 's/^[[:space:]]*DLL Name: //p' | tr '[:upper:]' '[:lower:]')"
             echo "$deps"
 
-            if echo "$deps" | grep -qE 'fftw|gomp'; then
+            if echo "$deps" | grep -qE 'fftw|gomp|winpthread'; then
               echo "Forbidden dynamic dependency detected in ${bin}."
               exit 1
             fi
