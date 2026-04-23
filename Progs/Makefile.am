@@ -33,8 +33,11 @@ endif
 
 # libCAT contains C++ objects (MeshFix), so we must link programs with the C++
 # linker to ensure libstdc++/unwind symbols are resolved correctly.
-CCLD = $(CXX)
-LINK = $(LIBTOOL) $(AM_V_lt) --tag=CXX $(AM_LIBTOOLFLAGS) \
+# On Windows, MeshFix is excluded from libCAT, so we can use the plain C
+# linker and avoid the libstdc++ → libwinpthread chain entirely.
+# @PROG_CCLD@ and @PROG_LINK_TAG@ are set by configure (see configure.ac).
+CCLD = @PROG_CCLD@
+LINK = $(LIBTOOL) $(AM_V_lt) --tag=@PROG_LINK_TAG@ $(AM_LIBTOOLFLAGS) \
     $(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
     $(AM_LDFLAGS) $(LDFLAGS) -o $@
 

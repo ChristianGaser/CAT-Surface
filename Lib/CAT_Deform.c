@@ -12,8 +12,10 @@
 #include "CAT_Smooth.h"
 #include "CAT_Vol.h"
 #include "CAT_Intersect.h"
-#include "CAT_MeshClean.h"
 #include "CAT_Curvature.h"
+#if !defined(_WIN32) && !defined(_WIN64)
+#include "CAT_MeshClean.h"
+#endif
 
 #include <float.h>
 #include <math.h>
@@ -440,6 +442,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     copy_polygons(polygons_orig, polygons);
 
     // Use MeshFix approach to remove self-intersections
+#if !defined(_WIN32) && !defined(_WIN64)
     if (remove_intersections)
     {
         if (verbose)
@@ -447,7 +450,9 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
         CAT_MeshCleanOptions opts;
         CAT_MeshCleanOptionsInit(&opts);
         int result = CAT_SurfMeshClean(polygons, &opts);
+        (void)result;
     }
+#endif
 
     // Free allocated memory
     free(gradient_x);

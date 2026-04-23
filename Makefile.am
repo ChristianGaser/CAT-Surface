@@ -39,7 +39,10 @@ else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
 AM_CPPFLAGS = @OPENMP_CFLAGS@ @FFTW3_CFLAGS@ ${AM_CFLAGS}
+# C++11 is only needed for MeshFix; not used on Windows.
+if !WINDOWS
 AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
+endif
 
 lib_LTLIBRARIES = libCAT.la
 libCAT_la_LIBADD = $(FFTW3_BUILDDIR)/libfftw3.la
@@ -367,8 +370,6 @@ libCAT_la_SOURCES = \
     $(dartel_SRC) \
     $(nii2mesh_SRC) \
     $(s2kit10_SRC) \
-    $(MeshFix_SRC) \
-    Lib/CAT_MeshClean.cpp \
     Lib/CAT_CorrectThicknessFolding.c \
     Lib/CAT_SurfWarpDartel.c \
     Lib/CAT_ROIStats.c \
@@ -412,7 +413,12 @@ libCAT_la_SOURCES = \
     Lib//CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
     Lib/CAT_SafeAlloc.c
-
+# MeshFix requires C++ and is not supported on Windows; exclude it there.
+if !WINDOWS
+libCAT_la_SOURCES += \
+    $(MeshFix_SRC) \
+    Lib/CAT_MeshClean.cpp
+endif
 .PHONY: docs docs-clean
 
 docs:

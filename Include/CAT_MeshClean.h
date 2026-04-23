@@ -12,11 +12,18 @@
 
 /**
  * @file CAT_MeshClean.h
- * @brief Surface mesh cleaning and intersection removal.
+ * @brief Surface mesh cleaning and intersection removal (non-Windows only).
  *
  * Provides functions for removing self-intersections and degeneracies
  * from triangle meshes using the MeshFix library.
+ *
+ * MeshFix requires C++ and is not supported on Windows.  This header
+ * provides no declarations when compiled on Windows; callers must guard
+ * any inclusion and all call sites with
+ * #if !defined(_WIN32) && !defined(_WIN64).
  */
+
+#if !defined(_WIN32) && !defined(_WIN64)
 
 #include <bicpl.h>
 
@@ -35,28 +42,22 @@ typedef struct {
 } CAT_MeshCleanOptions;
 
 /**
- * \brief Public API for CAT_MeshCleanOptionsInit.
+ * \brief Initialise a CAT_MeshCleanOptions struct with default values.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param opts (in/out) Parameter of CAT_MeshCleanOptionsInit.
- * \return void (no return value).
+ * \param opts (in/out) Options struct to initialise.
  */
 void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts);
 
 /**
- * Check and fix mesh intersections and degeneracies.
+ * \brief Clean a surface mesh using MeshFix.
  *
  * Uses MeshFix's meshclean algorithm to iteratively remove
  * self-intersections and degenerate triangles from the mesh.
  * The input surface is modified in place.
  *
- * @param polygons Input/output surface mesh. Modified in place.
- * @param opts     Options controlling the cleaning process (NULL for defaults).
- *
- * @return 0 on success (all issues fixed),
- *         1 if some issues remain,
- *        -1 on error.
+ * \param polygons (in/out) Surface mesh to clean.
+ * \param opts     (in)     Cleaning options, or NULL for defaults.
+ * \return 0 on success (all issues fixed), 1 if some issues remain, -1 on error.
  */
 int CAT_SurfMeshClean(
     polygons_struct *polygons,
@@ -64,29 +65,29 @@ int CAT_SurfMeshClean(
 );
 
 /**
- * \brief Public API for CAT_SurfCountIntersections.
+ * \brief Count self-intersecting triangle pairs using MeshFix.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param polygons (in/out) Parameter of CAT_SurfCountIntersections.
- * \return Return value of CAT_SurfCountIntersections.
+ * \param polygons (in) Surface mesh to inspect.
+ * \return Number of intersecting triangle pairs, or -1 on error.
  */
 int CAT_SurfCountIntersections(polygons_struct *polygons);
 
 /**
- * Fast self-intersection mask using MeshFix.
+ * \brief Build a per-triangle self-intersection mask using MeshFix.
  *
- * Returns an int* mask of length n_items (triangles), with 1 for
+ * Returns an int* mask of length polygons->n_items, with 1 for
  * intersecting triangles, 0 otherwise.  Caller must free() the result.
  *
- * @param polygons  Input surface mesh.
- * @param n_hits_out Output: number of intersecting triangles (can be NULL).
- * @return Allocated mask array, or NULL on error.
+ * \param polygons    (in)  Surface mesh to inspect.
+ * \param n_hits_out  (out) Number of intersecting triangles (may be NULL).
+ * \return Allocated mask array, or NULL on error.
  */
 int *find_self_intersections_meshfix(polygons_struct *polygons, int *n_hits_out);
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* !_WIN32 */
 
 #endif /* _CAT_MESH_CLEAN_H_ */

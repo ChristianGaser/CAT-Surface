@@ -44,6 +44,20 @@ AM_CONDITIONAL([LINUX], [test "$build_linux" = "yes"])
 AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
 AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
 
+# Set the linker driver used in Progs/Makefile.am.
+# On Windows, MeshFix (C++) is excluded from libCAT, so we can use the plain
+# C linker (gcc) — this avoids pulling in libstdc++ and the winpthread chain.
+# On all other platforms, libCAT includes C++ objects and must be linked with g++.
+if test "$build_windows" = "yes"; then
+    PROG_CCLD='$(CC)'
+    PROG_LINK_TAG='CC'
+else
+    PROG_CCLD='$(CXX)'
+    PROG_LINK_TAG='CXX'
+fi
+AC_SUBST([PROG_CCLD])
+AC_SUBST([PROG_LINK_TAG])
+
 # --- FFTW3 (bundled source in 3rdparty/fftw/) ---
 # Configure the bundled FFTW3 directly from this configure script so that
 # autoreconf does not recurse into the FFTW3 source tree (its Makefile.am
@@ -73,11 +87,17 @@ AC_CHECK_HEADERS(values.h malloc.h)
 # --- OpenMP detection (bundled-static only) ---
 # Policy: enable OpenMP only when a matching static runtime archive is present
 # in 3rdparty and links successfully for the current target.
+AC_ARG_ENABLE([openmp],
+  [AS_HELP_STRING([--disable-openmp], [disable OpenMP support (default: auto)])],
+  [enable_openmp=$enableval], [enable_openmp=yes])
+
 AC_OPENMP
 
 OPENMP_BUNDLED_FOUND=no
 OPENMP_BUNDLED_CFLAGS=""
 OPENMP_BUNDLED_LIBS=""
+
+if test "$enable_openmp" = "yes"; then
 
 case "${host_cpu}" in
   x86_64|amd64) omp_arch=x86_64 ;;
@@ -161,6 +181,14 @@ else
   OPENMP_CFLAGS=""
   OPENMP_LIBS=""
   AC_MSG_NOTICE([no bundled static OpenMP runtime for this target; OpenMP disabled])
+fi
+
+fi  dnl enable_openmp
+
+if test "$enable_openmp" = "no"; then
+  AC_MSG_NOTICE([OpenMP disabled by --disable-openmp])
+  OPENMP_CFLAGS=""
+  OPENMP_LIBS=""
 fi
 
 AC_SUBST([OPENMP_CFLAGS])

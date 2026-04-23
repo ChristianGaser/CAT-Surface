@@ -7,7 +7,21 @@
  *
  */
 
+#include <stdio.h>
 #include <bicpl.h>
+
+#if defined(_WIN32) || defined(_WIN64)
+
+int
+main(int argc, char *argv[])
+{
+    (void)argc; (void)argv;
+    fprintf(stderr, "%s: MeshFix-based intersection removal is not supported on Windows.\n",
+            argv[0]);
+    return 1;
+}
+
+#else /* !_WIN32 */
 
 #include "CAT_MeshClean.h"
 #include "CAT_SurfaceIO.h"
@@ -148,3 +162,5 @@ main(int argc, char *argv[])
     
     return result;
 }
+
+#endif /* !_WIN32 */
