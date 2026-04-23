@@ -85,6 +85,30 @@ case "${host_cpu}" in
   *) omp_arch="" ;;
 esac
 
+# Windows: libstdc++ (posix-threads model in MSYS2 MinGW64) and libgomp both
+# reference winpthread symbols.  Passing libwinpthread.a as an absolute path
+# forces static linking and eliminates the libwinpthread-1.dll runtime
+# dependency, which is not present on stock Windows systems.
+# Detect unconditionally so it covers both OpenMP and C++ runtime needs.
+WINDOWS_PTHREAD_LIBS=""
+if test "$build_windows" = "yes"; then
+  # Primary: ask the active compiler — on MSYS2 mingw64 this returns the
+  # full path to the archive inside the toolchain sysroot.
+  wp_lib=`$CC -print-file-name=libwinpthread.a 2>/dev/null`
+  if test "$wp_lib" != "libwinpthread.a" && test -f "$wp_lib"; then
+    WINDOWS_PTHREAD_LIBS="$wp_lib"
+  else
+    # Fallback: bundled copy in 3rdparty/libwinpthread/lib/<arch>/
+    wp_bundled=$(cd "$srcdir" && pwd)/3rdparty/libwinpthread/lib/${omp_arch}/libwinpthread.a
+    test -f "$wp_bundled" && WINDOWS_PTHREAD_LIBS="$wp_bundled"
+  fi
+  if test -n "$WINDOWS_PTHREAD_LIBS"; then
+    AC_MSG_NOTICE([will statically link libwinpthread: $WINDOWS_PTHREAD_LIBS])
+  else
+    AC_MSG_WARN([libwinpthread.a not found; libwinpthread-1.dll may be required at runtime])
+  fi
+fi
+
 if test "$build_mac" = "yes"; then
   omp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libomp
   if test -n "$omp_arch" && test -f "$omp_srcdir/lib/libomp-${omp_arch}.a"; then
@@ -93,24 +117,17 @@ if test "$build_mac" = "yes"; then
     OPENMP_BUNDLED_FOUND=yes
   fi
 elif test "$build_windows" = "yes"; then
-  # On Windows/MinGW we use absolute file paths for both libgomp.a and
-  # libwinpthread.a so the linker cannot fall back to their .dll.a import
-  # counterparts (which would produce a libwinpthread-1.dll runtime dependency
-  # absent on stock Windows systems).
-  #
-  # libgomp.a  : resolved from the active compiler via -print-file-name
-  # libwinpthread.a: taken from 3rdparty/libwinpthread/lib/<arch>/
+  # Use libgomp.a from the active compiler as an absolute path so the linker
+  # cannot fall back to libgomp.dll.a.  libwinpthread is linked unconditionally
+  # via WINDOWS_PTHREAD_LIBS (detected above), covering both libgomp and
+  # libstdc++ (posix-threads) dependencies in a single place.
   gomp_lib=`$CC -print-file-name=libgomp.a 2>/dev/null`
-  winpthread_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libwinpthread
-  winpthread_lib="${winpthread_srcdir}/lib/${omp_arch}/libwinpthread.a"
-  if test -n "$omp_arch" \
-     && test "$gomp_lib" != "libgomp.a" && test -f "$gomp_lib" \
-     && test -f "$winpthread_lib"; then
+  if test -n "$omp_arch" && test "$gomp_lib" != "libgomp.a" && test -f "$gomp_lib"; then
     OPENMP_BUNDLED_CFLAGS="-fopenmp"
-    OPENMP_BUNDLED_LIBS="$gomp_lib $winpthread_lib"
+    OPENMP_BUNDLED_LIBS="$gomp_lib"
     OPENMP_BUNDLED_FOUND=yes
   else
-    AC_MSG_WARN([could not locate static libgomp.a or bundled libwinpthread.a; OpenMP disabled on Windows])
+    AC_MSG_WARN([libgomp.a not found; OpenMP disabled on Windows])
   fi
 elif test "$build_linux" = "yes"; then
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
@@ -166,6 +183,7 @@ fi
 
 AC_SUBST([OPENMP_CFLAGS])
 AC_SUBST([OPENMP_LIBS])
+AC_SUBST([WINDOWS_PTHREAD_LIBS])
 
 # On older glibc (< 2.17), clock_gettime lives in librt.  libgomp (OpenMP)
 # needs it, so pull in -lrt when required.
