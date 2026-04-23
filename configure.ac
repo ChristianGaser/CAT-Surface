@@ -93,18 +93,38 @@ if test "$build_mac" = "yes"; then
     OPENMP_BUNDLED_FOUND=yes
   fi
 elif test "$build_windows" = "yes"; then
-  # On Windows/MinGW the toolchain ships its own libgomp.a.  Use -L to put
-  # the bundled libwinpthread.a directory ahead of the system library path so
-  # -lwinpthread resolves to our static archive rather than libwinpthread.dll.a.
-  # Both libgomp and libwinpthread are linked with -Bstatic so that the
-  # resulting .exe files do not require libwinpthread-1.dll at runtime.
+  # On Windows/MinGW, using -Bstatic/-lwinpthread is unreliable: ld may still
+  # resolve -lwinpthread to libwinpthread.dll.a (the import library) instead of
+  # libwinpthread.a, resulting in a runtime dependency on libwinpthread-1.dll
+  # which is not present on stock Windows systems.
+  #
+  # The reliable fix is to pass both libgomp.a and libwinpthread.a as absolute
+  # file paths, bypassing the library search mechanism entirely.
+  #
+  # Search order for libgomp.a  : compiler's own file (gcc -print-file-name)
+  # Search order for libwinpthread.a:
+  #   1. Bundled archive in 3rdparty/libwinpthread/lib/<arch>/
+  #   2. Toolchain sysroot (gcc -print-sysroot)/lib/
+  gomp_lib=`$CC -print-file-name=libgomp.a 2>/dev/null`
   winpthread_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libwinpthread
-  if test -n "$omp_arch" && test -f "$winpthread_srcdir/lib/${omp_arch}/libwinpthread.a"; then
+  if test -n "$omp_arch" && test -f "${winpthread_srcdir}/lib/${omp_arch}/libwinpthread.a"; then
+    winpthread_lib="${winpthread_srcdir}/lib/${omp_arch}/libwinpthread.a"
+    AC_MSG_NOTICE([using bundled libwinpthread: $winpthread_lib])
+  else
+    mingw_sysroot=`$CC -print-sysroot 2>/dev/null`
+    if test -f "${mingw_sysroot}/lib/libwinpthread.a"; then
+      winpthread_lib="${mingw_sysroot}/lib/libwinpthread.a"
+      AC_MSG_NOTICE([using sysroot libwinpthread: $winpthread_lib])
+    else
+      winpthread_lib=""
+    fi
+  fi
+  if test "$gomp_lib" != "libgomp.a" && test -f "$gomp_lib" && test -n "$winpthread_lib"; then
     OPENMP_BUNDLED_CFLAGS="-fopenmp"
-    OPENMP_BUNDLED_LIBS="-L${winpthread_srcdir}/lib/${omp_arch} -Wl,-Bstatic,-lgomp,-lwinpthread,-Wl,-Bdynamic"
+    OPENMP_BUNDLED_LIBS="$gomp_lib $winpthread_lib"
     OPENMP_BUNDLED_FOUND=yes
   else
-    AC_MSG_WARN([bundled libwinpthread.a not found in 3rdparty/libwinpthread/lib/${omp_arch}; OpenMP disabled for Windows to avoid libwinpthread-1.dll runtime dependency])
+    AC_MSG_WARN([could not locate static libgomp.a or libwinpthread.a; OpenMP disabled on Windows to avoid libwinpthread-1.dll runtime dependency])
   fi
 elif test "$build_linux" = "yes"; then
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
@@ -136,7 +156,8 @@ int main(void)
 }
 EOF
   if $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS \
-        conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS -pthread \
+        conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS \
+        `test "$build_windows" != "yes" && echo -pthread` \
         -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
     OPENMP_CFLAGS="$OPENMP_BUNDLED_CFLAGS"
     OPENMP_LIBS="$OPENMP_BUNDLED_LIBS"
