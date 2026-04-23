@@ -18,10 +18,7 @@
    the OpenMP private() clause.  Undo that macro here. */
 #undef private
 
-#if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
-#include <process.h> /* _beginthreadex, _endthreadex */
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
 #endif
 
@@ -399,11 +396,7 @@ float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *ni
 }
 
 /* ------------------------ Row-pass worker ------------------------- */
-#if defined(_WIN32) || defined(_WIN64)
-static unsigned int __stdcall
-#else
 static void *
-#endif
 conv_row_worker(void *p)
 {
     conv_args_row a = *(conv_args_row *)p;
@@ -414,12 +407,7 @@ conv_row_worker(void *p)
 
     if (!tbuf)
     {
-#if defined(_WIN32) || defined(_WIN64)
-        _endthreadex(0);
-        return 0;
-#else
-        return 0;
-#endif
+        return NULL;
     }
 
     for (y = a.ini; y < a.fin; ++y)
@@ -444,21 +432,11 @@ conv_row_worker(void *p)
     }
 
     free(tbuf);
-
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    return 0;
-#endif
+    return NULL;
 }
 
 /* ------------------------ Column-pass worker ---------------------- */
-#if defined(_WIN32) || defined(_WIN64)
-static unsigned int __stdcall
-#else
 static void *
-#endif
 conv_col_worker(void *p)
 {
     conv_args_col a = *(conv_args_col *)p;
@@ -469,12 +447,7 @@ conv_col_worker(void *p)
 
     if (!tbuf)
     {
-#if defined(_WIN32) || defined(_WIN64)
-        _endthreadex(0);
-        return 0;
-#else
-        return 0;
-#endif
+        return NULL;
     }
 
     for (x = a.ini; x < a.fin; ++x)
@@ -496,13 +469,7 @@ conv_col_worker(void *p)
     }
 
     free(tbuf);
-
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    return 0;
-#endif
+    return NULL;
 }
 
 /* ===================== Multithreaded convxy_float ===================== */
@@ -584,9 +551,8 @@ static void convxy_float(float *out, int xdim, int ydim,
 
     /* -------------------- Pass 1: parallel across rows -------------------- */
 #if defined(_WIN32) || defined(_WIN64)
-    HANDLE *RowThreads = (HANDLE *)malloc((size_t)Nthreads_row * sizeof(HANDLE));
+    /* Sequential execution on Windows (no pthread dependency) */
     conv_args_row *RowArgs = (conv_args_row *)malloc((size_t)Nthreads_row * sizeof(conv_args_row));
-
     for (t = 0; t < Nthreads_row; ++t)
     {
         int ini = (t * ydim) / Nthreads_row;
@@ -604,13 +570,8 @@ static void convxy_float(float *out, int xdim, int ydim,
         RowArgs[t].ini = ini;
         RowArgs[t].fin = fin;
 
-        RowThreads[t] = (HANDLE)_beginthreadex(NULL, 0, &conv_row_worker, &RowArgs[t], 0, NULL);
+        conv_row_worker(&RowArgs[t]);
     }
-    for (t = 0; t < Nthreads_row; ++t)
-        WaitForSingleObject(RowThreads[t], INFINITE);
-    for (t = 0; t < Nthreads_row; ++t)
-        CloseHandle(RowThreads[t]);
-    free(RowThreads);
     free(RowArgs);
 #else
     pthread_t *RowThreads = (pthread_t *)calloc((size_t)Nthreads_row, sizeof(pthread_t));
@@ -642,9 +603,8 @@ static void convxy_float(float *out, int xdim, int ydim,
 
     /* ------------------- Pass 2: parallel across columns ------------------ */
 #if defined(_WIN32) || defined(_WIN64)
-    HANDLE *ColThreads = (HANDLE *)malloc((size_t)Nthreads_col * sizeof(HANDLE));
+    /* Sequential execution on Windows (no pthread dependency) */
     conv_args_col *ColArgs = (conv_args_col *)malloc((size_t)Nthreads_col * sizeof(conv_args_col));
-
     for (t = 0; t < Nthreads_col; ++t)
     {
         int ini = (t * xdim) / Nthreads_col;
@@ -662,13 +622,8 @@ static void convxy_float(float *out, int xdim, int ydim,
         ColArgs[t].ini = ini;
         ColArgs[t].fin = fin;
 
-        ColThreads[t] = (HANDLE)_beginthreadex(NULL, 0, &conv_col_worker, &ColArgs[t], 0, NULL);
+        conv_col_worker(&ColArgs[t]);
     }
-    for (t = 0; t < Nthreads_col; ++t)
-        WaitForSingleObject(ColThreads[t], INFINITE);
-    for (t = 0; t < Nthreads_col; ++t)
-        CloseHandle(ColThreads[t]);
-    free(ColThreads);
     free(ColArgs);
 #else
     pthread_t *ColThreads = (pthread_t *)calloc((size_t)Nthreads_col, sizeof(pthread_t));
@@ -708,11 +663,7 @@ static void convxy_float(float *out, int xdim, int ydim,
                          int xoff, int yoff,
                          float *buff);
 
-#if defined(_WIN32) || defined(_WIN64)
-static unsigned int __stdcall
-#else
 static void *
-#endif
 convxyz_stage1_worker(void *p)
 {
     convxyz_s1_args_t a = *(convxyz_s1_args_t *)p;
@@ -724,12 +675,7 @@ convxyz_stage1_worker(void *p)
 
     if (!buff)
     {
-#if defined(_WIN32) || defined(_WIN64)
-        _endthreadex(0);
-        return 0;
-#else
-        return 0;
-#endif
+        return NULL;
     }
 
     for (z = a.z_ini; z < a.z_fin; ++z)
@@ -749,22 +695,12 @@ convxyz_stage1_worker(void *p)
     }
 
     free(buff);
-
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    return 0;
-#endif
+    return NULL;
 }
 
 /* ---------- Stage 2: z-direction 1D convolution per output slice in parallel ---------- */
 
-#if defined(_WIN32) || defined(_WIN64)
-static unsigned int __stdcall
-#else
 static void *
-#endif
 convxyz_stage2_worker(void *p)
 {
     convxyz_s2_args_t a = *(convxyz_s2_args_t *)p;
@@ -810,12 +746,7 @@ convxyz_stage2_worker(void *p)
         }
     }
 
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    return 0;
-#endif
+    return NULL;
 }
 
 /* ========================= Multithreaded convxyz_float ========================= */
@@ -875,9 +806,9 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             Nthreads = 1;
 
 #if defined(_WIN32) || defined(_WIN64)
-        HANDLE *ThreadList = (HANDLE *)malloc((size_t)Nthreads * sizeof(HANDLE));
+        /* Sequential execution on Windows (no pthread dependency) */
         convxyz_s1_args_t *Args = (convxyz_s1_args_t *)malloc((size_t)Nthreads * sizeof(convxyz_s1_args_t));
-        if (!ThreadList || !Args)
+        if (!Args)
         {
             fprintf(stderr, "Memory allocation error (threads stage1)\n");
             exit(EXIT_FAILURE);
@@ -901,13 +832,8 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             Args[i].z_ini = ini;
             Args[i].z_fin = fin;
 
-            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &convxyz_stage1_worker, &Args[i], 0, NULL);
+            convxyz_stage1_worker(&Args[i]);
         }
-        for (i = 0; i < Nthreads; ++i)
-            WaitForSingleObject(ThreadList[i], INFINITE);
-        for (i = 0; i < Nthreads; ++i)
-            CloseHandle(ThreadList[i]);
-        free(ThreadList);
         free(Args);
 #else
         pthread_t *ThreadList = (pthread_t *)calloc((size_t)Nthreads, sizeof(pthread_t));
@@ -952,9 +878,9 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             Nthreads = 1;
 
 #if defined(_WIN32) || defined(_WIN64)
-        HANDLE *ThreadList = (HANDLE *)malloc((size_t)Nthreads * sizeof(HANDLE));
+        /* Sequential execution on Windows (no pthread dependency) */
         convxyz_s2_args_t *Args = (convxyz_s2_args_t *)malloc((size_t)Nthreads * sizeof(convxyz_s2_args_t));
-        if (!ThreadList || !Args)
+        if (!Args)
         {
             fprintf(stderr, "Memory allocation error (threads stage2)\n");
             exit(EXIT_FAILURE);
@@ -975,13 +901,8 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
             Args[i].z_out_ini = ini;
             Args[i].z_out_fin = fin;
 
-            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &convxyz_stage2_worker, &Args[i], 0, NULL);
+            convxyz_stage2_worker(&Args[i]);
         }
-        for (i = 0; i < Nthreads; ++i)
-            WaitForSingleObject(ThreadList[i], INFINITE);
-        for (i = 0; i < Nthreads; ++i)
-            CloseHandle(ThreadList[i]);
-        free(ThreadList);
         free(Args);
 #else
         pthread_t *ThreadList = (pthread_t *)calloc((size_t)Nthreads, sizeof(pthread_t));

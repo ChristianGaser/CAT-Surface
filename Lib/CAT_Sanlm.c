@@ -40,10 +40,7 @@
 #include <stdio.h>
 
 /* Multithreading stuff */
-#if defined(_WIN32)
-#include <windows.h>
-#include <process.h>
-#else
+#if !defined(_WIN32)
 #include <pthread.h>
 #endif
 
@@ -541,7 +538,7 @@ void Regularize(float *in, float *out, int r, int sx, int sy, int sz)
 }
 
 #if defined(_WIN32)
-unsigned int __stdcall
+unsigned int
 #else
 void *
 #endif
@@ -745,7 +742,7 @@ ThreadFunc(void *pArguments)
             }
 
 #if defined(_WIN32)
-    _endthreadex(0);
+    return 0;
 #else
     pthread_exit(0);
 #endif
@@ -781,7 +778,7 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
     myargument *ThreadArgs;
 
 #if defined(_WIN32)
-    HANDLE *ThreadList; /* Handles to the worker threads*/
+    HANDLE *ThreadList;
 #else
     pthread_t *ThreadList;
 #endif
@@ -897,8 +894,7 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
         Nthreads = 1;
 
 #if defined(_WIN32)
-
-    /* Reserve room for handles of threads in ThreadList*/
+    /* Sequential execution on Windows (no pthread dependency) */
     ThreadList = (HANDLE *)malloc(Nthreads * sizeof(HANDLE));
     ThreadArgs = (myargument *)malloc(Nthreads * sizeof(myargument));
 
@@ -922,17 +918,9 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
         ThreadArgs[i].radioS = f;
         ThreadArgs[i].strength = strength;
 
-        ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &ThreadFunc, &ThreadArgs[i], 0, NULL);
+        ThreadFunc(&ThreadArgs[i]);
     }
-
-    for (i = 0; i < Nthreads; i++)
-    {
-        WaitForSingleObject(ThreadList[i], INFINITE);
-    }
-    for (i = 0; i < Nthreads; i++)
-    {
-        CloseHandle(ThreadList[i]);
-    }
+    free(ThreadArgs);
 
 #else
 

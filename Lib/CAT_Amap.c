@@ -14,20 +14,13 @@
 #include "CAT_Math.h"
 
 /* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
-#if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
-#include <process.h>
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
 #endif
 
 #define MAX_NTHREADS 16
 
-#if defined(_WIN32) || defined(_WIN64)
-static unsigned int __stdcall
-#else
 static void *
-#endif
 gmv_accum_worker(void *p)
 {
     gmv_accum_args_t a = *(gmv_accum_args_t *)p;
@@ -94,19 +87,10 @@ gmv_accum_worker(void *p)
                 }
             }
 
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    return 0;
-#endif
+    return NULL;
 }
 
-#if defined(_WIN32) || defined(_WIN64)
-static unsigned int __stdcall
-#else
 static void *
-#endif
 gmv_reduce_worker(void *p)
 {
     gmv_reduce_args_t a = *(gmv_reduce_args_t *)p;
@@ -145,12 +129,7 @@ gmv_reduce_worker(void *p)
         }
     }
 
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    return 0;
-#endif
+    return NULL;
 }
 
 /* calculate the mean and variance for every class on a grid size SUBxSUBxSUB */
@@ -204,9 +183,9 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
             Nthreads = 1;
 
 #if defined(_WIN32) || defined(_WIN64)
-        HANDLE *ThreadList = (HANDLE *)malloc((size_t)Nthreads * sizeof(HANDLE));
+        /* Sequential execution on Windows (no pthread dependency) */
         gmv_accum_args_t *Args = (gmv_accum_args_t *)malloc((size_t)Nthreads * sizeof(gmv_accum_args_t));
-        if (!ThreadList || !Args)
+        if (!Args)
         {
             printf("Memory allocation error\n");
             exit(EXIT_FAILURE);
@@ -236,13 +215,8 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
             Args[t].z_ini = ini;
             Args[t].z_fin = fin;
 
-            ThreadList[t] = (HANDLE)_beginthreadex(NULL, 0, &gmv_accum_worker, &Args[t], 0, NULL);
+            gmv_accum_worker(&Args[t]);
         }
-        for (t = 0; t < Nthreads; ++t)
-            WaitForSingleObject(ThreadList[t], INFINITE);
-        for (t = 0; t < Nthreads; ++t)
-            CloseHandle(ThreadList[t]);
-        free(ThreadList);
         free(Args);
 #else
         pthread_t *ThreadList = (pthread_t *)calloc((size_t)Nthreads, sizeof(pthread_t));
@@ -293,9 +267,9 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
             Nthreads = 1;
 
 #if defined(_WIN32) || defined(_WIN64)
-        HANDLE *ThreadList = (HANDLE *)malloc((size_t)Nthreads * sizeof(HANDLE));
+        /* Sequential execution on Windows (no pthread dependency) */
         gmv_reduce_args_t *Args = (gmv_reduce_args_t *)malloc((size_t)Nthreads * sizeof(gmv_reduce_args_t));
-        if (!ThreadList || !Args)
+        if (!Args)
         {
             printf("Memory allocation error\n");
             exit(EXIT_FAILURE);
@@ -314,13 +288,8 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
             Args[t].j_ini = j_ini;
             Args[t].j_fin = j_fin;
 
-            ThreadList[t] = (HANDLE)_beginthreadex(NULL, 0, &gmv_reduce_worker, &Args[t], 0, NULL);
+            gmv_reduce_worker(&Args[t]);
         }
-        for (t = 0; t < Nthreads; ++t)
-            WaitForSingleObject(ThreadList[t], INFINITE);
-        for (t = 0; t < Nthreads; ++t)
-            CloseHandle(ThreadList[t]);
-        free(ThreadList);
         free(Args);
 #else
         pthread_t *ThreadList = (pthread_t *)calloc((size_t)Nthreads, sizeof(pthread_t));

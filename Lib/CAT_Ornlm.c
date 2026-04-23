@@ -50,10 +50,7 @@
 #include "CAT_SafeAlloc.h"
 #include "CAT_Math.h"
 
-#if defined(_WIN32) || defined(_WIN64)
-#include <windows.h>
-#include <process.h> /* _beginthreadex, _endthreadex */
-#else
+#if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
 pthread_mutex_t mutex_ornlm = PTHREAD_MUTEX_INITIALIZER;
 #endif
@@ -287,20 +284,7 @@ typedef struct
     const int *dims; /* dims pointer for Average_block_ornlm */
 } myargument;
 
-#if defined(_WIN32) || defined(_WIN64)
-unsigned int __stdcall
-#else
 void *
-#endif
-/**
- * \brief Thread worker for optimized non-local means filtering.
- *
- * Processes a range of slices, computes patch distances and weights,
- * and accumulates block estimates with optional Rician correction.
- *
- * \param pArguments (in) pointer to thread argument struct
- * \return Thread exit code
- */
 ThreadFunc_ornlm(void *pArguments)
 {
     myargument arg = *(myargument *)pArguments;
@@ -329,13 +313,7 @@ ThreadFunc_ornlm(void *pArguments)
     float *average = SAFE_MALLOC(float, Ndims);
     if (!average)
     {
-#if defined(_WIN32) || defined(_WIN64)
-        _endthreadex(0);
-        return 0;
-#else
-        pthread_exit(0);
-        return 0;
-#endif
+        return NULL;
     }
 
     int k, i, j, ii, jj, kk, ni, nj, nk, init;
@@ -442,14 +420,7 @@ ThreadFunc_ornlm(void *pArguments)
     }
 
     free(average);
-
-#if defined(_WIN32) || defined(_WIN64)
-    _endthreadex(0);
-    return 0;
-#else
-    pthread_exit(0);
-    return 0;
-#endif
+    return NULL;
 }
 
 /* ----------------------- end multithreading additions ------------------- */
@@ -593,8 +564,8 @@ void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
         myargument *ThreadArgs;
 
 #if defined(_WIN32) || defined(_WIN64)
-        HANDLE *ThreadList; /* Handles to the worker threads*/
-        ThreadList = SAFE_MALLOC(HANDLE, Nthreads);
+        /* Sequential execution on Windows (no pthread dependency) */
+        myargument *ThreadArgs;
         ThreadArgs = SAFE_MALLOC(myargument, Nthreads);
 
         for (i = 0; i < Nthreads; i++)
@@ -618,17 +589,10 @@ void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
             ThreadArgs[i].inv_h2 = 1.0f / (h * h);
             ThreadArgs[i].dims = dims;
 
-            ThreadList[i] = (HANDLE)_beginthreadex(NULL, 0, &ThreadFunc_ornlm, &ThreadArgs[i], 0, NULL);
+            ThreadFunc_ornlm(&ThreadArgs[i]);
         }
 
-        for (i = 0; i < Nthreads; i++)
-        {
-            WaitForSingleObject(ThreadList[i], INFINITE);
-        }
-        for (i = 0; i < Nthreads; i++)
-        {
-            CloseHandle(ThreadList[i]);
-        }
+        free(ThreadArgs);
 
 #else /* POSIX */
         pthread_t *ThreadList;
