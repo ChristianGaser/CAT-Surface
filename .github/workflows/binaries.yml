@@ -48,7 +48,10 @@ jobs:
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Build
-        run: make -j$(nproc)
+        # On failure retry with a single job so the error appears
+        # in sequence without being buried under fftw-build output.
+        shell: bash
+        run: make -j$(nproc) || make -j1
 
       - name: Verify binaries
         run: |
