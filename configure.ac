@@ -119,17 +119,29 @@ if test "$build_mac" = "yes"; then
     OPENMP_BUNDLED_FOUND=yes
   fi
 elif test "$build_windows" = "yes"; then
-  # On Windows/MinGW, libgomp.a is used directly from the active compiler.
-  # Static linking of libgomp (and its libwinpthread dependency) is achieved
-  # by passing -static in LDFLAGS at configure time (see binaries.yml), which
-  # makes ld prefer .a over .dll.a for every library reference globally.
-  gomp_lib=`$CC -print-file-name=libgomp.a 2>/dev/null`
-  if test -n "$omp_arch" && test "$gomp_lib" != "libgomp.a" && test -f "$gomp_lib"; then
+  # On Windows/MinGW we prefer a bundled libgomp.a placed at
+  #   3rdparty/libgomp/lib/libgomp-x86_64-mingw.a   (x86_64 MinGW build)
+  #   3rdparty/libgomp/lib/libgomp-arm64-mingw.a    (future arm64 MinGW build)
+  # If the bundled archive is absent we fall back to whatever libgomp.a the
+  # active MinGW toolchain provides ($CC -print-file-name).
+  # In both cases -static in LDFLAGS makes ld prefer .a over .dll.a globally,
+  # so libgomp-1.dll and libwinpthread-1.dll will not appear as DLL imports.
+  gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
+  gomp_bundled="${gomp_srcdir}/lib/libgomp-${omp_arch}-mingw.a"
+  if test -n "$omp_arch" && test -f "$gomp_bundled"; then
+    AC_MSG_NOTICE([using bundled MinGW libgomp: $gomp_bundled])
     OPENMP_BUNDLED_CFLAGS="-fopenmp"
-    OPENMP_BUNDLED_LIBS="$gomp_lib"
+    OPENMP_BUNDLED_LIBS="$gomp_bundled"
     OPENMP_BUNDLED_FOUND=yes
   else
-    AC_MSG_WARN([libgomp.a not found; OpenMP disabled on Windows])
+    gomp_lib=`$CC -print-file-name=libgomp.a 2>/dev/null`
+    if test -n "$omp_arch" && test "$gomp_lib" != "libgomp.a" && test -f "$gomp_lib"; then
+      OPENMP_BUNDLED_CFLAGS="-fopenmp"
+      OPENMP_BUNDLED_LIBS="$gomp_lib"
+      OPENMP_BUNDLED_FOUND=yes
+    else
+      AC_MSG_WARN([libgomp.a not found; OpenMP disabled on Windows])
+    fi
   fi
 elif test "$build_linux" = "yes"; then
   gomp_srcdir=$(cd "$srcdir" && pwd)/3rdparty/libgomp
