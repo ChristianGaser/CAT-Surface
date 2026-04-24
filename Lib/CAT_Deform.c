@@ -768,13 +768,15 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         {
             for (v = 0; v < n_points; v++)
             {
-                if ((i>0) && (flags[v]>0)) {
-                    scale_field = 0.1*fmax(0.0, 10.0-(float)flags[v]);
-                } else
+                if ((i > 0) && (flags[v] > 0))
+                {
+                    scale_field = 0.1 * fmax(0.0, 10.0 - (float)flags[v]);
+                }
+                else
                     scale_field = 1.0;
-                Point_x(polygons1->points[v]) += scale_field*displacement_field1[v][0];
-                Point_y(polygons1->points[v]) += scale_field*displacement_field1[v][1];
-                Point_z(polygons1->points[v]) += scale_field*displacement_field1[v][2];
+                Point_x(polygons1->points[v]) += scale_field * displacement_field1[v][0];
+                Point_y(polygons1->points[v]) += scale_field * displacement_field1[v][1];
+                Point_z(polygons1->points[v]) += scale_field * displacement_field1[v][2];
             }
         }
         if (have2)
@@ -797,10 +799,12 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                 if (flags1[v])
                 {
                     flags[v]++;
-                    Point_x(polygons1->points[v]) -= 1.5*displacement_field1[v][0];
-                    Point_y(polygons1->points[v]) -= 1.5*displacement_field1[v][1];
-                    Point_z(polygons1->points[v]) -= 1.5*displacement_field1[v][2];
-                } else flags[v] = 0;
+                    Point_x(polygons1->points[v]) -= 1.5 * displacement_field1[v][0];
+                    Point_y(polygons1->points[v]) -= 1.5 * displacement_field1[v][1];
+                    Point_z(polygons1->points[v]) -= 1.5 * displacement_field1[v][2];
+                }
+                else
+                    flags[v] = 0;
             }
             free(flags1);
         }
@@ -817,7 +821,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                     Point_x(polygons2->points[v]) -= displacement_field2[v][0];
                     Point_y(polygons2->points[v]) -= displacement_field2[v][1];
                     Point_z(polygons2->points[v]) -= displacement_field2[v][2];
-                } else if (!have1) flags[v] = 0;
+                }
+                else if (!have1)
+                    flags[v] = 0;
             }
             free(flags2);
         }
