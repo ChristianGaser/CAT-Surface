@@ -32,7 +32,7 @@ jobs:
           yum install -y epel-release
           yum install -y \
             git rsync zip \
-            autoconf automake libtool autoconf-archive pkg-config make \
+            autoconf automake libtool autoconf-archive pkgconfig make \
             gcc gcc-c++ \
             fftw-devel
 
