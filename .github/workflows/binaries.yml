@@ -4,13 +4,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Linux is a separate job so we can pin it to an ubuntu:20.04 container.
-  # This keeps compiled binaries compatible with systems running glibc >= 2.31
-  # (Ubuntu 20.04+).  Compiling on the bare ubuntu-22.04 runner (glibc 2.35)
-  # would produce binaries that reference GLIBC_2.34 symbols and fail on any
-  # system with an older glibc.
-  # Note: ubuntu:18.04 (glibc 2.27) cannot be used because the GitHub Actions
-  # Node.js 24 runtime itself requires GLIBC_2.28.
+  # manylinux2014 (CentOS 7, glibc 2.17) keeps binaries compatible with any
+  # Linux system shipping glibc >= 2.17 — far broader than an Ubuntu-based
+  # container could provide.  -static-libgcc/-static-libstdc++ bundle the GCC
+  # runtime so binaries don't depend on the host compiler libraries either.
   build_linux:
     name: Build (${{ matrix.artifact }})
     runs-on: ${{ matrix.os }}
@@ -21,20 +18,23 @@ jobs:
           - os: ubuntu-22.04
             arch: x64
             artifact: cat-surface-ubuntu-x86_64
+            container_image: quay.io/pypa/manylinux2014_x86_64
           - os: ubuntu-22.04-arm
             arch: arm64
             artifact: cat-surface-ubuntu-arm64
+            container_image: quay.io/pypa/manylinux2014_aarch64
     container:
-      image: ubuntu:20.04
+      image: ${{ matrix.container_image }}
 
     steps:
       - name: Install system dependencies
         run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            git rsync zip ca-certificates \
-            autoconf automake libtool autoconf-archive build-essential \
-            pkg-config
+          yum install -y epel-release
+          yum install -y \
+            git rsync zip \
+            autoconf automake libtool autoconf-archive pkg-config make \
+            gcc gcc-c++ \
+            fftw-devel
 
       - uses: actions/checkout@v6
 
@@ -45,6 +45,7 @@ jobs:
           export CFLAGS="-O2"
           export CXXFLAGS="-O2"
           export CPPFLAGS="-O2"
+          export LDFLAGS="-static-libstdc++ -static-libgcc"
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Build
