@@ -13,15 +13,15 @@
 Vector projectToPlane(Vector projected, Vector basis[2]);
 Vector projection(Vector vector, Vector normal);
 
-void leastSquares(const int num, Vector dc[], Vector dn[], double *k1, 
-                                      double *k2);
-void compute_points_centroid_and_normal_cg(polygons_struct *, int, int, int [],
-                                      Point *, Vector *, double *, int,
-                                      double *);
-void get_polygon_vertex_curvatures_cg(polygons_struct *, int [], int *[],
-                                      double, int, double []);
+void leastSquares(const int num, Vector dc[], Vector dn[], double *k1,
+                  double *k2);
+void compute_points_centroid_and_normal_cg(polygons_struct *, int, int, int[],
+                                           Point *, Vector *, double *, int,
+                                           double *);
+void get_polygon_vertex_curvatures_cg(polygons_struct *, int[], int *[],
+                                      double, int, double[]);
 void get_smoothed_curvatures(polygons_struct *, double *,
-                                      double, int);
+                             double, int);
 /**
  * \brief Compute sulcal depth using convex hull Euclidean distance.
  *
@@ -51,7 +51,7 @@ void compute_sulcal_depth_inflation(polygons_struct *, double *);
  * \param param (in/out) Parameter of compute_local_sharpness.
  * \return void (no return value).
  */
-void compute_local_sharpness(polygons_struct *, int [], int * [], double *);
+void compute_local_sharpness(polygons_struct *, int[], int *[], double *);
 /**
  * \brief Public API for compute_convexity.
  *
@@ -63,6 +63,6 @@ void compute_local_sharpness(polygons_struct *, int [], int * [], double *);
  * \param param (in/out) Parameter of compute_convexity.
  * \return void (no return value).
  */
-void compute_convexity(polygons_struct *, int [], int *[], double *);
+void compute_convexity(polygons_struct *, int[], int *[], double *);
 
 #endif

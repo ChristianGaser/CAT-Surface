@@ -128,5 +128,6 @@ bin_PROGRAMS = \
     CAT_SurfReduce \
     CAT_SurfRemoveIntersections \
     CAT_Surf2ROIMulti \
-    CAT_SurfSPH2Surf
+    CAT_SurfSPH2Surf \
+    CAT_SurfBBReg
 

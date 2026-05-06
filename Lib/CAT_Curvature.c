@@ -488,8 +488,7 @@ void compute_sulcus_depth(polygons_struct *surface, double *depth)
  * \param surface (in/out) surface mesh; centered in-place at its center of mass
  * \param depth   (out)    double[n_points]; signed displacement along surface normal
  */
-void
-compute_sulcal_depth_inflation(polygons_struct *surface, double *depth)
+void compute_sulcal_depth_inflation(polygons_struct *surface, double *depth)
 {
     int i;
     object_struct *inflated_obj;
@@ -514,22 +513,22 @@ compute_sulcal_depth_inflation(polygons_struct *surface, double *depth)
     copy_polygons(surface, inflated);
 
     inflate_surface_and_smooth_fingers(inflated,
-        /*  cycles              */ 1,
-        /*  reg smooth strength */ 0.2,
-        /*  reg smooth iters   */ 50,
-        /*  inflation factor   */ 1.0,
-        /*  comp/stretch thresh */ 3.0,
-        /*  finger smooth str  */ 1.0,
-        /*  finger smooth iters*/ 0);
+                                       /*  cycles              */ 1,
+                                       /*  reg smooth strength */ 0.2,
+                                       /*  reg smooth iters   */ 50,
+                                       /*  inflation factor   */ 1.0,
+                                       /*  comp/stretch thresh */ 3.0,
+                                       /*  finger smooth str  */ 1.0,
+                                       /*  finger smooth iters*/ 0);
 
     inflate_surface_and_smooth_fingers(inflated,
-        /*  cycles              */ 2,
-        /*  reg smooth strength */ 1.0,
-        /*  reg smooth iters   */ 30,
-        /*  inflation factor   */ 1.4,
-        /*  comp/stretch thresh */ 3.0,
-        /*  finger smooth str  */ 1.0,
-        /*  finger smooth iters*/ 30);
+                                       /*  cycles              */ 2,
+                                       /*  reg smooth strength */ 1.0,
+                                       /*  reg smooth iters   */ 30,
+                                       /*  inflation factor   */ 1.4,
+                                       /*  comp/stretch thresh */ 3.0,
+                                       /*  finger smooth str  */ 1.0,
+                                       /*  finger smooth iters*/ 30);
 
     /* Step 4: project displacement onto original surface normal. */
     for (i = 0; i < surface->n_points; i++)
@@ -537,9 +536,7 @@ compute_sulcal_depth_inflation(polygons_struct *surface, double *depth)
         dx = Point_x(inflated->points[i]) - Point_x(orig_pts[i]);
         dy = Point_y(inflated->points[i]) - Point_y(orig_pts[i]);
         dz = Point_z(inflated->points[i]) - Point_z(orig_pts[i]);
-        depth[i] = dx * Vector_x(surface->normals[i])
-                 + dy * Vector_y(surface->normals[i])
-                 + dz * Vector_z(surface->normals[i]);
+        depth[i] = dx * Vector_x(surface->normals[i]) + dy * Vector_y(surface->normals[i]) + dz * Vector_z(surface->normals[i]);
     }
 
     free(orig_pts);
