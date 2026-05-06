@@ -23,15 +23,23 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *, int [], int *[],
 void get_smoothed_curvatures(polygons_struct *, double *,
                                       double, int);
 /**
- * \brief Public API for compute_sulcus_depth.
+ * \brief Compute sulcal depth using convex hull Euclidean distance.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of compute_sulcus_depth.
- * \param param (in/out) Parameter of compute_sulcus_depth.
- * \return void (no return value).
+ * \param surface (in)  cortical surface mesh
+ * \param depth   (out) double[n_points]; distance to convex hull for each vertex
  */
 void compute_sulcus_depth(polygons_struct *, double *);
+/**
+ * \brief Compute FreeSurfer-style sulcal depth via iterative surface inflation.
+ *
+ * Inflates a copy of the surface and projects each vertex's displacement onto
+ * its original surface normal. Provides a signed depth measure comparable to
+ * FreeSurfer's sulc file (curvtype 11 in get_polygon_vertex_curvatures_cg).
+ *
+ * \param surface (in/out) surface mesh; centered in-place at its center of mass
+ * \param depth   (out)    double[n_points]; signed displacement along surface normal
+ */
+void compute_sulcal_depth_inflation(polygons_struct *, double *);
 /**
  * \brief Public API for compute_local_sharpness.
  *

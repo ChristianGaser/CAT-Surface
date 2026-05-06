@@ -18,6 +18,12 @@
 #include "CAT_ConvexHull.h"
 #include "CAT_DepthPotential.h"
 
+/* Forward declarations for functions defined in CAT_Surf.c */
+void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
+                                        const double, const int, const double,
+                                        const double, const double, const int);
+void translate_to_center_of_mass(polygons_struct *);
+
 #define PI2 0.6366197724 /* 2/pi */
 
 /**
@@ -303,15 +309,20 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
         initialized = FALSE;
     }
 
+    /* inflation-based sulcal depth (FreeSurfer-style) */
+    if (curvtype == 11)
+    {
+        compute_sulcal_depth_inflation(polygons, curvatures);
+    }
     /* depth potential */
-    if (curvtype > 11)
+    else if (curvtype > 11)
     {
         /* looks weird, but we need a way to define the small values alpha << 1 */
         alpha = 1 / (double)curvtype;
         values = compute_depth_potential(polygons, alpha);
         for (pidx = 0; pidx < polygons->n_points; pidx++)
             curvatures[pidx] = values[pidx];
-        /* sulcal depth like estimator */
+        /* sulcal depth like estimator (single-step smoothing approximation) */
     }
     else if (curvtype == 5)
     {
@@ -456,6 +467,83 @@ void compute_sulcus_depth(polygons_struct *surface, double *depth)
 
     delete_object_list(1, object);
     delete_the_bintree(&convex->bintree);
+}
+
+/**
+ * \brief Compute FreeSurfer-style sulcal depth via iterative surface inflation.
+ *
+ * Inflates a copy of the surface using the same spring-model inflation as
+ * surf_to_sphere() and measures the displacement of each vertex projected onto
+ * its original surface normal. Sulcal vertices move outward during inflation
+ * (positive values) while gyral vertices move less, producing a measure of
+ * fold depth comparable to FreeSurfer's sulc file.
+ *
+ * Algorithm:
+ *  1. Center the surface at its center of mass.
+ *  2. Compute and save the original surface normals and vertex positions.
+ *  3. Inflate a copy with two stages of inflate_surface_and_smooth_fingers()
+ *     matching the first two stages of surf_to_sphere().
+ *  4. For each vertex: depth[i] = dot(inflated[i] - original[i], normal[i]).
+ *
+ * \param surface (in/out) surface mesh; centered in-place at its center of mass
+ * \param depth   (out)    double[n_points]; signed displacement along surface normal
+ */
+void
+compute_sulcal_depth_inflation(polygons_struct *surface, double *depth)
+{
+    int i;
+    object_struct *inflated_obj;
+    polygons_struct *inflated;
+    Point *orig_pts;
+    double dx, dy, dz;
+
+    /* Step 1: center the original surface so the internal re-centering inside
+       inflate_surface_and_smooth_fingers() is a no-op. */
+    translate_to_center_of_mass(surface);
+
+    /* Step 2: compute normals on the centered original and save positions. */
+    compute_polygon_normals(surface);
+    orig_pts = (Point *)malloc(surface->n_points * sizeof(Point));
+    for (i = 0; i < surface->n_points; i++)
+        orig_pts[i] = surface->points[i];
+
+    /* Step 3: inflate a copy using parameters from the first two stages of
+       surf_to_sphere() — enough to separate sulci from gyri. */
+    inflated_obj = create_object(POLYGONS);
+    inflated = get_polygons_ptr(inflated_obj);
+    copy_polygons(surface, inflated);
+
+    inflate_surface_and_smooth_fingers(inflated,
+        /*  cycles              */ 1,
+        /*  reg smooth strength */ 0.2,
+        /*  reg smooth iters   */ 50,
+        /*  inflation factor   */ 1.0,
+        /*  comp/stretch thresh */ 3.0,
+        /*  finger smooth str  */ 1.0,
+        /*  finger smooth iters*/ 0);
+
+    inflate_surface_and_smooth_fingers(inflated,
+        /*  cycles              */ 2,
+        /*  reg smooth strength */ 1.0,
+        /*  reg smooth iters   */ 30,
+        /*  inflation factor   */ 1.4,
+        /*  comp/stretch thresh */ 3.0,
+        /*  finger smooth str  */ 1.0,
+        /*  finger smooth iters*/ 30);
+
+    /* Step 4: project displacement onto original surface normal. */
+    for (i = 0; i < surface->n_points; i++)
+    {
+        dx = Point_x(inflated->points[i]) - Point_x(orig_pts[i]);
+        dy = Point_y(inflated->points[i]) - Point_y(orig_pts[i]);
+        dz = Point_z(inflated->points[i]) - Point_z(orig_pts[i]);
+        depth[i] = dx * Vector_x(surface->normals[i])
+                 + dy * Vector_y(surface->normals[i])
+                 + dz * Vector_z(surface->normals[i]);
+    }
+
+    free(orig_pts);
+    delete_object(inflated_obj);
 }
 
 /**

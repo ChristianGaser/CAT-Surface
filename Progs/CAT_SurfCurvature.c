@@ -35,6 +35,7 @@ Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals]\n\n\
         8 - folding index |k1|*(|k1| - |k2|)\n\
         9 - minimum curvature k2\n\
        10 - maximum curvature k1\n\
+       11 - inflation-based sulcal depth (FreeSurfer sulc-style)\n\
       >11 - depth potential with alpha = 1/curvtype (recommended value curvtype=650)\n\n";
 
     fprintf(stderr, usage_str, executable);
