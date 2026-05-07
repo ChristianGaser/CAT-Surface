@@ -201,7 +201,9 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "Error writing output matrix: %s\n", output_file);
         free(vol);
+        nii_ptr->data = NULL;
         nifti_image_free(nii_ptr);
+        delete_object_list(n_objects, objects);
         exit(EXIT_FAILURE);
     }
 
@@ -212,6 +214,8 @@ int main(int argc, char *argv[])
            p_best.rx, p_best.ry, p_best.rz);
 
     free(vol);
+    nii_ptr->data = NULL;
     nifti_image_free(nii_ptr);
+    delete_object_list(n_objects, objects);
     return EXIT_SUCCESS;
 }
