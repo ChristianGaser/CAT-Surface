@@ -176,9 +176,12 @@ EOF
   # would re-introduce the dynamic libwinpthread-1.dll dependency we removed.
   openmp_test_pthread_flag=""
   test "$build_windows" != "yes" && openmp_test_pthread_flag="-pthread"
-  if $CC $CPPFLAGS $CFLAGS $OPENMP_BUNDLED_CFLAGS $LDFLAGS \
+  # Put bundled OpenMP flags first so their include path wins over user CPPFLAGS.
+  # This avoids false negatives when a conflicting/unreadable omp.h exists
+  # earlier in system include paths (e.g. /usr/local/include on macOS).
+  if $CC $OPENMP_BUNDLED_CFLAGS $CPPFLAGS $CFLAGS $LDFLAGS \
         conftest_openmp_runtime.c $OPENMP_BUNDLED_LIBS $openmp_test_pthread_flag \
-        -o conftest_openmp_runtime$ac_exeext >/dev/null 2>&1; then
+        -o conftest_openmp_runtime$ac_exeext 1>&5 2>&5; then
     OPENMP_CFLAGS="$OPENMP_BUNDLED_CFLAGS"
     OPENMP_LIBS="$OPENMP_BUNDLED_LIBS"
     AC_MSG_RESULT([yes])
