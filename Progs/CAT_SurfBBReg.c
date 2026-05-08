@@ -22,6 +22,7 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_BBReg.h"
+#include "CAT_Vol.h"
 
 /* -----------------------------------------------------------------------
  * Argument defaults
@@ -37,6 +38,7 @@ static int grid_steps = 2;           /* Stage-1 steps per DOF               */
 static int max_iter = 200;           /* Powell iterations                   */
 static double tol = 1e-5;            /* Powell convergence tolerance        */
 static int verbose = 0;
+static double fwhm = 0.0;               /* Gaussian pre-smoothing FWHM (mm, 0=off) */
 static char *output_volume_file = NULL; /* optional coregistered volume output */
 
 /* Surface / label / thickness file names (NULL = not provided) */
@@ -122,6 +124,11 @@ static ArgvInfo argTable[] =
         {"-init-rz", ARGV_FLOAT, (char *)1, (char *)&init_rz,
          "Initial z-rotation (radians). Default: 0"},
 
+        {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&fwhm,
+         "Gaussian smoothing FWHM applied to the moving volume before computing the"
+         " BBR cost (mm).  Equivalent to FreeSurfer mri_segreg --fwhm.  Each"
+         " timepoint of a 4D series is smoothed independently.  Default: 0 (off)."},
+
         {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
          "Print optimisation progress. Default: off"},
 
@@ -172,6 +179,7 @@ usage(const char *exe)
             "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
             "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
             "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
+            "  -fwhm <mm>              Gaussian pre-smoothing FWHM (default: 0 = off)\n"
             "  -verbose                Print optimisation progress\n"
             "  -output-volume <file>   Save coregistered volume (header update only)\n\n");
 }
@@ -244,7 +252,8 @@ int main(int argc, char *argv[])
     float *vol = NULL;
     int dims[3];
     CAT_RigidParams p_init, p_best;
-    double m_best[16];
+    double m_best[16]; /* surface(T1)→EPI; internal optimizer direction */
+    double m_inv[16];  /* EPI→surface(T1); standard output / header direction */
     double final_cost;
 
     CAT_SurfData surfs[2];
@@ -329,6 +338,31 @@ int main(int argc, char *argv[])
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
 
+    /* --- Optional Gaussian pre-smoothing (applied per timepoint) --- */
+    if (fwhm > 0.0)
+    {
+        double voxelsize[3];
+        double fwhm_vox[3];
+        int t, nvox3 = dims[0] * dims[1] * dims[2];
+        int nt = (nii_ptr->nt > 1) ? nii_ptr->nt : 1;
+
+        voxelsize[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
+        voxelsize[1] = nii_ptr->dy > 0.0 ? nii_ptr->dy : 1.0;
+        voxelsize[2] = nii_ptr->dz > 0.0 ? nii_ptr->dz : 1.0;
+
+        /* smooth3 takes FWHM in voxel units */
+        fwhm_vox[0] = fwhm / voxelsize[0];
+        fwhm_vox[1] = fwhm / voxelsize[1];
+        fwhm_vox[2] = fwhm / voxelsize[2];
+
+        if (verbose)
+            printf("Smoothing: FWHM %.2f mm (%.2f x %.2f x %.2f vox), %d frame(s)\n",
+                   fwhm, fwhm_vox[0], fwhm_vox[1], fwhm_vox[2], nt);
+
+        for (t = 0; t < nt; t++)
+            smooth3(vol + t * nvox3, dims, voxelsize, fwhm_vox, 0, DT_FLOAT32);
+    }
+
     /* --- Initial parameters --- */
     p_init.tx = init_tx;
     p_init.ty = init_ty;
@@ -377,10 +411,17 @@ int main(int argc, char *argv[])
                                     grid_range_mm, grid_range_rad, grid_steps,
                                     max_iter, tol, verbose);
 
-    /* --- Convert best parameters to 4x4 matrix and write --- */
+    /* --- Convert best parameters to 4x4 matrix and write ---
+     * m_best maps fixed-surface(T1) RAS → moving-volume(EPI) RAS; that is the
+     * direction the optimizer uses to transform surface sample points into the
+     * EPI before trilinear interpolation.  The standard output convention
+     * (matching bbregister / bbreg) is the *inverse*: EPI RAS → T1 RAS.
+     * Applying the inverse to the original sform (voxel→EPI RAS) then gives
+     * the updated sform (voxel→T1 RAS). */
     CAT_BBReg_params_to_matrix(&p_best, m_best);
+    CAT_BBReg_invert_matrix(m_best, m_inv);
 
-    if (CAT_BBReg_write_matrix(output_file, m_best) != 0)
+    if (CAT_BBReg_write_matrix(output_file, m_inv) != 0)
     {
         fprintf(stderr, "Error writing output matrix: %s\n", output_file);
         free(vol);
@@ -391,7 +432,7 @@ int main(int argc, char *argv[])
 
     printf("BBReg done.  Final cost: %.6f\n", final_cost);
     printf("Transform written to: %s\n", output_file);
-    printf("Parameters: tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
+    printf("Parameters (EPI->T1): tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
            p_best.tx, p_best.ty, p_best.tz,
            p_best.rx, p_best.ry, p_best.rz);
 
