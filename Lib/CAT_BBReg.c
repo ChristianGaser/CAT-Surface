@@ -152,32 +152,29 @@ void CAT_BBReg_invert_matrix(const double m[16], double inv[16])
 }
 
 /**
- * \brief Compute the BBR cost for a given set of rigid parameters.
+ * \brief Compute the BBR cost over one or more surfaces.
  *
- * For each surface vertex the volume is sampled at two points along the
- * outward surface normal:
- *   - WM side : vertex - wm_dist * normal  (inside white matter)
- *   - GM side : vertex + gm_dist * normal  (inside grey matter)
- *
- * The normalised contrast at vertex i is:
- *   c_i = (I_WM - I_GM) / (0.5*(I_WM + I_GM) + eps)
- *
- * and the cost is mean_i { 1 - tanh^2(slope * c_i) }.
+ * For each non-masked vertex the volume is sampled at WM and GM sides of the
+ * surface normal.  When thickness data and a fractional projection factor are
+ * provided the per-vertex GM offset is frac * thickness[i]; otherwise the
+ * fixed gm_dist is used.
  *
  * \param p               (in)  current 6-DOF rigid parameters
- * \param surface         (in)  WM surface in surface-native RAS space
+ * \param surfs           (in)  array of CAT_SurfData structures
+ * \param n_surfs         (in)  number of elements in surfs[]
  * \param vol             (in)  floating-point volume data (moving image)
  * \param nii_ptr         (in)  NIfTI header of the moving volume
  * \param dims            (in)  volume dimensions [nx, ny, nz]
- * \param wm_dist         (in)  sampling distance inside WM (mm, positive)
- * \param gm_dist         (in)  sampling distance inside GM (mm, positive)
- * \param slope           (in)  saturation slope of the robust cost function
- * \param invert_contrast (in)  non-zero for T2/BOLD (negates contrast sign)
+ * \param wm_dist         (in)  WM sampling offset (mm, positive)
+ * \param gm_dist         (in)  absolute GM offset (mm); used when no thickness
+ * \param slope           (in)  saturation slope of the cost function
+ * \param invert_contrast (in)  non-zero for T2/BOLD
  * \return mean BBR cost (lower = better alignment)
  */
 double
 CAT_BBReg_cost(const CAT_RigidParams *p,
-               const polygons_struct *surface,
+               const CAT_SurfData *surfs,
+               int n_surfs,
                float *vol,
                nifti_image *nii_ptr,
                int dims[3],
@@ -189,67 +186,82 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
     double m[16];
     double cost = 0.0;
     int n_valid = 0;
-    int i;
+    int s, i;
     const double eps = 1e-6;
 
     CAT_BBReg_params_to_matrix(p, m);
 
-    for (i = 0; i < surface->n_points; i++)
+    for (s = 0; s < n_surfs; s++)
     {
-        double vx = Point_x(surface->points[i]);
-        double vy = Point_y(surface->points[i]);
-        double vz = Point_z(surface->points[i]);
+        const polygons_struct *surface = surfs[s].surface;
+        const float           *mask    = surfs[s].cortex_mask;
+        const float           *thick   = surfs[s].thickness;
+        double                 frac    = surfs[s].gm_proj_frac;
 
-        double nx = Vector_x(surface->normals[i]);
-        double ny = Vector_y(surface->normals[i]);
-        double nz = Vector_z(surface->normals[i]);
+        for (i = 0; i < surface->n_points; i++)
+        {
+            /* Skip vertices outside cortex label */
+            if (mask && mask[i] <= 0.5f)
+                continue;
 
-        /* Normalise the surface normal */
-        double nlen = sqrt(nx * nx + ny * ny + nz * nz);
-        if (nlen < 1e-10)
-            continue;
-        nx /= nlen;
-        ny /= nlen;
-        nz /= nlen;
+            double vx = Point_x(surface->points[i]);
+            double vy = Point_y(surface->points[i]);
+            double vz = Point_z(surface->points[i]);
 
-        /* WM sample point (move inward = subtract outward normal) */
-        double wm_x = vx - wm_dist * nx;
-        double wm_y = vy - wm_dist * ny;
-        double wm_z = vz - wm_dist * nz;
+            double nx = Vector_x(surface->normals[i]);
+            double ny = Vector_y(surface->normals[i]);
+            double nz = Vector_z(surface->normals[i]);
 
-        /* GM sample point (move outward) */
-        double gm_x = vx + gm_dist * nx;
-        double gm_y = vy + gm_dist * ny;
-        double gm_z = vz + gm_dist * nz;
+            double nlen = sqrt(nx * nx + ny * ny + nz * nz);
+            if (nlen < 1e-10)
+                continue;
+            nx /= nlen;
+            ny /= nlen;
+            nz /= nlen;
 
-        /* Apply transform (T_moving → T_fixed via m) */
-        double twm_x = m[0] * wm_x + m[1] * wm_y + m[2] * wm_z + m[3];
-        double twm_y = m[4] * wm_x + m[5] * wm_y + m[6] * wm_z + m[7];
-        double twm_z = m[8] * wm_x + m[9] * wm_y + m[10] * wm_z + m[11];
+            /* GM offset: fractional thickness or fixed distance */
+            double d_gm = gm_dist;
+            if (thick && frac > 0.0)
+                d_gm = frac * (double)thick[i];
 
-        double tgm_x = m[0] * gm_x + m[1] * gm_y + m[2] * gm_z + m[3];
-        double tgm_y = m[4] * gm_x + m[5] * gm_y + m[6] * gm_z + m[7];
-        double tgm_z = m[8] * gm_x + m[9] * gm_y + m[10] * gm_z + m[11];
+            /* WM sample point (inward) */
+            double wm_x = vx - wm_dist * nx;
+            double wm_y = vy - wm_dist * ny;
+            double wm_z = vz - wm_dist * nz;
 
-        double I_wm = sample_world(vol, dims, nii_ptr, twm_x, twm_y, twm_z);
-        double I_gm = sample_world(vol, dims, nii_ptr, tgm_x, tgm_y, tgm_z);
+            /* GM sample point (outward) */
+            double gm_x = vx + d_gm * nx;
+            double gm_y = vy + d_gm * ny;
+            double gm_z = vz + d_gm * nz;
 
-        if (isnan(I_wm) || isnan(I_gm))
-            continue;
+            /* Apply transform */
+            double twm_x = m[0]*wm_x + m[1]*wm_y + m[2]*wm_z + m[3];
+            double twm_y = m[4]*wm_x + m[5]*wm_y + m[6]*wm_z + m[7];
+            double twm_z = m[8]*wm_x + m[9]*wm_y + m[10]*wm_z + m[11];
 
-        /* Normalised contrast */
-        double denom = 0.5 * (I_wm + I_gm) + eps;
-        double c = (I_wm - I_gm) / denom;
-        if (invert_contrast)
-            c = -c;
+            double tgm_x = m[0]*gm_x + m[1]*gm_y + m[2]*gm_z + m[3];
+            double tgm_y = m[4]*gm_x + m[5]*gm_y + m[6]*gm_z + m[7];
+            double tgm_z = m[8]*gm_x + m[9]*gm_y + m[10]*gm_z + m[11];
 
-        double t = tanh(slope * c);
-        cost += 1.0 - t * t;
-        n_valid++;
+            double I_wm = sample_world(vol, dims, nii_ptr, twm_x, twm_y, twm_z);
+            double I_gm = sample_world(vol, dims, nii_ptr, tgm_x, tgm_y, tgm_z);
+
+            if (isnan(I_wm) || isnan(I_gm))
+                continue;
+
+            double denom = 0.5 * (I_wm + I_gm) + eps;
+            double c = (I_wm - I_gm) / denom;
+            if (invert_contrast)
+                c = -c;
+
+            double t = tanh(slope * c);
+            cost += 1.0 - t * t;
+            n_valid++;
+        }
     }
 
     if (n_valid == 0)
-        return 1.0; /* worst possible: all samples out of FOV */
+        return 1.0;
     return cost / (double)n_valid;
 }
 
@@ -262,7 +274,8 @@ typedef struct
 {
     CAT_RigidParams base;
     double dir[6]; /* unit direction in parameter space */
-    const polygons_struct *surface;
+    const CAT_SurfData *surfs;
+    int             n_surfs;
     float *vol;
     nifti_image *nii_ptr;
     int dims[3];
@@ -283,7 +296,8 @@ static double line_cost(const LineCtx *ctx, double t)
     p.ry = ctx->base.ry + t * ctx->dir[4];
     p.rz = ctx->base.rz + t * ctx->dir[5];
 
-    return CAT_BBReg_cost(&p, ctx->surface, ctx->vol, ctx->nii_ptr,
+    return CAT_BBReg_cost(&p, ctx->surfs, ctx->n_surfs,
+                          ctx->vol, ctx->nii_ptr,
                           (int *)ctx->dims, ctx->wm_dist, ctx->gm_dist,
                           ctx->slope, ctx->invert_contrast);
 }
@@ -434,7 +448,8 @@ static double line_minimize(const LineCtx *ctx,
 
 /* Powell's direction-set method.  Mutates *p toward the minimum. */
 static double powell_minimise(CAT_RigidParams *p,
-                              const polygons_struct *surface,
+                              const CAT_SurfData *surfs,
+                              int n_surfs,
                               float *vol, nifti_image *nii_ptr,
                               int dims[3],
                               double wm_dist, double gm_dist,
@@ -455,7 +470,8 @@ static double powell_minimise(CAT_RigidParams *p,
             dirs[i][j] = (i == j) ? 1.0 : 0.0;
 
     LineCtx ctx;
-    ctx.surface = surface;
+    ctx.surfs = surfs;
+    ctx.n_surfs = n_surfs;
     ctx.vol = vol;
     ctx.nii_ptr = nii_ptr;
     ctx.dims[0] = dims[0];
@@ -466,7 +482,7 @@ static double powell_minimise(CAT_RigidParams *p,
     ctx.slope = slope;
     ctx.invert_contrast = invert_contrast;
 
-    f_curr = CAT_BBReg_cost(p, surface, vol, nii_ptr, dims,
+    f_curr = CAT_BBReg_cost(p, surfs, n_surfs, vol, nii_ptr, dims,
                             wm_dist, gm_dist, slope, invert_contrast);
 
     for (iter = 0; iter < max_iter; iter++)
@@ -597,7 +613,8 @@ static double powell_minimise(CAT_RigidParams *p,
 double
 CAT_BBReg_optimise(const CAT_RigidParams *p_init,
                    CAT_RigidParams *p_best,
-                   const polygons_struct *surface,
+                   const CAT_SurfData *surfs,
+                   int n_surfs,
                    float *vol,
                    nifti_image *nii_ptr,
                    int dims[3],
@@ -644,7 +661,7 @@ CAT_BBReg_optimise(const CAT_RigidParams *p_init,
                 p_try.ty += dty;
                 p_try.tz += dtz;
 
-                double f = CAT_BBReg_cost(&p_try, surface, vol, nii_ptr,
+                double f = CAT_BBReg_cost(&p_try, surfs, n_surfs, vol, nii_ptr,
                                           dims, wm_dist, gm_dist,
                                           slope, invert_contrast);
                 if (f < f_best)
@@ -664,7 +681,7 @@ CAT_BBReg_optimise(const CAT_RigidParams *p_init,
     if (verbose)
         printf("BBReg Stage 2: Powell optimisation...\n");
 
-    double f_final = powell_minimise(p_best, surface, vol, nii_ptr, dims,
+    double f_final = powell_minimise(p_best, surfs, n_surfs, vol, nii_ptr, dims,
                                      wm_dist, gm_dist, slope, invert_contrast,
                                      max_iter, tol, verbose);
 

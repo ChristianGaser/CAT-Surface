@@ -27,6 +27,26 @@ extern "C"
         double rx, ry, rz; /* rotation angles (radians) */
     } CAT_RigidParams;
 
+    /* -----------------------------------------------------------------------
+     * One surface with optional per-vertex data.
+     *
+     * cortex_mask  : array of n_points floats; vertex included if > 0.5.
+     *                Pass NULL to include all vertices.
+     * thickness    : array of n_points floats with cortical thickness (mm).
+     *                Used for fractional GM projection when gm_proj_frac > 0.
+     *                Pass NULL to use absolute gm_dist instead.
+     * gm_proj_frac : fraction of local thickness for GM sampling offset
+     *                (0 = use gm_dist_abs, 1 = full thickness).
+     *                Ignored when thickness is NULL.
+     * ----------------------------------------------------------------------- */
+    typedef struct
+    {
+        polygons_struct *surface;  /* white-matter surface mesh */
+        float           *cortex_mask;  /* per-vertex cortex label (or NULL) */
+        float           *thickness;    /* per-vertex thickness in mm (or NULL) */
+        double           gm_proj_frac; /* fraction of thickness for GM offset */
+    } CAT_SurfData;
+
     /**
      * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
      *
@@ -68,37 +88,38 @@ extern "C"
     void CAT_BBReg_invert_matrix(const double m[16], double inv[16]);
 
     /**
-     * \brief Compute the BBR cost for a given set of rigid parameters.
+     * \brief Compute the BBR cost over one or more surfaces.
      *
-     * For each surface vertex the volume is sampled at two points along the
-     * outward surface normal:
-     *   - WM side : vertex - wm_dist  * normal  (inside white matter)
-     *   - GM side : vertex + gm_dist  * normal  (inside grey matter)
+     * For each vertex (not masked out by cortex_mask) the volume is sampled at
+     * two points along the outward surface normal:
+     *   - WM side : vertex − wm_dist * normal
+     *   - GM side : vertex + d_gm   * normal
      *
-     * The contrast at vertex i is defined as
-     *   c_i = (I_WM - I_GM) / (0.5 * (I_WM + I_GM) + eps)
+     * where d_gm = (sd->gm_proj_frac * thickness[i]) when thickness data is
+     * available, otherwise d_gm = gm_dist.
      *
-     * and the cost is the mean of a robust saturation function applied to c_i:
-     *   cost = mean_i { q(c_i) }
+     * The normalised contrast at vertex i is:
+     *   c_i = (I_WM − I_GM) / (0.5*(I_WM + I_GM) + eps)
      *
-     * where q(c) = 1 - tanh^2(slope * c).  For T1 images WM > GM so c_i should
-     * be positive at correctly registered vertices; cost is therefore minimised
-     * when the surface aligns with the WM/GM boundary.  Pass \p invert_contrast
-     * non-zero for T2/BOLD data (WM < GM).
+     * Cost = mean_i { 1 − tanh^2(slope * c_i) }  (lower = better alignment).
+     * For T2/BOLD pass invert_contrast != 0 to negate c_i.
      *
      * \param p               (in)  current 6-DOF rigid parameters
-     * \param surface         (in)  WM surface in surface-native RAS space
+     * \param surfs           (in)  array of CAT_SurfData structures
+     * \param n_surfs         (in)  number of elements in surfs[]
      * \param vol             (in)  floating-point volume data (moving image)
      * \param nii_ptr         (in)  NIfTI header of the moving volume
      * \param dims            (in)  volume dimensions [nx, ny, nz]
-     * \param wm_dist         (in)  sampling distance inside WM along inward normal (mm, positive)
-     * \param gm_dist         (in)  sampling distance inside GM along outward normal (mm, positive)
-     * \param slope           (in)  saturation slope of the robust cost function
-     * \param invert_contrast (in)  non-zero for T2/BOLD (negates contrast sign)
+     * \param wm_dist         (in)  WM sampling offset (mm, positive)
+     * \param gm_dist         (in)  absolute GM sampling offset (mm); overridden
+     *                              per-vertex when thickness + gm_proj_frac are set
+     * \param slope           (in)  saturation slope of the BBR cost function
+     * \param invert_contrast (in)  non-zero for T2/BOLD
      * \return mean BBR cost (lower = better alignment)
      */
     double CAT_BBReg_cost(const CAT_RigidParams *p,
-                          const polygons_struct *surface,
+                          const CAT_SurfData *surfs,
+                          int n_surfs,
                           float *vol,
                           nifti_image *nii_ptr,
                           int dims[3],
@@ -110,36 +131,32 @@ extern "C"
     /**
      * \brief Optimise the BBR cost function using a two-stage strategy.
      *
-     * Stage 1 — brute-force grid search over a coarse ±range neighbourhood of
-     *            \p p_init, evaluating the cost at each grid point.  The best
-     *            parameter set becomes the starting point for Stage 2.
+     * Stage 1 — brute-force translation grid search over ±grid_range_mm.
+     * Stage 2 — Powell's direction-set method for full 6-DOF refinement.
      *
-     * Stage 2 — Powell's direction-set method refines the result from Stage 1
-     *            until the fractional cost improvement falls below \p tol or
-     *            \p max_iter iterations are reached.
-     *
-     * \param p_init          (in)     initial 6-DOF parameters (e.g. identity)
+     * \param p_init          (in)     initial 6-DOF parameters
      * \param p_best          (out)    optimised 6-DOF parameters
-     * \param surface         (in)     WM surface in surface-native RAS space
+     * \param surfs           (in)     array of CAT_SurfData (lh + rh, or just one)
+     * \param n_surfs         (in)     number of elements in surfs[]
      * \param vol             (in)     floating-point volume data (moving image)
      * \param nii_ptr         (in)     NIfTI header of the moving volume
      * \param dims            (in)     volume dimensions [nx, ny, nz]
      * \param wm_dist         (in)     WM sampling offset (mm)
-     * \param gm_dist         (in)     GM sampling offset (mm)
+     * \param gm_dist         (in)     GM absolute sampling offset (mm)
      * \param slope           (in)     BBR cost saturation slope
      * \param invert_contrast (in)     non-zero for T2/BOLD
      * \param grid_range_mm   (in)     half-width of brute-force translation grid (mm)
      * \param grid_range_rad  (in)     half-width of brute-force rotation grid (rad)
-     * \param grid_steps      (in)     number of steps per dimension in grid search
-     *                                 (total evaluations = (2*grid_steps+1)^6)
-     * \param max_iter        (in)     maximum Powell iterations in Stage 2
-     * \param tol             (in)     fractional convergence tolerance for Powell
+     * \param grid_steps      (in)     steps per DOF in grid search
+     * \param max_iter        (in)     maximum Powell iterations
+     * \param tol             (in)     convergence tolerance for Powell
      * \param verbose         (in)     non-zero to print progress
      * \return final BBR cost after optimisation
      */
     double CAT_BBReg_optimise(const CAT_RigidParams *p_init,
                               CAT_RigidParams *p_best,
-                              const polygons_struct *surface,
+                              const CAT_SurfData *surfs,
+                              int n_surfs,
                               float *vol,
                               nifti_image *nii_ptr,
                               int dims[3],

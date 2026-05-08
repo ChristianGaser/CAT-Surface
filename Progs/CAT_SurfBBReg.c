@@ -4,9 +4,10 @@
  *
  * CAT_SurfBBReg — Boundary-Based Registration of a volume to a surface.
  *
- * Registers a moving NIfTI volume to a WM surface using the BBR cost function
- * (Greve & Fischl 2009, NeuroImage 48:63-72).  Outputs a plain 4×4 RAS-to-RAS
- * transform matrix compatible with FSL (flirt -init) and ANTs.
+ * Registers a moving NIfTI volume to one or two WM surfaces (left and/or right
+ * hemisphere) using the BBR cost function (Greve & Fischl 2009, NeuroImage
+ * 48:63-72).  Outputs a plain 4×4 RAS-to-RAS transform matrix compatible
+ * with FSL (flirt -init) and ANTs.
  *
  * Copyright Christian Gaser, University of Jena.
  */
@@ -25,16 +26,25 @@
 /* -----------------------------------------------------------------------
  * Argument defaults
  * ----------------------------------------------------------------------- */
-static double wm_dist = 2.0;         /* mm inside WM */
-static double gm_dist = 0.5;         /* mm inside GM */
-static double slope = 0.5;           /* BBR cost slope */
-static int invert_contrast = 0;      /* 0=T1, 1=T2/BOLD */
-static double grid_range_mm = 4.0;   /* Stage-1 translation range (mm) */
-static double grid_range_rad = 0.07; /* Stage-1 rotation range (rad, ~4°) */
-static int grid_steps = 2;           /* Stage-1 steps per DOF */
-static int max_iter = 200;           /* Powell iterations */
-static double tol = 1e-5;            /* Powell convergence tolerance */
-static int verbose = 0;
+static double wm_dist        = 2.0;   /* mm inside WM                        */
+static double gm_dist        = 0.5;   /* mm inside GM (absolute, fallback)   */
+static double gm_proj_frac   = 0.0;   /* fraction of thickness for GM offset */
+static double slope          = 0.5;   /* BBR cost slope                      */
+static int    invert_contrast = 0;    /* 0=T1, 1=T2/BOLD                     */
+static double grid_range_mm  = 4.0;   /* Stage-1 translation range (mm)      */
+static double grid_range_rad = 0.07;  /* Stage-1 rotation range (rad, ~4°)   */
+static int    grid_steps     = 2;     /* Stage-1 steps per DOF               */
+static int    max_iter       = 200;   /* Powell iterations                   */
+static double tol            = 1e-5;  /* Powell convergence tolerance        */
+static int    verbose        = 0;
+
+/* Surface / label / thickness file names (NULL = not provided) */
+static char *lh_surf_file  = NULL;
+static char *rh_surf_file  = NULL;
+static char *lh_label_file = NULL;
+static char *rh_label_file = NULL;
+static char *lh_thick_file = NULL;
+static char *rh_thick_file = NULL;
 
 /* Initial parameters (identity transform) */
 static double init_tx = 0.0, init_ty = 0.0, init_tz = 0.0;
@@ -45,11 +55,37 @@ static double init_rx = 0.0, init_ry = 0.0, init_rz = 0.0;
  * ----------------------------------------------------------------------- */
 static ArgvInfo argTable[] =
     {
+        {"-lh", ARGV_STRING, (char *)1, (char *)&lh_surf_file,
+         "Left-hemisphere white-matter surface file."},
+
+        {"-rh", ARGV_STRING, (char *)1, (char *)&rh_surf_file,
+         "Right-hemisphere white-matter surface file."},
+
+        {"-lh-label", ARGV_STRING, (char *)1, (char *)&lh_label_file,
+         "Left-hemisphere cortex label (scalar .txt/.mnc/.func.mgh). Vertices"
+         " with value <= 0.5 are excluded from the cost. Default: all vertices."},
+
+        {"-rh-label", ARGV_STRING, (char *)1, (char *)&rh_label_file,
+         "Right-hemisphere cortex label. Default: all vertices."},
+
+        {"-lh-thickness", ARGV_STRING, (char *)1, (char *)&lh_thick_file,
+         "Left-hemisphere cortical thickness scalar file (mm).  Used with"
+         " -gm-proj-frac."},
+
+        {"-rh-thickness", ARGV_STRING, (char *)1, (char *)&rh_thick_file,
+         "Right-hemisphere cortical thickness scalar file (mm).  Used with"
+         " -gm-proj-frac."},
+
+        {"-gm-proj-frac", ARGV_FLOAT, (char *)1, (char *)&gm_proj_frac,
+         "Fraction of cortical thickness to use as GM sampling offset."
+         " Requires -lh-thickness / -rh-thickness.  0 = use -gm-dist. Default: 0"},
+
         {"-wm-dist", ARGV_FLOAT, (char *)1, (char *)&wm_dist,
          "Sampling distance inside white matter along inward surface normal (mm). Default: 2.0"},
 
         {"-gm-dist", ARGV_FLOAT, (char *)1, (char *)&gm_dist,
-         "Sampling distance inside grey matter along outward surface normal (mm). Default: 0.5"},
+         "Absolute GM sampling offset (mm); used when -gm-proj-frac is 0 or"
+         " no thickness file is given. Default: 0.5"},
 
         {"-slope", ARGV_FLOAT, (char *)1, (char *)&slope,
          "Saturation slope of the BBR cost function. Default: 0.5"},
@@ -90,43 +126,113 @@ static ArgvInfo argTable[] =
 
         {NULL, ARGV_END, NULL, NULL, NULL}};
 
+/* -----------------------------------------------------------------------
+ * Usage
+ * ----------------------------------------------------------------------- */
 static void
 usage(const char *exe)
 {
     fprintf(stdout,
-            "\nUsage: %s [options] surface_file volume_file output_matrix_file\n\n"
-            "  Boundary-Based Registration (BBR) of a NIfTI volume to a white-matter\n"
-            "  surface.  Both inputs must be in the same RAS coordinate space.\n"
-            "  The output is a plain-text 4x4 RAS-to-RAS rigid transform matrix\n"
-            "  compatible with FSL (flirt -init) and ANTs.\n\n"
-            "  Positive wm-dist moves the WM sample point inward along the inward\n"
-            "  normal (into white matter); positive gm-dist moves the GM sample\n"
-            "  point outward (into grey matter / CSF).\n\n"
-            "  For T1 input WM > GM intensity; for T2/BOLD use -t2 to invert.\n\n"
-            "Options:\n",
-            exe);
+        "\nUsage: %s [options] volume_file output_matrix_file\n\n"
+        "  Boundary-Based Registration (BBR) of a NIfTI volume to one or both\n"
+        "  white-matter surfaces.  Surfaces must be in the same RAS coordinate\n"
+        "  space as the volume.  The output is a plain-text 4x4 RAS-to-RAS rigid\n"
+        "  transform matrix compatible with FSL (flirt -init) and ANTs.\n\n"
+        "  At least one surface must be supplied via -lh and/or -rh.\n\n"
+        "  Cortex label files (-lh-label / -rh-label) should contain one float\n"
+        "  value per vertex; vertices with value <= 0.5 are excluded from the\n"
+        "  cost (equivalent to FreeSurfer ?h.cortex.label masking).\n\n"
+        "  Thickness files (-lh-thickness / -rh-thickness) enable fractional GM\n"
+        "  projection via -gm-proj-frac: d_gm = frac * thickness[i] per vertex.\n\n"
+        "  For T1 input WM > GM intensity; for T2/BOLD use -t2 to invert.\n\n"
+        "Options:\n", exe);
     fprintf(stdout,
-            "  -wm-dist <mm>         WM sampling offset (default: 2.0)\n"
-            "  -gm-dist <mm>         GM sampling offset (default: 0.5)\n"
-            "  -slope <val>          BBR cost saturation slope (default: 0.5)\n"
-            "  -t2                   Invert contrast (T2/BOLD input)\n"
-            "  -grid-range-mm <mm>   Stage-1 translation search range (default: 4.0)\n"
-            "  -grid-range-rad <rad> Stage-1 rotation search range (default: 0.07)\n"
-            "  -grid-steps <n>       Stage-1 steps per DOF (default: 2)\n"
-            "  -max-iter <n>         Powell max iterations (default: 200)\n"
-            "  -tol <val>            Powell convergence tolerance (default: 1e-5)\n"
-            "  -init-tx/ty/tz <mm>   Initial translation (default: 0)\n"
-            "  -init-rx/ry/rz <rad>  Initial rotation (default: 0)\n"
-            "  -verbose              Print optimisation progress\n\n");
+        "  -lh <file>              Left-hemisphere WM surface\n"
+        "  -rh <file>              Right-hemisphere WM surface\n"
+        "  -lh-label <file>        Left cortex label (per-vertex float, 0/1)\n"
+        "  -rh-label <file>        Right cortex label (per-vertex float, 0/1)\n"
+        "  -lh-thickness <file>    Left cortical thickness (mm, per-vertex)\n"
+        "  -rh-thickness <file>    Right cortical thickness (mm, per-vertex)\n"
+        "  -gm-proj-frac <frac>    GM offset = frac * thickness (default: 0)\n"
+        "  -wm-dist <mm>           WM sampling offset (default: 2.0)\n"
+        "  -gm-dist <mm>           Absolute GM sampling offset (default: 0.5)\n"
+        "  -slope <val>            BBR cost saturation slope (default: 0.5)\n"
+        "  -t2                     Invert contrast (T2/BOLD input)\n"
+        "  -grid-range-mm <mm>     Stage-1 translation search range (default: 4.0)\n"
+        "  -grid-range-rad <rad>   Stage-1 rotation search range (default: 0.07)\n"
+        "  -grid-steps <n>         Stage-1 steps per DOF (default: 2)\n"
+        "  -max-iter <n>           Powell max iterations (default: 200)\n"
+        "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
+        "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
+        "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
+        "  -verbose                Print optimisation progress\n\n");
 }
 
-int main(int argc, char *argv[])
+/* -----------------------------------------------------------------------
+ * Helper: load a surface from file
+ * ----------------------------------------------------------------------- */
+static polygons_struct *
+load_surface(const char *filename)
 {
-    char *surface_file, *volume_file, *output_file;
     int n_objects;
     File_formats format;
     object_struct **objects;
-    polygons_struct *polygons;
+
+    if (input_graphics_any_format((char *)filename, &format, &n_objects, &objects) != OK
+        || n_objects < 1
+        || get_object_type(objects[0]) != POLYGONS)
+    {
+        fprintf(stderr, "Error reading surface: %s\n", filename);
+        return NULL;
+    }
+    polygons_struct *poly = get_polygons_ptr(objects[0]);
+    compute_polygon_normals(poly);
+    return poly;
+}
+
+/* -----------------------------------------------------------------------
+ * Helper: load per-vertex scalar float array
+ * ----------------------------------------------------------------------- */
+static float *
+load_scalars(const char *filename, int expected_n, const char *desc)
+{
+    int     n_vals = 0;
+    double *dvals  = NULL;
+    float  *vals;
+    int     i;
+
+    if (input_values_any_format((char *)filename, &n_vals, &dvals) != OK)
+    {
+        fprintf(stderr, "Error reading %s file: %s\n", desc, filename);
+        return NULL;
+    }
+    if (n_vals != expected_n)
+    {
+        fprintf(stderr,
+                "Warning: %s file has %d values but surface has %d vertices; "
+                "ignoring.\n", desc, n_vals, expected_n);
+        free(dvals);
+        return NULL;
+    }
+    vals = (float *)malloc(n_vals * sizeof(float));
+    if (!vals)
+    {
+        fprintf(stderr, "Out of memory loading %s\n", desc);
+        free(dvals);
+        return NULL;
+    }
+    for (i = 0; i < n_vals; i++)
+        vals[i] = (float)dvals[i];
+    free(dvals);
+    return vals;
+}
+
+/* -----------------------------------------------------------------------
+ * main
+ * ----------------------------------------------------------------------- */
+int main(int argc, char *argv[])
+{
+    char *volume_file, *output_file;
     nifti_image *nii_ptr;
     float *vol = NULL;
     int dims[3];
@@ -134,27 +240,74 @@ int main(int argc, char *argv[])
     double m_best[16];
     double final_cost;
 
-    if (ParseArgv(&argc, argv, argTable, 0) || argc != 4)
+    CAT_SurfData surfs[2];
+    int n_surfs = 0;
+
+    polygons_struct *lh_poly   = NULL;
+    polygons_struct *rh_poly   = NULL;
+    float           *lh_label  = NULL;
+    float           *rh_label  = NULL;
+    float           *lh_thick  = NULL;
+    float           *rh_thick  = NULL;
+
+    if (ParseArgv(&argc, argv, argTable, 0) || argc != 3)
     {
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    surface_file = argv[1];
-    volume_file = argv[2];
-    output_file = argv[3];
+    volume_file = argv[1];
+    output_file = argv[2];
 
-    /* --- Load surface --- */
-    if (input_graphics_any_format(surface_file, &format,
-                                  &n_objects, &objects) != OK ||
-        n_objects < 1 ||
-        get_object_type(objects[0]) != POLYGONS)
+    /* --- Require at least one surface --- */
+    if (!lh_surf_file && !rh_surf_file)
     {
-        fprintf(stderr, "Error reading surface: %s\n", surface_file);
+        fprintf(stderr,
+                "Error: at least one surface must be specified via -lh and/or -rh.\n");
+        usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    polygons = get_polygons_ptr(objects[0]);
-    compute_polygon_normals(polygons);
+
+    /* --- Load surfaces and optional per-vertex data --- */
+    if (lh_surf_file)
+    {
+        lh_poly = load_surface(lh_surf_file);
+        if (!lh_poly)
+            exit(EXIT_FAILURE);
+
+        if (lh_label_file)
+            lh_label = load_scalars(lh_label_file, lh_poly->n_points, "lh-label");
+
+        if (lh_thick_file)
+            lh_thick = load_scalars(lh_thick_file, lh_poly->n_points, "lh-thickness");
+
+        surfs[n_surfs].surface      = lh_poly;
+        surfs[n_surfs].cortex_mask  = lh_label;
+        surfs[n_surfs].thickness    = lh_thick;
+        surfs[n_surfs].gm_proj_frac = (lh_thick && gm_proj_frac > 0.0)
+                                          ? gm_proj_frac : 0.0;
+        n_surfs++;
+    }
+
+    if (rh_surf_file)
+    {
+        rh_poly = load_surface(rh_surf_file);
+        if (!rh_poly)
+            exit(EXIT_FAILURE);
+
+        if (rh_label_file)
+            rh_label = load_scalars(rh_label_file, rh_poly->n_points, "rh-label");
+
+        if (rh_thick_file)
+            rh_thick = load_scalars(rh_thick_file, rh_poly->n_points, "rh-thickness");
+
+        surfs[n_surfs].surface      = rh_poly;
+        surfs[n_surfs].cortex_mask  = rh_label;
+        surfs[n_surfs].thickness    = rh_thick;
+        surfs[n_surfs].gm_proj_frac = (rh_thick && gm_proj_frac > 0.0)
+                                          ? gm_proj_frac : 0.0;
+        n_surfs++;
+    }
 
     /* --- Load volume --- */
     nii_ptr = read_nifti_float(volume_file, &vol, 0);
@@ -177,24 +330,45 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
-        printf("Surface: %s (%d vertices)\n", surface_file, polygons->n_points);
+        int total_verts = 0;
+        int s;
+        for (s = 0; s < n_surfs; s++)
+            total_verts += surfs[s].surface->n_points;
+
+        printf("Surfaces: %d hemisphere(s), %d total vertices\n",
+               n_surfs, total_verts);
+        if (lh_surf_file)
+            printf("  LH: %s (%d verts%s%s)\n", lh_surf_file,
+                   lh_poly->n_points,
+                   lh_label ? ", label masked" : "",
+                   lh_thick ? ", thickness proj" : "");
+        if (rh_surf_file)
+            printf("  RH: %s (%d verts%s%s)\n", rh_surf_file,
+                   rh_poly->n_points,
+                   rh_label ? ", label masked" : "",
+                   rh_thick ? ", thickness proj" : "");
         printf("Volume:  %s (%dx%dx%d)\n",
                volume_file, dims[0], dims[1], dims[2]);
-        printf("WM dist: %.2f mm  GM dist: %.2f mm  slope: %.3f  %s\n",
-               wm_dist, gm_dist, slope,
+        printf("WM dist: %.2f mm  ", wm_dist);
+        if (gm_proj_frac > 0.0)
+            printf("GM frac: %.2f of thickness", gm_proj_frac);
+        else
+            printf("GM dist: %.2f mm", gm_dist);
+        printf("  slope: %.3f  %s\n", slope,
                invert_contrast ? "T2/BOLD" : "T1");
-        printf("Stage-1 grid: ±%.1f mm, ±%.3f rad, %d steps per DOF\n",
+        printf("Stage-1 grid: +/-%.1f mm, +/-%.3f rad, %d steps per DOF\n",
                grid_range_mm, grid_range_rad, grid_steps);
     }
 
     /* --- Optimise --- */
     final_cost = CAT_BBReg_optimise(&p_init, &p_best,
-                                    polygons, vol, nii_ptr, dims,
+                                    surfs, n_surfs,
+                                    vol, nii_ptr, dims,
                                     wm_dist, gm_dist, slope, invert_contrast,
                                     grid_range_mm, grid_range_rad, grid_steps,
                                     max_iter, tol, verbose);
 
-    /* --- Convert best parameters to 4×4 matrix and write --- */
+    /* --- Convert best parameters to 4x4 matrix and write --- */
     CAT_BBReg_params_to_matrix(&p_best, m_best);
 
     if (CAT_BBReg_write_matrix(output_file, m_best) != 0)
@@ -203,7 +377,6 @@ int main(int argc, char *argv[])
         free(vol);
         nii_ptr->data = NULL;
         nifti_image_free(nii_ptr);
-        delete_object_list(n_objects, objects);
         exit(EXIT_FAILURE);
     }
 
@@ -216,6 +389,10 @@ int main(int argc, char *argv[])
     free(vol);
     nii_ptr->data = NULL;
     nifti_image_free(nii_ptr);
-    delete_object_list(n_objects, objects);
+    if (lh_label) free(lh_label);
+    if (rh_label) free(rh_label);
+    if (lh_thick) free(lh_thick);
+    if (rh_thick) free(rh_thick);
     return EXIT_SUCCESS;
 }
+
