@@ -26,21 +26,22 @@
 /* -----------------------------------------------------------------------
  * Argument defaults
  * ----------------------------------------------------------------------- */
-static double wm_dist        = 2.0;   /* mm inside WM                        */
-static double gm_dist        = 0.5;   /* mm inside GM (absolute, fallback)   */
-static double gm_proj_frac   = 0.0;   /* fraction of thickness for GM offset */
-static double slope          = 0.5;   /* BBR cost slope                      */
-static int    invert_contrast = 0;    /* 0=T1, 1=T2/BOLD                     */
-static double grid_range_mm  = 4.0;   /* Stage-1 translation range (mm)      */
-static double grid_range_rad = 0.07;  /* Stage-1 rotation range (rad, ~4°)   */
-static int    grid_steps     = 2;     /* Stage-1 steps per DOF               */
-static int    max_iter       = 200;   /* Powell iterations                   */
-static double tol            = 1e-5;  /* Powell convergence tolerance        */
-static int    verbose        = 0;
+static double wm_dist = 2.0;         /* mm inside WM                        */
+static double gm_dist = 0.5;         /* mm inside GM (absolute, fallback)   */
+static double gm_proj_frac = 0.0;    /* fraction of thickness for GM offset */
+static double slope = 0.5;           /* BBR cost slope                      */
+static int invert_contrast = 0;      /* 0=T1, 1=T2/BOLD                     */
+static double grid_range_mm = 4.0;   /* Stage-1 translation range (mm)      */
+static double grid_range_rad = 0.07; /* Stage-1 rotation range (rad, ~4°)   */
+static int grid_steps = 2;           /* Stage-1 steps per DOF               */
+static int max_iter = 200;           /* Powell iterations                   */
+static double tol = 1e-5;            /* Powell convergence tolerance        */
+static int verbose = 0;
+static char *output_volume_file = NULL; /* optional coregistered volume output */
 
 /* Surface / label / thickness file names (NULL = not provided) */
-static char *lh_surf_file  = NULL;
-static char *rh_surf_file  = NULL;
+static char *lh_surf_file = NULL;
+static char *rh_surf_file = NULL;
 static char *lh_label_file = NULL;
 static char *rh_label_file = NULL;
 static char *lh_thick_file = NULL;
@@ -124,6 +125,11 @@ static ArgvInfo argTable[] =
         {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
          "Print optimisation progress. Default: off"},
 
+        {"-output-volume", ARGV_STRING, (char *)1, (char *)&output_volume_file,
+         "Output filename for the coregistered volume.  Only the NIfTI sform/qform"
+         " header is updated to reflect the registration transform;"
+         " voxel data is not resampled."},
+
         {NULL, ARGV_END, NULL, NULL, NULL}};
 
 /* -----------------------------------------------------------------------
@@ -133,39 +139,41 @@ static void
 usage(const char *exe)
 {
     fprintf(stdout,
-        "\nUsage: %s [options] volume_file output_matrix_file\n\n"
-        "  Boundary-Based Registration (BBR) of a NIfTI volume to one or both\n"
-        "  white-matter surfaces.  Surfaces must be in the same RAS coordinate\n"
-        "  space as the volume.  The output is a plain-text 4x4 RAS-to-RAS rigid\n"
-        "  transform matrix compatible with FSL (flirt -init) and ANTs.\n\n"
-        "  At least one surface must be supplied via -lh and/or -rh.\n\n"
-        "  Cortex label files (-lh-label / -rh-label) should contain one float\n"
-        "  value per vertex; vertices with value <= 0.5 are excluded from the\n"
-        "  cost (equivalent to FreeSurfer ?h.cortex.label masking).\n\n"
-        "  Thickness files (-lh-thickness / -rh-thickness) enable fractional GM\n"
-        "  projection via -gm-proj-frac: d_gm = frac * thickness[i] per vertex.\n\n"
-        "  For T1 input WM > GM intensity; for T2/BOLD use -t2 to invert.\n\n"
-        "Options:\n", exe);
+            "\nUsage: %s [options] volume_file output_matrix_file\n\n"
+            "  Boundary-Based Registration (BBR) of a NIfTI volume to one or both\n"
+            "  white-matter surfaces.  Surfaces must be in the same RAS coordinate\n"
+            "  space as the volume.  The output is a plain-text 4x4 RAS-to-RAS rigid\n"
+            "  transform matrix compatible with FSL (flirt -init) and ANTs.\n\n"
+            "  At least one surface must be supplied via -lh and/or -rh.\n\n"
+            "  Cortex label files (-lh-label / -rh-label) should contain one float\n"
+            "  value per vertex; vertices with value <= 0.5 are excluded from the\n"
+            "  cost (equivalent to FreeSurfer ?h.cortex.label masking).\n\n"
+            "  Thickness files (-lh-thickness / -rh-thickness) enable fractional GM\n"
+            "  projection via -gm-proj-frac: d_gm = frac * thickness[i] per vertex.\n\n"
+            "  For T1 input WM > GM intensity; for T2/BOLD use -t2 to invert.\n\n"
+            "Options:\n",
+            exe);
     fprintf(stdout,
-        "  -lh <file>              Left-hemisphere WM surface\n"
-        "  -rh <file>              Right-hemisphere WM surface\n"
-        "  -lh-label <file>        Left cortex label (per-vertex float, 0/1)\n"
-        "  -rh-label <file>        Right cortex label (per-vertex float, 0/1)\n"
-        "  -lh-thickness <file>    Left cortical thickness (mm, per-vertex)\n"
-        "  -rh-thickness <file>    Right cortical thickness (mm, per-vertex)\n"
-        "  -gm-proj-frac <frac>    GM offset = frac * thickness (default: 0)\n"
-        "  -wm-dist <mm>           WM sampling offset (default: 2.0)\n"
-        "  -gm-dist <mm>           Absolute GM sampling offset (default: 0.5)\n"
-        "  -slope <val>            BBR cost saturation slope (default: 0.5)\n"
-        "  -t2                     Invert contrast (T2/BOLD input)\n"
-        "  -grid-range-mm <mm>     Stage-1 translation search range (default: 4.0)\n"
-        "  -grid-range-rad <rad>   Stage-1 rotation search range (default: 0.07)\n"
-        "  -grid-steps <n>         Stage-1 steps per DOF (default: 2)\n"
-        "  -max-iter <n>           Powell max iterations (default: 200)\n"
-        "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
-        "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
-        "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
-        "  -verbose                Print optimisation progress\n\n");
+            "  -lh <file>              Left-hemisphere WM surface\n"
+            "  -rh <file>              Right-hemisphere WM surface\n"
+            "  -lh-label <file>        Left cortex label (per-vertex float, 0/1)\n"
+            "  -rh-label <file>        Right cortex label (per-vertex float, 0/1)\n"
+            "  -lh-thickness <file>    Left cortical thickness (mm, per-vertex)\n"
+            "  -rh-thickness <file>    Right cortical thickness (mm, per-vertex)\n"
+            "  -gm-proj-frac <frac>    GM offset = frac * thickness (default: 0)\n"
+            "  -wm-dist <mm>           WM sampling offset (default: 2.0)\n"
+            "  -gm-dist <mm>           Absolute GM sampling offset (default: 0.5)\n"
+            "  -slope <val>            BBR cost saturation slope (default: 0.5)\n"
+            "  -t2                     Invert contrast (T2/BOLD input)\n"
+            "  -grid-range-mm <mm>     Stage-1 translation search range (default: 4.0)\n"
+            "  -grid-range-rad <rad>   Stage-1 rotation search range (default: 0.07)\n"
+            "  -grid-steps <n>         Stage-1 steps per DOF (default: 2)\n"
+            "  -max-iter <n>           Powell max iterations (default: 200)\n"
+            "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
+            "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
+            "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
+            "  -verbose                Print optimisation progress\n"
+            "  -output-volume <file>   Save coregistered volume (header update only)\n\n");
 }
 
 /* -----------------------------------------------------------------------
@@ -178,9 +186,7 @@ load_surface(const char *filename)
     File_formats format;
     object_struct **objects;
 
-    if (input_graphics_any_format((char *)filename, &format, &n_objects, &objects) != OK
-        || n_objects < 1
-        || get_object_type(objects[0]) != POLYGONS)
+    if (input_graphics_any_format((char *)filename, &format, &n_objects, &objects) != OK || n_objects < 1 || get_object_type(objects[0]) != POLYGONS)
     {
         fprintf(stderr, "Error reading surface: %s\n", filename);
         return NULL;
@@ -196,10 +202,10 @@ load_surface(const char *filename)
 static float *
 load_scalars(const char *filename, int expected_n, const char *desc)
 {
-    int     n_vals = 0;
-    double *dvals  = NULL;
-    float  *vals;
-    int     i;
+    int n_vals = 0;
+    double *dvals = NULL;
+    float *vals;
+    int i;
 
     if (input_values_any_format((char *)filename, &n_vals, &dvals) != OK)
     {
@@ -210,7 +216,8 @@ load_scalars(const char *filename, int expected_n, const char *desc)
     {
         fprintf(stderr,
                 "Warning: %s file has %d values but surface has %d vertices; "
-                "ignoring.\n", desc, n_vals, expected_n);
+                "ignoring.\n",
+                desc, n_vals, expected_n);
         free(dvals);
         return NULL;
     }
@@ -243,12 +250,12 @@ int main(int argc, char *argv[])
     CAT_SurfData surfs[2];
     int n_surfs = 0;
 
-    polygons_struct *lh_poly   = NULL;
-    polygons_struct *rh_poly   = NULL;
-    float           *lh_label  = NULL;
-    float           *rh_label  = NULL;
-    float           *lh_thick  = NULL;
-    float           *rh_thick  = NULL;
+    polygons_struct *lh_poly = NULL;
+    polygons_struct *rh_poly = NULL;
+    float *lh_label = NULL;
+    float *rh_label = NULL;
+    float *lh_thick = NULL;
+    float *rh_thick = NULL;
 
     if (ParseArgv(&argc, argv, argTable, 0) || argc != 3)
     {
@@ -281,11 +288,12 @@ int main(int argc, char *argv[])
         if (lh_thick_file)
             lh_thick = load_scalars(lh_thick_file, lh_poly->n_points, "lh-thickness");
 
-        surfs[n_surfs].surface      = lh_poly;
-        surfs[n_surfs].cortex_mask  = lh_label;
-        surfs[n_surfs].thickness    = lh_thick;
+        surfs[n_surfs].surface = lh_poly;
+        surfs[n_surfs].cortex_mask = lh_label;
+        surfs[n_surfs].thickness = lh_thick;
         surfs[n_surfs].gm_proj_frac = (lh_thick && gm_proj_frac > 0.0)
-                                          ? gm_proj_frac : 0.0;
+                                          ? gm_proj_frac
+                                          : 0.0;
         n_surfs++;
     }
 
@@ -301,11 +309,12 @@ int main(int argc, char *argv[])
         if (rh_thick_file)
             rh_thick = load_scalars(rh_thick_file, rh_poly->n_points, "rh-thickness");
 
-        surfs[n_surfs].surface      = rh_poly;
-        surfs[n_surfs].cortex_mask  = rh_label;
-        surfs[n_surfs].thickness    = rh_thick;
+        surfs[n_surfs].surface = rh_poly;
+        surfs[n_surfs].cortex_mask = rh_label;
+        surfs[n_surfs].thickness = rh_thick;
         surfs[n_surfs].gm_proj_frac = (rh_thick && gm_proj_frac > 0.0)
-                                          ? gm_proj_frac : 0.0;
+                                          ? gm_proj_frac
+                                          : 0.0;
         n_surfs++;
     }
 
@@ -386,13 +395,84 @@ int main(int argc, char *argv[])
            p_best.tx, p_best.ty, p_best.tz,
            p_best.rx, p_best.ry, p_best.rz);
 
+    /* --- Optionally write coregistered volume (header update only) --- */
+    if (output_volume_file)
+    {
+        int i, j, k;
+        mat44 new_sto;
+        float qb, qc, qd, qx, qy, qz, dx, dy, dz, qfac;
+
+        /* new_sto_xyz = m_best * old_sto_xyz
+         * m_best maps moving-volume RAS -> fixed-surface RAS, so composing it
+         * with the original sform (voxel -> old RAS) gives the updated sform
+         * (voxel -> registered/surface RAS). */
+        for (i = 0; i < 4; i++)
+            for (j = 0; j < 4; j++)
+            {
+                double sum = 0.0;
+                for (k = 0; k < 4; k++)
+                    sum += m_best[i * 4 + k] * (double)nii_ptr->sto_xyz.m[k][j];
+                new_sto.m[i][j] = (float)sum;
+            }
+        nii_ptr->sto_xyz = new_sto;
+
+        /* Update qform with the same transform if it was set */
+        if (nii_ptr->qform_code > 0)
+        {
+            mat44 new_qto;
+            for (i = 0; i < 4; i++)
+                for (j = 0; j < 4; j++)
+                {
+                    double sum = 0.0;
+                    for (k = 0; k < 4; k++)
+                        sum += m_best[i * 4 + k] * (double)nii_ptr->qto_xyz.m[k][j];
+                    new_qto.m[i][j] = (float)sum;
+                }
+            nii_ptr->qto_xyz = new_qto;
+
+            /* Recompute quaternion scalar fields from the updated matrix */
+            nifti_mat44_to_quatern(new_qto,
+                                   &qb, &qc, &qd,
+                                   &qx, &qy, &qz,
+                                   &dx, &dy, &dz, &qfac);
+            nii_ptr->quatern_b = qb;
+            nii_ptr->quatern_c = qc;
+            nii_ptr->quatern_d = qd;
+            nii_ptr->qoffset_x = qx;
+            nii_ptr->qoffset_y = qy;
+            nii_ptr->qoffset_z = qz;
+            nii_ptr->qfac = qfac;
+        }
+
+        /* Write original (float-converted) voxel data with updated header */
+        nii_ptr->datatype = DT_FLOAT32;
+        nii_ptr->nbyper = sizeof(float);
+        nii_ptr->scl_slope = 0.0;
+        nii_ptr->scl_inter = 0.0;
+        nii_ptr->data = (void *)vol;
+
+        if (nifti_set_filenames(nii_ptr, output_volume_file, 0, 1) != 0)
+            fprintf(stderr, "Error setting output volume filename: %s\n",
+                    output_volume_file);
+        else
+        {
+            nifti_image_write(nii_ptr);
+            printf("Coregistered volume written to: %s\n", output_volume_file);
+        }
+
+        nii_ptr->data = NULL; /* prevent double-free; vol is freed below */
+    }
+
     free(vol);
     nii_ptr->data = NULL;
     nifti_image_free(nii_ptr);
-    if (lh_label) free(lh_label);
-    if (rh_label) free(rh_label);
-    if (lh_thick) free(lh_thick);
-    if (rh_thick) free(rh_thick);
+    if (lh_label)
+        free(lh_label);
+    if (rh_label)
+        free(rh_label);
+    if (lh_thick)
+        free(lh_thick);
+    if (rh_thick)
+        free(rh_thick);
     return EXIT_SUCCESS;
 }
-
