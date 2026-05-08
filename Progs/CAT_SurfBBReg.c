@@ -444,7 +444,14 @@ int main(int argc, char *argv[])
             nii_ptr->qfac = qfac;
         }
 
-        /* Write original (float-converted) voxel data with updated header */
+        /* Write original (float-converted) voxel data with updated header.
+         * read_nifti_float() divided nvox by nt to give the 3D slice count, but
+         * vol[] holds all nt timepoints.  Restore the full 4D voxel count so
+         * nifti_image_write() writes every timepoint, not just the first. */
+        if (nii_ptr->nt > 1)
+            nii_ptr->nvox = (size_t)dims[0] * (size_t)dims[1] *
+                            (size_t)dims[2] * (size_t)nii_ptr->nt;
+
         nii_ptr->datatype = DT_FLOAT32;
         nii_ptr->nbyper = sizeof(float);
         nii_ptr->scl_slope = 0.0;

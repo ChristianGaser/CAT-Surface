@@ -41,10 +41,10 @@ extern "C"
      * ----------------------------------------------------------------------- */
     typedef struct
     {
-        polygons_struct *surface;  /* white-matter surface mesh */
-        float           *cortex_mask;  /* per-vertex cortex label (or NULL) */
-        float           *thickness;    /* per-vertex thickness in mm (or NULL) */
-        double           gm_proj_frac; /* fraction of thickness for GM offset */
+        polygons_struct *surface; /* white-matter surface mesh */
+        float *cortex_mask;       /* per-vertex cortex label (or NULL) */
+        float *thickness;         /* per-vertex thickness in mm (or NULL) */
+        double gm_proj_frac;      /* fraction of thickness for GM offset */
     } CAT_SurfData;
 
     /**

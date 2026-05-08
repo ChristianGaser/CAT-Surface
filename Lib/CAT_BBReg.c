@@ -194,9 +194,9 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
     for (s = 0; s < n_surfs; s++)
     {
         const polygons_struct *surface = surfs[s].surface;
-        const float           *mask    = surfs[s].cortex_mask;
-        const float           *thick   = surfs[s].thickness;
-        double                 frac    = surfs[s].gm_proj_frac;
+        const float *mask = surfs[s].cortex_mask;
+        const float *thick = surfs[s].thickness;
+        double frac = surfs[s].gm_proj_frac;
 
         for (i = 0; i < surface->n_points; i++)
         {
@@ -235,13 +235,13 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
             double gm_z = vz + d_gm * nz;
 
             /* Apply transform */
-            double twm_x = m[0]*wm_x + m[1]*wm_y + m[2]*wm_z + m[3];
-            double twm_y = m[4]*wm_x + m[5]*wm_y + m[6]*wm_z + m[7];
-            double twm_z = m[8]*wm_x + m[9]*wm_y + m[10]*wm_z + m[11];
+            double twm_x = m[0] * wm_x + m[1] * wm_y + m[2] * wm_z + m[3];
+            double twm_y = m[4] * wm_x + m[5] * wm_y + m[6] * wm_z + m[7];
+            double twm_z = m[8] * wm_x + m[9] * wm_y + m[10] * wm_z + m[11];
 
-            double tgm_x = m[0]*gm_x + m[1]*gm_y + m[2]*gm_z + m[3];
-            double tgm_y = m[4]*gm_x + m[5]*gm_y + m[6]*gm_z + m[7];
-            double tgm_z = m[8]*gm_x + m[9]*gm_y + m[10]*gm_z + m[11];
+            double tgm_x = m[0] * gm_x + m[1] * gm_y + m[2] * gm_z + m[3];
+            double tgm_y = m[4] * gm_x + m[5] * gm_y + m[6] * gm_z + m[7];
+            double tgm_z = m[8] * gm_x + m[9] * gm_y + m[10] * gm_z + m[11];
 
             double I_wm = sample_world(vol, dims, nii_ptr, twm_x, twm_y, twm_z);
             double I_gm = sample_world(vol, dims, nii_ptr, tgm_x, tgm_y, tgm_z);
@@ -275,7 +275,7 @@ typedef struct
     CAT_RigidParams base;
     double dir[6]; /* unit direction in parameter space */
     const CAT_SurfData *surfs;
-    int             n_surfs;
+    int n_surfs;
     float *vol;
     nifti_image *nii_ptr;
     int dims[3];
