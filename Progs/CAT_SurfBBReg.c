@@ -513,6 +513,72 @@ int main(int argc, char *argv[])
                    "tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
                    p_init.tx, p_init.ty, p_init.tz,
                    p_init.rx, p_init.ry, p_init.rz);
+
+            /* Write coregistered volume with updated sform/qform if requested */
+            if (output_volume_file)
+            {
+                int i, j, k;
+                mat44 new_sto;
+                float qb, qc, qd, qx, qy, qz, dx, dy, dz, qfac;
+
+                for (i = 0; i < 4; i++)
+                    for (j = 0; j < 4; j++)
+                    {
+                        double sum = 0.0;
+                        for (k = 0; k < 4; k++)
+                            sum += m_vol_inv[i * 4 + k] *
+                                   (double)nii_ptr->sto_xyz.m[k][j];
+                        new_sto.m[i][j] = (float)sum;
+                    }
+                nii_ptr->sto_xyz = new_sto;
+
+                if (nii_ptr->qform_code > 0)
+                {
+                    mat44 new_qto;
+                    for (i = 0; i < 4; i++)
+                        for (j = 0; j < 4; j++)
+                        {
+                            double sum = 0.0;
+                            for (k = 0; k < 4; k++)
+                                sum += m_vol_inv[i * 4 + k] *
+                                       (double)nii_ptr->qto_xyz.m[k][j];
+                            new_qto.m[i][j] = (float)sum;
+                        }
+                    nii_ptr->qto_xyz = new_qto;
+                    nifti_mat44_to_quatern(new_qto,
+                                           &qb, &qc, &qd,
+                                           &qx, &qy, &qz,
+                                           &dx, &dy, &dz, &qfac);
+                    nii_ptr->quatern_b = qb;
+                    nii_ptr->quatern_c = qc;
+                    nii_ptr->quatern_d = qd;
+                    nii_ptr->qoffset_x = qx;
+                    nii_ptr->qoffset_y = qy;
+                    nii_ptr->qoffset_z = qz;
+                    nii_ptr->qfac = qfac;
+                }
+
+                if (nii_ptr->nt > 1)
+                    nii_ptr->nvox = (size_t)dims[0] * (size_t)dims[1] *
+                                    (size_t)dims[2] * (size_t)nii_ptr->nt;
+                nii_ptr->datatype = DT_FLOAT32;
+                nii_ptr->nbyper = sizeof(float);
+                nii_ptr->scl_slope = 0.0;
+                nii_ptr->scl_inter = 0.0;
+                nii_ptr->data = (void *)vol;
+
+                if (nifti_set_filenames(nii_ptr, output_volume_file, 0, 1) != 0)
+                    fprintf(stderr, "Error setting output volume filename: %s\n",
+                            output_volume_file);
+                else
+                {
+                    nifti_image_write(nii_ptr);
+                    printf("Coregistered volume written to: %s\n",
+                           output_volume_file);
+                }
+                nii_ptr->data = NULL;
+            }
+
             free(vol);
             nii_ptr->data = NULL;
             nifti_image_free(nii_ptr);
