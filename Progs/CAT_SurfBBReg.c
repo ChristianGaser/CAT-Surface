@@ -56,9 +56,11 @@ static double init_rx = 0.0, init_ry = 0.0, init_rz = 0.0;
 
 /* Volume registration (robust init) options */
 static int    vol_reg_levels  = 4;    /* Gaussian pyramid levels          */
-static double vol_reg_sat     = 4.685;/* Tukey saturation multiplier      */
-static int    vol_reg_iter    = 15;   /* IRLS iterations per level        */
+static int    vol_reg_bins    = 64;   /* NMI histogram bins per axis      */
+static double vol_reg_sat     = 4.685;/* Tukey saturation (ROB mode only) */
+static int    vol_reg_iter    = 30;   /* Powell/IRLS iterations per level */
 static int    no_vol_reg      = 0;    /* skip volume registration init    */
+static int    vol_reg_rob     = 0;    /* use IRLS/ROB instead of NMI      */
 static char  *ref_vol_file    = NULL; /* separate reference volume (T1w)  */
 
 /* -----------------------------------------------------------------------
@@ -147,27 +149,29 @@ static ArgvInfo argTable[] =
 
         /* ----- robust volume registration (init) options ----- */
         {"-ref", ARGV_STRING, (char *)1, (char *)&ref_vol_file,
-         "Reference (fixed) volume for the robust volume registration initialisation."
-         " When surfaces are provided this is the T1w anatomical volume; when no"
-         " surfaces are given, BBR is skipped and only robust volume registration"
-         " is performed. Default: use the moving volume (self-registration test only)."},
+         "Reference (fixed) volume for NMI-based volume registration initialisation"
+         " (e.g. T1w anatomical). When surfaces are provided this initialises BBR;"
+         " without surfaces only volume registration is performed."},
 
         {"-vol-reg-levels", ARGV_INT, (char *)1, (char *)&vol_reg_levels,
-         "Number of Gaussian pyramid levels for the volume registration"
-         " initialisation (default: 4)."},
+         "Number of Gaussian pyramid levels for volume registration (default: 4)."},
 
-        {"-vol-reg-sat", ARGV_FLOAT, (char *)1, (char *)&vol_reg_sat,
-         "Tukey saturation multiplier for the robust volume registration."
-         " Values near 4.685 give ~95%% efficiency under Gaussian noise."
-         " Default: 4.685"},
+        {"-vol-reg-bins", ARGV_INT, (char *)1, (char *)&vol_reg_bins,
+         "Number of histogram bins per axis for NMI registration (default: 64)."},
 
         {"-vol-reg-iter", ARGV_INT, (char *)1, (char *)&vol_reg_iter,
-         "Maximum IRLS iterations per pyramid level during volume registration."
-         " Default: 15"},
+         "Maximum Powell/IRLS iterations per pyramid level (default: 30)."},
+
+        {"-vol-reg-sat", ARGV_FLOAT, (char *)1, (char *)&vol_reg_sat,
+         "Tukey saturation multiplier used only with -vol-reg-rob (default: 4.685)."},
+
+        {"-vol-reg-rob", ARGV_CONSTANT, (char *)1, (char *)&vol_reg_rob,
+         "Use same-modality IRLS/ROB cost instead of NMI for volume registration."
+         " Use this for T1w-to-T1w or EPI-to-EPI alignment."},
 
         {"-no-vol-reg", ARGV_CONSTANT, (char *)1, (char *)&no_vol_reg,
-         "Skip robust volume registration initialisation; use only the"
-         " -init-tx/ty/tz/rx/ry/rz values (or identity) to start BBR."},
+         "Skip volume registration initialisation entirely; start BBR from"
+         " -init-tx/ty/tz/rx/ry/rz values (or identity)."},
 
         {NULL, ARGV_END, NULL, NULL, NULL}};
 
@@ -215,13 +219,14 @@ usage(const char *exe)
             "  -verbose                Print optimisation progress\n"
             "  -output-volume <file>   Save coregistered volume (header update only)\n"
             "\n"
-            "Robust volume registration (initialisation):\n"
-            "  -ref <file>             T1w reference volume for volume reg init.\n"
-            "                          If no surfaces are given, only volume\n"
-            "                          registration is performed (no BBR).\n"
-            "  -vol-reg-levels <n>     Pyramid levels (default: 4)\n"
-            "  -vol-reg-sat <val>      Tukey saturation multiplier (default: 4.685)\n"
-            "  -vol-reg-iter <n>       IRLS iterations per level (default: 15)\n"
+            "NMI volume registration (initialisation for BBR):\n"
+            "  -ref <file>             T1w reference volume (fixed). Without surfaces,\n"
+            "                          only volume registration is performed (no BBR).\n"
+            "  -vol-reg-levels <n>     Gaussian pyramid levels (default: 4)\n"
+            "  -vol-reg-bins <n>       NMI histogram bins per axis (default: 64)\n"
+            "  -vol-reg-iter <n>       Powell iterations per level (default: 30)\n"
+            "  -vol-reg-rob            Use IRLS/ROB cost (same-modality) instead of NMI\n"
+            "  -vol-reg-sat <val>      Tukey multiplier for -vol-reg-rob (default: 4.685)\n"
             "  -no-vol-reg             Skip volume-registration initialisation\n\n");
 }
 
@@ -432,22 +437,43 @@ int main(int argc, char *argv[])
         ref_dims[2] = ref_nii->nz;
 
         if (verbose)
-            printf("VolumeReg init: fixed=%s (%dx%dx%d)  moving=%s (%dx%dx%d)\n",
+            printf("VolumeReg init (%s): fixed=%s (%dx%dx%d)  moving=%s"
+                   " (%dx%dx%d)\n",
+                   vol_reg_rob ? "ROB/IRLS" : "NMI",
                    ref_vol_file, ref_dims[0], ref_dims[1], ref_dims[2],
                    volume_file, dims[0], dims[1], dims[2]);
 
-        double vol_res = CAT_VolumeReg_register(
-            ref_vol,  ref_nii,  ref_dims,
-            vol,      nii_ptr,  dims,
-            &p_init,
-            vol_reg_levels, vol_reg_sat, vol_reg_iter, verbose);
-
-        if (verbose)
-            printf("VolumeReg done: residual=%.4f  "
-                   "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
-                   vol_res,
-                   p_init.tx, p_init.ty, p_init.tz,
-                   p_init.rx, p_init.ry, p_init.rz);
+        double vol_res;
+        if (vol_reg_rob)
+        {
+            /* Same-modality: linearised intensity matching + Tukey biweight */
+            vol_res = CAT_VolumeReg_register(
+                ref_vol,  ref_nii,  ref_dims,
+                vol,      nii_ptr,  dims,
+                &p_init,
+                vol_reg_levels, vol_reg_sat, vol_reg_iter, verbose);
+            if (verbose)
+                printf("VolumeReg done (ROB): residual=%.4f  "
+                       "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
+                       vol_res,
+                       p_init.tx, p_init.ty, p_init.tz,
+                       p_init.rx, p_init.ry, p_init.rz);
+        }
+        else
+        {
+            /* Cross-modal (default): Normalised Mutual Information */
+            vol_res = CAT_VolumeReg_register_NMI(
+                ref_vol,  ref_nii,  ref_dims,
+                vol,      nii_ptr,  dims,
+                &p_init,
+                vol_reg_levels, vol_reg_bins, vol_reg_iter, verbose);
+            if (verbose)
+                printf("VolumeReg done (NMI=%.4f):  "
+                       "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
+                       vol_res,
+                       p_init.tx, p_init.ty, p_init.tz,
+                       p_init.rx, p_init.ry, p_init.rz);
+        }
 
         free(ref_vol);
         ref_nii->data = NULL;
@@ -469,7 +495,12 @@ int main(int argc, char *argv[])
                 nifti_image_free(nii_ptr);
                 exit(EXIT_FAILURE);
             }
-            printf("VolumeReg done (standalone).  Residual: %.6f\n", vol_res);
+            if (vol_reg_rob)
+                printf("VolumeReg done (standalone ROB).  Residual: %.6f\n",
+                       vol_res);
+            else
+                printf("VolumeReg done (standalone NMI).  NMI: %.6f\n",
+                       vol_res);
             printf("Transform written to: %s\n", output_file);
             printf("Parameters (ref->moving, internal): "
                    "tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",

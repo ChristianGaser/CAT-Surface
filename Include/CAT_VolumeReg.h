@@ -56,6 +56,43 @@ extern "C"
                                   int max_iter,
                                   int verbose);
 
+    /**
+     * \brief Cross-modal rigid registration using Normalised Mutual Information.
+     *
+     * Equivalent to FreeSurfer's mri_coreg, the initialisation step used by
+     * fMRIPrep before bbregister.  A Gaussian image pyramid is used for
+     * coarse-to-fine registration; at each level NMI is computed from a joint
+     * intensity histogram (bilinear partial-volume interpolation) and maximised
+     * with Powell's direction-set method + Brent line search.
+     *
+     * Appropriate for cross-modal pairs such as BOLD EPI ↔ T1w.  For
+     * same-modality registration use CAT_VolumeReg_register() instead.
+     *
+     * \param fixed_vol   (in)  reference volume data (float, x-fastest) — T1w
+     * \param fixed_nii   (in)  NIfTI header of the reference volume
+     * \param fixed_dims  (in)  [nx, ny, nz] of the reference volume
+     * \param moving_vol  (in)  moving volume data (float) — mean EPI/BOLD
+     * \param moving_nii  (in)  NIfTI header of the moving volume
+     * \param moving_dims (in)  [nx, ny, nz] of the moving volume
+     * \param p_out       (out) estimated 6-DOF rigid parameters (fixed→moving)
+     * \param n_levels    (in)  Gaussian pyramid levels (3–4 recommended)
+     * \param n_bins      (in)  histogram bins per axis (64 recommended)
+     * \param max_iter    (in)  Powell iterations per level (20–50)
+     * \param verbose     (in)  ≥1 level summaries; ≥2 per-iteration output
+     * \return            final NMI value (higher = better alignment)
+     */
+    double CAT_VolumeReg_register_NMI(float *fixed_vol,
+                                      nifti_image *fixed_nii,
+                                      int fixed_dims[3],
+                                      float *moving_vol,
+                                      nifti_image *moving_nii,
+                                      int moving_dims[3],
+                                      CAT_RigidParams *p_out,
+                                      int n_levels,
+                                      int n_bins,
+                                      int max_iter,
+                                      int verbose);
+
 #ifdef __cplusplus
 }
 #endif

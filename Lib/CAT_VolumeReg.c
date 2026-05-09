@@ -233,6 +233,21 @@ static float median_f(float *arr, int n)
     return med;
 }
 
+/* Percentile of a float array (sorts a copy); pct in [0,1] */
+static float vol_percentile(const float *data, int n, float pct)
+{
+    float *tmp = (float *)malloc((size_t)n * sizeof(float));
+    if (!tmp) return 0.0f;
+    memcpy(tmp, data, (size_t)n * sizeof(float));
+    qsort(tmp, (size_t)n, sizeof(float), cmp_float);
+    int idx = (int)(pct * (float)(n - 1));
+    if (idx < 0)     idx = 0;
+    if (idx >= n)    idx = n - 1;
+    float v = tmp[idx];
+    free(tmp);
+    return v;
+}
+
 /* Tukey biweight weight: w = (1-(r/sat)^2)^2, 0 if |r| >= sat */
 static double tukey_w(double r, double sat)
 {
@@ -614,4 +629,501 @@ CAT_VolumeReg_register(float *fixed_vol,
     free(fpyr); free(mpyr);
 
     return final_res;
+}
+
+/* =========================================================================
+ * NMI-based rigid registration  (cross-modal, e.g. EPI ↔ T1w)
+ *
+ * Algorithm:
+ *   1. Build Gaussian pyramid for fixed and moving (shared with IRLS path).
+ *   2. At each pyramid level (coarse→fine):
+ *      a. Map fixed intensity and sampled moving intensity to joint 2-D
+ *         histogram using bilinear partial-volume interpolation.
+ *      b. Compute NMI = (H_f + H_m) / H_joint from the histogram.
+ *      c. Maximise NMI with Powell's direction-set method + Brent line search.
+ * ========================================================================= */
+
+/* ---- Internal types ---- */
+
+/* Context shared between the NMI cost function and the line minimizer */
+typedef struct
+{
+    CAT_RigidParams  base;      /* current base point in parameter space     */
+    double           dir[6];    /* unit search direction                      */
+    const VLevel    *fixed;
+    const VLevel    *moving;
+    int              n_bins;    /* histogram resolution per axis              */
+    float            flo;       /* fixed intensity → bin: bin = (I-flo)*fscale */
+    float            fscale;
+    float            mlo;       /* moving intensity → bin                    */
+    float            mscale;
+} NMILineCtx;
+
+/* ---- Histogram helpers ---- */
+
+/* Map intensity to a fractional bin in [0, n_bins-1] */
+static double intensity_to_bin(double intensity, float lo, float scale,
+                                int n_bins)
+{
+    double b = ((double)intensity - (double)lo) * (double)scale;
+    if (b < 0.0)                b = 0.0;
+    if (b > (double)(n_bins - 1)) b = (double)(n_bins - 1);
+    return b;
+}
+
+/* Compute NMI from a (nb × nb) joint histogram.
+ * Rows = fixed bins, columns = moving bins.
+ * Returns NMI ≥ 1; returns 0 on empty or degenerate histogram. */
+static double nmi_from_hist(const double *jhist, int nb)
+{
+    int i, j;
+    double total = 0.0;
+    for (i = 0; i < nb * nb; i++) total += jhist[i];
+    if (total < 1.0) return 0.0;
+    double inv = 1.0 / total;
+
+    double hf = 0.0, hm = 0.0, hj = 0.0;
+
+    /* Marginal entropy of fixed */
+    for (i = 0; i < nb; i++)
+    {
+        double pi = 0.0;
+        for (j = 0; j < nb; j++) pi += jhist[i * nb + j];
+        pi *= inv;
+        if (pi > 1e-15) hf -= pi * log(pi);
+    }
+    /* Marginal entropy of moving */
+    for (j = 0; j < nb; j++)
+    {
+        double pj = 0.0;
+        for (i = 0; i < nb; i++) pj += jhist[i * nb + j];
+        pj *= inv;
+        if (pj > 1e-15) hm -= pj * log(pj);
+    }
+    /* Joint entropy */
+    for (i = 0; i < nb * nb; i++)
+    {
+        double p = jhist[i] * inv;
+        if (p > 1e-15) hj -= p * log(p);
+    }
+
+    if (hj < 1e-10) return 0.0;
+    return (hf + hm) / hj;   /* NMI ≥ 1; larger = better alignment */
+}
+
+/* ---- NMI cost (returns −NMI for minimisation) ---- */
+
+static double nmi_cost_params(const CAT_RigidParams *p,
+                              const NMILineCtx *ctx)
+{
+    double M[16];
+    CAT_BBReg_params_to_matrix((CAT_RigidParams *)p, M);
+
+    const VLevel *fixed  = ctx->fixed;
+    const VLevel *moving = ctx->moving;
+    const int fnx = fixed->nx,  fny = fixed->ny,  fnz = fixed->nz;
+    const int mnx = moving->nx, mny = moving->ny, mnz = moving->nz;
+    const int nb  = ctx->n_bins;
+
+    double *jhist = (double *)calloc((size_t)nb * nb, sizeof(double));
+    if (!jhist) return 0.0;
+
+    int x, y, z;
+    for (z = 0; z < fnz; z++)
+    for (y = 0; y < fny; y++)
+    for (x = 0; x < fnx; x++)
+    {
+        /* Fixed voxel → world */
+        double fw0 = fixed->sxyz[0]*x + fixed->sxyz[1]*y +
+                     fixed->sxyz[2]*z + fixed->sxyz[3];
+        double fw1 = fixed->sxyz[4]*x + fixed->sxyz[5]*y +
+                     fixed->sxyz[6]*z + fixed->sxyz[7];
+        double fw2 = fixed->sxyz[8]*x + fixed->sxyz[9]*y +
+                     fixed->sxyz[10]*z + fixed->sxyz[11];
+
+        /* Apply rigid transform: fixed world → moving world */
+        double mw0 = M[0]*fw0 + M[1]*fw1 + M[2]*fw2 + M[3];
+        double mw1 = M[4]*fw0 + M[5]*fw1 + M[6]*fw2 + M[7];
+        double mw2 = M[8]*fw0 + M[9]*fw1 + M[10]*fw2 + M[11];
+
+        /* Moving world → moving voxel */
+        double mvx = moving->sijk[0]*mw0 + moving->sijk[1]*mw1 +
+                     moving->sijk[2]*mw2 + moving->sijk[3];
+        double mvy = moving->sijk[4]*mw0 + moving->sijk[5]*mw1 +
+                     moving->sijk[6]*mw2 + moving->sijk[7];
+        double mvz = moving->sijk[8]*mw0 + moving->sijk[9]*mw1 +
+                     moving->sijk[10]*mw2 + moving->sijk[11];
+
+        double I_m = sample_vol(moving->data, mnx, mny, mnz, mvx, mvy, mvz);
+        if (isnan(I_m)) continue;
+
+        double I_f = (double)fixed->data[x + fnx * (y + fny * z)];
+
+        /* Fractional bins */
+        double bf = intensity_to_bin(I_f, ctx->flo, ctx->fscale, nb);
+        double bm = intensity_to_bin(I_m, ctx->mlo, ctx->mscale, nb);
+
+        /* Bilinear partial-volume interpolation into the joint histogram */
+        int bf0 = (int)bf, bm0 = (int)bm;
+        int bf1 = bf0 + 1, bm1 = bm0 + 1;
+        double wf1 = bf - (double)bf0, wm1 = bm - (double)bm0;
+        double wf0 = 1.0 - wf1,        wm0 = 1.0 - wm1;
+
+        if (bf0 >= 0 && bf0 < nb)
+        {
+            if (bm0 >= 0 && bm0 < nb) jhist[bf0 * nb + bm0] += wf0 * wm0;
+            if (bm1 >= 0 && bm1 < nb) jhist[bf0 * nb + bm1] += wf0 * wm1;
+        }
+        if (bf1 >= 0 && bf1 < nb)
+        {
+            if (bm0 >= 0 && bm0 < nb) jhist[bf1 * nb + bm0] += wf1 * wm0;
+            if (bm1 >= 0 && bm1 < nb) jhist[bf1 * nb + bm1] += wf1 * wm1;
+        }
+    }
+
+    double nmi = nmi_from_hist(jhist, nb);
+    free(jhist);
+    return -nmi;   /* minimise */
+}
+
+/* ---- Brent + Powell line search for NMI ---- */
+
+static double nmi_line_cost(const NMILineCtx *ctx, double t)
+{
+    CAT_RigidParams p;
+    p.tx = ctx->base.tx + t * ctx->dir[0];
+    p.ty = ctx->base.ty + t * ctx->dir[1];
+    p.tz = ctx->base.tz + t * ctx->dir[2];
+    p.rx = ctx->base.rx + t * ctx->dir[3];
+    p.ry = ctx->base.ry + t * ctx->dir[4];
+    p.rz = ctx->base.rz + t * ctx->dir[5];
+    return nmi_cost_params(&p, ctx);
+}
+
+/* Brent's 1-D minimiser; same algorithm as in CAT_BBReg.c */
+static double nmi_brent(const NMILineCtx *ctx,
+                        double ax, double bx, double cx,
+                        double tol, double *fmin)
+{
+    int iter;
+    double a, b, d = 0.0, e = 0.0, etemp, fu, fv, fw, fx;
+    double p, q, r2, tol1, tol2, u, v, w, x, xm;
+
+    a = (ax < cx) ? ax : cx;
+    b = (ax > cx) ? ax : cx;
+    x = w = v = bx;
+    fw = fv = fx = nmi_line_cost(ctx, x);
+
+    for (iter = 0; iter < 100; iter++)
+    {
+        xm   = 0.5 * (a + b);
+        tol1 = tol * fabs(x) + 1.0e-10;
+        tol2 = 2.0 * tol1;
+        if (fabs(x - xm) <= (tol2 - 0.5 * (b - a))) { *fmin = fx; return x; }
+
+        if (fabs(e) > tol1)
+        {
+            r2 = (x - w) * (fx - fv);
+            q  = (x - v) * (fx - fw);
+            p  = (x - v) * q - (x - w) * r2;
+            q  = 2.0 * (q - r2);
+            if (q > 0.0) p = -p;
+            q    = fabs(q);
+            etemp = e; e = d;
+            if (fabs(p) >= fabs(0.5 * q * etemp) ||
+                p <= q * (a - x) || p >= q * (b - x))
+            {
+                e = (x >= xm) ? a - x : b - x;
+                d = 0.3819660 * e;
+            }
+            else
+            {
+                d = p / q;
+                u = x + d;
+                if (u - a < tol2 || b - u < tol2)
+                    d = (xm - x >= 0.0) ? tol1 : -tol1;
+            }
+        }
+        else
+        {
+            e = (x >= xm) ? a - x : b - x;
+            d = 0.3819660 * e;
+        }
+
+        u  = (fabs(d) >= tol1) ? x + d : x + ((d >= 0.0) ? tol1 : -tol1);
+        fu = nmi_line_cost(ctx, u);
+
+        if (fu <= fx)
+        {
+            if (u < x) b = x; else a = x;
+            v = w; fv = fw; w = x; fw = fx; x = u; fx = fu;
+        }
+        else
+        {
+            if (u < x) a = u; else b = u;
+            if (fu <= fw || w == x) { v = w; fv = fw; w = u; fw = fu; }
+            else if (fu <= fv || v == x || v == w) { v = u; fv = fu; }
+        }
+    }
+    *fmin = fx;
+    return x;
+}
+
+static double nmi_line_minimize(const NMILineCtx *ctx,
+                                double step, double *t_out)
+{
+    double t0 = 0.0, t1 = step;
+    double f0 = nmi_line_cost(ctx, t0);
+    double f1 = nmi_line_cost(ctx, t1);
+    double fmin;
+
+    /* Ensure we step downhill first */
+    if (f1 > f0) { t1 = -step; f1 = nmi_line_cost(ctx, t1); }
+    if (f1 > f0) { *t_out = 0.0; return f0; }
+
+    /* Expand bracket with golden ratio until we bracket a minimum */
+    double t2 = t1 * 1.618, f2 = nmi_line_cost(ctx, t2);
+    int it = 0;
+    while (f2 < f1 && it++ < 50)
+    {
+        t0 = t1; f0 = f1;
+        t1 = t2; f1 = f2;
+        t2 = t1 + 1.618 * (t1 - t0);
+        f2 = nmi_line_cost(ctx, t2);
+    }
+
+    double tmin = nmi_brent(ctx, t0, t1, t2, 1e-4, &fmin);
+    *t_out = tmin;
+    return fmin;
+}
+
+/* Powell's direction-set minimiser for NMI.
+ * Uses the same conjugate-direction update as the BBR Powell in CAT_BBReg.c. */
+static double nmi_powell(CAT_RigidParams *p,
+                         const NMILineCtx *ctx_tmpl,
+                         const double init_steps[6],
+                         int max_iter, double tol,
+                         int verbose, int level)
+{
+    const int N = 6;
+    double steps[6], dirs[6][6];
+    int i, j, iter;
+
+    for (i = 0; i < N; i++) steps[i] = init_steps[i];
+    for (i = 0; i < N; i++)
+        for (j = 0; j < N; j++)
+            dirs[i][j] = (i == j) ? 1.0 : 0.0;
+
+    NMILineCtx ctx = *ctx_tmpl;
+    double f_curr = nmi_cost_params(p, &ctx);
+
+    for (iter = 0; iter < max_iter; iter++)
+    {
+        double f_prev = f_curr;
+        double delta_max = 0.0;
+        int    idx_max   = 0;
+        double p_arr[6];
+        p_arr[0] = p->tx; p_arr[1] = p->ty; p_arr[2] = p->tz;
+        p_arr[3] = p->rx; p_arr[4] = p->ry; p_arr[5] = p->rz;
+
+        for (i = 0; i < N; i++)
+        {
+            ctx.base = *p;
+            for (j = 0; j < N; j++) ctx.dir[j] = dirs[i][j];
+
+            double f_before = f_curr, t_opt;
+            double f_opt = nmi_line_minimize(&ctx, steps[i], &t_opt);
+
+            p->tx += t_opt * dirs[i][0];
+            p->ty += t_opt * dirs[i][1];
+            p->tz += t_opt * dirs[i][2];
+            p->rx += t_opt * dirs[i][3];
+            p->ry += t_opt * dirs[i][4];
+            p->rz += t_opt * dirs[i][5];
+            f_curr = f_opt;
+
+            double delta_i = f_before - f_curr;
+            if (delta_i > delta_max) { delta_max = delta_i; idx_max = i; }
+        }
+
+        if (verbose > 1)
+            printf("  NMI level %d  iter %2d  NMI=%.5f  delta=%.2e\n",
+                   level, iter + 1, -f_curr, f_prev - f_curr);
+
+        if (2.0 * fabs(f_prev - f_curr) <=
+            tol * (fabs(f_prev) + fabs(f_curr) + 1e-20))
+            break;
+
+        /* Conjugate direction update (Powell rule) */
+        double new_dir[6], len2 = 0.0;
+        for (j = 0; j < N; j++)
+        {
+            double pnow = (j == 0) ? p->tx : (j == 1) ? p->ty : (j == 2) ? p->tz :
+                          (j == 3) ? p->rx : (j == 4) ? p->ry : p->rz;
+            new_dir[j] = pnow - p_arr[j];
+            len2 += new_dir[j] * new_dir[j];
+        }
+        if (len2 > 1e-20)
+        {
+            double inv_len = 1.0 / sqrt(len2);
+            for (j = 0; j < N; j++) new_dir[j] *= inv_len;
+
+            for (i = idx_max; i < N - 1; i++)
+            {
+                for (j = 0; j < N; j++) dirs[i][j] = dirs[i + 1][j];
+                steps[i] = steps[i + 1];
+            }
+            for (j = 0; j < N; j++) dirs[N - 1][j] = new_dir[j];
+
+            /* Adaptive step: scale to physical magnitude of direction */
+            double trans_sq = 0.0, rot_sq = 0.0;
+            for (j = 0; j < 3; j++) trans_sq += new_dir[j] * new_dir[j];
+            for (j = 3; j < N; j++) rot_sq   += new_dir[j] * new_dir[j];
+            double step_t = (trans_sq > 1e-10) ?
+                            init_steps[0] / sqrt(trans_sq) : 1e30;
+            double step_r = (rot_sq   > 1e-10) ?
+                            init_steps[3] / sqrt(rot_sq)   : 1e30;
+            steps[N - 1] = (step_t < step_r) ? step_t : step_r;
+            if (steps[N - 1] < 1e-8 || steps[N - 1] > 10.0)
+                steps[N - 1] = init_steps[0];
+        }
+    }
+    return f_curr;
+}
+
+/* =========================================================================
+ * Public API — NMI registration
+ * ========================================================================= */
+
+/**
+ * \brief Cross-modal rigid registration using Normalised Mutual Information.
+ *
+ * Equivalent to mri_coreg (FreeSurfer) which is the initialisation step used
+ * by fMRIPrep before bbregister.  A Gaussian image pyramid is used for
+ * coarse-to-fine registration; at each level the NMI is computed from a
+ * joint intensity histogram (bilinear partial-volume interpolation) and
+ * maximised with Powell's direction-set method.
+ *
+ * Intensity histograms use n_bins bins per axis.  Intensities are normalised
+ * from the 1st–99th percentile of each volume so outlier voxels do not
+ * distort the histogram.
+ *
+ * \param fixed_vol   (in)  reference volume data (float, x-fastest)
+ * \param fixed_nii   (in)  NIfTI header of the reference volume (T1w)
+ * \param fixed_dims  (in)  [nx, ny, nz] of the reference volume
+ * \param moving_vol  (in)  moving volume data (float) — e.g. mean EPI/BOLD
+ * \param moving_nii  (in)  NIfTI header of the moving volume
+ * \param moving_dims (in)  [nx, ny, nz] of the moving volume
+ * \param p_out       (out) estimated 6-DOF rigid parameters (fixed→moving)
+ * \param n_levels    (in)  Gaussian pyramid levels (3–4 recommended)
+ * \param n_bins      (in)  histogram bins per axis (64 recommended)
+ * \param max_iter    (in)  Powell iterations per level (20–50)
+ * \param verbose     (in)  ≥1 prints level summaries; ≥2 prints per-iteration
+ * \return            final NMI value (higher = better alignment)
+ */
+double
+CAT_VolumeReg_register_NMI(float *fixed_vol,
+                            nifti_image *fixed_nii,
+                            int fixed_dims[3],
+                            float *moving_vol,
+                            nifti_image *moving_nii,
+                            int moving_dims[3],
+                            CAT_RigidParams *p_out,
+                            int n_levels,
+                            int n_bins,
+                            int max_iter,
+                            int verbose)
+{
+    int l, j;
+    double fsxyz[16], msxyz[16];
+    mat44_to_d16(fixed_nii->sto_xyz,  fsxyz);
+    mat44_to_d16(moving_nii->sto_xyz, msxyz);
+
+    if (n_levels < 1)  n_levels = 1;
+    if (n_levels > 6)  n_levels = 6;
+    if (n_bins  < 16)  n_bins   = 16;
+    if (n_bins  > 256) n_bins   = 256;
+
+    /* Build Gaussian pyramids */
+    VLevel *fpyr = (VLevel *)malloc((size_t)n_levels * sizeof(VLevel));
+    VLevel *mpyr = (VLevel *)malloc((size_t)n_levels * sizeof(VLevel));
+    if (!fpyr || !mpyr) { free(fpyr); free(mpyr); return 0.0; }
+
+    for (l = 0; l < n_levels; l++)
+    {
+        fpyr[l] = build_level(fixed_vol,
+                              fixed_dims[0],  fixed_dims[1],  fixed_dims[2],
+                              fsxyz, l);
+        mpyr[l] = build_level(moving_vol,
+                              moving_dims[0], moving_dims[1], moving_dims[2],
+                              msxyz, l);
+    }
+
+    /* Compute intensity normalisation from the coarsest level (fastest).
+     * Clip to 1st–99th percentile to suppress outlier voxels. */
+    int cl = n_levels - 1;
+    int fn = fpyr[cl].nx * fpyr[cl].ny * fpyr[cl].nz;
+    int mn = mpyr[cl].nx * mpyr[cl].ny * mpyr[cl].nz;
+
+    float flo = vol_percentile(fpyr[cl].data, fn, 0.01f);
+    float fhi = vol_percentile(fpyr[cl].data, fn, 0.99f);
+    float mlo = vol_percentile(mpyr[cl].data, mn, 0.01f);
+    float mhi = vol_percentile(mpyr[cl].data, mn, 0.99f);
+
+    float fscale = (fhi > flo) ? (float)(n_bins - 1) / (fhi - flo) : 1.0f;
+    float mscale = (mhi > mlo) ? (float)(n_bins - 1) / (mhi - mlo) : 1.0f;
+
+    if (verbose)
+        printf("NMI intensity range:  fixed [%.1f, %.1f]  moving [%.1f, %.1f]"
+               "  bins=%d\n", (double)flo, (double)fhi,
+               (double)mlo, (double)mhi, n_bins);
+
+    CAT_RigidParams p = *p_out;
+    double final_nmi  = 0.0;
+
+    for (l = n_levels - 1; l >= 0; l--)
+    {
+        /* Step sizes scale with pyramid level: coarser = larger initial steps */
+        double scale = (double)(1 << l);   /* 2^l */
+        double init_steps[6];
+        init_steps[0] = init_steps[1] = init_steps[2] = 2.0 * scale; /* mm */
+        init_steps[3] = init_steps[4] = init_steps[5] = 0.02;        /* rad */
+
+        NMILineCtx ctx;
+        ctx.base   = p;
+        for (j = 0; j < 6; j++) ctx.dir[j] = 0.0;
+        ctx.fixed  = &fpyr[l];
+        ctx.moving = &mpyr[l];
+        ctx.n_bins = n_bins;
+        ctx.flo    = flo;   ctx.fscale = fscale;
+        ctx.mlo    = mlo;   ctx.mscale = mscale;
+
+        if (verbose)
+            printf("NMI level %d  (%dx%dx%d fixed, %dx%dx%d moving)"
+                   "  step_t=%.1f mm\n",
+                   l, fpyr[l].nx, fpyr[l].ny, fpyr[l].nz,
+                   mpyr[l].nx, mpyr[l].ny, mpyr[l].nz,
+                   init_steps[0]);
+
+        double neg_nmi = nmi_powell(&p, &ctx, init_steps,
+                                    max_iter, 1e-5, verbose, l);
+        final_nmi = -neg_nmi;
+
+        if (verbose)
+            printf("  → NMI=%.5f  tx=%.2f ty=%.2f tz=%.2f"
+                   "  rx=%.4f ry=%.4f rz=%.4f\n",
+                   final_nmi, p.tx, p.ty, p.tz, p.rx, p.ry, p.rz);
+    }
+
+    *p_out = p;
+
+    for (l = 0; l < n_levels; l++)
+    {
+        free(fpyr[l].data);
+        free(mpyr[l].data);
+    }
+    free(fpyr);
+    free(mpyr);
+
+    return final_nmi;
 }
