@@ -330,6 +330,7 @@ noinst_HEADERS = \
     Include/CAT_MarchingCubes.h \
     Include/CAT_SafeAlloc.h \
     Include/CAT_BBReg.h \
+    Include/CAT_VolumeReg.h \
     3rdparty/bicpl-surface/Include/bicpl.h \
     3rdparty/genus0/LookUpTable.h \
     3rdparty/genus0/genus0.h \
@@ -415,7 +416,8 @@ libCAT_la_SOURCES = \
     Lib//CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
     Lib/CAT_SafeAlloc.c \
-    Lib/CAT_BBReg.c
+    Lib/CAT_BBReg.c \
+    Lib/CAT_VolumeReg.c
 # MeshFix requires C++ and is not supported on Windows; exclude it there.
 if !WINDOWS
 libCAT_la_SOURCES += \

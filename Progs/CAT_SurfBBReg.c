@@ -22,6 +22,7 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_BBReg.h"
+#include "CAT_VolumeReg.h"
 #include "CAT_Vol.h"
 
 /* -----------------------------------------------------------------------
@@ -52,6 +53,13 @@ static char *rh_thick_file = NULL;
 /* Initial parameters (identity transform) */
 static double init_tx = 0.0, init_ty = 0.0, init_tz = 0.0;
 static double init_rx = 0.0, init_ry = 0.0, init_rz = 0.0;
+
+/* Volume registration (robust init) options */
+static int    vol_reg_levels  = 4;    /* Gaussian pyramid levels          */
+static double vol_reg_sat     = 4.685;/* Tukey saturation multiplier      */
+static int    vol_reg_iter    = 15;   /* IRLS iterations per level        */
+static int    no_vol_reg      = 0;    /* skip volume registration init    */
+static char  *ref_vol_file    = NULL; /* separate reference volume (T1w)  */
 
 /* -----------------------------------------------------------------------
  * Argument table
@@ -137,6 +145,30 @@ static ArgvInfo argTable[] =
          " header is updated to reflect the registration transform;"
          " voxel data is not resampled."},
 
+        /* ----- robust volume registration (init) options ----- */
+        {"-ref", ARGV_STRING, (char *)1, (char *)&ref_vol_file,
+         "Reference (fixed) volume for the robust volume registration initialisation."
+         " When surfaces are provided this is the T1w anatomical volume; when no"
+         " surfaces are given, BBR is skipped and only robust volume registration"
+         " is performed. Default: use the moving volume (self-registration test only)."},
+
+        {"-vol-reg-levels", ARGV_INT, (char *)1, (char *)&vol_reg_levels,
+         "Number of Gaussian pyramid levels for the volume registration"
+         " initialisation (default: 4)."},
+
+        {"-vol-reg-sat", ARGV_FLOAT, (char *)1, (char *)&vol_reg_sat,
+         "Tukey saturation multiplier for the robust volume registration."
+         " Values near 4.685 give ~95%% efficiency under Gaussian noise."
+         " Default: 4.685"},
+
+        {"-vol-reg-iter", ARGV_INT, (char *)1, (char *)&vol_reg_iter,
+         "Maximum IRLS iterations per pyramid level during volume registration."
+         " Default: 15"},
+
+        {"-no-vol-reg", ARGV_CONSTANT, (char *)1, (char *)&no_vol_reg,
+         "Skip robust volume registration initialisation; use only the"
+         " -init-tx/ty/tz/rx/ry/rz values (or identity) to start BBR."},
+
         {NULL, ARGV_END, NULL, NULL, NULL}};
 
 /* -----------------------------------------------------------------------
@@ -181,7 +213,16 @@ usage(const char *exe)
             "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
             "  -fwhm <mm>              Gaussian pre-smoothing FWHM (default: 0 = off)\n"
             "  -verbose                Print optimisation progress\n"
-            "  -output-volume <file>   Save coregistered volume (header update only)\n\n");
+            "  -output-volume <file>   Save coregistered volume (header update only)\n"
+            "\n"
+            "Robust volume registration (initialisation):\n"
+            "  -ref <file>             T1w reference volume for volume reg init.\n"
+            "                          If no surfaces are given, only volume\n"
+            "                          registration is performed (no BBR).\n"
+            "  -vol-reg-levels <n>     Pyramid levels (default: 4)\n"
+            "  -vol-reg-sat <val>      Tukey saturation multiplier (default: 4.685)\n"
+            "  -vol-reg-iter <n>       IRLS iterations per level (default: 15)\n"
+            "  -no-vol-reg             Skip volume-registration initialisation\n\n");
 }
 
 /* -----------------------------------------------------------------------
@@ -275,11 +316,12 @@ int main(int argc, char *argv[])
     volume_file = argv[1];
     output_file = argv[2];
 
-    /* --- Require at least one surface --- */
-    if (!lh_surf_file && !rh_surf_file)
+    /* --- Require either at least one surface OR a reference volume --- */
+    if (!lh_surf_file && !rh_surf_file && !ref_vol_file)
     {
         fprintf(stderr,
-                "Error: at least one surface must be specified via -lh and/or -rh.\n");
+                "Error: provide at least one WM surface (-lh/-rh) for BBR, or"
+                " a reference volume (-ref) for standalone volume registration.\n");
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
@@ -363,13 +405,91 @@ int main(int argc, char *argv[])
             smooth3(vol + t * nvox3, dims, voxelsize, fwhm_vox, 0, DT_FLOAT32);
     }
 
-    /* --- Initial parameters --- */
+    /* --- Robust volume registration initialisation --- */
     p_init.tx = init_tx;
     p_init.ty = init_ty;
     p_init.tz = init_tz;
     p_init.rx = init_rx;
     p_init.ry = init_ry;
     p_init.rz = init_rz;
+
+    if (!no_vol_reg && ref_vol_file)
+    {
+        /* Load the reference (T1w) volume */
+        float *ref_vol = NULL;
+        nifti_image *ref_nii = read_nifti_float(ref_vol_file, &ref_vol, 0);
+        if (!ref_nii || !ref_vol)
+        {
+            fprintf(stderr, "Error reading reference volume: %s\n", ref_vol_file);
+            free(vol);
+            nii_ptr->data = NULL;
+            nifti_image_free(nii_ptr);
+            exit(EXIT_FAILURE);
+        }
+        int ref_dims[3];
+        ref_dims[0] = ref_nii->nx;
+        ref_dims[1] = ref_nii->ny;
+        ref_dims[2] = ref_nii->nz;
+
+        if (verbose)
+            printf("VolumeReg init: fixed=%s (%dx%dx%d)  moving=%s (%dx%dx%d)\n",
+                   ref_vol_file, ref_dims[0], ref_dims[1], ref_dims[2],
+                   volume_file, dims[0], dims[1], dims[2]);
+
+        double vol_res = CAT_VolumeReg_register(
+            ref_vol,  ref_nii,  ref_dims,
+            vol,      nii_ptr,  dims,
+            &p_init,
+            vol_reg_levels, vol_reg_sat, vol_reg_iter, verbose);
+
+        if (verbose)
+            printf("VolumeReg done: residual=%.4f  "
+                   "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
+                   vol_res,
+                   p_init.tx, p_init.ty, p_init.tz,
+                   p_init.rx, p_init.ry, p_init.rz);
+
+        free(ref_vol);
+        ref_nii->data = NULL;
+        nifti_image_free(ref_nii);
+
+        /* If no surfaces are provided, write the volume-registration result
+         * directly and exit (standalone mode). */
+        if (n_surfs == 0)
+        {
+            double m_vol[16], m_vol_inv[16];
+            CAT_BBReg_params_to_matrix(&p_init, m_vol);
+            CAT_BBReg_invert_matrix(m_vol, m_vol_inv);
+
+            if (CAT_BBReg_write_matrix(output_file, m_vol_inv) != 0)
+            {
+                fprintf(stderr, "Error writing output matrix: %s\n", output_file);
+                free(vol);
+                nii_ptr->data = NULL;
+                nifti_image_free(nii_ptr);
+                exit(EXIT_FAILURE);
+            }
+            printf("VolumeReg done (standalone).  Residual: %.6f\n", vol_res);
+            printf("Transform written to: %s\n", output_file);
+            printf("Parameters (ref->moving, internal): "
+                   "tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
+                   p_init.tx, p_init.ty, p_init.tz,
+                   p_init.rx, p_init.ry, p_init.rz);
+            free(vol);
+            nii_ptr->data = NULL;
+            nifti_image_free(nii_ptr);
+            return EXIT_SUCCESS;
+        }
+    }
+    else if (!no_vol_reg && n_surfs == 0)
+    {
+        fprintf(stderr,
+                "Error: no surfaces supplied (-lh/-rh) and no reference volume"
+                " (-ref) given.\n"
+                "Provide at least one surface for BBR, or supply -ref for"
+                " standalone volume registration.\n");
+        exit(EXIT_FAILURE);
+    }
 
     if (verbose)
     {
@@ -432,7 +552,7 @@ int main(int argc, char *argv[])
 
     printf("BBReg done.  Final cost: %.6f\n", final_cost);
     printf("Transform written to: %s\n", output_file);
-    printf("Parameters (EPI->T1): tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
+    printf("Parameters (T1->EPI, internal): tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
            p_best.tx, p_best.ty, p_best.tz,
            p_best.rx, p_best.ry, p_best.rz);
 
@@ -443,16 +563,16 @@ int main(int argc, char *argv[])
         mat44 new_sto;
         float qb, qc, qd, qx, qy, qz, dx, dy, dz, qfac;
 
-        /* new_sto_xyz = m_best * old_sto_xyz
-         * m_best maps moving-volume RAS -> fixed-surface RAS, so composing it
-         * with the original sform (voxel -> old RAS) gives the updated sform
-         * (voxel -> registered/surface RAS). */
+        /* new_sto_xyz = m_inv * old_sto_xyz
+         * m_inv maps EPI RAS → T1/surface RAS (standard output convention).
+         * Composing it with the original sform (voxel → EPI RAS) gives the
+         * updated sform (voxel → T1/surface RAS). */
         for (i = 0; i < 4; i++)
             for (j = 0; j < 4; j++)
             {
                 double sum = 0.0;
                 for (k = 0; k < 4; k++)
-                    sum += m_best[i * 4 + k] * (double)nii_ptr->sto_xyz.m[k][j];
+                    sum += m_inv[i * 4 + k] * (double)nii_ptr->sto_xyz.m[k][j];
                 new_sto.m[i][j] = (float)sum;
             }
         nii_ptr->sto_xyz = new_sto;
@@ -466,7 +586,7 @@ int main(int argc, char *argv[])
                 {
                     double sum = 0.0;
                     for (k = 0; k < 4; k++)
-                        sum += m_best[i * 4 + k] * (double)nii_ptr->qto_xyz.m[k][j];
+                        sum += m_inv[i * 4 + k] * (double)nii_ptr->qto_xyz.m[k][j];
                     new_qto.m[i][j] = (float)sum;
                 }
             nii_ptr->qto_xyz = new_qto;

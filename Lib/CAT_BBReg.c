@@ -25,23 +25,34 @@
  * Internal helpers
  * ========================================================================= */
 
-/* Clamp integer index to [0, lim-1]. */
-static int clamp_i(int v, int lim)
+/* Trilinear sample at continuous voxel coords (vx, vy, vz).
+ * Returns NaN if any corner of the interpolation cell is outside [0, dims-1].
+ * This is used by BBR where out-of-FOV vertices must be excluded, not clamped. */
+static double sample_vox(const float *vol, const int dims[3],
+                         double vx, double vy, double vz)
 {
-    if (v < 0)
-        return 0;
-    if (v >= lim)
-        return lim - 1;
-    return v;
-}
+    int x0 = (int)floor(vx), y0 = (int)floor(vy), z0 = (int)floor(vz);
+    int x1 = x0 + 1,         y1 = y0 + 1,         z1 = z0 + 1;
 
-/* Trilinear sample of vol at world coords (wx, wy, wz) using the NIfTI
- * sto_xyz / its inverse.  Returns NaN if outside volume. */
-static double sample_world(float *vol, int dims[3],
-                           nifti_image *nii_ptr,
-                           double wx, double wy, double wz)
-{
-    return (double)isoval(vol, (float)wx, (float)wy, (float)wz, dims, nii_ptr);
+    /* Strict out-of-bounds → exclude this vertex entirely */
+    if (x0 < 0 || x1 >= dims[0] ||
+        y0 < 0 || y1 >= dims[1] ||
+        z0 < 0 || z1 >= dims[2])
+        return (double)NAN;
+
+    double wx = vx - x0, wy = vy - y0, wz = vz - z0;
+
+#define IDX(a,b,c) ((a) + dims[0]*((b) + dims[1]*(c)))
+    double v000 = vol[IDX(x0,y0,z0)]; double v100 = vol[IDX(x1,y0,z0)];
+    double v010 = vol[IDX(x0,y1,z0)]; double v110 = vol[IDX(x1,y1,z0)];
+    double v001 = vol[IDX(x0,y0,z1)]; double v101 = vol[IDX(x1,y0,z1)];
+    double v011 = vol[IDX(x0,y1,z1)]; double v111 = vol[IDX(x1,y1,z1)];
+#undef IDX
+
+    return v000*(1-wx)*(1-wy)*(1-wz) + v100*wx*(1-wy)*(1-wz) +
+           v010*(1-wx)*wy*(1-wz)     + v110*wx*wy*(1-wz)     +
+           v001*(1-wx)*(1-wy)*wz     + v101*wx*(1-wy)*wz     +
+           v011*(1-wx)*wy*wz         + v111*wx*wy*wz;
 }
 
 /* =========================================================================
@@ -51,8 +62,10 @@ static double sample_world(float *vol, int dims[3],
 /**
  * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
  *
- * The resulting matrix maps points expressed in the *moving* volume's RAS space
- * to the *fixed* surface's RAS space:
+ * The resulting matrix maps points in the *fixed* surface (T1) RAS space to
+ * the *moving* volume (EPI) RAS space — the direction the BBR cost function
+ * applies when transforming surface sample points before EPI interpolation.
+ * Use CAT_BBReg_invert_matrix() to get the standard EPI→T1 output matrix.
  *
  *   M = T_trans * Rz * Ry * Rx
  *
@@ -191,6 +204,16 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
 
     CAT_BBReg_params_to_matrix(p, m);
 
+    /* Precompute voxel-space inverse once (world → voxel) to avoid
+     * recomputing it inside isoval() for every sample point. */
+    mat44 sto_ijk = nifti_mat44_inverse(nii_ptr->sto_xyz);
+    /* Row-major 3×4 of sto_ijk for fast dot-product */
+    double ij[12];
+    int r, c;
+    for (r = 0; r < 3; r++)
+        for (c = 0; c < 4; c++)
+            ij[r*4+c] = (double)sto_ijk.m[r][c];
+
     for (s = 0; s < n_surfs; s++)
     {
         const polygons_struct *surface = surfs[s].surface;
@@ -224,33 +247,47 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
             if (thick && frac > 0.0)
                 d_gm = frac * (double)thick[i];
 
-            /* WM sample point (inward) */
+            /* WM sample point (inward along normal) */
             double wm_x = vx - wm_dist * nx;
             double wm_y = vy - wm_dist * ny;
             double wm_z = vz - wm_dist * nz;
 
-            /* GM sample point (outward) */
+            /* GM sample point (outward along normal) */
             double gm_x = vx + d_gm * nx;
             double gm_y = vy + d_gm * ny;
             double gm_z = vz + d_gm * nz;
 
-            /* Apply transform */
-            double twm_x = m[0] * wm_x + m[1] * wm_y + m[2] * wm_z + m[3];
-            double twm_y = m[4] * wm_x + m[5] * wm_y + m[6] * wm_z + m[7];
-            double twm_z = m[8] * wm_x + m[9] * wm_y + m[10] * wm_z + m[11];
+            /* Apply rigid transform: surface RAS → EPI RAS */
+            double twm_x = m[0]*wm_x + m[1]*wm_y + m[2]*wm_z + m[3];
+            double twm_y = m[4]*wm_x + m[5]*wm_y + m[6]*wm_z + m[7];
+            double twm_z = m[8]*wm_x + m[9]*wm_y + m[10]*wm_z + m[11];
 
-            double tgm_x = m[0] * gm_x + m[1] * gm_y + m[2] * gm_z + m[3];
-            double tgm_y = m[4] * gm_x + m[5] * gm_y + m[6] * gm_z + m[7];
-            double tgm_z = m[8] * gm_x + m[9] * gm_y + m[10] * gm_z + m[11];
+            double tgm_x = m[0]*gm_x + m[1]*gm_y + m[2]*gm_z + m[3];
+            double tgm_y = m[4]*gm_x + m[5]*gm_y + m[6]*gm_z + m[7];
+            double tgm_z = m[8]*gm_x + m[9]*gm_y + m[10]*gm_z + m[11];
 
-            double I_wm = sample_world(vol, dims, nii_ptr, twm_x, twm_y, twm_z);
-            double I_gm = sample_world(vol, dims, nii_ptr, tgm_x, tgm_y, tgm_z);
+            /* EPI RAS → voxel (using precomputed inverse) */
+            double wvx = ij[0]*twm_x + ij[1]*twm_y + ij[2]*twm_z + ij[3];
+            double wvy = ij[4]*twm_x + ij[5]*twm_y + ij[6]*twm_z + ij[7];
+            double wvz = ij[8]*twm_x + ij[9]*twm_y + ij[10]*twm_z + ij[11];
+
+            double gvx = ij[0]*tgm_x + ij[1]*tgm_y + ij[2]*tgm_z + ij[3];
+            double gvy = ij[4]*tgm_x + ij[5]*tgm_y + ij[6]*tgm_z + ij[7];
+            double gvz = ij[8]*tgm_x + ij[9]*tgm_y + ij[10]*tgm_z + ij[11];
+
+            /* sample_vox returns NaN when either point is outside the FOV,
+             * ensuring such vertices are excluded rather than clamped to
+             * edge values (which would bias the cost). */
+            double I_wm = sample_vox(vol, dims, wvx, wvy, wvz);
+            double I_gm = sample_vox(vol, dims, gvx, gvy, gvz);
 
             if (isnan(I_wm) || isnan(I_gm))
                 continue;
 
             double denom = 0.5 * (I_wm + I_gm) + eps;
-            double c = (I_wm - I_gm) / denom;
+            /* Percent contrast (×100): slope=0.5 saturates at ~6% contrast.
+             * Matching neuroreg/bbregister convention. */
+            double c = 100.0 * (I_wm - I_gm) / denom;
             if (invert_contrast)
                 c = -c;
 
@@ -263,6 +300,86 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
     if (n_valid == 0)
         return 1.0;
     return cost / (double)n_valid;
+}
+
+/* Print BBR intensity statistics at a given parameter set (verbose diagnostic). */
+static void bbr_print_stats(const CAT_RigidParams *p,
+                            const CAT_SurfData *surfs, int n_surfs,
+                            float *vol, nifti_image *nii_ptr, int dims[3],
+                            double wm_dist, double gm_dist)
+{
+    double m[16];
+    CAT_BBReg_params_to_matrix(p, m);
+    mat44 sto_ijk = nifti_mat44_inverse(nii_ptr->sto_xyz);
+    double ij[12];
+    int r, col;
+    for (r = 0; r < 3; r++)
+        for (col = 0; col < 4; col++)
+            ij[r*4+col] = (double)sto_ijk.m[r][col];
+
+    double sum_wm = 0.0, sum_gm = 0.0;
+    int n_valid = 0, n_fov = 0;
+    int s, i;
+
+    for (s = 0; s < n_surfs; s++)
+    {
+        const polygons_struct *surf = surfs[s].surface;
+        const float *mask = surfs[s].cortex_mask;
+        const float *thick = surfs[s].thickness;
+        double frac = surfs[s].gm_proj_frac;
+
+        for (i = 0; i < surf->n_points; i++)
+        {
+            if (mask && mask[i] <= 0.5f) continue;
+            n_fov++;
+
+            double vx = Point_x(surf->points[i]);
+            double vy = Point_y(surf->points[i]);
+            double vz = Point_z(surf->points[i]);
+            double nx = Vector_x(surf->normals[i]);
+            double ny = Vector_y(surf->normals[i]);
+            double nz = Vector_z(surf->normals[i]);
+            double nlen = sqrt(nx*nx + ny*ny + nz*nz);
+            if (nlen < 1e-10) continue;
+            nx /= nlen; ny /= nlen; nz /= nlen;
+
+            double d_gm = gm_dist;
+            if (thick && frac > 0.0) d_gm = frac * (double)thick[i];
+
+            double wm_x = vx - wm_dist*nx, wm_y = vy - wm_dist*ny, wm_z = vz - wm_dist*nz;
+            double gm_x = vx + d_gm*nx,   gm_y = vy + d_gm*ny,   gm_z = vz + d_gm*nz;
+
+            double twm_x = m[0]*wm_x + m[1]*wm_y + m[2]*wm_z + m[3];
+            double twm_y = m[4]*wm_x + m[5]*wm_y + m[6]*wm_z + m[7];
+            double twm_z = m[8]*wm_x + m[9]*wm_y + m[10]*wm_z + m[11];
+            double tgm_x = m[0]*gm_x + m[1]*gm_y + m[2]*gm_z + m[3];
+            double tgm_y = m[4]*gm_x + m[5]*gm_y + m[6]*gm_z + m[7];
+            double tgm_z = m[8]*gm_x + m[9]*gm_y + m[10]*gm_z + m[11];
+
+            double wvx = ij[0]*twm_x+ij[1]*twm_y+ij[2]*twm_z+ij[3];
+            double wvy = ij[4]*twm_x+ij[5]*twm_y+ij[6]*twm_z+ij[7];
+            double wvz = ij[8]*twm_x+ij[9]*twm_y+ij[10]*twm_z+ij[11];
+            double gvx = ij[0]*tgm_x+ij[1]*tgm_y+ij[2]*tgm_z+ij[3];
+            double gvy = ij[4]*tgm_x+ij[5]*tgm_y+ij[6]*tgm_z+ij[7];
+            double gvz = ij[8]*tgm_x+ij[9]*tgm_y+ij[10]*tgm_z+ij[11];
+
+            double I_wm = sample_vox(vol, dims, wvx, wvy, wvz);
+            double I_gm = sample_vox(vol, dims, gvx, gvy, gvz);
+            if (isnan(I_wm) || isnan(I_gm)) continue;
+
+            sum_wm += I_wm;
+            sum_gm += I_gm;
+            n_valid++;
+        }
+    }
+
+    if (n_valid > 0)
+        printf("  mean I_WM=%.1f  mean I_GM=%.1f  "
+               "contrast=(WM-GM)/mean=%.1f%%  "
+               "valid vertices=%d/%d\n",
+               sum_wm / n_valid, sum_gm / n_valid,
+               100.0 * (sum_wm - sum_gm) / (0.5*(sum_wm+sum_gm) + 1e-6),
+               n_valid, n_fov);
 }
 
 /* =========================================================================
@@ -574,12 +691,27 @@ static double powell_minimise(CAT_RigidParams *p,
             for (j = 0; j < N; j++)
                 new_dir[j] *= inv_len;
 
-            /* Drop direction idx_max, append new conjugate direction */
+            /* Drop direction idx_max, shift remaining dirs AND their steps */
             for (i = idx_max; i < N - 1; i++)
+            {
                 for (j = 0; j < N; j++)
                     dirs[i][j] = dirs[i + 1][j];
+                steps[i] = steps[i + 1];
+            }
             for (j = 0; j < N; j++)
                 dirs[N - 1][j] = new_dir[j];
+
+            /* Adaptive step for the new conjugate direction based on its
+             * translational vs rotational content, so that the line minimizer
+             * explores a physically meaningful range regardless of direction. */
+            double trans_sq = 0.0, rot_sq = 0.0;
+            for (j = 0; j < 3; j++) trans_sq += new_dir[j] * new_dir[j];
+            for (j = 3; j < N; j++) rot_sq   += new_dir[j] * new_dir[j];
+            double step_t = (trans_sq > 1e-10) ? 0.5  / sqrt(trans_sq) : 1e30;
+            double step_r = (rot_sq   > 1e-10) ? 0.005 / sqrt(rot_sq)  : 1e30;
+            steps[N - 1] = (step_t < step_r) ? step_t : step_r;
+            if (steps[N - 1] < 1e-8 || steps[N - 1] > 1.0)
+                steps[N - 1] = 0.5;
         }
     }
 
@@ -637,8 +769,15 @@ CAT_BBReg_optimise(const CAT_RigidParams *p_init,
     double f_best = DBL_MAX;
     *p_best = *p_init;
 
+    /* Evaluate cost at the starting point so the user can compare */
+    double f_init = CAT_BBReg_cost(p_init, surfs, n_surfs, vol, nii_ptr, dims,
+                                   wm_dist, gm_dist, slope, invert_contrast);
+
     if (verbose)
+    {
+        printf("BBReg initial cost (at identity/p_init): %.6f\n", f_init);
         printf("BBReg Stage 1: brute-force grid search...\n");
+    }
 
     double step_mm = (grid_steps > 0) ? grid_range_mm / grid_steps : 0.0;
     double step_rad = (grid_steps > 0) ? grid_range_rad / grid_steps : 0.0;
@@ -686,11 +825,15 @@ CAT_BBReg_optimise(const CAT_RigidParams *p_init,
                                      max_iter, tol, verbose);
 
     if (verbose)
+    {
         printf("BBReg Stage 2 final cost: %.6f  "
                "(tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f)\n",
                f_final,
                p_best->tx, p_best->ty, p_best->tz,
                p_best->rx, p_best->ry, p_best->rz);
+        bbr_print_stats(p_best, surfs, n_surfs, vol, nii_ptr, dims,
+                        wm_dist, gm_dist);
+    }
 
     return f_final;
 }

@@ -50,12 +50,16 @@ extern "C"
     /**
      * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
      *
-     * The resulting matrix maps points expressed in the *moving* volume's RAS space
-     * to the *fixed* surface's RAS space:
+     * The resulting matrix maps points expressed in the *fixed* surface's (T1) RAS
+     * space to the *moving* volume's (EPI) RAS space.  This is the direction used
+     * internally by the BBR cost function: surface sample points are transformed
+     * by M before trilinear sampling of the EPI.
      *
      *   M = T_trans * Rz * Ry * Rx
      *
-     * where R* are elementary rotation matrices and T_trans is a pure translation.
+     * To obtain the standard output convention (EPI → T1, matching bbregister /
+     * bbreg), invert this matrix with CAT_BBReg_invert_matrix().
+     *
      * The 16 elements are stored row-major: m[row*4 + col].
      *
      * \param p  (in)  rigid parameters (tx, ty, tz mm; rx, ry, rz radians)
@@ -98,10 +102,11 @@ extern "C"
      * where d_gm = (sd->gm_proj_frac * thickness[i]) when thickness data is
      * available, otherwise d_gm = gm_dist.
      *
-     * The normalised contrast at vertex i is:
-     *   c_i = (I_WM − I_GM) / (0.5*(I_WM + I_GM) + eps)
+     * The percent contrast at vertex i is (×100 following neuroreg/bbregister):
+     *   c_i = 100 * (I_WM − I_GM) / (0.5*(I_WM + I_GM) + eps)
      *
      * Cost = mean_i { 1 − tanh^2(slope * c_i) }  (lower = better alignment).
+     * With slope=0.5 (default) the cost saturates (≈0) once |c_i| ≳ 6 (6% contrast).
      * For T2/BOLD pass invert_contrast != 0 to negate c_i.
      *
      * \param p               (in)  current 6-DOF rigid parameters
