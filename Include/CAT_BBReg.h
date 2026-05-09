@@ -177,6 +177,46 @@ extern "C"
                               int verbose);
 
     /**
+     * \brief Automatically detect image contrast type from WM/GM intensity.
+     *
+     * Samples volume intensities at WM-side and GM-side positions along the
+     * surface normals using the supplied transform \p p.  The sign of the
+     * resulting WM/GM contrast determines the image type:
+     *
+     *   - T1 / FLAIR : WM brighter than GM  → returns 0
+     *   - T2 / BOLD  : WM darker  than GM   → returns 1
+     *
+     * The result can be passed directly as the \p invert_contrast argument to
+     * CAT_BBReg_cost() and CAT_BBReg_optimise().
+     *
+     * A call at the initial (pre-registration) transform is sufficient for
+     * data that are roughly aligned.  At least 100 valid vertices must fall
+     * inside the volume FOV and the absolute WM/GM contrast must exceed 1 %
+     * for a reliable detection; otherwise -1 is returned and the caller
+     * should fall back to a default (usually 0 = T1).
+     *
+     * \param p        (in)  rigid parameters used to transform surface points
+     * \param surfs    (in)  array of CAT_SurfData structures
+     * \param n_surfs  (in)  number of elements in surfs[]
+     * \param vol      (in)  floating-point volume data (moving image)
+     * \param nii_ptr  (in)  NIfTI header of the moving volume
+     * \param dims     (in)  volume dimensions [nx, ny, nz]
+     * \param wm_dist  (in)  WM sampling offset (mm, positive, inward)
+     * \param gm_dist  (in)  absolute GM sampling offset (mm)
+     * \param verbose  (in)  non-zero to print diagnostic line
+     * \return 0 (T1/FLAIR), 1 (T2/BOLD), -1 (undetermined / too few samples)
+     */
+    int CAT_BBReg_detect_contrast(const CAT_RigidParams *p,
+                                  const CAT_SurfData *surfs,
+                                  int n_surfs,
+                                  float *vol,
+                                  nifti_image *nii_ptr,
+                                  int dims[3],
+                                  double wm_dist,
+                                  double gm_dist,
+                                  int verbose);
+
+    /**
      * \brief Write a 4×4 RAS-to-RAS transform to a plain-text file.
      *
      * Format (compatible with FSL flirt -init / ANTs):

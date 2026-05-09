@@ -383,6 +383,120 @@ static void bbr_print_stats(const CAT_RigidParams *p,
 }
 
 /* =========================================================================
+ * Contrast auto-detection
+ * ========================================================================= */
+
+/**
+ * \brief Detect image contrast type by sampling WM and GM intensities.
+ */
+int CAT_BBReg_detect_contrast(const CAT_RigidParams *p,
+                              const CAT_SurfData *surfs, int n_surfs,
+                              float *vol, nifti_image *nii_ptr, int dims[3],
+                              double wm_dist, double gm_dist,
+                              int verbose)
+{
+    double m[16];
+    CAT_BBReg_params_to_matrix(p, m);
+    mat44 sto_ijk = nifti_mat44_inverse(nii_ptr->sto_xyz);
+    double ij[12];
+    int r, col;
+    for (r = 0; r < 3; r++)
+        for (col = 0; col < 4; col++)
+            ij[r*4+col] = (double)sto_ijk.m[r][col];
+
+    double sum_wm = 0.0, sum_gm = 0.0;
+    int n_valid = 0;
+    int s, i;
+
+    for (s = 0; s < n_surfs; s++)
+    {
+        const polygons_struct *surf = surfs[s].surface;
+        const float *mask  = surfs[s].cortex_mask;
+        const float *thick = surfs[s].thickness;
+        double frac = surfs[s].gm_proj_frac;
+
+        for (i = 0; i < surf->n_points; i++)
+        {
+            if (mask && mask[i] <= 0.5f) continue;
+
+            double vx = Point_x(surf->points[i]);
+            double vy = Point_y(surf->points[i]);
+            double vz = Point_z(surf->points[i]);
+            double nx = Vector_x(surf->normals[i]);
+            double ny = Vector_y(surf->normals[i]);
+            double nz = Vector_z(surf->normals[i]);
+            double nlen = sqrt(nx*nx + ny*ny + nz*nz);
+            if (nlen < 1e-10) continue;
+            nx /= nlen; ny /= nlen; nz /= nlen;
+
+            double d_gm = (thick && frac > 0.0) ? frac * (double)thick[i]
+                                                 : gm_dist;
+
+            double wm_x = vx - wm_dist*nx, wm_y = vy - wm_dist*ny;
+            double wm_z = vz - wm_dist*nz;
+            double gm_x = vx + d_gm*nx,   gm_y = vy + d_gm*ny;
+            double gm_z = vz + d_gm*nz;
+
+            /* Apply rigid transform */
+            double twm_x = m[0]*wm_x+m[1]*wm_y+m[2]*wm_z+m[3];
+            double twm_y = m[4]*wm_x+m[5]*wm_y+m[6]*wm_z+m[7];
+            double twm_z = m[8]*wm_x+m[9]*wm_y+m[10]*wm_z+m[11];
+            double tgm_x = m[0]*gm_x+m[1]*gm_y+m[2]*gm_z+m[3];
+            double tgm_y = m[4]*gm_x+m[5]*gm_y+m[6]*gm_z+m[7];
+            double tgm_z = m[8]*gm_x+m[9]*gm_y+m[10]*gm_z+m[11];
+
+            double wvx = ij[0]*twm_x+ij[1]*twm_y+ij[2]*twm_z+ij[3];
+            double wvy = ij[4]*twm_x+ij[5]*twm_y+ij[6]*twm_z+ij[7];
+            double wvz = ij[8]*twm_x+ij[9]*twm_y+ij[10]*twm_z+ij[11];
+            double gvx = ij[0]*tgm_x+ij[1]*tgm_y+ij[2]*tgm_z+ij[3];
+            double gvy = ij[4]*tgm_x+ij[5]*tgm_y+ij[6]*tgm_z+ij[7];
+            double gvz = ij[8]*tgm_x+ij[9]*tgm_y+ij[10]*tgm_z+ij[11];
+
+            double I_wm = sample_vox(vol, dims, wvx, wvy, wvz);
+            double I_gm = sample_vox(vol, dims, gvx, gvy, gvz);
+            if (isnan(I_wm) || isnan(I_gm)) continue;
+
+            sum_wm += I_wm;
+            sum_gm += I_gm;
+            n_valid++;
+        }
+    }
+
+    if (n_valid < 100)
+    {
+        if (verbose)
+            fprintf(stderr, "Contrast detection: only %d valid vertices"
+                    " — defaulting to T1.\n", n_valid);
+        return -1;
+    }
+
+    double mean_wm  = sum_wm / n_valid;
+    double mean_gm  = sum_gm / n_valid;
+    double mean_all = 0.5 * (mean_wm + mean_gm);
+    double contrast = (mean_all > 1e-6) ?
+                      (mean_wm - mean_gm) / mean_all : 0.0;
+
+    /* Require at least 1 % WM/GM contrast to make a reliable call */
+    if (fabs(contrast) < 0.01)
+    {
+        if (verbose)
+            fprintf(stderr, "Contrast detection: WM/GM contrast too low"
+                    " (%.2f%%) — defaulting to T1.\n", 100.0 * contrast);
+        return -1;
+    }
+
+    int is_t2 = (contrast < 0.0);  /* WM darker than GM → T2/BOLD */
+
+    if (verbose)
+        printf("Contrast detection: mean I_WM=%.1f  mean I_GM=%.1f"
+               "  contrast=%.1f%%  → %s\n",
+               mean_wm, mean_gm, 100.0 * contrast,
+               is_t2 ? "T2/BOLD (inverted)" : "T1/FLAIR");
+
+    return is_t2;
+}
+
+/* =========================================================================
  * Powell optimizer (self-contained, no external deps)
  * ========================================================================= */
 

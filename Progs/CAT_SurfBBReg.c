@@ -32,7 +32,7 @@ static double wm_dist = 2.0;         /* mm inside WM                        */
 static double gm_dist = 0.5;         /* mm inside GM (absolute, fallback)   */
 static double gm_proj_frac = 0.0;    /* fraction of thickness for GM offset */
 static double slope = 0.5;           /* BBR cost slope                      */
-static int invert_contrast = 0;      /* 0=T1, 1=T2/BOLD                     */
+static int invert_contrast = -1;     /* -1=auto-detect, 0=T1/FLAIR, 1=T2/BOLD */
 static double grid_range_mm = 4.0;   /* Stage-1 translation range (mm)      */
 static double grid_range_rad = 0.07; /* Stage-1 rotation range (rad, ~4°)   */
 static int grid_steps = 2;           /* Stage-1 steps per DOF               */
@@ -104,7 +104,12 @@ static ArgvInfo argTable[] =
          "Saturation slope of the BBR cost function. Default: 0.5"},
 
         {"-t2", ARGV_CONSTANT, (char *)1, (char *)&invert_contrast,
-         "Invert contrast (use for T2-weighted or BOLD EPI input). Default: off (T1)"},
+         "Force T2/BOLD contrast (WM darker than GM). Skips auto-detection."
+         " Default: auto-detect from surface WM/GM intensities."},
+
+        {"-t1", ARGV_CONSTANT, (char *)0, (char *)&invert_contrast,
+         "Force T1/FLAIR contrast (WM brighter than GM). Skips auto-detection."
+         " Default: auto-detect from surface WM/GM intensities."},
 
         {"-grid-range-mm", ARGV_FLOAT, (char *)1, (char *)&grid_range_mm,
          "Half-width of Stage-1 brute-force translation search (mm). Default: 4.0"},
@@ -193,7 +198,8 @@ usage(const char *exe)
             "  cost (equivalent to FreeSurfer ?h.cortex.label masking).\n\n"
             "  Thickness files (-lh-thickness / -rh-thickness) enable fractional GM\n"
             "  projection via -gm-proj-frac: d_gm = frac * thickness[i] per vertex.\n\n"
-            "  For T1 input WM > GM intensity; for T2/BOLD use -t2 to invert.\n\n"
+            "  Contrast type (T1/FLAIR vs T2/BOLD) is auto-detected from the WM/GM\n"
+            "  intensity ratio at the initial position.  Override with -t1 or -t2.\n\n"
             "Options:\n",
             exe);
     fprintf(stdout,
@@ -207,7 +213,8 @@ usage(const char *exe)
             "  -wm-dist <mm>           WM sampling offset (default: 2.0)\n"
             "  -gm-dist <mm>           Absolute GM sampling offset (default: 0.5)\n"
             "  -slope <val>            BBR cost saturation slope (default: 0.5)\n"
-            "  -t2                     Invert contrast (T2/BOLD input)\n"
+            "  -t1                     Force T1/FLAIR contrast (WM > GM); skip auto-detect\n"
+            "  -t2                     Force T2/BOLD  contrast (WM < GM); skip auto-detect\n"
             "  -grid-range-mm <mm>     Stage-1 translation search range (default: 4.0)\n"
             "  -grid-range-rad <rad>   Stage-1 rotation search range (default: 0.07)\n"
             "  -grid-steps <n>         Stage-1 steps per DOF (default: 2)\n"
@@ -549,9 +556,23 @@ int main(int argc, char *argv[])
         else
             printf("GM dist: %.2f mm", gm_dist);
         printf("  slope: %.3f  %s\n", slope,
-               invert_contrast ? "T2/BOLD" : "T1");
+               invert_contrast == 1 ? "T2/BOLD (forced)"  :
+               invert_contrast == 0 ? "T1/FLAIR (forced)" : "auto-detect");
         printf("Stage-1 grid: +/-%.1f mm, +/-%.3f rad, %d steps per DOF\n",
                grid_range_mm, grid_range_rad, grid_steps);
+    }
+
+    /* --- Auto-detect contrast type if not forced by -t1 / -t2 --- */
+    if (invert_contrast < 0)
+    {
+        int detected = CAT_BBReg_detect_contrast(&p_init,
+                                                 surfs, n_surfs,
+                                                 vol, nii_ptr, dims,
+                                                 wm_dist, gm_dist,
+                                                 verbose);
+        invert_contrast = (detected >= 0) ? detected : 0;
+        if (detected < 0 && verbose)
+            printf("Contrast auto-detection inconclusive — defaulting to T1.\n");
     }
 
     /* --- Optimise --- */
