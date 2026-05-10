@@ -17,7 +17,7 @@
 void usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals]\n\n\
+Usage: %s  surface_file output_values_file [curvtype] [fwhm] [use_abs_vals] [invert_vals]\n\n\
    Calculate different curvature parameters (default: mean curvature\n\
    averaged over 3mm) from a given surface mesh file. If smoothing filter [fwhm]\n\
    is defined (in FWHM) a diffusion heat kernel will be applied. Optionally\n\
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     char *object_file, *output_surface_file;
     File_formats format;
     int i, n_objects, curvtype;
-    int *n_neighbours, **neighbours, use_abs_values;
+    int *n_neighbours, **neighbours, use_abs_values, invert_values;
     object_struct **objects;
     polygons_struct *polygons;
     double *curvatures, distance, fwhm;
@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
     get_int_argument(0, &curvtype);
     get_real_argument(0.0, &fwhm);
     get_int_argument(0, &use_abs_values);
+    get_int_argument(0, &invert_values);
 
     if (fwhm > 0)
         smoothing = 1;
@@ -99,11 +100,18 @@ int main(int argc, char *argv[])
         clip_data(curvatures, polygons->n_points, -1, 1, DT_FLOAT64);
     }
 
-    /* use absolute value */
+    /* use absolute values */
     if (use_abs_values)
     {
         for (i = 0; i < polygons->n_points; i++)
             curvatures[i] = fabs(curvatures[i]);
+    }
+
+    /* invert values */
+    if (invert_values)
+    {
+        for (i = 0; i < polygons->n_points; i++)
+            curvatures[i] *= -1.0 ;
     }
 
     /* and optionally smooth curvatures */
