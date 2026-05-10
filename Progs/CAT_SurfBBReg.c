@@ -35,11 +35,12 @@ static double slope = 0.5;           /* BBR cost slope                      */
 static int invert_contrast = -1;     /* -1=auto-detect, 0=T1/FLAIR, 1=T2/BOLD */
 static double grid_range_mm = 4.0;   /* Stage-1 translation range (mm)      */
 static double grid_range_rad = 0.07; /* Stage-1 rotation range (rad, ~4°)   */
-static int grid_steps = 2;           /* Stage-1 steps per DOF               */
+static int grid_steps = 4;           /* Stage-1 steps per DOF               */
 static int max_iter = 200;           /* Powell iterations                   */
-static double tol = 1e-5;            /* Powell convergence tolerance        */
+static double tol = 1e-6;            /* Powell convergence tolerance        */
 static int verbose = 0;
-static double fwhm = 0.0;               /* Gaussian pre-smoothing FWHM (mm, 0=off) */
+static double fwhm = 5.0;               /* Gaussian pre-smoothing FWHM (mm, 0=off) */
+static double fwhm_bbr = 2.0;           /* Gaussian pre-smoothing FWHM for BBR approach (mm, 0=off) */
 static char *output_volume_file = NULL; /* optional coregistered volume output */
 
 /* Surface / label / thickness file names (NULL = not provided) */
@@ -140,10 +141,13 @@ static ArgvInfo argTable[] =
          "Initial z-rotation (radians). Default: 0"},
 
         {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&fwhm,
-         "Gaussian pre-smoothing FWHM (mm).  Applied symmetrically to both"
-         " volumes for volume-based initialisation, and to the moving volume"
-         " (mid-frame) before the BBR optimizer starts — matching FreeSurfer"
-         " mri_segreg --fwhm behaviour.  Default: 0 (off)."},
+         "Gaussian pre-smoothing FWHM (mm).  Applied to volumes for volume-based"
+         " initialisation, Default: 0 (off)."},
+
+        {"-fwhm-bbr", ARGV_FLOAT, (char *)1, (char *)&fwhm_bbr,
+         "Gaussian pre-smoothing FWHM (mm) for BBR approach.  Applied to the"
+         " moving volume (mid-frame) before the BBR optimizer starts — matching"
+         " FreeSurfer mri_segreg --fwhm behaviour.  Default: 0 (off)."},
 
         {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
          "Print optimisation progress. Default: off"},
@@ -223,8 +227,10 @@ usage(const char *exe)
             "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
             "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
             "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
-            "  -fwhm <mm>              Gaussian pre-smoothing FWHM: symmetric for vol-reg init,\n"
-            "                          moving-only for BBR (mid-frame); default 0 = off\n"
+            "  -fwhm <mm>              Gaussian pre-smoothing FWHM: for vol-reg init\n"
+            "                          (default 0 = off)\n"
+            "  -fwhm-bbr <mm>          Gaussian pre-smoothing FWHM: for moving-only\n"
+            "                          volume for BBR (mid-frame); default 0 = off\n"
             "  -verbose                Print optimisation progress\n"
             "  -output-volume <file>   Save coregistered volume (header update only)\n"
             "\n"
@@ -677,13 +683,13 @@ int main(int argc, char *argv[])
      * function then sees the same smoothed image at every iteration. */
     float *vol_bbr = vol3d;
     float *vol_bbr_buf = NULL;
-    if (fwhm > 0.0)
+    if (fwhm_bbr > 0.0)
     {
         double mv[3], mv_fv[3];
         mv[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
         mv[1] = nii_ptr->dy > 0.0 ? nii_ptr->dy : 1.0;
         mv[2] = nii_ptr->dz > 0.0 ? nii_ptr->dz : 1.0;
-        mv_fv[0] = fwhm / mv[0]; mv_fv[1] = fwhm / mv[1]; mv_fv[2] = fwhm / mv[2];
+        mv_fv[0] = fwhm_bbr / mv[0]; mv_fv[1] = fwhm_bbr / mv[1]; mv_fv[2] = fwhm_bbr / mv[2];
         vol_bbr_buf = (float *)malloc((size_t)nvox3 * sizeof(float));
         if (!vol_bbr_buf)
         {
@@ -696,7 +702,7 @@ int main(int argc, char *argv[])
         vol_bbr = vol_bbr_buf;
         if (verbose)
             printf("Smoothing for BBR: FWHM %.2f mm (%.2fx%.2fx%.2f vox)\n",
-                   fwhm, mv_fv[0], mv_fv[1], mv_fv[2]);
+                   fwhm_bbr, mv_fv[0], mv_fv[1], mv_fv[2]);
     }
 
     /* --- Auto-detect contrast type if not forced by -t1 / -t2 --- */
