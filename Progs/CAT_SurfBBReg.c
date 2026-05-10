@@ -140,9 +140,10 @@ static ArgvInfo argTable[] =
          "Initial z-rotation (radians). Default: 0"},
 
         {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&fwhm,
-         "Gaussian smoothing FWHM applied to the moving volume before computing the"
-         " BBR cost (mm).  Equivalent to FreeSurfer mri_segreg --fwhm.  Each"
-         " timepoint of a 4D series is smoothed independently.  Default: 0 (off)."},
+         "Gaussian pre-smoothing FWHM (mm).  Applied symmetrically to both"
+         " volumes for volume-based initialisation, and to the moving volume"
+         " (mid-frame) before the BBR optimizer starts — matching FreeSurfer"
+         " mri_segreg --fwhm behaviour.  Default: 0 (off)."},
 
         {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
          "Print optimisation progress. Default: off"},
@@ -222,7 +223,8 @@ usage(const char *exe)
             "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
             "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
             "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
-            "  -fwhm <mm>              Gaussian pre-smoothing FWHM (default: 0 = off)\n"
+            "  -fwhm <mm>              Gaussian pre-smoothing FWHM: symmetric for vol-reg init,\n"
+            "                          moving-only for BBR (mid-frame); default 0 = off\n"
             "  -verbose                Print optimisation progress\n"
             "  -output-volume <file>   Save coregistered volume (header update only)\n"
             "\n"
@@ -303,7 +305,9 @@ int main(int argc, char *argv[])
     char *volume_file, *output_file;
     nifti_image *nii_ptr;
     float *vol = NULL;
+    float *vol3d = NULL;  /* mid-frame 3-D buffer used for vol-reg and BBR */
     int dims[3];
+    int nvox3;            /* dims[0]*dims[1]*dims[2] */
     CAT_RigidParams p_init, p_best;
     double m_best[16]; /* surface(T1)→EPI; internal optimizer direction */
     double m_inv[16];  /* EPI→surface(T1); standard output / header direction */
@@ -392,32 +396,29 @@ int main(int argc, char *argv[])
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
 
-    /* --- Optional Gaussian pre-smoothing (applied per timepoint) --- */
-    if (fwhm > 0.0)
+    /* --- Extract mid-frame for registration (matches FreeSurfer fMRIframe()) ---
+     * For 4-D series the mid-frame is used so that both vol-reg and BBR see a
+     * representative steady-state image rather than the T1-saturated first frame.
+     * vol[] (full 4-D) is kept alive only for -output-volume writing. */
     {
-        double voxelsize[3];
-        double fwhm_vox[3];
-        int t, nvox3 = dims[0] * dims[1] * dims[2];
-        int nt = (nii_ptr->nt > 1) ? nii_ptr->nt : 1;
-
-        voxelsize[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
-        voxelsize[1] = nii_ptr->dy > 0.0 ? nii_ptr->dy : 1.0;
-        voxelsize[2] = nii_ptr->dz > 0.0 ? nii_ptr->dz : 1.0;
-
-        /* smooth3 takes FWHM in voxel units */
-        fwhm_vox[0] = fwhm / voxelsize[0];
-        fwhm_vox[1] = fwhm / voxelsize[1];
-        fwhm_vox[2] = fwhm / voxelsize[2];
-
-        if (verbose)
-            printf("Smoothing: FWHM %.2f mm (%.2f x %.2f x %.2f vox), %d frame(s)\n",
-                   fwhm, fwhm_vox[0], fwhm_vox[1], fwhm_vox[2], nt);
-
-        for (t = 0; t < nt; t++)
-            smooth3(vol + t * nvox3, dims, voxelsize, fwhm_vox, 0, DT_FLOAT32);
+        int nt      = (nii_ptr->nt > 1) ? nii_ptr->nt : 1;
+        int mid_frm = nt / 2;
+        nvox3 = dims[0] * dims[1] * dims[2];
+        vol3d = (float *)malloc((size_t)nvox3 * sizeof(float));
+        if (!vol3d)
+        {
+            fprintf(stderr, "Error: out of memory for frame extraction.\n");
+            free(vol); nii_ptr->data = NULL; nifti_image_free(nii_ptr);
+            exit(EXIT_FAILURE);
+        }
+        memcpy(vol3d, vol + (size_t)mid_frm * nvox3,
+               (size_t)nvox3 * sizeof(float));
+        if (verbose && nt > 1)
+            printf("4D volume: %d frames — using mid-frame %d for registration\n",
+                   nt, mid_frm);
     }
 
-    /* --- Robust volume registration initialisation --- */
+    /* --- Volume registration initialisation --- */
     p_init.tx = init_tx;
     p_init.ty = init_ty;
     p_init.tz = init_tz;
@@ -443,6 +444,47 @@ int main(int argc, char *argv[])
         ref_dims[1] = ref_nii->ny;
         ref_dims[2] = ref_nii->nz;
 
+        /* --- Symmetric pre-smoothing for volume registration only ---
+         * Both images are smoothed with the same FWHM so neither image is
+         * penalised by noise the other does not have.  A temporary copy of the
+         * mid-frame (vol3d) is used so vol3d itself stays unsmoothed for BBR.
+         * ref_vol is smoothed in-place because it is freed right after registration. */
+        float *vol_reg = vol3d; /* unsmoothed mid-frame; used when fwhm == 0 */
+        float *vol_smooth_buf = NULL;
+        if (fwhm > 0.0)
+        {
+            double mv[3], rf[3], mv_fv[3], rf_fv[3];
+            mv[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
+            mv[1] = nii_ptr->dy > 0.0 ? nii_ptr->dy : 1.0;
+            mv[2] = nii_ptr->dz > 0.0 ? nii_ptr->dz : 1.0;
+            rf[0] = ref_nii->dx > 0.0 ? ref_nii->dx : 1.0;
+            rf[1] = ref_nii->dy > 0.0 ? ref_nii->dy : 1.0;
+            rf[2] = ref_nii->dz > 0.0 ? ref_nii->dz : 1.0;
+            mv_fv[0] = fwhm / mv[0]; mv_fv[1] = fwhm / mv[1]; mv_fv[2] = fwhm / mv[2];
+            rf_fv[0] = fwhm / rf[0]; rf_fv[1] = fwhm / rf[1]; rf_fv[2] = fwhm / rf[2];
+
+            vol_smooth_buf = (float *)malloc((size_t)nvox3 * sizeof(float));
+            if (!vol_smooth_buf)
+            {
+                fprintf(stderr, "Error: out of memory for smoothing buffer.\n");
+                free(ref_vol); ref_nii->data = NULL; nifti_image_free(ref_nii);
+                free(vol3d); free(vol); nii_ptr->data = NULL; nifti_image_free(nii_ptr);
+                exit(EXIT_FAILURE);
+            }
+            memcpy(vol_smooth_buf, vol3d, (size_t)nvox3 * sizeof(float));
+            smooth3(vol_smooth_buf, dims, mv, mv_fv, 0, DT_FLOAT32);
+            smooth3(ref_vol, ref_dims, rf, rf_fv, 0, DT_FLOAT32);
+            vol_reg = vol_smooth_buf;
+
+            if (verbose)
+                printf("Smoothing for VolumeReg: FWHM %.2f mm"
+                       " (moving %.2fx%.2fx%.2f vox,"
+                       " fixed %.2fx%.2fx%.2f vox)\n",
+                       fwhm,
+                       mv_fv[0], mv_fv[1], mv_fv[2],
+                       rf_fv[0], rf_fv[1], rf_fv[2]);
+        }
+
         if (verbose)
             printf("VolumeReg init (%s): fixed=%s (%dx%dx%d)  moving=%s"
                    " (%dx%dx%d)\n",
@@ -456,7 +498,7 @@ int main(int argc, char *argv[])
             /* Same-modality: linearised intensity matching + Tukey biweight */
             vol_res = CAT_VolumeReg_register(
                 ref_vol,  ref_nii,  ref_dims,
-                vol,      nii_ptr,  dims,
+                vol_reg,  nii_ptr,  dims,
                 &p_init,
                 vol_reg_levels, vol_reg_sat, vol_reg_iter, verbose);
             if (verbose)
@@ -471,7 +513,7 @@ int main(int argc, char *argv[])
             /* Cross-modal (default): Normalised Mutual Information */
             vol_res = CAT_VolumeReg_register_NMI(
                 ref_vol,  ref_nii,  ref_dims,
-                vol,      nii_ptr,  dims,
+                vol_reg,  nii_ptr,  dims,
                 &p_init,
                 vol_reg_levels, vol_reg_bins, vol_reg_iter, verbose);
             if (verbose)
@@ -482,6 +524,7 @@ int main(int argc, char *argv[])
                        p_init.rx, p_init.ry, p_init.rz);
         }
 
+        free(vol_smooth_buf); /* NULL when fwhm == 0; free(NULL) is safe */
         free(ref_vol);
         ref_nii->data = NULL;
         nifti_image_free(ref_nii);
@@ -497,7 +540,7 @@ int main(int argc, char *argv[])
             if (CAT_BBReg_write_matrix(output_file, m_vol_inv) != 0)
             {
                 fprintf(stderr, "Error writing output matrix: %s\n", output_file);
-                free(vol);
+                free(vol3d); free(vol);
                 nii_ptr->data = NULL;
                 nifti_image_free(nii_ptr);
                 exit(EXIT_FAILURE);
@@ -579,6 +622,7 @@ int main(int argc, char *argv[])
                 nii_ptr->data = NULL;
             }
 
+            free(vol3d);
             free(vol);
             nii_ptr->data = NULL;
             nifti_image_free(nii_ptr);
@@ -628,12 +672,39 @@ int main(int argc, char *argv[])
                grid_range_mm, grid_range_rad, grid_steps);
     }
 
+    /* --- Optional pre-smoothing for BBR (matches FreeSurfer mri_segreg --fwhm) ---
+     * Applied once to the mid-frame before the optimizer starts; the cost
+     * function then sees the same smoothed image at every iteration. */
+    float *vol_bbr = vol3d;
+    float *vol_bbr_buf = NULL;
+    if (fwhm > 0.0)
+    {
+        double mv[3], mv_fv[3];
+        mv[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
+        mv[1] = nii_ptr->dy > 0.0 ? nii_ptr->dy : 1.0;
+        mv[2] = nii_ptr->dz > 0.0 ? nii_ptr->dz : 1.0;
+        mv_fv[0] = fwhm / mv[0]; mv_fv[1] = fwhm / mv[1]; mv_fv[2] = fwhm / mv[2];
+        vol_bbr_buf = (float *)malloc((size_t)nvox3 * sizeof(float));
+        if (!vol_bbr_buf)
+        {
+            fprintf(stderr, "Error: out of memory for BBR smoothing buffer.\n");
+            free(vol3d); free(vol); nii_ptr->data = NULL; nifti_image_free(nii_ptr);
+            exit(EXIT_FAILURE);
+        }
+        memcpy(vol_bbr_buf, vol3d, (size_t)nvox3 * sizeof(float));
+        smooth3(vol_bbr_buf, dims, mv, mv_fv, 0, DT_FLOAT32);
+        vol_bbr = vol_bbr_buf;
+        if (verbose)
+            printf("Smoothing for BBR: FWHM %.2f mm (%.2fx%.2fx%.2f vox)\n",
+                   fwhm, mv_fv[0], mv_fv[1], mv_fv[2]);
+    }
+
     /* --- Auto-detect contrast type if not forced by -t1 / -t2 --- */
     if (invert_contrast < 0)
     {
         int detected = CAT_BBReg_detect_contrast(&p_init,
                                                  surfs, n_surfs,
-                                                 vol, nii_ptr, dims,
+                                                 vol_bbr, nii_ptr, dims,
                                                  wm_dist, gm_dist,
                                                  verbose);
         invert_contrast = (detected >= 0) ? detected : 0;
@@ -644,7 +715,7 @@ int main(int argc, char *argv[])
     /* --- Optimise --- */
     final_cost = CAT_BBReg_optimise(&p_init, &p_best,
                                     surfs, n_surfs,
-                                    vol, nii_ptr, dims,
+                                    vol_bbr, nii_ptr, dims,
                                     wm_dist, gm_dist, slope, invert_contrast,
                                     grid_range_mm, grid_range_rad, grid_steps,
                                     max_iter, tol, verbose);
@@ -659,10 +730,12 @@ int main(int argc, char *argv[])
     CAT_BBReg_params_to_matrix(&p_best, m_best);
     CAT_BBReg_invert_matrix(m_best, m_inv);
 
+    free(vol_bbr_buf); /* NULL when fwhm == 0; free(NULL) is safe */
+
     if (CAT_BBReg_write_matrix(output_file, m_inv) != 0)
     {
         fprintf(stderr, "Error writing output matrix: %s\n", output_file);
-        free(vol);
+        free(vol3d); free(vol);
         nii_ptr->data = NULL;
         nifti_image_free(nii_ptr);
         exit(EXIT_FAILURE);
@@ -749,6 +822,7 @@ int main(int argc, char *argv[])
         nii_ptr->data = NULL; /* prevent double-free; vol is freed below */
     }
 
+    free(vol3d);
     free(vol);
     nii_ptr->data = NULL;
     nifti_image_free(nii_ptr);
