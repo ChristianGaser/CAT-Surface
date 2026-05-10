@@ -306,3 +306,90 @@ cdef extern from "CAT_Bmap.h":
               double *mean, int n_classes, int BG, int niters,
               int a, int b, int c, float *bias, int *dims,
               int pve, int verbose)
+
+
+# ---------------------------------------------------------------------------
+# CAT_NiftiLib.h — NIfTI float loader
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_NiftiLib.h":
+    nifti_image *read_nifti_float(const char *filename,
+                                  float **data, int read_data)
+
+
+# ---------------------------------------------------------------------------
+# CAT_Vol.h — Volume smoothing (partial; see full header for other funcs)
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Vol.h":
+    void smooth3(void *vol, int dims[3], double voxelsize[3],
+                 double s[3], int use_mask, int datatype)
+
+
+# ---------------------------------------------------------------------------
+# CAT_BBReg.h — Boundary-Based Registration
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_BBReg.h":
+    ctypedef struct CAT_RigidParams:
+        double tx, ty, tz
+        double rx, ry, rz
+
+    ctypedef struct CAT_SurfData:
+        polygons_struct *surface
+        float           *cortex_mask
+        float           *thickness
+        double           gm_proj_frac
+
+    void   CAT_BBReg_params_to_matrix(const CAT_RigidParams *p,
+                                      double m[16])
+    void   CAT_BBReg_apply_matrix(polygons_struct *surface,
+                                  const double m[16])
+    void   CAT_BBReg_invert_matrix(const double m[16], double inv[16])
+
+    double CAT_BBReg_cost(const CAT_RigidParams *p,
+                          const CAT_SurfData *surfs, int n_surfs,
+                          float *vol, nifti_image *nii_ptr, int dims[3],
+                          double wm_dist, double gm_dist,
+                          double slope, int invert_contrast)
+
+    double CAT_BBReg_optimise(const CAT_RigidParams *p_init,
+                              CAT_RigidParams *p_best,
+                              const CAT_SurfData *surfs, int n_surfs,
+                              float *vol, nifti_image *nii_ptr, int dims[3],
+                              double wm_dist, double gm_dist,
+                              double slope, int invert_contrast,
+                              double grid_range_mm, double grid_range_rad,
+                              int grid_steps, int max_iter, double tol,
+                              int verbose)
+
+    int    CAT_BBReg_detect_contrast(const CAT_RigidParams *p,
+                                     const CAT_SurfData *surfs, int n_surfs,
+                                     float *vol, nifti_image *nii_ptr,
+                                     int dims[3],
+                                     double wm_dist, double gm_dist,
+                                     int verbose)
+
+    int    CAT_BBReg_write_matrix(const char *filename, const double m[16])
+
+
+# ---------------------------------------------------------------------------
+# CAT_VolumeReg.h — Volume-to-volume rigid registration
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_VolumeReg.h":
+    double CAT_VolumeReg_register(float *fixed_vol,
+                                  nifti_image *fixed_nii,
+                                  int fixed_dims[3],
+                                  float *moving_vol,
+                                  nifti_image *moving_nii,
+                                  int moving_dims[3],
+                                  CAT_RigidParams *p_out,
+                                  int n_levels, double sat_k,
+                                  int max_iter, int verbose)
+
+    double CAT_VolumeReg_register_NMI(float *fixed_vol,
+                                      nifti_image *fixed_nii,
+                                      int fixed_dims[3],
+                                      float *moving_vol,
+                                      nifti_image *moving_nii,
+                                      int moving_dims[3],
+                                      CAT_RigidParams *p_out,
+                                      int n_levels, int n_bins,
+                                      int max_iter, int verbose)

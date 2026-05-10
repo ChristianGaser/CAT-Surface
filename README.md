@@ -77,6 +77,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_Surf2Sheet**              | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
 | **CAT_Surf2Sphere**             | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
 | **CAT_SurfWarp**                | Warps one surface to another using non-linear surface-based registration. |
+| **CAT_SurfBBReg**               | Boundary-Based Registration (BBR): rigid co-registration of a functional volume to cortical surfaces. Includes NMI-based volume initialisation, automatic T1/T2 contrast detection, and optional pre-smoothing. |
 
 ### External binary GIFTI files
 

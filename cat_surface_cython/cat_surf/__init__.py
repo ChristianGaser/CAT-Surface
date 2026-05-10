@@ -79,6 +79,14 @@ from cat_surf._vol import (
     vol_marching_cubes,
 )
 
+# --- Registration ---
+from cat_surf._bbreg import (
+    bbreg,
+    bbreg_detect_contrast,
+    volume_register_nmi,
+    volume_register_robust,
+)
+
 __all__ = [
     # I/O
     "read_surface",
@@ -113,4 +121,9 @@ __all__ = [
     "vol_thickness_pbt",
     "vol_amap",
     "vol_marching_cubes",
+    # Registration
+    "bbreg",
+    "bbreg_detect_contrast",
+    "volume_register_nmi",
+    "volume_register_robust",
 ]

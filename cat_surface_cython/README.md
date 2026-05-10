@@ -86,6 +86,62 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation |
 | `vol_marching_cubes` | Isosurface extraction from a volume file |
 
+### Registration
+
+| Function | Description |
+|---|---|
+| `bbreg` | Full BBR pipeline: optional NMI init → boundary-based surface registration |
+| `bbreg_detect_contrast` | Auto-detect T1/FLAIR vs T2/BOLD from WM/GM intensity ratio |
+| `volume_register_nmi` | Cross-modal rigid registration via Normalised Mutual Information (≈ `mri_coreg`) |
+| `volume_register_robust` | Same-modality rigid registration via Tukey biweight M-estimation (≈ `mri_robust_register`) |
+
+#### Basic BBR usage
+
+```python
+import cat_surf
+import nibabel as nib
+
+# Load surfaces (GIFTI or any format supported by cat_surf.read_surface)
+lh_verts, lh_faces = cat_surf.read_surface("lh.white.surf.gii")
+rh_verts, rh_faces = cat_surf.read_surface("rh.white.surf.gii")
+
+# Full pipeline: NMI init from T1w reference, then BBR
+matrix, cost = cat_surf.bbreg(
+    "bold_mean.nii.gz",
+    lh_surface=(lh_verts, lh_faces),
+    rh_surface=(rh_verts, rh_faces),
+    ref_file="T1w.nii.gz",     # NMI initialisation
+    verbose=True,
+)
+print(f"BBR cost: {cost:.4f}")
+print("EPI → T1 matrix:\n", matrix)
+
+# Save the 4×4 transform for use with FSL / ANTs
+import numpy as np
+np.savetxt("epi_to_t1.txt", matrix)
+```
+
+#### Standalone volume registration
+
+```python
+# Cross-modal (EPI ↔ T1w) — NMI
+matrix, nmi = cat_surf.volume_register_nmi("T1w.nii.gz", "bold_mean.nii.gz")
+
+# Same-modality (T1w ↔ T1w) — robust IRLS
+matrix, res = cat_surf.volume_register_robust("t1_ref.nii.gz", "t1_moving.nii.gz")
+```
+
+#### Contrast auto-detection
+
+```python
+# 0 = T1/FLAIR, 1 = T2/BOLD, -1 = undetermined
+contrast = cat_surf.bbreg_detect_contrast(
+    "bold_mean.nii.gz",
+    lh_surface=(lh_verts, lh_faces),
+    rh_surface=(rh_verts, rh_faces),
+)
+```
+
 ### Conversion utilities
 
 | Function | Description |
