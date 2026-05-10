@@ -9,22 +9,6 @@ Most CAT-Surface functionality is implemented as a single static/shared library 
 
 This file is written for coding agents working in this repository: it explains the layout, build system, and the most important dependencies between directories/files.
 
-## External Packages
-
-The only required external dependency is FFTW3.
-
-**1. Install FFTW3:**
-
-```bash
-apt-get install libfftw3-dev
-```
-
-macOS:
-
-```bash
-brew install fftw
-```
-
 **2. Build the tools:**
 
 ```bash
