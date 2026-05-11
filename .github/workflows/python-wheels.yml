@@ -100,17 +100,17 @@ jobs:
             cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
           done
 
-          # Bundled static libomp
-          if [ -d 3rdparty/libomp/lib ]; then
-            mkdir -p "$V/3rdparty/libomp/lib"
-            cp 3rdparty/libomp/lib/*.a "$V/3rdparty/libomp/lib/"
-          fi
-
-          # Static archives + config.h
+          # Static archives + config.h.  libomp is intentionally NOT
+          # staged here: the wheel links against Homebrew's dynamic
+          # libomp.dylib (see setup.py) so cat_surf ends up with one
+          # libomp instance in-process instead of one per .so.
           mkdir -p "$V/build/.libs" "$V/build/3rdparty/fftw-build/.libs"
           cp _libcat/libCAT.a   "$V/build/.libs/"
           cp _libcat/config.h   "$V/build/"
           cp _libcat/libfftw3.a "$V/build/3rdparty/fftw-build/.libs/"
+
+      - name: Install libomp (dynamic, bundled into wheel by delocate)
+        run: brew install libomp
 
       - uses: actions/setup-python@v5
         with:

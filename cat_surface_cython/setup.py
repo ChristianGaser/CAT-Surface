@@ -101,16 +101,37 @@ extra_link_args = [LIBCAT_A, LIBFFTW3_A, "-lm", "-lz"]
 _machine = platform.machine().lower()
 
 if sys.platform == "darwin":
-    # macOS: system expat + bundled static libomp
+    # macOS: system expat + libomp.
+    #
+    # Prefer dynamic libomp (Homebrew dylib).  A static libomp linked
+    # into each Cython .so produces N independent libomp instances in
+    # the process, which corrupts thread-pool TLS when a host
+    # application (e.g. PyTorch, which ships its own libomp.dylib) has
+    # already initialised OpenMP.  Dynamic linking collapses the
+    # cat_surf side to a single libomp instance; cibuildwheel's
+    # delocate-wheel step bundles the dylib into the wheel under
+    # cat_surf/.dylibs/.  We fall back to the bundled static .a only
+    # when no Homebrew libomp is found (local-dev builds on hosts
+    # without `brew install libomp`).
     extra_link_args.append("-lexpat")
-    _omp_a = os.path.join(
-        CAT_ROOT, "3rdparty", "libomp", "lib",
-        f"libomp-{_machine}.a",
+    _omp_dylib_prefix = next(
+        (p for p in ("/opt/homebrew/opt/libomp", "/usr/local/opt/libomp")
+         if os.path.isdir(p)),
+        None,
     )
-    if os.path.isfile(_omp_a):
-        extra_link_args.append(_omp_a)
-    else:
+    if _omp_dylib_prefix:
+        include_dirs.append(os.path.join(_omp_dylib_prefix, "include"))
+        extra_link_args.insert(0, f"-L{_omp_dylib_prefix}/lib")
         extra_link_args.append("-lomp")
+    else:
+        _omp_a = os.path.join(
+            CAT_ROOT, "3rdparty", "libomp", "lib",
+            f"libomp-{_machine}.a",
+        )
+        if os.path.isfile(_omp_a):
+            extra_link_args.append(_omp_a)
+        else:
+            extra_link_args.append("-lomp")
 elif sys.platform == "linux":
     # Linux: system GOMP + pthread + stdc++/gcc for MeshFix C++ objects
     extra_link_args += ["-lgomp", "-lstdc++", "-lpthread"]
