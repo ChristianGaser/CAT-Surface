@@ -91,6 +91,10 @@ A GitHub Actions workflow located in `.github/workflows/ci.yml` automatically
 runs `./autogen.sh`, `./configure`, `make` and a small test on every push or
 pull request.
 
+## Python bindings for CAT-Surface
+
+[`cat-surf`](cat_surface_cython/README.md) provides Python access to CAT-Surface.
+
 ## License
 
 CAT-Surface is dual-licensed:
