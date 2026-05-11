@@ -3,44 +3,57 @@ CAT-Surface - Dual License
 Copyright (C) Christian Gaser, University of Jena
 christian.gaser@uni-jena.de
 
-This software is dual-licensed as follows:
+CAT-Surface original code is dual-licensed as follows:
 
 ================================================================================
-(1) GNU GENERAL PUBLIC LICENSE - Version 3 (or later)
+(1) GNU GENERAL PUBLIC LICENSE - Version 2 or later
 ================================================================================
 
-This program is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version.
+The original CAT-Surface code is free software: you can redistribute it and/or
+modify it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 2 of the License, or
+(at your option) any later version.
 
 This program is distributed in the hope that it will be useful, but WITHOUT
 ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program. If not, see <https://www.gnu.org/licenses/gpl-3.0.html>.
+this program. If not, see <https://www.gnu.org/licenses/gpl-2.0.html>.
+
+When CAT-Surface is distributed together with third-party GPL-3 components,
+such as MeshFix, the combined GPL distribution must be redistributed under
+the terms of GPL version 3 or later. The GPL-2-or-later license of the
+CAT-Surface original code permits this by allowing use under later GPL
+versions.
 
 ================================================================================
 (2) COMMERCIAL LICENSE
 ================================================================================
 
-If you wish to use CAT-Surface as part of a commercial software product, or
-if the terms of the GPL-3 are not suitable for your intended use, a commercial
-license is available. Please contact:
+If you wish to use the CAT-Surface original code as part of a commercial
+software product, or if the terms of the GPL are not suitable for your
+intended use, a commercial license is available. Please contact:
 
     Christian Gaser
     Department of Psychiatry and Psychotherapy
     University of Jena
     Email: christian.gaser@uni-jena.de
 
+The commercial license option applies only to CAT-Surface original code.
+It does not grant any rights to third-party components unless explicitly
+stated otherwise. Third-party components remain subject to their own license
+terms.
+
 ================================================================================
 THIRD-PARTY COMPONENTS
 ================================================================================
 
-This software includes third-party components with their own licenses:
+This software includes third-party components with their own licenses.
+These components are not covered by the CAT-Surface commercial license unless
+separate permission has been obtained from the respective copyright holders.
 
-Permissive licenses (compatible with commercial use):
+Permissive licenses:
 - bicpl-surface, volume_io: Montreal Neurological Institute (MIT-like)
 - nifti, gifticlib: Public domain
 - zlib: zlib license
@@ -52,11 +65,33 @@ GPL licenses:
 - dartel: GPL-2+ (John Ashburner, SPM)
 - MeshFix: GPL-3 or commercial (Marco Attene, IMATI-GE/CNR)
 
-Research use:
-- genus0: Steve Haker, Surgical Planning Lab, BWH/Harvard
+Because MeshFix is licensed under GPL-3, any combined redistribution that
+includes MeshFix must comply with GPL version 3 or later. The GPL-2-or-later
+licensing of the CAT-Surface original code permits this GPL-3 distribution
+option.
 
-See 3rdparty/README.md for full details and source links.
+Restricted or unclear license:
+- genus0: Steve Haker, Surgical Planning Lab, BWH/Harvard.
+  This component is subject to its own license terms and may not be covered
+  by the GPL or by the CAT-Surface commercial license. Users must verify
+  whether their intended use is permitted.
 
-Note: The commercial license option applies only to CAT-Surface original code.
-Third-party GPL components (such as MeshFix) require separate licensing
-arrangements with their respective copyright holders for commercial use.
+See 3rdparty/README.md for full details, source links, and license texts.
+
+================================================================================
+SUMMARY
+================================================================================
+
+CAT-Surface original code:
+- GPL version 2 or later; or
+- commercial license from Christian Gaser / University of Jena.
+
+Complete GPL distribution including MeshFix:
+- GPL version 3 or later.
+
+Commercial distribution including third-party GPL components:
+- possible only if separate commercial or otherwise compatible licenses have
+  been obtained from the respective third-party copyright holders.
+
+Third-party components:
+- remain subject to their own license terms.
