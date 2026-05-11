@@ -24,6 +24,7 @@ from cat_surf._bic_types cimport (
 from cat_surf._nifti_types cimport nifti_image, nifti_image_free
 from cat_surf._convert cimport PolygonsMesh
 from cat_surf._convert import arrays_to_polygons
+from cat_surf._volume cimport VolumeHandle, open_volume
 
 cimport cat_surf._cat_funcs as C
 
@@ -57,7 +58,7 @@ def _map_funcs():
     return _MAP_FUNCS
 
 
-def vol2surf(str volume_file,
+def vol2surf(volume,
              vertices,
              faces,
              thickness=None,
@@ -74,13 +75,15 @@ def vol2surf(str volume_file,
     """
     Map a volume to a surface by sampling along inward normals.
 
-    Mirrors ``CAT_Vol2Surf``.  The volume is loaded with
-    ``read_nifti_float`` (any on-disk datatype is converted to float32).
+    Mirrors ``CAT_Vol2Surf``.
 
     Parameters
     ----------
-    volume_file : str
-        Path to the NIfTI volume to sample.
+    volume : str | (ndarray, affine) | nibabel-image-like
+        Source volume.  Accepts a NIfTI file path, an ``(array, affine)``
+        tuple, or any object with ``.affine`` and ``.get_fdata()``.
+        Datatype is auto-converted to float32; 4-D arrays use the
+        mid-frame.
     vertices, faces : mesh arrays
         Surface to sample on.  Normals are recomputed before sampling.
     thickness : array_like, shape (V,), float64, optional
@@ -143,13 +146,9 @@ def vol2surf(str volume_file,
         raise ValueError("map_func='exp' requires exp_half (mm)")
 
     # --- Load volume ----------------------------------------------------
-    cdef bytes bvol = volume_file.encode("utf-8")
-    cdef float *vol_data = NULL
-    cdef nifti_image *nii = C.read_nifti_float(bvol, &vol_data, 0)
-    if nii == NULL or vol_data == NULL:
-        raise IOError(f"Failed to read volume '{volume_file}'")
+    cdef VolumeHandle vh = open_volume(volume)
     cdef int dims[3]
-    dims[0] = nii.nx; dims[1] = nii.ny; dims[2] = nii.nz
+    dims[0] = vh.dims[0]; dims[1] = vh.dims[1]; dims[2] = vh.dims[2]
 
     # --- Build mesh -----------------------------------------------------
     cdef PolygonsMesh mesh = arrays_to_polygons(
@@ -166,7 +165,7 @@ def vol2surf(str volume_file,
     if thickness is not None:
         thick_arr = np.ascontiguousarray(thickness, dtype=np.float64)
         if thick_arr.shape[0] != n_pts:
-            free(vol_data); nii.data = NULL; nifti_image_free(nii)
+            vh.close()
             raise ValueError(
                 f"thickness length ({thick_arr.shape[0]}) != "
                 f"vertices ({n_pts})")
@@ -174,7 +173,7 @@ def vol2surf(str volume_file,
     elif offset is not None:
         thick_arr = np.ascontiguousarray(offset, dtype=np.float64)
         if thick_arr.shape[0] != n_pts:
-            free(vol_data); nii.data = NULL; nifti_image_free(nii)
+            vh.close()
             raise ValueError(
                 f"offset length ({thick_arr.shape[0]}) != "
                 f"vertices ({n_pts})")
@@ -199,7 +198,7 @@ def vol2surf(str volume_file,
         grid_end1 = grid_end + grid_increase * step_size / 2.0
 
     if grid_steps1 > 250:
-        free(vol_data); nii.data = NULL; nifti_image_free(nii)
+        vh.close()
         raise ValueError("effective grid_steps exceeds the 250-sample cap")
 
     # --- Length array ---------------------------------------------------
@@ -246,7 +245,7 @@ def vol2surf(str volume_file,
         frange_lo = float(frange[0])
         frange_hi = float(frange[1])
         if frange_lo > frange_hi:
-            free(vol_data); nii.data = NULL; nifti_image_free(nii)
+            vh.close()
             raise ValueError("frange[0] > frange[1]")
 
     # --- Sample ---------------------------------------------------------
@@ -300,11 +299,11 @@ def vol2surf(str volume_file,
                 else:
                     pos = length_arr[j] * thick_arr[i]
 
-            v = C.isoval(vol_data,
+            v = C.isoval(vh.data,
                          <float>(px + pos * nx_),
                          <float>(py + pos * ny_),
                          <float>(pz + pos * nz_),
-                         dims, nii)
+                         dims, vh.nii)
             if c_isnan(v):
                 v = 0.0
             if is_multi:
@@ -326,9 +325,7 @@ def vol2surf(str volume_file,
                 v = frange_hi
             values_1d[i] = v
 
-    free(vol_data)
-    nii.data = NULL
-    nifti_image_free(nii)
+    vh.close()
 
     if is_multi:
         return values_2d, length_arr

@@ -20,6 +20,7 @@ from cat_surf._bic_types cimport (
 from cat_surf._nifti_types cimport nifti_image, nifti_image_read, nifti_image_free
 from cat_surf._convert cimport PolygonsMesh, _wrap_object
 from cat_surf._convert import arrays_to_polygons, polygons_to_arrays
+from cat_surf._volume cimport VolumeHandle, open_volume
 
 cimport cat_surf._cat_funcs as C
 
@@ -659,7 +660,7 @@ def resample_to_sphere(vertices, faces, sphere_vertices, sphere_faces,
 # ===================================================================
 # Surface deformation  (mirrors CAT_SurfDeform)
 # ===================================================================
-def surf_deform(vertices, faces, str volume_file,
+def surf_deform(vertices, faces, volume,
                 double w1=0.0, double w2=0.2, double w3=1.2,
                 double sigma=0.2, float isovalue=0.5,
                 int iterations=75, bint remove_intersect=False,
@@ -667,15 +668,13 @@ def surf_deform(vertices, faces, str volume_file,
     """
     Deform a surface toward a volume isovalue.
 
-    The volume is read from a NIfTI file at the C level and converted
-    to float32 regardless of on-disk datatype (uses ``read_nifti_float``,
-    matching the CLI).
-
     Parameters
     ----------
     vertices, faces : mesh arrays
-    volume_file : str
-        Path to a NIfTI volume.
+    volume : str | (ndarray, affine) | nibabel-image-like
+        Source volume.  Accepts a NIfTI file path, an ``(array, affine)``
+        tuple, or any object with ``.affine`` and ``.get_fdata()`` (e.g.
+        ``nibabel.Nifti1Image``).  Datatype is auto-converted to float32.
     w1 : float
         Internal smoothness weight (default 0.0).
     w2 : float
@@ -697,26 +696,19 @@ def surf_deform(vertices, faces, str volume_file,
     new_vertices : ndarray, shape (V, 3), float64
     faces        : ndarray, shape (F, 3), int32
     """
-    cdef bytes bfname = volume_file.encode("utf-8")
-    cdef float *vol_data = NULL
-    cdef nifti_image *nii = C.read_nifti_float(bfname, &vol_data, 0)
-    if nii == NULL or vol_data == NULL:
-        raise IOError(f"Failed to read NIfTI file '{volume_file}'")
-
+    cdef VolumeHandle vh = open_volume(volume)
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
 
     cdef double w[3]
     w[0] = w1; w[1] = w2; w[2] = w3
 
     try:
-        C.surf_deform(mesh.ptr(), vol_data, nii,
+        C.surf_deform(mesh.ptr(), vh.data, vh.nii,
                       w, sigma, isovalue, iterations,
                       1 if remove_intersect else 0,
                       1 if verbose else 0)
     finally:
-        free(vol_data)
-        nii.data = NULL
-        nifti_image_free(nii)
+        vh.close()
     return polygons_to_arrays(mesh)
 
 
@@ -724,7 +716,7 @@ def surf_deform(vertices, faces, str volume_file,
 # Pial / white surface estimation  (mirrors CAT_Surf2PialWhite)
 # ===================================================================
 def surf_to_pial_white(vertices, faces, thickness,
-                       str label_file,
+                       label,
                        double w1=0.05, double w2=0.05, double w3=0.05,
                        double sigma=0.2, int iterations=100,
                        int gradient_iterations=0, int method=0,
@@ -732,16 +724,16 @@ def surf_to_pial_white(vertices, faces, thickness,
     """
     Estimate pial and white matter surfaces from a central surface.
 
-    Mirrors the ``CAT_Surf2PialWhite`` CLI tool.  The label volume is
-    auto-converted to float32 (matches ``read_nifti_float``).
+    Mirrors the ``CAT_Surf2PialWhite`` CLI tool.
 
     Parameters
     ----------
     vertices, faces : central surface mesh arrays
     thickness : array_like, shape (V,), float64
         Cortical thickness per vertex.
-    label_file : str
-        Path to the NIfTI label volume.
+    label : str | (ndarray, affine) | nibabel-image-like
+        Label volume.  See :func:`cat_surf._volume.open_volume` for
+        accepted forms.  Auto-converted to float32.
     w1 : float
         Internal smoothness weight (default 0.05).
     w2 : float
@@ -766,21 +758,14 @@ def surf_to_pial_white(vertices, faces, thickness,
     white_vertices : ndarray, shape (V, 3), float64
     white_faces    : ndarray, shape (F, 3), int32
     """
-    cdef bytes bfname = label_file.encode("utf-8")
-    cdef float *label_data = NULL
-    cdef nifti_image *nii = C.read_nifti_float(bfname, &label_data, 0)
-    if nii == NULL or label_data == NULL:
-        raise IOError(f"Failed to read label file '{label_file}'")
-
+    cdef VolumeHandle vh = open_volume(label)
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
     cdef polygons_struct *poly = mesh.ptr()
     cdef int n = poly.n_points
 
     thick = np.ascontiguousarray(thickness, dtype=np.float64)
     if thick.shape[0] != n:
-        free(label_data)
-        nii.data = NULL
-        nifti_image_free(nii)
+        vh.close()
         raise ValueError(
             f"thickness length ({thick.shape[0]}) != vertices ({n})")
     cdef cnp.ndarray[cnp.float64_t, ndim=1] thick_arr = thick
@@ -800,12 +785,9 @@ def surf_to_pial_white(vertices, faces, thickness,
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_SurfEstimatePialWhite(
-        poly, <double *>thick_arr.data, label_data, nii,
+        poly, <double *>thick_arr.data, vh.data, vh.nii,
         pial_poly, white_poly, &opts)
-
-    free(label_data)
-    nii.data = NULL
-    nifti_image_free(nii)
+    vh.close()
 
     if rc != 0:
         delete_object(pial_obj)

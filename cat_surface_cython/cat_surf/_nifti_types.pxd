@@ -84,6 +84,7 @@ cdef extern from "nifti1_io.h":
     nifti_image *nifti_copy_nim_info(const nifti_image *src)
     int          nifti_set_filenames(nifti_image *nim, const char *prefix,
                                      int check, int set_byte_order)
+    mat44        nifti_mat44_inverse(mat44 R)
 
     # NIfTI datatype codes
     int DT_FLOAT32

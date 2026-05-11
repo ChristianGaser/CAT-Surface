@@ -147,6 +147,11 @@ extensions = [
         **common_kwargs,
     ),
     Extension(
+        "cat_surf._volume",
+        [os.path.join("cat_surf", "_volume" + ext_suffix)],
+        **common_kwargs,
+    ),
+    Extension(
         "cat_surf._io",
         [os.path.join("cat_surf", "_io" + ext_suffix)],
         **common_kwargs,
@@ -194,5 +199,5 @@ if USE_CYTHON:
 # ---------------------------------------------------------------------------
 setup(
     ext_modules=extensions,
-    packages=["cat_surf"],
+    packages=["cat_surf", "cat_surf.cli"],
 )

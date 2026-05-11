@@ -23,6 +23,7 @@ from cat_surf._nifti_types cimport (
 )
 from cat_surf._convert cimport PolygonsMesh, _wrap_object
 from cat_surf._convert import polygons_to_arrays
+from cat_surf._volume cimport VolumeHandle, open_volume
 
 cimport cat_surf._cat_funcs as C
 
@@ -330,23 +331,23 @@ def vol_amap(volume, labels, voxelsize=None,
 # ===================================================================
 # Marching cubes  (mirrors CAT_VolMarchingCubes)
 # ===================================================================
-def vol_marching_cubes(str volume_file, double threshold=0.5,
+def vol_marching_cubes(volume, double threshold=0.5,
                        double pre_fwhm=2.0, int iter_laplacian=50,
                        dist_morph=None, int n_median_filter=2,
                        int n_iter=5, double strength_gyri_mask=0.1,
-                       bint fast=False, str label_file=None,
+                       bint fast=False, label=None,
                        bint verbose=False):
     """
     Generate a surface mesh from a volume using marching cubes
     with topology correction (genus-0).
 
-    Mirrors ``CAT_VolMarchingCubes``.  Volumes are loaded with
-    ``read_nifti_float``, so any on-disk datatype is supported.
+    Mirrors ``CAT_VolMarchingCubes``.
 
     Parameters
     ----------
-    volume_file : str
-        Path to input NIfTI volume.
+    volume : str | (ndarray, affine) | nibabel-image-like
+        Input volume.  Accepts a NIfTI file path, an ``(array, affine)``
+        tuple, or a nibabel-image-like object.  Auto-converted to float32.
     threshold : float
         Isosurface threshold (default 0.5).
     pre_fwhm : float
@@ -363,11 +364,11 @@ def vol_marching_cubes(str volume_file, double threshold=0.5,
         Maximum number of topology-correction iterations (default 5).
     strength_gyri_mask : float
         Isovalue-correction strength using the gyri/sulci mask
-        (default 0.1).  Only effective with ``label_file``.
+        (default 0.1).  Only effective with ``label``.
     fast : bool
         Use fast variant (no preprocessing/topology correction).
-    label_file : str, optional
-        Path to a label NIfTI volume for gyri/sulci masking.
+    label : str | (ndarray, affine) | nibabel-image-like, optional
+        Label volume for gyri/sulci masking.  Must match ``volume`` shape.
     verbose : bool
 
     Returns
@@ -375,29 +376,20 @@ def vol_marching_cubes(str volume_file, double threshold=0.5,
     vertices : ndarray, shape (V, 3), float64
     faces    : ndarray, shape (F, 3), int32
     """
-    cdef bytes bvol = volume_file.encode("utf-8")
-    cdef float *vol_data = NULL
-    cdef nifti_image *nii = C.read_nifti_float(bvol, &vol_data, 0)
-    if nii == NULL or vol_data == NULL:
-        raise IOError(f"Failed to read NIfTI volume '{volume_file}'")
-
+    cdef VolumeHandle vh = open_volume(volume)
+    cdef VolumeHandle vh_label = None
     cdef float *label_data = NULL
     cdef nifti_image *nii_label = NULL
 
-    if label_file is not None:
-        blabel = label_file.encode("utf-8")
-        nii_label = C.read_nifti_float(blabel, &label_data, 0)
-        if nii_label == NULL or label_data == NULL:
-            free(vol_data)
-            nii.data = NULL
-            nifti_image_free(nii)
-            raise IOError(f"Failed to read label volume '{label_file}'")
-        if (nii_label.nx != nii.nx or nii_label.ny != nii.ny
-                or nii_label.nz != nii.nz):
-            free(vol_data); free(label_data)
-            nii.data = NULL; nii_label.data = NULL
-            nifti_image_free(nii); nifti_image_free(nii_label)
+    if label is not None:
+        vh_label = open_volume(label)
+        if (vh_label.dims[0] != vh.dims[0]
+                or vh_label.dims[1] != vh.dims[1]
+                or vh_label.dims[2] != vh.dims[2]):
+            vh.close()
+            vh_label.close()
             raise ValueError("label volume must match input volume dimensions")
+        label_data = vh_label.data
 
     cdef double dist_morph_val
     if dist_morph is None:
@@ -411,22 +403,18 @@ def vol_marching_cubes(str volume_file, double threshold=0.5,
     try:
         if fast:
             result = C.apply_marching_cubes_fast(
-                vol_data, nii, threshold,
+                vh.data, vh.nii, threshold,
                 iter_laplacian, 1 if verbose else 0)
         else:
             result = C.apply_marching_cubes(
-                vol_data, nii, label_data,
+                vh.data, vh.nii, label_data,
                 threshold, pre_fwhm, iter_laplacian,
                 dist_morph_val, n_median_filter, n_iter,
                 strength_gyri_mask, 1 if verbose else 0)
     finally:
-        free(vol_data)
-        nii.data = NULL
-        nifti_image_free(nii)
-        if nii_label != NULL:
-            free(label_data)
-            nii_label.data = NULL
-            nifti_image_free(nii_label)
+        vh.close()
+        if vh_label is not None:
+            vh_label.close()
 
     if result == NULL:
         raise RuntimeError("apply_marching_cubes returned NULL")
