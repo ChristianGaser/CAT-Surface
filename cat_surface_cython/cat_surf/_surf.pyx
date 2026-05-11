@@ -91,11 +91,14 @@ def euler_characteristic(vertices, faces, bint verbose=False):
 
 
 # ===================================================================
-# Point distance
+# Point distance  (mirrors CAT_SurfDistance)
 # ===================================================================
-def point_distance(vertices1, faces1, vertices2, faces2, bint symmetric=True):
+def point_distance(vertices1, faces1, vertices2, faces2,
+                   bint symmetric=False, double max_dist=0.0):
     """
-    Compute per-vertex distances between two meshes.
+    Compute per-vertex linked (exact) distance between two meshes.
+
+    Mirrors the ``-link`` mode of the ``CAT_SurfDistance`` CLI tool.
 
     Parameters
     ----------
@@ -103,11 +106,15 @@ def point_distance(vertices1, faces1, vertices2, faces2, bint symmetric=True):
     vertices2, faces2 : mesh 2 arrays
     symmetric : bool
         If True, compute symmetric (bidirectional) distance.
+        Default ``False`` to match the CLI.
+    max_dist : float
+        If > 0, clip distances at this value (mirrors ``-max``).
 
     Returns
     -------
     distances : ndarray, shape (V1,), float64
     max_distance : float
+        Maximum distance returned by the C routine (unclipped).
     """
     cdef PolygonsMesh m1 = _ensure_mesh(vertices1, faces1)
     cdef PolygonsMesh m2 = _ensure_mesh(vertices2, faces2)
@@ -118,13 +125,24 @@ def point_distance(vertices1, faces1, vertices2, faces2, bint symmetric=True):
     cdef double maxd = C.compute_point_distance(
         p1, m2.ptr(), <double *>dist.data, 1 if symmetric else 0,
     )
+    if max_dist > 0.0:
+        np.minimum(dist, max_dist, out=dist)
     return dist, maxd
 
 
 def point_distance_mean(vertices1, faces1, vertices2, faces2,
-                        bint symmetric=True):
+                        bint symmetric=False, double max_dist=0.0):
     """
-    Compute mean per-vertex distances between two meshes.
+    Compute mean (Freesurfer Tfs) per-vertex distances between two meshes.
+
+    Mirrors the default ``-mean`` mode of ``CAT_SurfDistance``.
+
+    Parameters
+    ----------
+    symmetric : bool
+        Default ``False`` to match the CLI.
+    max_dist : float
+        If > 0, clip distances at this value (mirrors ``-max``).
 
     Returns
     -------
@@ -140,6 +158,8 @@ def point_distance_mean(vertices1, faces1, vertices2, faces2,
     cdef double meand = C.compute_point_distance_mean(
         p1, m2.ptr(), <double *>dist.data, 1 if symmetric else 0,
     )
+    if max_dist > 0.0:
+        np.minimum(dist, max_dist, out=dist)
     return dist, meand
 
 
@@ -258,13 +278,14 @@ def sulcus_depth(vertices, faces):
 
 
 # ===================================================================
-# Mesh reduction (quadric decimation)
+# Mesh reduction (quadric decimation)  (mirrors CAT_SurfReduce)
 # ===================================================================
-def reduce_mesh(vertices, faces, int target_faces, double quality=1.0,
-                int iterations=5, bint verbose=False):
+def reduce_mesh(vertices, faces, int target_faces,
+                double aggressiveness=7.0, bint preserve_sharp=True,
+                bint verbose=False):
     """
     Reduce the number of faces in a triangular mesh using
-    quadric error metrics.
+    Quadric Error Metrics (QEM) decimation.
 
     Parameters
     ----------
@@ -272,10 +293,10 @@ def reduce_mesh(vertices, faces, int target_faces, double quality=1.0,
     faces    : array_like, shape (F, 3)
     target_faces : int
         Desired number of triangles after decimation.
-    quality  : float
-        Quality parameter (0 = fast, 1 = best; default 1.0).
-    iterations : int
-        Number of decimation passes.
+    aggressiveness : float
+        Larger values produce stronger decimation (default 7.0).
+    preserve_sharp : bool
+        Prevent collapses across sharp features (default True).
     verbose  : bool
 
     Returns
@@ -285,13 +306,13 @@ def reduce_mesh(vertices, faces, int target_faces, double quality=1.0,
     """
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
     cdef int rc = C.reduce_mesh_quadrics(
-        mesh.ptr(), target_faces, quality, iterations,
+        mesh.ptr(), target_faces, aggressiveness,
+        1 if preserve_sharp else 0,
         1 if verbose else 0,
     )
     if rc != 0:
         raise RuntimeError(f"reduce_mesh_quadrics returned error code {rc}")
 
-    # Extract the modified mesh back to numpy
     from cat_surf._convert import polygons_to_arrays
     return polygons_to_arrays(mesh)
 
@@ -400,22 +421,27 @@ def get_area_normalized(vertices, faces, sphere_vertices, sphere_faces):
 # ===================================================================
 # Surface average  (mirrors CAT_SurfAverage)
 # ===================================================================
-def surf_average(list surfaces):
+def surf_average(list surfaces, bint return_rms=False):
     """
     Compute the vertex-wise average of multiple surfaces.
 
     All surfaces must share the same topology (same faces, same
-    vertex count).
+    vertex count).  Mirrors ``CAT_SurfAverage -avg`` (and ``-rms``).
 
     Parameters
     ----------
     surfaces : list of (vertices, faces) tuples
         Each element is a pair of arrays ``(V_array, F_array)``.
+    return_rms : bool
+        If True, also return per-vertex root-mean-square deviation
+        (sample standard deviation of the 3-D vertex positions).
 
     Returns
     -------
     avg_vertices : ndarray, shape (V, 3), float64
     faces        : ndarray, shape (F, 3), int32
+    rms          : ndarray, shape (V,), float64
+        Only returned if ``return_rms`` is True.
     """
     if len(surfaces) == 0:
         raise ValueError("surfaces list must not be empty")
@@ -426,16 +452,34 @@ def surf_average(list surfaces):
     faces_out = np.ascontiguousarray(f0, dtype=np.int32)
     cdef int n_pts = avg.shape[0]
 
+    sqr = None
+    if return_rms:
+        sqr = avg * avg
+
     cdef int i
     for i in range(1, n_sets):
-        vi, fi = surfaces[i]
+        vi, _ = surfaces[i]
         vi = np.ascontiguousarray(vi, dtype=np.float64)
         if vi.shape[0] != n_pts:
             raise ValueError(
                 f"Surface {i} has {vi.shape[0]} vertices, expected {n_pts}")
         avg += vi
+        if return_rms:
+            sqr += vi * vi
 
     avg /= n_sets
+
+    if return_rms:
+        if n_sets < 2:
+            raise ValueError(
+                "At least 2 surfaces are required to compute RMS deviation")
+        # Mirrors CAT_SurfAverage RMS:
+        # rms_i = sqrt( (sqr_i / (N-1)) - (N/(N-1)) * avg_i**2 )  per axis,
+        # then sum over axes inside sqrt.
+        var = sqr / (n_sets - 1.0) - (n_sets / (n_sets - 1.0)) * avg * avg
+        rms = np.sqrt(np.maximum(var.sum(axis=1), 0.0))
+        return avg, faces_out, rms
+
     return avg, faces_out
 
 
@@ -443,9 +487,13 @@ def surf_average(list surfaces):
 # Correct thickness for folding  (mirrors CAT_SurfCorrectThicknessFolding)
 # ===================================================================
 def correct_thickness_folding(vertices, faces, thickness,
-                              double slope=0.0):
+                              double slope=0.0, double max_dist=6.0):
     """
     Correct cortical thickness values for folding-related bias.
+
+    Implements the Demirci et al. (2025) correction (doi.org/10.1101/
+    2025.05.03.651968).  Mirrors the ``CAT_SurfCorrectThicknessFolding``
+    CLI tool.
 
     Parameters
     ----------
@@ -454,7 +502,12 @@ def correct_thickness_folding(vertices, faces, thickness,
     thickness : array_like, shape (V,), float64
         Uncorrected thickness values.
     slope : float
-        Correction slope.  0 = automatic (calls the unweighted variant).
+        Thickness-based weighting strength (default 0.0 = disabled).
+        Larger thickness values are corrected more strongly when
+        ``slope > 0``.  Applied only for positive mean curvature.
+    max_dist : float
+        Upper clip for output values (default 6.0 mm).  Values exceeding
+        this are clipped.  Set to 0 or +inf to disable.
 
     Returns
     -------
@@ -470,14 +523,13 @@ def correct_thickness_folding(vertices, faces, thickness,
             f"thickness length ({vals.shape[0]}) != vertices ({n})")
 
     cdef cnp.ndarray[cnp.float64_t, ndim=1] out = vals.copy()
-    cdef Status st
-    if slope == 0.0:
-        st = C.CAT_CorrectThicknessFolding(poly, n, <double *>out.data)
-    else:
-        st = C.CAT_CorrectThicknessFoldingWeighted(
-            poly, n, <double *>out.data, slope)
+    cdef Status st = C.CAT_CorrectThicknessFoldingWeighted(
+        poly, n, <double *>out.data, slope)
     if st != OK:
         raise RuntimeError("CAT_CorrectThicknessFolding failed")
+
+    if max_dist > 0.0:
+        np.clip(out, 1e-10, max_dist, out=out)
     return out
 
 
@@ -608,28 +660,36 @@ def resample_to_sphere(vertices, faces, sphere_vertices, sphere_faces,
 # Surface deformation  (mirrors CAT_SurfDeform)
 # ===================================================================
 def surf_deform(vertices, faces, str volume_file,
-                double w1=0.1, double w2=0.1, double w3=0.1,
+                double w1=0.0, double w2=0.2, double w3=1.2,
                 double sigma=0.2, float isovalue=0.5,
-                int iterations=100, bint remove_intersect=False,
+                int iterations=75, bint remove_intersect=False,
                 bint verbose=False):
     """
     Deform a surface toward a volume isovalue.
 
-    The volume is read from a NIfTI file at the C level.
+    The volume is read from a NIfTI file at the C level and converted
+    to float32 regardless of on-disk datatype (uses ``read_nifti_float``,
+    matching the CLI).
 
     Parameters
     ----------
     vertices, faces : mesh arrays
     volume_file : str
         Path to a NIfTI volume.
-    w1, w2, w3 : float
-        Smoothness, gradient, and balloon force weights.
+    w1 : float
+        Internal smoothness weight (default 0.0).
+    w2 : float
+        Gradient alignment weight (default 0.2).
+    w3 : float
+        Balloon force weight (default 1.2).
     sigma : float
-        Displacement smoothing sigma.
+        Displacement smoothing sigma (default 0.2).
     isovalue : float
-        Target isovalue in the volume.
+        Target isovalue in the volume (default 0.5).
     iterations : int
+        Number of deformation iterations (default 75).
     remove_intersect : bool
+        Remove self-intersections via MeshFix at the end (default False).
     verbose : bool
 
     Returns
@@ -638,8 +698,9 @@ def surf_deform(vertices, faces, str volume_file,
     faces        : ndarray, shape (F, 3), int32
     """
     cdef bytes bfname = volume_file.encode("utf-8")
-    cdef nifti_image *nii = nifti_image_read(bfname, 1)
-    if nii == NULL:
+    cdef float *vol_data = NULL
+    cdef nifti_image *nii = C.read_nifti_float(bfname, &vol_data, 0)
+    if nii == NULL or vol_data == NULL:
         raise IOError(f"Failed to read NIfTI file '{volume_file}'")
 
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
@@ -647,12 +708,15 @@ def surf_deform(vertices, faces, str volume_file,
     cdef double w[3]
     w[0] = w1; w[1] = w2; w[2] = w3
 
-    C.surf_deform(mesh.ptr(), <float *>nii.data, nii,
-                  w, sigma, isovalue, iterations,
-                  1 if remove_intersect else 0,
-                  1 if verbose else 0)
-
-    nifti_image_free(nii)
+    try:
+        C.surf_deform(mesh.ptr(), vol_data, nii,
+                      w, sigma, isovalue, iterations,
+                      1 if remove_intersect else 0,
+                      1 if verbose else 0)
+    finally:
+        free(vol_data)
+        nii.data = NULL
+        nifti_image_free(nii)
     return polygons_to_arrays(mesh)
 
 
@@ -663,10 +727,13 @@ def surf_to_pial_white(vertices, faces, thickness,
                        str label_file,
                        double w1=0.05, double w2=0.05, double w3=0.05,
                        double sigma=0.2, int iterations=100,
-                       int gradient_iterations=30, int method=0,
+                       int gradient_iterations=0, int method=0,
                        bint verbose=False):
     """
     Estimate pial and white matter surfaces from a central surface.
+
+    Mirrors the ``CAT_Surf2PialWhite`` CLI tool.  The label volume is
+    auto-converted to float32 (matches ``read_nifti_float``).
 
     Parameters
     ----------
@@ -675,12 +742,21 @@ def surf_to_pial_white(vertices, faces, thickness,
         Cortical thickness per vertex.
     label_file : str
         Path to the NIfTI label volume.
-    w1, w2, w3 : float
-        Force weights.
+    w1 : float
+        Internal smoothness weight (default 0.05).
+    w2 : float
+        Gradient alignment weight (default 0.05).
+    w3 : float
+        Balloon force weight (default 0.05).
     sigma : float
-    iterations, gradient_iterations : int
+        Displacement smoothing sigma (default 0.2).
+    iterations : int
+        Number of deformation iterations (default 100).
+    gradient_iterations : int
+        Number of gradient refinement iterations (default 0 = disabled).
     method : int
-        0 = deformation, 1 = Laplacian, 2 = ADE.
+        0 = deformation (default), 1 = ADE,
+        2 = deformation for pial + ADE for white.
     verbose : bool
 
     Returns
@@ -691,8 +767,9 @@ def surf_to_pial_white(vertices, faces, thickness,
     white_faces    : ndarray, shape (F, 3), int32
     """
     cdef bytes bfname = label_file.encode("utf-8")
-    cdef nifti_image *nii = nifti_image_read(bfname, 1)
-    if nii == NULL:
+    cdef float *label_data = NULL
+    cdef nifti_image *nii = C.read_nifti_float(bfname, &label_data, 0)
+    if nii == NULL or label_data == NULL:
         raise IOError(f"Failed to read label file '{label_file}'")
 
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
@@ -701,12 +778,13 @@ def surf_to_pial_white(vertices, faces, thickness,
 
     thick = np.ascontiguousarray(thickness, dtype=np.float64)
     if thick.shape[0] != n:
+        free(label_data)
+        nii.data = NULL
         nifti_image_free(nii)
         raise ValueError(
             f"thickness length ({thick.shape[0]}) != vertices ({n})")
     cdef cnp.ndarray[cnp.float64_t, ndim=1] thick_arr = thick
 
-    # Allocate output surfaces
     cdef object_struct *pial_obj = create_object(POLYGONS)
     cdef object_struct *white_obj = create_object(POLYGONS)
     cdef polygons_struct *pial_poly = get_polygons_ptr(pial_obj)
@@ -722,9 +800,11 @@ def surf_to_pial_white(vertices, faces, thickness,
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_SurfEstimatePialWhite(
-        poly, <double *>thick_arr.data, <float *>nii.data, nii,
+        poly, <double *>thick_arr.data, label_data, nii,
         pial_poly, white_poly, &opts)
 
+    free(label_data)
+    nii.data = NULL
     nifti_image_free(nii)
 
     if rc != 0:

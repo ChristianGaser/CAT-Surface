@@ -32,9 +32,11 @@ cnp.import_array()
 # ===================================================================
 # SA-NLM denoising  (mirrors CAT_VolSanlm)
 # ===================================================================
-def vol_sanlm(volume, bint is_rician=False, double strength=3.0):
+def vol_sanlm(volume, bint is_rician=False, double strength=1.0):
     """
     Apply spatial-adaptive non-local means (SA-NLM) denoising.
+
+    Mirrors ``CAT_VolSanlm``.
 
     Parameters
     ----------
@@ -43,7 +45,8 @@ def vol_sanlm(volume, bint is_rician=False, double strength=3.0):
     is_rician : bool
         Use Rician noise model (MRI magnitude images).
     strength : float
-        Denoising strength (default 3.0).
+        Filter strength scale (default 1.0).  Values >1 increase
+        smoothing; values <1 reduce it.
 
     Returns
     -------
@@ -108,14 +111,17 @@ def vol_blood_vessel_correction(volume, voxelsize=None):
 # Projection-based thickness (PBT)  (mirrors CAT_VolThicknessPbt)
 # ===================================================================
 def vol_thickness_pbt(volume, voxelsize=None,
-                      int n_avgs=2, int n_median_filter=1,
-                      int median_subsample=0, double range_val=100.0,
+                      int n_avgs=2, int n_median_filter=2,
+                      int median_subsample=4, double range_val=0.45,
                       double fill_thresh=0.5,
-                      double correct_voxelsize=0.0,
-                      double sulcal_width=0.0,
+                      double correct_voxelsize=0.5,
+                      double sulcal_width=2.5,
                       bint fast=False, bint verbose=False):
     """
     Compute projection-based cortical thickness (PBT).
+
+    Mirrors ``CAT_VolThicknessPbt``.  Defaults match
+    ``CAT_PbtOptionsInit`` from the library.
 
     Parameters
     ----------
@@ -124,13 +130,24 @@ def vol_thickness_pbt(volume, voxelsize=None,
     voxelsize : array_like, shape (3,), float64, optional
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
     n_avgs : int
+        Number of averages for distance estimation (default 2).
     n_median_filter : int
+        Iterations of weighted local median filtering of the PPM
+        (default 2).  Set to 0 to disable.
     median_subsample : int
+        Subsampling size for the median filter (default 4).
     range_val : float
+        Range extension for Euclidean distance masking (default 0.45).
     fill_thresh : float
+        Hole-fill threshold for the PPM (default 0.5).  Set to 0 to
+        disable filling.
     correct_voxelsize : float
+        Half-voxel thickness-correction strength (default 0.5).
     sulcal_width : float
+        Max distance from CSF boundary for sulcal PPM correction
+        (default 2.5 mm).  Set to 0 to disable.
     fast : bool
+        Fast/coarse thickness estimate only (default False).
     verbose : bool
 
     Returns
@@ -199,41 +216,59 @@ def vol_thickness_pbt(volume, voxelsize=None,
 # AMAP tissue segmentation  (mirrors CAT_VolAmap)
 # ===================================================================
 def vol_amap(volume, labels, voxelsize=None,
-             int n_classes=3, int n_iters=200, int sub=16,
-             int pve=5, double weight_mrf=0.15,
+             int n_pure_classes=3, int n_iters=50, int sub=96,
+             bint pve=True, double weight_mrf=0.0,
              int n_iters_icm=50, bint verbose=False,
-             bint use_median=False, bint use_multistep=False):
+             bint use_median=False, bint use_multistep=False,
+             mrf_class_weights=None):
     """
     Adaptive MAP (AMAP) brain tissue segmentation.
+
+    Direct binding to the libCAT ``Amap`` routine (called by
+    ``CAT_VolAmap``).  This wrapper does NOT include the surrounding
+    pipeline (bias correction, ORNLM, cleanup) the CLI performs - run
+    those steps yourself or call the CLI for an end-to-end result.
 
     Parameters
     ----------
     volume : array_like, 3-D, float32
         Input intensity volume.
     labels : array_like, 3-D, uint8
-        Initial tissue labels.
+        Initial tissue labels (3-class: CSF/GM/WM).
     voxelsize : array_like, shape (3,), float64, optional
-    n_classes : int
-        Number of tissue classes (default 3: CSF, GM, WM).
+        Voxel dimensions in mm.  Default ``[1, 1, 1]``.
+    n_pure_classes : int
+        Number of pure tissue classes (default 3: CSF, GM, WM).  The
+        probability map will have ``5`` channels if ``pve`` is True,
+        otherwise ``n_pure_classes`` channels.
     n_iters : int
+        Number of Amap iterations (default 50).
     sub : int
-        Sub-sampling factor for bias estimation.
-    pve : int
-        PVE model (5 = Pve5).
+        Sub-sampling factor for bias/mean estimation (default 96).
+    pve : bool
+        Use 5-class Partial Volume Estimation (default True).
     weight_mrf : float
+        MRF prior weight in [0, 1] (default 0.0).
     n_iters_icm : int
+        ICM iterations (default 50).
     verbose : bool
     use_median : bool
+        Use local median instead of mean for peak estimation.
     use_multistep : bool
+        Enable two-step subsampling schedule.
+    mrf_class_weights : array_like, optional
+        Per-class MRF weights.  Length must match the number of output
+        classes (3 if ``pve`` is False, 5 otherwise).
 
     Returns
     -------
-    prob : ndarray, 4-D, uint8, shape (X, Y, Z, n_classes)
-        Tissue probability maps.
+    prob : ndarray, 4-D, uint8, shape (X, Y, Z, n_out_classes)
+        Tissue probability maps.  ``n_out_classes`` is 5 if ``pve``
+        is True, else ``n_pure_classes``.
     label : ndarray, 3-D, uint8
         Final tissue labels.
-    mean : ndarray, shape (n_classes,), float64
-        Estimated class means.
+    mean : ndarray, shape (n_pure_classes,), float64
+        Estimated pure-class means.
     """
     vol = np.asfortranarray(volume, dtype=np.float32)
     if vol.ndim != 3:
@@ -255,29 +290,38 @@ def vol_amap(volume, labels, voxelsize=None,
     else:
         vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
 
-    cdef int nvox = dims[0] * dims[1] * dims[2]
+    cdef int n_out = 5 if pve else n_pure_classes
+    cdef int pve_flag = 1 if pve else 0
 
-    # Amap modifies src in-place
     cdef cnp.ndarray[cnp.float32_t, ndim=3] src = vol.copy(order='F')
     cdef cnp.ndarray[cnp.uint8_t, ndim=3] lab_out = lab.copy(order='F')
 
-    # prob: nvox * n_classes
-    prob_shape = (dims[0], dims[1], dims[2], n_classes)
+    prob_shape = (dims[0], dims[1], dims[2], n_out)
     cdef cnp.ndarray[cnp.uint8_t, ndim=4] prob = np.zeros(
         prob_shape, dtype=np.uint8, order='F')
 
     cdef cnp.ndarray[cnp.float64_t, ndim=1] mean = np.zeros(
-        n_classes, dtype=np.float64)
+        n_pure_classes, dtype=np.float64)
+
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] mrf_w
+    cdef double *mrf_w_ptr = NULL
+    if mrf_class_weights is not None:
+        mrf_w = np.ascontiguousarray(mrf_class_weights, dtype=np.float64)
+        if mrf_w.shape[0] != n_out:
+            raise ValueError(
+                f"mrf_class_weights length ({mrf_w.shape[0]}) != "
+                f"output classes ({n_out})")
+        mrf_w_ptr = <double *>mrf_w.data
 
     C.Amap(<float *>src.data,
            <unsigned char *>lab_out.data,
            <unsigned char *>prob.data,
            <double *>mean.data,
-           n_classes, n_iters, sub, dims,
-           pve, weight_mrf, vx, n_iters_icm,
+           n_pure_classes, n_iters, sub, dims,
+           pve_flag, weight_mrf, vx, n_iters_icm,
            1 if verbose else 0,
            1 if use_median else 0,
-           NULL,   # mrf_class_weights
+           mrf_w_ptr,
            1 if use_multistep else 0)
 
     return prob, lab_out, mean
@@ -287,32 +331,43 @@ def vol_amap(volume, labels, voxelsize=None,
 # Marching cubes  (mirrors CAT_VolMarchingCubes)
 # ===================================================================
 def vol_marching_cubes(str volume_file, double threshold=0.5,
-                       double pre_fwhm=1.0, int iter_laplacian=100,
-                       double dist_morph=1.0, int n_median_filter=3,
-                       int n_iter=5, double strength_gyri_mask=0.0,
+                       double pre_fwhm=2.0, int iter_laplacian=50,
+                       dist_morph=None, int n_median_filter=2,
+                       int n_iter=5, double strength_gyri_mask=0.1,
                        bint fast=False, str label_file=None,
                        bint verbose=False):
     """
     Generate a surface mesh from a volume using marching cubes
     with topology correction (genus-0).
 
+    Mirrors ``CAT_VolMarchingCubes``.  Volumes are loaded with
+    ``read_nifti_float``, so any on-disk datatype is supported.
+
     Parameters
     ----------
     volume_file : str
         Path to input NIfTI volume.
     threshold : float
-        Isosurface threshold.
+        Isosurface threshold (default 0.5).
     pre_fwhm : float
-        Pre-smoothing FWHM.
+        Pre-smoothing FWHM (default 2.0).
     iter_laplacian : int
-    dist_morph : float
+        Iterations for final Laplacian smoothing (default 50).
+    dist_morph : float, optional
+        Morphological opening/closing distance.  None (default) lets the
+        C routine auto-estimate it (FLT_MAX sentinel, matches the CLI).
+        Positive values close, negative values open.
     n_median_filter : int
+        Iterations of median filtering for artefact regions (default 2).
     n_iter : int
+        Maximum number of topology-correction iterations (default 5).
     strength_gyri_mask : float
+        Isovalue-correction strength using the gyri/sulci mask
+        (default 0.1).  Only effective with ``label_file``.
     fast : bool
-        Use fast variant (fewer parameters).
+        Use fast variant (no preprocessing/topology correction).
     label_file : str, optional
-        Path to a label NIfTI volume.
+        Path to a label NIfTI volume for gyri/sulci masking.
     verbose : bool
 
     Returns
@@ -321,8 +376,9 @@ def vol_marching_cubes(str volume_file, double threshold=0.5,
     faces    : ndarray, shape (F, 3), int32
     """
     cdef bytes bvol = volume_file.encode("utf-8")
-    cdef nifti_image *nii = nifti_image_read(bvol, 1)
-    if nii == NULL:
+    cdef float *vol_data = NULL
+    cdef nifti_image *nii = C.read_nifti_float(bvol, &vol_data, 0)
+    if nii == NULL or vol_data == NULL:
         raise IOError(f"Failed to read NIfTI volume '{volume_file}'")
 
     cdef float *label_data = NULL
@@ -330,26 +386,47 @@ def vol_marching_cubes(str volume_file, double threshold=0.5,
 
     if label_file is not None:
         blabel = label_file.encode("utf-8")
-        nii_label = nifti_image_read(blabel, 1)
-        if nii_label != NULL:
-            label_data = <float *>nii_label.data
+        nii_label = C.read_nifti_float(blabel, &label_data, 0)
+        if nii_label == NULL or label_data == NULL:
+            free(vol_data)
+            nii.data = NULL
+            nifti_image_free(nii)
+            raise IOError(f"Failed to read label volume '{label_file}'")
+        if (nii_label.nx != nii.nx or nii_label.ny != nii.ny
+                or nii_label.nz != nii.nz):
+            free(vol_data); free(label_data)
+            nii.data = NULL; nii_label.data = NULL
+            nifti_image_free(nii); nifti_image_free(nii_label)
+            raise ValueError("label volume must match input volume dimensions")
 
-    cdef object_struct *result
-
-    if fast:
-        result = C.apply_marching_cubes_fast(
-            <float *>nii.data, nii, threshold,
-            iter_laplacian, 1 if verbose else 0)
+    cdef double dist_morph_val
+    if dist_morph is None:
+        # Sentinel matching the CLI default (FLT_MAX → auto-estimate).
+        from sys import float_info
+        dist_morph_val = float_info.max
     else:
-        result = C.apply_marching_cubes(
-            <float *>nii.data, nii, label_data,
-            threshold, pre_fwhm, iter_laplacian,
-            dist_morph, n_median_filter, n_iter,
-            strength_gyri_mask, 1 if verbose else 0)
+        dist_morph_val = float(dist_morph)
 
-    if nii_label != NULL:
-        nifti_image_free(nii_label)
-    nifti_image_free(nii)
+    cdef object_struct *result = NULL
+    try:
+        if fast:
+            result = C.apply_marching_cubes_fast(
+                vol_data, nii, threshold,
+                iter_laplacian, 1 if verbose else 0)
+        else:
+            result = C.apply_marching_cubes(
+                vol_data, nii, label_data,
+                threshold, pre_fwhm, iter_laplacian,
+                dist_morph_val, n_median_filter, n_iter,
+                strength_gyri_mask, 1 if verbose else 0)
+    finally:
+        free(vol_data)
+        nii.data = NULL
+        nifti_image_free(nii)
+        if nii_label != NULL:
+            free(label_data)
+            nii_label.data = NULL
+            nifti_image_free(nii_label)
 
     if result == NULL:
         raise RuntimeError("apply_marching_cubes returned NULL")

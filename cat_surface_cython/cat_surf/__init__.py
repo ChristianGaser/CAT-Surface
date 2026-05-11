@@ -87,6 +87,12 @@ from cat_surf._bbreg import (
     volume_register_robust,
 )
 
+# --- Volume-to-surface mapping ---
+from cat_surf._vol2surf import vol2surf
+
+# --- DARTEL spherical surface registration ---
+from cat_surf._surf_warp import surf_warp
+
 __all__ = [
     # I/O
     "read_surface",
@@ -126,4 +132,8 @@ __all__ = [
     "bbreg_detect_contrast",
     "volume_register_nmi",
     "volume_register_robust",
+    # Volume-to-surface
+    "vol2surf",
+    # DARTEL surface warp
+    "surf_warp",
 ]

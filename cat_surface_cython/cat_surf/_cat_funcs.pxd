@@ -82,7 +82,8 @@ cdef extern from "CAT_Surf.h":
                             int n_iter, int itertype, int *mask, int verbose)
 
     int  reduce_mesh_quadrics(polygons_struct *poly, int target_faces,
-                              double quality, int iterations, int verbose)
+                              double aggressiveness, int preserve_sharp,
+                              int verbose)
 
     void central_to_pial(polygons_struct *central, double *thickness,
                          double *extents, int check_intersect,
@@ -137,6 +138,8 @@ cdef extern from "CAT_SurfUtils.h":
     double get_area_of_points_normalized_to_sphere(
         polygons_struct *polygons, polygons_struct *sphere,
         double *areas)
+    void translate_to_center_of_mass(polygons_struct *polygons)
+    void set_vector_length(Point *p, double newLength)
 
 
 # ---------------------------------------------------------------------------
@@ -217,11 +220,68 @@ cdef extern from "CAT_SurfPialWhite.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_SurfWarpDartel.h — DARTEL-based spherical registration (DEFERRED)
+# CAT_SurfWarpDartel.h — declared in _dartel.pxd
 # ---------------------------------------------------------------------------
-# dartel.h has no include guards; declaring dartel_prm here causes
-# redefinition errors when CAT_SurfWarpDartel.h is processed.
-# SurfWarp wrapping is deferred due to DARTEL complexity.
+# dartel.h has no include guards AND defines an unhygienic `#define S 1.0`
+# macro that breaks any file including stdint-based unions. To avoid
+# polluting every cimport, the DARTEL declarations live in cat_surf/_dartel.pxd
+# and are only cimported by cat_surf/_surf_warp.pyx.
+
+
+# ---------------------------------------------------------------------------
+# CAT_Warp.h — Warp/rotation primitives used by SurfWarp
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Warp.h":
+    int INVERSE_WARPING
+    void rotate_polygons(polygons_struct *src, polygons_struct *dst,
+                         double *rotation_matrix)
+    void rotation_to_matrix(double *matrix, double alpha, double beta,
+                            double gamma)
+    void average_xz_surf(polygons_struct *a, polygons_struct *b,
+                         polygons_struct *out)
+
+
+# ---------------------------------------------------------------------------
+# CAT_Vol2SurfUtils.h — helpers for CAT_Vol2Surf
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Vol2SurfUtils.h":
+    double CAT_Vol2SurfEvaluateFunction(const double *val_array, int n_val,
+                                        int map_func, const double *kernel,
+                                        int *index_out)
+    void   CAT_Vol2SurfBuildExpKernel(const double *length_array, int n,
+                                      double exp_half, double *kernel_out)
+    void   CAT_Vol2SurfBuildGaussianKernel50(int grid_steps, int grid_steps1,
+                                             double *kernel_out)
+
+
+# ---------------------------------------------------------------------------
+# CAT_Math.h — F_* mapping function enum + clip_data
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Math.h":
+    int F_MEAN
+    int F_MIN
+    int F_MAX
+    int F_STD
+    int F_SUM
+    int F_MAXABS
+    int F_EXP
+    int F_MEDIAN
+    int F_RANGE
+    int F_WAVERAGE
+    int F_MULTI
+
+
+# ---------------------------------------------------------------------------
+# Extras: isoval (used by Vol2Surf), surface normals & areal helpers
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Vol.h":
+    float isoval(float vol[], float x, float y, float z, int s[],
+                 nifti_image *nii_ptr)
+
+cdef extern from "CAT_Surf.h":
+    double get_area_of_points_central_to_pial(
+        polygons_struct *polygons, double *area_pial_points,
+        double *thickness_values, double extent)
 
 
 # ---------------------------------------------------------------------------

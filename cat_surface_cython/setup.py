@@ -166,6 +166,16 @@ extensions = [
         [os.path.join("cat_surf", "_bbreg" + ext_suffix)],
         **common_kwargs,
     ),
+    Extension(
+        "cat_surf._vol2surf",
+        [os.path.join("cat_surf", "_vol2surf" + ext_suffix)],
+        **common_kwargs,
+    ),
+    Extension(
+        "cat_surf._surf_warp",
+        [os.path.join("cat_surf", "_surf_warp" + ext_suffix)],
+        **common_kwargs,
+    ),
 ]
 
 if USE_CYTHON:
