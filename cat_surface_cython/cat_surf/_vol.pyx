@@ -12,6 +12,7 @@ import numpy as np
 cimport numpy as cnp
 from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy
+from libc.float cimport FLT_MAX
 
 from cat_surf._bic_types cimport (
     polygons_struct, object_struct, Object_types, POLYGONS,
@@ -393,9 +394,12 @@ def vol_marching_cubes(volume, double threshold=0.5,
 
     cdef double dist_morph_val
     if dist_morph is None:
-        # Sentinel matching the CLI default (FLT_MAX → auto-estimate).
-        from sys import float_info
-        dist_morph_val = float_info.max
+        # Sentinel matching the CLI default: apply_marching_cubes compares
+        # the (double) dist_morph against FLT_MAX exactly, so the wrapper
+        # must pass FLT_MAX (~3.4e38), NOT DBL_MAX (sys.float_info.max,
+        # ~1.8e308) — otherwise the auto-estimate branch is skipped and
+        # dist_close runs with an infinite radius, wiping the mask.
+        dist_morph_val = FLT_MAX
     else:
         dist_morph_val = float(dist_morph)
 
