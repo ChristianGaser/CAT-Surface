@@ -33,13 +33,20 @@ jobs:
         run: brew install autoconf automake libtool autoconf-archive
 
       - name: Configure
+        # Pin deployment target to match the wheel build below so the
+        # static .o files inside libCAT.a don't drag the final .so's
+        # min-OS above the wheel's claimed 11.0 target.
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         run: |
           autoupdate
           autoreconf -fi
-          export {C,CXX,CPP}FLAGS="-O2 -fPIC"
+          export {C,CXX,CPP}FLAGS="-O2 -fPIC -mmacosx-version-min=11.0"
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Build libCAT.a
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         run: make -j$(sysctl -n hw.ncpu) libCAT.la
 
       - name: Collect build artifacts
@@ -109,8 +116,20 @@ jobs:
           cp _libcat/config.h   "$V/build/"
           cp _libcat/libfftw3.a "$V/build/3rdparty/fftw-build/.libs/"
 
-      - name: Install libomp (dynamic, bundled into wheel by delocate)
-        run: brew install libomp
+      - name: Build libomp from source with wheel's deployment target
+        # Homebrew's prebuilt libomp.dylib on the macos-15 runners ships
+        # with a min-OS of 15.0, which delocate-wheel rejects when bundling
+        # into a wheel whose own deployment target is 11.0 (the cibuildwheel
+        # default for arm64).  Building libomp from source with
+        # MACOSX_DEPLOYMENT_TARGET=11.0 produces a libomp.dylib that
+        # matches the wheel's target so delocate can bundle it.
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          # Drop any pre-installed bottle first so brew actually rebuilds.
+          brew uninstall --ignore-dependencies libomp 2>/dev/null || true
+          brew install --build-from-source libomp
 
       - uses: actions/setup-python@v5
         with:
@@ -123,6 +142,12 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
+          # Pin the wheel's deployment target to match the libomp we
+          # built from source above.  Default for x86_64 is 10.9, which
+          # would not match libomp built with MACOSX_DEPLOYMENT_TARGET=11.0
+          # and delocate-wheel would reject the bundle.
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0
         run: cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
