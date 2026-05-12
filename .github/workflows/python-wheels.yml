@@ -153,13 +153,25 @@ jobs:
           cmake --build build-omp -j"$(sysctl -n hw.ncpu)"
           cmake --install build-omp
 
+          # libomp ships with install name @rpath/libomp.dylib, but our
+          # cat_surf .so files have no rpath baked in -- delocate then
+          # can't resolve the dependency.  Rewrite the install name to
+          # an absolute path so the linker records that path and delocate
+          # can find the file (delocate later rewrites it to
+          # @loader_path/.dylibs/libomp.dylib when bundling).
+          install_name_tool -id \
+            "$HOME/libomp/lib/libomp.dylib" \
+            "$HOME/libomp/lib/libomp.dylib"
+
           # Pass the prefix to setup.py so its libomp lookup picks our
           # build (instead of Homebrew's missing/uninstalled one).
           echo "CAT_LIBOMP_PREFIX=$HOME/libomp" >> "$GITHUB_ENV"
 
-          # Verify the built dylib has the expected min-OS marker.
+          # Verify the dylib has the expected min-OS marker and the
+          # rewritten install name.
           otool -l "$HOME/libomp/lib/libomp.dylib" \
-            | grep -E "minos|version|LC_BUILD" -A 1 | head -20
+            | grep -E "minos|version|LC_BUILD|LC_ID_DYLIB" -A 1 | head -20
+          otool -D "$HOME/libomp/lib/libomp.dylib"
 
       - uses: actions/setup-python@v5
         with:
