@@ -114,9 +114,16 @@ if sys.platform == "darwin":
     # when no Homebrew libomp is found (local-dev builds on hosts
     # without `brew install libomp`).
     extra_link_args.append("-lexpat")
+    # Look first at an explicit CAT_LIBOMP_PREFIX (used by CI to point at a
+    # libomp built with a pinned MACOSX_DEPLOYMENT_TARGET), then fall back
+    # to the standard Homebrew prefixes for local dev.
+    _omp_candidates = []
+    _omp_env = os.environ.get("CAT_LIBOMP_PREFIX")
+    if _omp_env:
+        _omp_candidates.append(_omp_env)
+    _omp_candidates += ["/opt/homebrew/opt/libomp", "/usr/local/opt/libomp"]
     _omp_dylib_prefix = next(
-        (p for p in ("/opt/homebrew/opt/libomp", "/usr/local/opt/libomp")
-         if os.path.isdir(p)),
+        (p for p in _omp_candidates if os.path.isdir(p)),
         None,
     )
     if _omp_dylib_prefix:

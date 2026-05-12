@@ -116,20 +116,50 @@ jobs:
           cp _libcat/config.h   "$V/build/"
           cp _libcat/libfftw3.a "$V/build/3rdparty/fftw-build/.libs/"
 
-      - name: Build libomp from source with wheel's deployment target
-        # Homebrew's prebuilt libomp.dylib on the macos-15 runners ships
-        # with a min-OS of 15.0, which delocate-wheel rejects when bundling
-        # into a wheel whose own deployment target is 11.0 (the cibuildwheel
-        # default for arm64).  Building libomp from source with
-        # MACOSX_DEPLOYMENT_TARGET=11.0 produces a libomp.dylib that
-        # matches the wheel's target so delocate can bundle it.
+      - name: Build libomp from LLVM source with deployment target 11.0
+        # Homebrew's libomp bottle on macos-15 ships with min-OS 15.0,
+        # which delocate-wheel rejects when bundling into a wheel that
+        # targets 11.0.  Homebrew's `--build-from-source` does NOT honor
+        # MACOSX_DEPLOYMENT_TARGET (cmake fills in CMAKE_OSX_DEPLOYMENT_TARGET
+        # from the runner's macOS version), so we bypass Homebrew and build
+        # libomp directly from LLVM's openmp source with explicit cmake
+        # flags.  Install location is consumed by setup.py via env var.
         env:
           MACOSX_DEPLOYMENT_TARGET: "11.0"
-          HOMEBREW_NO_AUTO_UPDATE: "1"
+          LIBOMP_VER: "20.1.5"
         run: |
-          # Drop any pre-installed bottle first so brew actually rebuilds.
+          set -euxo pipefail
+          # Remove any pre-installed Homebrew libomp so its headers and
+          # dylib don't accidentally get picked up at link time.
           brew uninstall --ignore-dependencies libomp 2>/dev/null || true
-          brew install --build-from-source libomp
+
+          curl -fsSL -o openmp.tar.xz \
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VER}/openmp-${LIBOMP_VER}.src.tar.xz"
+          tar xf openmp.tar.xz
+
+          # cmake-only required dep for the openmp standalone build is the
+          # llvm-cmake module.  Recent LLVM releases ship cmake/ alongside.
+          curl -fsSL -o cmake-mods.tar.xz \
+            "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VER}/cmake-${LIBOMP_VER}.src.tar.xz"
+          tar xf cmake-mods.tar.xz
+          mv cmake-${LIBOMP_VER}.src cmake
+
+          cmake -S openmp-${LIBOMP_VER}.src -B build-omp \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$HOME/libomp" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+            -DLIBOMP_INSTALL_ALIASES=OFF \
+            -DOPENMP_ENABLE_LIBOMPTARGET=OFF
+          cmake --build build-omp -j"$(sysctl -n hw.ncpu)"
+          cmake --install build-omp
+
+          # Pass the prefix to setup.py so its libomp lookup picks our
+          # build (instead of Homebrew's missing/uninstalled one).
+          echo "CAT_LIBOMP_PREFIX=$HOME/libomp" >> "$GITHUB_ENV"
+
+          # Verify the built dylib has the expected min-OS marker.
+          otool -l "$HOME/libomp/lib/libomp.dylib" \
+            | grep -E "minos|version|LC_BUILD" -A 1 | head -20
 
       - uses: actions/setup-python@v5
         with:
