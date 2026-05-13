@@ -63,6 +63,8 @@ cdef extern from "CAT_Surf.h":
     double get_vertex_areas(polygons_struct *poly, double *areas)
     void   get_radius_of_points(polygons_struct *poly, double *radii)
     double get_sphere_radius(polygons_struct *poly)
+    double *get_surface_ratio(double radius, polygons_struct *polygons,
+                              int normalize)
 
     int    euler_characteristic(polygons_struct *poly, int verbose)
 
@@ -111,6 +113,20 @@ cdef extern from "CAT_Surf.h":
         const double max_thickness, const int laplace_iter,
         const double laplace_lambda, const double laplace_mu,
         const double laplace_dt, const int verbose)
+
+
+# ---------------------------------------------------------------------------
+# CAT_Complexity.h — Fractal dimension
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Complexity.h":
+    double fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
+                             int maxiters, char *output_file,
+                             int smoothflag, int debugflag)
+    double fractal_dimension_sph(polygons_struct *surface,
+                                 polygons_struct *sphere,
+                                 char *output_file, int n_triangles,
+                                 polygons_struct *reparam,
+                                 int smoothflag, int debugflag)
 
 
 # ---------------------------------------------------------------------------

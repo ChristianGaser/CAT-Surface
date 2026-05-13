@@ -33,6 +33,9 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfResample -label <annot>   -> surf_resample_annot
     CAT_SurfResampleMulti             -> surf_resample_multi
     CAT_Surf2ROIMulti                 -> surf2roi_multi
+    CAT_SurfFractalDimension          -> surf_fractal_dimension
+    CAT_SurfRatio                     -> surf_ratio
+    CAT_SurfSulcusDepth               -> surf_sulcus_depth
     CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
@@ -79,6 +82,9 @@ from cat_surf import (
     vol_smooth as _vol_smooth,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
+    sulcus_depth as _sulcus_depth,
+    surf_ratio as _surf_ratio,
+    surf_fractal_dimension as _surf_fractal_dimension,
 )
 
 # ---------------------------------------------------------------------------
@@ -564,6 +570,100 @@ def surf_resample_multi(units, output_surface_file, output_values_file=None,
         write_values(output_values_file, cat_vals)
 
 
+def surf_sulcus_depth(surface_file, sphere_file, output_values_file,
+                      sqrt_transform=False):
+    """Mirror of ``CAT_SurfSulcusDepth``.
+
+    Compute sulcus depth as the Euclidean distance between each vertex on
+    the central surface and the convex hull, writing per-vertex values to
+    disk.
+
+    Parameters
+    ----------
+    surface_file : str
+        Central surface file.
+    sphere_file : str
+        Sphere file (read but not used in computation; kept for API
+        compatibility with the binary).
+    output_values_file : str
+        Output per-vertex values file.
+    sqrt_transform : bool
+        Apply sqrt transform for a more normal distribution (default False).
+    """
+    v, f = read_surface(surface_file)
+    depth = _sulcus_depth(v, f)
+    if sqrt_transform:
+        depth = np.sqrt(depth)
+    write_values(output_values_file, depth)
+
+
+def surf_ratio(surface_file, output_values_file,
+               radius=20.0, normalize=True):
+    """Mirror of ``CAT_SurfRatio``.
+
+    Compute normalized surface ratio (local gyrification) at each vertex
+    and write per-vertex values to disk.
+
+    Parameters
+    ----------
+    surface_file : str
+        Input surface file.
+    output_values_file : str
+        Output per-vertex values file.
+    radius : float
+        Neighbourhood radius in mm (default 20.0).  Negative values
+        trigger automatic radius estimation.
+    normalize : bool
+        Normalize for surface area (default True).
+    """
+    v, f = read_surface(surface_file)
+    ratio = _surf_ratio(v, f, radius=radius, normalize=normalize)
+    write_values(output_values_file, ratio)
+
+
+def surf_fractal_dimension(surface_file, sphere_file, output_values_file,
+                           n_triangles=327680, use_sph=True,
+                           maxiters=30, smooth=True, verbose=False):
+    """Mirror of ``CAT_SurfFractalDimension``.
+
+    Compute local and global fractal dimension of a cortical surface,
+    writing per-vertex local FD values to disk and printing the global FD.
+
+    Parameters
+    ----------
+    surface_file : str
+        Input surface file.
+    sphere_file : str
+        Spherical parameterization of the surface.
+    output_values_file : str
+        Output per-vertex FD values file.
+    n_triangles : int
+        Resampled triangle count for the SPH method (default 327680).
+    use_sph : bool
+        Use spherical-harmonic bandwidth method (default True).
+    maxiters : int
+        Scale iterations for the non-SPH method (default 30).
+    smooth : bool
+        Smooth local FD values (default True).
+    verbose : bool
+        Print progress (default False).
+
+    Returns
+    -------
+    float
+        Global fractal dimension.
+    """
+    v, f = read_surface(surface_file)
+    sv, sf = read_surface(sphere_file)
+    local_fd, global_fd = _surf_fractal_dimension(
+        v, f, sv, sf,
+        n_triangles=n_triangles, use_sph=use_sph,
+        maxiters=maxiters, smooth=smooth, verbose=verbose)
+    write_values(output_values_file, local_fd)
+    print(f"global FD: {global_fd:.6f}")
+    return global_fd
+
+
 def surf2roi_multi(units, output_json_file):
     """Mirror of ``CAT_Surf2ROIMulti``.
 
@@ -611,12 +711,15 @@ __all__ = [
     "surf_correct_thickness_folding",
     "surf_deform",
     "surf_distance",
+    "surf_fractal_dimension",
+    "surf_ratio",
     "surf_reduce",
     "surf_remove_intersections",
     "surf_resample",
     "surf_resample_annot",
     "surf_resample_multi",
     "surf_curvature",
+    "surf_sulcus_depth",
     "surf_warp",
     "surf2roi_multi",
     # Volume tools

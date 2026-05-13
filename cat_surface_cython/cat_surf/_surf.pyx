@@ -1196,3 +1196,149 @@ def surf2roi_unit(str src_sphere_file, str trg_sphere_file,
             delete_object(trg_sph_objs[0])
             free(trg_sph_objs)
 
+
+# ===================================================================
+# Surface ratio  (mirrors CAT_SurfRatio)
+# ===================================================================
+def surf_ratio(vertices, faces, double radius=20.0, bint normalize=True):
+    """
+    Compute per-vertex surface ratio based on the method of Toro et al. 2008.
+
+    Mirrors ``CAT_SurfRatio``.  The ratio measures local gyrification by
+    comparing the area of a geodesic disc around each vertex to the area
+    of the corresponding region on the convex hull.
+
+    Parameters
+    ----------
+    vertices : array_like, shape (V, 3)
+    faces    : array_like, shape (F, 3)
+    radius   : float
+        Neighbourhood radius in mm (default 20.0).  When negative the
+        radius is estimated automatically so that the global surface
+        ratio is close to the global gyrification index.
+    normalize : bool
+        Normalize for individual surface area to make the measure
+        scale-invariant (default True).
+
+    Returns
+    -------
+    ratio_values : ndarray, shape (V,), float64
+        Per-vertex surface ratio.
+    """
+    cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
+    cdef polygons_struct *poly = mesh.ptr()
+    cdef int n = poly.n_points
+
+    cdef double *ratio_ptr = C.get_surface_ratio(
+        radius, poly, 1 if normalize else 0)
+    if ratio_ptr == NULL:
+        raise RuntimeError("get_surface_ratio returned NULL")
+
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] out = np.empty(n, dtype=np.float64)
+    memcpy(<void *>out.data, ratio_ptr, sizeof(double) * <size_t>n)
+    free(ratio_ptr)
+    return out
+
+
+# ===================================================================
+# Fractal dimension  (mirrors CAT_SurfFractalDimension)
+# ===================================================================
+def surf_fractal_dimension(vertices, faces, sphere_vertices, sphere_faces,
+                           int n_triangles=327680, bint use_sph=True,
+                           int maxiters=30, bint smooth=True,
+                           bint verbose=False):
+    """
+    Compute local and global fractal dimension of a cortical surface.
+
+    Mirrors ``CAT_SurfFractalDimension``.  Two algorithms are
+    available via ``use_sph``:
+
+    * ``use_sph=True`` (default) — SPH bandwidth reduction method
+      (Yotter et al.); produces high-quality local FD maps aligned
+      to the reparameterized sphere.
+    * ``use_sph=False`` — direct area-scaling resampling; faster but
+      lower quality.
+
+    Parameters
+    ----------
+    vertices, faces : array_like
+        Central surface mesh (shape ``(V, 3)`` / ``(F, 3)``).
+    sphere_vertices, sphere_faces : array_like
+        Spherical parameterization of the same surface.
+    n_triangles : int
+        Number of triangles for the resampled sphere (SPH mode only,
+        default 327680).
+    use_sph : bool
+        Use the spherical-harmonic method (default True).
+    maxiters : int
+        Number of scale iterations for the non-SPH method (default 30).
+    smooth : bool
+        Smooth local FD values after estimation (default True).
+    verbose : bool
+        Print intermediate progress (default False).
+
+    Returns
+    -------
+    local_fd  : ndarray, float64
+        Per-vertex fractal dimension values.  Length equals
+        ``sphere.n_points`` (SPH mode) or ``surface.n_points``
+        (non-SPH mode).
+    global_fd : float
+        Global fractal dimension of the surface.
+    """
+    import tempfile
+    import os as _os
+
+    cdef PolygonsMesh surface = _ensure_mesh(vertices, faces)
+    cdef PolygonsMesh sphere  = _ensure_mesh(sphere_vertices, sphere_faces)
+
+    # Reparameterization sphere: copy of sphere, centred + unit-radius
+    cdef PolygonsMesh reparam = _ensure_mesh(sphere_vertices, sphere_faces)
+    cdef polygons_struct *reparam_ptr = reparam.ptr()
+    C.translate_to_center_of_mass(reparam_ptr)
+    cdef int i
+    for i in range(reparam_ptr.n_points):
+        C.set_vector_length(&reparam_ptr.points[i], 1.0)
+
+    # Write local FD values to a temporary file, read back as array
+    cdef double global_fd = 0.0
+    cdef int n_vals = 0
+    cdef double *fd_ptr = NULL
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] local_fd
+
+    fd_handle, tmp_path = tempfile.mkstemp(suffix=".txt")
+    _os.close(fd_handle)
+    cdef bytes b_tmp = tmp_path.encode("utf-8")
+
+    try:
+        if use_sph:
+            global_fd = C.fractal_dimension_sph(
+                surface.ptr(), sphere.ptr(), b_tmp,
+                n_triangles, reparam_ptr,
+                1 if smooth else 0,
+                1 if verbose else 0)
+        else:
+            global_fd = C.fractal_dimension(
+                surface.ptr(), sphere.ptr(), maxiters, b_tmp,
+                1 if smooth else 0,
+                1 if verbose else 0)
+
+        if C.input_values_any_format(b_tmp, &n_vals, &fd_ptr) != OK:
+            raise RuntimeError(
+                "surf_fractal_dimension: could not read output values")
+
+        local_fd = np.empty(n_vals, dtype=np.float64)
+        memcpy(<void *>local_fd.data, fd_ptr,
+               sizeof(double) * <size_t>n_vals)
+        free(fd_ptr)
+        fd_ptr = NULL
+    finally:
+        if fd_ptr != NULL:
+            free(fd_ptr)
+        try:
+            _os.remove(tmp_path)
+        except OSError:
+            pass
+
+    return local_fd, global_fd
+

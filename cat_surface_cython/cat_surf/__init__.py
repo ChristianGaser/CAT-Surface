@@ -79,6 +79,8 @@ from cat_surf._surf import (
     surf_to_pial_white,
     central_to_pial,
     surf2roi_unit,
+    surf_ratio,
+    surf_fractal_dimension,
 )
 
 # --- Volume operations ---
@@ -322,6 +324,8 @@ __all__ = [
     "surf2roi_unit",
     "surf2roi_multi",
     "resample_multi",
+    "surf_ratio",
+    "surf_fractal_dimension",
     # Volume operations
     "vol_smooth",
     "vol_sanlm",
