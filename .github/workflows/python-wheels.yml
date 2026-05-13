@@ -198,18 +198,17 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >-
             MACOSX_DEPLOYMENT_TARGET=11.0
             CAT_LIBOMP_PREFIX=$HOME/libomp
-          # Do NOT bundle libomp.dylib into the wheel.  Bundling produces
-          # a per-package libomp instance that conflicts at runtime with
-          # PyTorch / skimage / scikit-learn etc., each of which ship
-          # their own bundled libomp.  Instead we leave the dep as
-          # @rpath/libomp.dylib and rely on the rpaths baked in by
-          # setup.py to find whichever libomp is already in the process
-          # (torch's, then Homebrew, then system).
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >-
-            delocate-wheel
-            --require-archs {delocate_archs}
-            --exclude libomp.dylib
-            -w {dest_dir} -v {wheel}
+          # Skip delocate entirely.  delocate's design is to bundle every
+          # non-system dep into the wheel; with `--exclude libomp.dylib`
+          # it still validates resolvability and fails the build when
+          # the linker's libomp ($HOME/libomp, our from-source build) is
+          # not reachable from any rpath baked into the .so.  We don't
+          # WANT it bundled (multiple libomps in one process is the bug
+          # we've been chasing), and we don't NEED build-time validation
+          # because runtime dyld resolves @rpath/libomp.dylib against the
+          # rpath list setup.py compiled in (torch first, then Homebrew).
+          # A bare `cp` keeps cibuildwheel's repair contract satisfied.
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: "cp {wheel} {dest_dir}"
         run: cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
