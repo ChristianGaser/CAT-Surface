@@ -14,8 +14,9 @@ from libc.string cimport memcpy, memset
 
 from cat_surf._bic_types cimport (
     polygons_struct, object_struct, Object_types, Status,
-    create_object, get_polygons_ptr, delete_object,
+    create_object, get_polygons_ptr, delete_object, get_object_type,
     initialize_polygons, compute_polygon_normals, POLYGONS, OK,
+    File_formats,
 )
 from cat_surf._nifti_types cimport nifti_image, nifti_image_read, nifti_image_free
 from cat_surf._convert cimport PolygonsMesh, _wrap_object
@@ -250,6 +251,83 @@ def smoothed_curvatures(vertices, faces, double fwhm=0.0, int n_iter=0):
 
     cdef cnp.ndarray[cnp.float64_t, ndim=1] curv = np.zeros(n, dtype=np.float64)
     C.get_smoothed_curvatures(poly, <double *>curv.data, fwhm, n_iter)
+    return curv
+
+
+# ===================================================================
+# Per-vertex curvature  (mirrors CAT_SurfCurvature)
+# ===================================================================
+def surf_curvature(vertices, faces, int curvtype=0, double fwhm=0.0,
+                   bint use_abs_values=False, bint invert_values=False):
+    """
+    Compute per-vertex curvature.
+
+    Mirrors ``CAT_SurfCurvature``.  ``curvtype`` is the same set of
+    measures the CLI exposes:
+
+    ===========  ==========================================================
+    ``curvtype`` Description
+    ===========  ==========================================================
+    0            Mean curvature averaged over 3 mm, in degrees: (k1+k2)/2
+    1            Gaussian curvature  k1*k2
+    2            Curvedness          sqrt(0.5 * (k1^2 + k2^2))
+    3            Shape index         atan((k1+k2) / (k2-k1))
+    4            Mean curvature in radians: (k1+k2)/2
+    5            Sulcal-depth-like estimator
+    6            Bending energy      k1^2 + k2^2
+    7            Sharpness           (k1 - k2)^2
+    8            Folding index       |k1| * (|k1| - |k2|)
+    9            Minimum curvature   k2
+    10           Maximum curvature   k1
+    11           Inflation-based sulcal depth (FreeSurfer sulc-style)
+    > 11         Depth potential with alpha = 1 / ``curvtype``
+                 (e.g. 650 = recommended)
+    ===========  ==========================================================
+
+    Parameters
+    ----------
+    vertices : array_like, shape (V, 3)
+    faces    : array_like, shape (F, 3)
+    curvtype : int
+        Curvature measure to compute (default 0).
+    fwhm : float
+        Heat-kernel smoothing FWHM in mm (default 0 = no smoothing).
+    use_abs_values : bool
+        Take absolute value of every output (default False).
+    invert_values : bool
+        Negate every output (default False).
+
+    Returns
+    -------
+    curvatures : ndarray, shape (V,), float64
+    """
+    cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
+    cdef polygons_struct *poly = mesh.ptr()
+    cdef int n = poly.n_points
+
+    cdef int *n_neighbours = NULL
+    cdef int **neighbours  = NULL
+    C.get_all_polygon_point_neighbours(poly, &n_neighbours, &neighbours)
+
+    cdef double distance = 3.0 if curvtype == 0 else 0.0
+
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] curv = np.zeros(n, dtype=np.float64)
+    C.get_polygon_vertex_curvatures_cg(
+        poly, n_neighbours, neighbours,
+        distance, curvtype, <double *>curv.data)
+
+    # Mirror the CLI's range clip for the unit-normalised measures.
+    if (0 < curvtype < 4) or curvtype == 10:
+        np.clip(curv, -1.0, 1.0, out=curv)
+
+    if use_abs_values:
+        np.abs(curv, out=curv)
+    if invert_values:
+        np.negative(curv, out=curv)
+
+    if fwhm > 0.0:
+        C.smooth_heatkernel(poly, <double *>curv.data, fwhm)
+
     return curv
 
 
@@ -655,6 +733,146 @@ def resample_to_sphere(vertices, faces, sphere_vertices, sphere_faces,
     if values is not None:
         return new_v, new_f, out_arr
     return new_v, new_f, None
+
+
+# ===================================================================
+# Annotation resampling — file-to-file, mirrors:
+#   CAT_SurfResample -label <src_surf> <src_sphere> <tgt_sphere> NULL \
+#                            <annot_in> <annot_out>
+# Used by T1Prep's atlas resampling step.
+# ===================================================================
+def resample_annot(str source_surface_file,
+                   str source_sphere_file,
+                   str target_sphere_file,
+                   str annot_in_file,
+                   str annot_out_file):
+    """
+    Resample a FreeSurfer ``.annot`` label file from one cortical
+    spherical parameterisation to another.
+
+    Mirrors the ``-label <annot_in> <annot_out>`` mode of
+    ``CAT_SurfResample``.  Inputs and outputs are file paths so the
+    full ATABLE round-trip stays inside libCAT.
+
+    Parameters
+    ----------
+    source_surface_file : str
+        Atlas surface (its topology defines the label vertex count).
+    source_sphere_file : str
+        Atlas sphere corresponding to ``source_surface_file``.
+    target_sphere_file : str
+        Subject sphere to resample onto.
+    annot_in_file : str
+        FreeSurfer ``.annot`` file matching ``source_surface_file``.
+    annot_out_file : str
+        Output ``.annot`` written with the resampled per-vertex labels.
+
+    Returns
+    -------
+    n_target_vertices : int
+        Number of vertices in the resampled output (= target sphere V).
+    """
+    cdef bytes b_src      = source_surface_file.encode("utf-8")
+    cdef bytes b_src_sph  = source_sphere_file.encode("utf-8")
+    cdef bytes b_tgt_sph  = target_sphere_file.encode("utf-8")
+    cdef bytes b_annot_in = annot_in_file.encode("utf-8")
+    cdef bytes b_annot_o  = annot_out_file.encode("utf-8")
+
+    cdef File_formats fmt
+    cdef int n_objects = 0
+    cdef object_struct **src_objs       = NULL
+    cdef object_struct **src_sph_objs   = NULL
+    cdef object_struct **tgt_sph_objs   = NULL
+    cdef object_struct **resampled_objs = NULL
+
+    cdef int n_values = 0
+    cdef int *annot_in = NULL
+    cdef int n_table = 0
+    cdef C.ATABLE *atable = NULL
+
+    cdef double *in_vals = NULL
+    cdef double *out_vals = NULL
+    cdef int *annot_out = NULL
+
+    cdef polygons_struct *src_poly = NULL
+    cdef polygons_struct *src_sph_poly = NULL
+    cdef polygons_struct *tgt_sph_poly = NULL
+    cdef int i = 0
+    cdef int n_tgt = 0
+
+    try:
+        if C.input_graphics_any_format(b_src,     &fmt, &n_objects, &src_objs)     != OK:
+            raise IOError(f"Cannot read source surface: {source_surface_file}")
+        if n_objects != 1 or get_object_type(src_objs[0]) != POLYGONS:
+            raise ValueError(f"{source_surface_file}: must contain exactly one polygons object")
+        if C.input_graphics_any_format(b_src_sph, &fmt, &n_objects, &src_sph_objs) != OK:
+            raise IOError(f"Cannot read source sphere: {source_sphere_file}")
+        if n_objects != 1 or get_object_type(src_sph_objs[0]) != POLYGONS:
+            raise ValueError(f"{source_sphere_file}: must contain exactly one polygons object")
+        if C.input_graphics_any_format(b_tgt_sph, &fmt, &n_objects, &tgt_sph_objs) != OK:
+            raise IOError(f"Cannot read target sphere: {target_sphere_file}")
+        if n_objects != 1 or get_object_type(tgt_sph_objs[0]) != POLYGONS:
+            raise ValueError(f"{target_sphere_file}: must contain exactly one polygons object")
+
+        src_poly     = get_polygons_ptr(src_objs[0])
+        src_sph_poly = get_polygons_ptr(src_sph_objs[0])
+        tgt_sph_poly = get_polygons_ptr(tgt_sph_objs[0])
+        n_tgt = tgt_sph_poly.n_points
+
+        if C.read_annotation_table(b_annot_in, &n_values, &annot_in,
+                                   &n_table, &atable) != 0:
+            raise IOError(f"Cannot read annotation table: {annot_in_file}")
+
+        in_vals  = <double *>malloc(sizeof(double) * <size_t>src_sph_poly.n_points)
+        out_vals = <double *>malloc(sizeof(double) * <size_t>n_tgt)
+        if in_vals == NULL or out_vals == NULL:
+            raise MemoryError()
+        for i in range(min(n_values, src_sph_poly.n_points)):
+            in_vals[i] = <double>annot_in[i]
+
+        resampled_objs = C.resample_surface_to_target_sphere(
+            src_poly, src_sph_poly, tgt_sph_poly,
+            in_vals, out_vals,
+            1,   # label_interpolation (annot => categorical)
+            0,   # areal_interpolation
+        )
+        if resampled_objs == NULL:
+            raise RuntimeError("resample_surface_to_target_sphere failed")
+
+        annot_out = <int *>malloc(sizeof(int) * <size_t>n_tgt)
+        if annot_out == NULL:
+            raise MemoryError()
+        for i in range(n_tgt):
+            # Round-to-nearest, matching the CLI's `(int)round(...)`.
+            annot_out[i] = <int>(out_vals[i] + (0.5 if out_vals[i] >= 0.0 else -0.5))
+
+        if C.write_annotation_table(b_annot_o, n_tgt, annot_out,
+                                    n_table, atable) != 0:
+            raise IOError(f"Cannot write annotation table: {annot_out_file}")
+
+        return n_tgt
+
+    finally:
+        if annot_in is not NULL:
+            free(annot_in)
+        if annot_out is not NULL:
+            free(annot_out)
+        if in_vals is not NULL:
+            free(in_vals)
+        if out_vals is not NULL:
+            free(out_vals)
+        if resampled_objs is not NULL:
+            delete_object(resampled_objs[0])
+            free(resampled_objs)
+        if src_objs is not NULL:
+            delete_object(src_objs[0])
+            free(src_objs)
+        if src_sph_objs is not NULL:
+            delete_object(src_sph_objs[0])
+            free(src_sph_objs)
+        if tgt_sph_objs is not NULL:
+            delete_object(tgt_sph_objs[0])
+            free(tgt_sph_objs)
 
 
 # ===================================================================

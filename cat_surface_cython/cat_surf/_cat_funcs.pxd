@@ -38,6 +38,16 @@ cdef extern from "CAT_SurfaceIO.h":
     int input_freesurfer_curv(char *, int *, double **)
     int output_freesurfer_curv(char *, int, double *)
 
+    # ATABLE is the FreeSurfer .annot colour-table entry struct.  We
+    # only ever pass it through opaquely between read_/write_annotation_table.
+    ctypedef struct ATABLE:
+        pass
+    int read_annotation_table(char *filename, int *n_values,
+                              int **annot_out, int *n_table,
+                              ATABLE **atable_out)
+    int write_annotation_table(char *filename, int n_values, int *annot,
+                               int n_table, ATABLE *atable)
+
     int input_gifti(char *, File_formats *, int *, object_struct ***,
                     int *, double **)
     int output_gifti(char *, File_formats, int, object_struct **, double *)
@@ -127,6 +137,11 @@ cdef extern from "CAT_Curvature.h":
                            int *neighbours[], double *convexity)
     void compute_local_sharpness(polygons_struct *poly, int n_neighbours[],
                                  int *neighbours[], double *sharpness)
+    # Mirror of CAT_SurfCurvature's main routine.  curvtype values are
+    # the same as the CLI's; distance is 3.0 for curvtype 0, else 0.0.
+    void get_polygon_vertex_curvatures_cg(
+        polygons_struct *poly, int n_neighbours[], int *neighbours[],
+        double distance, int curvtype, double *curvatures)
 
 
 # ---------------------------------------------------------------------------

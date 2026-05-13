@@ -144,3 +144,4 @@ cdef extern from "bicpl/object_prototypes.h":
     void            initialize_polygons(polygons_struct *poly, Colour colour,
                                         Surfprop *surfprop)
     void            compute_polygon_normals(polygons_struct *poly)
+    void            copy_polygons(polygons_struct *src, polygons_struct *dst)

@@ -24,12 +24,14 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfArea                      -> surf_area
     CAT_SurfAverage                   -> surf_average
     CAT_SurfCorrectThicknessFolding   -> surf_correct_thickness_folding
+    CAT_SurfCurvature                 -> surf_curvature
     CAT_SurfDeform                    -> surf_deform
     CAT_SurfDistance                  -> surf_distance
     CAT_SurfReduce                    -> surf_reduce
     CAT_SurfRemoveIntersections       -> surf_remove_intersections
     CAT_SurfResample                  -> surf_resample
-    CAT_SurfWarp                      -> surf_warp
+    CAT_SurfResample -label <annot>   -> surf_resample_annot
+    CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
     CAT_VolBloodVesselCorrection      -> vol_blood_vessel_correction
@@ -62,6 +64,8 @@ from cat_surf import (
     remove_intersections as _remove_intersections,
     count_intersections as _count_intersections,
     resample_to_sphere as _resample_to_sphere,
+    resample_annot as _resample_annot,
+    surf_curvature as _surf_curvature,
     surf_warp as _surf_warp,
     vol2surf as _vol2surf,
     vol_amap as _vol_amap,
@@ -324,7 +328,8 @@ def surf_warp(source_file, source_sphere_file,
     """Mirror of ``CAT_SurfWarp`` (DARTEL spherical registration).
 
     Writes the warped source sphere.  The Jacobian-determinant / PGM
-    outputs of the binary are not surfaced.
+    outputs of the binary are not surfaced.  Pass ``avg=True`` to
+    enable the CLI's ``-avg`` flag (pole-rotated double run averaged).
     """
     sv, sf = read_surface(source_file)
     ssv, ssf = read_surface(source_sphere_file)
@@ -332,6 +337,34 @@ def surf_warp(source_file, source_sphere_file,
     tsv, tsf = read_surface(target_sphere_file)
     wv, wf = _surf_warp((sv, sf), (ssv, ssf), (tv, tf), (tsv, tsf), **kwargs)
     write_surface(output_sphere_file, wv, wf)
+
+
+def surf_curvature(surface_file, output_values_file, curvtype=0,
+                   fwhm=0.0, use_abs_values=False, invert_values=False):
+    """Mirror of ``CAT_SurfCurvature``.
+
+    Compute a per-vertex curvature map and write it to disk.  See
+    :func:`cat_surf.surf_curvature` for the full ``curvtype`` table.
+    """
+    v, f = read_surface(surface_file)
+    curv = _surf_curvature(v, f, curvtype=curvtype, fwhm=fwhm,
+                           use_abs_values=use_abs_values,
+                           invert_values=invert_values)
+    write_values(output_values_file, curv)
+
+
+def surf_resample_annot(source_surface_file, source_sphere_file,
+                        target_sphere_file,
+                        annot_in_file, annot_out_file):
+    """Mirror of ``CAT_SurfResample -label … <annot_in> <annot_out>``.
+
+    Resample a FreeSurfer ``.annot`` label file from one cortical
+    spherical parameterisation to another.  Used by T1Prep's atlas
+    label-resampling step.
+    """
+    return _resample_annot(source_surface_file, source_sphere_file,
+                           target_sphere_file,
+                           annot_in_file, annot_out_file)
 
 
 # ===========================================================================
@@ -449,6 +482,8 @@ __all__ = [
     "surf_reduce",
     "surf_remove_intersections",
     "surf_resample",
+    "surf_resample_annot",
+    "surf_curvature",
     "surf_warp",
     # Volume tools
     "vol2surf",

@@ -17,8 +17,12 @@ from libc.stdlib cimport malloc, free
 from libc.string cimport memset
 
 from cat_surf._bic_types cimport (
-    polygons_struct, Status, OK,
+    polygons_struct, object_struct, Status, OK,
+    create_object, get_polygons_ptr, delete_object,
+    copy_polygons, Object_types, POLYGONS,
 )
+
+from libc.math cimport M_PI as PI_C
 from cat_surf._convert cimport PolygonsMesh
 from cat_surf._convert import arrays_to_polygons, polygons_to_arrays
 
@@ -51,6 +55,7 @@ def surf_warp(source_surface,
               int multires_levels=0,
               int n_triangles=81920,
               bint rotate=True,
+              bint avg=False,
               bint verbose=False):
     """
     Warp a source sphere onto a template sphere via DARTEL.
@@ -100,6 +105,12 @@ def surf_warp(source_surface,
         Spherical resampling triangle count (default 81920).
     rotate : bool
         Run rotation-only initialization before DARTEL (default True).
+    avg : bool
+        Mirrors the ``-avg`` CLI flag.  On the LAST DARTEL run, rotate
+        the source/template pole by 90 degrees, solve a second flow,
+        un-rotate, and merge the two warped spheres via
+        ``average_xz_surf``.  Reduces pole-distortion at modest extra
+        cost (default False).
     verbose : bool
 
     Returns
@@ -205,6 +216,48 @@ def surf_warp(source_surface,
     # apply_warp with the !INVERSE_WARPING (i.e. 1) flag matches the CLI.
     cdef int forward_warp = 0 if C.INVERSE_WARPING else 1
 
+    # ------------------------------------------------------------ avg buffers
+    cdef double *flow2 = NULL
+    cdef double rotmat[9]
+    # The CLI uses raw `polygons_struct *` (malloc'd, struct field copied in
+    # via rotate_polygons / copy_polygons).  We mirror that here -- using
+    # bicpl object_struct wrappers so initialize_polygons / delete_object
+    # do the right thing on cleanup.
+    cdef object_struct *rsrc_obj    = NULL
+    cdef object_struct *rs_sph_obj  = NULL
+    cdef object_struct *rtrg_obj    = NULL
+    cdef object_struct *rt_sph_obj  = NULL
+    cdef object_struct *as_sph_obj  = NULL
+    cdef polygons_struct *rsrc_p    = NULL
+    cdef polygons_struct *rs_sph_p  = NULL
+    cdef polygons_struct *rtrg_p    = NULL
+    cdef polygons_struct *rt_sph_p  = NULL
+    cdef polygons_struct *as_sph_p  = NULL
+
+    if avg:
+        flow2 = <double *>malloc(sizeof(double) * xy_size * 2)
+        if flow2 == NULL:
+            free(prm); free(flow)
+            raise MemoryError()
+        memset(flow2, 0, sizeof(double) * xy_size * 2)
+
+        rsrc_obj   = create_object(POLYGONS)
+        rs_sph_obj = create_object(POLYGONS)
+        rtrg_obj   = create_object(POLYGONS)
+        rt_sph_obj = create_object(POLYGONS)
+        as_sph_obj = create_object(POLYGONS)
+        rsrc_p   = get_polygons_ptr(rsrc_obj)
+        rs_sph_p = get_polygons_ptr(rs_sph_obj)
+        rtrg_p   = get_polygons_ptr(rtrg_obj)
+        rt_sph_p = get_polygons_ptr(rt_sph_obj)
+        as_sph_p = get_polygons_ptr(as_sph_obj)
+
+        # Pre-rotate the TEMPLATE pair by +90 deg about Y (same matrix the
+        # CLI uses).  These rotated targets are reused across iterations.
+        C.rotation_to_matrix(rotmat, 0.0, PI_C / 2.0, 0.0)
+        C.rotate_polygons(trg_mesh.ptr(), rtrg_p, rotmat)
+        C.rotate_polygons(trg_sph_ptr,    rt_sph_p, rotmat)
+
     try:
         if rotate:
             st = D.CAT_SurfWarpSolveDartelFlow(
@@ -222,9 +275,43 @@ def surf_warp(source_surface,
                 prm, dm, n_steps, rot, flow, loop, &opt)
             if st != OK:
                 raise RuntimeError("CAT_SurfWarpSolveDartelFlow failed")
-            C.apply_warp(src_sph_ptr, src_sph_ptr, flow, dm,
-                         forward_warp)
+
+            if avg and run == (n_runs - 1):
+                # Rotate the SOURCE pair to put the pole somewhere else,
+                # solve a second DARTEL flow into flow2, un-rotate the
+                # warped rotated sphere, then average with the main one.
+                C.rotation_to_matrix(rotmat, 0.0, PI_C / 2.0, 0.0)
+                C.rotate_polygons(src_mesh.ptr(), rsrc_p,   rotmat)
+                C.rotate_polygons(src_sph_ptr,    rs_sph_p, rotmat)
+
+                st = D.CAT_SurfWarpSolveDartelFlow(
+                    rsrc_p, rs_sph_p,
+                    rtrg_p, rt_sph_p,
+                    prm, dm, n_steps, rot, flow2, loop, &opt)
+                if st != OK:
+                    raise RuntimeError(
+                        "CAT_SurfWarpSolveDartelFlow (avg-rotated) failed")
+
+                C.apply_warp(src_sph_ptr, src_sph_ptr, flow,  dm, forward_warp)
+                C.apply_warp(rs_sph_p,    rs_sph_p,    flow2, dm, forward_warp)
+
+                # Un-rotate by -90 deg about Y.
+                C.rotation_to_matrix(rotmat, 0.0, -PI_C / 2.0, 0.0)
+                C.rotate_polygons(rs_sph_p, NULL, rotmat)
+
+                C.average_xz_surf(rs_sph_p, src_sph_ptr, as_sph_p)
+                copy_polygons(as_sph_p, src_sph_ptr)
+            else:
+                C.apply_warp(src_sph_ptr, src_sph_ptr, flow, dm,
+                             forward_warp)
     finally:
+        if flow2 != NULL:
+            free(flow2)
+        if rsrc_obj   != NULL: delete_object(rsrc_obj)
+        if rs_sph_obj != NULL: delete_object(rs_sph_obj)
+        if rtrg_obj   != NULL: delete_object(rtrg_obj)
+        if rt_sph_obj != NULL: delete_object(rt_sph_obj)
+        if as_sph_obj != NULL: delete_object(as_sph_obj)
         free(flow)
         free(prm)
 
