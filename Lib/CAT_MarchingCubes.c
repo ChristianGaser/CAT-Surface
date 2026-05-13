@@ -931,7 +931,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         best_change_values = 1E3;
     }
     if (verbose)
-        printf("Optimal dist-parameter for morphological operations: %f\n", best_dist);
+        fprintf(stdout, "Optimal dist-parameter for morphological operations: %f\n", best_dist);
 
     /* Convert to binary image */
     for (i = 0; i < nvol; i++)
@@ -1021,7 +1021,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         EC = euler_characteristic(polygons, verbose);
         count++;
         if (verbose)
-            printf("Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
+            fprintf(stdout, "Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
                 count, EC, count_change);
 
         /* save results as next input */
@@ -1030,7 +1030,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     }
 
     if (!verbose) 
-        printf("Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
+        fprintf(stdout, "Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
             count, EC, count_change);
 
     /* Laplacian smoothing to reduce noise in the mesh */
@@ -1155,7 +1155,7 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
 
     int EC = euler_characteristic(polygons, verbose);
     if (verbose)
-        printf("Euler characteristics: %d\n", EC);
+        fprintf(stdout, "Euler characteristics: %d\n", EC);
 
     /* Laplacian smoothing to reduce noise in the mesh */
     if (iter_laplacian > 0)
