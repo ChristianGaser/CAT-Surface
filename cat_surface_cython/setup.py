@@ -130,6 +130,19 @@ if sys.platform == "darwin":
         include_dirs.append(os.path.join(_omp_dylib_prefix, "include"))
         extra_link_args.insert(0, f"-L{_omp_dylib_prefix}/lib")
         extra_link_args.append("-lomp")
+        # Bake rpaths into each .so so dyld finds whichever libomp is
+        # reachable at runtime, preferring PyTorch's bundled copy
+        # (.../site-packages/torch/lib, one dir up from cat_surf/) then
+        # Homebrew.  We deliberately DON'T fall back to a bundled
+        # libomp inside the wheel -- CIBW_REPAIR_WHEEL_COMMAND_MACOS
+        # excludes libomp.dylib from delocate's bundling.  Users without
+        # torch or Homebrew libomp must install one (typically `brew
+        # install libomp`); see README.
+        extra_link_args += [
+            "-Wl,-rpath,@loader_path/../torch/lib",
+            "-Wl,-rpath,/opt/homebrew/opt/libomp/lib",
+            "-Wl,-rpath,/usr/local/opt/libomp/lib",
+        ]
     else:
         _omp_a = os.path.join(
             CAT_ROOT, "3rdparty", "libomp", "lib",
