@@ -1071,3 +1071,128 @@ def central_to_pial(vertices, faces, thickness, double sigma=1.0,
     free(result)
 
     return polygons_to_arrays(out_mesh)
+
+
+# ===================================================================
+# Single-unit ROI statistics  (building block for CAT_Surf2ROIMulti)
+# ===================================================================
+def surf2roi_unit(str src_sphere_file, str trg_sphere_file,
+                  str annot_file, str vals_file):
+    """
+    Resample annotation labels onto a target sphere and compute
+    per-ROI means from a values array.
+
+    This is the single-unit building block for ``CAT_Surf2ROIMulti``.
+    Call it once per hemisphere / atlas and aggregate the results with
+    :func:`cat_surf.surf2roi_multi`.
+
+    Parameters
+    ----------
+    src_sphere_file : str
+        Source sphere whose vertex count matches the annotation.
+    trg_sphere_file : str
+        Target sphere to resample onto.
+    annot_file : str
+        FreeSurfer ``.annot`` annotation file on the source sphere.
+    vals_file : str
+        Per-vertex values file defined on the *target* sphere.
+
+    Returns
+    -------
+    stats : list of dict
+        Each dict has keys ``"id"`` (int), ``"name"`` (str),
+        ``"sum"`` (float), and ``"n"`` (int).  The per-ROI mean is
+        ``sum / n``.
+    """
+    cdef bytes b_src_sph  = src_sphere_file.encode("utf-8")
+    cdef bytes b_trg_sph  = trg_sphere_file.encode("utf-8")
+    cdef bytes b_annot    = annot_file.encode("utf-8")
+    cdef bytes b_vals     = vals_file.encode("utf-8")
+
+    cdef File_formats fmt
+    cdef int n_objects = 0
+    cdef object_struct **src_sph_objs = NULL
+    cdef object_struct **trg_sph_objs = NULL
+    cdef polygons_struct *src_sph_poly = NULL
+    cdef polygons_struct *trg_sph_poly = NULL
+
+    cdef int n_values = 0
+    cdef int *annot_in = NULL
+    cdef int n_table = 0
+    cdef C.ATABLE *atable = NULL
+    cdef int *labels_trg = NULL
+
+    cdef int n_vals = 0
+    cdef double *vals = NULL
+
+    cdef C.CAT_ROIStat *stats = NULL
+    cdef int n_stats = 0
+    cdef int i
+    cdef Status st
+
+    try:
+        if C.input_graphics_any_format(b_src_sph, &fmt, &n_objects,
+                                        &src_sph_objs) != OK:
+            raise IOError(f"Cannot read source sphere: {src_sphere_file}")
+        if n_objects != 1 or get_object_type(src_sph_objs[0]) != POLYGONS:
+            raise ValueError(
+                f"{src_sphere_file}: must contain exactly one polygons object")
+        src_sph_poly = get_polygons_ptr(src_sph_objs[0])
+
+        if C.input_graphics_any_format(b_trg_sph, &fmt, &n_objects,
+                                        &trg_sph_objs) != OK:
+            raise IOError(f"Cannot read target sphere: {trg_sphere_file}")
+        if n_objects != 1 or get_object_type(trg_sph_objs[0]) != POLYGONS:
+            raise ValueError(
+                f"{trg_sphere_file}: must contain exactly one polygons object")
+        trg_sph_poly = get_polygons_ptr(trg_sph_objs[0])
+
+        if C.read_annotation_table(b_annot, &n_values, &annot_in,
+                                   &n_table, &atable) != 0:
+            raise IOError(f"Cannot read annotation: {annot_file}")
+
+        # Resample integer annotation labels src → trg
+        st = C.CAT_ResampleAnnotationLabels(
+            src_sph_poly, trg_sph_poly, annot_in, &labels_trg)
+        if st != OK:
+            raise RuntimeError("CAT_ResampleAnnotationLabels failed")
+
+        # Read per-vertex values on target sphere
+        if C.input_values_any_format(b_vals, &n_vals, &vals) != OK:
+            raise IOError(f"Cannot read values: {vals_file}")
+        if n_vals != trg_sph_poly.n_points:
+            raise ValueError(
+                f"#values ({n_vals}) != #points in target sphere "
+                f"({trg_sph_poly.n_points})")
+
+        # Compute per-label means
+        st = C.CAT_ComputeROIMeansFromLabels(
+            labels_trg, vals, trg_sph_poly.n_points,
+            atable, n_table, &stats, &n_stats)
+        if st != OK:
+            raise RuntimeError("CAT_ComputeROIMeansFromLabels failed")
+
+        result = []
+        for i in range(n_stats):
+            nm = stats[i].name.decode("utf-8") if stats[i].name else "unknown"
+            result.append({
+                "id":   stats[i].id,
+                "name": nm,
+                "sum":  stats[i].sum,
+                "n":    stats[i].n,
+            })
+        return result
+
+    finally:
+        if annot_in  != NULL: free(annot_in)
+        if labels_trg != NULL: free(labels_trg)
+        if vals      != NULL: free(vals)
+        if stats     != NULL: free(stats)
+        if atable    != NULL: free(atable)
+        if src_sph_objs != NULL:
+            delete_object(src_sph_objs[0])
+            free(src_sph_objs)
+        if trg_sph_objs != NULL:
+            delete_object(trg_sph_objs[0])
+            free(trg_sph_objs)
+

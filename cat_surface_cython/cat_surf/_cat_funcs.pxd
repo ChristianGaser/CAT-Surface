@@ -400,6 +400,32 @@ cdef extern from "CAT_Vol.h":
 
 
 # ---------------------------------------------------------------------------
+# CAT_ROIStats.h — ROI statistics from resampled annotation labels
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_ROIStats.h":
+    ctypedef struct CAT_ROIStat:
+        int         id
+        const char *name
+        double      sum
+        int         n
+
+    Status CAT_ResampleAnnotationLabels(
+        polygons_struct *src_sphere,
+        polygons_struct *trg_sphere,
+        const int *labels_src,
+        int **labels_trg)
+
+    Status CAT_ComputeROIMeansFromLabels(
+        const int *labels,
+        const double *vals,
+        int n_points,
+        const ATABLE *atable,
+        int n_labels,
+        CAT_ROIStat **out_stats,
+        int *out_n_stats)
+
+
+# ---------------------------------------------------------------------------
 # CAT_BBReg.h — Boundary-Based Registration
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_BBReg.h":

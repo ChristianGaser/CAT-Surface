@@ -20,7 +20,7 @@ from cat_surf._bic_types cimport (
 )
 from cat_surf._nifti_types cimport (
     nifti_image, nifti_image_read, nifti_image_free,
-    NIFTI_TYPE_FLOAT32,
+    NIFTI_TYPE_FLOAT32, DT_FLOAT32,
 )
 from cat_surf._convert cimport PolygonsMesh, _wrap_object
 from cat_surf._convert import polygons_to_arrays
@@ -430,5 +430,57 @@ def vol_marching_cubes(volume, double threshold=0.5,
     cdef PolygonsMesh mesh = _wrap_object(result, owns=True)
     return polygons_to_arrays(mesh)
 
+
+# ===================================================================
+# Volume smoothing  (mirrors CAT_VolSmooth)
+# ===================================================================
+def vol_smooth(volume, voxelsize=None, double fwhm=8.0,
+               bint use_mask=False):
+    """
+    Smooth a 3-D volume with an isotropic Gaussian kernel.
+
+    Mirrors ``CAT_VolSmooth``.
+
+    Parameters
+    ----------
+    volume : array_like, 3-D, float32
+        Input volume (Fortran memory order, as used by NIfTI).
+    voxelsize : array_like, shape (3,), float64, optional
+        Voxel size in mm.  Default ``[1, 1, 1]``.
+    fwhm : float
+        Full-width at half-maximum of the Gaussian kernel in mm.
+        Default 8.0.
+    use_mask : bool
+        If True, use masked smoothing (zero voxels are excluded and
+        corrected for).  Default False.
+
+    Returns
+    -------
+    smoothed : ndarray, 3-D, float32
+        Smoothed volume (same shape as input).
+    """
+    vol = np.asfortranarray(volume, dtype=np.float32)
+    if vol.ndim != 3:
+        raise ValueError("volume must be 3-D")
+
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] out = vol.copy(order='F')
+    cdef int dims[3]
+    dims[0] = out.shape[0]
+    dims[1] = out.shape[1]
+    dims[2] = out.shape[2]
+
+    cdef double vx[3]
+    if voxelsize is not None:
+        vs = np.asarray(voxelsize, dtype=np.float64).ravel()
+        vx[0] = vs[0]; vx[1] = vs[1]; vx[2] = vs[2]
+    else:
+        vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
+
+    cdef double s[3]
+    s[0] = fwhm; s[1] = fwhm; s[2] = fwhm
+
+    C.smooth3(<void *>out.data, dims, vx, s,
+              1 if use_mask else 0, DT_FLOAT32)
+    return out
 
 

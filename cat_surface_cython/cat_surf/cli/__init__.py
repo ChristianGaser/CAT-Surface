@@ -31,12 +31,15 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfRemoveIntersections       -> surf_remove_intersections
     CAT_SurfResample                  -> surf_resample
     CAT_SurfResample -label <annot>   -> surf_resample_annot
+    CAT_SurfResampleMulti             -> surf_resample_multi
+    CAT_Surf2ROIMulti                 -> surf2roi_multi
     CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
     CAT_VolBloodVesselCorrection      -> vol_blood_vessel_correction
     CAT_VolMarchingCubes              -> vol_marching_cubes
     CAT_VolSanlm                      -> vol_sanlm
+    CAT_VolSmooth                     -> vol_smooth
     CAT_VolThicknessPbt               -> vol_thickness_pbt
 """
 from __future__ import annotations
@@ -73,6 +76,9 @@ from cat_surf import (
     vol_marching_cubes as _vol_marching_cubes,
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
+    vol_smooth as _vol_smooth,
+    surf2roi_multi as _surf2roi_multi,
+    resample_multi as _resample_multi,
 )
 
 # ---------------------------------------------------------------------------
@@ -470,6 +476,132 @@ def vol_thickness_pbt(input_file, gmt_file=None, ppm_file=None,
         _save_volume_like(dist_wm_file, dwm, img, dtype=np.float32)
 
 
+def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False):
+    """Mirror of ``CAT_VolSmooth``.
+
+    Smooth a NIfTI volume with an isotropic Gaussian kernel and write
+    the result to disk.
+
+    Parameters
+    ----------
+    input_file : str
+        Input NIfTI file.
+    output_file : str, optional
+        Output path.  Defaults to the same directory as ``input_file``
+        with a ``s<fwhm>`` prefix prepended to the filename, matching
+        the ``CAT_VolSmooth`` default naming convention.
+    fwhm : float
+        Full-width at half-maximum in mm (default 8.0).
+    use_mask : bool
+        Use masked smoothing (default False).
+    """
+    import nibabel as nib
+    img = nib.load(input_file)
+    vol = img.get_fdata().astype(np.float32)
+    vx = img.header.get_zooms()[:3]
+    out = _vol_smooth(vol, voxelsize=vx, fwhm=fwhm, use_mask=use_mask)
+    if output_file is None:
+        d = os.path.dirname(input_file) or "."
+        b = os.path.basename(input_file)
+        output_file = os.path.join(d, f"s{fwhm}{b}")
+    _save_volume_like(output_file, out, img, dtype=np.float32)
+
+
+def surf_resample_multi(units, output_surface_file, output_values_file=None,
+                        fwhm=0.0, areal=False):
+    """Mirror of ``CAT_SurfResampleMulti``.
+
+    Resample and optionally smooth multiple surface units, concatenate
+    them, and write the combined mesh (and values) to disk.
+
+    Parameters
+    ----------
+    units : list of dict
+        Each dict has:
+
+        ``surf`` : str
+            Source surface file path.
+        ``src_sphere`` : str
+            Source sphere file path (matches ``surf`` topology).
+        ``trg_sphere`` : str
+            Target sphere file path.
+        ``vals`` : str or None, optional
+            Per-vertex values file on the source sphere.
+        ``mask`` : str or None, optional
+            Binary mask file on the *target* sphere.
+        ``fwhm`` : float, optional
+            Per-unit smoothing FWHM in mm.  Overrides global *fwhm*.
+
+    output_surface_file : str
+        Output file for the concatenated surface.
+    output_values_file : str, optional
+        Output file for the concatenated values.  Written only when at
+        least one unit provided ``vals``.
+    fwhm : float
+        Global default smoothing FWHM for units without ``fwhm``.
+    areal : bool
+        Use areal (sum-preserving) interpolation.
+    """
+    loaded_units = []
+    for u in units:
+        sv, sf = read_surface(u["surf"])
+        ssv, ssf = read_surface(u["src_sphere"])
+        tsv, tsf = read_surface(u["trg_sphere"])
+        vals = read_values(u["vals"]) if u.get("vals") else None
+        mask = read_values(u["mask"]) if u.get("mask") else None
+        loaded_units.append({
+            "surf":       (sv, sf),
+            "src_sphere": (ssv, ssf),
+            "trg_sphere": (tsv, tsf),
+            "vals":       vals,
+            "mask":       mask,
+            "fwhm":       u.get("fwhm", None),
+        })
+
+    cat_v, cat_f, cat_vals = _resample_multi(loaded_units, fwhm=fwhm, areal=areal)
+    write_surface(output_surface_file, cat_v, cat_f)
+    if output_values_file is not None and cat_vals is not None:
+        write_values(output_values_file, cat_vals)
+
+
+def surf2roi_multi(units, output_json_file):
+    """Mirror of ``CAT_Surf2ROIMulti``.
+
+    Resample annotation labels onto target spheres and compute per-ROI
+    means, writing the results as a JSON file.
+
+    Parameters
+    ----------
+    units : list of dict
+        Each dict has:
+
+        ``src_sphere`` : str
+            Source sphere file path (matches annotation vertex count).
+        ``trg_sphere`` : str
+            Target sphere file path.
+        ``annot`` : str
+            FreeSurfer ``.annot`` annotation file.
+        ``vals`` : str
+            Per-vertex values file on the *target* sphere.
+        ``hemi`` : str, optional
+            ``"lh"`` or ``"rh"``; guessed from file-name patterns when
+            omitted.
+
+    output_json_file : str
+        Output JSON file path.  The JSON structure mirrors the binary::
+
+            {
+              "lh": [{"id": <int>, "name": "<str>", "mean": <float>, "n": <int>}, ...],
+              "rh": [...],
+              "unknown": [...]
+            }
+    """
+    import json
+    roi_stats = _surf2roi_multi(units)
+    with open(output_json_file, "w") as fp:
+        json.dump(roi_stats, fp, indent=2)
+
+
 __all__ = [
     # Surface tools
     "surf2pial_white",
@@ -483,13 +615,16 @@ __all__ = [
     "surf_remove_intersections",
     "surf_resample",
     "surf_resample_annot",
+    "surf_resample_multi",
     "surf_curvature",
     "surf_warp",
+    "surf2roi_multi",
     # Volume tools
     "vol2surf",
     "vol_amap",
     "vol_blood_vessel_correction",
     "vol_marching_cubes",
     "vol_sanlm",
+    "vol_smooth",
     "vol_thickness_pbt",
 ]
