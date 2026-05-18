@@ -1029,7 +1029,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             vol_uint16[i] = g0->output[i];
     }
 
-    if (!verbose) 
+    if (verbose)
         fprintf(stdout, "Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
             count, EC, count_change);
 
