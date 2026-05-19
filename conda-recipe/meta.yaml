@@ -1,0 +1,75 @@
+{% set name = "cat-surf" %}
+{% set version = "1.0.10" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+# ---------------------------------------------------------------------------
+# Source — full GitHub archive so build.sh has access to the C source tree
+# (autotools, 3rdparty/, Lib/, Include/) needed to compile libCAT.a.
+# ---------------------------------------------------------------------------
+source:
+  url: https://github.com/ChristianGaser/CAT-Surface/archive/refs/tags/v{{ version }}.tar.gz
+  sha256:  # TODO: fill in with `sha256sum` of the downloaded tarball
+
+build:
+  number: 0
+  # Windows not yet supported (autotools build for libCAT.a required)
+  skip: true  # [win]
+  script_env:
+    - CAT_SURFACE_ROOT
+    - CAT_BUILD_DIR
+    - CAT_LIBOMP_PREFIX  # [osx]
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - autoconf
+    - automake
+    - libtool
+    - autoconf-archive
+    - make
+  host:
+    - python
+    - pip
+    - cython >=3.0
+    - numpy >=2.0
+    - setuptools >=64
+    # OpenMP runtime — conda-forge provides platform-specific packages.
+    # On macOS we use llvm-openmp (provides libomp.dylib); on Linux we
+    # use libgomp (provides libgomp.so via the gcc_impl package).
+    - llvm-openmp  # [osx]
+    - libgomp      # [linux]
+  run:
+    - python
+    - numpy >=2.0
+    # At runtime the Cython .so files load libomp.dylib via @rpath.
+    # conda-build patches rpaths to $PREFIX/lib, where llvm-openmp
+    # installs libomp.dylib — no PyTorch dependency needed in conda.
+    - llvm-openmp  # [osx]
+    - libgomp      # [linux]
+
+test:
+  imports:
+    - cat_surf
+  commands:
+    - python -c "import cat_surf; print('cat_surf', cat_surf.__version__, 'OK')"
+
+about:
+  home: https://github.com/ChristianGaser/CAT-Surface
+  license: GPL-2.0-only
+  license_file: LICENSE
+  summary: Cython bindings to the CAT-Surface library (libCAT) for cortical surface analysis
+  description: |
+    CAT-Surface provides high-performance command-line tools and Python bindings
+    for cortical surface mesh processing (neuroimaging).  This package exposes
+    the core libCAT algorithms — surface extraction, topology correction,
+    smoothing, morphometric analysis, and format conversion — through Cython
+    bindings for use in Python.  It is the Python backend for the CAT12
+    toolbox (SPM).
+
+extra:
+  recipe-maintainers:
+    - ChristianGaser
