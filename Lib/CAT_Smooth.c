@@ -329,8 +329,8 @@ void smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
  *
  * Algorithm:
  *  1. For each iteration:
- *  2.   For each vertex: compute weighted average of position and neighbors
- *  3.   Optionally smooth scalar values with same iterations
+ *  2. For each vertex: compute weighted average of position and neighbors
+ *  3. Optionally smooth scalar values with same iterations
  *
  * \param polygons      (in/out) polygon mesh; coordinates smoothed in-place
  * \param values        (in/out) optional double array; scalar values to smooth (can be NULL)

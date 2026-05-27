@@ -513,12 +513,12 @@ def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False):
     _save_volume_like(output_file, out, img, dtype=np.float32)
 
 
-def surf_resample_multi(units, output_surface_file, output_values_file=None,
-                        fwhm=0.0, areal=False):
+def surf_resample_multi(units, output_file, fwhm=0.0, areal=False):
     """Mirror of ``CAT_SurfResampleMulti``.
 
     Resample and optionally smooth multiple surface units, concatenate
-    them, and write the combined mesh (and values) to disk.
+    them, and write the combined mesh (and values) to a single output
+    GIfTI — matching the legacy ``-out`` flag of the C tool.
 
     Parameters
     ----------
@@ -538,11 +538,13 @@ def surf_resample_multi(units, output_surface_file, output_values_file=None,
         ``fwhm`` : float, optional
             Per-unit smoothing FWHM in mm.  Overrides global *fwhm*.
 
-    output_surface_file : str
-        Output file for the concatenated surface.
-    output_values_file : str, optional
-        Output file for the concatenated values.  Written only when at
-        least one unit provided ``vals``.
+    output_file : str
+        Combined output file (``.gii`` or ``.dat``).  When at least one
+        unit provides ``vals``, the per-vertex values are embedded in
+        the same file as the mesh, mirroring ``CAT_SurfResampleMulti``.
+        For ``.dat``, libCAT writes the GIfTI header to ``<base>.gii``
+        and the external binary payload (coords + faces + values) to
+        ``<base>.dat``.
     fwhm : float
         Global default smoothing FWHM for units without ``fwhm``.
     areal : bool
@@ -565,9 +567,7 @@ def surf_resample_multi(units, output_surface_file, output_values_file=None,
         })
 
     cat_v, cat_f, cat_vals = _resample_multi(loaded_units, fwhm=fwhm, areal=areal)
-    write_surface(output_surface_file, cat_v, cat_f)
-    if output_values_file is not None and cat_vals is not None:
-        write_values(output_values_file, cat_vals)
+    write_surface(output_file, cat_v, cat_f, values=cat_vals)
 
 
 def surf_sulcus_depth(surface_file, sphere_file, output_values_file,

@@ -79,7 +79,7 @@ def read_surface(str filename):
 # ===================================================================
 # Write surface
 # ===================================================================
-def write_surface(str filename, vertices, faces):
+def write_surface(str filename, vertices, faces, values=None):
     """
     Write a surface mesh to any format supported by libCAT.
 
@@ -91,22 +91,42 @@ def write_surface(str filename, vertices, faces):
     filename : str
     vertices : array_like, shape (V, 3)
     faces    : array_like, shape (F, 3)
+    values   : array_like, shape (V,), optional
+        Per-vertex scalar data to embed alongside the mesh.  Mirrors the
+        ``values`` argument of ``output_graphics_any_format``: when
+        supplied and the extension is ``.gii``/``.dat``, mesh and values
+        are written into a single combined GIfTI (or ``.gii``+``.dat``
+        pair) so the file can be re-loaded either as a surface (mesh
+        only) or as values, matching the legacy CLI behavior.  Ignored
+        for formats without a values channel.
     """
     from cat_surf._convert import arrays_to_polygons
 
     cdef bytes bfname = filename.encode("utf-8")
     cdef char *cfname = bfname
 
+    cdef cnp.ndarray[cnp.float64_t, ndim=2] verts_arr = np.ascontiguousarray(
+        vertices, dtype=np.float64)
     cdef PolygonsMesh mesh = arrays_to_polygons(
-        np.ascontiguousarray(vertices, dtype=np.float64),
+        verts_arr,
         np.ascontiguousarray(faces, dtype=np.int32),
     )
 
     cdef object_struct *obj = mesh._obj
     cdef File_formats fmt = <File_formats>0   # BINARY_FORMAT — auto-detected by extension
 
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] vals_arr
+    cdef double *vals_ptr = NULL
+    if values is not None:
+        vals_arr = np.ascontiguousarray(values, dtype=np.float64)
+        if vals_arr.shape[0] != verts_arr.shape[0]:
+            raise ValueError(
+                f"values length ({vals_arr.shape[0]}) does not match "
+                f"vertex count ({verts_arr.shape[0]})")
+        vals_ptr = <double *>vals_arr.data
+
     cdef Status st = C.output_graphics_any_format(
-        cfname, fmt, 1, &obj, NULL,
+        cfname, fmt, 1, &obj, vals_ptr,
     )
     if st != OK:
         raise IOError(f"Failed to write surface to '{filename}'")
