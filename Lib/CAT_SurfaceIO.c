@@ -1697,12 +1697,30 @@ int input_gifti_curv(char *file, int *vnum, double **input_values)
         return (ERROR);
     }
 
-    *vnum = image->darray[0]->dims[0];
-    ALLOC(*input_values, image->darray[0]->dims[0]);
+    /* Prefer the SHAPE DataArray when present so combined GIfTI files
+       (POINTSET + TRIANGLE + SHAPE, written by output_gifti with values)
+       return their per-vertex values rather than the first DataArray
+       (which would be POINTSET coords).  For legacy values-only files
+       that omit the intent, fall back to darray[0]. */
+    giiDataArray *shape_da = NULL;
+    for (k = 0; k < image->numDA; k++)
+    {
+        if (image->darray[k]->intent == NIFTI_INTENT_SHAPE)
+        {
+            shape_da = image->darray[k];
+            break;
+        }
+    }
+    if (shape_da == NULL)
+        shape_da = image->darray[0];
 
-    for (k = 0; k < image->darray[0]->dims[0]; k++)
-        (*input_values)[k] = (double)gifti_get_DA_value_2D(image->darray[0], k, 0);
+    *vnum = shape_da->dims[0];
+    ALLOC(*input_values, shape_da->dims[0]);
 
+    for (k = 0; k < shape_da->dims[0]; k++)
+        (*input_values)[k] = (double)gifti_get_DA_value_2D(shape_da, k, 0);
+
+    gifti_free_image(image);
     return (OK);
 }
 

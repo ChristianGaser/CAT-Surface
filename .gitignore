@@ -19,7 +19,7 @@ stamp-h1
 depcomp
 libtool
 Makefile
-build-*
+build*
 log*
 INSTALL
 __pycache__
