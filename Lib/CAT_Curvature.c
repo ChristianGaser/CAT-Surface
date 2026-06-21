@@ -309,7 +309,7 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
         initialized = FALSE;
     }
 
-    /* inflation-based sulcal depth (FreeSurfer-style) */
+    /* inflation-based sulcal depth (FreeSurfer-style average convexity) */
     if (curvtype == 11)
     {
         compute_sulcal_depth_inflation(polygons, curvatures);
@@ -476,7 +476,7 @@ void compute_sulcus_depth(polygons_struct *surface, double *depth)
  * surf_to_sphere() and measures the displacement of each vertex projected onto
  * its original surface normal. Sulcal vertices move outward during inflation
  * (positive values) while gyral vertices move less, producing a measure of
- * fold depth comparable to FreeSurfer's sulc file.
+ * fold depth comparable to FreeSurfer's sulc file, which is aka average convexity.
  *
  * Algorithm:
  *  1. Center the surface at its center of mass.
