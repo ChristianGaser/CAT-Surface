@@ -17,7 +17,6 @@ Environment variables:
     CAT_BUILD_DIR     Autotools build tree containing .libs/libCAT.a
 """
 import os
-import platform
 import sys
 
 import numpy as np
@@ -98,66 +97,32 @@ include_dirs = [
 # ---------------------------------------------------------------------------
 extra_link_args = [LIBCAT_A, LIBFFTW3_A, "-lm", "-lz"]
 
-_machine = platform.machine().lower()
-
 if sys.platform == "darwin":
-    # macOS: system expat + libomp.
+    # macOS: link the (system) expat the bundled headers expect.
     #
-    # Prefer dynamic libomp (Homebrew dylib).  A static libomp linked
-    # into each Cython .so produces N independent libomp instances in
-    # the process, which corrupts thread-pool TLS when a host
-    # application (e.g. PyTorch, which ships its own libomp.dylib) has
-    # already initialised OpenMP.  Dynamic linking collapses the
-    # cat_surf side to a single libomp instance; cibuildwheel's
-    # delocate-wheel step bundles the dylib into the wheel under
-    # cat_surf/.dylibs/.  We fall back to the bundled static .a only
-    # when no Homebrew libomp is found (local-dev builds on hosts
-    # without `brew install libomp`).
+    # No OpenMP.  The wheel's libCAT is built with ``--disable-openmp``
+    # (see python-wheels.yml), so the extensions contain no OpenMP
+    # regions and pull in no libomp.  This is deliberate: a libomp baked
+    # into cat_surf's .so files becomes a second OpenMP runtime in any
+    # process that already hosts one (e.g. PyTorch's libomp.dylib),
+    # which caused "OMP: Error #15" / thread-pool TLS corruption.  Native
+    # CLI binaries keep static OpenMP; only the Python wheel drops it.
     extra_link_args.append("-lexpat")
-    # Look first at an explicit CAT_LIBOMP_PREFIX (used by CI to point at a
-    # libomp built with a pinned MACOSX_DEPLOYMENT_TARGET), then fall back
-    # to the standard Homebrew prefixes for local dev.
-    _omp_candidates = []
-    _omp_env = os.environ.get("CAT_LIBOMP_PREFIX")
-    if _omp_env:
-        _omp_candidates.append(_omp_env)
-    _omp_candidates += ["/opt/homebrew/opt/libomp", "/usr/local/opt/libomp"]
-    _omp_dylib_prefix = next(
-        (p for p in _omp_candidates if os.path.isdir(p)),
-        None,
-    )
-    if _omp_dylib_prefix:
-        include_dirs.append(os.path.join(_omp_dylib_prefix, "include"))
-        extra_link_args.insert(0, f"-L{_omp_dylib_prefix}/lib")
-        extra_link_args.append("-lomp")
-        # Bake rpaths into each .so so dyld finds whichever libomp is
-        # reachable at runtime, preferring PyTorch's bundled copy
-        # (.../site-packages/torch/lib, one dir up from cat_surf/) then
-        # Homebrew.  We deliberately DON'T fall back to a bundled
-        # libomp inside the wheel -- CIBW_REPAIR_WHEEL_COMMAND_MACOS
-        # excludes libomp.dylib from delocate's bundling.  Users without
-        # torch or Homebrew libomp must install one (typically `brew
-        # install libomp`); see README.
-        extra_link_args += [
-            "-Wl,-rpath,@loader_path/../torch/lib",
-            "-Wl,-rpath,/opt/homebrew/opt/libomp/lib",
-            "-Wl,-rpath,/usr/local/opt/libomp/lib",
-        ]
-    else:
-        _omp_a = os.path.join(
-            CAT_ROOT, "3rdparty", "libomp", "lib",
-            f"libomp-{_machine}.a",
-        )
-        if os.path.isfile(_omp_a):
-            extra_link_args.append(_omp_a)
-        else:
-            extra_link_args.append("-lomp")
 elif sys.platform == "linux":
-    # Linux: system GOMP + pthread + stdc++/gcc for MeshFix C++ objects
-    extra_link_args += ["-lgomp", "-lstdc++", "-lpthread"]
+    # Linux: stdc++ for MeshFix C++ objects, pthread for the rest.
+    # No -lgomp -- the wheel's libCAT is built with --disable-openmp.
+    extra_link_args += ["-lstdc++", "-lpthread"]
 elif sys.platform == "win32":
-    # Windows (MinGW): GOMP + stdc++
-    extra_link_args += ["-lgomp", "-lstdc++"]
+    # Windows (MinGW): stdc++ for MeshFix C++ objects.  No OpenMP.
+    extra_link_args += ["-lstdc++"]
+
+# Escape hatch for local builds against a libCAT that WAS compiled with
+# OpenMP (the autotools default for native binaries).  Set CAT_LINK_OPENMP=1
+# to relink the matching OpenMP runtime so such a libCAT.a resolves its
+# GOMP_*/__kmpc_* symbols.  Off by default so distributed wheels carry no
+# libomp/libgomp dependency.
+if os.environ.get("CAT_LINK_OPENMP") == "1":
+    extra_link_args.append("-lomp" if sys.platform == "darwin" else "-lgomp")
 
 # ---------------------------------------------------------------------------
 # Use Cython if available, else fall back to pre-generated .c files

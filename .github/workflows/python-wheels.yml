@@ -16,11 +16,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS x86_64 is intentionally dropped: torch's Intel wheel
-        # does not bundle libomp.dylib (it ships libiomp5.dylib instead,
-        # if anything), so cat_surf's @rpath/libomp.dylib resolution
-        # fails at import time.  Apple Silicon is the supported target;
-        # Intel Mac users can build from source.
+        # macOS x86_64 is currently dropped to keep the build matrix
+        # small.  The old libomp blocker is gone -- the wheel no longer
+        # links any OpenMP runtime -- so x86_64 can be re-enabled in a
+        # follow-up by adding a matrix entry here and in build-wheels-macos.
         include:
           - os: macos-15
             arch: arm64
@@ -44,7 +43,8 @@ jobs:
           autoupdate
           autoreconf -fi
           export {C,CXX,CPP}FLAGS="-O2 -fPIC -mmacosx-version-min=11.0"
-          ./configure --enable-static --disable-shared --disable-doc
+          ./configure --enable-static --disable-shared --disable-doc \
+            --disable-openmp
 
       - name: Build libCAT.a
         env:
@@ -107,72 +107,14 @@ jobs:
             cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
           done
 
-          # Static archives + config.h.  libomp is intentionally NOT
-          # staged here: the wheel links against Homebrew's dynamic
-          # libomp.dylib (see setup.py) so cat_surf ends up with one
-          # libomp instance in-process instead of one per .so.
+          # Static archives + config.h.  No libomp is staged or linked:
+          # libCAT is built with --disable-openmp for the wheel, so the
+          # extensions contain no OpenMP regions and cannot collide with a
+          # host process's libomp (e.g. PyTorch's libomp.dylib).
           mkdir -p "$V/build/.libs" "$V/build/3rdparty/fftw-build/.libs"
           cp _libcat/libCAT.a   "$V/build/.libs/"
           cp _libcat/config.h   "$V/build/"
           cp _libcat/libfftw3.a "$V/build/3rdparty/fftw-build/.libs/"
-
-      - name: Build libomp from LLVM source with deployment target 11.0
-        # Homebrew's libomp bottle on macos-15 ships with min-OS 15.0,
-        # which delocate-wheel rejects when bundling into a wheel that
-        # targets 11.0.  Homebrew's `--build-from-source` does NOT honor
-        # MACOSX_DEPLOYMENT_TARGET (cmake fills in CMAKE_OSX_DEPLOYMENT_TARGET
-        # from the runner's macOS version), so we bypass Homebrew and build
-        # libomp directly from LLVM's openmp source with explicit cmake
-        # flags.  Install location is consumed by setup.py via env var.
-        env:
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
-          LIBOMP_VER: "20.1.5"
-        run: |
-          set -euxo pipefail
-          # Remove any pre-installed Homebrew libomp so its headers and
-          # dylib don't accidentally get picked up at link time.
-          brew uninstall --ignore-dependencies libomp 2>/dev/null || true
-
-          curl -fsSL -o openmp.tar.xz \
-            "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VER}/openmp-${LIBOMP_VER}.src.tar.xz"
-          tar xf openmp.tar.xz
-
-          # cmake-only required dep for the openmp standalone build is the
-          # llvm-cmake module.  Recent LLVM releases ship cmake/ alongside.
-          curl -fsSL -o cmake-mods.tar.xz \
-            "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VER}/cmake-${LIBOMP_VER}.src.tar.xz"
-          tar xf cmake-mods.tar.xz
-          mv cmake-${LIBOMP_VER}.src cmake
-
-          cmake -S openmp-${LIBOMP_VER}.src -B build-omp \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$HOME/libomp" \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
-            -DLIBOMP_INSTALL_ALIASES=OFF \
-            -DOPENMP_ENABLE_LIBOMPTARGET=OFF
-          cmake --build build-omp -j"$(sysctl -n hw.ncpu)"
-          cmake --install build-omp
-
-          # Keep libomp's install name as @rpath/libomp.dylib so the
-          # cat_surf .so files record the dep as @rpath/libomp.dylib too.
-          # At runtime each .so searches its own rpath list (set in
-          # setup.py) -- torch's libomp first, then Homebrew, then the
-          # wheel's own .dylibs/ as a last-resort fallback.  This gives
-          # us exactly ONE libomp.dylib per process even when PyTorch is
-          # already loaded.
-          install_name_tool -id \
-            "@rpath/libomp.dylib" \
-            "$HOME/libomp/lib/libomp.dylib"
-
-          # Pass the prefix to setup.py so its libomp lookup picks our
-          # build (instead of Homebrew's missing/uninstalled one).
-          echo "CAT_LIBOMP_PREFIX=$HOME/libomp" >> "$GITHUB_ENV"
-
-          # Verify the dylib has the expected min-OS marker and the
-          # @rpath install name.
-          otool -l "$HOME/libomp/lib/libomp.dylib" \
-            | grep -E "minos|version|LC_BUILD|LC_ID_DYLIB" -A 1 | head -20
-          otool -D "$HOME/libomp/lib/libomp.dylib"
 
       - uses: actions/setup-python@v5
         with:
@@ -185,30 +127,16 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
-          # Pin the wheel's deployment target to match the libomp we
-          # built from source above.  Default for x86_64 is 10.9, which
-          # would not match libomp built with MACOSX_DEPLOYMENT_TARGET=11.0
-          # and delocate-wheel would reject the bundle.
+          # Pin the wheel's deployment target to match the min-OS baked
+          # into the static libCAT.a / libfftw3.a objects (built with
+          # MACOSX_DEPLOYMENT_TARGET=11.0 above) so delocate-wheel does
+          # not reject the bundle for a version mismatch.
           MACOSX_DEPLOYMENT_TARGET: "11.0"
-          # CIBW_ENVIRONMENT_MACOS values are expanded by the build
-          # subprocess shell, so $HOME refers to the runner's home dir
-          # at wheel-build time -- which is the same prefix the libomp
-          # step installed to above.  No GitHub Actions $GITHUB_ENV
-          # plumbing required.
           CIBW_ENVIRONMENT_MACOS: >-
             MACOSX_DEPLOYMENT_TARGET=11.0
-            CAT_LIBOMP_PREFIX=$HOME/libomp
-          # Skip delocate entirely.  delocate's design is to bundle every
-          # non-system dep into the wheel; with `--exclude libomp.dylib`
-          # it still validates resolvability and fails the build when
-          # the linker's libomp ($HOME/libomp, our from-source build) is
-          # not reachable from any rpath baked into the .so.  We don't
-          # WANT it bundled (multiple libomps in one process is the bug
-          # we've been chasing), and we don't NEED build-time validation
-          # because runtime dyld resolves @rpath/libomp.dylib against the
-          # rpath list setup.py compiled in (torch first, then Homebrew).
-          # A bare `cp` keeps cibuildwheel's repair contract satisfied.
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: "cp {wheel} {dest_dir}"
+          # delocate runs normally: libCAT and FFTW are linked statically
+          # and the .so files depend only on system libraries, so there is
+          # nothing to bundle and validation passes.
         run: cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheels
@@ -279,6 +207,7 @@ jobs:
             autoupdate
             autoreconf -fi
             ./configure --enable-static --disable-shared --disable-doc \
+              --disable-openmp \
               CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
             make -j$(nproc) libCAT.la
             V=/project/_vendor
