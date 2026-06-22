@@ -10,19 +10,53 @@
 #include "CAT_Math.h"
 #include "CAT_VolPbt.h"
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
-/* volume_io/basic.h defines 'private' as 'static', which breaks
-   the OpenMP private() clause.  Undo that macro here. */
+/* volume_io/basic.h defines 'private' as 'static'; undo that macro so
+   identifiers named 'private' are not silently rewritten. */
 #undef private
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
 #endif
 
+#ifndef MAX_NTHREADS
 #define MAX_NTHREADS 4 /* Overhead is otherwise too large */
+#endif
+
+/* ---------------------------------------------------------------------------
+ * Minimal pthreads fan-out helper.
+ *
+ * Each of the `nthreads` workers receives the address of its own pre-filled
+ * argument slot (args + t*argsz), which carries the [ini, fin) index range it
+ * owns.  Threads are joined before returning, so this behaves as a
+ * parallel-for with an implicit barrier -- the replacement for the former
+ * OpenMP `#pragma omp parallel for schedule(static)` regions.  On Windows
+ * (no pthreads) the workers run sequentially, matching the convxy_float
+ * fallback elsewhere in this file.
+ * ------------------------------------------------------------------------- */
+static void
+cat_parallel_run(int nthreads, void *(*worker)(void *), void *args, size_t argsz)
+{
+    int t;
+#if defined(_WIN32) || defined(_WIN64)
+    for (t = 0; t < nthreads; ++t)
+        worker((char *)args + (size_t)t * argsz);
+#else
+    pthread_t *threads = (pthread_t *)calloc((size_t)nthreads, sizeof(pthread_t));
+    if (!threads)
+    {
+        /* Out of memory for the handle array: run sequentially. */
+        for (t = 0; t < nthreads; ++t)
+            worker((char *)args + (size_t)t * argsz);
+        return;
+    }
+    for (t = 0; t < nthreads; ++t)
+        pthread_create(&threads[t], NULL, worker,
+                       (char *)args + (size_t)t * argsz);
+    for (t = 0; t < nthreads; ++t)
+        pthread_join(threads[t], NULL);
+    free(threads);
+#endif
+}
 
 /**
  * ind2sub - Convert a linear index to 3D array coordinates.
@@ -99,11 +133,108 @@ int sub2ind(int x, int y, int z, int s[3])
  *
  * Note: The function modifies the input array to store the results.
  */
+/* Per-thread arguments for one filter pass of localstat_double (one [ini,fin)
+   slab of z-planes).  Each worker reads `input` (whole volume) and writes its
+   own disjoint z-slab of `buffer`, so no locking is required. */
+typedef struct
+{
+    double *input;
+    double *buffer;
+    unsigned char *mask;
+    int dims[3];
+    int dist;
+    int stat_func;
+    int use_euclidean_dist;
+    int size_kernel;
+    int ini, fin; /* z-range owned by this worker */
+} localstat_args;
+
+static void *
+localstat_worker(void *p)
+{
+    localstat_args a = *(localstat_args *)p;
+    int x, y, z, n, ni, ii, jj, kk, idx;
+    double *arr = (double *)malloc(sizeof(double) * a.size_kernel *
+                                   a.size_kernel * a.size_kernel);
+
+    if (!arr)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    for (z = a.ini; z < a.fin; z++)
+        for (y = 0; y < a.dims[1]; y++)
+            for (x = 0; x < a.dims[0]; x++)
+            {
+                idx = sub2ind(x, y, z, a.dims);
+                n = 0;
+
+                // Check for NaNs, Infinities
+                if (isnan(a.input[idx]) || !isfinite(a.input[idx]))
+                    continue;
+
+                // Check for optional mask
+                if (a.mask && a.mask[idx] == 0)
+                    continue;
+
+                // Iterate through kernel
+                for (ii = -a.dist; ii <= a.dist; ii++)
+                    for (jj = -a.dist; jj <= a.dist; jj++)
+                        for (kk = -a.dist; kk <= a.dist; kk++)
+                        {
+                            ni = sub2ind(x + ii, y + jj, z + kk, a.dims);
+
+                            // Check for NaNs, Infinities
+                            if (isnan(a.input[ni]) || !isfinite(a.input[ni]))
+                                continue;
+
+                            // Check for optional mask
+                            if (a.mask && a.mask[ni] == 0)
+                                continue;
+
+                            // Check for Euclidean distance if required
+                            if (a.use_euclidean_dist && sqrtf((float)((ii * ii) + (jj * jj) + (kk * kk))) > (float)a.dist)
+                                continue;
+
+                            arr[n] = a.input[ni];
+                            n++;
+                        }
+
+                // Calculate local statistics based on the selected function
+                switch (a.stat_func)
+                {
+                case F_MEAN:
+                    a.buffer[idx] = (double)get_mean_double(arr, n, 0);
+                    break;
+                case F_MEDIAN:
+                    a.buffer[idx] = (double)get_median_double(arr, n, 0);
+                    break;
+                case F_STD:
+                    a.buffer[idx] = (double)get_std_double(arr, n, 0);
+                    break;
+                case F_MIN:
+                    a.buffer[idx] = (double)get_min_double(arr, n, 0);
+                    break;
+                case F_MAX:
+                    a.buffer[idx] = (double)get_max_double(arr, n, 0);
+                    break;
+                default:
+                    fprintf(stderr, "Data Function %d not handled\n", a.stat_func);
+                    break;
+                }
+            }
+
+    free(arr);
+    return NULL;
+}
+
 void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
                       int stat_func, int iters, int use_euclidean_dist)
 {
-    int i, j, k, ind, it;
+    int i, t, it, nthreads;
     double *buffer;
+    localstat_args *args;
     int nvox = dims[0] * dims[1] * dims[2], size_kernel;
 
     // Check for distance parameter
@@ -125,97 +256,47 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
         exit(EXIT_FAILURE);
     }
 
-    // Initialize buffer to zero
+    // Initialize buffer to input so masked/NaN voxels keep their value
     for (i = 0; i < nvox; i++)
         buffer[i] = input[i];
 
-    // Main filter process
-#pragma omp parallel
+    // Partition the z-planes across worker threads (static schedule)
+    nthreads = (dims[2] < MAX_NTHREADS) ? dims[2] : MAX_NTHREADS;
+    if (nthreads < 1)
+        nthreads = 1;
+
+    args = (localstat_args *)malloc((size_t)nthreads * sizeof(localstat_args));
+    if (!args)
     {
-        int x, y, z, n, ni, ii, jj, kk, idx, iter;
-        double *arr = (double *)malloc(sizeof(double) * size_kernel * size_kernel * size_kernel);
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    for (t = 0; t < nthreads; t++)
+    {
+        args[t].input = input;
+        args[t].buffer = buffer;
+        args[t].mask = mask;
+        args[t].dims[0] = dims[0];
+        args[t].dims[1] = dims[1];
+        args[t].dims[2] = dims[2];
+        args[t].dist = dist;
+        args[t].stat_func = stat_func;
+        args[t].use_euclidean_dist = use_euclidean_dist;
+        args[t].size_kernel = size_kernel;
+        args[t].ini = (t * dims[2]) / nthreads;
+        args[t].fin = ((t + 1) * dims[2]) / nthreads;
+    }
 
-        if (!arr)
-        {
-            fprintf(stderr, "Memory allocation error\n");
-            exit(EXIT_FAILURE);
-        }
-
-        for (iter = 0; iter < iters; iter++)
-        {
-#pragma omp for schedule(static)
-            for (z = 0; z < dims[2]; z++)
-                for (y = 0; y < dims[1]; y++)
-                    for (x = 0; x < dims[0]; x++)
-                    {
-                        idx = sub2ind(x, y, z, dims);
-                        n = 0;
-
-                        // Check for NaNs, Infinities
-                        if (isnan(input[idx]) || !isfinite(input[idx]))
-                            continue;
-
-                        // Check for optional mask
-                        if (mask && mask[idx] == 0)
-                            continue;
-
-                        // Iterate through kernel
-                        for (ii = -dist; ii <= dist; ii++)
-                            for (jj = -dist; jj <= dist; jj++)
-                                for (kk = -dist; kk <= dist; kk++)
-                                {
-                                    ni = sub2ind(x + ii, y + jj, z + kk, dims);
-
-                                    // Check for NaNs, Infinities
-                                    if (isnan(input[ni]) || !isfinite(input[ni]))
-                                        continue;
-
-                                    // Check for optional mask
-                                    if (mask && mask[ni] == 0)
-                                        continue;
-
-                                    // Check for Euclidean distance if required
-                                    if (use_euclidean_dist && sqrtf((float)((ii * ii) + (jj * jj) + (kk * kk))) > (float)dist)
-                                        continue;
-
-                                    arr[n] = input[ni];
-                                    n++;
-                                }
-
-                        // Calculate local statistics based on the selected function
-                        switch (stat_func)
-                        {
-                        case F_MEAN:
-                            buffer[idx] = (double)get_mean_double(arr, n, 0);
-                            break;
-                        case F_MEDIAN:
-                            buffer[idx] = (double)get_median_double(arr, n, 0);
-                            break;
-                        case F_STD:
-                            buffer[idx] = (double)get_std_double(arr, n, 0);
-                            break;
-                        case F_MIN:
-                            buffer[idx] = (double)get_min_double(arr, n, 0);
-                            break;
-                        case F_MAX:
-                            buffer[idx] = (double)get_max_double(arr, n, 0);
-                            break;
-                        default:
-                            fprintf(stderr, "Data Function %d not handled\n", stat_func);
-                            break;
-                        }
-                    }
-
-            // Copy results back to input array
-#pragma omp for schedule(static)
-            for (idx = 0; idx < nvox; idx++)
-                input[idx] = buffer[idx];
-        }
-
-        free(arr);
+    // Main filter process: each iteration filters input -> buffer in parallel
+    // (the thread join is the barrier), then copies buffer back to input.
+    for (it = 0; it < iters; it++)
+    {
+        cat_parallel_run(nthreads, localstat_worker, args, sizeof(localstat_args));
+        memcpy(input, buffer, sizeof(double) * nvox);
     }
 
     // Free allocated memory
+    free(args);
     free(buffer);
 }
 
@@ -2888,12 +2969,81 @@ void estimate_target_dimensions(int dims[3], double voxelsize[3], double target_
  *   - Points outside the bounds of the input array are assigned a value of 0 in the
  *     output array.
  */
-void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
+/* Per-thread arguments for subsample_float: one [ini,fin) slab of output
+   z-planes.  Iterations are independent and write disjoint out[i]. */
+typedef struct
 {
+    float *in;
+    float *out;
+    int dims[3];
+    int dims_samp[3];
+    double samp[3];
+    int ini, fin; /* output z-range owned by this worker */
+} subsample_args;
+
+static void *
+subsample_float_worker(void *p)
+{
+    subsample_args a = *(subsample_args *)p;
     int x, y, z, x0, y0, z0, i;
     double k111, k112, k121, k122, k211, k212, k221, k222;
-    double dx1, dx2, dy1, dy2, dz1, dz2, xi, yi, zi, samp[3];
+    double dx1, dx2, dy1, dy2, dz1, dz2, xi, yi, zi;
     int off1, off2;
+
+    for (z = a.ini; z < a.fin; z++)
+    {
+        zi = z * a.samp[2];
+        z0 = (int)floor(zi);
+        dz1 = zi - z0;
+        dz2 = 1.0 - dz1;
+        z0 = z0 < a.dims[2] - 1 ? z0 : a.dims[2] - 2;
+
+        for (y = 0; y < a.dims_samp[1]; y++)
+        {
+            yi = y * a.samp[1];
+            y0 = (int)floor(yi);
+            dy1 = yi - y0;
+            dy2 = 1.0 - dy1;
+            y0 = y0 < a.dims[1] - 1 ? y0 : a.dims[1] - 2;
+
+            for (x = 0; x < a.dims_samp[0]; x++)
+            {
+                xi = x * a.samp[0];
+                x0 = (int)floor(xi);
+                dx1 = xi - x0;
+                dx2 = 1.0 - dx1;
+                x0 = x0 < a.dims[0] - 1 ? x0 : a.dims[0] - 2;
+
+                i = z * a.dims_samp[0] * a.dims_samp[1] + y * a.dims_samp[0] + x;
+                off1 = x0 + a.dims[0] * (y0 + a.dims[1] * z0);
+
+                // Trilinear interpolation
+                k222 = (double)a.in[off1];
+                k122 = (double)a.in[off1 + 1];
+                off2 = off1 + a.dims[0];
+                k212 = (double)a.in[off2];
+                k112 = (double)a.in[off2 + 1];
+                off1 += a.dims[0] * a.dims[1];
+                k221 = (double)a.in[off1];
+                k121 = (double)a.in[off1 + 1];
+                off2 = off1 + a.dims[0];
+                k211 = (double)a.in[off2];
+                k111 = (double)a.in[off2 + 1];
+
+                a.out[i] = (float)((((k222 * dx2 + k122 * dx1) * dy2 + (k212 * dx2 + k112 * dx1) * dy1) * dz2) +
+                                   (((k221 * dx2 + k121 * dx1) * dy2 + (k211 * dx2 + k111 * dx1) * dy1) * dz1));
+            }
+        }
+    }
+
+    return NULL;
+}
+
+void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
+{
+    int i, t, nthreads;
+    double samp[3];
+    subsample_args *args;
 
     // Estimate scaling factor
     for (i = 0; i < 3; i++)
@@ -2901,52 +3051,36 @@ void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
         samp[i] = (double)dims[i] / (double)dims_samp[i];
     }
 
-#pragma omp parallel for private(z, y, x, z0, y0, x0, dz1, dz2, dy1, dy2, dx1, dx2, zi, yi, xi, i, off1, off2, k111, k112, k121, k122, k211, k212, k221, k222) schedule(static)
-    for (z = 0; z < dims_samp[2]; z++)
+    // Partition the output z-planes across worker threads (static schedule)
+    nthreads = (dims_samp[2] < MAX_NTHREADS) ? dims_samp[2] : MAX_NTHREADS;
+    if (nthreads < 1)
+        nthreads = 1;
+
+    args = (subsample_args *)malloc((size_t)nthreads * sizeof(subsample_args));
+    if (!args)
     {
-        zi = z * samp[2];
-        z0 = (int)floor(zi);
-        dz1 = zi - z0;
-        dz2 = 1.0 - dz1;
-        z0 = z0 < dims[2] - 1 ? z0 : dims[2] - 2;
-
-        for (y = 0; y < dims_samp[1]; y++)
-        {
-            yi = y * samp[1];
-            y0 = (int)floor(yi);
-            dy1 = yi - y0;
-            dy2 = 1.0 - dy1;
-            y0 = y0 < dims[1] - 1 ? y0 : dims[1] - 2;
-
-            for (x = 0; x < dims_samp[0]; x++)
-            {
-                xi = x * samp[0];
-                x0 = (int)floor(xi);
-                dx1 = xi - x0;
-                dx2 = 1.0 - dx1;
-                x0 = x0 < dims[0] - 1 ? x0 : dims[0] - 2;
-
-                i = z * dims_samp[0] * dims_samp[1] + y * dims_samp[0] + x;
-                off1 = x0 + dims[0] * (y0 + dims[1] * z0);
-
-                // Trilinear interpolation
-                k222 = (double)in[off1];
-                k122 = (double)in[off1 + 1];
-                off2 = off1 + dims[0];
-                k212 = (double)in[off2];
-                k112 = (double)in[off2 + 1];
-                off1 += dims[0] * dims[1];
-                k221 = (double)in[off1];
-                k121 = (double)in[off1 + 1];
-                off2 = off1 + dims[0];
-                k211 = (double)in[off2];
-                k111 = (double)in[off2 + 1];
-
-                out[i] = (float)((((k222 * dx2 + k122 * dx1) * dy2 + (k212 * dx2 + k112 * dx1) * dy1) * dz2) +
-                                 (((k221 * dx2 + k121 * dx1) * dy2 + (k211 * dx2 + k111 * dx1) * dy1) * dz1));
-            }
-        }
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
     }
+    for (t = 0; t < nthreads; t++)
+    {
+        args[t].in = in;
+        args[t].out = out;
+        args[t].dims[0] = dims[0];
+        args[t].dims[1] = dims[1];
+        args[t].dims[2] = dims[2];
+        args[t].dims_samp[0] = dims_samp[0];
+        args[t].dims_samp[1] = dims_samp[1];
+        args[t].dims_samp[2] = dims_samp[2];
+        args[t].samp[0] = samp[0];
+        args[t].samp[1] = samp[1];
+        args[t].samp[2] = samp[2];
+        args[t].ini = (t * dims_samp[2]) / nthreads;
+        args[t].fin = ((t + 1) * dims_samp[2]) / nthreads;
+    }
+
+    cat_parallel_run(nthreads, subsample_float_worker, args, sizeof(subsample_args));
+    free(args);
 }
 
 /**
@@ -3974,36 +4108,86 @@ float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3
  *
  * \note Boundary voxels use one-sided differences to avoid out-of-bounds access.
  */
-void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
-                float *grad_z, int dims[3], double voxelsize[3])
+/* Per-thread arguments for gradient3D: one [ini,fin) slab of i-planes.
+   Iterations are independent and write disjoint grad_*[index]. */
+typedef struct
 {
+    float *src, *grad_mag, *grad_x, *grad_y, *grad_z;
+    int dims[3];
+    double voxelsize[3];
+    int ini, fin; /* i-range owned by this worker */
+} gradient3D_args;
+
+static void *
+gradient3D_worker(void *p)
+{
+    gradient3D_args a = *(gradient3D_args *)p;
     int i, j, k, index;
     float gradx, grady, gradz;
 
-#pragma omp parallel for private(i, j, k, index, gradx, grady, gradz) schedule(static) collapse(2)
-    for (i = 0; i < dims[0]; ++i)
+    for (i = a.ini; i < a.fin; ++i)
     {
-        for (j = 0; j < dims[1]; ++j)
+        for (j = 0; j < a.dims[1]; ++j)
         {
-            for (k = 0; k < dims[2]; ++k)
+            for (k = 0; k < a.dims[2]; ++k)
             {
-                index = sub2ind(i, j, k, dims);
-                gradx = gradientX(src, i, j, k, dims, voxelsize);
-                grady = gradientY(src, i, j, k, dims, voxelsize);
-                gradz = gradientZ(src, i, j, k, dims, voxelsize);
+                index = sub2ind(i, j, k, a.dims);
+                gradx = gradientX(a.src, i, j, k, a.dims, a.voxelsize);
+                grady = gradientY(a.src, i, j, k, a.dims, a.voxelsize);
+                gradz = gradientZ(a.src, i, j, k, a.dims, a.voxelsize);
 
                 /* Also output xyz-gradients */
-                if (grad_x)
-                    grad_x[index] = gradx;
-                if (grad_y)
-                    grad_y[index] = grady;
-                if (grad_z)
-                    grad_z[index] = gradz;
+                if (a.grad_x)
+                    a.grad_x[index] = gradx;
+                if (a.grad_y)
+                    a.grad_y[index] = grady;
+                if (a.grad_z)
+                    a.grad_z[index] = gradz;
 
                 /* Also output gradient magnitude */
-                if (grad_mag)
-                    grad_mag[index] = sqrtf(gradx * gradx + grady * grady + gradz * gradz);
+                if (a.grad_mag)
+                    a.grad_mag[index] = sqrtf(gradx * gradx + grady * grady + gradz * gradz);
             }
         }
     }
+
+    return NULL;
+}
+
+void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
+                float *grad_z, int dims[3], double voxelsize[3])
+{
+    int t, nthreads;
+    gradient3D_args *args;
+
+    // Partition the i-planes across worker threads (static schedule)
+    nthreads = (dims[0] < MAX_NTHREADS) ? dims[0] : MAX_NTHREADS;
+    if (nthreads < 1)
+        nthreads = 1;
+
+    args = (gradient3D_args *)malloc((size_t)nthreads * sizeof(gradient3D_args));
+    if (!args)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    for (t = 0; t < nthreads; t++)
+    {
+        args[t].src = src;
+        args[t].grad_mag = grad_mag;
+        args[t].grad_x = grad_x;
+        args[t].grad_y = grad_y;
+        args[t].grad_z = grad_z;
+        args[t].dims[0] = dims[0];
+        args[t].dims[1] = dims[1];
+        args[t].dims[2] = dims[2];
+        args[t].voxelsize[0] = voxelsize[0];
+        args[t].voxelsize[1] = voxelsize[1];
+        args[t].voxelsize[2] = voxelsize[2];
+        args[t].ini = (t * dims[0]) / nthreads;
+        args[t].fin = ((t + 1) * dims[0]) / nthreads;
+    }
+
+    cat_parallel_run(nthreads, gradient3D_worker, args, sizeof(gradient3D_args));
+    free(args);
 }
