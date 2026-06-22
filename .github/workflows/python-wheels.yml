@@ -43,8 +43,7 @@ jobs:
           autoupdate
           autoreconf -fi
           export {C,CXX,CPP}FLAGS="-O2 -fPIC -mmacosx-version-min=11.0"
-          ./configure --enable-static --disable-shared --disable-doc \
-            --disable-openmp
+          ./configure --enable-static --disable-shared --disable-doc
 
       - name: Build libCAT.a
         env:
@@ -108,9 +107,9 @@ jobs:
           done
 
           # Static archives + config.h.  No libomp is staged or linked:
-          # libCAT is built with --disable-openmp for the wheel, so the
-          # extensions contain no OpenMP regions and cannot collide with a
-          # host process's libomp (e.g. PyTorch's libomp.dylib).
+          # libCAT uses pthreads (not OpenMP), so the extensions contain no
+          # OpenMP runtime and cannot collide with a host process's libomp
+          # (e.g. PyTorch's libomp.dylib).
           mkdir -p "$V/build/.libs" "$V/build/3rdparty/fftw-build/.libs"
           cp _libcat/libCAT.a   "$V/build/.libs/"
           cp _libcat/config.h   "$V/build/"
@@ -207,7 +206,6 @@ jobs:
             autoupdate
             autoreconf -fi
             ./configure --enable-static --disable-shared --disable-doc \
-              --disable-openmp \
               CFLAGS="-O2 -fPIC" CXXFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
             make -j$(nproc) libCAT.la
             V=/project/_vendor
