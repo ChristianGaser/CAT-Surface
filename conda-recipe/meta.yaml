@@ -37,19 +37,9 @@ requirements:
     - cython >=3.0
     - numpy >=2.0
     - setuptools >=64
-    # OpenMP runtime — conda-forge provides platform-specific packages.
-    # On macOS we use llvm-openmp (provides libomp.dylib); on Linux we
-    # use libgomp (provides libgomp.so via the gcc_impl package).
-    - llvm-openmp  # [osx]
-    - libgomp      # [linux]
   run:
     - python
     - numpy >=2.0
-    # At runtime the Cython .so files load libomp.dylib via @rpath.
-    # conda-build patches rpaths to $PREFIX/lib, where llvm-openmp
-    # installs libomp.dylib — no PyTorch dependency needed in conda.
-    - llvm-openmp  # [osx]
-    - libgomp      # [linux]
 
 test:
   imports:

@@ -100,29 +100,19 @@ extra_link_args = [LIBCAT_A, LIBFFTW3_A, "-lm", "-lz"]
 if sys.platform == "darwin":
     # macOS: link the (system) expat the bundled headers expect.
     #
-    # No OpenMP.  The wheel's libCAT is built with ``--disable-openmp``
-    # (see python-wheels.yml), so the extensions contain no OpenMP
-    # regions and pull in no libomp.  This is deliberate: a libomp baked
-    # into cat_surf's .so files becomes a second OpenMP runtime in any
-    # process that already hosts one (e.g. PyTorch's libomp.dylib),
-    # which caused "OMP: Error #15" / thread-pool TLS corruption.  Native
-    # CLI binaries keep static OpenMP; only the Python wheel drops it.
+    # No OpenMP anywhere: libCAT parallelises with pthreads (resolved via
+    # libSystem on macOS), so cat_surf's .so files pull in no libomp.  This
+    # is what keeps cat_surf from becoming a second OpenMP runtime in a
+    # process that already hosts one (e.g. PyTorch's libomp.dylib), which
+    # used to cause "OMP: Error #15" / thread-pool TLS corruption.
     extra_link_args.append("-lexpat")
 elif sys.platform == "linux":
-    # Linux: stdc++ for MeshFix C++ objects, pthread for the rest.
-    # No -lgomp -- the wheel's libCAT is built with --disable-openmp.
+    # Linux: stdc++ for MeshFix C++ objects, pthread for libCAT's threads.
     extra_link_args += ["-lstdc++", "-lpthread"]
 elif sys.platform == "win32":
-    # Windows (MinGW): stdc++ for MeshFix C++ objects.  No OpenMP.
+    # Windows (MinGW): stdc++ for MeshFix C++ objects.  libCAT's threaded
+    # paths fall back to serial on Windows, so no pthread is needed.
     extra_link_args += ["-lstdc++"]
-
-# Escape hatch for local builds against a libCAT that WAS compiled with
-# OpenMP (the autotools default for native binaries).  Set CAT_LINK_OPENMP=1
-# to relink the matching OpenMP runtime so such a libCAT.a resolves its
-# GOMP_*/__kmpc_* symbols.  Off by default so distributed wheels carry no
-# libomp/libgomp dependency.
-if os.environ.get("CAT_LINK_OPENMP") == "1":
-    extra_link_args.append("-lomp" if sys.platform == "darwin" else "-lgomp")
 
 # ---------------------------------------------------------------------------
 # Use Cython if available, else fall back to pre-generated .c files
