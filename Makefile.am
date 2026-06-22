@@ -39,7 +39,7 @@ if WINDOWS
 else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
-AM_CPPFLAGS = @OPENMP_CFLAGS@ @FFTW3_CFLAGS@ ${AM_CFLAGS}
+AM_CPPFLAGS = @FFTW3_CFLAGS@ ${AM_CFLAGS}
 # C++11 is only needed for MeshFix; not used on Windows.
 if !WINDOWS
 AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
