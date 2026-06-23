@@ -290,6 +290,7 @@ noinst_HEADERS = \
     Include/CAT_CorrectThicknessFolding.h \
     Include/CAT_MeshClean.h \
     Include/CAT_SurfWarpDartel.h \
+    Include/CAT_WarpDemons.h \
     Include/CAT_ROIStats.h \
     Include/CAT_Vol2SurfUtils.h \
     Include/CAT_VolMyelinCorrection.h \
@@ -375,6 +376,7 @@ libCAT_la_SOURCES = \
     $(s2kit10_SRC) \
     Lib/CAT_CorrectThicknessFolding.c \
     Lib/CAT_SurfWarpDartel.c \
+    Lib/CAT_WarpDemons.c \
     Lib/CAT_ROIStats.c \
     Lib/CAT_Vol2SurfUtils.c \
     Lib/CAT_VolMyelinCorrection.c \
