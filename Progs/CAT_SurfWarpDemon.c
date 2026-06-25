@@ -25,11 +25,12 @@ char  *trg_sphere_file     = NULL;
 char  *output_surface_file = NULL;
 char  *output_sphere_file  = NULL;
 
-int    n_points   = 20480;
+int    n_points   = 20480;  /* finest pyramid level; coarser levels are 1/4 each */
 int    rotate     = 1;
-int    curvtype0  = 5;   /* stage 0: sulcal-depth-like */
-int    curvtype1  = 0;   /* stage 1: mean curvature (averaged over 3mm) */
-int    curvtype2  = 0;   /* stage 2 (only used with -steps 3) */
+int    curvtype0  = 5;   /* level 0: sulcal-depth-like (coarsest) */
+int    curvtype1  = 5;   /* level 1: sulcal-depth-like */
+int    curvtype2  = 5;   /* level 2: sulcal-depth-like (only with -steps 3+) */
+int    curvtype3  = 0;   /* level 3: mean curvature (only with -steps 4) */
 int    n_steps    = 2;
 int    debug      = 0;
 int    iters      = 100;
@@ -38,11 +39,11 @@ int    verbose    = 0;
 double rate       = 0.97;
 double fwhm_flow  = 30.0;
 double fwhm_curv  = 6.0;
-double fwhm_disp  = 5.0;
+double fwhm_disp  = 10.0;
 double alpha0     = 0.5;
 double max_step_deg = 10.0;
-double sigma_x_default = 1.0;
-int    smooth_velocity = 1;
+double sigma_x_default = 2.0;  /* SD max_step = 2 */
+int    smooth_velocity = 0;    /* SD default: velocity smoothing off */
 int    smooth_displacement = 1;
 int    use_hessian = 1;
 int    use_line_search = 1;
@@ -63,7 +64,7 @@ static ArgvInfo argTable[] = {
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file,
    "Warped input sphere."},
   {"-npoints", ARGV_INT, (char *) 1, (char *) &n_points,
-   "Number of points for resampling (e.g. 81920 or 20480)."},
+   "Finest pyramid resolution (e.g. 81920); coarser levels use 1/4 the points each."},
   {"-fwhm-flow", ARGV_FLOAT, (char *) 1, (char *) &fwhm_flow,
    "Filter size for velocity update in FWHM."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm_curv,
@@ -76,8 +77,8 @@ static ArgvInfo argTable[] = {
    "Clamp per-iteration |dtheta,dphi| to this many degrees (<=0 disables)."},
   {"-fwhm-disp", ARGV_FLOAT, (char *) 1, (char *) &fwhm_disp,
    "Filter size for displacement field smoothing (elastic prior) in FWHM."},
-  {"-no-smooth-velocity", ARGV_CONSTANT, (char *) FALSE, (char *) &smooth_velocity,
-   "Disable velocity update smoothing (fluid prior, default ON)."},
+  {"-smooth-velocity", ARGV_CONSTANT, (char *) TRUE, (char *) &smooth_velocity,
+   "Enable velocity update smoothing (fluid prior, default OFF as in original SD)."},
   {"-no-smooth-displacement", ARGV_CONSTANT, (char *) FALSE, (char *) &smooth_displacement,
    "Disable displacement field smoothing (elastic prior, default ON)."},
   {"-sigma-x", ARGV_FLOAT, (char *) 1, (char *) &sigma_x_default,
@@ -93,17 +94,19 @@ static ArgvInfo argTable[] = {
   {"-maxiters", ARGV_INT, (char *) 1, (char *) &iters,
    "Maximum number of iterations per stage."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
-   "Number of feature stages (1-3)."},
+   "Number of multi-resolution pyramid levels (1-3, coarse to fine)."},
   {"-method", ARGV_INT, (char *) 1, (char *) &method,
    "Demon method \n\t1 - Thirions approach using passive force only (Thirion JP Med. Image Anal. 2 243-60, 1998)\n\t2 - Accelerated demon using active and passive forces (Wang et al. Phys. Med. Biol. 50 2887-905, 2005)\n\t3 - Fast inverse consistent demon (Yang et al. Phys. Med. Biol. 53 6143-65, 2008)\n\t4 - Spherical Demons (Yeo et al. IEEE TMI 29 469-486, 2010)"},
   {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
    "Don't rotate input surface before warping."},
   {"-type0", ARGV_INT, (char *) 1, (char *) &curvtype0,
-   "Curvature type for stage 1\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
+   "Curvature type for level 1 (coarsest)\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
   {"-type1", ARGV_INT, (char *) 1, (char *) &curvtype1,
-   "Curvature type for stage 2 (see -type0 for values)."},
+   "Curvature type for level 2 (see -type0 for values)."},
   {"-type2", ARGV_INT, (char *) 1, (char *) &curvtype2,
-   "Curvature type for stage 3 (see -type0 for values)."},
+   "Curvature type for level 3 (see -type0 for values)."},
+  {"-type3", ARGV_INT, (char *) 1, (char *) &curvtype3,
+   "Curvature type for level 4 (finest; see -type0 for values)."},
   {"-verbose", ARGV_CONSTANT, (char *) TRUE, (char *) &verbose,
    "Be verbose."},
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
@@ -162,6 +165,7 @@ main(int argc, char *argv[])
     opt.curvtype[0]         = curvtype0;
     opt.curvtype[1]         = curvtype1;
     opt.curvtype[2]         = curvtype2;
+    opt.curvtype[3]         = curvtype3;
     opt.iters               = iters;
     opt.rotate              = rotate;
     opt.smooth_velocity     = smooth_velocity;
@@ -182,6 +186,16 @@ main(int argc, char *argv[])
 
     if (opt.n_steps < 1) opt.n_steps = 1;
     if (opt.n_steps > CAT_WARP_DEMONS_MAX_STEPS) opt.n_steps = CAT_WARP_DEMONS_MAX_STEPS;
+
+    /* Build the coarse-to-fine pyramid: finest level = n_points, each coarser
+     * level uses 1/4 of the points (next tetrahedral subdivision down). */
+    {
+        int lvl, np = n_points;
+        for (lvl = opt.n_steps - 1; lvl >= 0; lvl--) {
+            opt.level_points[lvl] = np;
+            np /= 4;
+        }
+    }
 
     warped_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
 

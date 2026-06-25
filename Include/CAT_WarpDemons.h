@@ -25,7 +25,7 @@
 extern "C" {
 #endif
 
-#define CAT_WARP_DEMONS_MAX_STEPS 3
+#define CAT_WARP_DEMONS_MAX_STEPS 4
 
 /**
  * \brief Options controlling demon-based spherical registration.
@@ -34,38 +34,43 @@ extern "C" {
  * calling CAT_WarpDemonsRegister().
  */
 typedef struct {
-    int    n_points;            /* spherical resample resolution (e.g. 20480) */
+    int    n_points;            /* fallback spherical resolution if level_points unset */
+    int    level_points[CAT_WARP_DEMONS_MAX_STEPS]; /* resolution per pyramid level
+                                   (coarse -> fine); <=0 falls back to n_points */
     int    method;              /* demon variant 1..4; 4 = Spherical Demons */
-    int    n_steps;             /* number of feature stages (1..3) */
-    int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /* curvature type per stage:
+    int    n_steps;             /* number of multi-resolution levels (1..3) */
+    int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /* curvature type per level:
                                    0 mean curv (3mm, deg), 1 gaussian,
                                    2 curvedness, 3 shape index,
                                    4 mean curv (rad), 5 sulcal-depth-like */
-    int    iters;               /* maximum iterations per stage */
-    int    rotate;              /* rigid rotation pre-alignment on stage 0 */
-    int    smooth_velocity;     /* low-pass the velocity update (fluid prior) */
-    int    smooth_displacement; /* low-pass the displacement field (elastic) */
+    int    iters;               /* maximum iterations per level */
+    int    rotate;              /* rigid rotation pre-alignment on level 0 */
+    int    smooth_velocity;     /* low-pass the velocity update (fluid prior; SD default off) */
+    int    smooth_displacement; /* low-pass the displacement field (elastic prior; SD default on) */
     int    use_hessian;         /* per-vertex Gauss-Newton 2x2 Hessian update */
     int    use_line_search;     /* adaptive step backtracking on stalled CC */
     int    use_expmap;          /* diffeomorphic scaling-and-squaring (method 4) */
-    double fwhm_flow;           /* FWHM for velocity-update smoothing */
+    double fwhm_flow;           /* FWHM for velocity-update smoothing (fluid) */
     double fwhm_curv;           /* FWHM for the initial curvature smoothing */
-    double fwhm_disp;           /* FWHM for displacement-field smoothing */
+    double fwhm_disp;           /* FWHM for displacement-field smoothing (elastic) */
     double rate;                /* per-iteration multiplier for fwhm_flow */
-    double alpha0;              /* demon force normalization weight */
+    double alpha0;              /* demon force normalization weight (methods 1-3) */
     double max_step_deg;        /* clamp per-iteration step (deg); <=0 disables */
-    double sigma_x;             /* Spherical Demons regularization weight */
+    double sigma_x;             /* SD regularization weight (= max_step; SD default 2) */
     double step_factor;         /* global step-size factor */
     int    verbose;             /* print per-iteration progress */
     int    debug;               /* write intermediate debug files */
 } CAT_WarpDemonsOptions;
 
 /**
- * \brief Fill an options struct with the default 2-stage Spherical Demons setup.
+ * \brief Fill an options struct with the default multi-resolution SD setup.
  *
- * Defaults to method 4 (Spherical Demons) with diffeomorphic integration,
- * n_steps = 2 (stage 0 sulcal depth, stage 1 mean curvature), rotation
- * pre-alignment, and the fluid/elastic priors enabled.
+ * Defaults to method 4 (Spherical Demons) with diffeomorphic integration and a
+ * 2-level coarse-to-fine sulcal-depth pyramid (5120 -> 20480 points), which is
+ * the empirical accuracy/runtime sweet spot. Smoothing FWHM is scaled by mesh
+ * spacing, anchored to a fixed reference resolution. Rotation pre-alignment and
+ * the SD regularization (constant Tikhonov, sigma_x = 2, elastic displacement
+ * smoothing) are enabled.
  *
  * \param opt (out) options struct to initialize
  * \return void

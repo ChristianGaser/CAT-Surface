@@ -82,8 +82,8 @@ preprocess ()
                 break
               fi
             done
-            CAT_ResampleSurf ${label} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
-            CAT_BlurSurfHK $tmp_name $name $fwhm ${tmp_name}.txt
+            CAT_SurfResampleSpherical ${label} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} ${tmp_name}.txt
+            CAT_SurfSmooth $tmp_name $name $fwhm ${tmp_name}.txt
             if [ "$gifti" == 1 ]; then
               CAT_AddValuesToSurf $tmp_name $name ${name}.gii
               echo resample and smooth to ${name}.gii          
@@ -108,7 +108,7 @@ preprocess ()
                 break
               fi
             done
-            CAT_ResampleSurf ${label} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
+            CAT_SurfResample ${label} ${surfdir}/${i}.smoothwm ${surfdir}/${i}.${reg} ${targetdir}/${i}.sphere $tmp_name ${surfdir}/${i}.${measure} $name
             if [ "$gifti" == 1 ]; then
               CAT_AddValuesToSurf $tmp_name $name ${name}.gii
               echo resample to ${name}.gii          
@@ -230,7 +230,7 @@ exit_if_empty ()
 
 check_tools ()
 {
-  for name in CAT_ResampleSphericalSurf CAT_BlurSurfHK; do
+  for name in CAT_SurfResampleSpherical CAT_SurfSmooth; do
     found=`which ${name}`
     if [ ! -n "$found" ];then
       echo $name not found.
@@ -294,8 +294,8 @@ OUTPUT:
     Values-files
 
 USED FUNCTIONS:
-    CAT_ResampleSurf
-    CAT_BlurSurfHK
+    CAT_SurfResampleSpherical
+    CAT_SurfSmooth
 
 This script was written by Christian Gaser (christian.gaser@uni-jena.de).
 

@@ -28,6 +28,12 @@
 
 #define SPHERE_RADIUS 100.0
 #define EXP_MAX_COMPOSITIONS 12
+#define BINTREE_FACTOR 0.5
+/* Reference resolution the per-level smoothing FWHM is anchored to, so the
+ * amount of smoothing at a given mesh resolution does not depend on how many
+ * pyramid levels are used. Set to the default coarsest level so adding finer or
+ * coarser levels does not change the smoothing at the established resolutions. */
+#define SMOOTH_REF_POINTS 5120
 
 /* The running warp is integrated by composing exp(v) with inverse direction,
  * matching the convention of the original additive method-4 update. */
@@ -220,6 +226,53 @@ Correlation(double *x, double *y, int N)
 }
 
 /**
+ * \brief Resample three coordinate fields from a sphere at arbitrary query points.
+ *
+ * For every query point, finds the enclosing polygon on src (using its existing
+ * spatial index) and barycentrically interpolates the (ax, ay, az) fields. This
+ * is the single-pass, three-channel equivalent of three resample_values_sphere
+ * calls: it locates each polygon once and reuses one bintree, which the caller
+ * must build on src beforehand and delete afterwards.
+ *
+ * \param src   (in)  source sphere whose vertices carry the fields (bintree built)
+ * \param query (in)  Point[nq]; locations to sample at
+ * \param nq    (in)  number of query points
+ * \param ax    (in)  double[src->n_points]; x field
+ * \param ay    (in)  double[src->n_points]; y field
+ * \param az    (in)  double[src->n_points]; z field
+ * \param ox    (out) double[nq]; interpolated x
+ * \param oy    (out) double[nq]; interpolated y
+ * \param oz    (out) double[nq]; interpolated z
+ * \return void
+ */
+static void
+resample_xyz(polygons_struct *src, Point *query, int nq,
+             double *ax, double *ay, double *az,
+             double *ox, double *oy, double *oz)
+{
+    int i, j;
+
+    for (i = 0; i < nq; i++) {
+        Point  point, poly_points[MAX_POINTS_PER_POLYGON];
+        double weights[MAX_POINTS_PER_POLYGON];
+        double sx = 0.0, sy = 0.0, sz = 0.0;
+        int    poly = find_closest_polygon_point(&query[i], src, &point);
+        int    np = get_polygon_points(src, poly, poly_points);
+
+        get_polygon_interpolation_weights(&point, np, poly_points, weights);
+        for (j = 0; j < np; j++) {
+            int idx = src->indices[POINT_INDEX(src->end_indices, poly, j)];
+            sx += weights[j] * ax[idx];
+            sy += weights[j] * ay[idx];
+            sz += weights[j] * az[idx];
+        }
+        ox[i] = sx;
+        oy[i] = sy;
+        oz[i] = sz;
+    }
+}
+
+/**
  * \brief Diffeomorphic exponential map of a tangent velocity field.
  *
  * Integrates the velocity field (du, dv), expressed in the dartel theta/phi
@@ -273,7 +326,6 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
 
     if (N > 0) {
         double *dx, *dy, *dz, *nx, *ny, *nz;
-        polygons_struct query_sphere;
 
         dx = (double *) malloc(sizeof(double) * n);
         dy = (double *) malloc(sizeof(double) * n);
@@ -281,7 +333,12 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
         nx = (double *) malloc(sizeof(double) * n);
         ny = (double *) malloc(sizeof(double) * n);
         nz = (double *) malloc(sizeof(double) * n);
-        copy_polygons(ref_sphere, &query_sphere);
+
+        /* build the reference spatial index once and reuse it for every squaring
+         * (and all three coordinate channels) instead of rebuilding per call */
+        if (ref_sphere->bintree != NULL) delete_the_bintree(&ref_sphere->bintree);
+        create_polygons_bintree(ref_sphere,
+                                ROUND((double) ref_sphere->n_items * BINTREE_FACTOR));
 
         /* square N times: phi_{k+1} = phi_k o phi_k */
         for (k = 0; k < N; k++) {
@@ -289,20 +346,17 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
                 dx[i] = Point_x(def_sphere.points[i]);
                 dy[i] = Point_y(def_sphere.points[i]);
                 dz[i] = Point_z(def_sphere.points[i]);
-                query_sphere.points[i] = def_sphere.points[i];
             }
             /* evaluate the current displacement field at its own image */
-            resample_values_sphere(ref_sphere, &query_sphere, dx, nx, 0, 0);
-            resample_values_sphere(ref_sphere, &query_sphere, dy, ny, 0, 0);
-            resample_values_sphere(ref_sphere, &query_sphere, dz, nz, 0, 0);
+            resample_xyz(ref_sphere, def_sphere.points, n, dx, dy, dz, nx, ny, nz);
             for (i = 0; i < n; i++)
                 fill_Point(def_sphere.points[i], nx[i], ny[i], nz[i]);
             normalize_sphere_radius(&def_sphere, radius);
         }
 
+        delete_the_bintree(&ref_sphere->bintree);
         free(dx); free(dy); free(dz);
         free(nx); free(ny); free(nz);
-        delete_polygons(&query_sphere);
     }
 
     for (i = 0; i < n; i++)
@@ -331,7 +385,8 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
  * \param dpoly_trg         (in)  dartel helper built on trg_sphere
  * \param type              (in)  curvature type for this stage
  * \param opt               (in)  registration options
- * \param fwhm_flow_start   (in)  initial velocity-smoothing FWHM for this stage
+ * \param fwhm_flow_start   (in)  initial velocity-smoothing FWHM for this level
+ * \param fwhm_disp_level   (in)  displacement-smoothing FWHM for this level
  * \return void
  */
 static void
@@ -339,7 +394,8 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
            polygons_struct *orig_sphere, polygons_struct *trg,
            polygons_struct *trg_sphere, polygons_struct *warped_src_sphere,
            struct dartel_poly *dpoly_src, struct dartel_poly *dpoly_trg,
-           int type, const CAT_WarpDemonsOptions *opt, double fwhm_flow_start)
+           int type, const CAT_WarpDemonsOptions *opt, double fwhm_flow_start,
+           double fwhm_disp_level)
 {
     int    *n_neighbours, **neighbours;
     int    i, it, count_break;
@@ -348,14 +404,14 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     double *curv_trg0, *curv_trg, *curv_src0, *curv_src, cc, old_cc, distance;
     double *dtheta_trg, *dphi_trg, *dtheta_src, *dphi_src, *u, *v, *Utheta, *Uphi;
     double fwhm_flow = fwhm_flow_start;
-    double min_angle = 0.0;
+    double min_angle = 0.0, reg_const;
     double step_factor = opt->step_factor;
     double alpha0 = opt->alpha0;
     double sigma_x = opt->sigma_x;
     /* diffeomorphic-path scratch */
     double *cx = NULL, *cy = NULL, *cz = NULL, *nx = NULL, *ny = NULL, *nz = NULL;
     Point  *inc_points = NULL;
-    polygons_struct query_sphere, warped_trg_sphere;
+    polygons_struct warped_trg_sphere;
     int n = src->n_points;
 
     if (src->n_points != trg->n_points) {
@@ -394,10 +450,16 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     get_polygon_vertex_curvatures_cg(src, n_neighbours, neighbours,
                                      distance, type, curv_src0);
 
-    if (diffeo)
-        min_angle = min_neighbour_angle(src_sphere, n_neighbours, neighbours);
+    min_angle = min_neighbour_angle(src_sphere, n_neighbours, neighbours);
     free(n_neighbours);
     if (neighbours) { free(neighbours[0]); free(neighbours); }
+
+    /* SD constant Tikhonov regularizer: in SD_computeAtlas2SphereInvariantUpdate
+     * the Hessian gets H += I/(max_step^2 * min_step). Mapped into the dartel
+     * theta/phi chart (gradients sampled at +/-THETA, displacement = radius*angle)
+     * this becomes reg = THETA^2 / (sigma_x^2 * min_angle^2). It is constant per
+     * level (depends on resolution via min_angle), unlike a data-dependent term. */
+    reg_const = (THETA * THETA) / (sigma_x * sigma_x * min_angle * min_angle);
 
     normalizeVector(curv_trg0, n);
     normalizeVector(curv_src0, n);
@@ -434,7 +496,6 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         ny = (double *) malloc(sizeof(double) * n);
         nz = (double *) malloc(sizeof(double) * n);
         inc_points = (Point *) malloc(sizeof(Point) * n);
-        copy_polygons(src_sphere, &query_sphere);
     }
 
     count_break = 0;
@@ -471,34 +532,26 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                     Uphi[i]   = idiff*(dphi_trg[i]+dphi_src[i])/denom_trg;
                 }
             } else if (opt->method == 4) {
-                /* Spherical Demons: per-vertex Gauss-Newton with 2x2 Hessian */
+                /* Spherical Demons Gauss-Newton step (Yeo et al. 2010):
+                 *   H = G G^T + reg*I,  residual = idiff*G/2,  u = H^-1 residual
+                 * with the constant Tikhonov reg (reg_const) above. G is the
+                 * symmetric (static + moving) gradient. */
                 double g1 = dtheta_trg[i] + dtheta_src[i];
                 double g2 = dphi_trg[i] + dphi_src[i];
-                double G2 = g1*g1 + g2*g2;
+                double r1 = 0.5 * idiff * g1;
+                double r2 = 0.5 * idiff * g2;
+                double h11 = g1*g1 + reg_const;
+                double h12 = g1*g2;
+                double h22 = g2*g2 + reg_const;
+                double det = h11*h22 - h12*h12;
 
-                if (opt->use_hessian && G2 > 1e-9) {
-                    double sigma_x_sq = sigma_x * sigma_x;
-                    double reg = idiff2 / sigma_x_sq + 0.1;
-                    double h11 = g1*g1 + reg;
-                    double h12 = g1*g2;
-                    double h22 = g2*g2 + reg;
-                    double det = h11*h22 - h12*h12;
-                    double r1 = idiff * g1;
-                    double r2 = idiff * g2;
-
-                    if (fabs(det) > 1e-12) {
-                        Utheta[i] = (h22*r1 - h12*r2) / det;
-                        Uphi[i]   = (-h12*r1 + h11*r2) / det;
-                    } else {
-                        double denom = G2 + reg;
-                        Utheta[i] = idiff * g1 / denom;
-                        Uphi[i]   = idiff * g2 / denom;
-                    }
+                if (opt->use_hessian && fabs(det) > 1e-20) {
+                    Utheta[i] = (h22*r1 - h12*r2) / det;
+                    Uphi[i]   = (-h12*r1 + h11*r2) / det;
                 } else {
-                    double sigma_x_sq = sigma_x * sigma_x;
-                    double denom = G2 + idiff2/sigma_x_sq + 0.01;
-                    Utheta[i] = idiff * g1 / denom;
-                    Uphi[i]   = idiff * g2 / denom;
+                    double denom = g1*g1 + g2*g2 + reg_const;
+                    Utheta[i] = r1 / denom;
+                    Uphi[i]   = r2 / denom;
                 }
             } else {
                 denom_trg = (dtheta_trg[i]*dtheta_trg[i] + dphi_trg[i]*dphi_trg[i]) +
@@ -557,25 +610,28 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                 cx[i] = Point_x(warped_src_sphere->points[i]);
                 cy[i] = Point_y(warped_src_sphere->points[i]);
                 cz[i] = Point_z(warped_src_sphere->points[i]);
-                query_sphere.points[i] = inc_points[i];
             }
-            resample_values_sphere(src_sphere, &query_sphere, cx, nx, 0, 0);
-            resample_values_sphere(src_sphere, &query_sphere, cy, ny, 0, 0);
-            resample_values_sphere(src_sphere, &query_sphere, cz, nz, 0, 0);
+            /* compose curr o exp: sample the running warp at the exp positions
+             * (single cached-bintree pass over the three coordinate channels) */
+            if (src_sphere->bintree != NULL) delete_the_bintree(&src_sphere->bintree);
+            create_polygons_bintree(src_sphere,
+                                    ROUND((double) src_sphere->n_items * BINTREE_FACTOR));
+            resample_xyz(src_sphere, inc_points, n, cx, cy, cz, nx, ny, nz);
+            delete_the_bintree(&src_sphere->bintree);
             for (i = 0; i < n; i++)
                 fill_Point(warped_src_sphere->points[i], nx[i], ny[i], nz[i]);
             normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
 
             /* smooth the accumulated displacement field (elastic prior) */
-            if (opt->smooth_displacement && opt->fwhm_disp > 0.0) {
+            if (opt->smooth_displacement && fwhm_disp_level > 0.0) {
                 for (i = 0; i < n; i++) {
                     cx[i] = Point_x(warped_src_sphere->points[i]) - Point_x(src_sphere->points[i]);
                     cy[i] = Point_y(warped_src_sphere->points[i]) - Point_y(src_sphere->points[i]);
                     cz[i] = Point_z(warped_src_sphere->points[i]) - Point_z(src_sphere->points[i]);
                 }
-                smooth_heatkernel(src, cx, opt->fwhm_disp);
-                smooth_heatkernel(src, cy, opt->fwhm_disp);
-                smooth_heatkernel(src, cz, opt->fwhm_disp);
+                smooth_heatkernel(src, cx, fwhm_disp_level);
+                smooth_heatkernel(src, cy, fwhm_disp_level);
+                smooth_heatkernel(src, cz, fwhm_disp_level);
                 for (i = 0; i < n; i++)
                     fill_Point(warped_src_sphere->points[i],
                                Point_x(src_sphere->points[i]) + cx[i],
@@ -590,9 +646,9 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                 v[i] += Uphi[i];
             }
 
-            if (opt->smooth_displacement && opt->fwhm_disp > 0.0) {
-                smooth_heatkernel(src, u, opt->fwhm_disp);
-                smooth_heatkernel(src, v, opt->fwhm_disp);
+            if (opt->smooth_displacement && fwhm_disp_level > 0.0) {
+                smooth_heatkernel(src, u, fwhm_disp_level);
+                smooth_heatkernel(src, v, fwhm_disp_level);
             }
 
             copy_polygons(src_sphere, warped_src_sphere);
@@ -652,7 +708,6 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         apply_uv_warp(src_sphere, warped_src_sphere, u, v, 0);
 
     if (diffeo) {
-        delete_polygons(&query_sphere);
         free(cx); free(cy); free(cz);
         free(nx); free(ny); free(nz);
         free(inc_points);
@@ -679,24 +734,33 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
 {
     opt->n_points            = 20480;
     opt->method              = 4;
+    /* 2-level coarse-to-fine sulcal-depth pyramid. Empirically this is the
+     * sweet spot: near-Dartel accuracy, fold-free and fast. Finer levels and a
+     * mean-curvature stage are available but tend to overfit the noisy
+     * high-frequency curvature and degrade the overall alignment. */
     opt->n_steps             = 2;
+    opt->level_points[0]     = 5120;
+    opt->level_points[1]     = 20480;
+    opt->level_points[2]     = 81920;
+    opt->level_points[3]     = 327680;
     opt->curvtype[0]         = 5;   /* sulcal-depth-like */
-    opt->curvtype[1]         = 0;   /* mean curvature (averaged over 3mm) */
-    opt->curvtype[2]         = 0;
+    opt->curvtype[1]         = 5;
+    opt->curvtype[2]         = 5;
+    opt->curvtype[3]         = 0;   /* mean curvature (only if a 4th level is used) */
     opt->iters               = 100;
     opt->rotate              = 1;
-    opt->smooth_velocity     = 1;
-    opt->smooth_displacement = 1;
+    opt->smooth_velocity     = 0;   /* SD default: velocity smoothing off */
+    opt->smooth_displacement = 1;   /* SD default: elastic displacement smoothing on */
     opt->use_hessian         = 1;
     opt->use_line_search     = 1;
     opt->use_expmap          = 1;
     opt->fwhm_flow           = 30.0;
     opt->fwhm_curv           = 6.0;
-    opt->fwhm_disp           = 5.0;
+    opt->fwhm_disp           = 10.0;
     opt->rate                = 0.97;
     opt->alpha0              = 0.5;
     opt->max_step_deg        = 10.0;
-    opt->sigma_x             = 1.0;
+    opt->sigma_x             = 2.0;  /* SD max_step = 2 */
     opt->step_factor         = 1.0;
     opt->verbose             = 0;
     opt->debug               = 0;
@@ -708,13 +772,9 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                        polygons_struct *warped_src_sphere,
                        const CAT_WarpDemonsOptions *opt)
 {
-    polygons_struct *sm_src, *sm_trg, *sm_src_sphere, *sm_trg_sphere;
-    polygons_struct *orig_sm_src_sphere;
-    struct dartel_poly *dpoly_src, *dpoly_trg;
+    polygons_struct *cur_sphere;
     double rotation_matrix[9], rot[3];
-    int    i, step, n_points = opt->n_points;
-    object_struct **objects;
-    int dpoly_src_built = 0;
+    int    i, level;
 
     if (src->n_points != src_sphere->n_points ||
         trg->n_points != trg_sphere->n_points) {
@@ -729,84 +789,89 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
     for (i = 0; i < trg_sphere->n_points; i++)
         set_vector_length(&trg_sphere->points[i], SPHERE_RADIUS);
 
-    dpoly_src          = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
-    dpoly_trg          = (struct dartel_poly *) malloc(sizeof(struct dartel_poly));
-    sm_src             = (polygons_struct *) malloc(sizeof(polygons_struct));
-    sm_trg             = (polygons_struct *) malloc(sizeof(polygons_struct));
-    sm_src_sphere      = (polygons_struct *) malloc(sizeof(polygons_struct));
-    sm_trg_sphere      = (polygons_struct *) malloc(sizeof(polygons_struct));
-    orig_sm_src_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
+    /* The running warp is stored at the full input resolution as a deformed
+     * copy of src_sphere (initially the identity). It is resampled down to each
+     * pyramid level, refined, then resampled back up - so the warp accumulates
+     * across the coarse-to-fine levels. */
+    cur_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
+    copy_polygons(src_sphere, cur_sphere);
 
-    resample_spherical_surface(trg, trg_sphere, sm_trg, NULL, NULL, n_points);
-    resample_spherical_surface(src_sphere, src_sphere, sm_src_sphere, NULL, NULL, n_points);
-    resample_spherical_surface(trg_sphere, trg_sphere, sm_trg_sphere, NULL, NULL, n_points);
-    resample_spherical_surface(src, src_sphere, sm_src, NULL, NULL, n_points);
-    init_dartel_poly(sm_trg_sphere, dpoly_trg);
+    for (level = 0; level < opt->n_steps; level++) {
+        int np = (opt->level_points[level] > 0) ? opt->level_points[level]
+                                                 : opt->n_points;
+        int ctype = opt->curvtype[level < CAT_WARP_DEMONS_MAX_STEPS ?
+                                  level : CAT_WARP_DEMONS_MAX_STEPS - 1];
+        /* coarse-to-fine smoothing: SD's iterated neighbour-averaging is tied to
+         * vertex spacing, so scale the (mm) FWHM by vertex spacing (~1/sqrt(np)).
+         * Anchor to a FIXED reference resolution (not the coarsest level) so the
+         * smoothing at a given resolution is independent of pyramid depth. */
+        double scale = sqrt((double) SMOOTH_REF_POINTS / (double) np);
+        double fwhm_level = opt->fwhm_flow * scale;
+        double fwhm_disp_level = opt->fwhm_disp * scale;
+        polygons_struct sm_src, sm_trg, sm_src_sphere, sm_trg_sphere;
+        polygons_struct orig_sphere, level_warped;
+        struct dartel_poly dpoly_src, dpoly_trg;
+        object_struct **objects;
 
-    if (opt->verbose)
-        printf("Resample surfaces to %d points\n", sm_src->n_points);
+        resample_spherical_surface(trg, trg_sphere, &sm_trg, NULL, NULL, np);
+        resample_spherical_surface(trg_sphere, trg_sphere, &sm_trg_sphere, NULL, NULL, np);
+        resample_spherical_surface(src, src_sphere, &sm_src, NULL, NULL, np);
+        resample_spherical_surface(src_sphere, src_sphere, &orig_sphere, NULL, NULL, np);
+        /* current warp resampled onto this level's grid */
+        resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere, NULL, NULL, np);
 
-    copy_polygons(sm_src_sphere, orig_sm_src_sphere);
+        init_dartel_poly(&sm_trg_sphere, &dpoly_trg);
 
-    for (step = 0; step < opt->n_steps; step++) {
-        int ctype = opt->curvtype[step < CAT_WARP_DEMONS_MAX_STEPS ?
-                                  step : CAT_WARP_DEMONS_MAX_STEPS - 1];
-
-        if (step == 0) {
-            smooth_heatkernel(sm_src, NULL, opt->fwhm_curv);
+        if (level == 0) {
+            smooth_heatkernel(&sm_src, NULL, opt->fwhm_curv);
 
             if (opt->rotate) {
-                rotate_polygons_to_atlas(sm_src, sm_src_sphere, sm_trg,
-                                         sm_trg_sphere, 10.0, 5, rot, opt->verbose);
+                rotate_polygons_to_atlas(&sm_src, &sm_src_sphere, &sm_trg,
+                                         &sm_trg_sphere, 10.0, 5, rot, opt->verbose);
                 rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-                rotate_polygons(src_sphere, NULL, rotation_matrix);
-                resample_spherical_surface(src_sphere, src_sphere, sm_src_sphere,
-                                           NULL, NULL, n_points);
+                /* fold the rotation into the running warp, then re-derive the
+                 * level-0 reference sphere from it */
+                rotate_polygons(cur_sphere, NULL, rotation_matrix);
+                delete_polygons(&sm_src_sphere);
+                resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere,
+                                           NULL, NULL, np);
             }
         }
 
-        /* (re)build the source dartel helper on the current reference sphere */
-        if (dpoly_src_built)
-            free_dartel_poly(dpoly_src);
-        init_dartel_poly(sm_src_sphere, dpoly_src);
-        dpoly_src_built = 1;
+        init_dartel_poly(&sm_src_sphere, &dpoly_src);
 
         if (opt->verbose)
-            printf("Stage %d/%d: curvature type %d\n", step+1, opt->n_steps, ctype);
+            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g\n",
+                   level+1, opt->n_steps, np, ctype, fwhm_level);
 
-        warp_demon(sm_src, sm_src_sphere, orig_sm_src_sphere, sm_trg,
-                   sm_trg_sphere, warped_src_sphere, dpoly_src, dpoly_trg,
-                   ctype, opt, opt->fwhm_flow);
+        warp_demon(&sm_src, &sm_src_sphere, &orig_sphere, &sm_trg,
+                   &sm_trg_sphere, &level_warped, &dpoly_src, &dpoly_trg,
+                   ctype, opt, fwhm_level, fwhm_disp_level);
 
-        /* carry the accumulated warp forward to the next stage */
-        if (step < opt->n_steps - 1)
-            copy_polygons(warped_src_sphere, sm_src_sphere);
+        /* carry this level's warp up to the full input resolution */
+        objects = resample_surface_to_target_sphere(&orig_sphere, &level_warped,
+                                                     src_sphere, NULL, NULL, 0, 0);
+        delete_polygons(cur_sphere);
+        copy_polygons(get_polygons_ptr(objects[0]), cur_sphere);
+        delete_object_list(1, objects);
+
+        free_dartel_poly(&dpoly_src);
+        free_dartel_poly(&dpoly_trg);
+        delete_polygons(&sm_src);
+        delete_polygons(&sm_trg);
+        delete_polygons(&sm_src_sphere);
+        delete_polygons(&sm_trg_sphere);
+        delete_polygons(&orig_sphere);
+        delete_polygons(&level_warped);
     }
     if (opt->verbose)
         printf("\n");
 
-    /* resample the warp back to the full input sphere resolution */
-    objects = resample_surface_to_target_sphere(orig_sm_src_sphere,
-                                                 warped_src_sphere, src_sphere,
-                                                 NULL, NULL, 0, 0);
-    copy_polygons(get_polygons_ptr(objects[0]), warped_src_sphere);
+    copy_polygons(cur_sphere, warped_src_sphere);
     compute_polygon_normals(warped_src_sphere);
 
-    delete_object_list(1, objects);
-    if (dpoly_src_built) free_dartel_poly(dpoly_src);
-    free_dartel_poly(dpoly_trg);
-    delete_polygons(sm_src);
-    delete_polygons(sm_trg);
-    delete_polygons(sm_src_sphere);
-    delete_polygons(sm_trg_sphere);
-    delete_polygons(orig_sm_src_sphere);
-    free(sm_src);
-    free(sm_trg);
-    free(sm_src_sphere);
-    free(sm_trg_sphere);
-    free(orig_sm_src_sphere);
-    free(dpoly_src);
-    free(dpoly_trg);
+    delete_polygons(cur_sphere);
+    free(cur_sphere);
 
     return OK;
 }
