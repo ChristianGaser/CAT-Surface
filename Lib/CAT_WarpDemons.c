@@ -822,20 +822,28 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         init_dartel_poly(&sm_trg_sphere, &dpoly_trg);
 
-        if (level == 0) {
+        /* Pre-smooth the surface geometry before curvature estimation. This must
+         * run on every level and on BOTH surfaces (as in CAT_SurfWarpDartel).
+         * Doing it only at level 0 / only on the source made a high-frequency
+         * feature such as mean curvature (type 0) look much worse whenever it was
+         * used at a level other than the coarsest, because that level then saw
+         * the raw, unsmoothed mesh - so a multi-resolution run started its finer
+         * stage from a far lower correlation than the equivalent single stage. */
+        if (opt->fwhm_curv > 0.0) {
             smooth_heatkernel(&sm_src, NULL, opt->fwhm_curv);
+            smooth_heatkernel(&sm_trg, NULL, opt->fwhm_curv);
+        }
 
-            if (opt->rotate) {
-                rotate_polygons_to_atlas(&sm_src, &sm_src_sphere, &sm_trg,
-                                         &sm_trg_sphere, 10.0, 5, rot, opt->verbose);
-                rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-                /* fold the rotation into the running warp, then re-derive the
-                 * level-0 reference sphere from it */
-                rotate_polygons(cur_sphere, NULL, rotation_matrix);
-                delete_polygons(&sm_src_sphere);
-                resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere,
-                                           NULL, NULL, np);
-            }
+        if (level == 0 && opt->rotate) {
+            rotate_polygons_to_atlas(&sm_src, &sm_src_sphere, &sm_trg,
+                                     &sm_trg_sphere, 10.0, 5, rot, opt->verbose);
+            rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
+            /* fold the rotation into the running warp, then re-derive the
+             * level-0 reference sphere from it */
+            rotate_polygons(cur_sphere, NULL, rotation_matrix);
+            delete_polygons(&sm_src_sphere);
+            resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere,
+                                       NULL, NULL, np);
         }
 
         init_dartel_poly(&sm_src_sphere, &dpoly_src);
@@ -848,8 +856,14 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                    &sm_trg_sphere, &level_warped, &dpoly_src, &dpoly_trg,
                    ctype, opt, fwhm_level, fwhm_disp_level);
 
-        /* carry this level's warp up to the full input resolution */
-        objects = resample_surface_to_target_sphere(&orig_sphere, &level_warped,
+        /* Carry this level's warp up to the full input resolution, stored as the
+         * FORWARD map (source grid -> warped position). The next level pulls the
+         * source feature through this via resample_spherical_surface(cur_sphere,
+         * ...), which - like the level-0 rotation above - expects the forward
+         * map. Interpolate level_warped parameterized by orig_sphere to get g;
+         * the previous (orig_sphere, level_warped) order produced the inverse
+         * g^{-1}, so every level past the first was fed the opposite warp. */
+        objects = resample_surface_to_target_sphere(&level_warped, &orig_sphere,
                                                      src_sphere, NULL, NULL, 0, 0);
         delete_polygons(cur_sphere);
         copy_polygons(get_polygons_ptr(objects[0]), cur_sphere);
@@ -867,7 +881,19 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
     if (opt->verbose)
         printf("\n");
 
-    copy_polygons(cur_sphere, warped_src_sphere);
+    /* cur_sphere now holds the forward warp g (source grid -> warped position).
+     * The output sphere is the registered parameterization of the source, i.e.
+     * the inverse map g^{-1}, so that a downstream
+     * resample_surface_to_target_sphere(src_surface, output_sphere, template)
+     * places each source vertex at its template-aligned location. Invert once
+     * here (this is the same convention the single-level output always used). */
+    {
+        object_struct **inv;
+        inv = resample_surface_to_target_sphere(src_sphere, cur_sphere,
+                                                src_sphere, NULL, NULL, 0, 0);
+        copy_polygons(get_polygons_ptr(inv[0]), warped_src_sphere);
+        delete_object_list(1, inv);
+    }
     compute_polygon_normals(warped_src_sphere);
 
     delete_polygons(cur_sphere);
