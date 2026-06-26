@@ -35,18 +35,11 @@ int    n_steps    = 2;
 int    debug      = 0;
 int    iters      = 100;
 int    verbose    = 0;
-double rate       = 0.97;
 double fwhm_flow  = 30.0;
 double fwhm_curv  = 6.0;
 double fwhm_disp  = 10.0;
 double max_step_deg = 10.0;
 double sigma_x_default = 2.0;  /* SD max_step = 2 */
-int    smooth_velocity = 0;    /* SD default: velocity smoothing off */
-int    smooth_displacement = 1;
-int    use_hessian = 1;
-int    use_line_search = 1;
-int    use_expmap  = 1;
-double step_factor = 1.0;
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &src_file,
@@ -67,26 +60,12 @@ static ArgvInfo argTable[] = {
    "Filter size for velocity update in FWHM."},
   {"-fwhm", ARGV_FLOAT, (char *) 1, (char *) &fwhm_curv,
    "Filter size for curvature map in FWHM."},
-  {"-rate", ARGV_FLOAT, (char *) 1, (char *) &rate,
-   "Change of fwhm-flow for each iteration."},
   {"-max-step-deg", ARGV_FLOAT, (char *) 1, (char *) &max_step_deg,
    "Clamp per-iteration |dtheta,dphi| to this many degrees (<=0 disables)."},
   {"-fwhm-disp", ARGV_FLOAT, (char *) 1, (char *) &fwhm_disp,
    "Filter size for displacement field smoothing (elastic prior) in FWHM."},
-  {"-smooth-velocity", ARGV_CONSTANT, (char *) TRUE, (char *) &smooth_velocity,
-   "Enable velocity update smoothing (fluid prior, default OFF as in original SD)."},
-  {"-no-smooth-displacement", ARGV_CONSTANT, (char *) FALSE, (char *) &smooth_displacement,
-   "Disable displacement field smoothing (elastic prior, default ON)."},
   {"-sigma-x", ARGV_FLOAT, (char *) 1, (char *) &sigma_x_default,
    "Regularization weight sigma_x for Spherical Demons (default 1.0)."},
-  {"-step-factor", ARGV_FLOAT, (char *) 1, (char *) &step_factor,
-   "Global step size factor (default 1.0)."},
-  {"-no-hessian", ARGV_CONSTANT, (char *) FALSE, (char *) &use_hessian,
-   "Disable per-vertex Hessian-based update (use gradient only)."},
-  {"-no-line-search", ARGV_CONSTANT, (char *) FALSE, (char *) &use_line_search,
-   "Disable line search during integration."},
-  {"-no-expmap", ARGV_CONSTANT, (char *) FALSE, (char *) &use_expmap,
-   "Disable diffeomorphic scaling-and-squaring exponential map; use additive flow."},
   {"-maxiters", ARGV_INT, (char *) 1, (char *) &iters,
    "Maximum number of iterations per stage."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
@@ -161,18 +140,18 @@ main(int argc, char *argv[])
     opt.curvtype[3]         = curvtype3;
     opt.iters               = iters;
     opt.rotate              = rotate;
-    opt.smooth_velocity     = smooth_velocity;
-    opt.smooth_displacement = smooth_displacement;
-    opt.use_hessian         = use_hessian;
-    opt.use_line_search     = use_line_search;
-    opt.use_expmap          = use_expmap;
+    opt.smooth_velocity     = 1;
+    opt.smooth_displacement = 1;
+    opt.use_hessian         = 1;
+    opt.use_line_search     = 1;
+    opt.use_expmap          = 1;
     opt.fwhm_flow           = fwhm_flow;
     opt.fwhm_curv           = fwhm_curv;
     opt.fwhm_disp           = fwhm_disp;
-    opt.rate                = rate;
+    opt.rate                = 1.0;
     opt.max_step_deg        = max_step_deg;
     opt.sigma_x             = sigma_x_default;
-    opt.step_factor         = step_factor;
+    opt.step_factor         = 1.0;
     opt.verbose             = verbose;
     opt.debug               = debug;
 
