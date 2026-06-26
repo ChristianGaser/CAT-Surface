@@ -37,7 +37,6 @@ typedef struct {
     int    n_points;            /* fallback spherical resolution if level_points unset */
     int    level_points[CAT_WARP_DEMONS_MAX_STEPS]; /* resolution per pyramid level
                                    (coarse -> fine); <=0 falls back to n_points */
-    int    method;              /* demon variant 1..4; 4 = Spherical Demons */
     int    n_steps;             /* number of multi-resolution levels (1..3) */
     int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /* curvature type per level:
                                    0 mean curv (3mm, deg), 1 gaussian,
@@ -49,12 +48,11 @@ typedef struct {
     int    smooth_displacement; /* low-pass the displacement field (elastic prior; SD default on) */
     int    use_hessian;         /* per-vertex Gauss-Newton 2x2 Hessian update */
     int    use_line_search;     /* adaptive step backtracking on stalled CC */
-    int    use_expmap;          /* diffeomorphic scaling-and-squaring (method 4) */
+    int    use_expmap;          /* diffeomorphic scaling-and-squaring exp map */
     double fwhm_flow;           /* FWHM for velocity-update smoothing (fluid) */
     double fwhm_curv;           /* FWHM for the initial curvature smoothing */
     double fwhm_disp;           /* FWHM for displacement-field smoothing (elastic) */
     double rate;                /* per-iteration multiplier for fwhm_flow */
-    double alpha0;              /* demon force normalization weight (methods 1-3) */
     double max_step_deg;        /* clamp per-iteration step (deg); <=0 disables */
     double sigma_x;             /* SD regularization weight (= max_step; SD default 2) */
     double step_factor;         /* global step-size factor */
@@ -65,7 +63,7 @@ typedef struct {
 /**
  * \brief Fill an options struct with the default multi-resolution SD setup.
  *
- * Defaults to method 4 (Spherical Demons) with diffeomorphic integration and a
+ * Uses Spherical Demons (Yeo et al.) with diffeomorphic integration and a
  * 2-level coarse-to-fine sulcal-depth pyramid (5120 -> 20480 points), which is
  * the empirical accuracy/runtime sweet spot. Smoothing FWHM is scaled by mesh
  * spacing, anchored to a fixed reference resolution. Rotation pre-alignment and
@@ -81,9 +79,10 @@ void CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt);
  * \brief Register a source surface to a template by warping its sphere.
  *
  * Resamples both surfaces and their spheres to opt->n_points, optionally
- * applies a rigid rotation pre-alignment, then runs the selected demon method
- * for each feature stage, carrying the accumulated warp forward between stages.
- * The deformed source sphere at full input resolution is returned.
+ * applies a rigid rotation pre-alignment, then runs Spherical Demons
+ * registration for each feature stage, carrying the accumulated warp forward
+ * between stages. The deformed source sphere at full input resolution is
+ * returned.
  *
  * \param src               (in)  source cortical surface mesh
  * \param src_sphere        (in)  spherical parameterization of src

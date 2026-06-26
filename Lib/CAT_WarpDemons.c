@@ -4,11 +4,11 @@
  *
  * Copyright Christian Gaser, University of Jena.
  *
- * Demon-based spherical surface registration. See CAT_WarpDemons.h for the
- * public interface. Method 4 (Spherical Demons, Yeo et al. IEEE TMI 2010)
- * integrates each Gauss-Newton velocity update with a scaling-and-squaring
- * exponential map and composes it onto the running warp, mirroring
- * SD_SphericalExpMap.m / SD_registerAtlas2Sphere.m from the reference toolbox.
+ * Demon-based spherical surface registration (Spherical Demons, Yeo et al. IEEE
+ * TMI 2010). See CAT_WarpDemons.h for the public interface. Each Gauss-Newton
+ * velocity update is integrated with a scaling-and-squaring exponential map and
+ * composed onto the running warp, mirroring SD_SphericalExpMap.m /
+ * SD_registerAtlas2Sphere.m from the reference toolbox.
  */
 
 #include <bicpl.h>
@@ -36,7 +36,7 @@
 #define SMOOTH_REF_POINTS 5120
 
 /* The running warp is integrated by composing exp(v) with inverse direction,
- * matching the convention of the original additive method-4 update. */
+ * matching the convention of the additive theta/phi update. */
 #define EXP_INVERSE 1
 
 /**
@@ -371,9 +371,10 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
  * \brief Run one demon registration stage on a single feature.
  *
  * Computes the chosen curvature feature for both surfaces, then iteratively
- * estimates and applies an update to the source sphere. Method 4 with
- * use_expmap composes a diffeomorphic exponential-map update onto the running
- * warp; all other methods accumulate an additive theta/phi flow.
+ * estimates and applies an update to the source sphere (Spherical Demons, Yeo
+ * et al. 2010). With use_expmap the update is composed onto the running warp via
+ * a diffeomorphic exponential map; without it it accumulates as an additive
+ * theta/phi flow.
  *
  * \param src               (in)  source surface (feature + smoothing support)
  * \param src_sphere        (in)  current reference sphere for the source
@@ -399,19 +400,17 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
 {
     int    *n_neighbours, **neighbours;
     int    i, it, count_break;
-    int    diffeo = (opt->method == 4 && opt->use_expmap);
-    double idiff, denom_trg, denom_src, sum_diff2;
+    int    diffeo = opt->use_expmap;
+    double idiff, sum_diff2;
     double *curv_trg0, *curv_trg, *curv_src0, *curv_src, cc, old_cc, distance;
     double *dtheta_trg, *dphi_trg, *dtheta_src, *dphi_src, *u, *v, *Utheta, *Uphi;
     double fwhm_flow = fwhm_flow_start;
     double min_angle = 0.0, reg_const;
     double step_factor = opt->step_factor;
-    double alpha0 = opt->alpha0;
     double sigma_x = opt->sigma_x;
     /* diffeomorphic-path scratch */
     double *cx = NULL, *cy = NULL, *cz = NULL, *nx = NULL, *ny = NULL, *nz = NULL;
     Point  *inc_points = NULL;
-    polygons_struct warped_trg_sphere;
     int n = src->n_points;
 
     if (src->n_points != trg->n_points) {
@@ -502,17 +501,11 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     old_cc = -FLT_MAX;
 
     copy_polygons(src_sphere, warped_src_sphere);
-    if (opt->method == 3)
-        copy_polygons(trg_sphere, &warped_trg_sphere);
 
     for (it = 0; it < opt->iters; it++) {
 
         /* gradient of the moving (source) feature */
-        if (opt->method > 1)
-            gradient_poly(src_sphere, dpoly_src, curv_src, dtheta_src, dphi_src);
-
-        if (opt->method == 3)
-            gradient_poly(trg_sphere, dpoly_trg, curv_trg, dtheta_trg, dphi_trg);
+        gradient_poly(src_sphere, dpoly_src, curv_src, dtheta_src, dphi_src);
 
         sum_diff2 = 0.0;
         for (i = 0; i < n; i++) {
@@ -520,18 +513,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
             double idiff2 = idiff * idiff;
             sum_diff2 += idiff2;
 
-            if (opt->method == 3) {
-                denom_trg = (dtheta_trg[i]*dtheta_trg[i] + dphi_trg[i]*dphi_trg[i] +
-                             dtheta_src[i]*dtheta_src[i] + dphi_src[i]*dphi_src[i]) +
-                            alpha0*alpha0*idiff2;
-                if (denom_trg == 0.0) {
-                    Utheta[i] = 0.0;
-                    Uphi[i] = 0.0;
-                } else {
-                    Utheta[i] = idiff*(dtheta_trg[i]+dtheta_src[i])/denom_trg;
-                    Uphi[i]   = idiff*(dphi_trg[i]+dphi_src[i])/denom_trg;
-                }
-            } else if (opt->method == 4) {
+            {
                 /* Spherical Demons Gauss-Newton step (Yeo et al. 2010):
                  *   H = G G^T + reg*I,  residual = idiff*G/2,  u = H^-1 residual
                  * with the constant Tikhonov reg (reg_const) above. G is the
@@ -552,26 +534,6 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                     double denom = g1*g1 + g2*g2 + reg_const;
                     Utheta[i] = r1 / denom;
                     Uphi[i]   = r2 / denom;
-                }
-            } else {
-                denom_trg = (dtheta_trg[i]*dtheta_trg[i] + dphi_trg[i]*dphi_trg[i]) +
-                            alpha0*alpha0*idiff2;
-                if (opt->method == 2)
-                    denom_src = (dtheta_src[i]*dtheta_src[i] + dphi_src[i]*dphi_src[i]) +
-                                alpha0*alpha0*idiff2;
-                else
-                    denom_src = 1.0;
-
-                if ((denom_trg == 0.0) || (denom_src == 0.0)) {
-                    Utheta[i] = 0.0;
-                    Uphi[i] = 0.0;
-                } else {
-                    Utheta[i] = idiff*dtheta_trg[i]/denom_trg;
-                    Uphi[i]   = idiff*dphi_trg[i]/denom_trg;
-                    if (opt->method == 2) {
-                        Utheta[i] += idiff*dtheta_src[i]/denom_src;
-                        Uphi[i]   += idiff*dphi_src[i]/denom_src;
-                    }
                 }
             }
         }
@@ -640,7 +602,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                 normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
             }
         } else {
-            /* additive theta/phi flow (methods 1-3 / -no-expmap fallback) */
+            /* additive theta/phi flow (-no-expmap fallback) */
             for (i = 0; i < n; i++) {
                 u[i] += Utheta[i];
                 v[i] += Uphi[i];
@@ -659,14 +621,6 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         /* pull the source feature through the accumulated warp */
         resample_values_sphere(orig_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);
         normalizeVector(curv_src, n);
-
-        if (opt->method == 3) {
-            copy_polygons(trg_sphere, &warped_trg_sphere);
-            apply_uv_warp(&warped_trg_sphere, &warped_trg_sphere, u, v, 0);
-            normalize_sphere_radius(&warped_trg_sphere, SPHERE_RADIUS);
-            resample_values_sphere(trg_sphere, &warped_trg_sphere, curv_trg0, curv_trg, 0, 0);
-            normalizeVector(curv_trg, n);
-        }
 
         cc = Correlation(curv_src, curv_trg, n);
         if (opt->verbose)
@@ -703,17 +657,11 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         output_values_any_format("warped_curv.txt", n, curv_src, TYPE_DOUBLE);
     }
 
-    /* invert deformation for methods that need the inverse transform */
-    if (opt->method != 4)
-        apply_uv_warp(src_sphere, warped_src_sphere, u, v, 0);
-
     if (diffeo) {
         free(cx); free(cy); free(cz);
         free(nx); free(ny); free(nz);
         free(inc_points);
     }
-    if (opt->method == 3)
-        delete_polygons(&warped_trg_sphere);
 
     free(curv_src0);
     free(curv_src);
@@ -733,7 +681,6 @@ void
 CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
 {
     opt->n_points            = 20480;
-    opt->method              = 4;
     /* 2-level coarse-to-fine sulcal-depth pyramid. Empirically this is the
      * sweet spot: near-Dartel accuracy, fold-free and fast. Finer levels and a
      * mean-curvature stage are available but tend to overfit the noisy
@@ -758,7 +705,6 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->fwhm_curv           = 6.0;
     opt->fwhm_disp           = 10.0;
     opt->rate                = 0.97;
-    opt->alpha0              = 0.5;
     opt->max_step_deg        = 10.0;
     opt->sigma_x             = 2.0;  /* SD max_step = 2 */
     opt->step_factor         = 1.0;

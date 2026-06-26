@@ -34,13 +34,11 @@ int    curvtype3  = 0;   /* level 3: mean curvature (only with -steps 4) */
 int    n_steps    = 2;
 int    debug      = 0;
 int    iters      = 100;
-int    method     = 4;   /* Spherical Demons */
 int    verbose    = 0;
 double rate       = 0.97;
 double fwhm_flow  = 30.0;
 double fwhm_curv  = 6.0;
 double fwhm_disp  = 10.0;
-double alpha0     = 0.5;
 double max_step_deg = 10.0;
 double sigma_x_default = 2.0;  /* SD max_step = 2 */
 int    smooth_velocity = 0;    /* SD default: velocity smoothing off */
@@ -71,8 +69,6 @@ static ArgvInfo argTable[] = {
    "Filter size for curvature map in FWHM."},
   {"-rate", ARGV_FLOAT, (char *) 1, (char *) &rate,
    "Change of fwhm-flow for each iteration."},
-  {"-alpha", ARGV_FLOAT, (char *) 1, (char *) &alpha0,
-   "Demon force normalization weight ALPHA."},
   {"-max-step-deg", ARGV_FLOAT, (char *) 1, (char *) &max_step_deg,
    "Clamp per-iteration |dtheta,dphi| to this many degrees (<=0 disables)."},
   {"-fwhm-disp", ARGV_FLOAT, (char *) 1, (char *) &fwhm_disp,
@@ -90,13 +86,11 @@ static ArgvInfo argTable[] = {
   {"-no-line-search", ARGV_CONSTANT, (char *) FALSE, (char *) &use_line_search,
    "Disable line search during integration."},
   {"-no-expmap", ARGV_CONSTANT, (char *) FALSE, (char *) &use_expmap,
-   "Disable diffeomorphic scaling-and-squaring exponential map (method 4); use additive flow."},
+   "Disable diffeomorphic scaling-and-squaring exponential map; use additive flow."},
   {"-maxiters", ARGV_INT, (char *) 1, (char *) &iters,
    "Maximum number of iterations per stage."},
   {"-steps", ARGV_INT, (char *) 1, (char *) &n_steps,
    "Number of multi-resolution pyramid levels (1-3, coarse to fine)."},
-  {"-method", ARGV_INT, (char *) 1, (char *) &method,
-   "Demon method \n\t1 - Thirions approach using passive force only (Thirion JP Med. Image Anal. 2 243-60, 1998)\n\t2 - Accelerated demon using active and passive forces (Wang et al. Phys. Med. Biol. 50 2887-905, 2005)\n\t3 - Fast inverse consistent demon (Yang et al. Phys. Med. Biol. 53 6143-65, 2008)\n\t4 - Spherical Demons (Yeo et al. IEEE TMI 29 469-486, 2010)"},
   {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
    "Don't rotate input surface before warping."},
   {"-type0", ARGV_INT, (char *) 1, (char *) &curvtype0,
@@ -160,7 +154,6 @@ main(int argc, char *argv[])
     /* fill options from defaults, then apply parsed overrides */
     CAT_WarpDemonsDefaults(&opt);
     opt.n_points            = n_points;
-    opt.method              = method;
     opt.n_steps             = n_steps;
     opt.curvtype[0]         = curvtype0;
     opt.curvtype[1]         = curvtype1;
@@ -177,7 +170,6 @@ main(int argc, char *argv[])
     opt.fwhm_curv           = fwhm_curv;
     opt.fwhm_disp           = fwhm_disp;
     opt.rate                = rate;
-    opt.alpha0              = alpha0;
     opt.max_step_deg        = max_step_deg;
     opt.sigma_x             = sigma_x_default;
     opt.step_factor         = step_factor;
