@@ -540,8 +540,8 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
 
         /* low-pass the velocity update (fluid prior) */
         if (opt->smooth_velocity) {
-            smooth_heatkernel(src, Utheta, fwhm_flow);
-            smooth_heatkernel(src, Uphi, fwhm_flow);
+            smooth_heatkernel(orig_sphere, Utheta, fwhm_flow);
+            smooth_heatkernel(orig_sphere, Uphi, fwhm_flow);
         }
 
         /* clamp per-vertex step to limit overshoot/folding */
@@ -584,21 +584,26 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                 fill_Point(warped_src_sphere->points[i], nx[i], ny[i], nz[i]);
             normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
 
-            /* smooth the accumulated displacement field (elastic prior) */
+            /* Smooth the accumulated displacement field (elastic prior), as in
+             * SD: regularize the TOTAL warp measured against the undeformed
+             * sphere (orig_sphere), not just this level's increment, and smooth
+             * on the sphere (uniform metric) rather than the folded cortex. This
+             * re-imposes smoothness on the carried coarse warp at every finer
+             * level and keeps the total deformation from accumulating roughness. */
             if (opt->smooth_displacement && fwhm_disp_level > 0.0) {
                 for (i = 0; i < n; i++) {
-                    cx[i] = Point_x(warped_src_sphere->points[i]) - Point_x(src_sphere->points[i]);
-                    cy[i] = Point_y(warped_src_sphere->points[i]) - Point_y(src_sphere->points[i]);
-                    cz[i] = Point_z(warped_src_sphere->points[i]) - Point_z(src_sphere->points[i]);
+                    cx[i] = Point_x(warped_src_sphere->points[i]) - Point_x(orig_sphere->points[i]);
+                    cy[i] = Point_y(warped_src_sphere->points[i]) - Point_y(orig_sphere->points[i]);
+                    cz[i] = Point_z(warped_src_sphere->points[i]) - Point_z(orig_sphere->points[i]);
                 }
-                smooth_heatkernel(src, cx, fwhm_disp_level);
-                smooth_heatkernel(src, cy, fwhm_disp_level);
-                smooth_heatkernel(src, cz, fwhm_disp_level);
+                smooth_heatkernel(orig_sphere, cx, fwhm_disp_level);
+                smooth_heatkernel(orig_sphere, cy, fwhm_disp_level);
+                smooth_heatkernel(orig_sphere, cz, fwhm_disp_level);
                 for (i = 0; i < n; i++)
                     fill_Point(warped_src_sphere->points[i],
-                               Point_x(src_sphere->points[i]) + cx[i],
-                               Point_y(src_sphere->points[i]) + cy[i],
-                               Point_z(src_sphere->points[i]) + cz[i]);
+                               Point_x(orig_sphere->points[i]) + cx[i],
+                               Point_y(orig_sphere->points[i]) + cy[i],
+                               Point_z(orig_sphere->points[i]) + cz[i]);
                 normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
             }
         } else {
@@ -609,8 +614,8 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
             }
 
             if (opt->smooth_displacement && fwhm_disp_level > 0.0) {
-                smooth_heatkernel(src, u, fwhm_disp_level);
-                smooth_heatkernel(src, v, fwhm_disp_level);
+                smooth_heatkernel(orig_sphere, u, fwhm_disp_level);
+                smooth_heatkernel(orig_sphere, v, fwhm_disp_level);
             }
 
             copy_polygons(src_sphere, warped_src_sphere);
@@ -752,7 +757,6 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
          * Anchor to a FIXED reference resolution (not the coarsest level) so the
          * smoothing at a given resolution is independent of pyramid depth. */
         double scale = sqrt((double) SMOOTH_REF_POINTS / (double) np);
-        scale = 1.0; /* */
         double fwhm_level = opt->fwhm_flow * scale;
         double fwhm_disp_level = opt->fwhm_disp * scale;
         polygons_struct sm_src, sm_trg, sm_src_sphere, sm_trg_sphere;
