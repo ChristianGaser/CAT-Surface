@@ -51,6 +51,7 @@ def spherical_demon(source_surface,
                     bint use_hessian=True,
                     bint use_line_search=True,
                     bint use_expmap=True,
+                    std_map=None,
                     bint verbose=False,
                     bint debug=False):
     """
@@ -106,6 +107,12 @@ def spherical_demon(source_surface,
     use_expmap : bool
         Diffeomorphic scaling-and-squaring exponential map (default True).
         If False, falls back to an additive theta/phi flow.
+    std_map : array_like or None
+        Optional per-vertex standard deviation of the (mean-curvature) feature,
+        defined on the TEMPLATE mesh (one value per ``target_sphere`` vertex).
+        When given, the Gauss-Newton data term is locally weighted by
+        1/variance (atlas-style template registration, as in Spherical Demons);
+        the map is resampled internally to each pyramid level.  Default None.
     verbose : bool
         Print per-iteration progress (default False).
     debug : bool
@@ -169,6 +176,18 @@ def spherical_demon(source_surface,
     opt.step_factor         = step_factor
     opt.verbose             = 1 if verbose else 0
     opt.debug               = 1 if debug else 0
+
+    # Optional template std map -> local 1/variance weighting (atlas mode).
+    # Held in std_arr for the duration of the call so opt.std_map stays valid.
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] std_arr
+    cdef int n_trg = tsph_mesh.ptr().n_points
+    if std_map is not None:
+        std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
+        if std_arr.shape[0] != n_trg:
+            raise ValueError(
+                "std_map must have one value per template vertex (%d), got %d"
+                % (n_trg, std_arr.shape[0]))
+        opt.std_map = &std_arr[0]
 
     # Build the coarse-to-fine pyramid: finest level = n_points, each coarser
     # level uses 1/4 of the points (mirrors the CLI).
