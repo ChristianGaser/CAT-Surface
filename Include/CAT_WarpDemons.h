@@ -51,6 +51,12 @@ typedef struct {
     double max_step_deg;        /* clamp per-iteration step (deg); <=0 disables */
     double sigma_x;             /* SD regularization weight (= max_step; SD default 2) */
     double step_factor;         /* global step-size factor */
+    double *std_map;            /* optional per-vertex std of the (mean-curvature)
+                                   feature on the TEMPLATE mesh, length
+                                   trg->n_points. When set, the Gauss-Newton data
+                                   term is locally weighted by 1/variance
+                                   (atlas-style, as in SD template registration);
+                                   resampled to each pyramid level. NULL = off. */
     int    verbose;             /* print per-iteration progress */
     int    debug;               /* write intermediate debug files */
 } CAT_WarpDemonsOptions;

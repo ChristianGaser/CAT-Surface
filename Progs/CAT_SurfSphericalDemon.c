@@ -24,6 +24,7 @@ char  *trg_file            = NULL;
 char  *trg_sphere_file     = NULL;
 char  *output_surface_file = NULL;
 char  *output_sphere_file  = NULL;
+char  *std_file            = NULL;
 
 int    n_points   = 20480;  /* finest pyramid level; coarser levels are 1/4 each */
 int    rotate     = 1;
@@ -50,6 +51,8 @@ static ArgvInfo argTable[] = {
    "Template file."},
   {"-ts", ARGV_STRING, (char *) 1, (char *) &trg_sphere_file,
    "Template sphere file."},
+  {"-stdmap", ARGV_STRING, (char *) 1, (char *) &std_file,
+   "Per-vertex std map of (mean-curvature) feature on the TEMPLATE mesh. When\n\tgiven, the update is locally weighted by 1/variance (atlas-style template\n\tregistration, as in Spherical Demons). Must match the template vertex count;\n\tresampled internally to each pyramid level."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file,
    "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file,
@@ -154,6 +157,21 @@ main(int argc, char *argv[])
     opt.step_factor         = 1.0;
     opt.verbose             = verbose;
     opt.debug               = debug;
+
+    /* Optional template std map for local 1/variance weighting (atlas mode).
+     * Values live on the template mesh, so the count must match trg. */
+    if (std_file != NULL) {
+        int n_std;
+        double *std_values;
+        if (input_values_any_format(std_file, &n_std, &std_values) != OK)
+            return EXIT_FAILURE;
+        if (n_std != trg->n_points) {
+            fprintf(stderr, "Std map has %d values but template has %d points.\n",
+                    n_std, trg->n_points);
+            return EXIT_FAILURE;
+        }
+        opt.std_map = std_values;
+    }
 
     if (opt.n_steps < 1) opt.n_steps = 1;
     if (opt.n_steps > CAT_WARP_DEMONS_MAX_STEPS) opt.n_steps = CAT_WARP_DEMONS_MAX_STEPS;

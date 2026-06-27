@@ -388,6 +388,9 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
  * \param opt               (in)  registration options
  * \param fwhm_flow_start   (in)  initial velocity-smoothing FWHM for this level
  * \param fwhm_disp_level   (in)  displacement-smoothing FWHM for this level
+ * \param std_level         (in)  per-vertex template feature std at this level's
+ *                                resolution for local 1/variance weighting, or
+ *                                NULL to weight all vertices equally
  * \return void
  */
 static void
@@ -396,12 +399,13 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
            polygons_struct *trg_sphere, polygons_struct *warped_src_sphere,
            struct dartel_poly *dpoly_src, struct dartel_poly *dpoly_trg,
            int type, const CAT_WarpDemonsOptions *opt, double fwhm_flow_start,
-           double fwhm_disp_level)
+           double fwhm_disp_level, double *std_level)
 {
     int    *n_neighbours, **neighbours;
     int    i, it, count_break;
     int    diffeo = opt->use_expmap;
     double idiff, sum_diff2;
+    double *data_w = NULL;
     double *curv_trg0, *curv_trg, *curv_src0, *curv_src, cc, old_cc, distance;
     double *dtheta_trg, *dphi_trg, *dtheta_src, *dphi_src, *u, *v, *Utheta, *Uphi;
     double fwhm_flow = fwhm_flow_start;
@@ -463,6 +467,29 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     normalizeVector(curv_trg0, n);
     normalizeVector(curv_src0, n);
 
+    /* Local variance weighting (atlas-style, as in SD template registration):
+     * down-weight the data term where the template feature is highly variable.
+     * weight = 1/std^2, floored against near-zero std and mean-normalized to 1 so
+     * the average data-term weight (and thus the reg_const calibration) is kept. */
+    if (std_level != NULL) {
+        double *tmp = (double *) malloc(sizeof(double) * n);
+        double med, floor_std, mean_w = 0.0;
+        for (i = 0; i < n; i++) tmp[i] = std_level[i];
+        med = get_median_double(tmp, n, 0);
+        free(tmp);
+        floor_std = 0.1 * (med > 1e-20 ? med : 1.0);
+        data_w = (double *) malloc(sizeof(double) * n);
+        for (i = 0; i < n; i++) {
+            double s = std_level[i];
+            if (s < floor_std) s = floor_std;
+            data_w[i] = 1.0 / (s * s);
+            mean_w += data_w[i];
+        }
+        mean_w /= (double) n;
+        if (mean_w > 1e-20)
+            for (i = 0; i < n; i++) data_w[i] /= mean_w;
+    }
+
     for (i = 0; i < n; i++) {
         curv_trg[i] = curv_trg0[i];
         u[i] = 0.0;
@@ -515,23 +542,26 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
 
             {
                 /* Spherical Demons Gauss-Newton step (Yeo et al. 2010):
-                 *   H = G G^T + reg*I,  residual = idiff*G/2,  u = H^-1 residual
+                 *   H = w G G^T + reg*I,  residual = w*idiff*G/2,  u = H^-1 res
                  * with the constant Tikhonov reg (reg_const) above. G is the
-                 * symmetric (static + moving) gradient. */
+                 * symmetric (static + moving) gradient. w is the per-vertex
+                 * 1/variance weight (1 when no std map is given); it scales the
+                 * data term but not the regularizer, matching SD's atlas update. */
+                double w = (data_w != NULL) ? data_w[i] : 1.0;
                 double g1 = dtheta_trg[i] + dtheta_src[i];
                 double g2 = dphi_trg[i] + dphi_src[i];
-                double r1 = 0.5 * idiff * g1;
-                double r2 = 0.5 * idiff * g2;
-                double h11 = g1*g1 + reg_const;
-                double h12 = g1*g2;
-                double h22 = g2*g2 + reg_const;
+                double r1 = 0.5 * w * idiff * g1;
+                double r2 = 0.5 * w * idiff * g2;
+                double h11 = w*g1*g1 + reg_const;
+                double h12 = w*g1*g2;
+                double h22 = w*g2*g2 + reg_const;
                 double det = h11*h22 - h12*h12;
 
                 if (opt->use_hessian && fabs(det) > 1e-20) {
                     Utheta[i] = (h22*r1 - h12*r2) / det;
                     Uphi[i]   = (-h12*r1 + h11*r2) / det;
                 } else {
-                    double denom = g1*g1 + g2*g2 + reg_const;
+                    double denom = w*(g1*g1 + g2*g2) + reg_const;
                     Utheta[i] = r1 / denom;
                     Uphi[i]   = r2 / denom;
                 }
@@ -667,6 +697,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         free(nx); free(ny); free(nz);
         free(inc_points);
     }
+    if (data_w != NULL) free(data_w);
 
     free(curv_src0);
     free(curv_src);
@@ -724,6 +755,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->max_step_deg        = 10.0;
     opt->sigma_x             = 2.0;  /* SD max_step = 2 */
     opt->step_factor         = 1.0;
+    opt->std_map             = NULL; /* no local variance weighting by default */
     opt->verbose             = 0;
     opt->debug               = 0;
 }
@@ -792,6 +824,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         polygons_struct orig_sphere, level_warped;
         struct dartel_poly dpoly_src, dpoly_trg;
         object_struct **objects;
+        double *std_level = NULL;
 
         resample_spherical_surface(trg, trg_sphere, &sm_trg, NULL, NULL, np);
         resample_spherical_surface(trg_sphere, trg_sphere, &sm_trg_sphere, NULL, NULL, np);
@@ -828,13 +861,22 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         init_dartel_poly(&sm_src_sphere, &dpoly_src);
 
+        /* Resample the template std map (defined at full template resolution)
+         * onto this level's template grid for local 1/variance weighting. */
+        if (opt->std_map != NULL) {
+            std_level = (double *) malloc(sizeof(double) * np);
+            resample_values_sphere(trg_sphere, &sm_trg_sphere, opt->std_map,
+                                   std_level, 0, 0);
+        }
+
         if (opt->verbose)
-            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g\n",
-                   level+1, opt->n_steps, np, ctype, fwhm_level);
+            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s\n",
+                   level+1, opt->n_steps, np, ctype, fwhm_level,
+                   std_level ? ", std-weighted" : "");
 
         warp_demon(&sm_src, &sm_src_sphere, &orig_sphere, &sm_trg,
                    &sm_trg_sphere, &level_warped, &dpoly_src, &dpoly_trg,
-                   ctype, opt, fwhm_level, fwhm_disp_level);
+                   ctype, opt, fwhm_level, fwhm_disp_level, std_level);
 
         /* Carry this level's warp up to the full input resolution, stored as the
          * FORWARD map (source grid -> warped position). The next level pulls the
@@ -857,6 +899,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         delete_polygons(&sm_trg_sphere);
         delete_polygons(&orig_sphere);
         delete_polygons(&level_warped);
+        if (std_level != NULL) free(std_level);
     }
     if (opt->verbose)
         printf("\n");
