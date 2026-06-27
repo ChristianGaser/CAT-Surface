@@ -107,6 +107,9 @@ from cat_surf._vol2surf import vol2surf
 # --- DARTEL spherical surface registration ---
 from cat_surf._surf_warp import surf_warp
 
+# --- Spherical Demons spherical surface registration ---
+from cat_surf._spherical_demon import spherical_demon
+
 
 def surf2roi_multi(units):
     """Resample annotations and compute per-ROI means for multiple units.
@@ -342,4 +345,6 @@ __all__ = [
     "vol2surf",
     # DARTEL surface warp
     "surf_warp",
+    # Spherical Demons surface registration
+    "spherical_demon",
 ]

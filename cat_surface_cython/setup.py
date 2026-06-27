@@ -177,6 +177,11 @@ extensions = [
         [os.path.join("cat_surf", "_surf_warp" + ext_suffix)],
         **common_kwargs,
     ),
+    Extension(
+        "cat_surf._spherical_demon",
+        [os.path.join("cat_surf", "_spherical_demon" + ext_suffix)],
+        **common_kwargs,
+    ),
 ]
 
 if USE_CYTHON:
