@@ -752,6 +752,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
          * Anchor to a FIXED reference resolution (not the coarsest level) so the
          * smoothing at a given resolution is independent of pyramid depth. */
         double scale = sqrt((double) SMOOTH_REF_POINTS / (double) np);
+        scale = 1.0; /* */
         double fwhm_level = opt->fwhm_flow * scale;
         double fwhm_disp_level = opt->fwhm_disp * scale;
         polygons_struct sm_src, sm_trg, sm_src_sphere, sm_trg_sphere;

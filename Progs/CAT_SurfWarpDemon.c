@@ -35,10 +35,10 @@ int    n_steps    = 2;
 int    debug      = 0;
 int    iters      = 100;
 int    verbose    = 0;
-double fwhm_flow  = 30.0;
-double fwhm_curv  = 6.0;
+double fwhm_flow  = 5.0;
+double fwhm_curv  = 1.0;
 double fwhm_disp  = 10.0;
-double max_step_deg = 10.0;
+double max_step_deg = 15.0;
 double sigma_x_default = 2.0;  /* SD max_step = 2 */
 
 static ArgvInfo argTable[] = {
