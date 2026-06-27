@@ -88,7 +88,7 @@ bin_PROGRAMS = \
     CAT_SurfFixTopology \
     CAT_SurfIsometize \
     CAT_SurfWarp \
-    CAT_SurfWarpDemon \
+    CAT_SurfSphericalDemon \
     CAT_SurfSmoothAreal \
     CAT_SurfSmoothLaplacian \
     CAT_SurfSmoothConvexity \
