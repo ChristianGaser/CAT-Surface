@@ -682,6 +682,17 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     free(Uphi);
 }
 
+/**
+ * \brief Fill an options struct with the default Spherical Demons setup.
+ *
+ * Initializes every field of \p opt to the default multi-resolution Spherical
+ * Demons configuration (2-level coarse-to-fine sulcal-depth pyramid, 5120 ->
+ * 20480 points, diffeomorphic integration, constant Tikhonov regularization).
+ * Override individual fields afterwards before calling CAT_WarpDemonsRegister().
+ *
+ * \param opt (out) options struct to initialize
+ * \return void
+ */
 void
 CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
 {
@@ -717,6 +728,24 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->debug               = 0;
 }
 
+/**
+ * \brief Register a source surface to a template by warping its sphere.
+ *
+ * Runs Spherical Demons over a coarse-to-fine pyramid: at each level both
+ * surfaces and spheres are resampled to opt->level_points[level], the chosen
+ * curvature feature is matched, and the accumulated warp is carried forward to
+ * the next (finer) level. An optional rigid rotation pre-aligns the coarsest
+ * level. \p src and \p src_sphere (and likewise \p trg / \p trg_sphere) must
+ * share vertex count and topology.
+ *
+ * \param src               (in)  source cortical surface mesh
+ * \param src_sphere        (in)  spherical parameterization of \p src
+ * \param trg               (in)  template cortical surface mesh
+ * \param trg_sphere        (in)  spherical parameterization of \p trg
+ * \param warped_src_sphere (out) deformed source sphere at full input resolution
+ * \param opt               (in)  registration options (see CAT_WarpDemonsDefaults)
+ * \return OK on success, ERROR if the surface/sphere sizes are inconsistent
+ */
 Status
 CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                        polygons_struct *trg, polygons_struct *trg_sphere,

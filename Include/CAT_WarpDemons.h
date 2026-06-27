@@ -1,19 +1,14 @@
 /*
  * CAT_WarpDemons.h
  *
- * Demon-based spherical surface registration driver used by CAT_SurfWarpDemon.
+ * Spherical Demons surface registration driver used by CAT_SurfSphericalDemon.
  *
- * Implements four demon variants for matching a source cortical surface to a
- * template by deforming the source sphere:
- *   1 - Thirion's passive-force demons (Thirion, Med. Image Anal. 1998)
- *   2 - Accelerated active+passive demons (Wang et al., PMB 2005)
- *   3 - Fast inverse-consistent demons (Yang et al., PMB 2008)
- *   4 - Spherical Demons (Yeo et al., IEEE TMI 2010) - default
- *
- * Method 4 performs a diffeomorphic update: each per-vertex Gauss-Newton
- * velocity step is integrated with a scaling-and-squaring exponential map and
- * composed onto the running warp, mirroring SD_SphericalExpMap.m from the
- * reference Spherical Demons toolbox.
+ * Matches a source cortical surface to a template by deforming the source
+ * sphere (Spherical Demons, Yeo et al., IEEE TMI 2010). Each per-vertex
+ * Gauss-Newton velocity step is integrated with a scaling-and-squaring
+ * exponential map and composed onto the running warp, mirroring
+ * SD_SphericalExpMap.m from the reference Spherical Demons toolbox. The warp is
+ * refined coarse-to-fine over a multi-resolution pyramid.
  */
 
 #ifndef CAT_WARP_DEMONS_H

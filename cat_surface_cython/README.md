@@ -80,6 +80,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `surf_to_pial_white` | Estimate pial + white surfaces from a central surface | `CAT_Surf2PialWhite` |
 | `central_to_pial` | Generate a pial surface from central + thickness | — |
 | `surf_warp` | DARTEL-based spherical registration | `CAT_SurfWarp` |
+| `spherical_demon` | Spherical Demons spherical registration | `CAT_SurfSphericalDemon` |
 
 ### Volume operations
 
