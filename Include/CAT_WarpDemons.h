@@ -44,6 +44,8 @@ typedef struct {
     int    use_hessian;         /* per-vertex Gauss-Newton 2x2 Hessian update */
     int    use_line_search;     /* adaptive step backtracking on stalled CC */
     int    use_expmap;          /* diffeomorphic scaling-and-squaring exp map */
+    int    use_tangent;         /* per-vertex tangent-plane update (SD) instead of
+                                   the global lat-lon chart; requires use_expmap */
     double fwhm_flow;           /* FWHM for velocity-update smoothing (fluid) */
     double fwhm_curv;           /* FWHM for the initial curvature smoothing */
     double fwhm_disp;           /* FWHM for displacement-field smoothing (elastic) */

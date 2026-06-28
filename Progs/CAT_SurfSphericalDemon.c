@@ -32,16 +32,17 @@ int    curvtype0  = 5;   /* level 0: sulcal-depth-like (coarsest) */
 int    curvtype1  = 0;   /* level 1: sulcal-depth-like */
 int    curvtype2  = 0;   /* level 2: sulcal-depth-like (only with -steps 3+) */
 int    curvtype3  = 0;   /* level 3: mean curvature (only with -steps 4) */
-int    n_steps    = 2;
+int    n_steps    = 3;
 int    debug      = 0;
 int    iters      = 100;
 int    verbose    = 0;
-double fwhm_flow  = 5.0;
+double fwhm_flow  = 10.0;
 double fwhm_curv  = 1.0;
-double fwhm_disp  = 10.0;
+double fwhm_disp  = 12.0;
 double max_step_deg = 15.0;
-double sigma_x_default = 2.0;  /* SD max_step = 2 */
+double sigma_x_default = 10.0;  /* SD max_step = 2 */
 double std_exp    = 1.0;  /* exponent on the std-map precision weight */
+int    use_tangent = 0;   /* per-vertex tangent-plane update (prototype) */
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &src_file,
@@ -56,6 +57,8 @@ static ArgvInfo argTable[] = {
    "Per-vertex std map of (mean-curvature) feature on the TEMPLATE mesh. When\n\tgiven, the update is locally weighted by 1/variance (atlas-style template\n\tregistration, as in Spherical Demons). Must match the template vertex count;\n\tresampled internally to each pyramid level."},
   {"-std-exp", ARGV_FLOAT, (char *) 1, (char *) &std_exp,
    "Exponent on the std-map precision weight: w = (1/variance)^e (default 1 =\n\tSD's 1/variance). Raise above 1 to sharpen a low-contrast std map; 0 = off."},
+  {"-tangent", ARGV_CONSTANT, (char *) TRUE, (char *) &use_tangent,
+   "Prototype: compute the update in a per-vertex tangent-plane frame (as in\n\tSpherical Demons) instead of the global lat-lon chart. Requires the\n\tdiffeomorphic exp map (on by default)."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file,
    "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file,
@@ -149,8 +152,9 @@ main(int argc, char *argv[])
     opt.smooth_velocity     = 1;
     opt.smooth_displacement = 1;
     opt.use_hessian         = 1;
-    opt.use_line_search     = 1;
+    opt.use_line_search     = 0;
     opt.use_expmap          = 1;
+    opt.use_tangent         = use_tangent;
     opt.fwhm_flow           = fwhm_flow;
     opt.fwhm_curv           = fwhm_curv;
     opt.fwhm_disp           = fwhm_disp;

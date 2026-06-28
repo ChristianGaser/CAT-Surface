@@ -696,22 +696,9 @@ void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                               double fwhm, int curvtype, double *rot, int verbose)
 {
     int i, n;
-    int n_angles;
-    double alpha, beta, gamma, sum_sq, min_sum_sq;
-    double degrees, delta, d;
-    double curr_alpha = 0.0, curr_beta = 0.0, curr_gamma = 0.0;
-    double best_alpha, best_beta, best_gamma;
-    double rotation_tmp[9], min_degrees, max_degrees;
     double *orig_trg, *map_trg, *map_src;
-    polygons_struct rot_src_sphere;
 
-    min_degrees = RADIANS(1.0);
-    max_degrees = RADIANS(32.0);
-    degrees = max_degrees;
-    n_angles = 4;
     n = 3;
-
-    min_sum_sq = 1e15;
 
     orig_trg = SAFE_MALLOC(double, trg->n_points);
     map_trg = SAFE_MALLOC(double, src->n_points);
@@ -734,9 +721,7 @@ void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
 
     // Evaluate the cost function at each vertex
     for (i = 0; i <= n; i++)
-    {
         f_values[i] = compute_cost(simplex_ptrs[i], &params);
-    }
 
     // Run optimization
     nelder_mead(simplex_ptrs, f_values, n, MAX_ITER, TOL, &params, rot, verbose);

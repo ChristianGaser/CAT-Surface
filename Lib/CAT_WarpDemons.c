@@ -368,6 +368,203 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
 }
 
 /**
+ * \brief Per-vertex orthonormal tangent basis on a sphere.
+ *
+ * For each vertex builds two unit vectors (e1, e2) spanning the tangent plane
+ * perpendicular to the radial direction. The in-plane orientation is arbitrary
+ * but consistent, and cancels because the gradient and the update both use it.
+ * This replaces the singular/anisotropic global lat-lon chart with a locally
+ * isotropic frame (Spherical Demons, Yeo et al. 2010).
+ *
+ * \param sphere (in)  spherical mesh
+ * \param e1     (out) double[3*n]; first tangent unit vector per vertex
+ * \param e2     (out) double[3*n]; second tangent unit vector per vertex
+ * \return void
+ */
+static void
+compute_tangent_basis(polygons_struct *sphere, double *e1, double *e2)
+{
+    int i, n = sphere->n_points;
+
+    for (i = 0; i < n; i++) {
+        double rx = Point_x(sphere->points[i]);
+        double ry = Point_y(sphere->points[i]);
+        double rz = Point_z(sphere->points[i]);
+        double rl = sqrt(rx*rx + ry*ry + rz*rz);
+        double ax, ay, az, d, l;
+
+        if (rl < 1e-20) {
+            e1[3*i] = 1.0; e1[3*i+1] = 0.0; e1[3*i+2] = 0.0;
+            e2[3*i] = 0.0; e2[3*i+1] = 1.0; e2[3*i+2] = 0.0;
+            continue;
+        }
+        rx /= rl; ry /= rl; rz /= rl;
+
+        /* reference axis least aligned with the radial direction */
+        if (fabs(rx) <= fabs(ry) && fabs(rx) <= fabs(rz)) { ax = 1; ay = 0; az = 0; }
+        else if (fabs(ry) <= fabs(rz))                    { ax = 0; ay = 1; az = 0; }
+        else                                              { ax = 0; ay = 0; az = 1; }
+
+        /* e1 = normalize(a - (a.r) r) */
+        d = ax*rx + ay*ry + az*rz;
+        e1[3*i]   = ax - d*rx;
+        e1[3*i+1] = ay - d*ry;
+        e1[3*i+2] = az - d*rz;
+        l = sqrt(e1[3*i]*e1[3*i] + e1[3*i+1]*e1[3*i+1] + e1[3*i+2]*e1[3*i+2]);
+        if (l < 1e-20) l = 1.0;
+        e1[3*i] /= l; e1[3*i+1] /= l; e1[3*i+2] /= l;
+
+        /* e2 = r x e1 */
+        e2[3*i]   = ry*e1[3*i+2] - rz*e1[3*i+1];
+        e2[3*i+1] = rz*e1[3*i]   - rx*e1[3*i+2];
+        e2[3*i+2] = rx*e1[3*i+1] - ry*e1[3*i];
+    }
+}
+
+/**
+ * \brief One-ring least-squares gradient of a scalar field in the tangent frame.
+ *
+ * For each vertex fits the scalar differences to its neighbours' offsets
+ * projected onto (e1, e2) and solves the 2x2 normal equations, giving the
+ * gradient directly in the local orthonormal tangent basis. The result is
+ * multiplied by \p scale so it matches the magnitude of the lat-lon chart
+ * gradient (a one-degree finite difference), keeping the regularizer and step
+ * calibration shared with the chart path.
+ *
+ * \param sphere (in)  spherical mesh the field lives on
+ * \param n_nbr  (in)  per-vertex neighbour counts
+ * \param nbr    (in)  per-vertex neighbour index lists
+ * \param f      (in)  double[n]; scalar field
+ * \param e1     (in)  double[3*n]; first tangent unit vector per vertex
+ * \param e2     (in)  double[3*n]; second tangent unit vector per vertex
+ * \param scale  (in)  scalar applied to both gradient components
+ * \param ge1    (out) double[n]; gradient component along e1
+ * \param ge2    (out) double[n]; gradient component along e2
+ * \return void
+ */
+static void
+tangent_gradient(polygons_struct *sphere, int *n_nbr, int **nbr,
+                 double *f, double *e1, double *e2, double scale,
+                 double *ge1, double *ge2)
+{
+    int i, j, n = sphere->n_points;
+
+    for (i = 0; i < n; i++) {
+        double px = Point_x(sphere->points[i]);
+        double py = Point_y(sphere->points[i]);
+        double pz = Point_z(sphere->points[i]);
+        double e1x = e1[3*i], e1y = e1[3*i+1], e1z = e1[3*i+2];
+        double e2x = e2[3*i], e2y = e2[3*i+1], e2z = e2[3*i+2];
+        double s11 = 0, s12 = 0, s22 = 0, b1 = 0, b2 = 0, det;
+
+        for (j = 0; j < n_nbr[i]; j++) {
+            int k = nbr[i][j];
+            double dx = Point_x(sphere->points[k]) - px;
+            double dy = Point_y(sphere->points[k]) - py;
+            double dz = Point_z(sphere->points[k]) - pz;
+            double a  = dx*e1x + dy*e1y + dz*e1z;
+            double b  = dx*e2x + dy*e2y + dz*e2z;
+            double df = f[k] - f[i];
+            s11 += a*a; s12 += a*b; s22 += b*b;
+            b1  += a*df; b2 += b*df;
+        }
+
+        det = s11*s22 - s12*s12;
+        if (fabs(det) > 1e-20) {
+            ge1[i] = scale * ( s22*b1 - s12*b2) / det;
+            ge2[i] = scale * (-s12*b1 + s11*b2) / det;
+        } else {
+            ge1[i] = 0.0; ge2[i] = 0.0;
+        }
+    }
+}
+
+/**
+ * \brief Diffeomorphic exponential map of a 3D tangent velocity field.
+ *
+ * Tangent-frame counterpart of spherical_exp_map: integrates a per-vertex 3D
+ * tangent velocity (vx, vy, vz) by scaling and squaring. The first-order step
+ * adds the scaled velocity to each reference vertex and reprojects to the
+ * sphere; the field is then composed with itself N times. Mirrors
+ * SD_SphericalExpMap.m with MARS_warpPointbyGradient.
+ *
+ * \param ref_sphere (in)  reference sphere the field is defined on
+ * \param vx,vy,vz   (in)  double[n]; tangent velocity (arc length) per vertex
+ * \param radius     (in)  sphere radius used for reprojection
+ * \param min_angle  (in)  smallest neighbour angle (radians) for step sizing
+ * \param out_points (out) Point[n]; integrated vertex positions
+ * \return void
+ */
+static void
+spherical_exp_map_tangent(polygons_struct *ref_sphere,
+                          double *vx, double *vy, double *vz,
+                          double radius, double min_angle, Point *out_points)
+{
+    int i, k, N, n = ref_sphere->n_points;
+    double maxnorm = 0.0, max_angle, scale;
+    polygons_struct def_sphere;
+
+    for (i = 0; i < n; i++) {
+        double nrm = sqrt(vx[i]*vx[i] + vy[i]*vy[i] + vz[i]*vz[i]);
+        if (nrm > maxnorm) maxnorm = nrm;
+    }
+    /* velocity is an arc length; the per-step angle is arc/radius */
+    max_angle = maxnorm / radius;
+    if (max_angle < 1e-12 || min_angle < 1e-12) {
+        N = 0;
+    } else {
+        N = (int) ceil(log2(max_angle / min_angle) + 3.0);
+        if (N < 0) N = 0;
+        if (N > EXP_MAX_COMPOSITIONS) N = EXP_MAX_COMPOSITIONS;
+    }
+    scale = pow(2.0, -(double) N);
+
+    copy_polygons(ref_sphere, &def_sphere);
+    for (i = 0; i < n; i++)
+        fill_Point(def_sphere.points[i],
+                   Point_x(ref_sphere->points[i]) + vx[i]*scale,
+                   Point_y(ref_sphere->points[i]) + vy[i]*scale,
+                   Point_z(ref_sphere->points[i]) + vz[i]*scale);
+    normalize_sphere_radius(&def_sphere, radius);
+
+    if (N > 0) {
+        double *dx, *dy, *dz, *nx, *ny, *nz;
+
+        dx = (double *) malloc(sizeof(double) * n);
+        dy = (double *) malloc(sizeof(double) * n);
+        dz = (double *) malloc(sizeof(double) * n);
+        nx = (double *) malloc(sizeof(double) * n);
+        ny = (double *) malloc(sizeof(double) * n);
+        nz = (double *) malloc(sizeof(double) * n);
+
+        if (ref_sphere->bintree != NULL) delete_the_bintree(&ref_sphere->bintree);
+        create_polygons_bintree(ref_sphere,
+                                ROUND((double) ref_sphere->n_items * BINTREE_FACTOR));
+
+        for (k = 0; k < N; k++) {
+            for (i = 0; i < n; i++) {
+                dx[i] = Point_x(def_sphere.points[i]);
+                dy[i] = Point_y(def_sphere.points[i]);
+                dz[i] = Point_z(def_sphere.points[i]);
+            }
+            resample_xyz(ref_sphere, def_sphere.points, n, dx, dy, dz, nx, ny, nz);
+            for (i = 0; i < n; i++)
+                fill_Point(def_sphere.points[i], nx[i], ny[i], nz[i]);
+            normalize_sphere_radius(&def_sphere, radius);
+        }
+
+        delete_the_bintree(&ref_sphere->bintree);
+        free(dx); free(dy); free(dz);
+        free(nx); free(ny); free(nz);
+    }
+
+    for (i = 0; i < n; i++)
+        out_points[i] = def_sphere.points[i];
+
+    delete_polygons(&def_sphere);
+}
+
+/**
  * \brief Run one demon registration stage on a single feature.
  *
  * Computes the chosen curvature feature for both surfaces, then iteratively
@@ -415,6 +612,10 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     /* diffeomorphic-path scratch */
     double *cx = NULL, *cy = NULL, *cz = NULL, *nx = NULL, *ny = NULL, *nz = NULL;
     Point  *inc_points = NULL;
+    /* tangent-plane path scratch (opt->use_tangent) */
+    int     tangent = (opt->use_tangent && opt->use_expmap);
+    double *e1 = NULL, *e2 = NULL, *vx = NULL, *vy = NULL, *vz = NULL;
+    int    *tn_nbr = NULL, **tnbr = NULL;
     int n = src->n_points;
 
     if (src->n_points != trg->n_points) {
@@ -537,6 +738,20 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         inc_points = (Point *) malloc(sizeof(Point) * n);
     }
 
+    if (tangent) {
+        /* The tangent path computes both gradients on the undeformed standard
+         * grid (orig_sphere) in a per-vertex local frame, so build the frame and
+         * neighbour lists once. The dtheta/dphi arrays are reused to hold the
+         * e1/e2 gradient components. */
+        e1 = (double *) malloc(sizeof(double) * 3 * n);
+        e2 = (double *) malloc(sizeof(double) * 3 * n);
+        vx = (double *) malloc(sizeof(double) * n);
+        vy = (double *) malloc(sizeof(double) * n);
+        vz = (double *) malloc(sizeof(double) * n);
+        compute_tangent_basis(orig_sphere, e1, e2);
+        get_all_polygon_point_neighbours(orig_sphere, &tn_nbr, &tnbr);
+    }
+
     count_break = 0;
     old_cc = -FLT_MAX;
 
@@ -544,32 +759,32 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
 
     for (it = 0; it < opt->iters; it++) {
 
-        /* gradient of the moving (source) feature */
-        gradient_poly(src_sphere, dpoly_src, curv_src, dtheta_src, dphi_src);
+        polygons_struct *comp_sphere = src_sphere;
 
-        sum_diff2 = 0.0;
-        for (i = 0; i < n; i++) {
-            idiff = curv_src[i] - curv_trg[i];
-            double idiff2 = idiff * idiff;
-            sum_diff2 += idiff2;
+        if (tangent) {
+            /* ---- per-vertex tangent-plane update (Spherical Demons) ----
+             * Both gradients are taken on the undeformed standard grid
+             * (orig_sphere) in a locally isotropic frame, avoiding the lat-lon
+             * chart's pole singularity and metric anisotropy. */
+            tangent_gradient(orig_sphere, tn_nbr, tnbr, curv_trg, e1, e2,
+                             THETA * SPHERE_RADIUS, dtheta_trg, dphi_trg);
+            tangent_gradient(orig_sphere, tn_nbr, tnbr, curv_src, e1, e2,
+                             THETA * SPHERE_RADIUS, dtheta_src, dphi_src);
 
-            {
-                /* Spherical Demons Gauss-Newton step (Yeo et al. 2010):
-                 *   H = w G G^T + reg*I,  residual = w*idiff*G/2,  u = H^-1 res
-                 * with the constant Tikhonov reg (reg_const) above. G is the
-                 * symmetric (static + moving) gradient. w is the per-vertex
-                 * 1/variance weight (1 when no std map is given); it scales the
-                 * data term but not the regularizer, matching SD's atlas update. */
+            sum_diff2 = 0.0;
+            for (i = 0; i < n; i++) {
                 double w = (data_w != NULL) ? data_w[i] : 1.0;
-                double g1 = dtheta_trg[i] + dtheta_src[i];
-                double g2 = dphi_trg[i] + dphi_src[i];
-                double r1 = 0.5 * w * idiff * g1;
-                double r2 = 0.5 * w * idiff * g2;
-                double h11 = w*g1*g1 + reg_const;
-                double h12 = w*g1*g2;
-                double h22 = w*g2*g2 + reg_const;
-                double det = h11*h22 - h12*h12;
-
+                double g1, g2, r1, r2, h11, h12, h22, det;
+                idiff = curv_src[i] - curv_trg[i];
+                sum_diff2 += idiff * idiff;
+                g1 = dtheta_trg[i] + dtheta_src[i];
+                g2 = dphi_trg[i] + dphi_src[i];
+                r1 = 0.5 * w * idiff * g1;
+                r2 = 0.5 * w * idiff * g2;
+                h11 = w*g1*g1 + reg_const;
+                h12 = w*g1*g2;
+                h22 = w*g2*g2 + reg_const;
+                det = h11*h22 - h12*h12;
                 if (opt->use_hessian && fabs(det) > 1e-20) {
                     Utheta[i] = (h22*r1 - h12*r2) / det;
                     Uphi[i]   = (-h12*r1 + h11*r2) / det;
@@ -579,50 +794,137 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                     Uphi[i]   = r2 / denom;
                 }
             }
-        }
 
-        /* low-pass the velocity update (fluid prior) */
-        if (opt->smooth_velocity) {
-            smooth_heatkernel(orig_sphere, Utheta, fwhm_flow);
-            smooth_heatkernel(orig_sphere, Uphi, fwhm_flow);
-        }
-
-        /* clamp per-vertex step to limit overshoot/folding */
-        if (opt->max_step_deg > 0.0) {
-            double max_step = opt->max_step_deg * (PI / 180.0);
-            for (i = 0; i < n; i++) {
-                double step = sqrt(Utheta[i]*Utheta[i] + Uphi[i]*Uphi[i]);
-                if (step > max_step && step > 0.0) {
-                    double sc = max_step / step;
-                    Utheta[i] *= sc;
-                    Uphi[i]   *= sc;
+            /* clamp the step magnitude (same units/calibration as the chart) */
+            if (opt->max_step_deg > 0.0) {
+                double max_step = opt->max_step_deg * (PI / 180.0);
+                for (i = 0; i < n; i++) {
+                    double step = sqrt(Utheta[i]*Utheta[i] + Uphi[i]*Uphi[i]);
+                    if (step > max_step && step > 0.0) {
+                        double sc = max_step / step;
+                        Utheta[i] *= sc; Uphi[i] *= sc;
+                    }
                 }
+            }
+
+            /* assemble the 3D tangent velocity (arc length); the minus is the
+             * descent direction, matching the chart path's inverse exponential. */
+            {
+                double vsc = THETA * SPHERE_RADIUS * step_factor;
+                for (i = 0; i < n; i++) {
+                    vx[i] = -vsc * (Utheta[i]*e1[3*i]   + Uphi[i]*e2[3*i]);
+                    vy[i] = -vsc * (Utheta[i]*e1[3*i+1] + Uphi[i]*e2[3*i+1]);
+                    vz[i] = -vsc * (Utheta[i]*e1[3*i+2] + Uphi[i]*e2[3*i+2]);
+                }
+            }
+
+            /* low-pass the velocity (fluid prior) on the sphere, then reproject
+             * onto the tangent plane (as in SD). */
+            if (opt->smooth_velocity) {
+                smooth_heatkernel(orig_sphere, vx, fwhm_flow);
+                smooth_heatkernel(orig_sphere, vy, fwhm_flow);
+                smooth_heatkernel(orig_sphere, vz, fwhm_flow);
+                for (i = 0; i < n; i++) {
+                    double rx = Point_x(orig_sphere->points[i]);
+                    double ry = Point_y(orig_sphere->points[i]);
+                    double rz = Point_z(orig_sphere->points[i]);
+                    double rl = sqrt(rx*rx + ry*ry + rz*rz), d;
+                    if (rl < 1e-20) continue;
+                    rx /= rl; ry /= rl; rz /= rl;
+                    d = vx[i]*rx + vy[i]*ry + vz[i]*rz;
+                    vx[i] -= d*rx; vy[i] -= d*ry; vz[i] -= d*rz;
+                }
+            }
+
+            spherical_exp_map_tangent(orig_sphere, vx, vy, vz, SPHERE_RADIUS,
+                                      min_angle, inc_points);
+            comp_sphere = orig_sphere;
+        } else {
+            /* ---- lat-lon chart update ---- */
+            /* gradient of the moving (source) feature */
+            gradient_poly(src_sphere, dpoly_src, curv_src, dtheta_src, dphi_src);
+
+            sum_diff2 = 0.0;
+            for (i = 0; i < n; i++) {
+                idiff = curv_src[i] - curv_trg[i];
+                double idiff2 = idiff * idiff;
+                sum_diff2 += idiff2;
+
+                {
+                    /* Spherical Demons Gauss-Newton step (Yeo et al. 2010):
+                     *   H = w G G^T + reg*I, residual = w*idiff*G/2, u = H^-1 res
+                     * with the constant Tikhonov reg (reg_const) above. G is the
+                     * symmetric (static + moving) gradient. w is the per-vertex
+                     * 1/variance weight (1 with no std map); it scales the data
+                     * term but not the regularizer, matching SD's atlas update. */
+                    double w = (data_w != NULL) ? data_w[i] : 1.0;
+                    double g1 = dtheta_trg[i] + dtheta_src[i];
+                    double g2 = dphi_trg[i] + dphi_src[i];
+                    double r1 = 0.5 * w * idiff * g1;
+                    double r2 = 0.5 * w * idiff * g2;
+                    double h11 = w*g1*g1 + reg_const;
+                    double h12 = w*g1*g2;
+                    double h22 = w*g2*g2 + reg_const;
+                    double det = h11*h22 - h12*h12;
+
+                    if (opt->use_hessian && fabs(det) > 1e-20) {
+                        Utheta[i] = (h22*r1 - h12*r2) / det;
+                        Uphi[i]   = (-h12*r1 + h11*r2) / det;
+                    } else {
+                        double denom = w*(g1*g1 + g2*g2) + reg_const;
+                        Utheta[i] = r1 / denom;
+                        Uphi[i]   = r2 / denom;
+                    }
+                }
+            }
+
+            /* low-pass the velocity update (fluid prior) */
+            if (opt->smooth_velocity) {
+                smooth_heatkernel(orig_sphere, Utheta, fwhm_flow);
+                smooth_heatkernel(orig_sphere, Uphi, fwhm_flow);
+            }
+
+            /* clamp per-vertex step to limit overshoot/folding */
+            if (opt->max_step_deg > 0.0) {
+                double max_step = opt->max_step_deg * (PI / 180.0);
+                for (i = 0; i < n; i++) {
+                    double step = sqrt(Utheta[i]*Utheta[i] + Uphi[i]*Uphi[i]);
+                    if (step > max_step && step > 0.0) {
+                        double sc = max_step / step;
+                        Utheta[i] *= sc;
+                        Uphi[i]   *= sc;
+                    }
+                }
+            }
+
+            /* scale the velocity update into the theta/phi chart */
+            for (i = 0; i < n; i++) {
+                Utheta[i] *= THETA * step_factor;
+                Uphi[i]   *= PHI * step_factor;
+            }
+
+            if (diffeo) {
+                /* integrate exp(v): warped <- warped o exp(v) */
+                spherical_exp_map(src_sphere, Utheta, Uphi, SPHERE_RADIUS,
+                                  min_angle, inc_points);
+                comp_sphere = src_sphere;
             }
         }
 
-        /* scale the velocity update into the theta/phi chart */
-        for (i = 0; i < n; i++) {
-            Utheta[i] *= THETA * step_factor;
-            Uphi[i]   *= PHI * step_factor;
-        }
-
         if (diffeo) {
-            /* integrate exp(v) and compose: warped <- warped o exp(v) */
-            spherical_exp_map(src_sphere, Utheta, Uphi, SPHERE_RADIUS,
-                              min_angle, inc_points);
-
             for (i = 0; i < n; i++) {
                 cx[i] = Point_x(warped_src_sphere->points[i]);
                 cy[i] = Point_y(warped_src_sphere->points[i]);
                 cz[i] = Point_z(warped_src_sphere->points[i]);
             }
-            /* compose curr o exp: sample the running warp at the exp positions
-             * (single cached-bintree pass over the three coordinate channels) */
-            if (src_sphere->bintree != NULL) delete_the_bintree(&src_sphere->bintree);
-            create_polygons_bintree(src_sphere,
-                                    ROUND((double) src_sphere->n_items * BINTREE_FACTOR));
-            resample_xyz(src_sphere, inc_points, n, cx, cy, cz, nx, ny, nz);
-            delete_the_bintree(&src_sphere->bintree);
+            /* compose curr o exp: sample the running warp at the exp positions,
+             * using whichever sphere the exp was integrated from (orig_sphere for
+             * the tangent path, src_sphere for the chart path). */
+            if (comp_sphere->bintree != NULL) delete_the_bintree(&comp_sphere->bintree);
+            create_polygons_bintree(comp_sphere,
+                                    ROUND((double) comp_sphere->n_items * BINTREE_FACTOR));
+            resample_xyz(comp_sphere, inc_points, n, cx, cy, cz, nx, ny, nz);
+            delete_the_bintree(&comp_sphere->bintree);
             for (i = 0; i < n; i++)
                 fill_Point(warped_src_sphere->points[i], nx[i], ny[i], nz[i]);
             normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
@@ -711,6 +1013,11 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         free(inc_points);
     }
     if (data_w != NULL) free(data_w);
+    if (tangent) {
+        free(e1); free(e2); free(vx); free(vy); free(vz);
+        free(tn_nbr);
+        if (tnbr) { free(tnbr[0]); free(tnbr); }
+    }
 
     free(curv_src0);
     free(curv_src);
@@ -761,6 +1068,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->use_hessian         = 1;
     opt->use_line_search     = 1;
     opt->use_expmap          = 1;
+    opt->use_tangent         = 0;  /* default: lat-lon chart update */
     opt->fwhm_flow           = 30.0;
     opt->fwhm_curv           = 6.0;
     opt->fwhm_disp           = 10.0;
@@ -832,6 +1140,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
          * Anchor to a FIXED reference resolution (not the coarsest level) so the
          * smoothing at a given resolution is independent of pyramid depth. */
         double scale = sqrt((double) SMOOTH_REF_POINTS / (double) np);
+        
         double fwhm_level = opt->fwhm_flow * scale;
         double fwhm_disp_level = opt->fwhm_disp * scale;
         polygons_struct sm_src, sm_trg, sm_src_sphere, sm_trg_sphere;
