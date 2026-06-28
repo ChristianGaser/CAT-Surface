@@ -473,7 +473,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
      * the average data-term weight (and thus the reg_const calibration) is kept. */
     if (std_level != NULL) {
         double *tmp = (double *) malloc(sizeof(double) * n);
-        double med, floor_std, mean_w = 0.0;
+        double med, floor_std, mean_w = 0.0, gamma = opt->std_exp;
         for (i = 0; i < n; i++) tmp[i] = std_level[i];
         med = get_median_double(tmp, n, 0);
         free(tmp);
@@ -482,12 +482,25 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         for (i = 0; i < n; i++) {
             double s = std_level[i];
             if (s < floor_std) s = floor_std;
-            data_w[i] = 1.0 / (s * s);
+            /* precision^gamma: gamma=1 is SD's 1/variance, >1 sharpens a
+             * low-contrast std map, 0 collapses to uniform weighting. */
+            data_w[i] = pow(1.0 / (s * s), gamma);
             mean_w += data_w[i];
         }
         mean_w /= (double) n;
         if (mean_w > 1e-20)
             for (i = 0; i < n; i++) data_w[i] /= mean_w;
+
+        if (opt->verbose) {
+            double wmin = data_w[0], wmax = data_w[0];
+            for (i = 1; i < n; i++) {
+                if (data_w[i] < wmin) wmin = data_w[i];
+                if (data_w[i] > wmax) wmax = data_w[i];
+            }
+            printf("  std-weight (exp %.2g): w in [%.3g, %.3g], max/min %.3g "
+                   "(1.0 = no local weighting)\n",
+                   gamma, wmin, wmax, wmin > 1e-20 ? wmax / wmin : 0.0);
+        }
     }
 
     for (i = 0; i < n; i++) {
@@ -756,6 +769,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->sigma_x             = 2.0;  /* SD max_step = 2 */
     opt->step_factor         = 1.0;
     opt->std_map             = NULL; /* no local variance weighting by default */
+    opt->std_exp             = 1.0;  /* SD-style 1/variance when a std map is set */
     opt->verbose             = 0;
     opt->debug               = 0;
 }

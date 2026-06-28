@@ -41,6 +41,7 @@ double fwhm_curv  = 1.0;
 double fwhm_disp  = 10.0;
 double max_step_deg = 15.0;
 double sigma_x_default = 2.0;  /* SD max_step = 2 */
+double std_exp    = 1.0;  /* exponent on the std-map precision weight */
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &src_file,
@@ -53,6 +54,8 @@ static ArgvInfo argTable[] = {
    "Template sphere file."},
   {"-stdmap", ARGV_STRING, (char *) 1, (char *) &std_file,
    "Per-vertex std map of (mean-curvature) feature on the TEMPLATE mesh. When\n\tgiven, the update is locally weighted by 1/variance (atlas-style template\n\tregistration, as in Spherical Demons). Must match the template vertex count;\n\tresampled internally to each pyramid level."},
+  {"-std-exp", ARGV_FLOAT, (char *) 1, (char *) &std_exp,
+   "Exponent on the std-map precision weight: w = (1/variance)^e (default 1 =\n\tSD's 1/variance). Raise above 1 to sharpen a low-contrast std map; 0 = off."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file,
    "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file,
@@ -155,6 +158,7 @@ main(int argc, char *argv[])
     opt.max_step_deg        = max_step_deg;
     opt.sigma_x             = sigma_x_default;
     opt.step_factor         = 1.0;
+    opt.std_exp             = std_exp;
     opt.verbose             = verbose;
     opt.debug               = debug;
 
