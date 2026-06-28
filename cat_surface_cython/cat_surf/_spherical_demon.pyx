@@ -52,6 +52,7 @@ def spherical_demon(source_surface,
                     bint use_line_search=True,
                     bint use_expmap=True,
                     std_map=None,
+                    double std_exp=1.0,
                     bint verbose=False,
                     bint debug=False):
     """
@@ -113,6 +114,11 @@ def spherical_demon(source_surface,
         When given, the Gauss-Newton data term is locally weighted by
         1/variance (atlas-style template registration, as in Spherical Demons);
         the map is resampled internally to each pyramid level.  Default None.
+    std_exp : float
+        Exponent on the precision weight, ``w = (1/variance) ** std_exp``
+        (default 1.0 = SD's 1/variance).  Raise above 1 to sharpen a
+        low-contrast std map; 0 disables local weighting.  Only used when
+        ``std_map`` is given.
     verbose : bool
         Print per-iteration progress (default False).
     debug : bool
@@ -174,6 +180,7 @@ def spherical_demon(source_surface,
     opt.max_step_deg        = max_step_deg
     opt.sigma_x             = sigma_x
     opt.step_factor         = step_factor
+    opt.std_exp             = std_exp
     opt.verbose             = 1 if verbose else 0
     opt.debug               = 1 if debug else 0
 

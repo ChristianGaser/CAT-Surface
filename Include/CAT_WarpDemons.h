@@ -57,6 +57,9 @@ typedef struct {
                                    term is locally weighted by 1/variance
                                    (atlas-style, as in SD template registration);
                                    resampled to each pyramid level. NULL = off. */
+    double std_exp;             /* exponent on the precision weight: w = (1/var)^e.
+                                   1 = SD's 1/variance; >1 sharpens a low-contrast
+                                   std map; 0 = uniform. Only used with std_map. */
     int    verbose;             /* print per-iteration progress */
     int    debug;               /* write intermediate debug files */
 } CAT_WarpDemonsOptions;
