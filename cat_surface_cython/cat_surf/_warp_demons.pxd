@@ -26,6 +26,7 @@ cdef extern from "CAT_WarpDemons.h":
         int    use_hessian
         int    use_line_search
         int    use_expmap
+        int    use_tangent
         double fwhm_flow
         double fwhm_curv
         double fwhm_disp

@@ -51,6 +51,7 @@ def spherical_demon(source_surface,
                     bint use_hessian=True,
                     bint use_line_search=True,
                     bint use_expmap=True,
+                    bint use_tangent=False,
                     std_map=None,
                     double std_exp=1.0,
                     bint verbose=False,
@@ -108,6 +109,10 @@ def spherical_demon(source_surface,
     use_expmap : bool
         Diffeomorphic scaling-and-squaring exponential map (default True).
         If False, falls back to an additive theta/phi flow.
+    use_tangent : bool
+        Prototype: compute the update in a per-vertex tangent-plane frame (as
+        in Spherical Demons) instead of the global lat-lon chart.  Requires
+        ``use_expmap``.  Default False.
     std_map : array_like or None
         Optional per-vertex standard deviation of the (mean-curvature) feature,
         defined on the TEMPLATE mesh (one value per ``target_sphere`` vertex).
@@ -173,6 +178,7 @@ def spherical_demon(source_surface,
     opt.use_hessian         = 1 if use_hessian else 0
     opt.use_line_search     = 1 if use_line_search else 0
     opt.use_expmap          = 1 if use_expmap else 0
+    opt.use_tangent         = 1 if use_tangent else 0
     opt.fwhm_flow           = fwhm_flow
     opt.fwhm_curv           = fwhm_curv
     opt.fwhm_disp           = fwhm_disp
