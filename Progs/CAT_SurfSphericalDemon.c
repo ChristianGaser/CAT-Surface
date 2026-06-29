@@ -45,6 +45,7 @@ double sigma_x_default = 10.0;  /* SD max_step = 2 */
 double std_exp    = 1.0;  /* exponent on the std-map precision weight */
 int    use_tangent = 0;   /* per-vertex tangent-plane update (prototype) */
 double l_dist     = 0.0;  /* metric-distortion regularizer weight (prototype) */
+int    use_geodesic = 0;  /* geodesic (slerp) warp composition (prototype) */
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &src_file,
@@ -65,6 +66,8 @@ static ArgvInfo argTable[] = {
    "Prototype: compute the update in a per-vertex tangent-plane frame (as in\n\tSpherical Demons) instead of the global lat-lon chart. Requires the\n\tdiffeomorphic exp map (on by default)."},
   {"-dist", ARGV_FLOAT, (char *) 1, (char *) &l_dist,
    "Metric-distortion regularizer weight (FreeSurfer-style distance term): each\n\titeration takes a gradient step pulling warped neighbour distances back toward\n\tthe original sphere metric, resisting local stretch/fold. 0 = off (default).\n\tTry small values (e.g. 0.05-0.2); independent of -fwhm-disp smoothing."},
+  {"-geodesic", ARGV_CONSTANT, (char *) TRUE, (char *) &use_geodesic,
+   "Compose the diffeomorphic exp-map warp with geodesic (slerp) barycentric\n\tinterpolation on the sphere instead of linear-then-renormalize. Slightly\n\tmore accurate, slightly slower. Default off."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file,
    "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file,
@@ -162,6 +165,7 @@ main(int argc, char *argv[])
     opt.use_expmap          = 1;
     opt.use_tangent         = use_tangent;
     opt.l_dist              = l_dist;
+    opt.geodesic            = use_geodesic;
     opt.fwhm_flow           = fwhm_flow;
     opt.fwhm_curv           = fwhm_curv;
     opt.fwhm_disp           = fwhm_disp;

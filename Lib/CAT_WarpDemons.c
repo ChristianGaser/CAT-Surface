@@ -226,29 +226,93 @@ Correlation(double *x, double *y, int N)
 }
 
 /**
+ * \brief Geodesic (spherical) weighted mean of points on a sphere.
+ *
+ * Computes the weighted Karcher mean of \p m points on the sphere via a few
+ * tangent-space averaging iterations (initialised with the normalised linear
+ * combination). Unlike normalise(sum w_i p_i), this follows great circles, so
+ * the barycentric blend stays on the manifold without the inward chord bias -
+ * the appropriate interpolation when composing a warp on the sphere.
+ *
+ * \param px,py,pz (in)  double[m]; point coordinates (need not be unit length)
+ * \param w        (in)  double[m]; barycentric weights
+ * \param m        (in)  number of points
+ * \param radius   (in)  output radius
+ * \param ox,oy,oz (out) the weighted mean, reprojected to \p radius
+ * \return void
+ */
+static void
+spherical_weighted_mean(const double *px, const double *py, const double *pz,
+                        const double *w, int m, double radius,
+                        double *ox, double *oy, double *oz)
+{
+    double cx, cy, cz, len;
+    int it, j;
+
+    /* normalised-linear initial estimate */
+    cx = cy = cz = 0.0;
+    for (j = 0; j < m; j++) { cx += w[j]*px[j]; cy += w[j]*py[j]; cz += w[j]*pz[j]; }
+    len = sqrt(cx*cx + cy*cy + cz*cz);
+    if (len < 1e-20) { *ox = px[0]; *oy = py[0]; *oz = pz[0]; return; }
+    cx /= len; cy /= len; cz /= len;
+
+    for (it = 0; it < 3; it++) {
+        double tx = 0.0, ty = 0.0, tz = 0.0, tl, co, si, nx, ny, nz, nl;
+        for (j = 0; j < m; j++) {
+            double pl = sqrt(px[j]*px[j] + py[j]*py[j] + pz[j]*pz[j]);
+            double ux, uy, uz, dot, ang, dx, dy, dz, dl, s;
+            if (pl < 1e-20) continue;
+            ux = px[j]/pl; uy = py[j]/pl; uz = pz[j]/pl;
+            dot = cx*ux + cy*uy + cz*uz;
+            if (dot >  1.0) dot =  1.0;
+            if (dot < -1.0) dot = -1.0;
+            ang = acos(dot);
+            if (ang < 1e-9) continue;
+            dx = ux - dot*cx; dy = uy - dot*cy; dz = uz - dot*cz;  /* Log direction */
+            dl = sqrt(dx*dx + dy*dy + dz*dz);
+            if (dl < 1e-20) continue;
+            s = w[j] * ang / dl;
+            tx += s*dx; ty += s*dy; tz += s*dz;                    /* w * Log_c(p) */
+        }
+        tl = sqrt(tx*tx + ty*ty + tz*tz);
+        if (tl < 1e-12) break;                                     /* converged */
+        co = cos(tl); si = sin(tl);                                /* Exp_c(t) */
+        nx = co*cx + si*tx/tl; ny = co*cy + si*ty/tl; nz = co*cz + si*tz/tl;
+        nl = sqrt(nx*nx + ny*ny + nz*nz);
+        if (nl < 1e-20) break;
+        cx = nx/nl; cy = ny/nl; cz = nz/nl;
+    }
+
+    *ox = cx*radius; *oy = cy*radius; *oz = cz*radius;
+}
+
+/**
  * \brief Resample three coordinate fields from a sphere at arbitrary query points.
  *
  * For every query point, finds the enclosing polygon on src (using its existing
  * spatial index) and barycentrically interpolates the (ax, ay, az) fields. This
  * is the single-pass, three-channel equivalent of three resample_values_sphere
  * calls: it locates each polygon once and reuses one bintree, which the caller
- * must build on src beforehand and delete afterwards.
+ * must build on src beforehand and delete afterwards. With \p geodesic the three
+ * channels are treated as a point on the sphere and blended along great circles
+ * (geodesic barycentric) instead of the default linear-then-renormalise.
  *
- * \param src   (in)  source sphere whose vertices carry the fields (bintree built)
- * \param query (in)  Point[nq]; locations to sample at
- * \param nq    (in)  number of query points
- * \param ax    (in)  double[src->n_points]; x field
- * \param ay    (in)  double[src->n_points]; y field
- * \param az    (in)  double[src->n_points]; z field
- * \param ox    (out) double[nq]; interpolated x
- * \param oy    (out) double[nq]; interpolated y
- * \param oz    (out) double[nq]; interpolated z
+ * \param src      (in)  source sphere whose vertices carry the fields (bintree built)
+ * \param query    (in)  Point[nq]; locations to sample at
+ * \param nq       (in)  number of query points
+ * \param ax       (in)  double[src->n_points]; x field
+ * \param ay       (in)  double[src->n_points]; y field
+ * \param az       (in)  double[src->n_points]; z field
+ * \param ox       (out) double[nq]; interpolated x
+ * \param oy       (out) double[nq]; interpolated y
+ * \param oz       (out) double[nq]; interpolated z
+ * \param geodesic (in)  if nonzero, blend the (ax,ay,az) point geodesically
  * \return void
  */
 static void
 resample_xyz(polygons_struct *src, Point *query, int nq,
              double *ax, double *ay, double *az,
-             double *ox, double *oy, double *oz)
+             double *ox, double *oy, double *oz, int geodesic)
 {
     int i, j;
 
@@ -260,6 +324,19 @@ resample_xyz(polygons_struct *src, Point *query, int nq,
         int    np = get_polygon_points(src, poly, poly_points);
 
         get_polygon_interpolation_weights(&point, np, poly_points, weights);
+
+        if (geodesic) {
+            double gx[MAX_POINTS_PER_POLYGON], gy[MAX_POINTS_PER_POLYGON];
+            double gz[MAX_POINTS_PER_POLYGON];
+            for (j = 0; j < np; j++) {
+                int idx = src->indices[POINT_INDEX(src->end_indices, poly, j)];
+                gx[j] = ax[idx]; gy[j] = ay[idx]; gz[j] = az[idx];
+            }
+            spherical_weighted_mean(gx, gy, gz, weights, np, SPHERE_RADIUS,
+                                    &ox[i], &oy[i], &oz[i]);
+            continue;
+        }
+
         for (j = 0; j < np; j++) {
             int idx = src->indices[POINT_INDEX(src->end_indices, poly, j)];
             sx += weights[j] * ax[idx];
@@ -291,7 +368,8 @@ resample_xyz(polygons_struct *src, Point *query, int nq,
  */
 static void
 spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
-                  double radius, double min_angle, Point *out_points)
+                  double radius, double min_angle, Point *out_points,
+                  int geodesic)
 {
     int i, k, N, n = ref_sphere->n_points;
     double maxnorm = 0.0, scale;
@@ -348,7 +426,7 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
                 dz[i] = Point_z(def_sphere.points[i]);
             }
             /* evaluate the current displacement field at its own image */
-            resample_xyz(ref_sphere, def_sphere.points, n, dx, dy, dz, nx, ny, nz);
+            resample_xyz(ref_sphere, def_sphere.points, n, dx, dy, dz, nx, ny, nz, geodesic);
             for (i = 0; i < n; i++)
                 fill_Point(def_sphere.points[i], nx[i], ny[i], nz[i]);
             normalize_sphere_radius(&def_sphere, radius);
@@ -498,7 +576,8 @@ tangent_gradient(polygons_struct *sphere, int *n_nbr, int **nbr,
 static void
 spherical_exp_map_tangent(polygons_struct *ref_sphere,
                           double *vx, double *vy, double *vz,
-                          double radius, double min_angle, Point *out_points)
+                          double radius, double min_angle, Point *out_points,
+                          int geodesic)
 {
     int i, k, N, n = ref_sphere->n_points;
     double maxnorm = 0.0, max_angle, scale;
@@ -547,7 +626,7 @@ spherical_exp_map_tangent(polygons_struct *ref_sphere,
                 dy[i] = Point_y(def_sphere.points[i]);
                 dz[i] = Point_z(def_sphere.points[i]);
             }
-            resample_xyz(ref_sphere, def_sphere.points, n, dx, dy, dz, nx, ny, nz);
+            resample_xyz(ref_sphere, def_sphere.points, n, dx, dy, dz, nx, ny, nz, geodesic);
             for (i = 0; i < n; i++)
                 fill_Point(def_sphere.points[i], nx[i], ny[i], nz[i]);
             normalize_sphere_radius(&def_sphere, radius);
@@ -882,7 +961,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
             }
 
             spherical_exp_map_tangent(orig_sphere, vx, vy, vz, SPHERE_RADIUS,
-                                      min_angle, inc_points);
+                                      min_angle, inc_points, opt->geodesic);
             comp_sphere = orig_sphere;
         } else {
             /* ---- lat-lon chart update ---- */
@@ -951,7 +1030,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
             if (diffeo) {
                 /* integrate exp(v): warped <- warped o exp(v) */
                 spherical_exp_map(src_sphere, Utheta, Uphi, SPHERE_RADIUS,
-                                  min_angle, inc_points);
+                                  min_angle, inc_points, opt->geodesic);
                 comp_sphere = src_sphere;
             }
         }
@@ -968,7 +1047,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
             if (comp_sphere->bintree != NULL) delete_the_bintree(&comp_sphere->bintree);
             create_polygons_bintree(comp_sphere,
                                     ROUND((double) comp_sphere->n_items * BINTREE_FACTOR));
-            resample_xyz(comp_sphere, inc_points, n, cx, cy, cz, nx, ny, nz);
+            resample_xyz(comp_sphere, inc_points, n, cx, cy, cz, nx, ny, nz, opt->geodesic);
             delete_the_bintree(&comp_sphere->bintree);
             for (i = 0; i < n; i++)
                 fill_Point(warped_src_sphere->points[i], nx[i], ny[i], nz[i]);
@@ -1160,6 +1239,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->use_line_search     = 1;
     opt->use_expmap          = 1;
     opt->use_tangent         = 0;  /* default: lat-lon chart update */
+    opt->geodesic            = 0;  /* default: linear-then-renormalize compose */
     opt->fwhm_flow           = 30.0;
     opt->fwhm_curv           = 6.0;
     opt->fwhm_disp           = 10.0;
@@ -1173,6 +1253,94 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->l_dist              = 0.0;  /* metric-distortion regularizer off */
     opt->verbose             = 0;
     opt->debug               = 0;
+}
+
+/**
+ * \brief Print warp distortion statistics (area Jacobian + displacement).
+ *
+ * Compares the deformed sphere against the undeformed one at full resolution
+ * and summarizes how aggressive the warp is: the per-triangle area Jacobian
+ * J = area_warped / area_orig (reported as log J, which is ~0 on average since
+ * the total sphere area is conserved), its range, the number of folded
+ * triangles (orientation flips = loss of invertibility), and the mean
+ * per-vertex great-circle displacement in mm. Useful for locating the
+ * regularization sweet spot, where higher distortion need not mean better
+ * downstream statistics.
+ *
+ * \param orig (in) undeformed sphere (radius SPHERE_RADIUS)
+ * \param warp (in) deformed sphere, same topology as orig
+ * \return void
+ */
+static void
+report_warp_distortion(polygons_struct *orig, polygons_struct *warp)
+{
+    int t, i, n_items = orig->n_items, n = orig->n_points, n_valid = 0, folds = 0;
+    double sum_lj = 0.0, sum_lj2 = 0.0, jmin = 1e30, jmax = -1e30, sum_disp = 0.0;
+
+    for (t = 0; t < n_items; t++) {
+        int i0 = orig->indices[POINT_INDEX(orig->end_indices, t, 0)];
+        int i1 = orig->indices[POINT_INDEX(orig->end_indices, t, 1)];
+        int i2 = orig->indices[POINT_INDEX(orig->end_indices, t, 2)];
+        double ux, uy, uz, vx2, vy2, vz2, cx, cy, cz, ao, aw, j, lj, gx, gy, gz;
+
+        /* original triangle area */
+        ux = Point_x(orig->points[i1]) - Point_x(orig->points[i0]);
+        uy = Point_y(orig->points[i1]) - Point_y(orig->points[i0]);
+        uz = Point_z(orig->points[i1]) - Point_z(orig->points[i0]);
+        vx2 = Point_x(orig->points[i2]) - Point_x(orig->points[i0]);
+        vy2 = Point_y(orig->points[i2]) - Point_y(orig->points[i0]);
+        vz2 = Point_z(orig->points[i2]) - Point_z(orig->points[i0]);
+        cx = uy*vz2 - uz*vy2; cy = uz*vx2 - ux*vz2; cz = ux*vy2 - uy*vx2;
+        ao = 0.5 * sqrt(cx*cx + cy*cy + cz*cz);
+
+        /* warped triangle area + orientation (fold) check */
+        ux = Point_x(warp->points[i1]) - Point_x(warp->points[i0]);
+        uy = Point_y(warp->points[i1]) - Point_y(warp->points[i0]);
+        uz = Point_z(warp->points[i1]) - Point_z(warp->points[i0]);
+        vx2 = Point_x(warp->points[i2]) - Point_x(warp->points[i0]);
+        vy2 = Point_y(warp->points[i2]) - Point_y(warp->points[i0]);
+        vz2 = Point_z(warp->points[i2]) - Point_z(warp->points[i0]);
+        cx = uy*vz2 - uz*vy2; cy = uz*vx2 - ux*vz2; cz = ux*vy2 - uy*vx2;
+        aw = 0.5 * sqrt(cx*cx + cy*cy + cz*cz);
+
+        /* centroid points outward (sphere centred at origin); a flipped normal
+         * means the triangle folded over */
+        gx = Point_x(warp->points[i0]) + Point_x(warp->points[i1]) + Point_x(warp->points[i2]);
+        gy = Point_y(warp->points[i0]) + Point_y(warp->points[i1]) + Point_y(warp->points[i2]);
+        gz = Point_z(warp->points[i0]) + Point_z(warp->points[i1]) + Point_z(warp->points[i2]);
+        if (cx*gx + cy*gy + cz*gz < 0.0) folds++;
+
+        if (ao > 1e-20 && aw > 1e-20) {
+            j = aw / ao;
+            lj = log(j);
+            sum_lj += lj; sum_lj2 += lj*lj;
+            if (j < jmin) jmin = j;
+            if (j > jmax) jmax = j;
+            n_valid++;
+        }
+    }
+
+    for (i = 0; i < n; i++) {
+        double ox = Point_x(orig->points[i]), oy = Point_y(orig->points[i]), oz = Point_z(orig->points[i]);
+        double wx = Point_x(warp->points[i]), wy = Point_y(warp->points[i]), wz = Point_z(warp->points[i]);
+        double ol = sqrt(ox*ox + oy*oy + oz*oz), wl = sqrt(wx*wx + wy*wy + wz*wz), dot, ang;
+        if (ol < 1e-20 || wl < 1e-20) continue;
+        dot = (ox*wx + oy*wy + oz*wz) / (ol * wl);
+        if (dot >  1.0) dot =  1.0;
+        if (dot < -1.0) dot = -1.0;
+        ang = acos(dot);
+        sum_disp += ang * SPHERE_RADIUS;   /* great-circle arc length */
+    }
+
+    if (n_valid > 0) {
+        double mean_lj = sum_lj / n_valid;
+        double var_lj = sum_lj2 / n_valid - mean_lj * mean_lj;
+        double sd_lj = (var_lj > 0.0) ? sqrt(var_lj) : 0.0;
+        printf("Warp distortion: log-J mean %.3f sd %.3f, J range [%.3g, %.3g], "
+               "folds %d/%d, mean displacement %.2f mm\n",
+               mean_lj, sd_lj, jmin, jmax, folds, n_items,
+               n > 0 ? sum_disp / n : 0.0);
+    }
 }
 
 /**
@@ -1324,8 +1492,10 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         if (std_level != NULL) free(std_level);
         if (mask_level != NULL) free(mask_level);
     }
-    if (opt->verbose)
+    if (opt->verbose) {
+        report_warp_distortion(src_sphere, cur_sphere);
         printf("\n");
+    }
 
     /* cur_sphere now holds the forward warp g (source grid -> warped position).
      * The output sphere is the registered parameterization of the source, i.e.
