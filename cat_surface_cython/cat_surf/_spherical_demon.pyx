@@ -52,6 +52,7 @@ def spherical_demon(source_surface,
                     bint use_line_search=True,
                     bint use_expmap=True,
                     bint use_tangent=False,
+                    bint use_geodesic=False,
                     std_map=None,
                     double std_exp=1.0,
                     cortex_mask=None,
@@ -115,6 +116,11 @@ def spherical_demon(source_surface,
         Prototype: compute the update in a per-vertex tangent-plane frame (as
         in Spherical Demons) instead of the global lat-lon chart.  Requires
         ``use_expmap``.  Default False.
+    use_geodesic : bool
+        Compose the diffeomorphic exp-map warp with geodesic (slerp)
+        barycentric interpolation on the sphere instead of
+        linear-then-renormalize.  Slightly more accurate, slightly slower.
+        Default False.
     std_map : array_like or None
         Optional per-vertex standard deviation of the (mean-curvature) feature,
         defined on the TEMPLATE mesh (one value per ``target_sphere`` vertex).
@@ -193,6 +199,7 @@ def spherical_demon(source_surface,
     opt.use_line_search     = 1 if use_line_search else 0
     opt.use_expmap          = 1 if use_expmap else 0
     opt.use_tangent         = 1 if use_tangent else 0
+    opt.geodesic            = 1 if use_geodesic else 0
     opt.l_dist              = l_dist
     opt.fwhm_flow           = fwhm_flow
     opt.fwhm_curv           = fwhm_curv
