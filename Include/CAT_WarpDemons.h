@@ -62,6 +62,16 @@ typedef struct {
     double std_exp;             /* exponent on the precision weight: w = (1/var)^e.
                                    1 = SD's 1/variance; >1 sharpens a low-contrast
                                    std map; 0 = uniform. Only used with std_map. */
+    double *cortex_mask;        /* optional per-vertex cortex mask on the TEMPLATE
+                                   mesh, length trg->n_points. 0 excludes a vertex
+                                   (e.g. medial wall) from the data term; resampled
+                                   to each pyramid level. Independent of std_map.
+                                   NULL = include all vertices. */
+    double l_dist;              /* weight of the metric-distortion regularizer
+                                   (FreeSurfer-style distance term): per-iteration
+                                   gradient step pulling warped neighbour distances
+                                   back toward the original sphere metric. Resists
+                                   local stretch/fold. 0 = off. */
     int    verbose;             /* print per-iteration progress */
     int    debug;               /* write intermediate debug files */
 } CAT_WarpDemonsOptions;

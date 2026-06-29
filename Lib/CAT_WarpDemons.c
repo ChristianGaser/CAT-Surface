@@ -588,6 +588,9 @@ spherical_exp_map_tangent(polygons_struct *ref_sphere,
  * \param std_level         (in)  per-vertex template feature std at this level's
  *                                resolution for local 1/variance weighting, or
  *                                NULL to weight all vertices equally
+ * \param mask_level        (in)  per-vertex cortex mask at this level's
+ *                                resolution (0 excludes a vertex from the data
+ *                                term), or NULL to include all vertices
  * \return void
  */
 static void
@@ -596,7 +599,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
            polygons_struct *trg_sphere, polygons_struct *warped_src_sphere,
            struct dartel_poly *dpoly_src, struct dartel_poly *dpoly_trg,
            int type, const CAT_WarpDemonsOptions *opt, double fwhm_flow_start,
-           double fwhm_disp_level, double *std_level)
+           double fwhm_disp_level, double *std_level, double *mask_level)
 {
     int    *n_neighbours, **neighbours;
     int    i, it, count_break;
@@ -616,6 +619,9 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     int     tangent = (opt->use_tangent && opt->use_expmap);
     double *e1 = NULL, *e2 = NULL, *vx = NULL, *vy = NULL, *vz = NULL;
     int    *tn_nbr = NULL, **tnbr = NULL;
+    /* metric-distortion regularizer scratch (opt->l_dist) */
+    int     use_dist = (opt->l_dist > 0.0);
+    double **dist_orig = NULL, *dfx = NULL, *dfy = NULL, *dfz = NULL;
     int n = src->n_points;
 
     if (src->n_points != trg->n_points) {
@@ -668,27 +674,44 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     normalizeVector(curv_trg0, n);
     normalizeVector(curv_src0, n);
 
-    /* Local variance weighting (atlas-style, as in SD template registration):
-     * down-weight the data term where the template feature is highly variable.
-     * weight = 1/std^2, floored against near-zero std and mean-normalized to 1 so
-     * the average data-term weight (and thus the reg_const calibration) is kept. */
-    if (std_level != NULL) {
-        double *tmp = (double *) malloc(sizeof(double) * n);
-        double med, floor_std, mean_w = 0.0, gamma = opt->std_exp;
-        for (i = 0; i < n; i++) tmp[i] = std_level[i];
-        med = get_median_double(tmp, n, 0);
-        free(tmp);
-        floor_std = 0.1 * (med > 1e-20 ? med : 1.0);
+    /* Per-vertex data-term weighting, combining two independent sources:
+     *   - std map:     precision weight w = (1/var)^gamma (atlas-style, as in SD
+     *                  template registration), down-weighting variable regions;
+     *   - cortex mask: zeroes out non-cortex (e.g. medial wall) so it does not
+     *                  drive the registration (FreeSurfer's ripflag).
+     * The combined weight scales the data term but not the regularizer, and is
+     * mean-normalized over the active (unmasked) vertices so the average data
+     * weight - and thus the reg_const calibration - is preserved. */
+    if (std_level != NULL || mask_level != NULL) {
+        double med = 1.0, floor_std = 1.0, mean_w = 0.0, gamma = opt->std_exp;
+        int n_active = 0;
+
+        if (std_level != NULL) {
+            double *tmp = (double *) malloc(sizeof(double) * n);
+            for (i = 0; i < n; i++) tmp[i] = std_level[i];
+            med = get_median_double(tmp, n, 0);
+            free(tmp);
+            floor_std = 0.1 * (med > 1e-20 ? med : 1.0);
+        }
+
         data_w = (double *) malloc(sizeof(double) * n);
         for (i = 0; i < n; i++) {
-            double s = std_level[i];
-            if (s < floor_std) s = floor_std;
-            /* precision^gamma: gamma=1 is SD's 1/variance, >1 sharpens a
-             * low-contrast std map, 0 collapses to uniform weighting. */
-            data_w[i] = pow(1.0 / (s * s), gamma);
-            mean_w += data_w[i];
+            double p = 1.0, m = 1.0;
+            if (std_level != NULL) {
+                double s = std_level[i];
+                if (s < floor_std) s = floor_std;
+                /* precision^gamma: gamma=1 is SD's 1/variance, >1 sharpens a
+                 * low-contrast std map, 0 collapses to uniform weighting. */
+                p = pow(1.0 / (s * s), gamma);
+            }
+            if (mask_level != NULL) {
+                m = mask_level[i];
+                if (m < 0.0) m = 0.0;     /* 0 = excluded, soft masks allowed */
+            }
+            data_w[i] = p * m;
+            if (m > 1e-6) { mean_w += data_w[i]; n_active++; }
         }
-        mean_w /= (double) n;
+        if (n_active > 0) mean_w /= (double) n_active;
         if (mean_w > 1e-20)
             for (i = 0; i < n; i++) data_w[i] /= mean_w;
 
@@ -698,9 +721,9 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                 if (data_w[i] < wmin) wmin = data_w[i];
                 if (data_w[i] > wmax) wmax = data_w[i];
             }
-            printf("  std-weight (exp %.2g): w in [%.3g, %.3g], max/min %.3g "
-                   "(1.0 = no local weighting)\n",
-                   gamma, wmin, wmax, wmin > 1e-20 ? wmax / wmin : 0.0);
+            printf("  data-weight%s%s: w in [%.3g, %.3g], %d/%d active vertices\n",
+                   std_level ? " std" : "", mask_level ? " mask" : "",
+                   wmin, wmax, n_active, n);
         }
     }
 
@@ -738,10 +761,13 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         inc_points = (Point *) malloc(sizeof(Point) * n);
     }
 
+    /* Both the tangent path and the distance regularizer work on the undeformed
+     * standard grid (orig_sphere), so build the neighbour lists once and share. */
+    if (tangent || use_dist)
+        get_all_polygon_point_neighbours(orig_sphere, &tn_nbr, &tnbr);
+
     if (tangent) {
-        /* The tangent path computes both gradients on the undeformed standard
-         * grid (orig_sphere) in a per-vertex local frame, so build the frame and
-         * neighbour lists once. The dtheta/dphi arrays are reused to hold the
+        /* per-vertex local frame; the dtheta/dphi arrays are reused to hold the
          * e1/e2 gradient components. */
         e1 = (double *) malloc(sizeof(double) * 3 * n);
         e2 = (double *) malloc(sizeof(double) * 3 * n);
@@ -749,7 +775,26 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         vy = (double *) malloc(sizeof(double) * n);
         vz = (double *) malloc(sizeof(double) * n);
         compute_tangent_basis(orig_sphere, e1, e2);
-        get_all_polygon_point_neighbours(orig_sphere, &tn_nbr, &tnbr);
+    }
+
+    if (use_dist) {
+        /* precompute the original neighbour distances on the undeformed sphere;
+         * the regularizer pulls the warped distances back toward these. */
+        int j;
+        dfx = (double *) malloc(sizeof(double) * n);
+        dfy = (double *) malloc(sizeof(double) * n);
+        dfz = (double *) malloc(sizeof(double) * n);
+        dist_orig = (double **) malloc(sizeof(double *) * n);
+        for (i = 0; i < n; i++) {
+            dist_orig[i] = (double *) malloc(sizeof(double) * tn_nbr[i]);
+            for (j = 0; j < tn_nbr[i]; j++) {
+                int k = tnbr[i][j];
+                double dx = Point_x(orig_sphere->points[i]) - Point_x(orig_sphere->points[k]);
+                double dy = Point_y(orig_sphere->points[i]) - Point_y(orig_sphere->points[k]);
+                double dz = Point_z(orig_sphere->points[i]) - Point_z(orig_sphere->points[k]);
+                dist_orig[i][j] = sqrt(dx*dx + dy*dy + dz*dz);
+            }
+        }
     }
 
     count_break = 0;
@@ -968,6 +1013,45 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
             normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
         }
 
+        /* Metric-distortion regularizer (FreeSurfer-style distance term): one
+         * gradient-descent step that pulls the warped neighbour distances back
+         * toward the original sphere metric, resisting local stretch/fold while
+         * still allowing large smooth, feature-driven warps. Forces are computed
+         * from the pre-step positions (into dfx/dfy/dfz) before being applied. */
+        if (use_dist) {
+            int j;
+            for (i = 0; i < n; i++) {
+                double px = Point_x(warped_src_sphere->points[i]);
+                double py = Point_y(warped_src_sphere->points[i]);
+                double pz = Point_z(warped_src_sphere->points[i]);
+                double fx = 0.0, fy = 0.0, fz = 0.0, rl, dot;
+                for (j = 0; j < tn_nbr[i]; j++) {
+                    int k = tnbr[i][j];
+                    double dx = px - Point_x(warped_src_sphere->points[k]);
+                    double dy = py - Point_y(warped_src_sphere->points[k]);
+                    double dz = pz - Point_z(warped_src_sphere->points[k]);
+                    double d  = sqrt(dx*dx + dy*dy + dz*dz), s;
+                    if (d < 1e-20) continue;
+                    s = (dist_orig[i][j] - d) / d;  /* >0: compressed -> expand */
+                    fx += s*dx; fy += s*dy; fz += s*dz;
+                }
+                /* project onto the tangent plane at p_i */
+                rl = sqrt(px*px + py*py + pz*pz);
+                if (rl > 1e-20) {
+                    double rx = px/rl, ry = py/rl, rz = pz/rl;
+                    dot = fx*rx + fy*ry + fz*rz;
+                    fx -= dot*rx; fy -= dot*ry; fz -= dot*rz;
+                }
+                dfx[i] = fx; dfy[i] = fy; dfz[i] = fz;
+            }
+            for (i = 0; i < n; i++)
+                fill_Point(warped_src_sphere->points[i],
+                           Point_x(warped_src_sphere->points[i]) + opt->l_dist*dfx[i],
+                           Point_y(warped_src_sphere->points[i]) + opt->l_dist*dfy[i],
+                           Point_z(warped_src_sphere->points[i]) + opt->l_dist*dfz[i]);
+            normalize_sphere_radius(warped_src_sphere, SPHERE_RADIUS);
+        }
+
         /* pull the source feature through the accumulated warp */
         resample_values_sphere(orig_sphere, warped_src_sphere, curv_src0, curv_src, 0, 0);
         normalizeVector(curv_src, n);
@@ -1015,6 +1099,13 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     if (data_w != NULL) free(data_w);
     if (tangent) {
         free(e1); free(e2); free(vx); free(vy); free(vz);
+    }
+    if (use_dist) {
+        for (i = 0; i < n; i++) free(dist_orig[i]);
+        free(dist_orig);
+        free(dfx); free(dfy); free(dfz);
+    }
+    if (tangent || use_dist) {
         free(tn_nbr);
         if (tnbr) { free(tnbr[0]); free(tnbr); }
     }
@@ -1078,6 +1169,8 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->step_factor         = 1.0;
     opt->std_map             = NULL; /* no local variance weighting by default */
     opt->std_exp             = 1.0;  /* SD-style 1/variance when a std map is set */
+    opt->cortex_mask         = NULL; /* no cortex masking by default */
+    opt->l_dist              = 0.0;  /* metric-distortion regularizer off */
     opt->verbose             = 0;
     opt->debug               = 0;
 }
@@ -1147,7 +1240,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         polygons_struct orig_sphere, level_warped;
         struct dartel_poly dpoly_src, dpoly_trg;
         object_struct **objects;
-        double *std_level = NULL;
+        double *std_level = NULL, *mask_level = NULL;
 
         resample_spherical_surface(trg, trg_sphere, &sm_trg, NULL, NULL, np);
         resample_spherical_surface(trg_sphere, trg_sphere, &sm_trg_sphere, NULL, NULL, np);
@@ -1184,22 +1277,28 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         init_dartel_poly(&sm_src_sphere, &dpoly_src);
 
-        /* Resample the template std map (defined at full template resolution)
-         * onto this level's template grid for local 1/variance weighting. */
+        /* Resample the template std map and/or cortex mask (both defined at full
+         * template resolution) onto this level's template grid. */
         if (opt->std_map != NULL) {
             std_level = (double *) malloc(sizeof(double) * np);
             resample_values_sphere(trg_sphere, &sm_trg_sphere, opt->std_map,
                                    std_level, 0, 0);
         }
+        if (opt->cortex_mask != NULL) {
+            mask_level = (double *) malloc(sizeof(double) * np);
+            resample_values_sphere(trg_sphere, &sm_trg_sphere, opt->cortex_mask,
+                                   mask_level, 0, 0);
+        }
 
         if (opt->verbose)
-            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s\n",
+            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s%s\n",
                    level+1, opt->n_steps, np, ctype, fwhm_level,
-                   std_level ? ", std-weighted" : "");
+                   std_level ? ", std-weighted" : "",
+                   mask_level ? ", cortex-masked" : "");
 
         warp_demon(&sm_src, &sm_src_sphere, &orig_sphere, &sm_trg,
                    &sm_trg_sphere, &level_warped, &dpoly_src, &dpoly_trg,
-                   ctype, opt, fwhm_level, fwhm_disp_level, std_level);
+                   ctype, opt, fwhm_level, fwhm_disp_level, std_level, mask_level);
 
         /* Carry this level's warp up to the full input resolution, stored as the
          * FORWARD map (source grid -> warped position). The next level pulls the
@@ -1223,6 +1322,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         delete_polygons(&orig_sphere);
         delete_polygons(&level_warped);
         if (std_level != NULL) free(std_level);
+        if (mask_level != NULL) free(mask_level);
     }
     if (opt->verbose)
         printf("\n");

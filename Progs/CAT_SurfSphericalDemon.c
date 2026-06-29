@@ -25,6 +25,7 @@ char  *trg_sphere_file     = NULL;
 char  *output_surface_file = NULL;
 char  *output_sphere_file  = NULL;
 char  *std_file            = NULL;
+char  *mask_file           = NULL;
 
 int    n_points   = 20480;  /* finest pyramid level; coarser levels are 1/4 each */
 int    rotate     = 1;
@@ -43,6 +44,7 @@ double max_step_deg = 15.0;
 double sigma_x_default = 10.0;  /* SD max_step = 2 */
 double std_exp    = 1.0;  /* exponent on the std-map precision weight */
 int    use_tangent = 0;   /* per-vertex tangent-plane update (prototype) */
+double l_dist     = 0.0;  /* metric-distortion regularizer weight (prototype) */
 
 static ArgvInfo argTable[] = {
   {"-i", ARGV_STRING, (char *) 1, (char *) &src_file,
@@ -57,8 +59,12 @@ static ArgvInfo argTable[] = {
    "Per-vertex std map of (mean-curvature) feature on the TEMPLATE mesh. When\n\tgiven, the update is locally weighted by 1/variance (atlas-style template\n\tregistration, as in Spherical Demons). Must match the template vertex count;\n\tresampled internally to each pyramid level."},
   {"-std-exp", ARGV_FLOAT, (char *) 1, (char *) &std_exp,
    "Exponent on the std-map precision weight: w = (1/variance)^e (default 1 =\n\tSD's 1/variance). Raise above 1 to sharpen a low-contrast std map; 0 = off."},
+  {"-mask", ARGV_STRING, (char *) 1, (char *) &mask_file,
+   "Per-vertex cortex mask on the TEMPLATE mesh (0 = exclude, e.g. medial wall;\n\t>0 = include). Excludes non-cortex from the data term (FreeSurfer-style).\n\tMust match the template vertex count; resampled to each pyramid level.\n\tIndependent of -stdmap and may be combined with it."},
   {"-tangent", ARGV_CONSTANT, (char *) TRUE, (char *) &use_tangent,
    "Prototype: compute the update in a per-vertex tangent-plane frame (as in\n\tSpherical Demons) instead of the global lat-lon chart. Requires the\n\tdiffeomorphic exp map (on by default)."},
+  {"-dist", ARGV_FLOAT, (char *) 1, (char *) &l_dist,
+   "Metric-distortion regularizer weight (FreeSurfer-style distance term): each\n\titeration takes a gradient step pulling warped neighbour distances back toward\n\tthe original sphere metric, resisting local stretch/fold. 0 = off (default).\n\tTry small values (e.g. 0.05-0.2); independent of -fwhm-disp smoothing."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file,
    "Warped brain."},
   {"-ws", ARGV_STRING, (char *) 1, (char *) &output_sphere_file,
@@ -155,6 +161,7 @@ main(int argc, char *argv[])
     opt.use_line_search     = 0;
     opt.use_expmap          = 1;
     opt.use_tangent         = use_tangent;
+    opt.l_dist              = l_dist;
     opt.fwhm_flow           = fwhm_flow;
     opt.fwhm_curv           = fwhm_curv;
     opt.fwhm_disp           = fwhm_disp;
@@ -179,6 +186,20 @@ main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         opt.std_map = std_values;
+    }
+
+    /* Optional template cortex mask (independent of the std map). */
+    if (mask_file != NULL) {
+        int n_mask;
+        double *mask_values;
+        if (input_values_any_format(mask_file, &n_mask, &mask_values) != OK)
+            return EXIT_FAILURE;
+        if (n_mask != trg->n_points) {
+            fprintf(stderr, "Cortex mask has %d values but template has %d points.\n",
+                    n_mask, trg->n_points);
+            return EXIT_FAILURE;
+        }
+        opt.cortex_mask = mask_values;
     }
 
     if (opt.n_steps < 1) opt.n_steps = 1;
