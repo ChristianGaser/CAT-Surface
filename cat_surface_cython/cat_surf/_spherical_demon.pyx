@@ -54,6 +54,8 @@ def spherical_demon(source_surface,
                     bint use_tangent=False,
                     std_map=None,
                     double std_exp=1.0,
+                    cortex_mask=None,
+                    double l_dist=0.0,
                     bint verbose=False,
                     bint debug=False):
     """
@@ -124,6 +126,18 @@ def spherical_demon(source_surface,
         (default 1.0 = SD's 1/variance).  Raise above 1 to sharpen a
         low-contrast std map; 0 disables local weighting.  Only used when
         ``std_map`` is given.
+    cortex_mask : array_like or None
+        Optional per-vertex cortex mask on the TEMPLATE mesh (one value per
+        ``target_sphere`` vertex; 0 excludes a vertex, e.g. the medial wall,
+        >0 includes it).  Excludes non-cortex from the data term
+        (FreeSurfer-style).  Independent of ``std_map`` and may be combined
+        with it.  Default None.
+    l_dist : float
+        Weight of the metric-distortion regularizer (FreeSurfer-style distance
+        term): each iteration takes a gradient step pulling warped neighbour
+        distances back toward the original sphere metric, resisting local
+        stretch/fold while still allowing large smooth warps.  0 disables it
+        (default).  Try small values (e.g. 0.05-0.2).
     verbose : bool
         Print per-iteration progress (default False).
     debug : bool
@@ -179,6 +193,7 @@ def spherical_demon(source_surface,
     opt.use_line_search     = 1 if use_line_search else 0
     opt.use_expmap          = 1 if use_expmap else 0
     opt.use_tangent         = 1 if use_tangent else 0
+    opt.l_dist              = l_dist
     opt.fwhm_flow           = fwhm_flow
     opt.fwhm_curv           = fwhm_curv
     opt.fwhm_disp           = fwhm_disp
@@ -190,9 +205,10 @@ def spherical_demon(source_surface,
     opt.verbose             = 1 if verbose else 0
     opt.debug               = 1 if debug else 0
 
-    # Optional template std map -> local 1/variance weighting (atlas mode).
-    # Held in std_arr for the duration of the call so opt.std_map stays valid.
+    # Optional template std map / cortex mask -> local data-term weighting.
+    # Held in std_arr / mask_arr for the call so the opt pointers stay valid.
     cdef cnp.ndarray[cnp.float64_t, ndim=1] std_arr
+    cdef cnp.ndarray[cnp.float64_t, ndim=1] mask_arr
     cdef int n_trg = tsph_mesh.ptr().n_points
     if std_map is not None:
         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
@@ -201,6 +217,13 @@ def spherical_demon(source_surface,
                 "std_map must have one value per template vertex (%d), got %d"
                 % (n_trg, std_arr.shape[0]))
         opt.std_map = &std_arr[0]
+    if cortex_mask is not None:
+        mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
+        if mask_arr.shape[0] != n_trg:
+            raise ValueError(
+                "cortex_mask must have one value per template vertex (%d), got %d"
+                % (n_trg, mask_arr.shape[0]))
+        opt.cortex_mask = &mask_arr[0]
 
     # Build the coarse-to-fine pyramid: finest level = n_points, each coarser
     # level uses 1/4 of the points (mirrors the CLI).

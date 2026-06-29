@@ -36,6 +36,8 @@ cdef extern from "CAT_WarpDemons.h":
         double step_factor
         double *std_map
         double std_exp
+        double *cortex_mask
+        double l_dist
         int    verbose
         int    debug
 
