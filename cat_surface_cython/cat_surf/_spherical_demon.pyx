@@ -53,6 +53,7 @@ def spherical_demon(source_surface,
                     bint use_expmap=True,
                     bint use_tangent=False,
                     bint use_geodesic=False,
+                    bint unfold=False,
                     std_map=None,
                     double std_exp=1.0,
                     cortex_mask=None,
@@ -120,6 +121,11 @@ def spherical_demon(source_surface,
         Compose the diffeomorphic exp-map warp with geodesic (slerp)
         barycentric interpolation on the sphere instead of
         linear-then-renormalize.  Slightly more accurate, slightly slower.
+        Default False.
+    unfold : bool
+        Post-step: relax folded (negative-area) triangles in the final warp
+        until orientations are restored.  Removes folds introduced when
+        up-sampling the warp onto an irregular full-resolution mesh.
         Default False.
     std_map : array_like or None
         Optional per-vertex standard deviation of the (mean-curvature) feature,
@@ -200,6 +206,7 @@ def spherical_demon(source_surface,
     opt.use_expmap          = 1 if use_expmap else 0
     opt.use_tangent         = 1 if use_tangent else 0
     opt.geodesic            = 1 if use_geodesic else 0
+    opt.unfold              = 1 if unfold else 0
     opt.l_dist              = l_dist
     opt.fwhm_flow           = fwhm_flow
     opt.fwhm_curv           = fwhm_curv

@@ -28,6 +28,7 @@ cdef extern from "CAT_WarpDemons.h":
         int    use_expmap
         int    use_tangent
         int    geodesic
+        int    unfold
         double fwhm_flow
         double fwhm_curv
         double fwhm_disp
