@@ -1240,6 +1240,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->use_expmap          = 1;
     opt->use_tangent         = 0;  /* default: lat-lon chart update */
     opt->geodesic            = 0;  /* default: linear-then-renormalize compose */
+    opt->unfold              = 0;  /* default: no fold-removal post-step */
     opt->fwhm_flow           = 30.0;
     opt->fwhm_curv           = 6.0;
     opt->fwhm_disp           = 10.0;
@@ -1253,6 +1254,93 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->l_dist              = 0.0;  /* metric-distortion regularizer off */
     opt->verbose             = 0;
     opt->debug               = 0;
+}
+
+/**
+ * \brief Relax folded (negative-area) triangles in a spherical warp.
+ *
+ * Carrying the coarse-pyramid warp up to an irregular full-resolution mesh can
+ * introduce a small number of folded triangles (orientation flips) even when
+ * the registration itself is diffeomorphic. This post-step detects the folded
+ * triangles, Laplacian-smooths the vertices they involve (plus a one-ring
+ * dilation) on the sphere, and repeats until no folds remain or \p max_iter is
+ * reached. Only the folded neighbourhood is touched, so the registration
+ * elsewhere is unchanged. Mirrors FreeSurfer's MARS_simpleUnfoldMesh.
+ *
+ * \param sphere   (in/out) spherical mesh to unfold (reprojected to \p radius)
+ * \param n_nbr    (in)     per-vertex neighbour counts
+ * \param nbr      (in)     per-vertex neighbour index lists
+ * \param max_iter (in)     maximum relaxation iterations
+ * \param radius   (in)     sphere radius for reprojection
+ * \param verbose  (in)     if nonzero, print before/after fold counts
+ * \return number of folded triangles remaining
+ */
+static int
+unfold_mesh(polygons_struct *sphere, int *n_nbr, int **nbr,
+            int max_iter, double radius, int verbose)
+{
+    int n = sphere->n_points, iter, t, i, j, n_folds = 0, init_folds = -1;
+    signed char *relax = (signed char *) malloc(n);
+    Point *newpts = (Point *) malloc(sizeof(Point) * n);
+
+    for (iter = 0; iter < max_iter; iter++) {
+        for (i = 0; i < n; i++) relax[i] = 0;
+
+        /* mark vertices of folded triangles (centroid points outward, so a
+         * flipped face normal means cross . centroid < 0) */
+        n_folds = 0;
+        for (t = 0; t < sphere->n_items; t++) {
+            int i0 = sphere->indices[POINT_INDEX(sphere->end_indices, t, 0)];
+            int i1 = sphere->indices[POINT_INDEX(sphere->end_indices, t, 1)];
+            int i2 = sphere->indices[POINT_INDEX(sphere->end_indices, t, 2)];
+            double ux = Point_x(sphere->points[i1]) - Point_x(sphere->points[i0]);
+            double uy = Point_y(sphere->points[i1]) - Point_y(sphere->points[i0]);
+            double uz = Point_z(sphere->points[i1]) - Point_z(sphere->points[i0]);
+            double vx2 = Point_x(sphere->points[i2]) - Point_x(sphere->points[i0]);
+            double vy2 = Point_y(sphere->points[i2]) - Point_y(sphere->points[i0]);
+            double vz2 = Point_z(sphere->points[i2]) - Point_z(sphere->points[i0]);
+            double cx = uy*vz2 - uz*vy2, cy = uz*vx2 - ux*vz2, cz = ux*vy2 - uy*vx2;
+            double gx = Point_x(sphere->points[i0]) + Point_x(sphere->points[i1]) + Point_x(sphere->points[i2]);
+            double gy = Point_y(sphere->points[i0]) + Point_y(sphere->points[i1]) + Point_y(sphere->points[i2]);
+            double gz = Point_z(sphere->points[i0]) + Point_z(sphere->points[i1]) + Point_z(sphere->points[i2]);
+            if (cx*gx + cy*gy + cz*gz < 0.0) {
+                relax[i0] = relax[i1] = relax[i2] = 1;
+                n_folds++;
+            }
+        }
+        if (init_folds < 0) init_folds = n_folds;
+        if (n_folds == 0) break;
+
+        /* dilate the relaxation set by one ring for a smoother untangle */
+        for (i = 0; i < n; i++)
+            if (relax[i] == 1)
+                for (j = 0; j < n_nbr[i]; j++)
+                    if (relax[nbr[i][j]] == 0) relax[nbr[i][j]] = 2;
+
+        /* Jacobi Laplacian step on the marked vertices (move to neighbour mean) */
+        for (i = 0; i < n; i++) {
+            double sx = 0.0, sy = 0.0, sz = 0.0;
+            if (!relax[i]) { newpts[i] = sphere->points[i]; continue; }
+            for (j = 0; j < n_nbr[i]; j++) {
+                int k = nbr[i][j];
+                sx += Point_x(sphere->points[k]);
+                sy += Point_y(sphere->points[k]);
+                sz += Point_z(sphere->points[k]);
+            }
+            if (n_nbr[i] > 0) { sx /= n_nbr[i]; sy /= n_nbr[i]; sz /= n_nbr[i]; }
+            fill_Point(newpts[i], sx, sy, sz);
+        }
+        for (i = 0; i < n; i++) sphere->points[i] = newpts[i];
+        normalize_sphere_radius(sphere, radius);
+    }
+
+    if (verbose)
+        printf("Unfold: %d -> %d folded triangles in %d iterations\n",
+               init_folds < 0 ? 0 : init_folds, n_folds, iter);
+
+    free(relax);
+    free(newpts);
+    return n_folds;
 }
 
 /**
@@ -1370,6 +1458,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
     polygons_struct *cur_sphere;
     double rotation_matrix[9], rot[3];
     int    i, level;
+    int    *unf_nbr = NULL, **unf_nbrs = NULL;
 
     if (src->n_points != src_sphere->n_points ||
         trg->n_points != trg_sphere->n_points) {
@@ -1492,6 +1581,16 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         if (std_level != NULL) free(std_level);
         if (mask_level != NULL) free(mask_level);
     }
+
+    /* Optional fold-removal post-step. Up-sampling the warp onto an irregular
+     * full-resolution mesh can leave a few folded triangles; relax them on the
+     * forward warp so it (and hence its inverse, the output) is a clean
+     * diffeomorphism. Neighbour lists are shared with the output unfold below. */
+    if (opt->unfold) {
+        get_all_polygon_point_neighbours(src_sphere, &unf_nbr, &unf_nbrs);
+        unfold_mesh(cur_sphere, unf_nbr, unf_nbrs, 200, SPHERE_RADIUS, opt->verbose);
+    }
+
     if (opt->verbose) {
         report_warp_distortion(src_sphere, cur_sphere);
         printf("\n");
@@ -1510,6 +1609,15 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         copy_polygons(get_polygons_ptr(inv[0]), warped_src_sphere);
         delete_object_list(1, inv);
     }
+
+    /* the inversion resamples, which can re-introduce a few folds on an
+     * irregular mesh; clean the output too. */
+    if (opt->unfold) {
+        unfold_mesh(warped_src_sphere, unf_nbr, unf_nbrs, 200, SPHERE_RADIUS, opt->verbose);
+        free(unf_nbr);
+        if (unf_nbrs) { free(unf_nbrs[0]); free(unf_nbrs); }
+    }
+
     compute_polygon_normals(warped_src_sphere);
 
     delete_polygons(cur_sphere);

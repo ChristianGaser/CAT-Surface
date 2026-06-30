@@ -49,6 +49,10 @@ typedef struct {
     int    geodesic;            /* compose the exp-map warp with geodesic (slerp)
                                    barycentric interpolation on the sphere instead
                                    of linear-then-renormalize */
+    int    unfold;              /* if nonzero, run a post-step that relaxes folded
+                                   (negative-area) triangles in the final warp
+                                   until orientations are restored (or this many
+                                   iterations); removes up-sampling folds */
     double fwhm_flow;           /* FWHM for velocity-update smoothing (fluid) */
     double fwhm_curv;           /* FWHM for the initial curvature smoothing */
     double fwhm_disp;           /* FWHM for displacement-field smoothing (elastic) */
