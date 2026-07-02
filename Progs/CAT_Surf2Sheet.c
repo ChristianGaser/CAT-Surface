@@ -56,12 +56,12 @@ int
 main(int argc, char *argv[])
 {
     char         *output_surface_file;
-    File_formats     format;
+    File_formats format;
     polygons_struct    *polygons, *sphere;
     int          i, n_objects, x, y;
     int          n_values;
     int          *n_neighbours, **neighbours;
-    double         *values, *data, mn, mx, distance;
+    double       *values, *data, mn, mx, distance;
     Point        centre;
     object_struct    **objects, *object;
 
@@ -144,8 +144,10 @@ main(int argc, char *argv[])
     if (write_pgm(output_surface_file, data, sz_map[0], sz_map[1]) != 0)
         exit(EXIT_FAILURE);
 
-    delete_polygon_point_neighbours(polygons, n_neighbours,
+    if (values_file == NULL) {
+        delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);
+    }
     delete_object_list(n_objects, objects);
     free(data);
 
