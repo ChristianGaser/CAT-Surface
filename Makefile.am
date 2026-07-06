@@ -305,7 +305,6 @@ noinst_HEADERS = \
     Include/CAT_Surf.h \
     Include/CAT_SurfUtils.h \
     Include/CAT_Warp.h \
-    Include/CAT_Pinv.h \
     Include/CAT_SurfaceIO.h \
     Include/CAT_SPH.h \
     Include/CAT_Interpolate.h \
