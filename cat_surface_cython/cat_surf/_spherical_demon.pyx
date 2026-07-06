@@ -32,32 +32,32 @@ def spherical_demon(source_surface,
                     target_surface,
                     target_sphere,
                     int n_points=20480,
-                    int n_steps=2,
+                    int n_steps=3,
                     int iters=100,
-                    int curvtype0=5,
-                    int curvtype1=5,
-                    int curvtype2=5,
-                    int curvtype3=0,
-                    double fwhm_flow=5.0,
-                    double fwhm_curv=1.0,
-                    double fwhm_disp=10.0,
-                    double max_step_deg=15.0,
-                    double sigma_x=2.0,
+                    int curvtype0=1000,
+                    int curvtype1=750,
+                    int curvtype2=500,
+                    int curvtype3=15,
+                    double fwhm_flow=12.0,
+                    double fwhm_curv=16.0,
+                    double fwhm_disp=6.0,
+                    double max_step_deg=50.0,
+                    double sigma_x=20.0,
                     double rate=1.0,
                     double step_factor=1.0,
                     bint rotate=True,
                     bint smooth_velocity=True,
                     bint smooth_displacement=True,
                     bint use_hessian=True,
-                    bint use_line_search=True,
+                    bint use_line_search=False,
                     bint use_expmap=True,
-                    bint use_tangent=False,
-                    bint use_geodesic=False,
+                    bint use_tangent=True,
+                    bint use_geodesic=True,
                     bint unfold=False,
                     std_map=None,
-                    double std_exp=1.0,
+                    double std_exp=2.0,
                     cortex_mask=None,
-                    double l_dist=0.0,
+                    double l_dist=0.3,
                     bint verbose=False,
                     bint debug=False):
     """
@@ -78,24 +78,26 @@ def spherical_demon(source_surface,
         1/4 the points.
     n_steps : int
         Number of multi-resolution pyramid levels, coarse to fine
-        (1..CAT_WARP_DEMONS_MAX_STEPS, default 2).
+        (1..CAT_WARP_DEMONS_MAX_STEPS, default 3).
     iters : int
         Maximum iterations per level (default 100).
     curvtype0, curvtype1, curvtype2, curvtype3 : int
         Curvature feature per level (coarse to fine).  0 mean curvature
         (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean
-        curvature (rad), 5 sulcal-depth-like.  Defaults 5, 5, 5, 0.
+        curvature (rad), 5 sulcal-depth-like, >5 depth-potential with
+        alpha = 1/curvtype.  Defaults 1000, 750, 500, 15 (depth-potential;
+        the 4th level is only used with ``n_steps`` 4).
     fwhm_flow : float
-        Velocity-update smoothing FWHM (default 5.0).
+        Velocity-update smoothing FWHM (default 12.0).
     fwhm_curv : float
-        Curvature pre-smoothing FWHM applied to both surfaces (default 1.0).
+        Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).
     fwhm_disp : float
-        Displacement-field smoothing FWHM, the elastic prior (default 10.0).
+        Displacement-field smoothing FWHM, the elastic prior (default 6.0).
     max_step_deg : float
         Clamp per-iteration |dtheta,dphi| to this many degrees; <=0 disables
-        (default 15.0).
+        (default 50.0).
     sigma_x : float
-        Spherical Demons Tikhonov regularization weight (default 2.0).
+        Spherical Demons Tikhonov regularization weight (default 20.0).
     rate : float
         Per-iteration multiplier for ``fwhm_flow`` (default 1.0 = constant).
     step_factor : float
@@ -109,19 +111,19 @@ def spherical_demon(source_surface,
     use_hessian : bool
         Per-vertex Gauss-Newton 2x2 Hessian update (default True).
     use_line_search : bool
-        Adaptive step backtracking on stalled correlation (default True).
+        Adaptive step backtracking on stalled correlation (default False).
     use_expmap : bool
         Diffeomorphic scaling-and-squaring exponential map (default True).
         If False, falls back to an additive theta/phi flow.
     use_tangent : bool
-        Prototype: compute the update in a per-vertex tangent-plane frame (as
-        in Spherical Demons) instead of the global lat-lon chart.  Requires
-        ``use_expmap``.  Default False.
+        Compute the update in a per-vertex tangent-plane frame (as in
+        Spherical Demons) instead of the global lat-lon chart.  Requires
+        ``use_expmap``.  Default True.
     use_geodesic : bool
         Compose the diffeomorphic exp-map warp with geodesic (slerp)
         barycentric interpolation on the sphere instead of
         linear-then-renormalize.  Slightly more accurate, slightly slower.
-        Default False.
+        Default True.
     unfold : bool
         Post-step: relax folded (negative-area) triangles in the final warp
         until orientations are restored.  Removes folds introduced when
@@ -135,7 +137,7 @@ def spherical_demon(source_surface,
         the map is resampled internally to each pyramid level.  Default None.
     std_exp : float
         Exponent on the precision weight, ``w = (1/variance) ** std_exp``
-        (default 1.0 = SD's 1/variance).  Raise above 1 to sharpen a
+        (default 2.0; 1.0 = SD's 1/variance).  Raise above 1 to sharpen a
         low-contrast std map; 0 disables local weighting.  Only used when
         ``std_map`` is given.
     cortex_mask : array_like or None
@@ -149,7 +151,7 @@ def spherical_demon(source_surface,
         term): each iteration takes a gradient step pulling warped neighbour
         distances back toward the original sphere metric, resisting local
         stretch/fold while still allowing large smooth warps.  0 disables it
-        (default).  Try small values (e.g. 0.05-0.2).
+        (default 0.3).  Try small values (e.g. 0.05-0.2).
     verbose : bool
         Print per-iteration progress (default False).
     debug : bool
