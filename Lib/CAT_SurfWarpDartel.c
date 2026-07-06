@@ -132,9 +132,11 @@ Status CAT_SurfWarpSolveDartelFlow(
             /* initial rotation if n_loops < 0 */
             if (n_loops < 0)
             {
+                smooth_heatkernel(sm_src, NULL, 15);
+                smooth_heatkernel(sm_trg, NULL, 10);
                 rotate_polygons_to_atlas(sm_src, sm_src_sphere,
                                          sm_trg, sm_trg_sphere,
-                                         cur_fwhm, opt->curvtype0, rot, opt->verbose);
+                                         50.0, 1000, rot, opt->verbose);
                 rotation_to_matrix(rotation_matrix,
                                    rot[0], rot[1], rot[2]);
 

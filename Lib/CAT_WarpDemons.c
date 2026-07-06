@@ -34,6 +34,10 @@
  * pyramid levels are used. Set to the default coarsest level so adding finer or
  * coarser levels does not change the smoothing at the established resolutions. */
 #define SMOOTH_REF_POINTS 5120
+/* Fixed high resolution the initial rigid rotation is estimated at, matching
+ * CAT_SurfWarp's n_triangles default. The rotation search is decoupled from the
+ * (coarser) pyramid so it always sees full curvature detail. */
+#define ROT_POINTS 81920
 
 /* The running warp is integrated by composing exp(v) with inverse direction,
  * matching the convention of the additive theta/phi update. */
@@ -1456,7 +1460,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                        const CAT_WarpDemonsOptions *opt)
 {
     polygons_struct *cur_sphere;
-    double rotation_matrix[9], rot[3];
+    double rotation_matrix[9], rot[3], fwhm_curv0;
     int    i, level;
     int    *unf_nbr = NULL, **unf_nbrs = NULL;
 
@@ -1479,6 +1483,41 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
      * across the coarse-to-fine levels. */
     cur_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
     copy_polygons(src_sphere, cur_sphere);
+
+    /* Estimate the initial rigid rotation at a fixed high resolution
+     * (ROT_POINTS = 81920), as CAT_SurfWarp does via CAT_SurfWarpSolveDartelFlow
+     * (n_triangles), rather than inside the loop on the coarsest pyramid level.
+     * Doing it on the heavily downsampled level-0 mesh (e.g. 1280 points)
+     * discarded the curvature detail the Nelder-Mead search needs, so it
+     * converged to markedly different angles than the Dartel path. Fold the
+     * rotation into the running warp before the coarse-to-fine loop begins; the
+     * level-0 reference sphere is then re-derived from cur_sphere like every
+     * other level. */
+    if (opt->rotate) {
+        polygons_struct rot_src, rot_src_sphere, rot_trg, rot_trg_sphere;
+
+        resample_spherical_surface(src, src_sphere, &rot_src,
+                                   NULL, NULL, ROT_POINTS);
+        resample_spherical_surface(src_sphere, src_sphere, &rot_src_sphere,
+                                   NULL, NULL, ROT_POINTS);
+        resample_spherical_surface(trg, trg_sphere, &rot_trg,
+                                   NULL, NULL, ROT_POINTS);
+        resample_spherical_surface(trg_sphere, trg_sphere, &rot_trg_sphere,
+                                   NULL, NULL, ROT_POINTS);
+
+        smooth_heatkernel(&rot_src, NULL, 15);
+        smooth_heatkernel(&rot_trg, NULL, 10);
+
+        rotate_polygons_to_atlas(&rot_src, &rot_src_sphere, &rot_trg,
+                                 &rot_trg_sphere, 50.0, 1000, rot, opt->verbose);
+        rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
+        rotate_polygons(cur_sphere, NULL, rotation_matrix);
+
+        delete_polygons(&rot_src);
+        delete_polygons(&rot_src_sphere);
+        delete_polygons(&rot_trg);
+        delete_polygons(&rot_trg_sphere);
+    }
 
     for (level = 0; level < opt->n_steps; level++) {
         int np = (opt->level_points[level] > 0) ? opt->level_points[level]
@@ -1516,20 +1555,10 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
          * the raw, unsmoothed mesh - so a multi-resolution run started its finer
          * stage from a far lower correlation than the equivalent single stage. */
         if (opt->fwhm_curv > 0.0) {
-            smooth_heatkernel(&sm_src, NULL, opt->fwhm_curv);
-            smooth_heatkernel(&sm_trg, NULL, opt->fwhm_curv);
-        }
-
-        if (level == 0 && opt->rotate) {
-            rotate_polygons_to_atlas(&sm_src, &sm_src_sphere, &sm_trg,
-                                     &sm_trg_sphere, 10.0, 5, rot, opt->verbose);
-            rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-            /* fold the rotation into the running warp, then re-derive the
-             * level-0 reference sphere from it */
-            rotate_polygons(cur_sphere, NULL, rotation_matrix);
-            delete_polygons(&sm_src_sphere);
-            resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere,
-                                       NULL, NULL, np);
+            fwhm_curv0 = opt->fwhm_curv/((double)level + 1.0);
+            
+            smooth_heatkernel(&sm_src, NULL, fwhm_curv0);
+            smooth_heatkernel(&sm_trg, NULL, fwhm_curv0/1.5);
         }
 
         init_dartel_poly(&sm_src_sphere, &dpoly_src);
