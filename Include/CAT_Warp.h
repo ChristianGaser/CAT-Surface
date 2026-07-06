@@ -21,7 +21,7 @@
 #define GAMMA 2.0    // Expansion coefficient
 #define RHO 0.5      // Contraction coefficient
 #define SIGMA 0.5    // Shrinkage coefficient
-#define TOL 1e-6     // Convergence tolerance
+#define TOL 1e-4     // Convergence tolerance
 
 typedef struct {
     polygons_struct *src;

@@ -29,23 +29,21 @@ char  *mask_file           = NULL;
 
 int    n_points   = 20480;  /* finest pyramid level; coarser levels are 1/4 each */
 int    rotate     = 1;
-int    curvtype0  = 5;   /* level 0: sulcal-depth-like (coarsest) */
-int    curvtype1  = 0;   /* level 1: sulcal-depth-like */
-int    curvtype2  = 0;   /* level 2: sulcal-depth-like (only with -steps 3+) */
-int    curvtype3  = 0;   /* level 3: mean curvature (only with -steps 4) */
+int    curvtype0  = 1000;   /* level 0: depth-potential (coarsest) */
+int    curvtype1  = 750;    /* level 1: depth-potential */
+int    curvtype2  = 500;    /* level 2: depth-potential (only with -steps 3+) */
+int    curvtype3  = 15;     /* level 3: depth-potential (only with -steps 4) */
 int    n_steps    = 3;
 int    debug      = 0;
 int    iters      = 100;
 int    verbose    = 0;
-double fwhm_flow  = 10.0;
-double fwhm_curv  = 1.0;
-double fwhm_disp  = 12.0;
-double max_step_deg = 15.0;
-double sigma_x_default = 10.0;  /* SD max_step = 2 */
-double std_exp    = 1.0;  /* exponent on the std-map precision weight */
-int    use_tangent = 0;   /* per-vertex tangent-plane update (prototype) */
-double l_dist     = 0.0;  /* metric-distortion regularizer weight (prototype) */
-int    use_geodesic = 0;  /* geodesic (slerp) warp composition (prototype) */
+double fwhm_flow  = 12.0;
+double fwhm_curv  = 16.0;
+double fwhm_disp  = 6.0;
+double max_step_deg = 50.0;
+double sigma_x_default = 20.0;  /* SD max_step = 2 */
+double std_exp    = 2.0;  /* exponent on the std-map precision weight */
+double l_dist     = 0.3;  /* metric-distortion regularizer weight (prototype) */
 int    use_unfold = 0;    /* relax folded triangles in the final warp */
 
 static ArgvInfo argTable[] = {
@@ -63,12 +61,8 @@ static ArgvInfo argTable[] = {
    "Exponent on the std-map precision weight: w = (1/variance)^e (default 1 =\n\tSD's 1/variance). Raise above 1 to sharpen a low-contrast std map; 0 = off."},
   {"-mask", ARGV_STRING, (char *) 1, (char *) &mask_file,
    "Per-vertex cortex mask on the TEMPLATE mesh (0 = exclude, e.g. medial wall;\n\t>0 = include). Excludes non-cortex from the data term (FreeSurfer-style).\n\tMust match the template vertex count; resampled to each pyramid level.\n\tIndependent of -stdmap and may be combined with it."},
-  {"-tangent", ARGV_CONSTANT, (char *) TRUE, (char *) &use_tangent,
-   "Prototype: compute the update in a per-vertex tangent-plane frame (as in\n\tSpherical Demons) instead of the global lat-lon chart. Requires the\n\tdiffeomorphic exp map (on by default)."},
   {"-dist", ARGV_FLOAT, (char *) 1, (char *) &l_dist,
    "Metric-distortion regularizer weight (FreeSurfer-style distance term): each\n\titeration takes a gradient step pulling warped neighbour distances back toward\n\tthe original sphere metric, resisting local stretch/fold. 0 = off (default).\n\tTry small values (e.g. 0.05-0.2); independent of -fwhm-disp smoothing."},
-  {"-geodesic", ARGV_CONSTANT, (char *) TRUE, (char *) &use_geodesic,
-   "Compose the diffeomorphic exp-map warp with geodesic (slerp) barycentric\n\tinterpolation on the sphere instead of linear-then-renormalize. Slightly\n\tmore accurate, slightly slower. Default off."},
   {"-unfold", ARGV_CONSTANT, (char *) TRUE, (char *) &use_unfold,
    "Post-step: relax folded (negative-area) triangles in the final warp until\n\torientations are restored. Removes folds introduced when up-sampling the\n\twarp onto an irregular full-resolution mesh. Default off."},
   {"-w", ARGV_STRING, (char *) 1, (char *) &output_surface_file,
@@ -94,7 +88,7 @@ static ArgvInfo argTable[] = {
   {"-norot", ARGV_CONSTANT, (char *) FALSE, (char *) &rotate,
    "Don't rotate input surface before warping."},
   {"-type0", ARGV_INT, (char *) 1, (char *) &curvtype0,
-   "Curvature type for level 1 (coarsest)\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator."},
+   "Curvature type for level 1 (coarsest)\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
   {"-type1", ARGV_INT, (char *) 1, (char *) &curvtype1,
    "Curvature type for level 2 (see -type0 for values)."},
   {"-type2", ARGV_INT, (char *) 1, (char *) &curvtype2,
@@ -166,9 +160,9 @@ main(int argc, char *argv[])
     opt.use_hessian         = 1;
     opt.use_line_search     = 0;
     opt.use_expmap          = 1;
-    opt.use_tangent         = use_tangent;
+    opt.use_tangent         = 1;
     opt.l_dist              = l_dist;
-    opt.geodesic            = use_geodesic;
+    opt.geodesic            = 1;
     opt.unfold              = use_unfold;
     opt.fwhm_flow           = fwhm_flow;
     opt.fwhm_curv           = fwhm_curv;
