@@ -110,3 +110,53 @@ double get_std_double(double *arr, int n, int exclude_zeros)
 
     return sqrt(variance);
 }
+
+/* Copy of Lib/CAT_Math.c orthogonal_poly() for the isolated test build. */
+int orthogonal_poly(const double *x, int n, int degree, double *out)
+{
+    int    i, j, k;
+    double mean = 0.0, dot, norm;
+    double *v, **q;
+
+    if (degree < 1 || n < 2 || x == NULL || out == NULL)
+        return 0;
+
+    v = (double *) malloc(sizeof(double) * n);
+    q = (double **) malloc(sizeof(double *) * (degree + 1));
+    if (v == NULL || q == NULL) { free(v); free(q); return 0; }
+
+    for (i = 0; i < n; i++) mean += x[i];
+    mean /= n;
+
+    for (j = 0; j <= degree; j++) {
+        q[j] = (double *) malloc(sizeof(double) * n);
+        if (q[j] == NULL) {
+            for (k = 0; k < j; k++) free(q[k]);
+            free(q); free(v);
+            return 0;
+        }
+        for (i = 0; i < n; i++) v[i] = pow(x[i] - mean, (double) j);
+        for (k = 0; k < j; k++) {
+            dot = 0.0;
+            for (i = 0; i < n; i++) dot += q[k][i] * v[i];
+            for (i = 0; i < n; i++) v[i] -= dot * q[k][i];
+        }
+        norm = 0.0;
+        for (i = 0; i < n; i++) norm += v[i] * v[i];
+        norm = sqrt(norm);
+        if (norm < 1e-10) {
+            for (k = 0; k <= j; k++) free(q[k]);
+            free(q); free(v);
+            return 0;
+        }
+        for (i = 0; i < n; i++) q[j][i] = v[i] / norm;
+    }
+
+    for (j = 1; j <= degree; j++)
+        for (i = 0; i < n; i++)
+            out[(j-1)*n + i] = q[j][i];
+
+    for (j = 0; j <= degree; j++) free(q[j]);
+    free(q); free(v);
+    return 1;
+}

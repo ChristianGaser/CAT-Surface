@@ -1,4 +1,5 @@
+glm_build_design: poly degree must be less than the number of distinct values in two.csv
 glm_build_design: file bad.csv has 2 values, expected 4
 glm_build_design: mixing '*' and ':' in one term is not supported
-8 tests run, 0 failed
+11 tests run, 0 failed
 PASS test_glmformula (exit status: 0)
