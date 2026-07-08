@@ -34,7 +34,9 @@ typedef struct {
  * corresponding design matrix.  Every variable on the right-hand side is a
  * file with exactly \p n_obs rows (one value per scan); files whose values
  * are all numeric become covariates, otherwise they are treated as factors
- * (categorical).  A numeric file can be forced to a factor with factor(...).
+ * (categorical).  A numeric file can be forced to a factor with factor(...),
+ * and poly(file, degree) adds an orthogonal polynomial of the given degree
+ * (matching R's default poly()).
  *
  * Supported operators: '+' (add term), ':' (interaction), '*' (main effects
  * plus interaction) and intercept control via a leading '0'/'-1' (drop) or

@@ -80,6 +80,77 @@ int pinv(int m, int n, double **A, double **Ainv)
 }
 
 /**
+ * \brief Build an orthogonal polynomial basis, matching R's poly(x, degree).
+ *
+ * Centres x, forms the Vandermonde matrix [1, x, x^2, ..., x^degree] and
+ * orthonormalises its columns with modified Gram-Schmidt, then drops the
+ * constant column.  Because column j of the QR factorisation satisfies
+ * Q_j * R_jj = residual_j, normalising to unit length reproduces exactly
+ * R's default (non-raw) orthogonal polynomials.
+ *
+ * \param x      (in)  input vector of length n
+ * \param n      (in)  number of observations
+ * \param degree (in)  polynomial degree (>= 1, and < number of distinct x)
+ * \param out    (out) caller-allocated array of n*degree doubles, column-major
+ * \return 1 on success, 0 on failure (bad arguments or degenerate data)
+ */
+int orthogonal_poly(const double *x, int n, int degree, double *out)
+{
+    int    i, j, k;
+    double mean = 0.0, dot, norm;
+    double *v, **q;
+
+    if (degree < 1 || n < 2 || x == NULL || out == NULL)
+        return (0);
+
+    v = (double *) malloc(sizeof(double) * n);
+    q = (double **) malloc(sizeof(double *) * (degree + 1));
+    if (v == NULL || q == NULL) {
+        free(v); free(q);
+        return (0);
+    }
+
+    for (i = 0; i < n; i++) mean += x[i];
+    mean /= n;
+
+    /* q[0] = normalised constant, q[1..degree] = orthonormalised powers */
+    for (j = 0; j <= degree; j++) {
+        q[j] = (double *) malloc(sizeof(double) * n);
+        if (q[j] == NULL) {
+            for (k = 0; k < j; k++) free(q[k]);
+            free(q); free(v);
+            return (0);
+        }
+        /* v = (x - mean)^j */
+        for (i = 0; i < n; i++) v[i] = pow(x[i] - mean, (double) j);
+        /* modified Gram-Schmidt against q[0..j-1] */
+        for (k = 0; k < j; k++) {
+            dot = 0.0;
+            for (i = 0; i < n; i++) dot += q[k][i] * v[i];
+            for (i = 0; i < n; i++) v[i] -= dot * q[k][i];
+        }
+        norm = 0.0;
+        for (i = 0; i < n; i++) norm += v[i] * v[i];
+        norm = sqrt(norm);
+        if (norm < 1e-10) {
+            for (k = 0; k <= j; k++) free(q[k]);
+            free(q); free(v);
+            return (0);
+        }
+        for (i = 0; i < n; i++) q[j][i] = v[i] / norm;
+    }
+
+    /* copy q[1..degree] into out (column-major, constant column dropped) */
+    for (j = 1; j <= degree; j++)
+        for (i = 0; i < n; i++)
+            out[(j-1)*n + i] = q[j][i];
+
+    for (j = 0; j <= degree; j++) free(q[j]);
+    free(q); free(v);
+    return (1);
+}
+
+/**
  * convert_input_type - Converts various data types to a floating point array.
  *
  * This function is designed to convert a data array of various types into an array

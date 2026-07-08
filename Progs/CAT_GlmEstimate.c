@@ -51,19 +51,21 @@ DESCRIPTION\n\
     2) With an R-style model formula via -formula.  The scans are listed\n\
        first, then a formula whose right-hand side names one file per\n\
        variable (one value per scan).  Numeric files become covariates,\n\
-       text files become factors; factor(file) forces a factor.  The\n\
-       operators '+', ':' and '*' are supported, and a leading '0' or\n\
-       '-1' drops the intercept.  Examples:\n\
+       text files become factors; factor(file) forces a factor and\n\
+       poly(file,d) adds an orthogonal polynomial of degree d (as in R).\n\
+       The operators '+', ':' and '*' are supported, and a leading '0'\n\
+       or '-1' drops the intercept.  Examples:\n\
          -formula \"~ group.csv\"                    group comparison\n\
          -formula \"~ age.csv\"                      regression\n\
          -formula \"~ group.csv * age.csv\"          group x covariate\n\
          -formula \"~ group.csv * sex.csv * site.csv\"  three-way ANOVA\n\
+         -formula \"~ poly(age.csv,2)\"              quadratic trend\n\
 \n\
     Formula limitations: '*' and ':' cannot be mixed within a single\n\
     term (e.g. a:b*c); only treatment contrasts (with intercept) and\n\
     cell-means coding (leading '0'/'-1') are supported - there is no\n\
-    poly(), spline, I(), nesting ('/') or '%%in%%'.  Each variable file\n\
-    must hold exactly one value per scan and is matched to the scans by\n\
+    spline, I(), nesting ('/') or '%%in%%'.  Each variable file must\n\
+    hold exactly one value per scan and is matched to the scans by\n\
     row order.\n\
 \n\
     The following files are written:\n\

@@ -71,6 +71,22 @@ enum
 #endif
 
 int pinv(int m, int n, double **A, double **Ainv);
+/**
+ * \brief Build an orthogonal polynomial basis, matching R's poly(x, degree).
+ *
+ * Centres \p x, forms the Vandermonde matrix [1, x, x^2, ..., x^degree] and
+ * orthonormalises its columns with modified Gram-Schmidt; the constant
+ * column is dropped (it is normally covered by an intercept).  The result
+ * is identical to R's default (non-raw) orthogonal polynomials.
+ *
+ * \param x      (in)  input vector of length \p n
+ * \param n      (in)  number of observations
+ * \param degree (in)  polynomial degree (>= 1, and < number of distinct x)
+ * \param out    (out) caller-allocated array of n*degree doubles, filled in
+ *                     column-major order (column j starts at out + j*n)
+ * \return 1 on success, 0 on failure (bad arguments or degenerate data)
+ */
+int orthogonal_poly(const double *x, int n, int degree, double *out);
 void convert_input_type(void *data, double *buffer, int n, int datatype);
 void convert_output_type(void *data, double *buffer, int n, int datatype);
 void convert_input_type_float(void *data, float *buffer, int n, int datatype);

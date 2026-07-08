@@ -21,12 +21,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 #include "CAT_GlmFormula.h"
+#include "CAT_Math.h"
 
 #define GLM_MAXVARS   64
 #define GLM_MAXTERMS  512
 #define GLM_MAXCOLS   1024
+#define GLM_MAXPOLY   16
 #define GLM_NAME      256
 #define GLM_PATH      1024
 
@@ -38,6 +41,7 @@ typedef struct {
     char    name[GLM_NAME];   /* short label derived from the filename    */
     char    filename[GLM_PATH];
     int     forced_factor;    /* set via factor(...)                      */
+    int     poly_degree;      /* >0 for poly(...,degree); 0 otherwise     */
     int     is_factor;
     int     n_obs;
     double *num;              /* covariate values (is_factor == 0)        */
@@ -182,14 +186,29 @@ read_var(Var *var, int n_obs)
     return 1;
 }
 
-/* Find or register a variable by filename (+ forced flag); read it once. */
+/* Number of distinct values in a numeric vector (small n, O(n^2)). */
 static int
-get_var(Ctx *ctx, const char *filename, int forced, int n_obs)
+count_unique(const double *x, int n)
+{
+    int i, j, u = 0;
+    for (i = 0; i < n; i++) {
+        int seen = 0;
+        for (j = 0; j < i; j++)
+            if (x[j] == x[i]) { seen = 1; break; }
+        if (!seen) u++;
+    }
+    return u;
+}
+
+/* Find or register a variable by filename (+ forced/poly flags); read once. */
+static int
+get_var(Ctx *ctx, const char *filename, int forced, int poly_degree, int n_obs)
 {
     int i;
     for (i = 0; i < ctx->n_vars; i++) {
         if (strcmp(ctx->vars[i].filename, filename) == 0 &&
-            ctx->vars[i].forced_factor == forced)
+            ctx->vars[i].forced_factor == forced &&
+            ctx->vars[i].poly_degree == poly_degree)
             return i;
     }
     if (ctx->n_vars >= GLM_MAXVARS) {
@@ -201,8 +220,27 @@ get_var(Ctx *ctx, const char *filename, int forced, int n_obs)
     strncpy(v->filename, filename, GLM_PATH - 1);
     base_label(filename, v->name);
     v->forced_factor = forced;
+    v->poly_degree = poly_degree;
     if (!read_var(v, n_obs))
         return -1;
+
+    if (poly_degree > 0) {
+        if (poly_degree > GLM_MAXPOLY) {
+            fprintf(stderr, "glm_build_design: poly degree %d exceeds "
+                            "maximum of %d\n", poly_degree, GLM_MAXPOLY);
+            return -1;
+        }
+        if (v->is_factor) {
+            fprintf(stderr, "glm_build_design: poly() requires a numeric "
+                            "variable, but %s is categorical\n", filename);
+            return -1;
+        }
+        if (poly_degree >= count_unique(v->num, n_obs)) {
+            fprintf(stderr, "glm_build_design: poly degree must be less than "
+                            "the number of distinct values in %s\n", filename);
+            return -1;
+        }
+    }
     return ctx->n_vars++;
 }
 
@@ -210,7 +248,8 @@ get_var(Ctx *ctx, const char *filename, int forced, int n_obs)
 /*  tokenizer */
 /* ----------------------------------------------------------------------- */
 
-enum { T_VAR, T_PLUS, T_STAR, T_COLON, T_LP, T_RP, T_INT0, T_INT1, T_END };
+enum { T_VAR, T_PLUS, T_STAR, T_COLON, T_LP, T_RP, T_COMMA,
+       T_INT0, T_INT1, T_END };
 
 typedef struct { int type; char text[GLM_PATH]; } Token;
 
@@ -232,6 +271,7 @@ tokenize(const char *rhs, Token *toks, int max)
         if (*p == ':') { toks[n++].type = T_COLON; p++; continue; }
         if (*p == '(') { toks[n++].type = T_LP;    p++; continue; }
         if (*p == ')') { toks[n++].type = T_RP;    p++; continue; }
+        if (*p == ',') { toks[n++].type = T_COMMA; p++; continue; }
 
         /* read a word up to the next space or operator */
         {
@@ -239,7 +279,7 @@ tokenize(const char *rhs, Token *toks, int max)
             int   len = 0;
             while (*p && !isspace((unsigned char) *p) &&
                    *p != '+' && *p != '*' && *p != ':' &&
-                   *p != '(' && *p != ')') {
+                   *p != '(' && *p != ')' && *p != ',') {
                 if (len < GLM_PATH - 1) w[len++] = *p;
                 p++;
             }
@@ -311,16 +351,29 @@ parse_formula(Ctx *ctx, const char *formula, int n_obs)
             case T_STAR: has_star = 1; i++; break;
             case T_COLON: has_colon = 1; i++; break;
             case T_VAR: {
-                int forced = 0;
+                int forced = 0, degree = 0;
                 const char *fname = toks[i].text;
                 /* factor(<file>) */
                 if (strcmp(toks[i].text, "factor") == 0 &&
-                    i + 3 < ntok + 1 &&
+                    i + 3 <= ntok &&
                     toks[i+1].type == T_LP && toks[i+2].type == T_VAR &&
                     toks[i+3].type == T_RP) {
                     forced = 1;
                     fname = toks[i+2].text;
                     i += 4;
+                /* poly(<file>, <degree>) - orthogonal polynomial */
+                } else if (strcmp(toks[i].text, "poly") == 0 &&
+                           i + 5 <= ntok &&
+                           toks[i+1].type == T_LP  && toks[i+2].type == T_VAR &&
+                           toks[i+3].type == T_COMMA && toks[i+5].type == T_RP) {
+                    degree = atoi(toks[i+4].text);
+                    if (degree < 1) {
+                        fprintf(stderr, "glm_build_design: poly() degree must "
+                                        "be a positive integer\n");
+                        return 0;
+                    }
+                    fname = toks[i+2].text;
+                    i += 6;
                 } else {
                     i++;
                 }
@@ -328,7 +381,7 @@ parse_formula(Ctx *ctx, const char *formula, int n_obs)
                     fprintf(stderr, "glm_build_design: term too large\n");
                     return 0;
                 }
-                atoms[m] = get_var(ctx, fname, forced, n_obs);
+                atoms[m] = get_var(ctx, fname, forced, degree, n_obs);
                 if (atoms[m] < 0)
                     return 0;
                 m++;
@@ -364,13 +417,46 @@ parse_formula(Ctx *ctx, const char *formula, int n_obs)
 /*  build the design columns from the parsed terms */
 /* ----------------------------------------------------------------------- */
 
+/* Expand poly(file, degree) into its orthogonal polynomial columns.
+ *
+ * The numerical work lives in orthogonal_poly() (CAT_Math); this wrapper
+ * only slices the basis into Col vectors and attaches R-style labels
+ * ("poly(name,d)1", ...).  Returns the number of columns (== degree), or
+ * -1 on a numerical failure. */
+static int
+expand_poly(const Var *var, int n_obs, Col *out)
+{
+    int     d = var->poly_degree, i, j;
+    double *basis = (double *) malloc(sizeof(double) * n_obs * d);
+
+    if (!orthogonal_poly(var->num, n_obs, d, basis)) {
+        fprintf(stderr, "glm_build_design: degenerate poly() for %s\n",
+                var->filename);
+        free(basis);
+        return -1;
+    }
+
+    for (j = 0; j < d; j++) {
+        out[j].val = (double *) malloc(sizeof(double) * n_obs);
+        for (i = 0; i < n_obs; i++)
+            out[j].val[i] = basis[j*n_obs + i];
+        snprintf(out[j].lab, GLM_NAME, "poly(%s,%d)%d", var->name, d, j+1);
+    }
+
+    free(basis);
+    return d;
+}
+
 /* Expand a single variable into its contrast columns for a given term.
  * Returns the number of columns written to out[] (each a Col with an
- * allocated val vector). */
+ * allocated val vector), or -1 on error. */
 static int
 expand_var(const Var *var, int treatment, int n_obs, Col *out)
 {
     int l, i, start, nc = 0;
+
+    if (var->poly_degree > 0)
+        return expand_poly(var, n_obs, out);
 
     if (!var->is_factor) {
         out[0].val = (double *) malloc(sizeof(double) * n_obs);
@@ -424,6 +510,12 @@ build_design(Ctx *ctx, GlmDesign *design)
             int treatment = !(term->n == 1 && !ctx->intercept);
             Col set[GLM_MAXCOLS];
             int nset = expand_var(var, treatment, n_obs, set);
+
+            if (nset < 0) {
+                int a;
+                for (a = 0; a < nacc; a++) free(acc[a].val);
+                return 0;
+            }
 
             Col next[GLM_MAXCOLS];
             int nnext = 0, a, s;
