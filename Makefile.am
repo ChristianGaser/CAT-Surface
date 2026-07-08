@@ -323,6 +323,7 @@ noinst_HEADERS = \
     Include/CAT_DepthPotential.h \
     Include/CAT_Vol.h \
     Include/CAT_Math.h \
+    Include/CAT_GlmFormula.h \
     Include/CAT_Kmeans.h \
     Include/CAT_Amap.h \
     Include/CAT_Bmap.h \
@@ -385,6 +386,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_SurfPialWhite.c \
     Lib/CAT_SurfLaplacian.c \
     Lib/CAT_Math.c \
+    Lib/CAT_GlmFormula.c \
     Lib/CAT_Surf.c \
     Lib/CAT_Warp.c \
     Lib/CAT_Curvature.c \
