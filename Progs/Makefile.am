@@ -108,7 +108,7 @@ bin_PROGRAMS = \
     CAT_SurfCentral2Pial \
     CAT_Surf2ConvexHull \
     CAT_SurfDistance \
-    CAT_Test \
+    CAT_GlmEstimate \
     CAT_SurfSmoothDiffusion \
     CAT_VolAmap \
     CAT_VolAverage \
