@@ -59,6 +59,13 @@ DESCRIPTION\n\
          -formula \"~ group.csv * age.csv\"          group x covariate\n\
          -formula \"~ group.csv * sex.csv * site.csv\"  three-way ANOVA\n\
 \n\
+    Formula limitations: '*' and ':' cannot be mixed within a single\n\
+    term (e.g. a:b*c); only treatment contrasts (with intercept) and\n\
+    cell-means coding (leading '0'/'-1') are supported - there is no\n\
+    poly(), spline, I(), nesting ('/') or '%%in%%'.  Each variable file\n\
+    must hold exactly one value per scan and is matched to the scans by\n\
+    row order.\n\
+\n\
     The following files are written:\n\
     beta_xxxx   - parameter estimates, numbered according to the\n\
                   corresponding column of the design matrix.\n\
