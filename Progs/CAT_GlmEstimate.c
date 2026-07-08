@@ -14,7 +14,6 @@
 #include "CAT_NiftiLib.h"
 
 #define VERBOSE 0
-#define EPS 1e-15
 
 void
 usage(char *executable)
@@ -26,11 +25,11 @@ SYNOPSIS\n\
     CAT_GLM_Estimate file1_grp1 file2_grp1 ... + file1_grp2 file2_grp2 ... : covariate_file \n\n\
 DESCRIPTION\n\
     CAT_GLM_Estimate estimates the beta parameters for the GLM and\n\
-    writes the resulting parameters and the t-values for each column\n\
-    of the design matrix to the current working directory.  The files\n\
-    are named beta_xxxx and T_xxxx, where xxxx are numbered according\n\
-    to the corresponding column of the design matrix. Additionally the\n\
-    residual standard deviation is saved in a file ResSD_xxxx.\n\
+    writes the resulting parameter estimates for each column of the\n\
+    design matrix to the current working directory.  The files are\n\
+    named beta_xxxx, where xxxx are numbered according to the\n\
+    corresponding column of the design matrix.  Additionally the\n\
+    residual mean square is saved in a file ResMS (as used by SPM12).\n\
 \n\
     The input files can either be surface data in freesurfer-format,\n\
     gifti-format (using .gii) or ascii-format (using .txt), or NIfTI\n\
@@ -47,16 +46,9 @@ DESCRIPTION\n\
     seperate file.\n\
 \n\
     The following files are written:\n\
-    ResMS   - residual mean square\n\
     beta_xxxx   - parameter estimates, numbered according to the\n\
                   corresponding column of the design matrix.\n\
-    T_xxxx  - T-values, numbered according to the corresponding\n\
-                  column of the design matrix.  These values\n\
-                  are the parameter estimates divided by\n\
-                  residual standard deviation.\n\
-    ResSD_xxxx  - estimated residual standard deviation, numbered according\n\
-                  to the corresponding column of the design\n\
-                  matrix.\n\n\
+    ResMS   - residual mean square (as used by SPM12).\n\n\
     These files can be used with glm_mat to calculate different contrasts\n\
     of factor levels.\n";
 
@@ -106,8 +98,8 @@ estimate(char **infiles, int argc)
     int          n_beta, rank, erdf, counter, *idx;
     int          n_cov, is_volume, dim[3];
     double       **vals, *tmpvals, *data, **indata;
-    double       **G, *v, **inv_G, **transp_G, **pinv_GG;
-    double       **beta, *beta0, **estimates, **resSD, sum, *result;
+    double       **G, *v, **inv_G;
+    double       **beta, *beta0, **estimates, **resSD, sum;
     double       vox[3];
     nifti_image  *nii_ptr;
     progress_struct progress;
@@ -302,17 +294,6 @@ estimate(char **infiles, int argc)
     ALLOC2D(indata, n_subj, n_vals);
     ALLOC2D(estimates, n_subj, n_vals);
     ALLOC2D(beta, n_beta, n_vals);
-    ALLOC2D(pinv_GG, n_beta, n_subj);
-    ALLOC2D(transp_G, n_beta, n_subj);
-
-    /* calculate pinv(G'*G) */
-    transpose(n_subj, n_beta, G, transp_G);
-    matrix_multiply(n_beta, n_subj, n_beta, transp_G, G, pinv_GG);
-    (void) pinv(n_beta, n_beta, pinv_GG, pinv_GG);
-
-    /* ---------------------------------------------------------------- */
-    /*  estimation for ascii-files */
-    /* ---------------------------------------------------------------- */
 
     /* multiply pseudo inverse from design matrix with */
     /* transposed data */    
@@ -353,38 +334,11 @@ estimate(char **infiles, int argc)
         v[k] = sum / erdf;
     }
 
+    /* residual mean square (ResMS), as used by SPM12 */
     sprintf(buffer, "ResMS.%s", ext);
     outfile = create_string(buffer);
     write_result_values(outfile, is_volume, n_vals, v, dim, vox, nii_ptr);
 
-    /* write beta and beta/ResSD for each column of design matrix */
-    for (j = 0; j < n_beta; j++) {
-        /* ResSD values*/
-        outfile = create_string("ResSD");
-        sprintf(buffer, "_%04d.%s", j+1, ext);
-        concat_to_string(&outfile, buffer);
-
-        ALLOC(result, n_vals);
-
-        for (k = 0; k < n_vals; k++) {
-            result[k] = sqrt(v[k] * pinv_GG[j][j]);
-        }
-        write_result_values(outfile, is_volume, n_vals, result, dim, vox,
-                             nii_ptr);
-
-        /* T-values */
-        outfile = create_string("T");
-        sprintf(buffer, "_%04d.%s", j+1, ext);
-        concat_to_string(&outfile, buffer);
-
-        for (k = 0; k < n_vals; k++) {
-            result[k] = beta[j][k] / (sqrt(v[k] * pinv_GG[j][j]) + EPS);
-        }
-        write_result_values(outfile, is_volume, n_vals, result, dim, vox,
-                             nii_ptr);
-        FREE(result);
-    }
-    
     FREE(data);
     FREE(v);
     FREE(idx);
@@ -392,8 +346,6 @@ estimate(char **infiles, int argc)
     FREE2D(resSD);
     FREE2D(indata);
     FREE2D(estimates);
-    FREE2D(transp_G);
-    FREE2D(pinv_GG);
     FREE2D(beta);
     FREE2D(vals);
 
