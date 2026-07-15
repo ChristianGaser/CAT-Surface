@@ -1510,6 +1510,10 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         rotate_polygons_to_atlas(&rot_src, &rot_src_sphere, &rot_trg,
                                  &rot_trg_sphere, 50.0, 1000, rot, opt->verbose);
+                                 
+        /* Central sulcus is always shifted too much anterior, thus we have to 
+           correct for that */
+        rot[0] += 0.4;
         rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
         rotate_polygons(cur_sphere, NULL, rotation_matrix);
 
