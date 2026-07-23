@@ -710,12 +710,44 @@ void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
     // Initialize optimization parameters
     OptimizationParams params = {src, src_sphere, trg_sphere, orig_trg, map_trg, map_src};
 
-    // Initial simplex
+    /* Coarse multi-start grid over seed rotations. angles[0] (anterior-posterior)
+     * is sampled over a wider range than the other two axes because the
+     * one-sulcus-off ambiguity is strongest there. The identity is always among
+     * the candidates via best_seed's initial cost. */
+    static const double seed0[]  = {-0.6, -0.3, 0.0, 0.3, 0.6}; /* AP axis */
+    static const double seed12[] = {-0.3,  0.0, 0.3};           /* other two axes */
+    const int n0  = (int)(sizeof(seed0)  / sizeof(seed0[0]));
+    const int n12 = (int)(sizeof(seed12) / sizeof(seed12[0]));
+    double best_seed[3] = {0.0, 0.0, 0.0};
+    double best_cost;
+    int a, b, c;
+
+    best_cost = compute_cost(best_seed, &params);
+    for (a = 0; a < n0; a++)
+        for (b = 0; b < n12; b++)
+            for (c = 0; c < n12; c++)
+            {
+                double seed[3] = {seed0[a], seed12[b], seed12[c]};
+                double cost = compute_cost(seed, &params);
+                if (cost < best_cost)
+                {
+                    best_cost = cost;
+                    best_seed[0] = seed[0];
+                    best_seed[1] = seed[1];
+                    best_seed[2] = seed[2];
+                }
+            }
+
+    if (verbose)
+        fprintf(stdout, "Rotation seed: %.3f %.3f %.3f (cost %.4g)\n",
+                best_seed[0], best_seed[1], best_seed[2], best_cost);
+
+    /* Refine from the best seed: build the initial simplex around it. */
     double simplex[4][3] = {
-        {0.0, 0.0, 0.0},
-        {0.1, 0.0, 0.0},
-        {0.0, 0.1, 0.0},
-        {0.0, 0.0, 0.1}};
+        {best_seed[0],       best_seed[1],       best_seed[2]},
+        {best_seed[0] + 0.1, best_seed[1],       best_seed[2]},
+        {best_seed[0],       best_seed[1] + 0.1, best_seed[2]},
+        {best_seed[0],       best_seed[1],       best_seed[2] + 0.1}};
     double *simplex_ptrs[4] = {simplex[0], simplex[1], simplex[2], simplex[3]};
     double f_values[4];
 

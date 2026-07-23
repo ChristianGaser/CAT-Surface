@@ -79,6 +79,14 @@ typedef struct {
                                    gradient step pulling warped neighbour distances
                                    back toward the original sphere metric. Resists
                                    local stretch/fold. 0 = off. */
+    double coarse_stiffness;    /* extra large-scale regularization on the coarser
+                                   pyramid levels (Dartel-like stiffness): the flow
+                                   and displacement smoothing FWHM are multiplied by
+                                   a factor that is coarse_stiffness at level 0 and
+                                   decays linearly to 1.0 at the finest level. A
+                                   stiffer coarse warp moves whole folds together and
+                                   resists a sulcus slipping one wavelength into its
+                                   neighbour. 1.0 = off (default); try 1.5-2.5. */
     int    verbose;             /* print per-iteration progress */
     int    debug;               /* write intermediate debug files */
 } CAT_WarpDemonsOptions;

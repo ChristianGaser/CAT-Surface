@@ -1256,6 +1256,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->std_exp             = 2.0;  /* SD-style 1/variance when a std map is set */
     opt->cortex_mask         = NULL; /* no cortex masking by default */
     opt->l_dist              = 0.3;  /* metric-distortion regularizer off */
+    opt->coarse_stiffness    = 1.0;  /* no extra coarse-level stiffness by default */
     opt->verbose             = 0;
     opt->debug               = 0;
 }
@@ -1533,9 +1534,18 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
          * Anchor to a FIXED reference resolution (not the coarsest level) so the
          * smoothing at a given resolution is independent of pyramid depth. */
         double scale = sqrt((double) SMOOTH_REF_POINTS / (double) np);
-        
-        double fwhm_level = opt->fwhm_flow * scale;
-        double fwhm_disp_level = opt->fwhm_disp * scale;
+
+        /* Extra Dartel-like stiffness on the coarser levels: an additional factor
+         * that is coarse_stiffness at level 0 and decays linearly to 1.0 at the
+         * finest level, so the coarse warp is stiffer (whole folds move together)
+         * while the fine levels are left at their calibrated smoothing. */
+        double stiff = 1.0;
+        if (opt->coarse_stiffness > 1.0 && opt->n_steps > 1)
+            stiff = 1.0 + (opt->coarse_stiffness - 1.0) *
+                    (double) (opt->n_steps - 1 - level) / (double) (opt->n_steps - 1);
+
+        double fwhm_level = opt->fwhm_flow * scale * stiff;
+        double fwhm_disp_level = opt->fwhm_disp * scale * stiff;
         polygons_struct sm_src, sm_trg, sm_src_sphere, sm_trg_sphere;
         polygons_struct orig_sphere, level_warped;
         struct dartel_poly dpoly_src, dpoly_trg;
@@ -1579,7 +1589,6 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
             resample_values_sphere(trg_sphere, &sm_trg_sphere, opt->cortex_mask,
                                    mask_level, 0, 0);
         }
-
         if (opt->verbose)
             printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s%s\n",
                    level+1, opt->n_steps, np, ctype, fwhm_level,

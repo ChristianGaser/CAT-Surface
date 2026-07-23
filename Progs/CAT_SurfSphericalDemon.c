@@ -44,6 +44,7 @@ double max_step_deg = 50.0;
 double sigma_x_default = 20.0; /* SD max_step = 2 */
 double std_exp = 2.0;          /* exponent on the std-map precision weight */
 double l_dist = 0.3;           /* metric-distortion regularizer weight (prototype) */
+double coarse_stiffness = 1.0; /* extra coarse-level regularization (1 = off) */
 int use_unfold = 0;            /* relax folded triangles in the final warp */
 
 static ArgvInfo argTable[] = {
@@ -81,6 +82,8 @@ static ArgvInfo argTable[] = {
      "Filter size for displacement field smoothing (elastic prior) in FWHM."},
     {"-sigma-x", ARGV_FLOAT, (char *)1, (char *)&sigma_x_default,
      "Regularization weight sigma_x for Spherical Demons (default 1.0)."},
+    {"-stiffness", ARGV_FLOAT, (char *)1, (char *)&coarse_stiffness,
+     "Extra Dartel-like stiffness on the coarser pyramid levels: the flow and\n\tdisplacement smoothing FWHM are multiplied by a factor that is this value at\n\tthe coarsest level and decays to 1.0 at the finest. A stiffer coarse warp\n\tmoves whole folds together and resists a sulcus slipping one wavelength into\n\tits neighbour. 1.0 = off (default); try 1.5-2.5."},
     {"-maxiters", ARGV_INT, (char *)1, (char *)&iters,
      "Maximum number of iterations per stage."},
     {"-steps", ARGV_INT, (char *)1, (char *)&n_steps,
@@ -163,6 +166,7 @@ int main(int argc, char *argv[])
     opt.use_expmap = 1;
     opt.use_tangent = 1;
     opt.l_dist = l_dist;
+    opt.coarse_stiffness = coarse_stiffness;
     opt.geodesic = 1;
     opt.unfold = use_unfold;
     opt.fwhm_flow = fwhm_flow;
