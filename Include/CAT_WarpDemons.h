@@ -38,7 +38,19 @@ typedef struct {
                                    2 curvedness, 3 shape index,
                                    4 mean curv (rad), 5 sulcal-depth-like */
     int    iters;               /* maximum iterations per level */
-    int    rotate;              /* rigid rotation pre-alignment on level 0 */
+    int    rotate;              /* rigid rotation pre-alignment on level 0. The
+                                   rotation is found by an exhaustive
+                                   coarse-to-fine global search over all three
+                                   angles (as FreeSurfer's
+                                   MRISrigidBodyAlignGlobal), whose capture range
+                                   is the full search span rather than the width
+                                   of one basin - a local search cannot escape
+                                   the neighbouring-fold minimum that the
+                                   quasi-periodic folding pattern creates. */
+    double rot_max_degrees;     /* rotation search: half-width of the initial span */
+    double rot_min_degrees;     /* rotation search: stop below this span */
+    int    rot_nangles;         /* rotation search: grid samples per axis per pass;
+                                   cost grows as (nangles+1)^3 per pass. */
     int    smooth_velocity;     /* low-pass the velocity update (fluid prior; SD default off) */
     int    smooth_displacement; /* low-pass the displacement field (elastic prior; SD default on) */
     int    use_hessian;         /* per-vertex Gauss-Newton 2x2 Hessian update */
@@ -60,19 +72,10 @@ typedef struct {
     double max_step_deg;        /* clamp per-iteration step (deg); <=0 disables */
     double sigma_x;             /* SD regularization weight (= max_step; SD default 2) */
     double step_factor;         /* global step-size factor */
-    double *std_map;            /* optional per-vertex std of the (mean-curvature)
-                                   feature on the TEMPLATE mesh, length
-                                   trg->n_points. When set, the Gauss-Newton data
-                                   term is locally weighted by 1/variance
-                                   (atlas-style, as in SD template registration);
-                                   resampled to each pyramid level. NULL = off. */
-    double std_exp;             /* exponent on the precision weight: w = (1/var)^e.
-                                   1 = SD's 1/variance; >1 sharpens a low-contrast
-                                   std map; 0 = uniform. Only used with std_map. */
     double *cortex_mask;        /* optional per-vertex cortex mask on the TEMPLATE
                                    mesh, length trg->n_points. 0 excludes a vertex
                                    (e.g. medial wall) from the data term; resampled
-                                   to each pyramid level. Independent of std_map.
+                                   to each pyramid level.
                                    NULL = include all vertices. */
     double l_dist;              /* weight of the metric-distortion regularizer
                                    (FreeSurfer-style distance term): per-iteration

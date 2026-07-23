@@ -34,10 +34,12 @@
  * pyramid levels are used. Set to the default coarsest level so adding finer or
  * coarser levels does not change the smoothing at the established resolutions. */
 #define SMOOTH_REF_POINTS 5120
-/* Fixed high resolution the initial rigid rotation is estimated at, matching
- * CAT_SurfWarp's n_triangles default. The rotation search is decoupled from the
- * (coarser) pyramid so it always sees full curvature detail. */
-#define ROT_POINTS 81920
+/* Resolution the exhaustive global rotation search runs at. The search is
+ * decoupled from the pyramid. It evaluates (nangles+1)^3 rotations per pass, so
+ * it trades mesh detail for search coverage: the cost feature is a heavily
+ * smoothed large-scale depth map that carries no detail beyond this resolution,
+ * and a rigid 3-DOF alignment only needs about degree accuracy. */
+#define ROT_GLOBAL_POINTS 5120
 
 /* The running warp is integrated by composing exp(v) with inverse direction,
  * matching the convention of the additive theta/phi update. */
@@ -668,9 +670,6 @@ spherical_exp_map_tangent(polygons_struct *ref_sphere,
  * \param opt               (in)  registration options
  * \param fwhm_flow_start   (in)  initial velocity-smoothing FWHM for this level
  * \param fwhm_disp_level   (in)  displacement-smoothing FWHM for this level
- * \param std_level         (in)  per-vertex template feature std at this level's
- *                                resolution for local 1/variance weighting, or
- *                                NULL to weight all vertices equally
  * \param mask_level        (in)  per-vertex cortex mask at this level's
  *                                resolution (0 excludes a vertex from the data
  *                                term), or NULL to include all vertices
@@ -682,7 +681,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
            polygons_struct *trg_sphere, polygons_struct *warped_src_sphere,
            struct dartel_poly *dpoly_src, struct dartel_poly *dpoly_trg,
            int type, const CAT_WarpDemonsOptions *opt, double fwhm_flow_start,
-           double fwhm_disp_level, double *std_level, double *mask_level)
+           double fwhm_disp_level, double *mask_level)
 {
     int    *n_neighbours, **neighbours;
     int    i, it, count_break;
@@ -757,41 +756,21 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     normalizeVector(curv_trg0, n);
     normalizeVector(curv_src0, n);
 
-    /* Per-vertex data-term weighting, combining two independent sources:
-     *   - std map:     precision weight w = (1/var)^gamma (atlas-style, as in SD
-     *                  template registration), down-weighting variable regions;
-     *   - cortex mask: zeroes out non-cortex (e.g. medial wall) so it does not
-     *                  drive the registration (FreeSurfer's ripflag).
-     * The combined weight scales the data term but not the regularizer, and is
-     * mean-normalized over the active (unmasked) vertices so the average data
-     * weight - and thus the reg_const calibration - is preserved. */
-    if (std_level != NULL || mask_level != NULL) {
-        double med = 1.0, floor_std = 1.0, mean_w = 0.0, gamma = opt->std_exp;
+    /* Per-vertex data-term weighting from the cortex mask: zeroes out non-cortex
+     * (e.g. the medial wall) so it does not drive the registration (this is
+     * FreeSurfer's ripflag). The weight scales the data term but not the
+     * regularizer, and is mean-normalized over the active (unmasked) vertices so
+     * the average data weight - and thus the reg_const calibration - is
+     * preserved. */
+    if (mask_level != NULL) {
+        double mean_w = 0.0;
         int n_active = 0;
-
-        if (std_level != NULL) {
-            double *tmp = (double *) malloc(sizeof(double) * n);
-            for (i = 0; i < n; i++) tmp[i] = std_level[i];
-            med = get_median_double(tmp, n, 0);
-            free(tmp);
-            floor_std = 0.1 * (med > 1e-20 ? med : 1.0);
-        }
 
         data_w = (double *) malloc(sizeof(double) * n);
         for (i = 0; i < n; i++) {
-            double p = 1.0, m = 1.0;
-            if (std_level != NULL) {
-                double s = std_level[i];
-                if (s < floor_std) s = floor_std;
-                /* precision^gamma: gamma=1 is SD's 1/variance, >1 sharpens a
-                 * low-contrast std map, 0 collapses to uniform weighting. */
-                p = pow(1.0 / (s * s), gamma);
-            }
-            if (mask_level != NULL) {
-                m = mask_level[i];
-                if (m < 0.0) m = 0.0;     /* 0 = excluded, soft masks allowed */
-            }
-            data_w[i] = p * m;
+            double m = mask_level[i];
+            if (m < 0.0) m = 0.0;         /* 0 = excluded, soft masks allowed */
+            data_w[i] = m;
             if (m > 1e-6) { mean_w += data_w[i]; n_active++; }
         }
         if (n_active > 0) mean_w /= (double) n_active;
@@ -804,8 +783,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
                 if (data_w[i] < wmin) wmin = data_w[i];
                 if (data_w[i] > wmax) wmax = data_w[i];
             }
-            printf("  data-weight%s%s: w in [%.3g, %.3g], %d/%d active vertices\n",
-                   std_level ? " std" : "", mask_level ? " mask" : "",
+            printf("  data-weight mask: w in [%.3g, %.3g], %d/%d active vertices\n",
                    wmin, wmax, n_active, n);
         }
     }
@@ -1226,17 +1204,20 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
      * sweet spot: near-Dartel accuracy, fold-free and fast. Finer levels and a
      * mean-curvature stage are available but tend to overfit the noisy
      * high-frequency curvature and degrade the overall alignment. */
-    opt->n_steps             = 2;
+    opt->n_steps             = 4;
     opt->level_points[0]     = 5120;
     opt->level_points[1]     = 20480;
     opt->level_points[2]     = 81920;
     opt->level_points[3]     = 327680;
     opt->curvtype[0]         = 1000;   /* sulcal-depth-like */
-    opt->curvtype[1]         = 750;
-    opt->curvtype[2]         = 500;
+    opt->curvtype[1]         = 250;
+    opt->curvtype[2]         = 125;
     opt->curvtype[3]         = 15;   /* mean curvature (only if a 4th level is used) */
     opt->iters               = 150;
     opt->rotate              = 1;
+    opt->rot_max_degrees     = 64.0; /* FreeSurfer's default global search span */
+    opt->rot_min_degrees     = 1.0;  /* NM refine polishes below this */
+    opt->rot_nangles         = 4;    /* (4+1)^3 = 125 evaluations per pass */
     opt->smooth_velocity     = 1;   /* SD default: velocity smoothing off */
     opt->smooth_displacement = 1;   /* SD default: elastic displacement smoothing on */
     opt->use_hessian         = 1;
@@ -1245,18 +1226,16 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->use_tangent         = 1;  /* default: lat-lon chart update */
     opt->geodesic            = 1;  /* default: linear-then-renormalize compose */
     opt->unfold              = 0;  /* default: no fold-removal post-step */
-    opt->fwhm_flow           = 12.0;
+    opt->fwhm_flow           = 16.0;
     opt->fwhm_curv           = 16.0;
     opt->fwhm_disp           = 6.0;
     opt->rate                = 1.0;
-    opt->max_step_deg        = 25.0;
+    opt->max_step_deg        = 50.0;
     opt->sigma_x             = 20.0;  /* SD max_step = 2 */
     opt->step_factor         = 1.0;
-    opt->std_map             = NULL; /* no local variance weighting by default */
-    opt->std_exp             = 2.0;  /* SD-style 1/variance when a std map is set */
     opt->cortex_mask         = NULL; /* no cortex masking by default */
-    opt->l_dist              = 0.3;  /* metric-distortion regularizer off */
-    opt->coarse_stiffness    = 1.0;  /* no extra coarse-level stiffness by default */
+    opt->l_dist              = 0.6;  /* metric-distortion regularizer off */
+    opt->coarse_stiffness    = 1.5;  /* no extra coarse-level stiffness by default */
     opt->verbose             = 0;
     opt->debug               = 0;
 }
@@ -1461,7 +1440,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                        const CAT_WarpDemonsOptions *opt)
 {
     polygons_struct *cur_sphere;
-    double rotation_matrix[9], rot[3], fwhm_curv0;
+    double rotation_matrix[9], fwhm_curv0;
     int    i, level;
     int    *unf_nbr = NULL, **unf_nbrs = NULL;
 
@@ -1485,38 +1464,64 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
     cur_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
     copy_polygons(src_sphere, cur_sphere);
 
-    /* Estimate the initial rigid rotation at a fixed high resolution
-     * (ROT_POINTS = 81920), as CAT_SurfWarp does via CAT_SurfWarpSolveDartelFlow
-     * (n_triangles), rather than inside the loop on the coarsest pyramid level.
-     * Doing it on the heavily downsampled level-0 mesh (e.g. 1280 points)
-     * discarded the curvature detail the Nelder-Mead search needs, so it
-     * converged to markedly different angles than the Dartel path. Fold the
-     * rotation into the running warp before the coarse-to-fine loop begins; the
-     * level-0 reference sphere is then re-derived from cur_sphere like every
-     * other level. */
+    /* Estimate the initial rigid rotation before the coarse-to-fine loop begins
+     * and fold it into the running warp; the level-0 reference sphere is then
+     * re-derived from cur_sphere like every other level.
+     *
+     * The rotation comes from an exhaustive coarse-to-fine global search over all
+     * three angles (FreeSurfer's MRISrigidBodyAlignGlobal strategy). A local
+     * optimiser is not usable here: the folding pattern is quasi-periodic, so the
+     * cost has a genuine minimum one sulcus off, and a simplex converges to
+     * whichever basin its seed lands in no matter how the seed is chosen. The
+     * exhaustive search evaluates every candidate in the span, so its capture
+     * range is the whole span rather than one basin width. */
     if (opt->rotate) {
         polygons_struct rot_src, rot_src_sphere, rot_trg, rot_trg_sphere;
+        /* The search evaluates (nangles+1)^3 rotations per pass, so it runs on a
+         * coarse mesh. The cost feature is a heavily smoothed large-scale depth
+         * map (curvtype 1000, fwhm 50) that carries no detail beyond this
+         * resolution, and a rigid 3-DOF alignment only has to be accurate to
+         * about a degree. */
+        int rp = ROT_GLOBAL_POINTS;
 
         resample_spherical_surface(src, src_sphere, &rot_src,
-                                   NULL, NULL, ROT_POINTS);
+                                   NULL, NULL, rp);
         resample_spherical_surface(src_sphere, src_sphere, &rot_src_sphere,
-                                   NULL, NULL, ROT_POINTS);
+                                   NULL, NULL, rp);
         resample_spherical_surface(trg, trg_sphere, &rot_trg,
-                                   NULL, NULL, ROT_POINTS);
+                                   NULL, NULL, rp);
         resample_spherical_surface(trg_sphere, trg_sphere, &rot_trg_sphere,
-                                   NULL, NULL, ROT_POINTS);
+                                   NULL, NULL, rp);
 
         smooth_heatkernel(&rot_src, NULL, 15);
         smooth_heatkernel(&rot_trg, NULL, 10);
 
-        rotate_polygons_to_atlas(&rot_src, &rot_src_sphere, &rot_trg,
-                                 &rot_trg_sphere, 50.0, 1000, rot, opt->verbose);
-                                 
-        /* Central sulcus is always shifted too much anterior, thus we have to 
-           correct for that */
-        rot[0] += 0.4;
-        rotation_to_matrix(rotation_matrix, rot[0], rot[1], rot[2]);
-        rotate_polygons(cur_sphere, NULL, rotation_matrix);
+        rotate_polygons_to_atlas_global(&rot_src, &rot_src_sphere, &rot_trg,
+                                        &rot_trg_sphere, 50.0, 1000,
+                                        opt->rot_max_degrees,
+                                        opt->rot_min_degrees,
+                                        opt->rot_nangles, 0,
+                                        rotation_matrix, opt->verbose);
+
+        /* The rotation search measures cost(R) = sum |f_src(s) - f_trg(R s)|^2
+         * (see cost_for_rotation): the returned R maps SOURCE coordinates onto
+         * TARGET coordinates. The pyramid below needs the opposite direction -
+         * warp_demon pulls the source feature through cur_sphere and compares
+         * f_src(g(u)) against f_trg(u), so g must map TARGET coordinates onto
+         * SOURCE ones, i.e. g = R^-1. Applying R directly rotated every subject
+         * the wrong way, roughly doubling the misalignment instead of removing
+         * it; the error vanishes only when R is near identity, which is why
+         * well-aligned brains looked fine and misaligned ones failed badly.
+         * The rotation is orthonormal, so the inverse is the transpose. */
+        {
+            double rot_inv[9];
+            int r, c;
+
+            for (r = 0; r < 3; r++)
+                for (c = 0; c < 3; c++)
+                    rot_inv[r * 3 + c] = rotation_matrix[c * 3 + r];
+            rotate_polygons(cur_sphere, NULL, rot_inv);
+        }
 
         delete_polygons(&rot_src);
         delete_polygons(&rot_src_sphere);
@@ -1550,7 +1555,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         polygons_struct orig_sphere, level_warped;
         struct dartel_poly dpoly_src, dpoly_trg;
         object_struct **objects;
-        double *std_level = NULL, *mask_level = NULL;
+        double *mask_level = NULL;
 
         resample_spherical_surface(trg, trg_sphere, &sm_trg, NULL, NULL, np);
         resample_spherical_surface(trg_sphere, trg_sphere, &sm_trg_sphere, NULL, NULL, np);
@@ -1577,27 +1582,21 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         init_dartel_poly(&sm_src_sphere, &dpoly_src);
 
-        /* Resample the template std map and/or cortex mask (both defined at full
-         * template resolution) onto this level's template grid. */
-        if (opt->std_map != NULL) {
-            std_level = (double *) malloc(sizeof(double) * np);
-            resample_values_sphere(trg_sphere, &sm_trg_sphere, opt->std_map,
-                                   std_level, 0, 0);
-        }
+        /* Resample the template cortex mask (defined at full template
+         * resolution) onto this level's template grid. */
         if (opt->cortex_mask != NULL) {
             mask_level = (double *) malloc(sizeof(double) * np);
             resample_values_sphere(trg_sphere, &sm_trg_sphere, opt->cortex_mask,
                                    mask_level, 0, 0);
         }
         if (opt->verbose)
-            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s%s\n",
+            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s\n",
                    level+1, opt->n_steps, np, ctype, fwhm_level,
-                   std_level ? ", std-weighted" : "",
                    mask_level ? ", cortex-masked" : "");
 
         warp_demon(&sm_src, &sm_src_sphere, &orig_sphere, &sm_trg,
                    &sm_trg_sphere, &level_warped, &dpoly_src, &dpoly_trg,
-                   ctype, opt, fwhm_level, fwhm_disp_level, std_level, mask_level);
+                   ctype, opt, fwhm_level, fwhm_disp_level, mask_level);
 
         /* Carry this level's warp up to the full input resolution, stored as the
          * FORWARD map (source grid -> warped position). The next level pulls the
@@ -1620,7 +1619,6 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         delete_polygons(&sm_trg_sphere);
         delete_polygons(&orig_sphere);
         delete_polygons(&level_warped);
-        if (std_level != NULL) free(std_level);
         if (mask_level != NULL) free(mask_level);
     }
 

@@ -24,27 +24,28 @@ char *trg_file = NULL;
 char *trg_sphere_file = NULL;
 char *output_surface_file = NULL;
 char *output_sphere_file = NULL;
-char *std_file = NULL;
 char *mask_file = NULL;
 
 int n_points = 20480; /* finest pyramid level; coarser levels are 1/4 each */
 int rotate = 1;
 int curvtype0 = 1000; /* level 0: depth-potential (coarsest) */
-int curvtype1 = 750;  /* level 1: depth-potential */
-int curvtype2 = 500;  /* level 2: depth-potential (only with -steps 3+) */
+int curvtype1 = 250;  /* level 1: depth-potential */
+int curvtype2 = 125;  /* level 2: depth-potential (only with -steps 3+) */
 int curvtype3 = 15;   /* level 3: depth-potential (only with -steps 4) */
-int n_steps = 3;
+int n_steps = 4;
 int debug = 0;
-int iters = 100;
+int iters = 150;
 int verbose = 0;
-double fwhm_flow = 12.0;
+double fwhm_flow = 16.0;
 double fwhm_curv = 16.0;
 double fwhm_disp = 6.0;
 double max_step_deg = 50.0;
 double sigma_x_default = 20.0; /* SD max_step = 2 */
-double std_exp = 2.0;          /* exponent on the std-map precision weight */
-double l_dist = 0.3;           /* metric-distortion regularizer weight (prototype) */
-double coarse_stiffness = 1.0; /* extra coarse-level regularization (1 = off) */
+double l_dist = 0.6;           /* metric-distortion regularizer weight (prototype) */
+double coarse_stiffness = 1.5; /* extra coarse-level regularization (1 = off) */
+double rot_max_degrees = 64.0; /* rotation search: initial half-span */
+double rot_min_degrees = 1.0;  /* rotation search: finest span */
+int rot_nangles = 4;           /* rotation search: samples per axis per pass */
 int use_unfold = 0;            /* relax folded triangles in the final warp */
 
 static ArgvInfo argTable[] = {
@@ -56,12 +57,8 @@ static ArgvInfo argTable[] = {
      "Template file."},
     {"-ts", ARGV_STRING, (char *)1, (char *)&trg_sphere_file,
      "Template sphere file."},
-    {"-stdmap", ARGV_STRING, (char *)1, (char *)&std_file,
-     "Per-vertex std map of (mean-curvature) feature on the TEMPLATE mesh. When\n\tgiven, the update is locally weighted by 1/variance (atlas-style template\n\tregistration, as in Spherical Demons). Must match the template vertex count;\n\tresampled internally to each pyramid level."},
-    {"-std-exp", ARGV_FLOAT, (char *)1, (char *)&std_exp,
-     "Exponent on the std-map precision weight: w = (1/variance)^e (default 1 =\n\tSD's 1/variance). Raise above 1 to sharpen a low-contrast std map; 0 = off."},
     {"-mask", ARGV_STRING, (char *)1, (char *)&mask_file,
-     "Per-vertex cortex mask on the TEMPLATE mesh (0 = exclude, e.g. medial wall;\n\t>0 = include). Excludes non-cortex from the data term (FreeSurfer-style).\n\tMust match the template vertex count; resampled to each pyramid level.\n\tIndependent of -stdmap and may be combined with it."},
+     "Per-vertex cortex mask on the TEMPLATE mesh (0 = exclude, e.g. medial wall;\n\t>0 = include). Excludes non-cortex from the data term (FreeSurfer-style).\n\tMust match the template vertex count; resampled to each pyramid level."},
     {"-dist", ARGV_FLOAT, (char *)1, (char *)&l_dist,
      "Metric-distortion regularizer weight (FreeSurfer-style distance term): each\n\titeration takes a gradient step pulling warped neighbour distances back toward\n\tthe original sphere metric, resisting local stretch/fold. 0 = off (default).\n\tTry small values (e.g. 0.05-0.2); independent of -fwhm-disp smoothing."},
     {"-unfold", ARGV_CONSTANT, (char *)TRUE, (char *)&use_unfold,
@@ -87,9 +84,15 @@ static ArgvInfo argTable[] = {
     {"-maxiters", ARGV_INT, (char *)1, (char *)&iters,
      "Maximum number of iterations per stage."},
     {"-steps", ARGV_INT, (char *)1, (char *)&n_steps,
-     "Number of multi-resolution pyramid levels (1-3, coarse to fine)."},
+     "Number of multi-resolution pyramid levels (1-4, coarse to fine)."},
     {"-norot", ARGV_CONSTANT, (char *)FALSE, (char *)&rotate,
      "Don't rotate input surface before warping."},
+    {"-rot-max-deg", ARGV_FLOAT, (char *)1, (char *)&rot_max_degrees,
+     "Initial rotation search: half-width of the initial angular span in degrees\n\t(default 64, matching FreeSurfer). This is the capture range."},
+    {"-rot-min-deg", ARGV_FLOAT, (char *)1, (char *)&rot_min_degrees,
+     "Initial rotation search: stop once the angular span falls below this many\n\tdegrees (default 1)."},
+    {"-rot-nangles", ARGV_INT, (char *)1, (char *)&rot_nangles,
+     "Initial rotation search: grid samples per axis per pass (default 4). Cost\n\tgrows as (nangles+1)^3 per pass; raise for a denser search, lower for speed."},
     {"-type0", ARGV_INT, (char *)1, (char *)&curvtype0,
      "Curvature type for level 1 (coarsest)\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
     {"-type1", ARGV_INT, (char *)1, (char *)&curvtype1,
@@ -167,6 +170,9 @@ int main(int argc, char *argv[])
     opt.use_tangent = 1;
     opt.l_dist = l_dist;
     opt.coarse_stiffness = coarse_stiffness;
+    opt.rot_max_degrees = rot_max_degrees;
+    opt.rot_min_degrees = rot_min_degrees;
+    opt.rot_nangles = rot_nangles;
     opt.geodesic = 1;
     opt.unfold = use_unfold;
     opt.fwhm_flow = fwhm_flow;
@@ -176,26 +182,8 @@ int main(int argc, char *argv[])
     opt.max_step_deg = max_step_deg;
     opt.sigma_x = sigma_x_default;
     opt.step_factor = 1.0;
-    opt.std_exp = std_exp;
     opt.verbose = verbose;
     opt.debug = debug;
-
-    /* Optional template std map for local 1/variance weighting (atlas mode).
-     * Values live on the template mesh, so the count must match trg. */
-    if (std_file != NULL)
-    {
-        int n_std;
-        double *std_values;
-        if (input_values_any_format(std_file, &n_std, &std_values) != OK)
-            return EXIT_FAILURE;
-        if (n_std != trg->n_points)
-        {
-            fprintf(stderr, "Std map has %d values but template has %d points.\n",
-                    n_std, trg->n_points);
-            return EXIT_FAILURE;
-        }
-        opt.std_map = std_values;
-    }
 
     /* Optional template cortex mask (independent of the std map). */
     if (mask_file != NULL)
