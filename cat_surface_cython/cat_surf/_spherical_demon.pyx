@@ -32,13 +32,13 @@ def spherical_demon(source_surface,
                     target_surface,
                     target_sphere,
                     int n_points=20480,
-                    int n_steps=3,
-                    int iters=100,
+                    int n_steps=5,
+                    int iters=150,
                     int curvtype0=1000,
-                    int curvtype1=750,
-                    int curvtype2=500,
+                    int curvtype1=250,
+                    int curvtype2=125,
                     int curvtype3=15,
-                    double fwhm_flow=12.0,
+                    double fwhm_flow=16.0,
                     double fwhm_curv=16.0,
                     double fwhm_disp=6.0,
                     double max_step_deg=50.0,
@@ -54,10 +54,12 @@ def spherical_demon(source_surface,
                     bint use_tangent=True,
                     bint use_geodesic=True,
                     bint unfold=False,
-                    std_map=None,
-                    double std_exp=2.0,
                     cortex_mask=None,
-                    double l_dist=0.3,
+                    double l_dist=0.6,
+                    double coarse_stiffness=1.5,
+                    double rot_max_degrees=64.0,
+                    double rot_min_degrees=1.0,
+                    int rot_nangles=4,
                     bint verbose=False,
                     bint debug=False):
     """
@@ -129,29 +131,36 @@ def spherical_demon(source_surface,
         until orientations are restored.  Removes folds introduced when
         up-sampling the warp onto an irregular full-resolution mesh.
         Default False.
-    std_map : array_like or None
-        Optional per-vertex standard deviation of the (mean-curvature) feature,
-        defined on the TEMPLATE mesh (one value per ``target_sphere`` vertex).
-        When given, the Gauss-Newton data term is locally weighted by
-        1/variance (atlas-style template registration, as in Spherical Demons);
-        the map is resampled internally to each pyramid level.  Default None.
-    std_exp : float
-        Exponent on the precision weight, ``w = (1/variance) ** std_exp``
-        (default 2.0; 1.0 = SD's 1/variance).  Raise above 1 to sharpen a
-        low-contrast std map; 0 disables local weighting.  Only used when
-        ``std_map`` is given.
     cortex_mask : array_like or None
         Optional per-vertex cortex mask on the TEMPLATE mesh (one value per
         ``target_sphere`` vertex; 0 excludes a vertex, e.g. the medial wall,
         >0 includes it).  Excludes non-cortex from the data term
-        (FreeSurfer-style).  Independent of ``std_map`` and may be combined
-        with it.  Default None.
+        (FreeSurfer-style).  Default None.
     l_dist : float
         Weight of the metric-distortion regularizer (FreeSurfer-style distance
         term): each iteration takes a gradient step pulling warped neighbour
         distances back toward the original sphere metric, resisting local
         stretch/fold while still allowing large smooth warps.  0 disables it
         (default 0.3).  Try small values (e.g. 0.05-0.2).
+    coarse_stiffness : float
+        Extra Dartel-like stiffness on the coarser pyramid levels: the flow and
+        displacement smoothing FWHM are multiplied by a factor equal to this
+        value at the coarsest level, decaying to 1.0 at the finest.  A stiffer
+        coarse warp moves whole folds together and resists a sulcus slipping one
+        wavelength into its neighbour.  1.0 disables it (default); try 1.5-2.5.
+    rot_max_degrees : float
+        Initial rotation search: half-width of the initial angular span, in
+        degrees (default 64.0, matching FreeSurfer).  This is the capture range.
+        The rotation is found by an exhaustive coarse-to-fine global search over
+        all three angles, so it survives large misalignments that a local
+        search cannot escape.  Only used when ``rotate`` is True.
+    rot_min_degrees : float
+        Initial rotation search: stop once the angular span falls below this
+        many degrees (default 1.0).
+    rot_nangles : int
+        Initial rotation search: grid samples per axis per pass (default 4).
+        Cost grows as ``(rot_nangles + 1) ** 3`` per pass; raise for a denser
+        search, lower for speed.
     verbose : bool
         Print per-iteration progress (default False).
     debug : bool
@@ -217,22 +226,17 @@ def spherical_demon(source_surface,
     opt.max_step_deg        = max_step_deg
     opt.sigma_x             = sigma_x
     opt.step_factor         = step_factor
-    opt.std_exp             = std_exp
+    opt.coarse_stiffness    = coarse_stiffness
+    opt.rot_max_degrees     = rot_max_degrees
+    opt.rot_min_degrees     = rot_min_degrees
+    opt.rot_nangles         = rot_nangles
     opt.verbose             = 1 if verbose else 0
     opt.debug               = 1 if debug else 0
 
-    # Optional template std map / cortex mask -> local data-term weighting.
-    # Held in std_arr / mask_arr for the call so the opt pointers stay valid.
-    cdef cnp.ndarray[cnp.float64_t, ndim=1] std_arr
+    # Optional template cortex mask -> local data-term weighting. Held in
+    # mask_arr for the duration of the call so the opt pointer stays valid.
     cdef cnp.ndarray[cnp.float64_t, ndim=1] mask_arr
     cdef int n_trg = tsph_mesh.ptr().n_points
-    if std_map is not None:
-        std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
-        if std_arr.shape[0] != n_trg:
-            raise ValueError(
-                "std_map must have one value per template vertex (%d), got %d"
-                % (n_trg, std_arr.shape[0]))
-        opt.std_map = &std_arr[0]
     if cortex_mask is not None:
         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
         if mask_arr.shape[0] != n_trg:

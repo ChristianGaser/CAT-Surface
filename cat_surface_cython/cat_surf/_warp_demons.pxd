@@ -21,6 +21,9 @@ cdef extern from "CAT_WarpDemons.h":
         int    curvtype[4]
         int    iters
         int    rotate
+        double rot_max_degrees
+        double rot_min_degrees
+        int    rot_nangles
         int    smooth_velocity
         int    smooth_displacement
         int    use_hessian
@@ -36,10 +39,9 @@ cdef extern from "CAT_WarpDemons.h":
         double max_step_deg
         double sigma_x
         double step_factor
-        double *std_map
-        double std_exp
         double *cortex_mask
         double l_dist
+        double coarse_stiffness
         int    verbose
         int    debug
 

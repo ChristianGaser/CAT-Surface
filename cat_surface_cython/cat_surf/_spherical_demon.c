@@ -28,8 +28,8 @@
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/Include/CAT_WarpDemons.h"
         ],
         "extra_link_args": [
-            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64/.libs/libCAT.a",
-            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64/3rdparty/fftw-build/.libs/libfftw3.a",
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/.libs/libCAT.a",
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/fftw-build/.libs/libfftw3.a",
             "-lm",
             "-lz",
             "-lexpat"
@@ -45,7 +45,7 @@
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/zlib",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/expat",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/dartel",
-            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64"
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface"
         ],
         "language": "c",
         "name": "cat_surf._spherical_demon",
@@ -2918,7 +2918,7 @@ int __pyx_module_is_main_cat_surf___spherical_demon = 0;
 /* #### Code section: string_decls ### */
 static const char __pyx_k_Python_wrapper_for_Spherical_De[] = "\nPython wrapper for Spherical Demons spherical surface registration \342\200\224 mirrors\nthe ``CAT_SurfSphericalDemon`` command-line tool.\n\nWarps a source sphere onto a template sphere by matching curvature features of\nthe corresponding cortical surfaces with a diffeomorphic, multi-resolution\nSpherical Demons flow (Yeo et al., IEEE TMI 2010). All registration logic lives\nin ``Lib/CAT_WarpDemons.c``.\n\nThe wrapper returns the warped source sphere as ``(vertices, faces)``, at the\nresolution of the input source sphere.\n";
 /* #### Code section: decls ### */
-static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_source_surface, PyObject *__pyx_v_source_sphere, PyObject *__pyx_v_target_surface, PyObject *__pyx_v_target_sphere, int __pyx_v_n_points, int __pyx_v_n_steps, int __pyx_v_iters, int __pyx_v_curvtype0, int __pyx_v_curvtype1, int __pyx_v_curvtype2, int __pyx_v_curvtype3, double __pyx_v_fwhm_flow, double __pyx_v_fwhm_curv, double __pyx_v_fwhm_disp, double __pyx_v_max_step_deg, double __pyx_v_sigma_x, double __pyx_v_rate, double __pyx_v_step_factor, int __pyx_v_rotate, int __pyx_v_smooth_velocity, int __pyx_v_smooth_displacement, int __pyx_v_use_hessian, int __pyx_v_use_line_search, int __pyx_v_use_expmap, int __pyx_v_use_tangent, int __pyx_v_use_geodesic, int __pyx_v_unfold, PyObject *__pyx_v_std_map, double __pyx_v_std_exp, PyObject *__pyx_v_cortex_mask, double __pyx_v_l_dist, int __pyx_v_verbose, int __pyx_v_debug); /* proto */
+static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_source_surface, PyObject *__pyx_v_source_sphere, PyObject *__pyx_v_target_surface, PyObject *__pyx_v_target_sphere, int __pyx_v_n_points, int __pyx_v_n_steps, int __pyx_v_iters, int __pyx_v_curvtype0, int __pyx_v_curvtype1, int __pyx_v_curvtype2, int __pyx_v_curvtype3, double __pyx_v_fwhm_flow, double __pyx_v_fwhm_curv, double __pyx_v_fwhm_disp, double __pyx_v_max_step_deg, double __pyx_v_sigma_x, double __pyx_v_rate, double __pyx_v_step_factor, int __pyx_v_rotate, int __pyx_v_smooth_velocity, int __pyx_v_smooth_displacement, int __pyx_v_use_hessian, int __pyx_v_use_line_search, int __pyx_v_use_expmap, int __pyx_v_use_tangent, int __pyx_v_use_geodesic, int __pyx_v_unfold, PyObject *__pyx_v_cortex_mask, double __pyx_v_l_dist, double __pyx_v_coarse_stiffness, double __pyx_v_rot_max_degrees, double __pyx_v_rot_min_degrees, int __pyx_v_rot_nangles, int __pyx_v_verbose, int __pyx_v_debug); /* proto */
 /* #### Code section: late_includes ### */
 /* #### Code section: module_state ### */
 /* SmallCodeConfig */
@@ -3012,14 +3012,14 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_kp_u_n_steps_must_be_in_1_d __pyx_string_tab[8]
 #define __pyx_kp_u_numpy__core_multiarray_failed_to __pyx_string_tab[9]
 #define __pyx_kp_u_numpy__core_umath_failed_to_impo __pyx_string_tab[10]
-#define __pyx_kp_u_std_map_must_have_one_value_per __pyx_string_tab[11]
-#define __pyx_n_u_Pyx_PyDict_NextRef __pyx_string_tab[12]
-#define __pyx_n_u_arrays_to_polygons __pyx_string_tab[13]
-#define __pyx_n_u_ascontiguousarray __pyx_string_tab[14]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[15]
-#define __pyx_n_u_cat_surf__convert __pyx_string_tab[16]
-#define __pyx_n_u_cat_surf__spherical_demon __pyx_string_tab[17]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[18]
+#define __pyx_n_u_Pyx_PyDict_NextRef __pyx_string_tab[11]
+#define __pyx_n_u_arrays_to_polygons __pyx_string_tab[12]
+#define __pyx_n_u_ascontiguousarray __pyx_string_tab[13]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[14]
+#define __pyx_n_u_cat_surf__convert __pyx_string_tab[15]
+#define __pyx_n_u_cat_surf__spherical_demon __pyx_string_tab[16]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[17]
+#define __pyx_n_u_coarse_stiffness __pyx_string_tab[18]
 #define __pyx_n_u_cortex_mask __pyx_string_tab[19]
 #define __pyx_n_u_curvtype0 __pyx_string_tab[20]
 #define __pyx_n_u_curvtype1 __pyx_string_tab[21]
@@ -3058,25 +3058,25 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_qualname __pyx_string_tab[54]
 #define __pyx_n_u_rate __pyx_string_tab[55]
 #define __pyx_n_u_ravel __pyx_string_tab[56]
-#define __pyx_n_u_rotate __pyx_string_tab[57]
-#define __pyx_n_u_set_name __pyx_string_tab[58]
-#define __pyx_n_u_setdefault __pyx_string_tab[59]
-#define __pyx_n_u_sigma_x __pyx_string_tab[60]
-#define __pyx_n_u_smooth_displacement __pyx_string_tab[61]
-#define __pyx_n_u_smooth_velocity __pyx_string_tab[62]
-#define __pyx_n_u_source_sphere __pyx_string_tab[63]
-#define __pyx_n_u_source_surface __pyx_string_tab[64]
-#define __pyx_n_u_sph_f __pyx_string_tab[65]
-#define __pyx_n_u_sph_mesh __pyx_string_tab[66]
-#define __pyx_n_u_sph_v __pyx_string_tab[67]
-#define __pyx_n_u_spherical_demon __pyx_string_tab[68]
-#define __pyx_n_u_src_f __pyx_string_tab[69]
-#define __pyx_n_u_src_mesh __pyx_string_tab[70]
-#define __pyx_n_u_src_v __pyx_string_tab[71]
-#define __pyx_n_u_st __pyx_string_tab[72]
-#define __pyx_n_u_std_arr __pyx_string_tab[73]
-#define __pyx_n_u_std_exp __pyx_string_tab[74]
-#define __pyx_n_u_std_map __pyx_string_tab[75]
+#define __pyx_n_u_rot_max_degrees __pyx_string_tab[57]
+#define __pyx_n_u_rot_min_degrees __pyx_string_tab[58]
+#define __pyx_n_u_rot_nangles __pyx_string_tab[59]
+#define __pyx_n_u_rotate __pyx_string_tab[60]
+#define __pyx_n_u_set_name __pyx_string_tab[61]
+#define __pyx_n_u_setdefault __pyx_string_tab[62]
+#define __pyx_n_u_sigma_x __pyx_string_tab[63]
+#define __pyx_n_u_smooth_displacement __pyx_string_tab[64]
+#define __pyx_n_u_smooth_velocity __pyx_string_tab[65]
+#define __pyx_n_u_source_sphere __pyx_string_tab[66]
+#define __pyx_n_u_source_surface __pyx_string_tab[67]
+#define __pyx_n_u_sph_f __pyx_string_tab[68]
+#define __pyx_n_u_sph_mesh __pyx_string_tab[69]
+#define __pyx_n_u_sph_v __pyx_string_tab[70]
+#define __pyx_n_u_spherical_demon __pyx_string_tab[71]
+#define __pyx_n_u_src_f __pyx_string_tab[72]
+#define __pyx_n_u_src_mesh __pyx_string_tab[73]
+#define __pyx_n_u_src_v __pyx_string_tab[74]
+#define __pyx_n_u_st __pyx_string_tab[75]
 #define __pyx_n_u_step_factor __pyx_string_tab[76]
 #define __pyx_n_u_target_sphere __pyx_string_tab[77]
 #define __pyx_n_u_target_surface __pyx_string_tab[78]
@@ -3097,7 +3097,7 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_verbose __pyx_string_tab[93]
 #define __pyx_n_u_warped __pyx_string_tab[94]
 #define __pyx_n_u_warped_mesh __pyx_string_tab[95]
-#define __pyx_kp_b_iso88591_P_uBc_a_j_Q_y_1_j_vS_j_81_81_81 __pyx_string_tab[96]
+#define __pyx_kp_b_iso88591_uBc_a_j_Q_y_1_j_vS_j_81_81_81_I __pyx_string_tab[96]
 #define __pyx_kp_b_struct___pyx_obj_8cat_surf_8_con __pyx_string_tab[97]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
@@ -4922,7 +4922,7 @@ PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_8cat_surf_16_spherical_demon_spherical_demon, "\n    Warp a source sphere onto a template sphere via Spherical Demons.\n\n    Mirrors ``CAT_SurfSphericalDemon``.  The source/template surfaces drive the\n    feature matching (curvature), the spheres carry the deformation.  Each\n    surface must share its vertex count and topology with its sphere.\n\n    Parameters\n    ----------\n    source_surface, source_sphere : (vertices, faces)\n        Subject's cortical surface and its spherical mapping.\n    target_surface, target_sphere : (vertices, faces)\n        Template surface and its sphere.\n    n_points : int\n        Finest pyramid resolution (default 20480); each coarser level uses\n        1/4 the points.\n    n_steps : int\n        Number of multi-resolution pyramid levels, coarse to fine\n        (1..CAT_WARP_DEMONS_MAX_STEPS, default 3).\n    iters : int\n        Maximum iterations per level (default 100).\n    curvtype0, curvtype1, curvtype2, curvtype3 : int\n        Curvature feature per level (coarse to fine).  0 mean curvature\n        (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean\n        curvature (rad), 5 sulcal-depth-like, >5 depth-potential with\n        alpha = 1/curvtype.  Defaults 1000, 750, 500, 15 (depth-potential;\n        the 4th level is only used with ``n_steps`` 4).\n    fwhm_flow : float\n        Velocity-update smoothing FWHM (default 12.0).\n    fwhm_curv : float\n        Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).\n    fwhm_disp : float\n        Displacement-field smoothing FWHM, the elastic prior (default 6.0).\n    max_step_deg : float\n        Clamp per-iteration |dtheta,dphi| to this many degrees; <=0 disables\n        (default 50.0).\n    sigma_x : float\n        Spherical Demons Tikhonov regularization weight (default 20.0).\n    rate : float\n        Per-iteration multiplier for ``fwhm_flow`` (default 1.0 = constant).\n    step_factor : float\n        Global step-size factor (default 1.0).\n    rotate : bool\n        Rigid rotation pre""-alignment on the coarsest level (default True).\n    smooth_velocity : bool\n        Smooth the velocity update, a fluid prior (default True).\n    smooth_displacement : bool\n        Smooth the displacement field, an elastic prior (default True).\n    use_hessian : bool\n        Per-vertex Gauss-Newton 2x2 Hessian update (default True).\n    use_line_search : bool\n        Adaptive step backtracking on stalled correlation (default False).\n    use_expmap : bool\n        Diffeomorphic scaling-and-squaring exponential map (default True).\n        If False, falls back to an additive theta/phi flow.\n    use_tangent : bool\n        Compute the update in a per-vertex tangent-plane frame (as in\n        Spherical Demons) instead of the global lat-lon chart.  Requires\n        ``use_expmap``.  Default True.\n    use_geodesic : bool\n        Compose the diffeomorphic exp-map warp with geodesic (slerp)\n        barycentric interpolation on the sphere instead of\n        linear-then-renormalize.  Slightly more accurate, slightly slower.\n        Default True.\n    unfold : bool\n        Post-step: relax folded (negative-area) triangles in the final warp\n        until orientations are restored.  Removes folds introduced when\n        up-sampling the warp onto an irregular full-resolution mesh.\n        Default False.\n    std_map : array_like or None\n        Optional per-vertex standard deviation of the (mean-curvature) feature,\n        defined on the TEMPLATE mesh (one value per ``target_sphere`` vertex).\n        When given, the Gauss-Newton data term is locally weighted by\n        1/variance (atlas-style template registration, as in Spherical Demons);\n        the map is resampled internally to each pyramid level.  Default None.\n    std_exp : float\n        Exponent on the precision weight, ``w = (1/variance) ** std_exp``\n        (default 2.0; 1.0 = SD's 1/variance).  Raise above 1 to sharpen a\n        low-contrast std map; 0 disables local weighting.  Only used wh""en\n        ``std_map`` is given.\n    cortex_mask : array_like or None\n        Optional per-vertex cortex mask on the TEMPLATE mesh (one value per\n        ``target_sphere`` vertex; 0 excludes a vertex, e.g. the medial wall,\n        >0 includes it).  Excludes non-cortex from the data term\n        (FreeSurfer-style).  Independent of ``std_map`` and may be combined\n        with it.  Default None.\n    l_dist : float\n        Weight of the metric-distortion regularizer (FreeSurfer-style distance\n        term): each iteration takes a gradient step pulling warped neighbour\n        distances back toward the original sphere metric, resisting local\n        stretch/fold while still allowing large smooth warps.  0 disables it\n        (default 0.3).  Try small values (e.g. 0.05-0.2).\n    verbose : bool\n        Print per-iteration progress (default False).\n    debug : bool\n        Write intermediate debug files (default False).\n\n    Returns\n    -------\n    warped_sphere_vertices : ndarray, shape (V, 3), float64\n    warped_sphere_faces    : ndarray, shape (F, 3), int32\n        The deformed source sphere at the input source-sphere resolution.\n    ");
+PyDoc_STRVAR(__pyx_doc_8cat_surf_16_spherical_demon_spherical_demon, "\n    Warp a source sphere onto a template sphere via Spherical Demons.\n\n    Mirrors ``CAT_SurfSphericalDemon``.  The source/template surfaces drive the\n    feature matching (curvature), the spheres carry the deformation.  Each\n    surface must share its vertex count and topology with its sphere.\n\n    Parameters\n    ----------\n    source_surface, source_sphere : (vertices, faces)\n        Subject's cortical surface and its spherical mapping.\n    target_surface, target_sphere : (vertices, faces)\n        Template surface and its sphere.\n    n_points : int\n        Finest pyramid resolution (default 20480); each coarser level uses\n        1/4 the points.\n    n_steps : int\n        Number of multi-resolution pyramid levels, coarse to fine\n        (1..CAT_WARP_DEMONS_MAX_STEPS, default 3).\n    iters : int\n        Maximum iterations per level (default 100).\n    curvtype0, curvtype1, curvtype2, curvtype3 : int\n        Curvature feature per level (coarse to fine).  0 mean curvature\n        (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean\n        curvature (rad), 5 sulcal-depth-like, >5 depth-potential with\n        alpha = 1/curvtype.  Defaults 1000, 750, 500, 15 (depth-potential;\n        the 4th level is only used with ``n_steps`` 4).\n    fwhm_flow : float\n        Velocity-update smoothing FWHM (default 12.0).\n    fwhm_curv : float\n        Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).\n    fwhm_disp : float\n        Displacement-field smoothing FWHM, the elastic prior (default 6.0).\n    max_step_deg : float\n        Clamp per-iteration |dtheta,dphi| to this many degrees; <=0 disables\n        (default 50.0).\n    sigma_x : float\n        Spherical Demons Tikhonov regularization weight (default 20.0).\n    rate : float\n        Per-iteration multiplier for ``fwhm_flow`` (default 1.0 = constant).\n    step_factor : float\n        Global step-size factor (default 1.0).\n    rotate : bool\n        Rigid rotation pre""-alignment on the coarsest level (default True).\n    smooth_velocity : bool\n        Smooth the velocity update, a fluid prior (default True).\n    smooth_displacement : bool\n        Smooth the displacement field, an elastic prior (default True).\n    use_hessian : bool\n        Per-vertex Gauss-Newton 2x2 Hessian update (default True).\n    use_line_search : bool\n        Adaptive step backtracking on stalled correlation (default False).\n    use_expmap : bool\n        Diffeomorphic scaling-and-squaring exponential map (default True).\n        If False, falls back to an additive theta/phi flow.\n    use_tangent : bool\n        Compute the update in a per-vertex tangent-plane frame (as in\n        Spherical Demons) instead of the global lat-lon chart.  Requires\n        ``use_expmap``.  Default True.\n    use_geodesic : bool\n        Compose the diffeomorphic exp-map warp with geodesic (slerp)\n        barycentric interpolation on the sphere instead of\n        linear-then-renormalize.  Slightly more accurate, slightly slower.\n        Default True.\n    unfold : bool\n        Post-step: relax folded (negative-area) triangles in the final warp\n        until orientations are restored.  Removes folds introduced when\n        up-sampling the warp onto an irregular full-resolution mesh.\n        Default False.\n    cortex_mask : array_like or None\n        Optional per-vertex cortex mask on the TEMPLATE mesh (one value per\n        ``target_sphere`` vertex; 0 excludes a vertex, e.g. the medial wall,\n        >0 includes it).  Excludes non-cortex from the data term\n        (FreeSurfer-style).  Default None.\n    l_dist : float\n        Weight of the metric-distortion regularizer (FreeSurfer-style distance\n        term): each iteration takes a gradient step pulling warped neighbour\n        distances back toward the original sphere metric, resisting local\n        stretch/fold while still allowing large smooth warps.  0 disables it\n        (default 0.3).  Try small ""values (e.g. 0.05-0.2).\n    coarse_stiffness : float\n        Extra Dartel-like stiffness on the coarser pyramid levels: the flow and\n        displacement smoothing FWHM are multiplied by a factor equal to this\n        value at the coarsest level, decaying to 1.0 at the finest.  A stiffer\n        coarse warp moves whole folds together and resists a sulcus slipping one\n        wavelength into its neighbour.  1.0 disables it (default); try 1.5-2.5.\n    rot_max_degrees : float\n        Initial rotation search: half-width of the initial angular span, in\n        degrees (default 64.0, matching FreeSurfer).  This is the capture range.\n        The rotation is found by an exhaustive coarse-to-fine global search over\n        all three angles, so it survives large misalignments that a local\n        search cannot escape.  Only used when ``rotate`` is True.\n    rot_min_degrees : float\n        Initial rotation search: stop once the angular span falls below this\n        many degrees (default 1.0).\n    rot_nangles : int\n        Initial rotation search: grid samples per axis per pass (default 4).\n        Cost grows as ``(rot_nangles + 1) ** 3`` per pass; raise for a denser\n        search, lower for speed.\n    verbose : bool\n        Print per-iteration progress (default False).\n    debug : bool\n        Write intermediate debug files (default False).\n\n    Returns\n    -------\n    warped_sphere_vertices : ndarray, shape (V, 3), float64\n    warped_sphere_faces    : ndarray, shape (F, 3), int32\n        The deformed source sphere at the input source-sphere resolution.\n    ");
 static PyMethodDef __pyx_mdef_8cat_surf_16_spherical_demon_1spherical_demon = {"spherical_demon", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_8cat_surf_16_spherical_demon_1spherical_demon, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_8cat_surf_16_spherical_demon_spherical_demon};
 static PyObject *__pyx_pw_8cat_surf_16_spherical_demon_1spherical_demon(PyObject *__pyx_self, 
 #if CYTHON_METH_FASTCALL
@@ -4958,17 +4958,19 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   int __pyx_v_use_tangent;
   int __pyx_v_use_geodesic;
   int __pyx_v_unfold;
-  PyObject *__pyx_v_std_map = 0;
-  double __pyx_v_std_exp;
   PyObject *__pyx_v_cortex_mask = 0;
   double __pyx_v_l_dist;
+  double __pyx_v_coarse_stiffness;
+  double __pyx_v_rot_max_degrees;
+  double __pyx_v_rot_min_degrees;
+  int __pyx_v_rot_nangles;
   int __pyx_v_verbose;
   int __pyx_v_debug;
   #if !CYTHON_METH_FASTCALL
   CYTHON_UNUSED Py_ssize_t __pyx_nargs;
   #endif
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
-  PyObject* values[33] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  PyObject* values[35] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -4984,11 +4986,19 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   #endif
   __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
   {
-    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_source_surface,&__pyx_mstate_global->__pyx_n_u_source_sphere,&__pyx_mstate_global->__pyx_n_u_target_surface,&__pyx_mstate_global->__pyx_n_u_target_sphere,&__pyx_mstate_global->__pyx_n_u_n_points,&__pyx_mstate_global->__pyx_n_u_n_steps,&__pyx_mstate_global->__pyx_n_u_iters,&__pyx_mstate_global->__pyx_n_u_curvtype0,&__pyx_mstate_global->__pyx_n_u_curvtype1,&__pyx_mstate_global->__pyx_n_u_curvtype2,&__pyx_mstate_global->__pyx_n_u_curvtype3,&__pyx_mstate_global->__pyx_n_u_fwhm_flow,&__pyx_mstate_global->__pyx_n_u_fwhm_curv,&__pyx_mstate_global->__pyx_n_u_fwhm_disp,&__pyx_mstate_global->__pyx_n_u_max_step_deg,&__pyx_mstate_global->__pyx_n_u_sigma_x,&__pyx_mstate_global->__pyx_n_u_rate,&__pyx_mstate_global->__pyx_n_u_step_factor,&__pyx_mstate_global->__pyx_n_u_rotate,&__pyx_mstate_global->__pyx_n_u_smooth_velocity,&__pyx_mstate_global->__pyx_n_u_smooth_displacement,&__pyx_mstate_global->__pyx_n_u_use_hessian,&__pyx_mstate_global->__pyx_n_u_use_line_search,&__pyx_mstate_global->__pyx_n_u_use_expmap,&__pyx_mstate_global->__pyx_n_u_use_tangent,&__pyx_mstate_global->__pyx_n_u_use_geodesic,&__pyx_mstate_global->__pyx_n_u_unfold,&__pyx_mstate_global->__pyx_n_u_std_map,&__pyx_mstate_global->__pyx_n_u_std_exp,&__pyx_mstate_global->__pyx_n_u_cortex_mask,&__pyx_mstate_global->__pyx_n_u_l_dist,&__pyx_mstate_global->__pyx_n_u_verbose,&__pyx_mstate_global->__pyx_n_u_debug,0};
+    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_source_surface,&__pyx_mstate_global->__pyx_n_u_source_sphere,&__pyx_mstate_global->__pyx_n_u_target_surface,&__pyx_mstate_global->__pyx_n_u_target_sphere,&__pyx_mstate_global->__pyx_n_u_n_points,&__pyx_mstate_global->__pyx_n_u_n_steps,&__pyx_mstate_global->__pyx_n_u_iters,&__pyx_mstate_global->__pyx_n_u_curvtype0,&__pyx_mstate_global->__pyx_n_u_curvtype1,&__pyx_mstate_global->__pyx_n_u_curvtype2,&__pyx_mstate_global->__pyx_n_u_curvtype3,&__pyx_mstate_global->__pyx_n_u_fwhm_flow,&__pyx_mstate_global->__pyx_n_u_fwhm_curv,&__pyx_mstate_global->__pyx_n_u_fwhm_disp,&__pyx_mstate_global->__pyx_n_u_max_step_deg,&__pyx_mstate_global->__pyx_n_u_sigma_x,&__pyx_mstate_global->__pyx_n_u_rate,&__pyx_mstate_global->__pyx_n_u_step_factor,&__pyx_mstate_global->__pyx_n_u_rotate,&__pyx_mstate_global->__pyx_n_u_smooth_velocity,&__pyx_mstate_global->__pyx_n_u_smooth_displacement,&__pyx_mstate_global->__pyx_n_u_use_hessian,&__pyx_mstate_global->__pyx_n_u_use_line_search,&__pyx_mstate_global->__pyx_n_u_use_expmap,&__pyx_mstate_global->__pyx_n_u_use_tangent,&__pyx_mstate_global->__pyx_n_u_use_geodesic,&__pyx_mstate_global->__pyx_n_u_unfold,&__pyx_mstate_global->__pyx_n_u_cortex_mask,&__pyx_mstate_global->__pyx_n_u_l_dist,&__pyx_mstate_global->__pyx_n_u_coarse_stiffness,&__pyx_mstate_global->__pyx_n_u_rot_max_degrees,&__pyx_mstate_global->__pyx_n_u_rot_min_degrees,&__pyx_mstate_global->__pyx_n_u_rot_nangles,&__pyx_mstate_global->__pyx_n_u_verbose,&__pyx_mstate_global->__pyx_n_u_debug,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
     if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 30, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
+        case 35:
+        values[34] = __Pyx_ArgRef_FASTCALL(__pyx_args, 34);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[34])) __PYX_ERR(0, 30, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case 34:
+        values[33] = __Pyx_ArgRef_FASTCALL(__pyx_args, 33);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[33])) __PYX_ERR(0, 30, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
         case 33:
         values[32] = __Pyx_ArgRef_FASTCALL(__pyx_args, 32);
         if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[32])) __PYX_ERR(0, 30, __pyx_L3_error)
@@ -5130,25 +5140,24 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
       /* "cat_surf/_spherical_demon.pyx":57
  *                     bint use_geodesic=True,
  *                     bint unfold=False,
- *                     std_map=None,             # <<<<<<<<<<<<<<
- *                     double std_exp=2.0,
- *                     cortex_mask=None,
-*/
-      if (!values[27]) values[27] = __Pyx_NewRef(((PyObject *)Py_None));
-
-      /* "cat_surf/_spherical_demon.pyx":59
- *                     std_map=None,
- *                     double std_exp=2.0,
  *                     cortex_mask=None,             # <<<<<<<<<<<<<<
  *                     double l_dist=0.3,
- *                     bint verbose=False,
+ *                     double coarse_stiffness=1.0,
 */
-      if (!values[29]) values[29] = __Pyx_NewRef(((PyObject *)Py_None));
+      if (!values[27]) values[27] = __Pyx_NewRef(((PyObject *)Py_None));
       for (Py_ssize_t i = __pyx_nargs; i < 4; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("spherical_demon", 0, 4, 33, i); __PYX_ERR(0, 30, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("spherical_demon", 0, 4, 35, i); __PYX_ERR(0, 30, __pyx_L3_error) }
       }
     } else {
       switch (__pyx_nargs) {
+        case 35:
+        values[34] = __Pyx_ArgRef_FASTCALL(__pyx_args, 34);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[34])) __PYX_ERR(0, 30, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
+        case 34:
+        values[33] = __Pyx_ArgRef_FASTCALL(__pyx_args, 33);
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[33])) __PYX_ERR(0, 30, __pyx_L3_error)
+        CYTHON_FALLTHROUGH;
         case 33:
         values[32] = __Pyx_ArgRef_FASTCALL(__pyx_args, 32);
         if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[32])) __PYX_ERR(0, 30, __pyx_L3_error)
@@ -5277,24 +5286,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
         break;
         default: goto __pyx_L5_argtuple_error;
       }
-
-      /* "cat_surf/_spherical_demon.pyx":57
- *                     bint use_geodesic=True,
- *                     bint unfold=False,
- *                     std_map=None,             # <<<<<<<<<<<<<<
- *                     double std_exp=2.0,
- *                     cortex_mask=None,
-*/
       if (!values[27]) values[27] = __Pyx_NewRef(((PyObject *)Py_None));
-
-      /* "cat_surf/_spherical_demon.pyx":59
- *                     std_map=None,
- *                     double std_exp=2.0,
- *                     cortex_mask=None,             # <<<<<<<<<<<<<<
- *                     double l_dist=0.3,
- *                     bint verbose=False,
-*/
-      if (!values[29]) values[29] = __Pyx_NewRef(((PyObject *)Py_None));
     }
     __pyx_v_source_surface = values[0];
     __pyx_v_source_sphere = values[1];
@@ -5470,7 +5462,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
  *                     bint use_tangent=True,
  *                     bint use_geodesic=True,             # <<<<<<<<<<<<<<
  *                     bint unfold=False,
- *                     std_map=None,
+ *                     cortex_mask=None,
 */
       __pyx_v_use_geodesic = ((int)((int)1));
     }
@@ -5482,42 +5474,56 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
  *                     bint use_tangent=True,
  *                     bint use_geodesic=True,
  *                     bint unfold=False,             # <<<<<<<<<<<<<<
- *                     std_map=None,
- *                     double std_exp=2.0,
+ *                     cortex_mask=None,
+ *                     double l_dist=0.3,
 */
       __pyx_v_unfold = ((int)((int)0));
     }
-    __pyx_v_std_map = values[27];
+    __pyx_v_cortex_mask = values[27];
     if (values[28]) {
-      __pyx_v_std_exp = __Pyx_PyFloat_AsDouble(values[28]); if (unlikely((__pyx_v_std_exp == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 58, __pyx_L3_error)
-    } else {
-      __pyx_v_std_exp = ((double)((double)2.0));
-    }
-    __pyx_v_cortex_mask = values[29];
-    if (values[30]) {
-      __pyx_v_l_dist = __Pyx_PyFloat_AsDouble(values[30]); if (unlikely((__pyx_v_l_dist == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 60, __pyx_L3_error)
+      __pyx_v_l_dist = __Pyx_PyFloat_AsDouble(values[28]); if (unlikely((__pyx_v_l_dist == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 58, __pyx_L3_error)
     } else {
       __pyx_v_l_dist = ((double)((double)0.3));
     }
+    if (values[29]) {
+      __pyx_v_coarse_stiffness = __Pyx_PyFloat_AsDouble(values[29]); if (unlikely((__pyx_v_coarse_stiffness == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 59, __pyx_L3_error)
+    } else {
+      __pyx_v_coarse_stiffness = ((double)((double)1.0));
+    }
+    if (values[30]) {
+      __pyx_v_rot_max_degrees = __Pyx_PyFloat_AsDouble(values[30]); if (unlikely((__pyx_v_rot_max_degrees == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 60, __pyx_L3_error)
+    } else {
+      __pyx_v_rot_max_degrees = ((double)((double)64.0));
+    }
     if (values[31]) {
-      __pyx_v_verbose = __Pyx_PyObject_IsTrue(values[31]); if (unlikely((__pyx_v_verbose == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 61, __pyx_L3_error)
+      __pyx_v_rot_min_degrees = __Pyx_PyFloat_AsDouble(values[31]); if (unlikely((__pyx_v_rot_min_degrees == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 61, __pyx_L3_error)
+    } else {
+      __pyx_v_rot_min_degrees = ((double)((double)1.0));
+    }
+    if (values[32]) {
+      __pyx_v_rot_nangles = __Pyx_PyLong_As_int(values[32]); if (unlikely((__pyx_v_rot_nangles == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 62, __pyx_L3_error)
+    } else {
+      __pyx_v_rot_nangles = ((int)((int)4));
+    }
+    if (values[33]) {
+      __pyx_v_verbose = __Pyx_PyObject_IsTrue(values[33]); if (unlikely((__pyx_v_verbose == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 63, __pyx_L3_error)
     } else {
 
-      /* "cat_surf/_spherical_demon.pyx":61
- *                     cortex_mask=None,
- *                     double l_dist=0.3,
+      /* "cat_surf/_spherical_demon.pyx":63
+ *                     double rot_min_degrees=1.0,
+ *                     int rot_nangles=4,
  *                     bint verbose=False,             # <<<<<<<<<<<<<<
  *                     bint debug=False):
  *     """
 */
       __pyx_v_verbose = ((int)((int)0));
     }
-    if (values[32]) {
-      __pyx_v_debug = __Pyx_PyObject_IsTrue(values[32]); if (unlikely((__pyx_v_debug == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 62, __pyx_L3_error)
+    if (values[34]) {
+      __pyx_v_debug = __Pyx_PyObject_IsTrue(values[34]); if (unlikely((__pyx_v_debug == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 64, __pyx_L3_error)
     } else {
 
-      /* "cat_surf/_spherical_demon.pyx":62
- *                     double l_dist=0.3,
+      /* "cat_surf/_spherical_demon.pyx":64
+ *                     int rot_nangles=4,
  *                     bint verbose=False,
  *                     bint debug=False):             # <<<<<<<<<<<<<<
  *     """
@@ -5528,7 +5534,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("spherical_demon", 0, 4, 33, __pyx_nargs); __PYX_ERR(0, 30, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("spherical_demon", 0, 4, 35, __pyx_nargs); __PYX_ERR(0, 30, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -5539,7 +5545,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(__pyx_self, __pyx_v_source_surface, __pyx_v_source_sphere, __pyx_v_target_surface, __pyx_v_target_sphere, __pyx_v_n_points, __pyx_v_n_steps, __pyx_v_iters, __pyx_v_curvtype0, __pyx_v_curvtype1, __pyx_v_curvtype2, __pyx_v_curvtype3, __pyx_v_fwhm_flow, __pyx_v_fwhm_curv, __pyx_v_fwhm_disp, __pyx_v_max_step_deg, __pyx_v_sigma_x, __pyx_v_rate, __pyx_v_step_factor, __pyx_v_rotate, __pyx_v_smooth_velocity, __pyx_v_smooth_displacement, __pyx_v_use_hessian, __pyx_v_use_line_search, __pyx_v_use_expmap, __pyx_v_use_tangent, __pyx_v_use_geodesic, __pyx_v_unfold, __pyx_v_std_map, __pyx_v_std_exp, __pyx_v_cortex_mask, __pyx_v_l_dist, __pyx_v_verbose, __pyx_v_debug);
+  __pyx_r = __pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(__pyx_self, __pyx_v_source_surface, __pyx_v_source_sphere, __pyx_v_target_surface, __pyx_v_target_sphere, __pyx_v_n_points, __pyx_v_n_steps, __pyx_v_iters, __pyx_v_curvtype0, __pyx_v_curvtype1, __pyx_v_curvtype2, __pyx_v_curvtype3, __pyx_v_fwhm_flow, __pyx_v_fwhm_curv, __pyx_v_fwhm_disp, __pyx_v_max_step_deg, __pyx_v_sigma_x, __pyx_v_rate, __pyx_v_step_factor, __pyx_v_rotate, __pyx_v_smooth_velocity, __pyx_v_smooth_displacement, __pyx_v_use_hessian, __pyx_v_use_line_search, __pyx_v_use_expmap, __pyx_v_use_tangent, __pyx_v_use_geodesic, __pyx_v_unfold, __pyx_v_cortex_mask, __pyx_v_l_dist, __pyx_v_coarse_stiffness, __pyx_v_rot_max_degrees, __pyx_v_rot_min_degrees, __pyx_v_rot_nangles, __pyx_v_verbose, __pyx_v_debug);
 
   /* "cat_surf/_spherical_demon.pyx":30
  * 
@@ -5557,7 +5563,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_source_surface, PyObject *__pyx_v_source_sphere, PyObject *__pyx_v_target_surface, PyObject *__pyx_v_target_sphere, int __pyx_v_n_points, int __pyx_v_n_steps, int __pyx_v_iters, int __pyx_v_curvtype0, int __pyx_v_curvtype1, int __pyx_v_curvtype2, int __pyx_v_curvtype3, double __pyx_v_fwhm_flow, double __pyx_v_fwhm_curv, double __pyx_v_fwhm_disp, double __pyx_v_max_step_deg, double __pyx_v_sigma_x, double __pyx_v_rate, double __pyx_v_step_factor, int __pyx_v_rotate, int __pyx_v_smooth_velocity, int __pyx_v_smooth_displacement, int __pyx_v_use_hessian, int __pyx_v_use_line_search, int __pyx_v_use_expmap, int __pyx_v_use_tangent, int __pyx_v_use_geodesic, int __pyx_v_unfold, PyObject *__pyx_v_std_map, double __pyx_v_std_exp, PyObject *__pyx_v_cortex_mask, double __pyx_v_l_dist, int __pyx_v_verbose, int __pyx_v_debug) {
+static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v_source_surface, PyObject *__pyx_v_source_sphere, PyObject *__pyx_v_target_surface, PyObject *__pyx_v_target_sphere, int __pyx_v_n_points, int __pyx_v_n_steps, int __pyx_v_iters, int __pyx_v_curvtype0, int __pyx_v_curvtype1, int __pyx_v_curvtype2, int __pyx_v_curvtype3, double __pyx_v_fwhm_flow, double __pyx_v_fwhm_curv, double __pyx_v_fwhm_disp, double __pyx_v_max_step_deg, double __pyx_v_sigma_x, double __pyx_v_rate, double __pyx_v_step_factor, int __pyx_v_rotate, int __pyx_v_smooth_velocity, int __pyx_v_smooth_displacement, int __pyx_v_use_hessian, int __pyx_v_use_line_search, int __pyx_v_use_expmap, int __pyx_v_use_tangent, int __pyx_v_use_geodesic, int __pyx_v_unfold, PyObject *__pyx_v_cortex_mask, double __pyx_v_l_dist, double __pyx_v_coarse_stiffness, double __pyx_v_rot_max_degrees, double __pyx_v_rot_min_degrees, int __pyx_v_rot_nangles, int __pyx_v_verbose, int __pyx_v_debug) {
   PyObject *__pyx_v_src_v = NULL;
   PyObject *__pyx_v_src_f = NULL;
   PyObject *__pyx_v_sph_v = NULL;
@@ -5571,7 +5577,6 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *__pyx_v_trg_mesh = 0;
   struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *__pyx_v_tsph_mesh = 0;
   CAT_WarpDemonsOptions __pyx_v_opt;
-  PyArrayObject *__pyx_v_std_arr = 0;
   PyArrayObject *__pyx_v_mask_arr = 0;
   int __pyx_v_n_trg;
   int __pyx_v_lvl;
@@ -5582,8 +5587,6 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *__pyx_v_warped_mesh = 0;
   __Pyx_LocalBuf_ND __pyx_pybuffernd_mask_arr;
   __Pyx_Buffer __pyx_pybuffer_mask_arr;
-  __Pyx_LocalBuf_ND __pyx_pybuffernd_std_arr;
-  __Pyx_Buffer __pyx_pybuffer_std_arr;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   int __pyx_t_1;
@@ -5609,16 +5612,12 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("spherical_demon", 0);
-  __pyx_pybuffer_std_arr.pybuffer.buf = NULL;
-  __pyx_pybuffer_std_arr.refcount = 0;
-  __pyx_pybuffernd_std_arr.data = NULL;
-  __pyx_pybuffernd_std_arr.rcbuffer = &__pyx_pybuffer_std_arr;
   __pyx_pybuffer_mask_arr.pybuffer.buf = NULL;
   __pyx_pybuffer_mask_arr.refcount = 0;
   __pyx_pybuffernd_mask_arr.data = NULL;
   __pyx_pybuffernd_mask_arr.rcbuffer = &__pyx_pybuffer_mask_arr;
 
-  /* "cat_surf/_spherical_demon.pyx":166
+  /* "cat_surf/_spherical_demon.pyx":175
  *         The deformed source sphere at the input source-sphere resolution.
  *     """
  *     if not (1 <= n_steps <= WD.CAT_WARP_DEMONS_MAX_STEPS):             # <<<<<<<<<<<<<<
@@ -5632,7 +5631,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_t_2 = (!__pyx_t_1);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cat_surf/_spherical_demon.pyx":167
+    /* "cat_surf/_spherical_demon.pyx":176
  *     """
  *     if not (1 <= n_steps <= WD.CAT_WARP_DEMONS_MAX_STEPS):
  *         raise ValueError(             # <<<<<<<<<<<<<<
@@ -5641,16 +5640,16 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
     __pyx_t_4 = NULL;
 
-    /* "cat_surf/_spherical_demon.pyx":168
+    /* "cat_surf/_spherical_demon.pyx":177
  *     if not (1 <= n_steps <= WD.CAT_WARP_DEMONS_MAX_STEPS):
  *         raise ValueError(
  *             "n_steps must be in [1, %d]" % WD.CAT_WARP_DEMONS_MAX_STEPS)             # <<<<<<<<<<<<<<
  *     if n_points <= 0:
  *         raise ValueError("n_points must be positive")
 */
-    __pyx_t_5 = __Pyx_PyLong_From_int(CAT_WARP_DEMONS_MAX_STEPS); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 168, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_PyLong_From_int(CAT_WARP_DEMONS_MAX_STEPS); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 177, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    __pyx_t_6 = PyUnicode_Format(__pyx_mstate_global->__pyx_kp_u_n_steps_must_be_in_1_d, __pyx_t_5); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 168, __pyx_L1_error)
+    __pyx_t_6 = PyUnicode_Format(__pyx_mstate_global->__pyx_kp_u_n_steps_must_be_in_1_d, __pyx_t_5); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 177, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __pyx_t_7 = 1;
@@ -5659,14 +5658,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 167, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 176, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 167, __pyx_L1_error)
+    __PYX_ERR(0, 176, __pyx_L1_error)
 
-    /* "cat_surf/_spherical_demon.pyx":166
+    /* "cat_surf/_spherical_demon.pyx":175
  *         The deformed source sphere at the input source-sphere resolution.
  *     """
  *     if not (1 <= n_steps <= WD.CAT_WARP_DEMONS_MAX_STEPS):             # <<<<<<<<<<<<<<
@@ -5675,7 +5674,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   }
 
-  /* "cat_surf/_spherical_demon.pyx":169
+  /* "cat_surf/_spherical_demon.pyx":178
  *         raise ValueError(
  *             "n_steps must be in [1, %d]" % WD.CAT_WARP_DEMONS_MAX_STEPS)
  *     if n_points <= 0:             # <<<<<<<<<<<<<<
@@ -5685,7 +5684,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_t_2 = (__pyx_v_n_points <= 0);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cat_surf/_spherical_demon.pyx":170
+    /* "cat_surf/_spherical_demon.pyx":179
  *             "n_steps must be in [1, %d]" % WD.CAT_WARP_DEMONS_MAX_STEPS)
  *     if n_points <= 0:
  *         raise ValueError("n_points must be positive")             # <<<<<<<<<<<<<<
@@ -5698,14 +5697,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_mstate_global->__pyx_kp_u_n_points_must_be_positive};
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 170, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 179, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 170, __pyx_L1_error)
+    __PYX_ERR(0, 179, __pyx_L1_error)
 
-    /* "cat_surf/_spherical_demon.pyx":169
+    /* "cat_surf/_spherical_demon.pyx":178
  *         raise ValueError(
  *             "n_steps must be in [1, %d]" % WD.CAT_WARP_DEMONS_MAX_STEPS)
  *     if n_points <= 0:             # <<<<<<<<<<<<<<
@@ -5714,7 +5713,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   }
 
-  /* "cat_surf/_spherical_demon.pyx":171
+  /* "cat_surf/_spherical_demon.pyx":180
  *     if n_points <= 0:
  *         raise ValueError("n_points must be positive")
  *     if iters <= 0:             # <<<<<<<<<<<<<<
@@ -5724,7 +5723,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_t_2 = (__pyx_v_iters <= 0);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cat_surf/_spherical_demon.pyx":172
+    /* "cat_surf/_spherical_demon.pyx":181
  *         raise ValueError("n_points must be positive")
  *     if iters <= 0:
  *         raise ValueError("iters must be positive")             # <<<<<<<<<<<<<<
@@ -5737,14 +5736,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       PyObject *__pyx_callargs[2] = {__pyx_t_6, __pyx_mstate_global->__pyx_kp_u_iters_must_be_positive};
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 172, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 181, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 172, __pyx_L1_error)
+    __PYX_ERR(0, 181, __pyx_L1_error)
 
-    /* "cat_surf/_spherical_demon.pyx":171
+    /* "cat_surf/_spherical_demon.pyx":180
  *     if n_points <= 0:
  *         raise ValueError("n_points must be positive")
  *     if iters <= 0:             # <<<<<<<<<<<<<<
@@ -5753,7 +5752,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   }
 
-  /* "cat_surf/_spherical_demon.pyx":174
+  /* "cat_surf/_spherical_demon.pyx":183
  *         raise ValueError("iters must be positive")
  * 
  *     src_v, src_f = source_surface             # <<<<<<<<<<<<<<
@@ -5766,7 +5765,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     if (unlikely(size != 2)) {
       if (size > 2) __Pyx_RaiseTooManyValuesError(2);
       else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-      __PYX_ERR(0, 174, __pyx_L1_error)
+      __PYX_ERR(0, 183, __pyx_L1_error)
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
     if (likely(PyTuple_CheckExact(sequence))) {
@@ -5776,28 +5775,28 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       __Pyx_INCREF(__pyx_t_6);
     } else {
       __pyx_t_3 = __Pyx_PyList_GetItemRefFast(sequence, 0, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 174, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 183, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_3);
       __pyx_t_6 = __Pyx_PyList_GetItemRefFast(sequence, 1, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 174, __pyx_L1_error)
+      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 183, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_6);
     }
     #else
-    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 174, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 183, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 174, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 183, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     #endif
   } else {
     Py_ssize_t index = -1;
-    __pyx_t_4 = PyObject_GetIter(__pyx_v_source_surface); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 174, __pyx_L1_error)
+    __pyx_t_4 = PyObject_GetIter(__pyx_v_source_surface); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 183, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_8 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4);
     index = 0; __pyx_t_3 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_3)) goto __pyx_L6_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_3);
     index = 1; __pyx_t_6 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_6)) goto __pyx_L6_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_6);
-    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 174, __pyx_L1_error)
+    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 183, __pyx_L1_error)
     __pyx_t_8 = NULL;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     goto __pyx_L7_unpacking_done;
@@ -5805,7 +5804,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_8 = NULL;
     if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-    __PYX_ERR(0, 174, __pyx_L1_error)
+    __PYX_ERR(0, 183, __pyx_L1_error)
     __pyx_L7_unpacking_done:;
   }
   __pyx_v_src_v = __pyx_t_3;
@@ -5813,7 +5812,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_v_src_f = __pyx_t_6;
   __pyx_t_6 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":175
+  /* "cat_surf/_spherical_demon.pyx":184
  * 
  *     src_v, src_f = source_surface
  *     sph_v, sph_f = source_sphere             # <<<<<<<<<<<<<<
@@ -5826,7 +5825,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     if (unlikely(size != 2)) {
       if (size > 2) __Pyx_RaiseTooManyValuesError(2);
       else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-      __PYX_ERR(0, 175, __pyx_L1_error)
+      __PYX_ERR(0, 184, __pyx_L1_error)
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
     if (likely(PyTuple_CheckExact(sequence))) {
@@ -5836,28 +5835,28 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       __Pyx_INCREF(__pyx_t_3);
     } else {
       __pyx_t_6 = __Pyx_PyList_GetItemRefFast(sequence, 0, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 175, __pyx_L1_error)
+      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 184, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_6);
       __pyx_t_3 = __Pyx_PyList_GetItemRefFast(sequence, 1, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 175, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 184, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_3);
     }
     #else
-    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 175, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 184, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 175, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 184, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     #endif
   } else {
     Py_ssize_t index = -1;
-    __pyx_t_4 = PyObject_GetIter(__pyx_v_source_sphere); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 175, __pyx_L1_error)
+    __pyx_t_4 = PyObject_GetIter(__pyx_v_source_sphere); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 184, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_8 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4);
     index = 0; __pyx_t_6 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_6)) goto __pyx_L8_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_6);
     index = 1; __pyx_t_3 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_3)) goto __pyx_L8_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_3);
-    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 175, __pyx_L1_error)
+    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 184, __pyx_L1_error)
     __pyx_t_8 = NULL;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     goto __pyx_L9_unpacking_done;
@@ -5865,7 +5864,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_8 = NULL;
     if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-    __PYX_ERR(0, 175, __pyx_L1_error)
+    __PYX_ERR(0, 184, __pyx_L1_error)
     __pyx_L9_unpacking_done:;
   }
   __pyx_v_sph_v = __pyx_t_6;
@@ -5873,7 +5872,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_v_sph_f = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":176
+  /* "cat_surf/_spherical_demon.pyx":185
  *     src_v, src_f = source_surface
  *     sph_v, sph_f = source_sphere
  *     trg_v, trg_f = target_surface             # <<<<<<<<<<<<<<
@@ -5886,7 +5885,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     if (unlikely(size != 2)) {
       if (size > 2) __Pyx_RaiseTooManyValuesError(2);
       else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-      __PYX_ERR(0, 176, __pyx_L1_error)
+      __PYX_ERR(0, 185, __pyx_L1_error)
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
     if (likely(PyTuple_CheckExact(sequence))) {
@@ -5896,28 +5895,28 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       __Pyx_INCREF(__pyx_t_6);
     } else {
       __pyx_t_3 = __Pyx_PyList_GetItemRefFast(sequence, 0, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 176, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 185, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_3);
       __pyx_t_6 = __Pyx_PyList_GetItemRefFast(sequence, 1, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 176, __pyx_L1_error)
+      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 185, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_6);
     }
     #else
-    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 176, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 185, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 176, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 185, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
     #endif
   } else {
     Py_ssize_t index = -1;
-    __pyx_t_4 = PyObject_GetIter(__pyx_v_target_surface); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 176, __pyx_L1_error)
+    __pyx_t_4 = PyObject_GetIter(__pyx_v_target_surface); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 185, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_8 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4);
     index = 0; __pyx_t_3 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_3)) goto __pyx_L10_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_3);
     index = 1; __pyx_t_6 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_6)) goto __pyx_L10_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_6);
-    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 176, __pyx_L1_error)
+    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 185, __pyx_L1_error)
     __pyx_t_8 = NULL;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     goto __pyx_L11_unpacking_done;
@@ -5925,7 +5924,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_8 = NULL;
     if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-    __PYX_ERR(0, 176, __pyx_L1_error)
+    __PYX_ERR(0, 185, __pyx_L1_error)
     __pyx_L11_unpacking_done:;
   }
   __pyx_v_trg_v = __pyx_t_3;
@@ -5933,7 +5932,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_v_trg_f = __pyx_t_6;
   __pyx_t_6 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":177
+  /* "cat_surf/_spherical_demon.pyx":186
  *     sph_v, sph_f = source_sphere
  *     trg_v, trg_f = target_surface
  *     tsph_v, tsph_f = target_sphere             # <<<<<<<<<<<<<<
@@ -5946,7 +5945,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     if (unlikely(size != 2)) {
       if (size > 2) __Pyx_RaiseTooManyValuesError(2);
       else if (size >= 0) __Pyx_RaiseNeedMoreValuesError(size);
-      __PYX_ERR(0, 177, __pyx_L1_error)
+      __PYX_ERR(0, 186, __pyx_L1_error)
     }
     #if CYTHON_ASSUME_SAFE_MACROS && !CYTHON_AVOID_BORROWED_REFS
     if (likely(PyTuple_CheckExact(sequence))) {
@@ -5956,28 +5955,28 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       __Pyx_INCREF(__pyx_t_3);
     } else {
       __pyx_t_6 = __Pyx_PyList_GetItemRefFast(sequence, 0, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 177, __pyx_L1_error)
+      if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 186, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_6);
       __pyx_t_3 = __Pyx_PyList_GetItemRefFast(sequence, 1, __Pyx_ReferenceSharing_SharedReference);
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 177, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 186, __pyx_L1_error)
       __Pyx_XGOTREF(__pyx_t_3);
     }
     #else
-    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 177, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_PySequence_ITEM(sequence, 0); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 186, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 177, __pyx_L1_error)
+    __pyx_t_3 = __Pyx_PySequence_ITEM(sequence, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 186, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     #endif
   } else {
     Py_ssize_t index = -1;
-    __pyx_t_4 = PyObject_GetIter(__pyx_v_target_sphere); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 177, __pyx_L1_error)
+    __pyx_t_4 = PyObject_GetIter(__pyx_v_target_sphere); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 186, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_8 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4);
     index = 0; __pyx_t_6 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_6)) goto __pyx_L12_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_6);
     index = 1; __pyx_t_3 = __pyx_t_8(__pyx_t_4); if (unlikely(!__pyx_t_3)) goto __pyx_L12_unpacking_failed;
     __Pyx_GOTREF(__pyx_t_3);
-    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 177, __pyx_L1_error)
+    if (__Pyx_IternextUnpackEndCheck(__pyx_t_8(__pyx_t_4), 2) < (0)) __PYX_ERR(0, 186, __pyx_L1_error)
     __pyx_t_8 = NULL;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     goto __pyx_L13_unpacking_done;
@@ -5985,7 +5984,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __pyx_t_8 = NULL;
     if (__Pyx_IterFinish() == 0) __Pyx_RaiseNeedMoreValuesError(index);
-    __PYX_ERR(0, 177, __pyx_L1_error)
+    __PYX_ERR(0, 186, __pyx_L1_error)
     __pyx_L13_unpacking_done:;
   }
   __pyx_v_tsph_v = __pyx_t_6;
@@ -5993,7 +5992,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_v_tsph_f = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":179
+  /* "cat_surf/_spherical_demon.pyx":188
  *     tsph_v, tsph_f = target_sphere
  * 
  *     cdef PolygonsMesh src_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
@@ -6001,10 +6000,10 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(src_f, dtype=np.int32))
 */
   __pyx_t_6 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 179, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 188, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
 
-  /* "cat_surf/_spherical_demon.pyx":180
+  /* "cat_surf/_spherical_demon.pyx":189
  * 
  *     cdef PolygonsMesh src_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(src_v, dtype=np.float64),             # <<<<<<<<<<<<<<
@@ -6012,14 +6011,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *     cdef PolygonsMesh sph_mesh = arrays_to_polygons(
 */
   __pyx_t_9 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 180, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 189, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
-  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 180, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 189, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
   __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 180, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 189, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
-  __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 180, __pyx_L1_error)
+  __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 189, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
   __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
   __pyx_t_7 = 1;
@@ -6036,19 +6035,19 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_9, __pyx_v_src_v};
-    __pyx_t_10 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 180, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 189, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_12, __pyx_t_10, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 180, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_12, __pyx_t_10, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 189, __pyx_L1_error)
     __pyx_t_5 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_11, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_10);
     __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 180, __pyx_L1_error)
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 189, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":181
+  /* "cat_surf/_spherical_demon.pyx":190
  *     cdef PolygonsMesh src_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(src_v, dtype=np.float64),
  *         np.ascontiguousarray(src_f, dtype=np.int32))             # <<<<<<<<<<<<<<
@@ -6056,14 +6055,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(sph_v, dtype=np.float64),
 */
   __pyx_t_10 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 181, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 190, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
-  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 181, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 190, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
   __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 181, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 190, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
-  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 181, __pyx_L1_error)
+  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 190, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
   __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
   __pyx_t_7 = 1;
@@ -6080,15 +6079,15 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_10, __pyx_v_src_f};
-    __pyx_t_12 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 181, __pyx_L1_error)
+    __pyx_t_12 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 190, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_12);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_13, __pyx_t_12, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 181, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_13, __pyx_t_12, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 190, __pyx_L1_error)
     __pyx_t_11 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_9, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_12);
     __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-    if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 181, __pyx_L1_error)
+    if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 190, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
   }
   __pyx_t_7 = 1;
@@ -6110,22 +6109,22 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 179, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 188, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":179
+  /* "cat_surf/_spherical_demon.pyx":188
  *     tsph_v, tsph_f = target_sphere
  * 
  *     cdef PolygonsMesh src_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
  *         np.ascontiguousarray(src_v, dtype=np.float64),
  *         np.ascontiguousarray(src_f, dtype=np.int32))
 */
-  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 179, __pyx_L1_error)
+  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 188, __pyx_L1_error)
   __pyx_v_src_mesh = ((struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":182
+  /* "cat_surf/_spherical_demon.pyx":191
  *         np.ascontiguousarray(src_v, dtype=np.float64),
  *         np.ascontiguousarray(src_f, dtype=np.int32))
  *     cdef PolygonsMesh sph_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
@@ -6133,10 +6132,10 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(sph_f, dtype=np.int32))
 */
   __pyx_t_4 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 182, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_11, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 191, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
 
-  /* "cat_surf/_spherical_demon.pyx":183
+  /* "cat_surf/_spherical_demon.pyx":192
  *         np.ascontiguousarray(src_f, dtype=np.int32))
  *     cdef PolygonsMesh sph_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(sph_v, dtype=np.float64),             # <<<<<<<<<<<<<<
@@ -6144,14 +6143,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *     cdef PolygonsMesh trg_mesh = arrays_to_polygons(
 */
   __pyx_t_6 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 183, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 192, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 183, __pyx_L1_error)
+  __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 192, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 183, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 192, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 183, __pyx_L1_error)
+  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 192, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
   __pyx_t_7 = 1;
@@ -6168,19 +6167,19 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_6, __pyx_v_sph_v};
-    __pyx_t_9 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 183, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 192, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_13, __pyx_t_9, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 183, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_13, __pyx_t_9, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 192, __pyx_L1_error)
     __pyx_t_5 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_12, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_9);
     __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 183, __pyx_L1_error)
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 192, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":184
+  /* "cat_surf/_spherical_demon.pyx":193
  *     cdef PolygonsMesh sph_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(sph_v, dtype=np.float64),
  *         np.ascontiguousarray(sph_f, dtype=np.int32))             # <<<<<<<<<<<<<<
@@ -6188,14 +6187,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(trg_v, dtype=np.float64),
 */
   __pyx_t_9 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 184, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 184, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 184, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
-  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 184, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
   __pyx_t_7 = 1;
@@ -6212,15 +6211,15 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_9, __pyx_v_sph_f};
-    __pyx_t_13 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 184, __pyx_L1_error)
+    __pyx_t_13 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_13);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_10, __pyx_t_13, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 184, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_10, __pyx_t_13, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 193, __pyx_L1_error)
     __pyx_t_12 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_6, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_13);
     __Pyx_XDECREF(__pyx_t_9); __pyx_t_9 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-    if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 184, __pyx_L1_error)
+    if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 193, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_12);
   }
   __pyx_t_7 = 1;
@@ -6242,22 +6241,22 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 182, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 191, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":182
+  /* "cat_surf/_spherical_demon.pyx":191
  *         np.ascontiguousarray(src_v, dtype=np.float64),
  *         np.ascontiguousarray(src_f, dtype=np.int32))
  *     cdef PolygonsMesh sph_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
  *         np.ascontiguousarray(sph_v, dtype=np.float64),
  *         np.ascontiguousarray(sph_f, dtype=np.int32))
 */
-  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 182, __pyx_L1_error)
+  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 191, __pyx_L1_error)
   __pyx_v_sph_mesh = ((struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":185
+  /* "cat_surf/_spherical_demon.pyx":194
  *         np.ascontiguousarray(sph_v, dtype=np.float64),
  *         np.ascontiguousarray(sph_f, dtype=np.int32))
  *     cdef PolygonsMesh trg_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
@@ -6265,10 +6264,10 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(trg_f, dtype=np.int32))
 */
   __pyx_t_11 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 185, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
 
-  /* "cat_surf/_spherical_demon.pyx":186
+  /* "cat_surf/_spherical_demon.pyx":195
  *         np.ascontiguousarray(sph_f, dtype=np.int32))
  *     cdef PolygonsMesh trg_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(trg_v, dtype=np.float64),             # <<<<<<<<<<<<<<
@@ -6276,14 +6275,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *     cdef PolygonsMesh tsph_mesh = arrays_to_polygons(
 */
   __pyx_t_4 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 195, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 195, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 195, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
-  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_6, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 195, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
   __pyx_t_7 = 1;
@@ -6300,19 +6299,19 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_4, __pyx_v_trg_v};
-    __pyx_t_6 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 186, __pyx_L1_error)
+    __pyx_t_6 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 195, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_6);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_10, __pyx_t_6, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 186, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_10, __pyx_t_6, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 195, __pyx_L1_error)
     __pyx_t_5 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_13, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_6);
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 186, __pyx_L1_error)
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 195, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":187
+  /* "cat_surf/_spherical_demon.pyx":196
  *     cdef PolygonsMesh trg_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(trg_v, dtype=np.float64),
  *         np.ascontiguousarray(trg_f, dtype=np.int32))             # <<<<<<<<<<<<<<
@@ -6320,14 +6319,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(tsph_v, dtype=np.float64),
 */
   __pyx_t_6 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 196, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 196, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 196, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
-  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 196, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
   __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
   __pyx_t_7 = 1;
@@ -6344,15 +6343,15 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_6, __pyx_v_trg_f};
-    __pyx_t_10 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 187, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 196, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_9, __pyx_t_10, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 187, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_9, __pyx_t_10, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 196, __pyx_L1_error)
     __pyx_t_13 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_10);
     __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 187, __pyx_L1_error)
+    if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 196, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_13);
   }
   __pyx_t_7 = 1;
@@ -6374,22 +6373,22 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 185, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 194, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":185
+  /* "cat_surf/_spherical_demon.pyx":194
  *         np.ascontiguousarray(sph_v, dtype=np.float64),
  *         np.ascontiguousarray(sph_f, dtype=np.int32))
  *     cdef PolygonsMesh trg_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
  *         np.ascontiguousarray(trg_v, dtype=np.float64),
  *         np.ascontiguousarray(trg_f, dtype=np.int32))
 */
-  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 185, __pyx_L1_error)
+  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 194, __pyx_L1_error)
   __pyx_v_trg_mesh = ((struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":188
+  /* "cat_surf/_spherical_demon.pyx":197
  *         np.ascontiguousarray(trg_v, dtype=np.float64),
  *         np.ascontiguousarray(trg_f, dtype=np.int32))
  *     cdef PolygonsMesh tsph_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
@@ -6397,10 +6396,10 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *         np.ascontiguousarray(tsph_f, dtype=np.int32))
 */
   __pyx_t_12 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 188, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_arrays_to_polygons); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 197, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
 
-  /* "cat_surf/_spherical_demon.pyx":189
+  /* "cat_surf/_spherical_demon.pyx":198
  *         np.ascontiguousarray(trg_f, dtype=np.int32))
  *     cdef PolygonsMesh tsph_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(tsph_v, dtype=np.float64),             # <<<<<<<<<<<<<<
@@ -6408,14 +6407,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  * 
 */
   __pyx_t_11 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 189, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 198, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 189, __pyx_L1_error)
+  __pyx_t_10 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 198, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 189, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 198, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 189, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 198, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __pyx_t_7 = 1;
@@ -6432,19 +6431,19 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_11, __pyx_v_tsph_v};
-    __pyx_t_4 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 189, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 198, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_9, __pyx_t_4, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 189, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_9, __pyx_t_4, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 198, __pyx_L1_error)
     __pyx_t_5 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_10, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_4);
     __Pyx_XDECREF(__pyx_t_11); __pyx_t_11 = 0;
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 189, __pyx_L1_error)
+    if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 198, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":190
+  /* "cat_surf/_spherical_demon.pyx":199
  *     cdef PolygonsMesh tsph_mesh = arrays_to_polygons(
  *         np.ascontiguousarray(tsph_v, dtype=np.float64),
  *         np.ascontiguousarray(tsph_f, dtype=np.int32))             # <<<<<<<<<<<<<<
@@ -6452,14 +6451,14 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
  *     # Fill options from the library defaults, then apply overrides (mirrors the
 */
   __pyx_t_4 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 190, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 199, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 190, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 199, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 190, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 199, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
-  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 190, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyObject_GetAttrStr(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_int32); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 199, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
   __pyx_t_7 = 1;
@@ -6476,15 +6475,15 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   #endif
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_4, __pyx_v_tsph_f};
-    __pyx_t_9 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 190, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 199, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_6, __pyx_t_9, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 190, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_6, __pyx_t_9, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 199, __pyx_L1_error)
     __pyx_t_10 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_11, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_9);
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
     __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-    if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 190, __pyx_L1_error)
+    if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 199, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
   }
   __pyx_t_7 = 1;
@@ -6506,22 +6505,22 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 188, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 197, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":188
+  /* "cat_surf/_spherical_demon.pyx":197
  *         np.ascontiguousarray(trg_v, dtype=np.float64),
  *         np.ascontiguousarray(trg_f, dtype=np.int32))
  *     cdef PolygonsMesh tsph_mesh = arrays_to_polygons(             # <<<<<<<<<<<<<<
  *         np.ascontiguousarray(tsph_v, dtype=np.float64),
  *         np.ascontiguousarray(tsph_f, dtype=np.int32))
 */
-  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 188, __pyx_L1_error)
+  if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_8cat_surf_8_convert_PolygonsMesh))))) __PYX_ERR(0, 197, __pyx_L1_error)
   __pyx_v_tsph_mesh = ((struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":195
+  /* "cat_surf/_spherical_demon.pyx":204
  *     # CLI in Progs/CAT_SurfSphericalDemon.c).
  *     cdef WD.CAT_WarpDemonsOptions opt
  *     WD.CAT_WarpDemonsDefaults(&opt)             # <<<<<<<<<<<<<<
@@ -6530,7 +6529,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   CAT_WarpDemonsDefaults((&__pyx_v_opt));
 
-  /* "cat_surf/_spherical_demon.pyx":196
+  /* "cat_surf/_spherical_demon.pyx":205
  *     cdef WD.CAT_WarpDemonsOptions opt
  *     WD.CAT_WarpDemonsDefaults(&opt)
  *     opt.n_points            = n_points             # <<<<<<<<<<<<<<
@@ -6539,7 +6538,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.n_points = __pyx_v_n_points;
 
-  /* "cat_surf/_spherical_demon.pyx":197
+  /* "cat_surf/_spherical_demon.pyx":206
  *     WD.CAT_WarpDemonsDefaults(&opt)
  *     opt.n_points            = n_points
  *     opt.n_steps             = n_steps             # <<<<<<<<<<<<<<
@@ -6548,7 +6547,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.n_steps = __pyx_v_n_steps;
 
-  /* "cat_surf/_spherical_demon.pyx":198
+  /* "cat_surf/_spherical_demon.pyx":207
  *     opt.n_points            = n_points
  *     opt.n_steps             = n_steps
  *     opt.iters               = iters             # <<<<<<<<<<<<<<
@@ -6557,7 +6556,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.iters = __pyx_v_iters;
 
-  /* "cat_surf/_spherical_demon.pyx":199
+  /* "cat_surf/_spherical_demon.pyx":208
  *     opt.n_steps             = n_steps
  *     opt.iters               = iters
  *     opt.curvtype[0]         = curvtype0             # <<<<<<<<<<<<<<
@@ -6566,7 +6565,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   (__pyx_v_opt.curvtype[0]) = __pyx_v_curvtype0;
 
-  /* "cat_surf/_spherical_demon.pyx":200
+  /* "cat_surf/_spherical_demon.pyx":209
  *     opt.iters               = iters
  *     opt.curvtype[0]         = curvtype0
  *     opt.curvtype[1]         = curvtype1             # <<<<<<<<<<<<<<
@@ -6575,7 +6574,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   (__pyx_v_opt.curvtype[1]) = __pyx_v_curvtype1;
 
-  /* "cat_surf/_spherical_demon.pyx":201
+  /* "cat_surf/_spherical_demon.pyx":210
  *     opt.curvtype[0]         = curvtype0
  *     opt.curvtype[1]         = curvtype1
  *     opt.curvtype[2]         = curvtype2             # <<<<<<<<<<<<<<
@@ -6584,7 +6583,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   (__pyx_v_opt.curvtype[2]) = __pyx_v_curvtype2;
 
-  /* "cat_surf/_spherical_demon.pyx":202
+  /* "cat_surf/_spherical_demon.pyx":211
  *     opt.curvtype[1]         = curvtype1
  *     opt.curvtype[2]         = curvtype2
  *     opt.curvtype[3]         = curvtype3             # <<<<<<<<<<<<<<
@@ -6593,7 +6592,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   (__pyx_v_opt.curvtype[3]) = __pyx_v_curvtype3;
 
-  /* "cat_surf/_spherical_demon.pyx":203
+  /* "cat_surf/_spherical_demon.pyx":212
  *     opt.curvtype[2]         = curvtype2
  *     opt.curvtype[3]         = curvtype3
  *     opt.rotate              = 1 if rotate else 0             # <<<<<<<<<<<<<<
@@ -6607,7 +6606,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.rotate = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":204
+  /* "cat_surf/_spherical_demon.pyx":213
  *     opt.curvtype[3]         = curvtype3
  *     opt.rotate              = 1 if rotate else 0
  *     opt.smooth_velocity     = 1 if smooth_velocity else 0             # <<<<<<<<<<<<<<
@@ -6621,7 +6620,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.smooth_velocity = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":205
+  /* "cat_surf/_spherical_demon.pyx":214
  *     opt.rotate              = 1 if rotate else 0
  *     opt.smooth_velocity     = 1 if smooth_velocity else 0
  *     opt.smooth_displacement = 1 if smooth_displacement else 0             # <<<<<<<<<<<<<<
@@ -6635,7 +6634,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.smooth_displacement = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":206
+  /* "cat_surf/_spherical_demon.pyx":215
  *     opt.smooth_velocity     = 1 if smooth_velocity else 0
  *     opt.smooth_displacement = 1 if smooth_displacement else 0
  *     opt.use_hessian         = 1 if use_hessian else 0             # <<<<<<<<<<<<<<
@@ -6649,7 +6648,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.use_hessian = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":207
+  /* "cat_surf/_spherical_demon.pyx":216
  *     opt.smooth_displacement = 1 if smooth_displacement else 0
  *     opt.use_hessian         = 1 if use_hessian else 0
  *     opt.use_line_search     = 1 if use_line_search else 0             # <<<<<<<<<<<<<<
@@ -6663,7 +6662,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.use_line_search = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":208
+  /* "cat_surf/_spherical_demon.pyx":217
  *     opt.use_hessian         = 1 if use_hessian else 0
  *     opt.use_line_search     = 1 if use_line_search else 0
  *     opt.use_expmap          = 1 if use_expmap else 0             # <<<<<<<<<<<<<<
@@ -6677,7 +6676,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.use_expmap = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":209
+  /* "cat_surf/_spherical_demon.pyx":218
  *     opt.use_line_search     = 1 if use_line_search else 0
  *     opt.use_expmap          = 1 if use_expmap else 0
  *     opt.use_tangent         = 1 if use_tangent else 0             # <<<<<<<<<<<<<<
@@ -6691,7 +6690,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.use_tangent = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":210
+  /* "cat_surf/_spherical_demon.pyx":219
  *     opt.use_expmap          = 1 if use_expmap else 0
  *     opt.use_tangent         = 1 if use_tangent else 0
  *     opt.geodesic            = 1 if use_geodesic else 0             # <<<<<<<<<<<<<<
@@ -6705,7 +6704,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.geodesic = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":211
+  /* "cat_surf/_spherical_demon.pyx":220
  *     opt.use_tangent         = 1 if use_tangent else 0
  *     opt.geodesic            = 1 if use_geodesic else 0
  *     opt.unfold              = 1 if unfold else 0             # <<<<<<<<<<<<<<
@@ -6719,7 +6718,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.unfold = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":212
+  /* "cat_surf/_spherical_demon.pyx":221
  *     opt.geodesic            = 1 if use_geodesic else 0
  *     opt.unfold              = 1 if unfold else 0
  *     opt.l_dist              = l_dist             # <<<<<<<<<<<<<<
@@ -6728,7 +6727,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.l_dist = __pyx_v_l_dist;
 
-  /* "cat_surf/_spherical_demon.pyx":213
+  /* "cat_surf/_spherical_demon.pyx":222
  *     opt.unfold              = 1 if unfold else 0
  *     opt.l_dist              = l_dist
  *     opt.fwhm_flow           = fwhm_flow             # <<<<<<<<<<<<<<
@@ -6737,7 +6736,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.fwhm_flow = __pyx_v_fwhm_flow;
 
-  /* "cat_surf/_spherical_demon.pyx":214
+  /* "cat_surf/_spherical_demon.pyx":223
  *     opt.l_dist              = l_dist
  *     opt.fwhm_flow           = fwhm_flow
  *     opt.fwhm_curv           = fwhm_curv             # <<<<<<<<<<<<<<
@@ -6746,7 +6745,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.fwhm_curv = __pyx_v_fwhm_curv;
 
-  /* "cat_surf/_spherical_demon.pyx":215
+  /* "cat_surf/_spherical_demon.pyx":224
  *     opt.fwhm_flow           = fwhm_flow
  *     opt.fwhm_curv           = fwhm_curv
  *     opt.fwhm_disp           = fwhm_disp             # <<<<<<<<<<<<<<
@@ -6755,7 +6754,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.fwhm_disp = __pyx_v_fwhm_disp;
 
-  /* "cat_surf/_spherical_demon.pyx":216
+  /* "cat_surf/_spherical_demon.pyx":225
  *     opt.fwhm_curv           = fwhm_curv
  *     opt.fwhm_disp           = fwhm_disp
  *     opt.rate                = rate             # <<<<<<<<<<<<<<
@@ -6764,7 +6763,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.rate = __pyx_v_rate;
 
-  /* "cat_surf/_spherical_demon.pyx":217
+  /* "cat_surf/_spherical_demon.pyx":226
  *     opt.fwhm_disp           = fwhm_disp
  *     opt.rate                = rate
  *     opt.max_step_deg        = max_step_deg             # <<<<<<<<<<<<<<
@@ -6773,36 +6772,63 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_opt.max_step_deg = __pyx_v_max_step_deg;
 
-  /* "cat_surf/_spherical_demon.pyx":218
+  /* "cat_surf/_spherical_demon.pyx":227
  *     opt.rate                = rate
  *     opt.max_step_deg        = max_step_deg
  *     opt.sigma_x             = sigma_x             # <<<<<<<<<<<<<<
  *     opt.step_factor         = step_factor
- *     opt.std_exp             = std_exp
+ *     opt.coarse_stiffness    = coarse_stiffness
 */
   __pyx_v_opt.sigma_x = __pyx_v_sigma_x;
 
-  /* "cat_surf/_spherical_demon.pyx":219
+  /* "cat_surf/_spherical_demon.pyx":228
  *     opt.max_step_deg        = max_step_deg
  *     opt.sigma_x             = sigma_x
  *     opt.step_factor         = step_factor             # <<<<<<<<<<<<<<
- *     opt.std_exp             = std_exp
- *     opt.verbose             = 1 if verbose else 0
+ *     opt.coarse_stiffness    = coarse_stiffness
+ *     opt.rot_max_degrees     = rot_max_degrees
 */
   __pyx_v_opt.step_factor = __pyx_v_step_factor;
 
-  /* "cat_surf/_spherical_demon.pyx":220
+  /* "cat_surf/_spherical_demon.pyx":229
  *     opt.sigma_x             = sigma_x
  *     opt.step_factor         = step_factor
- *     opt.std_exp             = std_exp             # <<<<<<<<<<<<<<
+ *     opt.coarse_stiffness    = coarse_stiffness             # <<<<<<<<<<<<<<
+ *     opt.rot_max_degrees     = rot_max_degrees
+ *     opt.rot_min_degrees     = rot_min_degrees
+*/
+  __pyx_v_opt.coarse_stiffness = __pyx_v_coarse_stiffness;
+
+  /* "cat_surf/_spherical_demon.pyx":230
+ *     opt.step_factor         = step_factor
+ *     opt.coarse_stiffness    = coarse_stiffness
+ *     opt.rot_max_degrees     = rot_max_degrees             # <<<<<<<<<<<<<<
+ *     opt.rot_min_degrees     = rot_min_degrees
+ *     opt.rot_nangles         = rot_nangles
+*/
+  __pyx_v_opt.rot_max_degrees = __pyx_v_rot_max_degrees;
+
+  /* "cat_surf/_spherical_demon.pyx":231
+ *     opt.coarse_stiffness    = coarse_stiffness
+ *     opt.rot_max_degrees     = rot_max_degrees
+ *     opt.rot_min_degrees     = rot_min_degrees             # <<<<<<<<<<<<<<
+ *     opt.rot_nangles         = rot_nangles
+ *     opt.verbose             = 1 if verbose else 0
+*/
+  __pyx_v_opt.rot_min_degrees = __pyx_v_rot_min_degrees;
+
+  /* "cat_surf/_spherical_demon.pyx":232
+ *     opt.rot_max_degrees     = rot_max_degrees
+ *     opt.rot_min_degrees     = rot_min_degrees
+ *     opt.rot_nangles         = rot_nangles             # <<<<<<<<<<<<<<
  *     opt.verbose             = 1 if verbose else 0
  *     opt.debug               = 1 if debug else 0
 */
-  __pyx_v_opt.std_exp = __pyx_v_std_exp;
+  __pyx_v_opt.rot_nangles = __pyx_v_rot_nangles;
 
-  /* "cat_surf/_spherical_demon.pyx":221
- *     opt.step_factor         = step_factor
- *     opt.std_exp             = std_exp
+  /* "cat_surf/_spherical_demon.pyx":233
+ *     opt.rot_min_degrees     = rot_min_degrees
+ *     opt.rot_nangles         = rot_nangles
  *     opt.verbose             = 1 if verbose else 0             # <<<<<<<<<<<<<<
  *     opt.debug               = 1 if debug else 0
  * 
@@ -6814,12 +6840,12 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.verbose = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":222
- *     opt.std_exp             = std_exp
+  /* "cat_surf/_spherical_demon.pyx":234
+ *     opt.rot_nangles         = rot_nangles
  *     opt.verbose             = 1 if verbose else 0
  *     opt.debug               = 1 if debug else 0             # <<<<<<<<<<<<<<
  * 
- *     # Optional template std map / cortex mask -> local data-term weighting.
+ *     # Optional template cortex mask -> local data-term weighting. Held in
 */
   if (__pyx_v_debug) {
     __pyx_t_14 = 1;
@@ -6828,42 +6854,42 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   }
   __pyx_v_opt.debug = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":228
- *     cdef cnp.ndarray[cnp.float64_t, ndim=1] std_arr
+  /* "cat_surf/_spherical_demon.pyx":239
+ *     # mask_arr for the duration of the call so the opt pointer stays valid.
  *     cdef cnp.ndarray[cnp.float64_t, ndim=1] mask_arr
  *     cdef int n_trg = tsph_mesh.ptr().n_points             # <<<<<<<<<<<<<<
- *     if std_map is not None:
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
+ *     if cortex_mask is not None:
+ *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
 */
   __pyx_t_14 = ((struct __pyx_vtabstruct_8cat_surf_8_convert_PolygonsMesh *)__pyx_v_tsph_mesh->__pyx_vtab)->ptr(__pyx_v_tsph_mesh)->n_points;
   __pyx_v_n_trg = __pyx_t_14;
 
-  /* "cat_surf/_spherical_demon.pyx":229
+  /* "cat_surf/_spherical_demon.pyx":240
  *     cdef cnp.ndarray[cnp.float64_t, ndim=1] mask_arr
  *     cdef int n_trg = tsph_mesh.ptr().n_points
- *     if std_map is not None:             # <<<<<<<<<<<<<<
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
- *         if std_arr.shape[0] != n_trg:
+ *     if cortex_mask is not None:             # <<<<<<<<<<<<<<
+ *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
+ *         if mask_arr.shape[0] != n_trg:
 */
-  __pyx_t_2 = (__pyx_v_std_map != Py_None);
+  __pyx_t_2 = (__pyx_v_cortex_mask != Py_None);
   if (__pyx_t_2) {
 
-    /* "cat_surf/_spherical_demon.pyx":230
+    /* "cat_surf/_spherical_demon.pyx":241
  *     cdef int n_trg = tsph_mesh.ptr().n_points
- *     if std_map is not None:
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()             # <<<<<<<<<<<<<<
- *         if std_arr.shape[0] != n_trg:
+ *     if cortex_mask is not None:
+ *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()             # <<<<<<<<<<<<<<
+ *         if mask_arr.shape[0] != n_trg:
  *             raise ValueError(
 */
     __pyx_t_5 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 230, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_12);
-    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 230, __pyx_L1_error)
+    __pyx_t_11 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_11);
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-    __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 230, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_12);
-    __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 230, __pyx_L1_error)
+    __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_12, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 241, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_9);
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
     __pyx_t_7 = 1;
@@ -6879,16 +6905,16 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     }
     #endif
     {
-      PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_5, __pyx_v_std_map};
-      __pyx_t_12 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 230, __pyx_L1_error)
+      PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_5, __pyx_v_cortex_mask};
+      __pyx_t_12 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 241, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_12);
-      if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_9, __pyx_t_12, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 230, __pyx_L1_error)
+      if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_9, __pyx_t_12, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 241, __pyx_L1_error)
       __pyx_t_10 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_11, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_12);
       __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
       __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
       __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
       __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-      if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 230, __pyx_L1_error)
+      if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 241, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_10);
     }
     __pyx_t_13 = __pyx_t_10;
@@ -6899,17 +6925,17 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
       __pyx_t_3 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_ravel, __pyx_callargs+__pyx_t_7, (1-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_13); __pyx_t_13 = 0;
       __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 230, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 241, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
-    if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 230, __pyx_L1_error)
+    if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 241, __pyx_L1_error)
     {
       __Pyx_BufFmt_StackElem __pyx_stack[1];
-      __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_std_arr.rcbuffer->pybuffer);
-      __pyx_t_14 = __Pyx_GetBufferAndValidate(&__pyx_pybuffernd_std_arr.rcbuffer->pybuffer, (PyObject*)((PyArrayObject *)__pyx_t_3), &__Pyx_TypeInfo_nn___pyx_t_5numpy_float64_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack);
+      __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer);
+      __pyx_t_14 = __Pyx_GetBufferAndValidate(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer, (PyObject*)((PyArrayObject *)__pyx_t_3), &__Pyx_TypeInfo_nn___pyx_t_5numpy_float64_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack);
       if (unlikely(__pyx_t_14 < 0)) {
         PyErr_Fetch(&__pyx_t_15, &__pyx_t_16, &__pyx_t_17);
-        if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_std_arr.rcbuffer->pybuffer, (PyObject*)__pyx_v_std_arr, &__Pyx_TypeInfo_nn___pyx_t_5numpy_float64_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) {
+        if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer, (PyObject*)__pyx_v_mask_arr, &__Pyx_TypeInfo_nn___pyx_t_5numpy_float64_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) {
           Py_XDECREF(__pyx_t_15); Py_XDECREF(__pyx_t_16); Py_XDECREF(__pyx_t_17);
           __Pyx_RaiseBufferFallbackError();
         } else {
@@ -6917,186 +6943,13 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
         }
         __pyx_t_15 = __pyx_t_16 = __pyx_t_17 = 0;
       }
-      __pyx_pybuffernd_std_arr.diminfo[0].strides = __pyx_pybuffernd_std_arr.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_std_arr.diminfo[0].shape = __pyx_pybuffernd_std_arr.rcbuffer->pybuffer.shape[0];
-      if (unlikely((__pyx_t_14 < 0))) __PYX_ERR(0, 230, __pyx_L1_error)
-    }
-    __pyx_v_std_arr = ((PyArrayObject *)__pyx_t_3);
-    __pyx_t_3 = 0;
-
-    /* "cat_surf/_spherical_demon.pyx":231
- *     if std_map is not None:
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
- *         if std_arr.shape[0] != n_trg:             # <<<<<<<<<<<<<<
- *             raise ValueError(
- *                 "std_map must have one value per template vertex (%d), got %d"
-*/
-    __pyx_t_2 = ((__pyx_f_5numpy_7ndarray_5shape_shape(((PyArrayObject *)__pyx_v_std_arr))[0]) != __pyx_v_n_trg);
-    if (unlikely(__pyx_t_2)) {
-
-      /* "cat_surf/_spherical_demon.pyx":232
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
- *         if std_arr.shape[0] != n_trg:
- *             raise ValueError(             # <<<<<<<<<<<<<<
- *                 "std_map must have one value per template vertex (%d), got %d"
- *                 % (n_trg, std_arr.shape[0]))
-*/
-      __pyx_t_10 = NULL;
-
-      /* "cat_surf/_spherical_demon.pyx":234
- *             raise ValueError(
- *                 "std_map must have one value per template vertex (%d), got %d"
- *                 % (n_trg, std_arr.shape[0]))             # <<<<<<<<<<<<<<
- *         opt.std_map = &std_arr[0]
- *     if cortex_mask is not None:
-*/
-      __pyx_t_13 = __Pyx_PyUnicode_From_int(__pyx_v_n_trg, 0, ' ', 'd'); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 234, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_13);
-      __pyx_t_11 = __Pyx_PyUnicode_From_npy_intp((__pyx_f_5numpy_7ndarray_5shape_shape(((PyArrayObject *)__pyx_v_std_arr))[0]), 0, ' ', 'd'); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 234, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_11);
-      __pyx_t_18[0] = __pyx_mstate_global->__pyx_kp_u_std_map_must_have_one_value_per;
-      __pyx_t_18[1] = __pyx_t_13;
-      __pyx_t_18[2] = __pyx_mstate_global->__pyx_kp_u_got;
-      __pyx_t_18[3] = __pyx_t_11;
-
-      /* "cat_surf/_spherical_demon.pyx":233
- *         if std_arr.shape[0] != n_trg:
- *             raise ValueError(
- *                 "std_map must have one value per template vertex (%d), got %d"             # <<<<<<<<<<<<<<
- *                 % (n_trg, std_arr.shape[0]))
- *         opt.std_map = &std_arr[0]
-*/
-      __pyx_t_12 = __Pyx_PyUnicode_Join(__pyx_t_18, 4, 49 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_13) + 7 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_11), 127);
-      if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 233, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_12);
-      __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
-      __pyx_t_7 = 1;
-      {
-        PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_t_12};
-        __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-        __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
-        __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 232, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
-      }
-      __Pyx_Raise(__pyx_t_3, 0, 0, 0);
-      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __PYX_ERR(0, 232, __pyx_L1_error)
-
-      /* "cat_surf/_spherical_demon.pyx":231
- *     if std_map is not None:
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
- *         if std_arr.shape[0] != n_trg:             # <<<<<<<<<<<<<<
- *             raise ValueError(
- *                 "std_map must have one value per template vertex (%d), got %d"
-*/
-    }
-
-    /* "cat_surf/_spherical_demon.pyx":235
- *                 "std_map must have one value per template vertex (%d), got %d"
- *                 % (n_trg, std_arr.shape[0]))
- *         opt.std_map = &std_arr[0]             # <<<<<<<<<<<<<<
- *     if cortex_mask is not None:
- *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
-*/
-    __pyx_t_19 = 0;
-    __pyx_v_opt.std_map = (&(*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_float64_t *, __pyx_pybuffernd_std_arr.rcbuffer->pybuffer.buf, __pyx_t_19, __pyx_pybuffernd_std_arr.diminfo[0].strides)));
-
-    /* "cat_surf/_spherical_demon.pyx":229
- *     cdef cnp.ndarray[cnp.float64_t, ndim=1] mask_arr
- *     cdef int n_trg = tsph_mesh.ptr().n_points
- *     if std_map is not None:             # <<<<<<<<<<<<<<
- *         std_arr = np.ascontiguousarray(std_map, dtype=np.float64).ravel()
- *         if std_arr.shape[0] != n_trg:
-*/
-  }
-
-  /* "cat_surf/_spherical_demon.pyx":236
- *                 % (n_trg, std_arr.shape[0]))
- *         opt.std_map = &std_arr[0]
- *     if cortex_mask is not None:             # <<<<<<<<<<<<<<
- *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
- *         if mask_arr.shape[0] != n_trg:
-*/
-  __pyx_t_2 = (__pyx_v_cortex_mask != Py_None);
-  if (__pyx_t_2) {
-
-    /* "cat_surf/_spherical_demon.pyx":237
- *         opt.std_map = &std_arr[0]
- *     if cortex_mask is not None:
- *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()             # <<<<<<<<<<<<<<
- *         if mask_arr.shape[0] != n_trg:
- *             raise ValueError(
-*/
-    __pyx_t_11 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 237, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_13);
-    __pyx_t_9 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 237, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_9);
-    __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    __Pyx_GetModuleGlobalName(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 237, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_13);
-    __pyx_t_5 = __Pyx_PyObject_GetAttrStr(__pyx_t_13, __pyx_mstate_global->__pyx_n_u_float64); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 237, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_5);
-    __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    __pyx_t_7 = 1;
-    #if CYTHON_UNPACK_METHODS
-    if (unlikely(PyMethod_Check(__pyx_t_9))) {
-      __pyx_t_11 = PyMethod_GET_SELF(__pyx_t_9);
-      assert(__pyx_t_11);
-      PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_9);
-      __Pyx_INCREF(__pyx_t_11);
-      __Pyx_INCREF(__pyx__function);
-      __Pyx_DECREF_SET(__pyx_t_9, __pyx__function);
-      __pyx_t_7 = 0;
-    }
-    #endif
-    {
-      PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_11, __pyx_v_cortex_mask};
-      __pyx_t_13 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 237, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_13);
-      if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_dtype, __pyx_t_5, __pyx_t_13, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 237, __pyx_L1_error)
-      __pyx_t_10 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_t_9, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_13);
-      __Pyx_XDECREF(__pyx_t_11); __pyx_t_11 = 0;
-      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
-      if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 237, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_10);
-    }
-    __pyx_t_12 = __pyx_t_10;
-    __Pyx_INCREF(__pyx_t_12);
-    __pyx_t_7 = 0;
-    {
-      PyObject *__pyx_callargs[2] = {__pyx_t_12, NULL};
-      __pyx_t_3 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_ravel, __pyx_callargs+__pyx_t_7, (1-__pyx_t_7) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-      __Pyx_XDECREF(__pyx_t_12); __pyx_t_12 = 0;
-      __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 237, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_3);
-    }
-    if (!(likely(((__pyx_t_3) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_3, __pyx_mstate_global->__pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 237, __pyx_L1_error)
-    {
-      __Pyx_BufFmt_StackElem __pyx_stack[1];
-      __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer);
-      __pyx_t_14 = __Pyx_GetBufferAndValidate(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer, (PyObject*)((PyArrayObject *)__pyx_t_3), &__Pyx_TypeInfo_nn___pyx_t_5numpy_float64_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack);
-      if (unlikely(__pyx_t_14 < 0)) {
-        PyErr_Fetch(&__pyx_t_17, &__pyx_t_16, &__pyx_t_15);
-        if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer, (PyObject*)__pyx_v_mask_arr, &__Pyx_TypeInfo_nn___pyx_t_5numpy_float64_t, PyBUF_FORMAT| PyBUF_STRIDES, 1, 0, __pyx_stack) == -1)) {
-          Py_XDECREF(__pyx_t_17); Py_XDECREF(__pyx_t_16); Py_XDECREF(__pyx_t_15);
-          __Pyx_RaiseBufferFallbackError();
-        } else {
-          PyErr_Restore(__pyx_t_17, __pyx_t_16, __pyx_t_15);
-        }
-        __pyx_t_17 = __pyx_t_16 = __pyx_t_15 = 0;
-      }
       __pyx_pybuffernd_mask_arr.diminfo[0].strides = __pyx_pybuffernd_mask_arr.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_mask_arr.diminfo[0].shape = __pyx_pybuffernd_mask_arr.rcbuffer->pybuffer.shape[0];
-      if (unlikely((__pyx_t_14 < 0))) __PYX_ERR(0, 237, __pyx_L1_error)
+      if (unlikely((__pyx_t_14 < 0))) __PYX_ERR(0, 241, __pyx_L1_error)
     }
     __pyx_v_mask_arr = ((PyArrayObject *)__pyx_t_3);
     __pyx_t_3 = 0;
 
-    /* "cat_surf/_spherical_demon.pyx":238
+    /* "cat_surf/_spherical_demon.pyx":242
  *     if cortex_mask is not None:
  *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
  *         if mask_arr.shape[0] != n_trg:             # <<<<<<<<<<<<<<
@@ -7106,7 +6959,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __pyx_t_2 = ((__pyx_f_5numpy_7ndarray_5shape_shape(((PyArrayObject *)__pyx_v_mask_arr))[0]) != __pyx_v_n_trg);
     if (unlikely(__pyx_t_2)) {
 
-      /* "cat_surf/_spherical_demon.pyx":239
+      /* "cat_surf/_spherical_demon.pyx":243
  *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
  *         if mask_arr.shape[0] != n_trg:
  *             raise ValueError(             # <<<<<<<<<<<<<<
@@ -7115,48 +6968,48 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
       __pyx_t_10 = NULL;
 
-      /* "cat_surf/_spherical_demon.pyx":241
+      /* "cat_surf/_spherical_demon.pyx":245
  *             raise ValueError(
  *                 "cortex_mask must have one value per template vertex (%d), got %d"
  *                 % (n_trg, mask_arr.shape[0]))             # <<<<<<<<<<<<<<
  *         opt.cortex_mask = &mask_arr[0]
  * 
 */
-      __pyx_t_12 = __Pyx_PyUnicode_From_int(__pyx_v_n_trg, 0, ' ', 'd'); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 241, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_12);
-      __pyx_t_9 = __Pyx_PyUnicode_From_npy_intp((__pyx_f_5numpy_7ndarray_5shape_shape(((PyArrayObject *)__pyx_v_mask_arr))[0]), 0, ' ', 'd'); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 241, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_9);
+      __pyx_t_13 = __Pyx_PyUnicode_From_int(__pyx_v_n_trg, 0, ' ', 'd'); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 245, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_13);
+      __pyx_t_11 = __Pyx_PyUnicode_From_npy_intp((__pyx_f_5numpy_7ndarray_5shape_shape(((PyArrayObject *)__pyx_v_mask_arr))[0]), 0, ' ', 'd'); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 245, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_11);
       __pyx_t_18[0] = __pyx_mstate_global->__pyx_kp_u_cortex_mask_must_have_one_value;
-      __pyx_t_18[1] = __pyx_t_12;
+      __pyx_t_18[1] = __pyx_t_13;
       __pyx_t_18[2] = __pyx_mstate_global->__pyx_kp_u_got;
-      __pyx_t_18[3] = __pyx_t_9;
+      __pyx_t_18[3] = __pyx_t_11;
 
-      /* "cat_surf/_spherical_demon.pyx":240
+      /* "cat_surf/_spherical_demon.pyx":244
  *         if mask_arr.shape[0] != n_trg:
  *             raise ValueError(
  *                 "cortex_mask must have one value per template vertex (%d), got %d"             # <<<<<<<<<<<<<<
  *                 % (n_trg, mask_arr.shape[0]))
  *         opt.cortex_mask = &mask_arr[0]
 */
-      __pyx_t_13 = __Pyx_PyUnicode_Join(__pyx_t_18, 4, 53 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_12) + 7 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_9), 127);
-      if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 240, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_13);
-      __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-      __Pyx_DECREF(__pyx_t_9); __pyx_t_9 = 0;
+      __pyx_t_12 = __Pyx_PyUnicode_Join(__pyx_t_18, 4, 53 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_13) + 7 + __Pyx_PyUnicode_GET_LENGTH(__pyx_t_11), 127);
+      if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 244, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_12);
+      __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
+      __Pyx_DECREF(__pyx_t_11); __pyx_t_11 = 0;
       __pyx_t_7 = 1;
       {
-        PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_t_13};
+        PyObject *__pyx_callargs[2] = {__pyx_t_10, __pyx_t_12};
         __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_ValueError)), __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
         __Pyx_XDECREF(__pyx_t_10); __pyx_t_10 = 0;
-        __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 239, __pyx_L1_error)
+        __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
+        if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 243, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_3);
       }
       __Pyx_Raise(__pyx_t_3, 0, 0, 0);
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __PYX_ERR(0, 239, __pyx_L1_error)
+      __PYX_ERR(0, 243, __pyx_L1_error)
 
-      /* "cat_surf/_spherical_demon.pyx":238
+      /* "cat_surf/_spherical_demon.pyx":242
  *     if cortex_mask is not None:
  *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
  *         if mask_arr.shape[0] != n_trg:             # <<<<<<<<<<<<<<
@@ -7165,7 +7018,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
     }
 
-    /* "cat_surf/_spherical_demon.pyx":242
+    /* "cat_surf/_spherical_demon.pyx":246
  *                 "cortex_mask must have one value per template vertex (%d), got %d"
  *                 % (n_trg, mask_arr.shape[0]))
  *         opt.cortex_mask = &mask_arr[0]             # <<<<<<<<<<<<<<
@@ -7175,16 +7028,16 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __pyx_t_19 = 0;
     __pyx_v_opt.cortex_mask = (&(*__Pyx_BufPtrStrided1d(__pyx_t_5numpy_float64_t *, __pyx_pybuffernd_mask_arr.rcbuffer->pybuffer.buf, __pyx_t_19, __pyx_pybuffernd_mask_arr.diminfo[0].strides)));
 
-    /* "cat_surf/_spherical_demon.pyx":236
- *                 % (n_trg, std_arr.shape[0]))
- *         opt.std_map = &std_arr[0]
+    /* "cat_surf/_spherical_demon.pyx":240
+ *     cdef cnp.ndarray[cnp.float64_t, ndim=1] mask_arr
+ *     cdef int n_trg = tsph_mesh.ptr().n_points
  *     if cortex_mask is not None:             # <<<<<<<<<<<<<<
  *         mask_arr = np.ascontiguousarray(cortex_mask, dtype=np.float64).ravel()
  *         if mask_arr.shape[0] != n_trg:
 */
   }
 
-  /* "cat_surf/_spherical_demon.pyx":246
+  /* "cat_surf/_spherical_demon.pyx":250
  *     # Build the coarse-to-fine pyramid: finest level = n_points, each coarser
  *     # level uses 1/4 of the points (mirrors the CLI).
  *     cdef int lvl, npl = n_points             # <<<<<<<<<<<<<<
@@ -7193,7 +7046,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_npl = __pyx_v_n_points;
 
-  /* "cat_surf/_spherical_demon.pyx":247
+  /* "cat_surf/_spherical_demon.pyx":251
  *     # level uses 1/4 of the points (mirrors the CLI).
  *     cdef int lvl, npl = n_points
  *     for lvl in range(opt.n_steps - 1, -1, -1):             # <<<<<<<<<<<<<<
@@ -7203,7 +7056,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   for (__pyx_t_14 = (__pyx_v_opt.n_steps - 1); __pyx_t_14 > -1; __pyx_t_14-=1) {
     __pyx_v_lvl = __pyx_t_14;
 
-    /* "cat_surf/_spherical_demon.pyx":248
+    /* "cat_surf/_spherical_demon.pyx":252
  *     cdef int lvl, npl = n_points
  *     for lvl in range(opt.n_steps - 1, -1, -1):
  *         opt.level_points[lvl] = npl             # <<<<<<<<<<<<<<
@@ -7212,7 +7065,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
     (__pyx_v_opt.level_points[__pyx_v_lvl]) = __pyx_v_npl;
 
-    /* "cat_surf/_spherical_demon.pyx":249
+    /* "cat_surf/_spherical_demon.pyx":253
  *     for lvl in range(opt.n_steps - 1, -1, -1):
  *         opt.level_points[lvl] = npl
  *         npl //= 4             # <<<<<<<<<<<<<<
@@ -7222,7 +7075,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __pyx_v_npl = (__pyx_v_npl / 4);
   }
 
-  /* "cat_surf/_spherical_demon.pyx":251
+  /* "cat_surf/_spherical_demon.pyx":255
  *         npl //= 4
  * 
  *     cdef object_struct *out_obj = create_object(POLYGONS)             # <<<<<<<<<<<<<<
@@ -7231,7 +7084,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_out_obj = create_object(POLYGONS);
 
-  /* "cat_surf/_spherical_demon.pyx":252
+  /* "cat_surf/_spherical_demon.pyx":256
  * 
  *     cdef object_struct *out_obj = create_object(POLYGONS)
  *     if out_obj == NULL:             # <<<<<<<<<<<<<<
@@ -7241,16 +7094,16 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_t_2 = (__pyx_v_out_obj == NULL);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cat_surf/_spherical_demon.pyx":253
+    /* "cat_surf/_spherical_demon.pyx":257
  *     cdef object_struct *out_obj = create_object(POLYGONS)
  *     if out_obj == NULL:
  *         raise MemoryError()             # <<<<<<<<<<<<<<
  *     cdef polygons_struct *warped = get_polygons_ptr(out_obj)
  * 
 */
-    PyErr_NoMemory(); __PYX_ERR(0, 253, __pyx_L1_error)
+    PyErr_NoMemory(); __PYX_ERR(0, 257, __pyx_L1_error)
 
-    /* "cat_surf/_spherical_demon.pyx":252
+    /* "cat_surf/_spherical_demon.pyx":256
  * 
  *     cdef object_struct *out_obj = create_object(POLYGONS)
  *     if out_obj == NULL:             # <<<<<<<<<<<<<<
@@ -7259,7 +7112,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   }
 
-  /* "cat_surf/_spherical_demon.pyx":254
+  /* "cat_surf/_spherical_demon.pyx":258
  *     if out_obj == NULL:
  *         raise MemoryError()
  *     cdef polygons_struct *warped = get_polygons_ptr(out_obj)             # <<<<<<<<<<<<<<
@@ -7268,7 +7121,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_warped = get_polygons_ptr(__pyx_v_out_obj);
 
-  /* "cat_surf/_spherical_demon.pyx":256
+  /* "cat_surf/_spherical_demon.pyx":260
  *     cdef polygons_struct *warped = get_polygons_ptr(out_obj)
  * 
  *     cdef Status st = WD.CAT_WarpDemonsRegister(             # <<<<<<<<<<<<<<
@@ -7277,7 +7130,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   __pyx_v_st = CAT_WarpDemonsRegister(((struct __pyx_vtabstruct_8cat_surf_8_convert_PolygonsMesh *)__pyx_v_src_mesh->__pyx_vtab)->ptr(__pyx_v_src_mesh), ((struct __pyx_vtabstruct_8cat_surf_8_convert_PolygonsMesh *)__pyx_v_sph_mesh->__pyx_vtab)->ptr(__pyx_v_sph_mesh), ((struct __pyx_vtabstruct_8cat_surf_8_convert_PolygonsMesh *)__pyx_v_trg_mesh->__pyx_vtab)->ptr(__pyx_v_trg_mesh), ((struct __pyx_vtabstruct_8cat_surf_8_convert_PolygonsMesh *)__pyx_v_tsph_mesh->__pyx_vtab)->ptr(__pyx_v_tsph_mesh), __pyx_v_warped, (&__pyx_v_opt));
 
-  /* "cat_surf/_spherical_demon.pyx":260
+  /* "cat_surf/_spherical_demon.pyx":264
  *         trg_mesh.ptr(), tsph_mesh.ptr(),
  *         warped, &opt)
  *     if st != OK:             # <<<<<<<<<<<<<<
@@ -7287,7 +7140,7 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __pyx_t_2 = (__pyx_v_st != OK);
   if (unlikely(__pyx_t_2)) {
 
-    /* "cat_surf/_spherical_demon.pyx":261
+    /* "cat_surf/_spherical_demon.pyx":265
  *         warped, &opt)
  *     if st != OK:
  *         delete_object(out_obj)             # <<<<<<<<<<<<<<
@@ -7296,27 +7149,27 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
     delete_object(__pyx_v_out_obj);
 
-    /* "cat_surf/_spherical_demon.pyx":262
+    /* "cat_surf/_spherical_demon.pyx":266
  *     if st != OK:
  *         delete_object(out_obj)
  *         raise RuntimeError("CAT_WarpDemonsRegister failed")             # <<<<<<<<<<<<<<
  * 
  *     cdef PolygonsMesh warped_mesh = _wrap_object(out_obj, True)
 */
-    __pyx_t_13 = NULL;
+    __pyx_t_12 = NULL;
     __pyx_t_7 = 1;
     {
-      PyObject *__pyx_callargs[2] = {__pyx_t_13, __pyx_mstate_global->__pyx_kp_u_CAT_WarpDemonsRegister_failed};
+      PyObject *__pyx_callargs[2] = {__pyx_t_12, __pyx_mstate_global->__pyx_kp_u_CAT_WarpDemonsRegister_failed};
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(((PyTypeObject*)PyExc_RuntimeError)), __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-      __Pyx_XDECREF(__pyx_t_13); __pyx_t_13 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 262, __pyx_L1_error)
+      __Pyx_XDECREF(__pyx_t_12); __pyx_t_12 = 0;
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 266, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __Pyx_Raise(__pyx_t_3, 0, 0, 0);
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __PYX_ERR(0, 262, __pyx_L1_error)
+    __PYX_ERR(0, 266, __pyx_L1_error)
 
-    /* "cat_surf/_spherical_demon.pyx":260
+    /* "cat_surf/_spherical_demon.pyx":264
  *         trg_mesh.ptr(), tsph_mesh.ptr(),
  *         warped, &opt)
  *     if st != OK:             # <<<<<<<<<<<<<<
@@ -7325,44 +7178,44 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
 */
   }
 
-  /* "cat_surf/_spherical_demon.pyx":264
+  /* "cat_surf/_spherical_demon.pyx":268
  *         raise RuntimeError("CAT_WarpDemonsRegister failed")
  * 
  *     cdef PolygonsMesh warped_mesh = _wrap_object(out_obj, True)             # <<<<<<<<<<<<<<
  *     return polygons_to_arrays(warped_mesh)
 */
-  __pyx_t_3 = ((PyObject *)__pyx_f_8cat_surf_8_convert__wrap_object(__pyx_v_out_obj, 1)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 264, __pyx_L1_error)
+  __pyx_t_3 = ((PyObject *)__pyx_f_8cat_surf_8_convert__wrap_object(__pyx_v_out_obj, 1)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 268, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_v_warped_mesh = ((struct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "cat_surf/_spherical_demon.pyx":265
+  /* "cat_surf/_spherical_demon.pyx":269
  * 
  *     cdef PolygonsMesh warped_mesh = _wrap_object(out_obj, True)
  *     return polygons_to_arrays(warped_mesh)             # <<<<<<<<<<<<<<
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_13 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_polygons_to_arrays); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 265, __pyx_L1_error)
+  __pyx_t_12 = NULL;
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_polygons_to_arrays); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 269, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
   __pyx_t_7 = 1;
   #if CYTHON_UNPACK_METHODS
   if (unlikely(PyMethod_Check(__pyx_t_10))) {
-    __pyx_t_13 = PyMethod_GET_SELF(__pyx_t_10);
-    assert(__pyx_t_13);
+    __pyx_t_12 = PyMethod_GET_SELF(__pyx_t_10);
+    assert(__pyx_t_12);
     PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_10);
-    __Pyx_INCREF(__pyx_t_13);
+    __Pyx_INCREF(__pyx_t_12);
     __Pyx_INCREF(__pyx__function);
     __Pyx_DECREF_SET(__pyx_t_10, __pyx__function);
     __pyx_t_7 = 0;
   }
   #endif
   {
-    PyObject *__pyx_callargs[2] = {__pyx_t_13, ((PyObject *)__pyx_v_warped_mesh)};
+    PyObject *__pyx_callargs[2] = {__pyx_t_12, ((PyObject *)__pyx_v_warped_mesh)};
     __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_10, __pyx_callargs+__pyx_t_7, (2-__pyx_t_7) | (__pyx_t_7*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-    __Pyx_XDECREF(__pyx_t_13); __pyx_t_13 = 0;
+    __Pyx_XDECREF(__pyx_t_12); __pyx_t_12 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 265, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 269, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
   __pyx_r = __pyx_t_3;
@@ -7393,14 +7246,12 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
     __Pyx_PyThreadState_assign
     __Pyx_ErrFetch(&__pyx_type, &__pyx_value, &__pyx_tb);
     __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer);
-    __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_std_arr.rcbuffer->pybuffer);
   __Pyx_ErrRestore(__pyx_type, __pyx_value, __pyx_tb);}
   __Pyx_AddTraceback("cat_surf._spherical_demon.spherical_demon", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   goto __pyx_L2;
   __pyx_L0:;
   __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_mask_arr.rcbuffer->pybuffer);
-  __Pyx_SafeReleaseBuffer(&__pyx_pybuffernd_std_arr.rcbuffer->pybuffer);
   __pyx_L2:;
   __Pyx_XDECREF(__pyx_v_src_v);
   __Pyx_XDECREF(__pyx_v_src_f);
@@ -7414,7 +7265,6 @@ static PyObject *__pyx_pf_8cat_surf_16_spherical_demon_spherical_demon(CYTHON_UN
   __Pyx_XDECREF((PyObject *)__pyx_v_sph_mesh);
   __Pyx_XDECREF((PyObject *)__pyx_v_trg_mesh);
   __Pyx_XDECREF((PyObject *)__pyx_v_tsph_mesh);
-  __Pyx_XDECREF((PyObject *)__pyx_v_std_arr);
   __Pyx_XDECREF((PyObject *)__pyx_v_mask_arr);
   __Pyx_XDECREF((PyObject *)__pyx_v_warped_mesh);
   __Pyx_XGIVEREF(__pyx_r);
@@ -7912,6 +7762,9 @@ static CYTHON_SMALL_CODE int __pyx_pymod_exec__spherical_demon(PyObject *__pyx_p
   PyObject *__pyx_t_29 = NULL;
   PyObject *__pyx_t_30 = NULL;
   PyObject *__pyx_t_31 = NULL;
+  PyObject *__pyx_t_32 = NULL;
+  PyObject *__pyx_t_33 = NULL;
+  PyObject *__pyx_t_34 = NULL;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -8259,7 +8112,7 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
  *                     bint use_tangent=True,
  *                     bint use_geodesic=True,             # <<<<<<<<<<<<<<
  *                     bint unfold=False,
- *                     std_map=None,
+ *                     cortex_mask=None,
 */
   __pyx_t_25 = __Pyx_PyBool_FromLong(((int)1)); if (unlikely(!__pyx_t_25)) __PYX_ERR(0, 55, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_25);
@@ -8268,51 +8121,81 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
  *                     bint use_tangent=True,
  *                     bint use_geodesic=True,
  *                     bint unfold=False,             # <<<<<<<<<<<<<<
- *                     std_map=None,
- *                     double std_exp=2.0,
+ *                     cortex_mask=None,
+ *                     double l_dist=0.3,
 */
   __pyx_t_26 = __Pyx_PyBool_FromLong(((int)0)); if (unlikely(!__pyx_t_26)) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_26);
 
   /* "cat_surf/_spherical_demon.pyx":58
  *                     bint unfold=False,
- *                     std_map=None,
- *                     double std_exp=2.0,             # <<<<<<<<<<<<<<
- *                     cortex_mask=None,
- *                     double l_dist=0.3,
-*/
-  __pyx_t_27 = PyFloat_FromDouble(((double)2.0)); if (unlikely(!__pyx_t_27)) __PYX_ERR(0, 58, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_27);
-
-  /* "cat_surf/_spherical_demon.pyx":60
- *                     double std_exp=2.0,
  *                     cortex_mask=None,
  *                     double l_dist=0.3,             # <<<<<<<<<<<<<<
+ *                     double coarse_stiffness=1.0,
+ *                     double rot_max_degrees=64.0,
+*/
+  __pyx_t_27 = PyFloat_FromDouble(((double)0.3)); if (unlikely(!__pyx_t_27)) __PYX_ERR(0, 58, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_27);
+
+  /* "cat_surf/_spherical_demon.pyx":59
+ *                     cortex_mask=None,
+ *                     double l_dist=0.3,
+ *                     double coarse_stiffness=1.0,             # <<<<<<<<<<<<<<
+ *                     double rot_max_degrees=64.0,
+ *                     double rot_min_degrees=1.0,
+*/
+  __pyx_t_28 = PyFloat_FromDouble(((double)1.0)); if (unlikely(!__pyx_t_28)) __PYX_ERR(0, 59, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_28);
+
+  /* "cat_surf/_spherical_demon.pyx":60
+ *                     double l_dist=0.3,
+ *                     double coarse_stiffness=1.0,
+ *                     double rot_max_degrees=64.0,             # <<<<<<<<<<<<<<
+ *                     double rot_min_degrees=1.0,
+ *                     int rot_nangles=4,
+*/
+  __pyx_t_29 = PyFloat_FromDouble(((double)64.0)); if (unlikely(!__pyx_t_29)) __PYX_ERR(0, 60, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_29);
+
+  /* "cat_surf/_spherical_demon.pyx":61
+ *                     double coarse_stiffness=1.0,
+ *                     double rot_max_degrees=64.0,
+ *                     double rot_min_degrees=1.0,             # <<<<<<<<<<<<<<
+ *                     int rot_nangles=4,
+ *                     bint verbose=False,
+*/
+  __pyx_t_30 = PyFloat_FromDouble(((double)1.0)); if (unlikely(!__pyx_t_30)) __PYX_ERR(0, 61, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_30);
+
+  /* "cat_surf/_spherical_demon.pyx":62
+ *                     double rot_max_degrees=64.0,
+ *                     double rot_min_degrees=1.0,
+ *                     int rot_nangles=4,             # <<<<<<<<<<<<<<
  *                     bint verbose=False,
  *                     bint debug=False):
 */
-  __pyx_t_28 = PyFloat_FromDouble(((double)0.3)); if (unlikely(!__pyx_t_28)) __PYX_ERR(0, 60, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_28);
+  __pyx_t_31 = __Pyx_PyLong_From_int(((int)4)); if (unlikely(!__pyx_t_31)) __PYX_ERR(0, 62, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_31);
 
-  /* "cat_surf/_spherical_demon.pyx":61
- *                     cortex_mask=None,
- *                     double l_dist=0.3,
+  /* "cat_surf/_spherical_demon.pyx":63
+ *                     double rot_min_degrees=1.0,
+ *                     int rot_nangles=4,
  *                     bint verbose=False,             # <<<<<<<<<<<<<<
  *                     bint debug=False):
  *     """
 */
-  __pyx_t_29 = __Pyx_PyBool_FromLong(((int)0)); if (unlikely(!__pyx_t_29)) __PYX_ERR(0, 61, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_29);
+  __pyx_t_32 = __Pyx_PyBool_FromLong(((int)0)); if (unlikely(!__pyx_t_32)) __PYX_ERR(0, 63, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_32);
 
-  /* "cat_surf/_spherical_demon.pyx":62
- *                     double l_dist=0.3,
+  /* "cat_surf/_spherical_demon.pyx":64
+ *                     int rot_nangles=4,
  *                     bint verbose=False,
  *                     bint debug=False):             # <<<<<<<<<<<<<<
  *     """
  *     Warp a source sphere onto a template sphere via Spherical Demons.
 */
-  __pyx_t_30 = __Pyx_PyBool_FromLong(((int)0)); if (unlikely(!__pyx_t_30)) __PYX_ERR(0, 62, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_30);
+  __pyx_t_33 = __Pyx_PyBool_FromLong(((int)0)); if (unlikely(!__pyx_t_33)) __PYX_ERR(0, 64, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_33);
 
   /* "cat_surf/_spherical_demon.pyx":30
  * 
@@ -8321,8 +8204,8 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
  *                     source_sphere,
  *                     target_surface,
 */
-  __pyx_t_31 = PyTuple_Pack(29, __pyx_t_2, __pyx_t_4, __pyx_t_6, __pyx_t_7, __pyx_t_8, __pyx_t_9, __pyx_t_10, __pyx_t_11, __pyx_t_12, __pyx_t_13, __pyx_t_14, __pyx_t_15, __pyx_t_16, __pyx_t_17, __pyx_t_18, __pyx_t_19, __pyx_t_20, __pyx_t_21, __pyx_t_22, __pyx_t_23, __pyx_t_24, __pyx_t_25, __pyx_t_26, Py_None, __pyx_t_27, Py_None, __pyx_t_28, __pyx_t_29, __pyx_t_30); if (unlikely(!__pyx_t_31)) __PYX_ERR(0, 30, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_31);
+  __pyx_t_34 = PyTuple_Pack(31, __pyx_t_2, __pyx_t_4, __pyx_t_6, __pyx_t_7, __pyx_t_8, __pyx_t_9, __pyx_t_10, __pyx_t_11, __pyx_t_12, __pyx_t_13, __pyx_t_14, __pyx_t_15, __pyx_t_16, __pyx_t_17, __pyx_t_18, __pyx_t_19, __pyx_t_20, __pyx_t_21, __pyx_t_22, __pyx_t_23, __pyx_t_24, __pyx_t_25, __pyx_t_26, Py_None, __pyx_t_27, __pyx_t_28, __pyx_t_29, __pyx_t_30, __pyx_t_31, __pyx_t_32, __pyx_t_33); if (unlikely(!__pyx_t_34)) __PYX_ERR(0, 30, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_34);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
   __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
@@ -8350,25 +8233,28 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   __Pyx_DECREF(__pyx_t_28); __pyx_t_28 = 0;
   __Pyx_DECREF(__pyx_t_29); __pyx_t_29 = 0;
   __Pyx_DECREF(__pyx_t_30); __pyx_t_30 = 0;
-  __pyx_t_30 = __Pyx_CyFunction_New(&__pyx_mdef_8cat_surf_16_spherical_demon_1spherical_demon, 0, __pyx_mstate_global->__pyx_n_u_spherical_demon, NULL, __pyx_mstate_global->__pyx_n_u_cat_surf__spherical_demon, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_30)) __PYX_ERR(0, 30, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_30);
-  #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
-  PyUnstable_Object_EnableDeferredRefcount(__pyx_t_30);
-  #endif
-  __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_30, __pyx_t_31);
   __Pyx_DECREF(__pyx_t_31); __pyx_t_31 = 0;
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_spherical_demon, __pyx_t_30) < (0)) __PYX_ERR(0, 30, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_30); __pyx_t_30 = 0;
+  __Pyx_DECREF(__pyx_t_32); __pyx_t_32 = 0;
+  __Pyx_DECREF(__pyx_t_33); __pyx_t_33 = 0;
+  __pyx_t_33 = __Pyx_CyFunction_New(&__pyx_mdef_8cat_surf_16_spherical_demon_1spherical_demon, 0, __pyx_mstate_global->__pyx_n_u_spherical_demon, NULL, __pyx_mstate_global->__pyx_n_u_cat_surf__spherical_demon, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_33)) __PYX_ERR(0, 30, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_33);
+  #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
+  PyUnstable_Object_EnableDeferredRefcount(__pyx_t_33);
+  #endif
+  __Pyx_CyFunction_SetDefaultsTuple(__pyx_t_33, __pyx_t_34);
+  __Pyx_DECREF(__pyx_t_34); __pyx_t_34 = 0;
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_spherical_demon, __pyx_t_33) < (0)) __PYX_ERR(0, 30, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_33); __pyx_t_33 = 0;
 
   /* "cat_surf/_spherical_demon.pyx":1
  * # cython: language_level=3, boundscheck=False, wraparound=False             # <<<<<<<<<<<<<<
  * """
  * Python wrapper for Spherical Demons spherical surface registration  mirrors
 */
-  __pyx_t_30 = __Pyx_PyDict_NewPresized(0); if (unlikely(!__pyx_t_30)) __PYX_ERR(0, 1, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_30);
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_test, __pyx_t_30) < (0)) __PYX_ERR(0, 1, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_30); __pyx_t_30 = 0;
+  __pyx_t_33 = __Pyx_PyDict_NewPresized(0); if (unlikely(!__pyx_t_33)) __PYX_ERR(0, 1, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_33);
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_test, __pyx_t_33) < (0)) __PYX_ERR(0, 1, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_33); __pyx_t_33 = 0;
 
   /*--- Wrapped vars code ---*/
 
@@ -8402,6 +8288,9 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   __Pyx_XDECREF(__pyx_t_29);
   __Pyx_XDECREF(__pyx_t_30);
   __Pyx_XDECREF(__pyx_t_31);
+  __Pyx_XDECREF(__pyx_t_32);
+  __Pyx_XDECREF(__pyx_t_33);
+  __Pyx_XDECREF(__pyx_t_34);
   if (__pyx_m) {
     if (__pyx_mstate->__pyx_d && stringtab_initialized) {
       __Pyx_AddTraceback("init cat_surf._spherical_demon", __pyx_clineno, __pyx_lineno, __pyx_filename);
@@ -8457,33 +8346,33 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
 static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   {
-    const struct { const unsigned int length: 10; } index[] = {{1},{29},{1},{29},{53},{7},{22},{25},{26},{39},{34},{49},{20},{18},{17},{18},{17},{25},{18},{11},{9},{9},{9},{9},{1},{5},{5},{7},{8},{9},{9},{9},{5},{13},{5},{5},{6},{3},{8},{8},{12},{10},{8},{7},{5},{8},{2},{3},{5},{3},{7},{18},{3},{14},{12},{4},{5},{6},{12},{10},{7},{19},{15},{13},{14},{5},{8},{5},{15},{5},{8},{5},{2},{7},{7},{7},{11},{13},{14},{8},{5},{8},{5},{6},{9},{6},{6},{10},{12},{11},{15},{11},{6},{7},{6},{11},{970},{86}};
-    #if (CYTHON_COMPRESS_STRINGS) == 3 && __PYX_LIMITED_VERSION_HEX >= 0x030e0000 /* compression: zstd (1124 bytes) */
-const char* const cstring = "(\265/\375`U\007\325\"\000\226\366\267:\020\225s\000\000\002\025R \000a\005+\024\004P\243@\005*\320\300f\335H\022i+\3731\244\355\323\312\262\200\177\265L\331\324\201=^z\025\236\273\354\220\207\211\234H\321\330k5\233\000\227\000\266\0006\254\351\252G<\276\356\207\330\352\372\252}X\244\370\251vy\316\323\374\206\276\2752\264\032\016\245\242\367\032\366\025\034?c\021\274\035\376\256Vs\256\367\277\021Ly\306\226\246j\"8\206A\336F\027\242\002\352\302+~x\261HC\227\335\277\032\267\364\355\036\277\272\220\017\217\316\277~\"\350/v>~U\326y\210;\227UX\367z\004\273!]AJ\363\317\330\322jb\312\243_\2657;L\324t\304\225GM\277\332\027\317\277[]]\366\327\367\3459:\304\240\313\210\271\366\320\235UL*\037v\205\343\313\\\364\265?\245\357\257\\?\343\027i\356\2426k\031L;\350\242\3566\217X\327\376Z\374\241\203n\353\007{\214AM\243\025|]\375\337\350\275kJ\037\347/\373\327\374\3251Fi\253\276L\244T\304\242P\013\323\027\361'\206\"XCJ\375\033=\374\242U\220\322O\366\375\247A\377K\365\245%&\037\336\231\250\257GA\330\314\206\243\213\322\223\224\257\370sy\257\261\345\236gR\242\"q\261\366\262<\332![[nk~\032^\372\331P{x\177\304)|\0031\243\010\243\202[\3136`\253\355\2729\036p\250\262\241\234\221\264\325Fm\317\374)#\004\000\020\222\352\311R\262\271l\257,\033\312\352\326R\272\255d\340bg\313\366R\305\305\314j\262\314\013\002\000\203\244\222\223g\373\330NP8\324\352D\2353\273\307\\\231\025\0068\003\233\t\006\016\303\204\304*iH\204\025\362\300\204T*uH\031\203\251*\003\312Z\021\201)\307:\037\316\017\204\\\311\024\"\025N\271jZ\224\226\204!\307\242\223\000@\000N\022\304C.\002\002\340\224T*\362\\\314u\346\032\267\262\313\364\207\376\n\353\303l\256\256\303z\265v\230\275\332=\354/\327\243\027o]\250\205\251X\363\214\002||x\273\020\020\372\326=@:\230v\033\034\272BWh\367v\314\257-\016p\030\267\t[\311V\2635LH\252\257d\225\020d\006\251K\326~Xm\323>\2312\245\251\236)\t\234\204\tie\3130\345\nJ\035;E6\312\204T*\027\266\204\213\352\374}\262\033v\201\251S\256\312\221$ O\346\204\300j\253\366\212\211a\2760\234\245\223c{\224\266""\216\231a2\230)G.\243\237[\311\215\307\226\320\001\201+)\035N9\014S\245$*\232\225\265d)\235\261\035\261;L\n\207\034\303Bne\202\224\r\0101\246\003G\251B\036\234r\001\200\254\250!%R\212\021\232!\031-H\n\303\0300\204(UU\266\001r\362\252\222\320\224H \024\026\244\260\376\2246\003^W\211$\210%\312H\023\363?\323\317\225\\U\345}\215T\030\267(\032$\272v\372Q\\.\361b\356\000\r^\336\277f\021,,\21181\007\036\0179\262\221C\226\246\024\3135n*\363d'\270\233\262\300;\3268JU\3267\206\365SL\233[\227\237\261hl\261\352\350\317sp\024S\n\374\357\004\350r\336\315\227I|\364\014(n\261\217\033w\206q>]\352Z\305\227\3326\216\204\363+`\221\201\010\227/\271\232F\271U\350\345Hx\364\211\\\320\253\314g\222\317,\r5\2325\200\210W\021f9dc5wP-\323\033.\360\351\371c\355\223\177\2303\022\013R\265\314\356\331\236Pi\013\266\262[^\004\317\033\005M\023\000\3318,\006\2343L\327\326\036\255\254\332\020\264\367|\201q\003\214UC>\200\277\340\252+%\265]\201\256\242\375kX\231\344\247!%?\311\"O\331\333\"\233\256A\346\360<p\272}c\246\3276K\242\2013\210\245Kr\177l\301\n\022Y\246<4}\022\226\207\227\336\207 Q\302\320@vp\035\366\251\342#` W\301\315=\347H\025\t\261\322D\030\356hm\2315,\3735md9\364\033j6\237w9*\265\243\250\002";
-    PyObject *data = __Pyx_DecompressString(cstring, 1124, 3);
+    const struct { const unsigned int length: 10; } index[] = {{1},{29},{1},{29},{53},{7},{22},{25},{26},{39},{34},{20},{18},{17},{18},{17},{25},{18},{16},{11},{9},{9},{9},{9},{1},{5},{5},{7},{8},{9},{9},{9},{5},{13},{5},{5},{6},{3},{8},{8},{12},{10},{8},{7},{5},{8},{2},{3},{5},{3},{7},{18},{3},{14},{12},{4},{5},{15},{15},{11},{6},{12},{10},{7},{19},{15},{13},{14},{5},{8},{5},{15},{5},{8},{5},{2},{11},{13},{14},{8},{5},{8},{5},{6},{9},{6},{6},{10},{12},{11},{15},{11},{6},{7},{6},{11},{920},{86}};
+    #if (CYTHON_COMPRESS_STRINGS) == 3 && __PYX_LIMITED_VERSION_HEX >= 0x030e0000 /* compression: zstd (1080 bytes) */
+const char* const cstring = "(\265/\375`\026\007u!\000v6\2649\020ws\000\200\200P\207\032\241\202\200P\247@\005*P\201\n\260P\365\021\222\024\264E\036\202\230\335\264\222\\\2549\307\333\225y\373w\023U\314^pH\255/\270\001\376\026o#\230\000\223\000\255\000a\016_\367q\266\273n\234_2/\2034?\335\235\347|\314o\350\333+\023\223\341P\n\373\372\205\2573\370\335-\377&\253Z\327\373^\370\251\\gKU2\360\013q\020\267\261\205\254\2006|A\377\375\370f\220b\027\357\337\235][\373\337\355\363k\013\371\360\330\374\253\007~\376\340\346\241W\305\315q\336\\\254\260\355w\370mD\273~4\346\257\263\215\311@\025G\275j\257v\030\270\351H\247\303M\277\332\027\316\275[\273M\373\357\373\362\234\215\363\3472\240\256=t\207\025\243\n\177m~\354\237\333\352\301>\347o\307h\375^w\277\027\326\316\271\367\375\325{\341\212\361\335\356\232~\326\236\213U\373W\355\325\260\210RW}\021\244\024\314\340\220+\323\007\263\007b\360\253\230R\367B.\277b\365\323\272R\212o\375(\365D\357\275\375\371_\272/-1y|\215\300}9\372\301\214,\016;JOR\276f\257\343^\241\3139\316\244dE\342\240\354E\035\332\335u\3677\365\255k\266D\266\272\334V\375\024_\352Y\274\035\337\017\263*_\213e\273\3563\024VR\313)i%\203Vt\266\230~\252\264\242\262\226\255\322b\000\240\240\251\344\3441}f'\0304\014\326\211q\316\230=%\253\244(\240\025\314L.h\027(\246\026I3\036\254\214\006(\246\023\2513\212\013\345\212\014 eH\003\250Z\353t8?\016j\247rhLH\325jYA\332\021f\014\221R\002\000\001BM\017\0165\210\007\200T\323\t\211sPW#\337\331\245]\334\017\263\272\372\306\365\356\3550{\267s\331_`\375\300\230S\337!\347\345\016\207/v\364\267?\245\357/]_\347\377\216Z\275E\330\366\257\243\356V\207y\313\002o}\310\225)X\265\021\005\370x|\267\020\020\372\326=@6\330v\033\034\272BW\350\3666\324\277+\014h\027I\022\263\323\254\306\324@1\255<\262E>\214\031\343&[\246\003\313D\231\251R\206D\325S\025A\213@1\261f\031\250\032\001\271\307\030R\321)bb\240\230N\244B*\302eu\276yb2\230\004\245\016\311\"\303q`L\225\022\002,se\256\224\027\345\313\302y:9L\217r\242\241\266\240Pc\225 $\203\251Sf\224\013e\312R\247\364\223T\222\3043C8\213""\314\216\007Z\t\331\220\252]\224*\344\021\313\3040\271\362\207\204\020\250'\313i\346bzm\005\200\236\250!\245R\212\021\232\231\221\026$\205a\0140\2040UE\266\001r\3026s\322\224LDaA\n\353O}\016^\254\022Fj\245\236A\323S\234\tT\225d7e?CP\300\255\242\314\310P\354\220\343\266/1bf\001\n|Y\0345\021*\034\0322\267\366\310q\2069\327\340\336\274?9}\331{a\267&\266o\200\326s\026\276X<\265Xet\304sB\024\2504\353q\001<9\365\006\276\007? \rx0\366\007\303\235\365\030\234ftI\300\027\2166\214\n\345\225X\331\341\320\224\361|5\247\"\233\350\030\207\371\366\036\177\270\330\261P\346\231\304\203\\\3265\270?O\033^\271m\303\242\036\242\215\250\203\004\336\332;\004\273\235\3073m\262j\3475\207\033\271\230\035\217\350i\250\340x\003\363\35436)Y|: \305\240\37584\304$\276\200\310\026vz\343\2725\013\343\237oE\031\004Y\337V_\212\235\375\027v\270\ne;5L\230\006f2K$7\024]\222\322\246\303(M)\336P\313\332K\252\037C\307zE\252<3\"\347\234\237R\220\234 \272\364\373x\251\233K:\253\027\342\377\370\345>-\022\260\22251\314\321\245*0G\303\366\214\rB4&\273\264*5\017\254\002";
+    PyObject *data = __Pyx_DecompressString(cstring, 1080, 3);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1235 bytes) */
-const char* const cstring = "BZh91AY&SY\r\255nM\000\000\335\177\377\357\377\177\267\177\367\377\316\275'}\352\277\377\377\344@@@@@@@@@@@@@\000@\000P\004>\273f\2569Ve\251p\202QFS\022\217\321M\351M\351O\312\237\252z\232<Q\246\322\000\032\036\223e\003F\217P=M\250\321\3526\241\265\036I\352i\350\365A\242Li0\215F\024\236S\324z\236\246 h\0004\032\000\000\000\000\000\001\243L\203@\")\230\232\233T\365=OCP\321\240\001\243@\000\001\240\001\240\000\000\000\01644\001\240\001\240\000\000\000\320\000\000\000\014\200\000\006 \tB#AI\372\236\251\371D\364G\2504\375I\352m@\001\243C\020d\310\0324\000\0004i\233Q0i\344\231r|\232\350\177\203g\002Z9\317\264s`\323m\301\000\335PQEQX\216\224\242\274H\210T\020\316\250\210N@\200\221\273\nS\212\203\3408\002\253QA]x\222\306\001A\201+\346\331\341\032\341\\\202\262\000EKJ\245\215\220\004UG\367F)\252*\260\307\003\217R\034`\023\257\377?\026\353\250n:\330\336l\237\267;i6-\210H\037\321\2024\214\2159\361:\306KXF\272\300+\320t\326mg\333\314iu\330\256\330i\001\346\325~\213\3719b\313\311\231{\254sy_\260B\212\225\\\213j\203\t\033I\227K\211{\214\351\342Z\017L\275\241\300\205\242H\221\023*kJ\000\017~\301X#\3773\205I\352\266\323\035\"\001A\351W\3022y\213\331\212\363\355wB\0061\354\017\017\300\300\033OJ&\313\232\023U\237\205\262\263{\267\377\265\3635V\224\256\007\036\316\373\007\213@\262~h\276I\301L\311\273\275u&\001\"\3264\230\271\r\345$w+\016)[F\007'\2305\371&\344\013\004\300\331\205\205@I%F\247\357\0041\361\355V\251\200\310\026\267\370\253*u\232\363\030V5u\303m\215\244\247\026\206\226)\201\204F\244}\302\212\014\r\027\215\311\220\001[\303<;r\220\033'/u}\005iY?\226}-\006F\217\241Iy\014\271t6\202\272\216\224g\267\223\270M\363\213\345X6]\367N\025*r\333\221\013\267\257\025\214\\&1\213\341)\220=rx\211\005V\030Zy\344\022C\003\331Z\034\002\017?\213:<\236\241\310J+\357 \303\004\273\020BJ\340\347`\234CT\026\005\303\365i\020`*4J\362Uf\nx;,@$\211@^M\"\231\250\240\234\025G\212\204\234\344\210*R9\223\204\341\326$\250\262c\217\037-\322h\356\027\234\322\004\332F@2\222\302\316\372\211X\nIu\204\352\334""\233\332\214\320,\244\362\2262\300\362\244\312wPT\260#\002\260b\241\004\232V\220k\346\3229)\255\307<R(\001i\275\016A\301\235\006\177\314\024\316\002\2100\322\032f\223\320\244a\356 Q`\315C\007\256#\r\201\301\204\243\213\212G\213I\210bH\363\016\266\216\221\330@\361h%A(.\337Z\313\026(\210\311\210M:\304\2201\272}#\243`\245\215:W\311\225\325\202\322\230\245\030c\307\t 0R\213\2401\000\301\215L\214\007\020C\023\255\303<\361BN\205!x\251`W\216\233V\020\241s\004\242\351\032\362\036S\220\031\232\223Dt\310\03518@\314<\034\242\240R^\356\317(\315!m\212qj\325\024Vm\000%\353\322ZR`,\026p\251\210*\t@\024 \272Q\010\034\224\212Df\242\262\304\017\201\212\330\306=\214\003>;=v\207\226f\342\263,\n\250\346\270V\n\302\n}\224;\014H4\261b\274c\230\316<\341T\003E\327 \n\000\337f<%S\325\246\3438\301\326a\003\235\001\260\215\024\276V5\244\030\315\324\240\206C\273W\266h\013\007\250\016n\315\312\333\373\201b\212\337\214?\3168\247\305\n\364\260\344R\332n`rz\237\002\377\006\326/\346~\335~\371\227\203\033\267%]\271\002\327\246L\177\243\344~\300\302M\223.\244\200U\252\254j(\202\252\316\342!\3120\356\307\326\312f\330\275\213OR\330;\247\203\346&m\351\316\225\252[\272,\366\235\034|\"yg4\004\207\354_\354\347\342'\207\271\261O\022\025\022I\347\237H\372[\321\247R\315\252\333{(\210g\002\364\317\364\370\244\272\233\222.8\307\303\333\001\251\225\001\203\0002\240L\216N\241E&\305\232\250JG(Hi\232LB#\234\232N\034H[\317\"\004\213\017B\242\321\037\361w$S\205\t\000\332\326\344\320";
-    PyObject *data = __Pyx_DecompressString(cstring, 1235, 2);
+    #elif (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1167 bytes) */
+const char* const cstring = "BZh91AY&SY\270\274\345\021\000\000\323\177\377\356\377\177\267\177\367\377\316\275'}\353\277\377\377\344@@@@@@@@@@@@@\000@\000P\004\006\266UUIT\254 \222D\232\232F\006OT\323\032#4i\006\217I\200#@\303D\3652\036\240\304\323@\3154\322~\223\rPh\223\023\023M#\021\212z\2325==Q\35244\007\250\320d\000\000\000\000\000h\365\0324\tA\r &F\225?B\236\247\250\375P\320z\201\240\032\031\000\031\0004\0000\200=A\243C\215\r\000h\000h\000\000\0004\000\000\000\003 \000\001\210\007\032\032\000\320\000\320\000\000\000h\000\000\000\006@\000\003\020\035.\351\232}>\244W_\350\325\201\360X\034\350\352:\330 \270\300\303\014\3038\206\374.\010S\020Za\nBX\221\023\357\024\311E\320\016\001\240NM\010\330\017\007P\245\313.6\342\302!DDjal\373\301\0210\337+p\226\233\370\000\356\263C\215\020M\033?\270\3530:\324p\301\326s\275\366\025x\002\032\243\210\224DK/\005\360A:p\234\3602U\020\314\273Q\262\253\3339\024\037\322\325c\231\365\254\035th\037\035(\370\2332\tH\313\n'\353-\"\265B^\231\322Ov\347=E\244\036Q\306\030L\204WnF\352\305\000\236\031\032\204^\334\246\355_s\372\341\264\230\223^v\240\225\205\326\255\"o\225e(\371\240\255\222\002x\367y\371\224\342\346\304\361%\3308\216\336\366\326|\237\225\031\302\304\000\333\265\274\230\212\337\323/\276RO\025\017ZS4\310\276\026^3C\214\362\234Cn\225\021E\245\257y\234\322\325\026]\\\253\004\346\"\224\310\220\327\030F\017\321\346\277%\231\251Fs\001R\026\337\360LM=\267G:\206\177\350]/\244U\023J\355T\336\002w\3027`w\024,A\016w)\236\364\2747D\264d\326\231\343\330\337Z\n\213\026;w\265\332\207'#\332!\003ll\365\353\335\037\005\205\350<\331pH\ns-\3324\243\266\353\250@\251\325\214\2404i\204\236N\024\205VeQr\345!*XsM\325\224\256\005\\\374\226\362E\372\307B\305\227~\201\001\004\337\274d\030\371(\020\215\316\236\374\003P\022X6\260\021\005\002\212\342x\264\342\313*\001l\323\267K\003TC\222{<4\272C\352\324\\\n\244\325\0139Ra\242\224\2718\035\324\356&\221\326\332\202\202\235\210H\273\005gz7\222\3321\001\214\222\022uLH\234K\036\032J\r\231\254\256c6\004\210HP\264\244s\214\230xZN\210\210\300""\230\034\002\311\033\311\300L\246J\026\035_j\225\340\202\201\234\2560\212!AV\325_\367]\325\240\345\024\331:\236\262\265\2347\030\177,9\236\214\242\332\212K7\006\275\206\334\2456\206F\206\225\221\251g0\241\340$\034\032@\241\243\276:\006\241\251Aa\302I\022K\025\360\271\032\332\206\032'\3352)\300\270\246\206\030\233I\222\022\300\230\351\033j\225&\004\325F\024T\241\010w\025\212\221\242u-\014k\222\003\016R\221`\224n\245!\204\312\224%{%4\332zG(\030\327\036Q\025C Z\330\245UW\013XI\277\313\277\220\330\032\361u\246o\254\245\013\027\026\234\003_}^\031\246q\343j\016\304Q\036\r\264\302\362\243\305\205\205\3722l\331\005\267(\231JRR\006G\333\271\000\341\215vQ\247!A\366\340\023\002\240\202\035DL\235\340,\254\263\016\206[\227q\215\3056\355\200`[r\341\3211\233\36780\314\243:\304\266\033\332\344\306Y!\0034\247\250E7\177\340\3004\272b\310\245\353\235\327\310\023\373_8\202\313\234\307\0322o\277\033\013\223\350\351&T*v{\277V\265\016\317\353\274\3615L%B\224|\375\037b\250\037~\232\3240\200\232>\004\310L\315#\222(\363M\316\254j\322\346\312\314\324\007\345|\276\242\257VB>X\351\317\350\266/d\205\370\273|\247\r\273W\t/t/\277(\301]\311$\234i\314\274\300\241\303\355\020\254\201\277+\301\346X\224r\322\321\"\316\n<\3668\205D%&\033t\322n9j\311<WdtXV\252\322\244\331\247IHzz=\024\021\031\347:\273VT\377\305\334\221N\024$./9D@";
+    PyObject *data = __Pyx_DecompressString(cstring, 1167, 2);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1099 bytes) */
-const char* const cstring = "x\332\255U\315o\3336\024\217Qgq>64\337\350\260\016\262\263\245I\220ys\222\265\006\332\242\360\032\014\030\260\rq3\264+\206\201\240%\332V+\211\212H\3116\260\203\217:\362\250#\217:\372\350c\216;\372\350c\376\204\374\t{\244\255\244Ks\350!\200M>>\376\370\336\357}\220*\277\254\375\201\336\340\300?&.\365\330+\322\262\031'\201\321\304\266C\254\027&\346\210\205A\363{\304\3746\tl\023;\310R\310\262\337\353\2324\340\244\213\\\314\336\033n\310\270\321\306\0211\250G\214\010;!1|\260\303\211\353;\230\203\212(\260\261\263\273o\264(7lp\302&\247\032\200\244\314\346vD<\344S\333\343\267m\000+\377Zo{\306_\225}\343[\353o/t\375^\031\001\027RvC\207\3338\010po\312\337\340\324\260]\037x~\010\013]\314\333\037!\030\267 \024\377\323#A\350\244\327\205\377\261mr\364;\351\362W\244\251\2353\304)\004\342\364Z\220Q\314L\352q\273\025\322\220\351]\314z\236i\3232P\241!\267=\302\262$+z\236\262~\255\270\221u\323\001<\262=\304\003l\222\0066\337\177P\0033\014\"\336\363\311\017\231P\311\204\203L8\264,\322\010[\226\222\233\016\305\374\361\021B\315\3203a\354\264]\244pZ\260l\346k\001P\035\250\310\341\001\262\031\272\242\014\325s\231.\241\243\240\334\211\034\004\034\200\230f\202 P\027wu\315\200x\013\264\324\n\035\202PV\340i=U \260\353aW\355\371\236\357\350:Q\237\203\037D\033\357\262,\252\214Nr\353S\037!h>\024q\334P&\021:\013\26131\021@}\002(\235\023P\016\"B\214\360\251u\220,\250\017t\010\263[.F]\346R\312\333:R\007\222\351\022\2405Q\301yj\332\274\307h\030\230dR\003\222-\240,\200\006\035j\252\301%\254\255\346\350F\245X`\002\000\006\r\2009b\272\303 \0105\221\256?\3557\235#0\311\241\2208h\001\337\211\277l1\361\207\020'\214#\235\256\246\032\224Y5G\\S\341\031\027-D\241\327\244\216\0252\242\034\201\023%\265\010\265\010\263M%\267\tc6\366\224\250;\212\021\034\230m\265\344\330kA&t\3333\350\305\006e\244\003\317\003\261&\243v\322\317]\026f\3267\306k\353w\376\273<\27173[\350\207\361O\261)\036&x\\\370\"~\227\344\306K\273\351ZZ\037\347\347\372=qOT\246\352dYi\242\370T\344\2564\027\371\305\270\n\210\033\323R\374\213\250_\344""\213\243\342\341\000\216/\214\026\276Jj\311\033\371sZJk\037\255\357\034W\032\225\216\006\327\372?\345\353\364\000\342\271\261\276\\\230\231\373:\251'89\203\300F \343[fHAN\347\346\023Du\206\310gif\217\214\266\252\303\334\365\342\331\260v\275P\014o\207\251\030o\207\3758\250\337\342\006\337\321L\344\363\301\025\r\3714\305\227K3\263\033\342mb\311\222T,\372\335\270#\240KVDi\264\266-\261\354\r>\0334\206\363\347\033\347g\343\302b\374DlCS\254&/!\243K+b/\251\215\357/\217W\277L\036\311\ry\226\346\024\346\251\300\2423\315y\377\037\361$)\216\013\253\342`\264\376\010\020\237\017^\017\017\206o\317\233\377\326\024\266*\036'\313\311Vr*s\377\267\267#\267\323\\\272\2540/\222bR\225\025Y\203[2\373\000\2327_\210\347\342P\324\304i2/W\344\221\344iE\001\237\003\265M0T\270/r\027\371\222\374.=\323\321BPL\000\211\371q~K\347~P\273\310o\2166\313)V\330\2748N\n2\017\361O\027\363rM\326\265\025\241/\004\213\267bX\257\213\272\320\027\310\001B\225\213\3747\362\327An\360`X\204K1Z|\250\372\214\361 4\2711yQ\341\275E\325\354\333\203\252\331\327\010\235L\037\341\337\340\352\033{;\000#\360\305\233\036\335\333\207\2171\337\235A\235\000\373h\262\367\0373\3119\201";
-    PyObject *data = __Pyx_DecompressString(cstring, 1099, 1);
+    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1061 bytes) */
+const char* const cstring = "x\332\265U\275o\333F\024\267\020\032\226\235\264\210\023;F\212\246\240\344~\330\206\253V\262\233\nh\202@\255Q\240@[Dq\221\017\004\355\341D\036\251KH\036\315;\322\022\320A#G\216\0349r\324\250\261cG\215\032\365'\370O\350\273\223h\031\216\206\016\t \335\275\367\356w\357\375\336\007\311\332O\255?\320\013\034\370'\304e\036\177Fl\312\005\tt\013S\207\230O\014,\020\017\003\353\033\304\375.\t\250\201\035dJd\315\357\367\014\026\010\322C.\346ou7\344B\357\342\210\350\314#z\204\235\220\350>\370\021\304\365\035,\300D$X\337\333?\324m&t\nA\370\354V\007\220\214SA#\342!\237QO,;\000V\376\302N=\375u\375P\377\302\374\323\013]\277_C\300\205\324\334\320\021\024\007\001\356\317\371\353\202\351\324\365\201\347UX\350b\321}\007\201\320\323~\017\376'\324\020\350w\322\023\317\210\245|q$\030\360r\3726\024\010s\203y\202\332!\013\271:\305\274\357\031\224\325\3003\013\005\365\010/j&\243y2\355\205\341Z\021\r\007\360\210zH\004\330 \035l\2745\030\0168\201d\251e\201+~\245\304F\030D\242\357\223o\013\241^\010\215B82M\322\tmS\312\226\303\260xx\214\220\025z\006\254\347]\027I\234\022L\312}%\000\352\034\n~\324@\224\243\313\024\2409.W\035r$T8\221\203\200\003\020UL\020$\356\342\236j\t$b\203\225\231\241C\020*\3727o\227L\014N=\354\3123\337\363\035\325\006\346\013\210\203X\347MQUY\341Y\255}\346#\004\263\205\"\201;\322%Bg!vf.\002\030\244\000f\314\t\230@\222\001\004\017\010\341J\005vWT\017{\266\243D\270\203\020'bN\003$\023\032\013\223\302\251\355b\324\343.c\242\253J\342@\027\\\002\374g&\010\304\014*\372\234\205\201Af\315#\205\002\375\0044\330\220%\027\227\360\256\334\243k-\346\201\001\000X\024\000\366\210\013U7\270-\240\2718\260\201\332\314u\241\314\\#$\010\207\251\224%\264\344\"=\310=\022*\252(\302*!\n=\2139f\010\303Cz\276\213})\331\204\231\204SC\312]\230&\212=)\252\251\343\004\007FW\252\002J\005I\253g\226\303\274v\030'\347\360F \346lUA\006\245\213\362\312\366\275\311\326\366\007\372]\374uce\265<\010\343\037c#y\220\342I\371\343\370MZ\232\334\332\317\267\362\366D[\033\364\223\033I}nN7\245%\212O\223\322\245e\252""\335\214\233\200\270\266\335\212\177I\332S\2552\256\034\r\341\372\306x\343\323\264\225\276\310~\316\253y\353\035\375\275\343\252\343\352\361pa\177\231=\317\033\220\3175\375bce\355\263\264\235\342\364\014\022\033\203\214\227\354P\202\222\252\315\377\020\345\035\222=\312\013\177d\274\333\034\225\026\312\243Qk\241H\206\313a2\307\345\260\357\206\355%a\360\007\336I\366xxI/\373!\307P\271\325{\311\253\324\314\252\231d7\370;\371>\255L\312w\223\306x\373\253\354,\377h\370|\324\030\275\372\307\372\027\272 g\342a\272\231\356\246\247\031\314\326\235\344 mMnoN\356~\222\356e_\346\245|Sb\236\244\225\264\231\325\263\026\314\374\352}\030B\255\034\257\305a\322JN\323\365\354Nv\234\211\274.\201\217a\356v\300Q\371vR\232j\325\354\353\374L\261\033\364b\236\000\211\365\211\266\253j8lM\265\235\361N-\307\022\253%'i9\323\200\357\\Y\317\266\262\266\362\222\250\301\346\361n\014\372v\322N\324\203\340\000\241\372T\373<\373uX\032\336\037U`\270\3077\037\310y\341\"\010\r\241\317\336\231\360FE\315\342k\203\232\305\367\007=\235\277f\177\203\007Y?\330\003\030\201o\334\374\352\301!|M\305\376\n:\017\260\217fg\377\001\304\212 \311";
+    PyObject *data = __Pyx_DecompressString(cstring, 1061, 1);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #else /* compression: none (2133 bytes) */
-const char* const bytes = ".CAT_WarpDemonsRegister failed?cat_surf/_spherical_demon.pyxcortex_mask must have one value per template vertex (), got iters must be positiven_points must be positiven_steps must be in [1, %d]numpy._core.multiarray failed to importnumpy._core.umath failed to importstd_map must have one value per template vertex (__Pyx_PyDict_NextRefarrays_to_polygonsascontiguousarrayasyncio.coroutinescat_surf._convertcat_surf._spherical_demoncline_in_tracebackcortex_maskcurvtype0curvtype1curvtype2curvtype3ddebugdtypefloat64__func__fwhm_curvfwhm_dispfwhm_flowint32_is_coroutineitemsitersl_distlvl__main__mask_arrmax_step_deg__module__n_pointsn_stepsn_trg__name__npnplnumpyoptout_objpolygons_to_arrayspop__pyx_vtable____qualname__rateravelrotate__set_name__setdefaultsigma_xsmooth_displacementsmooth_velocitysource_spheresource_surfacesph_fsph_meshsph_vspherical_demonsrc_fsrc_meshsrc_vststd_arrstd_expstd_mapstep_factortarget_spheretarget_surface__test__trg_ftrg_meshtrg_vtsph_ftsph_meshtsph_vunfolduse_expmapuse_geodesicuse_hessianuse_line_searchuse_tangentvaluesverbosewarpedwarped_mesh\200\001\360\010\000\025\026\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\360P\003\000\005\010\200u\210B\210c\220\035\230a\330\010\016\210j\230\001\330\014)\250\024\250Q\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\007\200v\210S\220\001\330\010\016\210j\230\001\230\021\340\004\013\2108\2201\330\004\013\2108\2201\330\004\013\2108\2201\330\004\014\210I\220Q\340\004!\320!3\2601\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\004!\320!3\2601\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\004!\320!3\2601\330""\010\n\320\n\034\230A\230W\240F\250\"\250A\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\004\"\320\"4\260A\330\010\n\320\n\034\230A\230X\240V\2502\250Q\330\010\n\320\n\034\230A\230X\240V\2502\250Q\360\n\000\007\036\230Q\230a\230q\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\320\007\036\230e\240<\250q\330\004\007\320\007\036\230e\320#8\270\001\330\004\007\320\007\036\230e\320#<\270A\330\004\007\320\007\036\230e\320#4\260A\330\004\007\320\007\036\230e\320#8\270\001\330\004\007\320\007\036\230e\320#3\2601\330\004\007\320\007\036\230e\320#4\260A\330\004\007\320\007\036\230e\320#5\260Q\330\004\007\320\007\036\230e\240<\250q\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230e\240=\260\001\330\004\007\320\007\036\230e\240;\250a\360\014\000\005\026\220Y\230d\240\"\240A\330\004\007\200x\210w\220a\330\010\022\220\"\320\024&\240a\240y\260\006\260b\270\t\300\026\300q\330\010\013\2107\220&\230\001\230\023\230C\230q\330\014\022\220*\230A\330\020\021\330\023\032\230'\240\026\240q\250\001\330\010\013\210;\220a\220w\230a\230q\330\004\007\200|\2207\230!\330\010\023\2202\320\025'\240q\250\r\260V\2702\270Y\300f\310A\330\010\013\2108\2206\230\021\230#\230S\240\001\330\014\022\220*\230A\330\020\021\330\023\032\230(\240&\250\001\250\021\330\010\013\210?\230!\2308\2401\240A\360\010\000\005\031\230\001\330\004\010\210\007\210u\220A\220S\230\t\240\022\2404\240t\2501\330\010\013\210=\230\001\230\027\240\001\330\010\020\220\001\340\004\"\240-\250q\260\001\330\004\007\200x\210s\220!\330\010\t\330\004#\320#3\2601\260A\340\004\027\320\027.\250a\330\010\020""\220\004\220D\230\010\240\004\240A\330\010\020\220\004\220D\230\t\240\024\240Q\330\010\020\220\001\220\021\330\004\007\200s\210#\210Q\330\010\025\220Q\220a\330\010\016\210l\230!\2301\340\004$\240L\260\001\260\031\270!\330\004\013\320\013\035\230Q\230astruct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *(object_struct *, int)\000_wrap_object";
+    #else /* compression: none (2070 bytes) */
+const char* const bytes = ".CAT_WarpDemonsRegister failed?cat_surf/_spherical_demon.pyxcortex_mask must have one value per template vertex (), got iters must be positiven_points must be positiven_steps must be in [1, %d]numpy._core.multiarray failed to importnumpy._core.umath failed to import__Pyx_PyDict_NextRefarrays_to_polygonsascontiguousarrayasyncio.coroutinescat_surf._convertcat_surf._spherical_demoncline_in_tracebackcoarse_stiffnesscortex_maskcurvtype0curvtype1curvtype2curvtype3ddebugdtypefloat64__func__fwhm_curvfwhm_dispfwhm_flowint32_is_coroutineitemsitersl_distlvl__main__mask_arrmax_step_deg__module__n_pointsn_stepsn_trg__name__npnplnumpyoptout_objpolygons_to_arrayspop__pyx_vtable____qualname__rateravelrot_max_degreesrot_min_degreesrot_nanglesrotate__set_name__setdefaultsigma_xsmooth_displacementsmooth_velocitysource_spheresource_surfacesph_fsph_meshsph_vspherical_demonsrc_fsrc_meshsrc_vststep_factortarget_spheretarget_surface__test__trg_ftrg_meshtrg_vtsph_ftsph_meshtsph_vunfolduse_expmapuse_geodesicuse_hessianuse_line_searchuse_tangentvaluesverbosewarpedwarped_mesh\200\001\360\010\000\025\026\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\330\024\025\360^\003\000\005\010\200u\210B\210c\220\035\230a\330\010\016\210j\230\001\330\014)\250\024\250Q\330\004\007\200y\220\003\2201\330\010\016\210j\230\001\230\021\330\004\007\200v\210S\220\001\330\010\016\210j\230\001\230\021\340\004\013\2108\2201\330\004\013\2108\2201\330\004\013\2108\2201\330\004\014\210I\220Q\340\004!\320!3\2601\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\004!\320!3\2601\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\004!\320!""3\2601\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\010\n\320\n\034\230A\230W\240F\250\"\250A\330\004\"\320\"4\260A\330\010\n\320\n\034\230A\230X\240V\2502\250Q\330\010\n\320\n\034\230A\230X\240V\2502\250Q\360\n\000\007\036\230Q\230a\230q\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\200y\220\001\220\035\230a\330\004\007\320\007\036\230e\240<\250q\330\004\007\320\007\036\230e\320#8\270\001\330\004\007\320\007\036\230e\320#<\270A\330\004\007\320\007\036\230e\320#4\260A\330\004\007\320\007\036\230e\320#8\270\001\330\004\007\320\007\036\230e\320#3\2601\330\004\007\320\007\036\230e\320#4\260A\330\004\007\320\007\036\230e\320#5\260Q\330\004\007\320\007\036\230e\240<\250q\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230a\330\004\007\320\007\036\230e\240=\260\001\330\004\007\320\007\036\230e\240;\250a\360\n\000\005\026\220Y\230d\240\"\240A\330\004\007\200|\2207\230!\330\010\023\2202\320\025'\240q\250\r\260V\2702\270Y\300f\310A\330\010\013\2108\2206\230\021\230#\230S\240\001\330\014\022\220*\230A\330\020\021\330\023\032\230(\240&\250\001\250\021\330\010\013\210?\230!\2308\2401\240A\360\010\000\005\031\230\001\330\004\010\210\007\210u\220A\220S\230\t\240\022\2404\240t\2501\330\010\013\210=\230\001\230\027\240\001\330\010\020\220\001\340\004\"\240-\250q\260\001\330\004\007\200x\210s\220!\330\010\t\330\004#\320#3\2601\260A\340\004\027\320\027.\250a\330\010\020\220\004\220D\230\010\240\004\240A\330\010\020\220\004\220D\230\t\240\024\240Q\330\010\020\220\001\220\021\330\004\007\200s\210#\210Q\330\010\025\220Q\220a""\330\010\016\210l\230!\2301\340\004$\240L\260\001\260\031\270!\330\004\013\320\013\035\230Q\230astruct __pyx_obj_8cat_surf_8_convert_PolygonsMesh *(object_struct *, int)\000_wrap_object";
     PyObject *data = NULL;
     CYTHON_UNUSED_VAR(__Pyx_DecompressString);
     #endif
@@ -8492,7 +8381,7 @@ const char* const bytes = ".CAT_WarpDemonsRegister failed?cat_surf/_spherical_de
     for (int i = 0; i < 96; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyUnicode_DecodeUTF8(bytes + pos, bytes_length, NULL);
-      if (likely(string) && i >= 12) PyUnicode_InternInPlace(&string);
+      if (likely(string) && i >= 11) PyUnicode_InternInPlace(&string);
       if (unlikely(!string)) {
         Py_XDECREF(data);
         __PYX_ERR(0, 1, __pyx_L1_error)
@@ -8564,9 +8453,9 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   PyObject* tuple_dedup_map = PyDict_New();
   if (unlikely(!tuple_dedup_map)) return -1;
   {
-    const __Pyx_PyCode_New_function_description descr = {33, 0, 0, 55, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 30};
-    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_source_surface, __pyx_mstate->__pyx_n_u_source_sphere, __pyx_mstate->__pyx_n_u_target_surface, __pyx_mstate->__pyx_n_u_target_sphere, __pyx_mstate->__pyx_n_u_n_points, __pyx_mstate->__pyx_n_u_n_steps, __pyx_mstate->__pyx_n_u_iters, __pyx_mstate->__pyx_n_u_curvtype0, __pyx_mstate->__pyx_n_u_curvtype1, __pyx_mstate->__pyx_n_u_curvtype2, __pyx_mstate->__pyx_n_u_curvtype3, __pyx_mstate->__pyx_n_u_fwhm_flow, __pyx_mstate->__pyx_n_u_fwhm_curv, __pyx_mstate->__pyx_n_u_fwhm_disp, __pyx_mstate->__pyx_n_u_max_step_deg, __pyx_mstate->__pyx_n_u_sigma_x, __pyx_mstate->__pyx_n_u_rate, __pyx_mstate->__pyx_n_u_step_factor, __pyx_mstate->__pyx_n_u_rotate, __pyx_mstate->__pyx_n_u_smooth_velocity, __pyx_mstate->__pyx_n_u_smooth_displacement, __pyx_mstate->__pyx_n_u_use_hessian, __pyx_mstate->__pyx_n_u_use_line_search, __pyx_mstate->__pyx_n_u_use_expmap, __pyx_mstate->__pyx_n_u_use_tangent, __pyx_mstate->__pyx_n_u_use_geodesic, __pyx_mstate->__pyx_n_u_unfold, __pyx_mstate->__pyx_n_u_std_map, __pyx_mstate->__pyx_n_u_std_exp, __pyx_mstate->__pyx_n_u_cortex_mask, __pyx_mstate->__pyx_n_u_l_dist, __pyx_mstate->__pyx_n_u_verbose, __pyx_mstate->__pyx_n_u_debug, __pyx_mstate->__pyx_n_u_src_v, __pyx_mstate->__pyx_n_u_src_f, __pyx_mstate->__pyx_n_u_sph_v, __pyx_mstate->__pyx_n_u_sph_f, __pyx_mstate->__pyx_n_u_trg_v, __pyx_mstate->__pyx_n_u_trg_f, __pyx_mstate->__pyx_n_u_tsph_v, __pyx_mstate->__pyx_n_u_tsph_f, __pyx_mstate->__pyx_n_u_src_mesh, __pyx_mstate->__pyx_n_u_sph_mesh, __pyx_mstate->__pyx_n_u_trg_mesh, __pyx_mstate->__pyx_n_u_tsph_mesh, __pyx_mstate->__pyx_n_u_opt, __pyx_mstate->__pyx_n_u_std_arr, __pyx_mstate->__pyx_n_u_mask_arr, __pyx_mstate->__pyx_n_u_n_trg, __pyx_mstate->__pyx_n_u_lvl, __pyx_mstate->__pyx_n_u_npl, __pyx_mstate->__pyx_n_u_out_obj, __pyx_mstate->__pyx_n_u_warped, __pyx_mstate->__pyx_n_u_st, __pyx_mstate->__pyx_n_u_warped_mesh};
-    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_cat_surf__spherical_demon_pyx, __pyx_mstate->__pyx_n_u_spherical_demon, __pyx_mstate->__pyx_kp_b_iso88591_P_uBc_a_j_Q_y_1_j_vS_j_81_81_81, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
+    const __Pyx_PyCode_New_function_description descr = {35, 0, 0, 56, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 30};
+    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_source_surface, __pyx_mstate->__pyx_n_u_source_sphere, __pyx_mstate->__pyx_n_u_target_surface, __pyx_mstate->__pyx_n_u_target_sphere, __pyx_mstate->__pyx_n_u_n_points, __pyx_mstate->__pyx_n_u_n_steps, __pyx_mstate->__pyx_n_u_iters, __pyx_mstate->__pyx_n_u_curvtype0, __pyx_mstate->__pyx_n_u_curvtype1, __pyx_mstate->__pyx_n_u_curvtype2, __pyx_mstate->__pyx_n_u_curvtype3, __pyx_mstate->__pyx_n_u_fwhm_flow, __pyx_mstate->__pyx_n_u_fwhm_curv, __pyx_mstate->__pyx_n_u_fwhm_disp, __pyx_mstate->__pyx_n_u_max_step_deg, __pyx_mstate->__pyx_n_u_sigma_x, __pyx_mstate->__pyx_n_u_rate, __pyx_mstate->__pyx_n_u_step_factor, __pyx_mstate->__pyx_n_u_rotate, __pyx_mstate->__pyx_n_u_smooth_velocity, __pyx_mstate->__pyx_n_u_smooth_displacement, __pyx_mstate->__pyx_n_u_use_hessian, __pyx_mstate->__pyx_n_u_use_line_search, __pyx_mstate->__pyx_n_u_use_expmap, __pyx_mstate->__pyx_n_u_use_tangent, __pyx_mstate->__pyx_n_u_use_geodesic, __pyx_mstate->__pyx_n_u_unfold, __pyx_mstate->__pyx_n_u_cortex_mask, __pyx_mstate->__pyx_n_u_l_dist, __pyx_mstate->__pyx_n_u_coarse_stiffness, __pyx_mstate->__pyx_n_u_rot_max_degrees, __pyx_mstate->__pyx_n_u_rot_min_degrees, __pyx_mstate->__pyx_n_u_rot_nangles, __pyx_mstate->__pyx_n_u_verbose, __pyx_mstate->__pyx_n_u_debug, __pyx_mstate->__pyx_n_u_src_v, __pyx_mstate->__pyx_n_u_src_f, __pyx_mstate->__pyx_n_u_sph_v, __pyx_mstate->__pyx_n_u_sph_f, __pyx_mstate->__pyx_n_u_trg_v, __pyx_mstate->__pyx_n_u_trg_f, __pyx_mstate->__pyx_n_u_tsph_v, __pyx_mstate->__pyx_n_u_tsph_f, __pyx_mstate->__pyx_n_u_src_mesh, __pyx_mstate->__pyx_n_u_sph_mesh, __pyx_mstate->__pyx_n_u_trg_mesh, __pyx_mstate->__pyx_n_u_tsph_mesh, __pyx_mstate->__pyx_n_u_opt, __pyx_mstate->__pyx_n_u_mask_arr, __pyx_mstate->__pyx_n_u_n_trg, __pyx_mstate->__pyx_n_u_lvl, __pyx_mstate->__pyx_n_u_npl, __pyx_mstate->__pyx_n_u_out_obj, __pyx_mstate->__pyx_n_u_warped, __pyx_mstate->__pyx_n_u_st, __pyx_mstate->__pyx_n_u_warped_mesh};
+    __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_cat_surf__spherical_demon_pyx, __pyx_mstate->__pyx_n_u_spherical_demon, __pyx_mstate->__pyx_kp_b_iso88591_uBc_a_j_Q_y_1_j_vS_j_81_81_81_I, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
   return 0;
