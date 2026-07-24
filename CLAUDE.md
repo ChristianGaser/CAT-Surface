@@ -55,7 +55,30 @@ Progs/      CLI entry points CAT_<Tool>.c    → thin wrappers over libCAT
 3rdparty/   Vendored deps    DO NOT modify unless unavoidable
 tests/      Unit tests       minunit framework; run with `make check`
 docs/       Generated Doxygen output
+cat_surface_cython/  Cython bindings (`cat-surf` package) exposing libCAT to Python
 ```
+
+## Python bindings (`cat-surf`)
+
+`cat_surface_cython/` builds the `cat-surf` PyPI package. Keep three layers consistent:
+
+- **Low-level array API** (`cat_surf.<fn>`): numpy in/out, one function per algorithm.
+- **File-based CLI mirror** (`cat_surf.cli.<fn>`): one function per `CAT_<Tool>` binary,
+  same positional order/defaults; reads files → calls the array API → writes files.
+- **Downstream callers**: T1Prep's `surface_estimation.py` and the Nipype
+  `nipype.interfaces.t1prep.cat_surf` interfaces call `cat_surf.cli.*`.
+
+The two spherical-registration back-ends must stay interface-compatible — both take
+`(source, source_sphere, target, target_sphere)` and return/write the warped source
+sphere, so they are drop-in interchangeable:
+
+| Algorithm | Binary | Array API | CLI mirror |
+| --- | --- | --- | --- |
+| DARTEL | `CAT_SurfWarp` | `cat_surf.surf_warp` | `cat_surf.cli.surf_warp` |
+| Spherical Demons | `CAT_SurfSphericalDemon` | `cat_surf.spherical_demon` | `cat_surf.cli.surf_spherical_demon` |
+
+Defaults live in the C source of truth (`Include/CAT_WarpDemons.h` +
+`CAT_WarpDemonsDefaults`); the Cython signature/docstring and the docs must match it.
 
 ## Architecture rules
 

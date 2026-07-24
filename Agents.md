@@ -91,6 +91,25 @@ If you move logic from a program into the library, the program should become a t
 - CAT-Surface intentionally vendors key dependencies so compilation does not require external downloads.
 - Avoid modifying `3rdparty/` unless necessary; prefer fixing/adding functionality in `Lib/`.
 
+### Python bindings (cat_surface_cython/ → `cat-surf`)
+
+The Cython package exposes libCAT to Python in three layers that must stay consistent:
+
+- **Array API** `cat_surf.<fn>` — numpy in/out, one function per algorithm.
+- **CLI mirror** `cat_surf.cli.<fn>` — one function per `CAT_<Tool>` binary (snake_case,
+  `CAT_` prefix dropped), same positional order and defaults; reads files → calls the
+  array API → writes files. This is what downstream code (T1Prep `surface_estimation.py`,
+  the Nipype `nipype.interfaces.t1prep.cat_surf` interfaces) calls.
+- **Source of truth for defaults** is the C side. For spherical registration the
+  option struct and `CAT_WarpDemonsDefaults` in `Include/CAT_WarpDemons.h` /
+  `Lib/CAT_WarpDemons.c` define the defaults that the Cython signature, its docstring,
+  and the docs must all match (e.g. `n_steps` max is `CAT_WARP_DEMONS_MAX_STEPS` = 4).
+
+The two spherical-registration back-ends are kept interface-compatible — both take
+`(source, source_sphere, target, target_sphere)` and produce the warped source sphere:
+`CAT_SurfWarp`/`surf_warp` (DARTEL) and `CAT_SurfSphericalDemon`/`surf_spherical_demon`
+(Spherical Demons). When you change one, mirror the change in the other layer and the docs.
+
 ## Build System Notes (Autotools/Libtool)
 
 This project uses autotools.
