@@ -196,6 +196,15 @@ jobs:
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
+          # The manylinux_2_28 (glibc 2.28) containers ship GCC 10.2.1, but a
+          # very new NumPy sdist requires GCC >= 10.3 to compile.  Forbid pip
+          # from source-building NumPy so it falls back to the newest release
+          # that ships a compatible (aarch64/x86_64) wheel — both when pip
+          # resolves the build-time NumPy and when the test venv installs the
+          # wheel's numpy>=2.0 runtime dependency.  Forwarded into the
+          # container so it applies to the build AND test subprocesses.
+          PIP_ONLY_BINARY: numpy
+          CIBW_ENVIRONMENT_PASS_LINUX: PIP_ONLY_BINARY
           # Build libCAT.a from source inside the manylinux container
           # so the C++ ABI (MeshFix) matches the container's libstdc++.
           CIBW_BEFORE_ALL_LINUX: |
