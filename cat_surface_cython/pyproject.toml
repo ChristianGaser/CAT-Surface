@@ -1,5 +1,18 @@
 [build-system]
-requires = ["setuptools>=64", "wheel", "Cython>=3.0", "numpy>=2.0"]
+# Build against the OLDEST NumPy 2.x that ships wheels for each Python.
+# The NumPy 2.x C-ABI is backward compatible, so an extension built against
+# the floor runs on every later 2.x at runtime (see the numpy>=2.0 runtime
+# dependency below).  Pinning the floor also avoids resolving to a very new
+# NumPy that has no prebuilt aarch64 wheel and would otherwise be compiled
+# from source inside the manylinux_2_28 container, whose GCC 10.2.1 is too
+# old (NumPy's meson build requires GCC >= 10.3).
+requires = [
+    "setuptools>=64",
+    "wheel",
+    "Cython>=3.0",
+    "numpy>=2.0.0,<2.1; python_version < '3.13'",
+    "numpy>=2.1.0,<2.2; python_version >= '3.13'",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
