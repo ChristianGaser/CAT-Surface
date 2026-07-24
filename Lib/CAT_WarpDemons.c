@@ -1230,12 +1230,12 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->fwhm_curv           = 16.0;
     opt->fwhm_disp           = 6.0;
     opt->rate                = 1.0;
-    opt->max_step_deg        = 50.0;
+    opt->max_step_deg        = 25.0;
     opt->sigma_x             = 20.0;  /* SD max_step = 2 */
     opt->step_factor         = 1.0;
     opt->cortex_mask         = NULL; /* no cortex masking by default */
     opt->l_dist              = 0.6;  /* metric-distortion regularizer off */
-    opt->coarse_stiffness    = 1.5;  /* no extra coarse-level stiffness by default */
+    opt->coarse_stiffness    = 1.0;  /* no extra coarse-level stiffness by default */
     opt->verbose             = 0;
     opt->debug               = 0;
 }

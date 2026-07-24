@@ -39,10 +39,10 @@ int verbose = 0;
 double fwhm_flow = 16.0;
 double fwhm_curv = 16.0;
 double fwhm_disp = 6.0;
-double max_step_deg = 50.0;
+double max_step_deg = 25.0;
 double sigma_x_default = 20.0; /* SD max_step = 2 */
 double l_dist = 0.6;           /* metric-distortion regularizer weight (prototype) */
-double coarse_stiffness = 1.5; /* extra coarse-level regularization (1 = off) */
+double coarse_stiffness = 1; /* extra coarse-level regularization (1 = off) */
 double rot_max_degrees = 64.0; /* rotation search: initial half-span */
 double rot_min_degrees = 1.0;  /* rotation search: finest span */
 int rot_nangles = 4;           /* rotation search: samples per axis per pass */
