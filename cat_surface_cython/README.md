@@ -221,6 +221,7 @@ The full mapping:
 | `CAT_SurfReduce` | `surf_reduce` |
 | `CAT_SurfRemoveIntersections` | `surf_remove_intersections` |
 | `CAT_SurfResample` | `surf_resample` |
+| `CAT_SurfSphericalDemon` | `surf_spherical_demon` |
 | `CAT_SurfWarp` | `surf_warp` |
 | `CAT_Vol2Surf` | `vol2surf` |
 | `CAT_VolAmap` | `vol_amap` |

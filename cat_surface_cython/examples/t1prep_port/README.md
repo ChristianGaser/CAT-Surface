@@ -37,18 +37,26 @@ binary-calling path, allowing A/B comparison.
 
 ## Coverage
 
-13 of 14 CAT binary calls in `surface_estimation()` are fully replaced
-in-process via `cat_surf` / `cat_surf.cli`. Two steps still fall through
-to the binaries:
+All spherical-registration variants used by `surface_estimation()` are
+replaced in-process via `cat_surf` / `cat_surf.cli`:
 
-- **`CAT_SurfWarp -avg`** (rotated double-run) — the `-avg` mode of
-  `cat_surf.surf_warp` isn't exposed yet. Adding it is ~15 lines in
-  `_surf_warp.pyx`.
+- **`CAT_SurfWarp`** (DARTEL) — `cat_surf.cli.surf_warp`, including the
+  `-avg` rotated double-run via `avg=True`.
+- **`CAT_SurfSphericalDemon`** (Spherical Demons) — `cat_surf.cli.surf_spherical_demon`.
+
+Both take the same positional order
+(`source, source_sphere, target, target_sphere, output_sphere`) and
+write the warped source sphere, so either registration back-end can be
+selected without changing the surrounding port code.
+
+Two steps still fall through to the binaries:
+
 - **Atlas annot resampling** (`CAT_SurfResample -label … .annot`) —
   annot file I/O requires libCAT's `read_annotation_table` which isn't
   surfaced in `cat_surf._io` yet.
-- **`CAT_SurfCurvature`** (fmriprep branch only) — no `cat_surf`
-  wrapper exists. Skipped unless `--fmriprep 1`.
+- **`CAT_SurfCurvature`** (fmriprep branch only) — exposed as
+  `cat_surf.cli.surf_curvature`; skipped in the port unless
+  `--fmriprep 1`.
 
 Set `T1PREP_DISABLE_FALLBACK=1` to make these raise instead of
 silently invoking the binary (useful for CI).
