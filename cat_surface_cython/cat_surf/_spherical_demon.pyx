@@ -32,7 +32,7 @@ def spherical_demon(source_surface,
                     target_surface,
                     target_sphere,
                     int n_points=20480,
-                    int n_steps=5,
+                    int n_steps=4,
                     int iters=150,
                     int curvtype0=1000,
                     int curvtype1=250,
@@ -80,24 +80,24 @@ def spherical_demon(source_surface,
         1/4 the points.
     n_steps : int
         Number of multi-resolution pyramid levels, coarse to fine
-        (1..CAT_WARP_DEMONS_MAX_STEPS, default 3).
+        (1..CAT_WARP_DEMONS_MAX_STEPS, i.e. 1..4; default 4).
     iters : int
-        Maximum iterations per level (default 100).
+        Maximum iterations per level (default 150).
     curvtype0, curvtype1, curvtype2, curvtype3 : int
         Curvature feature per level (coarse to fine).  0 mean curvature
         (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean
         curvature (rad), 5 sulcal-depth-like, >5 depth-potential with
-        alpha = 1/curvtype.  Defaults 1000, 750, 500, 15 (depth-potential;
+        alpha = 1/curvtype.  Defaults 1000, 250, 125, 15 (depth-potential;
         the 4th level is only used with ``n_steps`` 4).
     fwhm_flow : float
-        Velocity-update smoothing FWHM (default 12.0).
+        Velocity-update smoothing FWHM (default 16.0).
     fwhm_curv : float
         Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).
     fwhm_disp : float
         Displacement-field smoothing FWHM, the elastic prior (default 6.0).
     max_step_deg : float
         Clamp per-iteration |dtheta,dphi| to this many degrees; <=0 disables
-        (default 50.0).
+        (default 25.0).
     sigma_x : float
         Spherical Demons Tikhonov regularization weight (default 20.0).
     rate : float
@@ -141,7 +141,7 @@ def spherical_demon(source_surface,
         term): each iteration takes a gradient step pulling warped neighbour
         distances back toward the original sphere metric, resisting local
         stretch/fold while still allowing large smooth warps.  0 disables it
-        (default 0.3).  Try small values (e.g. 0.05-0.2).
+        (default 0.6).
     coarse_stiffness : float
         Extra Dartel-like stiffness on the coarser pyramid levels: the flow and
         displacement smoothing FWHM are multiplied by a factor equal to this

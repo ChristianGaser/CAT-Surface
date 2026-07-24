@@ -28,8 +28,8 @@
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/Include/CAT_WarpDemons.h"
         ],
         "extra_link_args": [
-            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/.libs/libCAT.a",
-            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/fftw-build/.libs/libfftw3.a",
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64/.libs/libCAT.a",
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64/3rdparty/fftw-build/.libs/libfftw3.a",
             "-lm",
             "-lz",
             "-lexpat"
@@ -45,7 +45,7 @@
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/zlib",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/expat",
             "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/3rdparty/dartel",
-            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface"
+            "/Users/gaser/Library/CloudStorage/Dropbox/GitHub/CAT-Surface/build-native-arm64"
         ],
         "language": "c",
         "name": "cat_surf._spherical_demon",
@@ -4922,7 +4922,7 @@ PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-PyDoc_STRVAR(__pyx_doc_8cat_surf_16_spherical_demon_spherical_demon, "\n    Warp a source sphere onto a template sphere via Spherical Demons.\n\n    Mirrors ``CAT_SurfSphericalDemon``.  The source/template surfaces drive the\n    feature matching (curvature), the spheres carry the deformation.  Each\n    surface must share its vertex count and topology with its sphere.\n\n    Parameters\n    ----------\n    source_surface, source_sphere : (vertices, faces)\n        Subject's cortical surface and its spherical mapping.\n    target_surface, target_sphere : (vertices, faces)\n        Template surface and its sphere.\n    n_points : int\n        Finest pyramid resolution (default 20480); each coarser level uses\n        1/4 the points.\n    n_steps : int\n        Number of multi-resolution pyramid levels, coarse to fine\n        (1..CAT_WARP_DEMONS_MAX_STEPS, default 3).\n    iters : int\n        Maximum iterations per level (default 100).\n    curvtype0, curvtype1, curvtype2, curvtype3 : int\n        Curvature feature per level (coarse to fine).  0 mean curvature\n        (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean\n        curvature (rad), 5 sulcal-depth-like, >5 depth-potential with\n        alpha = 1/curvtype.  Defaults 1000, 750, 500, 15 (depth-potential;\n        the 4th level is only used with ``n_steps`` 4).\n    fwhm_flow : float\n        Velocity-update smoothing FWHM (default 12.0).\n    fwhm_curv : float\n        Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).\n    fwhm_disp : float\n        Displacement-field smoothing FWHM, the elastic prior (default 6.0).\n    max_step_deg : float\n        Clamp per-iteration |dtheta,dphi| to this many degrees; <=0 disables\n        (default 50.0).\n    sigma_x : float\n        Spherical Demons Tikhonov regularization weight (default 20.0).\n    rate : float\n        Per-iteration multiplier for ``fwhm_flow`` (default 1.0 = constant).\n    step_factor : float\n        Global step-size factor (default 1.0).\n    rotate : bool\n        Rigid rotation pre""-alignment on the coarsest level (default True).\n    smooth_velocity : bool\n        Smooth the velocity update, a fluid prior (default True).\n    smooth_displacement : bool\n        Smooth the displacement field, an elastic prior (default True).\n    use_hessian : bool\n        Per-vertex Gauss-Newton 2x2 Hessian update (default True).\n    use_line_search : bool\n        Adaptive step backtracking on stalled correlation (default False).\n    use_expmap : bool\n        Diffeomorphic scaling-and-squaring exponential map (default True).\n        If False, falls back to an additive theta/phi flow.\n    use_tangent : bool\n        Compute the update in a per-vertex tangent-plane frame (as in\n        Spherical Demons) instead of the global lat-lon chart.  Requires\n        ``use_expmap``.  Default True.\n    use_geodesic : bool\n        Compose the diffeomorphic exp-map warp with geodesic (slerp)\n        barycentric interpolation on the sphere instead of\n        linear-then-renormalize.  Slightly more accurate, slightly slower.\n        Default True.\n    unfold : bool\n        Post-step: relax folded (negative-area) triangles in the final warp\n        until orientations are restored.  Removes folds introduced when\n        up-sampling the warp onto an irregular full-resolution mesh.\n        Default False.\n    cortex_mask : array_like or None\n        Optional per-vertex cortex mask on the TEMPLATE mesh (one value per\n        ``target_sphere`` vertex; 0 excludes a vertex, e.g. the medial wall,\n        >0 includes it).  Excludes non-cortex from the data term\n        (FreeSurfer-style).  Default None.\n    l_dist : float\n        Weight of the metric-distortion regularizer (FreeSurfer-style distance\n        term): each iteration takes a gradient step pulling warped neighbour\n        distances back toward the original sphere metric, resisting local\n        stretch/fold while still allowing large smooth warps.  0 disables it\n        (default 0.3).  Try small ""values (e.g. 0.05-0.2).\n    coarse_stiffness : float\n        Extra Dartel-like stiffness on the coarser pyramid levels: the flow and\n        displacement smoothing FWHM are multiplied by a factor equal to this\n        value at the coarsest level, decaying to 1.0 at the finest.  A stiffer\n        coarse warp moves whole folds together and resists a sulcus slipping one\n        wavelength into its neighbour.  1.0 disables it (default); try 1.5-2.5.\n    rot_max_degrees : float\n        Initial rotation search: half-width of the initial angular span, in\n        degrees (default 64.0, matching FreeSurfer).  This is the capture range.\n        The rotation is found by an exhaustive coarse-to-fine global search over\n        all three angles, so it survives large misalignments that a local\n        search cannot escape.  Only used when ``rotate`` is True.\n    rot_min_degrees : float\n        Initial rotation search: stop once the angular span falls below this\n        many degrees (default 1.0).\n    rot_nangles : int\n        Initial rotation search: grid samples per axis per pass (default 4).\n        Cost grows as ``(rot_nangles + 1) ** 3`` per pass; raise for a denser\n        search, lower for speed.\n    verbose : bool\n        Print per-iteration progress (default False).\n    debug : bool\n        Write intermediate debug files (default False).\n\n    Returns\n    -------\n    warped_sphere_vertices : ndarray, shape (V, 3), float64\n    warped_sphere_faces    : ndarray, shape (F, 3), int32\n        The deformed source sphere at the input source-sphere resolution.\n    ");
+PyDoc_STRVAR(__pyx_doc_8cat_surf_16_spherical_demon_spherical_demon, "\n    Warp a source sphere onto a template sphere via Spherical Demons.\n\n    Mirrors ``CAT_SurfSphericalDemon``.  The source/template surfaces drive the\n    feature matching (curvature), the spheres carry the deformation.  Each\n    surface must share its vertex count and topology with its sphere.\n\n    Parameters\n    ----------\n    source_surface, source_sphere : (vertices, faces)\n        Subject's cortical surface and its spherical mapping.\n    target_surface, target_sphere : (vertices, faces)\n        Template surface and its sphere.\n    n_points : int\n        Finest pyramid resolution (default 20480); each coarser level uses\n        1/4 the points.\n    n_steps : int\n        Number of multi-resolution pyramid levels, coarse to fine\n        (1..CAT_WARP_DEMONS_MAX_STEPS, i.e. 1..4; default 4).\n    iters : int\n        Maximum iterations per level (default 150).\n    curvtype0, curvtype1, curvtype2, curvtype3 : int\n        Curvature feature per level (coarse to fine).  0 mean curvature\n        (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean\n        curvature (rad), 5 sulcal-depth-like, >5 depth-potential with\n        alpha = 1/curvtype.  Defaults 1000, 250, 125, 15 (depth-potential;\n        the 4th level is only used with ``n_steps`` 4).\n    fwhm_flow : float\n        Velocity-update smoothing FWHM (default 16.0).\n    fwhm_curv : float\n        Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).\n    fwhm_disp : float\n        Displacement-field smoothing FWHM, the elastic prior (default 6.0).\n    max_step_deg : float\n        Clamp per-iteration |dtheta,dphi| to this many degrees; <=0 disables\n        (default 25.0).\n    sigma_x : float\n        Spherical Demons Tikhonov regularization weight (default 20.0).\n    rate : float\n        Per-iteration multiplier for ``fwhm_flow`` (default 1.0 = constant).\n    step_factor : float\n        Global step-size factor (default 1.0).\n    rotate : bool\n        Rigid r""otation pre-alignment on the coarsest level (default True).\n    smooth_velocity : bool\n        Smooth the velocity update, a fluid prior (default True).\n    smooth_displacement : bool\n        Smooth the displacement field, an elastic prior (default True).\n    use_hessian : bool\n        Per-vertex Gauss-Newton 2x2 Hessian update (default True).\n    use_line_search : bool\n        Adaptive step backtracking on stalled correlation (default False).\n    use_expmap : bool\n        Diffeomorphic scaling-and-squaring exponential map (default True).\n        If False, falls back to an additive theta/phi flow.\n    use_tangent : bool\n        Compute the update in a per-vertex tangent-plane frame (as in\n        Spherical Demons) instead of the global lat-lon chart.  Requires\n        ``use_expmap``.  Default True.\n    use_geodesic : bool\n        Compose the diffeomorphic exp-map warp with geodesic (slerp)\n        barycentric interpolation on the sphere instead of\n        linear-then-renormalize.  Slightly more accurate, slightly slower.\n        Default True.\n    unfold : bool\n        Post-step: relax folded (negative-area) triangles in the final warp\n        until orientations are restored.  Removes folds introduced when\n        up-sampling the warp onto an irregular full-resolution mesh.\n        Default False.\n    cortex_mask : array_like or None\n        Optional per-vertex cortex mask on the TEMPLATE mesh (one value per\n        ``target_sphere`` vertex; 0 excludes a vertex, e.g. the medial wall,\n        >0 includes it).  Excludes non-cortex from the data term\n        (FreeSurfer-style).  Default None.\n    l_dist : float\n        Weight of the metric-distortion regularizer (FreeSurfer-style distance\n        term): each iteration takes a gradient step pulling warped neighbour\n        distances back toward the original sphere metric, resisting local\n        stretch/fold while still allowing large smooth warps.  0 disables it\n        (default 0.6).""\n    coarse_stiffness : float\n        Extra Dartel-like stiffness on the coarser pyramid levels: the flow and\n        displacement smoothing FWHM are multiplied by a factor equal to this\n        value at the coarsest level, decaying to 1.0 at the finest.  A stiffer\n        coarse warp moves whole folds together and resists a sulcus slipping one\n        wavelength into its neighbour.  1.0 disables it (default); try 1.5-2.5.\n    rot_max_degrees : float\n        Initial rotation search: half-width of the initial angular span, in\n        degrees (default 64.0, matching FreeSurfer).  This is the capture range.\n        The rotation is found by an exhaustive coarse-to-fine global search over\n        all three angles, so it survives large misalignments that a local\n        search cannot escape.  Only used when ``rotate`` is True.\n    rot_min_degrees : float\n        Initial rotation search: stop once the angular span falls below this\n        many degrees (default 1.0).\n    rot_nangles : int\n        Initial rotation search: grid samples per axis per pass (default 4).\n        Cost grows as ``(rot_nangles + 1) ** 3`` per pass; raise for a denser\n        search, lower for speed.\n    verbose : bool\n        Print per-iteration progress (default False).\n    debug : bool\n        Write intermediate debug files (default False).\n\n    Returns\n    -------\n    warped_sphere_vertices : ndarray, shape (V, 3), float64\n    warped_sphere_faces    : ndarray, shape (F, 3), int32\n        The deformed source sphere at the input source-sphere resolution.\n    ");
 static PyMethodDef __pyx_mdef_8cat_surf_16_spherical_demon_1spherical_demon = {"spherical_demon", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_8cat_surf_16_spherical_demon_1spherical_demon, __Pyx_METH_FASTCALL|METH_KEYWORDS, __pyx_doc_8cat_surf_16_spherical_demon_spherical_demon};
 static PyObject *__pyx_pw_8cat_surf_16_spherical_demon_1spherical_demon(PyObject *__pyx_self, 
 #if CYTHON_METH_FASTCALL
@@ -5141,7 +5141,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
  *                     bint use_geodesic=True,
  *                     bint unfold=False,
  *                     cortex_mask=None,             # <<<<<<<<<<<<<<
- *                     double l_dist=0.3,
+ *                     double l_dist=0.6,
  *                     double coarse_stiffness=1.0,
 */
       if (!values[27]) values[27] = __Pyx_NewRef(((PyObject *)Py_None));
@@ -5300,12 +5300,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
     if (values[5]) {
       __pyx_v_n_steps = __Pyx_PyLong_As_int(values[5]); if (unlikely((__pyx_v_n_steps == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 35, __pyx_L3_error)
     } else {
-      __pyx_v_n_steps = ((int)((int)3));
+      __pyx_v_n_steps = ((int)((int)4));
     }
     if (values[6]) {
       __pyx_v_iters = __Pyx_PyLong_As_int(values[6]); if (unlikely((__pyx_v_iters == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 36, __pyx_L3_error)
     } else {
-      __pyx_v_iters = ((int)((int)0x64));
+      __pyx_v_iters = ((int)((int)0x96));
     }
     if (values[7]) {
       __pyx_v_curvtype0 = __Pyx_PyLong_As_int(values[7]); if (unlikely((__pyx_v_curvtype0 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 37, __pyx_L3_error)
@@ -5315,12 +5315,12 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
     if (values[8]) {
       __pyx_v_curvtype1 = __Pyx_PyLong_As_int(values[8]); if (unlikely((__pyx_v_curvtype1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 38, __pyx_L3_error)
     } else {
-      __pyx_v_curvtype1 = ((int)((int)0x2EE));
+      __pyx_v_curvtype1 = ((int)((int)0xFA));
     }
     if (values[9]) {
       __pyx_v_curvtype2 = __Pyx_PyLong_As_int(values[9]); if (unlikely((__pyx_v_curvtype2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 39, __pyx_L3_error)
     } else {
-      __pyx_v_curvtype2 = ((int)((int)0x1F4));
+      __pyx_v_curvtype2 = ((int)((int)0x7D));
     }
     if (values[10]) {
       __pyx_v_curvtype3 = __Pyx_PyLong_As_int(values[10]); if (unlikely((__pyx_v_curvtype3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 40, __pyx_L3_error)
@@ -5330,7 +5330,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
     if (values[11]) {
       __pyx_v_fwhm_flow = __Pyx_PyFloat_AsDouble(values[11]); if (unlikely((__pyx_v_fwhm_flow == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 41, __pyx_L3_error)
     } else {
-      __pyx_v_fwhm_flow = ((double)((double)12.0));
+      __pyx_v_fwhm_flow = ((double)((double)16.0));
     }
     if (values[12]) {
       __pyx_v_fwhm_curv = __Pyx_PyFloat_AsDouble(values[12]); if (unlikely((__pyx_v_fwhm_curv == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 42, __pyx_L3_error)
@@ -5345,7 +5345,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
     if (values[14]) {
       __pyx_v_max_step_deg = __Pyx_PyFloat_AsDouble(values[14]); if (unlikely((__pyx_v_max_step_deg == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 44, __pyx_L3_error)
     } else {
-      __pyx_v_max_step_deg = ((double)((double)50.0));
+      __pyx_v_max_step_deg = ((double)((double)25.0));
     }
     if (values[15]) {
       __pyx_v_sigma_x = __Pyx_PyFloat_AsDouble(values[15]); if (unlikely((__pyx_v_sigma_x == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 45, __pyx_L3_error)
@@ -5475,7 +5475,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
  *                     bint use_geodesic=True,
  *                     bint unfold=False,             # <<<<<<<<<<<<<<
  *                     cortex_mask=None,
- *                     double l_dist=0.3,
+ *                     double l_dist=0.6,
 */
       __pyx_v_unfold = ((int)((int)0));
     }
@@ -5483,7 +5483,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
     if (values[28]) {
       __pyx_v_l_dist = __Pyx_PyFloat_AsDouble(values[28]); if (unlikely((__pyx_v_l_dist == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 58, __pyx_L3_error)
     } else {
-      __pyx_v_l_dist = ((double)((double)0.3));
+      __pyx_v_l_dist = ((double)((double)0.6));
     }
     if (values[29]) {
       __pyx_v_coarse_stiffness = __Pyx_PyFloat_AsDouble(values[29]); if (unlikely((__pyx_v_coarse_stiffness == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 59, __pyx_L3_error)
@@ -7901,8 +7901,8 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
  *                     target_surface,
  *                     target_sphere,
  *                     int n_points=20480,             # <<<<<<<<<<<<<<
- *                     int n_steps=3,
- *                     int iters=100,
+ *                     int n_steps=4,
+ *                     int iters=150,
 */
   __pyx_t_2 = __Pyx_PyLong_From_int(((int)0x5000)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 34, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
@@ -7910,88 +7910,88 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   /* "cat_surf/_spherical_demon.pyx":35
  *                     target_sphere,
  *                     int n_points=20480,
- *                     int n_steps=3,             # <<<<<<<<<<<<<<
- *                     int iters=100,
+ *                     int n_steps=4,             # <<<<<<<<<<<<<<
+ *                     int iters=150,
  *                     int curvtype0=1000,
 */
-  __pyx_t_4 = __Pyx_PyLong_From_int(((int)3)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 35, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyLong_From_int(((int)4)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 35, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
 
   /* "cat_surf/_spherical_demon.pyx":36
  *                     int n_points=20480,
- *                     int n_steps=3,
- *                     int iters=100,             # <<<<<<<<<<<<<<
+ *                     int n_steps=4,
+ *                     int iters=150,             # <<<<<<<<<<<<<<
  *                     int curvtype0=1000,
- *                     int curvtype1=750,
+ *                     int curvtype1=250,
 */
-  __pyx_t_6 = __Pyx_PyLong_From_int(((int)0x64)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 36, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyLong_From_int(((int)0x96)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 36, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
 
   /* "cat_surf/_spherical_demon.pyx":37
- *                     int n_steps=3,
- *                     int iters=100,
+ *                     int n_steps=4,
+ *                     int iters=150,
  *                     int curvtype0=1000,             # <<<<<<<<<<<<<<
- *                     int curvtype1=750,
- *                     int curvtype2=500,
+ *                     int curvtype1=250,
+ *                     int curvtype2=125,
 */
   __pyx_t_7 = __Pyx_PyLong_From_int(((int)0x3E8)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 37, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
 
   /* "cat_surf/_spherical_demon.pyx":38
- *                     int iters=100,
+ *                     int iters=150,
  *                     int curvtype0=1000,
- *                     int curvtype1=750,             # <<<<<<<<<<<<<<
- *                     int curvtype2=500,
+ *                     int curvtype1=250,             # <<<<<<<<<<<<<<
+ *                     int curvtype2=125,
  *                     int curvtype3=15,
 */
-  __pyx_t_8 = __Pyx_PyLong_From_int(((int)0x2EE)); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 38, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyLong_From_int(((int)0xFA)); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 38, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
 
   /* "cat_surf/_spherical_demon.pyx":39
  *                     int curvtype0=1000,
- *                     int curvtype1=750,
- *                     int curvtype2=500,             # <<<<<<<<<<<<<<
+ *                     int curvtype1=250,
+ *                     int curvtype2=125,             # <<<<<<<<<<<<<<
  *                     int curvtype3=15,
- *                     double fwhm_flow=12.0,
+ *                     double fwhm_flow=16.0,
 */
-  __pyx_t_9 = __Pyx_PyLong_From_int(((int)0x1F4)); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 39, __pyx_L1_error)
+  __pyx_t_9 = __Pyx_PyLong_From_int(((int)0x7D)); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 39, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_9);
 
   /* "cat_surf/_spherical_demon.pyx":40
- *                     int curvtype1=750,
- *                     int curvtype2=500,
+ *                     int curvtype1=250,
+ *                     int curvtype2=125,
  *                     int curvtype3=15,             # <<<<<<<<<<<<<<
- *                     double fwhm_flow=12.0,
+ *                     double fwhm_flow=16.0,
  *                     double fwhm_curv=16.0,
 */
   __pyx_t_10 = __Pyx_PyLong_From_int(((int)15)); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 40, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
 
   /* "cat_surf/_spherical_demon.pyx":41
- *                     int curvtype2=500,
+ *                     int curvtype2=125,
  *                     int curvtype3=15,
- *                     double fwhm_flow=12.0,             # <<<<<<<<<<<<<<
+ *                     double fwhm_flow=16.0,             # <<<<<<<<<<<<<<
  *                     double fwhm_curv=16.0,
  *                     double fwhm_disp=6.0,
 */
-  __pyx_t_11 = PyFloat_FromDouble(((double)12.0)); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 41, __pyx_L1_error)
+  __pyx_t_11 = PyFloat_FromDouble(((double)16.0)); if (unlikely(!__pyx_t_11)) __PYX_ERR(0, 41, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_11);
 
   /* "cat_surf/_spherical_demon.pyx":42
  *                     int curvtype3=15,
- *                     double fwhm_flow=12.0,
+ *                     double fwhm_flow=16.0,
  *                     double fwhm_curv=16.0,             # <<<<<<<<<<<<<<
  *                     double fwhm_disp=6.0,
- *                     double max_step_deg=50.0,
+ *                     double max_step_deg=25.0,
 */
   __pyx_t_12 = PyFloat_FromDouble(((double)16.0)); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 42, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
 
   /* "cat_surf/_spherical_demon.pyx":43
- *                     double fwhm_flow=12.0,
+ *                     double fwhm_flow=16.0,
  *                     double fwhm_curv=16.0,
  *                     double fwhm_disp=6.0,             # <<<<<<<<<<<<<<
- *                     double max_step_deg=50.0,
+ *                     double max_step_deg=25.0,
  *                     double sigma_x=20.0,
 */
   __pyx_t_13 = PyFloat_FromDouble(((double)6.0)); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 43, __pyx_L1_error)
@@ -8000,16 +8000,16 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   /* "cat_surf/_spherical_demon.pyx":44
  *                     double fwhm_curv=16.0,
  *                     double fwhm_disp=6.0,
- *                     double max_step_deg=50.0,             # <<<<<<<<<<<<<<
+ *                     double max_step_deg=25.0,             # <<<<<<<<<<<<<<
  *                     double sigma_x=20.0,
  *                     double rate=1.0,
 */
-  __pyx_t_14 = PyFloat_FromDouble(((double)50.0)); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 44, __pyx_L1_error)
+  __pyx_t_14 = PyFloat_FromDouble(((double)25.0)); if (unlikely(!__pyx_t_14)) __PYX_ERR(0, 44, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_14);
 
   /* "cat_surf/_spherical_demon.pyx":45
  *                     double fwhm_disp=6.0,
- *                     double max_step_deg=50.0,
+ *                     double max_step_deg=25.0,
  *                     double sigma_x=20.0,             # <<<<<<<<<<<<<<
  *                     double rate=1.0,
  *                     double step_factor=1.0,
@@ -8018,7 +8018,7 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   __Pyx_GOTREF(__pyx_t_15);
 
   /* "cat_surf/_spherical_demon.pyx":46
- *                     double max_step_deg=50.0,
+ *                     double max_step_deg=25.0,
  *                     double sigma_x=20.0,
  *                     double rate=1.0,             # <<<<<<<<<<<<<<
  *                     double step_factor=1.0,
@@ -8122,7 +8122,7 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
  *                     bint use_geodesic=True,
  *                     bint unfold=False,             # <<<<<<<<<<<<<<
  *                     cortex_mask=None,
- *                     double l_dist=0.3,
+ *                     double l_dist=0.6,
 */
   __pyx_t_26 = __Pyx_PyBool_FromLong(((int)0)); if (unlikely(!__pyx_t_26)) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_26);
@@ -8130,16 +8130,16 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   /* "cat_surf/_spherical_demon.pyx":58
  *                     bint unfold=False,
  *                     cortex_mask=None,
- *                     double l_dist=0.3,             # <<<<<<<<<<<<<<
+ *                     double l_dist=0.6,             # <<<<<<<<<<<<<<
  *                     double coarse_stiffness=1.0,
  *                     double rot_max_degrees=64.0,
 */
-  __pyx_t_27 = PyFloat_FromDouble(((double)0.3)); if (unlikely(!__pyx_t_27)) __PYX_ERR(0, 58, __pyx_L1_error)
+  __pyx_t_27 = PyFloat_FromDouble(((double)0.6)); if (unlikely(!__pyx_t_27)) __PYX_ERR(0, 58, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_27);
 
   /* "cat_surf/_spherical_demon.pyx":59
  *                     cortex_mask=None,
- *                     double l_dist=0.3,
+ *                     double l_dist=0.6,
  *                     double coarse_stiffness=1.0,             # <<<<<<<<<<<<<<
  *                     double rot_max_degrees=64.0,
  *                     double rot_min_degrees=1.0,
@@ -8148,7 +8148,7 @@ __Pyx_RefNannySetupContext("PyInit__spherical_demon", 0);
   __Pyx_GOTREF(__pyx_t_28);
 
   /* "cat_surf/_spherical_demon.pyx":60
- *                     double l_dist=0.3,
+ *                     double l_dist=0.6,
  *                     double coarse_stiffness=1.0,
  *                     double rot_max_degrees=64.0,             # <<<<<<<<<<<<<<
  *                     double rot_min_degrees=1.0,

@@ -36,6 +36,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfFractalDimension          -> surf_fractal_dimension
     CAT_SurfRatio                     -> surf_ratio
     CAT_SurfSulcusDepth               -> surf_sulcus_depth
+    CAT_SurfSphericalDemon            -> surf_spherical_demon
     CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
@@ -73,6 +74,7 @@ from cat_surf import (
     resample_annot as _resample_annot,
     surf_curvature as _surf_curvature,
     surf_warp as _surf_warp,
+    spherical_demon as _spherical_demon,
     vol2surf as _vol2surf,
     vol_amap as _vol_amap,
     vol_blood_vessel_correction as _vol_blood_vessel_correction,
@@ -349,6 +351,52 @@ def surf_warp(source_file, source_sphere_file,
     tsv, tsf = read_surface(target_sphere_file)
     wv, wf = _surf_warp((sv, sf), (ssv, ssf), (tv, tf), (tsv, tsf), **kwargs)
     write_surface(output_sphere_file, wv, wf)
+
+
+def surf_spherical_demon(source_file, source_sphere_file,
+                         target_file, target_sphere_file,
+                         output_sphere_file, output_surface_file=None,
+                         mask_file=None, **kwargs):
+    """Mirror of ``CAT_SurfSphericalDemon`` (Spherical Demons registration).
+
+    Warps the source sphere onto the template sphere by matching curvature
+    features and writes the warped source sphere (the binary's ``-ws``
+    output).  The positional order matches :func:`surf_warp`.
+
+    Parameters
+    ----------
+    source_file : str
+        Source cortical surface (binary ``-i``).
+    source_sphere_file : str
+        Spherical parameterisation of the source surface (``-is``).
+    target_file : str
+        Template cortical surface (``-t``).
+    target_sphere_file : str
+        Spherical parameterisation of the template surface (``-ts``).
+    output_sphere_file : str
+        Output warped source sphere (``-ws``).
+    output_surface_file : str, optional
+        If given, also write the (unchanged) source surface geometry
+        alongside the warped sphere, mirroring the binary's ``-w`` output.
+        This surface reuses the warped sphere as its new parameterisation
+        for downstream resampling.
+    mask_file : str, optional
+        Per-vertex cortex mask on the *template* mesh (binary ``-mask``);
+        forwarded to :func:`cat_surf.spherical_demon` as ``cortex_mask``.
+
+    Keyword arguments are forwarded to :func:`cat_surf.spherical_demon`.
+    """
+    sv, sf = read_surface(source_file)
+    ssv, ssf = read_surface(source_sphere_file)
+    tv, tf = read_surface(target_file)
+    tsv, tsf = read_surface(target_sphere_file)
+    if mask_file is not None:
+        kwargs.setdefault("cortex_mask", read_values(mask_file))
+    wv, wf = _spherical_demon((sv, sf), (ssv, ssf), (tv, tf), (tsv, tsf),
+                              **kwargs)
+    write_surface(output_sphere_file, wv, wf)
+    if output_surface_file is not None:
+        write_surface(output_surface_file, sv, sf)
 
 
 def surf_curvature(surface_file, output_values_file, curvtype=0,
@@ -720,6 +768,7 @@ __all__ = [
     "surf_resample_multi",
     "surf_curvature",
     "surf_sulcus_depth",
+    "surf_spherical_demon",
     "surf_warp",
     "surf2roi_multi",
     # Volume tools

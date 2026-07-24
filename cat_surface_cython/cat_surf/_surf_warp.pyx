@@ -112,6 +112,7 @@ def surf_warp(source_surface,
         ``average_xz_surf``.  Reduces pole-distortion at modest extra
         cost (default False).
     verbose : bool
+        Print per-step progress (default False).
 
     Returns
     -------
