@@ -20,6 +20,7 @@ depcomp
 libtool
 Makefile
 build*
+*build
 log*
 INSTALL
 __pycache__
@@ -30,4 +31,3 @@ Progs/CAT_[A-Za-z0-9_]*
 tests/test_math.out
 docs/doxygen/
 !Progs/CAT_*.c*
-3rdparty/*
