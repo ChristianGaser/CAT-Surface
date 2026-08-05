@@ -28,7 +28,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfDeform                    -> surf_deform
     CAT_SurfDistance                  -> surf_distance
     CAT_SurfReduce                    -> surf_reduce
-    CAT_SurfRemoveIntersections       -> surf_remove_intersections
+    CAT_SurfFixSelfIntersect          -> surf_fix_self_intersect
     CAT_SurfResample                  -> surf_resample
     CAT_SurfResample -label <annot>   -> surf_resample_annot
     CAT_SurfResampleMulti             -> surf_resample_multi
@@ -278,22 +278,21 @@ def surf_reduce(input_file, output_file, ratio=0.5, aggressiveness=7.0,
     write_surface(output_file, nv, nf)
 
 
-def surf_remove_intersections(input_file, output_file=None, *,
-                              count_only=False, max_iters=10,
-                              inner_loops=3, fill_holes=True, verbose=False):
-    """Mirror of ``CAT_SurfRemoveIntersections``.
+def surf_fix_self_intersect(input_file, output_file=None, *,
+                            count_only=False, max_passes=10,
+                            max_iters=50, verbose=False):
+    """Mirror of ``CAT_SurfFixSelfIntersect``.
 
-    When ``count_only=True``, returns the number of self-intersections
-    without writing any output (matches ``-count``).
+    When ``count_only=True``, returns the number of intersecting triangle
+    pairs without writing any output.
     """
     v, f = read_surface(input_file)
     if count_only:
         return _count_intersections(v, f)
     if output_file is None:
         raise ValueError("output_file required unless count_only=True")
-    nv, nf = _remove_intersections(v, f, max_iters=max_iters,
-                                    inner_loops=inner_loops,
-                                    fill_holes=fill_holes, verbose=verbose)
+    nv, nf = _remove_intersections(v, f, max_passes=max_passes,
+                                   max_iters=max_iters, verbose=verbose)
     write_surface(output_file, nv, nf)
 
 
@@ -762,7 +761,7 @@ __all__ = [
     "surf_fractal_dimension",
     "surf_ratio",
     "surf_reduce",
-    "surf_remove_intersections",
+    "surf_fix_self_intersect",
     "surf_resample",
     "surf_resample_annot",
     "surf_resample_multi",

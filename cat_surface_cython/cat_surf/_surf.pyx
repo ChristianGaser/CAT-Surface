@@ -613,47 +613,44 @@ def correct_thickness_folding(vertices, faces, thickness,
 
 
 # ===================================================================
-# Remove self-intersections  (mirrors CAT_SurfRemoveIntersections)
+# Remove self-intersections  (mirrors CAT_SurfFixSelfIntersect)
 # ===================================================================
-def remove_intersections(vertices, faces, int max_iters=10,
-                         int inner_loops=3, bint fill_holes=True,
-                         bint verbose=False):
+def remove_intersections(vertices, faces, int max_passes=10,
+                         int max_iters=50, bint verbose=False):
     """
-    Remove self-intersections from a triangle mesh (MeshFix).
+    Remove self-intersections from a triangle mesh.
+
+    Intersecting triangles are grouped into defect regions and locally
+    smoothed until they no longer intersect.  The mesh topology is preserved,
+    so the returned arrays have the same shape as the input and per-vertex
+    data stays valid.
 
     Parameters
     ----------
     vertices : array_like, shape (V, 3)
     faces    : array_like, shape (F, 3)
+    max_passes : int
+        Maximum number of detect/smooth passes.
     max_iters : int
-    inner_loops : int
-    fill_holes : bool
+        Maximum smoothing iterations per pass.
     verbose : bool
 
     Returns
     -------
-    new_vertices : ndarray, shape (V', 3), float64
-    new_faces    : ndarray, shape (F', 3), int32
+    new_vertices : ndarray, shape (V, 3), float64
+    new_faces    : ndarray, shape (F, 3), int32
     """
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
 
-    cdef C.CAT_MeshCleanOptions opts
-    C.CAT_MeshCleanOptionsInit(&opts)
-    opts.max_iters = max_iters
-    opts.inner_loops = inner_loops
-    opts.fill_holes = 1 if fill_holes else 0
-    opts.verbose = 1 if verbose else 0
-
-    cdef int rc = C.CAT_SurfMeshClean(mesh.ptr(), &opts)
-    if rc < 0:
-        raise RuntimeError(f"CAT_SurfMeshClean returned error code {rc}")
+    C.remove_intersections_iter(mesh.ptr(), max_passes, max_iters,
+                                1 if verbose else 0)
 
     return polygons_to_arrays(mesh)
 
 
 def count_intersections(vertices, faces):
     """
-    Count the number of self-intersecting triangles.
+    Count the number of self-intersecting triangle pairs.
 
     Parameters
     ----------
@@ -663,10 +660,26 @@ def count_intersections(vertices, faces):
     Returns
     -------
     int
-        Number of self-intersections.
+        Number of intersecting triangle pairs.
     """
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
-    return C.CAT_SurfCountIntersections(mesh.ptr())
+    cdef polygons_struct *poly = mesh.ptr()
+    cdef int *defects = <int *> malloc(sizeof(int) * poly.n_points)
+    cdef int *polydefects = <int *> malloc(sizeof(int) * poly.n_items)
+    cdef int n
+
+    if defects == NULL or polydefects == NULL:
+        free(defects)
+        free(polydefects)
+        raise MemoryError("could not allocate defect arrays")
+
+    try:
+        n = C.find_selfintersections(poly, defects, polydefects, 1)
+    finally:
+        free(defects)
+        free(polydefects)
+
+    return n
 
 
 # ===================================================================
@@ -906,7 +919,8 @@ def surf_deform(vertices, faces, volume,
     iterations : int
         Number of deformation iterations (default 75).
     remove_intersect : bool
-        Remove self-intersections via MeshFix at the end (default False).
+        Remove self-intersections at the end (default False).  Topology
+        preserving, so the vertex and face counts are unchanged.
     verbose : bool
 
     Returns

@@ -196,19 +196,14 @@ cdef extern from "CAT_Deform.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_MeshClean.h — Self-intersection removal (MeshFix)
+# CAT_Intersect.h — Self-intersection detection and repair
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_MeshClean.h":
-    ctypedef struct CAT_MeshCleanOptions:
-        int max_iters
-        int inner_loops
-        int fill_holes
-        int verbose
-
-    void CAT_MeshCleanOptionsInit(CAT_MeshCleanOptions *opts)
-    int  CAT_SurfMeshClean(polygons_struct *polygons,
-                           const CAT_MeshCleanOptions *opts)
-    int  CAT_SurfCountIntersections(polygons_struct *polygons)
+cdef extern from "CAT_Intersect.h":
+    int  find_selfintersections(polygons_struct *polygons, int *defects,
+                                int *polydefects, int init)
+    void remove_intersections(polygons_struct *polygons, int verbose)
+    int  remove_intersections_iter(polygons_struct *polygons, int max_passes,
+                                   int maxiter, int verbose)
 
 
 # ---------------------------------------------------------------------------

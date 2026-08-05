@@ -66,8 +66,8 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `smoothed_curvatures` | Mean curvature estimation | — |
 | `sulcus_depth` | Sulcal depth via depth potential | — |
 | `reduce_mesh` | Quadric (QEM) mesh decimation (`aggressiveness`, `preserve_sharp`) | `CAT_SurfReduce` |
-| `remove_intersections` | Self-intersection repair (MeshFix) | `CAT_SurfRemoveIntersections` |
-| `count_intersections` | Count self-intersecting faces | `CAT_SurfRemoveIntersections -count` |
+| `remove_intersections` | Self-intersection repair (topology preserving) | `CAT_SurfFixSelfIntersect` |
+| `count_intersections` | Count intersecting triangle pairs | `CAT_SurfSelfIntersect` |
 | `surf_average` | Vertex-wise averaging across surfaces (`return_rms` for std dev) | `CAT_SurfAverage` |
 | `surf_to_sphere` | Inflate surface to sphere | `CAT_Surf2Sphere` |
 | `sphere_radius` | Mean radius of a spherical surface | — |
@@ -219,7 +219,7 @@ The full mapping:
 | `CAT_SurfDeform` | `surf_deform` |
 | `CAT_SurfDistance` | `surf_distance` |
 | `CAT_SurfReduce` | `surf_reduce` |
-| `CAT_SurfRemoveIntersections` | `surf_remove_intersections` |
+| `CAT_SurfFixSelfIntersect` | `surf_fix_self_intersect` |
 | `CAT_SurfResample` | `surf_resample` |
 | `CAT_SurfSphericalDemon` | `surf_spherical_demon` |
 | `CAT_SurfWarp` | `surf_warp` |

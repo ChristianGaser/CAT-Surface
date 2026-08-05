@@ -107,12 +107,9 @@ if sys.platform == "darwin":
     # used to cause "OMP: Error #15" / thread-pool TLS corruption.
     extra_link_args.append("-lexpat")
 elif sys.platform == "linux":
-    # Linux: stdc++ for MeshFix C++ objects, pthread for libCAT's threads.
-    extra_link_args += ["-lstdc++", "-lpthread"]
-elif sys.platform == "win32":
-    # Windows (MinGW): stdc++ for MeshFix C++ objects.  libCAT's threaded
-    # paths fall back to serial on Windows, so no pthread is needed.
-    extra_link_args += ["-lstdc++"]
+    # Linux: pthread for libCAT's threads.  libCAT is pure C, so no C++
+    # runtime has to be linked in.
+    extra_link_args += ["-lpthread"]
 
 # ---------------------------------------------------------------------------
 # Use Cython if available, else fall back to pre-generated .c files
