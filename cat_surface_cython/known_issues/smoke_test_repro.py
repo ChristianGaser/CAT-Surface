@@ -200,8 +200,8 @@ def t_count_intersections():
     return f"intersections={n}"
 
 
-def t_remove_intersections():
-    v2, f2 = cs.remove_intersections(v_arr, f_arr)
+def t_fix_self_intersect():
+    v2, f2 = cs.fix_self_intersect(v_arr, f_arr)
     return f"V {len(v_arr)}->{len(v2)}"
 
 
@@ -224,7 +224,7 @@ run("reduce_mesh",               t_reduce_mesh)
 run("sphere_radius",             t_sphere_radius)
 run("smooth_mesh",               t_smooth_mesh)
 run("count_intersections",       t_count_intersections)
-run("remove_intersections",      t_remove_intersections)
+run("fix_self_intersect",        t_fix_self_intersect)
 run("correct_thickness_folding", t_correct_thickness_folding)
 
 

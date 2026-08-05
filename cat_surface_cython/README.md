@@ -66,7 +66,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `smoothed_curvatures` | Mean curvature estimation | — |
 | `sulcus_depth` | Sulcal depth via depth potential | — |
 | `reduce_mesh` | Quadric (QEM) mesh decimation (`aggressiveness`, `preserve_sharp`) | `CAT_SurfReduce` |
-| `remove_intersections` | Self-intersection repair (topology preserving) | `CAT_SurfFixSelfIntersect` |
+| `fix_self_intersect` | Self-intersection repair (topology preserving) | `CAT_SurfFixSelfIntersect` |
 | `count_intersections` | Count intersecting triangle pairs | `CAT_SurfSelfIntersect` |
 | `surf_average` | Vertex-wise averaging across surfaces (`return_rms` for std dev) | `CAT_SurfAverage` |
 | `surf_to_sphere` | Inflate surface to sphere | `CAT_Surf2Sphere` |
@@ -77,7 +77,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `hausdorff_distance` | Hausdorff distance between two surfaces | — |
 | `resample_to_sphere` | Resample surface/values onto a target sphere | `CAT_SurfResample` |
 | `surf_deform` | Deform a surface toward a volume isovalue | `CAT_SurfDeform` |
-| `surf_to_pial_white` | Estimate pial + white surfaces from a central surface | `CAT_Surf2PialWhite` |
+| `surf_to_pial_white` | Estimate pial + white surfaces from a central surface (`remove_intersect` repairs both) | `CAT_Surf2PialWhite` |
 | `central_to_pial` | Generate a pial surface from central + thickness | — |
 | `surf_warp` | DARTEL-based spherical registration | `CAT_SurfWarp` |
 | `spherical_demon` | Spherical Demons spherical registration | `CAT_SurfSphericalDemon` |
@@ -196,9 +196,10 @@ from cat_surf import cli
 # CAT_VolMarchingCubes brain.nii.gz brain.gii -thresh 0.5
 cli.vol_marching_cubes("brain.nii.gz", "brain.gii", threshold=0.5)
 
-# CAT_Surf2PialWhite central.gii thickness.txt labels.nii pial.gii white.gii
+# CAT_Surf2PialWhite -remove_intersect central.gii thickness.txt labels.nii \
+#     pial.gii white.gii
 cli.surf2pial_white("central.gii", "thickness.txt", "labels.nii",
-                    "pial.gii", "white.gii")
+                    "pial.gii", "white.gii", remove_intersect=True)
 
 # CAT_SurfDistance -mean surf1.gii surf2.gii out.txt
 cli.surf_distance("surf1.gii", "surf2.gii", "out.txt", mode="mean")

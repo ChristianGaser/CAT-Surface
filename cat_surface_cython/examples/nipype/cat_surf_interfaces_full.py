@@ -41,7 +41,7 @@ Interfaces
 * :class:`CatSurfPointDistance`            – ``cat_surf.point_distance``
 * :class:`CatSurfPointDistanceMean`        – ``cat_surf.point_distance_mean``
 * :class:`CatSurfCountIntersections`       – ``cat_surf.count_intersections``
-* :class:`CatSurfRemoveIntersections`      – ``cat_surf.remove_intersections``
+* :class:`CatSurfFixSelfIntersect`         – ``cat_surf.fix_self_intersect``
 * :class:`CatSurfReduceMesh`               – ``cat_surf.reduce_mesh``
 
 **Surface processing / deformation**
@@ -711,37 +711,37 @@ class CatSurfCountIntersections(BaseInterface):
 # ---------------------------------------------------------------------------
 
 
-class CatSurfRemoveIntersectionsInputSpec(BaseInterfaceInputSpec):
+class CatSurfFixSelfIntersectInputSpec(BaseInterfaceInputSpec):
     vertices = traits.Any(mandatory=True, desc="Vertex array (N, 3) float32.")
     faces = traits.Any(mandatory=True, desc="Face/triangle array (M, 3) int32.")
     verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
 
 
-class CatSurfRemoveIntersectionsOutputSpec(TraitedSpec):
+class CatSurfFixSelfIntersectOutputSpec(TraitedSpec):
     vertices = traits.Any(desc="Updated vertex array after intersection removal.")
     faces = traits.Any(desc="Updated face array after intersection removal.")
 
 
-class CatSurfRemoveIntersections(BaseInterface):
+class CatSurfFixSelfIntersect(BaseInterface):
     """Remove self-intersecting triangles from a surface mesh.
 
     Wraps
-    ``cat_surf.remove_intersections(vertices, faces[, verbose])
+    ``cat_surf.fix_self_intersect(vertices, faces[, verbose])
     → (vertices, faces)``.
 
     Examples
     --------
-    >>> node = CatSurfRemoveIntersections()
+    >>> node = CatSurfFixSelfIntersect()
     >>> node.inputs.vertices = v   # doctest: +SKIP
     >>> node.inputs.faces = fcs    # doctest: +SKIP
     """
 
-    input_spec = CatSurfRemoveIntersectionsInputSpec
-    output_spec = CatSurfRemoveIntersectionsOutputSpec
+    input_spec = CatSurfFixSelfIntersectInputSpec
+    output_spec = CatSurfFixSelfIntersectOutputSpec
 
     def _run_interface(self, runtime):
         cs = _import_cat_surf()
-        self._v, self._fcs = cs.remove_intersections(
+        self._v, self._fcs = cs.fix_self_intersect(
             self.inputs.vertices,
             self.inputs.faces,
             verbose=self.inputs.verbose,
@@ -940,6 +940,12 @@ class CatSurfToPialWhiteInputSpec(BaseInterfaceInputSpec):
     method = traits.Int(
         2, usedefault=True, desc="Pial/white estimation method (default 2)."
     )
+    remove_intersect = traits.Bool(
+        False,
+        usedefault=True,
+        desc="Repair self-intersections of the resulting pial and white "
+        "surfaces (topology preserving).",
+    )
     verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
 
 
@@ -955,7 +961,8 @@ class CatSurfToPialWhite(BaseInterface):
 
     Wraps
     ``cat_surf.surf_to_pial_white(vertices, faces, thickness, volume_file,
-    w1, w2, w3, sigma, iterations, gradient_iterations, method, verbose)
+    w1, w2, w3, sigma, iterations, gradient_iterations, method,
+    remove_intersect, verbose)
     → (pial_vertices, pial_faces, white_vertices, white_faces)``.
 
     This is T1Prep's surface estimation step 5 (``CAT_Surf2PialWhite``).
@@ -986,6 +993,7 @@ class CatSurfToPialWhite(BaseInterface):
             iterations=self.inputs.iterations,
             gradient_iterations=self.inputs.gradient_iterations,
             method=self.inputs.method,
+            remove_intersect=self.inputs.remove_intersect,
             verbose=self.inputs.verbose,
         )
         self._pv, self._pf, self._wv, self._wf = pv, pf, wv, wf

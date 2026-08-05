@@ -68,7 +68,7 @@ from cat_surf import (
     point_distance as _point_distance,
     point_distance_mean as _point_distance_mean,
     reduce_mesh as _reduce_mesh,
-    remove_intersections as _remove_intersections,
+    fix_self_intersect as _fix_self_intersect,
     count_intersections as _count_intersections,
     resample_to_sphere as _resample_to_sphere,
     resample_annot as _resample_annot,
@@ -291,7 +291,7 @@ def surf_fix_self_intersect(input_file, output_file=None, *,
         return _count_intersections(v, f)
     if output_file is None:
         raise ValueError("output_file required unless count_only=True")
-    nv, nf = _remove_intersections(v, f, max_passes=max_passes,
+    nv, nf = _fix_self_intersect(v, f, max_passes=max_passes,
                                    max_iters=max_iters, verbose=verbose)
     write_surface(output_file, nv, nf)
 

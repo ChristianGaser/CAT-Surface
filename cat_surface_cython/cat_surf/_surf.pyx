@@ -613,10 +613,10 @@ def correct_thickness_folding(vertices, faces, thickness,
 
 
 # ===================================================================
-# Remove self-intersections  (mirrors CAT_SurfFixSelfIntersect)
+# Repair self-intersections  (mirrors CAT_SurfFixSelfIntersect)
 # ===================================================================
-def remove_intersections(vertices, faces, int max_passes=10,
-                         int max_iters=50, bint verbose=False):
+def fix_self_intersect(vertices, faces, int max_passes=10,
+                       int max_iters=50, bint verbose=False):
     """
     Remove self-intersections from a triangle mesh.
 
@@ -952,6 +952,7 @@ def surf_to_pial_white(vertices, faces, thickness,
                        double w1=0.05, double w2=0.05, double w3=0.05,
                        double sigma=0.2, int iterations=100,
                        int gradient_iterations=0, int method=0,
+                       bint remove_intersect=False,
                        bint verbose=False):
     """
     Estimate pial and white matter surfaces from a central surface.
@@ -981,6 +982,11 @@ def surf_to_pial_white(vertices, faces, thickness,
     method : int
         0 = deformation (default), 1 = ADE,
         2 = deformation for pial + ADE for white.
+    remove_intersect : bool
+        Repair self-intersections of the resulting pial and white surfaces
+        (default False).  Topology preserving, so both surfaces keep their
+        vertex correspondence with the central surface and the per-vertex
+        thickness stays valid.
     verbose : bool
 
     Returns
@@ -1014,6 +1020,7 @@ def surf_to_pial_white(vertices, faces, thickness,
     opts.iterations = iterations
     opts.gradient_iterations = gradient_iterations
     opts.method = method
+    opts.remove_intersect = 1 if remove_intersect else 0
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_SurfEstimatePialWhite(

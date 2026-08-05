@@ -232,6 +232,7 @@ cdef extern from "CAT_SurfPialWhite.h":
         int iterations
         int gradient_iterations
         int method
+        int remove_intersect
         int verbose
 
     void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
