@@ -38,6 +38,12 @@ extern "C"
         int iterations;          /**< Number of deformation iterations (default: 100) */
         int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
         int method;              /**< 0 = deformation (default), 1 = Laplacian, 2 = ADE */
+        int remove_intersect;    /**< Remove self-intersections of the resulting
+                                      pial and white surfaces (default: 0).  The
+                                      mesh topology is preserved, so both surfaces
+                                      keep their vertex correspondence with the
+                                      central surface and per-vertex data such as
+                                      thickness stays valid. */
         int verbose;             /**< Verbose output (default: 0) */
     } CAT_PialWhiteOptions;
 

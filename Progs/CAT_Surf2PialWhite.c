@@ -26,6 +26,7 @@ int verbose = 0;
 int iterations = 100;
 int gradient_iterations = 0;
 int method = 0;
+int remove_intersect = 0;
 
 /* Argument table for command-line parsing */
 static ArgvInfo argTable[] = {
@@ -43,6 +44,10 @@ static ArgvInfo argTable[] = {
      "Set number of gradient refinement iterations (0 to disable)."},
     {"-method", ARGV_INT, (char *)TRUE, (char *)&method,
      "Method: 0 = deformation (default), 1 = ADE, 2 = deformation:pial | ADE:white."},
+    {"-remove_intersect", ARGV_CONSTANT, (char *)TRUE, (char *)&remove_intersect,
+     "Remove self-intersections of the resulting pial and white surfaces.\n\
+                 The mesh topology is preserved, i.e. both surfaces keep their\n\
+                 vertex correspondence with the central surface."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
@@ -72,7 +77,11 @@ usage(const char *executable)
             "  -w3     Balloon force, based on isovalue distance.\n"
             "  -sigma  Controls displacement smoothing.\n"
             "  -method Controls general approach (ADE or deformation).\n"
-            "  -iter   Number of iterations (e.g. 50).\n\n",
+            "  -iter   Number of iterations (e.g. 50).\n\n"
+            "Use -remove_intersect to repair self-intersections of the resulting\n"
+            "pial and white surfaces.  This preserves the mesh topology, so the\n"
+            "vertex correspondence with the central surface (and thus the\n"
+            "per-vertex thickness) stays valid.\n\n",
             executable);
 }
 
@@ -159,6 +168,7 @@ int main(int argc, char *argv[])
     opts.iterations = iterations;
     opts.gradient_iterations = gradient_iterations;
     opts.method = method;
+    opts.remove_intersect = remove_intersect;
     opts.verbose = verbose;
 
     /* Run the library estimation */

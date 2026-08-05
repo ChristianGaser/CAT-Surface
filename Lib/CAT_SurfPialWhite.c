@@ -18,6 +18,7 @@
 #include "CAT_Deform.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfLaplacian.h"
+#include "CAT_Intersect.h"
 
 /* Tissue class thresholds */
 #ifndef CGM
@@ -44,6 +45,7 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
     opts->iterations = 200;
     opts->gradient_iterations = 30;
     opts->method = 0;
+    opts->remove_intersect = 0;
     opts->verbose = 0;
 }
 
@@ -203,6 +205,22 @@ int CAT_SurfEstimatePialWhite(
         copy_polygons(polygons_pial, pial_out);
     if (polygons_white != white_out)
         copy_polygons(polygons_white, white_out);
+
+    /* Optionally repair self-intersections of both surfaces.  The pial surface
+     * is the more critical one because it is pushed outwards into tight sulci,
+     * but the white surface can fold in deep gyri as well.  The repair is
+     * topology preserving, so the vertex correspondence between central, pial
+     * and white surfaces - and with it the per-vertex thickness - is kept. */
+    if (opts->remove_intersect)
+    {
+        if (opts->verbose)
+            fprintf(stdout, "Remove self-intersections of pial surface\n");
+        remove_intersections(pial_out, opts->verbose);
+
+        if (opts->verbose)
+            fprintf(stdout, "Remove self-intersections of white surface\n");
+        remove_intersections(white_out, opts->verbose);
+    }
 
     /* Cleanup */
     free(extents);
