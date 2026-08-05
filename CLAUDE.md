@@ -25,7 +25,7 @@ Run in background automatically:
 C library + 70+ CLI tools for cortical surface mesh processing (neuroimaging).
 Backend for the [CAT12](https://github.com/ChristianGaser/cat12) SPM toolbox.
 
-- **Language:** C99 (core); C++11 (MeshFix only)
+- **Language:** C99
 - **Build system:** GNU Autotools (Autoconf / Automake / Libtool)
 - **Only external dependency:** FFTW3
 

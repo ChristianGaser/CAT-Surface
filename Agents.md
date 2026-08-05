@@ -31,7 +31,6 @@ CAT-Surface/
 │   ├── dartel/, s2kit10/       # SPM dartel registration, spherical harmonics
 │   ├── nii2mesh/               # Mesh simplification (quadric decimation)
 │   ├── genus0/                 # Topology correction
-│   ├── MeshFix-V2.1/           # Mesh repair (self-intersections, GPL-3)
 ├── Include/
 │   ├── CAT_*.h                 # Public-ish headers for CAT library modules
 │   └── ...
