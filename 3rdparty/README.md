@@ -19,7 +19,6 @@ downloads are needed during compilation.
 | **s2kit10** | Spherical harmonics transform | GPL-2+ | Kostelec & Rockmore |
 | **dartel** | Diffeomorphic registration | GPL-2+ (SPM) | John Ashburner |
 | **genus0** | Topology correction | Research use | Steve Haker (BWH/Harvard) |
-| **MeshFix-V2.1** | Mesh repair (self-intersections) | **GPL-3** or Commercial | [MarcoAttene/MeshFix-V2.1](https://github.com/MarcoAttene/MeshFix-V2.1) |
 
 ## License Notes
 
@@ -27,9 +26,8 @@ downloads are needed during compilation.
 These components have permissive licenses (MIT, BSD, public domain, zlib) that
 allow use in both open-source and commercial applications without restrictions.
 
-### GPL Components (s2kit10, dartel, MeshFix)
+### GPL Components (s2kit10, dartel)
 - **s2kit10** and **dartel**: GPL-2+, compatible with CAT-Surface GPL-3
-- **MeshFix**: GPL-3 or requires commercial license from IMATI-GE/CNR
 
 ### Research-Use Components (genus0)
 The genus0 library is distributed for research purposes. Contact the original
@@ -46,7 +44,5 @@ The following libraries have been modified from their original versions:
 
 ## References
 
-- MeshFix: Attene, M. "A lightweight approach to repairing digitized polygon
-  meshes." The Visual Computer, 2010. DOI: 10.1007/s00371-010-0416-3
 - S2kit: Kostelec & Rockmore, "FFTs on the rotation group", J Fourier Anal Appl 
   14, 145–179, 2008. DOI: 10.1007/s00041-008-9013-5
