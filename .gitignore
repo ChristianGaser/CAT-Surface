@@ -26,6 +26,11 @@ log*
 INSTALL
 __pycache__
 *.so
+*.o
+*.lo
+*.la
+*.log
+*.trs
 *.egg-info
 _vendor/
 Progs/CAT_[A-Za-z0-9_]*

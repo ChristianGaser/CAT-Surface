@@ -32,8 +32,6 @@ int intersect_segment_triangle(Point, Point, int [3], polygons_struct *);
  * \return Return value of find_selfintersections.
  */
 int find_selfintersections(polygons_struct *, int *, int *, int);
-int find_selfintersections_masked(polygons_struct *, int *, int *);
-int correct_simple_selfintersections(polygons_struct *, int *, int *, int *, int **);
 /**
  * \brief Public API for join_intersections.
  *

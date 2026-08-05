@@ -441,46 +441,6 @@ int intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
 }
 
 /**
- * \brief Find self-intersections restricted to high-curvature surface regions.
- *
- * Detects intersecting polygon pairs but restricts the search to regions where
- * curvature indicates folded or problematic geometry. Computes vertex curvatures
- * and masks the search to the 90th percentile of negative curvature values,
- * reducing computation and false positives in low-curvature regions. This targeted
- * approach accelerates intersection finding on partially folded surfaces.
- *
- * \param polygons     (in)  source 3D polygonal mesh with curvature computed
- * \param defects      (in/out) array (length n_points) marking problematic vertices; updated
- * \param polydefects  (in/out) array (length n_items) marking problem polygons; updated
- * \return Number of self-intersection groups found
- */
-int find_selfintersections_masked(polygons_struct *polygons, int *defects, int *polydefects)
-{
-    int n_intersects, p;
-    double *curvatures, threshold[2];
-    int *n_neighbours, **neighbours;
-
-    curvatures = (double *)malloc(sizeof(double) * polygons->n_points);
-
-    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-    get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
-                                     0.0, 2, curvatures);
-
-    double prctile[2] = {10, 90};
-    get_prctile(curvatures, polygons->n_points, threshold, prctile, 0, DT_FLOAT64);
-    /* Limit search for intersections to areas with large neg. curvature by
-       indicating with zeros */
-    for (p = 0; p < polygons->n_items; p++)
-        defects[p] = (curvatures[p] < threshold[1]) ? -1 : 0;
-
-    update_polydefects(polygons, defects, polydefects);
-
-    n_intersects = find_selfintersections(polygons, defects, polydefects, 0);
-
-    free(curvatures);
-    return n_intersects;
-}
-/**
  * \brief Public API for find_selfintersections.
  *
  * This function is part of the CAT-Surface public library interface and is used by command-line tools.
@@ -494,7 +454,7 @@ int find_selfintersections_masked(polygons_struct *polygons, int *defects, int *
 
 int find_selfintersections(polygons_struct *polygons, int *defects, int *polydefects, int init)
 {
-    int n_intersects, size, i, n, p, p2, b;
+    int n_intersects, p, b;
     progress_struct progress;
     struct octree *tree;
     struct polynode *cur, *node;
@@ -514,12 +474,6 @@ int find_selfintersections(polygons_struct *polygons, int *defects, int *polydef
 
         /* skip check if neg. values in polydefects indicate that */
         if (!init && polydefects[p] < 0)
-            continue;
-
-        for (p2 = p + 1; p2 < polygons->n_items; p2++)
-            tree->polyflag[p2] = 0;
-        /* skip check if neg. values in polydefects indicate that */
-        if (!init && polydefects[p2] < 0)
             continue;
 
         for (b = 0; b < NBOXES; b++)
@@ -561,57 +515,50 @@ int find_selfintersections(polygons_struct *polygons, int *defects, int *polydef
 
     terminate_progress_report(&progress);
 
+    delete_octree(tree);
+
     update_defects(polygons, polydefects, defects);
 
     return n_intersects;
 }
 
 /**
- * \brief Correct simple self-intersections by moving vertices along surface normals.
+ * \brief Find the representative of a label in a union-find forest (path halving).
  *
- * Iteratively displaces defective vertices perpendicular to surface to resolve
- * intersections. Each iteration nudges vertices by fixed extent along normal direction.
- * Effective for isolated, non-complex intersections. Terminates after 40 iterations or
- * when no intersections remain. Re-tests mesh after each pass.
- *
- * \param surface (in/out) mesh modified by vertex displacement
- * \param defects (in/out) per-vertex defect labels
- * \param polydefects (in/out) per-polygon defect labels
- * \param n_neighbours (in) vertex neighbor counts
- * \param neighbours (in) neighbor connectivity lists
- * \return number of remaining unresolved intersections
+ * \param parent (in/out) union-find parent array
+ * \param x (in) label to look up
+ * \return representative label of the set containing x
  */
-int correct_simple_selfintersections(polygons_struct *surface, int *defects, int *polydefects, int *n_neighbours, int **neighbours)
+static int find_label(int *parent, int x)
 {
-    int i, n, p, n_intersections = 1;
-    double extent = 0.05;
-
-    for (p = 0; p < surface->n_points; p++)
-        if (defects[p] > 0)
-            n_intersections++;
-
-    n = 0;
-    while (n_intersections != 0)
+    while (parent[x] != x)
     {
-        i = 0;
-        n++;
-        for (p = 0; p < surface->n_points; p++)
-        {
-            if (defects[p] == 0)
-                continue;
-            i++;
-            Point_x(surface->points[p]) += extent * Point_x(surface->normals[p]);
-            Point_y(surface->points[p]) += extent * Point_y(surface->normals[p]);
-            Point_z(surface->points[p]) += extent * Point_z(surface->normals[p]);
-        }
-        n_intersections = find_remaining_intersections(surface, defects, polydefects,
-                                                       n_neighbours, neighbours);
-        printf("%03d: %04d Remaining self intersections %d\n", n, i, n_intersections);
-        if (n == 40)
-            n_intersections = 0;
+        parent[x] = parent[parent[x]]; /* path halving */
+        x = parent[x];
     }
+    return x;
+}
 
-    return 0;
+/**
+ * \brief Merge the sets of two labels, keeping the smaller label as representative.
+ *
+ * \param parent (in/out) union-find parent array
+ * \param a (in) first label
+ * \param b (in) second label
+ * \return void
+ */
+static void union_labels(int *parent, int a, int b)
+{
+    a = find_label(parent, a);
+    b = find_label(parent, b);
+
+    if (a == b)
+        return;
+
+    if (a < b)
+        parent[b] = a;
+    else
+        parent[a] = b;
 }
 
 /**
@@ -620,6 +567,13 @@ int correct_simple_selfintersections(polygons_struct *surface, int *defects, int
  * Groups neighboring defect vertices into shared defect IDs using local connectivity.
  * Merges defect regions that touch, reducing fragmented ID labels into contiguous
  * components. Remaps IDs sequentially (1..n_intersects) for organized processing.
+ *
+ * find_selfintersections() hands out a fresh label for every intersecting triangle
+ * pair, so a single defect region typically arrives here split over hundreds of
+ * labels.  Merging is therefore done with a union-find forest over the labels
+ * (near-linear) instead of relabelling the whole vertex array per merge, which was
+ * quadratic in the number of merges and dominated the runtime on surfaces with many
+ * self-intersections.
  *
  * \param surface (in) mesh structure with neighborhood info
  * \param defects (in/out) per-vertex defect labels (remapped and consolidated)
@@ -631,65 +585,60 @@ int correct_simple_selfintersections(polygons_struct *surface, int *defects, int
 int join_intersections(polygons_struct *surface, int *defects, int *polydefects,
                        int *n_neighbours, int **neighbours)
 {
-    int d, old_d;
-    int n_intersects = 0, i, n, p, *dmap;
+    int d, max_label = 0;
+    int n_intersects = 0, i, n, *parent, *dmap;
 
     update_defects(surface, polydefects, defects);
 
     for (i = 0; i < surface->n_points; i++)
     {
-        if (defects[i] == 0)
-            continue; /* skip */
-
-        n_intersects = n_intersects > defects[i] ? n_intersects : defects[i];
-
-        for (n = 0; n < n_neighbours[i]; n++)
-        {
-            d = defects[neighbours[i][n]];
-            if (d > 0 && d != defects[i])
-            {
-                old_d = d > defects[i] ? d : defects[i];
-                d = d < defects[i] ? d : defects[i];
-
-                defects[i] = d;
-                defects[neighbours[i][n]] = d;
-                for (p = 0; p < surface->n_points; p++)
-                {
-                    if (defects[p] == old_d)
-                        defects[p] = d;
-                }
-            }
-        }
+        if (defects[i] > max_label)
+            max_label = defects[i];
     }
 
-    dmap = (int *)malloc(sizeof(int) * n_intersects);
-    memset(dmap, 0, sizeof(int) * n_intersects);
+    if (max_label == 0)
+    { /* nothing marked */
+        update_polydefects(surface, defects, polydefects);
+        return 0;
+    }
 
-    n_intersects = 0;
+    /* labels that meet at neighbouring vertices belong to the same defect */
+    parent = (int *)malloc(sizeof(int) * (max_label + 1));
+    for (i = 0; i <= max_label; i++)
+        parent[i] = i;
+
     for (i = 0; i < surface->n_points; i++)
     {
         if (defects[i] == 0)
             continue; /* skip */
 
-        d = 0;
-        for (n = 0; n < n_intersects; n++)
+        for (n = 0; n < n_neighbours[i]; n++)
         {
-            if (defects[i] == dmap[n])
-            {
-                d = 1; /* already remapped */
-                defects[i] = n + 1;
-                break;
-            }
+            d = defects[neighbours[i][n]];
+            if (d > 0 && d != defects[i])
+                union_labels(parent, defects[i], d);
         }
-        if (d == 0)
-        {
-            dmap[n_intersects++] = defects[i];
-            defects[i] = n_intersects;
-        }
+    }
+
+    /* remap the surviving representatives to 1..n_intersects in order of
+       first appearance */
+    dmap = (int *)malloc(sizeof(int) * (max_label + 1));
+    memset(dmap, 0, sizeof(int) * (max_label + 1));
+
+    for (i = 0; i < surface->n_points; i++)
+    {
+        if (defects[i] == 0)
+            continue; /* skip */
+
+        d = find_label(parent, defects[i]);
+        if (dmap[d] == 0)
+            dmap[d] = ++n_intersects;
+        defects[i] = dmap[d];
     }
 
     update_polydefects(surface, defects, polydefects);
 
+    free(parent);
     free(dmap);
     return n_intersects;
 }

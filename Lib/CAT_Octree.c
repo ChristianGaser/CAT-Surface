@@ -218,8 +218,9 @@ build_octree(polygons_struct *polygons)
     double xcur, ycur, zcur, xprev, yprev, zprev;
     progress_struct progress;
 
-    /* initialize the tree */
-    tree = (struct octree *)malloc(sizeof(struct octree));
+    /* initialize the tree - calloc because the per-box node lists must start
+       out empty (insert_triangle and delete_octree both rely on NULL heads) */
+    tree = (struct octree *)calloc(1, sizeof(struct octree));
     tree->polyflag = (int *)malloc(sizeof(int) * polygons->n_items);
     tree->npoly = polygons->n_items;
     tree->nodelist = (struct polynode **)
@@ -298,16 +299,24 @@ build_octree(polygons_struct *polygons)
 
 /* helper function for deleting the octree */
 /**
- * \brief Recursively free a linked list of polynode entries.
+ * \brief Free a linked list of polynode entries.
+ *
+ * Iterative on purpose: a single box can hold hundreds of thousands of nodes on
+ * dense meshes, which would overflow the stack if freed recursively.
  *
  * \param n (in) head of list to free
  * \return void
  */
 void recursive_node_delete(struct polynode *n)
 {
-    if (n->next != NULL)
-        recursive_node_delete(n->next);
-    free(n);
+    struct polynode *next;
+
+    while (n != NULL)
+    {
+        next = n->next;
+        free(n);
+        n = next;
+    }
 }
 
 /* delete the octree and all nodes */
