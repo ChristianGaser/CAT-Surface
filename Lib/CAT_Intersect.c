@@ -284,6 +284,56 @@ int *find_near_self_intersections(polygons_struct *polygons, double threshold_fa
 }
 
 /**
+ * \brief Test whether one triangle intersects any other triangle of the mesh.
+ *
+ * Octree-accelerated replacement for scanning all n_items polygons: only triangles
+ * whose bounding box shares an octree box with the query triangle are tested.
+ * Because two triangles can only intersect geometrically when their bounding boxes
+ * overlap, this returns exactly the same answer as the exhaustive scan.
+ *
+ * \param polygons (in) mesh to query
+ * \param tree (in) octree built from the current vertex positions of polygons
+ * \param p (in) index of the query triangle
+ * \return 1 if triangle p intersects at least one other triangle, 0 otherwise
+ */
+static int poly_intersects_any(polygons_struct *polygons, struct octree *tree, int p)
+{
+    struct polynode *node = tree->nodelist[p];
+    struct polynode *cur;
+    int b;
+
+    for (b = 0; b < NBOXES; b++)
+    {
+        if (xintersect(node->bounds, tree->bounds[b]) == 0)
+        {
+            b += XINC - 1;
+            continue;
+        }
+        if (yintersect(node->bounds, tree->bounds[b]) == 0)
+        {
+            b += YINC - 1;
+            continue;
+        }
+        if (zintersect(node->bounds, tree->bounds[b]) == 0)
+            continue;
+
+        for (cur = tree->nodes[b]; cur != NULL; cur = cur->next)
+        {
+            if (cur->num == p)
+                continue;
+
+            if (intersect(node->bounds, cur->bounds) == 0)
+                continue;
+
+            if (intersect_triangle_triangle(node->pts, cur->pts, polygons))
+                return 1;
+        }
+    }
+
+    return 0;
+}
+
+/**
  * \brief Check if two polygons (triangular faces) intersect geometrically.
  *
  * Tests whether two triangular faces in a polygonal mesh intersect by extracting
@@ -661,31 +711,23 @@ int find_remaining_intersections(polygons_struct *surface, int *defects,
                                  int *polydefects, int *n_neighbours,
                                  int **neighbours)
 {
-    int p, p2, idx, i, siflag;
+    int p, idx, i;
+    struct octree *tree;
 
     update_defects(surface, polydefects, defects);
+
+    tree = build_octree(surface);
 
     for (p = 0; p < surface->n_items; p++)
     {
         if (polydefects[p] == 0)
             continue; /* skip */
 
-        siflag = 0;
-
-        for (p2 = 0; p2 < surface->n_items; p2++)
-        {
-            if (p2 == p)
-                continue;
-
-            if (intersect_poly_poly(p, p2, surface) == 1)
-            {
-                siflag = 1;
-                break;
-            }
-        }
-        if (siflag == 0) /* no intersections */
-            polydefects[p] = 0;
+        if (poly_intersects_any(surface, tree, p) == 0)
+            polydefects[p] = 0; /* no intersections */
     }
+
+    delete_octree(tree);
 
     memset(defects, 0, sizeof(int) * surface->n_points);
     for (p = 0; p < surface->n_items; p++)
@@ -765,8 +807,8 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
                              int *polydefects, int n_defects,
                              int *n_neighbours, int **neighbours, int maxiter)
 {
-    int p, i, iter, d, n, n2, npts;
-    int *edgeflag, n_prev_defects, count;
+    int p, i, iter, d, n, n2, npts, maxdefects;
+    int *edgeflag, *siflags, n_prev_defects, count;
     Point tp[3];
     double areas[128], centers[384], xyz[3], weight, t_area;
     FILE *fp;
@@ -777,6 +819,12 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
     update_defects(surface, polydefects, defects);
 
     edgeflag = (int *)malloc(sizeof(int) * surface->n_points);
+
+    /* find_remaining_intersections() can split a defect into several, so the
+       defect count may grow during the loop; one label needs at least one
+       polygon and labels are derived from vertex labels */
+    maxdefects = surface->n_items > surface->n_points ? surface->n_items : surface->n_points;
+    siflags = (int *)malloc(sizeof(int) * (maxdefects + 1));
 
     /* smooth defect areas.. increase defect area every 5th iter */
     iter = 0;
@@ -864,11 +912,13 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
             continue;
         }
 
-        /* test if self-intersections repaired */
+        /* test if self-intersections repaired - one octree pass for all
+           defects instead of one has_selfintersections() call per defect */
+        find_intersecting_defects(surface, polydefects, n_defects, siflags);
+
         for (d = 1; d <= n_defects; d++)
         {
-            if (has_selfintersections(surface, polydefects,
-                                      d) == 0)
+            if (siflags[d] == 0)
             {
                 /* delete it, it's fixed! */
                 for (i = 0; i < surface->n_items; i++)
@@ -878,6 +928,8 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
                     else if (polydefects[i] == n_defects)
                         polydefects[i] = d;
                 }
+                /* the last defect took the slot of the deleted one */
+                siflags[d] = siflags[n_defects];
                 n_defects--;
                 d--;
             }
@@ -922,6 +974,7 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
                                              n_neighbours, neighbours);
 
     free(edgeflag);
+    free(siflags);
     return (n_defects);
 }
 
@@ -939,32 +992,70 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
  */
 int has_selfintersections(polygons_struct *polygons, int *polydefects, int defect)
 {
-    int p, p2, i, t[3], t2[3];
+    int p, result = 0;
+    struct octree *tree;
+
+    tree = build_octree(polygons);
 
     for (p = 0; p < polygons->n_items; p++)
     {
         if (polydefects[p] != defect)
             continue; /* skip */
 
-        for (i = 0; i < 3; i++)
+        if (poly_intersects_any(polygons, tree, p))
         {
-            t[i] = polygons->indices[POINT_INDEX(polygons->end_indices, p, i)];
-        }
-
-        for (p2 = 0; p2 < polygons->n_items; p2++)
-        {
-            if (p2 == p)
-                continue;
-
-            for (i = 0; i < 3; i++)
-            {
-                t2[i] = polygons->indices[POINT_INDEX(polygons->end_indices, p2, i)];
-            }
-            if (intersect_triangle_triangle(t, t2, polygons))
-                return 1;
+            result = 1;
+            break;
         }
     }
-    return 0;
+
+    delete_octree(tree);
+    return result;
+}
+
+/**
+ * \brief Test all defect regions for remaining self-intersections in a single pass.
+ *
+ * Batch version of has_selfintersections(): builds the octree once and marks every
+ * defect that still contains an intersecting triangle. Calling has_selfintersections()
+ * per defect would rebuild the octree n_defects times, which dominates the runtime of
+ * the repair loop as soon as a surface has more than a handful of defects.
+ *
+ * \param polygons (in) mesh to check
+ * \param polydefects (in) per-polygon defect labels
+ * \param n_defects (in) largest defect ID in use
+ * \param siflags (out) array of n_defects+1 entries; siflags[d] is set to 1 if defect
+ *                      d still self-intersects, 0 otherwise (index 0 is unused)
+ * \return number of defects that still self-intersect
+ */
+int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
+                              int n_defects, int *siflags)
+{
+    int p, d, n_remaining = 0;
+    struct octree *tree;
+
+    memset(siflags, 0, sizeof(int) * (n_defects + 1));
+
+    tree = build_octree(polygons);
+
+    for (p = 0; p < polygons->n_items; p++)
+    {
+        d = polydefects[p];
+        if (d <= 0 || d > n_defects)
+            continue; /* skip */
+
+        if (siflags[d]) /* this defect is already known to intersect */
+            continue;
+
+        if (poly_intersects_any(polygons, tree, p))
+        {
+            siflags[d] = 1;
+            n_remaining++;
+        }
+    }
+
+    delete_octree(tree);
+    return n_remaining;
 }
 
 /**
@@ -982,10 +1073,28 @@ int has_selfintersections(polygons_struct *polygons, int *polydefects, int defec
 /* Find and remove intersections */
 void remove_intersections(polygons_struct *polygons, int verbose)
 {
+    remove_intersections_iter(polygons, 10, 50, verbose);
+}
+
+/**
+ * \brief Remove all self-intersections from a mesh with explicit iteration limits.
+ *
+ * Same as remove_intersections() but with the two loop limits exposed, because they
+ * are what governs the runtime: each pass re-detects the remaining defects and runs
+ * up to maxiter smoothing iterations on them.
+ *
+ * \param polygons (in/out) mesh to repair
+ * \param max_passes (in) maximum number of detect/smooth passes (default 10)
+ * \param maxiter (in) maximum smoothing iterations per pass (default 50)
+ * \param verbose (in) 1 for progress output; 0 for silent
+ * \return number of self-intersecting defect regions that remain (0 = fully repaired)
+ */
+int remove_intersections_iter(polygons_struct *polygons, int max_passes,
+                              int maxiter, int verbose)
+{
     int *defects, *polydefects, n_intersects;
     int *n_neighbours, **neighbours;
     int counter;
-    Point *new_pts;
 
     defects = (int *)malloc(sizeof(int) * polygons->n_points);
     polydefects = (int *)malloc(sizeof(int) * polygons->n_items);
@@ -999,25 +1108,26 @@ void remove_intersections(polygons_struct *polygons, int verbose)
     n_intersects = find_selfintersections(polygons, defects, polydefects, 1);
     n_intersects = join_intersections(polygons, defects, polydefects,
                                       n_neighbours, neighbours);
-    do
+    while (n_intersects > 0 && counter < max_passes)
     {
         counter++;
 
-        if (n_intersects > 0)
-        {
-            if (verbose)
-                printf("%3d self intersections found that will be corrected.\n", n_intersects);
+        if (verbose)
+            printf("%3d self intersections found that will be corrected.\n", n_intersects);
 
-            n_intersects = smooth_selfintersections(polygons, defects, polydefects,
-                                                    n_intersects, n_neighbours,
-                                                    neighbours, 50);
-        }
-    } while (n_intersects > 0 && counter < 10);
+        n_intersects = smooth_selfintersections(polygons, defects, polydefects,
+                                                n_intersects, n_neighbours,
+                                                neighbours, maxiter);
+    }
 
     free(defects);
     free(polydefects);
+    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours,
+                                    NULL, NULL);
 
     compute_polygon_normals(polygons);
+
+    return n_intersects;
 }
 
 /* Find and remove near self-intersections */

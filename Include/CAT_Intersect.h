@@ -52,7 +52,9 @@ int patch_selfintersections(polygons_struct *, polygons_struct *, int *, int *,
 int smooth_selfintersections(polygons_struct *, int *, int *, int, int *,
                              int **, int);
 int has_selfintersections(polygons_struct *, int *, int);
+int find_intersecting_defects(polygons_struct *, int *, int, int *);
 void remove_intersections(polygons_struct *, int);
+int remove_intersections_iter(polygons_struct *, int, int, int);
 int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, 
                             int *n_hits_out);
 void remove_near_intersections(polygons_struct *polygons, double threshold, int verbose);

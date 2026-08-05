@@ -96,6 +96,7 @@ bin_PROGRAMS = \
     CAT_SurfHausdorff \
     CAT_SurfSharpness \
     CAT_SurfSelfIntersect \
+    CAT_SurfFixSelfIntersect \
     CAT_SurfMarkDefects \
     CAT_SurfArtifacts \
     CAT_SurfFractalDimension \
