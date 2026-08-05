@@ -8,8 +8,8 @@ jobs:
   # any Linux system from ~2019 onwards — far broader than compiling on the
   # bare ubuntu-22.04 runner (glibc 2.35).  manylinux2014 (glibc 2.17) cannot
   # be used because the GitHub Actions Node 24 runner requires glibc >= 2.28.
-  # -static-libgcc/-static-libstdc++ bundle the GCC runtime so binaries don't
-  # depend on the host compiler libraries either.
+  # -static-libgcc bundles the GCC runtime so binaries don't depend on the
+  # host compiler libraries either.
   build_linux:
     name: Build (${{ matrix.artifact }})
     runs-on: ${{ matrix.os }}
@@ -35,7 +35,7 @@ jobs:
           dnf install -y \
             git rsync zip \
             autoconf automake libtool autoconf-archive pkgconf-pkg-config make \
-            gcc gcc-c++ \
+            gcc \
             fftw-devel
 
       - uses: actions/checkout@v6
@@ -45,9 +45,8 @@ jobs:
         run: |
           autoreconf -fi
           export CFLAGS="-O2"
-          export CXXFLAGS="-O2"
           export CPPFLAGS="-O2"
-          export LDFLAGS="-static-libstdc++ -static-libgcc"
+          export LDFLAGS="-static-libgcc"
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Build
@@ -144,7 +143,7 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          export {C,CXX,CPP}FLAGS="-O2"
+          export {C,CPP}FLAGS="-O2"
           ./configure --enable-static --disable-shared --disable-doc
 
       - name: Configure (Windows)
@@ -153,8 +152,8 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          export {C,CXX,CPP}FLAGS="-O2 -I/mingw64/include"
-          export LDFLAGS="-L/mingw64/lib -static -static-libgcc -static-libstdc++"
+          export {C,CPP}FLAGS="-O2 -I/mingw64/include"
+          export LDFLAGS="-L/mingw64/lib -static -static-libgcc"
           ./configure --enable-static --disable-shared --disable-doc --disable-openmp
 
       # ---------------- Build ----------------
