@@ -22,10 +22,9 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <https://www.gnu.org/licenses/gpl-2.0.html>.
 
 When CAT-Surface is distributed together with third-party GPL-3 components,
-such as MeshFix, the combined GPL distribution must be redistributed under
-the terms of GPL version 3 or later. The GPL-2-or-later license of the
-CAT-Surface original code permits this by allowing use under later GPL
-versions.
+the combined GPL distribution must be redistributed under the terms of GPL
+version 3 or later. The GPL-2-or-later license of the CAT-Surface original
+code permits this by allowing use under later GPL versions.
 
 ================================================================================
 (2) COMMERCIAL LICENSE
@@ -63,12 +62,6 @@ Permissive licenses:
 GPL licenses:
 - s2kit10: GPL-2+ (Kostelec & Rockmore)
 - dartel: GPL-2+ (John Ashburner, SPM)
-- MeshFix: GPL-3 or commercial (Marco Attene, IMATI-GE/CNR)
-
-Because MeshFix is licensed under GPL-3, any combined redistribution that
-includes MeshFix must comply with GPL version 3 or later. The GPL-2-or-later
-licensing of the CAT-Surface original code permits this GPL-3 distribution
-option.
 
 Restricted or unclear license:
 - genus0: Steve Haker, Surgical Planning Lab, BWH/Harvard.
@@ -85,9 +78,6 @@ SUMMARY
 CAT-Surface original code:
 - GPL version 2 or later; or
 - commercial license from Christian Gaser / University of Jena.
-
-Complete GPL distribution including MeshFix:
-- GPL version 3 or later.
 
 Commercial distribution including third-party GPL components:
 - possible only if separate commercial or otherwise compatible licenses have

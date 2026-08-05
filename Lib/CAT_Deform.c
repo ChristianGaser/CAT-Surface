@@ -13,9 +13,6 @@
 #include "CAT_Vol.h"
 #include "CAT_Intersect.h"
 #include "CAT_Curvature.h"
-#if !defined(_WIN32) && !defined(_WIN64)
-#include "CAT_MeshClean.h"
-#endif
 
 #include <float.h>
 #include <math.h>
@@ -224,11 +221,11 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
  * \param sigma               (in)     Gaussian smoothing parameter for displacement field
  * \param lim                 (in)     intensity threshold controlling deformation magnitude
  * \param it                  (in)     number of deformation iterations
- * \param remove_intersections (in)    boolean; enable self-intersection removal
+ * \param remove_selfintersect (in)    boolean; enable self-intersection removal
  * \param verbose             (in)     boolean; print iteration progress if true
  */
 void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
-                 double w[3], double sigma, float lim, int it, int remove_intersections, int verbose)
+                 double w[3], double sigma, float lim, int it, int remove_selfintersect, int verbose)
 {
     int i, j, k, v, dims[3], nvox, pidx;
     int *n_neighbours, **neighbours;
@@ -441,18 +438,15 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     }
     copy_polygons(polygons_orig, polygons);
 
-    // Use MeshFix approach to remove self-intersections
-#if !defined(_WIN32) && !defined(_WIN64)
-    if (remove_intersections)
+    // Remove self-intersections by locally smoothing the intersecting regions.
+    // This preserves the mesh topology, i.e. the number of vertices and faces
+    // and their connectivity are left unchanged.
+    if (remove_selfintersect)
     {
         if (verbose)
             fprintf(stdout, "\n");
-        CAT_MeshCleanOptions opts;
-        CAT_MeshCleanOptionsInit(&opts);
-        int result = CAT_SurfMeshClean(polygons, &opts);
-        (void)result;
+        remove_intersections(polygons, verbose);
     }
-#endif
 
     // Free allocated memory
     free(gradient_x);

@@ -25,9 +25,7 @@ CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
-    -I$(top_srcdir)/3rdparty/nii2mesh \
-    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/Kernel \
-    -I$(top_srcdir)/3rdparty/MeshFix-V2.1/include/TMesh
+    -I$(top_srcdir)/3rdparty/nii2mesh
 
 if EMSCRIPTEN
 CFLAGS0 += -s USE_ZLIB=1 -s MODULARIZE=1 -s FETCH=1 -s WASM=1 -s EXPORT_ES6=1 \
@@ -40,10 +38,6 @@ else
   AM_CFLAGS = -pthread ${CFLAGS0}
 endif
 AM_CPPFLAGS = @FFTW3_CFLAGS@ ${AM_CFLAGS}
-# C++11 is only needed for MeshFix; not used on Windows.
-if !WINDOWS
-AM_CXXFLAGS = ${AM_CFLAGS} -std=c++11
-endif
 
 lib_LTLIBRARIES = libCAT.la
 libCAT_la_LIBADD = $(FFTW3_BUILDDIR)/libfftw3.la
@@ -66,25 +60,6 @@ s2kit10_SRC = \
     3rdparty/s2kit10/naive_synthesis.c \
     3rdparty/s2kit10/primitive.c
 
-MeshFix_SRC = \
-    3rdparty/MeshFix-V2.1/src/TMesh/edge.cpp \
-    3rdparty/MeshFix-V2.1/src/TMesh/vertex.cpp \
-    3rdparty/MeshFix-V2.1/src/TMesh/triangle.cpp \
-    3rdparty/MeshFix-V2.1/src/TMesh/tin.cpp \
-    3rdparty/MeshFix-V2.1/src/TMesh/io.cpp \
-    3rdparty/MeshFix-V2.1/src/Algorithms/detectIntersections.cpp \
-    3rdparty/MeshFix-V2.1/src/Algorithms/holeFilling.cpp \
-    3rdparty/MeshFix-V2.1/src/Algorithms/marchIntersections.cpp \
-    3rdparty/MeshFix-V2.1/src/Algorithms/checkAndRepair.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/heap.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/matrix.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/orientation.c \
-    3rdparty/MeshFix-V2.1/src/Kernel/list.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/coordinates.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/tmesh.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/graph.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/point.cpp \
-    3rdparty/MeshFix-V2.1/src/Kernel/jqsort.cpp
 
 expat_SRC = \
     3rdparty/expat/lib/xmlparse.c \
@@ -288,7 +263,6 @@ bic_SRC = \
     
 noinst_HEADERS = \
     Include/CAT_CorrectThicknessFolding.h \
-    Include/CAT_MeshClean.h \
     Include/CAT_SurfWarpDartel.h \
     Include/CAT_WarpDemons.h \
     Include/CAT_ROIStats.h \
@@ -421,12 +395,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_SafeAlloc.c \
     Lib/CAT_BBReg.c \
     Lib/CAT_VolumeReg.c
-# MeshFix requires C++ and is not supported on Windows; exclude it there.
-if !WINDOWS
-libCAT_la_SOURCES += \
-    $(MeshFix_SRC) \
-    Lib/CAT_MeshClean.cpp
-endif
 .PHONY: docs docs-clean
 
 docs:

@@ -41,9 +41,9 @@ usage(char *executable)
     intersecting regions.  Intersecting triangles are detected, grouped into\n\
     defect regions and then relaxed until they no longer intersect; regions\n\
     that do not improve are expanded before the next attempt.\n\n\
-    In contrast to CAT_SurfRemoveIntersections (MeshFix) the mesh topology is\n\
-    preserved: the number of vertices and faces and their connectivity are\n\
-    unchanged, so per-vertex data such as thickness stays valid.\n\n\
+    The mesh topology is preserved: the number of vertices and faces and their\n\
+    connectivity are unchanged, so per-vertex data such as thickness stays\n\
+    valid.\n\n\
     Use CAT_SurfSelfIntersect to only detect and mark self-intersections.\n\n\
     The corrected surface is always written; the exit code is 1 if any\n\
     self-intersections remain, which allows to check the result in scripts.\n\n";

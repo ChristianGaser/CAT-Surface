@@ -4,7 +4,6 @@ AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_CC
-AC_PROG_CXX
 AC_PROG_INSTALL
 LT_INIT
 
@@ -43,20 +42,6 @@ AM_CONDITIONAL([EMSCRIPTEN], [test "$build_emscripten" = "yes"])
 AM_CONDITIONAL([LINUX], [test "$build_linux" = "yes"])
 AM_CONDITIONAL([WINDOWS], [test "$build_windows" = "yes"])
 AM_CONDITIONAL([OSX], [test "$build_mac" = "yes"])
-
-# Set the linker driver used in Progs/Makefile.am.
-# On Windows, MeshFix (C++) is excluded from libCAT, so we can use the plain
-# C linker (gcc) — this avoids pulling in libstdc++ and the winpthread chain.
-# On all other platforms, libCAT includes C++ objects and must be linked with g++.
-if test "$build_windows" = "yes"; then
-    PROG_CCLD='$(CC)'
-    PROG_LINK_TAG='CC'
-else
-    PROG_CCLD='$(CXX)'
-    PROG_LINK_TAG='CXX'
-fi
-AC_SUBST([PROG_CCLD])
-AC_SUBST([PROG_LINK_TAG])
 
 # --- FFTW3 (bundled source in 3rdparty/fftw/) ---
 # Configure the bundled FFTW3 directly from this configure script so that
