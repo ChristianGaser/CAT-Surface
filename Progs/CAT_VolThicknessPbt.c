@@ -29,7 +29,7 @@ int blood_vessel_correction = 1;
 double range = 0.45;
 double downsample = 0.0;
 double fill_thresh = 0.5;
-double correct_voxelsize = 0.5;
+double correct_thickness = 0.25;
 double sulcal_width = 2.5;
 
 static ArgvInfo argTable[] = {
@@ -78,9 +78,9 @@ static ArgvInfo argTable[] = {
      "Specify the size of subsampling for the median filter to smooth local\n\
      thickness values"},
 
-    {"-correct-voxelsize", ARGV_FLOAT, (char *)1, (char *)&correct_voxelsize,
-     "Amount of thickness correction for voxel-size, since we observed a systematic \n\
-     shift to smaller thickness values of half voxel-size."},
+    {"-correct-thickness", ARGV_FLOAT, (char *)1, (char *)&correct_thickness,
+     "Additive thickness correction in mm, compensating the systematic shift of the\n\
+     GM/WM and GM/CSF borders produced by the segmentation."},
 
     {"-sulcal-width", ARGV_FLOAT, (char *)1, (char *)&sulcal_width,
      "Maximum distance from CSF boundary (mm) for sulcal PPM correction. Voxels in\n\
@@ -128,7 +128,7 @@ Options:\n\
     -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
-    -correct-voxelsize <float> Amount of correction of thickness by voxel-size.\n\
+    -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
 \n\
 Example:\n\
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
     opts.n_median_filter = n_median_filter;
     opts.range = range;
     opts.fill_thresh = fill_thresh;
-    opts.correct_voxelsize = correct_voxelsize;
+    opts.correct_thickness = correct_thickness;
     opts.fast = fast;
     opts.verbose = verbose;
     opts.median_subsample = median_subsample;

@@ -90,7 +90,8 @@ def t_pbt():
     gmt, ppm2, dcsf, dwm = cs.vol_thickness_pbt(
         seg, voxelsize=vx, n_avgs=2, n_median_filter=2,
         median_subsample=2, range_val=0.45,
-        correct_voxelsize=-0.75, sulcal_width=5.0,
+        # was correct_voxelsize=-0.75 (voxels); now in mm
+        correct_thickness=-0.75 * float(np.mean(vx)), sulcal_width=5.0,
     )
     return f"gmt mean {gmt.mean():.3f}, ppm>=0.5 frac {(ppm2>=0.5).mean():.3f}"
 

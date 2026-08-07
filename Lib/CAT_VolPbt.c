@@ -25,6 +25,25 @@
 #define GWM 2.5
 #endif
 
+/*
+ * Thickness corrections are defined in mm, not in voxels.
+ *
+ * All distances inside the algorithm are computed in voxel units, so a
+ * correction expressed in voxels silently scales with the grid PBT is run on:
+ * the same constant removes twice as much cortex at 1 mm as it does at 0.5 mm.
+ * Since the bias these constants compensate is a physical property of the
+ * segmentation (where it places the GM/WM and GM/CSF borders), it must be a
+ * fixed number of millimetres.  Constants defined here are converted to voxels
+ * where they are applied to voxel-space quantities.
+ *
+ * PBT_SHRINK_MM and the default of opts->correct_thickness reproduce the former
+ * voxel-based values (0.125 and 0.5 voxel) at the 0.5 mm grid that PBT is
+ * normally run on, so results at 0.5 mm are unchanged.
+ */
+#define PBT_SHRINK_MM 0.0625 /* was 0.125 voxel */
+#define PBT_CORRECT_MM 0.25  /* was 0.5 voxel   */
+#define PBT_GMT2_MIN_MM 1.75 /* lower bound of the gyral thickness estimate */
+
 /* Forward declarations of static helpers */
 static void correct_ppm_sulci(const float *src, float *PPM, float *GMT,
                               const float *dist_CSF, const float *dist_WM,
@@ -40,7 +59,7 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->range = 0.45;
     opts->median_subsample = 4;
     opts->fill_thresh = 0.5;
-    opts->correct_voxelsize = 0.5;
+    opts->correct_thickness = PBT_CORRECT_MM;
     opts->sulcal_width = 2.5;
     opts->fast = 0;
     opts->verbose = 0;
@@ -84,9 +103,9 @@ int CAT_VolComputePbt(
     int i, j;
     int nvox;
     int n_avgs, n_median_filter, subsample;
-    double range, fill_thresh, correct_voxelsize;
+    double range, fill_thresh, correct_thickness;
     int verbose;
-    float mean_vx_size;
+    float mean_vx_size, shrink, gmt2_min;
     double add_value, sum_dist;
     double s[3], threshold[2], prctile[2];
     int replace = 0;
@@ -106,13 +125,19 @@ int CAT_VolComputePbt(
 
     nvox = dims[0] * dims[1] * dims[2];
     mean_vx_size = (voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0f;
+    if (mean_vx_size <= 0.0f)
+        return -1;
+
+    /* mm-defined constants expressed in the voxel units used internally */
+    shrink = (float)(PBT_SHRINK_MM / mean_vx_size);
+    gmt2_min = (float)(PBT_GMT2_MIN_MM / mean_vx_size);
 
     /* Copy options (handle fast mode) */
     n_avgs = opts->n_avgs;
     n_median_filter = opts->n_median_filter;
     range = opts->range;
     fill_thresh = opts->fill_thresh;
-    correct_voxelsize = opts->correct_voxelsize;
+    correct_thickness = opts->correct_thickness;
     verbose = opts->verbose;
     subsample = opts->median_subsample;
 
@@ -226,11 +251,11 @@ int CAT_VolComputePbt(
     for (i = 0; i < nvox; i++)
     {
         sum_dist = dist_WM[i] + dist_CSF[i];
-        GMT1[i] = fminf(sum_dist, fmaxf(0.0f, GMT1[i] - 0.125f * (GMT1[i] < sum_dist)));
+        GMT1[i] = fminf(sum_dist, fmaxf(0.0f, GMT1[i] - shrink * (GMT1[i] < sum_dist)));
 
         /* Limit GMT2 to thick regions */
-        GMT2[i] = (GMT2[i] > 0.0f) * fmaxf(GMT2[i], 1.75f / mean_vx_size);
-        GMT2[i] = fminf(sum_dist, fmaxf(0.0f, GMT2[i] - 0.125f * (GMT2[i] < sum_dist)));
+        GMT2[i] = (GMT2[i] > 0.0f) * fmaxf(GMT2[i], gmt2_min);
+        GMT2[i] = fminf(sum_dist, fmaxf(0.0f, GMT2[i] - shrink * (GMT2[i] < sum_dist)));
     }
 
     /* Fill values using Euclidean distance */
@@ -303,12 +328,11 @@ int CAT_VolComputePbt(
                           opts->sulcal_width);
     }
 
-    /* Voxel size correction */
+    /* Convert thickness from voxels to mm, then apply the mm-defined
+       correction.  Adding the correction after the conversion is what keeps it
+       independent of the resolution PBT was run on. */
     for (i = 0; i < nvox; i++)
-    {
-        GMT[i] += correct_voxelsize;
-        GMT[i] *= mean_vx_size;
-    }
+        GMT[i] = GMT[i] * mean_vx_size + (float)correct_thickness;
 
     /* Median filter preprocessing for topology artifact reduction
      * A topology-artifact likelihood map is estimated from the positive

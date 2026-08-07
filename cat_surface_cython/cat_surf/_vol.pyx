@@ -116,7 +116,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       int n_avgs=2, int n_median_filter=2,
                       int median_subsample=4, double range_val=0.45,
                       double fill_thresh=0.5,
-                      double correct_voxelsize=0.5,
+                      double correct_thickness=0.25,
                       double sulcal_width=2.5,
                       bint fast=False, bint verbose=False):
     """
@@ -143,8 +143,12 @@ def vol_thickness_pbt(volume, voxelsize=None,
     fill_thresh : float
         Hole-fill threshold for the PPM (default 0.5).  Set to 0 to
         disable filling.
-    correct_voxelsize : float
-        Half-voxel thickness-correction strength (default 0.5).
+    correct_thickness : float
+        Additive thickness correction in mm (default 0.25), compensating
+        the systematic border shift of the segmentation.  Replaces the
+        former ``correct_voxelsize``, which was given in voxels and so
+        scaled with ``voxelsize``; to reproduce a previous call, pass
+        ``correct_voxelsize * mean(voxelsize)``.
     sulcal_width : float
         Max distance from CSF boundary for sulcal PPM correction
         (default 2.5 mm).  Set to 0 to disable.
@@ -193,7 +197,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.median_subsample = median_subsample
     opts.range = range_val
     opts.fill_thresh = fill_thresh
-    opts.correct_voxelsize = correct_voxelsize
+    opts.correct_thickness = correct_thickness
     opts.sulcal_width = sulcal_width
     opts.fast = 1 if fast else 0
     opts.verbose = 1 if verbose else 0

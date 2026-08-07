@@ -1927,7 +1927,7 @@ class CatSurfVolThicknessPbt(BaseInterface):
 
     Wraps
     ``cat_surf.vol_thickness_pbt(volume, voxelsize, n_avgs, n_median_filter,
-    median_subsample, range_val, correct_voxelsize, sulcal_width, verbose)
+    median_subsample, range_val, correct_thickness, sulcal_width, verbose)
     → (gmt, ppm, dcsf, dwm)``.
 
     This is T1Prep's surface estimation step 1 (``CAT_VolThicknessPbt``).
@@ -1960,8 +1960,12 @@ class CatSurfVolThicknessPbt(BaseInterface):
             2, usedefault=True, desc="Subsampling factor for median filter."
         )
         range_val = traits.Float(0.45, usedefault=True, desc="Range value for PBT.")
-        correct_voxelsize = traits.Float(
-            -0.75, usedefault=True, desc="Voxel-size correction factor."
+        correct_thickness = traits.Float(
+            -0.375,
+            usedefault=True,
+            desc="Additive thickness correction in mm. Replaces the former "
+            "voxel-based correct_voxelsize; -0.375 mm is the old -0.75 voxel "
+            "at the 0.5 mm grid T1Prep runs PBT on.",
         )
         sulcal_width = traits.Float(
             5.0, usedefault=True, desc="Sulcal width parameter (mm)."
@@ -1985,7 +1989,7 @@ class CatSurfVolThicknessPbt(BaseInterface):
             n_median_filter=self.inputs.n_median_filter,
             median_subsample=self.inputs.median_subsample,
             range_val=self.inputs.range_val,
-            correct_voxelsize=self.inputs.correct_voxelsize,
+            correct_thickness=self.inputs.correct_thickness,
             sulcal_width=self.inputs.sulcal_width,
             verbose=self.inputs.verbose,
         )

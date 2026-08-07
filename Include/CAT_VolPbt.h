@@ -37,7 +37,7 @@ extern "C"
         int median_subsample;     /**< Subsampling for median filter to smooth thickness values */
         double range;             /**< Extended range for masking euclidean distance (default: 0.45) */
         double fill_thresh;       /**< Threshold for filling holes in PPM (default: 0.5, 0=disable) */
-        double correct_voxelsize; /**< Amount of thickness correction for voxel-size (default: 0.5) */
+        double correct_thickness; /**< Additive thickness correction in **mm** (default: 0.25). */
         double sulcal_width;      /**< Max distance from CSF boundary (mm) for sulcal PPM correction (default: 2.5, 0=disable) */
         int fast;                 /**< Fast mode: rougher but quicker estimate (default: 0) */
         int verbose;              /**< Verbose output (default: 0) */

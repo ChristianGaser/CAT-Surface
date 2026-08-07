@@ -356,7 +356,7 @@ cdef extern from "CAT_VolPbt.h":
         int median_subsample
         double range
         double fill_thresh
-        double correct_voxelsize
+        double correct_thickness
         double sulcal_width
         int fast
         int verbose
