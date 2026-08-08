@@ -49,6 +49,7 @@ static void correct_ppm_sulci(const float *src, float *PPM, float *GMT,
                               const float *dist_CSF, const float *dist_WM,
                               int dims[3], double voxelsize[3],
                               double sulcal_width);
+static double estimate_pve_width(const float *src, int dims[3]);
 
 void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
 {
@@ -61,6 +62,7 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->fill_thresh = 0.5;
     opts->correct_thickness = PBT_CORRECT_MM;
     opts->sulcal_width = 2.5;
+    opts->pve_distance = 0;
     opts->fast = 0;
     opts->verbose = 0;
 }
@@ -109,6 +111,9 @@ int CAT_VolComputePbt(
     double add_value, sum_dist;
     double s[3], threshold[2], prctile[2];
     int replace = 0;
+
+    double pve_width = 1.0;
+    float *src_val = NULL;
 
     unsigned char *mask = NULL;
     float *input = NULL;
@@ -195,34 +200,96 @@ int CAT_VolComputePbt(
     /* Median-filtering of input */
     localstat3(src_copy, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
 
+    /* Optional sub-voxel correction of the distance maps.
+     *
+     * euclidean_distance() measures to the nearest source voxel *centre*, but
+     * the boundary the threshold stands for does not run through that centre:
+     * a source voxel overshoots the threshold, and how far it lies beyond the
+     * boundary is encoded in its partial volume. Converting the overshoot into
+     * a distance needs the width of the PVE ramp, because a label difference
+     * of 1 spans one voxel only if the ramp is one voxel wide -- which it is
+     * not when the label map was interpolated to a finer grid than it was
+     * acquired on. This mirrors the correction in CAT12's
+     * cat_vol_pbtsimpleCS4.m, where the ramp width is opt.pvet.
+     *
+     * Off by default: it changes the calibration of the thickness, so
+     * opts->correct_thickness has to be re-derived when it is switched on.
+     */
+    if (opts->pve_distance)
+    {
+        src_val = (float *)malloc(sizeof(float) * nvox);
+        if (!src_val)
+        {
+            free(mask); free(input); free(dist_CSF); free(dist_WM);
+            free(GMT); free(GMT1); free(GMT2); free(PPM); free(src_copy);
+            return -2;
+        }
+        pve_width = estimate_pve_width(src_copy, dims);
+        if (verbose)
+            fprintf(stderr, "PVE ramp width: %.2f voxel.\n", pve_width);
+    }
+
     /* Distance estimation loop */
     for (j = 0; j < n_avgs; j++)
     {
+        double thr_CSF, thr_WM;
+
         add_value = ((double)j + 1.0) / ((double)n_avgs + 1.0) - 0.5;
+        thr_CSF = CGM + add_value;
+        thr_WM = GWM + add_value;
 
         /* CSF distance map */
         for (i = 0; i < nvox; i++)
         {
-            input[i] = (src_copy[i] < (CGM + add_value)) ? 1.0f : 0.0f;
+            input[i] = (src_copy[i] < thr_CSF) ? 1.0f : 0.0f;
             mask[i] = (src_copy[i] < (GWM + range)) ? 1 : 0;
         }
         if (verbose && (j == 0))
             fprintf(stderr, "Estimate CSF distance map.\n");
-        euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < nvox; i++)
-            dist_CSF[i] += input[i];
+        euclidean_distance_src(input, mask, dims, NULL, replace,
+                               src_val ? src_copy : NULL, src_val);
+        if (src_val)
+        {
+            /* the CSF source sits below the threshold, so it lies this far
+               beyond the boundary, capped at half a voxel */
+            for (i = 0; i < nvox; i++)
+            {
+                float d = (float)((thr_CSF - src_val[i]) * pve_width);
+                d = fminf(0.5f, fmaxf(0.0f, d));
+                dist_CSF[i] += fmaxf(0.0f, input[i] - d);
+            }
+        }
+        else
+        {
+            for (i = 0; i < nvox; i++)
+                dist_CSF[i] += input[i];
+        }
 
         /* WM distance map */
         for (i = 0; i < nvox; i++)
         {
-            input[i] = (src_copy[i] > (GWM + add_value)) ? 1.0f : 0.0f;
+            input[i] = (src_copy[i] > thr_WM) ? 1.0f : 0.0f;
             mask[i] = (src_copy[i] > (CGM - range)) ? 1 : 0;
         }
         if (verbose && (j == 0))
             fprintf(stderr, "Estimate WM distance map.\n");
-        euclidean_distance(input, mask, dims, NULL, replace);
-        for (i = 0; i < nvox; i++)
-            dist_WM[i] += input[i];
+        euclidean_distance_src(input, mask, dims, NULL, replace,
+                               src_val ? src_copy : NULL, src_val);
+        if (src_val)
+        {
+            /* mirrored: the WM source sits above the threshold */
+            for (i = 0; i < nvox; i++)
+            {
+                float d = (float)((src_val[i] - thr_WM) * pve_width);
+                d = fminf(0.5f, fmaxf(0.0f, d));
+                dist_WM[i] += fmaxf(0.0f, input[i] - d);
+            }
+        }
+        else
+        {
+            for (i = 0; i < nvox; i++)
+                dist_WM[i] += input[i];
+        }
     }
 
     /* Average distances */
@@ -411,8 +478,98 @@ int CAT_VolComputePbt(
     free(GMT2);
     free(PPM);
     free(src_copy);
+    if (src_val)
+        free(src_val);
 
     return 0;
+}
+
+/**
+ * \brief Estimate the width of the partial-volume ramp, in voxels.
+ *
+ * Port of estimatePVEsize() from CAT12's cat_vol_pbtsimpleCS4.m (the accurate
+ * branch). For both tissue transitions it measures how far apart the two pure
+ * tissue cores are: the distance from a PVE voxel out to the lower core plus
+ * the distance in to the upper core spans the ramp plus the voxel itself, so
+ * one is subtracted. Only PVE voxels contribute -- inside either core one of
+ * the two distances is zero because the voxel is either in the source set or
+ * outside the mask, so the sum is zero and the percentile call skips it.
+ *
+ * The result is the median over the volume and is floored at one voxel: a ramp
+ * cannot be sharper than the sampling.
+ *
+ * \param src  (in) PVE label image (CSF=1, GM=2, WM=3)
+ * \param dims (in) volume dimensions {nx, ny, nz}
+ * \return ramp width in voxels, >= 1.0
+ */
+static double estimate_pve_width(const float *src, int dims[3])
+{
+    const int nvox = dims[0] * dims[1] * dims[2];
+    float *a, *b, *pvet;
+    unsigned char *m;
+    double threshold[2], prctile[2], width;
+    int i;
+
+    a = (float *)malloc(sizeof(float) * nvox);
+    b = (float *)malloc(sizeof(float) * nvox);
+    pvet = (float *)malloc(sizeof(float) * nvox);
+    m = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
+
+    if (!a || !b || !pvet || !m)
+    {
+        if (a) free(a);
+        if (b) free(b);
+        if (pvet) free(pvet);
+        if (m) free(m);
+        return 1.0;
+    }
+
+    /* CSF/GM transition */
+    for (i = 0; i < nvox; i++)
+    {
+        a[i] = (src[i] < 1.1f) ? 1.0f : 0.0f;
+        m[i] = (src[i] < 1.9f) ? 1 : 0;
+    }
+    euclidean_distance(a, m, dims, NULL, 0);
+    for (i = 0; i < nvox; i++)
+    {
+        b[i] = (src[i] > 1.9f) ? 1.0f : 0.0f;
+        m[i] = (src[i] > 1.1f) ? 1 : 0;
+    }
+    euclidean_distance(b, m, dims, NULL, 0);
+    for (i = 0; i < nvox; i++)
+        pvet[i] = a[i] + b[i];
+
+    /* GM/WM transition */
+    for (i = 0; i < nvox; i++)
+    {
+        a[i] = (src[i] < 2.1f) ? 1.0f : 0.0f;
+        m[i] = (src[i] < 2.9f) ? 1 : 0;
+    }
+    euclidean_distance(a, m, dims, NULL, 0);
+    for (i = 0; i < nvox; i++)
+    {
+        b[i] = (src[i] > 2.9f) ? 1.0f : 0.0f;
+        m[i] = (src[i] > 2.1f) ? 1 : 0;
+    }
+    euclidean_distance(b, m, dims, NULL, 0);
+    for (i = 0; i < nvox; i++)
+        pvet[i] = fmaxf(pvet[i], a[i] + b[i]);
+
+    prctile[0] = 50.0;
+    prctile[1] = 50.0;
+    get_prctile(pvet, nvox, threshold, prctile, 1, DT_FLOAT32);
+
+    width = threshold[0] - 1.0;
+    if (!(width >= 1.0))
+        width = 1.0;
+
+    free(a);
+    free(b);
+    free(pvet);
+    free(m);
+
+    return width;
 }
 
 /**

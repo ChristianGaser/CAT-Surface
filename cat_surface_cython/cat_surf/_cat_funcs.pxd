@@ -358,6 +358,7 @@ cdef extern from "CAT_VolPbt.h":
         double fill_thresh
         double correct_thickness
         double sulcal_width
+        int pve_distance
         int fast
         int verbose
 

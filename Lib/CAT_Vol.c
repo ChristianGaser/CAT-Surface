@@ -1303,6 +1303,14 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
  * nearest-neighbour interpolation: every masked voxel receives the *value* of
  * the closest positive source voxel.
  *
+ * If `src` and `src_out` are both given, `src_out` additionally receives the
+ * value that `src` holds at the nearest source voxel. The distance itself is
+ * measured centre-to-centre, but the boundary a thresholded source set stands
+ * for does not run through those centres; it sits a sub-voxel distance beyond
+ * them, and how far is encoded in the partial volume of the source voxel.
+ * Callers that need a distance to the boundary rather than to the centre can
+ * recover it from `src_out` (see CAT_VolComputePbt).
+ *
  * Algorithm: two-pass (forward + backward) chamfer propagation over a
  * 14-connected half-neighbourhood. Coordinates are tracked explicitly
  * (x/y/z loops) to avoid per-voxel ind2sub/sub2ind overhead and to allow
@@ -1313,8 +1321,11 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
  * \param dims      (in)     {nx, ny, nz}
  * \param voxelsize (in)     voxel spacing; NULL -> {1,1,1}
  * \param replace   (in)     0 = output distances; >0 = output nearest values
+ * \param src       (in)     optional array sampled at the nearest source; NULL to skip
+ * \param src_out   (out)    optional array receiving src[nearest source]; NULL to skip
  */
-void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
+void euclidean_distance_src(float *V, unsigned char *M, int dims[3], double *voxelsize,
+                            int replace, const float *src, float *src_out)
 {
     const int nx = dims[0];
     const int ny = dims[1];
@@ -1512,10 +1523,31 @@ void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsi
         free(buffer);
     }
 
+    /* Value of `src` at the nearest source voxel. Source voxels keep I[i]==i
+       (both passes skip them), so they map to themselves, and voxels that were
+       masked out or never reached fall back to their own value, which makes any
+       correction derived from this a no-op there. */
+    if (src && src_out)
+    {
+        for (i = 0; i < nvox; ++i)
+            src_out[i] = (M[i] == 0 || D[i] == FLT_MAX) ? src[i] : src[I[i]];
+    }
+
     free(D);
     free(I);
     if (init_M)
         free(M);
+}
+
+/**
+ * \brief Euclidean distance transform (see euclidean_distance_src()).
+ *
+ * Thin wrapper that keeps the historical signature; equivalent to calling
+ * euclidean_distance_src() with no nearest-source output.
+ */
+void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
+{
+    euclidean_distance_src(V, M, dims, voxelsize, replace, NULL, NULL);
 }
 
 /**

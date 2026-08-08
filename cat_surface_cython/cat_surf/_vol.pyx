@@ -118,6 +118,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double fill_thresh=0.5,
                       double correct_thickness=0.25,
                       double sulcal_width=2.5,
+                      bint pve_distance=False,
                       bint fast=False, bint verbose=False):
     """
     Compute projection-based cortical thickness (PBT).
@@ -152,6 +153,14 @@ def vol_thickness_pbt(volume, voxelsize=None,
     sulcal_width : float
         Max distance from CSF boundary for sulcal PPM correction
         (default 2.5 mm).  Set to 0 to disable.
+    pve_distance : bool
+        EXPERIMENTAL, default False.  Correct the WM/CSF distance maps
+        for partial volume: the distance transform measures to the
+        nearest source voxel *centre*, and this uses that voxel's
+        partial volume to measure to the tissue boundary instead.
+        Mirrors the correction in CAT12's ``cat_vol_pbtsimpleCS4``.
+        Shifts the thickness calibration, so ``correct_thickness``
+        has to be re-derived when enabling it.
     fast : bool
         Fast/coarse thickness estimate only (default False).
     verbose : bool
@@ -199,6 +208,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.fill_thresh = fill_thresh
     opts.correct_thickness = correct_thickness
     opts.sulcal_width = sulcal_width
+    opts.pve_distance = 1 if pve_distance else 0
     opts.fast = 1 if fast else 0
     opts.verbose = 1 if verbose else 0
 

@@ -39,6 +39,7 @@ extern "C"
         double fill_thresh;       /**< Threshold for filling holes in PPM (default: 0.5, 0=disable) */
         double correct_thickness; /**< Additive thickness correction in **mm** (default: 0.25). */
         double sulcal_width;      /**< Max distance from CSF boundary (mm) for sulcal PPM correction (default: 2.5, 0=disable) */
+        int pve_distance;         /**< Sub-voxel PVE correction of the WM/CSF distance maps (default: 0=off). The distance transform measures to the nearest source voxel *centre*; with this enabled the partial volume of that source voxel is used to measure to the tissue boundary instead, as in CAT12's cat_vol_pbtsimpleCS4. EXPERIMENTAL: it shifts the thickness calibration, so correct_thickness must be re-derived when enabling it. */
         int fast;                 /**< Fast mode: rougher but quicker estimate (default: 0) */
         int verbose;              /**< Verbose output (default: 0) */
     } CAT_PbtOptions;

@@ -274,6 +274,26 @@ void cleanup_brain(unsigned char *probs, int dims[3], double voxelsize[3], int s
  */
 void euclidean_distance(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
 /**
+ * \brief euclidean_distance() with the value at the nearest source voxel.
+ *
+ * Same as euclidean_distance(), but when `src` and `src_out` are both non-NULL
+ * `src_out` additionally receives `src[nearest source voxel]`. The distance is
+ * measured centre-to-centre; the partial volume carried in `src_out` tells the
+ * caller how far the boundary lies beyond that centre, which is what turns a
+ * centre-to-centre distance into a centre-to-boundary distance.
+ *
+ * \param V (in/out) float volume; positive values are distance sources.
+ * \param IO (in) optional uint8 mask; NULL = all-ones.
+ * \param dims (in) {nx, ny, nz}.
+ * \param voxelsize (in) voxel spacing; NULL -> {1,1,1}.
+ * \param replace (in) 0 = output distances; >0 = output nearest values.
+ * \param src (in) optional array sampled at the nearest source; NULL to skip.
+ * \param src_out (out) optional array receiving src[nearest source]; NULL to skip.
+ * \return void (no return value).
+ */
+void euclidean_distance_src(float *V, unsigned char *IO, int dims[3], double *voxelsize,
+                            int replace, const float *src, float *src_out);
+/**
  * \brief Intensity-limited region growing with distance/intensity path cost.
  *
  * Grows labels from seeded voxels into unlabeled voxels under a monotonic

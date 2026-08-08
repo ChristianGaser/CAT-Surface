@@ -31,6 +31,7 @@ double downsample = 0.0;
 double fill_thresh = 0.5;
 double correct_thickness = 0.25;
 double sulcal_width = 2.5;
+int pve_distance = 0;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -82,6 +83,15 @@ static ArgvInfo argTable[] = {
      "Additive thickness correction in mm, compensating the systematic shift of the\n\
      GM/WM and GM/CSF borders produced by the segmentation."},
 
+    {"-pve-distance", ARGV_CONSTANT, (char *)1, (char *)&pve_distance,
+     "EXPERIMENTAL. Correct the WM/CSF distance maps for partial volume. The distance\n\
+     transform measures to the nearest source voxel centre, but the tissue boundary\n\
+     lies a sub-voxel distance beyond that centre; how far is given by the partial\n\
+     volume of the source voxel and the width of the PVE ramp, which is estimated\n\
+     from the image. Mirrors the correction in CAT12's cat_vol_pbtsimpleCS4.\n\
+     This shifts the thickness calibration, so '-correct-thickness' has to be\n\
+     re-derived when this is enabled."},
+
     {"-sulcal-width", ARGV_FLOAT, (char *)1, (char *)&sulcal_width,
      "Maximum distance from CSF boundary (mm) for sulcal PPM correction. Voxels in\n\
      the GM/CSF partial-volume zone within this distance are attenuated to prevent\n\
@@ -130,6 +140,7 @@ Options:\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
+    -pve-distance              Sub-voxel PVE correction of the distance maps (experimental).\n\
 \n\
 Example:\n\
     %s -verbose -n-avgs 4 input.nii gmt_output.nii ppm_output.nii\n\n";
@@ -237,6 +248,7 @@ int main(int argc, char *argv[])
     opts.range = range;
     opts.fill_thresh = fill_thresh;
     opts.correct_thickness = correct_thickness;
+    opts.pve_distance = pve_distance;
     opts.fast = fast;
     opts.verbose = verbose;
     opts.median_subsample = median_subsample;
