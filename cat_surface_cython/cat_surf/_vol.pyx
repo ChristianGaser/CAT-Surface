@@ -283,8 +283,10 @@ def vol_amap(volume, labels, voxelsize=None,
         is True, else ``n_pure_classes``.
     label : ndarray, 3-D, uint8
         Final tissue labels.
-    mean : ndarray, shape (n_pure_classes,), float64
-        Estimated pure-class means.
+    mean : ndarray, shape (n_out_classes,), float64
+        Estimated class means, in the class order of ``CAT_Amap.h``.  With
+        ``pve`` that is ``[CSF, CSF/GM, GM, GM/WM, WM]``, so the pure-class
+        means are at indices 0, 2 and 4; without it, ``[CSF, GM, WM]``.
     """
     vol = np.asfortranarray(volume, dtype=np.float32)
     if vol.ndim != 3:
@@ -316,8 +318,12 @@ def vol_amap(volume, labels, voxelsize=None,
     cdef cnp.ndarray[cnp.uint8_t, ndim=4] prob = np.zeros(
         prob_shape, dtype=np.uint8, order='F')
 
+    # Amap() raises its class count to 5 in the PVE branch and rewrites the
+    # caller's mean[0..4] there (CAT_Amap.c), so the buffer has to hold the
+    # mixed classes too -- CAT_VolAmap.c sizes it the same way.  Allocating
+    # only n_pure_classes overruns it by 16 bytes on every pve=True call.
     cdef cnp.ndarray[cnp.float64_t, ndim=1] mean = np.zeros(
-        n_pure_classes, dtype=np.float64)
+        max(n_out, n_pure_classes), dtype=np.float64)
 
     cdef cnp.ndarray[cnp.float64_t, ndim=1] mrf_w
     cdef double *mrf_w_ptr = NULL
