@@ -43,6 +43,7 @@ void CAT_SheetnessOptionsInit(CAT_SheetnessOpts *opts)
     opts->alpha = 0.5;
     opts->beta = 0.5;
     opts->c = -1.0; /* automatic: half the maximum Hessian norm */
+    opts->gain = 1.0;
     opts->polarity = 0;
     opts->verbose = 0;
 }
@@ -199,7 +200,10 @@ void CAT_EigenSym3(const double a[6], double eval[3], double evec3[3])
  * to sulci and vice versa.
  *
  * The maximum over scales is kept, together with the sheet normal at the
- * winning scale.
+ * winning scale, and opts->gain is applied to the result.  See the header for
+ * why a gain is worth having: every consumer gates on the response through a
+ * threshold, the one in CAT_VolOrientedMedian() is hard at 0.5, and the
+ * automatic noise scale routinely leaves the cortical response well below it.
  *
  * \param src        (in)  scalar volume, e.g. a bias-corrected T1
  * \param sheetness  (out) float[nvox] response in [0,1]; maximum over scales
@@ -377,6 +381,27 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                     s + 1, opts->n_scales, sigma);
     }
 
+    /* Overall gain, applied once the maximum over scales is complete.  A
+       positive gain is monotonic and therefore cannot change which scale won,
+       so one final pass is equivalent to scaling inside the loop and cheaper.
+       The clamp keeps the map in [0,1]; because the map is linear in the
+       response and fixes zero, a voxel with no response stays at zero for any
+       gain and every oriented operator still degenerates exactly to its
+       isotropic counterpart there.  A negative gain zeroes the map, which is
+       the fully isotropic case. */
+    if (opts->gain != 1.0)
+    {
+        for (i = 0; i < nvox; i++)
+        {
+            double g = (double)sheetness[i] * opts->gain;
+            if (g < 0.0)
+                g = 0.0;
+            if (g > 1.0)
+                g = 1.0;
+            sheetness[i] = (float)g;
+        }
+    }
+
     free(work);
     return 0;
 }
@@ -396,21 +421,25 @@ static int cmp_float(const void *a, const void *b)
 /**
  * \brief Median filter over a sheetness-oriented neighbourhood.
  *
- * See the header for the admission rule.  The important property is the
- * degenerate case: with sheetness 0 every one of the 27 neighbours is
- * admitted, so the operator is exactly the isotropic median it replaces and
- * behaviour away from thin structures does not change at all.
+ * See the header for the admission rule and for how the cutoff maps onto the
+ * three neighbour classes.  The important property is the degenerate case:
+ * with sheetness 0 the test reduces to 0 < cutoff for every offset, so all 27
+ * neighbours are admitted whatever the cutoff, the operator is exactly the
+ * isotropic median it replaces, and behaviour away from thin structures does
+ * not change at all.
  *
  * \param vol       (in/out) volume to filter, in place
  * \param sheetness (in)     float[nvox] in [0,1]; NULL falls back to isotropic
  * \param normal    (in)     float[3*nvox] unit sheet normals; NULL falls back
  * \param mask      (in)     optional uint8 mask; NULL = filter everywhere
  * \param dims      (in)     {nx, ny, nz}
+ * \param cutoff    (in)     admission cutoff; <= 0 selects the default
  * \param iters     (in)     number of successive passes
  * \return 0 on success, -1 on invalid arguments, -2 on allocation failure
  */
 int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *normal,
-                          const unsigned char *mask, int dims[3], int iters)
+                          const unsigned char *mask, int dims[3], double cutoff,
+                          int iters)
 {
     const int nx = dims ? dims[0] : 0;
     const int ny = dims ? dims[1] : 0;
@@ -424,6 +453,9 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
         return -1;
     if (nx < 3 || ny < 3 || nz < 3 || iters < 1)
         return 0;
+
+    if (cutoff <= 0.0)
+        cutoff = CAT_ORIENTED_MEDIAN_CUTOFF;
 
     in = (float *)malloc(sizeof(float) * (size_t)nvox);
     if (!in)
@@ -464,7 +496,7 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
                         for (j = -1; j <= 1; j++)
                             for (i = -1; i <= 1; i++)
                             {
-                                double d2, cosine, w;
+                                double d2, cosine;
 
                                 if (i == 0 && j == 0 && k == 0)
                                 {
@@ -477,118 +509,16 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
                                           (double)k * nvec[2]);
                                 cosine = cosine * cosine / d2;
 
-                                w = 1.0 - s * cosine;
-                                if (w > 0.5)
+                                /* s = 0 admits every offset at any cutoff, which is
+                                   what keeps this identical to the isotropic median
+                                   away from thin structures */
+                                if (s * cosine < cutoff)
                                     buf[n++] = in[idx + i + j * nx + k * xy];
                             }
 
                     qsort(buf, (size_t)n, sizeof(float), cmp_float);
                     vol[idx] = (n & 1) ? buf[n / 2]
                                        : 0.5f * (buf[n / 2 - 1] + buf[n / 2]);
-                }
-    }
-
-    free(in);
-    return 0;
-}
-
-/**
- * \brief Sheetness-oriented (coherence-enhancing) smoothing.
- *
- * See the header for the weighting rule.  As with the oriented median, a
- * sheetness of 0 reduces the weights to plain inverse-distance weights, so the
- * operator is a conventional local average wherever there is no thin structure
- * to protect.
- *
- * \param vol       (in/out) volume to filter, in place
- * \param sheetness (in)     float[nvox] in [0,1]; NULL falls back to isotropic
- * \param normal    (in)     float[3*nvox] unit sheet normals; NULL falls back
- * \param mask      (in)     optional uint8 mask; NULL = filter everywhere
- * \param dims      (in)     {nx, ny, nz}
- * \param sigma     (in)     angular width of the anisotropy, e.g. 0.5
- * \param iters     (in)     number of successive passes
- * \return 0 on success, -1 on invalid arguments, -2 on allocation failure
- */
-int CAT_VolOrientedSmooth(float *vol, const float *sheetness, const float *normal,
-                          const unsigned char *mask, int dims[3], double sigma,
-                          int iters)
-{
-    const int nx = dims ? dims[0] : 0;
-    const int ny = dims ? dims[1] : 0;
-    const int nz = dims ? dims[2] : 0;
-    const int xy = nx * ny;
-    const int nvox = xy * nz;
-    float *in = NULL;
-    double two_sigma2;
-    int it, x, y, z, i, j, k;
-
-    if (!vol || !dims || nvox <= 0)
-        return -1;
-    if (nx < 3 || ny < 3 || nz < 3 || iters < 1)
-        return 0;
-
-    if (sigma <= 0.0)
-        sigma = 0.5;
-    two_sigma2 = 2.0 * sigma * sigma;
-
-    in = (float *)malloc(sizeof(float) * (size_t)nvox);
-    if (!in)
-        return -2;
-
-    for (it = 0; it < iters; it++)
-    {
-        memcpy(in, vol, sizeof(float) * (size_t)nvox);
-
-        for (z = 1; z < nz - 1; z++)
-            for (y = 1; y < ny - 1; y++)
-                for (x = 1; x < nx - 1; x++)
-                {
-                    const int idx = x + y * nx + z * xy;
-                    double sum = 0.0, wsum = 0.0;
-                    double s = 0.0, nvec[3] = {0.0, 0.0, 0.0};
-
-                    if (mask && !mask[idx])
-                        continue;
-
-                    if (sheetness && normal)
-                    {
-                        s = (double)sheetness[idx];
-                        nvec[0] = (double)normal[3 * idx + 0];
-                        nvec[1] = (double)normal[3 * idx + 1];
-                        nvec[2] = (double)normal[3 * idx + 2];
-                        if (s < 0.0)
-                            s = 0.0;
-                        if (s > 1.0)
-                            s = 1.0;
-                        if (nvec[0] == 0.0 && nvec[1] == 0.0 && nvec[2] == 0.0)
-                            s = 0.0;
-                    }
-
-                    for (k = -1; k <= 1; k++)
-                        for (j = -1; j <= 1; j++)
-                            for (i = -1; i <= 1; i++)
-                            {
-                                double d2, cosine, w;
-
-                                if (i == 0 && j == 0 && k == 0)
-                                {
-                                    sum += (double)in[idx];
-                                    wsum += 1.0;
-                                    continue;
-                                }
-
-                                d2 = (double)(i * i + j * j + k * k);
-                                cosine = ((double)i * nvec[0] + (double)j * nvec[1] +
-                                          (double)k * nvec[2]);
-                                cosine = cosine * cosine / d2;
-
-                                w = ((1.0 - s) + s * exp(-cosine / two_sigma2)) / sqrt(d2);
-                                sum += w * (double)in[idx + i + j * nx + k * xy];
-                                wsum += w;
-                            }
-
-                    if (wsum > 0.0)
-                        vol[idx] = (float)(sum / wsum);
                 }
     }
 

@@ -34,6 +34,7 @@ double sulcal_width = 2.5;
 int pve_distance = 0;
 int oriented_filter = 0;
 double oriented_strength = 1.0;
+double oriented_cutoff = 0.0;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -93,8 +94,21 @@ static ArgvInfo argTable[] = {
      the isotropic one, so nothing changes away from thin structures."},
 
     {"-oriented-strength", ARGV_FLOAT, (char *)1, (char *)&oriented_strength,
-     "How far the oriented filters may deviate from isotropic, 0..1 (default 1.0).\n\
-     0 reproduces the isotropic filters exactly."},
+     "Overall gain on the sheetness before the oriented filters use it (default\n\
+     1.0). 0 reproduces the isotropic filters exactly. Values above 1 amplify a\n\
+     response too weak to matter: the oriented median admits every neighbour\n\
+     unless the sheetness exceeds 0.5, so a map peaking at 0.5 leaves it\n\
+     bit-identical to the isotropic median. Inspect the map with CAT_VolSheetness\n\
+     before raising this, since the noise floor is amplified along with it."},
+
+    {"-oriented-cutoff", ARGV_FLOAT, (char *)1, (char *)&oriented_cutoff,
+     "Admission cutoff of the oriented medians (default 0.10). A neighbour at\n\
+     offset d is admitted when sheetness*(dhat.n)^2 < cutoff, so the 6 face\n\
+     neighbours drop out at sheetness = cutoff, the 12 edge neighbours at\n\
+     2*cutoff and the 8 corners at 3*cutoff, while the 9 offsets in the sheet\n\
+     plane are always admitted. A one-voxel-thick sheet is preserved from\n\
+     2*cutoff upwards. Set it to about half the sheetness your data actually\n\
+     reaches; inspect that with CAT_VolSheetness."},
 
     {"-correct-thickness", ARGV_FLOAT, (char *)1, (char *)&correct_thickness,
      "Additive thickness correction in mm, compensating the systematic shift of the\n\
@@ -156,6 +170,7 @@ Options:\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -oriented-filter           Use sheetness-oriented instead of isotropic median filters.\n\
+    -oriented-cutoff <float>   Admission cutoff of the oriented medians (default 0.10).\n\
     -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
     -pve-distance              Sub-voxel PVE correction of the distance maps (experimental).\n\
@@ -273,6 +288,7 @@ int main(int argc, char *argv[])
     opts.sulcal_width = sulcal_width;
     opts.oriented_filter = oriented_filter;
     opts.oriented_strength = oriented_strength;
+    opts.oriented_cutoff = oriented_cutoff;
 
     if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {

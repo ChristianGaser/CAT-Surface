@@ -31,6 +31,7 @@ double sheet_sigma_max    = 1.0;
 int    sheet_scales       = 3;
 int    sheet_polarity     = 0;
 double sheet_strength     = 1.0;
+double sheet_cutoff       = 0.0;   /* 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
 int    verbose            = 0;
 
 static
@@ -68,8 +69,33 @@ ArgvInfo argTable[] = {
     {"-sheet-polarity", ARGV_INT, (char *) 1, (char *) &sheet_polarity,
          "1 = bright sheets, -1 = dark sheets, 0 = either (default)."},
     {"-sheet-strength", ARGV_FLOAT, (char *) 1, (char *) &sheet_strength,
-         "How far the filter may deviate from isotropic, 0..1 (default: 1.0).\n\
-         0 reproduces the isotropic filter exactly."},
+         "Overall gain on the sheetness before it is used (default: 1.0).\n\
+         0 reproduces the isotropic filter exactly.  Values above 1 amplify a\n\
+         response too weak to matter: the oriented median admits every neighbour\n\
+         unless the sheetness exceeds 0.5, so a map peaking at 0.5 leaves it\n\
+         bit-identical to the isotropic median.  Reaching 0.5 is only where it\n\
+         starts to differ, though: a one-voxel sheet has 9 of 27 neighbours in\n\
+         its own plane, and the 8 edge neighbours that would outvote them drop\n\
+         out only at a sheetness of 1, so the median returns the sheet value\n\
+         only once the response saturates.  Check the map with CAT_VolSheetness\n\
+         and set this to about 1/max, not 0.6/max.  The noise floor is amplified\n\
+         along with the sheets, and the strongest responses -- not necessarily\n\
+         the sulci -- come up first, so watch the map rather than guessing.\n\
+         Lowering -c in CAT_VolSheetness is the principled alternative."},
+    {"-sheet-cutoff", ARGV_FLOAT, (char *) 1, (char *) &sheet_cutoff,
+         "Admission cutoff of the oriented median (default: 0.10).  A neighbour\n\
+         at offset d is admitted when s*(dhat.n)^2 < cutoff, so the three\n\
+         neighbour classes drop out in turn: the 6 face neighbours at s = cutoff,\n\
+         the 12 edge neighbours at s = 2*cutoff, the 8 corners at s = 3*cutoff.\n\
+         The 9 offsets lying in the sheet plane are always admitted.  A\n\
+         one-voxel-thick sheet is preserved from s = 2*cutoff upwards, where\n\
+         those 9 first make up half the admitted set, so the cutoff is half the\n\
+         sheetness at which the filter starts to protect a thin structure.  Set\n\
+         it from the response CAT_VolSheetness actually gives on your data: a\n\
+         map peaking near 0.5 wants roughly 0.25, one peaking near 0.3 wants\n\
+         0.15.  Larger values confine the effect to a thinner rim around the\n\
+         strongest responses; 0.5 was the historical value and needed a\n\
+         saturated response before it did anything at all."},
     {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
          "Be verbose."},
     {NULL, ARGV_END, NULL, NULL, NULL}
@@ -100,14 +126,27 @@ Options:\n\
     -euclid          Use Euclidean distance instead of block distance.\n\
     -oriented        Sheetness-oriented median (-stat 7 only); see below.\n\
     -guide  <file>   Volume the orientation is estimated from.\n\
+    -sheet-strength <float>  Gain on the sheetness (default: 1.0); see below.\n\
+    -sheet-cutoff   <float>  Admission cutoff (default: 0.10); see below.\n\
     -v               Be verbose.\n\
 \n\
     With -oriented the median runs over a neighbourhood oriented by a Hessian\n\
     sheetness filter (see CAT_VolSheetness): a neighbour at offset d is admitted\n\
-    only when 1 - s*(dhat.n)^2 > 0.5, with s the local sheetness and n the local\n\
-    sheet normal.  At s = 0 every neighbour is admitted and the operator is the\n\
-    plain isotropic median; at s = 1 only offsets within 45 degrees of the sheet\n\
-    plane survive, so the filter can no longer close a thin structure.\n\
+    only when s*(dhat.n)^2 < cutoff, with s the local sheetness, n the local\n\
+    sheet normal and cutoff set by -sheet-cutoff.  At s = 0 every neighbour is\n\
+    admitted and the operator is the plain isotropic median.\n\
+\n\
+    The 9 offsets lying in the sheet plane are always admitted; the other three\n\
+    classes drop out at s = cutoff (6 faces), s = 2*cutoff (12 edges) and\n\
+    s = 3*cutoff (8 corners).  A one-voxel-thick sheet puts the sheet value on\n\
+    the 9 in-plane offsets only, so it survives the median from s = 2*cutoff\n\
+    upwards, where those 9 first make up half the admitted set.\n\
+\n\
+    So the two numbers to match are the cutoff and the response your data\n\
+    actually produces: write the map with CAT_VolSheetness, and pick a cutoff of\n\
+    about half the sheetness your sulci reach.  If the effect is confined to a\n\
+    thin rim around the strongest responses, the cutoff is too high for the map;\n\
+    lower it, or raise -sheet-strength, or widen the scale range.\n\
 \n\
 Example:\n\
     %s -stat 7 -dist 2 -iter 3 input.nii output.nii\n\
@@ -193,7 +232,6 @@ main(int argc, char *argv[])
     if (oriented) {
         int nvox = dims[0] * dims[1] * dims[2];
         CAT_SheetnessOpts sopts;
-        int i;
 
         if (guide_file) {
             guide_ptr = read_nifti_float(guide_file, &guide, 0);
@@ -220,6 +258,7 @@ main(int argc, char *argv[])
         sopts.sigma_max = sheet_sigma_max;
         sopts.n_scales  = sheet_scales;
         sopts.polarity  = sheet_polarity;
+        sopts.gain      = sheet_strength;
         sopts.verbose   = verbose;
 
         if (CAT_VolSheetness(guide ? guide : input, sheetness, normal, NULL,
@@ -227,15 +266,12 @@ main(int argc, char *argv[])
             fprintf(stderr, "Sheetness estimation failed.\n");
             exit(EXIT_FAILURE);
         }
-
-        if (sheet_strength >= 0.0 && sheet_strength < 1.0)
-            for (i = 0; i < nvox; i++)
-                sheetness[i] *= (float) sheet_strength;
     }
 
     /* Apply local statistic */
     if (oriented) {
-        CAT_VolOrientedMedian(input, sheetness, normal, NULL, dims, iters);
+        CAT_VolOrientedMedian(input, sheetness, normal, NULL, dims, sheet_cutoff,
+                              iters);
     } else if (stat_func == F_CLOSE) {
         /* Grey closing: dilation (max) followed by erosion (min) */
         localstat3(input, NULL, dims, dist, F_MAX, iters, use_euclidean_dist, DT_FLOAT32);

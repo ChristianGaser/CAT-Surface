@@ -55,9 +55,43 @@ typedef struct
     double alpha;     /**< plate-vs-tube sensitivity (R_sheet term) */
     double beta;      /**< blob-vs-plate sensitivity (R_blob term) */
     double c;         /**< structure-vs-noise sensitivity; <= 0 selects automatic */
+    double gain;      /**< overall gain on the response (default 1.0); see below */
     int polarity;     /**< +1 bright sheets, -1 dark sheets, 0 either */
     int verbose;      /**< 1 to report progress */
 } CAT_SheetnessOpts;
+
+/*
+ * About the gain
+ * --------------
+ * Every consumer of the sheetness gates on it through a threshold, and the
+ * one in CAT_VolOrientedMedian() is hard: a neighbour is admitted unless
+ * 1 - s*(dhat.n)^2 > 0.5 fails, and since (dhat.n)^2 <= 1 that cannot happen
+ * for s <= 0.5.  A response that peaks at 0.5 therefore leaves the oriented
+ * median bit-identical to the isotropic one -- not weakened, but unchanged.
+ *
+ * Crossing 0.5 is only where it begins to differ.  Preserving a one-voxel-thick
+ * sheet takes more: of the 27 neighbours only the 9 in the sheet plane carry the
+ * sheet value, and the 8 edge neighbours at (dhat.n)^2 = 1/2 are excluded only
+ * once s reaches 1, so below saturation the admitted off-plane neighbours
+ * outvote the sheet and the median erases it anyway.  On a 3x3x3 neighbourhood
+ * the operator is therefore close to binary: useful at s = 1, inert below it.
+ *
+ * The automatic noise scale is what usually puts it there.  It is half the
+ * largest Hessian norm found anywhere in the volume, so the noise factor at a
+ * voxel carrying a fraction r of that maximum is 1 - exp(-2r^2): a voxel needs
+ * r > 0.59 before that term alone reaches 0.5.  On a real head the maximum is
+ * set by the scalp/air step, which no sulcal dip comes close to, so the
+ * cortical response collapses towards zero.  Setting `c` explicitly is the
+ * principled fix; the gain is the blunt one, and it is useful because it needs
+ * no knowledge of the intensity units.
+ *
+ * The gain multiplies the response and the result is clamped to [0,1].  It is
+ * a linear map fixing zero, so a zero response stays zero at any gain and the
+ * invariant that every oriented operator degenerates to its isotropic
+ * counterpart where no sheet was found is preserved exactly.  A gain above 1
+ * also amplifies whatever noise floor the map has, so raise it while watching
+ * the map from CAT_VolSheetness rather than blind.
+ */
 
 /**
  * \brief Fill a CAT_SheetnessOpts with defaults suitable for 0.5 mm brain data.
@@ -82,51 +116,66 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                      const unsigned char *mask, int dims[3], double voxelsize[3],
                      const CAT_SheetnessOpts *opts);
 
+/** \brief Default admission cutoff of CAT_VolOrientedMedian(). */
+#define CAT_ORIENTED_MEDIAN_CUTOFF 0.10
+
 /**
  * \brief Median filter over a sheetness-oriented neighbourhood.
  *
  * Drop-in replacement for an isotropic 3x3x3 median that cannot close a thin
  * sheet.  A neighbour at offset d is admitted only when
  *
- *     1 - s * (dhat . n)^2 > 0.5
+ *     s * (dhat . n)^2 < cutoff
  *
- * with s the local sheetness and n the local sheet normal.  For s = 0 every
- * neighbour is admitted and the operator is bit-identical to the plain
- * isotropic median, so behaviour away from thin structures is unchanged.  For
- * s = 1 only offsets within 45 degrees of the sheet plane survive, i.e. the
- * filter averages *along* the sheet and never across it.
+ * with s the local sheetness and n the local sheet normal.  For s = 0 the left
+ * side is zero for every offset, so every neighbour is admitted and the
+ * operator is bit-identical to the plain isotropic median at any cutoff --
+ * behaviour away from thin structures never changes.
+ *
+ * How to choose the cutoff
+ * -----------------------
+ * Sort the 26 offsets by (dhat . n)^2: the 6 face neighbours sit at 1, the 12
+ * edge neighbours at 1/2 and the 8 corners at 1/3, while the 9 offsets lying in
+ * the sheet plane sit at 0 and are therefore admitted always.  A neighbour
+ * class at (dhat . n)^2 = q drops out once s >= cutoff / q, so:
+ *
+ *   s >= cutoff       the 6 face neighbours drop out  (25 of 27 admitted)
+ *   s >= 2 * cutoff   the 12 edge neighbours follow   (17 of 27 admitted)
+ *   s >= 3 * cutoff   only the sheet plane survives   ( 9 of 27 admitted)
+ *
+ * The middle row is the one that matters.  A one-voxel-thick sheet puts the
+ * sheet value on only the 9 in-plane offsets, so it survives the median exactly
+ * when those 9 are at least half of what is admitted -- that is, from
+ * s >= 2 * cutoff onwards.  Below it the filter differs from the isotropic
+ * median without yet being able to keep a thin sheet.
+ *
+ * The cutoff is therefore half the sheetness at which a thin sheet starts being
+ * preserved, and it should be set from the response the sheetness filter
+ * actually produces on the data at hand.  The historical value was 0.5, which
+ * put that point at s = 1 -- reachable only where the response saturates, so
+ * the filter behaved as an on/off switch confined to a thin rim.
+ *
+ * The default of 0.10 is taken from the response on a 0.5 mm skull-stripped
+ * MPRAGE, where the dark-sheet map has p99 = 0.20, p99.9 = 0.33 and a maximum
+ * of 0.56: it gives the top percent of the response full sheet preservation
+ * (s >= 2*cutoff = 0.20) and the top few percent partial anisotropy, which
+ * changed about 2.6% of brain voxels against the isotropic median where the old
+ * 0.5 changed essentially none.  Data with a different response wants a
+ * different cutoff -- measure with CAT_VolSheetness and halve what the sulci
+ * reach.
  *
  * \param vol       (in/out) volume to filter, in place
  * \param sheetness (in)     float[nvox] in [0,1]; NULL falls back to isotropic
  * \param normal    (in)     float[3*nvox] unit sheet normals; NULL falls back
  * \param mask      (in)     optional uint8 mask; NULL = filter everywhere
  * \param dims      (in)     {nx, ny, nz}
+ * \param cutoff    (in)     admission cutoff; <= 0 selects
+ *                           CAT_ORIENTED_MEDIAN_CUTOFF
  * \param iters     (in)     number of successive passes
  * \return 0 on success, -1 on invalid arguments, -2 on allocation failure
  */
 int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *normal,
-                          const unsigned char *mask, int dims[3], int iters);
-
-/**
- * \brief Sheetness-oriented (coherence-enhancing) smoothing.
- *
- * Diffuses along the sheet and not across it: the 3x3x3 neighbourhood is
- * weighted by (1 - s) + s * exp(-(dhat . n)^2 / (2 sigma^2)), so tangential
- * neighbours keep full weight while normal neighbours are suppressed in
- * proportion to the local sheetness.  With s = 0 the weights are the plain
- * distance weights and the operator reduces to ordinary local averaging.
- *
- * \param vol       (in/out) volume to filter, in place
- * \param sheetness (in)     float[nvox] in [0,1]; NULL falls back to isotropic
- * \param normal    (in)     float[3*nvox] unit sheet normals; NULL falls back
- * \param mask      (in)     optional uint8 mask; NULL = filter everywhere
- * \param dims      (in)     {nx, ny, nz}
- * \param sigma     (in)     angular width of the anisotropy, e.g. 0.5
- * \param iters     (in)     number of successive passes
- * \return 0 on success, -1 on invalid arguments, -2 on allocation failure
- */
-int CAT_VolOrientedSmooth(float *vol, const float *sheetness, const float *normal,
-                          const unsigned char *mask, int dims[3], double sigma,
+                          const unsigned char *mask, int dims[3], double cutoff,
                           int iters);
 
 /**

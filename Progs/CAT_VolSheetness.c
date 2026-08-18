@@ -26,6 +26,7 @@ int    n_scales  = 3;
 double alpha     = 0.5;
 double beta      = 0.5;
 double c_noise   = -1.0;
+double strength  = 1.0;
 int    polarity  = 0;
 int    verbose   = 0;
 
@@ -53,7 +54,18 @@ ArgvInfo argTable[] = {
     {"-c", ARGV_FLOAT, (char *) 1, (char *) &c_noise,
          "Structure-vs-noise sensitivity.  Negative (default) selects the\n\
          automatic estimate, which makes the filter independent of the\n\
-         intensity units of the input."},
+         intensity units of the input.  The automatic value is half the largest\n\
+         Hessian norm in the volume, so on a whole head it is set by the\n\
+         scalp/air step and the cortical response collapses; lowering it is the\n\
+         principled way to bring the response back up."},
+    {"-strength", ARGV_FLOAT, (char *) 1, (char *) &strength,
+         "Overall gain on the response (default: 1.0).  The blunt alternative to\n\
+         -c when the intensity units are unknown: the map is multiplied by this\n\
+         and clamped to [0,1].  Values above 1 amplify a response that is too\n\
+         weak to reach the thresholds the consumers gate on -- notably the hard\n\
+         0.5 of the oriented median, below which it is exactly the isotropic\n\
+         median.  0 reproduces the isotropic filters exactly.  The same knob is\n\
+         called -sheet-strength in the tools that consume the field."},
     {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
          "Be verbose."},
     {NULL, ARGV_END, NULL, NULL, NULL}
@@ -89,8 +101,8 @@ Usage: %s [options] <input.nii> [<output.nii>]\n\
     The response is written as a float map in [0,1].  Its main use is to\n\
     check the scale range and the polarity on a new protocol before enabling\n\
     any of the options that consume it -- CAT_VolLocalStat -oriented,\n\
-    CAT_VolSmooth -oriented, CAT_VolAmap -mrf-aniso, CAT_VolThicknessPbt\n\
-    -oriented-filter and CAT_VolSulcusRepair, all of which estimate the field\n\
+    CAT_VolThicknessPbt -oriented-filter and CAT_VolSulcusRepair, all of\n\
+    which estimate the field\n\
     themselves rather than reading it from a file.  The accompanying sheet\n\
     normals are not written: a 3-vector per voxel needs a 4-D image, which\n\
     write_nifti_float() does not produce, and recomputing the field is cheap.\n\
@@ -103,6 +115,7 @@ Options:\n\
     -alpha     <float>  Plate-vs-tube sensitivity (default: 0.5).\n\
     -beta      <float>  Blob-vs-plate sensitivity (default: 0.5).\n\
     -c         <float>  Noise sensitivity; negative selects automatic.\n\
+    -strength  <float>  Overall gain on the response (default: 1.0).\n\
     -v                  Be verbose.\n\
 \n\
 Example:\n\
@@ -163,12 +176,13 @@ main(int argc, char *argv[])
     opts.alpha     = alpha;
     opts.beta      = beta;
     opts.c         = c_noise;
+    opts.gain      = strength;
     opts.polarity  = polarity;
     opts.verbose   = verbose;
 
     if (verbose)
-        fprintf(stdout, "Sheetness of %s: %d scales in [%g, %g] mm, polarity %d.\n",
-                infile, n_scales, sigma_min, sigma_max, polarity);
+        fprintf(stdout, "Sheetness of %s: %d scales in [%g, %g] mm, polarity %d, gain %g.\n",
+                infile, n_scales, sigma_min, sigma_max, polarity, strength);
 
     rc = CAT_VolSheetness(input, sheetness, NULL, NULL, dims, voxelsize, &opts);
     if (rc != 0) {

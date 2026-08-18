@@ -63,17 +63,31 @@ typedef struct
     double sheet_sigma_min; /**< smallest Gaussian scale */
     double sheet_sigma_max; /**< largest Gaussian scale */
     int sheet_n_scales;     /**< number of log-spaced scales */
+    double sheet_strength;  /**< overall gain on the sheetness (default 1.0); passed
+                                 through as CAT_SheetnessOpts::gain.  Raise it above 1
+                                 when the response is too weak to clear csf_thresh /
+                                 wm_thresh; 0 disables every sheetness-gated step. */
 
     /* (1) sulcal CSF recovery */
     double csf_min_dist;  /**< mm; act only where the label map sees no CSF within this radius */
     double csf_min_wmdist;/**< mm; never carve closer than this to the WM boundary */
-    double csf_thresh;    /**< sheetness below this is ignored */
+    double csf_thresh;    /**< sheetness below this is ignored (default 0.1); the blend
+                               ramps from 0 here to csf_strength at twice this value, so
+                               it is half the sheetness at which the correction acts at
+                               full strength -- the same relation the oriented median has
+                               to its cutoff.  Match it to the response the data actually
+                               produces; see CAT_Sheetness.h. */
     double csf_strength;  /**< 0..1 blend towards the intensity-implied label */
 
     /* (2) gyral WM reconnection */
-    double wm_thresh;     /**< sheetness below this is ignored */
+    double wm_thresh;     /**< sheetness below this is ignored (default 0.1); ramps to
+                               wm_strength at twice this value, as csf_thresh does */
     double wm_strength;   /**< 0..1 blend towards WM */
-    int wm_max_gap;       /**< maximum gap half-width in voxels for the two-sided test */
+    double wm_min_int;    /**< intensity floor on the 1..3 axis (default 2.1); a blade tip
+                               is dragged towards GM by partial volume, so this sits just
+                               above pure GM rather than half way to WM */
+    int wm_max_gap;       /**< how far from existing WM, in voxels, a blade may still be
+                               strengthened (default 3) */
 
     /* (3) narrow-band PVE refit */
     double band_min_dist; /**< mm; refit only outside this distance to detected CSF */
@@ -134,15 +148,28 @@ int CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
                             const CAT_SulcusRepairOpts *opts);
 
 /**
- * \brief Reconnect thin gyral WM blades broken by small missegmentations.
+ * \brief Strengthen thin WM blades the classifier under-labelled.
+ *
+ * Targets the fine white-matter fingers reaching into the gyral crowns, which
+ * are one to two voxels across at their far end.  Partial volume pulls their
+ * intensity towards GM there, so a classifier that resolves the trunk of a
+ * blade correctly still tends to lose its tip -- and losing the last millimetre
+ * of a blade corrupts the WM distance map, and with it the thickness and the
+ * central surface along the whole gyrus.
  *
  * Runs a bright-sheet (ridge) sheetness filter on the intensity image to find
- * thin WM blades, then keeps only those candidate voxels that have WM on two
- * opposite sides within opts->wm_max_gap voxels -- the dual of ACE's shock
- * test, and the reason the operation cannot fire inside a sulcus, where no
- * such pair exists.  The accepted bridge is then closed by a geodesic growth
- * (downcut_float) seeded from the existing WM, so the repair follows the blade
- * rather than dilating in all directions.
+ * thin bright structures, keeps the voxels that are labelled GM, brighter than
+ * opts->wm_min_int, brighter than their own label, and within opts->wm_max_gap
+ * voxels of existing WM, then accepts those a geodesic growth (downcut_float)
+ * seeded from the existing WM can reach *through the candidate set itself*.
+ * Growing through the candidates is what makes the repair follow the blade
+ * instead of dilating in all directions, and it is also the connectivity
+ * evidence: an isolated bright speck in GM is never reached, the tip of a real
+ * blade is reached from the trunk behind it.
+ *
+ * The operation cannot fire inside a sulcus because a sulcus is a *dark* sheet
+ * and the polarity guard of the sheetness filter rejects it outright; the
+ * intensity floor and the one-sided blend bound the rest.
  *
  * Must run before PBT: repairing afterwards is too late, because dist_WM and
  * the thickness were already computed on the broken blade.
@@ -155,9 +182,9 @@ int CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
  * \param opts      (in)     parameters; NULL selects the defaults
  * \return 0 on success, negative on error
  */
-int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
-                         int dims[3], double voxelsize[3],
-                         const CAT_SulcusRepairOpts *opts);
+int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
+                              int dims[3], double voxelsize[3],
+                              const CAT_SulcusRepairOpts *opts);
 
 /**
  * \brief Re-estimate partial volume in a narrow band from local class means.

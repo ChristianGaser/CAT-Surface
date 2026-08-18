@@ -66,6 +66,7 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->pve_distance = 0;
     opts->oriented_filter = 0;
     opts->oriented_strength = 1.0;
+    opts->oriented_cutoff = 0.0; /* 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
     opts->fast = 0;
     opts->verbose = 0;
 }
@@ -235,6 +236,7 @@ int CAT_VolComputePbt(
         {
             CAT_SheetnessOptionsInit(&sopts);
             sopts.polarity = 0;
+            sopts.gain = opts->oriented_strength;
             sopts.verbose = verbose;
             if (verbose)
                 fprintf(stderr, "Estimate sheetness field for oriented filtering.\n");
@@ -246,17 +248,13 @@ int CAT_VolComputePbt(
                 sheet = NULL;
                 sheet_nrm = NULL;
             }
-            else if (opts->oriented_strength >= 0.0 && opts->oriented_strength < 1.0)
-            {
-                for (i = 0; i < nvox; i++)
-                    sheet[i] *= (float)opts->oriented_strength;
-            }
         }
     }
 
     /* Median-filtering of input */
     if (sheet)
-        CAT_VolOrientedMedian(src_copy, sheet, sheet_nrm, NULL, dims, 1);
+        CAT_VolOrientedMedian(src_copy, sheet, sheet_nrm, NULL, dims,
+                              opts->oriented_cutoff, 1);
     else
         localstat3(src_copy, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
 
@@ -439,7 +437,8 @@ int CAT_VolComputePbt(
 
         /* Median-filtering of PPM with use of euclidean distance */
         if (sheet)
-            CAT_VolOrientedMedian(PPM, sheet, sheet_nrm, NULL, dims, 2);
+            CAT_VolOrientedMedian(PPM, sheet, sheet_nrm, NULL, dims,
+                                  opts->oriented_cutoff, 2);
         else
             localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 
@@ -505,7 +504,7 @@ int CAT_VolComputePbt(
                 input[i] = PPM[i];
             if (sheet)
                 CAT_VolOrientedMedian(input, sheet, sheet_nrm, NULL, dims,
-                                      n_median_filter);
+                                      opts->oriented_cutoff, n_median_filter);
             else
                 localstat3(input, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_FLOAT32);
 

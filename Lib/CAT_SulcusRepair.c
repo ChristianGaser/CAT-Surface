@@ -18,13 +18,6 @@
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
 
-/* 13 unique directions of a 3x3x3 neighbourhood; the opposite of each is
-   obtained by negating the offset, which is what the two-sided gap test needs */
-static const int DIR13[13][3] = {
-    {1, 0, 0}, {0, 1, 0}, {0, 0, 1},
-    {1, 1, 0}, {1, -1, 0}, {1, 0, 1}, {1, 0, -1}, {0, 1, 1}, {0, 1, -1},
-    {1, 1, 1}, {1, 1, -1}, {1, -1, 1}, {1, -1, -1}};
-
 /**
  * \brief Fill a CAT_SulcusRepairOpts with defaults tuned for 0.5 mm data.
  *
@@ -38,15 +31,17 @@ void CAT_SulcusRepairOptionsInit(CAT_SulcusRepairOpts *opts)
     opts->sheet_sigma_min = 0.3;
     opts->sheet_sigma_max = 1.0;
     opts->sheet_n_scales = 3;
+    opts->sheet_strength = 1.0;
 
     opts->csf_min_dist = 1.5;
     opts->csf_min_wmdist = 0.75;
-    opts->csf_thresh = 0.3;
+    opts->csf_thresh = 0.1;
     opts->csf_strength = 0.8;
 
-    opts->wm_thresh = 0.3;
+    opts->wm_thresh = 0.1;
     opts->wm_strength = 0.8;
-    opts->wm_max_gap = 2;
+    opts->wm_min_int = 2.1;
+    opts->wm_max_gap = 3;
 
     opts->band_min_dist = 1.5;
     opts->band_window = 4;
@@ -236,6 +231,7 @@ int CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
     sopts.sigma_min = opts->sheet_sigma_min;
     sopts.sigma_max = opts->sheet_sigma_max;
     sopts.n_scales = opts->sheet_n_scales;
+    sopts.gain = opts->sheet_strength;
     sopts.polarity = -1; /* dark sheet: a valley, l3 > 0 */
     sopts.verbose = opts->verbose;
 
@@ -270,12 +266,22 @@ int CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
         if (s <= opts->csf_thresh)
             continue;
 
-        /* ramp the strength in above the threshold so there is no hard edge */
-        w = opts->csf_strength * (s - opts->csf_thresh) / (1.0 - opts->csf_thresh);
+        /* Ramp the strength in above the threshold so there is no hard edge.
+           The ramp reaches full strength at twice the threshold, mirroring the
+           oriented median, where a thin sheet is protected from twice its
+           cutoff.  Anchoring it at a sheetness of 1 instead -- as this did
+           originally -- assumes a response that saturates, and a real one does
+           not: on a 0.5 mm MPRAGE the dark-sheet map reaches 0.56, so a voxel
+           at the threshold-clearing 0.35 was blended by 0.06 rather than by
+           csf_strength, which made the whole correction invisible. */
+        if (opts->csf_thresh > 0.0)
+            w = opts->csf_strength * (s - opts->csf_thresh) / opts->csf_thresh;
+        else
+            w = opts->csf_strength;
         if (w < 0.0)
             w = 0.0;
-        if (w > 1.0)
-            w = 1.0;
+        if (w > opts->csf_strength)
+            w = opts->csf_strength;
 
         /* one-sided: only ever towards the intensity-implied value */
         target = (double)t1n[i];
@@ -302,21 +308,39 @@ cleanup:
 }
 
 /**
- * \brief Reconnect thin gyral WM blades broken by small missegmentations.
+ * \brief Strengthen thin WM blades the classifier under-labelled.
  *
- * The candidate set is "labelled GM, but bright-sheet-like and WM-bright in
- * the intensity image". That alone would also pick up isolated bright noise,
- * so a candidate is only accepted when WM exists on two *opposite* sides
- * within wm_max_gap voxels along one of the 13 neighbourhood directions --
- * i.e. when the voxel really is a gap in an otherwise continuous blade. The
- * test is the exact dual of ACE's shock test: a shock needs two banks facing
- * each other across CSF, a blade gap needs two WM ends facing each other
- * across the gap, and neither configuration can occur where the other does.
+ * The structures this protects are the fine white-matter fingers reaching into
+ * the gyral crowns. They are one to two voxels across at their far end, so
+ * partial volume pulls their intensity down towards GM, and a classifier that
+ * resolves the trunk of the blade correctly still tends to lose its tip. What
+ * is lost is not a hole inside the blade but its last millimetre, and that is
+ * enough to corrupt the WM distance map and with it the thickness and the
+ * central surface along the whole gyrus.
  *
- * The accepted gaps are then filled by a geodesic growth from the existing WM
- * that is confined to the candidate set (downcut_float with the complement
- * marked as an inert barrier), so the repair propagates along the blade
- * instead of dilating isotropically.
+ * This step therefore asks whether a voxel *continues* a blade, not whether it
+ * sits in a gap inside one. The candidate set is "labelled GM, bright-sheet-like,
+ * and brighter than the label admits", and a candidate is accepted when it is
+ * geodesically connected to existing WM *through the candidate set itself*
+ * (downcut_float with everything else marked as an inert barrier) and lies no
+ * further than wm_max_gap voxels from that WM. Growing through the candidate set
+ * is what makes the repair follow the blade instead of dilating isotropically,
+ * and it is also what supplies the connectivity evidence: a bright speck sitting
+ * alone in GM is never reached, while the tip of a real blade is reached from the
+ * trunk behind it.
+ *
+ * An earlier version required WM on two *opposite* sides within wm_max_gap, the
+ * dual of ACE's shock test. That condition is unsatisfiable at the end of a
+ * blade -- there is WM behind the tip and grey matter in front of it -- so the
+ * step could only ever repair interior gaps and never the crowns, which is where
+ * blades actually break. On a 0.5 mm MPRAGE it rejected 86.8% of otherwise
+ * eligible voxels.
+ *
+ * What keeps this from firing inside a sulcus is not that test but the polarity
+ * guard of the sheetness filter: a sulcus is a *dark* sheet, a valley, and the
+ * bright-sheet filter used here (polarity +1) does not respond to it at all.
+ * The intensity floor wm_min_int and the one-sided blend do the rest -- a label
+ * is only ever raised, and never past what the intensity itself supports.
  *
  * \param t1        (in)     bias-corrected intensity image
  * \param label     (in/out) PVE label image in [0..3], corrected in place
@@ -326,21 +350,21 @@ cleanup:
  * \param opts      (in)     parameters; NULL selects the defaults
  * \return 0 on success, negative on error
  */
-int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
-                         int dims[3], double voxelsize[3],
-                         const CAT_SulcusRepairOpts *opts)
+int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
+                              int dims[3], double voxelsize[3],
+                              const CAT_SulcusRepairOpts *opts)
 {
     CAT_SulcusRepairOpts defaults;
     CAT_SheetnessOpts sopts;
     const int nx = dims ? dims[0] : 0;
     const int ny = dims ? dims[1] : 0;
     const int nz = dims ? dims[2] : 0;
-    const int xy = nx * ny;
-    const int nvox = xy * nz;
-    float *t1n = NULL, *S = NULL, *grow = NULL;
+    const int nvox = nx * ny * nz;
+    float *t1n = NULL, *S = NULL, *grow = NULL, *dwm = NULL;
     unsigned char *roi = NULL, *cand = NULL;
+    double unit[3] = {1.0, 1.0, 1.0};
     int own_S = 0;
-    int x, y, z, i, d, step, rc = 0;
+    int i, rc = 0;
     long n_cand = 0, n_changed = 0;
     double dd[2];
 
@@ -357,6 +381,7 @@ int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
 
     t1n = (float *)malloc(sizeof(float) * (size_t)nvox);
     grow = (float *)malloc(sizeof(float) * (size_t)nvox);
+    dwm = (float *)malloc(sizeof(float) * (size_t)nvox);
     roi = (unsigned char *)malloc(sizeof(unsigned char) * (size_t)nvox);
     cand = (unsigned char *)malloc(sizeof(unsigned char) * (size_t)nvox);
     if (sheetness)
@@ -367,7 +392,7 @@ int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
         own_S = 1;
     }
 
-    if (!t1n || !grow || !roi || !cand || !S)
+    if (!t1n || !grow || !dwm || !roi || !cand || !S)
     {
         rc = -2;
         goto cleanup;
@@ -384,70 +409,48 @@ int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
     sopts.sigma_min = opts->sheet_sigma_min;
     sopts.sigma_max = opts->sheet_sigma_max;
     sopts.n_scales = opts->sheet_n_scales;
+    sopts.gain = opts->sheet_strength;
     sopts.polarity = 1; /* bright sheet: a ridge, l3 < 0 */
     sopts.verbose = opts->verbose;
 
     if (opts->verbose)
-        fprintf(stderr, "Gyral reconnection: bright-sheet filter on intensity.\n");
+        fprintf(stderr, "WM blade strengthening: bright-sheet filter on intensity.\n");
 
     rc = CAT_VolSheetness(t1n, S, NULL, roi, dims, voxelsize, &sopts);
     if (rc != 0)
         goto cleanup;
 
-    /* candidate = GM-labelled, sheet-like, and WM-bright in the intensity */
+    /* Distance to existing WM, in voxels rather than mm: wm_max_gap is a
+       neighbourhood reach, so it should not change meaning with the sampling. */
     for (i = 0; i < nvox; i++)
+        dwm[i] = (label[i] > GWM) ? 1.0f : 0.0f;
+    euclidean_distance(dwm, NULL, dims, unit, 0);
+
+    /* candidate = GM-labelled, sheet-like, brighter than the label admits, and
+       close enough to WM that it can plausibly be part of the same blade */
+    for (i = 0; i < nvox; i++)
+    {
         cand[i] = 0;
 
-    for (z = 1; z < nz - 1; z++)
-        for (y = 1; y < ny - 1; y++)
-            for (x = 1; x < nx - 1; x++)
-            {
-                const int idx = x + y * nx + z * xy;
-                int accepted = 0;
+        if (!(label[i] > CGM && label[i] <= GWM))
+            continue;
+        if ((double)S[i] <= opts->wm_thresh)
+            continue;
+        if ((double)t1n[i] < opts->wm_min_int)
+            continue;
+        /* one-sided from the outset: nothing to do where the intensity does
+           not already ask for more WM than the label has */
+        if ((double)t1n[i] <= (double)label[i])
+            continue;
+        if ((double)dwm[i] > (double)opts->wm_max_gap)
+            continue;
 
-                if (!(label[idx] > CGM && label[idx] <= GWM))
-                    continue;
-                if ((double)S[idx] <= opts->wm_thresh)
-                    continue;
-                if (t1n[idx] <= (float)(0.5 * (GM + WM) - 0.25))
-                    continue;
-
-                /* two-sided gap test along the 13 neighbourhood directions */
-                for (d = 0; d < 13 && !accepted; d++)
-                {
-                    int plus = 0, minus = 0;
-
-                    for (step = 1; step <= opts->wm_max_gap; step++)
-                    {
-                        const int px = x + step * DIR13[d][0];
-                        const int py = y + step * DIR13[d][1];
-                        const int pz = z + step * DIR13[d][2];
-                        const int mx = x - step * DIR13[d][0];
-                        const int my = y - step * DIR13[d][1];
-                        const int mz = z - step * DIR13[d][2];
-
-                        if (!plus && px >= 0 && px < nx && py >= 0 && py < ny &&
-                            pz >= 0 && pz < nz &&
-                            label[px + py * nx + pz * xy] > (float)GWM)
-                            plus = 1;
-                        if (!minus && mx >= 0 && mx < nx && my >= 0 && my < ny &&
-                            mz >= 0 && mz < nz &&
-                            label[mx + my * nx + mz * xy] > (float)GWM)
-                            minus = 1;
-                    }
-                    if (plus && minus)
-                        accepted = 1;
-                }
-
-                if (accepted)
-                {
-                    cand[idx] = 1;
-                    n_cand++;
-                }
-            }
+        cand[i] = 1;
+        n_cand++;
+    }
 
     if (opts->verbose)
-        fprintf(stderr, "  %ld bridge candidates.\n", n_cand);
+        fprintf(stderr, "  %ld blade candidates.\n", n_cand);
 
     /* geodesic growth from WM, confined to the candidate set:
        WM = seed (1), candidates = free (0), everything else = barrier */
@@ -472,12 +475,16 @@ int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
         if (!cand[i] || grow[i] <= 0.0f)
             continue;
 
-        w = opts->wm_strength * ((double)S[i] - opts->wm_thresh) /
-            (1.0 - opts->wm_thresh);
+        /* same ramp as the CSF step: full strength at twice the threshold */
+        if (opts->wm_thresh > 0.0)
+            w = opts->wm_strength * ((double)S[i] - opts->wm_thresh) /
+                opts->wm_thresh;
+        else
+            w = opts->wm_strength;
         if (w < 0.0)
             w = 0.0;
-        if (w > 1.0)
-            w = 1.0;
+        if (w > opts->wm_strength)
+            w = opts->wm_strength;
 
         /* one-sided: only ever towards the intensity-implied value */
         target = (double)t1n[i];
@@ -496,6 +503,7 @@ int CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
 cleanup:
     free(t1n);
     free(grow);
+    free(dwm);
     free(roi);
     free(cand);
     if (own_S)
@@ -619,6 +627,7 @@ int CAT_VolRefinePveNarrowBand(const float *t1, float *label,
     sopts.sigma_min = opts->sheet_sigma_min;
     sopts.sigma_max = opts->sheet_sigma_max;
     sopts.n_scales = opts->sheet_n_scales;
+    sopts.gain = opts->sheet_strength;
     sopts.polarity = -1;
     sopts.verbose = opts->verbose;
 
