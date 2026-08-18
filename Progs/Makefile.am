@@ -93,6 +93,7 @@ bin_PROGRAMS = \
     CAT_VolThicknessPbt \
     CAT_VolSulcusRepair \
     CAT_VolSheetness \
+    CAT_VolCalc \
     CAT_VolLayerSmooth \
     CAT_VolBloodVesselCorrection \
     CAT_SurfResampleSphericalSPH \

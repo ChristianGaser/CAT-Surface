@@ -34,7 +34,10 @@ __pycache__
 *.egg-info
 _vendor/
 Progs/CAT_[A-Za-z0-9_]*
-tests/test_math.out
-docs/doxygen/
 !Progs/CAT_*.c*
+tests/test*
+tests/*.o, *.log, *.trs
+!tests/*.[ch]
+!tests/Makefile.am
+docs/doxygen/
 cat_surface_cython/cat_surf/_*.c

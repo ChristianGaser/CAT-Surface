@@ -50,6 +50,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 |-----------------------------|-------------|
 | **CAT_Vol2Surf**                | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
 | **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. `-mrf-aniso` relaxes the MRF prior along thin sheets so it stops erasing them (see below). |
+| **CAT_VolCalc**                 | Voxel-wise image calculator in the spirit of SPM's `spm_imcalc`: evaluates a formula over one or more co-registered volumes. In matrix mode the variable `X` stands for the vector of all inputs at a voxel, so `mean(X)`, `median(X)` and `std(X)` reduce across any number of images. |
 | **CAT_VolBloodVesselCorrection**| Reduces blood-vessel-related intensity artifacts in volumetric scans before downstream analysis. |
 | **CAT_VolLocalStat**            | Applies a local statistic (mean, min, max, std, median, grey open/close) over a voxel neighbourhood. `-oriented` runs the median over a sheetness-oriented neighbourhood so it cannot close a thin structure (see below). |
 | **CAT_VolMarchingCubes**        | Extracts a surface mesh from volumetric data using a marching cubes isosurface algorithm. |
