@@ -95,7 +95,6 @@ bin_PROGRAMS = \
     CAT_VolSheetness \
     CAT_VolCalc \
     CAT_VolLayerSmooth \
-    CAT_VolBloodVesselCorrection \
     CAT_SurfResampleSphericalSPH \
     CAT_Surf2SPH \
     CAT_SurfDeform \
