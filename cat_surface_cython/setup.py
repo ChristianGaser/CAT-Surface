@@ -8,6 +8,11 @@ Usage (CI / pip wheel):
     export CAT_BUILD_DIR=/path/to/build    # autotools build tree
     pip wheel .
 
+Cython is required: the generated .c sources are build artifacts and are
+not tracked in the repository.  pyproject.toml declares Cython in
+build-system.requires, so any PEP 517 build installs it automatically; a
+direct "python setup.py build_ext" needs it in the ambient environment.
+
 CI wheel builds via cibuildwheel use a vendored layout: headers and
 static libraries are staged into ``_vendor/`` inside this directory
 before running cibuildwheel.  See python-wheels.yml for details.
@@ -112,15 +117,24 @@ elif sys.platform == "linux":
     extra_link_args += ["-lpthread"]
 
 # ---------------------------------------------------------------------------
-# Use Cython if available, else fall back to pre-generated .c files
+# Cython is required
 # ---------------------------------------------------------------------------
+# The generated .c files are build artifacts and are not tracked (see
+# .gitignore); every module is cythonized from its .pyx here.  Cython is
+# declared in pyproject.toml's build-system.requires, so PEP 517 builds --
+# pip install, pip wheel, cibuildwheel -- always have it in the isolated build
+# environment.  Only a direct "python setup.py build_ext" in an environment
+# without Cython can reach the error below.
 try:
     from Cython.Build import cythonize
-    USE_CYTHON = True
-except ImportError:
-    USE_CYTHON = False
+except ImportError:  # pragma: no cover
+    sys.exit(
+        "ERROR: Cython is required to build cat-surf.\n"
+        "       Install it with 'pip install cython', or build through pip\n"
+        "       ('pip install .'), which installs it automatically."
+    )
 
-ext_suffix = ".pyx" if USE_CYTHON else ".c"
+ext_suffix = ".pyx"
 
 # ---------------------------------------------------------------------------
 # Extension modules
@@ -181,16 +195,15 @@ extensions = [
     ),
 ]
 
-if USE_CYTHON:
-    extensions = cythonize(
-        extensions,
-        compiler_directives={
-            "language_level": "3",
-            "boundscheck": False,
-            "wraparound": False,
-            "cdivision": True,
-        },
-    )
+extensions = cythonize(
+    extensions,
+    compiler_directives={
+        "language_level": "3",
+        "boundscheck": False,
+        "wraparound": False,
+        "cdivision": True,
+    },
+)
 
 # ---------------------------------------------------------------------------
 # Package setup (metadata lives in pyproject.toml)
