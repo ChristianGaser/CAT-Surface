@@ -17,12 +17,20 @@
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
+#include "CAT_Sheetness.h"
 
 /* Defaults */
 int    stat_func          = F_MEAN;
 int    dist               = 1;
 int    iters              = 1;
 int    use_euclidean_dist = 0;
+int    oriented           = 0;
+char  *guide_file         = NULL;
+double sheet_sigma_min    = 0.3;
+double sheet_sigma_max    = 1.0;
+int    sheet_scales       = 3;
+int    sheet_polarity     = 0;
+double sheet_strength     = 1.0;
 int    verbose            = 0;
 
 static
@@ -35,6 +43,33 @@ ArgvInfo argTable[] = {
          "Number of iterations (default: 1)."},
     {"-euclid", ARGV_CONSTANT, (char *) 1, (char *) &use_euclidean_dist,
          "Use Euclidean distance instead of block distance (default: block)."},
+    {"-oriented", ARGV_CONSTANT, (char *) 1, (char *) &oriented,
+         "Run the median over a sheetness-oriented neighbourhood instead of an\n\
+         isotropic one (-stat 7 only).  An isotropic median penalizes boundary\n\
+         area, so it removes thin structures whichever side of the label\n\
+         boundary they lie on: the same filter that opens a glued sulcus closes\n\
+         a cerebellar fissure, and tuning trades one against the other.  The\n\
+         oriented variant admits only neighbours lying in the plane of the local\n\
+         sheet, so it averages along a thin structure and never across it.\n\
+         Where no sheet is detected every neighbour is admitted and the result\n\
+         is identical to the isotropic median.  Uses a fixed 3x3x3 neighbourhood,\n\
+         so -dist and -euclid are ignored; -iter still applies."},
+    {"-guide", ARGV_STRING, (char *) 1, (char *) &guide_file,
+         "Volume the orientation is estimated from (default: the input itself).\n\
+         Pass the intensity image when filtering a label map -- a T1 still shows\n\
+         the dip through a tight sulcus long after the label map committed to\n\
+         pure GM.  Must have the same dimensions as the input."},
+    {"-sheet-sigma-min", ARGV_FLOAT, (char *) 1, (char *) &sheet_sigma_min,
+         "Smallest scale of the sheetness filter in mm (default: 0.3)."},
+    {"-sheet-sigma-max", ARGV_FLOAT, (char *) 1, (char *) &sheet_sigma_max,
+         "Largest scale of the sheetness filter in mm (default: 1.0)."},
+    {"-sheet-scales", ARGV_INT, (char *) 1, (char *) &sheet_scales,
+         "Number of log-spaced sheetness scales (default: 3)."},
+    {"-sheet-polarity", ARGV_INT, (char *) 1, (char *) &sheet_polarity,
+         "1 = bright sheets, -1 = dark sheets, 0 = either (default)."},
+    {"-sheet-strength", ARGV_FLOAT, (char *) 1, (char *) &sheet_strength,
+         "How far the filter may deviate from isotropic, 0..1 (default: 1.0).\n\
+         0 reproduces the isotropic filter exactly."},
     {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
          "Be verbose."},
     {NULL, ARGV_END, NULL, NULL, NULL}
@@ -63,12 +98,22 @@ Options:\n\
     -dist   <int>    Search distance 1..10 (default: 1).\n\
     -iter   <int>    Number of iterations (default: 1).\n\
     -euclid          Use Euclidean distance instead of block distance.\n\
+    -oriented        Sheetness-oriented median (-stat 7 only); see below.\n\
+    -guide  <file>   Volume the orientation is estimated from.\n\
     -v               Be verbose.\n\
 \n\
+    With -oriented the median runs over a neighbourhood oriented by a Hessian\n\
+    sheetness filter (see CAT_VolSheetness): a neighbour at offset d is admitted\n\
+    only when 1 - s*(dhat.n)^2 > 0.5, with s the local sheetness and n the local\n\
+    sheet normal.  At s = 0 every neighbour is admitted and the operator is the\n\
+    plain isotropic median; at s = 1 only offsets within 45 degrees of the sheet\n\
+    plane survive, so the filter can no longer close a thin structure.\n\
+\n\
 Example:\n\
-    %s -stat 7 -dist 2 -iter 3 input.nii output.nii\n\n";
+    %s -stat 7 -dist 2 -iter 3 input.nii output.nii\n\
+    %s -stat 7 -oriented -guide t1_corr.nii label.nii label_filtered.nii\n\n";
 
-    fprintf(stderr, usage_str, executable, executable);
+    fprintf(stderr, usage_str, executable, executable, executable);
 }
 
 /* Return a short name for the selected statistic (used for auto-naming). */
@@ -80,7 +125,7 @@ stat_name(int func)
     case F_MIN:    return "min";
     case F_MAX:    return "max";
     case F_STD:    return "std";
-    case F_MEDIAN: return "median";
+    case F_MEDIAN: return oriented ? "orimedian" : "median";
     case F_CLOSE:  return "close";
     case F_OPEN:   return "open";
     default:       return "stat";
@@ -96,6 +141,8 @@ main(int argc, char *argv[])
     float *input;
     double voxelsize[3];
     nifti_image *nii_ptr;
+    float *guide = NULL, *sheetness = NULL, *normal = NULL;
+    nifti_image *guide_ptr = NULL;
 
     /* Parse arguments */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
@@ -105,6 +152,11 @@ main(int argc, char *argv[])
     }
 
     infile = argv[1];
+
+    if (oriented && stat_func != F_MEDIAN) {
+        fprintf(stderr, "Error: -oriented is only implemented for -stat 7 (median).\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* Validate stat_func */
     if (stat_func != F_MEAN && stat_func != F_MIN && stat_func != F_MAX &&
@@ -134,8 +186,57 @@ main(int argc, char *argv[])
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
 
+    /* Estimate the orientation field the oriented median needs.  It is
+       recomputed here rather than read from a file because a 3-vector per
+       voxel needs a 4-D image, and the Hessian pass is cheap next to the
+       cost of moving such a field through disk. */
+    if (oriented) {
+        int nvox = dims[0] * dims[1] * dims[2];
+        CAT_SheetnessOpts sopts;
+        int i;
+
+        if (guide_file) {
+            guide_ptr = read_nifti_float(guide_file, &guide, 0);
+            if (guide_ptr == NULL) {
+                fprintf(stderr, "Error reading %s.\n", guide_file);
+                return EXIT_FAILURE;
+            }
+            if (guide_ptr->nx != dims[0] || guide_ptr->ny != dims[1] ||
+                guide_ptr->nz != dims[2]) {
+                fprintf(stderr, "Guide volume must have the same dimensions as the input.\n");
+                return EXIT_FAILURE;
+            }
+        }
+
+        sheetness = (float *) malloc(sizeof(float) * (size_t) nvox);
+        normal = (float *) malloc(sizeof(float) * 3 * (size_t) nvox);
+        if (!sheetness || !normal) {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+
+        CAT_SheetnessOptionsInit(&sopts);
+        sopts.sigma_min = sheet_sigma_min;
+        sopts.sigma_max = sheet_sigma_max;
+        sopts.n_scales  = sheet_scales;
+        sopts.polarity  = sheet_polarity;
+        sopts.verbose   = verbose;
+
+        if (CAT_VolSheetness(guide ? guide : input, sheetness, normal, NULL,
+                             dims, voxelsize, &sopts) != 0) {
+            fprintf(stderr, "Sheetness estimation failed.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (sheet_strength >= 0.0 && sheet_strength < 1.0)
+            for (i = 0; i < nvox; i++)
+                sheetness[i] *= (float) sheet_strength;
+    }
+
     /* Apply local statistic */
-    if (stat_func == F_CLOSE) {
+    if (oriented) {
+        CAT_VolOrientedMedian(input, sheetness, normal, NULL, dims, iters);
+    } else if (stat_func == F_CLOSE) {
         /* Grey closing: dilation (max) followed by erosion (min) */
         localstat3(input, NULL, dims, dist, F_MAX, iters, use_euclidean_dist, DT_FLOAT32);
         localstat3(input, NULL, dims, dist, F_MIN, iters, use_euclidean_dist, DT_FLOAT32);
@@ -165,6 +266,12 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
 
     free(input);
+    if (guide)
+        free(guide);
+    if (sheetness)
+        free(sheetness);
+    if (normal)
+        free(normal);
 
     return EXIT_SUCCESS;
 }
