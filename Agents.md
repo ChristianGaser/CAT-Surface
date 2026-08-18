@@ -132,8 +132,6 @@ shrinks nothing.
 | --- | --- | --- |
 | `Progs/CAT_VolSheetness` | (the tool itself) | writes the response map, for tuning scales and polarity |
 | `Progs/CAT_VolLocalStat` | `-oriented` | median over a sheet-oriented neighbourhood (`-stat 7` only) |
-| `Progs/CAT_VolSmooth` | `-oriented` | coherence-enhancing smoothing along the sheet |
-| `Progs/CAT_VolAmap` | `-mrf-aniso 1\|2` | relaxes the Potts prior on sheets (local beta / direction weights) |
 | `Progs/CAT_VolThicknessPbt` | `-oriented-filter` | replaces the three isotropic medians inside PBT |
 | `Progs/CAT_VolSulcusRepair` | (always) | evidence term for the pre-PBT repair, `Lib/CAT_SulcusRepair.c` |
 
@@ -142,6 +140,85 @@ must be numerically identical to the isotropic one it replaces. That is what mak
 these safe to enable by default-off. It is asserted voxel by voxel on both sides of the
 binding boundary: `tests/test_sheetness.c` (C, via `make check`) and
 `cat_surface_cython/tests/smoke_test.py` (Python, via CI). Do not break it.
+
+### Tuning the response
+
+The response is gated by a threshold in every consumer, and the one in
+`CAT_VolOrientedMedian()` is hard: a neighbour is admitted unless
+`1 - s*(dhat.n)^2 > 0.5` fails, which for `(dhat.n)^2 <= 1` cannot happen while
+`s <= 0.5`. A map that peaks at 0.5 therefore leaves the oriented median
+**bit-identical** to the isotropic one — not weakened, unchanged. On a 3x3x3
+neighbourhood the useful operating point is narrower still: a one-voxel-thick
+sheet has only 9 of 27 neighbours in its own plane, and the 8 edge neighbours at
+`(dhat.n)^2 = 1/2` drop out only at `s = 1`, so the median returns the sheet
+value only once the response saturates. Anything below that admits enough
+off-plane neighbours to outvote the sheet.
+
+What usually keeps the response low is the automatic noise scale `c`: it is half
+the largest Hessian norm anywhere in the volume, so the noise factor at a voxel
+carrying a fraction `r` of that maximum is `1 - exp(-2r^2)` and needs `r > 0.59`
+just to reach 0.5. On a whole head the maximum is set by the scalp/air step,
+which no sulcal dip approaches.
+
+The consuming side has its own threshold, and it is the one that decides whether any of
+this is visible. `CAT_VolOrientedMedian()` admits a neighbour when `s*(dhat.n)^2 < cutoff`.
+Sorting the 26 offsets by `(dhat.n)^2` — 6 faces at 1, 12 edges at 1/2, 8 corners at 1/3,
+and the 9 in-plane offsets at 0, always admitted — each class drops out at
+`s = cutoff / (dhat.n)^2`:
+
+| | drops out at | admitted |
+| --- | --- | --- |
+| 6 face neighbours | `s = cutoff` | 25 of 27 |
+| 12 edge neighbours | `s = 2*cutoff` | 17 of 27 |
+| 8 corner neighbours | `s = 3*cutoff` | 9 of 27 |
+
+The middle row is the operating point: a one-voxel-thick sheet puts the sheet value on the
+9 in-plane offsets only, so it survives the median exactly from `s >= 2*cutoff`, where
+those 9 first make up half the admitted set. **The cutoff is half the sheetness at which a
+thin structure starts being protected.** The historical value of 0.5 put that at `s = 1`,
+so the filter only acted where the response saturated — on a 0.5 mm MPRAGE (`p99 = 0.20`,
+max `0.56`) that was 0.000% of brain voxels. The default is now
+`CAT_ORIENTED_MEDIAN_CUTOFF = 0.10`, which gives the top percent of the response full
+preservation and changes ~2.6% of brain voxels; `-sheet-cutoff` / `-oriented-cutoff`
+override it. The `s = 0` invariant holds at every cutoff, since `0 < cutoff` always admits.
+
+`CAT_VolSulcusRepair`'s second step is `CAT_VolStrengthenWmBlades()` (formerly
+`CAT_VolReconnectGyri()`, and the old CLI flag `-no-reconnect-gyri` and Python kwarg
+`reconnect_gyri` still work). It rescues the thin WM fingers at the gyral crowns rather
+than bridging two-sided gaps: the old rule demanded WM on two *opposite* sides, which
+cannot hold at the end of a blade — WM behind, grey matter in front — so it never fired
+where blades actually break, rejecting 86.8% of otherwise eligible voxels on a 0.5 mm
+MPRAGE. Connectivity now comes from the geodesic growth through the candidate set, which
+reaches a tip from the trunk behind it but never an isolated bright speck, bounded by
+`wm_max_gap` voxels from existing WM. Sulci are excluded by the polarity guard alone, not
+by the gap test. Measured on that scan: 2.4k -> 225k voxels raised, WM +0.47%, and 85.6%
+of them border WM thinner than 1 mm against 15.5% of the WM surface at large.
+
+`CAT_VolSulcusRepair` gates the same way as the median but with its own pair of constants,
+and they had the same defect. Each step ignores a response below `csf_thresh` / `wm_thresh`, then ramps
+its blend weight up to `csf_strength` / `wm_strength`. That ramp used to be anchored at a
+sheetness of 1, which no real response reaches: on the 0.5 mm MPRAGE a voxel that cleared
+the old threshold of 0.3 was blended by 0.06 instead of by 0.8, so the correction was
+invisible even where it fired. The ramp now reaches full strength at `2 * thresh` — the
+same relation the median has to its cutoff — and both thresholds default to 0.1. Measured
+on that scan, the CSF step went from 13.6k to 299k voxels lowered (0.23% -> 4.6% of the GM
+band, GM volume -0.00% -> -0.35%). The weight is clamped to `*_strength`, not to 1, since
+the steeper slope now passes it.
+
+Three knobs on the response side, in order of preference:
+
+| Knob | Where | Effect |
+| --- | --- | --- |
+| `-c` | `CAT_VolSheetness` only | lowers the noise scale; the principled fix, but needs the intensity units |
+| `-strength` / `-sheet-strength` / `-oriented-strength` | every tool | gain on the map, clamped to `[0,1]`; blunt but unit-free |
+| `-sigma-min` / `-sigma-max` | every tool | must bracket the voxel size; the defaults are for 0.5 mm data |
+
+The gain is `CAT_SheetnessOpts::gain`, applied inside `CAT_VolSheetness()` after
+the maximum over scales. It is linear and fixes zero, so it cannot break the
+invariant above at any value. It amplifies the noise floor along with the
+sheets, and it lifts the strongest responses first — which are not necessarily
+the sulci of interest — so raise it while watching the map from
+`CAT_VolSheetness`, not blind.
 
 Note the deliberate name split: the library module is `CAT_SulcusRepair` while the CLI is
 `CAT_VolSulcusRepair`, because automake's `subdir-objects` would otherwise collide on two

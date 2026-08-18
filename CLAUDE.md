@@ -94,7 +94,7 @@ through pip, which installs it from `build-system.requires`).
 
 ## The sheetness family (`Include/CAT_Sheetness.h`)
 
-One shared shape prior feeds six tools, so a change to `Lib/CAT_Sheetness.c` propagates to
+One shared shape prior feeds four tools, so a change to `Lib/CAT_Sheetness.c` propagates to
 all of them — treat them as one unit. It exists because every isotropic regularizer (local
 median, Potts MRF, TV) penalizes boundary area and therefore deletes thin structures
 whichever side of the label boundary they lie on: the same filter that opens a glued sulcus
@@ -104,14 +104,41 @@ closes a cerebellar fissure.
 | --- | --- |
 | `CAT_VolSheetness` | the tool itself — writes the response map for tuning |
 | `CAT_VolLocalStat` | `-oriented` (with `-stat 7`) |
-| `CAT_VolSmooth` | `-oriented` |
-| `CAT_VolAmap` | `-mrf-aniso 1\|2` |
 | `CAT_VolThicknessPbt` | `-oriented-filter` |
 | `CAT_VolSulcusRepair` | always (`Lib/CAT_SulcusRepair.c`) |
 
 **Invariant:** where the sheetness is zero, every oriented operator must be numerically
 identical to the isotropic one it replaces. `tests/test_sheetness.c` asserts this voxel by
 voxel — do not break it.
+
+**Two thresholds decide whether any of this is visible**, and both must match the response
+the data actually produces — check it with `CAT_VolSheetness` before tuning anything else.
+
+1. `CAT_VolOrientedMedian()` admits a neighbour when `s*(dhat.n)^2 < cutoff`. A
+   one-voxel-thick sheet is preserved from `s >= 2*cutoff`, so the cutoff is *half* the
+   sheetness at which a thin structure starts being protected. Default
+   `CAT_ORIENTED_MEDIAN_CUTOFF = 0.10`; override with `-sheet-cutoff` /
+   `-oriented-cutoff`. The `s = 0` invariant holds at every cutoff.
+1b. `CAT_VolSulcusRepair` has the same structure with its own constants: it ignores a
+   response below `csf_thresh` / `wm_thresh` (default 0.1) and ramps the blend weight to
+   `csf_strength` / `wm_strength` at **twice** the threshold. Do not re-anchor that ramp
+   at a sheetness of 1 — no real response reaches it, and that is what used to make the
+   whole tool a no-op.
+2. The response itself is usually far lower than expected, because the automatic noise
+   scale `c` is half the largest Hessian norm in the volume. Raise `-sheet-strength` (a
+   gain, `CAT_SheetnessOpts::gain`), lower `-c`, or widen the scale range to bracket the
+   voxel size — the scale defaults are tuned for 0.5 mm data.
+
+On a 0.5 mm MPRAGE the dark-sheet response has `p99 = 0.20` and max `0.56`, so the old
+cutoff of 0.5 changed 0.000% of brain voxels while 0.10 changes ~2.6%; on the same scan the
+repair went from 0.23% to 4.6% of the GM band.
+
+Step 2 of the repair is `CAT_VolStrengthenWmBlades()` — it rescues thin WM fingers at the
+gyral crowns. It replaced `CAT_VolReconnectGyri()`, whose two-sided gap test could not fire
+at a blade tip (WM behind, GM in front) and so missed exactly the failure it was for.
+Connectivity comes from the geodesic growth through the candidate set; sulci are excluded
+by the sheetness polarity guard, not by the gap test. `-no-reconnect-gyri` and the Python
+`reconnect_gyri` kwarg remain as aliases so downstream callers keep working.
 
 The library module is `CAT_SulcusRepair` while the CLI is `CAT_VolSulcusRepair`: automake's
 `subdir-objects` would otherwise collide on two objects of the same name.

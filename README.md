@@ -49,15 +49,14 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | Tool                        | Description |
 |-----------------------------|-------------|
 | **CAT_Vol2Surf**                | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
-| **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. `-mrf-aniso` relaxes the MRF prior along thin sheets so it stops erasing them (see below). |
+| **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. |
 | **CAT_VolCalc**                 | Voxel-wise image calculator in the spirit of SPM's `spm_imcalc`: evaluates a formula over one or more co-registered volumes. In matrix mode the variable `X` stands for the vector of all inputs at a voxel, so `mean(X)`, `median(X)` and `std(X)` reduce across any number of images. |
-| **CAT_VolBloodVesselCorrection**| Reduces blood-vessel-related intensity artifacts in volumetric scans before downstream analysis. |
 | **CAT_VolLocalStat**            | Applies a local statistic (mean, min, max, std, median, grey open/close) over a voxel neighbourhood. `-oriented` runs the median over a sheetness-oriented neighbourhood so it cannot close a thin structure (see below). |
 | **CAT_VolMarchingCubes**        | Extracts a surface mesh from volumetric data using a marching cubes isosurface algorithm. |
 | **CAT_VolSanlm**                | Applies spatially adaptive non-local means denoising to volumetric MRI images. |
 | **CAT_VolSheetness**            | Multi-scale Hessian sheetness (plate) filter: detects thin sheet-like structures — sulcal CSF, gyral white-matter blades — and ignores blobs (see below). |
-| **CAT_VolSmooth**               | Smooths a volume with an isotropic Gaussian kernel. `-oriented` instead diffuses *along* thin sheets and not across them (see below). |
-| **CAT_VolSulcusRepair**         | Anatomy-aware repair of a PVE label map before thickness estimation: opens glued sulci and reconnects gyri broken by small missegmentations, using the intensity image as evidence (see below). |
+| **CAT_VolSmooth**               | Smooths a volume with an isotropic Gaussian kernel. |
+| **CAT_VolSulcusRepair**         | Anatomy-aware repair of a PVE label map before thickness estimation: opens glued sulci and rescues the thin white-matter blades the classifier drops at the gyral crowns, using the intensity image as evidence (see below). |
 | **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. `-oriented-filter` replaces its internal isotropic medians with sheetness-oriented ones (see below). |
 | **CAT_SurfApplyWarp**           | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
 | **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
@@ -113,8 +112,6 @@ The field is consumed by:
 | Tool | Option |
 |------|--------|
 | **CAT_VolLocalStat** | `-oriented` (with `-stat 7`) — median over a sheet-oriented neighbourhood |
-| **CAT_VolSmooth** | `-oriented` — coherence-enhancing smoothing along the sheet |
-| **CAT_VolAmap** | `-mrf-aniso 1\|2` — locally varying beta, or direction-weighted Potts |
 | **CAT_VolThicknessPbt** | `-oriented-filter` — replaces the three isotropic medians inside PBT |
 | **CAT_VolSulcusRepair** | always — the evidence term for the pre-PBT repair |
 
@@ -129,9 +126,18 @@ which is why no local filter fixes them:
 1. **Glued sulci.** Two banks of a tight sulcus end up as one thick grey-matter
    band because no CSF was detected between them. Typical in the occipital
    midline, where cortex is thin and contrast poorest.
-2. **Broken gyri.** A thin gyral white-matter blade is interrupted by a small
-   missegmentation, which corrupts the distance map and with it the thickness
-   and the central surface along the whole blade.
+2. **Lost white-matter blades.** The fine WM fingers reaching into the gyral
+   crowns are one to two voxels across at their far end, so partial volume drags
+   them towards grey matter and a classifier that resolves the trunk of a blade
+   correctly still drops its last millimetre. That corrupts the distance map and
+   with it the thickness and the central surface along the whole gyrus. The step
+   asks whether a voxel *continues* a blade — bright-sheet-like, brighter than
+   its label, and reachable by a geodesic growth from existing WM through the
+   candidate set — rather than whether it sits in a gap inside one. An earlier
+   version required WM on two *opposite* sides, which is unsatisfiable at a
+   blade tip and so never fired at the crowns; on a 0.5 mm MPRAGE it rejected
+   86.8% of otherwise eligible voxels. What keeps this out of a sulcus is the
+   polarity guard: a sulcus is a *dark* sheet and this looks for bright ones.
 3. **Residual partial-volume error** where (1) happens: the label map reports no
    CSF nearby while the intensity image still shows a dip across the sulcus.
 
@@ -151,6 +157,44 @@ CAT_VolSheetness -polarity -1 -v t1_corr.nii sheetness.nii
 CAT_VolSulcusRepair -verbose t1_corr.nii label.nii label_repaired.nii
 CAT_VolThicknessPbt -oriented-filter label_repaired.nii gmt.nii ppm.nii
 ```
+
+**Inspect that map before enabling anything downstream**, because two numbers
+have to match for any of this to be visible: the response your data produces,
+and the cutoff the consumer gates on.
+
+The oriented median admits a neighbour when `s*(dhat.n)^2 < cutoff`. The 9
+offsets lying in the sheet plane are always admitted; the 6 face neighbours drop
+out at `s = cutoff`, the 12 edge neighbours at `2*cutoff`, the 8 corners at
+`3*cutoff`. A one-voxel-thick sheet carries the sheet value on the in-plane
+offsets only, so it survives the median from `s = 2*cutoff` upwards — **the
+cutoff is half the sheetness at which a thin structure starts being protected**.
+It defaults to 0.10 and is set with `-sheet-cutoff` (`-oriented-cutoff` in
+`CAT_VolThicknessPbt`).
+
+`CAT_VolSulcusRepair` gates the same way with its own constants: it ignores a
+response below `-csf-thresh` / `-wm-thresh` (default 0.1) and ramps the blend
+weight up to `-csf-strength` / `-wm-strength` at twice the threshold. So those
+thresholds, too, are half the sheetness at which the correction acts at full
+strength.
+
+The response is usually much lower than expected, because the automatic noise
+scale is half the largest Hessian norm in the volume — on a whole head the
+scalp/air step, nothing a sulcal dip approaches. On a 0.5 mm MPRAGE the
+dark-sheet map has `p99 = 0.20` and a maximum of 0.56. Raise the gain
+(`-strength` in `CAT_VolSheetness`, `-sheet-strength` elsewhere,
+`-oriented-strength` in `CAT_VolThicknessPbt`), lower `-c`, or widen the scale
+range so it brackets your voxel size — the scale defaults assume 0.5 mm data:
+
+```bash
+# 1 mm data, and a gain chosen by looking at the map above
+CAT_VolSheetness -polarity -1 -sigma-min 0.5 -sigma-max 1.5 -strength 8 \
+    t1_corr.nii sheetness.nii
+```
+
+The gain multiplies the response and clamps it to `[0,1]`. Because it is linear
+and fixes zero, no value of it can break the no-op guarantee above. It does
+amplify the noise floor along with the sheets, and it lifts the strongest
+responses first, so raise it while watching the map rather than blind.
 
 References: Han et al., *Proc SPIE Med Imag* 4322:194–203, 2001 (ACE); Han et
 al., *NeuroImage* 23(3):997–1012, 2004 (CRUISE); Kim et al., *NeuroImage*
