@@ -29,6 +29,30 @@ Pre-built wheels are available for:
 - **Linux** — x86_64, aarch64 (manylinux)
 - **Python** 3.9 – 3.13
 
+### Building from source
+
+The extension modules are generated from the `.pyx` sources at build time;
+the intermediate `.c` files are build artifacts and are not tracked in the
+repository. Cython is declared in `build-system.requires`, so any PEP 517
+build installs it for you:
+
+```bash
+# build libCAT first (see the CAT-Surface README), then:
+pip install ./cat_surface_cython
+```
+
+For an in-place development build, Cython has to be in the ambient
+environment and libCAT has to be findable:
+
+```bash
+pip install cython
+CAT_BUILD_DIR=/path/to/CAT-Surface python setup.py build_ext --inplace
+```
+
+Note that this regenerates every `.c` file, so a Cython version that differs
+from the one used elsewhere changes all of them — harmless now that they are
+untracked, but it is why they are not kept in git.
+
 ---
 
 ## Basic usage
@@ -91,7 +115,50 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `vol_thickness_pbt` | Cortical thickness via projection-based method | `CAT_VolThicknessPbt` |
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation | `CAT_VolAmap` (core only) |
 | `vol_marching_cubes` | Isosurface extraction with genus-0 topology correction | `CAT_VolMarchingCubes` |
+| `vol_smooth` | Isotropic Gaussian volume smoothing | `CAT_VolSmooth` |
+| `vol_sheetness` | Multi-scale Hessian sheetness (plate) filter | `CAT_VolSheetness` |
+| `vol_oriented_median` | Median over a sheetness-oriented neighbourhood | `CAT_VolLocalStat -oriented` |
+| `vol_oriented_smooth` | Coherence-enhancing smoothing along thin sheets | `CAT_VolSmooth -oriented` |
+| `vol_sulcus_repair` | Pre-PBT repair of glued sulci and broken gyri | `CAT_VolSulcusRepair` |
 | `vol2surf` | Map a volume to a surface along inward normals | `CAT_Vol2Surf` |
+
+#### Thin structures and the shrinking bias
+
+Every isotropic regularizer — a local median, a Potts MRF, total variation —
+penalizes boundary area, and a thin structure has an extreme area-to-volume
+ratio, so deleting it is always the cheaper labelling. That is why one and the
+same median filter opens glued sulci in one place and closes cerebellar fissures
+in another, and why tuning its strength only trades one failure for the other.
+
+`vol_sheetness` replaces the smoothness prior with a *shape* prior read off the
+Hessian eigenvalues, so it keeps thin sheets, ignores blobs, and shrinks nothing.
+Everything below is built on it, and all of it is a **no-op where the sheetness is
+zero** — the oriented operators are numerically identical to the isotropic ones
+they replace away from thin structures, so they are safe to switch on:
+
+```python
+import cat_surf, nibabel as nib
+
+t1  = nib.load("t1_corr.nii").get_fdata().astype("float32")
+lab = nib.load("label.nii").get_fdata().astype("float32")
+vx  = nib.load("label.nii").header.get_zooms()[:3]
+
+# Inspect the evidence first: dark sheets are sulcal CSF, bright ones WM blades
+sheet, normal = cat_surf.vol_sheetness(t1, voxelsize=vx, polarity=-1,
+                                       return_normal=True)
+
+# A median that cannot close a sulcus (orientation taken from the intensity)
+clean = cat_surf.vol_oriented_median(lab, guide=t1, voxelsize=vx)
+
+# Recover sulcal CSF the classifier discarded, then run PBT on the repaired map
+lab = cat_surf.vol_sulcus_repair(t1, lab, voxelsize=vx, verbose=True)
+gmt, ppm, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=vx,
+                                            oriented_filter=True)
+
+# Or relax the Potts prior inside the segmentation itself
+prob, labels, mean = cat_surf.vol_amap(t1, lab.astype("uint8"), voxelsize=vx,
+                                       weight_mrf=0.3, mrf_aniso=2)
+```
 
 ### Volume input convention
 
@@ -227,8 +294,12 @@ The full mapping:
 | `CAT_Vol2Surf` | `vol2surf` |
 | `CAT_VolAmap` | `vol_amap` |
 | `CAT_VolBloodVesselCorrection` | `vol_blood_vessel_correction` |
+| `CAT_VolLocalStat` | `vol_local_stat` (`-oriented` only) |
 | `CAT_VolMarchingCubes` | `vol_marching_cubes` |
 | `CAT_VolSanlm` | `vol_sanlm` |
+| `CAT_VolSheetness` | `vol_sheetness` |
+| `CAT_VolSmooth` | `vol_smooth` |
+| `CAT_VolSulcusRepair` | `vol_sulcus_repair` |
 | `CAT_VolThicknessPbt` | `vol_thickness_pbt` |
 
 For composable in-memory pipelines, prefer the lower-level `cat_surf`

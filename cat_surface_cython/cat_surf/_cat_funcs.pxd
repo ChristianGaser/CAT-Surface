@@ -359,6 +359,8 @@ cdef extern from "CAT_VolPbt.h":
         double correct_thickness
         double sulcal_width
         int pve_distance
+        int oriented_filter
+        double oriented_strength
         int fast
         int verbose
 
@@ -381,11 +383,28 @@ cdef extern from "CAT_VolPbt.h":
 # CAT_Amap.h / CAT_Bmap.h — Brain tissue segmentation
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Amap.h":
+    int MRF_ANISO_OFF
+    int MRF_ANISO_BETA
+    int MRF_ANISO_POTTS
+
+    ctypedef struct CAT_MrfAnisoField:
+        int mode
+        const float *sheetness
+        const float *normal
+        double strength
+        double sigma
+
     void Amap(float *src, unsigned char *label, unsigned char *prob,
               double *mean, int nc, int niters, int sub, int *dims,
               int pve, double weight_MRF, double *voxelsize,
               int niters_ICM, int verbose, int use_median,
               const double *mrf_class_weights, int use_multistep)
+    void AmapAniso(float *src, unsigned char *label, unsigned char *prob,
+                   double *mean, int nc, int niters, int sub, int *dims,
+                   int pve, double weight_MRF, double *voxelsize,
+                   int niters_ICM, int verbose, int use_median,
+                   const double *mrf_class_weights, int use_multistep,
+                   const CAT_MrfAnisoField *aniso)
     void Pve5(float *src, unsigned char *prob, unsigned char *label,
               double *mean, int *dims)
 
@@ -394,6 +413,67 @@ cdef extern from "CAT_Bmap.h":
               double *mean, int n_classes, int BG, int niters,
               int a, int b, int c, float *bias, int *dims,
               int pve, int verbose)
+
+
+# ---------------------------------------------------------------------------
+# CAT_Sheetness.h — Hessian sheetness and the oriented filters built on it
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Sheetness.h":
+    ctypedef struct CAT_SheetnessOpts:
+        double sigma_min
+        double sigma_max
+        int n_scales
+        double alpha
+        double beta
+        double c
+        int polarity
+        int verbose
+
+    void CAT_SheetnessOptionsInit(CAT_SheetnessOpts *opts)
+    int  CAT_VolSheetness(const float *src, float *sheetness, float *normal,
+                          const unsigned char *mask, int dims[3],
+                          double voxelsize[3], const CAT_SheetnessOpts *opts)
+    int  CAT_VolOrientedMedian(float *vol, const float *sheetness,
+                               const float *normal, const unsigned char *mask,
+                               int dims[3], int iters)
+    int  CAT_VolOrientedSmooth(float *vol, const float *sheetness,
+                               const float *normal, const unsigned char *mask,
+                               int dims[3], double sigma, int iters)
+    void CAT_EigenSym3(const double a[6], double eval[3], double evec3[3])
+
+
+# ---------------------------------------------------------------------------
+# CAT_SulcusRepair.h — anatomy-aware repair of a PVE label map, before PBT
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_SulcusRepair.h":
+    ctypedef struct CAT_SulcusRepairOpts:
+        double sheet_sigma_min
+        double sheet_sigma_max
+        int sheet_n_scales
+        double csf_min_dist
+        double csf_min_wmdist
+        double csf_thresh
+        double csf_strength
+        double wm_thresh
+        double wm_strength
+        int wm_max_gap
+        double band_min_dist
+        int band_window
+        double band_strength
+        int verbose
+
+    void CAT_SulcusRepairOptionsInit(CAT_SulcusRepairOpts *opts)
+    int  CAT_VolNormalizeToLabel(const float *t1, const float *label,
+                                 float *t1n, int dims[3])
+    int  CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
+                                 int dims[3], double voxelsize[3],
+                                 const CAT_SulcusRepairOpts *opts)
+    int  CAT_VolReconnectGyri(const float *t1, float *label, float *sheetness,
+                              int dims[3], double voxelsize[3],
+                              const CAT_SulcusRepairOpts *opts)
+    int  CAT_VolRefinePveNarrowBand(const float *t1, float *label,
+                                    int dims[3], double voxelsize[3],
+                                    const CAT_SulcusRepairOpts *opts)
 
 
 # ---------------------------------------------------------------------------
