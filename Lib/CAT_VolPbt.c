@@ -16,6 +16,7 @@
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
 #include "CAT_Nlm.h"
+#include "CAT_Sheetness.h"
 
 /* Tissue class thresholds (from CAT_Vol.h) */
 #ifndef CGM
@@ -63,6 +64,8 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->correct_thickness = PBT_CORRECT_MM;
     opts->sulcal_width = 2.5;
     opts->pve_distance = 0;
+    opts->oriented_filter = 0;
+    opts->oriented_strength = 1.0;
     opts->fast = 0;
     opts->verbose = 0;
 }
@@ -114,6 +117,11 @@ int CAT_VolComputePbt(
 
     double pve_width = 1.0;
     float *src_val = NULL;
+
+    /* sheetness field driving the oriented replacements of the isotropic
+       medians; NULL keeps every filter isotropic and the result unchanged */
+    float *sheet = NULL;
+    float *sheet_nrm = NULL;
 
     unsigned char *mask = NULL;
     float *input = NULL;
@@ -197,8 +205,60 @@ int CAT_VolComputePbt(
         dist_WM[i] = 0.0f;
     }
 
+    /* Optional orientation field, computed once on the untouched label map and
+     * reused by every oriented filter below.  Polarity 0 accepts both signs of
+     * the dominant curvature, because both structures we must not destroy are
+     * thin sheets: the dark CSF sheet of a tight sulcus and the bright WM
+     * blade of a thin gyrus.
+     *
+     * On a label map the filter also responds along ordinary tissue
+     * boundaries, which are planar too.  That is harmless and in fact wanted
+     * here: orienting the median along a boundary instead of across it is
+     * exactly what makes it edge preserving, so the field does double duty as
+     * a thin-structure detector and as an edge orientation field. */
+    if (opts->oriented_filter)
+    {
+        CAT_SheetnessOpts sopts;
+
+        sheet = (float *)malloc(sizeof(float) * nvox);
+        sheet_nrm = (float *)malloc(sizeof(float) * 3 * nvox);
+        if (!sheet || !sheet_nrm)
+        {
+            free(sheet);
+            free(sheet_nrm);
+            sheet = NULL;
+            sheet_nrm = NULL;
+            fprintf(stderr, "Warning: no memory for the oriented filters, "
+                            "falling back to isotropic ones.\n");
+        }
+        else
+        {
+            CAT_SheetnessOptionsInit(&sopts);
+            sopts.polarity = 0;
+            sopts.verbose = verbose;
+            if (verbose)
+                fprintf(stderr, "Estimate sheetness field for oriented filtering.\n");
+            if (CAT_VolSheetness(src_copy, sheet, sheet_nrm, NULL, dims, voxelsize,
+                                 &sopts) != 0)
+            {
+                free(sheet);
+                free(sheet_nrm);
+                sheet = NULL;
+                sheet_nrm = NULL;
+            }
+            else if (opts->oriented_strength >= 0.0 && opts->oriented_strength < 1.0)
+            {
+                for (i = 0; i < nvox; i++)
+                    sheet[i] *= (float)opts->oriented_strength;
+            }
+        }
+    }
+
     /* Median-filtering of input */
-    localstat3(src_copy, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
+    if (sheet)
+        CAT_VolOrientedMedian(src_copy, sheet, sheet_nrm, NULL, dims, 1);
+    else
+        localstat3(src_copy, NULL, dims, 1, F_MEDIAN, 1, 1, DT_FLOAT32);
 
     /* Optional sub-voxel correction of the distance maps.
      *
@@ -378,7 +438,10 @@ int CAT_VolComputePbt(
         memcpy(src_copy, PPM, sizeof(float) * nvox);
 
         /* Median-filtering of PPM with use of euclidean distance */
-        localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
+        if (sheet)
+            CAT_VolOrientedMedian(PPM, sheet, sheet_nrm, NULL, dims, 2);
+        else
+            localstat3(PPM, NULL, dims, 1, F_MEDIAN, 2, 1, DT_FLOAT32);
 
         /* Use either minimum or maximum of median and PPM w.r.t. threshold of 0.5 */
         for (i = 0; i < nvox; i++)
@@ -440,7 +503,11 @@ int CAT_VolComputePbt(
 
             for (i = 0; i < nvox; i++)
                 input[i] = PPM[i];
-            localstat3(input, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_FLOAT32);
+            if (sheet)
+                CAT_VolOrientedMedian(input, sheet, sheet_nrm, NULL, dims,
+                                      n_median_filter);
+            else
+                localstat3(input, NULL, dims, 1, F_MEDIAN, n_median_filter, 1, DT_FLOAT32);
 
             for (i = 0; i < nvox; i++)
                 PPM[i] = (1.0f - vol_smoothed[i]) * PPM[i] + vol_smoothed[i] * input[i];
@@ -480,6 +547,10 @@ int CAT_VolComputePbt(
     free(src_copy);
     if (src_val)
         free(src_val);
+    if (sheet)
+        free(sheet);
+    if (sheet_nrm)
+        free(sheet_nrm);
 
     return 0;
 }

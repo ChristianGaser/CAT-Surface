@@ -822,9 +822,46 @@ void ComputeInitialPveLabelSub(float *src, unsigned char *label, unsigned char *
     }
 }
 
+/**
+ * \brief Local Potts prior for one voxel, optionally anisotropic.
+ *
+ * Accumulates the Potts exponent over the 3x3x3 neighbourhood and turns it
+ * into the prior probability of each label. Without `aniso` this is the
+ * classic isotropic form, where every neighbour contributes with the inverse
+ * of its physical distance.
+ *
+ * With `aniso` the contribution of a neighbour is additionally scaled by how
+ * well its direction aligns with the local sheet:
+ *
+ *   w = (1 - s) + s * exp(-(dhat . n)^2 / (2 sigma^2))
+ *
+ * A neighbour lying in the plane of the sheet has dhat . n = 0 and keeps the
+ * full weight; one lying across the sheet is suppressed in proportion to the
+ * sheetness s. Because w == 1 whenever s == 0, the anisotropic form is
+ * numerically identical to the isotropic one wherever no thin structure was
+ * detected -- the prior is relaxed exactly where it would otherwise destroy
+ * a fissure or fuse two sulcal banks, and nowhere else.
+ *
+ * In MRF_ANISO_BETA mode no direction weighting is applied; the caller has
+ * already scaled `beta` by (1 - strength * s) instead.
+ *
+ * \param mrf_probability  (out) [n_classes] prior probability per label
+ * \param exponent         (out) [n_classes] scratch for the Potts exponent
+ * \param label            (in)  hard label volume
+ * \param x                (in)  voxel coordinate
+ * \param y                (in)  voxel coordinate
+ * \param z                (in)  voxel coordinate
+ * \param dims             (in)  {nx, ny, nz}
+ * \param n_classes        (in)  number of labels
+ * \param beta             (in)  Potts strength for this voxel
+ * \param voxelsize_squared (in) normalized squared voxel sizes
+ * \param class_weights    (in)  per-class weights, or NULL for uniform
+ * \param aniso            (in)  anisotropy field, or NULL for the isotropic prior
+ * \return void
+ */
 void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned char *label, int x, int y, int z, int *dims,
                            int n_classes, double beta, double *voxelsize_squared,
-                           const double *class_weights)
+                           const double *class_weights, const CAT_MrfAnisoField *aniso)
 {
     int i, j, k;
     unsigned char label1, label2;
@@ -833,19 +870,53 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
     int same = -2;
     int similar = -1;
     int different = 1;
+    int use_dir = 0;
+    double s = 0.0, nvec[3] = {0.0, 0.0, 0.0}, two_sigma2 = 0.5;
 
     /* To determine if it's possible to get out of image limits.
          If not true (as it usually is) this saves the trouble calculating this 27 times */
     for (label1 = 0; label1 < n_classes; label1++)
         exponent[label1] = 0;
 
+    if (aniso && aniso->mode == MRF_ANISO_POTTS && aniso->sheetness && aniso->normal)
+    {
+        const int index = x + dims[0] * y + dims[0] * dims[1] * z;
+        double sigma = (aniso->sigma > 0.0) ? aniso->sigma : 0.5;
+
+        s = (double)aniso->sheetness[index] * ((aniso->strength > 0.0) ? aniso->strength : 1.0);
+        if (s < 0.0)
+            s = 0.0;
+        if (s > 1.0)
+            s = 1.0;
+
+        nvec[0] = (double)aniso->normal[3 * index + 0];
+        nvec[1] = (double)aniso->normal[3 * index + 1];
+        nvec[2] = (double)aniso->normal[3 * index + 2];
+
+        /* without a usable normal there is no direction to favour */
+        if (s > 0.0 && (nvec[0] != 0.0 || nvec[1] != 0.0 || nvec[2] != 0.0))
+        {
+            use_dir = 1;
+            two_sigma2 = 2.0 * sigma * sigma;
+        }
+    }
+
     for (i = -1; i < 2; i++)
         for (j = -1; j < 2; j++)
             for (k = -1; k < 2; k++)
                 if (i != 0 || j != 0 || k != 0)
                 {
+                    double dir_weight = 1.0;
 
                     label2 = label[(x + i) + dims[0] * (y + j) + dims[0] * dims[1] * (z + k)];
+
+                    if (use_dir)
+                    {
+                        const double d2 = (double)(i * i + j * j + k * k);
+                        double cosine = (double)i * nvec[0] + (double)j * nvec[1] + (double)k * nvec[2];
+                        cosine = cosine * cosine / d2;
+                        dir_weight = (1.0 - s) + s * exp(-cosine / two_sigma2);
+                    }
 
                     for (label1 = 1; label1 < n_classes + 1; label1++)
                     {
@@ -863,7 +934,7 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
 
                         distance = sqrt(voxelsize_squared[0] * abs(i) + voxelsize_squared[1] * abs(j) + voxelsize_squared[2] * abs(k));
 
-                        exponent[label1 - 1] += (class_weight * (double)similarity_value) / distance;
+                        exponent[label1 - 1] += (dir_weight * class_weight * (double)similarity_value) / distance;
                     }
                 }
 
@@ -871,19 +942,54 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
         mrf_probability[label1] = exp(-(beta * exponent[label1]));
 }
 
-/* Iterative conditional mode */
+/**
+ * \brief Iterated conditional modes with an optional anisotropic MRF prior.
+ *
+ * In MRF_ANISO_BETA mode the Potts strength is modulated per voxel,
+ *
+ *     beta(x) = beta * (1 - strength * s(x))
+ *
+ * so that the regularizer relaxes towards zero on a thin sheet and is
+ * unchanged (s = 0) everywhere else. This is the cheapest possible defence
+ * against the shrinking bias: it does not change which neighbours are
+ * consulted, only how hard the prior pulls.
+ *
+ * In MRF_ANISO_POTTS mode beta is left alone and the direction weighting is
+ * applied inside ComputeMrfProbability() instead.
+ *
+ * \param prob          (in)     soft tissue probability maps
+ * \param label         (in/out) hard labels, updated in place
+ * \param n_classes     (in)     number of labels
+ * \param dims          (in)     {nx, ny, nz}
+ * \param beta          (in)     global Potts strength
+ * \param iterations    (in)     maximum number of sweeps
+ * \param voxelsize     (in)     voxel dimensions in mm
+ * \param verbose       (in)     1 to print progress
+ * \param class_weights (in)     per-class weights, or NULL for uniform
+ * \param aniso         (in)     anisotropy field, or NULL for the isotropic prior
+ * \return void
+ */
 void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations,
-         double *voxelsize, int verbose, const double *class_weights)
+         double *voxelsize, int verbose, const double *class_weights,
+         const CAT_MrfAnisoField *aniso)
 {
 
     int i, iter, x, y, z, z_area, y_dims, index, sum_voxel;
     long area, vol;
     double rel_changed, mrf_probability[MAX_NC], voxelsize_squared[3];
     double exponent[MAX_NC], sum_voxelsize = 0.0;
+    double beta_local, strength = 1.0;
+    int use_local_beta = 0;
     unsigned char new_label;
 
     area = dims[0] * dims[1];
     vol = area * dims[2];
+
+    if (aniso && aniso->mode == MRF_ANISO_BETA && aniso->sheetness)
+    {
+        use_local_beta = 1;
+        strength = (aniso->strength > 0.0) ? aniso->strength : 1.0;
+    }
 
     /* normalize voxelsize to a sum of 3 and calculate its squared value */
     for (i = 0; i < 3; i++)
@@ -911,8 +1017,21 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
                         continue;
 
                     sum_voxel++;
-                    ComputeMrfProbability(mrf_probability, exponent, label, x, y, z, dims, n_classes, beta,
-                                          voxelsize_squared, class_weights);
+
+                    /* MRF_ANISO_BETA: relax the prior on thin sheets only */
+                    beta_local = beta;
+                    if (use_local_beta)
+                    {
+                        double s = (double)aniso->sheetness[index] * strength;
+                        if (s < 0.0)
+                            s = 0.0;
+                        if (s > 1.0)
+                            s = 1.0;
+                        beta_local = beta * (1.0 - s);
+                    }
+
+                    ComputeMrfProbability(mrf_probability, exponent, label, x, y, z, dims, n_classes, beta_local,
+                                          voxelsize_squared, class_weights, aniso);
 
                     for (i = 0; i < n_classes; i++)
                         mrf_probability[i] *= (double)prob[index + i * vol];
@@ -1156,10 +1275,11 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                                                                         * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
                                                                         * \return void
                                                                         */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
+void AmapAniso(float *src, unsigned char *label, unsigned char *prob, double *mean,
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
           double *voxelsize, int niters_ICM, int verbose,
-          int use_median, const double *mrf_class_weights, int use_multistep)
+          int use_median, const double *mrf_class_weights, int use_multistep,
+          const CAT_MrfAnisoField *aniso)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -1307,8 +1427,12 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         beta[0] *= weight_MRF;
         if (verbose)
             printf("Weighted MRF beta %3.3f\n", beta[0]);
+        if (verbose && aniso && aniso->mode != MRF_ANISO_OFF)
+            printf("Anisotropic MRF mode %d (strength %.2f)\n",
+                   aniso->mode, aniso->strength);
+
         ICM(prob, label, n_classes, dims, beta[0], niters_ICM, voxelsize, verbose,
-            class_weights);
+            class_weights, aniso);
     }
 
     free(r);
@@ -1316,4 +1440,38 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         free(r_large);
 
     return;
+}
+
+/**
+ * \brief Adaptive Segmentation atlas Mapping with the classic isotropic MRF.
+ *
+ * Backward-compatible entry point; forwards to AmapAniso() with no anisotropy
+ * field, which reproduces the previous behaviour exactly.
+ *
+ * \param src              (in)  input MRI intensity image
+ * \param label            (out) hard tissue classification labels
+ * \param prob             (out) soft tissue probability maps
+ * \param mean             (in/out) class mean intensity estimates
+ * \param n_classes        (in)  number of tissue classes
+ * \param niters           (in)  maximum EM iterations
+ * \param sub              (in)  subsampling factor
+ * \param dims             (in)  {nx, ny, nz}
+ * \param pve              (in)  1 for partial volume estimation, 0 to skip
+ * \param weight_MRF       (in)  MRF regularization strength
+ * \param voxelsize        (in)  voxel dimensions in mm
+ * \param niters_ICM       (in)  ICM iterations
+ * \param verbose          (in)  1 to print progress
+ * \param use_median       (in)  1 to use median in class statistics
+ * \param mrf_class_weights (in) per-class MRF weights or NULL
+ * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine
+ * \return void
+ */
+void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
+          int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
+          double *voxelsize, int niters_ICM, int verbose,
+          int use_median, const double *mrf_class_weights, int use_multistep)
+{
+    AmapAniso(src, label, prob, mean, n_classes, niters, sub, dims, pve, weight_MRF,
+              voxelsize, niters_ICM, verbose, use_median, mrf_class_weights,
+              use_multistep, NULL);
 }

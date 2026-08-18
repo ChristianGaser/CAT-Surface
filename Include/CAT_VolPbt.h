@@ -40,6 +40,8 @@ extern "C"
         double correct_thickness; /**< Additive thickness correction in **mm** (default: 0.25). */
         double sulcal_width;      /**< Max distance from CSF boundary (mm) for sulcal PPM correction (default: 2.5, 0=disable) */
         int pve_distance;         /**< Sub-voxel PVE correction of the WM/CSF distance maps (default: 0=off). The distance transform measures to the nearest source voxel *centre*; with this enabled the partial volume of that source voxel is used to measure to the tissue boundary instead, as in CAT12's cat_vol_pbtsimpleCS4. EXPERIMENTAL: it shifts the thickness calibration, so correct_thickness must be re-derived when enabling it. */
+        int oriented_filter;      /**< Replace the isotropic 3x3x3 medians by sheetness-oriented ones (default: 0=off). An isotropic median penalizes boundary area and therefore removes thin structures whichever side of the label boundary they sit on -- it opens a glued sulcus and closes a cerebellar fissure at the same rate. The oriented variant admits only neighbours lying *in* the plane of the locally detected sheet, so it can no longer close one; where no sheet is detected it is identical to the isotropic median. See CAT_Sheetness.h. */
+        double oriented_strength; /**< How far the oriented filter is allowed to deviate from isotropic, 0..1 (default: 1.0). Scales the sheetness before it is used, so 0 reproduces the isotropic filters exactly. */
         int fast;                 /**< Fast mode: rougher but quicker estimate (default: 0) */
         int verbose;              /**< Verbose output (default: 0) */
     } CAT_PbtOptions;
