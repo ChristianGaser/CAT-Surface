@@ -49,11 +49,15 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | Tool                        | Description |
 |-----------------------------|-------------|
 | **CAT_Vol2Surf**                | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
-| **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. |
+| **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. `-mrf-aniso` relaxes the MRF prior along thin sheets so it stops erasing them (see below). |
 | **CAT_VolBloodVesselCorrection**| Reduces blood-vessel-related intensity artifacts in volumetric scans before downstream analysis. |
+| **CAT_VolLocalStat**            | Applies a local statistic (mean, min, max, std, median, grey open/close) over a voxel neighbourhood. `-oriented` runs the median over a sheetness-oriented neighbourhood so it cannot close a thin structure (see below). |
 | **CAT_VolMarchingCubes**        | Extracts a surface mesh from volumetric data using a marching cubes isosurface algorithm. |
 | **CAT_VolSanlm**                | Applies spatially adaptive non-local means denoising to volumetric MRI images. |
-| **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. |
+| **CAT_VolSheetness**            | Multi-scale Hessian sheetness (plate) filter: detects thin sheet-like structures — sulcal CSF, gyral white-matter blades — and ignores blobs (see below). |
+| **CAT_VolSmooth**               | Smooths a volume with an isotropic Gaussian kernel. `-oriented` instead diffuses *along* thin sheets and not across them (see below). |
+| **CAT_VolSulcusRepair**         | Anatomy-aware repair of a PVE label map before thickness estimation: opens glued sulci and reconnects gyri broken by small missegmentations, using the intensity image as evidence (see below). |
+| **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. `-oriented-filter` replaces its internal isotropic medians with sheetness-oriented ones (see below). |
 | **CAT_SurfApplyWarp**           | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
 | **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
 | **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
@@ -79,6 +83,80 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfWarp**                | Warps one surface to another using non-linear surface-based registration. |
 | **CAT_SurfBBReg**               | Boundary-Based Registration (BBR): rigid co-registration of a functional volume to cortical surfaces. Includes NMI-based volume initialisation, automatic T1/T2 contrast detection, and optional pre-smoothing. |
 
+### Thin structures and the sheetness family
+
+Several of the tools above share one idea, so they are described together.
+
+Every isotropic regularizer — a local median, a Markov random field, total
+variation — penalizes boundary area. A thin structure has an extreme
+area-to-volume ratio, so removing it is always the cheaper labelling. This
+*shrinking bias* is why one and the same median filter opens a glued sulcus in
+one place and closes a cerebellar fissure in another, and why turning its
+strength up or down only trades one failure for the other.
+
+**CAT_VolSheetness** replaces the smoothness prior with a *shape* prior taken
+from the Hessian eigenvalues |l1| <= |l2| <= |l3|:
+
+    sheet (plate):  |l1| ~ |l2| ~ 0,  |l3| large
+    tube  (line):   |l1| ~ 0,         |l2| ~ |l3| large
+    blob:           |l1| ~ |l2| ~ |l3| large
+
+It therefore keeps thin sheets, ignores blobs, and shrinks nothing, because it
+makes no statement about boundary length. Sulcal CSF is a dark sheet in a T1
+(`-polarity -1`), a gyral white-matter blade is a bright sheet (`-polarity 1`);
+the same operator finds both. Run it on its own to check the scale range and
+polarity on a new protocol before switching on anything that uses it.
+
+The field is consumed by:
+
+| Tool | Option |
+|------|--------|
+| **CAT_VolLocalStat** | `-oriented` (with `-stat 7`) — median over a sheet-oriented neighbourhood |
+| **CAT_VolSmooth** | `-oriented` — coherence-enhancing smoothing along the sheet |
+| **CAT_VolAmap** | `-mrf-aniso 1\|2` — locally varying beta, or direction-weighted Potts |
+| **CAT_VolThicknessPbt** | `-oriented-filter` — replaces the three isotropic medians inside PBT |
+| **CAT_VolSulcusRepair** | always — the evidence term for the pre-PBT repair |
+
+Every one of these is **a no-op where no sheet is detected**: the oriented
+operator is then numerically identical to the isotropic one it replaces, which
+is what makes them safe to enable. All are off by default.
+
+**CAT_VolSulcusRepair** addresses three failure modes that break central-surface
+extraction, all of which are failures of *evidence* rather than of smoothness —
+which is why no local filter fixes them:
+
+1. **Glued sulci.** Two banks of a tight sulcus end up as one thick grey-matter
+   band because no CSF was detected between them. Typical in the occipital
+   midline, where cortex is thin and contrast poorest.
+2. **Broken gyri.** A thin gyral white-matter blade is interrupted by a small
+   missegmentation, which corrupts the distance map and with it the thickness
+   and the central surface along the whole blade.
+3. **Residual partial-volume error** where (1) happens: the label map reports no
+   CSF nearby while the intensity image still shows a dip across the sulcus.
+
+Regularization cannot repair any of these, because it cannot create evidence —
+it only redistributes what the classifier already committed to. Each step goes
+back to the intensity image instead and recovers evidence the classifier
+discarded. Every operation is one-sided and gated on several independent pieces
+of evidence, so none of them can cause the failure mode it is meant to fix.
+
+A typical pre-PBT sequence:
+
+```bash
+# Inspect the evidence first (dark sheets = sulcal CSF)
+CAT_VolSheetness -polarity -1 -v t1_corr.nii sheetness.nii
+
+# Repair the label map, then estimate thickness from the repaired map
+CAT_VolSulcusRepair -verbose t1_corr.nii label.nii label_repaired.nii
+CAT_VolThicknessPbt -oriented-filter label_repaired.nii gmt.nii ppm.nii
+```
+
+References: Han et al., *Proc SPIE Med Imag* 4322:194–203, 2001 (ACE); Han et
+al., *NeuroImage* 23(3):997–1012, 2004 (CRUISE); Kim et al., *NeuroImage*
+27(1):210–221, 2005 (CLASP); Descoteaux et al., *Med Image Anal*
+10(4):638–651, 2006 (sheetness); Sato et al., *Med Image Anal* 2(2):143–168,
+1998.
+
 ### External binary GIFTI files
 
 Specifying an output name with the `.dat` extension causes CAT-Surface to write
@@ -88,8 +166,12 @@ a `.gii` header alongside a `.dat` binary. The header uses the GIFTI
 ## Continuous Integration
 
 A GitHub Actions workflow located in `.github/workflows/ci.yml` automatically
-runs `./autogen.sh`, `./configure`, `make` and a small test on every push or
-pull request.
+runs `./autogen.sh`, `./configure`, `make` and `make check` on every push or
+pull request. It then builds the Python bindings against that tree and runs
+`cat_surface_cython/tests/smoke_test.py`, which imports every extension module
+and re-checks the numeric contracts — the generated `cat_surf/_*.c` sources are
+untracked build artifacts, so only an actual build proves the Cython sources
+still compile and link.
 
 ## Python bindings for CAT-Surface
 
