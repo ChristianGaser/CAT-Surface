@@ -37,3 +37,4 @@ Progs/CAT_[A-Za-z0-9_]*
 tests/test_math.out
 docs/doxygen/
 !Progs/CAT_*.c*
+cat_surface_cython/cat_surf/_*.c
