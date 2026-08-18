@@ -12,7 +12,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config zip
+          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config zip zlib1g-dev
       - name: Configure
         run: |
           autoupdate
@@ -26,3 +26,25 @@ jobs:
         run: |
           make check || true
           ./Progs/CAT_ResampleSurf || true
+
+      # The generated cat_surf/_*.c sources are build artifacts and are not
+      # tracked, so nothing in the repository proves the .pyx sources still
+      # cythonize, compile and link against libCAT.  These two steps are that
+      # proof: the install cythonizes from scratch (Cython comes from
+      # pyproject.toml's build-system.requires), and the smoke test imports
+      # every extension module and checks the numeric contracts.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build Python bindings
+        env:
+          CAT_SURFACE_ROOT: ${{ github.workspace }}
+          CAT_BUILD_DIR: ${{ github.workspace }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ./cat_surface_cython
+
+      - name: Smoke-test Python bindings
+        run: python cat_surface_cython/tests/smoke_test.py

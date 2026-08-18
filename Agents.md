@@ -139,8 +139,9 @@ shrinks nothing.
 
 **Invariant every consumer relies on:** where the sheetness is zero the oriented operator
 must be numerically identical to the isotropic one it replaces. That is what makes each of
-these safe to enable by default-off and what `tests/test_sheetness.c` asserts voxel by
-voxel. Do not break it.
+these safe to enable by default-off. It is asserted voxel by voxel on both sides of the
+binding boundary: `tests/test_sheetness.c` (C, via `make check`) and
+`cat_surface_cython/tests/smoke_test.py` (Python, via CI). Do not break it.
 
 Note the deliberate name split: the library module is `CAT_SulcusRepair` while the CLI is
 `CAT_VolSulcusRepair`, because automake's `subdir-objects` would otherwise collide on two
@@ -171,6 +172,21 @@ When adding or changing a CLI tool:
 
 - Unit tests live in `tests/` and currently focus on small, dependency-light C code.
 - Typical flow: `make check` (after configure/make).
+- The Python bindings have their own gate, `cat_surface_cython/tests/smoke_test.py`.
+  It exists because the generated `cat_surf/_*.c` sources are untracked build
+  artifacts, so nothing in the repository proves the `.pyx` sources still
+  cythonize, compile and link — only an actual build does. It imports every
+  extension module and re-checks the numeric contracts from the Python side;
+  numpy is its only dependency, so it runs in the same environment the wheel is
+  built in. CI runs it after `make check`:
+
+  ```bash
+  CAT_SURFACE_ROOT=$PWD CAT_BUILD_DIR=$PWD pip install ./cat_surface_cython
+  python cat_surface_cython/tests/smoke_test.py
+  ```
+
+  Add a check here whenever you add a binding — a broken `.pyx` would otherwise
+  first surface when a release wheel is built.
 
 ## Development Guidelines
 

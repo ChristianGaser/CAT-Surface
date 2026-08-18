@@ -40,11 +40,19 @@ make -j$(nproc)
 # Run unit tests
 make check
 
+# Build the Python bindings against the tree and smoke-test them.
+# Needed because cat_surf/_*.c are untracked build artifacts, so only an
+# actual build proves the .pyx sources still cythonize, compile and link.
+CAT_SURFACE_ROOT=$PWD CAT_BUILD_DIR=$PWD pip install ./cat_surface_cython
+python cat_surface_cython/tests/smoke_test.py
+
 # Spell-check before every PR
 codespell --config .codespellrc
 ```
 
-CI runs the same steps on Ubuntu 22.04 via `.github/workflows/ci.yml`.
+CI runs the build, `make check` and the binding smoke test on Ubuntu 22.04 via
+`.github/workflows/ci.yml`. It does **not** run codespell — that stays a local
+pre-PR step.
 
 ## Directory layout
 
