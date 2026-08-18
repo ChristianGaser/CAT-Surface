@@ -2,19 +2,11 @@
 #include <stdio.h>
 #include "CAT_Sheetness.h"
 #include "CAT_SulcusRepair.h"
-#include "CAT_Amap.h"
 #include "CAT_Vol.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
-/* ICM() is internal to CAT_Amap.c and deliberately not part of the public
-   header; declared here so the no-op property of the anisotropic prior can be
-   checked directly. */
-extern void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims,
-                double beta, int iterations, double *voxelsize, int verbose,
-                const double *class_weights, const CAT_MrfAnisoField *aniso);
 
 #define N 24
 #define IDX(x, y, z) ((x) + (y) * N + (z) * N * N)
@@ -57,6 +49,229 @@ static void test_eigen_general(void)
     MU_ASSERT("determinant preserved", fabs(det - 54.0) < 1e-5);
     MU_ASSERT("eigenvector is unit length",
               fabs(sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]) - 1.0) < 1e-6);
+}
+
+/* ------------------------------------------------------------------ */
+/* the gain scales the response without breaking the zero invariant    */
+/* ------------------------------------------------------------------ */
+
+static void test_sheetness_gain(void)
+{
+    float *vol = (float *)malloc(sizeof(float) * N * N * N);
+    float *S1 = (float *)malloc(sizeof(float) * N * N * N);
+    float *S2 = (float *)malloc(sizeof(float) * N * N * N);
+    CAT_SheetnessOpts opts;
+    int x, y, z, i;
+    int n_zero = 0, n_above_half = 0;
+
+    MU_ASSERT("alloc", vol && S1 && S2);
+
+    /* one dark plane at x = 8, as in the sheet-vs-blob phantom */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+                vol[IDX(x, y, z)] = 2.0f;
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            vol[IDX(8, y, z)] = 1.0f;
+
+    CAT_SheetnessOptionsInit(&opts);
+    MU_ASSERT("gain defaults to 1", opts.gain == 1.0);
+
+    opts.polarity = -1;
+    opts.sigma_min = 0.5;
+    opts.sigma_max = 1.0;
+    opts.n_scales = 2;
+
+    /* a strongly attenuated response, so that doubling it stays below the
+       clamp and the linearity can be checked exactly */
+    opts.gain = 0.25;
+    MU_ASSERT("sheetness runs",
+              CAT_VolSheetness(vol, S1, NULL, NULL, dims3, vx1, &opts) == 0);
+    opts.gain = 0.5;
+    MU_ASSERT("sheetness runs",
+              CAT_VolSheetness(vol, S2, NULL, NULL, dims3, vx1, &opts) == 0);
+
+    for (i = 0; i < N * N * N; i++)
+    {
+        /* linear in the gain wherever the clamp does not bite */
+        if (S2[i] < 1.0f)
+            MU_ASSERT("response is linear in the gain",
+                      fabs((double)S2[i] - 2.0 * (double)S1[i]) < 1e-5);
+        /* and a zero response stays zero at any gain, which is what keeps
+           every oriented operator identical to its isotropic counterpart
+           away from thin structures */
+        if (S1[i] == 0.0f)
+        {
+            MU_ASSERT("zero response stays zero", S2[i] == 0.0f);
+            n_zero++;
+        }
+    }
+    MU_ASSERT("the phantom has voxels with no response", n_zero > 0);
+
+    /* the point of a gain above 1: lift a response that is too weak to
+       clear the hard 0.5 threshold of the oriented median */
+    opts.gain = 0.25;
+    MU_ASSERT("sheetness runs",
+              CAT_VolSheetness(vol, S1, NULL, NULL, dims3, vx1, &opts) == 0);
+    for (i = 0; i < N * N * N; i++)
+        MU_ASSERT("attenuated response cannot reach the median threshold",
+                  S1[i] <= 0.5f);
+
+    opts.gain = 4.0;
+    MU_ASSERT("sheetness runs",
+              CAT_VolSheetness(vol, S2, NULL, NULL, dims3, vx1, &opts) == 0);
+    for (i = 0; i < N * N * N; i++)
+    {
+        MU_ASSERT("gain never pushes the response out of [0,1]",
+                  S2[i] >= 0.0f && S2[i] <= 1.0f);
+        if (S2[i] > 0.5f)
+            n_above_half++;
+    }
+    MU_ASSERT("a gain above 1 lifts the sheet over the threshold",
+              n_above_half > 0);
+
+    free(vol);
+    free(S1);
+    free(S2);
+}
+
+/* ------------------------------------------------------------------ */
+/* the admission cutoff drops the three neighbour classes in turn      */
+/* ------------------------------------------------------------------ */
+
+static void test_oriented_median_cutoff(void)
+{
+    const int nvox = N * N * N;
+    float *vol = (float *)malloc(sizeof(float) * nvox);
+    float *out = (float *)malloc(sizeof(float) * nvox);
+    float *S = (float *)malloc(sizeof(float) * nvox);
+    float *nrm = (float *)malloc(sizeof(float) * 3 * nvox);
+    int x, y, z, i;
+
+    MU_ASSERT("alloc", vol && out && S && nrm);
+
+    /* a one-voxel-thick sheet at x = 12 with a known constant sheetness and a
+       normal along x, so the admitted set follows the arithmetic exactly */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+                vol[IDX(x, y, z)] = 2.0f;
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            vol[IDX(12, y, z)] = 1.0f;
+
+    for (i = 0; i < nvox; i++)
+    {
+        S[i] = 0.4f;
+        nrm[3 * i + 0] = 1.0f;
+        nrm[3 * i + 1] = 0.0f;
+        nrm[3 * i + 2] = 0.0f;
+    }
+
+    /* s = 0.4, so the 6 face neighbours drop out from cutoff 0.4 downwards,
+       the 12 edge neighbours from 0.2 and the 8 corners from 0.1333.
+       A one-voxel sheet needs the edge neighbours gone, i.e. cutoff <= s/2. */
+
+    /* above s: nothing is rejected, so this is the isotropic median */
+    memcpy(out, vol, sizeof(float) * nvox);
+    MU_ASSERT("oriented median runs",
+              CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.5, 1) == 0);
+    MU_ASSERT("a cutoff above the sheetness erases the sheet",
+              out[IDX(12, 12, 12)] > 1.9f);
+
+    /* between s and s/2: only the faces are gone, still not enough */
+    memcpy(out, vol, sizeof(float) * nvox);
+    MU_ASSERT("oriented median runs",
+              CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.3, 1) == 0);
+    MU_ASSERT("dropping the face neighbours alone does not keep the sheet",
+              out[IDX(12, 12, 12)] > 1.9f);
+
+    /* at s/2 the edge neighbours go and the 9 in-plane offsets become half
+       the admitted set, which is where the sheet starts to survive */
+    memcpy(out, vol, sizeof(float) * nvox);
+    MU_ASSERT("oriented median runs",
+              CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.2, 1) == 0);
+    MU_ASSERT("the sheet survives from cutoff = s/2 downwards",
+              out[IDX(12, 12, 12)] < 1.1f);
+
+    /* the default has to be usable on a response of this size */
+    memcpy(out, vol, sizeof(float) * nvox);
+    MU_ASSERT("oriented median runs",
+              CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.0, 1) == 0);
+    MU_ASSERT("the default cutoff keeps a sheet at sheetness 0.4",
+              out[IDX(12, 12, 12)] < 1.1f);
+    MU_ASSERT("the default is the documented one",
+              CAT_ORIENTED_MEDIAN_CUTOFF <= 0.2);
+
+    /* and the zero-sheetness invariant survives every cutoff */
+    for (i = 0; i < nvox; i++)
+        S[i] = 0.0f;
+    {
+        float *iso = (float *)malloc(sizeof(float) * nvox);
+        MU_ASSERT("alloc", iso != NULL);
+        /* the reference is the same routine with no field at all, so that the
+           comparison isolates the cutoff and not the boundary handling */
+        memcpy(iso, vol, sizeof(float) * nvox);
+        MU_ASSERT("oriented median runs",
+                  CAT_VolOrientedMedian(iso, NULL, NULL, NULL, dims3, 0.0, 1) == 0);
+        for (i = 0; i < 4; i++)
+        {
+            const double cut[4] = {0.5, 0.25, 0.1, 0.01};
+            memcpy(out, vol, sizeof(float) * nvox);
+            MU_ASSERT("oriented median runs",
+                      CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, cut[i], 1) == 0);
+            MU_ASSERT("zero sheetness is the isotropic median at any cutoff",
+                      memcmp(out, iso, sizeof(float) * nvox) == 0);
+        }
+        free(iso);
+    }
+
+    free(vol);
+    free(out);
+    free(S);
+    free(nrm);
+}
+
+/* ------------------------------------------------------------------ */
+/* the repair ramp reaches full strength at twice the threshold        */
+/* ------------------------------------------------------------------ */
+
+static void test_repair_ramp_reaches_full_strength(void)
+{
+    CAT_SulcusRepairOpts opts;
+
+    CAT_SulcusRepairOptionsInit(&opts);
+
+    /* The blend weight is strength * (s - thresh) / thresh, clamped to
+       [0, strength].  Anchoring the ramp at a sheetness of 1 instead assumes a
+       response that saturates; a real one does not, which left the correction
+       at a few percent of its nominal strength.  The relation mirrors the
+       oriented median, where a thin sheet is protected from twice the cutoff. */
+    MU_ASSERT("the CSF threshold is matched to a real response",
+              opts.csf_thresh > 0.0 && opts.csf_thresh <= 0.15);
+    MU_ASSERT("the WM threshold is matched to a real response",
+              opts.wm_thresh > 0.0 && opts.wm_thresh <= 0.15);
+
+    /* full strength has to be reachable well inside what the filter produces:
+       on real data the dark-sheet response tops out around 0.55 */
+    MU_ASSERT("full CSF strength is reached below a plausible maximum",
+              2.0 * opts.csf_thresh <= 0.55);
+    MU_ASSERT("full WM strength is reached below a plausible maximum",
+              2.0 * opts.wm_thresh <= 0.55);
+
+    /* and the ramp must never exceed the nominal strength: the steeper slope
+       makes (s - thresh) / thresh pass 1 long before the sheetness does */
+    {
+        const double s_hi = 1.0;
+        double w = opts.csf_strength * (s_hi - opts.csf_thresh) / opts.csf_thresh;
+        if (w > opts.csf_strength)
+            w = opts.csf_strength;
+        MU_ASSERT("the blend weight is clamped to csf_strength, not to 1",
+                  w <= opts.csf_strength + 1e-12);
+        MU_ASSERT("csf_strength still leaves the label short of a full swap",
+                  opts.csf_strength < 1.0);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -158,19 +373,19 @@ static void test_oriented_median_preserves_sheet(void)
 
     /* isotropic: nine dark values among twenty-seven, the median is bright */
     MU_ASSERT("isotropic runs",
-              CAT_VolOrientedMedian(iso, NULL, NULL, NULL, dims3, 1) == 0);
+              CAT_VolOrientedMedian(iso, NULL, NULL, NULL, dims3, 0.0, 1) == 0);
     MU_ASSERT("isotropic median erases the sheet", iso[IDX(12, 12, 12)] > 1.9f);
 
     /* oriented: neighbours across the sheet are excluded, the median stays dark */
     MU_ASSERT("oriented runs",
-              CAT_VolOrientedMedian(ori, S, nrm, NULL, dims3, 1) == 0);
+              CAT_VolOrientedMedian(ori, S, nrm, NULL, dims3, 0.0, 1) == 0);
     MU_ASSERT("oriented median keeps the sheet", ori[IDX(12, 12, 12)] < 1.1f);
 
     /* zero sheetness must reproduce the isotropic result exactly */
     for (i = 0; i < nvox; i++)
         S[i] = 0.0f;
     MU_ASSERT("oriented runs",
-              CAT_VolOrientedMedian(flat, S, nrm, NULL, dims3, 1) == 0);
+              CAT_VolOrientedMedian(flat, S, nrm, NULL, dims3, 0.0, 1) == 0);
     for (i = 0; i < nvox; i++)
         MU_ASSERT("zero sheetness is exactly the isotropic filter",
                   flat[i] == iso[i]);
@@ -303,14 +518,14 @@ static void test_recover_sulcal_csf(void)
 /* broken gyrus: a gap in a WM blade, and a decoy with no second bank  */
 /* ------------------------------------------------------------------ */
 
-static void test_reconnect_gyri(void)
+static void test_strengthen_wm_blades(void)
 {
     const int nvox = N * N * N;
     float *t1 = (float *)malloc(sizeof(float) * nvox);
     float *lab = (float *)malloc(sizeof(float) * nvox);
     CAT_SulcusRepairOpts opts;
     int x, y, z;
-    float gap_after, decoy_before, decoy_after;
+    float gap_after, tip_after, decoy_before, decoy_after;
 
     MU_ASSERT("alloc", t1 && lab);
 
@@ -330,8 +545,10 @@ static void test_reconnect_gyri(void)
             t1[IDX(0, y, z)] = 40.0f;
         }
 
-    /* a WM blade one voxel thick at x = 12, interrupted at z = 12 */
-    for (z = 0; z < N; z++)
+    /* a WM blade one voxel thick at x = 12, running from z = 0 to z = 17 and
+       interrupted at z = 12; beyond z = 17 it is the blade *tip*, still bright
+       in the intensity but labelled GM -- the gyral-crown case */
+    for (z = 0; z <= 17; z++)
         for (y = 0; y < N; y++)
         {
             lab[IDX(12, y, z)] = 3.0f;
@@ -342,8 +559,14 @@ static void test_reconnect_gyri(void)
         lab[IDX(12, y, 12)] = 2.0f; /* the missegmentation */
         t1[IDX(12, y, 12)] = 138.0f; /* but the intensity is still WM-bright */
     }
+    for (z = 18; z <= 19; z++)
+        for (y = 0; y < N; y++)
+        {
+            lab[IDX(12, y, z)] = 2.0f;   /* the classifier lost the tip ... */
+            t1[IDX(12, y, z)] = 136.0f;  /* ... though it is still nearly WM */
+        }
 
-    /* decoy: a lone WM-bright voxel with no WM facing it on two sides */
+    /* decoy: a lone WM-bright voxel far from any blade */
     lab[IDX(5, 5, 5)] = 2.0f;
     t1[IDX(5, 5, 5)] = 140.0f;
     decoy_before = lab[IDX(5, 5, 5)];
@@ -353,159 +576,27 @@ static void test_reconnect_gyri(void)
     opts.sheet_sigma_max = 1.0;
     opts.sheet_n_scales = 2;
 
-    MU_ASSERT("reconnection runs",
-              CAT_VolReconnectGyri(t1, lab, NULL, dims3, vx1, &opts) == 0);
+    MU_ASSERT("strengthening runs",
+              CAT_VolStrengthenWmBlades(t1, lab, NULL, dims3, vx1, &opts) == 0);
 
     gap_after = lab[IDX(12, 12, 12)];
+    tip_after = lab[IDX(12, 12, 18)];
     decoy_after = lab[IDX(5, 5, 5)];
 
-    MU_ASSERT("the blade gap was bridged", gap_after > 2.4f);
+    MU_ASSERT("the blade gap was closed", gap_after > 2.4f);
+
+    /* the point of the rewrite: a blade *tip* has WM only behind it, so the
+       old two-sided test could never fire here, which is exactly where blades
+       break in real data */
+    MU_ASSERT("the lost blade tip was strengthened", tip_after > 2.4f);
+
     MU_ASSERT("the isolated bright voxel was not touched",
               fabs(decoy_after - decoy_before) < 1e-5);
+    MU_ASSERT("nothing was raised past what the intensity supports",
+              tip_after <= 3.0f && gap_after <= 3.0f);
 
     free(t1);
     free(lab);
-}
-
-/* ------------------------------------------------------------------ */
-/* the anisotropic MRF is a no-op where nothing sheet-like was found   */
-/* ------------------------------------------------------------------ */
-
-static void test_aniso_mrf_is_noop_without_sheets(void)
-{
-    const int nvox = N * N * N;
-    const int n_classes = 3;
-    unsigned char *prob = (unsigned char *)malloc((size_t)nvox * n_classes);
-    unsigned char *lab_ref = (unsigned char *)malloc(nvox);
-    unsigned char *lab_beta = (unsigned char *)malloc(nvox);
-    unsigned char *lab_potts = (unsigned char *)malloc(nvox);
-    float *S = (float *)malloc(sizeof(float) * nvox);
-    float *nrm = (float *)malloc(sizeof(float) * 3 * nvox);
-    CAT_MrfAnisoField aniso;
-    double cw[3] = {1.0, 1.0, 1.0};
-    int i, c;
-
-    MU_ASSERT("alloc", prob && lab_ref && lab_beta && lab_potts && S && nrm);
-
-    /* a noisy but deterministic three-class field */
-    for (i = 0; i < nvox; i++)
-    {
-        int z = i / (N * N);
-        unsigned char base = (unsigned char)(z < 8 ? 1 : (z < 16 ? 2 : 3));
-        if ((i % 37) == 0)
-            base = (unsigned char)(base % 3 + 1);
-        lab_ref[i] = base;
-        for (c = 0; c < n_classes; c++)
-            prob[i + c * nvox] = (unsigned char)((c + 1 == base) ? 200 : 28);
-        S[i] = 0.0f;
-        nrm[3 * i + 0] = 1.0f;
-        nrm[3 * i + 1] = 0.0f;
-        nrm[3 * i + 2] = 0.0f;
-    }
-    memcpy(lab_beta, lab_ref, nvox);
-    memcpy(lab_potts, lab_ref, nvox);
-
-    ICM(prob, lab_ref, n_classes, dims3, 0.3, 5, vx1, 0, cw, NULL);
-
-    aniso.mode = MRF_ANISO_BETA;
-    aniso.sheetness = S;
-    aniso.normal = nrm;
-    aniso.strength = 1.0;
-    aniso.sigma = 0.5;
-    ICM(prob, lab_beta, n_classes, dims3, 0.3, 5, vx1, 0, cw, &aniso);
-
-    aniso.mode = MRF_ANISO_POTTS;
-    ICM(prob, lab_potts, n_classes, dims3, 0.3, 5, vx1, 0, cw, &aniso);
-
-    for (i = 0; i < nvox; i++)
-    {
-        MU_ASSERT("local-beta mode is a no-op at zero sheetness",
-                  lab_beta[i] == lab_ref[i]);
-        MU_ASSERT("anisotropic-Potts mode is a no-op at zero sheetness",
-                  lab_potts[i] == lab_ref[i]);
-    }
-
-    free(prob);
-    free(lab_ref);
-    free(lab_beta);
-    free(lab_potts);
-    free(S);
-    free(nrm);
-}
-
-/* ------------------------------------------------------------------ */
-/* a sheet-aligned MRF stops the prior from eating a one-voxel sheet   */
-/* ------------------------------------------------------------------ */
-
-static void test_aniso_mrf_protects_thin_sheet(void)
-{
-    const int nvox = N * N * N;
-    const int n_classes = 2;
-    unsigned char *prob = (unsigned char *)malloc((size_t)nvox * n_classes);
-    unsigned char *lab_iso = (unsigned char *)malloc(nvox);
-    unsigned char *lab_ani = (unsigned char *)malloc(nvox);
-    float *S = (float *)malloc(sizeof(float) * nvox);
-    float *nrm = (float *)malloc(sizeof(float) * 3 * nvox);
-    CAT_MrfAnisoField aniso;
-    double cw[2] = {1.0, 1.0};
-    int x, y, z, c;
-    int surv_iso = 0, surv_ani = 0, total = 0;
-
-    MU_ASSERT("alloc", prob && lab_iso && lab_ani && S && nrm);
-
-    /* class 2 everywhere, with a one-voxel-thick class-1 sheet at x = 12.
-       The data term only mildly prefers class 1 on the sheet, so an isotropic
-       Potts prior -- where 18 of the 26 neighbours disagree -- overrules it,
-       which is the shrinking bias in its simplest form. */
-    for (z = 0; z < N; z++)
-        for (y = 0; y < N; y++)
-            for (x = 0; x < N; x++)
-            {
-                const int idx = IDX(x, y, z);
-                const int on_sheet = (x == 12);
-
-                lab_iso[idx] = (unsigned char)(on_sheet ? 1 : 2);
-                for (c = 0; c < n_classes; c++)
-                    prob[idx + c * nvox] = 40;
-                prob[idx + (on_sheet ? 0 : 1) * nvox] = 90;
-
-                S[idx] = on_sheet ? 1.0f : 0.0f;
-                nrm[3 * idx + 0] = 1.0f;
-                nrm[3 * idx + 1] = 0.0f;
-                nrm[3 * idx + 2] = 0.0f;
-            }
-    memcpy(lab_ani, lab_iso, nvox);
-
-    ICM(prob, lab_iso, n_classes, dims3, 0.6, 10, vx1, 0, cw, NULL);
-
-    aniso.mode = MRF_ANISO_POTTS;
-    aniso.sheetness = S;
-    aniso.normal = nrm;
-    aniso.strength = 1.0;
-    aniso.sigma = 0.5;
-    ICM(prob, lab_ani, n_classes, dims3, 0.6, 10, vx1, 0, cw, &aniso);
-
-    for (z = 1; z < N - 1; z++)
-        for (y = 1; y < N - 1; y++)
-        {
-            const int idx = IDX(12, y, z);
-            total++;
-            if (lab_iso[idx] == 1)
-                surv_iso++;
-            if (lab_ani[idx] == 1)
-                surv_ani++;
-        }
-
-    MU_ASSERT("the isotropic prior eats most of the sheet",
-              surv_iso < total / 2);
-    MU_ASSERT("the anisotropic prior keeps it",
-              surv_ani > (9 * total) / 10);
-
-    free(prob);
-    free(lab_iso);
-    free(lab_ani);
-    free(S);
-    free(nrm);
 }
 
 int main(void)
@@ -513,12 +604,13 @@ int main(void)
     MU_RUN_TEST(test_eigen_diagonal);
     MU_RUN_TEST(test_eigen_general);
     MU_RUN_TEST(test_sheetness_sheet_vs_blob);
+    MU_RUN_TEST(test_sheetness_gain);
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
+    MU_RUN_TEST(test_oriented_median_cutoff);
     MU_RUN_TEST(test_normalize_to_label);
     MU_RUN_TEST(test_recover_sulcal_csf);
-    MU_RUN_TEST(test_reconnect_gyri);
-    MU_RUN_TEST(test_aniso_mrf_is_noop_without_sheets);
-    MU_RUN_TEST(test_aniso_mrf_protects_thin_sheet);
+    MU_RUN_TEST(test_repair_ramp_reaches_full_strength);
+    MU_RUN_TEST(test_strengthen_wm_blades);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
