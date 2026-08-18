@@ -1,4 +1,7 @@
 [codespell]
-skip = .git,*.pdf,*.svg,*.nii,3rdparty,deprecated
+# Generated files are skipped: the Cython outputs (cat_surf/_*.c) and the
+# autotools scripts are build artifacts, not source, and their generated
+# identifiers produce a steady stream of false positives (nd, nin, alse, ...).
+skip = .git,*.pdf,*.svg,*.nii,3rdparty,deprecated,_*.c,configure,libtool,ltmain.sh,config.guess,config.sub,depcomp,compile,missing,install-sh,test-driver,aclocal.m4,Makefile.in,Makefile,autom4te.cache,m4
 # file with ignores (ATM all shorts found by codespell)
 ignore-words = .codespell-ignores

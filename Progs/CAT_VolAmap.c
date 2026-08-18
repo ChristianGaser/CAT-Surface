@@ -18,6 +18,7 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
+#include "CAT_Sheetness.h"
 
 char *label_filename;
 int iters_amap = 50;
@@ -40,6 +41,9 @@ double mrf_class_weights[MAX_NC] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 double bias_fwhm = 0.0;
 double h_ornlm = 0.00;
 double sigma_ornlm = -1.0;
+int mrf_aniso = MRF_ANISO_OFF;
+double mrf_aniso_strength = 1.0;
+double mrf_aniso_sigma = 0.5;
 
 static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *) 1, (char *) &label_filename, 
@@ -59,6 +63,27 @@ static ArgvInfo argTable[] = {
     {"-mrf", ARGV_FLOAT, (char *) 1, (char *) &weight_MRF,
          "Determines the weight of the Markov Random Field (MRF) prior, a value\n\
          between 0 and 1."},
+         
+    {"-mrf-aniso", ARGV_INT, (char *) 1, (char *) &mrf_aniso,
+         "Anisotropic MRF prior (0=off, 1=locally varying beta, 2=direction-weighted\n\
+         Potts). The isotropic Potts prior penalizes boundary area, so it always\n\
+         finds it cheaper to delete a thin structure than to keep it -- the reason\n\
+         a stronger MRF closes cerebellar fissures and glues tight sulci while it\n\
+         removes noise. Both modes are driven by a Hessian sheetness field computed\n\
+         on the bias-corrected image, and both are exact no-ops where no thin sheet\n\
+         is detected, so behaviour away from thin structures is unchanged.\n\
+         Mode 1 scales beta by (1 - strength * sheetness): the prior simply stops\n\
+         pulling on a sheet. Mode 2 keeps beta and instead down-weights neighbours\n\
+         lying across the sheet, so the prior still denoises within a sulcal bank\n\
+         but can no longer merge two banks facing each other."},
+
+    {"-mrf-aniso-strength", ARGV_FLOAT, (char *) 1, (char *) &mrf_aniso_strength,
+         "Strength of the anisotropic MRF relaxation in 0..1 (default 1.0).\n\
+         0 reproduces the isotropic prior exactly."},
+
+    {"-mrf-aniso-sigma", ARGV_FLOAT, (char *) 1, (char *) &mrf_aniso_sigma,
+         "Angular width of the direction weighting for -mrf-aniso 2 (default 0.5).\n\
+         Smaller values confine the prior more tightly to the plane of the sheet."},
 
     {"-mrf-class-weights", ARGV_STRING, (char *) 1, (char *) &mrf_class_weights_str,
         "Comma-separated class weights. For pve=0 use 3 values (CSF,GM,WM).\n\
@@ -270,14 +295,56 @@ main(int argc, char *argv[])
         free(tmp);
     }
 
+    /* Optional anisotropic MRF prior: estimate the sheetness field on the
+       bias-corrected image so the Potts prior can be relaxed exactly where a
+       thin sheet -- a sulcal CSF sheet or a gyral WM blade -- would otherwise
+       be regularized away. */
+    float *sheetness = NULL, *sheet_normal = NULL;
+    CAT_MrfAnisoField aniso;
+    CAT_MrfAnisoField *aniso_ptr = NULL;
+
+    if (mrf_aniso != MRF_ANISO_OFF && weight_MRF > 0.0 && iters_ICM > 0) {
+        CAT_SheetnessOpts sopts;
+
+        sheetness = (float *)malloc(sizeof(float) * src_ptr->nvox);
+        if (mrf_aniso == MRF_ANISO_POTTS)
+            sheet_normal = (float *)malloc(sizeof(float) * 3 * src_ptr->nvox);
+
+        if (!sheetness || (mrf_aniso == MRF_ANISO_POTTS && !sheet_normal)) {
+            fprintf(stderr, "Memory allocation error for the sheetness field.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        CAT_SheetnessOptionsInit(&sopts);
+        sopts.polarity = 0; /* both dark CSF sheets and bright WM blades */
+        sopts.verbose = verbose;
+
+        if (verbose) fprintf(stdout,"Estimate sheetness field for anisotropic MRF\n");
+        if (CAT_VolSheetness(src, sheetness, sheet_normal, NULL, dims, voxelsize,
+                             &sopts) != 0) {
+            fprintf(stderr, "Sheetness estimation failed.\n");
+            exit(EXIT_FAILURE);
+        }
+
+        aniso.mode = mrf_aniso;
+        aniso.sheetness = sheetness;
+        aniso.normal = sheet_normal;
+        aniso.strength = mrf_aniso_strength;
+        aniso.sigma = mrf_aniso_sigma;
+        aniso_ptr = &aniso;
+    }
+
     if (use_bmap) {
         int BG = 1, sub_bias = 8;
         Bmap(src, label, prob, mean, n_pure_classes, BG, iters_amap, sub_bias, 
             sub_bias, sub_bias, biasfield, dims, pve, verbose);
     } else
-        Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
+        AmapAniso(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
             pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median,
-            mrf_class_weights, use_multistep);
+            mrf_class_weights, use_multistep, aniso_ptr);
+
+    if (sheetness) free(sheetness);
+    if (sheet_normal) free(sheet_normal);
 
     /* PVE */
     if (pve) {

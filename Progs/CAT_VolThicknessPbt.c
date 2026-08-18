@@ -32,6 +32,8 @@ double fill_thresh = 0.5;
 double correct_thickness = 0.25;
 double sulcal_width = 2.5;
 int pve_distance = 0;
+int oriented_filter = 0;
+double oriented_strength = 1.0;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -78,6 +80,21 @@ static ArgvInfo argTable[] = {
     {"-median-subsample", ARGV_INT, (char *)TRUE, (char *)&median_subsample,
      "Specify the size of subsampling for the median filter to smooth local\n\
      thickness values"},
+
+    {"-oriented-filter", ARGV_CONSTANT, (char *)1, (char *)&oriented_filter,
+     "Replace the isotropic 3x3x3 median filters by sheetness-oriented ones.\n\
+     An isotropic median penalizes boundary area, so it removes thin structures\n\
+     regardless of which side of the label boundary they lie on: the same filter\n\
+     that opens a glued sulcus closes a cerebellar fissure, and tuning trades one\n\
+     against the other. The oriented variant estimates a Hessian sheetness field\n\
+     once and then admits only those neighbours that lie in the plane of the local\n\
+     sheet, so it averages along a thin structure and never across it. Where no\n\
+     sheet is detected every neighbour is admitted and the filter is identical to\n\
+     the isotropic one, so nothing changes away from thin structures."},
+
+    {"-oriented-strength", ARGV_FLOAT, (char *)1, (char *)&oriented_strength,
+     "How far the oriented filters may deviate from isotropic, 0..1 (default 1.0).\n\
+     0 reproduces the isotropic filters exactly."},
 
     {"-correct-thickness", ARGV_FLOAT, (char *)1, (char *)&correct_thickness,
      "Additive thickness correction in mm, compensating the systematic shift of the\n\
@@ -138,6 +155,7 @@ Options:\n\
     -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
+    -oriented-filter           Use sheetness-oriented instead of isotropic median filters.\n\
     -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
     -pve-distance              Sub-voxel PVE correction of the distance maps (experimental).\n\
@@ -253,6 +271,8 @@ int main(int argc, char *argv[])
     opts.verbose = verbose;
     opts.median_subsample = median_subsample;
     opts.sulcal_width = sulcal_width;
+    opts.oriented_filter = oriented_filter;
+    opts.oriented_strength = oriented_strength;
 
     if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {
