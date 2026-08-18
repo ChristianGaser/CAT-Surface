@@ -99,6 +99,12 @@ The Cython package exposes libCAT to Python in three layers that must stay consi
   `CAT_` prefix dropped), same positional order and defaults; reads files → calls the
   array API → writes files. This is what downstream code (T1Prep `surface_estimation.py`,
   the Nipype `nipype.interfaces.t1prep.cat_surf` interfaces) calls.
+- **Generated sources are not tracked.** `cat_surf/_*.c` are Cython build artifacts,
+  ignored by `.gitignore` and produced from the `.pyx` at build time. Cython is in
+  `pyproject.toml`'s `build-system.requires`, so every PEP 517 build (pip, cibuildwheel)
+  has it; `setup.py` errors with an actionable message otherwise. Never commit them:
+  they were ~25% of the repo's tracked bytes, and `setup.py build_ext` rewrites all nine
+  whenever the local Cython version differs, producing huge unrelated diffs.
 - **Source of truth for defaults** is the C side. For spherical registration the
   option struct and `CAT_WarpDemonsDefaults` in `Include/CAT_WarpDemons.h` /
   `Lib/CAT_WarpDemons.c` define the defaults that the Cython signature, its docstring,
@@ -108,6 +114,37 @@ The two spherical-registration back-ends are kept interface-compatible — both 
 `(source, source_sphere, target, target_sphere)` and produce the warped source sphere:
 `CAT_SurfWarp`/`surf_warp` (DARTEL) and `CAT_SurfSphericalDemon`/`surf_spherical_demon`
 (Spherical Demons). When you change one, mirror the change in the other layer and the docs.
+
+### The sheetness family (`Include/CAT_Sheetness.h`)
+
+Several tools share one idea and therefore one implementation, so a change to
+`Lib/CAT_Sheetness.c` propagates to all of them and they must be considered together.
+
+The problem it solves: every isotropic regularizer — a local median, a Potts MRF, total
+variation — penalizes boundary area, and a thin structure has an extreme area-to-volume
+ratio, so deleting it is always the cheaper labelling (the *shrinking bias*). That is why
+one and the same median filter opens glued sulci in one place and closes cerebellar
+fissures in another. `CAT_VolSheetness()` replaces the smoothness prior with a *shape*
+prior read off the Hessian eigenvalues, which keeps thin sheets, ignores blobs, and
+shrinks nothing.
+
+| Consumer | Option | What the field does there |
+| --- | --- | --- |
+| `Progs/CAT_VolSheetness` | (the tool itself) | writes the response map, for tuning scales and polarity |
+| `Progs/CAT_VolLocalStat` | `-oriented` | median over a sheet-oriented neighbourhood (`-stat 7` only) |
+| `Progs/CAT_VolSmooth` | `-oriented` | coherence-enhancing smoothing along the sheet |
+| `Progs/CAT_VolAmap` | `-mrf-aniso 1\|2` | relaxes the Potts prior on sheets (local beta / direction weights) |
+| `Progs/CAT_VolThicknessPbt` | `-oriented-filter` | replaces the three isotropic medians inside PBT |
+| `Progs/CAT_VolSulcusRepair` | (always) | evidence term for the pre-PBT repair, `Lib/CAT_SulcusRepair.c` |
+
+**Invariant every consumer relies on:** where the sheetness is zero the oriented operator
+must be numerically identical to the isotropic one it replaces. That is what makes each of
+these safe to enable by default-off and what `tests/test_sheetness.c` asserts voxel by
+voxel. Do not break it.
+
+Note the deliberate name split: the library module is `CAT_SulcusRepair` while the CLI is
+`CAT_VolSulcusRepair`, because automake's `subdir-objects` would otherwise collide on two
+objects named `CAT_VolSulcusRepair.o`.
 
 ## Build System Notes (Autotools/Libtool)
 

@@ -80,6 +80,34 @@ sphere, so they are drop-in interchangeable:
 Defaults live in the C source of truth (`Include/CAT_WarpDemons.h` +
 `CAT_WarpDemonsDefaults`); the Cython signature/docstring and the docs must match it.
 
+`cat_surf/_*.c` are Cython build artifacts, gitignored and regenerated from the `.pyx` at
+build time — never commit them. Building needs Cython (`pip install cython`, or just build
+through pip, which installs it from `build-system.requires`).
+
+## The sheetness family (`Include/CAT_Sheetness.h`)
+
+One shared shape prior feeds six tools, so a change to `Lib/CAT_Sheetness.c` propagates to
+all of them — treat them as one unit. It exists because every isotropic regularizer (local
+median, Potts MRF, TV) penalizes boundary area and therefore deletes thin structures
+whichever side of the label boundary they lie on: the same filter that opens a glued sulcus
+closes a cerebellar fissure.
+
+| Consumer | Option |
+| --- | --- |
+| `CAT_VolSheetness` | the tool itself — writes the response map for tuning |
+| `CAT_VolLocalStat` | `-oriented` (with `-stat 7`) |
+| `CAT_VolSmooth` | `-oriented` |
+| `CAT_VolAmap` | `-mrf-aniso 1\|2` |
+| `CAT_VolThicknessPbt` | `-oriented-filter` |
+| `CAT_VolSulcusRepair` | always (`Lib/CAT_SulcusRepair.c`) |
+
+**Invariant:** where the sheetness is zero, every oriented operator must be numerically
+identical to the isotropic one it replaces. `tests/test_sheetness.c` asserts this voxel by
+voxel — do not break it.
+
+The library module is `CAT_SulcusRepair` while the CLI is `CAT_VolSulcusRepair`: automake's
+`subdir-objects` would otherwise collide on two objects of the same name.
+
 ## Architecture rules
 
 1. **Library-first:** All non-trivial logic belongs in `Lib/`, not `Progs/`.
