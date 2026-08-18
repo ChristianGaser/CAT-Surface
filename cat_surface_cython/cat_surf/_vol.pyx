@@ -71,7 +71,12 @@ def vol_sanlm(volume, bint is_rician=False, double strength=1.0):
 
 
 # ===================================================================
-# Blood-vessel correction  (mirrors CAT_VolBloodVesselCorrection)
+# Blood-vessel correction
+#
+# The standalone CAT_VolBloodVesselCorrection tool was removed; this is
+# still the correction CAT_VolThicknessPbt applies to its input PVE map
+# (its -no-bvc switch turns it off), so the array API is kept for anyone
+# who wants to inspect or apply it on its own.
 # ===================================================================
 def vol_blood_vessel_correction(volume, voxelsize=None):
     """
@@ -113,8 +118,8 @@ def vol_blood_vessel_correction(volume, voxelsize=None):
 # Projection-based thickness (PBT)  (mirrors CAT_VolThicknessPbt)
 # ===================================================================
 # ===================================================================
-# Hessian sheetness and the oriented filters  (mirrors CAT_VolSheetness,
-# CAT_VolLocalStat -oriented and CAT_VolSmooth -oriented)
+# Hessian sheetness and the oriented median  (mirrors CAT_VolSheetness
+# and CAT_VolLocalStat -oriented)
 # ===================================================================
 cdef _pack_normal(normal, int dims[3]):
     """Interleave an (X, Y, Z, 3) normal field into the layout libCAT reads.
@@ -144,7 +149,7 @@ cdef _unpack_normal(normal_flat, int dims[3]):
 def vol_sheetness(volume, voxelsize=None,
                   double sigma_min=0.3, double sigma_max=1.0,
                   int n_scales=3, double alpha=0.5, double beta=0.5,
-                  double c=-1.0, int polarity=0,
+                  double c=-1.0, double gain=1.0, int polarity=0,
                   bint return_normal=False, bint verbose=False):
     """
     Multi-scale Hessian sheetness (plate) filter.
@@ -185,7 +190,20 @@ def vol_sheetness(volume, voxelsize=None,
     c : float
         Structure-vs-noise sensitivity.  Negative (default) selects the
         automatic estimate, which makes the filter independent of the
-        intensity units of the input.
+        intensity units of the input.  That estimate is half the largest
+        Hessian norm in the volume, so on a whole head it is set by the
+        scalp/air step and the cortical response collapses towards zero;
+        lowering it is the principled way to bring the response back up.
+    gain : float
+        Overall gain on the response (default 1.0).  The blunt alternative
+        to ``c`` when the intensity units are unknown: the map is
+        multiplied by this and clamped to ``[0, 1]``.  Values above 1
+        amplify a response too weak to reach the thresholds the consumers
+        gate on -- notably the hard 0.5 of :func:`vol_oriented_median`,
+        below which it is exactly the isotropic median.  Because the map
+        is linear and fixes zero, a zero response stays zero at any gain,
+        so the oriented operators remain exact no-ops where no sheet was
+        found.
     polarity : int
         ``1`` accepts only bright sheets (ridges, e.g. gyral WM blades),
         ``-1`` only dark sheets (valleys, e.g. sulcal CSF), ``0`` either
@@ -244,6 +262,7 @@ def vol_sheetness(volume, voxelsize=None,
     opts.alpha = alpha
     opts.beta = beta
     opts.c = c
+    opts.gain = gain
     opts.polarity = polarity
     opts.verbose = 1 if verbose else 0
 
@@ -275,13 +294,16 @@ cdef _sheet_field(volume, guide, sheetness, normal, voxelsize,
             sigma_min=sigma_min, sigma_max=sigma_max, n_scales=n_scales,
             polarity=polarity, return_normal=True, verbose=verbose)
     sheetness = np.asfortranarray(sheetness, dtype=np.float32)
-    if 0.0 <= strength < 1.0:
-        sheetness = np.asfortranarray(sheetness * strength, dtype=np.float32)
+    if strength != 1.0:
+        # Same gain the C side applies, done here so that it also reaches a
+        # precomputed field, which never passes through CAT_VolSheetness.
+        sheetness = np.asfortranarray(
+            np.clip(sheetness * strength, 0.0, 1.0), dtype=np.float32)
     return sheetness, normal
 
 
 def vol_oriented_median(volume, guide=None, sheetness=None, normal=None,
-                        voxelsize=None, int iters=1,
+                        voxelsize=None, int iters=1, double cutoff=0.0,
                         double sigma_min=0.3, double sigma_max=1.0,
                         int n_scales=3, int polarity=0,
                         double strength=1.0, bint verbose=False):
@@ -292,7 +314,7 @@ def vol_oriented_median(volume, guide=None, sheetness=None, normal=None,
 
     Drop-in replacement for an isotropic 3x3x3 median that cannot close a
     thin sheet.  A neighbour at offset ``d`` is admitted only when
-    ``1 - s*(dhat.n)**2 > 0.5``, with ``s`` the local sheetness and ``n``
+    ``s*(dhat.n)**2 < cutoff``, with ``s`` the local sheetness and ``n``
     the local sheet normal.  At ``s = 0`` every neighbour is admitted and
     the operator is bit-identical to the plain isotropic median, so
     behaviour away from thin structures does not change at all; at
@@ -314,10 +336,22 @@ def vol_oriented_median(volume, guide=None, sheetness=None, normal=None,
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
     iters : int
         Number of successive passes (default 1).
+    cutoff : float
+        Admission cutoff (default 0, which selects 0.10).  The 9 offsets
+        lying in the sheet plane are always admitted; the 6 face
+        neighbours drop out at ``s = cutoff``, the 12 edge neighbours at
+        ``2*cutoff`` and the 8 corners at ``3*cutoff``.  A one-voxel-thick
+        sheet is preserved from ``s = 2*cutoff`` upwards, where the
+        in-plane offsets first make up half the admitted set, so the
+        cutoff should be about half the sheetness the data reaches.
     sigma_min, sigma_max, n_scales, polarity : see :func:`vol_sheetness`
     strength : float
-        How far the filter may deviate from isotropic, in [0, 1]
+        Overall gain on the sheetness before the filter uses it
         (default 1.0).  0 reproduces the isotropic median exactly.
+        Values above 1 amplify a response too weak to matter: this filter
+        admits every neighbour while the sheetness stays below ``cutoff``,
+        and only preserves a one-voxel sheet from ``2*cutoff`` upwards.
+        See ``gain`` in :func:`vol_sheetness`.
     verbose : bool
 
     Returns
@@ -345,81 +379,9 @@ def vol_oriented_median(volume, guide=None, sheetness=None, normal=None,
     cdef int rc = C.CAT_VolOrientedMedian(<float *>out.data,
                                           <const float *>sheet.data,
                                           <const float *>nrm.data,
-                                          NULL, dims, iters)
+                                          NULL, dims, cutoff, iters)
     if rc != 0:
         raise RuntimeError(f"CAT_VolOrientedMedian returned error code {rc}")
-    return out
-
-
-def vol_oriented_smooth(volume, guide=None, sheetness=None, normal=None,
-                        voxelsize=None, int iters=1, double sigma=0.5,
-                        double sigma_min=0.3, double sigma_max=1.0,
-                        int n_scales=3, int polarity=0,
-                        double strength=1.0, bint verbose=False):
-    """
-    Sheetness-oriented (coherence-enhancing) smoothing.
-
-    Mirrors ``CAT_VolSmooth -oriented``.
-
-    Diffuses along the sheet and not across it: each 3x3x3 neighbour is
-    weighted by ``(1 - s) + s*exp(-(dhat.n)**2 / (2*sigma**2))``, so
-    tangential neighbours keep full weight while neighbours across the
-    sheet are suppressed in proportion to the local sheetness.  With
-    ``s = 0`` the weights are the plain distance weights and the operator
-    reduces to ordinary local averaging.  This is an iterated local
-    kernel, not a Gaussian: the amount of smoothing is set by ``iters``.
-
-    Parameters
-    ----------
-    volume : array_like, 3-D, float32
-        Volume to filter.
-    guide : array_like, 3-D, float32, optional
-        Volume the orientation is estimated from.  Defaults to ``volume``.
-    sheetness : array_like, 3-D, float32, optional
-        Precomputed sheetness; estimated from ``guide`` when omitted.
-    normal : array_like, 4-D, float32, shape (X, Y, Z, 3), optional
-        Precomputed unit sheet normals; estimated alongside ``sheetness``.
-    voxelsize : array_like, shape (3,), float64, optional
-        Voxel dimensions in mm.  Default ``[1, 1, 1]``.
-    iters : int
-        Number of successive passes (default 1).
-    sigma : float
-        Angular width of the anisotropy (default 0.5).  Smaller values
-        confine the diffusion more tightly to the plane of the sheet.
-    sigma_min, sigma_max, n_scales, polarity : see :func:`vol_sheetness`
-    strength : float
-        How far the filter may deviate from isotropic, in [0, 1]
-        (default 1.0).  0 reproduces isotropic local averaging exactly.
-    verbose : bool
-
-    Returns
-    -------
-    out : ndarray, 3-D, float32
-        Filtered volume.
-    """
-    vol = np.asfortranarray(volume, dtype=np.float32)
-    if vol.ndim != 3:
-        raise ValueError("volume must be 3-D")
-
-    cdef int dims[3]
-    dims[0] = vol.shape[0]
-    dims[1] = vol.shape[1]
-    dims[2] = vol.shape[2]
-
-    sheetness, normal = _sheet_field(vol, guide, sheetness, normal, voxelsize,
-                                     sigma_min, sigma_max, n_scales, polarity,
-                                     strength, verbose)
-
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] out = vol.copy(order='F')
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] sheet = sheetness
-    cdef cnp.ndarray[cnp.float32_t, ndim=1] nrm = _pack_normal(normal, dims)
-
-    cdef int rc = C.CAT_VolOrientedSmooth(<float *>out.data,
-                                          <const float *>sheet.data,
-                                          <const float *>nrm.data,
-                                          NULL, dims, sigma, iters)
-    if rc != 0:
-        raise RuntimeError(f"CAT_VolOrientedSmooth returned error code {rc}")
     return out
 
 
@@ -427,17 +389,18 @@ def vol_oriented_smooth(volume, guide=None, sheetness=None, normal=None,
 # Pre-PBT repair of a PVE label map  (mirrors CAT_VolSulcusRepair)
 # ===================================================================
 def vol_sulcus_repair(t1, label, voxelsize=None,
-                      bint recover_csf=True, bint reconnect_gyri=True,
+                      bint recover_csf=True, strengthen_wm=None,
                       bint refine_pve=False,
                       double sheet_sigma_min=0.3, double sheet_sigma_max=1.0,
-                      int sheet_n_scales=3,
+                      int sheet_n_scales=3, double sheet_strength=1.0,
                       double csf_min_dist=1.5, double csf_min_wmdist=0.75,
-                      double csf_thresh=0.3, double csf_strength=0.8,
-                      double wm_thresh=0.3, double wm_strength=0.8,
-                      int wm_max_gap=2,
+                      double csf_thresh=0.1, double csf_strength=0.8,
+                      double wm_thresh=0.1, double wm_strength=0.8,
+                      double wm_min_int=2.1, int wm_max_gap=3,
                       double band_min_dist=1.5, int band_window=4,
                       double band_strength=0.7,
-                      bint return_sheetness=False, bint verbose=False):
+                      bint return_sheetness=False, bint verbose=False,
+                      reconnect_gyri=None):
     """
     Anatomy-aware repair of a PVE label map, to be run *before* PBT.
 
@@ -483,8 +446,11 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
     recover_csf : bool
         Run step 1, the sulcal CSF recovery (default True).
-    reconnect_gyri : bool
-        Run step 2, the gyral WM reconnection (default True).
+    strengthen_wm : bool
+        Run step 2, the WM blade strengthening (default True).  It
+        rescues the fine white-matter fingers reaching into the gyral
+        crowns, which partial volume drags towards GM so that the
+        classifier drops their last millimetre.
     refine_pve : bool
         Run step 3, the narrow-band PVE refit (default False; it is the
         most aggressive of the three).
@@ -496,13 +462,32 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
     csf_min_wmdist : float
         Never carve closer than this many mm to the WM boundary
         (default 0.75).
+    sheet_strength : float
+        Overall gain on the sheetness before the thresholds see it
+        (default 1.0).  Every step is gated on the response clearing
+        ``csf_thresh`` or ``wm_thresh`` and then ramps its blend weight
+        from zero at that threshold, so a uniformly weak response makes
+        the whole call a no-op.  See ``gain`` in :func:`vol_sheetness`.
     csf_thresh, csf_strength : float
-        Sheetness threshold and blend weight for step 1.
+        Sheetness threshold and blend weight for step 1 (defaults 0.1
+        and 0.8).  The weight ramps from 0 at ``csf_thresh`` to
+        ``csf_strength`` at ``2*csf_thresh``, so the threshold is half
+        the sheetness at which the correction acts at full strength --
+        the same relation :func:`vol_oriented_median` has to its cutoff.
+        Match it to the response the data produces.
     wm_thresh, wm_strength : float
-        Sheetness threshold and blend weight for step 2.
+        Sheetness threshold and blend weight for step 2 (defaults 0.1
+        and 0.8), ramping exactly as the CSF pair does.
+    wm_min_int : float
+        Intensity floor for strengthening a blade, on the 1..3 label
+        axis where GM = 2 and WM = 3 (default 2.1).  A blade tip is
+        dragged towards GM by partial volume, so this sits just above
+        pure GM rather than half way to WM.
+    reconnect_gyri : bool, optional
+        Deprecated alias of ``strengthen_wm``.
     wm_max_gap : int
-        Largest gap half-width in voxels the two-sided test will bridge
-        (default 2).
+        How far from existing WM, in voxels, a blade may still be
+        strengthened (default 3).
     band_min_dist, band_window, band_strength : float, int, float
         Parameters of step 3.
     return_sheetness : bool
@@ -522,6 +507,16 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
     Han et al., NeuroImage 23(3):997-1012, 2004 (CRUISE).
     Kim et al., NeuroImage 27(1):210-221, 2005 (CLASP, CSF skeleton).
     """
+    # step 2 was called "reconnect_gyri" while it bridged two-sided gaps; it now
+    # strengthens blade tips, which is where blades actually break.  The old
+    # keyword still works so that existing callers keep running.
+    if reconnect_gyri is not None:
+        if strengthen_wm is not None and bool(strengthen_wm) != bool(reconnect_gyri):
+            raise ValueError(
+                "strengthen_wm and its deprecated alias reconnect_gyri disagree")
+        strengthen_wm = reconnect_gyri
+    cdef bint do_strengthen_wm = True if strengthen_wm is None else bool(strengthen_wm)
+
     vol_t1 = np.asfortranarray(t1, dtype=np.float32)
     vol_lab = np.asfortranarray(label, dtype=np.float32)
     if vol_t1.ndim != 3:
@@ -546,12 +541,14 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
     opts.sheet_sigma_min = sheet_sigma_min
     opts.sheet_sigma_max = sheet_sigma_max
     opts.sheet_n_scales = sheet_n_scales
+    opts.sheet_strength = sheet_strength
     opts.csf_min_dist = csf_min_dist
     opts.csf_min_wmdist = csf_min_wmdist
     opts.csf_thresh = csf_thresh
     opts.csf_strength = csf_strength
     opts.wm_thresh = wm_thresh
     opts.wm_strength = wm_strength
+    opts.wm_min_int = wm_min_int
     opts.wm_max_gap = wm_max_gap
     opts.band_min_dist = band_min_dist
     opts.band_window = band_window
@@ -578,12 +575,13 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
         if rc != 0:
             raise RuntimeError(f"CAT_VolRecoverSulcalCSF returned error code {rc}")
 
-    if reconnect_gyri:
-        rc = C.CAT_VolReconnectGyri(<const float *>src.data,
-                                    <float *>lab.data, sheet_ptr,
-                                    dims, vx, &opts)
+    if do_strengthen_wm:
+        rc = C.CAT_VolStrengthenWmBlades(<const float *>src.data,
+                                         <float *>lab.data, sheet_ptr,
+                                         dims, vx, &opts)
         if rc != 0:
-            raise RuntimeError(f"CAT_VolReconnectGyri returned error code {rc}")
+            raise RuntimeError(
+                f"CAT_VolStrengthenWmBlades returned error code {rc}")
 
     if refine_pve:
         rc = C.CAT_VolRefinePveNarrowBand(<const float *>src.data,
@@ -604,7 +602,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double sulcal_width=2.5,
                       bint pve_distance=False,
                       bint oriented_filter=False,
-                      double oriented_strength=1.0,
+                      double oriented_strength=1.0, double oriented_cutoff=0.0,
                       bint fast=False, bint verbose=False):
     """
     Compute projection-based cortical thickness (PBT).
@@ -656,10 +654,19 @@ def vol_thickness_pbt(volume, voxelsize=None,
         neighbours lying in the plane of the locally detected sheet, so
         it averages along a thin structure and never across it.  Where
         no sheet is detected it is identical to the isotropic median.
+    oriented_cutoff : float
+        Admission cutoff of the oriented medians (default 0, which
+        selects 0.10).  A one-voxel-thick sheet is preserved from a
+        sheetness of ``2*cutoff`` upwards; see
+        :func:`vol_oriented_median`.
     oriented_strength : float
-        How far the oriented filters may deviate from isotropic, in
-        [0, 1] (default 1.0).  0 reproduces the isotropic filters
-        exactly.
+        Overall gain on the sheetness before the filter uses it
+        (default 1.0).  0 reproduces the isotropic filters exactly.
+        Values above 1 amplify a response too weak to matter: the oriented
+        median admits every neighbour while the sheetness stays below
+        ``oriented_cutoff``, and only preserves a one-voxel sheet from
+        ``2*oriented_cutoff`` upwards.  See ``gain`` in
+        :func:`vol_sheetness`.
     fast : bool
         Fast/coarse thickness estimate only (default False).
     verbose : bool
@@ -710,6 +717,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.pve_distance = 1 if pve_distance else 0
     opts.oriented_filter = 1 if oriented_filter else 0
     opts.oriented_strength = oriented_strength
+    opts.oriented_cutoff = oriented_cutoff
     opts.fast = 1 if fast else 0
     opts.verbose = 1 if verbose else 0
 
@@ -737,9 +745,7 @@ def vol_amap(volume, labels, voxelsize=None,
              bint pve=True, double weight_mrf=0.0,
              int n_iters_icm=50, bint verbose=False,
              bint use_median=False, bint use_multistep=False,
-             mrf_class_weights=None, int mrf_aniso=0,
-             double mrf_aniso_strength=1.0, double mrf_aniso_sigma=0.5,
-             sheetness=None, normal=None):
+             mrf_class_weights=None):
     """
     Adaptive MAP (AMAP) brain tissue segmentation.
 
@@ -778,34 +784,6 @@ def vol_amap(volume, labels, voxelsize=None,
     mrf_class_weights : array_like, optional
         Per-class MRF weights.  Length must match the number of output
         classes (3 if ``pve`` is False, 5 otherwise).
-    mrf_aniso : int
-        Anisotropic MRF prior: ``0`` off (default), ``1`` locally
-        varying beta, ``2`` direction-weighted Potts.  The isotropic
-        Potts prior penalizes boundary area, so it always finds it
-        cheaper to delete a thin structure than to keep it -- the reason
-        a stronger MRF closes cerebellar fissures and glues tight sulci
-        while it removes noise.  Mode 1 scales beta by
-        ``1 - strength * sheetness``, so the prior stops pulling on a
-        sheet.  Mode 2 keeps beta and instead down-weights neighbours
-        lying *across* the sheet, so the prior still denoises within a
-        sulcal bank but can no longer merge two banks facing each other.
-        Both are exact no-ops where the sheetness is zero.  Requires
-        ``weight_mrf > 0`` and ``n_iters_icm > 0``.
-    mrf_aniso_strength : float
-        Strength of the anisotropic relaxation in [0, 1] (default 1.0).
-        0 reproduces the isotropic prior exactly.
-    mrf_aniso_sigma : float
-        Angular width of the direction weighting for ``mrf_aniso=2``
-        (default 0.5).  Smaller values confine the prior more tightly to
-        the plane of the sheet.
-    sheetness : array_like, 3-D, float32, optional
-        Precomputed sheetness field in [0, 1].  Estimated from
-        ``volume`` with :func:`vol_sheetness` defaults when omitted and
-        ``mrf_aniso`` is non-zero.
-    normal : array_like, 4-D, float32, shape (X, Y, Z, 3), optional
-        Precomputed unit sheet normals, required by ``mrf_aniso=2`` and
-        estimated alongside ``sheetness`` when omitted.
-
     Returns
     -------
     prob : ndarray, 4-D, uint8, shape (X, Y, Z, n_out_classes)
@@ -865,49 +843,16 @@ def vol_amap(volume, labels, voxelsize=None,
                 f"output classes ({n_out})")
         mrf_w_ptr = <double *>mrf_w.data
 
-    cdef C.CAT_MrfAnisoField aniso
-    cdef C.CAT_MrfAnisoField *aniso_ptr = NULL
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] sheet_arr
-    cdef cnp.ndarray[cnp.float32_t, ndim=1] normal_flat
-
-    if mrf_aniso != 0 and weight_mrf > 0.0 and n_iters_icm > 0:
-        if sheetness is None or (mrf_aniso == 2 and normal is None):
-            sheet_est, normal_est = vol_sheetness(
-                vol, voxelsize=voxelsize, polarity=0, return_normal=True,
-                verbose=verbose)
-            if sheetness is None:
-                sheetness = sheet_est
-            if normal is None:
-                normal = normal_est
-
-        sheet_arr = np.asfortranarray(sheetness, dtype=np.float32)
-        if (sheet_arr.shape[0] != dims[0] or sheet_arr.shape[1] != dims[1]
-                or sheet_arr.shape[2] != dims[2]):
-            raise ValueError("sheetness shape must match volume shape")
-
-        aniso.mode = mrf_aniso
-        aniso.sheetness = <const float *>sheet_arr.data
-        aniso.normal = NULL
-        aniso.strength = mrf_aniso_strength
-        aniso.sigma = mrf_aniso_sigma
-
-        if mrf_aniso == 2:
-            normal_flat = _pack_normal(normal, dims)
-            aniso.normal = <const float *>normal_flat.data
-
-        aniso_ptr = &aniso
-
-    C.AmapAniso(<float *>src.data,
-                <unsigned char *>lab_out.data,
-                <unsigned char *>prob.data,
-                <double *>mean.data,
-                n_pure_classes, n_iters, sub, dims,
-                pve_flag, weight_mrf, vx, n_iters_icm,
-                1 if verbose else 0,
-                1 if use_median else 0,
-                mrf_w_ptr,
-                1 if use_multistep else 0,
-                aniso_ptr)
+    C.Amap(<float *>src.data,
+           <unsigned char *>lab_out.data,
+           <unsigned char *>prob.data,
+           <double *>mean.data,
+           n_pure_classes, n_iters, sub, dims,
+           pve_flag, weight_mrf, vx, n_iters_icm,
+           1 if verbose else 0,
+           1 if use_median else 0,
+           mrf_w_ptr,
+           1 if use_multistep else 0)
 
     return prob, lab_out, mean
 

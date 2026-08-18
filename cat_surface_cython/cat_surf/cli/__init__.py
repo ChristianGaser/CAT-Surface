@@ -40,7 +40,6 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
-    CAT_VolBloodVesselCorrection      -> vol_blood_vessel_correction
     CAT_VolMarchingCubes              -> vol_marching_cubes
     CAT_VolLocalStat                  -> vol_local_stat
     CAT_VolSanlm                      -> vol_sanlm
@@ -80,14 +79,12 @@ from cat_surf import (
     spherical_demon as _spherical_demon,
     vol2surf as _vol2surf,
     vol_amap as _vol_amap,
-    vol_blood_vessel_correction as _vol_blood_vessel_correction,
     vol_marching_cubes as _vol_marching_cubes,
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
     vol_smooth as _vol_smooth,
     vol_sheetness as _vol_sheetness,
     vol_oriented_median as _vol_oriented_median,
-    vol_oriented_smooth as _vol_oriented_smooth,
     vol_sulcus_repair as _vol_sulcus_repair,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
@@ -480,20 +477,6 @@ def vol_amap(input_file, label_file, output_file=None, **kwargs):
     _save_volume_like(output_file, lab_out, img, dtype=np.uint8)
 
 
-def vol_blood_vessel_correction(input_file, output_file=None):
-    """Mirror of ``CAT_VolBloodVesselCorrection``."""
-    import nibabel as nib
-    img = nib.load(input_file)
-    vol = img.get_fdata().astype(np.float32)
-    vx = img.header.get_zooms()[:3]
-    out = _vol_blood_vessel_correction(vol, voxelsize=vx)
-    if output_file is None:
-        d = os.path.dirname(input_file) or "."
-        b = os.path.basename(input_file)
-        output_file = os.path.join(d, "bvc_" + b)
-    _save_volume_like(output_file, out, img)
-
-
 def vol_marching_cubes(input_file, output_surface_file, label_file=None,
                        **kwargs):
     """Mirror of ``CAT_VolMarchingCubes``."""
@@ -536,9 +519,7 @@ def vol_thickness_pbt(input_file, gmt_file=None, ppm_file=None,
         _save_volume_like(dist_wm_file, dwm, img, dtype=np.float32)
 
 
-def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False,
-               oriented=False, guide_file=None, iters=1, sheet_sigma=0.5,
-               **kwargs):
+def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False):
     """Mirror of ``CAT_VolSmooth``.
 
     Smooth a NIfTI volume and write the result to disk.
@@ -549,46 +530,19 @@ def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False,
         Input NIfTI file.
     output_file : str, optional
         Output path.  Defaults to the same directory as ``input_file``
-        with a ``s<fwhm>`` prefix prepended to the filename (``os<iters>``
-        with ``oriented``), matching the ``CAT_VolSmooth`` default naming
-        convention.
+        with a ``s<fwhm>`` prefix prepended to the filename, matching the
+        ``CAT_VolSmooth`` default naming convention.
     fwhm : float
-        Full-width at half-maximum in mm (default 8.0).  Ignored when
-        ``oriented`` is set.
+        Full-width at half-maximum in mm (default 8.0).
     use_mask : bool
         Use masked smoothing (default False).
-    oriented : bool
-        Diffuse along thin sheets instead of across them
-        (``CAT_VolSmooth -oriented``).  This is an iterated local kernel,
-        not a Gaussian: ``fwhm`` does not apply and the amount of
-        smoothing is set by ``iters``.
-    guide_file : str, optional
-        Volume the orientation is estimated from (``-guide``).  Defaults
-        to the input itself; pass the intensity image when smoothing a
-        label or probability map.
-    iters : int
-        Number of oriented passes (default 1).
-    sheet_sigma : float
-        Angular width of the anisotropy (default 0.5).
-    **kwargs
-        Further sheetness parameters forwarded to
-        :func:`cat_surf.vol_oriented_smooth` (``sigma_min``, ``sigma_max``,
-        ``n_scales``, ``polarity``, ``strength``, ``verbose``).
     """
     import nibabel as nib
     img = nib.load(input_file)
     vol = img.get_fdata().astype(np.float32)
     vx = img.header.get_zooms()[:3]
-    if oriented:
-        guide = None
-        if guide_file is not None:
-            guide = nib.load(guide_file).get_fdata().astype(np.float32)
-        out = _vol_oriented_smooth(vol, guide=guide, voxelsize=vx,
-                                   iters=iters, sigma=sheet_sigma, **kwargs)
-        default_prefix = f"os{iters}"
-    else:
-        out = _vol_smooth(vol, voxelsize=vx, fwhm=fwhm, use_mask=use_mask)
-        default_prefix = f"s{fwhm}"
+    out = _vol_smooth(vol, voxelsize=vx, fwhm=fwhm, use_mask=use_mask)
+    default_prefix = f"s{fwhm}"
     if output_file is None:
         d = os.path.dirname(input_file) or "."
         b = os.path.basename(input_file)
@@ -685,7 +639,7 @@ def vol_sheetness(input_file, output_file=None, **kwargs):
     **kwargs
         Forwarded to :func:`cat_surf.vol_sheetness`: ``sigma_min``,
         ``sigma_max``, ``n_scales``, ``alpha``, ``beta``, ``c``,
-        ``polarity``, ``verbose``.
+        ``gain`` (the binary's ``-strength``), ``polarity``, ``verbose``.
     """
     import nibabel as nib
     img = nib.load(input_file)
@@ -720,7 +674,7 @@ def vol_sulcus_repair(t1_file, label_file, output_file=None,
         (``-sheetness``).
     **kwargs
         Forwarded to :func:`cat_surf.vol_sulcus_repair`: ``recover_csf``,
-        ``reconnect_gyri``, ``refine_pve``, the ``sheet_*``, ``csf_*``,
+        ``strengthen_wm``, ``refine_pve``, the ``sheet_*``, ``csf_*``,
         ``wm_*`` and ``band_*`` parameters, and ``verbose``.
     """
     import nibabel as nib
@@ -960,7 +914,6 @@ __all__ = [
     # Volume tools
     "vol2surf",
     "vol_amap",
-    "vol_blood_vessel_correction",
     "vol_marching_cubes",
     "vol_local_stat",
     "vol_sanlm",

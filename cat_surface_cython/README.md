@@ -111,15 +111,14 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | Function | Description | Mirrors |
 | --- | --- | --- |
 | `vol_sanlm` | Structure-adaptive non-local means denoising | `CAT_VolSanlm` |
-| `vol_blood_vessel_correction` | Blood vessel intensity correction | `CAT_VolBloodVesselCorrection` |
+| `vol_blood_vessel_correction` | Blood vessel intensity correction | *(no CLI; the correction `CAT_VolThicknessPbt` applies unless `-no-bvc`)* |
 | `vol_thickness_pbt` | Cortical thickness via projection-based method | `CAT_VolThicknessPbt` |
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation | `CAT_VolAmap` (core only) |
 | `vol_marching_cubes` | Isosurface extraction with genus-0 topology correction | `CAT_VolMarchingCubes` |
 | `vol_smooth` | Isotropic Gaussian volume smoothing | `CAT_VolSmooth` |
 | `vol_sheetness` | Multi-scale Hessian sheetness (plate) filter | `CAT_VolSheetness` |
 | `vol_oriented_median` | Median over a sheetness-oriented neighbourhood | `CAT_VolLocalStat -oriented` |
-| `vol_oriented_smooth` | Coherence-enhancing smoothing along thin sheets | `CAT_VolSmooth -oriented` |
-| `vol_sulcus_repair` | Pre-PBT repair of glued sulci and broken gyri | `CAT_VolSulcusRepair` |
+| `vol_sulcus_repair` | Pre-PBT repair of glued sulci and lost WM blades | `CAT_VolSulcusRepair` |
 | `vol2surf` | Map a volume to a surface along inward normals | `CAT_Vol2Surf` |
 
 #### Thin structures and the shrinking bias
@@ -155,9 +154,6 @@ lab = cat_surf.vol_sulcus_repair(t1, lab, voxelsize=vx, verbose=True)
 gmt, ppm, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=vx,
                                             oriented_filter=True)
 
-# Or relax the Potts prior inside the segmentation itself
-prob, labels, mean = cat_surf.vol_amap(t1, lab.astype("uint8"), voxelsize=vx,
-                                       weight_mrf=0.3, mrf_aniso=2)
 ```
 
 ### Volume input convention
@@ -293,7 +289,6 @@ The full mapping:
 | `CAT_SurfWarp` | `surf_warp` |
 | `CAT_Vol2Surf` | `vol2surf` |
 | `CAT_VolAmap` | `vol_amap` |
-| `CAT_VolBloodVesselCorrection` | `vol_blood_vessel_correction` |
 | `CAT_VolLocalStat` | `vol_local_stat` (`-oriented` only) |
 | `CAT_VolMarchingCubes` | `vol_marching_cubes` |
 | `CAT_VolSanlm` | `vol_sanlm` |

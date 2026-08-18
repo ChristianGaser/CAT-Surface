@@ -97,7 +97,7 @@ def test_sheetness():
 # ---------------------------------------------------------------------------
 # 3. The oriented filters keep what the isotropic ones destroy -- and are
 #    exact no-ops where no sheet was found.  That invariant is what makes
-#    every -oriented / -mrf-aniso / -oriented-filter option safe to enable,
+#    every -oriented / -oriented-filter option safe to enable,
 #    so it is guarded here as well as in tests/test_sheetness.c.
 # ---------------------------------------------------------------------------
 def test_oriented_filters():
@@ -120,14 +120,6 @@ def test_oriented_filters():
     plain = cat_surf.vol_oriented_median(vol, sheetness=zeros, normal=nrm)
     check("median at zero sheetness is bit-identical to isotropic",
           np.array_equal(plain, isotropic))
-
-    sm_o = cat_surf.vol_oriented_smooth(vol, sheetness=ones, normal=nrm,
-                                        iters=3, sigma=0.5)
-    sm_i = cat_surf.vol_oriented_smooth(vol, sheetness=zeros, normal=nrm,
-                                        iters=3)
-    check("oriented smoothing preserves the sheet better than isotropic",
-          sm_o[12, 12, 12] < sm_i[12, 12, 12],
-          f"{sm_o[12, 12, 12]:.3f} vs {sm_i[12, 12, 12]:.3f}")
 
     # The C side reads normals as normal[3*i + c] with i a Fortran index;
     # a round trip through a real estimated field checks that packing.
@@ -156,7 +148,7 @@ def test_sulcus_repair():
     t1[12, :, :] = 45.0                      # dark sulcus, still labelled GM
 
     out, sheet = cat_surf.vol_sulcus_repair(t1, lab, voxelsize=VX,
-                                            reconnect_gyri=False,
+                                            strengthen_wm=False,
                                             sheet_sigma_min=0.5,
                                             sheet_sigma_max=1.0,
                                             sheet_n_scales=2,
@@ -208,28 +200,32 @@ def test_option_no_ops():
     check("PBT at oriented_strength=0 is bit-identical to isotropic",
           np.array_equal(g1, g2) and np.array_equal(p1, p2))
 
-    rng = np.random.default_rng(0)
-    z = np.arange(N)[None, None, :]
-    vol = np.where(z < 8, 30.0, np.where(z < 16, 90.0, 150.0)).astype(np.float32) \
-        * np.ones((N, N, N), np.float32)
-    vol += rng.normal(0, 3, vol.shape).astype(np.float32)
-    labels = (np.where(z < 8, 1, np.where(z < 16, 2, 3)).astype(np.uint8)
-              * np.ones((N, N, N), np.uint8))
+    # The gain has to be able to amplify, not just attenuate: every consumer
+    # gates on the response through a threshold, and the automatic noise scale
+    # routinely leaves a real sulcus an order of magnitude below the one in
+    # vol_oriented_median, which is hard at 0.5.
+    sheet_vol = np.full((N, N, N), 2.0, np.float32)
+    sheet_vol[12, :, :] = 1.0
+    s_low = cat_surf.vol_sheetness(sheet_vol, voxelsize=VX, polarity=-1,
+                                   sigma_min=0.5, sigma_max=1.0, n_scales=2,
+                                   gain=0.25)
+    s_high = cat_surf.vol_sheetness(sheet_vol, voxelsize=VX, polarity=-1,
+                                    sigma_min=0.5, sigma_max=1.0, n_scales=2,
+                                    gain=0.5)
+    unclamped = s_high < 1.0
+    check("sheetness gain scales the response linearly",
+          np.allclose(s_high[unclamped], 2.0 * s_low[unclamped], atol=1e-5))
+    check("sheetness gain never leaves [0, 1]",
+          s_high.min() >= 0.0 and s_high.max() <= 1.0)
+    check("a zero response stays zero at any gain",
+          np.array_equal(s_high[s_low == 0.0],
+                         np.zeros_like(s_high[s_low == 0.0])))
 
-    zeros = np.zeros((N, N, N), np.float32)
-    nrm = np.zeros((N, N, N, 3), np.float32)
-    nrm[..., 0] = 1.0
-
-    kw = dict(voxelsize=VX, weight_mrf=0.3, n_iters=5)
-    _, l0, _ = cat_surf.vol_amap(vol, labels, mrf_aniso=0, **kw)
-    _, l1, _ = cat_surf.vol_amap(vol, labels, mrf_aniso=1,
-                                 sheetness=zeros, normal=nrm, **kw)
-    _, l2, _ = cat_surf.vol_amap(vol, labels, mrf_aniso=2,
-                                 sheetness=zeros, normal=nrm, **kw)
-    check("Amap local-beta mode is a no-op at zero sheetness",
-          np.array_equal(l0, l1))
-    check("Amap anisotropic-Potts mode is a no-op at zero sheetness",
-          np.array_equal(l0, l2))
+    s_up = cat_surf.vol_sheetness(sheet_vol, voxelsize=VX, polarity=-1,
+                                  sigma_min=0.5, sigma_max=1.0, n_scales=2,
+                                  gain=4.0)
+    check("a gain above 1 lifts the response over the median threshold",
+          s_low.max() <= 0.5 and s_up.max() > 0.5)
 
 
 def main():
