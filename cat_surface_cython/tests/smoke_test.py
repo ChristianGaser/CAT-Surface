@@ -228,10 +228,44 @@ def test_option_no_ops():
           s_low.max() <= 0.5 and s_up.max() > 0.5)
 
 
+# ---------------------------------------------------------------------------
+# 6. Thickness QC tells a plate from a solid mass, which is the whole point:
+#    a glued sulcus is recoverable, a subcortical mass is not, and thickness
+#    alone cannot separate them.
+# ---------------------------------------------------------------------------
+def test_thickness_qc():
+    section("Thickness QC")
+
+    gmt = np.full((N, N, N), 1.0, np.float32)
+    gmt[6:10, 4:N-4, 4:N-4] = 6.0                       # a 4-voxel plate
+    # np.mgrid yields axis 0 first, so a0 must clear the plate's 6:10 slab
+    a0, a1, a2 = np.mgrid[0:N, 0:N, 0:N]
+    gmt[((a0 - 17) ** 2 + (a1 - 12) ** 2 + (a2 - 12) ** 2) <= 16] = 6.0  # a ball
+
+    comps, cls = cat_surf.vol_thickness_qc(gmt, return_classmap=True)
+    shapes = sorted(c["shape"] for c in comps)
+    check("both structures were found", len(comps) == 2, str(shapes))
+    check("one plate and one solid", shapes == ["plate", "solid"])
+
+    plate = next(c for c in comps if c["shape"] == "plate")
+    solid = next(c for c in comps if c["shape"] == "solid")
+    check("the plate radius is half its thickness", 1.5 < plate["max_radius"] <= 2.5,
+          f"{plate['max_radius']:.2f} mm")
+    check("the ball radius is its own radius", solid["max_radius"] > 4.0,
+          f"{solid['max_radius']:.2f} mm")
+    check("size is not the discriminator", plate["n_voxels"] > solid["n_voxels"])
+    check("class map tags plate 1 and solid 2",
+          set(np.unique(cls).tolist()) == {0.0, 1.0, 2.0})
+
+    clean = np.full((N, N, N), 2.5, np.float32)
+    check("a plausible thickness map reports nothing",
+          cat_surf.vol_thickness_qc(clean) == [])
+
+
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
-                 test_sulcus_repair, test_option_no_ops):
+                 test_sulcus_repair, test_thickness_qc, test_option_no_ops):
         try:
             test()
         except Exception:  # pragma: no cover

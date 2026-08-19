@@ -425,6 +425,35 @@ cdef extern from "CAT_Sheetness.h":
 
 
 # ---------------------------------------------------------------------------
+# CAT_ThicknessQC.h — shape triage of implausibly thick cortex
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_ThicknessQC.h":
+    int CAT_QC_PLATE
+    int CAT_QC_SOLID
+
+    ctypedef struct CAT_ThicknessQCOpts:
+        double thresh
+        double plate_radius
+        double min_volume
+        int conn
+        int verbose
+
+    ctypedef struct CAT_ThicknessComponent:
+        long n_voxels
+        double volume_mm3
+        double max_radius
+        double centroid[3]
+        double gmt_mean
+        double gmt_max
+        int shape
+
+    void CAT_ThicknessQCOptionsInit(CAT_ThicknessQCOpts *opts)
+    int  CAT_VolThicknessQC(const float *gmt, const float *label, int dims[3],
+                            double voxelsize[3], const CAT_ThicknessQCOpts *opts,
+                            CAT_ThicknessComponent **comps, int *n_comps,
+                            float *classmap)
+
+# ---------------------------------------------------------------------------
 # CAT_SulcusRepair.h — anatomy-aware repair of a PVE label map, before PBT
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_SulcusRepair.h":

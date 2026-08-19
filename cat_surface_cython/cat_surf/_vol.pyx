@@ -386,6 +386,143 @@ def vol_oriented_median(volume, guide=None, sheetness=None, normal=None,
 
 
 # ===================================================================
+# Shape triage of implausibly thick cortex  (mirrors CAT_VolThicknessQC)
+# ===================================================================
+def vol_thickness_qc(gmt, label=None, voxelsize=None,
+                     double thresh=4.5, double plate_radius=2.5,
+                     double min_volume=20.0, int conn=26,
+                     bint return_classmap=False, bint verbose=False):
+    """
+    Triage implausibly thick cortex by shape.
+
+    Mirrors ``CAT_VolThicknessQC``.  A thickness map normally carries a
+    population of voxels above any defensible value -- cortex does not
+    exceed roughly 4.5 mm -- and two different faults produce them:
+
+    ``plate``
+        two sulcal banks with no CSF between them, measured as one band.
+        There is a sulcus to recover; :func:`vol_sulcus_repair` is the
+        tool.
+    ``solid``
+        cortex merged with subcortical grey matter, or a genuinely thick
+        region such as a temporal or orbitofrontal pole.  There is no
+        sulcus, and carving one invents anatomy.
+
+    Thickness alone cannot separate them; shape can.  A glued sulcus is a
+    band at most about 5 mm across however far it runs along the sulcus,
+    so the largest sphere fitting inside it has a radius of about 2.5 mm,
+    while a solid mass has no such bound.  The discriminator is therefore
+    the maximum inscribed radius of each connected component, which
+    depends neither on where it sits nor on how large it is.
+
+    Parameters
+    ----------
+    gmt : array_like, 3-D, float32
+        Cortical thickness map in mm, e.g. from
+        :func:`vol_thickness_pbt`.
+    label : array_like, 3-D, float32, optional
+        PVE label map in [0..3] confining the search to the cortical
+        band.  Recommended; without it the thickness map is used as it
+        stands.
+    voxelsize : array_like, shape (3,), float64, optional
+        Voxel dimensions in mm.  Default ``[1, 1, 1]``.
+    thresh : float
+        Thickness above which a voxel is implausible, in mm (default
+        4.5).
+    plate_radius : float
+        Largest inscribed radius still reported as a plate, in mm
+        (default 2.5).
+    min_volume : float
+        Discard components below this volume, in mm^3 (default 20).
+    conn : int
+        Voxel connectivity: 6, 18 or 26 (default 26).
+    return_classmap : bool
+        Also return a map tagging each flagged voxel 1 (plate) or 2
+        (solid), 0 elsewhere.
+    verbose : bool
+
+    Returns
+    -------
+    components : list of dict
+        One entry per component, with keys ``n_voxels``, ``volume_mm3``,
+        ``max_radius``, ``centroid``, ``gmt_mean``, ``gmt_max`` and
+        ``shape`` (``"plate"`` or ``"solid"``), ordered largest first.
+    classmap : ndarray, 3-D, float32
+        Only when ``return_classmap`` is True.
+    """
+    vol = np.asfortranarray(gmt, dtype=np.float32)
+    if vol.ndim != 3:
+        raise ValueError("gmt must be 3-D")
+
+    cdef int dims[3]
+    dims[0] = vol.shape[0]
+    dims[1] = vol.shape[1]
+    dims[2] = vol.shape[2]
+
+    cdef double vx[3]
+    if voxelsize is not None:
+        vs = np.asarray(voxelsize, dtype=np.float64).ravel()
+        vx[0] = vs[0]; vx[1] = vs[1]; vx[2] = vs[2]
+    else:
+        vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
+
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] src = vol
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] lab
+    cdef const float *lab_ptr = NULL
+    if label is not None:
+        lab = np.asfortranarray(label, dtype=np.float32)
+        if (lab.shape[0] != dims[0] or lab.shape[1] != dims[1]
+                or lab.shape[2] != dims[2]):
+            raise ValueError("label shape must match gmt shape")
+        lab_ptr = <const float *>lab.data
+
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] cls
+    cdef float *cls_ptr = NULL
+    if return_classmap:
+        cls = np.zeros_like(vol, order='F')
+        cls_ptr = <float *>cls.data
+
+    cdef C.CAT_ThicknessQCOpts opts
+    C.CAT_ThicknessQCOptionsInit(&opts)
+    opts.thresh = thresh
+    opts.plate_radius = plate_radius
+    opts.min_volume = min_volume
+    opts.conn = conn
+    opts.verbose = 1 if verbose else 0
+
+    cdef C.CAT_ThicknessComponent *comps = NULL
+    cdef int n_comps = 0
+    cdef int rc = C.CAT_VolThicknessQC(<const float *>src.data, lab_ptr, dims,
+                                       vx, &opts, &comps, &n_comps, cls_ptr)
+    if rc != 0:
+        raise RuntimeError(f"CAT_VolThicknessQC returned error code {rc}")
+
+    out = []
+    cdef int i
+    try:
+        for i in range(n_comps):
+            out.append(dict(
+                n_voxels=int(comps[i].n_voxels),
+                volume_mm3=float(comps[i].volume_mm3),
+                max_radius=float(comps[i].max_radius),
+                centroid=(float(comps[i].centroid[0]),
+                          float(comps[i].centroid[1]),
+                          float(comps[i].centroid[2])),
+                gmt_mean=float(comps[i].gmt_mean),
+                gmt_max=float(comps[i].gmt_max),
+                shape="plate" if comps[i].shape == C.CAT_QC_PLATE else "solid",
+            ))
+    finally:
+        free(comps)
+
+    out.sort(key=lambda c: c["volume_mm3"], reverse=True)
+
+    if return_classmap:
+        return out, cls
+    return out
+
+
+# ===================================================================
 # Pre-PBT repair of a PVE label map  (mirrors CAT_VolSulcusRepair)
 # ===================================================================
 def vol_sulcus_repair(t1, label, voxelsize=None,

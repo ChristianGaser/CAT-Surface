@@ -47,6 +47,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_VolSmooth                     -> vol_smooth
     CAT_VolSulcusRepair               -> vol_sulcus_repair
     CAT_VolThicknessPbt               -> vol_thickness_pbt
+    CAT_VolThicknessQC                -> vol_thickness_qc
 """
 from __future__ import annotations
 
@@ -86,6 +87,7 @@ from cat_surf import (
     vol_sheetness as _vol_sheetness,
     vol_oriented_median as _vol_oriented_median,
     vol_sulcus_repair as _vol_sulcus_repair,
+    vol_thickness_qc as _vol_thickness_qc,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
     sulcus_depth as _sulcus_depth,
@@ -653,6 +655,50 @@ def vol_sheetness(input_file, output_file=None, **kwargs):
     _save_volume_like(output_file, out, img, dtype=np.float32)
 
 
+def vol_thickness_qc(gmt_file, label_file=None, classmap_file=None, **kwargs):
+    """Mirror of ``CAT_VolThicknessQC``.
+
+    Triage implausibly thick cortex by shape, separating plate-like
+    components (glued sulci, which :func:`vol_sulcus_repair` can act on)
+    from solid ones (subcortical grey matter or genuinely thick poles,
+    where carving a sulcus would invent anatomy).
+
+    Parameters
+    ----------
+    gmt_file : str
+        Cortical thickness map in mm, e.g. from ``CAT_VolThicknessPbt``.
+    label_file : str, optional
+        PVE label map confining the search to the cortical band
+        (``-label``).
+    classmap_file : str, optional
+        Write per-voxel classes, 1 = plate and 2 = solid (``-classmap``).
+    **kwargs
+        Forwarded to :func:`cat_surf.vol_thickness_qc`: ``thresh``,
+        ``plate_radius``, ``min_volume``, ``conn``, ``verbose``.
+
+    Returns
+    -------
+    components : list of dict
+        As :func:`cat_surf.vol_thickness_qc`, largest first.
+    """
+    import nibabel as nib
+    img = nib.load(gmt_file)
+    gmt = img.get_fdata().astype(np.float32)
+    vx = img.header.get_zooms()[:3]
+    lab = None
+    if label_file is not None:
+        lab = nib.load(label_file).get_fdata().astype(np.float32)
+    result = _vol_thickness_qc(gmt, label=lab, voxelsize=vx,
+                               return_classmap=classmap_file is not None,
+                               **kwargs)
+    if classmap_file is not None:
+        comps, cls = result
+        _save_volume_like(classmap_file, cls, img, dtype=np.float32)
+    else:
+        comps = result
+    return comps
+
+
 def vol_sulcus_repair(t1_file, label_file, output_file=None,
                       sheetness_file=None, **kwargs):
     """Mirror of ``CAT_VolSulcusRepair``.
@@ -920,5 +966,6 @@ __all__ = [
     "vol_sheetness",
     "vol_smooth",
     "vol_sulcus_repair",
+    "vol_thickness_qc",
     "vol_thickness_pbt",
 ]

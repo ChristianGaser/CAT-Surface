@@ -113,6 +113,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `vol_sanlm` | Structure-adaptive non-local means denoising | `CAT_VolSanlm` |
 | `vol_blood_vessel_correction` | Blood vessel intensity correction | *(no CLI; the correction `CAT_VolThicknessPbt` applies unless `-no-bvc`)* |
 | `vol_thickness_pbt` | Cortical thickness via projection-based method | `CAT_VolThicknessPbt` |
+| `vol_thickness_qc` | Shape triage of implausibly thick cortex | `CAT_VolThicknessQC` |
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation | `CAT_VolAmap` (core only) |
 | `vol_marching_cubes` | Isosurface extraction with genus-0 topology correction | `CAT_VolMarchingCubes` |
 | `vol_smooth` | Isotropic Gaussian volume smoothing | `CAT_VolSmooth` |
@@ -291,6 +292,7 @@ The full mapping:
 | `CAT_VolAmap` | `vol_amap` |
 | `CAT_VolLocalStat` | `vol_local_stat` (`-oriented` only) |
 | `CAT_VolMarchingCubes` | `vol_marching_cubes` |
+| `CAT_VolThicknessQC` | `vol_thickness_qc` |
 | `CAT_VolSanlm` | `vol_sanlm` |
 | `CAT_VolSheetness` | `vol_sheetness` |
 | `CAT_VolSmooth` | `vol_smooth` |
