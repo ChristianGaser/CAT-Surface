@@ -184,6 +184,67 @@ def test_sulcus_repair():
 # ---------------------------------------------------------------------------
 # 5. The new options on the existing entry points stay backward compatible.
 # ---------------------------------------------------------------------------
+def test_open_ppm_sulci():
+    section("Buried sulci in the PPM")
+
+    # Two one-voxel structures with the same amplitudes and opposite curvature:
+    # a sulcal valley whose floor stops short of the isovalue, and a gyral
+    # ridge.  A filter keying on "thin sheet" alone would cut both.
+    ppm = np.full((N, N, N), 0.95, np.float32)
+    ppm[8, :, :] = 0.60
+    ppm[15, :, :] = 0.60
+    ppm[16, :, :] = 0.95
+    ppm[17, :, :] = 0.60
+
+    out = cat_surf.vol_open_ppm_sulci(ppm, voxelsize=VX, isovalue=0.5,
+                                      sigma_min=0.5, sigma_max=1.0, n_scales=2)
+
+    check("buried valley is pushed below the isovalue", out[8, 12, 12] < 0.5,
+          f"{out[8, 12, 12]:.3f}")
+    check("gyral crest is left alone", out[16, 12, 12] == ppm[16, 12, 12])
+    check("solid values are left alone", out[4, 12, 12] == ppm[4, 12, 12])
+    check("no value is ever raised", bool((out <= ppm + 1e-7).all()))
+
+    noop = cat_surf.vol_open_ppm_sulci(ppm, voxelsize=VX, isovalue=0.5,
+                                       strength=0.0)
+    check("strength 0 is an exact no-op", np.array_equal(noop, ppm))
+
+
+def test_wm_sulcus_guard():
+    section("Sulcus guard on blade strengthening")
+
+    def phantom(with_sulcus):
+        t1 = np.full((N, N, N), 90.0, np.float32)
+        lab = np.full((N, N, N), 2.0, np.float32)
+        lab[0, :, :] = 1.0
+        t1[0, :, :] = 40.0
+        lab[12, :, :] = 3.0
+        t1[12, :, :] = 140.0
+        lab[12, :, 12] = 2.0          # the missegmentation
+        t1[12, :, 12] = 138.0
+        if with_sulcus:               # a sulcal floor one voxel from the tip
+            t1[13, :, 12] = 45.0
+        return t1, lab
+
+    kw = dict(voxelsize=VX, recover_csf=False, sheet_sigma_min=0.5,
+              sheet_sigma_max=1.0, sheet_n_scales=2)
+
+    t1, lab = phantom(True)
+    unguarded = cat_surf.vol_sulcus_repair(t1, lab, wm_sulcus_guard=0.0, **kw)
+    t1, lab = phantom(True)
+    guarded = cat_surf.vol_sulcus_repair(t1, lab, wm_sulcus_guard=1.0, **kw)
+    t1, lab = phantom(False)
+    no_sulcus = cat_surf.vol_sulcus_repair(t1, lab, wm_sulcus_guard=1.0, **kw)
+
+    check("without the guard the blade buries the sulcus",
+          unguarded[12, 12, 12] > 2.4, f"{unguarded[12, 12, 12]:.3f}")
+    check("the guard stops that",
+          guarded[12, 12, 12] < unguarded[12, 12, 12] - 0.4,
+          f"{guarded[12, 12, 12]:.3f}")
+    check("the guard does not block a blade with no sulcus nearby",
+          no_sulcus[12, 12, 12] > 2.4, f"{no_sulcus[12, 12, 12]:.3f}")
+
+
 def test_option_no_ops():
     section("Backward compatibility of the new options")
 
@@ -265,6 +326,7 @@ def test_thickness_qc():
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
+                 test_open_ppm_sulci, test_wm_sulcus_guard,
                  test_sulcus_repair, test_thickness_qc, test_option_no_ops):
         try:
             test()

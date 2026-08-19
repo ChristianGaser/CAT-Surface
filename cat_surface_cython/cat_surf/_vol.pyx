@@ -150,6 +150,7 @@ def vol_sheetness(volume, voxelsize=None,
                   double sigma_min=0.3, double sigma_max=1.0,
                   int n_scales=3, double alpha=0.5, double beta=0.5,
                   double c=-1.0, double gain=1.0, int polarity=0,
+                  double normalize=1.0,
                   bint return_normal=False, bint verbose=False):
     """
     Multi-scale Hessian sheetness (plate) filter.
@@ -264,6 +265,7 @@ def vol_sheetness(volume, voxelsize=None,
     opts.c = c
     opts.gain = gain
     opts.polarity = polarity
+    opts.normalize = normalize
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_VolSheetness(<const float *>src.data,
@@ -534,6 +536,8 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
                       double csf_thresh=0.1, double csf_strength=0.8,
                       double wm_thresh=0.1, double wm_strength=0.8,
                       double wm_min_int=2.1, int wm_max_gap=3,
+                      double wm_sulcus_guard=1.0,
+                      double sheet_normalize=1.0,
                       double band_min_dist=1.5, int band_window=4,
                       double band_strength=0.7,
                       bint return_sheetness=False, bint verbose=False,
@@ -622,6 +626,17 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
         pure GM rather than half way to WM.
     reconnect_gyri : bool, optional
         Deprecated alias of ``strengthen_wm``.
+    wm_sulcus_guard : float
+        How strongly a neighbouring sulcus vetoes the blade strengthening,
+        in [0, 1] (default 1.0; 0 disables the guard).  A blade tip and
+        the sulcal floor behind it are one voxel apart where the cortex
+        is thin, so raising the tip towards WM closes the sulcus — the
+        failure is common in the occipital lobe, where the banks are
+        already almost touching.  The polarity guard alone does not catch
+        it: the bright ridge really is there, it is the *neighbouring*
+        dark sheet that must not be filled.  A second dark-sheet pass is
+        run, kept only where the intensity confirms a genuine sulcal
+        floor, dilated by one voxel, and used to damp the blend weight.
     wm_max_gap : int
         How far from existing WM, in voxels, a blade may still be
         strengthened (default 3).
@@ -687,6 +702,8 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
     opts.wm_strength = wm_strength
     opts.wm_min_int = wm_min_int
     opts.wm_max_gap = wm_max_gap
+    opts.wm_sulcus_guard = wm_sulcus_guard
+    opts.sheet_normalize = sheet_normalize
     opts.band_min_dist = band_min_dist
     opts.band_window = band_window
     opts.band_strength = band_strength
@@ -729,6 +746,123 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
     if return_sheetness:
         return lab, sheet
     return lab
+
+
+def vol_open_ppm_sulci(ppm, voxelsize=None, double isovalue=0.5,
+                       sheetness=None, normal=None,
+                       double sigma_min=0.3, double sigma_max=1.0,
+                       int n_scales=3, double sheet_normalize=1.0,
+                       double sheet_strength=1.0,
+                       double thresh=0.1, double band=0.25,
+                       double margin=0.05, double strength=1.0,
+                       bint verbose=False):
+    """
+    Push buried sulcal valleys in a PPM below the isovalue.
+
+    Mirrors the correction ``CAT_VolMarchingCubes -strength-sulci`` applies
+    internally; defaults match ``CAT_PpmSulciOptionsInit``.
+
+    A buried sulcus is a valley in the percentage position map whose floor
+    never drops below the isovalue, so an isosurface at that value bridges
+    the two banks.  No intensity image is needed, which matters because by
+    the time the surface is extracted the T1 is gone: the PPM carries the
+    geometry itself.  Crossing a sulcus it runs 1 (WM) -> 0.5 -> ~0 (pial)
+    -> 0.5 -> 1, and crossing a gyral blade it runs 0 -> 0.5 -> ~1 -> 0.5
+    -> 0, so a sulcus is a *valley* and a blade a *ridge*, and the polarity
+    guard of the sheetness filter separates them exactly.
+
+    Three conditions must hold together, and it is the conjunction that
+    makes this safe rather than just another filter: the value lies in
+    ``(isovalue, isovalue + band)`` so solid white matter is never touched;
+    the dark-sheet response exceeds ``thresh``; and the value is a genuine
+    local minimum *along the sheet normal*, which a gyral crown can never
+    satisfy.  The correction only ever lowers a value.
+
+    Parameters
+    ----------
+    ppm : array_like, 3-D, float32
+        Percentage position map in [0, 1].
+    voxelsize : array_like, shape (3,), float64, optional
+        Voxel dimensions in mm.  Default ``[1, 1, 1]``.
+    isovalue : float
+        Threshold the surface will be extracted at (default 0.5).
+    sheetness, normal : array_like, optional
+        Precomputed dark-sheet field; estimated from ``ppm`` when omitted.
+    sigma_min, sigma_max, n_scales : float, float, int
+        Scale range of the sheetness filter; see :func:`vol_sheetness`.
+    sheet_strength : float
+        Gain on the sheetness response (default 1.0).  The filter's
+        automatic noise scale is half the largest Hessian norm in the
+        volume, so where a strong structure dominates it the raw response
+        can fall below ``thresh`` and nothing happens.  Raise this when
+        that is the case; ``verbose`` reports where the response landed.
+    thresh : float
+        Sheetness below this is ignored (default 0.1).
+    band : float
+        Only values in ``(isovalue, isovalue + band)`` are touched
+        (default 0.25).
+    margin : float
+        How far below the isovalue an opened valley is pushed
+        (default 0.05).
+    strength : float
+        Blend towards that target, in [0, 1] (default 1.0).  0 is an
+        exact no-op.
+    verbose : bool
+
+    Returns
+    -------
+    out : ndarray, 3-D, float32
+        Corrected PPM.
+    """
+    vol = np.asfortranarray(ppm, dtype=np.float32)
+    if vol.ndim != 3:
+        raise ValueError("ppm must be 3-D")
+
+    cdef int dims[3]
+    dims[0] = vol.shape[0]
+    dims[1] = vol.shape[1]
+    dims[2] = vol.shape[2]
+
+    cdef double vx[3]
+    if voxelsize is not None:
+        vs = np.asarray(voxelsize, dtype=np.float64).ravel()
+        vx[0] = vs[0]; vx[1] = vs[1]; vx[2] = vs[2]
+    else:
+        vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
+
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] out = vol.copy(order='F')
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] sheet_arr
+    cdef cnp.ndarray[cnp.float32_t, ndim=1] normal_flat
+    cdef const float *sheet_ptr = NULL
+    cdef const float *normal_ptr = NULL
+
+    if sheetness is not None and normal is not None:
+        sheet_arr = np.asfortranarray(sheetness, dtype=np.float32)
+        if (sheet_arr.shape[0] != dims[0] or sheet_arr.shape[1] != dims[1]
+                or sheet_arr.shape[2] != dims[2]):
+            raise ValueError("sheetness shape must match ppm shape")
+        normal_flat = _pack_normal(normal, dims)
+        sheet_ptr = <const float *>sheet_arr.data
+        normal_ptr = <const float *>normal_flat.data
+
+    cdef C.CAT_PpmSulciOpts opts
+    C.CAT_PpmSulciOptionsInit(&opts)
+    opts.sigma_min = sigma_min
+    opts.sigma_max = sigma_max
+    opts.n_scales = n_scales
+    opts.sheet_normalize = sheet_normalize
+    opts.sheet_strength = sheet_strength
+    opts.thresh = thresh
+    opts.band = band
+    opts.margin = margin
+    opts.strength = strength
+    opts.verbose = 1 if verbose else 0
+
+    cdef int rc = C.CAT_VolOpenPpmSulci(<float *>out.data, sheet_ptr, normal_ptr,
+                                        dims, vx, isovalue, &opts)
+    if rc != 0:
+        raise RuntimeError(f"CAT_VolOpenPpmSulci returned error code {rc}")
+    return out
 
 
 def vol_thickness_pbt(volume, voxelsize=None,
@@ -1001,6 +1135,10 @@ def vol_marching_cubes(volume, double threshold=0.5,
                        double pre_fwhm=2.0, int iter_laplacian=50,
                        dist_morph=None, int n_median_filter=2,
                        int n_iter=5, double strength_gyri_mask=0.1,
+                       double strength_sulci=0.0, double sulci_cutoff=0.0,
+                       double sulci_sheet_strength=1.0,
+                       double sulci_thresh=0.3, double sulci_band=0.25,
+                       double sulci_normalize=1.0,
                        bint fast=False, label=None,
                        bint verbose=False):
     """
@@ -1028,6 +1166,39 @@ def vol_marching_cubes(volume, double threshold=0.5,
         Iterations of median filtering for artefact regions (default 2).
     n_iter : int
         Maximum number of topology-correction iterations (default 5).
+    strength_sulci : float
+        Strength of the buried-sulcus correction on the PPM, in [0, 1]
+        (default 0.0 = off).  A buried sulcus is a valley in the PPM
+        whose floor never drops below the isovalue, so the two banks fuse
+        when the isosurface is extracted.  No intensity image is needed:
+        crossing a sulcus the PPM runs 1 → 0.5 → ~0 → 0.5 → 1 and
+        crossing a gyral blade it runs 0 → 0.5 → ~1 → 0.5 → 0, so a
+        sulcus is a valley and a blade a ridge, and a Hessian sheetness
+        filter separates them by polarity alone.  The field is used three
+        times: floors just above the isovalue are pushed below it, the
+        gyral boost of ``strength_gyri_mask`` is damped there (otherwise
+        strengthening a thin WM finger lifts the neighbouring sulcal
+        floor back over the isovalue), and the median filter is oriented
+        so it cannot re-close what was opened.
+    sulci_cutoff : float
+        Admission cutoff of that oriented median (default 0.0, which
+        selects ``CAT_ORIENTED_MEDIAN_CUTOFF``).  See
+        :func:`vol_oriented_median`.
+    sulci_sheet_strength : float
+        Gain on the sheetness response (default 1.0).  The filter's
+        automatic noise scale is half the largest Hessian norm in the
+        volume, so where a strong structure dominates it the raw response
+        can sit well below ``sulci_thresh`` and the whole correction goes
+        inert — the same reason :func:`vol_sulcus_repair` has its own
+        ``sheet_strength``.  The two are *not* interchangeable: that one
+        is measured on the intensity image, this one on the PPM, which is
+        the better-conditioned of the two.  Pass ``verbose=True`` to see
+        the p99 and maximum of the response next to the threshold.
+    sulci_thresh : float
+        Sheetness below this is ignored (default 0.1).
+    sulci_band : float
+        Only values in ``(threshold, threshold + band)`` are opened
+        (default 0.25).
     strength_gyri_mask : float
         Isovalue-correction strength using the gyri/sulci mask
         (default 0.1).  Only effective with ``label``.
@@ -1069,6 +1240,19 @@ def vol_marching_cubes(volume, double threshold=0.5,
         dist_morph_val = float(dist_morph)
 
     cdef object_struct *result = NULL
+    cdef C.CAT_PpmSulciOpts sulci_opts
+    cdef C.CAT_PpmSulciOpts *sulci_ptr = NULL
+    if strength_sulci > 0.0:
+        C.CAT_PpmSulciOptionsInit(&sulci_opts)
+        sulci_opts.sheet_normalize = sulci_normalize
+        sulci_opts.sheet_strength = sulci_sheet_strength
+        sulci_opts.thresh = sulci_thresh
+        sulci_opts.band = sulci_band
+        sulci_opts.strength = strength_sulci
+        sulci_opts.cutoff = sulci_cutoff
+        sulci_opts.verbose = 1 if verbose else 0
+        sulci_ptr = &sulci_opts
+
     try:
         if fast:
             result = C.apply_marching_cubes_fast(
@@ -1079,7 +1263,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
                 vh.data, vh.nii, label_data,
                 threshold, pre_fwhm, iter_laplacian,
                 dist_morph_val, n_median_filter, n_iter,
-                strength_gyri_mask, 1 if verbose else 0)
+                strength_gyri_mask, sulci_ptr, 1 if verbose else 0)
     finally:
         vh.close()
         if vh_label is not None:

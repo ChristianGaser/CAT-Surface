@@ -94,6 +94,7 @@ from cat_surf._vol import (
     vol_sheetness,
     vol_oriented_median,
     vol_sulcus_repair,
+    vol_open_ppm_sulci,
     vol_thickness_qc,
 )
 
@@ -343,6 +344,7 @@ __all__ = [
     "vol_sheetness",
     "vol_oriented_median",
     "vol_sulcus_repair",
+    "vol_open_ppm_sulci",
     "vol_thickness_qc",
     # Registration
     "bbreg",

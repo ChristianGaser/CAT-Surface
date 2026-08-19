@@ -326,6 +326,7 @@ cdef extern from "CAT_MarchingCubes.h":
         int n_median_filter,
         int n_iter,
         double strength_gyri_mask,
+        const CAT_PpmSulciOpts *sulci_opts,
         int verbose)
 
     object_struct *apply_marching_cubes_fast(
@@ -411,6 +412,7 @@ cdef extern from "CAT_Sheetness.h":
         double beta
         double c
         double gain
+        double normalize
         int polarity
         int verbose
 
@@ -461,6 +463,7 @@ cdef extern from "CAT_SulcusRepair.h":
         double sheet_sigma_min
         double sheet_sigma_max
         int sheet_n_scales
+        double sheet_normalize
         double sheet_strength
         double csf_min_dist
         double csf_min_wmdist
@@ -470,6 +473,7 @@ cdef extern from "CAT_SulcusRepair.h":
         double wm_strength
         double wm_min_int
         int wm_max_gap
+        double wm_sulcus_guard
         double band_min_dist
         int band_window
         double band_strength
@@ -484,6 +488,25 @@ cdef extern from "CAT_SulcusRepair.h":
     int  CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
                                    int dims[3], double voxelsize[3],
                                    const CAT_SulcusRepairOpts *opts)
+    ctypedef struct CAT_PpmSulciOpts:
+        double sigma_min
+        double sigma_max
+        int n_scales
+        double sheet_normalize
+        double sheet_strength
+        double thresh
+        double band
+        double margin
+        double strength
+        double cutoff
+        int verbose
+
+    void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts)
+    int  CAT_VolOpenPpmSulci(float *ppm, const float *sheetness,
+                             const float *normal, int dims[3],
+                             double voxelsize[3], double isovalue,
+                             const CAT_PpmSulciOpts *opts)
+
     int  CAT_VolRefinePveNarrowBand(const float *t1, float *label,
                                     int dims[3], double voxelsize[3],
                                     const CAT_SulcusRepairOpts *opts)

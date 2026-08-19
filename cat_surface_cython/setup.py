@@ -22,12 +22,30 @@ Environment variables:
     CAT_BUILD_DIR     Autotools build tree containing .libs/libCAT.a
 """
 import os
+import re
+import subprocess
 import sys
+import sysconfig
 
 import numpy as np
 from setuptools import setup, Extension
 
 _HERE = os.path.abspath(os.path.dirname(__file__))
+
+# Linking a libCAT.a that no longer matches the sources — or that does not
+# cover every architecture the extension is built for — still produces a
+# wheel that installs cleanly: unresolved symbols in a Python extension are
+# left for dynamic lookup.  The failure only surfaces much later, at import,
+# as "symbol not found in flat namespace '_CAT_...'".  The checks below turn
+# those silent mismatches into visible warnings at build time.
+_STRICT = os.environ.get("CAT_STRICT_BUILD", "") not in ("", "0")
+
+
+def _warn(msg):
+    """Report a build-time mismatch; abort instead if CAT_STRICT_BUILD is set."""
+    if _STRICT:
+        sys.exit(f"ERROR: {msg}")
+    print(f"WARNING: {msg}", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # Paths — CI puts everything into _vendor/; local dev uses the source tree
@@ -44,21 +62,42 @@ else:
         "CAT_SURFACE_ROOT",
         os.path.abspath(os.path.join(_HERE, os.pardir)),
     )
+    # "." covers an in-source autotools build, which lives at the source root
+    # rather than in a build-*/ subdirectory.  Omitting it used to make an
+    # abandoned out-of-tree tree shadow the build the developer is actually
+    # working in.
     _platform_dirs = [
         "build-native-arm64",
         "build-native",
         "build-x86_64-pc-linux",
         "build-x86_64-w64-mingw32",
         "build",
+        ".",
     ]
     BUILD_DIR = os.environ.get("CAT_BUILD_DIR", "")
     if not BUILD_DIR:
+        # Rank the candidates by archive mtime and take the newest.  Taking
+        # the *first* match instead silently preferred whichever tree came
+        # earliest in the list, however stale it was.
+        _found = []
         for d in _platform_dirs:
-            candidate = os.path.join(CAT_ROOT, d)
-            if os.path.isfile(os.path.join(candidate, ".libs", "libCAT.a")) or \
-               os.path.isfile(os.path.join(candidate, "libCAT.la")):
-                BUILD_DIR = candidate
-                break
+            candidate = os.path.normpath(os.path.join(CAT_ROOT, d))
+            for _rel in (os.path.join(".libs", "libCAT.a"), "libCAT.a", "libCAT.la"):
+                _archive = os.path.join(candidate, _rel)
+                if os.path.isfile(_archive):
+                    _found.append((os.path.getmtime(_archive), candidate))
+                    break
+        if _found:
+            _found.sort(reverse=True)
+            BUILD_DIR = _found[0][1]
+            if len(_found) > 1:
+                print(
+                    f"Using newest libCAT build tree: {BUILD_DIR}\n"
+                    "  (ignoring older: "
+                    + ", ".join(c for _, c in _found[1:])
+                    + ")",
+                    file=sys.stderr,
+                )
     if not BUILD_DIR:
         sys.exit(
             "ERROR: Could not locate a build directory with libCAT.  "
@@ -79,6 +118,66 @@ if not os.path.isfile(LIBCAT_A):
 LIBFFTW3_A = os.path.join(BUILD_DIR, "3rdparty", "fftw-build", ".libs", "libfftw3.a")
 if not os.path.isfile(LIBFFTW3_A):
     sys.exit(f"ERROR: Cannot find {LIBFFTW3_A}")
+
+
+# ---------------------------------------------------------------------------
+# Sanity checks on the archive we are about to link
+# ---------------------------------------------------------------------------
+def _newest_source_mtime(root):
+    """Return the mtime of the most recently edited libCAT C source/header."""
+    newest = 0.0
+    for sub in ("Lib", "Include"):
+        for dirpath, _dirnames, filenames in os.walk(os.path.join(root, sub)):
+            for name in filenames:
+                if name.endswith((".c", ".h")):
+                    newest = max(newest, os.path.getmtime(os.path.join(dirpath, name)))
+    return newest
+
+
+_src_mtime = _newest_source_mtime(CAT_ROOT)
+if _src_mtime and _src_mtime > os.path.getmtime(LIBCAT_A):
+    _warn(
+        f"{LIBCAT_A}\n  is older than the newest C source in {CAT_ROOT}.\n"
+        "  The bindings will link against a stale library and any symbol added\n"
+        "  since that build will fail at import, not at build time.\n"
+        "  Run 'make' in the build tree first, or point CAT_BUILD_DIR at the\n"
+        "  tree you actually build in."
+    )
+
+
+def _archive_archs(path):
+    """Architectures present in a macOS archive, or an empty set elsewhere."""
+    if sys.platform != "darwin":
+        return set()
+    try:
+        out = subprocess.run(
+            ["lipo", "-archs", path], capture_output=True, text=True, check=True
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return set()
+    return set(out.split())
+
+
+def _target_archs():
+    """Architectures this extension is being compiled for on macOS."""
+    if sys.platform != "darwin":
+        return set()
+    flags = os.environ.get("ARCHFLAGS") or sysconfig.get_config_var("CFLAGS") or ""
+    return set(re.findall(r"-arch\s+(\S+)", flags))
+
+
+_have = _archive_archs(LIBCAT_A)
+_want = _target_archs()
+_missing = _want - _have if (_have and _want) else set()
+if _missing:
+    _warn(
+        f"{LIBCAT_A}\n  provides {'/'.join(sorted(_have))} but the extension is "
+        f"being built for {'/'.join(sorted(_want))}.\n"
+        f"  The {'/'.join(sorted(_missing))} slice(s) would link with every libCAT\n"
+        "  symbol unresolved and fail at import.  Build a universal libCAT, or\n"
+        f"  restrict this build:  ARCHFLAGS=\"{' '.join('-arch ' + a for a in sorted(_have))}\" "
+        "pip install ."
+    )
 
 # ---------------------------------------------------------------------------
 # Include directories

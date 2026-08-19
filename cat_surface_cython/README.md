@@ -120,6 +120,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `vol_sheetness` | Multi-scale Hessian sheetness (plate) filter | `CAT_VolSheetness` |
 | `vol_oriented_median` | Median over a sheetness-oriented neighbourhood | `CAT_VolLocalStat -oriented` |
 | `vol_sulcus_repair` | Pre-PBT repair of glued sulci and lost WM blades | `CAT_VolSulcusRepair` |
+| `vol_open_ppm_sulci` | Push buried sulcal valleys in a PPM below the isovalue | `CAT_VolMarchingCubes -strength-sulci` |
 | `vol2surf` | Map a volume to a surface along inward normals | `CAT_Vol2Surf` |
 
 #### Thin structures and the shrinking bias
@@ -154,6 +155,11 @@ clean = cat_surf.vol_oriented_median(lab, guide=t1, voxelsize=vx)
 lab = cat_surf.vol_sulcus_repair(t1, lab, voxelsize=vx, verbose=True)
 gmt, ppm, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=vx,
                                             oriented_filter=True)
+
+# The T1 is gone by the surface stage, but the PPM carries the geometry:
+# a sulcus is a valley in it and a gyral blade a ridge, so the same filter
+# finds buried sulci without any intensity image
+ppm = cat_surf.vol_open_ppm_sulci(ppm, voxelsize=vx, isovalue=0.5)
 
 ```
 
