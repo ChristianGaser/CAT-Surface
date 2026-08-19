@@ -16,6 +16,11 @@ double min_threshold = 0.5;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
+double strength_sulci = 0.0;
+double sulci_cutoff = 0.0;
+double sulci_sheet_strength = 1.0;
+double sulci_thresh = 0.1;
+double sulci_band = 0.25;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -32,6 +37,52 @@ static ArgvInfo argTable[] = {
   {"-strength-gyrimask", ARGV_FLOAT, (char *) TRUE, (char *) &strength_gyri_mask,
     "Define the strength of isovalue correction using the smooth.\n\
      gyri/sulci mask from the label map."},
+
+  {"-strength-sulci", ARGV_FLOAT, (char *) TRUE, (char *) &strength_sulci,
+    "Strength of the buried-sulcus correction on the PPM, 0..1 (default 0 = off).\n\
+     A buried sulcus is a valley in the PPM whose floor never drops below the\n\
+     isovalue, so the two banks fuse when the isosurface is extracted. No\n\
+     intensity image is needed here: crossing a sulcus the PPM runs 1 -> 0.5 ->\n\
+     ~0 -> 0.5 -> 1 and crossing a gyral blade it runs 0 -> 0.5 -> ~1 -> 0.5 ->\n\
+     0, so a sulcus is a valley and a blade a ridge, and a Hessian sheetness\n\
+     filter separates them by polarity alone. The detected valley field is used\n\
+     three times: floors sitting just above the isovalue are pushed below it;\n\
+     the gyral boost of -strength-gyrimask is damped there, because\n\
+     strengthening a thin white-matter finger otherwise lifts the neighbouring\n\
+     sulcal floor back over the isovalue; and the median filter is oriented\n\
+     along the sheet so it cannot re-close what was opened. The correction only\n\
+     ever lowers a value, acts only on values within 0.25 of the isovalue, and\n\
+     requires a local minimum along the sheet normal -- which a gyral crown can\n\
+     never satisfy, so it cannot cut a gyrus."},
+
+  {"-sulci-sheet-strength", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sheet_strength,
+    "Gain on the sheetness response used by -strength-sulci (default 1.0).\n\
+     The automatic noise scale of the sheetness filter is half the largest\n\
+     Hessian norm in the volume, which on real data is set by the cortical\n\
+     ribbon itself. A thin sulcal valley is far weaker than that, so the raw\n\
+     response typically sits an order of magnitude below -sulci-thresh and\n\
+     -strength-sulci does nothing at all at a gain of 1. This is the same\n\
+     reason CAT_VolSulcusRepair needs its own -sheet-strength, and the value\n\
+     does NOT carry over: that one is measured on the intensity image, this\n\
+     one on the PPM. Run with -verbose -- it reports the p99 and maximum of\n\
+     the response next to the threshold, and warns when the gain is too low."},
+
+  {"-sulci-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_thresh,
+    "Sheetness below this is ignored (default 0.1). Aim for a gain that puts\n\
+     the p99 of the response near twice this value, matching the convention\n\
+     the other sheetness-gated steps use."},
+
+  {"-sulci-band", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_band,
+    "Only values in (isovalue, isovalue + band) are opened (default 0.25).\n\
+     Raising it reaches more deeply buried sulci at the cost of touching\n\
+     tissue further from the surface."},
+
+  {"-sulci-cutoff", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_cutoff,
+    "Admission cutoff of the oriented median used with -strength-sulci\n\
+     (default 0 = CAT_ORIENTED_MEDIAN_CUTOFF). It is half the sheetness at\n\
+     which a one-voxel-thick sheet starts being preserved, so it has to match\n\
+     the response the PPM actually produces -- measure it with CAT_VolSheetness\n\
+     -polarity -1 on the PPM and halve what the sulci reach."},
   
   {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
     "Define the volume threshold, also known as the isovalue.\n\
@@ -164,9 +215,22 @@ int main(int argc, char *argv[]) {
         object = apply_marching_cubes_fast(input_float, nii_ptr, 
                     min_threshold, iter_laplacian, verbose);
     } else {
+        CAT_PpmSulciOpts sulci_opts;
+        CAT_PpmSulciOpts *sulci_ptr = NULL;
+        if (strength_sulci > 0.0) {
+            CAT_PpmSulciOptionsInit(&sulci_opts);
+            sulci_opts.sheet_strength = sulci_sheet_strength;
+            sulci_opts.thresh = sulci_thresh;
+            sulci_opts.band = sulci_band;
+            sulci_opts.strength = strength_sulci;
+            sulci_opts.cutoff = sulci_cutoff;
+            sulci_opts.verbose = verbose;
+            sulci_ptr = &sulci_opts;
+        }
+
         object = apply_marching_cubes(input_float, nii_ptr, label, 
                     min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
-                    n_iter, strength_gyri_mask, verbose);
+                    n_iter, strength_gyri_mask, sulci_ptr, verbose);
     }
     if (object) {
         output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);

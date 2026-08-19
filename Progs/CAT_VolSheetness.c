@@ -28,6 +28,7 @@ double beta      = 0.5;
 double c_noise   = -1.0;
 double strength  = 1.0;
 int    polarity  = 0;
+double normalize = CAT_SHEETNESS_NORMALIZE;
 int    verbose   = 0;
 
 static
@@ -66,6 +67,14 @@ ArgvInfo argTable[] = {
          0.5 of the oriented median, below which it is exactly the isotropic\n\
          median.  0 reproduces the isotropic filters exactly.  The same knob is\n\
          called -sheet-strength in the tools that consume the field."},
+    {"-normalize", ARGV_FLOAT, (char *) 1, (char *) &normalize,
+         "Value the p99.9 of the response is scaled to (default 1.0); pass 0 to\n\
+         keep the raw response.  The automatic noise scale is half the largest\n\
+         Hessian norm in the volume, so the absolute level of the response is\n\
+         set by whatever the strongest structure in that image happens to be.\n\
+         Anchoring to the map's own p99.9 is what lets every consumer use a\n\
+         fixed threshold across datasets.  Use -normalize 0 to see the raw\n\
+         response the anchor was computed from."},
     {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
          "Be verbose."},
     {NULL, ARGV_END, NULL, NULL, NULL}
@@ -178,6 +187,7 @@ main(int argc, char *argv[])
     opts.c         = c_noise;
     opts.gain      = strength;
     opts.polarity  = polarity;
+    opts.normalize = normalize;
     opts.verbose   = verbose;
 
     if (verbose)

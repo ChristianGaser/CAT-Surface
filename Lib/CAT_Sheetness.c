@@ -15,6 +15,7 @@
 
 #include "CAT_Sheetness.h"
 #include "CAT_Vol.h"
+#include "CAT_Math.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -44,6 +45,7 @@ void CAT_SheetnessOptionsInit(CAT_SheetnessOpts *opts)
     opts->beta = 0.5;
     opts->c = -1.0; /* automatic: half the maximum Hessian norm */
     opts->gain = 1.0;
+    opts->normalize = CAT_SHEETNESS_NORMALIZE;
     opts->polarity = 0;
     opts->verbose = 0;
 }
@@ -381,6 +383,58 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                     s + 1, opts->n_scales, sigma);
     }
 
+    /* Percentile normalization, applied before the gain.
+     *
+     * The automatic noise scale c is half the largest Hessian norm in the
+     * volume, so the absolute level of the response is set by whatever the
+     * strongest structure in that particular image happens to be -- the skull,
+     * a vessel, the ventricle wall.  A thin sulcal sheet is far weaker than
+     * any of those, which is why the raw response on one dataset can sit an
+     * order of magnitude below the same fixed threshold that works on another,
+     * and why every consumer used to need a hand-tuned gain before it did
+     * anything at all.
+     *
+     * Anchoring the map to its own p99.9 removes that dependence: the response
+     * still ranks voxels exactly as before -- the scaling is a single positive
+     * factor, so the ordering, the winning scale and the zero set are all
+     * untouched -- but the *value* at a given rank is now the same number on
+     * every dataset, and a threshold expressed against it means the same thing
+     * everywhere.  p99.9 rather than the maximum because a maximum is a single
+     * voxel and behaves like one; p99.9 sits at the top of the genuine sulcal
+     * response and is stable.
+     *
+     * Zeros are excluded, so the anchor is a percentile of the voxels that
+     * actually responded rather than of the volume, which would otherwise move
+     * with the size of the background.
+     *
+     * The hazard is the mirror image of the one it fixes: an image containing
+     * no sheets at all still has a p99.9, and normalizing to it would amplify
+     * noise into a full-scale response.  Set normalize <= 0 to keep the raw
+     * response when that matters. */
+    if (opts->normalize > 0.0)
+    {
+        double pct[2] = {50.0, 99.9}, val[2] = {0.0, 0.0};
+
+        get_prctile(sheetness, nvox, val, pct, 1, DT_FLOAT32);
+
+        if (val[1] > 1e-12)
+        {
+            const double scale = opts->normalize / val[1];
+
+            for (i = 0; i < nvox; i++)
+                sheetness[i] = (float)((double)sheetness[i] * scale);
+
+            if (opts->verbose)
+                fprintf(stderr, "  normalized: raw p99.9 = %.4f -> %.2f "
+                                "(scale %.1fx)\n",
+                        val[1], opts->normalize, scale);
+        }
+        else if (opts->verbose)
+        {
+            fprintf(stderr, "  normalization skipped: the response is empty.\n");
+        }
+    }
+
     /* Overall gain, applied once the maximum over scales is complete.  A
        positive gain is monotonic and therefore cannot change which scale won,
        so one final pass is equivalent to scaling inside the loop and cheaper.
@@ -389,7 +443,7 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
        gain and every oriented operator still degenerates exactly to its
        isotropic counterpart there.  A negative gain zeroes the map, which is
        the fully isotropic case. */
-    if (opts->gain != 1.0)
+    if (opts->gain != 1.0 || opts->normalize > 0.0)
     {
         for (i = 0; i < nvox; i++)
         {

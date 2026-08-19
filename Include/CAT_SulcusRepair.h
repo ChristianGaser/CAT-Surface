@@ -10,6 +10,8 @@
 #ifndef _CAT_SULCUSREPAIR_H_
 #define _CAT_SULCUSREPAIR_H_
 
+#include "CAT_Sheetness.h"
+
 /*
  * Anatomy-aware repair of a PVE label map, to be run *before* PBT.
  *
@@ -63,24 +65,37 @@ typedef struct
     double sheet_sigma_min; /**< smallest Gaussian scale */
     double sheet_sigma_max; /**< largest Gaussian scale */
     int sheet_n_scales;     /**< number of log-spaced scales */
+    double sheet_normalize; /**< value the response's p99.9 is scaled to (default
+                                 CAT_SHEETNESS_NORMALIZE = 1.0); <= 0 keeps the raw
+                                 response.  This is what makes csf_thresh / wm_thresh
+                                 mean the same thing on every dataset; disable it only
+                                 where the image may contain no sheets at all, since a
+                                 percentile anchor would then amplify noise. */
     double sheet_strength;  /**< overall gain on the sheetness (default 1.0); passed
-                                 through as CAT_SheetnessOpts::gain.  Raise it above 1
-                                 when the response is too weak to clear csf_thresh /
-                                 wm_thresh; 0 disables every sheetness-gated step. */
+                                 through as CAT_SheetnessOpts::gain.  Since the response
+                                 is now anchored to its own p99.9 the gain is normally
+                                 unnecessary -- it used to absorb the per-dataset scale
+                                 that the anchor removes, which is why values of 20 or
+                                 more were once needed.  It remains as a deliberate
+                                 relative adjustment; 0 disables every sheetness-gated
+                                 step. */
 
     /* (1) sulcal CSF recovery */
     double csf_min_dist;  /**< mm; act only where the label map sees no CSF within this radius */
     double csf_min_wmdist;/**< mm; never carve closer than this to the WM boundary */
-    double csf_thresh;    /**< sheetness below this is ignored (default 0.1); the blend
+    double csf_thresh;    /**< sheetness below this is ignored (default 0.3); the blend
                                ramps from 0 here to csf_strength at twice this value, so
                                it is half the sheetness at which the correction acts at
                                full strength -- the same relation the oriented median has
-                               to its cutoff.  Match it to the response the data actually
-                               produces; see CAT_Sheetness.h. */
+                               to its cutoff.  The response is anchored to its own p99.9
+                               by CAT_SheetnessOpts::normalize, so 0.3 means the same
+                               thing on every dataset: full strength from 0.6, which is
+                               where the p99 of the reference response sits.  See
+                               CAT_Sheetness.h. */
     double csf_strength;  /**< 0..1 blend towards the intensity-implied label */
 
     /* (2) gyral WM reconnection */
-    double wm_thresh;     /**< sheetness below this is ignored (default 0.1); ramps to
+    double wm_thresh;     /**< sheetness below this is ignored (default 0.3); ramps to
                                wm_strength at twice this value, as csf_thresh does */
     double wm_strength;   /**< 0..1 blend towards WM */
     double wm_min_int;    /**< intensity floor on the 1..3 axis (default 2.1); a blade tip
@@ -88,6 +103,18 @@ typedef struct
                                above pure GM rather than half way to WM */
     int wm_max_gap;       /**< how far from existing WM, in voxels, a blade may still be
                                strengthened (default 3) */
+    double wm_sulcus_guard; /**< 0..1, default 1.0; how strongly a nearby sulcus vetoes
+                               the blade strengthening.  A blade tip and the sulcal
+                               floor behind it are one voxel apart where the cortex is
+                               thin, so raising the tip towards WM closes the sulcus --
+                               the failure is common in the occipital lobe, where the
+                               banks are already almost touching.  The polarity guard
+                               alone does not catch it: the bright ridge is genuinely
+                               there, it is the *neighbouring* dark sheet that must not
+                               be filled.  A second, dark-sheet pass is therefore run
+                               and dilated by one voxel, and the blend weight is damped
+                               by (1 - guard * ramp(dark)), reaching zero at twice
+                               csf_thresh.  Set 0 to disable the guard entirely. */
 
     /* (3) narrow-band PVE refit */
     double band_min_dist; /**< mm; refit only outside this distance to detected CSF */
@@ -206,5 +233,94 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
 int CAT_VolRefinePveNarrowBand(const float *t1, float *label,
                                int dims[3], double voxelsize[3],
                                const CAT_SulcusRepairOpts *opts);
+
+/*
+ * Opening buried sulci directly in a percentage position map (PPM).
+ *
+ * The pre-PBT repairs above need the intensity image. By the time the central
+ * surface is extracted the T1 is gone -- marching cubes sees only the PPM --
+ * but the PPM carries the geometry itself, so no intensity is required:
+ *
+ *   crossing a sulcus:  1 (WM) -> 0.5 -> ~0 (pial) -> 0.5 -> 1 (other bank)
+ *   crossing a gyrus:   0 (pial) -> 0.5 -> ~1 (WM blade) -> 0.5 -> 0
+ *
+ * A sulcus is therefore a *valley* in the PPM and a gyral blade a *ridge*, and
+ * the polarity guard of the sheetness filter separates them exactly. A buried
+ * sulcus is a valley whose floor never drops below the isovalue: the geometry
+ * is still there, only the amplitude is missing, which is why an isovalue-based
+ * surface fuses the two banks while the valley remains plainly visible to a
+ * shape filter.
+ */
+
+/** \brief Parameters for opening buried sulci in a PPM. */
+typedef struct
+{
+    double sigma_min; /**< smallest sheetness scale in mm */
+    double sigma_max; /**< largest sheetness scale in mm */
+    int n_scales;     /**< number of log-spaced scales */
+    double sheet_normalize; /**< value the response's p99.9 is scaled to (default
+                                 CAT_SHEETNESS_NORMALIZE); <= 0 keeps it raw */
+    double sheet_strength; /**< overall gain on the response (default 1.0), passed
+                                through as CAT_SheetnessOpts::gain.  The automatic
+                                noise scale of the sheetness filter is half the
+                                largest Hessian norm in the volume, which on real
+                                data is set by the cortical ribbon itself -- a thin
+                                sulcal valley is far weaker than that, so the raw
+                                response usually sits an order of magnitude below
+                                the thresholds here and nothing happens at a gain
+                                of 1.  This is the same reason CAT_VolSulcusRepair
+                                needs its own -sheet-strength, and the value does
+                                not carry over: that one is measured on the
+                                intensity image, this one on the PPM.  Measure with
+                                CAT_VolSheetness -polarity -1 on the PPM and choose
+                                the gain that puts p99 near twice thresh. */
+    double thresh;    /**< sheetness below this is ignored */
+    double band;      /**< only act on values in (isovalue, isovalue + band) */
+    double margin;    /**< how far below the isovalue an opened valley is pushed */
+    double strength;  /**< 0..1 blend towards that target */
+    double cutoff;    /**< admission cutoff of the oriented median the caller may run
+                           alongside; <= 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
+    int verbose;
+} CAT_PpmSulciOpts;
+
+/**
+ * \brief Fill a CAT_PpmSulciOpts with defaults for a 0..1 PPM at 0.5 mm.
+ *
+ * \param opts (out) option block to initialize; NULL is ignored
+ */
+void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts);
+
+/**
+ * \brief Push buried sulcal valleys in a PPM below the isovalue.
+ *
+ * Finds thin low-value sheets -- valleys -- in the map and lowers the ones
+ * that sit just above the isovalue until they cross it, so the isosurface
+ * separates the two banks instead of bridging them.
+ *
+ * Three conditions must hold together, and it is the conjunction that makes
+ * the operation safe rather than just another filter:
+ *
+ *   - the value lies in (isovalue, isovalue + band), so only marginal cases
+ *     are touched and solid white matter (PPM near 1) never is;
+ *   - the dark-sheet response exceeds opts->thresh, so there really is a thin
+ *     planar structure and not a blob or noise;
+ *   - the value is a genuine local minimum *along the sheet normal*, which a
+ *     gyral crown can never satisfy -- crossing a blade the PPM has a maximum,
+ *     not a minimum, so the operation cannot cut a gyrus open.
+ *
+ * The correction is one-sided: it only ever lowers a value.
+ *
+ * \param ppm       (in/out) percentage position map in [0,1], corrected in place
+ * \param sheetness (in)     precomputed dark-sheet response, or NULL to compute
+ * \param normal    (in)     precomputed unit sheet normals, or NULL to compute
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing in mm
+ * \param isovalue  (in)     threshold the surface will be extracted at
+ * \param opts      (in)     parameters; NULL selects the defaults
+ * \return 0 on success, negative on error
+ */
+int CAT_VolOpenPpmSulci(float *ppm, const float *sheetness, const float *normal,
+                        int dims[3], double voxelsize[3], double isovalue,
+                        const CAT_PpmSulciOpts *opts);
 
 #endif /* _CAT_SULCUSREPAIR_H_ */

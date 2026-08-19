@@ -55,7 +55,27 @@ typedef struct
     double alpha;     /**< plate-vs-tube sensitivity (R_sheet term) */
     double beta;      /**< blob-vs-plate sensitivity (R_blob term) */
     double c;         /**< structure-vs-noise sensitivity; <= 0 selects automatic */
-    double gain;      /**< overall gain on the response (default 1.0); see below */
+    double gain;      /**< overall gain on the response (default 1.0); see below.
+                           With normalize enabled this is rarely needed: the
+                           anchor already puts the response on a fixed scale, so
+                           the gain becomes a deliberate relative adjustment
+                           rather than a per-dataset calibration. */
+    double normalize; /**< scale the response so its p99.9 equals this value
+                           (default CAT_SHEETNESS_NORMALIZE = 1.0); <= 0 keeps
+                           the raw response.
+                           The automatic noise scale c is half the largest
+                           Hessian norm in the volume, so the absolute level of
+                           the response depends on whatever the strongest
+                           structure in that image happens to be.  Anchoring to
+                           the map's own p99.9 makes every threshold downstream
+                           -- CAT_ORIENTED_MEDIAN_CUTOFF, csf_thresh, wm_thresh
+                           -- mean the same thing on every dataset.  Scaling is
+                           a single positive factor, so the ranking of voxels,
+                           the winning scale and the zero set are unchanged, and
+                           the s = 0 invariant still holds exactly.  The hazard
+                           is the mirror of the one it fixes: an image with no
+                           sheets at all still has a p99.9, and normalizing to
+                           it amplifies noise -- disable it there. */
     int polarity;     /**< +1 bright sheets, -1 dark sheets, 0 either */
     int verbose;      /**< 1 to report progress */
 } CAT_SheetnessOpts;
@@ -116,8 +136,11 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                      const unsigned char *mask, int dims[3], double voxelsize[3],
                      const CAT_SheetnessOpts *opts);
 
+/** \brief Value the response's p99.9 is scaled to by default; 0 keeps it raw. */
+#define CAT_SHEETNESS_NORMALIZE 1.0
+
 /** \brief Default admission cutoff of CAT_VolOrientedMedian(). */
-#define CAT_ORIENTED_MEDIAN_CUTOFF 0.10
+#define CAT_ORIENTED_MEDIAN_CUTOFF 0.30
 
 /**
  * \brief Median filter over a sheetness-oriented neighbourhood.
@@ -155,14 +178,26 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
  * put that point at s = 1 -- reachable only where the response saturates, so
  * the filter behaved as an on/off switch confined to a thin rim.
  *
- * The default of 0.10 is taken from the response on a 0.5 mm skull-stripped
- * MPRAGE, where the dark-sheet map has p99 = 0.20, p99.9 = 0.33 and a maximum
- * of 0.56: it gives the top percent of the response full sheet preservation
- * (s >= 2*cutoff = 0.20) and the top few percent partial anisotropy, which
- * changed about 2.6% of brain voxels against the isotropic median where the old
- * 0.5 changed essentially none.  Data with a different response wants a
- * different cutoff -- measure with CAT_VolSheetness and halve what the sulci
- * reach.
+ * With CAT_SheetnessOpts::normalize left at its default the response is scaled
+ * so its p99.9 is 1, which is what makes the cutoff data-independent: it is now
+ * read directly as a fraction of that anchor, and the same number means the
+ * same thing on every dataset.
+ *
+ * The default of 0.30 is that fraction, derived from the reference response on
+ * a 0.5 mm skull-stripped MPRAGE, whose raw dark-sheet map had p99 = 0.20 and
+ * p99.9 = 0.33.  Full sheet preservation should begin at the p99 level, i.e. at
+ * 0.20 / 0.33 = 0.61 of the anchor, and the cutoff is half of that -- so 0.30.
+ * The top percent of the response is preserved outright, the few percent below
+ * it get partial anisotropy, and everything else is left isotropic; on the
+ * reference scan that changed about 2.6% of brain voxels against the plain
+ * median.  Because the anchor now travels with the data, other scans reproduce
+ * that behaviour at the same 0.30 rather than needing a new value each time.
+ *
+ * Reading it the other way round: a cutoff of 0.5 would start preservation
+ * exactly at p99.9 (the top 0.1%), and the historical 0.5 *without*
+ * normalization put it at a raw s = 1 -- reachable only where the response
+ * saturates, so the filter behaved as an on/off switch confined to a thin rim.
+ * That failure is what the anchor removes.
  *
  * \param vol       (in/out) volume to filter, in place
  * \param sheetness (in)     float[nvox] in [0,1]; NULL falls back to isotropic

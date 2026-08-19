@@ -12,6 +12,7 @@
 
 #include <bicpl/marching.h>
 #include "CAT_NiftiLib.h"
+#include "CAT_SulcusRepair.h"
 
 #define CHUNK_SIZE    1000000
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
@@ -34,6 +35,7 @@ object_struct *apply_marching_cubes(
     int n_median_filter,
     int n_iter,
     double strength_gyri_mask,
+    const CAT_PpmSulciOpts *sulci_opts,
     int verbose);
 
 object_struct *apply_marching_cubes_fast(

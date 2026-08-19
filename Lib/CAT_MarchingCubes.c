@@ -16,6 +16,8 @@
 #include "CAT_Curvature.h"
 #include "CAT_Intersect.h"
 #include "CAT_MarchingCubes.h"
+#include "CAT_Sheetness.h"
+#include "CAT_SulcusRepair.h"
 
 int euler_characteristic(polygons_struct *polygons, int verbose);
 
@@ -718,13 +720,27 @@ extract_isosurface(
  * \param n_median_filter   (in)  iterations of median filtering to apply
  * \param n_iter            (in)  total outer loop iterations
  * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
+ * \param sulci_opts        (in)  buried-sulcus correction on the PPM, or NULL to skip
+ *                                it. A buried sulcus is a valley in the PPM whose floor
+ *                                never drops below the isovalue, so the two banks fuse
+ *                                when the isosurface is extracted. No intensity image is
+ *                                needed: the PPM carries the geometry itself, and a
+ *                                Hessian sheetness filter finds the valley. The field is
+ *                                used three times -- to push those floors below the
+ *                                isovalue, to damp the gyral boost above (which would
+ *                                otherwise lift a sulcal floor back over it), and to
+ *                                orient the median filter so it cannot close what was
+ *                                just opened. Note sulci_opts->sheet_strength: the raw
+ *                                response on real data sits well below the thresholds,
+ *                                so a gain of 1 leaves the whole correction inert.
  * \param verbose           (in)  1 to print progress, 0 for silent
  * \return Allocated object_struct containing pial surface polygons; caller must free
  */
 object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                                     float *label, double min_threshold, double pre_fwhm,
                                     int iter_laplacian, double dist_morph, int n_median_filter,
-                                    int n_iter, double strength_gyri_mask, int verbose)
+                                    int n_iter, double strength_gyri_mask,
+                                    const CAT_PpmSulciOpts *sulci_opts, int verbose)
 {
     double voxelsize[N_DIMENSIONS];
     double best_dist;
@@ -745,6 +761,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     /* Memory allocation */
     float *vol_changed = (float *)calloc(nvol, sizeof(float));
     float *vol_float = (float *)malloc(nvol * sizeof(float));
+    float *sulc_sheet = NULL, *sulc_normal = NULL;
     unsigned short *vol_uint16 = (unsigned short *)malloc(nvol * sizeof(unsigned short));
     unsigned char *vol_uint8 = (unsigned char *)malloc(nvol * sizeof(unsigned char));
 
@@ -803,6 +820,70 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         free(grad);
     }
 
+    /* Locate buried sulci in the PPM itself.
+     *
+     * Crossing a sulcus the PPM runs 1 (WM) -> 0.5 -> ~0 (pial) -> 0.5 -> 1, so a
+     * sulcus is a valley; crossing a gyral blade it runs 0 -> 0.5 -> ~1 -> 0.5 -> 0,
+     * so a blade is a ridge.  The polarity guard separates the two exactly, which is
+     * why this needs no intensity image -- by this point the T1 is long gone, but the
+     * geometry that matters is in the PPM.  A buried sulcus is simply a valley whose
+     * floor never drops below the isovalue: the shape is intact, only the amplitude
+     * is missing.
+     *
+     * The field is estimated once here, before anything else modifies the map, and
+     * then used three times below. */
+    if (sulci_opts && sulci_opts->strength > 0.0)
+    {
+        CAT_SheetnessOpts sopts;
+
+        sulc_sheet = (float *)malloc(nvol * sizeof(float));
+        sulc_normal = (float *)malloc(3 * nvol * sizeof(float));
+        if (!sulc_sheet || !sulc_normal)
+        {
+            free(sulc_sheet);
+            free(sulc_normal);
+            sulc_sheet = NULL;
+            sulc_normal = NULL;
+            fprintf(stderr, "Warning: no memory for the buried-sulcus correction.\n");
+        }
+        else
+        {
+            CAT_SheetnessOptionsInit(&sopts);
+            sopts.sigma_min = sulci_opts->sigma_min;
+            sopts.sigma_max = sulci_opts->sigma_max;
+            sopts.n_scales = sulci_opts->n_scales;
+            sopts.gain = sulci_opts->sheet_strength;
+            sopts.polarity = -1; /* a sulcus is a valley in the PPM */
+            sopts.verbose = verbose;
+            if (verbose)
+                fprintf(stderr, "Estimate sulcal valley field on the PPM.\n");
+            if (CAT_VolSheetness(input_float, sulc_sheet, sulc_normal, NULL,
+                                 dims, voxelsize, &sopts) != 0)
+            {
+                free(sulc_sheet);
+                free(sulc_normal);
+                sulc_sheet = NULL;
+                sulc_normal = NULL;
+            }
+            else if (verbose)
+            {
+                /* Report where the response actually landed.  Every threshold
+                   below is compared against these numbers, and on real data the
+                   raw response is far weaker than the defaults assume, so this
+                   is the fastest way to tell whether sheet_strength is in the
+                   right range without a separate CAT_VolSheetness run. */
+                double pct[2] = {99.0, 100.0}, val[2];
+                get_prctile(sulc_sheet, nvol, val, pct, 1, DT_FLOAT32);
+                fprintf(stderr, "  valley response: p99 = %.3f, max = %.3f "
+                                "(threshold %.3f)\n",
+                        val[0], val[1], sulci_opts->thresh);
+                if (val[0] < sulci_opts->thresh)
+                    fprintf(stderr, "  note: p99 is below the threshold -- raise "
+                                    "the sheetness gain or nothing will change.\n");
+            }
+        }
+    }
+
     if ((label != NULL) && (strength_gyri_mask != 0.0))
     {
         /* Estimate smooth gyrus mask */
@@ -812,6 +893,24 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         for (i = 0; i < nvol; i++)
             vol_float[i] = vol_float[i] * strength_gyri_mask * 2 - strength_gyri_mask;
 
+        /* Use 1: the gyral half of that mask raises the PPM to preserve gyral
+         * crowns, but the mask is a smoothed distance construct and does not know
+         * where a sulcus runs.  On a thin gyrus its support reaches across the
+         * neighbouring sulcal floor and lifts it back over the isovalue -- the
+         * strengthened white-matter finger buries the sulcus again.  Damping the
+         * raising half in proportion to the sulcal valley response removes exactly
+         * that interaction and leaves the boost untouched everywhere else. */
+        if (sulc_sheet)
+        {
+            for (i = 0; i < nvol; i++)
+                if (vol_float[i] < 0.0f)
+                {
+                    float s = sulc_sheet[i] * (float)sulci_opts->strength;
+                    s = (s < 0.0f) ? 0.0f : ((s > 1.0f) ? 1.0f : s);
+                    vol_float[i] *= (1.0f - s);
+                }
+        }
+
         /* And subtract scaled mask to input so that gyri have lower isovalues by 0.1
            (to preserve gyral crowns) and sulci higher isovalues by -0.1 to preserve
            sulcal spaces */
@@ -819,12 +918,26 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             input_float[i] -= vol_float[i];
     }
 
+    /* Use 2: push the valley floors that sit just above the isovalue below it, so
+     * marching cubes separates the banks instead of bridging them. */
+    if (sulc_sheet)
+        CAT_VolOpenPpmSulci(input_float, sulc_sheet, sulc_normal, dims, voxelsize,
+                            min_threshold, sulci_opts);
+
     /* Apply iterative median filter to strengthen structures */
     unsigned char *mask = (unsigned char *)malloc(nvol * sizeof(unsigned char));
     for (i = 0; i < nvol; i++)
         mask[i] = input_float[i] != 0;
 
-    median3(input_float, mask, dims, n_median_filter, DT_FLOAT32);
+    /* Use 3: an isotropic median would re-close the valleys that were just
+     * opened -- it penalizes boundary area and a one-voxel sulcal gap is the
+     * cheapest thing to remove.  Orienting it along the sheet keeps the median's
+     * denoising while making it unable to bridge the gap. */
+    if (sulc_sheet)
+        CAT_VolOrientedMedian(input_float, sulc_sheet, sulc_normal, mask, dims,
+                              sulci_opts->cutoff, n_median_filter);
+    else
+        median3(input_float, mask, dims, n_median_filter, DT_FLOAT32);
     free(mask);
 
     /* Keep largest cluster and fill holes */
@@ -1045,6 +1158,8 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     free(vol_uint8);
     free(vol_uint16);
     free(vol_float);
+    free(sulc_sheet);
+    free(sulc_normal);
 
     return object;
 }

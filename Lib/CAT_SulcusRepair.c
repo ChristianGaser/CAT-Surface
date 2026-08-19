@@ -31,17 +31,19 @@ void CAT_SulcusRepairOptionsInit(CAT_SulcusRepairOpts *opts)
     opts->sheet_sigma_min = 0.3;
     opts->sheet_sigma_max = 1.0;
     opts->sheet_n_scales = 3;
+    opts->sheet_normalize = CAT_SHEETNESS_NORMALIZE;
     opts->sheet_strength = 1.0;
 
     opts->csf_min_dist = 1.5;
     opts->csf_min_wmdist = 0.75;
-    opts->csf_thresh = 0.1;
+    opts->csf_thresh = 0.3;
     opts->csf_strength = 0.8;
 
-    opts->wm_thresh = 0.1;
+    opts->wm_thresh = 0.3;
     opts->wm_strength = 0.8;
     opts->wm_min_int = 2.1;
     opts->wm_max_gap = 3;
+    opts->wm_sulcus_guard = 1.0;
 
     opts->band_min_dist = 1.5;
     opts->band_window = 4;
@@ -232,6 +234,7 @@ int CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
     sopts.sigma_max = opts->sheet_sigma_max;
     sopts.n_scales = opts->sheet_n_scales;
     sopts.gain = opts->sheet_strength;
+    sopts.normalize = opts->sheet_normalize;
     sopts.polarity = -1; /* dark sheet: a valley, l3 > 0 */
     sopts.verbose = opts->verbose;
 
@@ -360,12 +363,12 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
     const int ny = dims ? dims[1] : 0;
     const int nz = dims ? dims[2] : 0;
     const int nvox = nx * ny * nz;
-    float *t1n = NULL, *S = NULL, *grow = NULL, *dwm = NULL;
+    float *t1n = NULL, *S = NULL, *grow = NULL, *dwm = NULL, *S_dark = NULL;
     unsigned char *roi = NULL, *cand = NULL;
     double unit[3] = {1.0, 1.0, 1.0};
     int own_S = 0;
     int i, rc = 0;
-    long n_cand = 0, n_changed = 0;
+    long n_cand = 0, n_changed = 0, n_vetoed = 0;
     double dd[2];
 
     if (!t1 || !label || !dims || !voxelsize || nvox <= 0)
@@ -384,6 +387,8 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
     dwm = (float *)malloc(sizeof(float) * (size_t)nvox);
     roi = (unsigned char *)malloc(sizeof(unsigned char) * (size_t)nvox);
     cand = (unsigned char *)malloc(sizeof(unsigned char) * (size_t)nvox);
+    if (opts->wm_sulcus_guard > 0.0 && opts->csf_thresh > 0.0)
+        S_dark = (float *)malloc(sizeof(float) * (size_t)nvox);
     if (sheetness)
         S = sheetness;
     else
@@ -410,6 +415,7 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
     sopts.sigma_max = opts->sheet_sigma_max;
     sopts.n_scales = opts->sheet_n_scales;
     sopts.gain = opts->sheet_strength;
+    sopts.normalize = opts->sheet_normalize;
     sopts.polarity = 1; /* bright sheet: a ridge, l3 < 0 */
     sopts.verbose = opts->verbose;
 
@@ -419,6 +425,100 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
     rc = CAT_VolSheetness(t1n, S, NULL, roi, dims, voxelsize, &sopts);
     if (rc != 0)
         goto cleanup;
+
+    /* Second pass with the opposite polarity: where does a sulcus run?
+     *
+     * The bright ridge a blade tip sits on is real, so the polarity guard has
+     * nothing to reject -- what must not happen is that filling the tip also
+     * fills the dark sheet one voxel behind it.  Where cortex is thin, as in
+     * the occipital lobe, the two are that close, which is why blade
+     * strengthening buries sulci there and nowhere else in particular.
+     *
+     * Dilating the response by one voxel is what turns "this voxel is a
+     * sulcus" into "this voxel touches a sulcus", which is the question that
+     * actually matters when deciding whether to raise it. */
+    if (S_dark)
+    {
+        CAT_SheetnessOpts dopts = sopts;
+        float *dark_nrm = (float *)malloc(sizeof(float) * 3 * (size_t)nvox);
+        int x, y, z;
+
+        if (!dark_nrm)
+        {
+            rc = -2;
+            goto cleanup;
+        }
+
+        dopts.polarity = -1;
+
+        if (opts->verbose)
+            fprintf(stderr, "  sulcus guard: dark-sheet filter on intensity.\n");
+
+        rc = CAT_VolSheetness(t1n, S_dark, dark_nrm, roi, dims, voxelsize, &dopts);
+        if (rc != 0)
+        {
+            free(dark_nrm);
+            goto cleanup;
+        }
+
+        /* A polarity of -1 alone is not enough here.  The *shoulders* of a
+           bright ridge curve upward into it, so their second derivative across
+           the ridge is positive and the dark-sheet filter answers on them --
+           which would make the guard veto every blade, including the ones with
+           no sulcus anywhere near.  A response is therefore only kept where the
+           intensity confirms it: the voxel has to be darker than pure grey
+           matter and a genuine local minimum along its own normal, exactly the
+           test CAT_VolRecoverSulcalCSF uses to find a sulcal floor. */
+        for (z = 0; z < nz; z++)
+            for (y = 0; y < ny; y++)
+                for (x = 0; x < nx; x++)
+                {
+                    const int idx = x + y * nx + z * nx * ny;
+                    double n0, n1, n2;
+                    int px, py, pz, mx, my, mz;
+
+                    if (S_dark[idx] <= 0.0f)
+                        continue;
+
+                    if ((double)t1n[idx] >= GM)
+                    {
+                        S_dark[idx] = 0.0f;
+                        continue;
+                    }
+
+                    n0 = (double)dark_nrm[3 * idx + 0];
+                    n1 = (double)dark_nrm[3 * idx + 1];
+                    n2 = (double)dark_nrm[3 * idx + 2];
+
+                    px = x + (int)floor(n0 + 0.5);
+                    py = y + (int)floor(n1 + 0.5);
+                    pz = z + (int)floor(n2 + 0.5);
+                    mx = x - (int)floor(n0 + 0.5);
+                    my = y - (int)floor(n1 + 0.5);
+                    mz = z - (int)floor(n2 + 0.5);
+
+                    if ((px == x && py == y && pz == z) ||
+                        px < 0 || px >= nx || py < 0 || py >= ny ||
+                        pz < 0 || pz >= nz ||
+                        mx < 0 || mx >= nx || my < 0 || my >= ny ||
+                        mz < 0 || mz >= nz)
+                    {
+                        S_dark[idx] = 0.0f;
+                        continue;
+                    }
+
+                    if (!(t1n[idx] < t1n[px + py * nx + pz * nx * ny] &&
+                          t1n[idx] < t1n[mx + my * nx + mz * nx * ny]))
+                        S_dark[idx] = 0.0f;
+                }
+
+        free(dark_nrm);
+
+        /* Dilating by one voxel is what turns "this voxel is a sulcal floor"
+           into "this voxel touches one", which is the question that actually
+           matters when deciding whether a blade tip may be raised. */
+        grey_dilate(S_dark, dims, 1, DT_FLOAT32);
+    }
 
     /* Distance to existing WM, in voxels rather than mm: wm_max_gap is a
        neighbourhood reach, so it should not change meaning with the sampling. */
@@ -486,6 +586,23 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
         if (w > opts->wm_strength)
             w = opts->wm_strength;
 
+        /* veto where a sulcus runs alongside: same ramp shape as everywhere
+           else in this module, reaching a full veto at twice csf_thresh */
+        if (S_dark)
+        {
+            double g = ((double)S_dark[i] - opts->csf_thresh) / opts->csf_thresh;
+            if (g < 0.0)
+                g = 0.0;
+            if (g > 1.0)
+                g = 1.0;
+            w *= (1.0 - opts->wm_sulcus_guard * g);
+            if (w <= 0.0)
+            {
+                n_vetoed++;
+                continue;
+            }
+        }
+
         /* one-sided: only ever towards the intensity-implied value */
         target = (double)t1n[i];
         if (target <= (double)label[i])
@@ -498,7 +615,11 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
     }
 
     if (opts->verbose)
+    {
         fprintf(stderr, "  raised %ld voxels towards WM.\n", n_changed);
+        if (S_dark)
+            fprintf(stderr, "  sulcus guard vetoed %ld voxels.\n", n_vetoed);
+    }
 
 cleanup:
     free(t1n);
@@ -506,6 +627,7 @@ cleanup:
     free(dwm);
     free(roi);
     free(cand);
+    free(S_dark);
     if (own_S)
         free(S);
     return rc;
@@ -628,6 +750,7 @@ int CAT_VolRefinePveNarrowBand(const float *t1, float *label,
     sopts.sigma_max = opts->sheet_sigma_max;
     sopts.n_scales = opts->sheet_n_scales;
     sopts.gain = opts->sheet_strength;
+    sopts.normalize = opts->sheet_normalize;
     sopts.polarity = -1;
     sopts.verbose = opts->verbose;
 
@@ -739,4 +862,182 @@ cleanup:
     free(roi);
     free(wbuf);
     return rc;
+}
+
+/**
+ * \brief Fill a CAT_PpmSulciOpts with defaults for a 0..1 PPM at 0.5 mm.
+ *
+ * The band of 0.25 keeps the operation to values in (0.5, 0.75] for the usual
+ * isovalue: a buried sulcus sits just above the threshold, whereas solid white
+ * matter is close to 1 and must never be touched.  The margin of 0.05 puts an
+ * opened valley just far enough below the isovalue for marching cubes to
+ * separate the banks without carving a wide gap.
+ *
+ * \param opts (out) option block to initialize; NULL is ignored
+ */
+void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts)
+{
+    if (!opts)
+        return;
+
+    opts->sigma_min = 0.3;
+    opts->sigma_max = 1.0;
+    opts->n_scales = 3;
+    opts->sheet_normalize = CAT_SHEETNESS_NORMALIZE;
+    opts->sheet_strength = 1.0;
+    opts->thresh = 0.3;
+    opts->band = 0.25;
+    opts->margin = 0.05;
+    opts->strength = 1.0;
+    opts->cutoff = 0.0;
+    opts->verbose = 0;
+}
+
+/**
+ * \brief Push buried sulcal valleys in a PPM below the isovalue.
+ *
+ * See the header for the three gating conditions.  The local-minimum test is
+ * the important one: it is evaluated along the sheet normal rather than over
+ * the whole neighbourhood, because that is what distinguishes a sulcal valley
+ * floor from an ordinary dark voxel, and it is what makes the operation
+ * structurally unable to fire on a gyral crown -- crossing a blade the PPM has
+ * a maximum along the normal, never a minimum.
+ *
+ * \param ppm       (in/out) percentage position map in [0,1], corrected in place
+ * \param sheetness (in)     precomputed dark-sheet response, or NULL to compute
+ * \param normal    (in)     precomputed unit sheet normals, or NULL to compute
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing in mm
+ * \param isovalue  (in)     threshold the surface will be extracted at
+ * \param opts      (in)     parameters; NULL selects the defaults
+ * \return 0 on success, negative on error
+ */
+int CAT_VolOpenPpmSulci(float *ppm, const float *sheetness, const float *normal,
+                        int dims[3], double voxelsize[3], double isovalue,
+                        const CAT_PpmSulciOpts *opts)
+{
+    CAT_PpmSulciOpts defaults;
+    CAT_SheetnessOpts sopts;
+    const int nx = dims ? dims[0] : 0;
+    const int ny = dims ? dims[1] : 0;
+    const int nz = dims ? dims[2] : 0;
+    const int xy = nx * ny;
+    const int nvox = xy * nz;
+    const float *S = sheetness;
+    const float *nrm = normal;
+    float *own_S = NULL, *own_nrm = NULL;
+    int x, y, z, rc = 0;
+    long n_changed = 0;
+
+    if (!ppm || !dims || !voxelsize || nvox <= 0)
+        return -1;
+    if (nx < 3 || ny < 3 || nz < 3)
+        return -1;
+
+    if (!opts)
+    {
+        CAT_PpmSulciOptionsInit(&defaults);
+        opts = &defaults;
+    }
+
+    if (!S || !nrm)
+    {
+        own_S = (float *)malloc(sizeof(float) * (size_t)nvox);
+        own_nrm = (float *)malloc(sizeof(float) * 3 * (size_t)nvox);
+        if (!own_S || !own_nrm)
+        {
+            free(own_S);
+            free(own_nrm);
+            return -2;
+        }
+
+        CAT_SheetnessOptionsInit(&sopts);
+        sopts.sigma_min = opts->sigma_min;
+        sopts.sigma_max = opts->sigma_max;
+        sopts.n_scales = opts->n_scales;
+        sopts.gain = opts->sheet_strength;
+        sopts.normalize = opts->sheet_normalize;
+        sopts.polarity = -1; /* a sulcus is a valley in the PPM */
+        sopts.verbose = opts->verbose;
+
+        if (opts->verbose)
+            fprintf(stderr, "Open buried sulci: dark-sheet filter on the PPM.\n");
+
+        rc = CAT_VolSheetness(ppm, own_S, own_nrm, NULL, dims, voxelsize, &sopts);
+        if (rc != 0)
+        {
+            free(own_S);
+            free(own_nrm);
+            return rc;
+        }
+        S = own_S;
+        nrm = own_nrm;
+    }
+
+    for (z = 1; z < nz - 1; z++)
+        for (y = 1; y < ny - 1; y++)
+            for (x = 1; x < nx - 1; x++)
+            {
+                const int idx = x + y * nx + z * xy;
+                double s, w, target, n0, n1, n2;
+                int px, py, pz, mx, my, mz;
+
+                /* only marginal values: above the isovalue but not solid WM */
+                if (!((double)ppm[idx] > isovalue &&
+                      (double)ppm[idx] < isovalue + opts->band))
+                    continue;
+
+                s = (double)S[idx];
+                if (s <= opts->thresh)
+                    continue;
+
+                n0 = (double)nrm[3 * idx + 0];
+                n1 = (double)nrm[3 * idx + 1];
+                n2 = (double)nrm[3 * idx + 2];
+                if (n0 == 0.0 && n1 == 0.0 && n2 == 0.0)
+                    continue;
+
+                px = x + (int)floor(n0 + 0.5);
+                py = y + (int)floor(n1 + 0.5);
+                pz = z + (int)floor(n2 + 0.5);
+                mx = x - (int)floor(n0 + 0.5);
+                my = y - (int)floor(n1 + 0.5);
+                mz = z - (int)floor(n2 + 0.5);
+
+                if (px == x && py == y && pz == z)
+                    continue;
+                if (px < 0 || px >= nx || py < 0 || py >= ny || pz < 0 || pz >= nz ||
+                    mx < 0 || mx >= nx || my < 0 || my >= ny || mz < 0 || mz >= nz)
+                    continue;
+
+                /* a valley floor, not a ridge: this is what a gyral crown can
+                   never satisfy, so the test doubles as the gyrus guard */
+                if (!(ppm[idx] < ppm[px + py * nx + pz * xy] &&
+                      ppm[idx] < ppm[mx + my * nx + mz * xy]))
+                    continue;
+
+                w = opts->strength * (s - opts->thresh) / (1.0 - opts->thresh);
+                if (w < 0.0)
+                    w = 0.0;
+                if (w > 1.0)
+                    w = 1.0;
+
+                target = isovalue - opts->margin;
+                if (target < 0.0)
+                    target = 0.0;
+
+                /* one-sided: only ever lower a value */
+                if (target >= (double)ppm[idx])
+                    continue;
+
+                ppm[idx] = (float)((1.0 - w) * (double)ppm[idx] + w * target);
+                n_changed++;
+            }
+
+    if (opts->verbose)
+        fprintf(stderr, "  opened %ld voxels below the isovalue.\n", n_changed);
+
+    free(own_S);
+    free(own_nrm);
+    return 0;
 }

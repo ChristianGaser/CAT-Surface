@@ -41,6 +41,8 @@ double wm_thresh = 0.1;
 double wm_strength = 0.8;
 double wm_min_int = 2.1;
 int wm_max_gap = 3;
+double wm_sulcus_guard = 1.0;
+double sheet_normalize = CAT_SHEETNESS_NORMALIZE;
 
 double band_min_dist = 1.5;
 int band_window = 4;
@@ -133,6 +135,30 @@ static ArgvInfo argTable[] = {
     (default 3). This bounds how far the geodesic growth can carry a blade into\n\
     grey matter; it is a reach in voxels, so it does not change meaning with the\n\
     sampling."},
+
+    {"-sheet-normalize", ARGV_FLOAT, (char *)1, (char *)&sheet_normalize,
+     "Value the p99.9 of the sheetness response is scaled to (default 1.0);\n\
+    pass 0 to keep the raw response. The filter's automatic noise scale is\n\
+    half the largest Hessian norm in the volume, so the absolute level of the\n\
+    response depends on whatever the strongest structure in that image happens\n\
+    to be -- which is why fixed thresholds used to need a per-dataset gain of\n\
+    20 or more before anything happened. Anchoring to the map's own p99.9\n\
+    removes that: -csf-thresh and -wm-thresh are then read as fractions of the\n\
+    anchor and mean the same thing everywhere. Disable it only where the image\n\
+    may contain no sheets at all, since a percentile anchor would amplify\n\
+    noise there."},
+
+    {"-wm-sulcus-guard", ARGV_FLOAT, (char *)1, (char *)&wm_sulcus_guard,
+     "How strongly a neighbouring sulcus vetoes the blade strengthening, 0..1\n\
+    (default 1.0; 0 disables the guard). A blade tip and the sulcal floor behind\n\
+    it are one voxel apart where the cortex is thin, so raising the tip towards\n\
+    WM closes the sulcus -- the failure is common in the occipital lobe, where\n\
+    the banks are already almost touching. The polarity guard alone does not\n\
+    catch it: the bright ridge really is there, it is the *neighbouring* dark\n\
+    sheet that must not be filled. A second dark-sheet pass is therefore run and\n\
+    dilated by one voxel, and the blend weight is damped by\n\
+    (1 - guard * ramp(dark)), reaching a full veto at twice -csf-thresh. Run\n\
+    with -verbose to see how many voxels the guard stopped."},
 
     {"-band-min-dist", ARGV_FLOAT, (char *)1, (char *)&band_min_dist,
      "Narrow-band refit acts only outside this distance to detected CSF, in mm\n\
@@ -300,6 +326,8 @@ int main(int argc, char *argv[])
     opts.wm_strength = wm_strength;
     opts.wm_min_int = wm_min_int;
     opts.wm_max_gap = wm_max_gap;
+    opts.wm_sulcus_guard = wm_sulcus_guard;
+    opts.sheet_normalize = sheet_normalize;
     opts.band_min_dist = band_min_dist;
     opts.band_window = band_window;
     opts.band_strength = band_strength;
