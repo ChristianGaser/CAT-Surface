@@ -106,6 +106,27 @@ closes a cerebellar fissure.
 | `CAT_VolLocalStat` | `-oriented` (with `-stat 7`) |
 | `CAT_VolThicknessPbt` | `-oriented-filter` |
 | `CAT_VolSulcusRepair` | always (`Lib/CAT_SulcusRepair.c`) |
+| `CAT_VolMarchingCubes` | `-strength-sulci` — on the PPM, no intensity image needed |
+
+**The response is anchored, so thresholds are data-independent.**
+`CAT_SheetnessOpts::normalize` (default `CAT_SHEETNESS_NORMALIZE` = 1.0) scales the
+response so its p99.9 is 1. The automatic noise scale is half the largest Hessian norm in
+the volume, so the raw level depends on whatever the strongest structure in that image is —
+which is why fixed thresholds used to need a per-dataset gain of 20 or more before anything
+happened. The anchor removes that, and every threshold is now read as a fraction of it:
+
+- `CAT_ORIENTED_MEDIAN_CUTOFF` = **0.30** (was 0.10 on the raw scale)
+- `csf_thresh` / `wm_thresh` / `CAT_PpmSulciOpts::thresh` = **0.3** (were 0.1)
+
+All derive from the same point: full effect at twice the threshold = 0.60, which is where
+the p99 of the reference response sits (raw 0.20 / p99.9 0.33 = 0.61). Scaling is a single
+positive factor, so ranking, winning scale and the zero set are untouched and the s = 0
+invariant still holds exactly.
+
+`sheet_strength` / `gain` survives as a deliberate relative adjustment but should no longer
+be needed for calibration. Pass `-sheet-normalize 0` (or `-normalize 0` on
+`CAT_VolSheetness`) to get the raw response back — the one case that needs it is an image
+that may contain no sheets at all, where a percentile anchor amplifies noise.
 
 **Invariant:** where the sheetness is zero, every oriented operator must be numerically
 identical to the isotropic one it replaces. `tests/test_sheetness.c` asserts this voxel by

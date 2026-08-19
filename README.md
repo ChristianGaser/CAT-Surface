@@ -115,6 +115,7 @@ The field is consumed by:
 | **CAT_VolLocalStat** | `-oriented` (with `-stat 7`) — median over a sheet-oriented neighbourhood |
 | **CAT_VolThicknessPbt** | `-oriented-filter` — replaces the three isotropic medians inside PBT |
 | **CAT_VolSulcusRepair** | always — the evidence term for the pre-PBT repair |
+| **CAT_VolMarchingCubes** | `-strength-sulci` — opens buried sulci in the PPM itself |
 
 Every one of these is **a no-op where no sheet is detected**: the oriented
 operator is then numerically identical to the isotropic one it replaces, which
@@ -148,6 +149,47 @@ back to the intensity image instead and recovers evidence the classifier
 discarded. Every operation is one-sided and gated on several independent pieces
 of evidence, so none of them can cause the failure mode it is meant to fix.
 
+**Buried sulci at the surface stage.** The repairs above need the intensity
+image. By the time the central surface is extracted the T1 is gone — marching
+cubes sees only the PPM — but no intensity is required there, because the PPM
+carries the geometry itself. Crossing a sulcus it runs 1 (WM) → 0.5 → ~0 (pial)
+→ 0.5 → 1, and crossing a gyral blade it runs 0 → 0.5 → ~1 → 0.5 → 0, so a
+sulcus is a valley and a blade a ridge. A buried sulcus is simply a valley whose
+floor never reaches the isovalue: the shape is intact, only the amplitude is
+missing, which is why the isosurface fuses the banks while the valley stays
+plainly visible to a shape filter.
+
+`CAT_VolMarchingCubes -strength-sulci` uses that field three times: valley
+floors sitting just above the isovalue are pushed below it; the gyral boost of
+`-strength-gyrimask` is damped there, because strengthening a thin white-matter
+finger otherwise lifts the neighbouring sulcal floor back over the isovalue; and
+the median filter is oriented along the sheet so it cannot re-close what was
+opened. The same interaction is guarded inside `CAT_VolSulcusRepair` by
+`-wm-sulcus-guard`, which stops blade strengthening from burying a sulcus one
+voxel away — the usual occipital failure, where the banks are already almost
+touching.
+
+**Getting a response at all.** Every sheetness-gated step compares the response
+against a threshold, and the filter's automatic noise scale is half the *largest*
+Hessian norm in the volume. On a T1 that scale is set by the strongest edges in
+the image, so a thin sulcal sheet lands an order of magnitude below it and the
+defaults do nothing — which is why `CAT_VolSulcusRepair` usually needs
+`-sheet-strength` well above 1. Measure before tuning anything else:
+
+```bash
+CAT_VolSheetness -polarity -1 -v t1_corr.nii sheet.nii   # look at p99 and max
+```
+
+Pick the gain that puts the p99 of the response near twice the threshold. The
+gain does **not** carry over between tools, because each measures a different
+image: `CAT_VolSulcusRepair -sheet-strength` is measured on the intensity image,
+`CAT_VolMarchingCubes -sulci-sheet-strength` on the PPM. The PPM is the
+better-conditioned of the two — its dynamic range is bounded and its structures
+are all of comparable scale — so it generally needs far less gain than a T1.
+Run `CAT_VolMarchingCubes -strength-sulci 1 -verbose` and it prints the p99 and
+maximum of the response next to the threshold, and warns outright when the gain
+is too low to have any effect.
+
 A typical pre-PBT sequence:
 
 ```bash
@@ -157,6 +199,9 @@ CAT_VolSheetness -polarity -1 -v t1_corr.nii sheetness.nii
 # Repair the label map, then estimate thickness from the repaired map
 CAT_VolSulcusRepair -verbose t1_corr.nii label.nii label_repaired.nii
 CAT_VolThicknessPbt -oriented-filter label_repaired.nii gmt.nii ppm.nii
+
+# ... and again at the surface stage, on the PPM
+CAT_VolMarchingCubes -strength-sulci 1 -thresh 0.5 -verbose ppm.nii central.gii
 ```
 
 **Inspect that map before enabling anything downstream**, because two numbers

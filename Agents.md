@@ -134,6 +134,7 @@ shrinks nothing.
 | `Progs/CAT_VolLocalStat` | `-oriented` | median over a sheet-oriented neighbourhood (`-stat 7` only) |
 | `Progs/CAT_VolThicknessPbt` | `-oriented-filter` | replaces the three isotropic medians inside PBT |
 | `Progs/CAT_VolSulcusRepair` | (always) | evidence term for the pre-PBT repair, `Lib/CAT_SulcusRepair.c` |
+| `Progs/CAT_VolMarchingCubes` | `-strength-sulci` | opens buried sulci in the PPM itself; needs no intensity image |
 
 **Invariant every consumer relies on:** where the sheetness is zero the oriented operator
 must be numerically identical to the isotropic one it replaces. That is what makes each of
