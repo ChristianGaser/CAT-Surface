@@ -140,7 +140,7 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
 #define CAT_SHEETNESS_NORMALIZE 1.0
 
 /** \brief Default admission cutoff of CAT_VolOrientedMedian(). */
-#define CAT_ORIENTED_MEDIAN_CUTOFF 0.30
+#define CAT_ORIENTED_MEDIAN_CUTOFF 0.10
 
 /**
  * \brief Median filter over a sheetness-oriented neighbourhood.
