@@ -271,6 +271,7 @@ noinst_HEADERS = \
     Include/CAT_VolPbt.h \
     Include/CAT_SulcusRepair.h \
     Include/CAT_Sheetness.h \
+    Include/CAT_ThicknessQC.h \
     Include/CAT_Calc.h \
     Include/CAT_AverageSurf.h \
     Include/CAT_AverageValues.h \
@@ -360,6 +361,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_VolPbt.c \
     Lib/CAT_SulcusRepair.c \
     Lib/CAT_Sheetness.c \
+    Lib/CAT_ThicknessQC.c \
     Lib/CAT_Calc.c \
     Lib/CAT_AverageSurf.c \
     Lib/CAT_AverageValues.c \

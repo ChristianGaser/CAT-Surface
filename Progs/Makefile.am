@@ -91,6 +91,7 @@ bin_PROGRAMS = \
     CAT_VolLocalStat \
     CAT_VolCorrectMyelination \
     CAT_VolThicknessPbt \
+    CAT_VolThicknessQC \
     CAT_VolSulcusRepair \
     CAT_VolSheetness \
     CAT_VolCalc \
