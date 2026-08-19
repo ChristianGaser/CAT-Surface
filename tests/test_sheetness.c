@@ -3,6 +3,7 @@
 #include "CAT_Sheetness.h"
 #include "CAT_SulcusRepair.h"
 #include "CAT_Vol.h"
+#include "CAT_Math.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -195,14 +196,29 @@ static void test_oriented_median_cutoff(void)
     MU_ASSERT("the sheet survives from cutoff = s/2 downwards",
               out[IDX(12, 12, 12)] < 1.1f);
 
-    /* the default has to be usable on a response of this size */
+    /* The default is calibrated against the normalized response, where p99.9
+       is 1 by construction and the p99 level of the reference scan sits at
+       0.20/0.33 = 0.61.  Preservation must begin at or below that, which is
+       exactly what 2 * 0.30 = 0.60 encodes. */
+    for (i = 0; i < nvox; i++)
+        S[i] = 0.61f;
     memcpy(out, vol, sizeof(float) * nvox);
     MU_ASSERT("oriented median runs",
               CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.0, 1) == 0);
-    MU_ASSERT("the default cutoff keeps a sheet at sheetness 0.4",
+    MU_ASSERT("the default cutoff keeps a sheet at the normalized p99 level",
               out[IDX(12, 12, 12)] < 1.1f);
     MU_ASSERT("the default is the documented one",
-              CAT_ORIENTED_MEDIAN_CUTOFF <= 0.2);
+              CAT_ORIENTED_MEDIAN_CUTOFF > 0.29 &&
+              CAT_ORIENTED_MEDIAN_CUTOFF < 0.31);
+
+    /* and it must still leave a clearly sub-threshold response isotropic */
+    for (i = 0; i < nvox; i++)
+        S[i] = 0.4f;
+    memcpy(out, vol, sizeof(float) * nvox);
+    MU_ASSERT("oriented median runs",
+              CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.0, 1) == 0);
+    MU_ASSERT("a response below the anchor is not protected by the default",
+              out[IDX(12, 12, 12)] > 1.9f);
 
     /* and the zero-sheetness invariant survives every cutoff */
     for (i = 0; i < nvox; i++)
@@ -248,17 +264,28 @@ static void test_repair_ramp_reaches_full_strength(void)
        response that saturates; a real one does not, which left the correction
        at a few percent of its nominal strength.  The relation mirrors the
        oriented median, where a thin sheet is protected from twice the cutoff. */
-    MU_ASSERT("the CSF threshold is matched to a real response",
-              opts.csf_thresh > 0.0 && opts.csf_thresh <= 0.15);
-    MU_ASSERT("the WM threshold is matched to a real response",
-              opts.wm_thresh > 0.0 && opts.wm_thresh <= 0.15);
+    /* The response is anchored to its own p99.9 = 1 (CAT_SheetnessOpts::
+       normalize), so these thresholds are read as fractions of that anchor and
+       mean the same thing on every dataset.  Full strength is reached at twice
+       the threshold, which must land at or below the anchor -- otherwise the
+       correction would need the top 0.1% of the response merely to reach its
+       nominal strength, which is the failure the anchor was introduced to
+       remove. */
+    MU_ASSERT("the CSF threshold is a fraction of the anchor",
+              opts.csf_thresh > 0.0 && opts.csf_thresh <= 0.5);
+    MU_ASSERT("the WM threshold is a fraction of the anchor",
+              opts.wm_thresh > 0.0 && opts.wm_thresh <= 0.5);
 
-    /* full strength has to be reachable well inside what the filter produces:
-       on real data the dark-sheet response tops out around 0.55 */
-    MU_ASSERT("full CSF strength is reached below a plausible maximum",
-              2.0 * opts.csf_thresh <= 0.55);
-    MU_ASSERT("full WM strength is reached below a plausible maximum",
-              2.0 * opts.wm_thresh <= 0.55);
+    MU_ASSERT("full CSF strength is reached at or below the anchor",
+              2.0 * opts.csf_thresh <= 1.0);
+    MU_ASSERT("full WM strength is reached at or below the anchor",
+              2.0 * opts.wm_thresh <= 1.0);
+
+    /* and it has to sit at the p99 level of the reference response, which the
+       anchor puts at 0.20/0.33 = 0.61 -- the same point the oriented median's
+       default cutoff encodes */
+    MU_ASSERT("the CSF ramp tops out around the reference p99",
+              2.0 * opts.csf_thresh > 0.5 && 2.0 * opts.csf_thresh <= 0.7);
 
     /* and the ramp must never exceed the nominal strength: the steeper slope
        makes (s - thresh) / thresh pass 1 long before the sheetness does */
@@ -599,18 +626,270 @@ static void test_strengthen_wm_blades(void)
     free(lab);
 }
 
+/* ------------------------------------------------------------------ */
+/* buried sulci in a PPM: open the valley, never cut the ridge         */
+/* ------------------------------------------------------------------ */
+
+static void test_open_ppm_sulci(void)
+{
+    const int nvox = N * N * N;
+    float *ppm = (float *)malloc(sizeof(float) * nvox);
+    float *before = (float *)malloc(sizeof(float) * nvox);
+    CAT_PpmSulciOpts opts;
+    int x, y, z;
+
+    MU_ASSERT("alloc", ppm && before);
+
+    /* Two structures, both one voxel thick, both above the isovalue.
+     *
+     *   x = 8   a buried sulcus: a valley floor at 0.60 between banks at 0.95.
+     *           Crossing a sulcus the PPM dips, and here the dip stops short of
+     *           0.5, so marching cubes would bridge the two banks.
+     *   x = 16  a gyral blade: a ridge at 0.95 between flanks at 0.60.  The
+     *           same amplitudes, the opposite sign of curvature -- if the
+     *           correction keyed on "thin sheet" alone it would cut this open. */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+                ppm[IDX(x, y, z)] = 0.95f;
+
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+        {
+            ppm[IDX(8, y, z)] = 0.60f;   /* valley floor */
+
+            ppm[IDX(15, y, z)] = 0.60f;  /* ridge flank  */
+            ppm[IDX(16, y, z)] = 0.95f;  /* ridge crest  */
+            ppm[IDX(17, y, z)] = 0.60f;  /* ridge flank  */
+        }
+
+    memcpy(before, ppm, sizeof(float) * nvox);
+
+    CAT_PpmSulciOptionsInit(&opts);
+    opts.sigma_min = 0.5;
+    opts.sigma_max = 1.0;
+    opts.n_scales = 2;
+
+    MU_ASSERT("open runs",
+              CAT_VolOpenPpmSulci(ppm, NULL, NULL, dims3, vx1, 0.5, &opts) == 0);
+
+    MU_ASSERT("buried sulcus is pushed below the isovalue",
+              ppm[IDX(8, 12, 12)] < 0.5f);
+    MU_ASSERT("the gyral crest is left alone",
+              ppm[IDX(16, 12, 12)] == before[IDX(16, 12, 12)]);
+    MU_ASSERT("solid values well above the isovalue are left alone",
+              ppm[IDX(4, 12, 12)] == before[IDX(4, 12, 12)]);
+
+    /* strictly one-sided: nothing may ever be raised */
+    {
+        int i, raised = 0;
+        for (i = 0; i < nvox; i++)
+            if (ppm[i] > before[i])
+                raised++;
+        MU_ASSERT("no value is ever raised", raised == 0);
+    }
+
+    /* strength 0 must reproduce the input exactly */
+    memcpy(ppm, before, sizeof(float) * nvox);
+    opts.strength = 0.0;
+    MU_ASSERT("open runs",
+              CAT_VolOpenPpmSulci(ppm, NULL, NULL, dims3, vx1, 0.5, &opts) == 0);
+    {
+        int i, changed = 0;
+        for (i = 0; i < nvox; i++)
+            if (ppm[i] != before[i])
+                changed++;
+        MU_ASSERT("strength 0 is an exact no-op", changed == 0);
+    }
+
+    free(ppm);
+    free(before);
+}
+
+/* ------------------------------------------------------------------ */
+/* the sulcus guard: protect a nearby sulcus, but only where there is  */
+/* one -- a guard that vetoes every blade is no better than disabling  */
+/* the strengthening altogether                                        */
+/* ------------------------------------------------------------------ */
+
+static void build_blade_phantom(float *t1, float *lab, int with_sulcus)
+{
+    int x, y, z;
+
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+            {
+                const int i = IDX(x, y, z);
+                lab[i] = 2.0f;
+                t1[i] = 90.0f;
+            }
+
+    /* some real CSF so the class levels can be estimated at all */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+        {
+            lab[IDX(0, y, z)] = 1.0f;
+            t1[IDX(0, y, z)] = 40.0f;
+        }
+
+    /* a one-voxel WM blade at x = 12, interrupted at z = 12 */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+        {
+            lab[IDX(12, y, z)] = 3.0f;
+            t1[IDX(12, y, z)] = 140.0f;
+        }
+    for (y = 0; y < N; y++)
+    {
+        lab[IDX(12, y, 12)] = 2.0f;
+        t1[IDX(12, y, 12)] = 138.0f;
+    }
+
+    /* the occipital case: a sulcal floor one voxel from the blade tip */
+    if (with_sulcus)
+        for (y = 0; y < N; y++)
+            t1[IDX(13, y, 12)] = 45.0f;
+}
+
+static void test_wm_sulcus_guard(void)
+{
+    const int nvox = N * N * N;
+    float *t1 = (float *)malloc(sizeof(float) * nvox);
+    float *lab = (float *)malloc(sizeof(float) * nvox);
+    CAT_SulcusRepairOpts opts;
+    float gap_guarded, gap_unguarded, gap_no_sulcus;
+
+    MU_ASSERT("alloc", t1 && lab);
+
+    CAT_SulcusRepairOptionsInit(&opts);
+    opts.sheet_sigma_min = 0.5;
+    opts.sheet_sigma_max = 1.0;
+    opts.sheet_n_scales = 2;
+
+    /* sulcus adjacent, guard off: the blade is raised and buries the sulcus */
+    build_blade_phantom(t1, lab, 1);
+    opts.wm_sulcus_guard = 0.0;
+    MU_ASSERT("strengthening runs",
+              CAT_VolStrengthenWmBlades(t1, lab, NULL, dims3, vx1, &opts) == 0);
+    gap_unguarded = lab[IDX(12, 12, 12)];
+
+    /* sulcus adjacent, guard on: the blade is left alone */
+    build_blade_phantom(t1, lab, 1);
+    opts.wm_sulcus_guard = 1.0;
+    MU_ASSERT("strengthening runs",
+              CAT_VolStrengthenWmBlades(t1, lab, NULL, dims3, vx1, &opts) == 0);
+    gap_guarded = lab[IDX(12, 12, 12)];
+
+    /* no sulcus anywhere near, guard on: the blade is still repaired */
+    build_blade_phantom(t1, lab, 0);
+    opts.wm_sulcus_guard = 1.0;
+    MU_ASSERT("strengthening runs",
+              CAT_VolStrengthenWmBlades(t1, lab, NULL, dims3, vx1, &opts) == 0);
+    gap_no_sulcus = lab[IDX(12, 12, 12)];
+
+    MU_ASSERT("without the guard the blade buries the sulcus",
+              gap_unguarded > 2.4f);
+    MU_ASSERT("the guard stops that", gap_guarded < gap_unguarded - 0.4f);
+    MU_ASSERT("the guard does not block a blade with no sulcus nearby",
+              gap_no_sulcus > 2.4f);
+
+    free(t1);
+    free(lab);
+}
+
+/* ------------------------------------------------------------------ */
+/* percentile normalization makes the response scale data-independent  */
+/* ------------------------------------------------------------------ */
+
+static void test_sheetness_normalize(void)
+{
+    const int nvox = N * N * N;
+    float *vol = (float *)malloc(sizeof(float) * nvox);
+    float *raw = (float *)malloc(sizeof(float) * nvox);
+    float *norm = (float *)malloc(sizeof(float) * nvox);
+    float *scaled = (float *)malloc(sizeof(float) * nvox);
+    CAT_SheetnessOpts opts;
+    double pct[2] = {50.0, 99.9}, val[2];
+    int x, y, z, i, order_kept = 1, zeros_kept = 1;
+
+    MU_ASSERT("alloc", vol && raw && norm && scaled);
+
+    /* a sheet plus a much stronger step, so the automatic noise scale is set
+       by the step and the sheet response lands well below 1 */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+                vol[IDX(x, y, z)] = (x < 4) ? 0.0f : 2.0f;
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            vol[IDX(14, y, z)] = 1.7f;
+
+    CAT_SheetnessOptionsInit(&opts);
+    opts.polarity = -1;
+    opts.sigma_min = 0.5;
+    opts.sigma_max = 1.0;
+    opts.n_scales = 2;
+
+    opts.normalize = 0.0;
+    MU_ASSERT("raw runs",
+              CAT_VolSheetness(vol, raw, NULL, NULL, dims3, vx1, &opts) == 0);
+
+    opts.normalize = 1.0;
+    MU_ASSERT("normalized runs",
+              CAT_VolSheetness(vol, norm, NULL, NULL, dims3, vx1, &opts) == 0);
+
+    memcpy(scaled, norm, sizeof(float) * nvox);
+    get_prctile(scaled, nvox, val, pct, 1, DT_FLOAT32);
+    MU_ASSERT("p99.9 is moved onto the anchor", fabs(val[1] - 1.0) < 0.02);
+
+    /* the scaling must be a single positive factor: same zero set, same order */
+    for (i = 0; i < nvox; i++)
+    {
+        if ((raw[i] == 0.0f) != (norm[i] == 0.0f))
+            zeros_kept = 0;
+        if (i > 0 && raw[i] > raw[i - 1] && norm[i] < norm[i - 1])
+            order_kept = 0;
+    }
+    MU_ASSERT("the zero set is unchanged", zeros_kept);
+    MU_ASSERT("the ranking is unchanged", order_kept);
+
+    /* a second dataset differing only by a global intensity factor has to give
+       the same normalized response -- that is the whole point of the anchor */
+    for (i = 0; i < nvox; i++)
+        vol[i] *= 7.0f;
+    MU_ASSERT("normalized runs",
+              CAT_VolSheetness(vol, scaled, NULL, NULL, dims3, vx1, &opts) == 0);
+    {
+        double maxdiff = 0.0;
+        for (i = 0; i < nvox; i++)
+            if (fabs((double)scaled[i] - (double)norm[i]) > maxdiff)
+                maxdiff = fabs((double)scaled[i] - (double)norm[i]);
+        MU_ASSERT("a rescaled image gives the same normalized response",
+                  maxdiff < 1e-3);
+    }
+
+    free(vol);
+    free(raw);
+    free(norm);
+    free(scaled);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_eigen_diagonal);
     MU_RUN_TEST(test_eigen_general);
     MU_RUN_TEST(test_sheetness_sheet_vs_blob);
     MU_RUN_TEST(test_sheetness_gain);
+    MU_RUN_TEST(test_sheetness_normalize);
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
     MU_RUN_TEST(test_oriented_median_cutoff);
     MU_RUN_TEST(test_normalize_to_label);
     MU_RUN_TEST(test_recover_sulcal_csf);
     MU_RUN_TEST(test_repair_ramp_reaches_full_strength);
     MU_RUN_TEST(test_strengthen_wm_blades);
+    MU_RUN_TEST(test_open_ppm_sulci);
+    MU_RUN_TEST(test_wm_sulcus_guard);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
