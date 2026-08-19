@@ -58,6 +58,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_VolSmooth**               | Smooths a volume with an isotropic Gaussian kernel. |
 | **CAT_VolSulcusRepair**         | Anatomy-aware repair of a PVE label map before thickness estimation: opens glued sulci and rescues the thin white-matter blades the classifier drops at the gyral crowns, using the intensity image as evidence (see below). |
 | **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. `-oriented-filter` replaces its internal isotropic medians with sheetness-oriented ones (see below). |
+| **CAT_VolThicknessQC**          | Triages implausibly thick cortex in a thickness map by shape: plate-like components are glued sulci and recoverable, solid ones are subcortical grey matter or genuinely thick poles and are not (see below). |
 | **CAT_SurfApplyWarp**           | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
 | **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
 | **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
@@ -195,6 +196,34 @@ The gain multiplies the response and clamps it to `[0,1]`. Because it is linear
 and fixes zero, no value of it can break the no-op guarantee above. It does
 amplify the noise floor along with the sheets, and it lifts the strongest
 responses first, so raise it while watching the map rather than blind.
+
+### Triaging implausible thickness
+
+A thickness map normally carries voxels above any defensible value — cortex does
+not exceed roughly 4.5 mm. Two different faults produce them, and the repair for
+one is harmful applied to the other: a **glued sulcus** is two banks with no CSF
+between them, which `CAT_VolSulcusRepair` can separate, while a **solid mass** is
+cortex merged with subcortical grey matter or a genuinely thick pole, where
+carving a sulcus would invent anatomy.
+
+Thickness alone cannot tell them apart. Shape can, with one number: a glued
+sulcus is a band at most about 5 mm across however far it runs along the sulcus,
+so the largest sphere fitting inside it has a radius of about 2.5 mm, while a
+solid mass has no such bound. **CAT_VolThicknessQC** groups the flagged voxels
+into connected components and reports the maximum inscribed radius of each —
+a measure that depends neither on where a component sits nor on how big it is.
+For scale, a normal 2.5 mm ribbon gives about 1.25 mm.
+
+```bash
+CAT_VolThicknessPbt p0.nii gmt.nii ppm.nii
+CAT_VolThicknessQC -label p0.nii -classmap qc.nii gmt.nii
+```
+
+It prints a component table and a summary, and `-classmap` writes the classes
+(1 = plate, 2 = solid) for overlaying on the thickness map. The plate share of
+the flagged volume is a useful per-subject QC number: a low share means the
+over-thick voxels are anatomy or subcortical labelling rather than something a
+sulcus repair can fix.
 
 References: Han et al., *Proc SPIE Med Imag* 4322:194–203, 2001 (ACE); Han et
 al., *NeuroImage* 23(3):997–1012, 2004 (CRUISE); Kim et al., *NeuroImage*
