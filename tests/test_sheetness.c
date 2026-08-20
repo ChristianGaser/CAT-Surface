@@ -207,17 +207,21 @@ static void test_oriented_median_cutoff(void)
               CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.0, 1) == 0);
     MU_ASSERT("the default cutoff keeps a sheet at the normalized p99 level",
               out[IDX(12, 12, 12)] < 1.1f);
-    MU_ASSERT("the default is the documented one",
-              CAT_ORIENTED_MEDIAN_CUTOFF > 0.29 &&
-              CAT_ORIENTED_MEDIAN_CUTOFF < 0.31);
+    /* The default has to sit inside the anchored scale -- a cutoff at or above
+       0.5 would demand the top 0.1% of the response before a thin sheet is
+       preserved at all, which is the saturation failure the anchor removed. */
+    MU_ASSERT("the default is a fraction of the anchor",
+              CAT_ORIENTED_MEDIAN_CUTOFF > 0.0 &&
+              CAT_ORIENTED_MEDIAN_CUTOFF < 0.5);
 
-    /* and it must still leave a clearly sub-threshold response isotropic */
+    /* and it must still leave a clearly sub-threshold response isotropic:
+       preservation begins at 2 * cutoff, so anything below that is untouched */
     for (i = 0; i < nvox; i++)
-        S[i] = 0.4f;
+        S[i] = (float)(CAT_ORIENTED_MEDIAN_CUTOFF * 0.9);
     memcpy(out, vol, sizeof(float) * nvox);
     MU_ASSERT("oriented median runs",
               CAT_VolOrientedMedian(out, S, nrm, NULL, dims3, 0.0, 1) == 0);
-    MU_ASSERT("a response below the anchor is not protected by the default",
+    MU_ASSERT("a response below the cutoff is not protected by the default",
               out[IDX(12, 12, 12)] > 1.9f);
 
     /* and the zero-sheetness invariant survives every cutoff */
@@ -875,6 +879,74 @@ static void test_sheetness_normalize(void)
     free(scaled);
 }
 
+/* ------------------------------------------------------------------ */
+/* the skeleton collapses a wide response onto its ridge               */
+/* ------------------------------------------------------------------ */
+
+static void test_sheetness_skeleton(void)
+{
+    const int nvox = N * N * N;
+    float *vol = (float *)malloc(sizeof(float) * nvox);
+    float *wide = (float *)malloc(sizeof(float) * nvox);
+    float *thin = (float *)malloc(sizeof(float) * nvox);
+    CAT_SheetnessOpts opts;
+    int x, y, z, i, n_wide = 0, n_thin = 0, subset = 1;
+
+    MU_ASSERT("alloc", vol && wide && thin);
+
+    /* one dark sheet, and a scale large enough that the response spreads to
+       either side of it -- the situation a big sigma_max creates */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+                vol[IDX(x, y, z)] = 2.0f;
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            vol[IDX(12, y, z)] = 1.0f;
+
+    CAT_SheetnessOptionsInit(&opts);
+    opts.polarity = -1;
+    opts.sigma_min = 1.0;
+    opts.sigma_max = 2.0;
+    opts.n_scales = 2;
+    opts.normalize = 0.0;   /* compare raw values, not two different anchors */
+
+    opts.skeletonize = 0;
+    MU_ASSERT("wide runs",
+              CAT_VolSheetness(vol, wide, NULL, NULL, dims3, vx1, &opts) == 0);
+    opts.skeletonize = 1;
+    MU_ASSERT("skeleton runs",
+              CAT_VolSheetness(vol, thin, NULL, NULL, dims3, vx1, &opts) == 0);
+
+    /* the ridge keeps its value exactly: thinning must not rescale anything */
+    MU_ASSERT("the value on the ridge is untouched",
+              thin[IDX(12, 12, 12)] == wide[IDX(12, 12, 12)]);
+
+    /* across the sheet only the ridge survives */
+    MU_ASSERT("the shoulders responded before thinning",
+              wide[IDX(11, 12, 12)] > 0.0f && wide[IDX(13, 12, 12)] > 0.0f);
+    MU_ASSERT("and are gone after it",
+              thin[IDX(11, 12, 12)] == 0.0f && thin[IDX(13, 12, 12)] == 0.0f);
+
+    /* globally it can only remove, never add or raise */
+    for (i = 0; i < nvox; i++)
+    {
+        if (wide[i] > 0.0f)
+            n_wide++;
+        if (thin[i] > 0.0f)
+            n_thin++;
+        if (thin[i] != 0.0f && thin[i] != wide[i])
+            subset = 0;
+    }
+    MU_ASSERT("the skeleton is a subset of the response", subset);
+    MU_ASSERT("and a strictly smaller one", n_thin < n_wide);
+    MU_ASSERT("without emptying it", n_thin > 0);
+
+    free(vol);
+    free(wide);
+    free(thin);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_eigen_diagonal);
@@ -882,6 +954,7 @@ int main(void)
     MU_RUN_TEST(test_sheetness_sheet_vs_blob);
     MU_RUN_TEST(test_sheetness_gain);
     MU_RUN_TEST(test_sheetness_normalize);
+    MU_RUN_TEST(test_sheetness_skeleton);
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
     MU_RUN_TEST(test_oriented_median_cutoff);
     MU_RUN_TEST(test_normalize_to_label);
