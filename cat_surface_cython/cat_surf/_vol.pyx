@@ -150,7 +150,7 @@ def vol_sheetness(volume, voxelsize=None,
                   double sigma_min=0.3, double sigma_max=1.0,
                   int n_scales=3, double alpha=0.5, double beta=0.5,
                   double c=-1.0, double gain=1.0, int polarity=0,
-                  double normalize=1.0,
+                  double normalize=1.0, bint skeletonize=False,
                   bint return_normal=False, bint verbose=False):
     """
     Multi-scale Hessian sheetness (plate) filter.
@@ -266,6 +266,7 @@ def vol_sheetness(volume, voxelsize=None,
     opts.gain = gain
     opts.polarity = polarity
     opts.normalize = normalize
+    opts.skeletonize = 1 if skeletonize else 0
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_VolSheetness(<const float *>src.data,
@@ -538,6 +539,7 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
                       double wm_min_int=2.1, int wm_max_gap=3,
                       double wm_sulcus_guard=1.0,
                       double sheet_normalize=1.0,
+                      bint sheet_skeleton=False,
                       double band_min_dist=1.5, int band_window=4,
                       double band_strength=0.7,
                       bint return_sheetness=False, bint verbose=False,
@@ -704,6 +706,7 @@ def vol_sulcus_repair(t1, label, voxelsize=None,
     opts.wm_max_gap = wm_max_gap
     opts.wm_sulcus_guard = wm_sulcus_guard
     opts.sheet_normalize = sheet_normalize
+    opts.sheet_skeleton = 1 if sheet_skeleton else 0
     opts.band_min_dist = band_min_dist
     opts.band_window = band_window
     opts.band_strength = band_strength
@@ -752,6 +755,7 @@ def vol_open_ppm_sulci(ppm, voxelsize=None, double isovalue=0.5,
                        sheetness=None, normal=None,
                        double sigma_min=0.3, double sigma_max=1.0,
                        int n_scales=3, double sheet_normalize=1.0,
+                       bint sheet_skeleton=False,
                        double sheet_strength=1.0,
                        double thresh=0.1, double band=0.25,
                        double margin=0.05, double strength=1.0,
@@ -851,6 +855,7 @@ def vol_open_ppm_sulci(ppm, voxelsize=None, double isovalue=0.5,
     opts.sigma_max = sigma_max
     opts.n_scales = n_scales
     opts.sheet_normalize = sheet_normalize
+    opts.sheet_skeleton = 1 if sheet_skeleton else 0
     opts.sheet_strength = sheet_strength
     opts.thresh = thresh
     opts.band = band
@@ -1139,6 +1144,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
                        double sulci_sheet_strength=1.0,
                        double sulci_thresh=0.3, double sulci_band=0.25,
                        double sulci_normalize=1.0,
+                       bint sulci_skeleton=False,
                        bint fast=False, label=None,
                        bint verbose=False):
     """
@@ -1194,6 +1200,20 @@ def vol_marching_cubes(volume, double threshold=0.5,
         is measured on the intensity image, this one on the PPM, which is
         the better-conditioned of the two.  Pass ``verbose=True`` to see
         the p99 and maximum of the response next to the threshold.
+    sulci_skeleton : bool
+        Thin the valley field to its medial sheet before any threshold is
+        applied (default False).  The plate response is as wide as the
+        Gaussian that produced it, so a large ``sulci_sigma_max`` locates
+        the valleys well but answers several voxels into the banks on
+        either side, and the per-voxel gates then reach into that tissue
+        too.  Suppressing everything that is not a maximum along its own
+        normal collapses the band onto its ridge line -- one voxel at any
+        scale -- and leaves the value on the ridge unchanged.  Runs before
+        the percentile anchor, so p99.9 is then taken over ridge values.
+    sulci_normalize : float
+        Value the p99.9 of the valley response is scaled to (default 1.0);
+        0 keeps the raw response.  This is what makes ``sulci_thresh``
+        mean the same thing on every dataset.
     sulci_thresh : float
         Sheetness below this is ignored (default 0.1).
     sulci_band : float
@@ -1245,6 +1265,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
     if strength_sulci > 0.0:
         C.CAT_PpmSulciOptionsInit(&sulci_opts)
         sulci_opts.sheet_normalize = sulci_normalize
+        sulci_opts.sheet_skeleton = 1 if sulci_skeleton else 0
         sulci_opts.sheet_strength = sulci_sheet_strength
         sulci_opts.thresh = sulci_thresh
         sulci_opts.band = sulci_band

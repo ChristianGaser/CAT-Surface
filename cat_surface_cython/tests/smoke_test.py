@@ -210,6 +210,36 @@ def test_open_ppm_sulci():
     check("strength 0 is an exact no-op", np.array_equal(noop, ppm))
 
 
+def test_marching_cubes_sulci_kwargs():
+    section("Marching-cubes buried-sulcus kwargs")
+
+    import inspect
+    params = inspect.signature(cat_surf.vol_marching_cubes).parameters
+    for k in ("strength_sulci", "sulci_cutoff", "sulci_sheet_strength",
+              "sulci_thresh", "sulci_band", "sulci_normalize", "sulci_skeleton"):
+        check(f"vol_marching_cubes accepts {k}", k in params)
+
+    # A PPM-like blob with a buried valley: the correction must run end to end
+    # with the skeleton both off and on, and leave the mesh usable either way.
+    zz, yy, xx = np.mgrid[0:N, 0:N, 0:N]
+    r = np.sqrt((xx - N / 2.) ** 2 + (yy - N / 2.) ** 2 + (zz - N / 2.) ** 2)
+    ppm = np.zeros((N, N, N), np.float32)
+    ppm[r < N / 3.] = 0.95
+    ppm[(np.abs(xx - N // 2) <= 0) & (r < N / 4.)] = 0.62
+    aff = np.eye(4)
+
+    for flag in (False, True):
+        try:
+            v, f = cat_surf.vol_marching_cubes((ppm, aff), threshold=0.5,
+                                               strength_sulci=1.0,
+                                               sulci_skeleton=flag)
+            ok = len(v) > 0 and len(f) > 0
+        except Exception as exc:  # pragma: no cover
+            ok = False
+            print(f"       {exc}")
+        check(f"marching cubes runs with sulci_skeleton={flag}", ok)
+
+
 def test_wm_sulcus_guard():
     section("Sulcus guard on blade strengthening")
 
@@ -326,7 +356,8 @@ def test_thickness_qc():
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
-                 test_open_ppm_sulci, test_wm_sulcus_guard,
+                 test_open_ppm_sulci, test_marching_cubes_sulci_kwargs,
+                 test_wm_sulcus_guard,
                  test_sulcus_repair, test_thickness_qc, test_option_no_ops):
         try:
             test()

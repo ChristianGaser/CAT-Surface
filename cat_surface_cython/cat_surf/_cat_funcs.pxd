@@ -413,6 +413,7 @@ cdef extern from "CAT_Sheetness.h":
         double c
         double gain
         double normalize
+        int skeletonize
         int polarity
         int verbose
 
@@ -464,6 +465,7 @@ cdef extern from "CAT_SulcusRepair.h":
         double sheet_sigma_max
         int sheet_n_scales
         double sheet_normalize
+        int sheet_skeleton
         double sheet_strength
         double csf_min_dist
         double csf_min_wmdist
@@ -493,6 +495,7 @@ cdef extern from "CAT_SulcusRepair.h":
         double sigma_max
         int n_scales
         double sheet_normalize
+        int sheet_skeleton
         double sheet_strength
         double thresh
         double band
