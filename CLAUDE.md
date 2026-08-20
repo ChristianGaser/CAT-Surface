@@ -115,13 +115,22 @@ the volume, so the raw level depends on whatever the strongest structure in that
 which is why fixed thresholds used to need a per-dataset gain of 20 or more before anything
 happened. The anchor removes that, and every threshold is now read as a fraction of it:
 
-- `CAT_ORIENTED_MEDIAN_CUTOFF` = **0.30** (was 0.10 on the raw scale)
-- `csf_thresh` / `wm_thresh` / `CAT_PpmSulciOpts::thresh` = **0.3** (were 0.1)
+- `csf_thresh` / `wm_thresh` / `CAT_PpmSulciOpts::thresh` = **0.3** — full effect at twice
+  that, 0.60, which is where the p99 of the reference response sits (raw 0.20 / p99.9 0.33).
+- `CAT_ORIENTED_MEDIAN_CUTOFF` = **0.10**, i.e. preservation from 0.20. Lowered from the
+  0.30 that the same derivation gives, because on real data the median needs to protect
+  well below the p99 level to be useful.
 
-All derive from the same point: full effect at twice the threshold = 0.60, which is where
-the p99 of the reference response sits (raw 0.20 / p99.9 0.33 = 0.61). Scaling is a single
-positive factor, so ranking, winning scale and the zero set are untouched and the s = 0
-invariant still holds exactly.
+Scaling is a single positive factor, so ranking, winning scale and the zero set are
+untouched and the s = 0 invariant still holds exactly.
+
+**`skeletonize` tightens what the thresholds see.** The plate response is as wide as the
+Gaussian that produced it, so a large `sigma_max` locates a structure well but answers
+several voxels into the tissue on either side, and the per-voxel gates then correct that
+tissue too. Non-maximum suppression along the sheet normal collapses the band onto its
+ridge line — one voxel at any scale — leaving the ridge value exactly unchanged. Off by
+default; `-skeleton` on `CAT_VolSheetness`, `-sheet-skeleton` on `CAT_VolSulcusRepair`.
+It runs *before* the anchor, so p99.9 is then taken over ridge values.
 
 `sheet_strength` / `gain` survives as a deliberate relative adjustment but should no longer
 be needed for calibration. Pass `-sheet-normalize 0` (or `-normalize 0` on
