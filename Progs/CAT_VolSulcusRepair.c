@@ -28,7 +28,7 @@ int refine_pve = 0;
 int verbose = 0;
 
 double sheet_sigma_min = 0.3;
-double sheet_sigma_max = 1.0;
+double sheet_sigma_max = 3.0;
 int sheet_n_scales = 3;
 double sheet_strength = 1.0;
 
@@ -43,6 +43,7 @@ double wm_min_int = 2.1;
 int wm_max_gap = 3;
 double wm_sulcus_guard = 1.0;
 double sheet_normalize = CAT_SHEETNESS_NORMALIZE;
+int sheet_skeleton = 0;
 
 double band_min_dist = 1.5;
 int band_window = 4;
@@ -72,7 +73,7 @@ static ArgvInfo argTable[] = {
      "Smallest Gaussian scale of the sheetness filter, in mm (default 0.3)."},
 
     {"-sheet-sigma-max", ARGV_FLOAT, (char *)1, (char *)&sheet_sigma_max,
-     "Largest Gaussian scale of the sheetness filter, in mm (default 1.0).\n\
+     "Largest Gaussian scale of the sheetness filter, in mm (default 3.0).\n\
     The range should bracket the structures being looked for: a sulcal CSF\n\
     sheet or a gyral WM blade that survives at all is one to three voxels\n\
     thick at 0.5 mm. Larger scales start responding to the cortical ribbon\n\
@@ -135,6 +136,17 @@ static ArgvInfo argTable[] = {
     (default 3). This bounds how far the geodesic growth can carry a blade into\n\
     grey matter; it is a reach in voxels, so it does not change meaning with the\n\
     sampling."},
+
+    {"-sheet-skeleton", ARGV_CONSTANT, (char *)1, (char *)&sheet_skeleton,
+     "Thin the sheetness response to its medial sheet before any threshold is\n\
+    applied. The plate response is as wide as the Gaussian that produced it, so\n\
+    the scale that locates a blade or a fundus best also answers several voxels\n\
+    into the tissue on either side; every gate below is per voxel, so that width\n\
+    is read as 'part of a sheet' well beyond the sheet and the correction reaches\n\
+    into what surrounds it. Suppressing everything that is not a maximum along\n\
+    its own normal collapses the band onto its ridge line and leaves the value on\n\
+    the ridge unchanged. Use it when a large -sheet-sigma-max finds the\n\
+    structures but the WM correction is too broad."},
 
     {"-sheet-normalize", ARGV_FLOAT, (char *)1, (char *)&sheet_normalize,
      "Value the p99.9 of the sheetness response is scaled to (default 1.0);\n\
@@ -328,6 +340,7 @@ int main(int argc, char *argv[])
     opts.wm_max_gap = wm_max_gap;
     opts.wm_sulcus_guard = wm_sulcus_guard;
     opts.sheet_normalize = sheet_normalize;
+    opts.sheet_skeleton = sheet_skeleton;
     opts.band_min_dist = band_min_dist;
     opts.band_window = band_window;
     opts.band_strength = band_strength;

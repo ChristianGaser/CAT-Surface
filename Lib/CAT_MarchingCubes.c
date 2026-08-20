@@ -853,6 +853,8 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             sopts.sigma_max = sulci_opts->sigma_max;
             sopts.n_scales = sulci_opts->n_scales;
             sopts.gain = sulci_opts->sheet_strength;
+            sopts.normalize = sulci_opts->sheet_normalize;
+            sopts.skeletonize = sulci_opts->sheet_skeleton;
             sopts.polarity = -1; /* a sulcus is a valley in the PPM */
             sopts.verbose = verbose;
             if (verbose)

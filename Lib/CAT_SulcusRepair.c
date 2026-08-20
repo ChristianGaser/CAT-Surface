@@ -32,6 +32,7 @@ void CAT_SulcusRepairOptionsInit(CAT_SulcusRepairOpts *opts)
     opts->sheet_sigma_max = 1.0;
     opts->sheet_n_scales = 3;
     opts->sheet_normalize = CAT_SHEETNESS_NORMALIZE;
+    opts->sheet_skeleton = 0;
     opts->sheet_strength = 1.0;
 
     opts->csf_min_dist = 1.5;
@@ -235,6 +236,7 @@ int CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
     sopts.n_scales = opts->sheet_n_scales;
     sopts.gain = opts->sheet_strength;
     sopts.normalize = opts->sheet_normalize;
+    sopts.skeletonize = opts->sheet_skeleton;
     sopts.polarity = -1; /* dark sheet: a valley, l3 > 0 */
     sopts.verbose = opts->verbose;
 
@@ -416,6 +418,7 @@ int CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
     sopts.n_scales = opts->sheet_n_scales;
     sopts.gain = opts->sheet_strength;
     sopts.normalize = opts->sheet_normalize;
+    sopts.skeletonize = opts->sheet_skeleton;
     sopts.polarity = 1; /* bright sheet: a ridge, l3 < 0 */
     sopts.verbose = opts->verbose;
 
@@ -751,6 +754,7 @@ int CAT_VolRefinePveNarrowBand(const float *t1, float *label,
     sopts.n_scales = opts->sheet_n_scales;
     sopts.gain = opts->sheet_strength;
     sopts.normalize = opts->sheet_normalize;
+    sopts.skeletonize = opts->sheet_skeleton;
     sopts.polarity = -1;
     sopts.verbose = opts->verbose;
 
@@ -881,10 +885,11 @@ void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts)
         return;
 
     opts->sigma_min = 0.3;
-    opts->sigma_max = 1.0;
+    opts->sigma_max = 3.0;
     opts->n_scales = 3;
     opts->sheet_normalize = CAT_SHEETNESS_NORMALIZE;
-    opts->sheet_strength = 1.0;
+    opts->sheet_skeleton = 0;
+    opts->sheet_strength = 10.0;
     opts->thresh = 0.3;
     opts->band = 0.25;
     opts->margin = 0.05;
@@ -957,6 +962,7 @@ int CAT_VolOpenPpmSulci(float *ppm, const float *sheetness, const float *normal,
         sopts.n_scales = opts->n_scales;
         sopts.gain = opts->sheet_strength;
         sopts.normalize = opts->sheet_normalize;
+        sopts.skeletonize = opts->sheet_skeleton;
         sopts.polarity = -1; /* a sulcus is a valley in the PPM */
         sopts.verbose = opts->verbose;
 

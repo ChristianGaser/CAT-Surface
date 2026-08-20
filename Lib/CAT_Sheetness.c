@@ -46,6 +46,7 @@ void CAT_SheetnessOptionsInit(CAT_SheetnessOpts *opts)
     opts->c = -1.0; /* automatic: half the maximum Hessian norm */
     opts->gain = 1.0;
     opts->normalize = CAT_SHEETNESS_NORMALIZE;
+    opts->skeletonize = 0;
     opts->polarity = 0;
     opts->verbose = 0;
 }
@@ -179,6 +180,40 @@ void CAT_EigenSym3(const double a[6], double eval[3], double evec3[3])
     }
 }
 
+/* Trilinear sample used by the skeleton pass.  Out-of-range coordinates
+   return 0, which makes a voxel on the volume border a maximum along any
+   normal pointing outwards -- the border is not where sheets are decided and
+   suppressing there would only nibble at the edge of the field. */
+static double sample_trilinear(const float *vol, const int dims[3],
+                               double x, double y, double z)
+{
+    const int nx = dims[0], ny = dims[1], nz = dims[2];
+    const int xy = nx * ny;
+    int x0, y0, z0, x1, y1, z1;
+    double fx, fy, fz;
+
+    if (x < 0.0 || y < 0.0 || z < 0.0 ||
+        x > (double)(nx - 1) || y > (double)(ny - 1) || z > (double)(nz - 1))
+        return 0.0;
+
+    x0 = (int)x; y0 = (int)y; z0 = (int)z;
+    x1 = (x0 + 1 < nx) ? x0 + 1 : x0;
+    y1 = (y0 + 1 < ny) ? y0 + 1 : y0;
+    z1 = (z0 + 1 < nz) ? z0 + 1 : z0;
+    fx = x - (double)x0;
+    fy = y - (double)y0;
+    fz = z - (double)z0;
+
+    return (1.0 - fz) * ((1.0 - fy) * ((1.0 - fx) * vol[x0 + y0 * nx + z0 * xy] +
+                                       fx * vol[x1 + y0 * nx + z0 * xy]) +
+                         fy * ((1.0 - fx) * vol[x0 + y1 * nx + z0 * xy] +
+                               fx * vol[x1 + y1 * nx + z0 * xy])) +
+           fz * ((1.0 - fy) * ((1.0 - fx) * vol[x0 + y0 * nx + z1 * xy] +
+                               fx * vol[x1 + y0 * nx + z1 * xy]) +
+                 fy * ((1.0 - fx) * vol[x0 + y1 * nx + z1 * xy] +
+                       fx * vol[x1 + y1 * nx + z1 * xy]));
+}
+
 /**
  * \brief Multi-scale Hessian sheetness (plate) filter.
  *
@@ -227,6 +262,7 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     const int xy = nx * ny;
     const int nvox = xy * nz;
     float *work = NULL;
+    float *own_normal = NULL;
     double vx, vy, vz;
     double a2, b2;
     int i, s;
@@ -251,6 +287,19 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     work = (float *)malloc(sizeof(float) * (size_t)nvox);
     if (!work)
         return -2;
+
+    /* The skeleton needs the sheet normal at every voxel, so when the caller
+       did not ask for the field it is still built internally. */
+    if (opts->skeletonize && !normal)
+    {
+        own_normal = (float *)malloc(sizeof(float) * 3 * (size_t)nvox);
+        if (!own_normal)
+        {
+            free(work);
+            return -2;
+        }
+        normal = own_normal;
+    }
 
     for (i = 0; i < nvox; i++)
         sheetness[i] = 0.0f;
@@ -383,6 +432,83 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                     s + 1, opts->n_scales, sigma);
     }
 
+    /* Skeletonize: keep only the medial sheet.
+     *
+     * The response of a plate filter at scale sigma is as wide as the Gaussian
+     * that produced it, so the scale that detects a sulcus best also spreads
+     * its answer several voxels to either side -- into the tissue on both
+     * banks.  Every consumer gates per voxel, so that width is read as "this
+     * voxel is part of a sheet" well beyond the sheet itself, and a correction
+     * that should have touched a blade or a fundus reaches into what surrounds
+     * it.  Raising sigma_max to find the structure and then having the answer
+     * bleed is the trade-off this removes.
+     *
+     * Suppressing everything that is not a maximum *along its own normal*
+     * collapses that band onto its ridge line -- a one-voxel medial sheet --
+     * while leaving the value on the ridge untouched.  It is the same
+     * non-maximum suppression Canny uses on edges, lifted to the sheet normal
+     * the filter has already computed, and it gives the medial surface far
+     * more cheaply than a morphological thinning or a distance-transform
+     * skeleton would.
+     *
+     * The comparison samples trilinearly rather than at the nearest voxel: a
+     * sheet normal almost never aligns with the grid, and nearest-neighbour
+     * sampling turns that misalignment into a staircased, perforated ridge.
+     *
+     * Ties are kept rather than dropped, so a two-voxel plateau survives as
+     * two voxels instead of vanishing -- for a filter whose entire purpose is
+     * preserving thin structures, erring towards keeping is the right way to
+     * round.  Note this runs before the percentile anchor, so p99.9 is taken
+     * over the ridge values themselves. */
+    if (opts->skeletonize)
+    {
+        float *ridge = (float *)malloc(sizeof(float) * (size_t)nvox);
+        int x, y, z;
+        long n_kept = 0, n_before = 0;
+
+        if (!ridge)
+        {
+            free(work);
+            free(own_normal);
+            return -2;
+        }
+        memcpy(ridge, sheetness, sizeof(float) * (size_t)nvox);
+
+        for (z = 0; z < nz; z++)
+            for (y = 0; y < ny; y++)
+                for (x = 0; x < nx; x++)
+                {
+                    const int idx = x + y * nx + z * xy;
+                    double n0, n1, n2, fwd, bwd;
+
+                    if (ridge[idx] <= 0.0f)
+                        continue;
+                    n_before++;
+
+                    n0 = (double)normal[3 * idx + 0];
+                    n1 = (double)normal[3 * idx + 1];
+                    n2 = (double)normal[3 * idx + 2];
+                    if (n0 == 0.0 && n1 == 0.0 && n2 == 0.0)
+                        continue; /* no direction to suppress along */
+
+                    fwd = sample_trilinear(ridge, dims,
+                                           (double)x + n0, (double)y + n1, (double)z + n2);
+                    bwd = sample_trilinear(ridge, dims,
+                                           (double)x - n0, (double)y - n1, (double)z - n2);
+
+                    if ((double)ridge[idx] < fwd || (double)ridge[idx] < bwd)
+                        sheetness[idx] = 0.0f;
+                    else
+                        n_kept++;
+                }
+
+        free(ridge);
+
+        if (opts->verbose)
+            fprintf(stderr, "  skeleton: %ld of %ld responding voxels kept.\n",
+                    n_kept, n_before);
+    }
+
     /* Percentile normalization, applied before the gain.
      *
      * The automatic noise scale c is half the largest Hessian norm in the
@@ -457,6 +583,7 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     }
 
     free(work);
+    free(own_normal);
     return 0;
 }
 

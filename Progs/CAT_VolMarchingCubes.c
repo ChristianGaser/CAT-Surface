@@ -8,6 +8,7 @@
 
 #include <ParseArgv.h>
 #include "CAT_MarchingCubes.h"
+#include "CAT_Sheetness.h"
 #include "CAT_SurfaceIO.h"
 
 /* argument defaults */
@@ -18,9 +19,11 @@ double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
 double strength_sulci = 0.0;
 double sulci_cutoff = 0.0;
-double sulci_sheet_strength = 1.0;
+double sulci_sheet_strength = 10.0;
 double sulci_thresh = 0.1;
 double sulci_band = 0.25;
+double sulci_normalize = CAT_SHEETNESS_NORMALIZE;
+int sulci_skeleton = 0;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -56,7 +59,7 @@ static ArgvInfo argTable[] = {
      never satisfy, so it cannot cut a gyrus."},
 
   {"-sulci-sheet-strength", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sheet_strength,
-    "Gain on the sheetness response used by -strength-sulci (default 1.0).\n\
+    "Gain on the sheetness response used by -strength-sulci (default 10.0).\n\
      The automatic noise scale of the sheetness filter is half the largest\n\
      Hessian norm in the volume, which on real data is set by the cortical\n\
      ribbon itself. A thin sulcal valley is far weaker than that, so the raw\n\
@@ -76,6 +79,20 @@ static ArgvInfo argTable[] = {
     "Only values in (isovalue, isovalue + band) are opened (default 0.25).\n\
      Raising it reaches more deeply buried sulci at the cost of touching\n\
      tissue further from the surface."},
+
+  {"-sulci-skeleton", ARGV_CONSTANT, (char *) TRUE, (char *) &sulci_skeleton,
+    "Thin the sulcal valley field to its medial sheet before any threshold is\n\
+     applied. The plate response is as wide as the Gaussian that produced it, so\n\
+     a large -sulci-sigma-max locates the valleys well but answers several voxels\n\
+     into the banks on either side; the per-voxel gates then reach into that\n\
+     tissue too. Suppressing everything that is not a maximum along its own\n\
+     normal collapses the band onto its ridge line -- one voxel at any scale --\n\
+     and leaves the value on the ridge unchanged."},
+
+  {"-sulci-normalize", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_normalize,
+    "Value the p99.9 of the valley response is scaled to (default 1.0); pass 0\n\
+     to keep the raw response. This is what makes -sulci-thresh mean the same\n\
+     thing on every dataset."},
 
   {"-sulci-cutoff", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_cutoff,
     "Admission cutoff of the oriented median used with -strength-sulci\n\
@@ -220,11 +237,14 @@ int main(int argc, char *argv[]) {
         if (strength_sulci > 0.0) {
             CAT_PpmSulciOptionsInit(&sulci_opts);
             sulci_opts.sheet_strength = sulci_sheet_strength;
+            sulci_opts.sheet_normalize = sulci_normalize;
+            sulci_opts.sheet_skeleton = sulci_skeleton;
             sulci_opts.thresh = sulci_thresh;
             sulci_opts.band = sulci_band;
             sulci_opts.strength = strength_sulci;
             sulci_opts.cutoff = sulci_cutoff;
             sulci_opts.verbose = verbose;
+            sulci_opts.sheet_skeleton = 1.0;
             sulci_ptr = &sulci_opts;
         }
 

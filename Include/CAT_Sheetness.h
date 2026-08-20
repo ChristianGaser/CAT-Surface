@@ -76,6 +76,27 @@ typedef struct
                            is the mirror of the one it fixes: an image with no
                            sheets at all still has a p99.9, and normalizing to
                            it amplifies noise -- disable it there. */
+    int skeletonize;  /**< 1 to keep only the medial sheet (default 0).
+                           The response of a plate filter at scale sigma is as
+                           wide as the Gaussian that produced it, so the scale
+                           that detects a structure best also spreads its answer
+                           several voxels into the tissue on either side.  Every
+                           consumer gates per voxel, so that width is read as
+                           "part of a sheet" well beyond the sheet itself and a
+                           correction reaches into what surrounds it -- which is
+                           what makes a large sigma_max both the most sensitive
+                           and the least precise setting.
+                           Suppressing everything that is not a maximum along
+                           its own normal collapses the band onto its ridge line,
+                           a one-voxel medial sheet, leaving the value on the
+                           ridge unchanged.  It is Canny's non-maximum
+                           suppression lifted to the sheet normal, and it gives
+                           the medial surface far more cheaply than a
+                           morphological thinning would.
+                           Enable it when a large sigma_max finds the structures
+                           but the corrections bleed into neighbouring tissue.
+                           It runs before the percentile anchor, so p99.9 is
+                           then taken over the ridge values. */
     int polarity;     /**< +1 bright sheets, -1 dark sheets, 0 either */
     int verbose;      /**< 1 to report progress */
 } CAT_SheetnessOpts;

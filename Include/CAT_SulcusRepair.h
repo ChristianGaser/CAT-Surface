@@ -71,6 +71,15 @@ typedef struct
                                  mean the same thing on every dataset; disable it only
                                  where the image may contain no sheets at all, since a
                                  percentile anchor would then amplify noise. */
+    int sheet_skeleton;     /**< 1 to thin the response to its medial sheet before
+                                 any threshold is applied (default 0); passed through as
+                                 CAT_SheetnessOpts::skeletonize.  The plate response is
+                                 as wide as the Gaussian that produced it, so the scale
+                                 that finds a blade or a fundus best also answers several
+                                 voxels into the tissue on either side, and the per-voxel
+                                 gates below then correct that surrounding tissue too.
+                                 Enable it when a large sheet_sigma_max locates the
+                                 structures well but the corrections are too broad. */
     double sheet_strength;  /**< overall gain on the sheetness (default 1.0); passed
                                  through as CAT_SheetnessOpts::gain.  Since the response
                                  is now anchored to its own p99.9 the gain is normally
@@ -260,6 +269,8 @@ typedef struct
     int n_scales;     /**< number of log-spaced scales */
     double sheet_normalize; /**< value the response's p99.9 is scaled to (default
                                  CAT_SHEETNESS_NORMALIZE); <= 0 keeps it raw */
+    int sheet_skeleton;    /**< 1 to thin the response to its medial sheet (default 0);
+                                see CAT_SulcusRepairOpts::sheet_skeleton */
     double sheet_strength; /**< overall gain on the response (default 1.0), passed
                                 through as CAT_SheetnessOpts::gain.  The automatic
                                 noise scale of the sheetness filter is half the

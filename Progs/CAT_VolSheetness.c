@@ -29,6 +29,7 @@ double c_noise   = -1.0;
 double strength  = 1.0;
 int    polarity  = 0;
 double normalize = CAT_SHEETNESS_NORMALIZE;
+int    skeletonize = 0;
 int    verbose   = 0;
 
 static
@@ -67,6 +68,17 @@ ArgvInfo argTable[] = {
          0.5 of the oriented median, below which it is exactly the isotropic\n\
          median.  0 reproduces the isotropic filters exactly.  The same knob is\n\
          called -sheet-strength in the tools that consume the field."},
+    {"-skeleton", ARGV_CONSTANT, (char *) 1, (char *) &skeletonize,
+         "Keep only the medial sheet: suppress every voxel that is not a\n\
+         maximum along its own normal.  The response of a plate filter is as\n\
+         wide as the Gaussian that produced it, so the scale that detects a\n\
+         structure best also spreads its answer several voxels into the tissue\n\
+         on either side; since every consumer gates per voxel, that width is\n\
+         read as 'part of a sheet' well beyond the sheet and corrections reach\n\
+         into what surrounds it.  This collapses the band onto its ridge line\n\
+         -- a one-voxel medial sheet -- leaving the value on the ridge\n\
+         unchanged.  Use it when a large -sigma-max finds the structures but\n\
+         the corrections bleed."},
     {"-normalize", ARGV_FLOAT, (char *) 1, (char *) &normalize,
          "Value the p99.9 of the response is scaled to (default 1.0); pass 0 to\n\
          keep the raw response.  The automatic noise scale is half the largest\n\
@@ -188,6 +200,7 @@ main(int argc, char *argv[])
     opts.gain      = strength;
     opts.polarity  = polarity;
     opts.normalize = normalize;
+    opts.skeletonize = skeletonize;
     opts.verbose   = verbose;
 
     if (verbose)
