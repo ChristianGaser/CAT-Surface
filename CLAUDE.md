@@ -136,7 +136,7 @@ the surface — while also shrinking `sum_dist` and so the thickness. `dist_CSF`
 through GMT, a far gentler dependence, which is why the sulcal direction is usable and the
 gyral one is not. It was implemented, tested on real data, and removed.
 
-### `barrier_gmtmax` is the gate that makes it usable
+### `barrier_gmtfactor` — the gate follows the cortex
 
 The collision test alone is far too permissive on real data. Measured on an ADNI subject
 (`lh.seg`, 0.5 mm), with the thickness gate disabled it caps **20.5% of the cortex** at
@@ -150,13 +150,32 @@ the voxel, `dist_WM + dist_CSF`, separates the two populations; gating on the CS
 alone (`barrier_dmin`) does not, because plenty of ordinary voxels sit far from CSF simply
 by being near the white matter.
 
-| `barrier_gmtmax` | capped | mean GMT | p95 |
+| gate | capped | mean GMT | p95 |
 | --- | --- | --- | --- |
 | off | 20.5% | 1.814 | 2.122 |
 | 4 mm | 5.7% | 2.242 | 3.115 |
-| **5 mm (default)** | **2.4%** | **2.277** | **3.213** |
+| 5 mm | 2.4% | 2.277 | 3.213 |
 | 6 mm | 1.0% | 2.290 | 3.234 |
 | *no barrier at all* | — | 2.311 | 3.246 |
+
+**The threshold is derived from the data, not fixed.** A glued sulcus is two cortices back to
+back, so the gate belongs at a multiple of *this brain's* thickness — `barrier_gmtfactor`,
+default 2.0 — rather than at a millimetre value that is only right for the cortex it was
+tuned on. The median is taken over `dist_WM + dist_CSF` in the GM band: for a band of locally
+constant thickness those are complementary and sum to it exactly, and a median is unmoved by
+the glued minority the gate exists to find. On the ADNI subject it derives 2.72 mm -> 5.45 mm;
+on a deliberately thinned copy of the same brain, 2.48 mm -> 4.96 mm, with the capped
+fraction holding at 1.6-1.9% either way.
+
+The one assumption is that glued sulci are a **minority** — true on a brain, where the
+capped fraction is under 2%, but false on a phantom built entirely out of fused banks, where
+the median measures the fusion itself and the derived gate comes out too loose. Pin
+`-barrier-gmtmax` in that case.
+
+A second caveat: that median is the *pre-projection* proxy and runs about 15% high
+against the GMT finally reported (2.72 vs 2.36 mm here), so a factor of 2.0 is nearer 2.3x
+the reported thickness. `-verbose` prints the value actually in use. `-barrier-gmtmax`
+overrides it with an absolute millimetre value.
 
 With the gate the parameters stop mattering, which was the whole point. Across
 `q` in 0.6-0.9 and `barrier_tmin` in 0.4-0.8 the mean spans 2.252-2.293 mm — a spread of
@@ -171,6 +190,39 @@ Two things that do **not** work, both measured rather than assumed:
 - **Raising `q` towards 1.** `||grad T|| = 1` is the regular value of an uncollided front, so
   `q = 1` admits everything: on an all-healthy phantom it caps 56448 voxels and costs
   0.57 mm of mean thickness, where 0.4-0.8 cap none at all.
+
+## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
+
+A global isovalue shift cannot fix glued sulci without breaking thin gyri, because it moves
+every voxel the same way regardless of what is there. Measured on an ADNI PPM, lowering the
+isovalue by 0.05 produces **88402 downward crossings of 0.5 and zero upward** — every change
+opens a sulcus or thins a blade, indiscriminately.
+
+`CAT_SheetnessOpts::signed_response` makes a valley negative and a ridge positive, so adding
+the map lowers the PPM along sulci and raises it along blades in one pass. Same subject:
+
+| | down | up |
+| --- | --- | --- |
+| global isovalue -0.05 | 88402 | **0** |
+| global isovalue -0.10 | 170511 | **0** |
+| signed offset 0.05 | 5133 | 5141 |
+| signed offset 0.10 | 9980 | 10308 |
+
+Balanced, and two orders of magnitude more surgical.
+
+**The map must be skeletonized before it is used as an offset**, and that is not a
+preference. The flanks of a valley curve upward and therefore read as *ridges*, carrying the
+opposite sign: on a profile through a one-voxel valley the response runs
+`+0.19 +0.29 -0.86 +0.29 +0.19`. Added unthinned, the offset would push the surface the wrong
+way immediately beside every structure. Non-maximum suppression along the normal removes the
+flanks and leaves the structure's own value untouched; `tests/test_sheetness.c` asserts both
+halves of that. Skeletonization is on by default (`-no-sulci-skeleton` disables it), and it
+is a weaker correction at the same offset -- roughly a third of the crossings -- so raise
+`-sheet-offset` by about 3x when comparing against the unthinned field.
+
+Everything internal to the filter stays defined on the magnitude; the sign is applied last,
+after the anchor, the gain and the skeleton. Never hand a signed map to the oriented filters
+-- they clamp to [0,1] and would silently discard every sulcus.
 
 ## The sheetness family (`Include/CAT_Sheetness.h`)## The sheetness family (`Include/CAT_Sheetness.h`)
 

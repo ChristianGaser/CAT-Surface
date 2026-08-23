@@ -1035,6 +1035,91 @@ static void test_sulcal_barrier(void)
     free(band);
 }
 
+/* ------------------------------------------------------------------ */
+/* the signed response tells a valley from a ridge                     */
+/* ------------------------------------------------------------------ */
+
+static void test_sheetness_signed(void)
+{
+    const int nvox = N * N * N;
+    float *vol = (float *)malloc(sizeof(float) * nvox);
+    float *mag = (float *)malloc(sizeof(float) * nvox);
+    float *sgn = (float *)malloc(sizeof(float) * nvox);
+    CAT_SheetnessOpts opts;
+    int x, y, z, i;
+
+    MU_ASSERT("alloc", vol && mag && sgn);
+
+    /* a valley and a ridge of the same depth, as a PPM would carry a sulcus
+       and a gyral blade */
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+                vol[IDX(x, y, z)] = 0.5f;
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+        {
+            vol[IDX(8, y, z)] = 0.1f;   /* valley: a sulcus */
+            vol[IDX(16, y, z)] = 0.9f;  /* ridge:  a blade  */
+        }
+
+    CAT_SheetnessOptionsInit(&opts);
+    opts.polarity = 0;
+    opts.sigma_min = 0.5;
+    opts.sigma_max = 1.0;
+    opts.n_scales = 2;
+    opts.normalize = 0.0;
+
+    opts.signed_response = 0;
+    MU_ASSERT("magnitude runs",
+              CAT_VolSheetness(vol, mag, NULL, NULL, dims3, vx1, &opts) == 0);
+    opts.signed_response = 1;
+    MU_ASSERT("signed runs",
+              CAT_VolSheetness(vol, sgn, NULL, NULL, dims3, vx1, &opts) == 0);
+
+    /* Without the sign the two are indistinguishable, which is precisely why a
+       single global isovalue shift cannot open one while strengthening the
+       other -- it has no way to tell them apart. */
+    MU_ASSERT("unsigned: a valley is positive", mag[IDX(8, 12, 12)] > 0.1f);
+    MU_ASSERT("unsigned: a ridge is positive too", mag[IDX(16, 12, 12)] > 0.1f);
+
+    MU_ASSERT("signed: a valley is negative", sgn[IDX(8, 12, 12)] < -0.1f);
+    MU_ASSERT("signed: a ridge is positive", sgn[IDX(16, 12, 12)] > 0.1f);
+    /* the sign is applied last, so the magnitudes have to agree exactly */
+    for (i = 0; i < nvox; i++)
+        if (fabs(fabs((double)sgn[i]) - (double)mag[i]) > 1e-6)
+        {
+            MU_ASSERT("|signed| equals the unsigned response", 0);
+            break;
+        }
+
+    /* The flanks of a valley curve upward, so they read as ridges and carry the
+       *opposite* sign.  Used as an offset that would push the surface the wrong
+       way immediately beside every structure, which is why the map has to be
+       skeletonized before it is added to anything. */
+    MU_ASSERT("the flanks of a valley carry the opposite sign",
+              sgn[IDX(7, 12, 12)] > 0.1f && sgn[IDX(9, 12, 12)] > 0.1f);
+    MU_ASSERT("and the flanks of a ridge likewise",
+              sgn[IDX(15, 12, 12)] < -0.1f && sgn[IDX(17, 12, 12)] < -0.1f);
+
+    /* thinning removes them and leaves the structure itself untouched */
+    opts.skeletonize = 1;
+    MU_ASSERT("skeletonized signed runs",
+              CAT_VolSheetness(vol, sgn, NULL, NULL, dims3, vx1, &opts) == 0);
+    MU_ASSERT("the valley keeps its sign and value",
+              sgn[IDX(8, 12, 12)] < -0.1f);
+    MU_ASSERT("the ridge keeps its sign and value",
+              sgn[IDX(16, 12, 12)] > 0.1f);
+    MU_ASSERT("the sign-flipped flanks are gone",
+              sgn[IDX(7, 12, 12)] == 0.0f && sgn[IDX(9, 12, 12)] == 0.0f &&
+              sgn[IDX(15, 12, 12)] == 0.0f && sgn[IDX(17, 12, 12)] == 0.0f);
+    opts.skeletonize = 0;
+
+    free(vol);
+    free(mag);
+    free(sgn);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_eigen_diagonal);
@@ -1043,6 +1128,7 @@ int main(void)
     MU_RUN_TEST(test_sheetness_gain);
     MU_RUN_TEST(test_sheetness_normalize);
     MU_RUN_TEST(test_sheetness_skeleton);
+    MU_RUN_TEST(test_sheetness_signed);
     MU_RUN_TEST(test_sulcal_barrier);
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
     MU_RUN_TEST(test_oriented_median_cutoff);
