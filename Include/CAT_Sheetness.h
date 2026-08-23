@@ -97,6 +97,24 @@ typedef struct
                            but the corrections bleed into neighbouring tissue.
                            It runs before the percentile anchor, so p99.9 is
                            then taken over the ridge values. */
+    int signed_response; /**< 1 to return the polarity as a sign (default 0).
+                           With polarity 0 the filter answers on both kinds of
+                           sheet but returns a magnitude, so a consumer cannot
+                           tell a sulcus from a gyral blade.  Setting this makes
+                           a valley -- dark sheet, a dip in a PPM -- come out
+                           negative and a ridge -- a bright sheet, a white-matter
+                           blade -- positive, in [-1, 1].
+                           The point is that the two then move in opposite
+                           directions under a single operation: adding the map
+                           to an image lowers it along sulci and raises it along
+                           blades at the same time, which a global isovalue shift
+                           cannot do -- that opens sulci and breaks thin gyri
+                           with the same stroke.
+                           Everything internal is still defined on the magnitude;
+                           the sign is applied on the way out, after the anchor,
+                           the gain and the skeleton.  Consumers that want a
+                           magnitude (the oriented filters, which clamp to [0,1])
+                           must not be handed a signed map. */
     int polarity;     /**< +1 bright sheets, -1 dark sheets, 0 either */
     int verbose;      /**< 1 to report progress */
 } CAT_SheetnessOpts;

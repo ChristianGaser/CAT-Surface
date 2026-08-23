@@ -66,7 +66,8 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->pve_distance = 0;
     opts->sulcal_barrier = 0;
     opts->barrier_dmin = 2.0;
-    opts->barrier_gmtmax = 5.0;
+    opts->barrier_gmtmax = 0.0;
+    opts->barrier_gmtfactor = 2.0;
     opts->barrier_q = 0.0;
     opts->barrier_tmin = 0.5;
     opts->barrier_halfwidth = 0.0;
@@ -415,6 +416,61 @@ int CAT_VolComputePbt(
             /* the cortical band the fronts travel through */
             for (i = 0; i < nvox; i++)
                 mask[i] = (src_copy[i] > CGM && src_copy[i] < GWM) ? 1 : 0;
+
+            /* Derive the gate from this brain rather than from a constant.
+             *
+             * dist_WM + dist_CSF is the local thickness -- for a band of
+             * locally constant thickness the two are complementary and sum to
+             * it exactly -- so its median over the GM band is the median
+             * cortical thickness, and a median is unmoved by the glued
+             * minority the gate exists to catch.  Twice that is the criterion
+             * in its natural form: a glued sulcus is two cortices back to
+             * back.  Subsampled by two per axis, which is far more than enough
+             * for a median and keeps the buffer small.
+             *
+             * Note this is the thickness *before* the projection, the
+             * min(GMT1, GMT2) and the median filters, and it runs a little
+             * high against the GMT that finally comes out -- 2.72 mm against
+             * 2.36 mm on the subject it was checked on, about 15%.  The factor
+             * is therefore relative to this proxy, not to the reported
+             * thickness; a factor of 2.0 here is roughly 2.3x the final GMT.
+             * Reported under -verbose so the number in use is never a
+             * guess. */
+            if (opts->barrier_gmtmax <= 0.0 && opts->barrier_gmtfactor > 0.0)
+            {
+                int cap = (dims[0] / 2 + 1) * (dims[1] / 2 + 1) * (dims[2] / 2 + 1);
+                double *tbuf = (double *)malloc(sizeof(double) * (size_t)cap);
+                int bx, by, bz, nt = 0;
+
+                if (tbuf)
+                {
+                    for (bz = 0; bz < dims[2]; bz += 2)
+                        for (by = 0; by < dims[1]; by += 2)
+                            for (bx = 0; bx < dims[0]; bx += 2)
+                            {
+                                const int bi = bx + by * dims[0] +
+                                               bz * dims[0] * dims[1];
+                                if (src_copy[bi] > CGM && src_copy[bi] < GWM &&
+                                    nt < cap)
+                                    tbuf[nt++] = (double)dist_WM[bi] +
+                                                 (double)dist_CSF[bi];
+                            }
+
+                    if (nt >= 100)
+                    {
+                        double med = get_median_double(tbuf, nt, 0);
+                        gmtmax_vox = opts->barrier_gmtfactor * med;
+                        if (verbose)
+                            fprintf(stderr, "Sulcal barrier: median dist_WM+"
+                                            "dist_CSF = %.2f mm, gate at %.1fx "
+                                            "= %.2f mm.\n",
+                                    med * (double)mean_vx_size,
+                                    opts->barrier_gmtfactor,
+                                    gmtmax_vox * (double)mean_vx_size);
+                    }
+                    free(tbuf);
+                }
+            }
 
             n_medial = CAT_VolSulcalMedialSet(dist_WM, mask, medial, dims,
                                               opts->barrier_q, tmin_vox);

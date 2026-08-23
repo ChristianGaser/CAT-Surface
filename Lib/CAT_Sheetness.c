@@ -47,6 +47,7 @@ void CAT_SheetnessOptionsInit(CAT_SheetnessOpts *opts)
     opts->gain = 1.0;
     opts->normalize = CAT_SHEETNESS_NORMALIZE;
     opts->skeletonize = 0;
+    opts->signed_response = 0;
     opts->polarity = 0;
     opts->verbose = 0;
 }
@@ -263,6 +264,7 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     const int nvox = xy * nz;
     float *work = NULL;
     float *own_normal = NULL;
+    signed char *sgn = NULL;
     double vx, vy, vz;
     double a2, b2;
     int i, s;
@@ -287,6 +289,21 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     work = (float *)malloc(sizeof(float) * (size_t)nvox);
     if (!work)
         return -2;
+
+    /* Which polarity won at each voxel, kept so the sign can be restored at the
+       very end.  Everything in between -- the percentile anchor, the gain, the
+       skeleton -- is defined on a magnitude, so the response is carried through
+       as one and only signed on the way out.  That way a signed map costs
+       nothing in the paths that do not ask for it and cannot perturb them. */
+    if (opts->signed_response)
+    {
+        sgn = (signed char *)calloc((size_t)nvox, sizeof(signed char));
+        if (!sgn)
+        {
+            free(work);
+            return -2;
+        }
+    }
 
     /* The skeleton needs the sheet normal at every voxel, so when the caller
        did not ask for the field it is still built internally. */
@@ -418,6 +435,8 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                     if (S > (double)sheetness[idx])
                     {
                         sheetness[idx] = (float)S;
+                        if (sgn)
+                            sgn[idx] = (l3 > 0.0) ? -1 : 1;
                         if (normal)
                         {
                             normal[3 * idx + 0] = (float)evec[0];
@@ -470,6 +489,7 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
         {
             free(work);
             free(own_normal);
+            free(sgn);
             return -2;
         }
         memcpy(ridge, sheetness, sizeof(float) * (size_t)nvox);
@@ -580,6 +600,19 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
                 g = 1.0;
             sheetness[i] = (float)g;
         }
+    }
+
+    /* Restore the polarity as a sign.  A valley -- sulcal CSF, a dip in a PPM --
+       comes out negative and a ridge -- a white-matter blade -- positive, so a
+       consumer can add the map straight onto an image and move the two in
+       opposite directions at once.  That is what a single global isovalue shift
+       cannot do: it opens sulci and breaks thin gyri with the same stroke. */
+    if (sgn)
+    {
+        for (i = 0; i < nvox; i++)
+            if (sgn[i] < 0)
+                sheetness[i] = -sheetness[i];
+        free(sgn);
     }
 
     free(work);

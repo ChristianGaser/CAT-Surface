@@ -289,6 +289,27 @@ typedef struct
     double band;      /**< only act on values in (isovalue, isovalue + band) */
     double margin;    /**< how far below the isovalue an opened valley is pushed */
     double strength;  /**< 0..1 blend towards that target */
+    double offset;    /**< signed sheetness offset applied to the map before the
+                           surface is extracted, in map units (default 0 = off).
+                           A sulcus is a valley in a PPM and a gyral blade a
+                           ridge, so a *signed* sheetness is negative on one and
+                           positive on the other, and adding it lowers the map
+                           along sulci while raising it along blades in a single
+                           pass.  This is what a global isovalue shift cannot do:
+                           lowering the isovalue opens glued sulci and severs
+                           thin white-matter fingers with the same stroke,
+                           because it moves every voxel the same way regardless
+                           of what is there.  The offset is scaled by the
+                           response, so it is strongest where the structure is
+                           clearest and vanishes where nothing was found.
+                           sheet_skeleton applies here too, and confines the
+                           offset to the medial line instead of a band as wide
+                           as the Gaussian that produced the response -- the more
+                           defensible place to displace a surface from.  It is
+                           also a weaker correction at the same offset (on a real
+                           PPM it roughly halves the responding field and cuts
+                           isovalue crossings by about two thirds), so raise the
+                           offset to match if you enable it. */
     double cutoff;    /**< admission cutoff of the oriented median the caller may run
                            alongside; <= 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
     int verbose;

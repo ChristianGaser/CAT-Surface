@@ -920,6 +920,72 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             input_float[i] -= vol_float[i];
     }
 
+    /* Use 2a: the signed offset.
+     *
+     * A sulcus is a valley in the PPM and a gyral blade a ridge, so a signed
+     * sheetness is negative on one and positive on the other.  Adding it lowers
+     * the map along sulci and raises it along blades in one pass -- which is
+     * exactly what lowering the isovalue globally cannot do, since that moves
+     * every voxel the same way and so severs thin white-matter fingers at the
+     * same rate as it opens glued sulci.  Here the two corrections have
+     * opposite sign and each acts only where its own structure was found. */
+    if (sulc_sheet && sulci_opts->offset > 0.0)
+    {
+        CAT_SheetnessOpts sopts;
+        float *signed_sheet = (float *)malloc(nvol * sizeof(float));
+
+        if (!signed_sheet)
+        {
+            fprintf(stderr, "Warning: no memory for the signed sheetness offset.\n");
+        }
+        else
+        {
+            long n_dn = 0, n_up = 0;
+
+            CAT_SheetnessOptionsInit(&sopts);
+            sopts.sigma_min = sulci_opts->sigma_min;
+            sopts.sigma_max = sulci_opts->sigma_max;
+            sopts.n_scales = sulci_opts->n_scales;
+            sopts.gain = sulci_opts->sheet_strength;
+            sopts.normalize = sulci_opts->sheet_normalize;
+            /* Skeletonizing confines the offset to the medial line instead of
+               a band as wide as the Gaussian that produced the response, which
+               is the more defensible place to displace a surface from.  It is
+               also a weaker correction for a given offset -- on a real PPM it
+               more than halves the responding field and cuts the number of
+               isovalue crossings by about two thirds -- so the two are not
+               interchangeable at the same strength.  Left under the caller's
+               control rather than forced, since which is better depends on how
+               much opening the data actually needs. */
+            sopts.skeletonize = sulci_opts->sheet_skeleton;
+            sopts.polarity = 0;          /* both kinds of sheet */
+            sopts.signed_response = 1;   /* and tell them apart by sign */
+            sopts.verbose = verbose;
+
+            if (verbose)
+                fprintf(stderr, "Signed sheetness offset (%.3f) on the PPM.\n",
+                        sulci_opts->offset);
+
+            if (CAT_VolSheetness(input_float, signed_sheet, NULL, NULL,
+                                 dims, voxelsize, &sopts) == 0)
+            {
+                for (i = 0; i < nvol; i++)
+                {
+                    float d = (float)(sulci_opts->offset * signed_sheet[i]);
+                    if (d < 0.0f)
+                        n_dn++;
+                    else if (d > 0.0f)
+                        n_up++;
+                    input_float[i] += d;
+                }
+                if (verbose)
+                    fprintf(stderr, "  lowered %ld voxels along sulci, "
+                                    "raised %ld along blades.\n", n_dn, n_up);
+            }
+            free(signed_sheet);
+        }
+    }
+
     /* Use 2: push the valley floors that sit just above the isovalue below it, so
      * marching cubes separates the banks instead of bridging them. */
     if (sulc_sheet)
