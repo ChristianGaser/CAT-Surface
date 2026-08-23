@@ -34,6 +34,7 @@ double sulcal_width = 2.5;
 int pve_distance = 0;
 int oriented_filter = 0;
 int sulcal_barrier = 0;
+int gyral_barrier = 0;
 double barrier_q = 0.0;
 double barrier_tmin = 0.5;
 double barrier_halfwidth = 0.0;
@@ -100,6 +101,21 @@ static ArgvInfo argTable[] = {
      is nearer than the midline and the result is identical to leaving this off;\n\
      the distance can only shrink, so an overestimated thickness can be fixed\n\
      but a correct one can never be inflated."},
+
+    {"-gyral-barrier", ARGV_CONSTANT, (char *)1, (char *)&gyral_barrier,
+     "Stop the WM distance at the gyral medial surface -- the exact dual of\n\
+     -sulcal-barrier, found by the same routine with the other distance map.\n\
+     A thin white-matter blade lies between two sulci. Where the classifier lost\n\
+     it the gyrus is grey matter all the way through, so dist_WM measures out to\n\
+     whatever white matter is left further along instead of to the blade that\n\
+     should have been here; the thickness inflates and the PPM at the gyral core\n\
+     never rises, which is the blade disappearing from the surface.\n\
+     Running the fronts inward from the pial boundary rather than outward from\n\
+     the white matter turns the same collision test into a blade detector: where\n\
+     the blade survives the white matter splits the band and no fronts meet, so\n\
+     this is an exact no-op there; where it was lost they collide exactly where\n\
+     it should have been. One-sided in the opposite direction to the sulcal\n\
+     barrier: it can strengthen a finger but never thin one."},
 
     {"-barrier-q", ARGV_FLOAT, (char *)1, (char *)&barrier_q,
      "Shock threshold of the medial set (default 0, which selects 0.5).\n\
@@ -205,6 +221,7 @@ Options:\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -oriented-filter           Use sheetness-oriented instead of isotropic median filters.\n\
     -sulcal-barrier            Stop the CSF distance at the sulcal medial surface.\n\
+    -gyral-barrier             Stop the WM distance at the gyral medial surface.\n\
     -oriented-cutoff <float>   Admission cutoff of the oriented medians (default 0.10).\n\
     -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
@@ -323,6 +340,7 @@ int main(int argc, char *argv[])
     opts.sulcal_width = sulcal_width;
     opts.oriented_filter = oriented_filter;
     opts.sulcal_barrier = sulcal_barrier;
+    opts.gyral_barrier = gyral_barrier;
     opts.barrier_q = barrier_q;
     opts.barrier_tmin = barrier_tmin;
     opts.barrier_halfwidth = barrier_halfwidth;

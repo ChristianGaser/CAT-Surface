@@ -877,7 +877,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double correct_thickness=0.25,
                       double sulcal_width=2.5,
                       bint pve_distance=False,
-                      bint sulcal_barrier=False,
+                      bint sulcal_barrier=False, bint gyral_barrier=False,
                       double barrier_q=0.0, double barrier_tmin=0.5,
                       double barrier_halfwidth=0.0,
                       bint oriented_filter=False,
@@ -940,6 +940,19 @@ def vol_thickness_pbt(volume, voxelsize=None,
         identical to leaving this off, and the distance can only shrink,
         so an overestimated thickness can be fixed but a correct one can
         never be inflated.
+    gyral_barrier : bool
+        Stop the WM distance at the gyral medial surface (default False) —
+        the exact dual of ``sulcal_barrier``, found by the same routine
+        with the other distance map.  A thin white-matter blade lies
+        between two sulci; where the classifier lost it the gyrus is grey
+        matter all the way through, ``dist_WM`` measures out to whatever
+        white matter is left further along, and the PPM at the gyral core
+        never rises — the blade disappears from the surface.  Running the
+        fronts inward from the pial boundary makes the same collision test
+        a blade detector: where the blade survives the white matter splits
+        the band and no fronts meet, so this is an exact no-op there.
+        One-sided in the opposite direction to the sulcal barrier: it can
+        strengthen a finger but never thin one.
     barrier_q : float
         Shock threshold of the medial set (default 0.0, which selects
         ``CAT_MEDIAL_SET_Q``).  Lower is stricter and gives a thinner
@@ -1026,6 +1039,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.sulcal_width = sulcal_width
     opts.pve_distance = 1 if pve_distance else 0
     opts.sulcal_barrier = 1 if sulcal_barrier else 0
+    opts.gyral_barrier = 1 if gyral_barrier else 0
     opts.barrier_q = barrier_q
     opts.barrier_tmin = barrier_tmin
     opts.barrier_halfwidth = barrier_halfwidth

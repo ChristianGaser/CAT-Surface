@@ -125,6 +125,24 @@ fails below ~0.4; `barrier_halfwidth` does not move the surface at all and trade
 thickness accuracy only. That insensitivity is the point — it is what the pre-PBT repair
 could not deliver.
 
+### The gyral dual (`-gyral-barrier`)
+
+The same routine, fed the other distance map, is a lost-white-matter-blade detector. Run the
+fronts inward from the pial boundary instead of outward from the WM: where a blade survives
+it splits the cortical band and no fronts meet; where it was lost they collide exactly where
+it should have been. Bounding `dist_WM` by that surface raises the PPM at the gyral core and
+strengthens the finger — one-sided in the opposite direction to the sulcal barrier, so it
+can strengthen a blade but never thin one.
+
+Measured on a gyrus phantom with the blade present vs. lost: present is bit-identical with
+the option on (no collisions found at all); losing the blade drops the PPM to **zero
+everywhere** across the gyrus — the blade vanishes from the surface — and the barrier
+restores the profile of the correctly segmented case, 7 voxels above the isovalue either
+way.
+
+Together the two barriers replace what the pre-PBT repair was trying to do, without touching
+the segmentation and without a single intensity-derived threshold.
+
 ## The sheetness family (`Include/CAT_Sheetness.h`)
 
 One shared shape prior feeds four tools, so a change to `Lib/CAT_Sheetness.c` propagates to

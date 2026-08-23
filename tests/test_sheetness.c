@@ -1029,6 +1029,43 @@ static void test_sulcal_barrier(void)
             break;
         }
 
+    /* The dual: run the fronts inward from the pial boundary instead, and the
+       same routine becomes a detector for lost white-matter blades.  Nothing
+       about it changes except which distance map it is handed. */
+    {
+        float *dcsf = (float *)malloc(sizeof(float) * nvox);
+        long g_ok, g_lost;
+
+        MU_ASSERT("alloc", dcsf != NULL);
+
+        /* a blade between two sulci, present then lost */
+        build_bank_phantom(lab, 1);
+        for (i = 0; i < nvox; i++)
+            if (lab[i] > CGM && lab[i] < GWM && (i % N) >= 11 && (i % N) < 13)
+                lab[i] = 3.0f; /* a blade where the sulcus was */
+
+        for (i = 0; i < nvox; i++)
+            dcsf[i] = (lab[i] < CGM) ? 1.0f : 0.0f;
+        euclidean_distance(dcsf, NULL, dims3, NULL, 0);
+        for (i = 0; i < nvox; i++)
+            band[i] = (lab[i] > CGM && lab[i] < GWM) ? 1 : 0;
+        g_ok = CAT_VolSulcalMedialSet(dcsf, band, medial, dims3, 0.0, 1.0);
+
+        build_bank_phantom(lab, 0); /* blade lost: the gyrus is all grey */
+        for (i = 0; i < nvox; i++)
+            dcsf[i] = (lab[i] < CGM) ? 1.0f : 0.0f;
+        euclidean_distance(dcsf, NULL, dims3, NULL, 0);
+        for (i = 0; i < nvox; i++)
+            band[i] = (lab[i] > CGM && lab[i] < GWM) ? 1 : 0;
+        g_lost = CAT_VolSulcalMedialSet(dcsf, band, medial, dims3, 0.0, 1.0);
+
+        MU_ASSERT("a lost blade produces a collision", g_lost > 0);
+        MU_ASSERT("a surviving blade splits the band, so far fewer",
+                  g_ok < g_lost / 4);
+
+        free(dcsf);
+    }
+
     free(lab);
     free(dwm);
     free(medial);

@@ -65,6 +65,7 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->sulcal_width = 2.5;
     opts->pve_distance = 0;
     opts->sulcal_barrier = 0;
+    opts->gyral_barrier = 0;
     opts->barrier_q = 0.0;
     opts->barrier_tmin = 0.5;
     opts->barrier_halfwidth = 0.0;
@@ -128,8 +129,10 @@ int CAT_VolComputePbt(
     float *sheet = NULL;
     float *sheet_nrm = NULL;
 
-    /* sulcal medial surface used as a barrier for the CSF distance */
+    /* sulcal medial surface used as a barrier for the CSF distance, and its
+       dual: the gyral medial surface bounding the WM distance */
     float *medial = NULL;
+    float *gyral = NULL;
 
     unsigned char *mask = NULL;
     float *input = NULL;
@@ -460,6 +463,92 @@ int CAT_VolComputePbt(
         }
     }
 
+    /* Gyral barrier: the exact dual of the block above.
+     *
+     * A thin white-matter blade lies between two sulci.  Where the classifier
+     * lost it the gyrus is grey matter all the way through, so dist_WM measures
+     * out to whatever white matter is left further along the gyrus rather than
+     * to the blade that should have been here -- the thickness inflates and the
+     * PPM at the gyral core never rises, which is the blade disappearing from
+     * the surface.
+     *
+     * Running the fronts inward from the pial boundary instead of outward from
+     * the white matter turns the same collision test into a blade detector:
+     * where the blade survives, the white matter splits the band and no fronts
+     * meet; where it was lost, they collide exactly where it should have been.
+     * Nothing else changes -- it is the same routine with the other distance
+     * map -- and it is one-sided in the opposite direction, raising the PPM at
+     * the core and so strengthening a finger, never thinning one. */
+    if (opts->gyral_barrier)
+    {
+        float *dgyr = NULL;
+        double tmin_vox = opts->barrier_tmin / (double)mean_vx_size;
+        double half_vox = (opts->barrier_halfwidth > 0.0)
+                              ? opts->barrier_halfwidth / (double)mean_vx_size
+                              : 1.0;
+        long n_gyral;
+
+        gyral = (float *)malloc(sizeof(float) * nvox);
+        dgyr = (float *)malloc(sizeof(float) * nvox);
+
+        if (!gyral || !dgyr)
+        {
+            free(gyral);
+            free(dgyr);
+            gyral = NULL;
+            fprintf(stderr, "Warning: no memory for the gyral barrier.\n");
+        }
+        else
+        {
+            for (i = 0; i < nvox; i++)
+                mask[i] = (src_copy[i] > CGM && src_copy[i] < GWM) ? 1 : 0;
+
+            n_gyral = CAT_VolSulcalMedialSet(dist_CSF, mask, gyral, dims,
+                                             opts->barrier_q, tmin_vox);
+
+            if (n_gyral <= 0)
+            {
+                free(gyral);
+                free(dgyr);
+                gyral = NULL;
+                if (verbose)
+                    fprintf(stderr, "Gyral barrier: no collisions found.\n");
+            }
+            else
+            {
+                long n_capped = 0;
+
+                for (i = 0; i < nvox; i++)
+                    dgyr[i] = gyral[i];
+                euclidean_distance(dgyr, NULL, dims, NULL, 0);
+
+                for (i = 0; i < nvox; i++)
+                {
+                    double bound;
+
+                    if (!(src_copy[i] > CGM && src_copy[i] < GWM))
+                        continue;
+
+                    bound = (double)dgyr[i] - half_vox;
+                    if (bound < 0.0)
+                        bound = 0.0;
+
+                    if (bound < (double)dist_WM[i])
+                    {
+                        dist_WM[i] = (float)bound;
+                        n_capped++;
+                    }
+                }
+
+                if (verbose)
+                    fprintf(stderr, "Gyral barrier: %ld medial voxels, "
+                                    "capped dist_WM at %ld of them.\n",
+                            n_gyral, n_capped);
+                free(dgyr);
+            }
+        }
+    }
+
     /* Thickness estimation using sulci reconstruction */
     if (verbose)
         fprintf(stderr, "Estimate thickness map.\n");
@@ -478,6 +567,12 @@ int CAT_VolComputePbt(
         for (i = 0; i < nvox; i++)
             if (medial[i] > 0.0f)
                 input[i] = (float)CSF;
+    }
+    if (gyral)
+    {
+        for (i = 0; i < nvox; i++)
+            if (gyral[i] > 0.0f)
+                input[i] = (float)WM;
     }
 
     projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
@@ -667,6 +762,8 @@ int CAT_VolComputePbt(
         free(sheet_nrm);
     if (medial)
         free(medial);
+    if (gyral)
+        free(gyral);
 
     return 0;
 }
