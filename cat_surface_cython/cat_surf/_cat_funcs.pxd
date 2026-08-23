@@ -360,6 +360,10 @@ cdef extern from "CAT_VolPbt.h":
         double correct_thickness
         double sulcal_width
         int pve_distance
+        int sulcal_barrier
+        double barrier_q
+        double barrier_tmin
+        double barrier_halfwidth
         int oriented_filter
         double oriented_strength
         double oriented_cutoff
@@ -424,6 +428,9 @@ cdef extern from "CAT_Sheetness.h":
     int  CAT_VolOrientedMedian(float *vol, const float *sheetness,
                                const float *normal, const unsigned char *mask,
                                int dims[3], double cutoff, int iters)
+    long CAT_VolSulcalMedialSet(const float *dist_wm,
+                                const unsigned char *mask, float *medial,
+                                int dims[3], double q, double t_min)
     void CAT_EigenSym3(const double a[6], double eval[3], double evec3[3])
 
 

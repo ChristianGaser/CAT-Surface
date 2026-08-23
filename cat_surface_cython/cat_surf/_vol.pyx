@@ -877,6 +877,9 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double correct_thickness=0.25,
                       double sulcal_width=2.5,
                       bint pve_distance=False,
+                      bint sulcal_barrier=False,
+                      double barrier_q=0.0, double barrier_tmin=0.5,
+                      double barrier_halfwidth=0.0,
                       bint oriented_filter=False,
                       double oriented_strength=1.0, double oriented_cutoff=0.0,
                       bint fast=False, bint verbose=False):
@@ -921,6 +924,37 @@ def vol_thickness_pbt(volume, voxelsize=None,
         Mirrors the correction in CAT12's ``cat_vol_pbtsimpleCS4``.
         Shifts the thickness calibration, so ``correct_thickness``
         has to be re-derived when enabling it.
+    sulcal_barrier : bool
+        Stop the CSF distance at the sulcal medial surface (default
+        False).  Where the classifier lost the CSF in a sulcus there is
+        no boundary for the CSF distance to stop at, so the front from
+        one bank runs through the fused grey matter into the other; the
+        thickness follows it, the PPM never drops below the isovalue, and
+        the buried sulcus is created there — in the distance map, long
+        before marching cubes is asked to draw it.  The midline the front
+        should have stopped at is recovered from geometry rather than
+        intensity: it is where the fronts from the two banks collide, so
+        no intensity image and no per-subject threshold are involved.
+        Applied as a minimum, which makes it self-limiting — where CSF
+        *was* segmented it is nearer than the midline and the result is
+        identical to leaving this off, and the distance can only shrink,
+        so an overestimated thickness can be fixed but a correct one can
+        never be inflated.
+    barrier_q : float
+        Shock threshold of the medial set (default 0.0, which selects
+        ``CAT_MEDIAL_SET_Q``).  Lower is stricter and gives a thinner
+        midline; the result is flat over a wide band and then falls off,
+        so the default sits in the middle of the flat region.
+    barrier_tmin : float
+        Ignore collisions closer than this to the WM boundary, in mm
+        (default 0.5).  Stops the barrier carving into thin cortex from
+        the inside.
+    barrier_halfwidth : float
+        Half the width the barrier stands for, in mm (default 0.0, which
+        selects one voxel).  The distance transform measures to the
+        nearest medial voxel centre while the grey matter ends at the
+        surface of that set.  It does not move the 0.5 crossing — it
+        trades against thickness accuracy only.
     oriented_filter : bool
         Replace the isotropic 3x3x3 median filters by sheetness-oriented
         ones (default False).  An isotropic median penalizes boundary
@@ -991,6 +1025,10 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.correct_thickness = correct_thickness
     opts.sulcal_width = sulcal_width
     opts.pve_distance = 1 if pve_distance else 0
+    opts.sulcal_barrier = 1 if sulcal_barrier else 0
+    opts.barrier_q = barrier_q
+    opts.barrier_tmin = barrier_tmin
+    opts.barrier_halfwidth = barrier_halfwidth
     opts.oriented_filter = 1 if oriented_filter else 0
     opts.oriented_strength = oriented_strength
     opts.oriented_cutoff = oriented_cutoff

@@ -234,6 +234,62 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
                           const unsigned char *mask, int dims[3], double cutoff,
                           int iters);
 
+/** \brief Default shock threshold of CAT_VolSulcalMedialSet(). */
+#define CAT_MEDIAL_SET_Q 0.6
+
+/**
+ * \brief Locate sulcal midlines by front collision, from geometry alone.
+ *
+ * The Hessian filters above need the structure to be *visible*: a sulcus has to
+ * leave a dark sheet in the intensity, or a valley in the PPM, before they can
+ * answer.  Where a classifier lost the CSF completely there is nothing left to
+ * see, and on those subjects every intensity-derived threshold has to be
+ * re-tuned -- which is the failure mode this routine exists to avoid.
+ *
+ * It uses no intensity at all.  Take the distance to the white-matter boundary,
+ * propagated through the cortical band, and follow the front outwards: away
+ * from any collision it advances one unit per unit, so ||grad T|| = 1.  Where
+ * two banks stand back to back the nearest white matter flips from one bank to
+ * the other, T turns around, and a centred difference straddling that turn
+ * cancels -- ||grad T|| collapses towards 0.  The set where it does is the
+ * medial surface between the banks, i.e. the sulcus, and it exists whenever the
+ * two banks exist, whatever the intensity looks like between them.
+ *
+ * Gyral crowns cannot produce a false positive, and that is a property of the
+ * construction rather than a guard bolted on: a front leaving a gyral blade has
+ * nothing to collide with, because outside the crown is CSF and not more
+ * cortex.  Only two facing banks make a shock.  This is the shock detection of
+ * ACE (Han et al. 2001), reduced to the Euclidean case that PBT already has the
+ * distance map for.
+ *
+ * A strict q gives a thin set: for a front turning symmetrically about the
+ * midline, ||grad T|| is already back to ~1 one voxel away, so a q in this
+ * range keeps essentially the midline voxels alone.
+ *
+ * The result is flat in q over a wide band and then falls off a cliff: on a
+ * fused-bank phantom 0.5 and 0.7 place the central surface identically, while
+ * 0.3 finds too few collisions to change anything at all.  The default sits in
+ * the middle of the flat region rather than at its edge.
+ *
+ * \param dist_wm   (in)  distance to the WM boundary, in the same units the
+ *                        gradient is taken in (voxel steps; PBT builds it that
+ *                        way, and the isotropic-step assumption is inherited
+ *                        from there)
+ * \param mask      (in)  optional uint8 mask limiting the search to the
+ *                        cortical band; NULL searches everywhere
+ * \param medial    (out) float[nvox], 1 on the medial set and 0 elsewhere
+ * \param dims      (in)  {nx, ny, nz}
+ * \param q         (in)  shock threshold on ||grad T||; <= 0 selects
+ *                        CAT_MEDIAL_SET_Q
+ * \param t_min     (in)  ignore voxels closer than this to the WM boundary,
+ *                        the "T > 1" guard of ACE, which is what stops the set
+ *                        from hugging the inner boundary and carving into thin
+ *                        cortex
+ * \return number of voxels in the medial set, or negative on error
+ */
+long CAT_VolSulcalMedialSet(const float *dist_wm, const unsigned char *mask,
+                            float *medial, int dims[3], double q, double t_min);
+
 /**
  * \brief Eigen-decomposition of a symmetric 3x3 matrix, sorted by magnitude.
  *

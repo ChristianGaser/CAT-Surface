@@ -706,3 +706,83 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
     free(in);
     return 0;
 }
+
+/**
+ * \brief Locate sulcal midlines by front collision, from geometry alone.
+ *
+ * See the header for why this exists next to the Hessian filters: it answers
+ * the same question without needing the sulcus to be visible in any intensity,
+ * which is the case that forces per-subject retuning everywhere else.
+ *
+ * The test is on the centred gradient of the arrival time.  A one-sided
+ * difference would not work: it stays at 1 straight through a shock, because it
+ * never straddles the turn.  The centred one cancels there, and how completely
+ * it cancels is how head-on the collision was, so thresholding it is thresholding
+ * the shock strength.
+ *
+ * \param dist_wm   (in)  distance to the WM boundary, in voxel steps
+ * \param mask      (in)  optional uint8 mask limiting the search; NULL = all
+ * \param medial    (out) float[nvox], 1 on the medial set and 0 elsewhere
+ * \param dims      (in)  {nx, ny, nz}
+ * \param q         (in)  shock threshold; <= 0 selects CAT_MEDIAL_SET_Q
+ * \param t_min     (in)  ignore voxels closer than this to the WM boundary
+ * \return number of voxels in the medial set, or negative on error
+ */
+long CAT_VolSulcalMedialSet(const float *dist_wm, const unsigned char *mask,
+                            float *medial, int dims[3], double q, double t_min)
+{
+    const int nx = dims ? dims[0] : 0;
+    const int ny = dims ? dims[1] : 0;
+    const int nz = dims ? dims[2] : 0;
+    const int xy = nx * ny;
+    const int nvox = xy * nz;
+    long n_medial = 0;
+    int x, y, z, i;
+
+    if (!dist_wm || !medial || !dims || nvox <= 0)
+        return -1;
+    if (nx < 3 || ny < 3 || nz < 3)
+        return -1;
+
+    if (q <= 0.0)
+        q = CAT_MEDIAL_SET_Q;
+
+    for (i = 0; i < nvox; i++)
+        medial[i] = 0.0f;
+
+    for (z = 1; z < nz - 1; z++)
+        for (y = 1; y < ny - 1; y++)
+            for (x = 1; x < nx - 1; x++)
+            {
+                const int idx = x + y * nx + z * xy;
+                double gx, gy, gz, g;
+
+                if (mask && !mask[idx])
+                    continue;
+                if ((double)dist_wm[idx] <= t_min)
+                    continue;
+
+                /* A neighbour outside the band carries no arrival time, so a
+                   difference across it would be meaningless -- and it would
+                   read as a collision, putting a spurious medial sheet along
+                   the outer rim of the cortex.  Skip those voxels instead. */
+                if (mask && (!mask[idx - 1] || !mask[idx + 1] ||
+                             !mask[idx - nx] || !mask[idx + nx] ||
+                             !mask[idx - xy] || !mask[idx + xy]))
+                    continue;
+
+                gx = 0.5 * ((double)dist_wm[idx + 1] - (double)dist_wm[idx - 1]);
+                gy = 0.5 * ((double)dist_wm[idx + nx] - (double)dist_wm[idx - nx]);
+                gz = 0.5 * ((double)dist_wm[idx + xy] - (double)dist_wm[idx - xy]);
+
+                g = sqrt(gx * gx + gy * gy + gz * gz);
+
+                if (g <= q)
+                {
+                    medial[idx] = 1.0f;
+                    n_medial++;
+                }
+            }
+
+    return n_medial;
+}

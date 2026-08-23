@@ -64,6 +64,10 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->correct_thickness = PBT_CORRECT_MM;
     opts->sulcal_width = 2.5;
     opts->pve_distance = 0;
+    opts->sulcal_barrier = 0;
+    opts->barrier_q = 0.0;
+    opts->barrier_tmin = 0.5;
+    opts->barrier_halfwidth = 0.0;
     opts->oriented_filter = 0;
     opts->oriented_strength = 1.0;
     opts->oriented_cutoff = 0.0; /* 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
@@ -123,6 +127,9 @@ int CAT_VolComputePbt(
        medians; NULL keeps every filter isotropic and the result unchanged */
     float *sheet = NULL;
     float *sheet_nrm = NULL;
+
+    /* sulcal medial surface used as a barrier for the CSF distance */
+    float *medial = NULL;
 
     unsigned char *mask = NULL;
     float *input = NULL;
@@ -360,11 +367,119 @@ int CAT_VolComputePbt(
         }
     }
 
+    /* Sulcal barrier.
+     *
+     * Where the classifier lost the CSF in a sulcus there is no boundary for
+     * the CSF distance to stop at, so the front from one bank runs through the
+     * fused grey matter and into the other.  dist_CSF then measures most of the
+     * way across the sulcus, GMT follows it, and the PPM never drops below the
+     * isovalue -- the buried sulcus is created here, in the distance map, long
+     * before marching cubes is asked to draw it.
+     *
+     * The midline the front should have stopped at is still recoverable, and
+     * from geometry rather than intensity: it is where the fronts from the two
+     * banks collide.  Bounding dist_CSF by the distance to that surface puts
+     * the missing boundary back.
+     *
+     * Applying it as a minimum is what makes this safe to leave on.  Where CSF
+     * was segmented properly it is nearer than the midline, the minimum keeps
+     * the real value, and the result is bit-identical to not running this at
+     * all.  Where it was lost the bound takes over.  Either way the distance
+     * can only shrink, so an overestimated thickness can be corrected but a
+     * correct one can never be inflated. */
+    if (opts->sulcal_barrier)
+    {
+        float *dmed = NULL;
+        double tmin_vox = opts->barrier_tmin / (double)mean_vx_size;
+        double half_vox = (opts->barrier_halfwidth > 0.0)
+                              ? opts->barrier_halfwidth / (double)mean_vx_size
+                              : 1.0;
+        long n_medial;
+
+        medial = (float *)malloc(sizeof(float) * nvox);
+        dmed = (float *)malloc(sizeof(float) * nvox);
+
+        if (!medial || !dmed)
+        {
+            free(medial);
+            free(dmed);
+            medial = NULL;
+            fprintf(stderr, "Warning: no memory for the sulcal barrier.\n");
+        }
+        else
+        {
+            /* the cortical band the fronts travel through */
+            for (i = 0; i < nvox; i++)
+                mask[i] = (src_copy[i] > CGM && src_copy[i] < GWM) ? 1 : 0;
+
+            n_medial = CAT_VolSulcalMedialSet(dist_WM, mask, medial, dims,
+                                              opts->barrier_q, tmin_vox);
+
+            if (n_medial <= 0)
+            {
+                free(medial);
+                free(dmed);
+                medial = NULL;
+                if (verbose)
+                    fprintf(stderr, "Sulcal barrier: no collisions found.\n");
+            }
+            else
+            {
+                long n_capped = 0;
+
+                /* distance to the medial surface, in voxel units to match the
+                   distances it is compared against */
+                for (i = 0; i < nvox; i++)
+                    dmed[i] = medial[i];
+                euclidean_distance(dmed, NULL, dims, NULL, 0);
+
+                for (i = 0; i < nvox; i++)
+                {
+                    double bound;
+
+                    if (!(src_copy[i] > CGM && src_copy[i] < GWM))
+                        continue;
+
+                    bound = (double)dmed[i] - half_vox;
+                    if (bound < 0.0)
+                        bound = 0.0;
+
+                    if (bound < (double)dist_CSF[i])
+                    {
+                        dist_CSF[i] = (float)bound;
+                        n_capped++;
+                    }
+                }
+
+                if (verbose)
+                    fprintf(stderr, "Sulcal barrier: %ld medial voxels, "
+                                    "capped dist_CSF at %ld of them.\n",
+                            n_medial, n_capped);
+                free(dmed);
+            }
+        }
+    }
+
     /* Thickness estimation using sulci reconstruction */
     if (verbose)
         fprintf(stderr, "Estimate thickness map.\n");
     for (i = 0; i < nvox; i++)
         input[i] = roundf(src_copy[i]);
+
+    /* The projection has to stop at the barrier too.  Capping the distance is
+     * not enough on its own: projection_based_thickness() carries a thickness
+     * along connected grey matter, and with the banks fused it would hand the
+     * value straight across the sulcus again.  Marking the medial voxels as CSF
+     * in the copy the projection reads stops it there, using the mechanism the
+     * routine already has -- it only projects through voxels between CSF and
+     * WM.  This touches a scratch buffer, never the segmentation. */
+    if (medial)
+    {
+        for (i = 0; i < nvox; i++)
+            if (medial[i] > 0.0f)
+                input[i] = (float)CSF;
+    }
+
     projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
 
     /* Gyri reconstruction (inverse of src) */
@@ -550,6 +665,8 @@ int CAT_VolComputePbt(
         free(sheet);
     if (sheet_nrm)
         free(sheet_nrm);
+    if (medial)
+        free(medial);
 
     return 0;
 }

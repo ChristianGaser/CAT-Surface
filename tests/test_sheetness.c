@@ -947,6 +947,94 @@ static void test_sheetness_skeleton(void)
     free(thin);
 }
 
+/* ------------------------------------------------------------------ */
+/* the sulcal barrier: bound the CSF distance by the collision midline */
+/* ------------------------------------------------------------------ */
+
+static void build_bank_phantom(float *lab, int gap_is_csf)
+{
+    int x, y, z;
+
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+            {
+                const int i = IDX(x, y, z);
+                /* two WM cores with a grey shell, facing each other */
+                if (x >= 4 && x < 8)
+                    lab[i] = 3.0f;          /* WM bank A */
+                else if (x >= 16 && x < 20)
+                    lab[i] = 3.0f;          /* WM bank B */
+                else if (x >= 8 && x < 16)
+                    lab[i] = 2.0f;          /* GM: both banks and the gap */
+                else
+                    lab[i] = 1.0f;          /* CSF outside */
+            }
+
+    /* the sulcus itself: present in one phantom, lost in the other */
+    if (gap_is_csf)
+        for (z = 0; z < N; z++)
+            for (y = 0; y < N; y++)
+                for (x = 11; x < 13; x++)
+                    lab[IDX(x, y, z)] = 1.0f;
+}
+
+static void test_sulcal_barrier(void)
+{
+    const int nvox = N * N * N;
+    float *lab = (float *)malloc(sizeof(float) * nvox);
+    float *dwm = (float *)malloc(sizeof(float) * nvox);
+    float *medial = (float *)malloc(sizeof(float) * nvox);
+    unsigned char *band = (unsigned char *)malloc(nvox);
+    long n_ok, n_fused;
+    int i;
+
+    MU_ASSERT("alloc", lab && dwm && medial && band);
+
+    /* A properly segmented sulcus splits the band in two, so no front ever
+       meets another and there is nothing to find -- which is exactly why the
+       barrier is free to be left on. */
+    build_bank_phantom(lab, 1);
+    for (i = 0; i < nvox; i++)
+        dwm[i] = (lab[i] > GWM) ? 1.0f : 0.0f;
+    euclidean_distance(dwm, NULL, dims3, NULL, 0);
+    for (i = 0; i < nvox; i++)
+        band[i] = (lab[i] > CGM && lab[i] < GWM) ? 1 : 0;
+    n_ok = CAT_VolSulcalMedialSet(dwm, band, medial, dims3, 0.0, 1.0);
+
+    /* Fuse the banks and the collision appears, with no intensity involved. */
+    build_bank_phantom(lab, 0);
+    for (i = 0; i < nvox; i++)
+        dwm[i] = (lab[i] > GWM) ? 1.0f : 0.0f;
+    euclidean_distance(dwm, NULL, dims3, NULL, 0);
+    for (i = 0; i < nvox; i++)
+        band[i] = (lab[i] > CGM && lab[i] < GWM) ? 1 : 0;
+    n_fused = CAT_VolSulcalMedialSet(dwm, band, medial, dims3, 0.0, 1.0);
+
+    MU_ASSERT("a fused sulcus produces a collision", n_fused > 0);
+    MU_ASSERT("a segmented one produces far fewer", n_ok < n_fused / 4);
+
+    /* and the collision sits on the midline, not against either bank */
+    MU_ASSERT("the medial set is at the midline",
+              medial[IDX(12, 12, 12)] > 0.0f);
+    MU_ASSERT("and not at the WM boundary",
+              medial[IDX(9, 12, 12)] == 0.0f &&
+              medial[IDX(15, 12, 12)] == 0.0f);
+
+    /* it must never appear outside the band it was given */
+    for (i = 0; i < nvox; i++)
+        if (medial[i] > 0.0f && !band[i])
+        {
+            MU_ASSERT("the medial set stays inside the mask", 0);
+            break;
+        }
+
+    free(lab);
+    free(dwm);
+    free(medial);
+    free(band);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_eigen_diagonal);
@@ -955,6 +1043,7 @@ int main(void)
     MU_RUN_TEST(test_sheetness_gain);
     MU_RUN_TEST(test_sheetness_normalize);
     MU_RUN_TEST(test_sheetness_skeleton);
+    MU_RUN_TEST(test_sulcal_barrier);
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
     MU_RUN_TEST(test_oriented_median_cutoff);
     MU_RUN_TEST(test_normalize_to_label);

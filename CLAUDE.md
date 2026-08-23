@@ -92,6 +92,39 @@ Defaults live in the C source of truth (`Include/CAT_WarpDemons.h` +
 build time — never commit them. Building needs Cython (`pip install cython`, or just build
 through pip, which installs it from `build-system.requires`).
 
+## The sulcal barrier in PBT (`-sulcal-barrier`)
+
+The buried sulcus is created in the **distance map**, not at marching cubes. Where the
+classifier lost the CSF in a sulcus there is no boundary for the CSF distance to stop at,
+so the front from one bank runs through the fused grey matter into the other; GMT follows
+it and the PPM never drops below the isovalue.
+
+`CAT_VolSulcalMedialSet()` recovers the midline the front should have stopped at **from
+geometry alone** — it is where the fronts from the two banks collide, detected as
+`||grad dist_WM|| <= q`. No intensity image, no sheetness, no per-subject threshold. Gyral
+crowns cannot false-positive, and that is structural rather than a guard: a front leaving a
+blade has nothing to collide with, because outside the crown is CSF and not more cortex.
+
+Two properties make it safe to leave on, and both are asserted in the tests:
+
+- **Applied as a minimum.** Where CSF *was* segmented it is nearer than the midline, so the
+  result is bit-identical to not running it. A correctly segmented sulcus also produces no
+  collisions at all, because the CSF splits the band.
+- **One-sided.** The distance can only shrink, so an overestimated thickness can be fixed
+  but a correct one can never be inflated.
+
+It gates the projection too — capping the distance alone is not enough, because
+`projection_based_thickness()` would hand the thickness straight across the fused banks
+again. The medial voxels are marked CSF in the scratch copy the projection reads, never in
+the segmentation.
+
+Measured on a fused-bank phantom against the same phantom correctly segmented (GMT 2.19 mm,
+surfaces at x = 25/38): fusing gives GMT 4.19 and surfaces at 26/36; the barrier restores
+GMT 2.19 exactly and surfaces to 25/37. `barrier_q` is flat between 0.5 and 0.7 and only
+fails below ~0.4; `barrier_halfwidth` does not move the surface at all and trades against
+thickness accuracy only. That insensitivity is the point — it is what the pre-PBT repair
+could not deliver.
+
 ## The sheetness family (`Include/CAT_Sheetness.h`)
 
 One shared shape prior feeds four tools, so a change to `Lib/CAT_Sheetness.c` propagates to

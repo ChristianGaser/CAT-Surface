@@ -33,6 +33,10 @@ double correct_thickness = 0.25;
 double sulcal_width = 2.5;
 int pve_distance = 0;
 int oriented_filter = 0;
+int sulcal_barrier = 0;
+double barrier_q = 0.0;
+double barrier_tmin = 0.5;
+double barrier_halfwidth = 0.0;
 double oriented_strength = 1.0;
 double oriented_cutoff = 0.0;
 
@@ -81,6 +85,36 @@ static ArgvInfo argTable[] = {
     {"-median-subsample", ARGV_INT, (char *)TRUE, (char *)&median_subsample,
      "Specify the size of subsampling for the median filter to smooth local\n\
      thickness values"},
+
+    {"-sulcal-barrier", ARGV_CONSTANT, (char *)1, (char *)&sulcal_barrier,
+     "Stop the CSF distance at the sulcal medial surface.\n\
+     Where the classifier lost the CSF in a sulcus there is no boundary for the\n\
+     CSF distance to stop at, so the front from one bank runs through the fused\n\
+     grey matter into the other; the thickness follows it, the PPM never drops\n\
+     below the isovalue, and the buried sulcus is created there -- in the\n\
+     distance map, long before marching cubes is asked to draw it.\n\
+     The midline the front should have stopped at is recovered from geometry\n\
+     rather than intensity: it is where the fronts from the two banks collide.\n\
+     No intensity image and no per-subject threshold are involved.\n\
+     The bound is applied as a minimum, so where CSF was segmented properly it\n\
+     is nearer than the midline and the result is identical to leaving this off;\n\
+     the distance can only shrink, so an overestimated thickness can be fixed\n\
+     but a correct one can never be inflated."},
+
+    {"-barrier-q", ARGV_FLOAT, (char *)1, (char *)&barrier_q,
+     "Shock threshold of the medial set (default 0, which selects 0.5).\n\
+     Lower is stricter and gives a thinner midline."},
+
+    {"-barrier-tmin", ARGV_FLOAT, (char *)1, (char *)&barrier_tmin,
+     "Ignore collisions closer than this to the WM boundary, in mm (default\n\
+     0.5). This is what stops the barrier carving into thin cortex from the\n\
+     inside."},
+
+    {"-barrier-halfwidth", ARGV_FLOAT, (char *)1, (char *)&barrier_halfwidth,
+     "Half the width of the CSF sheet the barrier stands for, in mm (default 0,\n\
+     which selects half a voxel). The distance transform measures to the medial\n\
+     voxel centre while the grey matter ends at that sheet's surface, so the raw\n\
+     distance is short by half its width."},
 
     {"-oriented-filter", ARGV_CONSTANT, (char *)1, (char *)&oriented_filter,
      "Replace the isotropic 3x3x3 median filters by sheetness-oriented ones.\n\
@@ -170,6 +204,7 @@ Options:\n\
     -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -oriented-filter           Use sheetness-oriented instead of isotropic median filters.\n\
+    -sulcal-barrier            Stop the CSF distance at the sulcal medial surface.\n\
     -oriented-cutoff <float>   Admission cutoff of the oriented medians (default 0.10).\n\
     -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
@@ -287,6 +322,10 @@ int main(int argc, char *argv[])
     opts.median_subsample = median_subsample;
     opts.sulcal_width = sulcal_width;
     opts.oriented_filter = oriented_filter;
+    opts.sulcal_barrier = sulcal_barrier;
+    opts.barrier_q = barrier_q;
+    opts.barrier_tmin = barrier_tmin;
+    opts.barrier_halfwidth = barrier_halfwidth;
     opts.oriented_strength = oriented_strength;
     opts.oriented_cutoff = oriented_cutoff;
 

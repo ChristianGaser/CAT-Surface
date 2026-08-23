@@ -275,6 +275,58 @@ def test_wm_sulcus_guard():
           no_sulcus[12, 12, 12] > 2.4, f"{no_sulcus[12, 12, 12]:.3f}")
 
 
+def test_sulcal_barrier():
+    section("Sulcal barrier in PBT")
+
+    M = 64
+    def build(gap_is_csf):
+        v = np.ones((M, M, M), np.float32)
+        v[24:40, 10:54, 10:54] = 2.0
+        v[16:24, 10:54, 10:54] = 3.0
+        v[40:48, 10:54, 10:54] = 3.0
+        v[10:16, 10:54, 10:54] = 1.0
+        v[48:54, 10:54, 10:54] = 1.0
+        if gap_is_csf:
+            v[30:34, 10:54, 10:54] = 1.0
+        return v
+
+    vx = (0.5, 0.5, 0.5)
+
+    def run(vol, barrier):
+        g, ppm, _, _ = cat_surf.vol_thickness_pbt(vol, voxelsize=vx,
+                                                  sulcal_barrier=barrier)
+        prof = ppm[24:41, 32, 32]
+        xs = [24 + i for i in range(len(prof) - 1)
+              if (prof[i] - 0.5) * (prof[i + 1] - 0.5) < 0]
+        return g, ppm, xs
+
+    # A properly segmented sulcus splits the cortical band, so no two fronts
+    # ever meet and there is nothing for the barrier to do.  That has to be an
+    # exact no-op, not merely a small one -- it is what makes the option safe
+    # to leave on for every subject.
+    g_off, p_off, x_off = run(build(True), False)
+    g_on, p_on, x_on = run(build(True), True)
+    check("a segmented sulcus is left bit-identical",
+          np.array_equal(g_off, g_on) and np.array_equal(p_off, p_on))
+
+    # With the CSF lost, the distance runs across the fused grey matter and the
+    # thickness follows it; the barrier has to put the missing boundary back.
+    gf_off, pf_off, xf_off = run(build(False), False)
+    gf_on, pf_on, xf_on = run(build(False), True)
+
+    check("fusing the banks overestimates the thickness",
+          gf_off[27, 32, 32] > g_off[27, 32, 32] + 1.0,
+          f"{gf_off[27, 32, 32]:.2f} vs {g_off[27, 32, 32]:.2f}")
+    check("the barrier recovers it",
+          abs(gf_on[27, 32, 32] - g_off[27, 32, 32]) < 0.3,
+          f"{gf_on[27, 32, 32]:.2f} vs {g_off[27, 32, 32]:.2f}")
+    check("and never inflates a thickness", bool((gf_on <= gf_off + 1e-4).all()))
+    check("the central surfaces move back apart",
+          len(xf_on) == 2 and len(xf_off) == 2 and
+          (xf_on[1] - xf_on[0]) > (xf_off[1] - xf_off[0]),
+          f"{xf_on} vs {xf_off}")
+
+
 def test_option_no_ops():
     section("Backward compatibility of the new options")
 
@@ -357,7 +409,7 @@ def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs,
-                 test_wm_sulcus_guard,
+                 test_wm_sulcus_guard, test_sulcal_barrier,
                  test_sulcus_repair, test_thickness_qc, test_option_no_ops):
         try:
             test()
