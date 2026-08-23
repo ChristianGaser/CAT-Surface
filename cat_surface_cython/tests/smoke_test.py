@@ -292,9 +292,10 @@ def test_sulcal_barrier():
 
     vx = (0.5, 0.5, 0.5)
 
-    def run(vol, barrier):
+    def run(vol, barrier, gmtmax=0.0):
         g, ppm, _, _ = cat_surf.vol_thickness_pbt(vol, voxelsize=vx,
-                                                  sulcal_barrier=barrier)
+                                                  sulcal_barrier=barrier,
+                                                  barrier_gmtmax=gmtmax)
         prof = ppm[24:41, 32, 32]
         xs = [24 + i for i in range(len(prof) - 1)
               if (prof[i] - 0.5) * (prof[i + 1] - 0.5) < 0]
@@ -311,8 +312,13 @@ def test_sulcal_barrier():
 
     # With the CSF lost, the distance runs across the fused grey matter and the
     # thickness follows it; the barrier has to put the missing boundary back.
+    # The gate is pinned here rather than derived.  This phantom is fused
+    # everywhere, so the median thickness it would derive the gate from is
+    # itself measuring the fused band -- the estimator assumes glued sulci are
+    # a minority, which holds on a brain (1.6% of the cortex on the subject it
+    # was checked against) but not on a phantom built entirely out of them.
     gf_off, pf_off, xf_off = run(build(False), False)
-    gf_on, pf_on, xf_on = run(build(False), True)
+    gf_on, pf_on, xf_on = run(build(False), True, gmtmax=5.0)
 
     check("fusing the banks overestimates the thickness",
           gf_off[27, 32, 32] > g_off[27, 32, 32] + 1.0,
@@ -325,6 +331,53 @@ def test_sulcal_barrier():
           len(xf_on) == 2 and len(xf_off) == 2 and
           (xf_on[1] - xf_on[0]) > (xf_off[1] - xf_off[0]),
           f"{xf_on} vs {xf_off}")
+
+
+def test_barrier_gate_scales_with_thickness():
+    section("Barrier gate follows the cortex")
+
+    M = 64
+
+    def banks(bank, fused):
+        """Two banks of `bank` voxels each, fused or properly separated."""
+        v = np.ones((M, M, M), np.float32)
+        mid = 32
+        a0, b1 = mid - 2 * bank, mid + 2 * bank
+        v[a0:b1, 10:54, 10:54] = 2.0
+        v[a0 - 8:a0, 10:54, 10:54] = 3.0
+        v[b1:b1 + 8, 10:54, 10:54] = 3.0
+        v[a0 - 14:a0 - 8, 10:54, 10:54] = 1.0
+        v[b1 + 8:b1 + 14, 10:54, 10:54] = 1.0
+        if not fused:
+            v[mid - 1:mid + 1, 10:54, 10:54] = 1.0
+        return v
+
+    vx = (0.5, 0.5, 0.5)
+
+    # The same factor has to work on both a thin and a thick cortex, because
+    # the threshold it produces is derived from each one separately.  A fixed
+    # millimetre gate can only be right for the thickness it was tuned on.
+    for bank, label in ((3, "thin"), (6, "thick")):
+        g_ok, _, _, _ = cat_surf.vol_thickness_pbt(banks(bank, False), voxelsize=vx)
+        g_off, _, _, _ = cat_surf.vol_thickness_pbt(banks(bank, True), voxelsize=vx)
+        g_on, _, _, _ = cat_surf.vol_thickness_pbt(banks(bank, True), voxelsize=vx,
+                                                   sulcal_barrier=True)
+        ref = g_ok[g_ok > 0.3].mean()
+        bad = g_off[g_off > 0.3].mean()
+        fixed = g_on[g_on > 0.3].mean()
+        check(f"{label} cortex: fusing overestimates", bad > ref + 0.2,
+              f"{bad:.2f} vs {ref:.2f}")
+        check(f"{label} cortex: the derived gate still catches it",
+              abs(fixed - ref) < abs(bad - ref),
+              f"{fixed:.2f} -> ref {ref:.2f}, was {bad:.2f}")
+
+    # and a properly segmented cortex is untouched whatever its thickness
+    for bank, label in ((3, "thin"), (6, "thick")):
+        v = banks(bank, False)
+        g0, p0, _, _ = cat_surf.vol_thickness_pbt(v, voxelsize=vx)
+        g1, p1, _, _ = cat_surf.vol_thickness_pbt(v, voxelsize=vx, sulcal_barrier=True)
+        check(f"{label} cortex: segmented case is bit-identical",
+              np.array_equal(g0, g1) and np.array_equal(p0, p1))
 
 
 def test_option_no_ops():
@@ -410,6 +463,7 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs,
                  test_wm_sulcus_guard, test_sulcal_barrier,
+                 test_barrier_gate_scales_with_thickness,
                  test_sulcus_repair, test_thickness_qc, test_option_no_ops):
         try:
             test()

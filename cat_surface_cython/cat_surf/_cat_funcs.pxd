@@ -362,6 +362,7 @@ cdef extern from "CAT_VolPbt.h":
         int pve_distance
         int sulcal_barrier
         double barrier_q
+        double barrier_gmtfactor
         double barrier_gmtmax
         double barrier_dmin
         double barrier_tmin
@@ -420,6 +421,7 @@ cdef extern from "CAT_Sheetness.h":
         double gain
         double normalize
         int skeletonize
+        int signed_response
         int polarity
         int verbose
 
@@ -510,6 +512,7 @@ cdef extern from "CAT_SulcusRepair.h":
         double band
         double margin
         double strength
+        double offset
         double cutoff
         int verbose
 

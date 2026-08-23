@@ -151,6 +151,7 @@ def vol_sheetness(volume, voxelsize=None,
                   int n_scales=3, double alpha=0.5, double beta=0.5,
                   double c=-1.0, double gain=1.0, int polarity=0,
                   double normalize=1.0, bint skeletonize=False,
+                  bint signed_response=False,
                   bint return_normal=False, bint verbose=False):
     """
     Multi-scale Hessian sheetness (plate) filter.
@@ -210,6 +211,16 @@ def vol_sheetness(volume, voxelsize=None,
         ``-1`` only dark sheets (valleys, e.g. sulcal CSF), ``0`` either
         (default).  This guard is what stops a WM-blade detector from
         responding to sulci and vice versa.
+    signed_response : bool
+        Return the polarity as a sign (default False).  With ``polarity=0``
+        the filter answers on both kinds of sheet but returns a magnitude,
+        so a consumer cannot tell a sulcus from a gyral blade.  This makes
+        a valley (dark sheet, a dip in a PPM) come out negative and a ridge
+        (bright sheet, a white-matter blade) positive, in [-1, 1] — so the
+        two move in opposite directions under a single operation.  Adding
+        the map to an image lowers it along sulci and raises it along blades
+        at once, which a global isovalue shift cannot do.  Do not hand a
+        signed map to the oriented filters: they clamp to [0, 1].
     return_normal : bool
         Also return the unit sheet normals (default False).
     verbose : bool
@@ -267,6 +278,7 @@ def vol_sheetness(volume, voxelsize=None,
     opts.polarity = polarity
     opts.normalize = normalize
     opts.skeletonize = 1 if skeletonize else 0
+    opts.signed_response = 1 if signed_response else 0
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_VolSheetness(<const float *>src.data,
@@ -879,7 +891,8 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       bint pve_distance=False,
                       bint sulcal_barrier=False,
                       double barrier_q=0.0, double barrier_tmin=0.5,
-                      double barrier_gmtmax=5.0, double barrier_dmin=2.0,
+                      double barrier_gmtfactor=2.0, double barrier_gmtmax=0.0,
+                      double barrier_dmin=2.0,
                       double barrier_halfwidth=0.0,
                       bint oriented_filter=False,
                       double oriented_strength=1.0, double oriented_cutoff=0.0,
@@ -946,6 +959,18 @@ def vol_thickness_pbt(volume, voxelsize=None,
         ``CAT_MEDIAL_SET_Q``).  Lower is stricter and gives a thinner
         midline; the result is flat over a wide band and then falls off,
         so the default sits in the middle of the flat region.
+    barrier_gmtfactor : float
+        Multiple of the median thickness at which the gate sits (default
+        2.0; <= 0 disables the gate).  The criterion in its natural form —
+        a glued sulcus is *two* cortices back to back, so the threshold
+        belongs at twice the typical thickness of the brain being
+        processed rather than at a fixed millimetre value that is only
+        right for the cortex it was tuned on.  The median is taken over
+        ``dist_WM + dist_CSF`` in the GM band, which for a band of locally
+        constant thickness is that thickness exactly, and a median is
+        unmoved by the glued minority the gate exists to catch.  It is the
+        *pre-projection* proxy though, running ~15% high against the
+        reported GMT, so 2.0 here is nearer 2.3x the final thickness.
     barrier_gmtmax : float
         Only bound where the implied thickness is impossible for cortex,
         in mm (default 5.0; 0 disables).  This is the gate that matters.
@@ -1046,6 +1071,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.pve_distance = 1 if pve_distance else 0
     opts.sulcal_barrier = 1 if sulcal_barrier else 0
     opts.barrier_q = barrier_q
+    opts.barrier_gmtfactor = barrier_gmtfactor
     opts.barrier_gmtmax = barrier_gmtmax
     opts.barrier_dmin = barrier_dmin
     opts.barrier_tmin = barrier_tmin
@@ -1203,7 +1229,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
                        double sulci_sheet_strength=1.0,
                        double sulci_thresh=0.3, double sulci_band=0.25,
                        double sulci_normalize=1.0,
-                       bint sulci_skeleton=False,
+                       bint sulci_skeleton=False, double sheet_offset=0.0,
                        bint fast=False, label=None,
                        bint verbose=False):
     """
@@ -1325,6 +1351,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
         C.CAT_PpmSulciOptionsInit(&sulci_opts)
         sulci_opts.sheet_normalize = sulci_normalize
         sulci_opts.sheet_skeleton = 1 if sulci_skeleton else 0
+        sulci_opts.offset = sheet_offset
         sulci_opts.sheet_strength = sulci_sheet_strength
         sulci_opts.thresh = sulci_thresh
         sulci_opts.band = sulci_band
