@@ -877,8 +877,9 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double correct_thickness=0.25,
                       double sulcal_width=2.5,
                       bint pve_distance=False,
-                      bint sulcal_barrier=False, bint gyral_barrier=False,
+                      bint sulcal_barrier=False,
                       double barrier_q=0.0, double barrier_tmin=0.5,
+                      double barrier_gmtmax=5.0, double barrier_dmin=2.0,
                       double barrier_halfwidth=0.0,
                       bint oriented_filter=False,
                       double oriented_strength=1.0, double oriented_cutoff=0.0,
@@ -940,24 +941,29 @@ def vol_thickness_pbt(volume, voxelsize=None,
         identical to leaving this off, and the distance can only shrink,
         so an overestimated thickness can be fixed but a correct one can
         never be inflated.
-    gyral_barrier : bool
-        Stop the WM distance at the gyral medial surface (default False) —
-        the exact dual of ``sulcal_barrier``, found by the same routine
-        with the other distance map.  A thin white-matter blade lies
-        between two sulci; where the classifier lost it the gyrus is grey
-        matter all the way through, ``dist_WM`` measures out to whatever
-        white matter is left further along, and the PPM at the gyral core
-        never rises — the blade disappears from the surface.  Running the
-        fronts inward from the pial boundary makes the same collision test
-        a blade detector: where the blade survives the white matter splits
-        the band and no fronts meet, so this is an exact no-op there.
-        One-sided in the opposite direction to the sulcal barrier: it can
-        strengthen a finger but never thin one.
     barrier_q : float
         Shock threshold of the medial set (default 0.0, which selects
         ``CAT_MEDIAL_SET_Q``).  Lower is stricter and gives a thinner
         midline; the result is flat over a wide band and then falls off,
         so the default sits in the middle of the flat region.
+    barrier_gmtmax : float
+        Only bound where the implied thickness is impossible for cortex,
+        in mm (default 5.0; 0 disables).  This is the gate that matters.
+        A glued sulcus does not merely look thick, it looks like *two*
+        cortices back to back — 5-6 mm where 2-3 mm is normal — so the
+        implied thickness at the voxel, ``dist_WM + dist_CSF``, separates
+        the two populations cleanly.  Gating on the CSF distance alone
+        does not: plenty of ordinary voxels sit far from CSF simply by
+        being near the white matter.  Measured on an ADNI subject, the
+        gate takes the capped fraction of the cortex from 20.5% to 2.4%
+        and the mean thickness from 1.81 mm back to 2.28 mm against an
+        unbarriered 2.31 mm.
+    barrier_dmin : float
+        Only bound a CSF distance already implausible for real cortex, in
+        mm (default 2.0; 0 disables).  Bounding always shrinks the
+        thickness, so without this the mean thickness of the brain becomes
+        a readout of how often the barrier fired and moves with
+        ``barrier_q``.
     barrier_tmin : float
         Ignore collisions closer than this to the WM boundary, in mm
         (default 0.5).  Stops the barrier carving into thin cortex from
@@ -1039,8 +1045,9 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.sulcal_width = sulcal_width
     opts.pve_distance = 1 if pve_distance else 0
     opts.sulcal_barrier = 1 if sulcal_barrier else 0
-    opts.gyral_barrier = 1 if gyral_barrier else 0
     opts.barrier_q = barrier_q
+    opts.barrier_gmtmax = barrier_gmtmax
+    opts.barrier_dmin = barrier_dmin
     opts.barrier_tmin = barrier_tmin
     opts.barrier_halfwidth = barrier_halfwidth
     opts.oriented_filter = 1 if oriented_filter else 0

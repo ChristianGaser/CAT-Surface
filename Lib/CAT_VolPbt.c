@@ -65,7 +65,8 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->sulcal_width = 2.5;
     opts->pve_distance = 0;
     opts->sulcal_barrier = 0;
-    opts->gyral_barrier = 0;
+    opts->barrier_dmin = 2.0;
+    opts->barrier_gmtmax = 5.0;
     opts->barrier_q = 0.0;
     opts->barrier_tmin = 0.5;
     opts->barrier_halfwidth = 0.0;
@@ -129,10 +130,8 @@ int CAT_VolComputePbt(
     float *sheet = NULL;
     float *sheet_nrm = NULL;
 
-    /* sulcal medial surface used as a barrier for the CSF distance, and its
-       dual: the gyral medial surface bounding the WM distance */
+    /* sulcal medial surface used as a barrier for the CSF distance */
     float *medial = NULL;
-    float *gyral = NULL;
 
     unsigned char *mask = NULL;
     float *input = NULL;
@@ -397,6 +396,8 @@ int CAT_VolComputePbt(
         double half_vox = (opts->barrier_halfwidth > 0.0)
                               ? opts->barrier_halfwidth / (double)mean_vx_size
                               : 1.0;
+        double dmin_vox = opts->barrier_dmin / (double)mean_vx_size;
+        double gmtmax_vox = opts->barrier_gmtmax / (double)mean_vx_size;
         long n_medial;
 
         medial = (float *)malloc(sizeof(float) * nvox);
@@ -443,6 +444,27 @@ int CAT_VolComputePbt(
                     if (!(src_copy[i] > CGM && src_copy[i] < GWM))
                         continue;
 
+                    /* Only act where the distance is already impossible for
+                       real cortex.  Bounding a distance always shrinks GMT, so
+                       without this the mean thickness of the whole brain
+                       becomes a readout of how often the barrier fired, and
+                       therefore moves with barrier_q -- the very dependence the
+                       barrier exists to remove.  A voxel in the middle of a
+                       normal band is one to two millimetres from CSF; only a
+                       front that ran across a sulcus comes back with more. */
+                    if (dmin_vox > 0.0 && (double)dist_CSF[i] <= dmin_vox)
+                        continue;
+
+                    /* The decisive gate.  A glued sulcus does not merely look
+                       thick, it looks like two cortices back to back -- 5-6 mm
+                       where 2-3 mm is normal -- so the implied thickness here
+                       separates the two populations in a way the CSF distance
+                       alone cannot: plenty of ordinary voxels sit far from CSF
+                       simply by being near the white matter. */
+                    if (gmtmax_vox > 0.0 &&
+                        (double)dist_WM[i] + (double)dist_CSF[i] <= gmtmax_vox)
+                        continue;
+
                     bound = (double)dmed[i] - half_vox;
                     if (bound < 0.0)
                         bound = 0.0;
@@ -455,96 +477,32 @@ int CAT_VolComputePbt(
                 }
 
                 if (verbose)
-                    fprintf(stderr, "Sulcal barrier: %ld medial voxels, "
-                                    "capped dist_CSF at %ld of them.\n",
-                            n_medial, n_capped);
-                free(dmed);
-            }
-        }
-    }
-
-    /* Gyral barrier: the exact dual of the block above.
-     *
-     * A thin white-matter blade lies between two sulci.  Where the classifier
-     * lost it the gyrus is grey matter all the way through, so dist_WM measures
-     * out to whatever white matter is left further along the gyrus rather than
-     * to the blade that should have been here -- the thickness inflates and the
-     * PPM at the gyral core never rises, which is the blade disappearing from
-     * the surface.
-     *
-     * Running the fronts inward from the pial boundary instead of outward from
-     * the white matter turns the same collision test into a blade detector:
-     * where the blade survives, the white matter splits the band and no fronts
-     * meet; where it was lost, they collide exactly where it should have been.
-     * Nothing else changes -- it is the same routine with the other distance
-     * map -- and it is one-sided in the opposite direction, raising the PPM at
-     * the core and so strengthening a finger, never thinning one. */
-    if (opts->gyral_barrier)
-    {
-        float *dgyr = NULL;
-        double tmin_vox = opts->barrier_tmin / (double)mean_vx_size;
-        double half_vox = (opts->barrier_halfwidth > 0.0)
-                              ? opts->barrier_halfwidth / (double)mean_vx_size
-                              : 1.0;
-        long n_gyral;
-
-        gyral = (float *)malloc(sizeof(float) * nvox);
-        dgyr = (float *)malloc(sizeof(float) * nvox);
-
-        if (!gyral || !dgyr)
-        {
-            free(gyral);
-            free(dgyr);
-            gyral = NULL;
-            fprintf(stderr, "Warning: no memory for the gyral barrier.\n");
-        }
-        else
-        {
-            for (i = 0; i < nvox; i++)
-                mask[i] = (src_copy[i] > CGM && src_copy[i] < GWM) ? 1 : 0;
-
-            n_gyral = CAT_VolSulcalMedialSet(dist_CSF, mask, gyral, dims,
-                                             opts->barrier_q, tmin_vox);
-
-            if (n_gyral <= 0)
-            {
-                free(gyral);
-                free(dgyr);
-                gyral = NULL;
-                if (verbose)
-                    fprintf(stderr, "Gyral barrier: no collisions found.\n");
-            }
-            else
-            {
-                long n_capped = 0;
-
-                for (i = 0; i < nvox; i++)
-                    dgyr[i] = gyral[i];
-                euclidean_distance(dgyr, NULL, dims, NULL, 0);
-
-                for (i = 0; i < nvox; i++)
                 {
-                    double bound;
+                    long n_band = 0;
+                    double pct;
 
-                    if (!(src_copy[i] > CGM && src_copy[i] < GWM))
-                        continue;
+                    for (i = 0; i < nvox; i++)
+                        if (src_copy[i] > CGM && src_copy[i] < GWM)
+                            n_band++;
 
-                    bound = (double)dgyr[i] - half_vox;
-                    if (bound < 0.0)
-                        bound = 0.0;
+                    pct = (n_band > 0) ? (100.0 * (double)n_capped / (double)n_band)
+                                       : 0.0;
 
-                    if (bound < (double)dist_WM[i])
-                    {
-                        dist_WM[i] = (float)bound;
-                        n_capped++;
-                    }
+                    fprintf(stderr, "Sulcal barrier: %ld medial voxels, capped "
+                                    "dist_CSF at %ld (%.1f%% of the GM band).\n",
+                            n_medial, n_capped, pct);
+
+                    /* The barrier always shrinks the thickness where it fires,
+                       so this percentage is the size of its effect on the mean.
+                       A few percent is a handful of glued sulci being fixed;
+                       tens of percent means the collision test is answering on
+                       ordinary cortex, and q is above the cliff for this data. */
+                    if (pct > 10.0)
+                        fprintf(stderr, "  warning: that is a large fraction of "
+                                        "the cortex -- lower -barrier-q "
+                                        "(it must stay well below 1).\n");
                 }
-
-                if (verbose)
-                    fprintf(stderr, "Gyral barrier: %ld medial voxels, "
-                                    "capped dist_WM at %ld of them.\n",
-                            n_gyral, n_capped);
-                free(dgyr);
+                free(dmed);
             }
         }
     }
@@ -567,12 +525,6 @@ int CAT_VolComputePbt(
         for (i = 0; i < nvox; i++)
             if (medial[i] > 0.0f)
                 input[i] = (float)CSF;
-    }
-    if (gyral)
-    {
-        for (i = 0; i < nvox; i++)
-            if (gyral[i] > 0.0f)
-                input[i] = (float)WM;
     }
 
     projection_based_thickness(input, dist_WM, dist_CSF, GMT1, dims, voxelsize);
@@ -762,8 +714,6 @@ int CAT_VolComputePbt(
         free(sheet_nrm);
     if (medial)
         free(medial);
-    if (gyral)
-        free(gyral);
 
     return 0;
 }

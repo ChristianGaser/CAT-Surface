@@ -34,8 +34,9 @@ double sulcal_width = 2.5;
 int pve_distance = 0;
 int oriented_filter = 0;
 int sulcal_barrier = 0;
-int gyral_barrier = 0;
 double barrier_q = 0.0;
+double barrier_dmin = 2.0;
+double barrier_gmtmax = 5.0;
 double barrier_tmin = 0.5;
 double barrier_halfwidth = 0.0;
 double oriented_strength = 1.0;
@@ -102,20 +103,25 @@ static ArgvInfo argTable[] = {
      the distance can only shrink, so an overestimated thickness can be fixed\n\
      but a correct one can never be inflated."},
 
-    {"-gyral-barrier", ARGV_CONSTANT, (char *)1, (char *)&gyral_barrier,
-     "Stop the WM distance at the gyral medial surface -- the exact dual of\n\
-     -sulcal-barrier, found by the same routine with the other distance map.\n\
-     A thin white-matter blade lies between two sulci. Where the classifier lost\n\
-     it the gyrus is grey matter all the way through, so dist_WM measures out to\n\
-     whatever white matter is left further along instead of to the blade that\n\
-     should have been here; the thickness inflates and the PPM at the gyral core\n\
-     never rises, which is the blade disappearing from the surface.\n\
-     Running the fronts inward from the pial boundary rather than outward from\n\
-     the white matter turns the same collision test into a blade detector: where\n\
-     the blade survives the white matter splits the band and no fronts meet, so\n\
-     this is an exact no-op there; where it was lost they collide exactly where\n\
-     it should have been. One-sided in the opposite direction to the sulcal\n\
-     barrier: it can strengthen a finger but never thin one."},
+    {"-barrier-gmtmax", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtmax,
+     "Only bound where the implied thickness is impossible for cortex, in mm\n\
+     (default 5.0; 0 disables). This is the gate that matters. A glued sulcus\n\
+     does not merely look thick, it looks like two cortices back to back -- 5-6\n\
+     mm where 2-3 mm is normal -- so the implied thickness at the voxel,\n\
+     dist_WM + dist_CSF, separates the two populations cleanly. Gating on the\n\
+     CSF distance alone does not: plenty of ordinary voxels sit more than 2 mm\n\
+     from CSF simply by being near the white matter."},
+
+    {"-barrier-dmin", ARGV_FLOAT, (char *)1, (char *)&barrier_dmin,
+     "Only bound a CSF distance that is already implausible for real cortex, in\n\
+     mm (default 2.0; 0 disables the gate). Bounding a distance always shrinks\n\
+     the thickness, so without this the barrier lowers GMT wherever it happens\n\
+     to fire and the mean thickness of the whole brain becomes a readout of how\n\
+     often that was -- which makes the mean move with -barrier-q, exactly the\n\
+     parameter dependence the barrier was meant to remove. A voxel in the middle\n\
+     of a 2.5-4 mm band sits 1.2-2 mm from CSF; only a front that ran across a\n\
+     glued sulcus comes back with more, so this separates the two and keeps\n\
+     normally-thick cortex untouched."},
 
     {"-barrier-q", ARGV_FLOAT, (char *)1, (char *)&barrier_q,
      "Shock threshold of the medial set (default 0, which selects 0.5).\n\
@@ -221,7 +227,6 @@ Options:\n\
     -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
     -oriented-filter           Use sheetness-oriented instead of isotropic median filters.\n\
     -sulcal-barrier            Stop the CSF distance at the sulcal medial surface.\n\
-    -gyral-barrier             Stop the WM distance at the gyral medial surface.\n\
     -oriented-cutoff <float>   Admission cutoff of the oriented medians (default 0.10).\n\
     -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
     -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
@@ -340,8 +345,9 @@ int main(int argc, char *argv[])
     opts.sulcal_width = sulcal_width;
     opts.oriented_filter = oriented_filter;
     opts.sulcal_barrier = sulcal_barrier;
-    opts.gyral_barrier = gyral_barrier;
     opts.barrier_q = barrier_q;
+    opts.barrier_dmin = barrier_dmin;
+    opts.barrier_gmtmax = barrier_gmtmax;
     opts.barrier_tmin = barrier_tmin;
     opts.barrier_halfwidth = barrier_halfwidth;
     opts.oriented_strength = oriented_strength;

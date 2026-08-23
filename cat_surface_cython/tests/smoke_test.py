@@ -327,49 +327,6 @@ def test_sulcal_barrier():
           f"{xf_on} vs {xf_off}")
 
 
-def test_gyral_barrier():
-    section("Gyral barrier in PBT")
-
-    M = 64
-
-    def gyrus(finger):
-        v = np.ones((M, M, M), np.float32)
-        v[24:40, 10:56, 10:54] = 2.0      # gyral GM wrapping the blade
-        v[24:40, 10:22, 10:54] = 3.0      # WM stem at the gyral base
-        if finger:
-            v[30:34, 10:48, 10:54] = 3.0  # the blade, continuous with the stem
-        return v
-
-    vx = (0.5, 0.5, 0.5)
-
-    def run(vol, gb):
-        g, ppm, _, _ = cat_surf.vol_thickness_pbt(vol, voxelsize=vx,
-                                                  gyral_barrier=gb)
-        return g, ppm, ppm[24:40, 36, 32]
-
-    # A surviving blade splits the band, so no fronts meet and there is nothing
-    # to do -- the same self-limiting property the sulcal barrier has.
-    g_off, p_off, pr_off = run(gyrus(True), False)
-    g_on, p_on, pr_on = run(gyrus(True), True)
-    check("a surviving blade is left bit-identical",
-          np.array_equal(g_off, g_on) and np.array_equal(p_off, p_on))
-
-    # With the blade lost the gyrus is grey all through: dist_WM measures out to
-    # white matter further along, the PPM at the core never rises, and the blade
-    # is simply absent from the surface.
-    _, _, lost_off = run(gyrus(False), False)
-    _, _, lost_on = run(gyrus(False), True)
-
-    check("losing the blade removes it from the surface",
-          int((lost_off > 0.5).sum()) == 0)
-    check("the barrier brings it back",
-          int((lost_on > 0.5).sum()) > 0,
-          f"{int((lost_on > 0.5).sum())} voxels above the isovalue")
-    check("and recovers the profile of the segmented blade",
-          abs(int((lost_on > 0.5).sum()) - int((pr_off > 0.5).sum())) <= 1,
-          f"{int((lost_on > 0.5).sum())} vs {int((pr_off > 0.5).sum())}")
-
-
 def test_option_no_ops():
     section("Backward compatibility of the new options")
 
@@ -453,7 +410,6 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs,
                  test_wm_sulcus_guard, test_sulcal_barrier,
-                 test_gyral_barrier,
                  test_sulcus_repair, test_thickness_qc, test_option_no_ops):
         try:
             test()

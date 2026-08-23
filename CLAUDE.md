@@ -125,25 +125,54 @@ fails below ~0.4; `barrier_halfwidth` does not move the surface at all and trade
 thickness accuracy only. That insensitivity is the point — it is what the pre-PBT repair
 could not deliver.
 
-### The gyral dual (`-gyral-barrier`)
+### Why there is no gyral dual
 
-The same routine, fed the other distance map, is a lost-white-matter-blade detector. Run the
-fronts inward from the pial boundary instead of outward from the WM: where a blade survives
-it splits the cortical band and no fronts meet; where it was lost they collide exactly where
-it should have been. Bounding `dist_WM` by that surface raises the PPM at the gyral core and
-strengthens the finger — one-sided in the opposite direction to the sulcal barrier, so it
-can strengthen a blade but never thin one.
+The mirror construction — fronts inward from the pial boundary, bounding `dist_WM` — detects
+lost blades correctly on phantoms but **must not be used**, and the asymmetry is structural,
+not a tuning problem. `PPM = (GMT - dist_WM)/GMT` has `dist_WM` in the *numerator*, so a
+false collision does not perturb the thickness, it flips the voxel to WM-like (PPM -> 1).
+On real data that produces stripes of spurious white matter inside the cortex — breaks in
+the surface — while also shrinking `sum_dist` and so the thickness. `dist_CSF` enters only
+through GMT, a far gentler dependence, which is why the sulcal direction is usable and the
+gyral one is not. It was implemented, tested on real data, and removed.
 
-Measured on a gyrus phantom with the blade present vs. lost: present is bit-identical with
-the option on (no collisions found at all); losing the blade drops the PPM to **zero
-everywhere** across the gyrus — the blade vanishes from the surface — and the barrier
-restores the profile of the correctly segmented case, 7 voxels above the isovalue either
-way.
+### `barrier_gmtmax` is the gate that makes it usable
 
-Together the two barriers replace what the pre-PBT repair was trying to do, without touching
-the segmentation and without a single intensity-derived threshold.
+The collision test alone is far too permissive on real data. Measured on an ADNI subject
+(`lh.seg`, 0.5 mm), with the thickness gate disabled it caps **20.5% of the cortex** at
+`q = 0.8` and drops the mean thickness from 2.31 mm to 1.81 mm — the surface-sampled result
+was 1.44 mm against ~2.0 mm for FreeSurfer 8, CAT12 and T1Prep. It was truncating the whole
+distribution, not fixing sulci.
 
-## The sheetness family (`Include/CAT_Sheetness.h`)
+The discriminator is that **a glued sulcus does not merely look thick, it looks like two
+cortices back to back** — 5-6 mm where 2-3 mm is normal. Gating on the implied thickness at
+the voxel, `dist_WM + dist_CSF`, separates the two populations; gating on the CSF distance
+alone (`barrier_dmin`) does not, because plenty of ordinary voxels sit far from CSF simply
+by being near the white matter.
+
+| `barrier_gmtmax` | capped | mean GMT | p95 |
+| --- | --- | --- | --- |
+| off | 20.5% | 1.814 | 2.122 |
+| 4 mm | 5.7% | 2.242 | 3.115 |
+| **5 mm (default)** | **2.4%** | **2.277** | **3.213** |
+| 6 mm | 1.0% | 2.290 | 3.234 |
+| *no barrier at all* | — | 2.311 | 3.246 |
+
+With the gate the parameters stop mattering, which was the whole point. Across
+`q` in 0.6-0.9 and `barrier_tmin` in 0.4-0.8 the mean spans 2.252-2.293 mm — a spread of
+0.04 mm, against 0.34 mm without it. `-verbose` reports the capped percentage: a few percent
+is glued sulci being fixed, anything approaching double digits means the gate is too loose.
+
+Two things that do **not** work, both measured rather than assumed:
+
+- **Smoothing the arrival time before differentiating.** Intuition says a derivative operator
+  wants a smoothed input; in fact flattening the field lowers `||grad T||` everywhere and
+  makes the false-positive rate *worse* (13.8% -> 19.8% at `q = 0.6`).
+- **Raising `q` towards 1.** `||grad T|| = 1` is the regular value of an uncollided front, so
+  `q = 1` admits everything: on an all-healthy phantom it caps 56448 voxels and costs
+  0.57 mm of mean thickness, where 0.4-0.8 cap none at all.
+
+## The sheetness family (`Include/CAT_Sheetness.h`)## The sheetness family (`Include/CAT_Sheetness.h`)
 
 One shared shape prior feeds four tools, so a change to `Lib/CAT_Sheetness.c` propagates to
 all of them — treat them as one unit. It exists because every isotropic regularizer (local
