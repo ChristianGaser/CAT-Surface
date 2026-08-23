@@ -36,7 +36,8 @@ int oriented_filter = 0;
 int sulcal_barrier = 0;
 double barrier_q = 0.0;
 double barrier_dmin = 2.0;
-double barrier_gmtmax = 5.0;
+double barrier_gmtmax = 0.0;
+double barrier_gmtfactor = 2.0;
 double barrier_tmin = 0.5;
 double barrier_halfwidth = 0.0;
 double oriented_strength = 1.0;
@@ -103,9 +104,20 @@ static ArgvInfo argTable[] = {
      the distance can only shrink, so an overestimated thickness can be fixed\n\
      but a correct one can never be inflated."},
 
+    {"-barrier-gmtfactor", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtfactor,
+     "Multiple of the median thickness at which the gate sits (default 2.0; 0 or\n\
+     less disables the gate). This is the criterion in its natural form: a glued\n\
+     sulcus is two cortices back to back, so the threshold belongs at twice the\n\
+     typical thickness of the brain being processed, not at a fixed millimetre\n\
+     value that is only right for the cortex it was tuned on. The median is\n\
+     taken over dist_WM + dist_CSF inside the GM band -- for a band of locally\n\
+     constant thickness those are complementary and sum to it exactly -- and a\n\
+     median is unmoved by the glued minority the gate exists to catch. Use\n\
+     -barrier-gmtmax to override it with an absolute value."},
+
     {"-barrier-gmtmax", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtmax,
-     "Only bound where the implied thickness is impossible for cortex, in mm\n\
-     (default 5.0; 0 disables). This is the gate that matters. A glued sulcus\n\
+     "Absolute override for the gate, in mm (default 0 = derive it from\n\
+     -barrier-gmtfactor and the data). This is the gate that matters. A glued sulcus\n\
      does not merely look thick, it looks like two cortices back to back -- 5-6\n\
      mm where 2-3 mm is normal -- so the implied thickness at the voxel,\n\
      dist_WM + dist_CSF, separates the two populations cleanly. Gating on the\n\
@@ -348,6 +360,7 @@ int main(int argc, char *argv[])
     opts.barrier_q = barrier_q;
     opts.barrier_dmin = barrier_dmin;
     opts.barrier_gmtmax = barrier_gmtmax;
+    opts.barrier_gmtfactor = barrier_gmtfactor;
     opts.barrier_tmin = barrier_tmin;
     opts.barrier_halfwidth = barrier_halfwidth;
     opts.oriented_strength = oriented_strength;

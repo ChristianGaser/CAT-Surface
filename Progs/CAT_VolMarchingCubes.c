@@ -23,7 +23,8 @@ double sulci_sheet_strength = 10.0;
 double sulci_thresh = 0.1;
 double sulci_band = 0.25;
 double sulci_normalize = CAT_SHEETNESS_NORMALIZE;
-int sulci_skeleton = 0;
+int sulci_skeleton = 1;
+double sulci_offset = 0.0;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -79,6 +80,27 @@ static ArgvInfo argTable[] = {
     "Only values in (isovalue, isovalue + band) are opened (default 0.25).\n\
      Raising it reaches more deeply buried sulci at the cost of touching\n\
      tissue further from the surface."},
+
+  {"-sheet-offset", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_offset,
+    "Signed sheetness offset applied to the PPM before the surface is extracted,\n\
+     in map units (default 0 = off). A sulcus is a valley in the PPM and a gyral\n\
+     blade a ridge, so a signed sheetness is negative on one and positive on the\n\
+     other; adding it lowers the map along sulci and raises it along blades in a\n\
+     single pass. This is what lowering -thresh globally cannot do -- that moves\n\
+     every voxel the same way, so it severs thin white-matter fingers at the same\n\
+     rate as it opens glued sulci. The offset is scaled by the response, so it is\n\
+     strongest where the structure is clearest and vanishes where nothing was\n\
+     found. Requires -strength-sulci to be set (it shares the same sheetness\n\
+     scales, gain, normalization and skeleton settings). Start around 0.05-0.1:\n\
+     the isovalue is 0.5, so 0.1 is a fifth of the way to either extreme."},
+
+  {"-no-sulci-skeleton", ARGV_CONSTANT, (char *) FALSE, (char *) &sulci_skeleton,
+    "Do not thin the sulcal valley field to its medial sheet. Thinning is on by\n\
+     default because the offset and the barrier should act at the structure\n\
+     rather than across a band as wide as the Gaussian that found it; this\n\
+     switch is here so the two can be compared. Note the thinned field is a\n\
+     weaker correction at the same -sheet-offset -- roughly a third of the\n\
+     isovalue crossings -- so raise the offset by about 3x when comparing."},
 
   {"-sulci-skeleton", ARGV_CONSTANT, (char *) TRUE, (char *) &sulci_skeleton,
     "Thin the sulcal valley field to its medial sheet before any threshold is\n\
@@ -239,12 +261,12 @@ int main(int argc, char *argv[]) {
             sulci_opts.sheet_strength = sulci_sheet_strength;
             sulci_opts.sheet_normalize = sulci_normalize;
             sulci_opts.sheet_skeleton = sulci_skeleton;
+            sulci_opts.offset = sulci_offset;
             sulci_opts.thresh = sulci_thresh;
             sulci_opts.band = sulci_band;
             sulci_opts.strength = strength_sulci;
             sulci_opts.cutoff = sulci_cutoff;
             sulci_opts.verbose = verbose;
-            sulci_opts.sheet_skeleton = 1.0;
             sulci_ptr = &sulci_opts;
         }
 
