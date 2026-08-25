@@ -201,53 +201,58 @@ static ArgvInfo argTable[] = {
 private void usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s [options] <input.nii> output_GMT.nii output_PPM.nii [output_WMD.nii output_CSD.nii]\n\
+Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
+                    [<output_WMD.nii> <output_CSD.nii>]\n\
 \n\
-    This program performs projection-based cortical thickness estimation and\n\
-    percentage position mapping (PPM) from a given PVE label image described in:\n\
+    Projection-based cortical thickness and percentage position mapping (PPM)\n\
+    from a PVE label image (CSF=1, GM=2, WM=3), after:\n\
+\n\
         Dahnke R, Yotter RA, Gaser C.\n\
         Cortical thickness and central surface estimation.\n\
         Neuroimage. 2013 Jan 15;65:336-48.\n\
-    \n\
-    The process involves:\n\
-    \n\
-    1. **Distance Estimation:**\n\
-       - Estimating distances in White Matter (WM) and Cerebrospinal Fluid (CSF)\n\
-         by shifting the border between Gray Matter (GM)/WM and GM/CSF.\n\
-       - Averaging distances over a specified number of iterations (n-avgs) to\n\
-         obtain a less noisy measure.\n\
-    \n\
-    2. **Thickness Estimation:**\n\
-       - Reconstructing sulci and optionally gyri to estimate cortical thickness.\n\
-    \n\
-    3. **PPM Calculation:**\n\
-       - Estimating the percentage position map (PPM), representing the relative\n\
-         position within the cortical ribbon.\n\
-    \n\
-    4. **Final Correction and Smoothing:**\n\
-       - Correcting for isotropic voxel size and applying masked smoothing\n\
-         to the thickness map based on the specified Full Width Half Maximum (FWHM).\n\
 \n\
-Options:\n\
-    -verbose                   Enable verbose mode for detailed output during processing.\n\
-    -range <float>             Extend range for masking of euclidean distance estimation.\n\
-    -no-bvc                    Disable blood-vessel correction.\n\
-    -fast                      Enable fast mode in order to get a very quick and rougher estimate of thickness only.\n\
-    -n-avgs <int>              Set the number of averages for distance estimation.\n\
-    -fill-holes <float>        Define the threshold to fill holes in the PPM image.\n\
-    -downsample <float>        Downsample PPM and GMT image to defined resolution.\n\
-    -median-filter <int>       Iterations for weighted local PPM median filtering; higher values increase the cleanup where the topology-artifact weight map is high.\n\
-    -oriented-filter           Use sheetness-oriented instead of isotropic median filters.\n\
-    -sulcal-barrier            Stop the CSF distance at the sulcal medial surface.\n\
-    -oriented-cutoff <float>   Admission cutoff of the oriented medians (default 0.10).\n\
-    -correct-thickness <float> Additive thickness correction in mm (default 0.25).\n\
-    -sulcal-width <float>      Max CSF distance (mm) for sulcal PPM correction (0=disable).\n\
-    -pve-distance              Sub-voxel PVE correction of the distance maps (experimental).\n\
+    The input is a PVE label image; GMT (thickness, in mm) and PPM (relative\n\
+    position in the cortical ribbon, 0 at the pial boundary and 1 in the white\n\
+    matter) are always written. The distance maps are written as well when the\n\
+    two optional output names are given.\n\
 \n\
-Example:\n\
-    %s -verbose -n-avgs 4 input.nii gmt_output.nii ppm_output.nii\n\n";
+    The steps are:\n\
+\n\
+    1. Distance estimation. Distances to the WM and CSF boundaries are measured\n\
+       by shifting the GM/WM and GM/CSF thresholds and averaging over -n-avgs\n\
+       levels, which makes the measure less noisy.\n\
+\n\
+    2. Thickness estimation. A sulcal and a gyral estimate are projected through\n\
+       the cortical band and the smaller of the two is kept.\n\
+\n\
+    3. PPM construction, followed by hole filling and an optional weighted local\n\
+       median cleanup where a topology-artifact map is high.\n\
+\n\
+    Two optional corrections address the case where the classifier lost the CSF\n\
+    inside a sulcus, which otherwise inflates the thickness and buries the\n\
+    sulcus in the surface:\n\
+\n\
+    -sulcal-barrier bounds the CSF distance by the sulcal midline, located from\n\
+    geometry alone by front collision, so no intensity image and no per-subject\n\
+    threshold are involved. It is applied as a minimum, so where CSF was found\n\
+    the result is unchanged, and it can only ever reduce an overestimated\n\
+    thickness. -barrier-gmtfactor keeps it to voxels whose implied thickness is\n\
+    impossible for cortex; run with -verbose to see the fraction of the GM band\n\
+    it touched, which should be a few percent.\n\
+\n\
+    -oriented-filter replaces the isotropic median filters with sheetness-\n\
+    oriented ones, which cannot close a thin structure. Where no sheet is\n\
+    detected it is identical to the isotropic filter.\n\
+\n\
+    Every option is listed with its default under 'Command-specific options'\n\
+    above.\n\
+\n\
+Examples:\n\
+    %s input.nii gmt.nii ppm.nii\n\
+    %s -sulcal-barrier -verbose input.nii gmt.nii ppm.nii\n\
+    %s -sulcal-barrier -oriented-filter input.nii gmt.nii ppm.nii wmd.nii csd.nii\n\n";
 
-    fprintf(stderr, "%s\n %s\n", usage_str, executable);
+    fprintf(stderr, usage_str, executable, executable, executable, executable);
 }
 
 int main(int argc, char *argv[])

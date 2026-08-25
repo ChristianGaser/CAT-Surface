@@ -142,17 +142,6 @@ Usage: %s [options] <input.nii> [<output.nii>]\n\
     normals are not written: a 3-vector per voxel needs a 4-D image, which\n\
     write_nifti_float() does not produce, and recomputing the field is cheap.\n\
 \n\
-Options:\n\
-    -sigma-min <float>  Smallest scale in mm (default: 0.3).\n\
-    -sigma-max <float>  Largest scale in mm (default: 1.0).\n\
-    -scales    <int>    Number of log-spaced scales (default: 3).\n\
-    -polarity  <int>    1 = bright sheets, -1 = dark sheets, 0 = either.\n\
-    -signed             Write the polarity as a sign (valley negative, ridge positive).\n\
-    -alpha     <float>  Plate-vs-tube sensitivity (default: 0.5).\n\
-    -beta      <float>  Blob-vs-plate sensitivity (default: 0.5).\n\
-    -c         <float>  Noise sensitivity; negative selects automatic.\n\
-    -strength  <float>  Overall gain on the response (default: 1.0).\n\
-    -v                  Be verbose.\n\
 \n\
 Example:\n\
     %s -polarity -1 -v t1_corr.nii sheetness.nii\n\

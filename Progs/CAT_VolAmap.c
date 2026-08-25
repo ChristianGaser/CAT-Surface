@@ -123,9 +123,34 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-        CAT_VolAmap: Segmentation with adaptive MAP\n\
-         usage: CAT_VolAmap [options] -label label.nii in.nii [out.nii]\n\n";
-    fprintf(stderr,"%s\n %s\n",usage_str, executable);
+Usage: %s [options] -label <label.nii> <in.nii> [<out.nii>]\n\
+\n\
+    Adaptive maximum a posteriori (AMAP) tissue classification of a brain MRI\n\
+    into CSF, grey matter and white matter, with optional partial volume\n\
+    estimation.  -label supplies the initial segmentation the classifier starts\n\
+    from; <in.nii> is the intensity image.\n\
+\n\
+    The pipeline is: optional ORNLM denoising, optional bias/LAS correction,\n\
+    the AMAP EM loop with an optional MRF prior refined by ICM, then the 5-class\n\
+    partial volume estimate and a final cleanup.\n\
+\n\
+    -mrf sets the strength of the MRF prior.  It is isotropic by default, which\n\
+    means it penalizes boundary area and therefore removes thin structures\n\
+    whichever side of the label boundary they lie on -- the same prior that\n\
+    closes a glued sulcus also closes a cerebellar fissure.  -mrf-aniso relaxes\n\
+    it along thin sheets found by a Hessian plate filter (see CAT_VolSheetness):\n\
+    mode 1 scales the prior down on a sheet, mode 2 keeps its strength but\n\
+    down-weights neighbours lying across the sheet.  Both are exact no-ops where\n\
+    no sheet is detected, so behaviour away from thin structures is unchanged.\n\
+\n\
+    Every option is listed with its default under 'Command-specific options'\n\
+    above.\n\
+\n\
+Examples:\n\
+    %s -label p0.nii t1.nii\n\
+    %s -mrf 0.3 -mrf-aniso 2 -label p0.nii t1.nii seg.nii\n\n";
+
+    fprintf(stderr, usage_str, executable, executable, executable);
 }
 
 int

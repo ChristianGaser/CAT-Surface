@@ -51,7 +51,7 @@ Usage: CAT_SurfDistance [options] surface_file surface_file2 output_values_file\
      This function is primarily thought to estimate the Tfs-distance from Freesurfer for \n\
      already existing Tpbt-distances from CAT12.\n";
 
-        fprintf(stderr, usage_str, executable);
+        fprintf(stderr, "%s", usage_str);
 }
 
 int

@@ -170,7 +170,7 @@ usage(
     char *executable)
 {
     char *usage_str = "\n\
-Usage: CAT_VolMarchingCubes [options] input.nii output_surface_file [change_map.nii]\n\
+Usage: %s [options] <input.nii> <output_surface_file> [<change_map.nii>]\n\
 \n\
     This method generates a mesh with an Euler number of 2 (genus 0) from the\n\
     thresholded volume. The process involves:\n\
@@ -205,7 +205,7 @@ Usage: CAT_VolMarchingCubes [options] input.nii output_surface_file [change_map.
     6. **Mesh Smoothing:**\n\
        - Smooth the extracted mesh with a Laplacian filter.\n\n";
 
-    fprintf(stderr,"%s\n %s\n",usage_str, executable);
+    fprintf(stderr, usage_str, executable);
 }
 
 int main(int argc, char *argv[]) {

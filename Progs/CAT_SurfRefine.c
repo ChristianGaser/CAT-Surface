@@ -19,7 +19,7 @@ Usage: %s  surface_file output_surface_file  max_length [weight_curvatures]\n\
   weighting is used regions in sulci and gyri with large absolute mean curvature values\n\
   will result in a smaller max_length to allow better surface deforming.\n\n";
 
-    fprintf(stderr,"%s\n %s\n",usage_str, executable);
+    fprintf(stderr, usage_str, executable);
 }
 
 int  main(

@@ -40,6 +40,18 @@ main(int argc, char *argv[])
 
     initialize_argument_processing(argc, argv);
 
+    /* Arguments are read positionally, so -help has to be caught before the
+       first one is taken for a surface file name. */
+    {
+        int a;
+        for (a = 1; a < argc; a++) {
+            if (equal_strings(argv[a], "-help") || equal_strings(argv[a], "-h")) {
+                usage(argv[0]);
+                exit(EXIT_SUCCESS);
+            }
+        }
+    }
+
     if (!get_string_argument(NULL, &object_file)) {
         usage(argv[0]);
         exit(EXIT_FAILURE);

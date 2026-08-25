@@ -239,6 +239,28 @@ static void write_roi_array(FILE *fp, const char *key, roi_stat_t *arr, int coun
     fprintf(fp, "%*s]%s\n", indent, "", trailing_comma ? "," : "");
 }
 
+static void usage(char *executable)
+{
+    char *usage_str = "\n\
+Usage: %s -unit src_sphere=...,trg_sphere=...,annot=...,vals=...[,hemi=lh|rh]\n\
+          [-unit ...] -out <output.json>\n\
+\n\
+    Resample annotations and compute per-ROI means for several surfaces at once.\n\
+    Each -unit describes one surface: the source sphere matching the annotation,\n\
+    the target sphere to resample onto, the FreeSurfer .annot file and the\n\
+    per-vertex values on the target sphere.  hemi is guessed from the file names\n\
+    when it is not given.  Units sharing a hemisphere are merged into one table.\n\
+\n\
+    Results are written as JSON keyed by hemisphere, each entry carrying the ROI\n\
+    id, name, mean and vertex count.\n\
+\n\
+Example:\n\
+    %s -unit src_sphere=lh.sphere.reg.gii,trg_sphere=fsaverage.lh.sphere.gii,\\\n\
+             annot=lh.aparc.annot,vals=lh.thickness -out roi.json\n\n";
+
+    fprintf(stderr, usage_str, executable, executable);
+}
+
 int main(int argc, char *argv[])
 {
     File_formats format = BINARY_FORMAT;
@@ -251,11 +273,12 @@ int main(int argc, char *argv[])
     initialize_argument_processing(argc, argv);
 
     if (ParseArgv(&argc, argv, argTable, 0)) {
+        usage(argv[0]);
         return EXIT_FAILURE;
     }
 
     if (g_nunits < 1 || !g_out) {
-        fprintf(stderr, "Usage: CAT_Surf2ROIMulti -unit src_sphere=...,trg_sphere=...,annot=...,vals=...[,hemi=lh|rh] [-unit ...] -out output.json\n");
+        usage(argv[0]);
         return EXIT_FAILURE;
     }
 

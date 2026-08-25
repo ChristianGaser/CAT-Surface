@@ -75,7 +75,7 @@ DESCRIPTION\n\
     These files can be used with glm_mat to calculate different contrasts\n\
     of factor levels.\n";
 
-    fprintf(stderr, usage_str, executable);
+    fprintf(stderr, "%s", usage_str);
 }
 
 
@@ -410,6 +410,15 @@ main(int argc, char *argv[])
     if (argc < 2) {
         usage(argv[0]);
         exit(EXIT_FAILURE);
+    }
+
+    /* This tool parses its arguments by hand, so -help has to be caught here;
+       otherwise it is taken for an input file name. */
+    for (i = 1; i < argc; i++) {
+        if (equal_strings(argv[i], "-help") || equal_strings(argv[i], "-h")) {
+            usage(argv[0]);
+            exit(EXIT_SUCCESS);
+        }
     }
 
     /* look for the -formula option */

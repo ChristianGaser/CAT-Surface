@@ -119,16 +119,6 @@ Usage: %s [options] <input.nii> [<output.nii>]\n\
        12  close    (grey closing: max then min)\n\
        13  open     (grey opening: min then max)\n\
 \n\
-Options:\n\
-    -stat   <int>    Statistic function (default: 0=mean).\n\
-    -dist   <int>    Search distance 1..10 (default: 1).\n\
-    -iter   <int>    Number of iterations (default: 1).\n\
-    -euclid          Use Euclidean distance instead of block distance.\n\
-    -oriented        Sheetness-oriented median (-stat 7 only); see below.\n\
-    -guide  <file>   Volume the orientation is estimated from.\n\
-    -sheet-strength <float>  Gain on the sheetness (default: 1.0); see below.\n\
-    -sheet-cutoff   <float>  Admission cutoff (default: 0.10); see below.\n\
-    -v               Be verbose.\n\
 \n\
     With -oriented the median runs over a neighbourhood oriented by a Hessian\n\
     sheetness filter (see CAT_VolSheetness): a neighbour at offset d is admitted\n\

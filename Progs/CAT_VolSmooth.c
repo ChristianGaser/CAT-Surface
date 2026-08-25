@@ -34,6 +34,38 @@ ArgvInfo argTable[] = {
 };
 
 
+static void usage(char *executable)
+{
+    char *usage_str = "\n\
+Usage: %s [options] <in.nii> [<out.nii>]\n\
+\n\
+    Smooth a volume.  By default this is an isotropic Gaussian of -fwhm mm; the\n\
+    output is written next to the input with an s<fwhm> prefix when no output\n\
+    name is given.\n\
+\n\
+    With -oriented the filter instead diffuses *along* thin sheets and not\n\
+    across them.  Each 3x3x3 neighbour is weighted by how well its direction\n\
+    lies in the plane of the local sheet, which is found by a Hessian plate\n\
+    filter (see CAT_VolSheetness), so a sulcal CSF sheet or a gyral white-matter\n\
+    blade is smoothed along its length and never bridged.  Where no sheet is\n\
+    detected the weights reduce to plain inverse distance and the operator is\n\
+    ordinary local averaging.  This is an iterated local kernel rather than a\n\
+    Gaussian: -fwhm does not apply and the amount of smoothing is set by -iter.\n\
+\n\
+    Pass the intensity image with -guide when smoothing a label or probability\n\
+    map, so the orientation comes from the image that still shows the\n\
+    structure.\n\
+\n\
+    Every option is listed with its default under 'Command-specific options'\n\
+    above.\n\
+\n\
+Examples:\n\
+    %s -fwhm 8 in.nii out.nii\n\
+    %s -oriented -iter 3 -guide t1_corr.nii label.nii label_smoothed.nii\n\n";
+
+    fprintf(stderr, usage_str, executable, executable, executable);
+}
+
 /* Main program */
 int
 main(int argc, char *argv[])
@@ -50,10 +82,8 @@ main(int argc, char *argv[])
 #else
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 3)) {
 #endif
-        (void) fprintf(stderr, 
-        "\nUsage: %s [options] in.nii [out.nii]\n", argv[0]);
-        (void) fprintf(stderr, 
-        "     %s -help\n\n", argv[0]);
+        usage(argv[0]);
+        (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);
     }
     
