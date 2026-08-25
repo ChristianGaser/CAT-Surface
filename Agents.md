@@ -133,7 +133,6 @@ shrinks nothing.
 | `Progs/CAT_VolSheetness` | (the tool itself) | writes the response map, for tuning scales and polarity |
 | `Progs/CAT_VolLocalStat` | `-oriented` | median over a sheet-oriented neighbourhood (`-stat 7` only) |
 | `Progs/CAT_VolThicknessPbt` | `-oriented-filter` | replaces the three isotropic medians inside PBT |
-| `Progs/CAT_VolSulcusRepair` | (always) | evidence term for the pre-PBT repair, `Lib/CAT_SulcusRepair.c` |
 | `Progs/CAT_VolMarchingCubes` | `-strength-sulci` | opens buried sulci in the PPM itself; needs no intensity image |
 
 **Invariant every consumer relies on:** where the sheetness is zero the oriented operator
@@ -183,28 +182,7 @@ max `0.56`) that was 0.000% of brain voxels. The default is now
 preservation and changes ~2.6% of brain voxels; `-sheet-cutoff` / `-oriented-cutoff`
 override it. The `s = 0` invariant holds at every cutoff, since `0 < cutoff` always admits.
 
-`CAT_VolSulcusRepair`'s second step is `CAT_VolStrengthenWmBlades()` (formerly
-`CAT_VolReconnectGyri()`, and the old CLI flag `-no-reconnect-gyri` and Python kwarg
-`reconnect_gyri` still work). It rescues the thin WM fingers at the gyral crowns rather
-than bridging two-sided gaps: the old rule demanded WM on two *opposite* sides, which
-cannot hold at the end of a blade — WM behind, grey matter in front — so it never fired
-where blades actually break, rejecting 86.8% of otherwise eligible voxels on a 0.5 mm
-MPRAGE. Connectivity now comes from the geodesic growth through the candidate set, which
-reaches a tip from the trunk behind it but never an isolated bright speck, bounded by
-`wm_max_gap` voxels from existing WM. Sulci are excluded by the polarity guard alone, not
-by the gap test. Measured on that scan: 2.4k -> 225k voxels raised, WM +0.47%, and 85.6%
-of them border WM thinner than 1 mm against 15.5% of the WM surface at large.
 
-`CAT_VolSulcusRepair` gates the same way as the median but with its own pair of constants,
-and they had the same defect. Each step ignores a response below `csf_thresh` / `wm_thresh`, then ramps
-its blend weight up to `csf_strength` / `wm_strength`. That ramp used to be anchored at a
-sheetness of 1, which no real response reaches: on the 0.5 mm MPRAGE a voxel that cleared
-the old threshold of 0.3 was blended by 0.06 instead of by 0.8, so the correction was
-invisible even where it fired. The ramp now reaches full strength at `2 * thresh` — the
-same relation the median has to its cutoff — and both thresholds default to 0.1. Measured
-on that scan, the CSF step went from 13.6k to 299k voxels lowered (0.23% -> 4.6% of the GM
-band, GM volume -0.00% -> -0.35%). The weight is clamped to `*_strength`, not to 1, since
-the steeper slope now passes it.
 
 Three knobs on the response side, in order of preference:
 
@@ -221,9 +199,6 @@ sheets, and it lifts the strongest responses first — which are not necessarily
 the sulci of interest — so raise it while watching the map from
 `CAT_VolSheetness`, not blind.
 
-Note the deliberate name split: the library module is `CAT_SulcusRepair` while the CLI is
-`CAT_VolSulcusRepair`, because automake's `subdir-objects` would otherwise collide on two
-objects named `CAT_VolSulcusRepair.o`.
 
 ## Build System Notes (Autotools/Libtool)
 

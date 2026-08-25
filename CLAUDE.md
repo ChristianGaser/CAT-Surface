@@ -237,7 +237,6 @@ closes a cerebellar fissure.
 | `CAT_VolSheetness` | the tool itself — writes the response map for tuning |
 | `CAT_VolLocalStat` | `-oriented` (with `-stat 7`) |
 | `CAT_VolThicknessPbt` | `-oriented-filter` |
-| `CAT_VolSulcusRepair` | always (`Lib/CAT_SulcusRepair.c`) |
 | `CAT_VolMarchingCubes` | `-strength-sulci` — on the PPM, no intensity image needed |
 
 **The response is anchored, so thresholds are data-independent.**
@@ -261,7 +260,7 @@ Gaussian that produced it, so a large `sigma_max` locates a structure well but a
 several voxels into the tissue on either side, and the per-voxel gates then correct that
 tissue too. Non-maximum suppression along the sheet normal collapses the band onto its
 ridge line — one voxel at any scale — leaving the ridge value exactly unchanged. Off by
-default; `-skeleton` on `CAT_VolSheetness`, `-sheet-skeleton` on `CAT_VolSulcusRepair`.
+default; `-skeleton` on `CAT_VolSheetness`, `-sulci-skeleton` on `CAT_VolMarchingCubes`.
 It runs *before* the anchor, so p99.9 is then taken over ridge values.
 
 `sheet_strength` / `gain` survives as a deliberate relative adjustment but should no longer
@@ -281,11 +280,6 @@ the data actually produces — check it with `CAT_VolSheetness` before tuning an
    sheetness at which a thin structure starts being protected. Default
    `CAT_ORIENTED_MEDIAN_CUTOFF = 0.10`; override with `-sheet-cutoff` /
    `-oriented-cutoff`. The `s = 0` invariant holds at every cutoff.
-1b. `CAT_VolSulcusRepair` has the same structure with its own constants: it ignores a
-   response below `csf_thresh` / `wm_thresh` (default 0.1) and ramps the blend weight to
-   `csf_strength` / `wm_strength` at **twice** the threshold. Do not re-anchor that ramp
-   at a sheetness of 1 — no real response reaches it, and that is what used to make the
-   whole tool a no-op.
 2. The response itself is usually far lower than expected, because the automatic noise
    scale `c` is half the largest Hessian norm in the volume. Raise `-sheet-strength` (a
    gain, `CAT_SheetnessOpts::gain`), lower `-c`, or widen the scale range to bracket the
@@ -295,15 +289,7 @@ On a 0.5 mm MPRAGE the dark-sheet response has `p99 = 0.20` and max `0.56`, so t
 cutoff of 0.5 changed 0.000% of brain voxels while 0.10 changes ~2.6%; on the same scan the
 repair went from 0.23% to 4.6% of the GM band.
 
-Step 2 of the repair is `CAT_VolStrengthenWmBlades()` — it rescues thin WM fingers at the
-gyral crowns. It replaced `CAT_VolReconnectGyri()`, whose two-sided gap test could not fire
-at a blade tip (WM behind, GM in front) and so missed exactly the failure it was for.
-Connectivity comes from the geodesic growth through the candidate set; sulci are excluded
-by the sheetness polarity guard, not by the gap test. `-no-reconnect-gyri` and the Python
-`reconnect_gyri` kwarg remain as aliases so downstream callers keep working.
 
-The library module is `CAT_SulcusRepair` while the CLI is `CAT_VolSulcusRepair`: automake's
-`subdir-objects` would otherwise collide on two objects of the same name.
 
 ## Architecture rules
 
