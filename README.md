@@ -56,9 +56,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_VolSanlm**                | Applies spatially adaptive non-local means denoising to volumetric MRI images. |
 | **CAT_VolSheetness**            | Multi-scale Hessian sheetness (plate) filter: detects thin sheet-like structures — sulcal CSF, gyral white-matter blades — and ignores blobs (see below). |
 | **CAT_VolSmooth**               | Smooths a volume with an isotropic Gaussian kernel. |
-| **CAT_VolSulcusRepair**         | Anatomy-aware repair of a PVE label map before thickness estimation: opens glued sulci and rescues the thin white-matter blades the classifier drops at the gyral crowns, using the intensity image as evidence (see below). |
 | **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. `-oriented-filter` replaces its internal isotropic medians with sheetness-oriented ones (see below). |
-| **CAT_VolThicknessQC**          | Triages implausibly thick cortex in a thickness map by shape: plate-like components are glued sulci and recoverable, solid ones are subcortical grey matter or genuinely thick poles and are not (see below). |
 | **CAT_SurfApplyWarp**           | Applies deformation fields (from CAT_ApplySurf) to transform surface meshes. |
 | **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
 | **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
@@ -114,15 +112,13 @@ The field is consumed by:
 |------|--------|
 | **CAT_VolLocalStat** | `-oriented` (with `-stat 7`) — median over a sheet-oriented neighbourhood |
 | **CAT_VolThicknessPbt** | `-oriented-filter` — replaces the three isotropic medians inside PBT |
-| **CAT_VolSulcusRepair** | always — the evidence term for the pre-PBT repair |
 | **CAT_VolMarchingCubes** | `-strength-sulci` — opens buried sulci in the PPM itself |
 
 Every one of these is **a no-op where no sheet is detected**: the oriented
 operator is then numerically identical to the isotropic one it replaces, which
 is what makes them safe to enable. All are off by default.
 
-**CAT_VolSulcusRepair** addresses three failure modes that break central-surface
-extraction, all of which are failures of *evidence* rather than of smoothness —
+**extraction, all of which are failures of *evidence* rather than of smoothness —
 which is why no local filter fixes them:
 
 1. **Glued sulci.** Two banks of a tight sulcus end up as one thick grey-matter
@@ -164,8 +160,7 @@ floors sitting just above the isovalue are pushed below it; the gyral boost of
 `-strength-gyrimask` is damped there, because strengthening a thin white-matter
 finger otherwise lifts the neighbouring sulcal floor back over the isovalue; and
 the median filter is oriented along the sheet so it cannot re-close what was
-opened. The same interaction is guarded inside `CAT_VolSulcusRepair` by
-`-wm-sulcus-guard`, which stops blade strengthening from burying a sulcus one
+opened. The same interaction is guarded inside ``-wm-sulcus-guard`, which stops blade strengthening from burying a sulcus one
 voxel away — the usual occipital failure, where the banks are already almost
 touching.
 
@@ -173,8 +168,7 @@ touching.
 against a threshold, and the filter's automatic noise scale is half the *largest*
 Hessian norm in the volume. On a T1 that scale is set by the strongest edges in
 the image, so a thin sulcal sheet lands an order of magnitude below it and the
-defaults do nothing — which is why `CAT_VolSulcusRepair` usually needs
-`-sheet-strength` well above 1. Measure before tuning anything else:
+defaults do nothing — which is why ``-sheet-strength` well above 1. Measure before tuning anything else:
 
 ```bash
 CAT_VolSheetness -polarity -1 -v t1_corr.nii sheet.nii   # look at p99 and max
@@ -182,8 +176,7 @@ CAT_VolSheetness -polarity -1 -v t1_corr.nii sheet.nii   # look at p99 and max
 
 Pick the gain that puts the p99 of the response near twice the threshold. The
 gain does **not** carry over between tools, because each measures a different
-image: `CAT_VolSulcusRepair -sheet-strength` is measured on the intensity image,
-`CAT_VolMarchingCubes -sulci-sheet-strength` on the PPM. The PPM is the
+image: ``CAT_VolMarchingCubes -sulci-sheet-strength` on the PPM. The PPM is the
 better-conditioned of the two — its dynamic range is bounded and its structures
 are all of comparable scale — so it generally needs far less gain than a T1.
 Run `CAT_VolMarchingCubes -strength-sulci 1 -verbose` and it prints the p99 and
@@ -196,8 +189,6 @@ A typical pre-PBT sequence:
 # Inspect the evidence first (dark sheets = sulcal CSF)
 CAT_VolSheetness -polarity -1 -v t1_corr.nii sheetness.nii
 
-# Repair the label map, then estimate thickness from the repaired map
-CAT_VolSulcusRepair -verbose t1_corr.nii label.nii label_repaired.nii
 CAT_VolThicknessPbt -oriented-filter label_repaired.nii gmt.nii ppm.nii
 
 # ... and again at the surface stage, on the PPM
@@ -217,8 +208,7 @@ cutoff is half the sheetness at which a thin structure starts being protected**.
 It defaults to 0.10 and is set with `-sheet-cutoff` (`-oriented-cutoff` in
 `CAT_VolThicknessPbt`).
 
-`CAT_VolSulcusRepair` gates the same way with its own constants: it ignores a
-response below `-csf-thresh` / `-wm-thresh` (default 0.1) and ramps the blend
+`response below `-csf-thresh` / `-wm-thresh` (default 0.1) and ramps the blend
 weight up to `-csf-strength` / `-wm-strength` at twice the threshold. So those
 thresholds, too, are half the sheetness at which the correction acts at full
 strength.
@@ -241,40 +231,6 @@ The gain multiplies the response and clamps it to `[0,1]`. Because it is linear
 and fixes zero, no value of it can break the no-op guarantee above. It does
 amplify the noise floor along with the sheets, and it lifts the strongest
 responses first, so raise it while watching the map rather than blind.
-
-### Triaging implausible thickness
-
-A thickness map normally carries voxels above any defensible value — cortex does
-not exceed roughly 4.5 mm. Two different faults produce them, and the repair for
-one is harmful applied to the other: a **glued sulcus** is two banks with no CSF
-between them, which `CAT_VolSulcusRepair` can separate, while a **solid mass** is
-cortex merged with subcortical grey matter or a genuinely thick pole, where
-carving a sulcus would invent anatomy.
-
-Thickness alone cannot tell them apart. Shape can, with one number: a glued
-sulcus is a band at most about 5 mm across however far it runs along the sulcus,
-so the largest sphere fitting inside it has a radius of about 2.5 mm, while a
-solid mass has no such bound. **CAT_VolThicknessQC** groups the flagged voxels
-into connected components and reports the maximum inscribed radius of each —
-a measure that depends neither on where a component sits nor on how big it is.
-For scale, a normal 2.5 mm ribbon gives about 1.25 mm.
-
-```bash
-CAT_VolThicknessPbt p0.nii gmt.nii ppm.nii
-CAT_VolThicknessQC -label p0.nii -classmap qc.nii gmt.nii
-```
-
-It prints a component table and a summary, and `-classmap` writes the classes
-(1 = plate, 2 = solid) for overlaying on the thickness map. The plate share of
-the flagged volume is a useful per-subject QC number: a low share means the
-over-thick voxels are anatomy or subcortical labelling rather than something a
-sulcus repair can fix.
-
-References: Han et al., *Proc SPIE Med Imag* 4322:194–203, 2001 (ACE); Han et
-al., *NeuroImage* 23(3):997–1012, 2004 (CRUISE); Kim et al., *NeuroImage*
-27(1):210–221, 2005 (CLASP); Descoteaux et al., *Med Image Anal*
-10(4):638–651, 2006 (sheetness); Sato et al., *Med Image Anal* 2(2):143–168,
-1998.
 
 ### External binary GIFTI files
 

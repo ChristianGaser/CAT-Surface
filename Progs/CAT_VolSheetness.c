@@ -30,6 +30,7 @@ double strength  = 1.0;
 int    polarity  = 0;
 double normalize = CAT_SHEETNESS_NORMALIZE;
 int    skeletonize = 0;
+int    signed_map = 0;
 int    verbose   = 0;
 
 static
@@ -68,6 +69,19 @@ ArgvInfo argTable[] = {
          0.5 of the oriented median, below which it is exactly the isotropic\n\
          median.  0 reproduces the isotropic filters exactly.  The same knob is\n\
          called -sheet-strength in the tools that consume the field."},
+    {"-signed", ARGV_CONSTANT, (char *) 1, (char *) &signed_map,
+         "Write the polarity as a sign instead of a magnitude: a valley -- dark\n\
+         sheet, a sulcus -- comes out negative and a ridge -- bright sheet, a\n\
+         white-matter blade -- positive, in [-1, 1].  Implies -polarity 0, since\n\
+         the whole point is to keep both and tell them apart.\n\
+         The two then move in opposite directions under one operation: adding\n\
+         the map to a PPM lowers it along sulci and raises it along blades at\n\
+         once, which a global isovalue shift cannot do -- that opens sulci and\n\
+         severs thin gyri with the same stroke.  This is the map\n\
+         CAT_VolMarchingCubes -sheet-offset applies internally.\n\
+         Combine with -skeleton: the flanks of a valley curve upward and so read\n\
+         as ridges, carrying the opposite sign, and an unthinned signed map\n\
+         would push a surface the wrong way immediately beside every structure."},
     {"-skeleton", ARGV_CONSTANT, (char *) 1, (char *) &skeletonize,
          "Keep only the medial sheet: suppress every voxel that is not a\n\
          maximum along its own normal.  The response of a plate filter is as\n\
@@ -122,7 +136,7 @@ Usage: %s [options] <input.nii> [<output.nii>]\n\
     The response is written as a float map in [0,1].  Its main use is to\n\
     check the scale range and the polarity on a new protocol before enabling\n\
     any of the options that consume it -- CAT_VolLocalStat -oriented,\n\
-    CAT_VolThicknessPbt -oriented-filter and CAT_VolSulcusRepair, all of\n\
+    CAT_VolThicknessPbt -oriented-filter, all of\n\
     which estimate the field\n\
     themselves rather than reading it from a file.  The accompanying sheet\n\
     normals are not written: a 3-vector per voxel needs a 4-D image, which\n\
@@ -133,6 +147,7 @@ Options:\n\
     -sigma-max <float>  Largest scale in mm (default: 1.0).\n\
     -scales    <int>    Number of log-spaced scales (default: 3).\n\
     -polarity  <int>    1 = bright sheets, -1 = dark sheets, 0 = either.\n\
+    -signed             Write the polarity as a sign (valley negative, ridge positive).\n\
     -alpha     <float>  Plate-vs-tube sensitivity (default: 0.5).\n\
     -beta      <float>  Blob-vs-plate sensitivity (default: 0.5).\n\
     -c         <float>  Noise sensitivity; negative selects automatic.\n\
@@ -201,6 +216,9 @@ main(int argc, char *argv[])
     opts.polarity  = polarity;
     opts.normalize = normalize;
     opts.skeletonize = skeletonize;
+    opts.signed_response = signed_map;
+    if (signed_map)
+        opts.polarity = 0;
     opts.verbose   = verbose;
 
     if (verbose)

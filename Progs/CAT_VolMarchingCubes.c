@@ -66,7 +66,7 @@ static ArgvInfo argTable[] = {
      ribbon itself. A thin sulcal valley is far weaker than that, so the raw\n\
      response typically sits an order of magnitude below -sulci-thresh and\n\
      -strength-sulci does nothing at all at a gain of 1. This is the same\n\
-     reason CAT_VolSulcusRepair needs its own -sheet-strength, and the value\n\
+     reason the sheetness gain exists at all, and the value\n\
      does NOT carry over: that one is measured on the intensity image, this\n\
      one on the PPM. Run with -verbose -- it reports the p99 and maximum of\n\
      the response next to the threshold, and warns when the gain is too low."},
