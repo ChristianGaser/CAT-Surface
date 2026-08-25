@@ -12,7 +12,7 @@
 
 #include <bicpl/marching.h>
 #include "CAT_NiftiLib.h"
-#include "CAT_SulcusRepair.h"
+#include "CAT_PpmSulci.h"
 
 #define CHUNK_SIZE    1000000
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))

@@ -17,7 +17,7 @@
 #include "CAT_Intersect.h"
 #include "CAT_MarchingCubes.h"
 #include "CAT_Sheetness.h"
-#include "CAT_SulcusRepair.h"
+#include "CAT_PpmSulci.h"
 
 int euler_characteristic(polygons_struct *polygons, int verbose);
 
