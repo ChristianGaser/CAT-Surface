@@ -113,13 +113,11 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `vol_sanlm` | Structure-adaptive non-local means denoising | `CAT_VolSanlm` |
 | `vol_blood_vessel_correction` | Blood vessel intensity correction | *(no CLI; the correction `CAT_VolThicknessPbt` applies unless `-no-bvc`)* |
 | `vol_thickness_pbt` | Cortical thickness via projection-based method | `CAT_VolThicknessPbt` |
-| `vol_thickness_qc` | Shape triage of implausibly thick cortex | `CAT_VolThicknessQC` |
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation | `CAT_VolAmap` (core only) |
 | `vol_marching_cubes` | Isosurface extraction with genus-0 topology correction | `CAT_VolMarchingCubes` |
 | `vol_smooth` | Isotropic Gaussian volume smoothing | `CAT_VolSmooth` |
 | `vol_sheetness` | Multi-scale Hessian sheetness (plate) filter | `CAT_VolSheetness` |
 | `vol_oriented_median` | Median over a sheetness-oriented neighbourhood | `CAT_VolLocalStat -oriented` |
-| `vol_sulcus_repair` | Pre-PBT repair of glued sulci and lost WM blades | `CAT_VolSulcusRepair` |
 | `vol_open_ppm_sulci` | Push buried sulcal valleys in a PPM below the isovalue | `CAT_VolMarchingCubes -strength-sulci` |
 | `vol2surf` | Map a volume to a surface along inward normals | `CAT_Vol2Surf` |
 
@@ -151,8 +149,6 @@ sheet, normal = cat_surf.vol_sheetness(t1, voxelsize=vx, polarity=-1,
 # A median that cannot close a sulcus (orientation taken from the intensity)
 clean = cat_surf.vol_oriented_median(lab, guide=t1, voxelsize=vx)
 
-# Recover sulcal CSF the classifier discarded, then run PBT on the repaired map
-lab = cat_surf.vol_sulcus_repair(t1, lab, voxelsize=vx, verbose=True)
 gmt, ppm, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=vx,
                                             oriented_filter=True)
 
@@ -298,11 +294,9 @@ The full mapping:
 | `CAT_VolAmap` | `vol_amap` |
 | `CAT_VolLocalStat` | `vol_local_stat` (`-oriented` only) |
 | `CAT_VolMarchingCubes` | `vol_marching_cubes` |
-| `CAT_VolThicknessQC` | `vol_thickness_qc` |
 | `CAT_VolSanlm` | `vol_sanlm` |
 | `CAT_VolSheetness` | `vol_sheetness` |
 | `CAT_VolSmooth` | `vol_smooth` |
-| `CAT_VolSulcusRepair` | `vol_sulcus_repair` |
 | `CAT_VolThicknessPbt` | `vol_thickness_pbt` |
 
 For composable in-memory pipelines, prefer the lower-level `cat_surf`

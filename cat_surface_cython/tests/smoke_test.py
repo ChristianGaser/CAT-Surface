@@ -135,55 +135,6 @@ def test_oriented_filters():
 # 4. Pre-PBT repair: opens a glued sulcus, bridges a broken blade, and does
 #    neither where the evidence is absent.
 # ---------------------------------------------------------------------------
-def test_sulcus_repair():
-    section("Pre-PBT repair")
-
-    x = np.arange(N)[:, None, None]
-    wm = (x < 6) | (x > 17)
-
-    t1 = np.where(wm, 140.0, 90.0).astype(np.float32) * np.ones((N, N, N), np.float32)
-    lab = np.where(wm, 3.0, 2.0).astype(np.float32) * np.ones((N, N, N), np.float32)
-    lab[0, :, :] = 1.0                       # some real CSF for the class levels
-    t1[0, :, :] = 40.0
-    t1[12, :, :] = 45.0                      # dark sulcus, still labelled GM
-
-    out, sheet = cat_surf.vol_sulcus_repair(t1, lab, voxelsize=VX,
-                                            strengthen_wm=False,
-                                            sheet_sigma_min=0.5,
-                                            sheet_sigma_max=1.0,
-                                            sheet_n_scales=2,
-                                            return_sheetness=True)
-    check("glued sulcus was opened", out[12, 12, 12] < lab[12, 12, 12] - 0.4,
-          f"{lab[12, 12, 12]:.2f} -> {out[12, 12, 12]:.2f}")
-    check("never opened past what the intensity supports", out[12, 12, 12] >= 1.0)
-    check("ordinary GM left alone",
-          abs(out[9, 12, 12] - lab[9, 12, 12]) < 1e-5)
-    check("sheetness map returned", sheet.shape == (N, N, N))
-
-    t1b = np.full((N, N, N), 90.0, np.float32)
-    labb = np.full((N, N, N), 2.0, np.float32)
-    labb[0, :, :] = 1.0
-    t1b[0, :, :] = 40.0
-    labb[12, :, :] = 3.0                     # a one-voxel WM blade
-    t1b[12, :, :] = 140.0
-    labb[12, :, 12] = 2.0                    # the missegmentation
-    t1b[12, :, 12] = 138.0
-    labb[5, 5, 5] = 2.0                      # decoy: no facing bank
-    t1b[5, 5, 5] = 140.0
-
-    outb = cat_surf.vol_sulcus_repair(t1b, labb, voxelsize=VX,
-                                      recover_csf=False,
-                                      sheet_sigma_min=0.5, sheet_sigma_max=1.0,
-                                      sheet_n_scales=2)
-    check("blade gap was bridged", outb[12, 12, 12] > 2.4,
-          f"{outb[12, 12, 12]:.2f}")
-    check("isolated bright voxel untouched",
-          abs(outb[5, 5, 5] - labb[5, 5, 5]) < 1e-5)
-
-
-# ---------------------------------------------------------------------------
-# 5. The new options on the existing entry points stay backward compatible.
-# ---------------------------------------------------------------------------
 def test_open_ppm_sulci():
     section("Buried sulci in the PPM")
 
@@ -238,41 +189,6 @@ def test_marching_cubes_sulci_kwargs():
             ok = False
             print(f"       {exc}")
         check(f"marching cubes runs with sulci_skeleton={flag}", ok)
-
-
-def test_wm_sulcus_guard():
-    section("Sulcus guard on blade strengthening")
-
-    def phantom(with_sulcus):
-        t1 = np.full((N, N, N), 90.0, np.float32)
-        lab = np.full((N, N, N), 2.0, np.float32)
-        lab[0, :, :] = 1.0
-        t1[0, :, :] = 40.0
-        lab[12, :, :] = 3.0
-        t1[12, :, :] = 140.0
-        lab[12, :, 12] = 2.0          # the missegmentation
-        t1[12, :, 12] = 138.0
-        if with_sulcus:               # a sulcal floor one voxel from the tip
-            t1[13, :, 12] = 45.0
-        return t1, lab
-
-    kw = dict(voxelsize=VX, recover_csf=False, sheet_sigma_min=0.5,
-              sheet_sigma_max=1.0, sheet_n_scales=2)
-
-    t1, lab = phantom(True)
-    unguarded = cat_surf.vol_sulcus_repair(t1, lab, wm_sulcus_guard=0.0, **kw)
-    t1, lab = phantom(True)
-    guarded = cat_surf.vol_sulcus_repair(t1, lab, wm_sulcus_guard=1.0, **kw)
-    t1, lab = phantom(False)
-    no_sulcus = cat_surf.vol_sulcus_repair(t1, lab, wm_sulcus_guard=1.0, **kw)
-
-    check("without the guard the blade buries the sulcus",
-          unguarded[12, 12, 12] > 2.4, f"{unguarded[12, 12, 12]:.3f}")
-    check("the guard stops that",
-          guarded[12, 12, 12] < unguarded[12, 12, 12] - 0.4,
-          f"{guarded[12, 12, 12]:.3f}")
-    check("the guard does not block a blade with no sulcus nearby",
-          no_sulcus[12, 12, 12] > 2.4, f"{no_sulcus[12, 12, 12]:.3f}")
 
 
 def test_sulcal_barrier():
@@ -429,42 +345,11 @@ def test_option_no_ops():
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
 # ---------------------------------------------------------------------------
-def test_thickness_qc():
-    section("Thickness QC")
-
-    gmt = np.full((N, N, N), 1.0, np.float32)
-    gmt[6:10, 4:N-4, 4:N-4] = 6.0                       # a 4-voxel plate
-    # np.mgrid yields axis 0 first, so a0 must clear the plate's 6:10 slab
-    a0, a1, a2 = np.mgrid[0:N, 0:N, 0:N]
-    gmt[((a0 - 17) ** 2 + (a1 - 12) ** 2 + (a2 - 12) ** 2) <= 16] = 6.0  # a ball
-
-    comps, cls = cat_surf.vol_thickness_qc(gmt, return_classmap=True)
-    shapes = sorted(c["shape"] for c in comps)
-    check("both structures were found", len(comps) == 2, str(shapes))
-    check("one plate and one solid", shapes == ["plate", "solid"])
-
-    plate = next(c for c in comps if c["shape"] == "plate")
-    solid = next(c for c in comps if c["shape"] == "solid")
-    check("the plate radius is half its thickness", 1.5 < plate["max_radius"] <= 2.5,
-          f"{plate['max_radius']:.2f} mm")
-    check("the ball radius is its own radius", solid["max_radius"] > 4.0,
-          f"{solid['max_radius']:.2f} mm")
-    check("size is not the discriminator", plate["n_voxels"] > solid["n_voxels"])
-    check("class map tags plate 1 and solid 2",
-          set(np.unique(cls).tolist()) == {0.0, 1.0, 2.0})
-
-    clean = np.full((N, N, N), 2.5, np.float32)
-    check("a plausible thickness map reports nothing",
-          cat_surf.vol_thickness_qc(clean) == [])
-
-
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
-                 test_open_ppm_sulci, test_marching_cubes_sulci_kwargs,
-                 test_wm_sulcus_guard, test_sulcal_barrier,
-                 test_barrier_gate_scales_with_thickness,
-                 test_sulcus_repair, test_thickness_qc, test_option_no_ops):
+                 test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
+                 test_barrier_gate_scales_with_thickness, test_option_no_ops):
         try:
             test()
         except Exception:  # pragma: no cover

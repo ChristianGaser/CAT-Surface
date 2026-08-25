@@ -439,68 +439,9 @@ cdef extern from "CAT_Sheetness.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_ThicknessQC.h — shape triage of implausibly thick cortex
+# CAT_PpmSulci.h — opening buried sulci in a percentage position map
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_ThicknessQC.h":
-    int CAT_QC_PLATE
-    int CAT_QC_SOLID
-
-    ctypedef struct CAT_ThicknessQCOpts:
-        double thresh
-        double plate_radius
-        double min_volume
-        int conn
-        int verbose
-
-    ctypedef struct CAT_ThicknessComponent:
-        long n_voxels
-        double volume_mm3
-        double max_radius
-        double centroid[3]
-        double gmt_mean
-        double gmt_max
-        int shape
-
-    void CAT_ThicknessQCOptionsInit(CAT_ThicknessQCOpts *opts)
-    int  CAT_VolThicknessQC(const float *gmt, const float *label, int dims[3],
-                            double voxelsize[3], const CAT_ThicknessQCOpts *opts,
-                            CAT_ThicknessComponent **comps, int *n_comps,
-                            float *classmap)
-
-# ---------------------------------------------------------------------------
-# CAT_SulcusRepair.h — anatomy-aware repair of a PVE label map, before PBT
-# ---------------------------------------------------------------------------
-cdef extern from "CAT_SulcusRepair.h":
-    ctypedef struct CAT_SulcusRepairOpts:
-        double sheet_sigma_min
-        double sheet_sigma_max
-        int sheet_n_scales
-        double sheet_normalize
-        int sheet_skeleton
-        double sheet_strength
-        double csf_min_dist
-        double csf_min_wmdist
-        double csf_thresh
-        double csf_strength
-        double wm_thresh
-        double wm_strength
-        double wm_min_int
-        int wm_max_gap
-        double wm_sulcus_guard
-        double band_min_dist
-        int band_window
-        double band_strength
-        int verbose
-
-    void CAT_SulcusRepairOptionsInit(CAT_SulcusRepairOpts *opts)
-    int  CAT_VolNormalizeToLabel(const float *t1, const float *label,
-                                 float *t1n, int dims[3])
-    int  CAT_VolRecoverSulcalCSF(const float *t1, float *label, float *sheetness,
-                                 int dims[3], double voxelsize[3],
-                                 const CAT_SulcusRepairOpts *opts)
-    int  CAT_VolStrengthenWmBlades(const float *t1, float *label, float *sheetness,
-                                   int dims[3], double voxelsize[3],
-                                   const CAT_SulcusRepairOpts *opts)
+cdef extern from "CAT_PpmSulci.h":
     ctypedef struct CAT_PpmSulciOpts:
         double sigma_min
         double sigma_max
@@ -521,10 +462,6 @@ cdef extern from "CAT_SulcusRepair.h":
                              const float *normal, int dims[3],
                              double voxelsize[3], double isovalue,
                              const CAT_PpmSulciOpts *opts)
-
-    int  CAT_VolRefinePveNarrowBand(const float *t1, float *label,
-                                    int dims[3], double voxelsize[3],
-                                    const CAT_SulcusRepairOpts *opts)
 
 
 # ---------------------------------------------------------------------------

@@ -45,9 +45,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_VolSanlm                      -> vol_sanlm
     CAT_VolSheetness                  -> vol_sheetness
     CAT_VolSmooth                     -> vol_smooth
-    CAT_VolSulcusRepair               -> vol_sulcus_repair
     CAT_VolThicknessPbt               -> vol_thickness_pbt
-    CAT_VolThicknessQC                -> vol_thickness_qc
 """
 from __future__ import annotations
 
@@ -86,8 +84,6 @@ from cat_surf import (
     vol_smooth as _vol_smooth,
     vol_sheetness as _vol_sheetness,
     vol_oriented_median as _vol_oriented_median,
-    vol_sulcus_repair as _vol_sulcus_repair,
-    vol_thickness_qc as _vol_thickness_qc,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
     sulcus_depth as _sulcus_depth,
@@ -655,98 +651,6 @@ def vol_sheetness(input_file, output_file=None, **kwargs):
     _save_volume_like(output_file, out, img, dtype=np.float32)
 
 
-def vol_thickness_qc(gmt_file, label_file=None, classmap_file=None, **kwargs):
-    """Mirror of ``CAT_VolThicknessQC``.
-
-    Triage implausibly thick cortex by shape, separating plate-like
-    components (glued sulci, which :func:`vol_sulcus_repair` can act on)
-    from solid ones (subcortical grey matter or genuinely thick poles,
-    where carving a sulcus would invent anatomy).
-
-    Parameters
-    ----------
-    gmt_file : str
-        Cortical thickness map in mm, e.g. from ``CAT_VolThicknessPbt``.
-    label_file : str, optional
-        PVE label map confining the search to the cortical band
-        (``-label``).
-    classmap_file : str, optional
-        Write per-voxel classes, 1 = plate and 2 = solid (``-classmap``).
-    **kwargs
-        Forwarded to :func:`cat_surf.vol_thickness_qc`: ``thresh``,
-        ``plate_radius``, ``min_volume``, ``conn``, ``verbose``.
-
-    Returns
-    -------
-    components : list of dict
-        As :func:`cat_surf.vol_thickness_qc`, largest first.
-    """
-    import nibabel as nib
-    img = nib.load(gmt_file)
-    gmt = img.get_fdata().astype(np.float32)
-    vx = img.header.get_zooms()[:3]
-    lab = None
-    if label_file is not None:
-        lab = nib.load(label_file).get_fdata().astype(np.float32)
-    result = _vol_thickness_qc(gmt, label=lab, voxelsize=vx,
-                               return_classmap=classmap_file is not None,
-                               **kwargs)
-    if classmap_file is not None:
-        comps, cls = result
-        _save_volume_like(classmap_file, cls, img, dtype=np.float32)
-    else:
-        comps = result
-    return comps
-
-
-def vol_sulcus_repair(t1_file, label_file, output_file=None,
-                      sheetness_file=None, **kwargs):
-    """Mirror of ``CAT_VolSulcusRepair``.
-
-    Anatomy-aware repair of a PVE label map, to be run *before*
-    :func:`vol_thickness_pbt`.
-
-    Parameters
-    ----------
-    t1_file : str
-        Bias-corrected intensity image.
-    label_file : str
-        PVE label image in [0, 3] with CSF = 1, GM = 2, WM = 3.
-    output_file : str, optional
-        Output path.  Defaults to ``repaired_<basename>`` next to the
-        label file, matching the binary's naming convention.
-    sheetness_file : str, optional
-        Also write the sheetness map of the last executed step
-        (``-sheetness``).
-    **kwargs
-        Forwarded to :func:`cat_surf.vol_sulcus_repair`: ``recover_csf``,
-        ``strengthen_wm``, ``refine_pve``, the ``sheet_*``, ``csf_*``,
-        ``wm_*`` and ``band_*`` parameters, and ``verbose``.
-    """
-    import nibabel as nib
-    t1_img = nib.load(t1_file)
-    lab_img = nib.load(label_file)
-    t1 = t1_img.get_fdata().astype(np.float32)
-    lab = lab_img.get_fdata().astype(np.float32)
-    vx = lab_img.header.get_zooms()[:3]
-
-    result = _vol_sulcus_repair(t1, lab, voxelsize=vx,
-                                return_sheetness=sheetness_file is not None,
-                                **kwargs)
-    if sheetness_file is not None:
-        out, sheet = result
-    else:
-        out, sheet = result, None
-
-    if output_file is None:
-        d = os.path.dirname(label_file) or "."
-        b = os.path.basename(label_file)
-        output_file = os.path.join(d, "repaired_" + b)
-    _save_volume_like(output_file, out, lab_img, dtype=np.float32)
-    if sheet is not None:
-        _save_volume_like(sheetness_file, sheet, lab_img, dtype=np.float32)
-
-
 def surf_resample_multi(units, output_file, fwhm=0.0, areal=False):
     """Mirror of ``CAT_SurfResampleMulti``.
 
@@ -965,7 +869,5 @@ __all__ = [
     "vol_sanlm",
     "vol_sheetness",
     "vol_smooth",
-    "vol_sulcus_repair",
-    "vol_thickness_qc",
     "vol_thickness_pbt",
 ]
