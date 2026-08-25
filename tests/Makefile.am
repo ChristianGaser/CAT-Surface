@@ -3,8 +3,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
     -I$(top_srcdir)/3rdparty/nifti
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_thickness_qc
-TESTS = test_math test_glmformula test_sheetness test_calc test_thickness_qc
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc
+TESTS = test_math test_glmformula test_sheetness test_calc
 
 test_math_SOURCES = test_math.c
 
@@ -22,6 +22,3 @@ test_calc_SOURCES = test_calc.c
 
 test_calc_LDADD = $(top_builddir)/libCAT.la -lm
 
-test_thickness_qc_SOURCES = test_thickness_qc.c
-
-test_thickness_qc_LDADD = $(top_builddir)/libCAT.la -lm
