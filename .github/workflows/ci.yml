@@ -17,7 +17,15 @@ jobs:
         run: |
           autoupdate
           autoreconf -fi
-          ./configure --enable-static --disable-shared --disable-doc
+          # -fPIC is required, not an optimisation: the Python bindings below
+          # link libCAT.a and libfftw3.a into shared extension modules, and on
+          # x86-64 Linux a non-PIC object cannot go into a .so ("relocation
+          # R_X86_64_PC32 ... can not be used when making a shared object").
+          # A --disable-shared libtool build emits non-PIC objects by default,
+          # so the flag has to be forced here.  CFLAGS is also forwarded to the
+          # bundled FFTW3 sub-configure (see configure.ac), which needs it too.
+          ./configure --enable-static --disable-shared --disable-doc \
+            CFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
       - name: Build
         run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
       - name: Test
