@@ -522,25 +522,28 @@ def vol_open_ppm_sulci(ppm, voxelsize=None, double isovalue=0.5,
 
 
 def vol_thickness_pbt(volume, voxelsize=None,
-                      int n_avgs=2, int n_median_filter=2,
-                      int median_subsample=4, double range_val=0.45,
-                      double fill_thresh=0.5,
-                      double correct_thickness=0.25,
-                      double sulcal_width=2.5,
+                      int n_avgs=-1, int n_median_filter=-1,
+                      int median_subsample=-1, double range_val=-1.0,
+                      double fill_thresh=-1.0,
+                      correct_thickness=None,
+                      double sulcal_width=-1.0,
                       bint pve_distance=False,
                       bint sulcal_barrier=False,
-                      double barrier_q=0.0, double barrier_tmin=0.5,
-                      double barrier_gmtfactor=2.0, double barrier_gmtmax=0.0,
-                      double barrier_dmin=2.0,
-                      double barrier_halfwidth=0.0,
+                      double barrier_q=-1.0, double barrier_tmin=-1.0,
+                      double barrier_gmtfactor=-1.0, double barrier_gmtmax=-1.0,
+                      double barrier_dmin=-1.0,
+                      double barrier_halfwidth=-1.0,
                       bint oriented_filter=False,
-                      double oriented_strength=1.0, double oriented_cutoff=0.0,
+                      double oriented_strength=-1.0, double oriented_cutoff=-1.0,
                       bint fast=False, bint verbose=False):
     """
     Compute projection-based cortical thickness (PBT).
 
-    Mirrors ``CAT_VolThicknessPbt``.  Defaults match
-    ``CAT_PbtOptionsInit`` from the library.
+    Mirrors ``CAT_VolThicknessPbt``.  Every argument defaults to a
+    sentinel meaning "not asked for", so the value actually used comes
+    from ``CAT_PbtOptionsInit`` in the library -- the single source of
+    truth.  ``correct_thickness`` takes ``None`` rather than a negative
+    sentinel, because a negative correction is a legitimate value.
 
     Parameters
     ----------
@@ -700,24 +703,28 @@ def vol_thickness_pbt(volume, voxelsize=None,
 
     cdef C.CAT_PbtOptions opts
     C.CAT_PbtOptionsInit(&opts)
-    opts.n_avgs = n_avgs
-    opts.n_median_filter = n_median_filter
-    opts.median_subsample = median_subsample
-    opts.range = range_val
-    opts.fill_thresh = fill_thresh
-    opts.correct_thickness = correct_thickness
-    opts.sulcal_width = sulcal_width
+    # CAT_PbtOptionsInit() is the single source of truth for the defaults; a
+    # sentinel here means "not asked for" and the library default stands.
+    # correct_thickness takes None rather than a negative sentinel because a
+    # negative correction is a legitimate value.
+    if n_avgs           >= 0:   opts.n_avgs = n_avgs
+    if n_median_filter  >= 0:   opts.n_median_filter = n_median_filter
+    if median_subsample >= 0:   opts.median_subsample = median_subsample
+    if range_val        >= 0.0: opts.range = range_val
+    if fill_thresh      >= 0.0: opts.fill_thresh = fill_thresh
+    if correct_thickness is not None: opts.correct_thickness = correct_thickness
+    if sulcal_width     >= 0.0: opts.sulcal_width = sulcal_width
     opts.pve_distance = 1 if pve_distance else 0
     opts.sulcal_barrier = 1 if sulcal_barrier else 0
-    opts.barrier_q = barrier_q
-    opts.barrier_gmtfactor = barrier_gmtfactor
-    opts.barrier_gmtmax = barrier_gmtmax
-    opts.barrier_dmin = barrier_dmin
-    opts.barrier_tmin = barrier_tmin
-    opts.barrier_halfwidth = barrier_halfwidth
+    if barrier_q         >= 0.0: opts.barrier_q = barrier_q
+    if barrier_gmtfactor >= 0.0: opts.barrier_gmtfactor = barrier_gmtfactor
+    if barrier_gmtmax    >= 0.0: opts.barrier_gmtmax = barrier_gmtmax
+    if barrier_dmin      >= 0.0: opts.barrier_dmin = barrier_dmin
+    if barrier_tmin      >= 0.0: opts.barrier_tmin = barrier_tmin
+    if barrier_halfwidth >= 0.0: opts.barrier_halfwidth = barrier_halfwidth
     opts.oriented_filter = 1 if oriented_filter else 0
-    opts.oriented_strength = oriented_strength
-    opts.oriented_cutoff = oriented_cutoff
+    if oriented_strength >= 0.0: opts.oriented_strength = oriented_strength
+    if oriented_cutoff   >= 0.0: opts.oriented_cutoff = oriented_cutoff
     opts.fast = 1 if fast else 0
     opts.verbose = 1 if verbose else 0
 
@@ -864,13 +871,13 @@ def vol_marching_cubes(volume, double threshold=0.5,
                        double pre_fwhm=2.0, int iter_laplacian=50,
                        dist_morph=None, int n_median_filter=2,
                        int n_iter=5, double strength_gyri_mask=0.1,
-                       double strength_sulci=0.0, double sulci_cutoff=0.0,
+                       double strength_sulci=-1.0, double sulci_cutoff=-1.0,
                        double sulci_sheet_strength=-1.0,
                        double sulci_thresh=-1.0, double sulci_band=-1.0,
                        double sulci_normalize=-1.0, int sulci_skeleton=-1,
                        double sulci_sigma_factor=-1.0,
                        double sulci_sigma_min=-1.0, double sulci_sigma_max=-1.0,
-                       int sulci_scales=-1, double sheet_offset=0.0,
+                       int sulci_scales=-1, double sheet_offset=-1.0,
                        bint fast=False, label=None,
                        bint verbose=False):
     """
@@ -899,8 +906,10 @@ def vol_marching_cubes(volume, double threshold=0.5,
     n_iter : int
         Maximum number of topology-correction iterations (default 5).
     strength_sulci : float
-        Strength of the buried-sulcus correction on the PPM, in [0, 1]
-        (default 0.0 = off).  A buried sulcus is a valley in the PPM
+        Strength of the buried-sulcus correction on the PPM, and its
+        on/off gate (default 0 = off).  Raising it enables the
+        correction; the other ``sulci_*`` arguments are the values tuned
+        on real data and take effect only once this is set.  A buried sulcus is a valley in the PPM
         whose floor never drops below the isovalue, so the two banks fuse
         when the isosurface is extracted.  No intensity image is needed:
         crossing a sulcus the PPM runs 1 → 0.5 → ~0 → 0.5 → 1 and
@@ -997,7 +1006,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
     cdef object_struct *result = NULL
     cdef C.CAT_PpmSulciOpts sulci_opts
     cdef C.CAT_PpmSulciOpts *sulci_ptr = NULL
-    if strength_sulci > 0.0:
+    if strength_sulci != 0.0:
         # CAT_PpmSulciOptionsInit() is the single source of truth for the
         # defaults; a negative value here means "not asked for" and the library
         # default stands.  Duplicating the numbers is how this binding and the
@@ -1013,9 +1022,9 @@ def vol_marching_cubes(volume, double threshold=0.5,
         if sulci_sigma_min      >= 0.0: sulci_opts.sigma_min = sulci_sigma_min
         if sulci_sigma_max      >= 0.0: sulci_opts.sigma_max = sulci_sigma_max
         if sulci_scales         >= 1:   sulci_opts.n_scales = sulci_scales
-        sulci_opts.offset = sheet_offset
-        sulci_opts.strength = strength_sulci
-        sulci_opts.cutoff = sulci_cutoff
+        if sheet_offset    >= 0.0: sulci_opts.offset = sheet_offset
+        if strength_sulci  >= 0.0: sulci_opts.strength = strength_sulci
+        if sulci_cutoff    >= 0.0: sulci_opts.cutoff = sulci_cutoff
         sulci_opts.verbose = 1 if verbose else 0
         sulci_ptr = &sulci_opts
 
