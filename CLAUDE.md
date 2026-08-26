@@ -94,6 +94,15 @@ through pip, which installs it from `build-system.requires`).
 
 ## The sulcal barrier in PBT (`-sulcal-barrier`)
 
+The defaults in `CAT_PbtOptionsInit()` are the values tuned on real data and both front-ends
+defer to them: `n_avgs` 5, `n_median_filter` 0, `median_subsample` 2, `sulcal_width` 5.0,
+`barrier_gmtfactor` 1.75, `barrier_q` 0.7. `sulcal_barrier` itself defaults to **off**, as
+`CAT_PpmSulciOpts::strength` does, so the correction stays out of the way until asked for.
+`correct_thickness` is deliberately left at its old default: it compensates the border shift
+of whichever segmentation produced the label map, so it is a per-pipeline value (0.0 for
+AMAP, -0.05 otherwise in T1Prep) that no single library default can express.
+
+
 The buried sulcus is created in the **distance map**, not at marching cubes. Where the
 classifier lost the CSF in a sulcus there is no boundary for the CSF distance to stop at,
 so the front from one bank runs through the fused grey matter into the other; GMT follows
@@ -210,13 +219,21 @@ the map lowers the PPM along sulci and raises it along blades in one pass. Same 
 
 Balanced, and two orders of magnitude more surgical.
 
+The defaults in `CAT_PpmSulciOptionsInit()` are the values tuned on real data and are what
+both front-ends use unless told otherwise: `strength` 15, `sheet_strength` 30, `offset` 0.6,
+`sigma_factor` 0.9, `cutoff` 0.4, `sheet_skeleton` off. That last one is a deliberate
+trade against the flank argument below — the unthinned map does push the flanks the wrong
+way, but across subjects the stronger correction won. `strength` itself defaults to **0**,
+so the correction stays off until it is asked for; the tuned values above are what it uses
+once `strength_sulci` is raised.
+
 **The map must be skeletonized before it is used as an offset**, and that is not a
 preference. The flanks of a valley curve upward and therefore read as *ridges*, carrying the
 opposite sign: on a profile through a one-voxel valley the response runs
 `+0.19 +0.29 -0.86 +0.29 +0.19`. Added unthinned, the offset would push the surface the wrong
 way immediately beside every structure. Non-maximum suppression along the normal removes the
 flanks and leaves the structure's own value untouched; `tests/test_sheetness.c` asserts both
-halves of that. Skeletonization is on by default (`-no-sulci-skeleton` disables it), and it
+halves of that. Skeletonization is **off** by default (`-sulci-skeleton` enables it), and it
 is a weaker correction at the same offset -- roughly a third of the crossings -- so raise
 `-sheet-offset` by about 3x when comparing against the unthinned field.
 
