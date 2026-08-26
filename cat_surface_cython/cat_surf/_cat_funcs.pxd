@@ -443,6 +443,7 @@ cdef extern from "CAT_Sheetness.h":
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_PpmSulci.h":
     ctypedef struct CAT_PpmSulciOpts:
+        double sigma_factor
         double sigma_min
         double sigma_max
         int n_scales

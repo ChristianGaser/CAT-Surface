@@ -865,10 +865,12 @@ def vol_marching_cubes(volume, double threshold=0.5,
                        dist_morph=None, int n_median_filter=2,
                        int n_iter=5, double strength_gyri_mask=0.1,
                        double strength_sulci=0.0, double sulci_cutoff=0.0,
-                       double sulci_sheet_strength=1.0,
-                       double sulci_thresh=0.3, double sulci_band=0.25,
-                       double sulci_normalize=1.0,
-                       bint sulci_skeleton=False, double sheet_offset=0.0,
+                       double sulci_sheet_strength=-1.0,
+                       double sulci_thresh=-1.0, double sulci_band=-1.0,
+                       double sulci_normalize=-1.0, int sulci_skeleton=-1,
+                       double sulci_sigma_factor=-1.0,
+                       double sulci_sigma_min=-1.0, double sulci_sigma_max=-1.0,
+                       int sulci_scales=-1, double sheet_offset=0.0,
                        bint fast=False, label=None,
                        bint verbose=False):
     """
@@ -960,6 +962,17 @@ def vol_marching_cubes(volume, double threshold=0.5,
     cdef float *label_data = NULL
     cdef nifti_image *nii_label = NULL
 
+    # apply_marching_cubes() writes the topology change map back over its input
+    # -- that is the optional third output of the CLI, which writes it to a file
+    # and exits.  A binding cannot do that: it would hand the caller back a
+    # destroyed array, and a second call on the same array would run on the
+    # change map instead of the volume and silently return the same surface
+    # whatever the options were.  Work on a private copy.
+    cdef cnp.ndarray[cnp.float32_t, ndim=1] _mc_scratch = np.empty(
+        vh.dims[0] * vh.dims[1] * vh.dims[2], dtype=np.float32)
+    memcpy(<void *>_mc_scratch.data, <const void *>vh.data,
+           sizeof(float) * <size_t>(vh.dims[0] * vh.dims[1] * vh.dims[2]))
+
     if label is not None:
         vh_label = open_volume(label)
         if (vh_label.dims[0] != vh.dims[0]
@@ -985,13 +998,22 @@ def vol_marching_cubes(volume, double threshold=0.5,
     cdef C.CAT_PpmSulciOpts sulci_opts
     cdef C.CAT_PpmSulciOpts *sulci_ptr = NULL
     if strength_sulci > 0.0:
+        # CAT_PpmSulciOptionsInit() is the single source of truth for the
+        # defaults; a negative value here means "not asked for" and the library
+        # default stands.  Duplicating the numbers is how this binding and the
+        # CLI drifted apart -- the binding was running the sheetness at a tenth
+        # of the library's gain, which left the whole correction inert.
         C.CAT_PpmSulciOptionsInit(&sulci_opts)
-        sulci_opts.sheet_normalize = sulci_normalize
-        sulci_opts.sheet_skeleton = 1 if sulci_skeleton else 0
+        if sulci_sheet_strength >= 0.0: sulci_opts.sheet_strength = sulci_sheet_strength
+        if sulci_normalize      >= 0.0: sulci_opts.sheet_normalize = sulci_normalize
+        if sulci_skeleton       >= 0:   sulci_opts.sheet_skeleton = sulci_skeleton
+        if sulci_thresh         >= 0.0: sulci_opts.thresh = sulci_thresh
+        if sulci_band           >= 0.0: sulci_opts.band = sulci_band
+        if sulci_sigma_factor   >= 0.0: sulci_opts.sigma_factor = sulci_sigma_factor
+        if sulci_sigma_min      >= 0.0: sulci_opts.sigma_min = sulci_sigma_min
+        if sulci_sigma_max      >= 0.0: sulci_opts.sigma_max = sulci_sigma_max
+        if sulci_scales         >= 1:   sulci_opts.n_scales = sulci_scales
         sulci_opts.offset = sheet_offset
-        sulci_opts.sheet_strength = sulci_sheet_strength
-        sulci_opts.thresh = sulci_thresh
-        sulci_opts.band = sulci_band
         sulci_opts.strength = strength_sulci
         sulci_opts.cutoff = sulci_cutoff
         sulci_opts.verbose = 1 if verbose else 0
@@ -1000,11 +1022,11 @@ def vol_marching_cubes(volume, double threshold=0.5,
     try:
         if fast:
             result = C.apply_marching_cubes_fast(
-                vh.data, vh.nii, threshold,
+                <float *>_mc_scratch.data, vh.nii, threshold,
                 iter_laplacian, 1 if verbose else 0)
         else:
             result = C.apply_marching_cubes(
-                vh.data, vh.nii, label_data,
+                <float *>_mc_scratch.data, vh.nii, label_data,
                 threshold, pre_fwhm, iter_laplacian,
                 dist_morph_val, n_median_filter, n_iter,
                 strength_gyri_mask, sulci_ptr, 1 if verbose else 0)
