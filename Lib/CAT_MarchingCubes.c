@@ -762,6 +762,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     float *vol_changed = (float *)calloc(nvol, sizeof(float));
     float *vol_float = (float *)malloc(nvol * sizeof(float));
     float *sulc_sheet = NULL, *sulc_normal = NULL;
+    double sigma_max = 0.0;   /* largest sheetness scale, derived from the PPM */
     unsigned short *vol_uint16 = (unsigned short *)malloc(nvol * sizeof(unsigned short));
     unsigned char *vol_uint8 = (unsigned char *)malloc(nvol * sizeof(unsigned char));
 
@@ -836,6 +837,37 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     {
         CAT_SheetnessOpts sopts;
 
+        sigma_max = sulci_opts->sigma_max;
+
+        /* Derive the largest scale from the cortex being processed.
+         *
+         * The structure the filter has to find is a valley whose width is set
+         * by how far apart the two banks stand, so the scale belongs at a
+         * multiple of this brain's thickness rather than at a fixed millimetre
+         * value that is only right for the cortex it was tuned on.  The
+         * thickness comes out of the PPM itself -- the map climbs by 1 across
+         * the ribbon, so its gradient is 1/thickness -- which matters here
+         * because by this point the label map and the intensity are both gone
+         * and the PPM is all there is. */
+        if (sulci_opts->sigma_factor > 0.0)
+        {
+            double med = CAT_PpmMedianThickness(input_float, dims, voxelsize);
+
+            if (med > 0.0)
+            {
+                sigma_max = sulci_opts->sigma_factor * med;
+                if (verbose)
+                    fprintf(stderr, "Sulci: median thickness from the PPM "
+                                    "%.2f mm, sigma_max at %.2fx = %.2f mm.\n",
+                            med, sulci_opts->sigma_factor, sigma_max);
+            }
+            else if (verbose)
+            {
+                fprintf(stderr, "Sulci: thickness not measurable from the PPM, "
+                                "keeping sigma_max = %.2f mm.\n", sigma_max);
+            }
+        }
+
         sulc_sheet = (float *)malloc(nvol * sizeof(float));
         sulc_normal = (float *)malloc(3 * nvol * sizeof(float));
         if (!sulc_sheet || !sulc_normal)
@@ -850,7 +882,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         {
             CAT_SheetnessOptionsInit(&sopts);
             sopts.sigma_min = sulci_opts->sigma_min;
-            sopts.sigma_max = sulci_opts->sigma_max;
+            sopts.sigma_max = sigma_max;
             sopts.n_scales = sulci_opts->n_scales;
             sopts.gain = sulci_opts->sheet_strength;
             sopts.normalize = sulci_opts->sheet_normalize;
@@ -874,8 +906,18 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                    raw response is far weaker than the defaults assume, so this
                    is the fastest way to tell whether sheet_strength is in the
                    right range without a separate CAT_VolSheetness run. */
-                double pct[2] = {99.0, 100.0}, val[2];
-                get_prctile(sulc_sheet, nvol, val, pct, 1, DT_FLOAT32);
+                double pct[2] = {99.0, 100.0}, val[2] = {0.0, 0.0};
+                int any = 0;
+
+                /* get_prctile() exits on an all-zero map; check first. */
+                for (i = 0; i < nvol; i++)
+                    if (sulc_sheet[i] != 0.0f)
+                    {
+                        any = 1;
+                        break;
+                    }
+                if (any)
+                    get_prctile(sulc_sheet, nvol, val, pct, 1, DT_FLOAT32);
                 fprintf(stderr, "  valley response: p99 = %.3f, max = %.3f "
                                 "(threshold %.3f)\n",
                         val[0], val[1], sulci_opts->thresh);
@@ -944,7 +986,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
             CAT_SheetnessOptionsInit(&sopts);
             sopts.sigma_min = sulci_opts->sigma_min;
-            sopts.sigma_max = sulci_opts->sigma_max;
+            sopts.sigma_max = sigma_max;
             sopts.n_scales = sulci_opts->n_scales;
             sopts.gain = sulci_opts->sheet_strength;
             sopts.normalize = sulci_opts->sheet_normalize;

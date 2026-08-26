@@ -560,10 +560,24 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     if (opts->normalize > 0.0)
     {
         double pct[2] = {50.0, 99.9}, val[2] = {0.0, 0.0};
+        int any = 0;
 
-        get_prctile(sheetness, nvox, val, pct, 1, DT_FLOAT32);
+        /* get_prctile() exits the process when every value is filtered out, so
+           the emptiness has to be established before calling it -- a filter that
+           legitimately found nothing (a polarity that rejects everything, a
+           skeleton that thins a weak map away) must not take the caller down
+           with it, least of all through a language binding. */
+        for (i = 0; i < nvox; i++)
+            if (sheetness[i] != 0.0f)
+            {
+                any = 1;
+                break;
+            }
 
-        if (val[1] > 1e-12)
+        if (any)
+            get_prctile(sheetness, nvox, val, pct, 1, DT_FLOAT32);
+
+        if (any && val[1] > 1e-12)
         {
             const double scale = opts->normalize / val[1];
 

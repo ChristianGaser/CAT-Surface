@@ -19,11 +19,15 @@ double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
 double strength_sulci = 0.0;
 double sulci_cutoff = 0.0;
-double sulci_sheet_strength = 10.0;
-double sulci_thresh = 0.1;
-double sulci_band = 0.25;
-double sulci_normalize = CAT_SHEETNESS_NORMALIZE;
-int sulci_skeleton = 1;
+double sulci_sheet_strength = -1.0;
+double sulci_thresh = -1.0;
+double sulci_band = -1.0;
+double sulci_normalize = -1.0;
+int sulci_skeleton = -1;
+double sulci_sigma_factor = -1.0;
+double sulci_sigma_min = -1.0;
+double sulci_sigma_max = -1.0;
+int sulci_scales = -1;
 double sulci_offset = 0.0;
 int iter_laplacian = 50;
 int n_median_filter = 2;
@@ -70,6 +74,29 @@ static ArgvInfo argTable[] = {
      does NOT carry over: that one is measured on the intensity image, this\n\
      one on the PPM. Run with -verbose -- it reports the p99 and maximum of\n\
      the response next to the threshold, and warns when the gain is too low."},
+
+  {"-sulci-sigma-factor", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sigma_factor,
+    "Largest sheetness scale as a multiple of the median cortical thickness\n\
+     (default 1.25; 0 or less keeps -sulci-sigma-max as given). The structure\n\
+     the filter has to find is a valley whose width is set by how far apart the\n\
+     two banks stand, so the scale belongs at a multiple of this brain's\n\
+     thickness rather than at a fixed millimetre value. The thickness is read\n\
+     out of the PPM itself -- the map climbs by 1 across the ribbon, so its\n\
+     gradient is 1/thickness -- so no thickness map, label map or intensity\n\
+     image is needed, which matters because none of them exist at this point.\n\
+     Run with -verbose to see the thickness measured and the scale derived."},
+
+  {"-sulci-sigma-min", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sigma_min,
+    "Smallest sheetness scale in mm (library default 0.3)."},
+
+  {"-sulci-sigma-max", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sigma_max,
+    "Largest sheetness scale in mm. Overrides -sulci-sigma-factor when set.\n\
+     lever on what gets found: a sulcus wider than the largest scale is not seen\n\
+     as a sheet at all. Raise it if glued sulci persist, and use -sulci-skeleton\n\
+     so the wider response still lands on the midline."},
+
+  {"-sulci-scales", ARGV_INT, (char *) TRUE, (char *) &sulci_scales,
+    "Number of log-spaced sheetness scales (library default 3)."},
 
   {"-sulci-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_thresh,
     "Sheetness below this is ignored (default 0.1). Aim for a gain that puts\n\
@@ -257,13 +284,22 @@ int main(int argc, char *argv[]) {
         CAT_PpmSulciOpts sulci_opts;
         CAT_PpmSulciOpts *sulci_ptr = NULL;
         if (strength_sulci > 0.0) {
+            /* CAT_PpmSulciOptionsInit() is the single source of truth for the
+               defaults; a negative value here means the user did not ask for
+               anything and the library default stands.  Duplicating the numbers
+               in the front-ends is how the CLI and the Python binding drifted
+               apart in the first place. */
             CAT_PpmSulciOptionsInit(&sulci_opts);
-            sulci_opts.sheet_strength = sulci_sheet_strength;
-            sulci_opts.sheet_normalize = sulci_normalize;
-            sulci_opts.sheet_skeleton = sulci_skeleton;
+            if (sulci_sheet_strength >= 0.0) sulci_opts.sheet_strength = sulci_sheet_strength;
+            if (sulci_normalize      >= 0.0) sulci_opts.sheet_normalize = sulci_normalize;
+            if (sulci_skeleton       >= 0)   sulci_opts.sheet_skeleton = sulci_skeleton;
+            if (sulci_thresh         >= 0.0) sulci_opts.thresh = sulci_thresh;
+            if (sulci_band           >= 0.0) sulci_opts.band = sulci_band;
+            if (sulci_sigma_factor   >= 0.0) sulci_opts.sigma_factor = sulci_sigma_factor;
+            if (sulci_sigma_min      >= 0.0) sulci_opts.sigma_min = sulci_sigma_min;
+            if (sulci_sigma_max      >= 0.0) sulci_opts.sigma_max = sulci_sigma_max;
+            if (sulci_scales         >= 1)   sulci_opts.n_scales = sulci_scales;
             sulci_opts.offset = sulci_offset;
-            sulci_opts.thresh = sulci_thresh;
-            sulci_opts.band = sulci_band;
             sulci_opts.strength = strength_sulci;
             sulci_opts.cutoff = sulci_cutoff;
             sulci_opts.verbose = verbose;

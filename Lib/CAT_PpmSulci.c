@@ -34,6 +34,7 @@ void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts)
     if (!opts)
         return;
 
+    opts->sigma_factor = 1.25;
     opts->sigma_min = 0.3;
     opts->sigma_max = 3.0;
     opts->n_scales = 3;
@@ -197,4 +198,75 @@ int CAT_VolOpenPpmSulci(float *ppm, const float *sheetness, const float *normal,
     free(own_S);
     free(own_nrm);
     return 0;
+}
+
+/**
+ * \brief Median cortical thickness read out of a PPM, in mm.
+ *
+ * See the header for why this works: the map climbs by 1 across the ribbon, so
+ * its gradient is 1/thickness.  The band is restricted to the interior because
+ * the map flattens at both ends, and the statistic is a median so that the
+ * glued sulci -- where the map is stretched across two banks and the gradient
+ * reads too small -- cannot drag the estimate down.
+ *
+ * \param ppm       (in) percentage position map in [0,1]
+ * \param dims      (in) {nx, ny, nz}
+ * \param voxelsize (in) voxel spacing in mm
+ * \return median thickness in mm, or 0 when the band is too small to measure
+ */
+double CAT_PpmMedianThickness(const float *ppm, int dims[3], double voxelsize[3])
+{
+    const int nx = dims ? dims[0] : 0;
+    const int ny = dims ? dims[1] : 0;
+    const int nz = dims ? dims[2] : 0;
+    const int xy = nx * ny;
+    double vx, vy, vz, med = 0.0;
+    double *buf = NULL;
+    int x, y, z, n = 0, cap;
+
+    if (!ppm || !dims || !voxelsize || nx < 3 || ny < 3 || nz < 3)
+        return 0.0;
+
+    vx = fabs(voxelsize[0]);
+    vy = fabs(voxelsize[1]);
+    vz = fabs(voxelsize[2]);
+    if (vx <= 0.0 || vy <= 0.0 || vz <= 0.0)
+        return 0.0;
+
+    /* subsampled by two per axis: ample for a median, and it keeps the
+       temporary well under the size of the volume itself */
+    cap = (nx / 2 + 1) * (ny / 2 + 1) * (nz / 2 + 1);
+    buf = (double *)malloc(sizeof(double) * (size_t)cap);
+    if (!buf)
+        return 0.0;
+
+    for (z = 2; z < nz - 2; z += 2)
+        for (y = 2; y < ny - 2; y += 2)
+            for (x = 2; x < nx - 2; x += 2)
+            {
+                const int i = x + y * nx + z * xy;
+                double gx, gy, gz, g;
+
+                /* the interior of the ribbon only: outside it the map is flat
+                   and its gradient carries no thickness information */
+                if (!(ppm[i] > 0.15f && ppm[i] < 0.85f))
+                    continue;
+
+                gx = 0.5 * ((double)ppm[i + 1] - (double)ppm[i - 1]) / vx;
+                gy = 0.5 * ((double)ppm[i + nx] - (double)ppm[i - nx]) / vy;
+                gz = 0.5 * ((double)ppm[i + xy] - (double)ppm[i - xy]) / vz;
+
+                g = sqrt(gx * gx + gy * gy + gz * gz);
+                if (g < 1e-6)
+                    continue;
+
+                if (n < cap)
+                    buf[n++] = 1.0 / g;
+            }
+
+    if (n >= 100)
+        med = get_median_double(buf, n, 0);
+
+    free(buf);
+    return med;
 }

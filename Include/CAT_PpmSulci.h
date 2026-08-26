@@ -33,6 +33,17 @@
 /** \brief Parameters for opening buried sulci in a PPM. */
 typedef struct
 {
+    double sigma_factor; /**< Largest sheetness scale as a multiple of the median
+                              cortical thickness (default 1.25; <= 0 disables the
+                              derivation and leaves sigma_max as given).  The
+                              structure the filter has to find is a valley whose
+                              width is set by how far apart the two banks are, so
+                              the scale belongs at a multiple of *this* brain's
+                              thickness rather than at a fixed millimetre value.
+                              The thickness is read out of the PPM itself through
+                              CAT_PpmMedianThickness(), so nothing beyond the map
+                              being processed is needed.  sigma_max overrides it
+                              when the caller sets one explicitly. */
     double sigma_min; /**< smallest sheetness scale in mm */
     double sigma_max; /**< largest sheetness scale in mm */
     int n_scales;     /**< number of log-spaced scales */
@@ -88,6 +99,32 @@ typedef struct
  * \param opts (out) option block to initialize; NULL is ignored
  */
 void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts);
+
+/**
+ * \brief Median cortical thickness read out of a PPM, in mm.
+ *
+ * The percentage position map runs from 0 at the pial boundary to 1 at the
+ * white matter, so across a ribbon of thickness T it climbs by 1 over a
+ * distance T and its gradient has magnitude 1/T.  Inverting that gives a local
+ * thickness at every voxel without any thickness map, any label map or any
+ * intensity image -- the PPM alone carries it, which matters here because by
+ * the time the surface is extracted nothing else is left.
+ *
+ * Only the interior of the ribbon is used: near 0 and near 1 the map flattens
+ * out into CSF and white matter and the gradient stops meaning anything.  The
+ * median over that band is returned, so the glued minority -- where the map is
+ * stretched across two banks and the gradient is correspondingly too small --
+ * cannot move the answer.
+ *
+ * Checked against PBT's own GMT on a 0.5 mm ADNI subject: p25/p50/p75 of
+ * 1.85/2.34/2.74 mm against 1.94/2.36/2.73 mm, a median ratio of 0.99.
+ *
+ * \param ppm       (in) percentage position map in [0,1]
+ * \param dims      (in) {nx, ny, nz}
+ * \param voxelsize (in) voxel spacing in mm
+ * \return median thickness in mm, or 0 when the band is too small to measure
+ */
+double CAT_PpmMedianThickness(const float *ppm, int dims[3], double voxelsize[3]);
 
 /**
  * \brief Push buried sulcal valleys in a PPM below the isovalue.
