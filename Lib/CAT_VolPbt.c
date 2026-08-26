@@ -56,19 +56,19 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
 {
     if (!opts)
         return;
-    opts->n_avgs = 2;
-    opts->n_median_filter = 2;
+    opts->n_avgs = 5;
+    opts->n_median_filter = 0;
     opts->range = 0.45;
-    opts->median_subsample = 4;
+    opts->median_subsample = 2;
     opts->fill_thresh = 0.5;
     opts->correct_thickness = PBT_CORRECT_MM;
-    opts->sulcal_width = 2.5;
+    opts->sulcal_width = 5.0;
     opts->pve_distance = 0;
     opts->sulcal_barrier = 0;
     opts->barrier_dmin = 2.0;
     opts->barrier_gmtmax = 0.0;
-    opts->barrier_gmtfactor = 2.0;
-    opts->barrier_q = 0.0;
+    opts->barrier_gmtfactor = 1.75;
+    opts->barrier_q = 0.7;
     opts->barrier_tmin = 0.5;
     opts->barrier_halfwidth = 0.0;
     opts->oriented_filter = 0;

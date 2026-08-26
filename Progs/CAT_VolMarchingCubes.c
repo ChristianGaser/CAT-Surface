@@ -17,8 +17,8 @@ double min_threshold = 0.5;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
-double strength_sulci = 0.0;
-double sulci_cutoff = 0.0;
+double strength_sulci = -1.0;
+double sulci_cutoff = -1.0;
 double sulci_sheet_strength = -1.0;
 double sulci_thresh = -1.0;
 double sulci_band = -1.0;
@@ -28,7 +28,7 @@ double sulci_sigma_factor = -1.0;
 double sulci_sigma_min = -1.0;
 double sulci_sigma_max = -1.0;
 int sulci_scales = -1;
-double sulci_offset = 0.0;
+double sulci_offset = -1.0;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -47,7 +47,9 @@ static ArgvInfo argTable[] = {
      gyri/sulci mask from the label map."},
 
   {"-strength-sulci", ARGV_FLOAT, (char *) TRUE, (char *) &strength_sulci,
-    "Strength of the buried-sulcus correction on the PPM, 0..1 (default 0 = off).\n\
+    "Strength of the buried-sulcus correction on the PPM (default 0 = off).\n\
+     Raising it enables the correction; the remaining -sulci-* options are the\n\
+     values tuned on real data and take effect only once this is set.\n\
      A buried sulcus is a valley in the PPM whose floor never drops below the\n\
      isovalue, so the two banks fuse when the isosurface is extracted. No\n\
      intensity image is needed here: crossing a sulcus the PPM runs 1 -> 0.5 ->\n\
@@ -64,7 +66,7 @@ static ArgvInfo argTable[] = {
      never satisfy, so it cannot cut a gyrus."},
 
   {"-sulci-sheet-strength", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sheet_strength,
-    "Gain on the sheetness response used by -strength-sulci (default 10.0).\n\
+    "Gain on the sheetness response used by -strength-sulci (library default 30).\n\
      The automatic noise scale of the sheetness filter is half the largest\n\
      Hessian norm in the volume, which on real data is set by the cortical\n\
      ribbon itself. A thin sulcal valley is far weaker than that, so the raw\n\
@@ -110,7 +112,8 @@ static ArgvInfo argTable[] = {
 
   {"-sheet-offset", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_offset,
     "Signed sheetness offset applied to the PPM before the surface is extracted,\n\
-     in map units (default 0 = off). A sulcus is a valley in the PPM and a gyral\n\
+     in map units (library default 0.6; 0 disables it). A sulcus is a valley in\n\
+     the PPM and a gyral\n\
      blade a ridge, so a signed sheetness is negative on one and positive on the\n\
      other; adding it lowers the map along sulci and raises it along blades in a\n\
      single pass. This is what lowering -thresh globally cannot do -- that moves\n\
@@ -122,7 +125,7 @@ static ArgvInfo argTable[] = {
      the isovalue is 0.5, so 0.1 is a fifth of the way to either extreme."},
 
   {"-no-sulci-skeleton", ARGV_CONSTANT, (char *) FALSE, (char *) &sulci_skeleton,
-    "Do not thin the sulcal valley field to its medial sheet. Thinning is on by\n\
+    "Do not thin the sulcal valley field to its medial sheet. Thinning is off by\n\
      default because the offset and the barrier should act at the structure\n\
      rather than across a band as wide as the Gaussian that found it; this\n\
      switch is here so the two can be compared. Note the thinned field is a\n\
@@ -131,6 +134,7 @@ static ArgvInfo argTable[] = {
 
   {"-sulci-skeleton", ARGV_CONSTANT, (char *) TRUE, (char *) &sulci_skeleton,
     "Thin the sulcal valley field to its medial sheet before any threshold is\n\
+     applied. Off by default.\n\
      applied. The plate response is as wide as the Gaussian that produced it, so\n\
      a large -sulci-sigma-max locates the valleys well but answers several voxels\n\
      into the banks on either side; the per-voxel gates then reach into that\n\
@@ -145,7 +149,7 @@ static ArgvInfo argTable[] = {
 
   {"-sulci-cutoff", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_cutoff,
     "Admission cutoff of the oriented median used with -strength-sulci\n\
-     (default 0 = CAT_ORIENTED_MEDIAN_CUTOFF). It is half the sheetness at\n\
+     (library default 0.4; 0 selects CAT_ORIENTED_MEDIAN_CUTOFF). It is half the sheetness at\n\
      which a one-voxel-thick sheet starts being preserved, so it has to match\n\
      the response the PPM actually produces -- measure it with CAT_VolSheetness\n\
      -polarity -1 on the PPM and halve what the sulci reach."},
@@ -283,7 +287,7 @@ int main(int argc, char *argv[]) {
     } else {
         CAT_PpmSulciOpts sulci_opts;
         CAT_PpmSulciOpts *sulci_ptr = NULL;
-        if (strength_sulci > 0.0) {
+        if (strength_sulci != 0.0) {
             /* CAT_PpmSulciOptionsInit() is the single source of truth for the
                defaults; a negative value here means the user did not ask for
                anything and the library default stands.  Duplicating the numbers
@@ -299,9 +303,9 @@ int main(int argc, char *argv[]) {
             if (sulci_sigma_min      >= 0.0) sulci_opts.sigma_min = sulci_sigma_min;
             if (sulci_sigma_max      >= 0.0) sulci_opts.sigma_max = sulci_sigma_max;
             if (sulci_scales         >= 1)   sulci_opts.n_scales = sulci_scales;
-            sulci_opts.offset = sulci_offset;
-            sulci_opts.strength = strength_sulci;
-            sulci_opts.cutoff = sulci_cutoff;
+            if (sulci_offset  >= 0.0) sulci_opts.offset = sulci_offset;
+            if (strength_sulci >= 0.0) sulci_opts.strength = strength_sulci;
+            if (sulci_cutoff   >= 0.0) sulci_opts.cutoff = sulci_cutoff;
             sulci_opts.verbose = verbose;
             sulci_ptr = &sulci_opts;
         }

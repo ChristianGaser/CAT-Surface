@@ -34,7 +34,7 @@
 typedef struct
 {
     double sigma_factor; /**< Largest sheetness scale as a multiple of the median
-                              cortical thickness (default 1.25; <= 0 disables the
+                              cortical thickness (default 0.9; <= 0 disables the
                               derivation and leaves sigma_max as given).  The
                               structure the filter has to find is a valley whose
                               width is set by how far apart the two banks are, so
@@ -66,9 +66,12 @@ typedef struct
     double thresh;    /**< sheetness below this is ignored */
     double band;      /**< only act on values in (isovalue, isovalue + band) */
     double margin;    /**< how far below the isovalue an opened valley is pushed */
-    double strength;  /**< 0..1 blend towards that target */
+    double strength;  /**< strength of the correction, and its on/off gate
+                           (default 0 = off).  The other fields here are the
+                           values tuned on real data and take effect only once
+                           this is raised above zero. */
     double offset;    /**< signed sheetness offset applied to the map before the
-                           surface is extracted, in map units (default 0 = off).
+                           surface is extracted, in map units (default 0.6; 0 disables it).
                            A sulcus is a valley in a PPM and a gyral blade a
                            ridge, so a *signed* sheetness is negative on one and
                            positive on the other, and adding it lowers the map
@@ -80,7 +83,7 @@ typedef struct
                            of what is there.  The offset is scaled by the
                            response, so it is strongest where the structure is
                            clearest and vanishes where nothing was found.
-                           sheet_skeleton applies here too, and confines the
+                           sheet_skeleton applies here too (off by default) and confines the
                            offset to the medial line instead of a band as wide
                            as the Gaussian that produced the response -- the more
                            defensible place to displace a surface from.  It is

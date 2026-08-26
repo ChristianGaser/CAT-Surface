@@ -34,19 +34,19 @@ void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts)
     if (!opts)
         return;
 
-    opts->sigma_factor = 1.25;
+    opts->sigma_factor = 0.9;
     opts->sigma_min = 0.3;
     opts->sigma_max = 3.0;
     opts->n_scales = 3;
     opts->sheet_normalize = CAT_SHEETNESS_NORMALIZE;
-    opts->sheet_skeleton = 1;
-    opts->sheet_strength = 10.0;
+    opts->sheet_skeleton = 0;
+    opts->sheet_strength = 30.0;
     opts->thresh = 0.3;
     opts->band = 0.25;
     opts->margin = 0.05;
-    opts->strength = 1.0;
-    opts->offset = 0.0;
-    opts->cutoff = 0.0;
+    opts->strength = 0.0;
+    opts->offset = 0.6;
+    opts->cutoff = 0.4;
     opts->verbose = 0;
 }
 

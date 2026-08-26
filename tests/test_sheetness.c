@@ -413,6 +413,9 @@ static void test_open_ppm_sulci(void)
     opts.sigma_min = 0.5;
     opts.sigma_max = 1.0;
     opts.n_scales = 2;
+    /* the shipped default is 0, i.e. the correction is off until it is asked
+       for, so the test has to enable it explicitly */
+    opts.strength = 1.0;
 
     MU_ASSERT("open runs",
               CAT_VolOpenPpmSulci(ppm, NULL, NULL, dims3, vx1, 0.5, &opts) == 0);

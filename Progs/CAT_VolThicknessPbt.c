@@ -7,6 +7,7 @@
  */
 
 #include <float.h>
+#include <math.h>
 #include <stdlib.h>
 
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -22,26 +23,26 @@
 
 int fast = 0;
 int verbose = 0;
-int n_avgs = 2;
-int n_median_filter = 2;
-int median_subsample = 2;
+int n_avgs = -1;
+int n_median_filter = -1;
+int median_subsample = -1;
 int blood_vessel_correction = 1;
-double range = 0.45;
+double range = -1.0;
 double downsample = 0.0;
-double fill_thresh = 0.5;
-double correct_thickness = 0.25;
-double sulcal_width = 2.5;
+double fill_thresh = -1.0;
+double correct_thickness = NAN;
+double sulcal_width = -1.0;
 int pve_distance = 0;
 int oriented_filter = 0;
 int sulcal_barrier = 0;
-double barrier_q = 0.0;
-double barrier_dmin = 2.0;
-double barrier_gmtmax = 0.0;
-double barrier_gmtfactor = 2.0;
-double barrier_tmin = 0.5;
-double barrier_halfwidth = 0.0;
-double oriented_strength = 1.0;
-double oriented_cutoff = 0.0;
+double barrier_q = -1.0;
+double barrier_dmin = -1.0;
+double barrier_gmtmax = -1.0;
+double barrier_gmtfactor = -1.0;
+double barrier_tmin = -1.0;
+double barrier_halfwidth = -1.0;
+double oriented_strength = -1.0;
+double oriented_cutoff = -1.0;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -58,7 +59,7 @@ static ArgvInfo argTable[] = {
      "Enable blood-vessel correction before thickness estimation (0 disables, >0 enables)."},
 
     {"-n-avgs", ARGV_INT, (char *)1, (char *)&n_avgs,
-     "Specify the number of averages for distance estimation. Used for averaging\n\
+     "Number of averages for distance estimation (library default 5). Used for averaging\n\
     the distances in White Matter (WM) and Cerebrospinal Fluid (CSF) to obtain a\n\
     less noisy measure. A higher number results in smoother but potentially less\n\
     accurate measures."},
@@ -105,7 +106,7 @@ static ArgvInfo argTable[] = {
      but a correct one can never be inflated."},
 
     {"-barrier-gmtfactor", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtfactor,
-     "Multiple of the median thickness at which the gate sits (default 2.0; 0 or\n\
+     "Multiple of the median thickness at which the gate sits (library default 1.75; 0 or\n\
      less disables the gate). This is the criterion in its natural form: a glued\n\
      sulcus is two cortices back to back, so the threshold belongs at twice the\n\
      typical thickness of the brain being processed, not at a fixed millimetre\n\
@@ -136,7 +137,7 @@ static ArgvInfo argTable[] = {
      normally-thick cortex untouched."},
 
     {"-barrier-q", ARGV_FLOAT, (char *)1, (char *)&barrier_q,
-     "Shock threshold of the medial set (default 0, which selects 0.5).\n\
+     "Shock threshold of the medial set (library default 0.7).\n\
      Lower is stricter and gives a thinner midline."},
 
     {"-barrier-tmin", ARGV_FLOAT, (char *)1, (char *)&barrier_tmin,
@@ -244,8 +245,10 @@ Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
     oriented ones, which cannot close a thin structure. Where no sheet is\n\
     detected it is identical to the isotropic filter.\n\
 \n\
-    Every option is listed with its default under 'Command-specific options'\n\
-    above.\n\
+    Every option is listed under 'Command-specific options' above. The values\n\
+    shown there are the library defaults from CAT_PbtOptionsInit(), which is\n\
+    the single source of truth -- an option left unset keeps whatever the\n\
+    library specifies rather than a number duplicated in this tool.\n\
 \n\
 Examples:\n\
     %s input.nii gmt.nii ppm.nii\n\
@@ -350,26 +353,32 @@ int main(int argc, char *argv[])
 
     CAT_PbtOptions opts;
     CAT_PbtOptionsInit(&opts);
-    opts.n_avgs = n_avgs;
-    opts.n_median_filter = n_median_filter;
-    opts.range = range;
-    opts.fill_thresh = fill_thresh;
-    opts.correct_thickness = correct_thickness;
+    /* CAT_PbtOptionsInit() is the single source of truth for the defaults; a
+       sentinel here means the user did not ask for anything and the library
+       default stands.  Duplicating the numbers in the front-ends is how the CLI
+       and the Python binding drifted apart before (median_subsample was 2 in one
+       and 4 in the other).  correct_thickness uses NaN rather than a negative
+       sentinel because a negative correction is a legitimate value. */
+    if (n_avgs            >= 0)   opts.n_avgs = n_avgs;
+    if (n_median_filter   >= 0)   opts.n_median_filter = n_median_filter;
+    if (median_subsample  >= 0)   opts.median_subsample = median_subsample;
+    if (range             >= 0.0) opts.range = range;
+    if (fill_thresh       >= 0.0) opts.fill_thresh = fill_thresh;
+    if (!isnan(correct_thickness)) opts.correct_thickness = correct_thickness;
+    if (sulcal_width      >= 0.0) opts.sulcal_width = sulcal_width;
     opts.pve_distance = pve_distance;
     opts.fast = fast;
     opts.verbose = verbose;
-    opts.median_subsample = median_subsample;
-    opts.sulcal_width = sulcal_width;
     opts.oriented_filter = oriented_filter;
     opts.sulcal_barrier = sulcal_barrier;
-    opts.barrier_q = barrier_q;
-    opts.barrier_dmin = barrier_dmin;
-    opts.barrier_gmtmax = barrier_gmtmax;
-    opts.barrier_gmtfactor = barrier_gmtfactor;
-    opts.barrier_tmin = barrier_tmin;
-    opts.barrier_halfwidth = barrier_halfwidth;
-    opts.oriented_strength = oriented_strength;
-    opts.oriented_cutoff = oriented_cutoff;
+    if (barrier_q         >= 0.0) opts.barrier_q = barrier_q;
+    if (barrier_dmin      >= 0.0) opts.barrier_dmin = barrier_dmin;
+    if (barrier_gmtmax    >= 0.0) opts.barrier_gmtmax = barrier_gmtmax;
+    if (barrier_gmtfactor >= 0.0) opts.barrier_gmtfactor = barrier_gmtfactor;
+    if (barrier_tmin      >= 0.0) opts.barrier_tmin = barrier_tmin;
+    if (barrier_halfwidth >= 0.0) opts.barrier_halfwidth = barrier_halfwidth;
+    if (oriented_strength >= 0.0) opts.oriented_strength = oriented_strength;
+    if (oriented_cutoff   >= 0.0) opts.oriented_cutoff = oriented_cutoff;
 
     if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {
