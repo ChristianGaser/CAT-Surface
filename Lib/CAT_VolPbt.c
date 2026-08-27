@@ -77,6 +77,8 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->barrier_gmtmax = 0.0;
     opts->barrier_gmtfactor = 1.8;
     opts->barrier_gmtpct = 90.0;
+    opts->barrier_ramp = 0.5;
+    opts->barrier_local = 0.0;
     opts->barrier_q = 0.7;
     opts->barrier_tmin = 0.5;
     opts->barrier_halfwidth = 0.0;
@@ -408,6 +410,8 @@ int CAT_VolComputePbt(
                               : 1.0;
         double dmin_vox = opts->barrier_dmin / (double)mean_vx_size;
         double gmtmax_vox = opts->barrier_gmtmax / (double)mean_vx_size;
+        double ramp_vox = 0.0;
+        float *gate_local = NULL;
         long n_medial;
 
         medial = (float *)malloc(sizeof(float) * nvox);
@@ -506,6 +510,69 @@ int CAT_VolComputePbt(
                 }
             }
 
+            ramp_vox = opts->barrier_ramp * gmtmax_vox;
+
+            /* Regional gate.
+             *
+             * Cortex is not one thickness, so a single gate is too high for the
+             * thin regions -- two glued 2 mm banks imply only 4 mm and never
+             * reach a gate set by the whole hemisphere, which is why occipital
+             * sulci survive -- and too low for the thick ones, where it catches
+             * ordinary tissue and leaves a seam.  Smoothing the proxy and
+             * gating against the local value fixes both at once, and because
+             * the gate then varies smoothly there is no boundary left to see.
+             *
+             * The proxy is clipped at the global gate before smoothing so that
+             * the glued tissue cannot inflate the threshold meant to catch it. */
+            if (opts->barrier_local > 0.0)
+            {
+                float *wsum = (float *)malloc(sizeof(float) * nvox);
+
+                gate_local = (float *)malloc(sizeof(float) * nvox);
+                if (!gate_local || !wsum)
+                {
+                    free(gate_local);
+                    free(wsum);
+                    gate_local = NULL;
+                }
+                else
+                {
+                    double sm[3];
+                    sm[0] = sm[1] = sm[2] = opts->barrier_local;
+
+                    for (i = 0; i < nvox; i++)
+                    {
+                        if (mask[i])
+                        {
+                            double v = (double)dist_WM[i] + (double)dist_CSF[i];
+                            if (gmtmax_vox > 0.0 && v > gmtmax_vox)
+                                v = gmtmax_vox;
+                            gate_local[i] = (float)v;
+                            wsum[i] = 1.0f;
+                        }
+                        else
+                        {
+                            gate_local[i] = 0.0f;
+                            wsum[i] = 0.0f;
+                        }
+                    }
+
+                    /* normalized convolution: smoothing the values and the
+                       weights together keeps the average inside the band and
+                       stops the zeros outside it from pulling the gate down */
+                    smooth3(gate_local, dims, voxelsize, sm, 0, DT_FLOAT32);
+                    smooth3(wsum, dims, voxelsize, sm, 0, DT_FLOAT32);
+
+                    for (i = 0; i < nvox; i++)
+                        gate_local[i] = (wsum[i] > 1e-6f)
+                                            ? (float)(opts->barrier_gmtfactor *
+                                                      (double)gate_local[i] /
+                                                      (double)wsum[i])
+                                            : (float)gmtmax_vox;
+                    free(wsum);
+                }
+            }
+
             n_medial = CAT_VolSulcalMedialSet(dist_WM, mask, medial, dims,
                                               opts->barrier_q, tmin_vox);
 
@@ -529,7 +596,7 @@ int CAT_VolComputePbt(
 
                 for (i = 0; i < nvox; i++)
                 {
-                    double bound;
+                    double bound, w = 1.0;
 
                     if (!(src_copy[i] > CGM && src_copy[i] < GWM))
                         continue;
@@ -550,10 +617,31 @@ int CAT_VolComputePbt(
                        where 2-3 mm is normal -- so the implied thickness here
                        separates the two populations in a way the CSF distance
                        alone cannot: plenty of ordinary voxels sit far from CSF
-                       simply by being near the white matter. */
-                    if (gmtmax_vox > 0.0 &&
-                        (double)dist_WM[i] + (double)dist_CSF[i] <= gmtmax_vox)
-                        continue;
+                       simply by being near the white matter.
+                       Applied as a ramp rather than a step: a hard threshold
+                       switches the correction on between one voxel and its
+                       neighbour, and on a thick cortex -- where much of the band
+                       sits near the gate -- that seam shows up in the thickness
+                       map as a visible break. */
+                    {
+                        double implied = (double)dist_WM[i] + (double)dist_CSF[i];
+                        double gate = gate_local ? (double)gate_local[i]
+                                                 : gmtmax_vox;
+                        double ramp = opts->barrier_ramp * gate;
+
+                        if (gate > 0.0)
+                        {
+                            if (implied <= gate)
+                                continue;
+
+                            if (ramp > 0.0)
+                            {
+                                w = (implied - gate) / ramp;
+                                if (w > 1.0)
+                                    w = 1.0;
+                            }
+                        }
+                    }
 
                     bound = (double)dmed[i] - half_vox;
                     if (bound < 0.0)
@@ -561,7 +649,8 @@ int CAT_VolComputePbt(
 
                     if (bound < (double)dist_CSF[i])
                     {
-                        dist_CSF[i] = (float)bound;
+                        dist_CSF[i] = (float)((1.0 - w) * (double)dist_CSF[i]
+                                              + w * bound);
                         n_capped++;
                     }
                 }
@@ -593,6 +682,7 @@ int CAT_VolComputePbt(
                                         "(it must stay well below 1).\n");
                 }
                 free(dmed);
+                free(gate_local);
             }
         }
     }

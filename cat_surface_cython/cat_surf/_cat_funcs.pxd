@@ -362,6 +362,8 @@ cdef extern from "CAT_VolPbt.h":
         int pve_distance
         int sulcal_barrier
         double barrier_q
+        double barrier_local
+        double barrier_ramp
         double barrier_gmtpct
         double barrier_gmtfactor
         double barrier_gmtmax

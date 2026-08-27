@@ -40,6 +40,8 @@ double barrier_dmin = -1.0;
 double barrier_gmtmax = -1.0;
 double barrier_gmtfactor = -1.0;
 double barrier_gmtpct = -1.0;
+double barrier_ramp = -1.0;
+double barrier_local = -1.0;
 double barrier_tmin = -1.0;
 double barrier_halfwidth = -1.0;
 double oriented_strength = -1.0;
@@ -105,6 +107,24 @@ static ArgvInfo argTable[] = {
      is nearer than the midline and the result is identical to leaving this off;\n\
      the distance can only shrink, so an overestimated thickness can be fixed\n\
      but a correct one can never be inflated."},
+
+    {"-barrier-local", ARGV_FLOAT, (char *)1, (char *)&barrier_local,
+     "FWHM in mm over which the gate follows regional thickness (library default\n\
+     0, i.e. one global gate; the regional form measured neutral on three subjects). Cortex is not one thickness -- occipital runs\n\
+     near 2 mm while insular and temporal reach 3.5 mm -- so a single gate is at\n\
+     once too high for the thin regions, where two glued 2 mm banks imply only\n\
+     4 mm and never reach it, and too low for the thick ones, where it catches\n\
+     ordinary tissue and leaves a visible seam. Gating against the local value\n\
+     fixes both, and a smoothly varying gate leaves no boundary to see."},
+
+    {"-barrier-ramp", ARGV_FLOAT, (char *)1, (char *)&barrier_ramp,
+     "Width over which the gate fades in, as a fraction of the gate itself\n\
+     (library default 0.5; 0 restores a hard threshold). A hard threshold\n\
+     switches the correction on between one voxel and its neighbour, so on a\n\
+     thick cortex -- where much of the band sits near the gate -- capped and\n\
+     uncapped tissue end up side by side and the seam shows in the thickness\n\
+     map as a step. Fading the cap in over a range removes the seam without\n\
+     changing what is corrected well above the gate or left alone well below."},
 
     {"-barrier-gmtpct", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtpct,
      "Percentile below which the thickness proxy is averaged (library default\n\
@@ -387,6 +407,8 @@ int main(int argc, char *argv[])
     if (barrier_gmtmax    >= 0.0) opts.barrier_gmtmax = barrier_gmtmax;
     if (barrier_gmtfactor >= 0.0) opts.barrier_gmtfactor = barrier_gmtfactor;
     if (barrier_gmtpct    >= 0.0) opts.barrier_gmtpct = barrier_gmtpct;
+    if (barrier_ramp      >= 0.0) opts.barrier_ramp = barrier_ramp;
+    if (barrier_local     >= 0.0) opts.barrier_local = barrier_local;
     if (barrier_tmin      >= 0.0) opts.barrier_tmin = barrier_tmin;
     if (barrier_halfwidth >= 0.0) opts.barrier_halfwidth = barrier_halfwidth;
     if (oriented_strength >= 0.0) opts.oriented_strength = oriented_strength;
