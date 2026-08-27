@@ -530,7 +530,8 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       bint pve_distance=False,
                       bint sulcal_barrier=False,
                       double barrier_q=-1.0, double barrier_tmin=-1.0,
-                      double barrier_gmtfactor=-1.0, double barrier_gmtmax=-1.0,
+                      double barrier_gmtfactor=-1.0, double barrier_gmtpct=-1.0,
+                      double barrier_gmtmax=-1.0,
                       double barrier_dmin=-1.0,
                       double barrier_halfwidth=-1.0,
                       bint oriented_filter=False,
@@ -718,6 +719,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     opts.sulcal_barrier = 1 if sulcal_barrier else 0
     if barrier_q         >= 0.0: opts.barrier_q = barrier_q
     if barrier_gmtfactor >= 0.0: opts.barrier_gmtfactor = barrier_gmtfactor
+    if barrier_gmtpct    >= 0.0: opts.barrier_gmtpct = barrier_gmtpct
     if barrier_gmtmax    >= 0.0: opts.barrier_gmtmax = barrier_gmtmax
     if barrier_dmin      >= 0.0: opts.barrier_dmin = barrier_dmin
     if barrier_tmin      >= 0.0: opts.barrier_tmin = barrier_tmin
