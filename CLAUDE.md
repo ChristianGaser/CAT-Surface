@@ -96,7 +96,7 @@ through pip, which installs it from `build-system.requires`).
 
 The defaults in `CAT_PbtOptionsInit()` are the values tuned on real data and both front-ends
 defer to them: `n_avgs` 5, `n_median_filter` 0, `median_subsample` 2, `sulcal_width` 5.0,
-`barrier_gmtfactor` 1.75, `barrier_q` 0.7. `sulcal_barrier` itself defaults to **off**, as
+`barrier_gmtfactor` 1.8, `barrier_q` 0.7. `sulcal_barrier` itself defaults to **off**, as
 `CAT_PpmSulciOpts::strength` does, so the correction stays out of the way until asked for.
 `correct_thickness` is deliberately left at its old default: it compensates the border shift
 of whichever segmentation produced the label map, so it is a per-pipeline value (0.0 for
@@ -170,9 +170,13 @@ by being near the white matter.
 **The threshold is derived from the data, not fixed.** A glued sulcus is two cortices back to
 back, so the gate belongs at a multiple of *this brain's* thickness — `barrier_gmtfactor`,
 default 2.0 — rather than at a millimetre value that is only right for the cortex it was
-tuned on. The median is taken over `dist_WM + dist_CSF` in the GM band: for a band of locally
-constant thickness those are complementary and sum to it exactly, and a median is unmoved by
-the glued minority the gate exists to find. On the ADNI subject it derives 2.72 mm -> 5.45 mm;
+tuned on. The proxy is `dist_WM + dist_CSF` in the GM band: for a band of locally constant thickness
+those are complementary and sum to it exactly. It is summarised by the **mean of the values
+below `barrier_gmtpct` (default p90)**, not by a median — the glued sulci the gate exists to
+find sit in that upper tail, and a median only limits their influence, it still sits inside a
+distribution they have skewed. Measured against the GMT finally reported, on four hemispheres
+from two datasets, the ratio spans 0.087 for the trimmed mean against 0.102 for the median,
+so a factor calibrated against it transfers better between subjects. On the ADNI subject it derives 2.72 mm -> 5.45 mm;
 on a deliberately thinned copy of the same brain, 2.48 mm -> 4.96 mm, with the capped
 fraction holding at 1.6-1.9% either way.
 
