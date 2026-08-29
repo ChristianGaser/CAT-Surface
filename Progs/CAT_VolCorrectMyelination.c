@@ -41,6 +41,7 @@ int n_median_filter = 1;
 int no_wm_corr = 0;
 int csf_corr = 0;
 int verbose = 0;
+char *corr_file = NULL;
 
 static ArgvInfo argTable[] = {
     {"-erosion", ARGV_FLOAT, (char *)TRUE, (char *)&erosion_mm,
@@ -65,7 +66,11 @@ static ArgvInfo argTable[] = {
     {"-no-wm-corr", ARGV_CONSTANT, (char *)TRUE, (char *)&no_wm_corr,
      "Disable WM/GM (myelination) boundary correction."},
     {"-csf-corr", ARGV_CONSTANT, (char *)TRUE, (char *)&csf_corr,
-     "Disable GM/CSF (pial) boundary correction."},
+     "Enable GM/CSF (pial) boundary correction (off by default)."},
+    {"-corr-out", ARGV_STRING, (char *)1, (char *)&corr_file,
+     "Write the applied shift (corrected - input PVE) to this volume. Negative "
+     "where WM was relabelled toward GM, positive where CSF was. Use it to check "
+     "where and how much the correction acted."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
@@ -80,8 +85,9 @@ usage(const char *executable)
             "This tool identifies voxels near the GM/WM and GM/CSF boundaries\n"
             "that were likely misclassified due to myelination or PVE effects,\n"
             "and shifts their PVE values toward GM.\n\n"
-            "Both corrections are enabled by default. Use -no-wm-corr or\n"
-            "-csf-corr to disable/enable either side individually.\n\n"
+            "The WM/GM correction is on by default and is switched off with\n"
+            "-no-wm-corr; the GM/CSF correction is off and is switched on with\n"
+            "-csf-corr.\n\n"
             "The corrected PVE map can then be used for thickness estimation\n"
             "(e.g., CAT_VolThicknessPbt) with reduced boundary bias.\n\n",
             executable);
@@ -90,7 +96,7 @@ usage(const char *executable)
 int main(int argc, char *argv[])
 {
     char *pve_file, *t1w_file, *out_file;
-    float *pve_data, *t1w_data;
+    float *pve_data, *t1w_data, *corr_data = NULL;
     nifti_image *pve_nii, *t1w_nii;
     int dims[3];
     double voxelsize[3];
@@ -160,8 +166,20 @@ int main(int argc, char *argv[])
     opts.correct_csf = csf_corr;
     opts.verbose = verbose;
 
+    if (corr_file)
+    {
+        corr_data = (float *)calloc((size_t)dims[0] * dims[1] * dims[2],
+                                    sizeof(float));
+        if (!corr_data)
+        {
+            fprintf(stderr, "Memory allocation error.\n");
+            return EXIT_FAILURE;
+        }
+    }
+
     /* Apply correction */
-    if (CAT_VolCorrectMyelination(pve_data, t1w_data, dims, voxelsize, &opts) != 0)
+    if (CAT_VolCorrectMyelination(pve_data, t1w_data, dims, voxelsize,
+                                  corr_data, &opts) != 0)
     {
         fprintf(stderr, "Error during myelination correction.\n");
         return EXIT_FAILURE;
@@ -178,6 +196,20 @@ int main(int argc, char *argv[])
 
     if (verbose)
         fprintf(stderr, "Corrected PVE written to %s\n", out_file);
+
+    if (corr_data)
+    {
+        nifti_image *corr_nii = nifti_copy_nim_info(pve_nii);
+        if (!write_nifti_float(corr_file, corr_data, DT_FLOAT32, 1.0,
+                               dims, voxelsize, corr_nii))
+        {
+            fprintf(stderr, "Error writing correction field: %s\n", corr_file);
+            return EXIT_FAILURE;
+        }
+        if (verbose)
+            fprintf(stderr, "Correction field written to %s\n", corr_file);
+        free(corr_data);
+    }
 
     free(pve_data);
     free(t1w_data);

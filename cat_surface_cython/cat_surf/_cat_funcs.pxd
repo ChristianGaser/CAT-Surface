@@ -470,6 +470,31 @@ cdef extern from "CAT_PpmSulci.h":
 
 
 # ---------------------------------------------------------------------------
+# CAT_VolMyelinCorrection.h — PVE label correction at the tissue boundaries
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_VolMyelinCorrection.h":
+    ctypedef struct CAT_MyelinCorrOptions:
+        double erosion_mm
+        double k_intensity
+        double grad_percentile
+        double dist_mm
+        double max_correction
+        double min_cluster_mm3
+        double gm_grad_pct
+        double max_gm_grad_dist
+        int n_median_filter
+        int correct_wm
+        int correct_csf
+        int verbose
+
+    void CAT_MyelinCorrOptionsInit(CAT_MyelinCorrOptions *opts)
+    int  CAT_VolCorrectMyelination(float *pve, const float *t1w,
+                                   int dims[3], double voxelsize[3],
+                                   float *correction,
+                                   const CAT_MyelinCorrOptions *opts)
+
+
+# ---------------------------------------------------------------------------
 # CAT_NiftiLib.h — NIfTI float loader
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_NiftiLib.h":

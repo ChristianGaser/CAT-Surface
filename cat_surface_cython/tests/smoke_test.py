@@ -345,11 +345,57 @@ def test_option_no_ops():
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 9. The myelination correction is one-sided and leaves healthy cortex alone.
+# ---------------------------------------------------------------------------
+def test_correct_myelination():
+    section("myelination correction")
+
+    M = 48
+    vx = (1.0, 1.0, 1.0)
+    pve = np.zeros((M, M, M), np.float32)
+    t1 = np.zeros((M, M, M), np.float32)
+
+    x = np.arange(M)[:, None, None]
+    blk = np.zeros((M, M, M), bool)
+    blk[:, 8:40, 8:40] = True
+    for lo, hi, lab, val in ((10, 26, 3.0, 110.0), (26, 32, 2.0, 60.0),
+                             (32, 36, 1.0, 20.0)):
+        sel = np.broadcast_to((x >= lo) & (x < hi), (M, M, M)) & blk
+        pve[sel] = lab
+        t1[sel] = val
+
+    healthy = pve.copy()
+    out, corr = cat_surf.vol_correct_myelination(
+        pve, t1, voxelsize=vx, correct_csf=False, return_correction=True)
+    check("healthy cortex comes back untouched", np.array_equal(out, healthy))
+    check("and its correction field is empty", not corr.any())
+
+    # Two disjoint myelinated patches: deep GM labelled WM, too dark for WM.
+    yy, zz = np.meshgrid(np.arange(M), np.arange(M), indexing="ij")
+    for cy, cz, r in ((15, 15, 5), (33, 33, 3)):
+        disc = ((yy - cy) ** 2 + (zz - cz) ** 2) <= r * r
+        band = np.broadcast_to((x >= 18) & (x < 26), (M, M, M)) & disc[None] & blk
+        t1[band] = 85.0
+
+    out, corr = cat_surf.vol_correct_myelination(
+        pve, t1, voxelsize=vx, correct_csf=False, grad_percentile=100.0,
+        max_gm_grad_dist=0.0, n_median_filter=0, return_correction=True)
+
+    check("the input array is not modified in place", np.array_equal(pve, healthy))
+    check("the correction is the applied shift", np.array_equal(corr, out - pve))
+    check("it only moves WM labels toward GM", corr.max() <= 0.0)
+    check("both myelinated patches are corrected",
+          bool((corr[:, :24, :24] != 0).any()) and
+          bool((corr[:, 24:, 24:] != 0).any()))
+
+
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
-                 test_barrier_gate_scales_with_thickness, test_option_no_ops):
+                 test_barrier_gate_scales_with_thickness, test_option_no_ops,
+                 test_correct_myelination):
         try:
             test()
         except Exception:  # pragma: no cover

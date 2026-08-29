@@ -87,6 +87,7 @@ from cat_surf._surf import (
 from cat_surf._vol import (
     vol_sanlm,
     vol_blood_vessel_correction,
+    vol_correct_myelination,
     vol_thickness_pbt,
     vol_amap,
     vol_marching_cubes,
@@ -336,6 +337,7 @@ __all__ = [
     "vol_smooth",
     "vol_sanlm",
     "vol_blood_vessel_correction",
+    "vol_correct_myelination",
     "vol_thickness_pbt",
     "vol_amap",
     "vol_marching_cubes",

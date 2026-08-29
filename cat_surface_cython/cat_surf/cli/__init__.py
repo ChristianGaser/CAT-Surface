@@ -81,6 +81,7 @@ from cat_surf import (
     vol_marching_cubes as _vol_marching_cubes,
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
+    vol_correct_myelination as _vol_correct_myelination,
     vol_smooth as _vol_smooth,
     vol_sheetness as _vol_sheetness,
     vol_oriented_median as _vol_oriented_median,
@@ -517,6 +518,52 @@ def vol_thickness_pbt(input_file, gmt_file=None, ppm_file=None,
         _save_volume_like(dist_wm_file, dwm, img, dtype=np.float32)
 
 
+def vol_correct_myelination(pve_file, t1w_file, output_file,
+                            corr_out=None, correct_wm=True,
+                            correct_csf=False, **kwargs):
+    """Mirror of ``CAT_VolCorrectMyelination``.
+
+    Correct PVE tissue labels for increased cortical myelination using the
+    T1w intensity image, and write the corrected labels to
+    ``output_file``.  Intended to run before thickness estimation, so the
+    GM/WM boundary is not placed too far out in the motor strip or in V1.
+
+    Parameters
+    ----------
+    pve_file : str
+        PVE label volume, values in [0, 3].
+    t1w_file : str
+        T1w intensity volume on the same grid.
+    output_file : str
+        Where the corrected PVE labels are written.
+    corr_out : str, optional
+        Also write the applied shift (``corrected - input``) here; this
+        mirrors the binary's ``-corr-out``.  Negative where WM was
+        relabelled toward GM, positive where CSF was.
+    correct_wm : bool
+        WM/GM (myelination) correction, ``-no-wm-corr`` inverted
+        (default True).
+    correct_csf : bool
+        GM/CSF (pial) correction, ``-csf-corr`` (default False).  This
+        follows the binary rather than ``CAT_MyelinCorrOptionsInit``,
+        which has it on.
+    **kwargs
+        Passed through to :func:`cat_surf.vol_correct_myelination`.
+    """
+    import nibabel as nib
+    img = nib.load(pve_file)
+    pve = img.get_fdata().astype(np.float32)
+    t1w = nib.load(t1w_file).get_fdata().astype(np.float32)
+    vx = img.header.get_zooms()[:3]
+    out, corr = _vol_correct_myelination(
+        pve, t1w, voxelsize=vx,
+        correct_wm=correct_wm, correct_csf=correct_csf,
+        return_correction=True, **kwargs)
+    _save_volume_like(output_file, out, img, dtype=np.float32)
+    if corr_out:
+        _save_volume_like(corr_out, corr, img, dtype=np.float32)
+
+
 def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False):
     """Mirror of ``CAT_VolSmooth``.
 
@@ -864,6 +911,7 @@ __all__ = [
     # Volume tools
     "vol2surf",
     "vol_amap",
+    "vol_correct_myelination",
     "vol_marching_cubes",
     "vol_local_stat",
     "vol_sanlm",
