@@ -3826,8 +3826,9 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
  * dims: Pointer to an integer array of size 3, indicating the dimensions of the volume
  *        (e.g., [width, height, depth]).
  *
- * min_size: Integer value that defines the minimum cluster size. To ignore this parameter
- *            and only keep the largest cluster, you can set min_size to <= 0.
+ * min_size: Integer value that selects the cluster criterion. A value >= 0 keeps only the
+ *            single largest cluster and the magnitude is not used. A negative value keeps
+ *            every cluster holding at least |min_size| voxels.
  *
  * retain_above_th: Integer value that defines whether we set all smaller clusters to zero,
  *                   but retain all original values (by setting retain_above_th to 1), or we
@@ -3937,11 +3938,14 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
                 }
             }
 
-    /* find maximum value which is the largest cluster or use defined minimum cluster size */
+    /* Either keep only the largest cluster (min_size >= 0), or keep every
+     * cluster of at least |min_size| voxels (min_size < 0). outData holds
+     * 3*cluster_size, so a voxel-count threshold has to be scaled by 3 to be
+     * comparable against it. */
     if (min_size >= 0)
         maxInd = get_max(outData, nvox, 0, DT_FLOAT32);
     else
-        maxInd = min_size;
+        maxInd = 3 * (-min_size);
 
     /* set values with smaller clusters to zero */
     /* Depending on the parameter retain_above_th we either set smaller clusters to zero,
@@ -3974,7 +3978,8 @@ void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min
  * \param thresh      (in)     threshold for connectivity; voxels above this connect
  * \param dims        (in)     volume dimensions {nx, ny, nz}
  * \param datatype    (in)     data type descriptor (e.g., DT_FLOAT32, DT_UINT8)
- * \param min_size    (in)     minimum cluster size (if <0, retain clusters >= |min_size|)
+ * \param min_size    (in)     >=0 keeps only the largest cluster (magnitude unused);
+ *                             <0 keeps every cluster of at least |min_size| voxels
  * \param retain_above_th (in) if 1, set smaller clusters to 0; if 0, invert logic
  * \param conn        (in)     connectivity: 6 (face), 18 (face+edge), 26 (face+edge+corner)
  */

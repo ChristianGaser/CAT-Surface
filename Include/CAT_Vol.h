@@ -331,6 +331,25 @@ void downcut3(void *labels, void *intensity, void *dist,
               int labels_datatype, int intensity_datatype, int dist_datatype);
 void ind2sub(int i, int *x, int *y, int *z, int sxy, int sy);
 int sub2ind(int x, int y, int z, int s[]);
+/**
+ * \brief Connected-component filter on a thresholded volume.
+ *
+ * Labels the components of `inData >= thresh` and then either keeps only the
+ * largest of them or keeps every component above a size floor, depending on the
+ * sign of `min_size`.
+ *
+ * \param inData          (in/out) volume data in `datatype`, filtered in place
+ * \param thresh          (in)     voxels >= thresh are cluster members
+ * \param dims            (in)     {nx, ny, nz}
+ * \param datatype        (in)     datatype code of inData (e.g. DT_FLOAT32)
+ * \param min_size        (in)     >=0 keeps only the largest cluster and the
+ *                                 magnitude is unused; <0 keeps every cluster of
+ *                                 at least |min_size| voxels
+ * \param retain_above_th (in)     1 = zero the rejected clusters and leave the
+ *                                 surviving values untouched; 0 = additionally
+ *                                 zero everything below thresh
+ * \param conn            (in)     connectivity: 6, 18 or 26
+ */
 void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 /**
  * \brief Public API for fill_holes.
