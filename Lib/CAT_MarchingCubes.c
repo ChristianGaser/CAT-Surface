@@ -982,7 +982,9 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         }
         else
         {
-            long n_dn = 0, n_up = 0;
+            long n_dn = 0, n_up = 0, x_dn = 0, x_up = 0;
+            double off_gyri = (sulci_opts->offset_gyri < 0.0)
+                                  ? sulci_opts->offset : sulci_opts->offset_gyri;
 
             CAT_SheetnessOptionsInit(&sopts);
             sopts.sigma_min = sulci_opts->sigma_min;
@@ -1013,16 +1015,41 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             {
                 for (i = 0; i < nvol; i++)
                 {
-                    float d = (float)(sulci_opts->offset * signed_sheet[i]);
+                    /* The valley half opens sulci and the ridge half protects
+                       blades, but only the second can re-glue banks: raising
+                       the map around a thin blade lifts the sulcal floor beside
+                       it too.  They are therefore scaled separately. */
+                    double a = (signed_sheet[i] < 0.0f) ? sulci_opts->offset
+                                                        : off_gyri;
+                    float before = input_float[i];
+                    float d = (float)(a * signed_sheet[i]);
+
                     if (d < 0.0f)
                         n_dn++;
                     else if (d > 0.0f)
                         n_up++;
                     input_float[i] += d;
+
+                    /* Count isovalue crossings, not just responding voxels: a
+                       large field that moves nothing is the failure mode this
+                       is here to expose, and the balance between the two counts
+                       is what says whether the offset is opening the surface or
+                       inflating it. */
+                    if (before >= min_threshold && input_float[i] < min_threshold)
+                        x_dn++;
+                    else if (before < min_threshold && input_float[i] >= min_threshold)
+                        x_up++;
                 }
                 if (verbose)
+                {
                     fprintf(stderr, "  lowered %ld voxels along sulci, "
                                     "raised %ld along blades.\n", n_dn, n_up);
+                    fprintf(stderr, "  isovalue crossings: %ld down (sulci "
+                                    "opened), %ld up (blades kept)%s.\n",
+                            x_dn, x_up,
+                            (x_up > 2 * x_dn) ? " -- the raising half dominates; "
+                                                "lower -sheet-offset-gyri" : "");
+                }
             }
             free(signed_sheet);
         }

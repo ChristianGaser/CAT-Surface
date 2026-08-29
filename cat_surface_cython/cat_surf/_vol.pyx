@@ -882,6 +882,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
                        double sulci_sigma_factor=-1.0,
                        double sulci_sigma_min=-1.0, double sulci_sigma_max=-1.0,
                        int sulci_scales=-1, double sheet_offset=-1.0,
+                       double sheet_offset_gyri=-1.0,
                        bint fast=False, label=None,
                        bint verbose=False):
     """
@@ -947,6 +948,22 @@ def vol_marching_cubes(volume, double threshold=0.5,
         normal collapses the band onto its ridge line -- one voxel at any
         scale -- and leaves the value on the ridge unchanged.  Runs before
         the percentile anchor, so p99.9 is then taken over ridge values.
+    sheet_offset : float
+        Signed sheetness offset added to the PPM before extraction, in map
+        units (library default 0.6; 0 disables it).  A sulcus is a valley
+        and a gyral blade a ridge, so the signed map is negative on one and
+        positive on the other and one addition lowers sulci while raising
+        blades -- which a global isovalue shift cannot do.
+    sheet_offset_gyri : float
+        The same offset for the raising half alone.  Negative (default)
+        means "use ``sheet_offset``", i.e. the signed map is applied whole.
+        Only this half can re-glue banks: raising a ridge protects a thin
+        blade but lifts the sulcal floor beside it too, and on a real PPM
+        it is the larger of the two -- at ``sheet_offset=0.6`` on an OASIS
+        subject it lifted 134214 voxels over the isovalue against 85450
+        pushed under.  Lowering it keeps the blade protection without the
+        net inflation; it does not reduce the number of sulci opened.
+        ``verbose=True`` reports both crossing counts.
     sulci_normalize : float
         Value the p99.9 of the valley response is scaled to (default 1.0);
         0 keeps the raw response.  This is what makes ``sulci_thresh``
@@ -1024,9 +1041,16 @@ def vol_marching_cubes(volume, double threshold=0.5,
         if sulci_band           >= 0.0: sulci_opts.band = sulci_band
         if sulci_sigma_factor   >= 0.0: sulci_opts.sigma_factor = sulci_sigma_factor
         if sulci_sigma_min      >= 0.0: sulci_opts.sigma_min = sulci_sigma_min
-        if sulci_sigma_max      >= 0.0: sulci_opts.sigma_max = sulci_sigma_max
+        if sulci_sigma_max      >= 0.0:
+            sulci_opts.sigma_max = sulci_sigma_max
+            # An explicit sigma_max means an explicit sigma_max: the derivation
+            # from the PPM's own thickness runs whenever sigma_factor is positive
+            # and would overwrite it.  Passing both keeps the factor.
+            if sulci_sigma_factor < 0.0:
+                sulci_opts.sigma_factor = 0.0
         if sulci_scales         >= 1:   sulci_opts.n_scales = sulci_scales
         if sheet_offset    >= 0.0: sulci_opts.offset = sheet_offset
+        if sheet_offset_gyri >= 0.0: sulci_opts.offset_gyri = sheet_offset_gyri
         if strength_sulci  >= 0.0: sulci_opts.strength = strength_sulci
         if sulci_cutoff    >= 0.0: sulci_opts.cutoff = sulci_cutoff
         sulci_opts.verbose = 1 if verbose else 0

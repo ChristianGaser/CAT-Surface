@@ -458,6 +458,7 @@ cdef extern from "CAT_PpmSulci.h":
         double margin
         double strength
         double offset
+        double offset_gyri
         double cutoff
         int verbose
 

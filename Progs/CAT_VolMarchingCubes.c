@@ -29,6 +29,7 @@ double sulci_sigma_min = -1.0;
 double sulci_sigma_max = -1.0;
 int sulci_scales = -1;
 double sulci_offset = -1.0;
+double sulci_offset_gyri = -1.0;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -123,6 +124,21 @@ static ArgvInfo argTable[] = {
      found. Requires -strength-sulci to be set (it shares the same sheetness\n\
      scales, gain, normalization and skeleton settings). Start around 0.05-0.1:\n\
      the isovalue is 0.5, so 0.1 is a fifth of the way to either extreme."},
+
+  {"-sheet-offset-gyri", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_offset_gyri,
+    "Offset for the raising half of the signed map -- the gyral blades -- in map\n\
+     units. Unset (default) means the same value as -sheet-offset, i.e. the signed\n\
+     map is applied whole.\n\
+     Use it when sulci stay glued at an offset that is already large. The two\n\
+     halves do different jobs and only one of them can re-glue banks: lowering a\n\
+     valley opens a sulcus, while raising a ridge protects a thin blade but also\n\
+     lifts the sulcal floor beside it. On a real PPM the raising half is the\n\
+     larger of the two -- at offset 0.6 on an OASIS subject it lifted 134214\n\
+     voxels over the isovalue against 85450 pushed under, so the balanced offset\n\
+     added tissue on net. Dropping this to 0 on that subject opened exactly as\n\
+     many glued voxels (the raising half contributes none) and removed the\n\
+     inflation. Lower it before raising -sheet-offset, which past saturation does\n\
+     nothing. -verbose reports both crossing counts."},
 
   {"-no-sulci-skeleton", ARGV_CONSTANT, (char *) FALSE, (char *) &sulci_skeleton,
     "Do not thin the sulcal valley field to its medial sheet. Thinning is off by\n\
@@ -301,9 +317,23 @@ int main(int argc, char *argv[]) {
             if (sulci_band           >= 0.0) sulci_opts.band = sulci_band;
             if (sulci_sigma_factor   >= 0.0) sulci_opts.sigma_factor = sulci_sigma_factor;
             if (sulci_sigma_min      >= 0.0) sulci_opts.sigma_min = sulci_sigma_min;
-            if (sulci_sigma_max      >= 0.0) sulci_opts.sigma_max = sulci_sigma_max;
+            if (sulci_sigma_max      >= 0.0)
+            {
+                sulci_opts.sigma_max = sulci_sigma_max;
+                /* An explicit sigma_max means an explicit sigma_max.  The
+                   derivation from the PPM's own thickness runs whenever
+                   sigma_factor is positive and overwrites it, so asking for a
+                   scale on the command line has to switch the derivation off --
+                   otherwise the option is silently ignored.  Passing both keeps
+                   the factor, since that is the only way to ask for the derived
+                   value with a floor. */
+                if (sulci_sigma_factor < 0.0)
+                    sulci_opts.sigma_factor = 0.0;
+            }
             if (sulci_scales         >= 1)   sulci_opts.n_scales = sulci_scales;
             if (sulci_offset  >= 0.0) sulci_opts.offset = sulci_offset;
+            if (sulci_offset_gyri >= 0.0)
+                sulci_opts.offset_gyri = sulci_offset_gyri;
             if (strength_sulci >= 0.0) sulci_opts.strength = strength_sulci;
             if (sulci_cutoff   >= 0.0) sulci_opts.cutoff = sulci_cutoff;
             sulci_opts.verbose = verbose;

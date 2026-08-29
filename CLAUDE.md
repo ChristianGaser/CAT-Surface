@@ -245,6 +245,52 @@ Everything internal to the filter stays defined on the magnitude; the sign is ap
 after the anchor, the gain and the skeleton. Never hand a signed map to the oriented filters
 -- they clamp to [0,1] and would silently discard every sulcus.
 
+### The two halves are not symmetric (`-sheet-offset-gyri`)
+
+One offset scales both halves of the signed map, and that is not what the data wants. Only
+the *raising* half can re-glue banks: lowering a valley opens a sulcus, while raising a ridge
+protects a thin blade but lifts the sulcal floor beside it at the same time. On real PPMs the
+raising half is also the larger one, so the "balanced" offset **adds** tissue on net --
+measured at `-sheet-offset 0.6`:
+
+| subject | down (sulci opened) | up | ratio |
+| --- | --- | --- | --- |
+| OASIS (2.1 mm cortex) | 87608 | 133322 | 0.66 |
+| ADNI 014_S_0328 | 111507 | 172166 | 0.65 |
+| IXI199 | 152404 | 157145 | 0.97 |
+| Aarhus (3.1 mm cortex) | 260306 | 235039 | 1.11 |
+
+`offset_gyri` scales the raising half alone; negative (the default) means "same as `offset`",
+so nothing changes unless it is asked for. Lowering it does **not** reduce the number of sulci
+opened -- that count is identical at every value, because the two halves act on disjoint
+voxels -- it only removes the inflation. `-verbose` now reports both crossing counts, which is
+the diagnostic that shows whether the offset is opening the surface or growing it.
+
+### `sigma_factor` derives a scale that is too coarse
+
+`sigma_factor` ties `sigma_max` to the PPM's own median thickness (0.9x). The derived value is
+the **worst** of the tested range on all four subjects above, and by a wide margin on the two
+thin-cortex ones -- it maximizes the raising half without opening more sulci. A single fine
+scale (`n_scales = 1`, i.e. `sigma_min` = 0.3 mm alone) is better everywhere:
+
+| subject | derived | `sigma_max` 0.9 | `n_scales` 1 |
+| --- | --- | --- | --- |
+| OASIS | 0.66 | 0.89 | **1.09** |
+| ADNI | 0.65 | 0.84 | **1.20** |
+| Aarhus | 1.11 | 1.07 | **1.47** |
+| IXI | 0.97 | 1.04 | **1.19** |
+
+On OASIS and ADNI it raises the absolute opening too (87608 -> 102329, 111507 -> 129095). The
+reason is in the `-sigma-max` help text: a sulcal CSF sheet at 0.5 mm is one to three voxels,
+and 1.9 mm of sigma is about four -- large scales start answering to the cortical ribbon
+itself, which is a ridge, not the sulcus. The defaults are unchanged pending more subjects,
+but `sigma_factor` should be regarded as unproven rather than tuned.
+
+**`sigma_max` used to be silently ignored.** The derivation runs whenever `sigma_factor > 0`
+and overwrote whatever the caller passed, so `-sulci-sigma-max` -- the one knob the docs point
+at -- did nothing at all. Setting it explicitly now switches the derivation off unless
+`sigma_factor` is passed too. Both front-ends were affected.
+
 ## The sheetness family (`Include/CAT_Sheetness.h`)## The sheetness family (`Include/CAT_Sheetness.h`)
 
 One shared shape prior feeds four tools, so a change to `Lib/CAT_Sheetness.c` propagates to

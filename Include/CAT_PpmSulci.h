@@ -91,6 +91,31 @@ typedef struct
                            PPM it roughly halves the responding field and cuts
                            isovalue crossings by about two thirds), so raise the
                            offset to match if you enable it. */
+    double offset_gyri; /**< the same offset for the *raising* half of the signed
+                           map -- the gyral blades -- in map units.  Negative
+                           (default) means "use offset", which is what a single
+                           signed map applied whole does.
+
+                           The two halves are not symmetric in what they cost.
+                           Lowering a valley opens a glued sulcus; raising a
+                           ridge protects a thin blade, but it also raises the
+                           PPM in the sulcal neighbourhood, and that is the one
+                           thing that re-glues banks.  On a real PPM the raising
+                           half is the larger of the two -- measured on an OASIS
+                           subject at offset 0.6 it lifts 134214 voxels over the
+                           isovalue against 85450 pushed under, so the net effect
+                           of the "balanced" offset is to *add* tissue.  Setting
+                           this below offset keeps the blade protection while
+                           stopping it from dominating; setting it to 0 removes
+                           it entirely, which on that subject changed the number
+                           of glued voxels opened by 0 (the raising half
+                           contributes nothing to opening) while turning a net
+                           +48764 voxels into -85450.
+
+                           Left at "same as offset" by default: the blade
+                           protection is why the signed map exists at all, and
+                           one subject is not enough to retune a default that
+                           governs every gyral crown. */
     double cutoff;    /**< admission cutoff of the oriented median the caller may run
                            alongside; <= 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
     int verbose;
