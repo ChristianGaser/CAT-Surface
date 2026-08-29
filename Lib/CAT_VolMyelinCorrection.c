@@ -22,6 +22,16 @@
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
 
+/* Isovalues the corrected labels are handed to downstream; kept in sync with
+ * CGM/GWM in CAT_VolPbt.c.  A correction only reaches the surface and the
+ * thickness if it moves a voxel across one of them. */
+#ifndef CGM
+#define CGM 1.5
+#endif
+#ifndef GWM
+#define GWM 2.5
+#endif
+
 /* ------------------------------------------------------------------ */
 
 /**
@@ -416,9 +426,12 @@ correct_boundary(const float *pve, const float *t1w,
             for (i = 0; i < nvox; i++)
                 flag_vol[i] = (correction[i] > 0.0f) ? 1.0f : 0.0f;
 
-            /* Remove clusters smaller than min_vox (18-connected) */
+            /* Remove clusters smaller than min_vox (18-connected).  The size
+             * floor is selected by a *negative* min_size; a non-negative one
+             * would keep only the single largest cluster and so discard every
+             * other myelinated patch in the brain. */
             keep_largest_cluster(flag_vol, 0.5, dims, DT_FLOAT32,
-                                 min_vox, 1, 18);
+                                 -min_vox, 1, 18);
 
             /* Zero out corrections for voxels removed by cluster filter */
             int n_removed = 0;
@@ -463,11 +476,15 @@ correct_boundary(const float *pve, const float *t1w,
  * \param t1w        (in)     raw T1w intensity volume (float)
  * \param dims       (in)     volume dimensions {nx, ny, nz}
  * \param voxelsize  (in)     voxel sizes in mm {dx, dy, dz}
+ * \param correction (out)    optional applied shift pve_out - pve_in, one value
+ *                            per voxel; negative where WM was relabelled toward
+ *                            GM, positive where CSF was.  NULL to skip.
  * \param opts       (in)     algorithm options (NULL for defaults)
  * \return 0 on success, non-zero on error
  */
 int CAT_VolCorrectMyelination(float *pve, const float *t1w,
                               int dims[3], double voxelsize[3],
+                              float *correction,
                               const CAT_MyelinCorrOptions *opts)
 {
     CAT_MyelinCorrOptions defaults;
@@ -475,6 +492,7 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
     float *grad_mag = NULL;
     float *correction_wm = NULL;
     float *correction_csf = NULL;
+    float *pve_in = NULL;
 
     if (!pve || !t1w || !dims || !voxelsize)
         return -1;
@@ -486,15 +504,35 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
     }
 
     if (!opts->correct_wm && !opts->correct_csf)
+    {
+        if (correction)
+            memset(correction, 0, sizeof(float) * (size_t)(dims[0] * dims[1] * dims[2]));
         return 0;
+    }
 
     nvox = dims[0] * dims[1] * dims[2];
+
+    /* Keep the input labels so the applied shift and the isovalue crossings can
+     * be reported afterwards.  The shift has to be measured against the final
+     * labels rather than against the requested correction, because the median
+     * filter and the clamps below both change it. */
+    if (correction || opts->verbose)
+    {
+        pve_in = (float *)malloc(sizeof(float) * nvox);
+        if (!pve_in)
+        {
+            fprintf(stderr, "Memory allocation error in CAT_VolCorrectMyelination\n");
+            return -2;
+        }
+        memcpy(pve_in, pve, sizeof(float) * nvox);
+    }
 
     /* Compute T1w gradient magnitude (shared by both boundaries) */
     grad_mag = (float *)calloc(nvox, sizeof(float));
     if (!grad_mag)
     {
         fprintf(stderr, "Memory allocation error in CAT_VolCorrectMyelination\n");
+        free(pve_in);
         return -2;
     }
     gradient3D((float *)t1w, grad_mag, NULL, NULL, NULL, dims, voxelsize);
@@ -506,6 +544,7 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
         if (!correction_wm)
         {
             free(grad_mag);
+            free(pve_in);
             return -2;
         }
 
@@ -518,6 +557,7 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
         {
             free(grad_mag);
             free(correction_wm);
+            free(pve_in);
             return rc;
         }
 
@@ -548,6 +588,7 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
         if (!correction_csf)
         {
             free(grad_mag);
+            free(pve_in);
             return -2;
         }
 
@@ -560,6 +601,7 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
         {
             free(grad_mag);
             free(correction_csf);
+            free(pve_in);
             return rc;
         }
 
@@ -584,5 +626,40 @@ int CAT_VolCorrectMyelination(float *pve, const float *t1w,
     }
 
     free(grad_mag);
+
+    /* ===== Report and export the shift that was actually applied ===== */
+    if (pve_in)
+    {
+        long n_changed = 0, n_cross_wm = 0, n_cross_csf = 0;
+
+        for (i = 0; i < nvox; i++)
+        {
+            float delta = pve[i] - pve_in[i];
+
+            if (correction)
+                correction[i] = delta;
+
+            if (delta == 0.0f)
+                continue;
+            n_changed++;
+
+            /* Only a voxel that crosses an isovalue moves the surface and the
+             * thickness; the rest merely shifts the partial volume. */
+            if (pve_in[i] > GWM && pve[i] <= GWM)
+                n_cross_wm++;
+            if (pve_in[i] < CGM && pve[i] >= CGM)
+                n_cross_csf++;
+        }
+
+        if (opts->verbose)
+            fprintf(stderr,
+                    "Myelin correction: %ld voxels changed, %ld crossed the "
+                    "WM isovalue (%.2f), %ld crossed the CSF isovalue (%.2f)\n",
+                    n_changed, n_cross_wm, (double)GWM, n_cross_csf,
+                    (double)CGM);
+
+        free(pve_in);
+    }
+
     return 0;
 }

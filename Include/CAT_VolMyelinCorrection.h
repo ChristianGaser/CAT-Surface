@@ -100,11 +100,17 @@ void CAT_MyelinCorrOptionsInit(CAT_MyelinCorrOptions *opts);
  * \param t1w        (in)     raw T1w intensity volume (float)
  * \param dims       (in)     volume dimensions {nx, ny, nz}
  * \param voxelsize  (in)     voxel sizes in mm {dx, dy, dz}
+ * \param correction (out)    optional applied shift pve_out - pve_in, one value
+ *                            per voxel; negative where WM was relabelled toward
+ *                            GM, positive where CSF was.  This is the shift that
+ *                            survived the median filter and the clamps, not the
+ *                            one the criteria requested.  NULL to skip.
  * \param opts       (in)     algorithm options (NULL for defaults)
  * \return 0 on success, non-zero on error
  */
 int CAT_VolCorrectMyelination(float *pve, const float *t1w,
                               int dims[3], double voxelsize[3],
+                              float *correction,
                               const CAT_MyelinCorrOptions *opts);
 
 #endif /* _CAT_VOL_MYELIN_CORRECTION_H_ */
