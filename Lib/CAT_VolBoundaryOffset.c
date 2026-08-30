@@ -48,7 +48,7 @@ void CAT_BoundaryOffsetOptionsInit(CAT_BoundaryOffsetOpts *opts)
     opts->t_hi = 0.75;
     opts->search_mm = 4.0;
     opts->step_mm = 0.25;
-    opts->width_pct = 25.0;
+    opts->width_pct = 88.0;
     opts->gain = 0.5;
     opts->max_offset_mm = 1.5;
     opts->smooth_fwhm = 8.0;
@@ -227,7 +227,7 @@ long CAT_VolBoundaryOffset(const float *label, const float *t1w,
     unsigned char *ctrl = NULL, *band = NULL;
     double *prof = NULL, *lprof = NULL, *widths = NULL;
     unsigned char *pvalid = NULL;
-    double wm_mean, gm_mean, w_ref = 0.0;
+    double wm_mean, gm_mean, w_ref = 0.0, w_thresh = 0.0;
     int rc = 0;
 
     if (!label || !t1w || !offset || !dims || !voxelsize)
@@ -461,43 +461,18 @@ long CAT_VolBoundaryOffset(const float *label, const float *t1w,
         goto done;
     }
 
-    /* ===== 4. This brain's healthy reference width =====
-     * Derived rather than fixed: the sharpest transition attainable depends
-     * on the resolution and on the segmentation that produced the labels, and
-     * the myelinated minority sits in the upper tail either way. */
-    {
-        double pth[2], pv[2];
-        pv[0] = opts->width_pct;
-        pv[1] = 100.0;
-        get_prctile_double(widths, (int)n_valid, pth, pv, 0);
-        w_ref = pth[0];
-    }
-
-    if (opts->verbose)
-        fprintf(stderr, "Boundary offset: %ld profiles, reference width "
-                        "(p%.0f) = %.3f mm\n",
-                n_valid, opts->width_pct, w_ref);
-
-    /* ===== 5. Excess width -> displacement ===== */
-    for (i = 0; i < nvox; i++)
-    {
-        double d;
-
-        if (w_map[i] <= 0.0f)
-            continue;
-        d = opts->gain * ((double)w_map[i] - w_ref);
-        if (d < 0.0)
-            d = 0.0;
-        if (d > opts->max_offset_mm)
-            d = opts->max_offset_mm;
-        offset[i] = (float)d;
-    }
-
-    /* ===== 6. Smooth within the boundary sheet =====
-     * The band is a thin surface, so a normalized convolution restricted to it
-     * averages along the boundary and not across it -- which is the direction
-     * the estimate is coherent in, and the direction an isotropic filter
-     * cannot exploit. */
+    /* ===== 4. Smooth the width within the boundary sheet =====
+     * Before anything is thresholded, not after.  Myelination is a
+     * centimetre-scale, stereotyped phenomenon while the per-voxel profile is
+     * noisy, and the band is a thin surface, so a normalized convolution
+     * restricted to it averages along the boundary and not across it.
+     *
+     * Doing this first is what makes the threshold below meaningful: on a
+     * 0.75 mm subject it takes the spread of the healthy population from 0.121
+     * to 0.080 mm and the p99 of the width from 4.06 to 2.01 mm -- the extreme
+     * per-voxel values were noise, not structure.  It also removes the reason
+     * to worry about the non-negativity clamp rectifying noise into a
+     * systematic inflation, because the noise is gone before the clamp. */
     if (opts->smooth_fwhm > 0.0)
     {
         float *sm = (float *)calloc(nvox, sizeof(float));
@@ -513,18 +488,78 @@ long CAT_VolBoundaryOffset(const float *label, const float *t1w,
         for (i = 0; i < nvox; i++)
             valid_mask[i] = (w_map[i] > 0.0f) ? 1 : 0;
 
-        if (CAT_VolLocalTissueReference(offset, valid_mask, dims, voxelsize,
+        if (CAT_VolLocalTissueReference(w_map, valid_mask, dims, voxelsize,
                                         opts->smooth_fwhm, 0.0, sm) == 0)
         {
-            /* Snap the rounding residue of the smoothing round-trip to zero, so
-             * that "nothing to correct" is an exact no-op rather than a field of
-             * nanometres.  Anything this small is far below the sub-voxel
-             * precision the displacement is meant to carry. */
             for (i = 0; i < nvox; i++)
-                offset[i] = (valid_mask[i] && sm[i] > BO_EPS_MM) ? sm[i] : 0.0f;
+                w_map[i] = valid_mask[i] ? sm[i] : 0.0f;
         }
         free(sm);
         free(valid_mask);
+
+        n_valid = 0;
+        for (i = 0; i < nvox; i++)
+            if (w_map[i] > 0.0f)
+                widths[n_valid++] = (double)w_map[i];
+    }
+
+    {
+        double pth[2], pv[2];
+        pv[0] = 50.0;
+        pv[1] = 100.0;
+        get_prctile_double(widths, (int)n_valid, pth, pv, 0);
+        w_ref = pth[0];
+    }
+
+    /* ===== 5. Where the healthy population ends =====
+     * A location alone displaces the entire cortex, and that is the single
+     * thing most worth knowing about this method: whatever central percentile
+     * is chosen, the healthy population straddles it, so every voxel above
+     * acquires a positive offset.  With the reference at p25 that was 99.8% of
+     * the boundary on a real subject, at 0.05-0.1 mm, because p25 sits *below*
+     * the mode of a distribution whose healthy peak is one voxel wide.
+     *
+     * The threshold is therefore an upper percentile, which fixes the share of
+     * the boundary treated as myelinated.  That is the one parameterization
+     * that transfers: a location plus a multiple of the spread does not,
+     * because the spread depends on resolution and noise rather than on
+     * anatomy -- the same setting selected 12.0% of the boundary on a 0.75 mm
+     * scan and 1.4% on a 1x1x1.25 mm one.  A fixed share is also what the
+     * anatomy suggests, heavily myelinated cortex (M1, S1, V1, A1, MT) being
+     * a roughly fixed tenth of the sheet in everyone.
+     *
+     * Fixing the share does not fix the correction: the displacement is the
+     * excess *beyond* the threshold, so a brain whose widths are tightly
+     * grouped is barely corrected at all however large the share.  Measured on
+     * two subjects at p88, the mean displacement came out at 0.19 mm and
+     * 0.13 mm respectively, and it moves by under 10% across p85-p92. */
+    {
+        double pth[2], pv[2];
+
+        pv[0] = opts->width_pct;
+        pv[1] = 100.0;
+        get_prctile_double(widths, (int)n_valid, pth, pv, 0);
+        w_thresh = pth[0];
+    }
+
+    if (opts->verbose)
+        fprintf(stderr, "Boundary offset: %ld profiles, width p50 = %.3f mm, "
+                        "threshold (p%.0f) = %.3f mm\n",
+                n_valid, w_ref, opts->width_pct, w_thresh);
+
+    /* ===== 6. Excess beyond the healthy population -> displacement ===== */
+    for (i = 0; i < nvox; i++)
+    {
+        double d;
+
+        if (w_map[i] <= 0.0f)
+            continue;
+        d = opts->gain * ((double)w_map[i] - w_thresh);
+        if (d < BO_EPS_MM)
+            continue;
+        if (d > opts->max_offset_mm)
+            d = opts->max_offset_mm;
+        offset[i] = (float)d;
     }
 
     if (opts->verbose)

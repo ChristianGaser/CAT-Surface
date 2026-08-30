@@ -32,7 +32,7 @@ double t_lo = 0.25;
 double t_hi = 0.75;
 double search_mm = 4.0;
 double step_mm = 0.25;
-double width_pct = 25.0;
+double width_pct = 88.0;
 double gain = 0.5;
 double max_offset_mm = 1.5;
 double smooth_fwhm = 8.0;
@@ -54,8 +54,11 @@ static ArgvInfo argTable[] = {
     {"-step", ARGV_FLOAT, (char *)TRUE, (char *)&step_mm,
      "Sampling step (mm) along the profile (default: 0.25)."},
     {"-width-pct", ARGV_FLOAT, (char *)TRUE, (char *)&width_pct,
-     "Percentile of the measured widths used as this brain's healthy\n"
-     "reference (default: 25.0)."},
+     "Upper percentile of the measured widths above which a transition counts\n"
+     "as myelinated (default: 88.0) -- the share of the boundary the\n"
+     "correction may touch. Fixing the share does not fix the correction: the\n"
+     "displacement is the excess beyond the threshold, so a brain with tightly\n"
+     "grouped widths is barely corrected however large the share."},
     {"-gain", ARGV_FLOAT, (char *)TRUE, (char *)&gain,
      "Displacement per unit excess width (default: 0.5)."},
     {"-max-offset", ARGV_FLOAT, (char *)TRUE, (char *)&max_offset_mm,
@@ -64,8 +67,9 @@ static ArgvInfo argTable[] = {
      "FWHM (mm) of smoothing within the boundary sheet (default: 8.0).\n"
      "0 disables it and shows the raw per-voxel estimate."},
     {"-width-out", ARGV_STRING, (char *)1, (char *)&width_file,
-     "Also write the raw transition width in mm to this volume. This is the\n"
-     "map to look at first: the displacement is only a rescaling of it."},
+     "Also write the transition width in mm to this volume (smoothed, before\n"
+     "thresholding). This is the map to look at first: the displacement is\n"
+     "only a thresholded rescaling of it."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Enable verbose output."},
     {NULL, ARGV_END, NULL, NULL, NULL}};

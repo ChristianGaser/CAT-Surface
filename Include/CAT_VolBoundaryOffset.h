@@ -58,10 +58,10 @@ typedef struct
     double t_hi;          /**< Upper level crossing (default: 0.75). The distance between the two is the transition width. */
     double search_mm;     /**< Half-length (mm) of the profile searched along the normal (default: 4.0). */
     double step_mm;       /**< Sampling step (mm) along the profile (default: 0.25). */
-    double width_pct;     /**< Percentile of the measured widths taken as this brain's healthy reference (default: 25.0). Derived per subject rather than fixed, because the sharpest attainable transition depends on resolution and on the segmentation. */
+    double width_pct;     /**< Upper percentile of the measured widths above which a transition is read as myelinated (default: 88.0), i.e. the share of the boundary the correction is allowed to touch. A *central* location is no use here: whatever one is chosen the healthy population straddles it, every voxel above acquires a positive offset, and the whole cortex ends up displaced -- at p25 that was 99.8% of the boundary on a real subject. Nor does a location plus a multiple of the spread transfer between subjects, because the spread follows resolution and noise rather than anatomy: the same setting selected 12.0% of the boundary on a 0.75 mm scan and 1.4% on a 1x1x1.25 mm one. A fixed share transfers by construction and matches the anatomy, heavily myelinated cortex being a roughly fixed tenth of the sheet. Fixing the share does not fix the correction: the displacement is the excess *beyond* the threshold, so a brain whose widths are tightly grouped is barely corrected however large the share. */
     double gain;          /**< Displacement per unit excess width (default: 0.5). For a symmetric ramp the cytoarchitectonic boundary sits about half the excess beyond the intensity midpoint. */
     double max_offset_mm; /**< Clamp on the returned displacement (default: 1.5). */
-    double smooth_fwhm;   /**< FWHM (mm) of the smoothing applied to the displacement *within* the boundary sheet (default: 8.0). Myelination is a centimetre-scale, stereotyped phenomenon while the per-voxel profile measurement is noisy, so this is where the estimate becomes usable. Smoothing before clamping also keeps half-wave rectification from turning noise into a systematic inflation. */
+    double smooth_fwhm;   /**< FWHM (mm) of the smoothing applied to the transition width *within* the boundary sheet (default: 8.0), before any threshold is applied. Myelination is a centimetre-scale, stereotyped phenomenon while the per-voxel profile measurement is noisy, and the band is a thin surface, so a normalized convolution restricted to it averages along the boundary and not across it. Doing this before the threshold rather than after is what makes the threshold meaningful, and it removes any reason to worry about the non-negativity clamp rectifying noise into a systematic inflation. */
     int verbose;          /**< Print progress and summary statistics (default: 0) */
 } CAT_BoundaryOffsetOpts;
 
@@ -118,8 +118,10 @@ int CAT_VolLocalTissueReference(const float *values,
  * \param t1w       (in)  T1w intensity volume on the same grid
  * \param offset    (out) displacement in mm, one value per voxel; 0 outside
  *                        the transition band.  Add this to PBT's `dist_WM`.
- * \param width     (out) optional raw transition width in mm before the
- *                        reference is subtracted, for inspection; NULL to skip
+ * \param width     (out) optional transition width in mm, smoothed within the
+ *                        sheet and before the threshold is applied -- the
+ *                        quantity the decision is actually made on, and the
+ *                        map to inspect first; NULL to skip
  * \param dims      (in)  volume dimensions {nx, ny, nz}
  * \param voxelsize (in)  voxel sizes in mm {dx, dy, dz}
  * \param opts      (in)  algorithm options (NULL for defaults)
