@@ -698,7 +698,7 @@ def vol_boundary_offset(label, t1w, voxelsize=None,
     return off
 
 
-def vol_thickness_pbt(volume, voxelsize=None,
+def vol_thickness_pbt(volume, voxelsize=None, thickness_offset=None,
                       int n_avgs=-1, int n_median_filter=-1,
                       int median_subsample=-1, double range_val=-1.0,
                       double fill_thresh=-1.0,
@@ -727,6 +727,14 @@ def vol_thickness_pbt(volume, voxelsize=None,
     ----------
     volume : array_like, 3-D, float32
         Tissue-label volume (PVE-style).
+    thickness_offset : array_like, 3-D, float32, optional
+        Per-voxel additive thickness correction in mm, on the same grid.
+        A spatially varying counterpart to ``correct_thickness``, for the
+        case where the border shift is not one number for the brain --
+        notably myelinated cortex, where the classifier puts the GM/WM
+        boundary too far out and the ribbon comes back too thin.  Produce
+        one with :func:`cat_surf.vol_boundary_offset`.  Applied after the
+        PPM, so it moves the thickness and leaves the surfaces alone.
     voxelsize : array_like, shape (3,), float64, optional
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
     n_avgs : int
@@ -911,12 +919,22 @@ def vol_thickness_pbt(volume, voxelsize=None,
 
     cdef cnp.ndarray[cnp.float32_t, ndim=3] src = np.asfortranarray(vol, dtype=np.float32)
 
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] off
+    cdef const float *off_ptr = NULL
+    if thickness_offset is not None:
+        off = np.asfortranarray(thickness_offset, dtype=np.float32)
+        if off.shape[0] != dims[0] or off.shape[1] != dims[1] or \
+           off.shape[2] != dims[2]:
+            raise ValueError("thickness_offset must match the volume shape")
+        off_ptr = <const float *>off.data
+
     cdef int rc = C.CAT_VolComputePbt(
         <const float *>src.data,
         <float *>gmt.data,
         <float *>ppm.data,
         <float *>dcsf.data,
         <float *>dwm.data,
+        off_ptr,
         dims, vx, &opts)
 
     if rc != 0:

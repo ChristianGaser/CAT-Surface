@@ -419,12 +419,54 @@ def test_boundary_offset():
           off4[(off4 != 0) & disc].mean() > off[m & disc].mean() + 0.1)
 
 
+# ---------------------------------------------------------------------------
+# 10. The thickness offset moves GMT and nothing else.
+# ---------------------------------------------------------------------------
+def test_thickness_offset():
+    section("thickness offset")
+
+    K = 48
+    x = np.broadcast_to(np.arange(K)[:, None, None], (K, K, K))
+    lab = np.zeros((K, K, K), np.float32)
+    blk = np.zeros((K, K, K), bool)
+    blk[:, 8:40, 8:40] = True
+    v = np.where(x < 24, 3.0, np.where(x < 30, 2.0, np.where(x < 34, 1.0, 0.0)))
+    lab[blk] = v[blk]
+
+    off = np.zeros((K, K, K), np.float32)
+    off[:, 8:24, 8:40] = 0.4
+
+    g0, p0, c0, w0 = cat_surf.vol_thickness_pbt(lab, voxelsize=VX)
+    g1, p1, c1, w1 = cat_surf.vol_thickness_pbt(lab, voxelsize=VX,
+                                                thickness_offset=off)
+    m = g0 > 0
+    a_ = m & (off > 0)
+    b_ = m & (off == 0)
+
+    check("the thickness moves by exactly the offset",
+          abs(float((g1[a_] - g0[a_]).mean()) - 0.4) < 1e-4,
+          f"{float((g1[a_] - g0[a_]).mean()):.5f} mm, expected 0.4")
+    check("and not at all where the offset is zero",
+          np.array_equal(g0[b_], g1[b_]))
+
+    # This is what makes it a thickness-only correction: it is added after the
+    # PPM has been finished, so nothing that shapes a surface can see it.
+    check("the PPM is bit-identical", np.array_equal(p0, p1))
+    check("the distance maps are bit-identical",
+          np.array_equal(c0, c1) and np.array_equal(w0, w1))
+
+    g2, p2, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=VX,
+                                              thickness_offset=None)
+    check("passing None is the same as not passing it",
+          np.array_equal(g0, g2) and np.array_equal(p0, p2))
+
+
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_option_no_ops,
-                 test_boundary_offset):
+                 test_boundary_offset, test_thickness_offset):
         try:
             test()
         except Exception:  # pragma: no cover

@@ -383,6 +383,7 @@ cdef extern from "CAT_VolPbt.h":
              float *PPM_out,
              float *dist_CSF_out,
              float *dist_WM_out,
+             const float *thickness_offset,
              int dims[3],
              double voxelsize[3],
              const CAT_PbtOptions *opts)
