@@ -319,10 +319,37 @@ The displacement recovers `gain * (width - reference)` exactly, is 8-14x larger 
 patch than outside, and is zero when there is nothing to find. The residue outside is mostly
 `smooth_fwhm` spilling across the patch edge.
 
-**This is a diagnostic before it is a correction.** `-width-out` writes the transition width
-after smoothing and before thresholding — the quantity the decision is actually made on, and
-the map to look at first. It has not been wired into PBT yet; the `dist_WM += offset` edit
-above is the whole change when it is.
+**Wired in as thickness-only.** `CAT_VolComputePbt` takes an optional `thickness_offset`, a
+per-voxel additive correction in mm — a spatially varying counterpart to `correct_thickness`,
+which is the same quantity for the case where it *is* one number for the brain. It is added at
+the very end, where the outputs are copied, and that placement is the point: applying it beside
+`correct_thickness` would leak into the surfaces, because the topology-artifact cleanup between
+the two gates on `GMT > 1.5` and feeds back into the PPM. Verified on a real subject — with and
+without the offset the PPM, `dist_CSF` and `dist_WM` are bit-identical while the corrected
+cortex moves from 3.045 to 3.274 mm and the rest not at all.
+
+Adding the offset to `dist_WM` *before* the projection would instead move both, growing the
+thickness by the offset and pulling the central surface inward by half of it. That is a
+separate decision and is deliberately not taken.
+
+**The measurement is fed off the boundary sheet into the ribbon** (`fill_ribbon`, on by
+default): the profile can only be read at the boundary, but the thickness it corrects is a
+property of the whole column and is sampled at the central surface, half a ribbon away. Seeds
+include sheet voxels whose profile was rejected, so an unmeasurable spot takes its neighbours'
+value rather than a spurious zero.
+
+In T1Prep, `--myelin` measures it in `segment.py` immediately before the hemispheres are split,
+which is the one place `p0_large` and `brain_large` are natively co-registered. That matters
+because the observable is a sub-voxel width: reslicing a 0.75 mm pair to 0.5 mm moves the
+median width by 6% and the mean correction by 15%. `surface_estimation.py` then resamples the
+whole-brain map onto each hemisphere's grid — the offset being smooth by construction, it is
+the safe thing to interpolate, where the T1w is not. The hemisphere maps cannot simply be
+matched by writing the offset through the same call, because that call crops to
+`value > 1.1` and so boxes an offset map differently from a label map.
+
+**`gain` is the least validated part.** It scales the correction linearly and rests on the
+assumption that the cytoarchitectonic boundary sits about half the excess ramp beyond the
+intensity midpoint. Everything else here is measured on two subjects; this is not.
 
 ## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
 
