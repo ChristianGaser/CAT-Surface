@@ -62,6 +62,7 @@ typedef struct
     double gain;          /**< Displacement per unit excess width (default: 0.5). For a symmetric ramp the cytoarchitectonic boundary sits about half the excess beyond the intensity midpoint. */
     double max_offset_mm; /**< Clamp on the returned displacement (default: 1.5). */
     double smooth_fwhm;   /**< FWHM (mm) of the smoothing applied to the transition width *within* the boundary sheet (default: 8.0), before any threshold is applied. Myelination is a centimetre-scale, stereotyped phenomenon while the per-voxel profile measurement is noisy, and the band is a thin surface, so a normalized convolution restricted to it averages along the boundary and not across it. Doing this before the threshold rather than after is what makes the threshold meaningful, and it removes any reason to worry about the non-negativity clamp rectifying noise into a systematic inflation. */
+    int fill_ribbon;      /**< Carry the displacement off the boundary sheet and through the tissue, each voxel taking the value measured at the nearest point of the sheet (default: 1). The measurement is only defined where the boundary is, but the quantity it corrects -- cortical thickness -- is a property of the whole column and is read at the central surface, half a ribbon away. Seeds include sheet voxels whose profile was rejected, so an unmeasurable spot takes its neighbours' value rather than a spurious zero. */
     int verbose;          /**< Print progress and summary statistics (default: 0) */
 } CAT_BoundaryOffsetOpts;
 
@@ -116,8 +117,10 @@ int CAT_VolLocalTissueReference(const float *values,
  *
  * \param label     (in)  PVE label volume (float, values in [0..3])
  * \param t1w       (in)  T1w intensity volume on the same grid
- * \param offset    (out) displacement in mm, one value per voxel; 0 outside
- *                        the transition band.  Add this to PBT's `dist_WM`.
+ * \param offset    (out) displacement in mm, one value per voxel.  With
+ *                        `fill_ribbon` it is carried through the tissue from
+ *                        the boundary sheet, so it can be added directly to a
+ *                        thickness map; otherwise it is 0 off the sheet.
  * \param width     (out) optional transition width in mm, smoothed within the
  *                        sheet and before the threshold is applied -- the
  *                        quantity the decision is actually made on, and the

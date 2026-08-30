@@ -52,6 +52,7 @@ void CAT_BoundaryOffsetOptionsInit(CAT_BoundaryOffsetOpts *opts)
     opts->gain = 0.5;
     opts->max_offset_mm = 1.5;
     opts->smooth_fwhm = 8.0;
+    opts->fill_ribbon = 1;
     opts->verbose = 0;
 }
 
@@ -574,12 +575,57 @@ long CAT_VolBoundaryOffset(const float *label, const float *t1w,
                     mx = offset[i];
                 n++;
             }
-        fprintf(stderr, "Boundary offset: %ld voxels displaced, mean %.3f mm, "
-                        "max %.3f mm\n", n, n ? sum / n : 0.0, mx);
+        fprintf(stderr, "Boundary offset: %ld of %ld sheet voxels displaced "
+                        "(%.1f%%), mean %.3f mm, max %.3f mm\n",
+                n, n_valid, 100.0 * (double)n / (double)n_valid,
+                n ? sum / n : 0.0, mx);
     }
 
     if (width)
         memcpy(width, w_map, sizeof(float) * nvox);
+
+    /* ===== 7. Carry the displacement through the tissue =====
+     * The profile can only be read where the boundary is, but the quantity
+     * being corrected is the thickness of the whole cortical column, and it is
+     * read at the central surface -- half a ribbon away from any of these
+     * voxels.  Each voxel therefore takes the displacement measured at the
+     * nearest point of the sheet.
+     *
+     * The seeds are every sheet voxel that produced a profile, not just the
+     * displaced ones: seeding from the nonzero offsets alone would hand
+     * healthy cortex the correction belonging to the myelinated patch next to
+     * it. */
+    if (opts->fill_ribbon)
+    {
+        float *seed = (float *)calloc(nvox, sizeof(float));
+        float *filled = (float *)calloc(nvox, sizeof(float));
+        unsigned char *inside = (unsigned char *)calloc(nvox, 1);
+
+        if (!seed || !filled || !inside)
+        {
+            free(seed);
+            free(filled);
+            free(inside);
+            rc = -2;
+            goto done;
+        }
+
+        for (i = 0; i < nvox; i++)
+        {
+            seed[i] = (w_map[i] > 0.0f) ? 1.0f : 0.0f;
+            inside[i] = (label[i] > 0.0f) ? 1 : 0;
+        }
+
+        euclidean_distance_src(seed, inside, dims, voxelsize, 0,
+                               offset, filled);
+
+        for (i = 0; i < nvox; i++)
+            offset[i] = inside[i] ? filled[i] : 0.0f;
+
+        free(seed);
+        free(filled);
+        free(inside);
+    }
 
     rc = 0;
 
