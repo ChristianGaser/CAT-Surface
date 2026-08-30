@@ -154,6 +154,17 @@ build_slab(float *label, float *t1w, int myelinated, double ramp_mm)
             }
 }
 
+/* The patch here is ~14% of this phantom's boundary, where heavily myelinated
+ * cortex is nearer a tenth of a real hemisphere's, so the default percentile
+ * would clip it.  These tests are about the measurement, not about what share
+ * of a brain is myelinated, so they open the threshold to match the phantom. */
+static void
+phantom_opts(CAT_BoundaryOffsetOpts *opts)
+{
+    CAT_BoundaryOffsetOptionsInit(opts);
+    opts->width_pct = 80.0;
+}
+
 static void
 offset_stats(const float *offset, double *inside_mean, double *outside_mean)
 {
@@ -217,12 +228,14 @@ static void test_a_widened_transition_is_found(void)
     float *t1w = (float *)malloc(sizeof(float) * NVOX);
     float *offset = (float *)malloc(sizeof(float) * NVOX);
     float *width = (float *)malloc(sizeof(float) * NVOX);
+    CAT_BoundaryOffsetOpts opts;
     double in_mean, out_mean;
 
+    phantom_opts(&opts);
     build_slab(label, t1w, 1, 3.0);
     MU_ASSERT("offset runs",
               CAT_VolBoundaryOffset(label, t1w, offset, width, dims3, vx1,
-                                    NULL) > 0);
+                                    &opts) > 0);
 
     offset_stats(offset, &in_mean, &out_mean);
 
@@ -246,7 +259,7 @@ static void test_offset_is_one_sided_and_bounded(void)
     CAT_BoundaryOffsetOpts opts;
     int i, ok = 1;
 
-    CAT_BoundaryOffsetOptionsInit(&opts);
+    phantom_opts(&opts);
     build_slab(label, t1w, 1, 3.0);
     CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, &opts);
 
@@ -268,18 +281,97 @@ static void test_offset_grows_with_the_ramp(void)
     float *label = (float *)malloc(sizeof(float) * NVOX);
     float *t1w = (float *)malloc(sizeof(float) * NVOX);
     float *offset = (float *)malloc(sizeof(float) * NVOX);
+    CAT_BoundaryOffsetOpts opts;
     double narrow_in, wide_in, dummy;
 
+    phantom_opts(&opts);
+
     build_slab(label, t1w, 1, 2.0);
-    CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, NULL);
+    CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, &opts);
     offset_stats(offset, &narrow_in, &dummy);
 
     build_slab(label, t1w, 1, 4.0);
-    CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, NULL);
+    CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, &opts);
     offset_stats(offset, &wide_in, &dummy);
 
     MU_ASSERT("a wider transition yields a larger displacement",
               wide_in > narrow_in + 0.1);
+
+    free(label);
+    free(t1w);
+    free(offset);
+}
+
+/* With noise the measured widths spread out, and a *central* percentile then
+ * leaves the healthy population straddling the reference: every voxel above it
+ * acquires a positive offset and the whole cortex ends up displaced.  On a real
+ * 0.75 mm subject a reference at p25 displaced 99.8% of the boundary.  Reading
+ * the threshold as an upper percentile instead confines the correction to the
+ * tail, and fixes the share of the boundary it can touch. */
+static void test_an_upper_percentile_confines_the_correction(void)
+{
+    float *label = (float *)malloc(sizeof(float) * NVOX);
+    float *t1w = (float *)malloc(sizeof(float) * NVOX);
+    float *offset = (float *)malloc(sizeof(float) * NVOX);
+    CAT_BoundaryOffsetOpts opts;
+    unsigned int rng = 7u;
+    long n_k0 = 0, n_dk0 = 0, n_def = 0, n_ddef = 0;
+    int x, y, z, i, k;
+    double spec_k0, spec_def;
+
+    build_slab(label, t1w, 1, 3.0);
+    for (i = 0; i < NVOX; i++)
+        if (label[i] > 0.0f)
+        {
+            double u = 0.0;
+            for (k = 0; k < 12; k++)
+            {
+                rng = rng * 1103515245u + 12345u;
+                u += (double)((rng >> 16) & 0x7fff) / 32767.0;
+            }
+            t1w[i] += (float)(2.0 * (u - 6.0));
+        }
+
+    CAT_BoundaryOffsetOptionsInit(&opts);
+    opts.width_pct = 25.0; /* a central percentile, as first shipped */
+    CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, &opts);
+    for (z = 8; z < 56; z++)
+        for (y = 8; y < 56; y++)
+            for (x = 0; x < N; x++)
+            {
+                int dy = y - 32, dz = z - 32;
+                i = IDX(x, y, z);
+                if (offset[i] <= 0.0f)
+                    continue;
+                n_k0++;
+                if (dy * dy + dz * dz <= 100)
+                    n_dk0++;
+            }
+
+    phantom_opts(&opts);
+    CAT_VolBoundaryOffset(label, t1w, offset, NULL, dims3, vx1, &opts);
+    for (z = 8; z < 56; z++)
+        for (y = 8; y < 56; y++)
+            for (x = 0; x < N; x++)
+            {
+                int dy = y - 32, dz = z - 32;
+                i = IDX(x, y, z);
+                if (offset[i] <= 0.0f)
+                    continue;
+                n_def++;
+                if (dy * dy + dz * dz <= 100)
+                    n_ddef++;
+            }
+
+    MU_ASSERT("both settings correct something", n_k0 > 0 && n_def > 0);
+    MU_ASSERT("an upper percentile corrects strictly less", n_def < n_k0);
+
+    /* What it buys is specificity: a larger share of what is corrected is
+     * inside the patch that actually has a widened transition. */
+    spec_k0 = (double)n_dk0 / (double)n_k0;
+    spec_def = (double)n_ddef / (double)n_def;
+    MU_ASSERT("and a larger share of it is where the widening is",
+              spec_def > spec_k0 * 1.2);
 
     free(label);
     free(t1w);
@@ -294,6 +386,7 @@ int main(void)
     MU_RUN_TEST(test_a_widened_transition_is_found);
     MU_RUN_TEST(test_offset_is_one_sided_and_bounded);
     MU_RUN_TEST(test_offset_grows_with_the_ramp);
+    MU_RUN_TEST(test_an_upper_percentile_confines_the_correction);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

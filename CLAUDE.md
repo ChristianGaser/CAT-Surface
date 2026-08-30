@@ -234,9 +234,58 @@ construction and their difference measures nothing — the first estimator tried
 returned zero. What distinguishes myelinated cortex is the *shape* of the profile: healthy
 cortex steps from grey to white over about the partial-volume width, while a myelinated deep
 layer turns that step into a ramp one to three millimetres wide. The excess over this brain's
-own healthy majority (`width_pct`, default p25) is the signal, and `gain` (0.5) converts it to
-a displacement — for a symmetric ramp the boundary sits about half the excess beyond the
-intensity midpoint.
+own healthy population is the signal, and `gain` (0.5) converts it to a displacement — for a
+symmetric ramp the boundary sits about half the excess beyond the intensity midpoint.
+
+**The threshold is an upper percentile, and nothing else transfers.** A *central* location
+displaces the entire cortex: whatever percentile is chosen the healthy population straddles
+it, so every voxel above acquires a positive offset. On a 0.75 mm subject the width
+distribution is a clean unimodal peak at ~0.65 mm — 0.85 of a voxel, i.e. the partial-volume
+width — with a heavy myelinated tail past 4 mm, and a `width_pct` of 25 puts the reference at
+0.617 mm, *below* the mode: **99.8% of the boundary comes back displaced** by 0.05-0.1 mm
+while M1 gets 0.5 mm.
+
+A location plus a multiple of the spread fixes that on one subject and fails on the next,
+because the spread follows resolution and noise rather than anatomy. Measured on two subjects,
+`p50 + 6*(p50 - p25)` selected **12.0%** of the boundary at 0.75 mm and **1.4%** at
+1x1x1.25 mm. A multiplicative factor on the median does no better — the distributions differ
+in shape, `p90/p50` being 1.72 and 1.43.
+
+So `width_pct` (default 88) is read as an upper percentile: the share of the boundary the
+correction may touch. That transfers by construction, and it matches the anatomy, heavily
+myelinated cortex (M1, S1, V1, A1, MT) being a roughly fixed tenth of the sheet in everyone.
+Fixing the share does **not** fix the correction — the displacement is the excess *beyond* the
+threshold, so a brain whose widths are tightly grouped is barely corrected however large the
+share:
+
+| subject | voxel | width p50 | p88 threshold | displaced | mean offset |
+| --- | --- | --- | --- | --- | --- |
+| HR075 MPRAGE | 0.75 mm | 0.795 mm | 1.289 mm | 12.0% | 0.191 mm |
+| OASIS1 AD 001_0031 | 1x1x1.25 mm | 0.910 mm | 1.254 mm | 12.0% | 0.130 mm |
+
+The lower-resolution scan resolves the myelinated ramp less well and is corrected less, which
+is the behaviour wanted. The mean displacement moves by under 10% across p85-p92, so the
+parameter is not sharp.
+
+**Smooth the width before thresholding, not the offset after.** The band is a thin sheet, so
+a normalized convolution restricted to it averages *along* the boundary and not across it —
+the direction the estimate is coherent in. Doing it first is what makes the threshold
+meaningful: on the same subject it takes the healthy spread from 0.121 to 0.080 mm and the
+p99 of the width from 4.06 to 2.01 mm, because the extreme per-voxel values were noise rather
+than structure. It also removes any reason to worry about the non-negativity clamp
+half-wave-rectifying noise into a systematic inflation, since the noise is gone before the
+clamp.
+
+**It is measuring real anatomy, and mirror symmetry is the check that shows it.**
+Myelination is bilaterally symmetric and noise is not. The smoothed width field correlates
+between hemispheres at **r = 0.84** on HR075 and **r = 0.68** on the OASIS subject, and the
+corrected region beats a size-matched random subset of the same boundary by 4.1x and 25.7x
+respectively in mirror Dice. Compare at *matched* corrected fraction rather than at matched
+threshold — the random control's self-overlap falls with size, so enrichment rises for any
+selection as it shrinks. Matched that way the two subjects agree closely (12% -> 4.1x and
+14% -> 3.6x; 5.6% -> 6.4x and 4.2% -> 11.5x). Note the achievable ceiling is low in absolute
+terms — the band mask self-mirrors at only 0.25-0.34, being a thin sheet — so Dice is only
+meaningful against that ceiling and against the random control.
 
 The profile is read along the normal from `grad(label)`, in the contrast-normalized coordinate
 `t = (T1w - GM_local)/(WM_local - GM_local)` from `CAT_VolLocalTissueReference()`. Both ends
@@ -270,15 +319,10 @@ The displacement recovers `gain * (width - reference)` exactly, is 8-14x larger 
 patch than outside, and is zero when there is nothing to find. The residue outside is mostly
 `smooth_fwhm` spilling across the patch edge.
 
-**Smooth before clamping.** Myelination is centimetre-scale and stereotyped while the
-per-voxel profile is noisy, so `smooth_fwhm` (8 mm, applied *within* the boundary sheet by
-normalized convolution over the band) is where the estimate becomes usable. It is also what
-keeps the non-negativity clamp from half-wave-rectifying noise into a systematic inflation.
-
-**This is a diagnostic before it is a correction.** `-width-out` writes the raw transition
-width, which is the map to look at first — the displacement is only a rescaling of it. Run it
-on a subject and check that it picks out the central sulcus and V1 before wiring it into PBT.
-Everything above is phantom evidence.
+**This is a diagnostic before it is a correction.** `-width-out` writes the transition width
+after smoothing and before thresholding — the quantity the decision is actually made on, and
+the map to look at first. It has not been wired into PBT yet; the `dist_WM += offset` edit
+above is the whole change when it is.
 
 ## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
 
