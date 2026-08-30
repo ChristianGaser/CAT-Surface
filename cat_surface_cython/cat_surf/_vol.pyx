@@ -522,137 +522,119 @@ def vol_open_ppm_sulci(ppm, voxelsize=None, double isovalue=0.5,
 
 
 # ===================================================================
-# Myelination correction  (mirrors CAT_VolCorrectMyelination)
+# Boundary offset  (mirrors CAT_VolBoundaryOffset)
 # ===================================================================
-def vol_correct_myelination(volume, t1w, voxelsize=None,
-                            double erosion_mm=3.0,
-                            double k_intensity=1.0,
-                            double grad_percentile=25.0,
-                            double dist_mm=2.0,
-                            double max_correction=0.5,
-                            double min_cluster_mm3=5.0,
-                            double gm_grad_pct=50.0,
-                            double max_gm_grad_dist=3.0,
-                            int n_median_filter=1,
-                            bint correct_wm=True,
-                            bint correct_csf=True,
-                            bint return_correction=False,
-                            bint verbose=False):
+def vol_boundary_offset(label, t1w, voxelsize=None,
+                        double ref_fwhm=10.0,
+                        double erosion_mm=3.0,
+                        double t_lo=0.25,
+                        double t_hi=0.75,
+                        double search_mm=4.0,
+                        double step_mm=0.25,
+                        double width_pct=25.0,
+                        double gain=0.5,
+                        double max_offset_mm=1.5,
+                        double smooth_fwhm=8.0,
+                        bint return_width=False,
+                        bint verbose=False):
     """
-    Correct PVE labels for myelination bias using the raw T1w.
+    Myelination-induced displacement of the GM/WM boundary, in mm.
 
-    Mirrors ``CAT_VolCorrectMyelination``.  Defaults match
-    ``CAT_MyelinCorrOptionsInit`` from the library -- the single source
-    of truth.
+    Mirrors ``CAT_VolBoundaryOffset``.  Defaults match
+    ``CAT_BoundaryOffsetOptionsInit`` from the library -- the single
+    source of truth.
 
-    In heavily myelinated cortex -- the primary motor and somatosensory
-    strip, and the line of Gennari in V1 -- the deep cortical layers are
-    bright enough on T1w to be classified as white matter.  The GM/WM
-    boundary is then placed too far out and the thickness comes back too
-    low.  This runs on the PVE label map *before* PBT and shifts such
-    voxels back toward GM.
+    In the primary motor and somatosensory strip, and along the line of
+    Gennari in V1, the deep cortical layers carry enough myelin to
+    approach white-matter intensity on T1w.  The classifier follows the
+    intensity, so the GM/WM boundary is placed too far out and the cortex
+    comes back too thin.
 
-    A voxel is corrected only if it is dark for white matter, sits in a
-    weak intensity gradient (so there is no real tissue boundary there),
-    and lies far enough from the eroded deep-WM core.  A second path
-    catches the double-gradient signature of a myelinated plateau, where
-    the true myelinated-to-normal GM transition shows up as elevated
-    gradient in nearby GM.
+    The displacement is a fraction of a voxel, which is why relabelling
+    cannot express it -- a label can only move in whole isovalue
+    crossings.  What *can* carry it is PBT's distance field, which already
+    holds the boundary to sub-voxel precision, so this returns the
+    displacement in millimetres to be added to ``dist_WM``.
+
+    **The observable is the width of the intensity transition, not its
+    position.**  The label map is derived from the intensity, so the label
+    boundary and the intensity boundary agree by construction and their
+    difference measures nothing.  What distinguishes myelinated cortex is
+    the shape of the profile across the boundary: healthy cortex steps
+    from grey to white over about the partial-volume width, while a
+    myelinated deep layer turns that step into a ramp one to three
+    millimetres wide.  The excess over this brain's own healthy majority
+    is the signal.
 
     Parameters
     ----------
-    volume : array_like, 3-D, float32
-        PVE label volume, values in [0, 3] (1=CSF, 2=GM, 3=WM).  Not
-        modified; the corrected copy is returned.
+    label : array_like, 3-D, float32
+        PVE label volume, values in [0, 3] (1=CSF, 2=GM, 3=WM).
     t1w : array_like, 3-D, float32
-        Raw or bias-corrected T1w intensity volume on the same grid.
-        Intensity units are irrelevant -- every threshold is derived from
-        the volume's own deep-WM statistics.
+        T1w intensity volume on the same grid.  Intensity units are
+        irrelevant: the profile is read in a contrast-normalized
+        coordinate built from local tissue references.
     voxelsize : array_like, shape (3,), float64, optional
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
+    ref_fwhm : float
+        FWHM in mm of the local GM and WM intensity references
+        (default 10.0).  Because both ends of the normalized coordinate
+        are local, a multiplicative bias cancels out of it.
     erosion_mm : float
-        Erosion radius in mm defining the deep tissue core (default 3.0).
-        This also sets how deep the correction can reach: a voxel inside
-        the eroded core is excluded from the boundary band, so a
-        myelinated layer thicker than this is invisible to the filter and
-        additionally contaminates the core statistics it would be
-        compared against.  Raise it for a cortex with a deep myelinated
-        band.
-    k_intensity : float
-        Flag a WM-band voxel when ``T1w < core_mean - k * core_std``
-        (default 1.0), and the CSF mirror on the other side.  The
-        statistics are global over the whole deep-WM core, so a residual
-        bias field inflates ``core_std`` and loosens this threshold.
-    grad_percentile : float
-        Percentile of the boundary-band gradient below which the gradient
-        counts as weak (default 25.0).
-    dist_mm : float
-        Minimum distance in mm from the tissue core before a voxel may be
-        flagged (default 2.0).
-    max_correction : float
-        Largest PVE shift toward GM (default 0.5).  The WM isovalue sits
-        at 2.5, so at this default a voxel at 3.0 with a perfect score
-        lands exactly on the boundary and anything less confident stays
-        WM.  Selectivity is meant to come from the criteria, so raise
-        this if corrections are being found but not crossing.
-    min_cluster_mm3 : float
-        Discard flagged clusters below this volume in mm^3 (default 5.0),
-        which suppresses isolated single-voxel corrections.
-    gm_grad_pct : float
-        Percentile of the GM gradient above which GM gradient counts as
-        elevated, for the double-gradient path (default 50.0).
-    max_gm_grad_dist : float
-        Maximum distance in mm from elevated-gradient GM for that path
-        (default 3.0); 0 disables it.  The test is a plain proximity
-        test and is direction-blind, so a high-gradient GM voxel on the
-        opposite bank of a sulcus triggers it as readily as one radially
-        outward.
-    n_median_filter : int
-        Iterations of a 3x3x3 median on the correction field (default 1);
-        0 disables it.  This erases sparse corrections completely -- if
-        the reported crossing count is zero while voxels were flagged,
-        this is usually why.
-    correct_wm : bool
-        Correct the WM/GM boundary, i.e. the myelination case
-        (default True).
-    correct_csf : bool
-        Correct the GM/CSF boundary (default True, following the library;
-        note the ``CAT_VolCorrectMyelination`` binary and
-        :func:`cat_surf.cli.vol_correct_myelination` default it off).
-        The deep-CSF core is built by eroding the CSF mask by
-        ``erosion_mm``, which removes sulcal CSF entirely and leaves the
-        ventricles, so the reference statistics come from ventricular
-        rather than sulcal CSF.
-    return_correction : bool
-        Also return the applied shift (default False).
+        Erosion in mm of the WM intensity control set (default 3.0), so
+        the myelinated band does not calibrate the reference it is being
+        measured against.
+    t_lo, t_hi : float
+        Level crossings of the normalized profile bounding the transition
+        (defaults 0.25 and 0.75).  Their separation is the width.
+    search_mm : float
+        Half-length in mm of the profile searched along the normal
+        (default 4.0).
+    step_mm : float
+        Sampling step in mm along the profile (default 0.25).
+    width_pct : float
+        Percentile of the measured widths taken as this brain's healthy
+        reference (default 25.0).  Derived per subject rather than fixed,
+        because the sharpest attainable transition depends on resolution
+        and on the segmentation, and the myelinated minority sits in the
+        upper tail either way.
+    gain : float
+        Displacement per unit excess width (default 0.5).  For a symmetric
+        ramp the cytoarchitectonic boundary sits about half the excess
+        beyond the intensity midpoint.
+    max_offset_mm : float
+        Clamp on the displacement (default 1.5).
+    smooth_fwhm : float
+        FWHM in mm of smoothing applied *within* the boundary sheet
+        (default 8.0).  Myelination is centimetre-scale and stereotyped
+        while the per-voxel profile measurement is noisy, so this is where
+        the estimate becomes usable; it is also what keeps the clamp from
+        rectifying noise into a systematic inflation.  0 returns the raw
+        per-voxel estimate.
+    return_width : bool
+        Also return the raw transition width (default False).  This is the
+        map to inspect first -- the displacement is only a rescaling of it.
     verbose : bool
-        Report the flagged, clustered and isovalue-crossing counts.  Only
-        a voxel that crosses an isovalue moves the surface or the
-        thickness.
 
     Returns
     -------
-    corrected : ndarray, 3-D, float32
-        Corrected PVE label volume.
-    correction : ndarray, 3-D, float32
-        ``corrected - volume``: negative where WM was relabelled toward
-        GM, positive where CSF was.  This is the shift that survived the
-        median filter and the clamps, not the one the criteria asked for.
-        Only when ``return_correction`` is True.
+    offset : ndarray, 3-D, float32
+        Displacement in mm, 0 outside the transition band.
+    width : ndarray, 3-D, float32
+        Raw transition width in mm before the reference is subtracted.
+        Only when ``return_width`` is True.
     """
-    # The C function corrects in place, so hand it a copy and leave the
-    # caller's array alone.
-    pve = np.array(volume, dtype=np.float32, order='F', copy=True)
+    lab = np.asfortranarray(label, dtype=np.float32)
     t1 = np.asfortranarray(t1w, dtype=np.float32)
-    if pve.ndim != 3:
-        raise ValueError("volume must be 3-D")
-    if t1.shape != pve.shape:
-        raise ValueError("volume and t1w must have the same shape")
+    if lab.ndim != 3:
+        raise ValueError("label must be 3-D")
+    if t1.shape != lab.shape:
+        raise ValueError("label and t1w must have the same shape")
 
     cdef int dims[3]
-    dims[0] = pve.shape[0]
-    dims[1] = pve.shape[1]
-    dims[2] = pve.shape[2]
+    dims[0] = lab.shape[0]
+    dims[1] = lab.shape[1]
+    dims[2] = lab.shape[2]
 
     cdef double vx[3]
     if voxelsize is not None:
@@ -661,40 +643,40 @@ def vol_correct_myelination(volume, t1w, voxelsize=None,
     else:
         vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
 
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] out = pve
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] src = t1
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] corr
-    cdef float *corr_ptr = NULL
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] src = lab
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] img = t1
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] off = np.zeros_like(lab, order='F')
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] wid
+    cdef float *wid_ptr = NULL
 
-    if return_correction:
-        corr = np.zeros_like(pve, order='F')
-        corr_ptr = <float *>corr.data
+    if return_width:
+        wid = np.zeros_like(lab, order='F')
+        wid_ptr = <float *>wid.data
 
-    cdef C.CAT_MyelinCorrOptions opts
-    C.CAT_MyelinCorrOptionsInit(&opts)
+    cdef C.CAT_BoundaryOffsetOpts opts
+    C.CAT_BoundaryOffsetOptionsInit(&opts)
+    opts.ref_fwhm = ref_fwhm
     opts.erosion_mm = erosion_mm
-    opts.k_intensity = k_intensity
-    opts.grad_percentile = grad_percentile
-    opts.dist_mm = dist_mm
-    opts.max_correction = max_correction
-    opts.min_cluster_mm3 = min_cluster_mm3
-    opts.gm_grad_pct = gm_grad_pct
-    opts.max_gm_grad_dist = max_gm_grad_dist
-    opts.n_median_filter = n_median_filter
-    opts.correct_wm = 1 if correct_wm else 0
-    opts.correct_csf = 1 if correct_csf else 0
+    opts.t_lo = t_lo
+    opts.t_hi = t_hi
+    opts.search_mm = search_mm
+    opts.step_mm = step_mm
+    opts.width_pct = width_pct
+    opts.gain = gain
+    opts.max_offset_mm = max_offset_mm
+    opts.smooth_fwhm = smooth_fwhm
     opts.verbose = 1 if verbose else 0
 
-    cdef int rc = C.CAT_VolCorrectMyelination(<float *>out.data,
-                                              <const float *>src.data,
-                                              dims, vx, corr_ptr, &opts)
-    if rc != 0:
-        raise RuntimeError(
-            f"CAT_VolCorrectMyelination returned error code {rc}")
+    cdef long rc = C.CAT_VolBoundaryOffset(<const float *>src.data,
+                                           <const float *>img.data,
+                                           <float *>off.data, wid_ptr,
+                                           dims, vx, &opts)
+    if rc < 0:
+        raise RuntimeError(f"CAT_VolBoundaryOffset returned error code {rc}")
 
-    if return_correction:
-        return out, corr
-    return out
+    if return_width:
+        return off, wid
+    return off
 
 
 def vol_thickness_pbt(volume, voxelsize=None,

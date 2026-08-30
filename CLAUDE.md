@@ -204,6 +204,82 @@ Two things that do **not** work, both measured rather than assumed:
   `q = 1` admits everything: on an all-healthy phantom it caps 56448 voxels and costs
   0.57 mm of mean thickness, where 0.4-0.8 cap none at all.
 
+## The myelination boundary offset (`CAT_VolBoundaryOffset`)
+
+In the primary motor and somatosensory strip, and along the line of Gennari in V1, the deep
+cortical layers carry enough myelin to approach white-matter intensity on T1w. The classifier
+follows the intensity, so the GM/WM boundary is placed too far out and the cortex comes back
+too thin.
+
+**Correcting this by relabelling voxels cannot work, and that is structural.** PBT already
+carries the boundary to sub-voxel precision — `dist_WM` is refined by the PVE value itself in
+`CAT_VolPbt.c`. The myelination displacement is 0.3-1.0 mm, the *same order* as that
+precision, but a label can only express it by crossing the 2.5 isovalue, a quantised
+half-voxel-minimum step. A previous `CAT_VolCorrectMyelination` did exactly that and was
+either inert or catastrophic at every setting; it was removed. The quantity is continuous, so
+the lever has to be.
+
+**Moving the border and correcting the distance are the same edit.** With the pial at depth 0,
+a true boundary at `T` and a segmented one at `T' = T - d`, a GM voxel at depth `x` has
+`dist_WM_true = dist_WM_seg + d` and `GMT_true = GMT_seg + d`. Substituting into
+`PPM = (GMT - dist_WM)/GMT` gives `(GMT - dist_WM)/(GMT + d)`. So adding `d` to `dist_WM`
+before the projection grows the thickness by `d` **and** moves the central surface inward by
+`d/2`, consistently, with no second knob. Note `correct_thickness` is already this correction
+in global form — a constant in mm for "the systematic border shift of whichever segmentation
+produced the label map" — but it is applied after PPM, so it never moves the surface.
+
+**The observable is the width of the intensity transition, not its position.** The label map
+is derived from the intensity, so the label boundary and the intensity boundary agree by
+construction and their difference measures nothing — the first estimator tried this and
+returned zero. What distinguishes myelinated cortex is the *shape* of the profile: healthy
+cortex steps from grey to white over about the partial-volume width, while a myelinated deep
+layer turns that step into a ramp one to three millimetres wide. The excess over this brain's
+own healthy majority (`width_pct`, default p25) is the signal, and `gain` (0.5) converts it to
+a displacement — for a symmetric ramp the boundary sits about half the excess beyond the
+intensity midpoint.
+
+The profile is read along the normal from `grad(label)`, in the contrast-normalized coordinate
+`t = (T1w - GM_local)/(WM_local - GM_local)` from `CAT_VolLocalTissueReference()`. Both ends
+are local, so a multiplicative bias cancels out of the ratio: measured on a slab phantom, a 10%
+bias field changes the recovered displacement by under 3%.
+
+**The band must be geometric, not a range of label values.** Selecting voxels whose label lies
+near 2.5 samples a wide transition far more densely than a sharp one — on the phantom it
+selected *only* myelinated voxels, so the reference width was derived from the pathology itself
+and the excess came out at zero. Taking the voxels adjacent to the isosurface, found by a sign
+change across a face, samples proportionally to surface area instead.
+
+**Reject profiles that do not cross the boundary here.** Where the normal comes out tangential
+— at the edge of the mask, or wherever `grad(label)` answers to something else — the ray runs
+along the surface rather than through it and returns a meaningless width. Requiring the label
+to cross 2.5 within `BO_ANCHOR_MM` of the start took the residual on a uniformly sharp phantom
+from 748 displaced voxels to **exactly zero**.
+
+Measured on a slab phantom with a widened transition inside a disc, at stock defaults:
+
+| ramp | noise 0 | sigma 2 | sigma 2, 10% bias | sigma 4, 10% bias |
+| --- | --- | --- | --- | --- |
+| none | 0.000 | 0.012 / 0.014 | 0.012 / 0.013 | 0.028 / 0.037 |
+| 2 mm | 0.190 / 0.013 | 0.211 / 0.026 | 0.205 / 0.025 | 0.229 / 0.047 |
+| 3 mm | 0.378 / 0.026 | 0.374 / 0.037 | 0.366 / 0.036 | 0.366 / 0.057 |
+| 4 mm | 0.569 / 0.040 | 0.568 / 0.051 | 0.555 / 0.050 | 0.555 / 0.070 |
+
+*(mean displacement in mm, inside the disc / outside it)*
+
+The displacement recovers `gain * (width - reference)` exactly, is 8-14x larger inside the
+patch than outside, and is zero when there is nothing to find. The residue outside is mostly
+`smooth_fwhm` spilling across the patch edge.
+
+**Smooth before clamping.** Myelination is centimetre-scale and stereotyped while the
+per-voxel profile is noisy, so `smooth_fwhm` (8 mm, applied *within* the boundary sheet by
+normalized convolution over the band) is where the estimate becomes usable. It is also what
+keeps the non-negativity clamp from half-wave-rectifying noise into a systematic inflation.
+
+**This is a diagnostic before it is a correction.** `-width-out` writes the raw transition
+width, which is the map to look at first — the displacement is only a rescaling of it. Run it
+on a subject and check that it picks out the central sulcus and V1 before wiring it into PBT.
+Everything above is phantom evidence.
+
 ## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
 
 A global isovalue shift cannot fix glued sulci without breaking thin gyri, because it moves

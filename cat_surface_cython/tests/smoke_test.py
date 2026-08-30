@@ -346,48 +346,63 @@ def test_option_no_ops():
 #    alone cannot separate them.
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# 9. The myelination correction is one-sided and leaves healthy cortex alone.
+# 9. The boundary offset measures a widened GM/WM transition, in mm, and is
+#    an exact no-op where the transition is uniformly sharp.
 # ---------------------------------------------------------------------------
-def test_correct_myelination():
-    section("myelination correction")
+def test_boundary_offset():
+    section("boundary offset")
 
-    M = 48
+    M = 64
+
+    def slab(ramp_mm):
+        """A layered slab whose GM/WM transition is widened inside a disc.
+
+        The label follows the intensity, as a classifier would derive it, so
+        the two boundaries coincide everywhere and only the *width* of the
+        transition differs -- which is the whole observable.
+        """
+        x = np.arange(M)[:, None, None]
+        xb = np.broadcast_to(x, (M, M, M))
+        yy, zz = np.meshgrid(np.arange(M), np.arange(M), indexing="ij")
+        disc = ((yy - 32) ** 2 + (zz - 32) ** 2) <= 100
+        half = np.broadcast_to(
+            np.where(disc[None, :, :], ramp_mm / 2.0, 0.5), (M, M, M))
+        d = np.clip((39.5 - xb) / half, -1.0, 1.0)
+        t1v = np.where(xb < 46, 85.0 + 25.0 * d,
+                       np.where(xb < 50, 20.0, 0.0))
+        labv = np.where(xb < 46, np.clip(2.0 + (t1v - 60.0) / 50.0, 2.0, 3.0),
+                        np.where(xb < 50, 1.0, 0.0))
+        blk = np.zeros((M, M, M), bool)
+        blk[:, 8:56, 8:56] = True
+        lab = np.zeros((M, M, M), np.float32)
+        t1 = np.zeros((M, M, M), np.float32)
+        lab[blk] = labv[blk]
+        t1[blk] = t1v[blk]
+        return lab, t1, np.broadcast_to(disc[None, :, :], (M, M, M))
+
     vx = (1.0, 1.0, 1.0)
-    pve = np.zeros((M, M, M), np.float32)
-    t1 = np.zeros((M, M, M), np.float32)
 
-    x = np.arange(M)[:, None, None]
-    blk = np.zeros((M, M, M), bool)
-    blk[:, 8:40, 8:40] = True
-    for lo, hi, lab, val in ((10, 26, 3.0, 110.0), (26, 32, 2.0, 60.0),
-                             (32, 36, 1.0, 20.0)):
-        sel = np.broadcast_to((x >= lo) & (x < hi), (M, M, M)) & blk
-        pve[sel] = lab
-        t1[sel] = val
+    lab, t1, _ = slab(1.0)   # uniform transition: nothing to correct
+    off = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx)
+    check("a uniformly sharp boundary is displaced by exactly zero",
+          not off.any())
 
-    healthy = pve.copy()
-    out, corr = cat_surf.vol_correct_myelination(
-        pve, t1, voxelsize=vx, correct_csf=False, return_correction=True)
-    check("healthy cortex comes back untouched", np.array_equal(out, healthy))
-    check("and its correction field is empty", not corr.any())
+    lab, t1, disc = slab(3.0)
+    off, wid = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx,
+                                            return_width=True)
+    m = off != 0
+    check("the widened transition is measured",
+          bool(m.any()) and abs(wid[m & disc].mean() - 1.5) < 0.2,
+          f"width {wid[m & disc].mean():.3f} mm, expected ~1.5")
+    check("and it is where the widening is",
+          off[m & disc].mean() > 5.0 * off[m & ~disc].mean())
+    check("the displacement is one-sided", off.min() >= 0.0)
 
-    # Two disjoint myelinated patches: deep GM labelled WM, too dark for WM.
-    yy, zz = np.meshgrid(np.arange(M), np.arange(M), indexing="ij")
-    for cy, cz, r in ((15, 15, 5), (33, 33, 3)):
-        disc = ((yy - cy) ** 2 + (zz - cz) ** 2) <= r * r
-        band = np.broadcast_to((x >= 18) & (x < 26), (M, M, M)) & disc[None] & blk
-        t1[band] = 85.0
-
-    out, corr = cat_surf.vol_correct_myelination(
-        pve, t1, voxelsize=vx, correct_csf=False, grad_percentile=100.0,
-        max_gm_grad_dist=0.0, n_median_filter=0, return_correction=True)
-
-    check("the input array is not modified in place", np.array_equal(pve, healthy))
-    check("the correction is the applied shift", np.array_equal(corr, out - pve))
-    check("it only moves WM labels toward GM", corr.max() <= 0.0)
-    check("both myelinated patches are corrected",
-          bool((corr[:, :24, :24] != 0).any()) and
-          bool((corr[:, 24:, 24:] != 0).any()))
+    # It is a measurement in mm, not a score: gain * (width - reference).
+    lab, t1, disc = slab(4.0)
+    off4 = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx)
+    check("a wider transition yields a proportionally larger displacement",
+          off4[(off4 != 0) & disc].mean() > off[m & disc].mean() + 0.1)
 
 
 def main():
@@ -395,7 +410,7 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_option_no_ops,
-                 test_correct_myelination):
+                 test_boundary_offset):
         try:
             test()
         except Exception:  # pragma: no cover
