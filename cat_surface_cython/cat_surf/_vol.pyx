@@ -531,7 +531,7 @@ def vol_boundary_offset(label, t1w, voxelsize=None,
                         double t_hi=0.75,
                         double search_mm=4.0,
                         double step_mm=0.25,
-                        double width_pct=25.0,
+                        double width_pct=88.0,
                         double gain=0.5,
                         double max_offset_mm=1.5,
                         double smooth_fwhm=8.0,
@@ -593,11 +593,26 @@ def vol_boundary_offset(label, t1w, voxelsize=None,
     step_mm : float
         Sampling step in mm along the profile (default 0.25).
     width_pct : float
-        Percentile of the measured widths taken as this brain's healthy
-        reference (default 25.0).  Derived per subject rather than fixed,
-        because the sharpest attainable transition depends on resolution
-        and on the segmentation, and the myelinated minority sits in the
-        upper tail either way.
+        Upper percentile of the measured widths above which a transition
+        is read as myelinated (default 88.0) -- the share of the boundary
+        the correction may touch.
+
+        A *central* location is no use here: whatever one is chosen the
+        healthy population straddles it, every voxel above acquires a
+        positive offset, and the whole cortex ends up displaced.  At p25
+        that was 99.8% of the boundary on a real 0.75 mm subject, at
+        0.05-0.1 mm, because p25 sits below the mode of a distribution
+        whose healthy peak is one voxel wide.  Nor does a location plus a
+        multiple of the spread transfer between subjects, because the
+        spread follows resolution and noise rather than anatomy: one
+        setting selected 12.0% of the boundary on a 0.75 mm scan and 1.4%
+        on a 1x1x1.25 mm one.
+
+        Fixing the share does not fix the correction.  The displacement is
+        the excess *beyond* the threshold, so a brain whose widths are
+        tightly grouped is barely corrected however large the share.
+        Measured at p88 on two subjects the mean displacement came out at
+        0.19 and 0.13 mm, and it moves by under 10% across p85-p92.
     gain : float
         Displacement per unit excess width (default 0.5).  For a symmetric
         ramp the cytoarchitectonic boundary sits about half the excess
@@ -605,12 +620,15 @@ def vol_boundary_offset(label, t1w, voxelsize=None,
     max_offset_mm : float
         Clamp on the displacement (default 1.5).
     smooth_fwhm : float
-        FWHM in mm of smoothing applied *within* the boundary sheet
-        (default 8.0).  Myelination is centimetre-scale and stereotyped
-        while the per-voxel profile measurement is noisy, so this is where
-        the estimate becomes usable; it is also what keeps the clamp from
-        rectifying noise into a systematic inflation.  0 returns the raw
-        per-voxel estimate.
+        FWHM in mm of smoothing applied to the width *within* the boundary
+        sheet (default 8.0), before any threshold.  Myelination is
+        centimetre-scale and stereotyped while the per-voxel profile is
+        noisy, and the band is a thin surface, so a normalized convolution
+        restricted to it averages along the boundary and not across it.
+        Doing this before the threshold is what makes the threshold
+        meaningful: on a 0.75 mm subject it takes the healthy spread from
+        0.121 to 0.080 mm and the p99 of the width from 4.06 to 2.01 mm --
+        the extreme per-voxel values were noise.
     return_width : bool
         Also return the raw transition width (default False).  This is the
         map to inspect first -- the displacement is only a rescaling of it.
@@ -621,8 +639,9 @@ def vol_boundary_offset(label, t1w, voxelsize=None,
     offset : ndarray, 3-D, float32
         Displacement in mm, 0 outside the transition band.
     width : ndarray, 3-D, float32
-        Raw transition width in mm before the reference is subtracted.
-        Only when ``return_width`` is True.
+        Transition width in mm, smoothed within the sheet and before the
+        threshold -- the quantity the decision is made on, and the map to
+        inspect first.  Only when ``return_width`` is True.
     """
     lab = np.asfortranarray(label, dtype=np.float32)
     t1 = np.asfortranarray(t1w, dtype=np.float32)

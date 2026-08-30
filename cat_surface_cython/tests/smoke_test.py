@@ -378,29 +378,43 @@ def test_boundary_offset():
         t1 = np.zeros((M, M, M), np.float32)
         lab[blk] = labv[blk]
         t1[blk] = t1v[blk]
-        return lab, t1, np.broadcast_to(disc[None, :, :], (M, M, M))
+        core = ((yy - 32) ** 2 + (zz - 32) ** 2) <= 25
+        return (lab, t1, np.broadcast_to(disc[None, :, :], (M, M, M)),
+                np.broadcast_to(core[None, :, :], (M, M, M)))
 
     vx = (1.0, 1.0, 1.0)
+    # The patch is ~14% of this phantom's boundary, where heavily myelinated
+    # cortex is nearer a tenth of a real hemisphere's, so the default
+    # percentile would clip it.  These checks are about the measurement.
+    pct = dict(width_pct=80.0)
 
-    lab, t1, _ = slab(1.0)   # uniform transition: nothing to correct
-    off = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx)
+    lab, t1, _, _ = slab(1.0)   # uniform transition: nothing to correct
+    off = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx, **pct)
     check("a uniformly sharp boundary is displaced by exactly zero",
           not off.any())
 
-    lab, t1, disc = slab(3.0)
+    lab, t1, disc, core = slab(3.0)
     off, wid = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx,
-                                            return_width=True)
+                                            return_width=True, **pct)
     m = off != 0
+    # The width is reported after smoothing within the sheet, so it is read at
+    # the centre of the patch rather than over the whole of it -- the edge is
+    # legitimately blended with the sharp cortex around it.
+    b = wid > 0
     check("the widened transition is measured",
-          bool(m.any()) and abs(wid[m & disc].mean() - 1.5) < 0.2,
-          f"width {wid[m & disc].mean():.3f} mm, expected ~1.5")
-    check("and it is where the widening is",
-          off[m & disc].mean() > 5.0 * off[m & ~disc].mean())
+          bool(m.any()) and abs(wid[b & core].mean() - 1.5) < 0.25,
+          f"width {wid[b & core].mean():.3f} mm, expected ~1.5")
+    # The patch is ~14% of the boundary, so where the displacement *mass*
+    # lands says more than a ratio of means does.
+    check("and it is concentrated where the widening is",
+          off[disc].sum() > 0.6 * off.sum(),
+          f"{100*off[disc].sum()/off.sum():.0f}% of the displacement in "
+          f"{100*(b & disc).sum()/b.sum():.0f}% of the boundary")
     check("the displacement is one-sided", off.min() >= 0.0)
 
     # It is a measurement in mm, not a score: gain * (width - reference).
-    lab, t1, disc = slab(4.0)
-    off4 = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx)
+    lab, t1, disc, _ = slab(4.0)
+    off4 = cat_surf.vol_boundary_offset(lab, t1, voxelsize=vx, **pct)
     check("a wider transition yields a proportionally larger displacement",
           off4[(off4 != 0) & disc].mean() > off[m & disc].mean() + 0.1)
 
