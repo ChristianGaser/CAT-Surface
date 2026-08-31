@@ -89,7 +89,6 @@ bin_PROGRAMS = \
     CAT_VolSanlm \
     CAT_VolOrnlm \
     CAT_VolLocalStat \
-    CAT_VolBoundaryOffset \
     CAT_VolThicknessPbt \
     CAT_VolSheetness \
     CAT_VolCalc \

@@ -111,12 +111,6 @@ extern "C"
      * @param PPM_out     Output: Percentage position map (0=WM boundary, 1=CSF boundary).
      * @param dist_CSF_out Optional output: CSF distance map (can be NULL).
      * @param dist_WM_out  Optional output: WM distance map (can be NULL).
-     * @param thickness_offset Optional input: per-voxel additive thickness
-     *                    correction in mm (can be NULL).  A spatially varying
-     *                    counterpart to opts->correct_thickness, for the case
-     *                    where the border shift is not one number for the
-     *                    brain -- see CAT_VolBoundaryOffset.  Applied after
-     *                    PPM, so it changes the thickness and not the surfaces.
      * @param dims        Volume dimensions [nx, ny, nz].
      * @param voxelsize   Voxel sizes in mm [dx, dy, dz].
      * @param opts        Options controlling the algorithm behavior, including
@@ -130,7 +124,6 @@ extern "C"
         float *PPM_out,
         float *dist_CSF_out,
         float *dist_WM_out,
-        const float *thickness_offset,
         int dims[3],
         double voxelsize[3],
         const CAT_PbtOptions *opts);

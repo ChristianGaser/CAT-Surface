@@ -120,7 +120,6 @@ int CAT_VolComputePbt(
     float *PPM_out,
     float *dist_CSF_out,
     float *dist_WM_out,
-    const float *thickness_offset,
     int dims[3],
     double voxelsize[3],
     const CAT_PbtOptions *opts)
@@ -860,26 +859,10 @@ int CAT_VolComputePbt(
 
     clip_data(PPM, nvox, 0.0, 1.0, DT_FLOAT32);
 
-    /* Copy results to output, adding the per-voxel thickness correction.
-     *
-     * `correct_thickness` above compensates the systematic border shift of
-     * whichever segmentation produced the label map, and is one number for the
-     * brain.  `thickness_offset` is the same kind of quantity where it is *not*
-     * one number -- myelinated cortex, where the classifier put the GM/WM
-     * boundary too far out and the ribbon came back too thin
-     * (CAT_VolBoundaryOffset).
-     *
-     * It is added here, at the very end, and that placement is the point: this
-     * is a thickness-only correction, so it must not reach the surfaces.
-     * Applying it with `correct_thickness` above would have done, because the
-     * topology-artifact cleanup between the two gates on `GMT > 1.5` and so
-     * feeds back into the PPM.  Adding it to `dist_WM` before the projection
-     * would move the central surface inward by half of it, which is a separate
-     * decision and is deliberately not taken here. */
+    /* Copy results to output */
     for (i = 0; i < nvox; i++)
     {
-        GMT_out[i] = GMT[i] +
-                     (thickness_offset ? thickness_offset[i] : 0.0f);
+        GMT_out[i] = GMT[i];
         PPM_out[i] = PPM[i];
     }
     if (dist_CSF_out)

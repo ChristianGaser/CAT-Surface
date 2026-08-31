@@ -46,7 +46,6 @@ double barrier_tmin = -1.0;
 double barrier_halfwidth = -1.0;
 double oriented_strength = -1.0;
 double oriented_cutoff = -1.0;
-char *thickness_offset_file = NULL;
 
 static ArgvInfo argTable[] = {
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
@@ -229,14 +228,6 @@ static ArgvInfo argTable[] = {
      the GM/CSF partial-volume zone within this distance are attenuated to prevent\n\
      sulcal gluing in the central surface. Set to 0 to disable."},
 
-    {"-thickness-offset", ARGV_STRING, (char *)1, (char *)&thickness_offset_file,
-     "Per-voxel additive thickness correction in mm, as a volume on the input\n\
-     grid. A spatially varying counterpart to -correct-thickness, for the case\n\
-     where the border shift is not one number for the brain -- notably\n\
-     myelinated cortex, where the classifier puts the GM/WM boundary too far\n\
-     out and the ribbon comes back too thin. Produce one with\n\
-     CAT_VolBoundaryOffset. Applied after the PPM, so it moves the thickness\n\
-     and leaves the surfaces alone."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
 
 private void usage(char *executable)
@@ -303,7 +294,6 @@ int main(int argc, char *argv[])
     char out_GMT[1024], out_PPM[1024], out_CSD[1024], out_WMD[1024];
     int i, j, dims[3], dims_reduced[3];
     float *src;
-    float *offset_data = NULL;
     double voxelsize[3], voxelsize_reduced[3], samp[3], s[3], slope;
 
     initialize_argument_processing(argc, argv);
@@ -345,25 +335,6 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "Error reading %s.\n", infile);
         return (EXIT_FAILURE);
-    }
-
-    /* Optional per-voxel thickness correction, on the input grid */
-    if (thickness_offset_file)
-    {
-        nifti_image *off_ptr = read_nifti_float(thickness_offset_file,
-                                                &offset_data, 0);
-        if (!off_ptr)
-        {
-            fprintf(stderr, "Error reading %s.\n", thickness_offset_file);
-            return (EXIT_FAILURE);
-        }
-        if (off_ptr->nx != src_ptr->nx || off_ptr->ny != src_ptr->ny ||
-            off_ptr->nz != src_ptr->nz)
-        {
-            fprintf(stderr, "Error: %s does not match the input dimensions.\n",
-                    thickness_offset_file);
-            return (EXIT_FAILURE);
-        }
     }
 
     /* Number of voxels */
@@ -443,8 +414,7 @@ int main(int argc, char *argv[])
     if (oriented_strength >= 0.0) opts.oriented_strength = oriented_strength;
     if (oriented_cutoff   >= 0.0) opts.oriented_cutoff = oriented_cutoff;
 
-    if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, offset_data,
-                          dims, voxelsize, &opts) != 0)
+    if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {
         fprintf(stderr, "Error computing projection-based thickness.\n");
         exit(EXIT_FAILURE);

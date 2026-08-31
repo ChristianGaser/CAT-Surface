@@ -267,7 +267,6 @@ noinst_HEADERS = \
     Include/CAT_WarpDemons.h \
     Include/CAT_ROIStats.h \
     Include/CAT_Vol2SurfUtils.h \
-    Include/CAT_VolBoundaryOffset.h \
     Include/CAT_VolPbt.h \
     Include/CAT_Sheetness.h \
     Include/CAT_PpmSulci.h \
@@ -356,7 +355,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_WarpDemons.c \
     Lib/CAT_ROIStats.c \
     Lib/CAT_Vol2SurfUtils.c \
-    Lib/CAT_VolBoundaryOffset.c \
     Lib/CAT_VolPbt.c \
     Lib/CAT_Sheetness.c \
     Lib/CAT_PpmSulci.c \
