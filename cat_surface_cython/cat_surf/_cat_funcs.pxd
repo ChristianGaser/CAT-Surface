@@ -383,7 +383,6 @@ cdef extern from "CAT_VolPbt.h":
              float *PPM_out,
              float *dist_CSF_out,
              float *dist_WM_out,
-             const float *thickness_offset,
              int dims[3],
              double voxelsize[3],
              const CAT_PbtOptions *opts)
@@ -468,30 +467,6 @@ cdef extern from "CAT_PpmSulci.h":
                              const float *normal, int dims[3],
                              double voxelsize[3], double isovalue,
                              const CAT_PpmSulciOpts *opts)
-
-
-# ---------------------------------------------------------------------------
-# CAT_VolBoundaryOffset.h — myelination-induced GM/WM boundary displacement
-# ---------------------------------------------------------------------------
-cdef extern from "CAT_VolBoundaryOffset.h":
-    ctypedef struct CAT_BoundaryOffsetOpts:
-        double ref_fwhm
-        double erosion_mm
-        double t_lo
-        double t_hi
-        double search_mm
-        double step_mm
-        double width_pct
-        double gain
-        double max_offset_mm
-        double smooth_fwhm
-        int verbose
-
-    void CAT_BoundaryOffsetOptionsInit(CAT_BoundaryOffsetOpts *opts)
-    long CAT_VolBoundaryOffset(const float *label, const float *t1w,
-                               float *offset, float *width,
-                               int dims[3], double voxelsize[3],
-                               const CAT_BoundaryOffsetOpts *opts)
 
 
 # ---------------------------------------------------------------------------

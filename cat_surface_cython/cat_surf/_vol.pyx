@@ -521,184 +521,7 @@ def vol_open_ppm_sulci(ppm, voxelsize=None, double isovalue=0.5,
     return out
 
 
-# ===================================================================
-# Boundary offset  (mirrors CAT_VolBoundaryOffset)
-# ===================================================================
-def vol_boundary_offset(label, t1w, voxelsize=None,
-                        double ref_fwhm=10.0,
-                        double erosion_mm=3.0,
-                        double t_lo=0.25,
-                        double t_hi=0.75,
-                        double search_mm=4.0,
-                        double step_mm=0.25,
-                        double width_pct=88.0,
-                        double gain=0.5,
-                        double max_offset_mm=1.5,
-                        double smooth_fwhm=8.0,
-                        bint return_width=False,
-                        bint verbose=False):
-    """
-    Myelination-induced displacement of the GM/WM boundary, in mm.
-
-    Mirrors ``CAT_VolBoundaryOffset``.  Defaults match
-    ``CAT_BoundaryOffsetOptionsInit`` from the library -- the single
-    source of truth.
-
-    In the primary motor and somatosensory strip, and along the line of
-    Gennari in V1, the deep cortical layers carry enough myelin to
-    approach white-matter intensity on T1w.  The classifier follows the
-    intensity, so the GM/WM boundary is placed too far out and the cortex
-    comes back too thin.
-
-    The displacement is a fraction of a voxel, which is why relabelling
-    cannot express it -- a label can only move in whole isovalue
-    crossings.  What *can* carry it is PBT's distance field, which already
-    holds the boundary to sub-voxel precision, so this returns the
-    displacement in millimetres to be added to ``dist_WM``.
-
-    **The observable is the width of the intensity transition, not its
-    position.**  The label map is derived from the intensity, so the label
-    boundary and the intensity boundary agree by construction and their
-    difference measures nothing.  What distinguishes myelinated cortex is
-    the shape of the profile across the boundary: healthy cortex steps
-    from grey to white over about the partial-volume width, while a
-    myelinated deep layer turns that step into a ramp one to three
-    millimetres wide.  The excess over this brain's own healthy majority
-    is the signal.
-
-    Parameters
-    ----------
-    label : array_like, 3-D, float32
-        PVE label volume, values in [0, 3] (1=CSF, 2=GM, 3=WM).
-    t1w : array_like, 3-D, float32
-        T1w intensity volume on the same grid.  Intensity units are
-        irrelevant: the profile is read in a contrast-normalized
-        coordinate built from local tissue references.
-    voxelsize : array_like, shape (3,), float64, optional
-        Voxel dimensions in mm.  Default ``[1, 1, 1]``.
-    ref_fwhm : float
-        FWHM in mm of the local GM and WM intensity references
-        (default 10.0).  Because both ends of the normalized coordinate
-        are local, a multiplicative bias cancels out of it.
-    erosion_mm : float
-        Erosion in mm of the WM intensity control set (default 3.0), so
-        the myelinated band does not calibrate the reference it is being
-        measured against.
-    t_lo, t_hi : float
-        Level crossings of the normalized profile bounding the transition
-        (defaults 0.25 and 0.75).  Their separation is the width.
-    search_mm : float
-        Half-length in mm of the profile searched along the normal
-        (default 4.0).
-    step_mm : float
-        Sampling step in mm along the profile (default 0.25).
-    width_pct : float
-        Upper percentile of the measured widths above which a transition
-        is read as myelinated (default 88.0) -- the share of the boundary
-        the correction may touch.
-
-        A *central* location is no use here: whatever one is chosen the
-        healthy population straddles it, every voxel above acquires a
-        positive offset, and the whole cortex ends up displaced.  At p25
-        that was 99.8% of the boundary on a real 0.75 mm subject, at
-        0.05-0.1 mm, because p25 sits below the mode of a distribution
-        whose healthy peak is one voxel wide.  Nor does a location plus a
-        multiple of the spread transfer between subjects, because the
-        spread follows resolution and noise rather than anatomy: one
-        setting selected 12.0% of the boundary on a 0.75 mm scan and 1.4%
-        on a 1x1x1.25 mm one.
-
-        Fixing the share does not fix the correction.  The displacement is
-        the excess *beyond* the threshold, so a brain whose widths are
-        tightly grouped is barely corrected however large the share.
-        Measured at p88 on two subjects the mean displacement came out at
-        0.19 and 0.13 mm, and it moves by under 10% across p85-p92.
-    gain : float
-        Displacement per unit excess width (default 0.5).  For a symmetric
-        ramp the cytoarchitectonic boundary sits about half the excess
-        beyond the intensity midpoint.
-    max_offset_mm : float
-        Clamp on the displacement (default 1.5).
-    smooth_fwhm : float
-        FWHM in mm of smoothing applied to the width *within* the boundary
-        sheet (default 8.0), before any threshold.  Myelination is
-        centimetre-scale and stereotyped while the per-voxel profile is
-        noisy, and the band is a thin surface, so a normalized convolution
-        restricted to it averages along the boundary and not across it.
-        Doing this before the threshold is what makes the threshold
-        meaningful: on a 0.75 mm subject it takes the healthy spread from
-        0.121 to 0.080 mm and the p99 of the width from 4.06 to 2.01 mm --
-        the extreme per-voxel values were noise.
-    return_width : bool
-        Also return the raw transition width (default False).  This is the
-        map to inspect first -- the displacement is only a rescaling of it.
-    verbose : bool
-
-    Returns
-    -------
-    offset : ndarray, 3-D, float32
-        Displacement in mm, 0 outside the transition band.
-    width : ndarray, 3-D, float32
-        Transition width in mm, smoothed within the sheet and before the
-        threshold -- the quantity the decision is made on, and the map to
-        inspect first.  Only when ``return_width`` is True.
-    """
-    lab = np.asfortranarray(label, dtype=np.float32)
-    t1 = np.asfortranarray(t1w, dtype=np.float32)
-    if lab.ndim != 3:
-        raise ValueError("label must be 3-D")
-    if t1.shape != lab.shape:
-        raise ValueError("label and t1w must have the same shape")
-
-    cdef int dims[3]
-    dims[0] = lab.shape[0]
-    dims[1] = lab.shape[1]
-    dims[2] = lab.shape[2]
-
-    cdef double vx[3]
-    if voxelsize is not None:
-        vs = np.asarray(voxelsize, dtype=np.float64).ravel()
-        vx[0] = vs[0]; vx[1] = vs[1]; vx[2] = vs[2]
-    else:
-        vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
-
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] src = lab
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] img = t1
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] off = np.zeros_like(lab, order='F')
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] wid
-    cdef float *wid_ptr = NULL
-
-    if return_width:
-        wid = np.zeros_like(lab, order='F')
-        wid_ptr = <float *>wid.data
-
-    cdef C.CAT_BoundaryOffsetOpts opts
-    C.CAT_BoundaryOffsetOptionsInit(&opts)
-    opts.ref_fwhm = ref_fwhm
-    opts.erosion_mm = erosion_mm
-    opts.t_lo = t_lo
-    opts.t_hi = t_hi
-    opts.search_mm = search_mm
-    opts.step_mm = step_mm
-    opts.width_pct = width_pct
-    opts.gain = gain
-    opts.max_offset_mm = max_offset_mm
-    opts.smooth_fwhm = smooth_fwhm
-    opts.verbose = 1 if verbose else 0
-
-    cdef long rc = C.CAT_VolBoundaryOffset(<const float *>src.data,
-                                           <const float *>img.data,
-                                           <float *>off.data, wid_ptr,
-                                           dims, vx, &opts)
-    if rc < 0:
-        raise RuntimeError(f"CAT_VolBoundaryOffset returned error code {rc}")
-
-    if return_width:
-        return off, wid
-    return off
-
-
-def vol_thickness_pbt(volume, voxelsize=None, thickness_offset=None,
+def vol_thickness_pbt(volume, voxelsize=None,
                       int n_avgs=-1, int n_median_filter=-1,
                       int median_subsample=-1, double range_val=-1.0,
                       double fill_thresh=-1.0,
@@ -727,14 +550,6 @@ def vol_thickness_pbt(volume, voxelsize=None, thickness_offset=None,
     ----------
     volume : array_like, 3-D, float32
         Tissue-label volume (PVE-style).
-    thickness_offset : array_like, 3-D, float32, optional
-        Per-voxel additive thickness correction in mm, on the same grid.
-        A spatially varying counterpart to ``correct_thickness``, for the
-        case where the border shift is not one number for the brain --
-        notably myelinated cortex, where the classifier puts the GM/WM
-        boundary too far out and the ribbon comes back too thin.  Produce
-        one with :func:`cat_surf.vol_boundary_offset`.  Applied after the
-        PPM, so it moves the thickness and leaves the surfaces alone.
     voxelsize : array_like, shape (3,), float64, optional
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
     n_avgs : int
@@ -919,22 +734,12 @@ def vol_thickness_pbt(volume, voxelsize=None, thickness_offset=None,
 
     cdef cnp.ndarray[cnp.float32_t, ndim=3] src = np.asfortranarray(vol, dtype=np.float32)
 
-    cdef cnp.ndarray[cnp.float32_t, ndim=3] off
-    cdef const float *off_ptr = NULL
-    if thickness_offset is not None:
-        off = np.asfortranarray(thickness_offset, dtype=np.float32)
-        if off.shape[0] != dims[0] or off.shape[1] != dims[1] or \
-           off.shape[2] != dims[2]:
-            raise ValueError("thickness_offset must match the volume shape")
-        off_ptr = <const float *>off.data
-
     cdef int rc = C.CAT_VolComputePbt(
         <const float *>src.data,
         <float *>gmt.data,
         <float *>ppm.data,
         <float *>dcsf.data,
         <float *>dwm.data,
-        off_ptr,
         dims, vx, &opts)
 
     if rc != 0:

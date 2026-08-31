@@ -81,7 +81,6 @@ from cat_surf import (
     vol_marching_cubes as _vol_marching_cubes,
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
-    vol_boundary_offset as _vol_boundary_offset,
     vol_smooth as _vol_smooth,
     vol_sheetness as _vol_sheetness,
     vol_oriented_median as _vol_oriented_median,
@@ -518,40 +517,6 @@ def vol_thickness_pbt(input_file, gmt_file=None, ppm_file=None,
         _save_volume_like(dist_wm_file, dwm, img, dtype=np.float32)
 
 
-def vol_boundary_offset(label_file, t1w_file, output_file,
-                        width_out=None, **kwargs):
-    """Mirror of ``CAT_VolBoundaryOffset``.
-
-    Write the myelination-induced GM/WM boundary displacement in mm, for
-    use as an additive correction to PBT's WM distance map.
-
-    Parameters
-    ----------
-    label_file : str
-        PVE label volume, values in [0, 3].
-    t1w_file : str
-        T1w intensity volume on the same grid.
-    output_file : str
-        Where the displacement map is written.
-    width_out : str, optional
-        Also write the raw transition width here, mirroring the binary's
-        ``-width-out``.  Inspect this one first: the displacement is only
-        a rescaling of it.
-    **kwargs
-        Passed through to :func:`cat_surf.vol_boundary_offset`.
-    """
-    import nibabel as nib
-    img = nib.load(label_file)
-    lab = img.get_fdata().astype(np.float32)
-    t1w = nib.load(t1w_file).get_fdata().astype(np.float32)
-    vx = img.header.get_zooms()[:3]
-    off, wid = _vol_boundary_offset(lab, t1w, voxelsize=vx,
-                                    return_width=True, **kwargs)
-    _save_volume_like(output_file, off, img, dtype=np.float32)
-    if width_out:
-        _save_volume_like(width_out, wid, img, dtype=np.float32)
-
-
 def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False):
     """Mirror of ``CAT_VolSmooth``.
 
@@ -899,7 +864,6 @@ __all__ = [
     # Volume tools
     "vol2surf",
     "vol_amap",
-    "vol_boundary_offset",
     "vol_marching_cubes",
     "vol_local_stat",
     "vol_sanlm",
