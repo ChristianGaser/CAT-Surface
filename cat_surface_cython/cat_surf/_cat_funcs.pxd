@@ -54,6 +54,25 @@ cdef extern from "CAT_SurfaceIO.h":
     int input_gifti_curv(char *, int *, double **)
     int output_gifti_curv(char *, int, double *)
 
+    ctypedef struct gifti_darray_info:
+        int       intent
+        char      intent_name[64]
+        char      datatype_name[32]
+        char      encoding_name[32]
+        char      ext_fname[256]
+        char      name[128]
+        int       num_dim
+        int       dims[6]
+        long long n_values
+        long long n_nonfinite
+        int       has_range
+        double    min
+        double    mean
+        double    max
+
+    Status input_gifti_darrays(char *file, int *n_arrays,
+                               gifti_darray_info **arrays)
+
 
 # ---------------------------------------------------------------------------
 # CAT_Surf.h — Core surface operations
@@ -439,6 +458,44 @@ cdef extern from "CAT_Sheetness.h":
                                 const unsigned char *mask, float *medial,
                                 int dims[3], double q, double t_min)
     void CAT_EigenSym3(const double a[6], double eval[3], double evec3[3])
+
+
+# ---------------------------------------------------------------------------
+# CAT_SurfInfo.h — geometric and topological summary of a mesh
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_SurfInfo.h":
+    int CAT_SURFINFO_SKIPPED
+
+    ctypedef struct surf_info_struct:
+        int    n_points
+        int    n_polygons
+        int    n_triangles
+        int    n_nontriangular
+        int    n_edges
+        int    n_boundary_edges
+        int    n_nonmanifold_edges
+        int    n_unreferenced_points
+        int    n_degenerate_polygons
+        int    euler
+        int    n_components
+        int    closed
+        int    genus
+        double surface_area
+        double volume
+        double area_min
+        double area_max
+        double area_mean
+        double edge_min
+        double edge_max
+        double edge_mean
+        double bounds[6]
+        double centroid[3]
+        int    n_self_intersections
+        int    n_triangle_hits
+        int    n_intersecting_polygons
+
+    void compute_surf_info(polygons_struct *polygons, surf_info_struct *info,
+                           int check_intersections, int verbose)
 
 
 # ---------------------------------------------------------------------------

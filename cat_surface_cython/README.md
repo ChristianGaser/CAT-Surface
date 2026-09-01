@@ -72,6 +72,12 @@ area, total_area = cat_surf.get_area(vertices, faces)
 # Euler characteristic
 chi = cat_surf.euler_characteristic(vertices, faces)
 
+# Everything at once (mirrors CAT_SurfInfo); skip the expensive
+# self-intersection test with check_intersections=False
+info = cat_surf.surf_info(vertices, faces)
+print(info["euler"], info["genus"], info["surface_area"],
+      info["n_self_intersections"])
+
 # Smooth per-vertex data (heat kernel, FWHM in mm)
 smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 ```
@@ -85,6 +91,8 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `get_area` | Per-vertex and total surface area | `CAT_SurfArea` |
 | `get_area_normalized` | Area normalized by a reference sphere | `CAT_SurfArea -sphere` |
 | `euler_characteristic` | Topological integrity check | — |
+| `surf_info` | Full geometry/topology summary as a dict: V/F/E, Euler, genus, components, area, volume, bounding box, self-intersections | `CAT_SurfInfo` |
+| `read_gifti_darrays` | List the DataArrays a `.gii` embeds next to the mesh, with value range and NaN count | — |
 | `smooth_heatkernel` | Heat-kernel smoothing of per-vertex data | — |
 | `smooth_mesh` | Laplacian/Taubin mesh vertex smoothing | — |
 | `smoothed_curvatures` | Mean curvature estimation | — |
@@ -285,6 +293,7 @@ The full mapping:
 | `CAT_SurfCorrectThicknessFolding` | `surf_correct_thickness_folding` |
 | `CAT_SurfDeform` | `surf_deform` |
 | `CAT_SurfDistance` | `surf_distance` |
+| `CAT_SurfInfo` | `surf_info` |
 | `CAT_SurfReduce` | `surf_reduce` |
 | `CAT_SurfFixSelfIntersect` | `surf_fix_self_intersect` |
 | `CAT_SurfResample` | `surf_resample` |

@@ -15,7 +15,9 @@ Usage
     CAT_BUILD_DIR=/path/to/CAT-Surface pip install ./cat_surface_cython
     python cat_surface_cython/tests/smoke_test.py
 """
+import os
 import sys
+import tempfile
 import traceback
 
 import numpy as np
@@ -341,6 +343,101 @@ def test_option_no_ops():
 
 
 # ---------------------------------------------------------------------------
+# Surface info: every reported quantity has a closed-form value on a regular
+# octahedron, and the GIFTI listing has to survive a round-trip through disk.
+# ---------------------------------------------------------------------------
+def test_surf_info():
+    section("Surface info")
+
+    pts = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0],
+                    [0, -1, 0], [0, 0, 1], [0, 0, -1]], dtype=np.float64)
+    tri = np.array([[0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
+                    [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5]],
+                   dtype=np.int32)
+
+    info = cat_surf.surf_info(pts, tri)
+
+    check("V, F and E of an octahedron",
+          info["n_points"] == 6 and info["n_polygons"] == 8
+          and info["n_edges"] == 12)
+    check("V - E + F = 2", info["euler"] == 2)
+    check("genus 0, one component, closed",
+          info["genus"] == 0 and info["n_components"] == 1 and info["closed"])
+    check("no boundary or non-manifold edges",
+          info["n_boundary_edges"] == 0 and info["n_nonmanifold_edges"] == 0)
+    check("surface area is 4*sqrt(3)",
+          abs(info["surface_area"] - 4.0 * np.sqrt(3.0)) < 1e-6,
+          f"{info['surface_area']:.6f}")
+    check("volume is 4/3", abs(info["volume"] - 4.0 / 3.0) < 1e-6,
+          f"{info['volume']:.6f}")
+    check("all edges have length sqrt(2)",
+          abs(info["edge_mean"] - np.sqrt(2.0)) < 1e-6
+          and abs(info["edge_max"] - info["edge_min"]) < 1e-9)
+    check("centroid at the origin",
+          np.allclose(info["centroid"], 0.0, atol=1e-9))
+    check("a convex body has no self-intersections",
+          info["n_self_intersections"] == 0)
+
+    skipped = cat_surf.surf_info(pts, tri, check_intersections=False)
+    check("a skipped test reports None, not zero",
+          skipped["n_self_intersections"] is None
+          and skipped["n_triangle_hits"] is None
+          and skipped["n_intersecting_polygons"] is None)
+
+    # an open patch: two triangles sharing one edge
+    patch_pts = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+                         dtype=np.float64)
+    patch_tri = np.array([[0, 1, 2], [0, 2, 3]], dtype=np.int32)
+    patch = cat_surf.surf_info(patch_pts, patch_tri,
+                               check_intersections=False)
+    check("chi of a disc is 1", patch["euler"] == 1)
+    check("the patch is open, with four boundary edges",
+          not patch["closed"] and patch["n_boundary_edges"] == 4)
+    check("genus and volume are None when the surface is open",
+          patch["genus"] is None and patch["volume"] is None)
+    check("area of the unit square",
+          abs(patch["surface_area"] - 1.0) < 1e-9)
+
+    # a .gii carries the mesh in two DataArrays and may embed data next to it
+    tmp = os.path.join(tempfile.gettempdir(), "cat_surf_smoke_info.gii")
+    values = np.array([1.0, 2.0, 3.0, 4.0, 5.0, np.nan])
+    try:
+        cat_surf.write_surface(tmp, pts, tri, values=values)
+        cli_info = cat_surf.cli.surf_info(tmp, check_intersections=False)
+
+        check("the CLI mirror reproduces the array API",
+              cli_info["euler"] == 2 and cli_info["n_edges"] == 12
+              and abs(cli_info["surface_area"] - info["surface_area"]) < 1e-6)
+
+        darrays = cli_info["gifti_darrays"]
+        check("the embedded array is listed next to the mesh",
+              darrays is not None and len(darrays) == 3, str(darrays and len(darrays)))
+
+        shape = [d for d in (darrays or [])
+                 if d["intent_name"] == "NIFTI_INTENT_SHAPE"]
+        check("the shape array is found", len(shape) == 1)
+        if shape:
+            da = shape[0]
+            check("one value per vertex", da["n_values"] == 6)
+            check("the NaN is counted, not silently dropped",
+                  da["n_nonfinite"] == 1)
+            check("statistics skip the NaN instead of becoming nan",
+                  da["mean"] is not None and abs(da["mean"] - 3.0) < 1e-5
+                  and abs(da["min"] - 1.0) < 1e-5
+                  and abs(da["max"] - 5.0) < 1e-5,
+                  str(da["mean"]))
+        mesh_arrays = [d for d in (darrays or [])
+                       if d["intent_name"] in ("NIFTI_INTENT_POINTSET",
+                                               "NIFTI_INTENT_TRIANGLE")]
+        check("the mesh arrays carry no statistics",
+              len(mesh_arrays) == 2
+              and all(d["mean"] is None for d in mesh_arrays))
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -349,7 +446,8 @@ def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
-                 test_barrier_gate_scales_with_thickness, test_option_no_ops):
+                 test_barrier_gate_scales_with_thickness, test_option_no_ops,
+                 test_surf_info):
         try:
             test()
         except Exception:  # pragma: no cover

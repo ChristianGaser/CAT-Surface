@@ -197,3 +197,75 @@ def write_values(str filename, values):
     )
     if st != OK:
         raise IOError(f"Failed to write values to '{filename}'")
+
+
+# ===================================================================
+# GIFTI data arrays
+# ===================================================================
+def read_gifti_darrays(str filename):
+    """
+    List the DataArrays a GIFTI file contains.
+
+    A ``.gii`` holds the mesh in two DataArrays (POINTSET and TRIANGLE)
+    but may embed any number of further arrays next to it -- thickness,
+    curvature, labels, time series.  :func:`read_surface` returns only
+    the mesh, so this is the way to see what else the file carries.
+
+    Parameters
+    ----------
+    filename : str
+        Path to a GIFTI file.
+
+    Returns
+    -------
+    list of dict
+        One entry per DataArray, in file order, with the keys
+        ``intent``, ``intent_name``, ``datatype``, ``encoding``,
+        ``external_file``, ``name``, ``dims``, ``n_values``,
+        ``n_nonfinite``, ``mean``, ``min`` and ``max``.
+
+        ``mean``, ``min`` and ``max`` are ``None`` for the mesh arrays
+        and for any array whose shape or datatype cannot be summarized.
+        NaN and infinite entries are counted in ``n_nonfinite`` and left
+        out of the statistics, so one masked-out vertex does not turn the
+        whole summary into nan.
+    """
+    cdef bytes bfname = filename.encode("utf-8")
+    cdef char *cfname = bfname
+
+    cdef int n_arrays = 0
+    cdef C.gifti_darray_info *arrays = NULL
+    cdef int i, d
+
+    cdef Status st = C.input_gifti_darrays(cfname, &n_arrays, &arrays)
+    if st != OK:
+        raise IOError(f"Failed to read GIFTI data arrays from '{filename}'")
+
+    result = []
+    try:
+        for i in range(n_arrays):
+            dims = [arrays[i].dims[d] for d in range(arrays[i].num_dim)]
+            entry = {
+                "intent": arrays[i].intent,
+                "intent_name": arrays[i].intent_name.decode("utf-8"),
+                "datatype": arrays[i].datatype_name.decode("utf-8"),
+                "encoding": arrays[i].encoding_name.decode("utf-8"),
+                "external_file": arrays[i].ext_fname.decode("utf-8") or None,
+                "name": arrays[i].name.decode("utf-8") or None,
+                "dims": dims,
+                "n_values": arrays[i].n_values,
+                "n_nonfinite": arrays[i].n_nonfinite,
+            }
+            if arrays[i].has_range:
+                entry["mean"] = arrays[i].mean
+                entry["min"] = arrays[i].min
+                entry["max"] = arrays[i].max
+            else:
+                entry["mean"] = None
+                entry["min"] = None
+                entry["max"] = None
+            result.append(entry)
+    finally:
+        free(arrays)
+
+    return result

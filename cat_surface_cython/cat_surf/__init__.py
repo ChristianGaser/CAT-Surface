@@ -51,12 +51,14 @@ from cat_surf._io import (
     write_surface,
     read_values,
     write_values,
+    read_gifti_darrays,
 )
 
 # --- Core surface operations ---
 from cat_surf._surf import (
     get_area,
     euler_characteristic,
+    surf_info,
     point_distance,
     point_distance_mean,
     hausdorff_distance,
@@ -305,6 +307,8 @@ __all__ = [
     "write_values",
     # Surface operations
     "get_area",
+    "surf_info",
+    "read_gifti_darrays",
     "euler_characteristic",
     "point_distance",
     "point_distance_mean",

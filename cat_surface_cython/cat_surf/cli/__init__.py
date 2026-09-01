@@ -27,6 +27,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfCurvature                 -> surf_curvature
     CAT_SurfDeform                    -> surf_deform
     CAT_SurfDistance                  -> surf_distance
+    CAT_SurfInfo                      -> surf_info
     CAT_SurfReduce                    -> surf_reduce
     CAT_SurfFixSelfIntersect          -> surf_fix_self_intersect
     CAT_SurfResample                  -> surf_resample
@@ -57,11 +58,13 @@ from cat_surf._io import (
     write_surface,
     read_values,
     write_values,
+    read_gifti_darrays,
 )
 from cat_surf import (
     surf_to_pial_white as _surf_to_pial_white,
     surf_to_sphere as _surf_to_sphere,
     get_area as _get_area,
+    surf_info as _surf_info,
     get_area_normalized as _get_area_normalized,
     surf_average as _surf_average,
     correct_thickness_folding as _correct_thickness_folding,
@@ -180,6 +183,36 @@ def surf_area(surface_file, output_values_file=None, sphere_file=None,
     if output_values_file is not None:
         write_values(output_values_file, area)
     return total
+
+
+def surf_info(surface_file, check_intersections=True, verbose=False):
+    """Mirror of ``CAT_SurfInfo``.
+
+    Returns a dict describing the surface: vertex, face and edge counts,
+    Euler number, genus, connected components, surface area, enclosed
+    volume, bounding box and self-intersections.  Pass
+    ``check_intersections=False`` for the ``-no-selfintersect`` behaviour,
+    which skips the expensive part.
+
+    For a GIFTI input the DataArrays the file carries besides the mesh are
+    listed under the ``gifti_darrays`` key, so embedded per-vertex data
+    (thickness, curvature, labels) is visible; the key is ``None`` for any
+    other format.
+    """
+    v, f = read_surface(surface_file)
+    info = _surf_info(v, f, check_intersections=check_intersections,
+                      verbose=verbose)
+    info["file"] = surface_file
+
+    if str(surface_file).endswith(".gii"):
+        try:
+            info["gifti_darrays"] = read_gifti_darrays(surface_file)
+        except IOError:
+            info["gifti_darrays"] = None
+    else:
+        info["gifti_darrays"] = None
+
+    return info
 
 
 def surf_average(output_avg_file, *surface_files, rms_file=None,
@@ -850,6 +883,7 @@ __all__ = [
     "surf_deform",
     "surf_distance",
     "surf_fractal_dimension",
+    "surf_info",
     "surf_ratio",
     "surf_reduce",
     "surf_fix_self_intersect",

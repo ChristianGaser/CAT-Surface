@@ -683,6 +683,97 @@ def count_intersections(vertices, faces):
 
 
 # ===================================================================
+# Surface information  (mirrors CAT_SurfInfo)
+# ===================================================================
+def surf_info(vertices, faces, bint check_intersections=True,
+              bint verbose=False):
+    """
+    Summarize the geometry and topology of a triangular mesh.
+
+    Mirrors the ``CAT_SurfInfo`` CLI tool.
+
+    Parameters
+    ----------
+    vertices : array_like, shape (V, 3)
+    faces    : array_like, shape (F, 3)
+    check_intersections : bool
+        Run the self-intersection test.  It dominates the runtime on
+        large meshes; set to ``False`` to skip it, in which case the
+        three ``*intersect*`` keys are ``None``.
+    verbose : bool
+        Print progress information to stderr.
+
+    Returns
+    -------
+    dict
+        ``n_points``, ``n_polygons``, ``n_triangles``, ``n_nontriangular``,
+        ``n_edges``, ``n_boundary_edges``, ``n_nonmanifold_edges``,
+        ``n_unreferenced_points``, ``n_degenerate_polygons``, ``euler``,
+        ``n_components``, ``closed``, ``genus``, ``surface_area``,
+        ``volume``, ``area_min``, ``area_max``, ``area_mean``, ``edge_min``,
+        ``edge_max``, ``edge_mean``, ``bounds`` (6,), ``centroid`` (3,),
+        ``n_self_intersections``, ``n_triangle_hits`` and
+        ``n_intersecting_polygons``.
+
+        ``genus`` and ``volume`` are only meaningful when ``closed`` is
+        True.  ``n_triangle_hits`` counts detections rather than distinct
+        triangle pairs: a pair spanning several octree cells is counted
+        once per shared cell, which mirrors what the CLI reports.
+
+    Notes
+    -----
+    The GIFTI DataArrays a file embeds next to the mesh cannot be seen
+    from arrays alone; use :func:`cat_surf.cli.surf_info` for those.
+    """
+    cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
+    cdef C.surf_info_struct info
+
+    C.compute_surf_info(mesh.ptr(), &info,
+                        1 if check_intersections else 0,
+                        1 if verbose else 0)
+
+    result = {
+        "n_points": info.n_points,
+        "n_polygons": info.n_polygons,
+        "n_triangles": info.n_triangles,
+        "n_nontriangular": info.n_nontriangular,
+        "n_edges": info.n_edges,
+        "n_boundary_edges": info.n_boundary_edges,
+        "n_nonmanifold_edges": info.n_nonmanifold_edges,
+        "n_unreferenced_points": info.n_unreferenced_points,
+        "n_degenerate_polygons": info.n_degenerate_polygons,
+        "euler": info.euler,
+        "n_components": info.n_components,
+        "closed": bool(info.closed),
+        "genus": info.genus if info.closed else None,
+        "surface_area": info.surface_area,
+        "volume": abs(info.volume) if info.closed else None,
+        "area_min": info.area_min,
+        "area_max": info.area_max,
+        "area_mean": info.area_mean,
+        "edge_min": info.edge_min,
+        "edge_max": info.edge_max,
+        "edge_mean": info.edge_mean,
+        "bounds": np.array([info.bounds[0], info.bounds[1], info.bounds[2],
+                            info.bounds[3], info.bounds[4], info.bounds[5]],
+                           dtype=np.float64),
+        "centroid": np.array([info.centroid[0], info.centroid[1],
+                              info.centroid[2]], dtype=np.float64),
+    }
+
+    if info.n_self_intersections == C.CAT_SURFINFO_SKIPPED:
+        result["n_self_intersections"] = None
+        result["n_triangle_hits"] = None
+        result["n_intersecting_polygons"] = None
+    else:
+        result["n_self_intersections"] = info.n_self_intersections
+        result["n_triangle_hits"] = info.n_triangle_hits
+        result["n_intersecting_polygons"] = info.n_intersecting_polygons
+
+    return result
+
+
+# ===================================================================
 # Spherical resampling  (mirrors CAT_SurfResample)
 # ===================================================================
 def resample_to_sphere(vertices, faces, sphere_vertices, sphere_faces,
