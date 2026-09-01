@@ -40,6 +40,7 @@ bin_PROGRAMS = \
     CAT_SurfApplyWarp \
     CAT_SurfApplyWarpValues \
     CAT_SurfArea \
+    CAT_SurfInfo \
     CAT_SurfRatio \
     CAT_SurfSmooth \
     CAT_SurfPlotValuesAtPoint \

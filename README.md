@@ -68,6 +68,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfAverage**             | Computes an average surface from multiple aligned input meshes. |
 | **CAT_SurfConvert**             | Converts between surface mesh file formats: BIC (obj), Freesurfer, and OOGL. |
 | **CAT_SurfDistance**            | Computes pointwise and/or aggregate geometric distances between surface meshes. |
+| **CAT_SurfInfo**                | Prints a summary of a surface: vertices, faces and edges, surface area, enclosed volume, bounding box, Euler number, genus, connected components and self-intersections. For a GIFTI file it also lists the DataArrays embedded next to the mesh (thickness, curvature, labels) with their value range and NaN count. `-tab` gives the same numbers as key/value pairs. |
 | **CAT_SurfMeasure2Txt**         | Converts Freesurfer curvature (`.curv`) files to plain text format. |
 | **CAT_SurfPlotValuesAtMaximum** | For a given reference, extracts or plots the values at the vertex of maximum value for each surface file. |
 | **CAT_SurfPlotValuesAtPoint**   | Extracts or plots the values at specified (x, y, z) coordinates for each input surface. |

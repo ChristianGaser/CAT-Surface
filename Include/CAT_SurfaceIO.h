@@ -180,6 +180,49 @@ int    input_freesurfer_curv(char *, int *, double **);
 int    output_gifti(char *, File_formats, int, object_struct * [], double *);
 int    output_gifti_curv(char *, int, double *);
 int    input_gifti(char *, File_formats *, int *, object_struct  ***, int *, double **);
+
+/**
+ * \brief Description of one DataArray stored in a GIFTI file.
+ *
+ * A .gii file holds the mesh as two DataArrays (NIFTI_INTENT_POINTSET and
+ * NIFTI_INTENT_TRIANGLE) but may carry any number of further arrays next to
+ * them -- thickness, curvature, labels, time series.  input_gifti() reads only
+ * the mesh and the first shape array, so this structure exists to report what
+ * else the file contains.  All strings are NUL-terminated and never NULL.
+ */
+typedef struct {
+    int    intent;             /**< NIFTI_INTENT_* code                      */
+    char   intent_name[64];    /**< intent as text, e.g. NIFTI_INTENT_SHAPE  */
+    char   datatype_name[32];  /**< value type, e.g. NIFTI_TYPE_FLOAT32      */
+    char   encoding_name[32];  /**< ASCII, Base64Binary, ExternalFileBinary  */
+    char   ext_fname[256];     /**< external data file, empty when embedded  */
+    char   name[128];          /**< Name metadata entry, empty when absent   */
+    int    num_dim;            /**< number of dimensions                     */
+    int    dims[6];            /**< dimension lengths, first num_dim set     */
+    long long n_values;        /**< total number of values                   */
+    long long n_nonfinite;     /**< NaN and infinite values, excluded below  */
+    int    has_range;          /**< 1 when min, mean and max are valid       */
+    double min;                /**< smallest finite value                    */
+    double mean;               /**< mean of the finite values                */
+    double max;                /**< largest finite value                     */
+} gifti_darray_info;
+
+/**
+ * \brief List the DataArrays a GIFTI file contains.
+ *
+ * Reads the file and describes every DataArray in it, including those
+ * input_gifti() ignores.  Value statistics are filled in for one- and
+ * two-dimensional arrays of a numeric type and skipped otherwise, in which
+ * case has_range is 0.  NaN and infinite entries are counted in n_nonfinite
+ * and left out of the statistics, so one masked-out vertex cannot turn the
+ * whole summary into nan.
+ *
+ * \param file     (in)  path to the GIFTI file
+ * \param n_arrays (out) number of entries written to arrays
+ * \param arrays   (out) allocated array of descriptions, free with free()
+ * \return OK on success, ERROR if the file cannot be read or is not GIFTI
+ */
+Status input_gifti_darrays(char *file, int *n_arrays, gifti_darray_info **arrays);
 int    input_gifti_curv(char *, int *, double **);
 int    input_dx(char *, File_formats *, int *, object_struct  ***);
 int    input_dfs(char *, File_formats *, int *, object_struct  ***);

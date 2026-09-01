@@ -14,6 +14,7 @@
 #include "CAT_SafeAlloc.h"
 #include <string.h>
 #include <unistd.h>
+#include <math.h>
 
 static const char *basename(const char *path)
 {
@@ -1444,31 +1445,33 @@ int output_gifti_curv(char *fname, int nvertices, double *data)
  * \param values       (out) allocated shape data array (NULL if not present)
  * \return OK on success; ERROR if file is invalid or corrupted
  */
-int input_gifti(char *file, File_formats *format, int *n_objects,
-                object_struct ***object_list, int *n_values, double **values)
+/**
+ * \brief Read a GIFTI image with the working directory set to its own folder.
+ *
+ * For .gii/.dat pairs the ExternalFileName stored in the XML is typically a
+ * bare basename.  The gifti library opens it relative to the current working
+ * directory, which fails when the caller passes a path from a different
+ * directory.  Work around this by temporarily changing to the .gii file's
+ * directory before reading, then restoring the working directory.
+ *
+ * \param file      (in) path to the GIFTI file
+ * \param read_data (in) non-zero to load the DataArray contents as well
+ * \return the image, or NULL when it could not be read
+ */
+static gifti_image *
+read_gifti_image_in_dir(const char *file, int read_data)
 {
-
-    int i, j, k, valid, numDA;
-    polygons_struct *polygons;
-    Point point;
-    object_struct *object;
-
-    /*
-     * For .gii/.dat pairs the ExternalFileName stored in the XML is
-     * typically a bare basename.  The gifti library opens it relative
-     * to CWD, which fails when the caller passes a path from a
-     * different directory.  Work around this by temporarily changing
-     * to the .gii file's directory before reading, then restoring CWD.
-     */
     char saved_cwd[4096];
     char gii_dir[4096];
     const char *gii_basename = file;
+    const char *last_sep;
     int did_chdir = 0;
+    gifti_image *image;
 
     saved_cwd[0] = '\0';
     gii_dir[0] = '\0';
 
-    const char *last_sep = strrchr(file, '/');
+    last_sep = strrchr(file, '/');
     if (last_sep)
     {
         size_t dir_len = (size_t)(last_sep - file);
@@ -1485,12 +1488,25 @@ int input_gifti(char *file, File_formats *format, int *n_objects,
         }
     }
 
-    gifti_image *image = gifti_read_image(
-        did_chdir ? gii_basename : file, 1);
+    image = gifti_read_image(did_chdir ? gii_basename : file, read_data);
 
     /* restore original working directory */
     if (did_chdir)
         (void)chdir(saved_cwd);
+
+    return image;
+}
+
+int input_gifti(char *file, File_formats *format, int *n_objects,
+                object_struct ***object_list, int *n_values, double **values)
+{
+
+    int i, j, k, valid, numDA;
+    polygons_struct *polygons;
+    Point point;
+    object_struct *object;
+
+    gifti_image *image = read_gifti_image_in_dir(file, 1);
 
     valid = gifti_valid_gifti_image(image, 1);
     if (valid == 0)
@@ -1633,6 +1649,179 @@ int input_gifti(char *file, File_formats *format, int *n_objects,
 }
 
 /**
+ * \brief Test whether gifti_get_DA_value_2D() can read a DataArray.
+ *
+ * That accessor aborts the process on a shape or type it does not handle, so
+ * every array is screened here before any value is touched.
+ *
+ * \param da (in) DataArray to test
+ * \return 1 when the array can be read, 0 otherwise
+ */
+static int
+darray_is_readable(const giiDataArray *da)
+{
+    if (da == NULL || da->data == NULL)
+        return 0;
+
+    if (da->num_dim != 1 && da->num_dim != 2)
+        return 0;
+
+    if (da->ind_ord != GIFTI_IND_ORD_ROW_MAJOR &&
+        da->ind_ord != GIFTI_IND_ORD_COL_MAJOR)
+        return 0;
+
+    switch (da->datatype)
+    {
+    case NIFTI_TYPE_UINT8:
+    case NIFTI_TYPE_INT8:
+    case NIFTI_TYPE_INT16:
+    case NIFTI_TYPE_UINT16:
+    case NIFTI_TYPE_INT32:
+    case NIFTI_TYPE_UINT32:
+    case NIFTI_TYPE_FLOAT32:
+    case NIFTI_TYPE_FLOAT64:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/**
+ * \brief Copy a string into a fixed-size field, truncating and NUL-terminating.
+ *
+ * \param dst (out) destination buffer
+ * \param src (in)  source string, may be NULL
+ * \param len (in)  size of the destination buffer
+ * \return void
+ */
+static void
+copy_field(char *dst, const char *src, size_t len)
+{
+    if (src == NULL)
+    {
+        dst[0] = '\0';
+        return;
+    }
+    strncpy(dst, src, len - 1);
+    dst[len - 1] = '\0';
+}
+
+/**
+ * \brief List the DataArrays a GIFTI file contains.
+ *
+ * Reads the file and describes every DataArray in it, including those
+ * input_gifti() ignores.  Value statistics are filled in for one- and
+ * two-dimensional arrays of a numeric type and skipped otherwise, in which
+ * case has_range is 0.
+ *
+ * \param file     (in)  path to the GIFTI file
+ * \param n_arrays (out) number of entries written to arrays
+ * \param arrays   (out) allocated array of descriptions, free with free()
+ * \return OK on success, ERROR if the file cannot be read or is not GIFTI
+ */
+Status
+input_gifti_darrays(char *file, int *n_arrays, gifti_darray_info **arrays)
+{
+    gifti_image *image;
+    gifti_darray_info *out;
+    int numDA, d;
+
+    *n_arrays = 0;
+    *arrays = NULL;
+
+    image = read_gifti_image_in_dir(file, 1);
+    if (image == NULL)
+        return (ERROR);
+
+    if (image->numDA <= 0)
+    {
+        gifti_free_image(image);
+        return (OK);
+    }
+
+    out = (gifti_darray_info *) calloc((size_t) image->numDA,
+                                       sizeof(gifti_darray_info));
+    if (out == NULL)
+    {
+        fprintf(stderr, "input_gifti_darrays: memory allocation failed\n");
+        gifti_free_image(image);
+        return (ERROR);
+    }
+
+    for (numDA = 0; numDA < image->numDA; numDA++)
+    {
+        giiDataArray *da = image->darray[numDA];
+        gifti_darray_info *info = &out[numDA];
+
+        info->intent = da->intent;
+        copy_field(info->intent_name, gifti_intent_to_string(da->intent),
+                   sizeof(info->intent_name));
+        copy_field(info->datatype_name, gifti_datatype2str(da->datatype),
+                   sizeof(info->datatype_name));
+        copy_field(info->encoding_name,
+                   gifti_list_index2string(gifti_encoding_list, da->encoding),
+                   sizeof(info->encoding_name));
+        copy_field(info->ext_fname, da->ext_fname, sizeof(info->ext_fname));
+        copy_field(info->name, gifti_get_meta_value(&da->meta, "Name"),
+                   sizeof(info->name));
+
+        info->num_dim = da->num_dim;
+        for (d = 0; d < 6; d++)
+            info->dims[d] = da->dims[d];
+        info->n_values = da->nvals;
+
+        /* the mesh arrays speak for themselves, and their statistics are
+           already covered by the bounding box and the vertex count */
+        if (da->intent == NIFTI_INTENT_POINTSET ||
+            da->intent == NIFTI_INTENT_TRIANGLE)
+            continue;
+
+        if (darray_is_readable(da) && da->nvals > 0)
+        {
+            int rows = da->dims[0];
+            int cols = (da->num_dim == 2) ? da->dims[1] : 1;
+            int r, c, n = 0;
+            double v, sum = 0.0;
+
+            for (r = 0; r < rows; r++)
+            {
+                for (c = 0; c < cols; c++)
+                {
+                    v = gifti_get_DA_value_2D(da, r, c);
+
+                    /* masked-out vertices are stored as NaN, and a single one
+                       would otherwise make every statistic nan */
+                    if (!isfinite(v))
+                    {
+                        info->n_nonfinite++;
+                        continue;
+                    }
+
+                    if (n == 0 || v < info->min)
+                        info->min = v;
+                    if (n == 0 || v > info->max)
+                        info->max = v;
+                    sum += v;
+                    n++;
+                }
+            }
+
+            if (n > 0)
+            {
+                info->mean = sum / (double) n;
+                info->has_range = 1;
+            }
+        }
+    }
+
+    *n_arrays = image->numDA;
+    *arrays = out;
+
+    gifti_free_image(image);
+    return (OK);
+}
+
+/**
  * \brief Read per-vertex scalar data from GIFTI format.
  *
  * Parses shape data (thickness, curvature, gyrification) from a GIFTI file.
@@ -1649,40 +1838,8 @@ int input_gifti_curv(char *file, int *vnum, double **input_values)
 {
     int k, valid, numDA;
 
-    /*
-     * For .gii/.dat pairs, temporarily chdir to the .gii directory so
-     * that the gifti library can locate the external .dat file.
-     */
-    char saved_cwd[4096];
-    char gii_dir[4096];
-    const char *gii_basename = file;
-    int did_chdir = 0;
+    gifti_image *image = read_gifti_image_in_dir(file, 1);
 
-    saved_cwd[0] = '\0';
-    gii_dir[0] = '\0';
-
-    const char *last_sep = strrchr(file, '/');
-    if (last_sep)
-    {
-        size_t dir_len = (size_t)(last_sep - file);
-        if (dir_len > 0 && dir_len < sizeof(gii_dir))
-        {
-            memcpy(gii_dir, file, dir_len);
-            gii_dir[dir_len] = '\0';
-            gii_basename = last_sep + 1;
-            if (getcwd(saved_cwd, sizeof(saved_cwd)) != NULL)
-            {
-                if (chdir(gii_dir) == 0)
-                    did_chdir = 1;
-            }
-        }
-    }
-
-    gifti_image *image = gifti_read_image(
-        did_chdir ? gii_basename : file, 1);
-
-    if (did_chdir)
-        (void)chdir(saved_cwd);
     if (NULL == image)
     {
         fprintf(stderr, "input_gifti_curv: cannot read image\n");
