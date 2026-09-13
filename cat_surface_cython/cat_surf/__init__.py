@@ -93,6 +93,7 @@ from cat_surf._vol import (
     vol_amap,
     vol_marching_cubes,
     vol_smooth,
+    vol_calc,
     vol_sheetness,
     vol_oriented_median,
     vol_open_ppm_sulci,
@@ -338,6 +339,7 @@ __all__ = [
     "surf_fractal_dimension",
     # Volume operations
     "vol_smooth",
+    "vol_calc",
     "vol_sanlm",
     "vol_blood_vessel_correction",
     "vol_thickness_pbt",

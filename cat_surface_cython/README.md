@@ -124,6 +124,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation | `CAT_VolAmap` (core only) |
 | `vol_marching_cubes` | Isosurface extraction with genus-0 topology correction | `CAT_VolMarchingCubes` |
 | `vol_smooth` | Isotropic Gaussian volume smoothing | `CAT_VolSmooth` |
+| `vol_calc` | Voxel-wise image calculator (`spm_imcalc`-style formula) | `CAT_VolCalc` |
 | `vol_sheetness` | Multi-scale Hessian sheetness (plate) filter | `CAT_VolSheetness` |
 | `vol_oriented_median` | Median over a sheetness-oriented neighbourhood | `CAT_VolLocalStat -oriented` |
 | `vol_open_ppm_sulci` | Push buried sulcal valleys in a PPM below the isovalue | `CAT_VolMarchingCubes -strength-sulci` |
@@ -301,6 +302,7 @@ The full mapping:
 | `CAT_SurfWarp` | `surf_warp` |
 | `CAT_Vol2Surf` | `vol2surf` |
 | `CAT_VolAmap` | `vol_amap` |
+| `CAT_VolCalc` | `vol_calc` |
 | `CAT_VolLocalStat` | `vol_local_stat` (`-oriented` only) |
 | `CAT_VolMarchingCubes` | `vol_marching_cubes` |
 | `CAT_VolSanlm` | `vol_sanlm` |

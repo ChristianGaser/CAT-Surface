@@ -1136,3 +1136,84 @@ def vol_smooth(volume, voxelsize=None, double fwhm=8.0,
     return out
 
 
+# ===================================================================
+# Voxel-wise image calculator  (mirrors CAT_VolCalc)
+# ===================================================================
+def vol_calc(volumes, expression):
+    """
+    Evaluate a voxel-wise formula over one or more volumes.
+
+    Mirrors ``CAT_VolCalc``.  The volumes are addressed as ``i1``,
+    ``i2``, ... in the order given, and ``X`` stands for the vector of
+    all input values at a voxel, reduced with ``mean(X)``, ``median(X)``
+    or ``std(X)``.  The grammar follows ``spm_imcalc``: ``.*``, ``./``
+    and ``.^`` are accepted as synonyms of ``*``, ``/`` and ``^``, and
+    comparisons yield 1.0 or 0.0.  See ``Include/CAT_Calc.h``.
+
+    Parameters
+    ----------
+    volumes : sequence of array_like, 3-D
+        Input volumes; all must share one shape.
+    expression : str
+        Formula to evaluate, e.g. ``"i2-i1"`` or ``"median(X)"``.
+
+    Returns
+    -------
+    result : ndarray, 3-D, float64
+        Result volume (same shape as the inputs).
+
+    Raises
+    ------
+    ValueError
+        If no volume is given, the volumes are not 3-D or differ in
+        shape, or the formula does not parse.
+    """
+    vols = [np.asfortranarray(v, dtype=np.float64) for v in volumes]
+    if not vols:
+        raise ValueError("at least one volume is required")
+    shape = vols[0].shape
+    if len(shape) != 3:
+        raise ValueError("volumes must be 3-D")
+    for k, v in enumerate(vols[1:], start=2):
+        if v.shape != shape:
+            raise ValueError("volume i%d has shape %s, i1 has %s"
+                             % (k, v.shape, shape))
+
+    cdef int i, rc
+    cdef int n_img = len(vols)
+    cdef char err[256]
+    err[0] = 0
+    expr_bytes = expression.encode("utf-8")
+    cdef C.CAT_CalcExpr *expr = C.CAT_CalcParse(expr_bytes, n_img,
+                                                err, sizeof(err))
+    if expr == NULL:
+        raise ValueError('Error in expression "%s": %s'
+                         % (expression, (<char *>err).decode("utf-8", "replace")))
+
+    cdef double **ptrs = <double **>malloc(n_img * sizeof(double *))
+    if ptrs == NULL:
+        C.CAT_CalcFree(expr)
+        raise MemoryError()
+
+    cdef cnp.ndarray[cnp.float64_t, ndim=3] arr
+    cdef cnp.ndarray[cnp.float64_t, ndim=3] out = np.empty(shape,
+                                                           dtype=np.float64,
+                                                           order='F')
+    try:
+        # Fortran-contiguous buffers share one memory order, so the flat
+        # voxel index lines up across every input and the output.
+        for i in range(n_img):
+            arr = vols[i]
+            ptrs[i] = <double *>arr.data
+        rc = C.CAT_CalcApply(expr, ptrs, n_img, <size_t>out.size,
+                             <double *>out.data)
+    finally:
+        free(ptrs)
+        C.CAT_CalcFree(expr)
+
+    if rc != 0:
+        raise RuntimeError("CAT_CalcApply failed for expression "
+                           '"%s"' % expression)
+    return out
+
+

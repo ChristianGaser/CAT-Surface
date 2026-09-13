@@ -438,6 +438,50 @@ def test_surf_info():
 
 
 # ---------------------------------------------------------------------------
+# Image calculator: the formula has to address the inputs in order, reduce
+# X across them, and refuse what it cannot evaluate.
+# ---------------------------------------------------------------------------
+def test_vol_calc():
+    section("Image calculator")
+
+    rng = np.random.default_rng(0)
+    a = rng.random((5, 6, 7))
+    b = rng.random((5, 6, 7))
+    c = rng.random((5, 6, 7))
+
+    d = cat_surf.vol_calc([a, b], "i2-i1")
+    check("i2-i1 is the voxel-wise difference", np.allclose(d, b - a))
+    check("the result keeps the input shape", d.shape == a.shape)
+
+    rel = cat_surf.vol_calc([a, b], "200*(i2-i1)./(i1+i2+2.220446049250313e-16)")
+    check("MATLAB element-wise operators are accepted",
+          np.allclose(rel, 200 * (b - a) / (a + b + np.finfo(float).eps)))
+
+    check("median(X) reduces across the inputs",
+          np.allclose(cat_surf.vol_calc([a, b, c], "median(X)"),
+                      np.median(np.stack([a, b, c]), axis=0)))
+    check("a C-ordered input addresses the same voxels",
+          np.allclose(cat_surf.vol_calc([np.ascontiguousarray(a), b], "i1-i2"),
+                      a - b))
+
+    for bad, why in (("i3-i1", "an image that was not passed"),
+                     ("i1-", "a truncated formula")):
+        try:
+            cat_surf.vol_calc([a, b], bad)
+            raised = False
+        except ValueError:
+            raised = True
+        check(f"{why} is a ValueError", raised)
+
+    try:
+        cat_surf.vol_calc([a, b[:, :, :3]], "i1")
+        raised = False
+    except ValueError:
+        raised = True
+    check("differing shapes are a ValueError", raised)
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -447,7 +491,7 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_option_no_ops,
-                 test_surf_info):
+                 test_surf_info, test_vol_calc):
         try:
             test()
         except Exception:  # pragma: no cover

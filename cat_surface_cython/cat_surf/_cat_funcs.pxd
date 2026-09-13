@@ -543,6 +543,21 @@ cdef extern from "CAT_Vol.h":
 
 
 # ---------------------------------------------------------------------------
+# CAT_Calc.h — Voxel-wise image calculator
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_Calc.h":
+    ctypedef struct CAT_CalcExpr:
+        pass
+
+    CAT_CalcExpr *CAT_CalcParse(const char *expression, int n_img,
+                                char *err, int err_len)
+    void CAT_CalcFree(CAT_CalcExpr *expr)
+    int  CAT_CalcUsesMatrix(const CAT_CalcExpr *expr)
+    int  CAT_CalcApply(const CAT_CalcExpr *expr, double **images,
+                       int n_img, size_t nvox, double *out)
+
+
+# ---------------------------------------------------------------------------
 # CAT_ROIStats.h — ROI statistics from resampled annotation labels
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_ROIStats.h":

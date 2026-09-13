@@ -41,6 +41,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
+    CAT_VolCalc                       -> vol_calc
     CAT_VolMarchingCubes              -> vol_marching_cubes
     CAT_VolLocalStat                  -> vol_local_stat
     CAT_VolSanlm                      -> vol_sanlm
@@ -85,6 +86,7 @@ from cat_surf import (
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
     vol_smooth as _vol_smooth,
+    vol_calc as _vol_calc,
     vol_sheetness as _vol_sheetness,
     vol_oriented_median as _vol_oriented_median,
     surf2roi_multi as _surf2roi_multi,
@@ -581,6 +583,102 @@ def vol_smooth(input_file, output_file=None, fwhm=8.0, use_mask=False):
     _save_volume_like(output_file, out, img, dtype=np.float32)
 
 
+_VOL_CALC_DTYPES = ("uint8", "int8", "uint16", "int16", "uint32", "int32",
+                    "int64", "float32", "float64")
+
+
+def vol_calc(input_files, output_file, expression, dt="float32",
+             rescale=False, verbose=False):
+    """Mirror of ``CAT_VolCalc``.
+
+    Evaluate a voxel-wise formula over NIfTI volumes that share one grid
+    and write the result.  The inputs are addressed as ``i1``, ``i2``, ...
+    in the order given; see :func:`cat_surf.vol_calc` for the grammar.
+
+    Parameters
+    ----------
+    input_files : str or sequence of str
+        Input NIfTI files.  The first one provides the output header.
+    output_file : str
+        Output NIfTI file.
+    expression : str
+        Formula to evaluate (``-expression``), e.g. ``"i2-i1"``.
+    dt : str
+        Output data type (``-dt``): uint8, int8, uint16, int16, uint32,
+        int32, int64, float32 (default) or float64.
+    rescale : bool
+        Scale an integer result to fill the type's range and store the
+        factor in the header (``-rescale``).  Without it the values are
+        written verbatim, rounded for an integer type.  Default False.
+    verbose : bool
+        Print the expression and the files (``-v``).  Default False.
+    """
+    import nibabel as nib
+
+    if isinstance(input_files, (str, os.PathLike)):
+        input_files = [input_files]
+    input_files = [os.fspath(f) for f in input_files]
+    if not input_files:
+        raise ValueError("at least one input file is required")
+    if dt not in _VOL_CALC_DTYPES:
+        raise ValueError(f"Unknown data type '{dt}'.")
+
+    # Parse on a single voxel before loading anything, so a typo in the
+    # formula does not cost the time it takes to read a long file list.
+    _vol_calc([np.zeros((1, 1, 1))] * len(input_files), expression)
+
+    if verbose:
+        print(f"Expression: {expression}")
+        print(f"Inputs:     {len(input_files)} image"
+              f"{'' if len(input_files) == 1 else 's'}")
+
+    ref = None
+    vols = []
+    for k, f in enumerate(input_files, start=1):
+        if verbose:
+            print(f"  i{k:<3d} {f}")
+        img = nib.load(f)
+        shape = img.shape[:3]
+        if int(np.prod(img.shape[3:], dtype=np.int64)) != 1:
+            raise ValueError(f"{f} is not a 3-D volume.")
+        if ref is None:
+            ref = img
+        elif (shape != ref.shape[:3] or not np.allclose(
+                img.header.get_zooms()[:3], ref.header.get_zooms()[:3],
+                atol=1e-3)):
+            # No reslicing here, as in the binary: a formula evaluated
+            # across grids that do not line up is meaningless.
+            raise ValueError(f"{f} does not share the grid of "
+                             f"{input_files[0]}.")
+        vol = img.get_fdata(dtype=np.float64).reshape(shape, order="F")
+        # The NIfTI reader behind the binary loads non-finite values as zero.
+        vol[~np.isfinite(vol)] = 0.0
+        vols.append(vol)
+
+    result = _vol_calc(vols, expression)
+    del vols
+
+    out_dtype = np.dtype(dt)
+    header = ref.header.copy()
+    if out_dtype.kind == "f":
+        data = result.astype(out_dtype)
+    elif rescale:
+        # nibabel fits float data into an integer type with slope/intercept
+        data = np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0)
+    else:
+        info = np.iinfo(out_dtype)
+        data = np.clip(np.rint(np.nan_to_num(result, nan=0.0)),
+                       info.min, info.max).astype(out_dtype)
+    header.set_data_dtype(out_dtype)
+
+    if verbose:
+        print(f"Output:     {output_file}")
+
+    out = nib.Nifti1Image(data, ref.affine, header)
+    out.set_data_dtype(out_dtype)
+    nib.save(out, output_file)
+
+
 def vol_local_stat(input_file, output_file=None, stat=0, dist=1, iters=1,
                    euclid=False, oriented=False, guide_file=None, **kwargs):
     """Mirror of ``CAT_VolLocalStat``.
@@ -903,5 +1001,6 @@ __all__ = [
     "vol_sanlm",
     "vol_sheetness",
     "vol_smooth",
+    "vol_calc",
     "vol_thickness_pbt",
 ]
