@@ -34,7 +34,7 @@
 typedef struct
 {
     double sigma_factor; /**< Largest sheetness scale as a multiple of the median
-                              cortical thickness (default 0.9; <= 0 disables the
+                              cortical thickness (default 0.75; <= 0 disables the
                               derivation and leaves sigma_max as given).  The
                               structure the filter has to find is a valley whose
                               width is set by how far apart the two banks are, so
