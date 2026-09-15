@@ -208,14 +208,13 @@ Important files:
 
 - `configure.ac` and `m4/`: configure checks (including FFTW detection).
 - `Makefile.am`: authoritative source lists for the build.
-- `Makefile.in`: tracked in-repo template; keep it in sync with `Makefile.am` changes.
+- `Makefile.in`: gitignored, regenerated from `Makefile.am` by `./autogen.sh`.
 
 When adding a new library module:
 
 1) Add the `.c` file to `libCAT_la_SOURCES` in `Makefile.am`.
 2) Add the public header to `noinst_HEADERS` in `Makefile.am`.
-3) Keep `Makefile.in` in sync (this repo tracks it).
-4) Re-run `./autogen.sh` and re-run `configure` in each build directory you care about.
+3) Re-run `./autogen.sh` (`NOCONFIGURE=1` to skip the in-tree configure) and re-run `configure` in each build directory you care about.
 
 When adding or changing a CLI tool:
 
