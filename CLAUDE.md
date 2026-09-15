@@ -455,6 +455,10 @@ the better *start* for the white surface only, and never the final surface.
 | `method` 1 | 6.6 | 9.4 | 13.1 | 5.5 | 25.5 | 60.1 |
 | **`method` 2** | 6.6 | 9.4 | 11.1 | 5.4 | 7.6 | 40.1 |
 
+In `method` 2 ADE traces only the white streamlines (`surf_ade_pial_white` takes `pial_out = NULL`),
+which saves about 1 s of the 6-10 s; the solve dominates. The white fallback where |grad phi|
+vanishes used to step outward (double negation) and now follows the inward normal.
+
 ADE pays for itself through a shorter white deformation and a cheaper white repair; run alone,
 `method` 2 took 43 s on HR075 and 40 s on yv98 against 35 / 48 s for `method` 0. With the ADE start the white target offset
 is 0.1 (`GWM + 0.1`), not 0.2: 0.2 put the surface 0.10 mm inside WM, 0.0 is unbiased on average
@@ -467,9 +471,33 @@ crossings were never seen: a pre-repair white surface went 1088 -> 114 pairs wit
 left"; detecting afresh before every pass gives 0. On a marching-cubes mesh the old loop even
 reported 0 regions while 1 pair remained. With the fix all 36 surfaces end at 0.
 
-`-giter` (gradient refinement) was removed: it searched for the slope sample nearest to the
-vertex, which is the vertex itself, so it did not move the surfaces. The Python keyword
-`gradient_iterations` is accepted and ignored so existing T1Prep calls keep working.
+### `surf_deform` (`CAT_SurfDeform`, the central surface in T1Prep)
+
+Two safeguards against self-intersections cost accuracy, measured on six central surfaces
+(T1Prep steps 1-3 rebuilt, `-iter 75 -remove_intersect`; error = mean |PPM - 0.5| at the vertices):
+
+- **The near-intersection check froze correct vertices.** `find_near_self_intersections` flags
+  8-11% of a reduced central surface per iteration, 88-99.9% of them 2-ring neighbours of the
+  same sheet. It now uses `find_near_facing_intersections` (opposing normals only): loop error
+  0.0346 -> 0.0263, while the loop leaves 832 intersections for the repair (7410 without any
+  check). A contact clamp or the fold revert of the pial placement do not help
+  here -- these intersections are neither folds nor sulcal contacts.
+- **The post-loop step moved outliers the wrong way and smoothed the result off the isovalue.**
+  Displacements above the 95th percentile were replaced by one fixed vector (the per-axis
+  percentiles, 6000-8400 vertices), and the total displacement was smoothed with a shrinking
+  kernel. The outliers are now capped in length keeping their direction, and the smoothing is gone.
+
+| | old | new |
+| --- | --- | --- |
+| PPM error | 0.0429 | **0.0275** |
+| vertices within 0.1 of the isovalue | 91.5% | **95.5%** |
+| self-intersections after `-remove_intersect` | 0 | 0 |
+
+The surfaces move 0.08-0.15 mm on average. `surf_deform_dual` still uses the distance test.
+
+`-giter` (gradient refinement) was removed, from the Python binding (`gradient_iterations`) too:
+it searched for the slope sample nearest to the vertex, which is the vertex itself, so it did
+not move the surfaces.
 
 ## Architecture rules
 
