@@ -75,14 +75,14 @@ void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
     opts->sulcal_barrier = 0;
     opts->barrier_dmin = 2.0;
     opts->barrier_gmtmax = 0.0;
-    opts->barrier_gmtfactor = 1.8;
+    opts->barrier_gmtfactor = 1.5;
     opts->barrier_gmtpct = 90.0;
     opts->barrier_ramp = 0.5;
     opts->barrier_local = 0.0;
     opts->barrier_q = 0.7;
     opts->barrier_tmin = 0.5;
     opts->barrier_halfwidth = 0.0;
-    opts->oriented_filter = 0;
+    opts->oriented_filter = 1;
     opts->oriented_strength = 1.0;
     opts->oriented_cutoff = 0.0; /* 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
     opts->fast = 0;

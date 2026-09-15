@@ -33,7 +33,7 @@ double fill_thresh = -1.0;
 double correct_thickness = NAN;
 double sulcal_width = -1.0;
 int pve_distance = 0;
-int oriented_filter = 0;
+int oriented_filter = 1;
 int sulcal_barrier = 0;
 double barrier_q = -1.0;
 double barrier_dmin = -1.0;
@@ -56,10 +56,10 @@ static ArgvInfo argTable[] = {
      "Enable fast mode in order to get a very quick and rougher estimate of thickness only."},
 
     {"-no-blood-vessel-correction", ARGV_CONSTANT, (char *)0, (char *)&blood_vessel_correction,
-     "Enable blood-vessel correction before thickness estimation (0 disables, >0 enables)."},
+     "Disable blood-vessel correction before thickness estimation."},
 
     {"-no-bvc", ARGV_CONSTANT, (char *)0, (char *)&blood_vessel_correction,
-     "Enable blood-vessel correction before thickness estimation (0 disables, >0 enables)."},
+     "Disable blood-vessel correction before thickness estimation."},
 
     {"-n-avgs", ARGV_INT, (char *)1, (char *)&n_avgs,
      "Number of averages for distance estimation (library default 5). Used for averaging\n\
@@ -74,7 +74,7 @@ static ArgvInfo argTable[] = {
 
     {"-range", ARGV_FLOAT, (char *)1, (char *)&range,
      "Extend range for masking of euclidean distance estimation. A slight increase\n\
-    of range (i.e 0.3) helps in obtaining a more stable distance estimation."},
+    of range (i.e 0.45) helps in obtaining a more stable distance estimation."},
 
     {"-downsample", ARGV_FLOAT, (char *)1, (char *)&downsample,
      "Downsample PPM and GMT image to defined resolution since we do not need that 0.5mm\n\
@@ -82,12 +82,12 @@ static ArgvInfo argTable[] = {
 
     {"-median-filter", ARGV_INT, (char *)TRUE, (char *)&n_median_filter,
      "Specify the number of iterations for weighted local median filtering of the\n\
-        final PPM image. The filter is not applied uniformly: CAT first estimates a\n\
-        topology-artifact weight map from the positive residual PPM - smooth(PPM),\n\
-        keeps only high-residual voxels in sufficiently thick cortex, regularizes this\n\
-        mask by close/open/dilate and smoothing, and then blends original PPM with the\n\
-        locally median-filtered PPM. Higher weights mean stronger median-filter\n\
-        influence. Set to 0 to disable this cleanup."},
+    final PPM image. The filter is not applied uniformly: CAT first estimates a\n\
+    topology-artifact weight map from the positive residual PPM - smooth(PPM),\n\
+    keeps only high-residual voxels in sufficiently thick cortex, regularizes this\n\
+    mask by close/open/dilate and smoothing, and then blends original PPM with the\n\
+    locally median-filtered PPM. Higher weights mean stronger median-filter\n\
+    influence. Set to 0 to disable this cleanup."},
 
     {"-median-subsample", ARGV_INT, (char *)TRUE, (char *)&median_subsample,
      "Specify the size of subsampling for the median filter to smooth local\n\
@@ -98,7 +98,7 @@ static ArgvInfo argTable[] = {
      Where the classifier lost the CSF in a sulcus there is no boundary for the\n\
      CSF distance to stop at, so the front from one bank runs through the fused\n\
      grey matter into the other; the thickness follows it, the PPM never drops\n\
-     below the isovalue, and the buried sulcus is created there -- in the\n\
+     below the isovalue, and the buried sulcus is created there - in the\n\
      distance map, long before marching cubes is asked to draw it.\n\
      The midline the front should have stopped at is recovered from geometry\n\
      rather than intensity: it is where the fronts from the two banks collide.\n\
@@ -110,18 +110,19 @@ static ArgvInfo argTable[] = {
 
     {"-barrier-local", ARGV_FLOAT, (char *)1, (char *)&barrier_local,
      "FWHM in mm over which the gate follows regional thickness (library default\n\
-     0, i.e. one global gate; the regional form measured neutral on three subjects). Cortex is not one thickness -- occipital runs\n\
-     near 2 mm while insular and temporal reach 3.5 mm -- so a single gate is at\n\
-     once too high for the thin regions, where two glued 2 mm banks imply only\n\
-     4 mm and never reach it, and too low for the thick ones, where it catches\n\
-     ordinary tissue and leaves a visible seam. Gating against the local value\n\
-     fixes both, and a smoothly varying gate leaves no boundary to see."},
+     0, i.e. one global gate; the regional form measured neutral on three subjects).\n\
+     Cortex is not one thickness - occipital runs near 2 mm while insular \n\
+     and temporal reach 3.5 mm - so a single gate is at once too high for the \n\
+     thin regions, where two glued 2 mm banks imply only 4 mm and never reach it,\n\
+     and too low for the thick ones, where it catches ordinary tissue and leaves \n\
+     a visible seam. Gating against the local value fixes both, and a smoothly \n\
+     varying gate leaves no boundary to see."},
 
     {"-barrier-ramp", ARGV_FLOAT, (char *)1, (char *)&barrier_ramp,
      "Width over which the gate fades in, as a fraction of the gate itself\n\
      (library default 0.5; 0 restores a hard threshold). A hard threshold\n\
      switches the correction on between one voxel and its neighbour, so on a\n\
-     thick cortex -- where much of the band sits near the gate -- capped and\n\
+     thick cortex - where much of the band sits near the gate - capped and\n\
      uncapped tissue end up side by side and the seam shows in the thickness\n\
      map as a step. Fading the cap in over a range removes the seam without\n\
      changing what is corrected well above the gate or left alone well below."},
@@ -130,7 +131,7 @@ static ArgvInfo argTable[] = {
      "Percentile below which the thickness proxy is averaged (library default\n\
      90; 100 gives a plain mean). The proxy dist_WM + dist_CSF runs high\n\
      because the glued sulci the gate exists to find sit in its upper tail, and\n\
-     a median only limits their influence -- it still sits inside a distribution\n\
+     a median only limits their influence - it still sits inside a distribution\n\
      they have skewed. Cutting the tail off and averaging what is left tracks\n\
      the cortex more closely: measured against the reported GMT on four\n\
      hemispheres from two datasets, the ratio spans 0.087 for this estimator\n\
@@ -142,16 +143,16 @@ static ArgvInfo argTable[] = {
      sulcus is two cortices back to back, so the threshold belongs at twice the\n\
      typical thickness of the brain being processed, not at a fixed millimetre\n\
      value that is only right for the cortex it was tuned on. The median is\n\
-     taken over dist_WM + dist_CSF inside the GM band -- for a band of locally\n\
-     constant thickness those are complementary and sum to it exactly -- and a\n\
+     taken over dist_WM + dist_CSF inside the GM band - for a band of locally\n\
+     constant thickness those are complementary and sum to it exactly - and a\n\
      median is unmoved by the glued minority the gate exists to catch. Use\n\
      -barrier-gmtmax to override it with an absolute value."},
 
     {"-barrier-gmtmax", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtmax,
      "Absolute override for the gate, in mm (default 0 = derive it from\n\
      -barrier-gmtfactor and the data). This is the gate that matters. A glued sulcus\n\
-     does not merely look thick, it looks like two cortices back to back -- 5-6\n\
-     mm where 2-3 mm is normal -- so the implied thickness at the voxel,\n\
+     does not merely look thick, it looks like two cortices back to back - 5-6\n\
+     mm where 2-3 mm is normal - so the implied thickness at the voxel,\n\
      dist_WM + dist_CSF, separates the two populations cleanly. Gating on the\n\
      CSF distance alone does not: plenty of ordinary voxels sit more than 2 mm\n\
      from CSF simply by being near the white matter."},
@@ -161,7 +162,7 @@ static ArgvInfo argTable[] = {
      mm (default 2.0; 0 disables the gate). Bounding a distance always shrinks\n\
      the thickness, so without this the barrier lowers GMT wherever it happens\n\
      to fire and the mean thickness of the whole brain becomes a readout of how\n\
-     often that was -- which makes the mean move with -barrier-q, exactly the\n\
+     often that was - which makes the mean move with -barrier-q, exactly the\n\
      parameter dependence the barrier was meant to remove. A voxel in the middle\n\
      of a 2.5-4 mm band sits 1.2-2 mm from CSF; only a front that ran across a\n\
      glued sulcus comes back with more, so this separates the two and keeps\n\
@@ -181,25 +182,6 @@ static ArgvInfo argTable[] = {
      which selects half a voxel). The distance transform measures to the medial\n\
      voxel centre while the grey matter ends at that sheet's surface, so the raw\n\
      distance is short by half its width."},
-
-    {"-oriented-filter", ARGV_CONSTANT, (char *)1, (char *)&oriented_filter,
-     "Replace the isotropic 3x3x3 median filters by sheetness-oriented ones.\n\
-     An isotropic median penalizes boundary area, so it removes thin structures\n\
-     regardless of which side of the label boundary they lie on: the same filter\n\
-     that opens a glued sulcus closes a cerebellar fissure, and tuning trades one\n\
-     against the other. The oriented variant estimates a Hessian sheetness field\n\
-     once and then admits only those neighbours that lie in the plane of the local\n\
-     sheet, so it averages along a thin structure and never across it. Where no\n\
-     sheet is detected every neighbour is admitted and the filter is identical to\n\
-     the isotropic one, so nothing changes away from thin structures."},
-
-    {"-oriented-strength", ARGV_FLOAT, (char *)1, (char *)&oriented_strength,
-     "Overall gain on the sheetness before the oriented filters use it (default\n\
-     1.0). 0 reproduces the isotropic filters exactly. Values above 1 amplify a\n\
-     response too weak to matter: the oriented median admits every neighbour\n\
-     unless the sheetness exceeds 0.5, so a map peaking at 0.5 leaves it\n\
-     bit-identical to the isotropic median. Inspect the map with CAT_VolSheetness\n\
-     before raising this, since the noise floor is amplified along with it."},
 
     {"-oriented-cutoff", ARGV_FLOAT, (char *)1, (char *)&oriented_cutoff,
      "Admission cutoff of the oriented medians (default 0.10). A neighbour at\n\
@@ -278,7 +260,7 @@ Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
 \n\
     Every option is listed under 'Command-specific options' above. The values\n\
     shown there are the library defaults from CAT_PbtOptionsInit(), which is\n\
-    the single source of truth -- an option left unset keeps whatever the\n\
+    the single source of truth - an option left unset keeps whatever the\n\
     library specifies rather than a number duplicated in this tool.\n\
 \n\
 Examples:\n\
