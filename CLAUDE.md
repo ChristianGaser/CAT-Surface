@@ -406,6 +406,20 @@ Measured on 18 hemispheres (AD, controls, 7T from `T1Prep-0.7.1`, T1Prep setting
 The pial-white distance moves from 1.89 to 2.29 mm against a PBT mean of 2.27; the exception is
 the 3 mm Aarhus cortex (2.76 vs 2.93).
 
+**The placed pial surface is smoothed with 2 HC Laplacian iterations** (`smooth_laplacian(.., 2,
+0.1, 0.5)`, before the repair). Placement is per vertex and leaves the mesh visibly noisier than
+the central surface; 2 iterations were the visual sweet spot. Measured on HR075 lh (umbrella =
+mean distance of a vertex to its neighbour centroid; central surface 0.084):
+
+| iterations | 0 | 1 | **2** | 3 | 5 | 10 |
+| --- | --- | --- | --- | --- | --- | --- |
+| umbrella | 0.102 | 0.086 | **0.082** | 0.080 | 0.078 | 0.076 |
+| label mean | 1.658 | 1.658 | **1.659** | 1.659 | 1.660 | 1.662 |
+| label MAE vs 1.5 | 0.173 | 0.184 | **0.189** | 0.192 | 0.196 | 0.201 |
+| vertices in CSF (< 1.25) | 0.13% | 0.52% | **0.67%** | 0.78% | 0.92% | 1.10% |
+
+The white surface needs nothing extra: `surf_deform_dual` already ends with 10 of these iterations.
+
 **The label map, not the T1.** The bias- and LAS-corrected T1 is linear in the label scale
 (3*T1: CSF 1.0, GM 2.0, WM 3.0) but opens only ~10% of the glued sulci, and its grey-matter spread
 (p10-p90 1.85-2.20) exceeds most valley depths. Max-gradient targets were also worse than the
@@ -494,6 +508,10 @@ Two safeguards against self-intersections cost accuracy, measured on six central
 | self-intersections after `-remove_intersect` | 0 | 0 |
 
 The surfaces move 0.08-0.15 mm on average. `surf_deform_dual` still uses the distance test.
+
+The result is then smoothed with 2 HC Laplacian iterations, before `-remove_intersect`. Unlike
+smoothing the accumulated displacement, this reduces the error: on HR075 lh the PPM error goes
+0.0220 -> 0.0194 and the umbrella roughness 0.084 -> 0.072, with 0 intersections after the repair.
 
 `-giter` (gradient refinement) was removed, from the Python binding (`gradient_iterations`) too:
 it searched for the slope sample nearest to the vertex, which is the vertex itself, so it did

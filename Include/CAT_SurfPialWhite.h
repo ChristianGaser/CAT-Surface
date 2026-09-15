@@ -71,8 +71,9 @@ extern "C"
      * 2. Smooths pial surface with curvature-guided blending
      * 3. Deforms the white surface towards the GM/WM boundary
      * 4. Places the pial surface on the CSF/GM boundary by profile search
-     *    (opts->pial_profile, default), or deforms it together with the white
-     *    surface using balloon forces (legacy)
+     *    (opts->pial_profile, default) followed by 2 iterations of HC
+     *    Laplacian smoothing, or deforms it together with the white surface
+     *    using balloon forces (legacy)
      *
      * @param central           Input central surface.
      * @param thickness_values  Per-vertex thickness values.

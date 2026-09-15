@@ -58,8 +58,10 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
  * curvature-guided smoothing to the pial surface and deforms the white
  * surface driven by tissue labels and gradients.  The pial surface is then
  * placed by profile search (opts->pial_profile), which reaches the CSF/GM
- * boundary at gyral crowns and stops at the valley bottom of glued sulci.
- * With pial_profile = 0 it is deformed jointly with the white surface.
+ * boundary at gyral crowns and stops at the valley bottom of glued sulci,
+ * and is then smoothed with 2 iterations of HC Laplacian smoothing to remove
+ * the per-vertex noise of the placement.  With pial_profile = 0 it is
+ * deformed jointly with the white surface.
  *
  * \param central          (in)  central surface mesh
  * \param thickness_values (in)  per-vertex thickness values
@@ -217,6 +219,13 @@ int CAT_SurfEstimatePialWhite(
             free(polygons_smoothed);
             return -4;
         }
+
+        /* The placement is per vertex and leaves the surface much noisier
+         * than the central surface.  Two iterations of HC Laplacian smoothing
+         * bring the roughness back to that of the central surface while the
+         * label at the vertices stays unchanged on average.  The white
+         * surface is already smoothed at the end of surf_deform_dual(). */
+        smooth_laplacian(polygons_pial, 2, 0.1, 0.5);
     }
 
     /* Copy results to output.
