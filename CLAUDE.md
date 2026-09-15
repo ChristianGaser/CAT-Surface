@@ -361,9 +361,10 @@ repair went from 0.23% to 4.6% of the GM band.
 ## Pial placement by profile search (`CAT_Surf2PialWhite`, `Include/CAT_SurfPialProfile.h`)
 
 The pial surface is placed per vertex from the label profile along its normal
-(`CAT_PialWhiteOptions::pial_profile`, default on); the white surface keeps the balloon
-deformation. `-legacy-pial` / `pial_profile = 0` restores the old pial path, bit-identical to
-the previous code on axis-aligned label maps stored with all axes negative (see below).
+(`CAT_PialWhiteOptions::pial_profile`, default on), starting from central surface + half
+thickness; the white surface starts from ADE streamlines and keeps the balloon deformation
+(`method` 2, the default -- see *Start surfaces* below). `-legacy-pial` / `pial_profile = 0`
+restores the old pial path.
 
 The balloon deformation stopped at label 1.7-1.8 instead of 1.5, for three separate reasons,
 measured on HR075 -- tuning `w1`/`w2`/`w3`/`sigma` cannot fix any of them:
@@ -401,22 +402,74 @@ Measured on 18 hemispheres (AD, controls, 7T from `T1Prep-0.7.1`, T1Prep setting
 | valley vertices: label - valley minimum | +0.155 | -0.009 |
 | more than 0.5 mm short of the crossing | 37% | 5.1% |
 | pial vertices in CSF (< 1.25) | 2.4% | 0.2% |
-| pial self-intersections | 0-113 | 0-21 |
 
-The pial-white distance moves from 1.89 to 2.24 mm against a PBT mean of 2.27; the exception is
-the 3 mm Aarhus cortex (2.46 vs 2.93).
+The pial-white distance moves from 1.89 to 2.29 mm against a PBT mean of 2.27; the exception is
+the 3 mm Aarhus cortex (2.76 vs 2.93).
 
 **The label map, not the T1.** The bias- and LAS-corrected T1 is linear in the label scale
 (3*T1: CSF 1.0, GM 2.0, WM 3.0) but opens only ~10% of the glued sulci, and its grey-matter spread
 (p10-p90 1.85-2.20) exceeds most valley depths. Max-gradient targets were also worse than the
 crossing on the label map (gyri 1.556, sulci 1.595).
 
-**Gradient orientation.** `surf_deform_dual` dotted the voxel-axis gradient of `gradient3D()`
-with a world-space normal, so `w2` changed sign with every axis stored negatively and was wrong by
-the rotation of oblique images -- 8 of the 9 test label maps. It now uses the world gradient.
-On axis-aligned images stored with all axes negative nothing changes; the legacy pial on the RAS-stored ones
-moves from 1.86 to 1.65 and from 1.88 to 1.70, the white surface by less than 0.002. `surf_deform`
-(`CAT_SurfDeform`, the central surface in T1Prep) has the same pattern and is not fixed yet.
+**Gradient orientation.** `gradient3D()` differentiates along the voxel axes, but surface
+normals and streamline positions live in world space. `surf_deform`, `surf_deform_dual` and the
+ADE streamlines used it directly, so the gradient changed sign with every axis stored negatively
+and was wrong by the rotation of oblique images -- 8 of the 9 test label maps.
+`gradient3D_world_matrix()` now rotates it. On axis-aligned images stored with all axes negative
+nothing changes (HR075 bit-identical); `tests/test_deform.c` asserts RAS and LAS storage give the
+same surface for all three. The effect was small for the balloon terms (legacy pial gyri 1.86 ->
+1.65 on RAS-stored images; `CAT_SurfDeform` on the PPM moves 0.002 mm, because `w3` = 1.0
+dominates `w2` = 0.1) and large for ADE -- see below.
+
+### Start surfaces: ADE for the white, thickness for the pial surface (`method` 2)
+
+**The white intersections came from ADE.** Its streamlines stepped along the voxel-axis gradient
+in world space, i.e. the wrong way: 361/143375 white streamlines converged on ADNI, 610/166444 on
+HR075, and on mixed-sign storage they ran along corrupted paths (Aarhus: 282k intersecting pairs
+at the start). `-remove_intersect` then left 0-440 per hemisphere. With world-space streamlines
+99.8-100% converge.
+
+Measured on the same 18 hemispheres; white error against the 2.5 crossing, CPU time per stage:
+
+| white surface | thickness start + deformation | **ADE start + deformation** | ADE alone |
+| --- | --- | --- | --- |
+| label MAE | 0.121 | **0.091** | 0.247 |
+| position MAE / bias | 0.174 / +0.124 mm | **0.135 / -0.047 mm** | 0.334 / -0.294 mm |
+| self-intersections (repaired) | 135 (7T 365) | **0** | 0.5 |
+
+| pial surface | **thickness start + profile** | ADE start + profile | ADE alone |
+| --- | --- | --- | --- |
+| gyri / sulcal walls | 1.512 / 1.529 | 1.502 / 1.482 | 1.168 / 1.226 |
+| valley: label - valley minimum | **-0.009** | -0.172 | -0.431 |
+| vertices in CSF | **0.2%** | 2.2% | 58% |
+| self-intersections (repaired) | **0** | 600 | 724 |
+
+ADE stops its streamlines at phi >= 0.999 / <= 0.001, the far end of the partial-volume ramp:
+the white surface lands 0.29 mm inside WM, and in glued sulci the pial streamlines cross the
+valley into the opposite bank, from where profile placement cannot bring them back. So ADE is
+the better *start* for the white surface only, and never the final surface.
+
+| CPU s (mean) | ADE | deform white | pial profile | repair white | repair pial | total |
+| --- | --- | --- | --- | --- | --- | --- |
+| `method` 0 | -- | 11.3 | 11.1 | 12.4 | 7.8 | 42.4 |
+| `method` 1 | 6.6 | 9.4 | 13.1 | 5.5 | 25.5 | 60.1 |
+| **`method` 2** | 6.6 | 9.4 | 11.1 | 5.4 | 7.6 | 40.1 |
+
+ADE pays for itself through a shorter white deformation and a cheaper white repair; run alone,
+`method` 2 took 43 s on HR075 and 40 s on yv98 against 35 / 48 s for `method` 0. With the ADE start the white target offset
+is 0.1 (`GWM + 0.1`), not 0.2: 0.2 put the surface 0.10 mm inside WM, 0.0 is unbiased on average
+but has the higher error (label MAE 0.097 vs 0.091).
+
+**Why a few intersections always survived the repair.** `remove_intersections_iter` detected
+defects once and then only re-tested the triangles it had labelled, but smoothing a defect can
+make it cut unlabelled neighbours. Later passes kept smoothing the stale regions and the new
+crossings were never seen: a pre-repair white surface went 1088 -> 114 pairs with "5 regions
+left"; detecting afresh before every pass gives 0. On a marching-cubes mesh the old loop even
+reported 0 regions while 1 pair remained. With the fix all 36 surfaces end at 0.
+
+`-giter` (gradient refinement) was removed: it searched for the slope sample nearest to the
+vertex, which is the vertex itself, so it did not move the surfaces. The Python keyword
+`gradient_iterations` is accepted and ignored so existing T1Prep calls keep working.
 
 ## Architecture rules
 
