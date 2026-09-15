@@ -58,9 +58,11 @@ extern "C"
      * \param thickness_values (in)  per-vertex cortical thickness (for max
      *                               travel distance and fallback placement)
      * \param pial_out         (out) output pial surface (copy of central,
-     *                               vertices displaced)
+     *                               vertices displaced); NULL skips tracing
+     *                               the pial side
      * \param white_out        (out) output white surface (copy of central,
-     *                               vertices displaced)
+     *                               vertices displaced); NULL skips tracing
+     *                               the white side
      * \param verbose          (in)  enable progress output
      * \return 0 on success, non-zero on error
      */

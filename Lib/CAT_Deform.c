@@ -238,7 +238,16 @@ void smooth_displacement_field(double (*displacement_field)[3], polygons_struct 
  *  3.   Compute local smoothness forces from vertex neighborhoods
  *  4.   Accumulate external forces from image gradients
  *  5.   Move vertices along combined force direction
- *  6.   Check and correct self-intersections via grid-based collision detection
+ *  6.   Revert the step of vertices that come too close to a facing sheet
+ *  7. Cap total displacements above the 95th percentile to that length
+ *  8. Optionally remove the remaining self-intersections
+ *
+ * Step 6 only counts vertices with opposing normals: a pure distance test flags
+ * 8-11% of the vertices of a reduced central surface per iteration, 88-99.9% of
+ * them 2-ring neighbours of the same sheet, and freezing those raised the PPM
+ * error of the result by a third.  The total displacement is no longer smoothed
+ * after the loop: like any smoothing of an accumulated displacement it pulled
+ * the surface off the isovalue (PPM error 0.027 -> 0.037).
  *
  * \param polygons            (in/out) surface mesh (modified in-place)
  * \param input               (in)     float[nvoxels]; intensity volume data
@@ -376,7 +385,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
         }
 
         int n_self_hits = 0;
-        int *flags = find_near_self_intersections(polygons, 0.75, &n_self_hits);
+        int *flags = find_near_facing_intersections(polygons, 0.75, 0.3, &n_self_hits);
         for (v = 0; v < polygons->n_points; v++)
         {
             if (flags[v])
@@ -386,6 +395,7 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
                 Point_z(polygons->points[v]) -= displacement_field[v][2];
             }
         }
+        free(flags);
 
         // Update normals for next iteration
         compute_polygon_normals(polygons);
@@ -407,29 +417,8 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
         displacement_field[v][2] = Point_z(polygons->points[v]) - Point_z(polygons_orig->points[v]);
     }
 
-    // Get the squared sum of displacement
+    // Squared length of the total displacement
     double *displacement = malloc(sizeof(double) * polygons->n_points);
-
-    double prctile[2] = {95.0, 95.0};
-
-    /* Get percentile for x-displacement */
-    for (v = 0; v < polygons->n_points; v++)
-        displacement[v] = displacement_field[v][0];
-    double threshold_x[2];
-    get_prctile(displacement, polygons->n_points, threshold_x, prctile, 1, DT_FLOAT64);
-
-    /* Get percentile for y-displacement */
-    for (v = 0; v < polygons->n_points; v++)
-        displacement[v] = displacement_field[v][1];
-    double threshold_y[2];
-    get_prctile(displacement, polygons->n_points, threshold_y, prctile, 1, DT_FLOAT64);
-
-    /* Get percentile for z-displacement */
-    for (v = 0; v < polygons->n_points; v++)
-        displacement[v] = displacement_field[v][2];
-    double threshold_z[2];
-    get_prctile(displacement, polygons->n_points, threshold_z, prctile, 1, DT_FLOAT64);
-
     for (v = 0; v < polygons->n_points; v++)
     {
         displacement[v] = SQR(displacement_field[v][0]) +
@@ -437,25 +426,24 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
                           SQR(displacement_field[v][2]);
     }
 
-    /* Get percentile for squared sum of displacements */
+    double prctile[2] = {95.0, 95.0};
     double threshold[2];
     get_prctile(displacement, polygons->n_points, threshold, prctile, 1, DT_FLOAT64);
 
-    /* If squared sum of displacements is exceeding 95% percentile we limit all
-      displacements to 95% percentile to prevent that these outliers cause
-      self-intersections */
+    /* Cap displacements above the 95th percentile to that length, keeping their
+       direction, so that outliers cannot cause self-intersections.  (Replacing
+       them with the per-axis percentiles moved all outliers by one fixed
+       vector, whatever their own direction.) */
     for (v = 0; v < polygons->n_points; v++)
     {
-        if (displacement[v] > threshold[1])
+        if (displacement[v] > threshold[1] && displacement[v] > 0.0)
         {
-            displacement_field[v][0] = threshold_x[1];
-            displacement_field[v][1] = threshold_y[1];
-            displacement_field[v][2] = threshold_z[1];
+            double scale = sqrt(threshold[1] / displacement[v]);
+            displacement_field[v][0] *= scale;
+            displacement_field[v][1] *= scale;
+            displacement_field[v][2] *= scale;
         }
     }
-
-    // Apply very slight smoothing to the displacement field to smooth replacements
-    smooth_displacement_field(displacement_field, polygons, n_neighbours, neighbours, 5, 0.05 * sigma);
 
     // Apply the final displacement to vertices
     for (v = 0; v < polygons->n_points; v++)

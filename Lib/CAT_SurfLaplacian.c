@@ -443,6 +443,61 @@ world_gradient(double M[3][3], float *grad_x, float *grad_y, float *grad_z,
     *gz = M[2][0] * g[0] + M[2][1] * g[1] + M[2][2] * g[2];
 }
 
+/**
+ * \brief Trace one streamline of phi from a start point until phi_stop.
+ *
+ * Steps along +grad phi (sign = +1, towards the pial side) or -grad phi
+ * (sign = -1, towards the white side) in world space.  Where the gradient
+ * vanishes it follows the surface normal in the same direction.
+ *
+ * \param M        (in)  matrix from gradient3D_world_matrix()
+ * \param phi      (in)  ADE potential
+ * \param grad_x   (in)  voxel-axis gradient of phi, x component
+ * \param grad_y   (in)  voxel-axis gradient of phi, y component
+ * \param grad_z   (in)  voxel-axis gradient of phi, z component
+ * \param dims     (in)  volume dimensions
+ * \param nii_ptr  (in)  NIfTI header
+ * \param start    (in)  start position in mm (central surface vertex)
+ * \param normal   (in)  unit outward surface normal at start
+ * \param sign     (in)  +1 towards phi_stop >= , -1 towards phi_stop <=
+ * \param phi_stop (in)  stop value of phi
+ * \param pos      (out) end position
+ * \return 1 if phi_stop was reached, 0 otherwise
+ */
+static int
+trace_streamline(double M[3][3], float *phi, float *grad_x, float *grad_y,
+                 float *grad_z, int dims[3], nifti_image *nii_ptr,
+                 const double start[3], const double normal[3], double sign,
+                 float phi_stop, double pos[3])
+{
+    const double step_size = 0.1; /* mm per integration step  */
+    const int max_steps = 120;    /* max 12 mm travel          */
+    const double min_grad = 1e-6; /* gradient magnitude floor  */
+    double g[3], glen;
+    float phi_val;
+    int step, k;
+
+    for (k = 0; k < 3; k++)
+        pos[k] = start[k];
+
+    for (step = 0; step < max_steps; step++)
+    {
+        world_gradient(M, grad_x, grad_y, grad_z, pos, dims, nii_ptr,
+                       &g[0], &g[1], &g[2]);
+        glen = sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+        for (k = 0; k < 3; k++)
+            g[k] = (glen < min_grad) ? normal[k] : g[k] / glen;
+
+        for (k = 0; k < 3; k++)
+            pos[k] += sign * step_size * g[k];
+
+        phi_val = isoval(phi, pos[0], pos[1], pos[2], dims, nii_ptr);
+        if ((sign > 0.0) ? (phi_val >= phi_stop) : (phi_val <= phi_stop))
+            return 1;
+    }
+    return 0;
+}
+
 /* -------------------------------------------------------------------
  * surf_ade_pial_white
  *
@@ -458,6 +513,9 @@ world_gradient(double M[3][3], float *grad_x, float *grad_y, float *grad_z,
  * isovalues lim_pial and lim_white are mapped to phi stop values:
  *   phi_stop = (target - ribbon_white) / (ribbon_pial - ribbon_white)
  * This means changing lim_pial/lim_white actually moves the surfaces.
+ *
+ * Either output may be NULL to skip tracing that side; the ADE is solved
+ * once either way.
  */
 int surf_ade_pial_white(polygons_struct *central,
                         float *labels,
@@ -469,7 +527,7 @@ int surf_ade_pial_white(polygons_struct *central,
                         polygons_struct *white_out,
                         int verbose)
 {
-    int v, step, dims[3], nvox;
+    int v, dims[3], nvox;
     double vx[3];
     int n_points;
     float *phi = NULL;
@@ -497,13 +555,7 @@ int surf_ade_pial_white(polygons_struct *central,
     if (phi_stop_white < 0.01f)
         phi_stop_white = 0.001f;
 
-
-    /* Streamline parameters */
-    const double step_size = 0.1; /* mm per integration step          */
-    const int max_steps = 120;    /* max steps = 12 mm travel         */
-    const double min_grad = 1e-6; /* gradient magnitude floor         */
-
-    if (!central || !labels || !nii_ptr || !pial_out || !white_out)
+    if (!central || !labels || !nii_ptr || (!pial_out && !white_out))
         return -1;
 
     n_points = central->n_points;
@@ -563,8 +615,10 @@ int surf_ade_pial_white(polygons_struct *central,
     /* ================================================================
      * Step 3 — Prepare output surfaces (copy of central)
      * ================================================================ */
-    copy_polygons(central, pial_out);
-    copy_polygons(central, white_out);
+    if (pial_out)
+        copy_polygons(central, pial_out);
+    if (white_out)
+        copy_polygons(central, white_out);
     compute_polygon_normals(central);
 
     /* ================================================================
@@ -575,141 +629,57 @@ int surf_ade_pial_white(polygons_struct *central,
 
     for (v = 0; v < n_points; v++)
     {
-        double cx, cy, cz;       /* central vertex position   */
-        double nx, ny, nz, nlen; /* surface normal (fallback) */
-        double pos[3];
-        double gx, gy, gz, glen;
-        int found;
-        float phi_val;
+        double c[3], n[3], pos[3], nlen, t;
+        int k;
 
-        cx = Point_x(central->points[v]);
-        cy = Point_y(central->points[v]);
-        cz = Point_z(central->points[v]);
-
-        /* Surface normal for fallback when gradient is too weak */
-        nx = Point_x(central->normals[v]);
-        ny = Point_y(central->normals[v]);
-        nz = Point_z(central->normals[v]);
-        nlen = sqrt(nx * nx + ny * ny + nz * nz);
+        for (k = 0; k < 3; k++)
+        {
+            c[k] = Point_coord(central->points[v], k);
+            n[k] = Point_coord(central->normals[v], k);
+        }
+        nlen = sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
         if (nlen > 1e-10)
+            for (k = 0; k < 3; k++)
+                n[k] /= nlen;
+
+        /* fallback: half the thickness along the normal */
+        t = thickness_values ? 0.5 * thickness_values[v] : 1.5;
+
+        /* ---- towards PIAL: follow +grad phi to phi_stop_pial ---- */
+        if (pial_out)
         {
-            nx /= nlen;
-            ny /= nlen;
-            nz /= nlen;
-        }
-
-        /* ---- trace toward PIAL (follow +grad phi, toward phi = 1) ---- */
-        pos[0] = cx;
-        pos[1] = cy;
-        pos[2] = cz;
-        found = 0;
-
-        for (step = 0; step < max_steps; step++)
-        {
-            world_gradient(g2w, grad_x, grad_y, grad_z, pos, dims, nii_ptr,
-                           &gx, &gy, &gz);
-
-            glen = sqrt(gx * gx + gy * gy + gz * gz);
-            if (glen < min_grad)
-            {
-                /* Fallback: follow outward normal */
-                gx = nx;
-                gy = ny;
-                gz = nz;
-            }
+            if (trace_streamline(g2w, phi, grad_x, grad_y, grad_z, dims, nii_ptr,
+                                 c, n, +1.0, phi_stop_pial, pos))
+                n_pial_ok++;
             else
-            {
-                gx /= glen;
-                gy /= glen;
-                gz /= glen;
-            }
-
-            pos[0] += step_size * gx;
-            pos[1] += step_size * gy;
-            pos[2] += step_size * gz;
-
-            /* Stop when phi reaches the target pial isovalue */
-            phi_val = isoval(phi, pos[0], pos[1], pos[2], dims, nii_ptr);
-            if (phi_val >= phi_stop_pial)
-            {
-                found = 1;
-                break;
-            }
-        }
-
-        if (found)
-        {
+                for (k = 0; k < 3; k++)
+                    pos[k] = c[k] + t * n[k];
             fill_Point(pial_out->points[v], pos[0], pos[1], pos[2]);
-            n_pial_ok++;
-        }
-        else
-        {
-            /* Fallback: half-thickness along outward normal */
-            double t = thickness_values ? 0.5 * thickness_values[v] : 1.5;
-            fill_Point(pial_out->points[v],
-                       cx + t * nx, cy + t * ny, cz + t * nz);
         }
 
-        /* ---- trace toward WHITE (follow -grad phi, toward phi = 0) ---- */
-        pos[0] = cx;
-        pos[1] = cy;
-        pos[2] = cz;
-        found = 0;
-
-        for (step = 0; step < max_steps; step++)
+        /* ---- towards WHITE: follow -grad phi to phi_stop_white ---- */
+        if (white_out)
         {
-            world_gradient(g2w, grad_x, grad_y, grad_z, pos, dims, nii_ptr,
-                           &gx, &gy, &gz);
-
-            glen = sqrt(gx * gx + gy * gy + gz * gz);
-            if (glen < min_grad)
-            {
-                /* Fallback: follow inward normal */
-                gx = -nx;
-                gy = -ny;
-                gz = -nz;
-            }
+            if (trace_streamline(g2w, phi, grad_x, grad_y, grad_z, dims, nii_ptr,
+                                 c, n, -1.0, phi_stop_white, pos))
+                n_white_ok++;
             else
-            {
-                gx /= glen;
-                gy /= glen;
-                gz /= glen;
-            }
-
-            /* Negative gradient direction (toward phi = 0, WM) */
-            pos[0] -= step_size * gx;
-            pos[1] -= step_size * gy;
-            pos[2] -= step_size * gz;
-
-            /* Stop when phi reaches the target white isovalue */
-            phi_val = isoval(phi, pos[0], pos[1], pos[2], dims, nii_ptr);
-            if (phi_val <= phi_stop_white)
-            {
-                found = 1;
-                break;
-            }
-        }
-
-        if (found)
-        {
+                for (k = 0; k < 3; k++)
+                    pos[k] = c[k] - t * n[k];
             fill_Point(white_out->points[v], pos[0], pos[1], pos[2]);
-            n_white_ok++;
-        }
-        else
-        {
-            double t = thickness_values ? 0.5 * thickness_values[v] : 1.5;
-            fill_Point(white_out->points[v],
-                       cx - t * nx, cy - t * ny, cz - t * nz);
         }
     }
 
-    if (verbose)
-        fprintf(stdout, "ADE streamlines: pial %d/%d  white %d/%d converged\n",
-                n_pial_ok, n_points, n_white_ok, n_points);
+    if (verbose && pial_out)
+        fprintf(stdout, "ADE streamlines: pial %d/%d converged\n", n_pial_ok, n_points);
+    if (verbose && white_out)
+        fprintf(stdout, "ADE streamlines: white %d/%d converged\n", n_white_ok, n_points);
 
     /* Recompute normals for output */
-    compute_polygon_normals(pial_out);
-    compute_polygon_normals(white_out);
+    if (pial_out)
+        compute_polygon_normals(pial_out);
+    if (white_out)
+        compute_polygon_normals(white_out);
 
     /* ================================================================
      * Cleanup

@@ -57,6 +57,23 @@ void remove_intersections(polygons_struct *, int);
 int remove_intersections_iter(polygons_struct *, int, int, int);
 int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, 
                             int *n_hits_out);
+
+/**
+ * \brief Find vertices close to a facing sheet of the same mesh.
+ *
+ * Distance test of find_near_self_intersections() restricted to vertices with
+ * opposing normals (n_i . n_j < -min_opposition), as across a sulcus or a thin
+ * blade, so that 2-ring neighbours of the same sheet on irregular meshes are not
+ * reported.
+ *
+ * \param polygons         (in)  mesh with current normals
+ * \param threshold_factor (in)  search radius as multiple of the mean edge length
+ * \param min_opposition   (in)  required opposition of the normals (e.g. 0.3)
+ * \param n_hits_out       (out) number of flagged vertices; may be NULL
+ * \return allocated flag array (length n_points), caller must free
+ */
+int *find_near_facing_intersections(polygons_struct *polygons, double threshold_factor,
+                                    double min_opposition, int *n_hits_out);
 void remove_near_intersections(polygons_struct *polygons, double threshold, int verbose);
 
 #endif

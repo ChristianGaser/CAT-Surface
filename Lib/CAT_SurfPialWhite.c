@@ -102,22 +102,24 @@ int CAT_SurfEstimatePialWhite(
 
     n_points = central->n_points;
 
-    /* ------ Adaptive Diffusion Equation method (method == 1) ------ */
+    /* ------ ADE start surfaces: both (method 1) or white only (method 2) ------ */
     if (opts->method > 0)
     {
+        /* method 2 starts the pial surface from the thickness, so its
+         * streamlines would be traced for nothing */
         int rc = surf_ade_pial_white(
             central, labels, nii_ptr,
             CGM, GWM,
             thickness_values,
-            pial_out, white_out, opts->verbose);
+            opts->method == 1 ? pial_out : NULL, white_out, opts->verbose);
         if (rc != 0)
             return rc;
 
         /* Continue with the standard deformation pipeline using
-         * method-1 initialization as the starting surfaces. */
-        polygons_pial = pial_out;
+         * the ADE surfaces as starting surfaces. */
+        if (opts->method == 1)
+            polygons_pial = pial_out;
         polygons_white = white_out;
-
     }
 
     /* ------ Deformation method (method == 0, default) ------ */
