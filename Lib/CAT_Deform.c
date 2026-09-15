@@ -21,6 +21,57 @@
 #include <string.h>
 
 /**
+ * \brief Build the matrix that maps a gradient3D() gradient into world space.
+ *
+ * gradient3D() differentiates along the voxel axes and divides by the voxel
+ * size, whereas surface normals live in world space.  Dotting the two
+ * directly makes the result depend on how the image is stored: the sign of
+ * every axis stored with a negative direction flips.  With x = A u + b the
+ * world gradient is A^-T diag(vx) g.
+ *
+ * \param nii_ptr (in)  NIfTI header (sto_xyz and voxel size)
+ * \param M       (out) 3x3 matrix, g_world = M g_voxel
+ * \return void
+ */
+static void
+gradient_to_world_matrix(const nifti_image *nii_ptr, double M[3][3])
+{
+    mat44 inv = nifti_mat44_inverse(nii_ptr->sto_xyz);
+    double vx[3] = {nii_ptr->dx, nii_ptr->dy, nii_ptr->dz};
+    int r, c;
+
+    for (r = 0; r < 3; r++)
+        for (c = 0; c < 3; c++)
+            M[r][c] = inv.m[c][r] * vx[c];
+}
+
+/**
+ * \brief Edge strength along a surface normal: the intensity decrease -dI/dn.
+ *
+ * Positive where intensity falls outwards, as it does across both the GM/WM
+ * and the CSF/GM boundary.  For axis-aligned images stored with all axes
+ * negative this equals the index-space dot product used before, so results on
+ * such images are unchanged.
+ *
+ * \param M  (in) matrix from gradient_to_world_matrix()
+ * \param gx (in) gradient3D() x component at the vertex
+ * \param gy (in) gradient3D() y component at the vertex
+ * \param gz (in) gradient3D() z component at the vertex
+ * \param n  (in) unit surface normal in world space
+ * \return -dI/dn
+ */
+static double
+edge_strength(double M[3][3], double gx, double gy, double gz, const double n[3])
+{
+    double s = 0.0;
+    int r;
+
+    for (r = 0; r < 3; r++)
+        s += (M[r][0] * gx + M[r][1] * gy + M[r][2] * gz) * n[r];
+    return -s;
+}
+
+/**
  * \brief Smooths a 3D displacement field with Jacobian- and curvature-based blending.
  *
  * This function performs iterative smoothing of a displacement field associated with a surface mesh.
@@ -596,6 +647,8 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
 
     // Compute gradient of the input volume
     gradient3D(input, NULL, gradient_x, gradient_y, gradient_z, dims, vx);
+    double g2w[3][3];
+    gradient_to_world_matrix(nii_ptr, g2w);
 
     // Compute surface normals and neighbors
     if (have1)
@@ -675,7 +728,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                 float fx1 = isoval(gradient_x, p1[0], p1[1], p1[2], dims, nii_ptr);
                 float fy1 = isoval(gradient_y, p1[0], p1[1], p1[2], dims, nii_ptr);
                 float fz1 = isoval(gradient_z, p1[0], p1[1], p1[2], dims, nii_ptr);
-                float f2_1 = fmax(-1.0, fmin(1.0, fx1 * n1[0] + fy1 * n1[1] + fz1 * n1[2]));
+                float f2_1 = fmax(-1.0, fmin(1.0, edge_strength(g2w, fx1, fy1, fz1, n1)));
                 float boost1 = 0.5 + tanh(fabs(di1));
                 float w3_scaled1 = fmin(w[2] * boost1, 5.0 * w[2]);
 
@@ -719,7 +772,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
                 float fx2 = isoval(gradient_x, p2[0], p2[1], p2[2], dims, nii_ptr);
                 float fy2 = isoval(gradient_y, p2[0], p2[1], p2[2], dims, nii_ptr);
                 float fz2 = isoval(gradient_z, p2[0], p2[1], p2[2], dims, nii_ptr);
-                float f2_2 = fmax(-1.0, fmin(1.0, fx2 * n2[0] + fy2 * n2[1] + fz2 * n2[2]));
+                float f2_2 = fmax(-1.0, fmin(1.0, edge_strength(g2w, fx2, fy2, fz2, n2)));
                 float boost2 = 0.5 + tanh(fabs(di2));
                 float w3_scaled2 = fmin(w2[2] * boost2, 5.0 * w2[2]);
 

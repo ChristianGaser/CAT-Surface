@@ -45,6 +45,9 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
     opts->iterations = 200;
     opts->gradient_iterations = 30;
     opts->method = 0;
+    opts->pial_profile = 1;
+    CAT_PialProfileOptionsInit(&opts->profile);
+    opts->profile.isovalue = CGM;
     opts->remove_intersect = 0;
     opts->verbose = 0;
 }
@@ -53,8 +56,11 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
  * \brief Estimate pial and white surfaces from a central surface.
  *
  * Creates initial pial/white surfaces from thickness values, applies
- * curvature-guided smoothing to the pial surface, and performs a
- * dual-surface deformation driven by tissue labels and gradients.
+ * curvature-guided smoothing to the pial surface and deforms the white
+ * surface driven by tissue labels and gradients.  The pial surface is then
+ * placed by profile search (opts->pial_profile), which reaches the CSF/GM
+ * boundary at gyral crowns and stops at the valley bottom of glued sulci.
+ * With pial_profile = 0 it is deformed jointly with the white surface.
  *
  * \param central          (in)  central surface mesh
  * \param thickness_values (in)  per-vertex thickness values
@@ -184,11 +190,12 @@ int CAT_SurfEstimatePialWhite(
         return -3;
     }
     
-    /* Dual-surface deformation */
+    /* Deformation: white surface always, pial surface only in legacy mode */
     weights[0] = opts->w1;
     weights[1] = opts->w2;
     weights[2] = opts->w3;
-    surf_deform_dual(polygons_pial, polygons_white, central, labels, nii_ptr,
+    surf_deform_dual(opts->pial_profile ? NULL : polygons_pial, polygons_white,
+                     central, labels, nii_ptr,
                      weights, opts->sigma, CGM + shifting[0], GWM + shifting[1],
                      (double *)thickness_values, opts->iterations, opts->verbose);
 
@@ -198,6 +205,21 @@ int CAT_SurfEstimatePialWhite(
                                   CGM + shifting[0], GWM + shifting[1],
                                   (double *)thickness_values,
                                   opts->gradient_iterations, opts->verbose);
+
+    /* Profile-based pial placement.  It starts from the thickness-based
+     * estimate and does not need the balloon-force deformation above. */
+    if (opts->pial_profile)
+    {
+        CAT_PialProfileOptions profile = opts->profile;
+        profile.verbose = opts->verbose;
+        if (CAT_SurfDeformPialProfile(polygons_pial, labels, nii_ptr, &profile) != 0)
+        {
+            free(extents);
+            free(weight);
+            free(polygons_smoothed);
+            return -4;
+        }
+    }
 
     /* Copy results to output.
      * In method 1, polygons_pial/polygons_white may already be pial_out/white_out. */

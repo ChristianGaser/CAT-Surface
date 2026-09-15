@@ -27,6 +27,11 @@ int iterations = 100;
 int gradient_iterations = 0;
 int method = 0;
 int remove_intersect = 0;
+int legacy_pial = 0;
+/* Profile placement: negative values keep the library defaults */
+double valley_depth = -1.0;
+double search_out = -1.0;
+int pial_iterations = -1;
 
 /* Argument table for command-line parsing */
 static ArgvInfo argTable[] = {
@@ -44,6 +49,17 @@ static ArgvInfo argTable[] = {
      "Set number of gradient refinement iterations (0 to disable)."},
     {"-method", ARGV_INT, (char *)TRUE, (char *)&method,
      "Method: 0 = deformation (default), 1 = ADE, 2 = deformation:pial | ADE:white."},
+    {"-legacy-pial", ARGV_CONSTANT, (char *)TRUE, (char *)&legacy_pial,
+     "Deform the pial surface with the balloon-force deformation instead of\n\
+                 placing it by profile search."},
+    {"-valley-depth", ARGV_FLOAT, (char *)TRUE, (char *)&valley_depth,
+     "Rise above the running minimum of the label profile that ends a valley\n\
+                 (glued sulcus) in profile placement (default 0.05)."},
+    {"-pial-search", ARGV_FLOAT, (char *)TRUE, (char *)&search_out,
+     "Outward search distance along the normal in mm for profile placement\n\
+                 (default 2.0)."},
+    {"-pial-iter", ARGV_INT, (char *)TRUE, (char *)&pial_iterations,
+     "Number of iterations of profile placement (default 60)."},
     {"-remove_intersect", ARGV_CONSTANT, (char *)TRUE, (char *)&remove_intersect,
      "Remove self-intersections of the resulting pial and white surfaces.\n\
                  The mesh topology is preserved, i.e. both surfaces keep their\n\
@@ -68,9 +84,13 @@ usage(const char *executable)
             "This tool performs the following steps:\n"
             "1. Estimate preliminary pial and white surfaces using thickness.\n"
             "2. Smooth pial surface with curvature-guided correction.\n"
-            "3. Perform joint deformation of both surfaces using the image\n"
-            "   intensity and gradient field, while preserving topology and\n"
-            "   maintaining surface distance (cortical thickness).\n\n"
+            "3. Deform the white surface using the image intensity and\n"
+            "   gradient field.\n"
+            "4. Place the pial surface by searching the label profile along\n"
+            "   each normal for the CSF/GM boundary (1.5), or for the bottom\n"
+            "   of the valley where a glued sulcus never reaches it.  Facing\n"
+            "   sulcal walls meet in the middle.  Use -legacy-pial to deform\n"
+            "   the pial surface together with the white surface instead.\n\n"
             "Key deformation forces:\n"
             "  -w1     Internal smoothness term (e.g. 0.1).\n"
             "  -w2     Gradient alignment force (edges attraction).\n"
@@ -169,6 +189,13 @@ int main(int argc, char *argv[])
     opts.gradient_iterations = gradient_iterations;
     opts.method = method;
     opts.remove_intersect = remove_intersect;
+    opts.pial_profile = !legacy_pial;
+    if (valley_depth >= 0.0)
+        opts.profile.valley_depth = valley_depth;
+    if (search_out >= 0.0)
+        opts.profile.search_out = search_out;
+    if (pial_iterations >= 0)
+        opts.profile.iterations = pial_iterations;
     opts.verbose = verbose;
 
     /* Run the library estimation */

@@ -20,6 +20,7 @@
 
 #include <bicpl.h>
 #include "CAT_NiftiLib.h"
+#include "CAT_SurfPialProfile.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -37,7 +38,11 @@ extern "C"
         double sigma;            /**< Displacement smoothing sigma (default: 0.2) */
         int iterations;          /**< Number of deformation iterations (default: 100) */
         int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
-        int method;              /**< 0 = deformation (default), 1 = Laplacian, 2 = ADE */
+        int method;              /**< 0 = deformation (default), 1 = ADE, 2 = deformation:pial | ADE:white */
+        int pial_profile;        /**< Place the pial surface by profile search (default: 1),
+                                      see CAT_SurfDeformPialProfile().  0 restores the
+                                      balloon-force deformation for the pial surface. */
+        CAT_PialProfileOptions profile; /**< Options of the profile-based pial placement */
         int remove_intersect;    /**< Remove self-intersections of the resulting
                                       pial and white surfaces (default: 0).  The
                                       mesh topology is preserved, so both surfaces
@@ -63,7 +68,10 @@ extern "C"
      * This function:
      * 1. Creates initial pial/white estimates using thickness values
      * 2. Smooths pial surface with curvature-guided blending
-     * 3. Performs dual-surface deformation using intensity gradients
+     * 3. Deforms the white surface towards the GM/WM boundary
+     * 4. Places the pial surface on the CSF/GM boundary by profile search
+     *    (opts->pial_profile, default), or deforms it together with the white
+     *    surface using balloon forces (legacy)
      *
      * @param central           Input central surface.
      * @param thickness_values  Per-vertex thickness values.
