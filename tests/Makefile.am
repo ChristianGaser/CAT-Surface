@@ -6,8 +6,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/nii2mesh \
     -I$(top_srcdir)/3rdparty/nifti
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform
 
 test_math_SOURCES = test_math.c
 
@@ -29,6 +29,10 @@ test_surfinfo_SOURCES = test_surfinfo.c
 
 test_surfinfo_LDADD = $(top_builddir)/libCAT.la -lm
 
-test_pialprofile_SOURCES = test_pialprofile.c
+test_pialprofile_SOURCES = test_pialprofile.c test_phantoms.h
 
 test_pialprofile_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_deform_SOURCES = test_deform.c test_phantoms.h
+
+test_deform_LDADD = $(top_builddir)/libCAT.la -lm
