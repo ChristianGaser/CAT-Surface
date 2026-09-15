@@ -242,6 +242,28 @@ cdef extern from "CAT_Resample.h":
 # ---------------------------------------------------------------------------
 # CAT_SurfPialWhite.h — Pial / white estimation
 # ---------------------------------------------------------------------------
+cdef extern from "CAT_SurfPialProfile.h":
+    ctypedef struct CAT_PialProfileOptions:
+        double isovalue
+        double search_out
+        double search_in
+        double sample_step
+        double valley_depth
+        double step_fraction
+        double max_step
+        double max_offset
+        double smooth_lambda
+        int smooth_passes_start
+        int smooth_passes_end
+        double tangential_weight
+        double concave_weight
+        double contact_margin
+        double fold_angle
+        int iterations
+        int verbose
+
+    void CAT_PialProfileOptionsInit(CAT_PialProfileOptions *opts)
+
 cdef extern from "CAT_SurfPialWhite.h":
     ctypedef struct CAT_PialWhiteOptions:
         double w1
@@ -251,6 +273,8 @@ cdef extern from "CAT_SurfPialWhite.h":
         int iterations
         int gradient_iterations
         int method
+        int pial_profile
+        CAT_PialProfileOptions profile
         int remove_intersect
         int verbose
 

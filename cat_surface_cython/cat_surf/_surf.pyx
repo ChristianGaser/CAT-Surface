@@ -1044,6 +1044,10 @@ def surf_to_pial_white(vertices, faces, thickness,
                        double sigma=0.2, int iterations=100,
                        int gradient_iterations=0, int method=0,
                        bint remove_intersect=False,
+                       bint pial_profile=True,
+                       double valley_depth=-1.0,
+                       double pial_search=-1.0,
+                       int pial_iterations=-1,
                        bint verbose=False):
     """
     Estimate pial and white matter surfaces from a central surface.
@@ -1078,6 +1082,20 @@ def surf_to_pial_white(vertices, faces, thickness,
         (default False).  Topology preserving, so both surfaces keep their
         vertex correspondence with the central surface and the per-vertex
         thickness stays valid.
+    pial_profile : bool
+        Place the pial surface by searching the label profile along each
+        normal for the CSF/GM boundary, or for the valley bottom of a glued
+        sulcus (default True).  False deforms it with balloon forces together
+        with the white surface (``-legacy-pial``).
+    valley_depth : float
+        Rise above the running minimum of the profile that ends a valley
+        (library default 0.05 when negative).
+    pial_search : float
+        Outward search distance along the normal in mm (library default 2.0
+        when negative).
+    pial_iterations : int
+        Iterations of the profile placement (library default 60 when
+        negative).
     verbose : bool
 
     Returns
@@ -1112,6 +1130,13 @@ def surf_to_pial_white(vertices, faces, thickness,
     opts.gradient_iterations = gradient_iterations
     opts.method = method
     opts.remove_intersect = 1 if remove_intersect else 0
+    opts.pial_profile = 1 if pial_profile else 0
+    if valley_depth >= 0:
+        opts.profile.valley_depth = valley_depth
+    if pial_search >= 0:
+        opts.profile.search_out = pial_search
+    if pial_iterations >= 0:
+        opts.profile.iterations = pial_iterations
     opts.verbose = 1 if verbose else 0
 
     cdef int rc = C.CAT_SurfEstimatePialWhite(

@@ -109,7 +109,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `hausdorff_distance` | Hausdorff distance between two surfaces | — |
 | `resample_to_sphere` | Resample surface/values onto a target sphere | `CAT_SurfResample` |
 | `surf_deform` | Deform a surface toward a volume isovalue | `CAT_SurfDeform` |
-| `surf_to_pial_white` | Estimate pial + white surfaces from a central surface (`remove_intersect` repairs both) | `CAT_Surf2PialWhite` |
+| `surf_to_pial_white` | Estimate pial + white surfaces from a central surface; the pial surface is placed by profile search (`pial_profile`), `remove_intersect` repairs both | `CAT_Surf2PialWhite` |
 | `central_to_pial` | Generate a pial surface from central + thickness | — |
 | `surf_warp` | DARTEL-based spherical registration | `CAT_SurfWarp` |
 | `spherical_demon` | Spherical Demons spherical registration | `CAT_SurfSphericalDemon` |
