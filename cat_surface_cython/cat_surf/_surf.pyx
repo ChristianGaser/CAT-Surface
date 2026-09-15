@@ -7,6 +7,8 @@ returns numpy arrays.  The conversion to/from the C polygons_struct
 is handled transparently.
 """
 
+import warnings
+
 import numpy as np
 cimport numpy as cnp
 from libc.stdlib cimport malloc, free
@@ -1042,7 +1044,7 @@ def surf_to_pial_white(vertices, faces, thickness,
                        label,
                        double w1=0.05, double w2=0.05, double w3=0.05,
                        double sigma=0.2, int iterations=100,
-                       int gradient_iterations=0, int method=0,
+                       int gradient_iterations=0, int method=2,
                        bint remove_intersect=False,
                        bint pial_profile=True,
                        double valley_depth=-1.0,
@@ -1073,10 +1075,13 @@ def surf_to_pial_white(vertices, faces, thickness,
     iterations : int
         Number of deformation iterations (default 100).
     gradient_iterations : int
-        Number of gradient refinement iterations (default 0 = disabled).
+        Deprecated and ignored: the gradient refinement was removed because
+        it did not move the surfaces.  Kept so that existing callers passing
+        ``gradient_iterations=0`` keep working.
     method : int
-        0 = deformation (default), 1 = ADE,
-        2 = deformation for pial + ADE for white.
+        Start surfaces: 0 = central surface +/- half thickness for both,
+        1 = ADE streamlines for both, 2 = ADE for the white and thickness for
+        the pial surface (default).
     remove_intersect : bool
         Repair self-intersections of the resulting pial and white surfaces
         (default False).  Topology preserving, so both surfaces keep their
@@ -1127,7 +1132,9 @@ def surf_to_pial_white(vertices, faces, thickness,
     opts.w1 = w1; opts.w2 = w2; opts.w3 = w3
     opts.sigma = sigma
     opts.iterations = iterations
-    opts.gradient_iterations = gradient_iterations
+    if gradient_iterations:
+        warnings.warn("surf_to_pial_white: gradient_iterations is deprecated "
+                      "and ignored", DeprecationWarning, stacklevel=2)
     opts.method = method
     opts.remove_intersect = 1 if remove_intersect else 0
     opts.pial_profile = 1 if pial_profile else 0

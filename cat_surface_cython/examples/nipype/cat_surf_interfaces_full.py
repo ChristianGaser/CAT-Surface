@@ -934,9 +934,6 @@ class CatSurfToPialWhiteInputSpec(BaseInterfaceInputSpec):
     iterations = traits.Int(
         100, usedefault=True, desc="Number of deformation iterations."
     )
-    gradient_iterations = traits.Int(
-        0, usedefault=True, desc="Number of gradient-descent iterations."
-    )
     method = traits.Int(
         2, usedefault=True, desc="Pial/white estimation method (default 2)."
     )
@@ -961,8 +958,7 @@ class CatSurfToPialWhite(BaseInterface):
 
     Wraps
     ``cat_surf.surf_to_pial_white(vertices, faces, thickness, volume_file,
-    w1, w2, w3, sigma, iterations, gradient_iterations, method,
-    remove_intersect, verbose)
+    w1, w2, w3, sigma, iterations, method, remove_intersect, verbose)
     → (pial_vertices, pial_faces, white_vertices, white_faces)``.
 
     This is T1Prep's surface estimation step 5 (``CAT_Surf2PialWhite``).
@@ -991,7 +987,6 @@ class CatSurfToPialWhite(BaseInterface):
             w3=self.inputs.w3,
             sigma=self.inputs.sigma,
             iterations=self.inputs.iterations,
-            gradient_iterations=self.inputs.gradient_iterations,
             method=self.inputs.method,
             remove_intersect=self.inputs.remove_intersect,
             verbose=self.inputs.verbose,

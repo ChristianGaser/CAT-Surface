@@ -271,7 +271,6 @@ cdef extern from "CAT_SurfPialWhite.h":
         double w3
         double sigma
         int iterations
-        int gradient_iterations
         int method
         int pial_profile
         CAT_PialProfileOptions profile
