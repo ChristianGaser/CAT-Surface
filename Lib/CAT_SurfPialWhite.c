@@ -43,8 +43,7 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
     opts->w3 = 0.1;
     opts->sigma = 0.2;
     opts->iterations = 200;
-    opts->gradient_iterations = 30;
-    opts->method = 0;
+    opts->method = 2;
     opts->pial_profile = 1;
     CAT_PialProfileOptionsInit(&opts->profile);
     opts->profile.isovalue = CGM;
@@ -91,7 +90,11 @@ int CAT_SurfEstimatePialWhite(
     polygons_struct *polygons_white = NULL;
     polygons_struct *polygons_smoothed = NULL;
     double weights[3];
-    double shifting[2] = {-0.25, 0.2};
+    /* Target offsets of the balloon deformation: the pial one only applies to
+     * the legacy pial path.  The white offset compensates the inward bias of
+     * the deformation; with the ADE start 0.1 gives the lowest white error
+     * (0.2 put the surface 0.10 mm inside the GM/WM boundary). */
+    double shifting[2] = {-0.25, 0.1};
 
     if (!central || !thickness_values || !labels || !nii_ptr ||
         !pial_out || !white_out || !opts)
@@ -198,13 +201,6 @@ int CAT_SurfEstimatePialWhite(
                      central, labels, nii_ptr,
                      weights, opts->sigma, CGM + shifting[0], GWM + shifting[1],
                      (double *)thickness_values, opts->iterations, opts->verbose);
-
-    /* Gradient-based refinement pass to improve edge alignment */
-    if (opts->gradient_iterations > 0)
-        surf_deform_gradient_dual(polygons_pial, polygons_white, labels, nii_ptr,
-                                  CGM + shifting[0], GWM + shifting[1],
-                                  (double *)thickness_values,
-                                  opts->gradient_iterations, opts->verbose);
 
     /* Profile-based pial placement.  It starts from the thickness-based
      * estimate and does not need the balloon-force deformation above. */

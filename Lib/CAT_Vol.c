@@ -4145,6 +4145,27 @@ float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3
  *
  * \note Boundary voxels use one-sided differences to avoid out-of-bounds access.
  */
+/**
+ * \brief Matrix that maps a gradient3D() gradient into world space.
+ *
+ * With x = A u + b (A = sto_xyz) the world gradient is A^-T dI/du, and
+ * dI/du = diag(vx) g for the per-mm voxel-axis gradient g of gradient3D().
+ *
+ * \param nii_ptr (in)  NIfTI header (sto_xyz and voxel size dx, dy, dz)
+ * \param M       (out) 3x3 matrix, g_world = M * g_gradient3D
+ * \return void
+ */
+void gradient3D_world_matrix(const nifti_image *nii_ptr, double M[3][3])
+{
+    mat44 inv = nifti_mat44_inverse(nii_ptr->sto_xyz);
+    double vx[3] = {fabs(nii_ptr->dx), fabs(nii_ptr->dy), fabs(nii_ptr->dz)};
+    int r, c;
+
+    for (r = 0; r < 3; r++)
+        for (c = 0; c < 3; c++)
+            M[r][c] = inv.m[c][r] * vx[c];
+}
+
 /* Per-thread arguments for gradient3D: one [ini,fin) slab of i-planes.
    Iterations are independent and write disjoint grad_*[index]. */
 typedef struct

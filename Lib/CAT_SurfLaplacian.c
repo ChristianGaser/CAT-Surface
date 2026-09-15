@@ -413,6 +413,36 @@ skip_territory:
     free(frac);
 }
 
+/**
+ * \brief Interpolate a gradient3D() gradient at a world position, in world space.
+ *
+ * \param M       (in)  matrix from gradient3D_world_matrix()
+ * \param grad_x  (in)  voxel-axis gradient, x component
+ * \param grad_y  (in)  voxel-axis gradient, y component
+ * \param grad_z  (in)  voxel-axis gradient, z component
+ * \param pos     (in)  world position in mm
+ * \param dims    (in)  volume dimensions
+ * \param nii_ptr (in)  NIfTI header
+ * \param gx      (out) world gradient, x component
+ * \param gy      (out) world gradient, y component
+ * \param gz      (out) world gradient, z component
+ * \return void
+ */
+static void
+world_gradient(double M[3][3], float *grad_x, float *grad_y, float *grad_z,
+               const double pos[3], int dims[3], nifti_image *nii_ptr,
+               double *gx, double *gy, double *gz)
+{
+    double g[3];
+
+    g[0] = isoval(grad_x, pos[0], pos[1], pos[2], dims, nii_ptr);
+    g[1] = isoval(grad_y, pos[0], pos[1], pos[2], dims, nii_ptr);
+    g[2] = isoval(grad_z, pos[0], pos[1], pos[2], dims, nii_ptr);
+    *gx = M[0][0] * g[0] + M[0][1] * g[1] + M[0][2] * g[2];
+    *gy = M[1][0] * g[0] + M[1][1] * g[1] + M[1][2] * g[2];
+    *gz = M[2][0] * g[0] + M[2][1] * g[1] + M[2][2] * g[2];
+}
+
 /* -------------------------------------------------------------------
  * surf_ade_pial_white
  *
@@ -503,7 +533,7 @@ int surf_ade_pial_white(polygons_struct *central,
                 phi_stop_pial, phi_stop_white);
 
     /* ================================================================
-     * Step 2 — Compute gradient of φ (in voxel-grid coordinates)
+     * Step 2 — Compute gradient of φ (voxel axes, rotated to world below)
      * ================================================================ */
     grad_x = (float *)malloc(sizeof(float) * nvox);
     grad_y = (float *)malloc(sizeof(float) * nvox);
@@ -522,6 +552,13 @@ int surf_ade_pial_white(polygons_struct *central,
     }
 
     gradient3D(phi, NULL, grad_x, grad_y, grad_z, dims, vx);
+
+    /* The streamlines are traced in world coordinates, so the voxel-axis
+     * gradient has to be rotated into world space first.  Using it directly
+     * sent the streamlines the wrong way along every axis stored with a
+     * negative direction. */
+    double g2w[3][3];
+    gradient3D_world_matrix(nii_ptr, g2w);
 
     /* ================================================================
      * Step 3 — Prepare output surfaces (copy of central)
@@ -569,9 +606,8 @@ int surf_ade_pial_white(polygons_struct *central,
 
         for (step = 0; step < max_steps; step++)
         {
-            gx = isoval(grad_x, pos[0], pos[1], pos[2], dims, nii_ptr);
-            gy = isoval(grad_y, pos[0], pos[1], pos[2], dims, nii_ptr);
-            gz = isoval(grad_z, pos[0], pos[1], pos[2], dims, nii_ptr);
+            world_gradient(g2w, grad_x, grad_y, grad_z, pos, dims, nii_ptr,
+                           &gx, &gy, &gz);
 
             glen = sqrt(gx * gx + gy * gy + gz * gz);
             if (glen < min_grad)
@@ -622,9 +658,8 @@ int surf_ade_pial_white(polygons_struct *central,
 
         for (step = 0; step < max_steps; step++)
         {
-            gx = isoval(grad_x, pos[0], pos[1], pos[2], dims, nii_ptr);
-            gy = isoval(grad_y, pos[0], pos[1], pos[2], dims, nii_ptr);
-            gz = isoval(grad_z, pos[0], pos[1], pos[2], dims, nii_ptr);
+            world_gradient(g2w, grad_x, grad_y, grad_z, pos, dims, nii_ptr,
+                           &gx, &gy, &gz);
 
             glen = sqrt(gx * gx + gy * gy + gz * gz);
             if (glen < min_grad)

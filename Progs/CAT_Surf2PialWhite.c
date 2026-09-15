@@ -24,8 +24,7 @@ double w3 = 0.05;
 double sigma = 0.2;
 int verbose = 0;
 int iterations = 100;
-int gradient_iterations = 0;
-int method = 0;
+int method = 2;
 int remove_intersect = 0;
 int legacy_pial = 0;
 /* Profile placement: negative values keep the library defaults */
@@ -45,10 +44,9 @@ static ArgvInfo argTable[] = {
      "Define sigma for smoothing the displacement field."},
     {"-iter", ARGV_INT, (char *)TRUE, (char *)&iterations,
      "Set number of deformation iterations."},
-    {"-giter", ARGV_INT, (char *)TRUE, (char *)&gradient_iterations,
-     "Set number of gradient refinement iterations (0 to disable)."},
     {"-method", ARGV_INT, (char *)TRUE, (char *)&method,
-     "Method: 0 = deformation (default), 1 = ADE, 2 = deformation:pial | ADE:white."},
+     "Start surfaces: 0 = central +/- half thickness for both, 1 = ADE streamlines\n\
+                 for both, 2 = ADE for white, thickness for pial (default)."},
     {"-legacy-pial", ARGV_CONSTANT, (char *)TRUE, (char *)&legacy_pial,
      "Deform the pial surface with the balloon-force deformation instead of\n\
                  placing it by profile search."},
@@ -82,7 +80,9 @@ usage(const char *executable)
             "- Cortical thickness values.\n"
             "- A label image that encodes tissue classes.\n\n"
             "This tool performs the following steps:\n"
-            "1. Estimate preliminary pial and white surfaces using thickness.\n"
+            "1. Start surfaces: by default the white surface follows the\n"
+            "   streamlines of an adaptive diffusion equation (ADE) and the\n"
+            "   pial surface starts at central surface + half thickness.\n"
             "2. Smooth pial surface with curvature-guided correction.\n"
             "3. Deform the white surface using the image intensity and\n"
             "   gradient field.\n"
@@ -96,7 +96,7 @@ usage(const char *executable)
             "  -w2     Gradient alignment force (edges attraction).\n"
             "  -w3     Balloon force, based on isovalue distance.\n"
             "  -sigma  Controls displacement smoothing.\n"
-            "  -method Controls general approach (ADE or deformation).\n"
+            "  -method Start surfaces (ADE or thickness-based).\n"
             "  -iter   Number of iterations (e.g. 50).\n\n"
             "Use -remove_intersect to repair self-intersections of the resulting\n"
             "pial and white surfaces.  This preserves the mesh topology, so the\n"
@@ -186,7 +186,6 @@ int main(int argc, char *argv[])
     opts.w3 = w3;
     opts.sigma = sigma;
     opts.iterations = iterations;
-    opts.gradient_iterations = gradient_iterations;
     opts.method = method;
     opts.remove_intersect = remove_intersect;
     opts.pial_profile = !legacy_pial;

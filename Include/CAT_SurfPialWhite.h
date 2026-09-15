@@ -37,8 +37,9 @@ extern "C"
         double w3;               /**< Balloon force weight (default: 0.05) */
         double sigma;            /**< Displacement smoothing sigma (default: 0.2) */
         int iterations;          /**< Number of deformation iterations (default: 100) */
-        int gradient_iterations; /**< Number of gradient refinement iterations (default: 30) */
-        int method;              /**< 0 = deformation (default), 1 = ADE, 2 = deformation:pial | ADE:white */
+        int method;              /**< Start surfaces: 0 = central +/- half thickness for both,
+                                      1 = ADE streamlines for both, 2 = ADE for the white and
+                                      thickness for the pial surface (default) */
         int pial_profile;        /**< Place the pial surface by profile search (default: 1),
                                       see CAT_SurfDeformPialProfile().  0 restores the
                                       balloon-force deformation for the pial surface. */

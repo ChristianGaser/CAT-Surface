@@ -365,4 +365,19 @@ void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, 
  */
 void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype);
 void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, float *grad_z, int dims[3], double voxelsize[3]);
+
+/**
+ * \brief Matrix that maps a gradient3D() gradient into world space.
+ *
+ * gradient3D() differentiates along the voxel axes and divides by the voxel
+ * size.  Surface normals and world positions live in world space, so the
+ * gradient has to be rotated before it is compared with them: using it
+ * directly flips its sign on every axis stored with a negative direction and
+ * ignores the rotation of oblique images.
+ *
+ * \param nii_ptr (in)  NIfTI header (sto_xyz and voxel size dx, dy, dz)
+ * \param M       (out) 3x3 matrix, g_world = M * g_gradient3D
+ * \return void
+ */
+void gradient3D_world_matrix(const nifti_image *nii_ptr, double M[3][3]);
 #endif

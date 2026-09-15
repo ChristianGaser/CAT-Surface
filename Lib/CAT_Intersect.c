@@ -1092,7 +1092,7 @@ void remove_intersections(polygons_struct *polygons, int verbose)
 int remove_intersections_iter(polygons_struct *polygons, int max_passes,
                               int maxiter, int verbose)
 {
-    int *defects, *polydefects, n_intersects;
+    int *defects, *polydefects, n_intersects = 0;
     int *n_neighbours, **neighbours;
     int counter;
 
@@ -1103,21 +1103,34 @@ int remove_intersections_iter(polygons_struct *polygons, int max_passes,
 
     check_polygons_neighbours_computed(polygons);
 
-    counter = 0;
-
-    n_intersects = find_selfintersections(polygons, defects, polydefects, 1);
-    n_intersects = join_intersections(polygons, defects, polydefects,
-                                      n_neighbours, neighbours);
-    while (n_intersects > 0 && counter < max_passes)
+    /* Detect afresh before every pass.  smooth_selfintersections() only
+     * re-tests the triangles it already labelled, but smoothing a defect can
+     * make it intersect triangles outside that label.  Carrying the labels over
+     * from one pass to the next therefore kept smoothing stale regions while
+     * the actual intersections were never seen, and a few defects survived all
+     * passes. */
+    for (counter = 0; counter < max_passes; counter++)
     {
-        counter++;
+        find_selfintersections(polygons, defects, polydefects, 1);
+        n_intersects = join_intersections(polygons, defects, polydefects,
+                                          n_neighbours, neighbours);
+        if (n_intersects == 0)
+            break;
 
         if (verbose)
             printf("%3d self intersections found that will be corrected.\n", n_intersects);
 
-        n_intersects = smooth_selfintersections(polygons, defects, polydefects,
-                                                n_intersects, n_neighbours,
-                                                neighbours, maxiter);
+        smooth_selfintersections(polygons, defects, polydefects,
+                                 n_intersects, n_neighbours,
+                                 neighbours, maxiter);
+    }
+
+    if (counter >= max_passes)
+    {
+        /* passes exhausted: report what the last pass left */
+        find_selfintersections(polygons, defects, polydefects, 1);
+        n_intersects = join_intersections(polygons, defects, polydefects,
+                                          n_neighbours, neighbours);
     }
 
     free(defects);
