@@ -45,12 +45,12 @@ void CAT_PpmSulciOptionsInit(CAT_PpmSulciOpts *opts)
     opts->band = 0.25;
     opts->margin = 0.05;
     opts->strength = 0.0;
-    opts->offset = 0.6;
+    opts->offset = 0.2;
     /* Negative: the raising half uses the same offset, i.e. the signed map
        is applied whole.  See the header for why the two halves are worth
        separating and what the asymmetry measures. */
     opts->offset_gyri = -1.0;
-    opts->cutoff = 0.4;
+    opts->cutoff = 0.2;
     opts->verbose = 0;
 }
 

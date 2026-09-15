@@ -67,7 +67,7 @@ static ArgvInfo argTable[] = {
      never satisfy, so it cannot cut a gyrus."},
 
   {"-sulci-sheet-strength", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sheet_strength,
-    "Gain on the sheetness response used by -strength-sulci (library default 30).\n\
+    "Gain on the sheetness response used by -strength-sulci (library default 1).\n\
      The automatic noise scale of the sheetness filter is half the largest\n\
      Hessian norm in the volume, which on real data is set by the cortical\n\
      ribbon itself. A thin sulcal valley is far weaker than that, so the raw\n\
