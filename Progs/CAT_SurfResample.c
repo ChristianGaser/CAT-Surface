@@ -117,7 +117,8 @@ int main(int argc, char *argv[])
     }
 
     // Ensure output file is defined for annotation resampling
-    if ((filename_extension_matches(input_values_file, "annot")) && !output_values_defined) {
+    if (values_defined && !output_values_defined &&
+        filename_extension_matches(input_values_file, "annot")) {
         fprintf(stderr, "You have to define output for resampling of annot files.\n");
         exit(EXIT_FAILURE);
     }
@@ -176,7 +177,9 @@ int main(int argc, char *argv[])
     // Process input values or annotation file
     if (values_defined) {
         // Allocate memory for input and output values
-        input_values = (double *) malloc(sizeof(double) * polygons_sphere->n_points);
+        // Without a sphere the source mesh is the surface itself
+        n_points = polygons_sphere ? polygons_sphere->n_points : polygons->n_points;
+        input_values = (double *) malloc(sizeof(double) * n_points);
         output_values = (double *) malloc(sizeof(double) * target_sphere->n_points);
 
         // Handle annotation files, with a note on current platform limitation
