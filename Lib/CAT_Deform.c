@@ -929,9 +929,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
 
     // Final Laplacian smoothing
     if (have1)
-        smooth_laplacian(polygons1, 10, 0.1, 0.5);
+        smooth_laplacian(polygons1, 2, 0.1, 0.5);
     if (have2)
-        smooth_laplacian(polygons2, 10, 0.1, 0.5);
+        smooth_laplacian(polygons2, 2, 0.1, 0.5);
 
     // Free allocated memory
     free(gradient_x);
