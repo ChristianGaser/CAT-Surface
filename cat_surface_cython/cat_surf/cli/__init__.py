@@ -318,19 +318,23 @@ def surf_reduce(input_file, output_file, ratio=0.5, aggressiveness=7.0,
 
 def surf_fix_self_intersect(input_file, output_file=None, *,
                             count_only=False, max_passes=10,
-                            max_iters=50, verbose=False):
+                            max_iters=50, verbose=False, reference_file=None):
     """Mirror of ``CAT_SurfFixSelfIntersect``.
 
     When ``count_only=True``, returns the number of intersecting triangle
-    pairs without writing any output.
+    pairs without writing any output.  ``reference_file`` mirrors
+    ``-reference``: a surface with the same topology that defects the
+    smoothing cannot resolve retreat towards.
     """
     v, f = read_surface(input_file)
     if count_only:
         return _count_intersections(v, f)
     if output_file is None:
         raise ValueError("output_file required unless count_only=True")
+    ref = read_surface(reference_file)[0] if reference_file else None
     nv, nf = _fix_self_intersect(v, f, max_passes=max_passes,
-                                   max_iters=max_iters, verbose=verbose)
+                                   max_iters=max_iters, verbose=verbose,
+                                   reference=ref)
     write_surface(output_file, nv, nf)
 
 

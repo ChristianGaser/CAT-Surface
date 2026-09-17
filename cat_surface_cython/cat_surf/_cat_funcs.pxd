@@ -223,6 +223,8 @@ cdef extern from "CAT_Intersect.h":
     void remove_intersections(polygons_struct *polygons, int verbose)
     int  remove_intersections_iter(polygons_struct *polygons, int max_passes,
                                    int maxiter, int verbose)
+    int  remove_intersections_ref(polygons_struct *polygons, const Point *reference,
+                                  int max_passes, int maxiter, int verbose)
 
 
 # ---------------------------------------------------------------------------

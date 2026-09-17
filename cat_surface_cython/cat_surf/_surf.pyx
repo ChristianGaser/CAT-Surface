@@ -617,7 +617,7 @@ def correct_thickness_folding(vertices, faces, thickness,
 # Repair self-intersections  (mirrors CAT_SurfFixSelfIntersect)
 # ===================================================================
 def fix_self_intersect(vertices, faces, int max_passes=10,
-                       int max_iters=50, bint verbose=False):
+                       int max_iters=50, bint verbose=False, reference=None):
     """
     Remove self-intersections from a triangle mesh.
 
@@ -625,6 +625,12 @@ def fix_self_intersect(vertices, faces, int max_passes=10,
     smoothed until they no longer intersect.  The mesh topology is preserved,
     so the returned arrays have the same shape as the input and per-vertex
     data stays valid.
+
+    Smoothing cannot separate two sheets that were driven through each other,
+    e.g. the two sides of a thin gyral blade after a deformation.  With a
+    ``reference`` -- typically the surface the deformation started from --
+    defects that survive the smoothing are moved a quarter of the way back
+    towards it, together with two rings of neighbours, and repaired again.
 
     Parameters
     ----------
@@ -635,6 +641,9 @@ def fix_self_intersect(vertices, faces, int max_passes=10,
     max_iters : int
         Maximum smoothing iterations per pass.
     verbose : bool
+    reference : array_like, shape (V, 3), optional
+        Vertex positions with the same topology to retreat towards where
+        smoothing does not resolve a defect.
 
     Returns
     -------
@@ -642,9 +651,20 @@ def fix_self_intersect(vertices, faces, int max_passes=10,
     new_faces    : ndarray, shape (F, 3), int32
     """
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
+    cdef PolygonsMesh ref_mesh
 
-    C.remove_intersections_iter(mesh.ptr(), max_passes, max_iters,
-                                1 if verbose else 0)
+    if reference is None:
+        C.remove_intersections_iter(mesh.ptr(), max_passes, max_iters,
+                                    1 if verbose else 0)
+    else:
+        ref = np.asarray(reference, dtype=np.float64)
+        if ref.shape != (mesh.ptr().n_points, 3):
+            raise ValueError(
+                f"reference has shape {ref.shape}, expected "
+                f"({mesh.ptr().n_points}, 3)")
+        ref_mesh = _ensure_mesh(ref, faces)
+        C.remove_intersections_ref(mesh.ptr(), ref_mesh.ptr().points,
+                                   max_passes, max_iters, 1 if verbose else 0)
 
     return polygons_to_arrays(mesh)
 

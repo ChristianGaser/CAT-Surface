@@ -335,6 +335,70 @@ def test_barrier_reference():
     check("repeated runs are identical", np.array_equal(g0, g3))
 
 
+def _icosphere(level, radius):
+    """Subdivided icosahedron with outward-facing triangles."""
+    t = (1 + 5 ** 0.5) / 2
+    v = [np.array(x, float) for x in
+         ([-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t],
+          [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1])]
+    f = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9],
+         [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2],
+         [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10],
+         [8, 6, 7], [9, 8, 1]]
+    for _ in range(level):
+        cache = {}
+
+        def mid(a, b):
+            key = (min(a, b), max(a, b))
+            if key not in cache:
+                v.append((v[a] + v[b]) / 2)
+                cache[key] = len(v) - 1
+            return cache[key]
+
+        f = [tri for a, b, c in f
+             for ab, bc, ca in [(mid(a, b), mid(b, c), mid(c, a))]
+             for tri in ([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca])]
+    v = np.array(v)
+    return radius * v / np.linalg.norm(v, axis=1, keepdims=True), np.array(f, np.int32)
+
+
+def test_fix_self_intersect_reference():
+    section("Self-intersection repair with a reference")
+
+    # Two sheets driven through each other -- here the northern cap of a
+    # sphere pushed through its southern half -- survive any smoothing; the
+    # sphere they came from is the way back.
+    sphere, f = _icosphere(4, 10.0)
+    v = sphere.copy()
+    v[v[:, 2] > 7.0, 2] -= 19.0
+    before = cat_surf.count_intersections(v, f)
+    plain, _ = cat_surf.fix_self_intersect(v, f)
+    fixed, _ = cat_surf.fix_self_intersect(v, f, reference=sphere)
+    check("the pushed cap crosses the sphere", before > 100, str(before))
+    check("smoothing alone leaves crossings",
+          cat_surf.count_intersections(plain, f) > 0)
+    check("retreating to the reference removes them",
+          cat_surf.count_intersections(fixed, f) == 0)
+    check("the equator is untouched",
+          np.array_equal(fixed[np.abs(sphere[:, 2]) < 3.0],
+                         sphere[np.abs(sphere[:, 2]) < 3.0].astype(np.float32)))
+
+    try:
+        cat_surf.fix_self_intersect(v, f, reference=sphere[:-1])
+        raised = False
+    except ValueError:
+        raised = True
+    check("a reference of the wrong size is rejected", raised)
+
+    with tempfile.TemporaryDirectory() as d:
+        src, ref, out = (os.path.join(d, n) for n in ("in.gii", "ref.gii", "out.gii"))
+        cat_surf.write_surface(src, v, f)
+        cat_surf.write_surface(ref, sphere, f)
+        cli.surf_fix_self_intersect(src, out, reference_file=ref)
+        check("the CLI mirror passes the reference on",
+              cli.surf_fix_self_intersect(out, count_only=True) == 0)
+
+
 def test_option_no_ops():
     section("Backward compatibility of the new options")
 
@@ -528,7 +592,7 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_barrier_reference,
-                 test_option_no_ops,
+                 test_fix_self_intersect_reference, test_option_no_ops,
                  test_surf_info, test_vol_calc):
         try:
             test()

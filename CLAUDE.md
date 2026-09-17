@@ -594,6 +594,34 @@ crossings were never seen: a pre-repair white surface went 1088 -> 114 pairs wit
 left"; detecting afresh before every pass gives 0. On a marching-cubes mesh the old loop even
 reported 0 regions while 1 pair remained. With the fix all 36 surfaces end at 0.
 
+**What smoothing cannot repair at all: crossed sheets (`remove_intersections_ref`).** On the 38
+hemispheres of the T1Prep test set, 2-4 white surfaces per run still ended with 86-269
+intersecting pairs, and 1-3 pial surfaces with 3-126. They are not local folds: 99-100% of the
+pairs join triangles more than 10 mesh steps apart, and on the central surface those partners
+lie back to back 0.8-1.3 mm from each other. They are **thin gyral blades whose two sides were
+driven through each other**: each side moves inward by 0.6-0.9 mm towards a white target the
+label never reaches inside the blade (2.48 where 2.6 is asked for), the same way the pial
+surface overshoots in a glued sulcus. The balloon deformation creates them -- ADNI_AD rh keeps
+0 pairs from its ADE start surface and 86 after it -- and no amount of smoothing separates two
+sheets that already cross: three times the passes or four times the iterations left 265 of 269.
+
+The way back is the surface the deformation started from: the central surface for pial and
+white, the start mesh for the central one. `remove_intersections_ref()` moves the vertices of
+every defect the smoothing could not resolve, plus `CAT_RETREAT_RINGS` (2) rings of
+neighbours, `CAT_RETREAT_FRACTION` (0.25) of the way back and repairs again, up to
+`CAT_RETREAT_STEPS` (16) times. `CAT_Surf2PialWhite` and `CAT_SurfDeform` use it, and
+`CAT_SurfFixSelfIntersect -reference` / `cat_surf.fix_self_intersect(reference=...)` expose it.
+Measured on the five failing hemispheres: every one ends at 0 pairs, 0.13-0.55% of the vertices
+move, the mean label error of the surface changes by at most 0.0004 and the pial-white distance
+by at most 0.0004 mm. A reference is not needed everywhere, only where the defects are -- but
+where the reference itself crosses (a central surface that came out of its own repair with
+defects), the retreat cannot help either.
+
+Profile placement of the white surface (the pial search on a mirrored label map, so a blade
+ridge becomes a valley) was tried instead and rejected: more accurate (label MAE 0.03-0.05
+against 0.07-0.10) but 200-600 pairs left after the repair, because the white surface has far
+more thin structures for the facing-wall clamp to get wrong.
+
 ### `surf_deform` (`CAT_SurfDeform`, the central surface in T1Prep)
 
 Two safeguards against self-intersections cost accuracy, measured on six central surfaces
