@@ -20,7 +20,7 @@ double slope = 0.0;    /* thickness-dependent correction slope */
 /* the argument table */
 static ArgvInfo argTable[] = {
     {"-max", ARGV_FLOAT, (char *)TRUE, (char *)&max_dist, "Define maximum thickness, where all values exceeding that will be cut."},
-    {"-slope", ARGV_FLOAT, (char *)TRUE, (char *)&slope, "Thickness-based weighting strength: larger thickness values are corrected more strongly. Applied only for positive mean curvature. 0 disables weighting."},
+    {"-slope", ARGV_FLOAT, (char *)TRUE, (char *)&slope, "Thickness-based weighting strength: larger thickness values are corrected more strongly. Applied only for positive mean curvature (convex, i.e. gyral, cortex). 0 disables weighting."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
 
 void usage(char *executable)

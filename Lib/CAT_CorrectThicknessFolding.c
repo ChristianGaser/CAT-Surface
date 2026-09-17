@@ -40,9 +40,11 @@
  * removes the projection from thickness values. Optionally applies a
  * per-vertex weighting based on deviation from the mean thickness.
  *
- * Weighting/correction with non-zero slope is restricted to vertices with
- * positive mean curvature, targeting sulcal regions where over-correction is
- * most likely.
+ * The correction is restricted to vertices with positive mean curvature. With
+ * the outward-oriented surfaces CAT produces that is convex, i.e. gyral,
+ * cortex (the opposite of FreeSurfer's ?h.curv sign): on real central
+ * surfaces the smoothed mean curvature averages -0.12 in the deepest quarter
+ * of the sulcal depth and +0.14 in the shallowest.
  *
  * \param polygons  (in)  surface mesh
  * \param n_vals    (in)  number of thickness values (must match n_points)
@@ -57,7 +59,7 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
     double *curvatures, *mean_curvatures;
     double *orig_thickness;
     double **G, **invG, *beta;
-    double mean_thickness, std_thickness, std_curvature;
+    double mean_thickness, std_thickness;
     int i, j;
     int *n_neighbours, **neighbours;
 
@@ -102,23 +104,28 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
                                          neighbours, 0.0, curvtype[j],
                                          curvatures);
 
-        /* Smooth foldings with FWHM of 3mm and normalize to mean zero */
+        /* Smooth foldings with FWHM of 3mm */
         smooth_heatkernel(polygons, curvatures, 3.0);
+
+        /* Rescue mean curvature before it is centred.  Its sign selects the
+           convex vertices below, and that has to be the sign of the geometry,
+           not the sign relative to the mean: a few hundred degenerate
+           vertices reach |H| ~ 1e4 against a p1-p99 range of about -0.9 to
+           0.3, drag the mean far away from zero, and the centred values then
+           put 0.1% or 99.9% of the hemisphere on one side instead of about
+           half. */
+        if (curvtype[j] == 4)
+        {
+            for (i = 0; i < n_vals; i++)
+                mean_curvatures[i] = curvatures[i];
+        }
+
+        /* Normalize to mean zero */
         normalize_double(curvatures, n_vals);
 
         /* Add linear term */
         for (i = 0; i < n_vals; i++)
             G[i][2 * j] = curvatures[i];
-
-        /* Rescue mean curvature */
-        if (curvtype[j] == 4)
-        {
-            std_curvature = get_std_double(curvatures, n_vals, 0);
-            if (!isfinite(std_curvature) || std_curvature <= 1e-12)
-                std_curvature = 1.0;
-            for (i = 0; i < n_vals; i++)
-                mean_curvatures[i] = curvatures[i];
-        }
 
         /* Add squared term */
         for (i = 0; i < n_vals; i++)

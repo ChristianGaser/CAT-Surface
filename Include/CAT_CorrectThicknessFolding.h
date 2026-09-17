@@ -45,8 +45,10 @@ extern "C"
     * where f_i is z-scored thickness. Larger thickness values therefore get
     * stronger correction and smaller thickness values get weaker correction.
     *
-    * With non-zero slope, weighting/correction is only applied for vertices
-    * with positive mean curvature (sulcal-focused correction).
+    * The correction is only applied for vertices with positive mean
+    * curvature, measured before the curvature is centred. With outward
+    * normals that is convex (gyral) cortex -- the opposite of FreeSurfer's
+    * ?h.curv sign.
      *
      * With slope=0, this reduces to the unweighted correction.
      *
