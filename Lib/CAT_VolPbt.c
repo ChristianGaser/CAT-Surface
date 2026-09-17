@@ -60,164 +60,35 @@ static void correct_ppm_sulci(const float *src, float *PPM, float *GMT,
                               double sulcal_width);
 static double estimate_pve_width(const float *src, int dims[3]);
 
-void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
-{
-    if (!opts)
-        return;
-    opts->n_avgs = 5;
-    opts->n_median_filter = 0;
-    opts->range = 0.45;
-    opts->median_subsample = 2;
-    opts->fill_thresh = 0.5;
-    opts->correct_thickness = PBT_CORRECT_MM;
-    opts->sulcal_width = 5.0;
-    opts->pve_distance = 0;
-    opts->sulcal_barrier = 0;
-    opts->barrier_dmin = 2.0;
-    opts->barrier_gmtmax = 0.0;
-    opts->barrier_gmtfactor = 1.5;
-    opts->barrier_gmtpct = 90.0;
-    opts->barrier_ramp = 0.5;
-    opts->barrier_local = 0.0;
-    opts->barrier_q = 0.7;
-    opts->barrier_tmin = 0.5;
-    opts->barrier_halfwidth = 0.0;
-    opts->oriented_filter = 1;
-    opts->oriented_strength = 1.0;
-    opts->oriented_cutoff = 0.0; /* 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
-    opts->fast = 0;
-    opts->verbose = 0;
-}
-
-/**
- * \brief Compute projection-based cortical thickness and percentage position map.
+/*
+ * Preprocess the label map and estimate the averaged CSF and WM distances,
+ * in voxel units.
  *
- * Implements the full PBT pipeline consisting of averaged WM/CSF distance
- * estimation, sulcal and gyral thickness estimation, PPM construction, and an
- * optional weighted local median-filter cleanup of the final PPM.
- *
- * If opts->n_median_filter > 0, the median filter is not applied globally.
- * Instead, a topology-artifact likelihood map is estimated from the positive
- * residual PPM - smooth(PPM), restricted to sufficiently thick cortex
- * (GMT > 1.5), regularized morphologically, then smoothed. This soft weight
- * map blends the original PPM with a locally median-filtered PPM so that only
- * likely topology-artifact regions receive strong filtering.
- *
- * \param src            (in)  input PVE label image (CSF=1, GM=2, WM=3)
- * \param GMT_out        (out) output gray matter thickness map
- * \param PPM_out        (out) output percentage position map
- * \param dist_CSF_out   (out) optional output CSF distance map, or NULL
- * \param dist_WM_out    (out) optional output WM distance map, or NULL
- * \param dims           (in)  volume dimensions [nx, ny, nz]
- * \param voxelsize      (in)  voxel sizes in mm [dx, dy, dz]
- * \param opts           (in)  algorithm options, including n_median_filter for
- *                             weighted local PPM cleanup
- * \return 0 on success, non-zero on error
+ * Shared by CAT_VolComputePbt() and CAT_VolPbtBarrierReference(), so that a
+ * reference computed up front is exactly the one a full run would derive.
+ * src_copy receives the median-filtered label map; *sheet_out and
+ * *sheet_nrm_out receive the orientation field when opts->oriented_filter is
+ * set and NULL otherwise, and the caller frees them even on failure.  mask
+ * and input are scratch buffers of nvox elements.  Returns 0 on success and
+ * -2 when memory runs out.
  */
-int CAT_VolComputePbt(
-    const float *src,
-    float *GMT_out,
-    float *PPM_out,
-    float *dist_CSF_out,
-    float *dist_WM_out,
-    int dims[3],
-    double voxelsize[3],
-    const CAT_PbtOptions *opts)
+static int
+estimate_distances(const float *src, float *src_copy, float *dist_CSF,
+                   float *dist_WM, unsigned char *mask, float *input,
+                   float **sheet_out, float **sheet_nrm_out,
+                   int dims[3], double voxelsize[3], int n_avgs,
+                   const CAT_PbtOptions *opts)
 {
     int i, j;
-    int nvox;
-    int n_avgs, n_median_filter, subsample;
-    double range, fill_thresh, correct_thickness;
-    int verbose;
-    float mean_vx_size, shrink, gmt2_min;
-    double add_value, sum_dist;
-    double s[3], threshold[2], prctile[2];
-    int replace = 0;
-
+    const int nvox = dims[0] * dims[1] * dims[2];
+    const int verbose = opts->verbose;
+    const double range = opts->range;
+    const int replace = 0;
+    double add_value;
     double pve_width = 1.0;
     float *src_val = NULL;
-
-    /* sheetness field driving the oriented replacements of the isotropic
-       medians; NULL keeps every filter isotropic and the result unchanged */
     float *sheet = NULL;
     float *sheet_nrm = NULL;
-
-    /* sulcal medial surface used as a barrier for the CSF distance */
-    float *medial = NULL;
-
-    unsigned char *mask = NULL;
-    float *input = NULL;
-    float *dist_CSF = NULL;
-    float *dist_WM = NULL;
-    float *GMT = NULL;
-    float *GMT1 = NULL;
-    float *GMT2 = NULL;
-    float *PPM = NULL;
-    float *src_copy = NULL;
-
-    if (!src || !GMT_out || !PPM_out || !dims || !voxelsize || !opts)
-        return -1;
-
-    nvox = dims[0] * dims[1] * dims[2];
-    mean_vx_size = (voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0f;
-    if (mean_vx_size <= 0.0f)
-        return -1;
-
-    /* mm-defined constants expressed in the voxel units used internally */
-    shrink = (float)(PBT_SHRINK_MM / mean_vx_size);
-    gmt2_min = (float)(PBT_GMT2_MIN_MM / mean_vx_size);
-
-    /* Copy options (handle fast mode) */
-    n_avgs = opts->n_avgs;
-    n_median_filter = opts->n_median_filter;
-    range = opts->range;
-    fill_thresh = opts->fill_thresh;
-    correct_thickness = opts->correct_thickness;
-    verbose = opts->verbose;
-    subsample = opts->median_subsample;
-
-    if (opts->fast)
-    {
-        n_avgs /= 2;
-        n_median_filter = 0;
-        fill_thresh = 0.0;
-    }
-    if (n_avgs < 1)
-        n_avgs = 1;
-
-    /* Allocate working arrays */
-    mask = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
-    input = (float *)malloc(sizeof(float) * nvox);
-    dist_CSF = (float *)malloc(sizeof(float) * nvox);
-    dist_WM = (float *)malloc(sizeof(float) * nvox);
-    GMT = (float *)malloc(sizeof(float) * nvox);
-    GMT1 = (float *)malloc(sizeof(float) * nvox);
-    GMT2 = (float *)malloc(sizeof(float) * nvox);
-    PPM = (float *)malloc(sizeof(float) * nvox);
-    src_copy = (float *)malloc(sizeof(float) * nvox);
-
-    if (!mask || !input || !dist_CSF || !dist_WM || !GMT || !GMT1 || !GMT2 || !PPM || !src_copy)
-    {
-        if (mask)
-            free(mask);
-        if (input)
-            free(input);
-        if (dist_CSF)
-            free(dist_CSF);
-        if (dist_WM)
-            free(dist_WM);
-        if (GMT)
-            free(GMT);
-        if (GMT1)
-            free(GMT1);
-        if (GMT2)
-            free(GMT2);
-        if (PPM)
-            free(PPM);
-        if (src_copy)
-            free(src_copy);
-        return -2;
-    }
 
     /* Copy source and initialize distances */
     for (i = 0; i < nvox; i++)
@@ -299,8 +170,8 @@ int CAT_VolComputePbt(
         src_val = (float *)malloc(sizeof(float) * nvox);
         if (!src_val)
         {
-            free(mask); free(input); free(dist_CSF); free(dist_WM);
-            free(GMT); free(GMT1); free(GMT2); free(PPM); free(src_copy);
+            *sheet_out = sheet;
+            *sheet_nrm_out = sheet_nrm;
             return -2;
         }
         pve_width = estimate_pve_width(src_copy, dims);
@@ -381,6 +252,230 @@ int CAT_VolComputePbt(
         }
     }
 
+    free(src_val);
+    *sheet_out = sheet;
+    *sheet_nrm_out = sheet_nrm;
+    return 0;
+}
+
+/*
+ * Typical cortical thickness implied by the distance maps, in voxel units:
+ * the mean of dist_WM + dist_CSF over the GM band, below the percentile pct.
+ *
+ * Not the median.  The proxy runs high because the glued sulci the gate
+ * exists to find sit in its upper tail, and a median only limits their
+ * influence -- it still sits inside a distribution they have skewed.  Cutting
+ * the tail off and averaging what is left tracks the cortex more closely:
+ * measured against the GMT finally reported on four hemispheres from two
+ * datasets, the ratio spans 0.087 for this estimator against 0.102 for the
+ * median, so a factor calibrated against it transfers better between
+ * subjects.  Subsampled by two per axis, which is plenty for the estimate and
+ * keeps the buffer small.  Returns a negative value when the band is too
+ * small to say anything.
+ */
+static double
+barrier_reference(const float *src_copy, const float *dist_WM,
+                  const float *dist_CSF, int dims[3], double pct)
+{
+    const int cap = (dims[0] / 2 + 1) * (dims[1] / 2 + 1) * (dims[2] / 2 + 1);
+    double *tbuf = (double *)malloc(sizeof(double) * (size_t)cap);
+    double ref = -1.0;
+    int bx, by, bz, k, keep, nt = 0;
+
+    if (!tbuf)
+        return -1.0;
+
+    for (bz = 0; bz < dims[2]; bz += 2)
+        for (by = 0; by < dims[1]; by += 2)
+            for (bx = 0; bx < dims[0]; bx += 2)
+            {
+                const int bi = bx + by * dims[0] + bz * dims[0] * dims[1];
+                if (src_copy[bi] > CGM && src_copy[bi] < GWM && nt < cap)
+                    tbuf[nt++] = (double)dist_WM[bi] + (double)dist_CSF[bi];
+            }
+
+    if (nt >= 100)
+    {
+        qsort(tbuf, (size_t)nt, sizeof(double), cmp_double_asc);
+
+        keep = (int)((double)nt * pct / 100.0);
+        if (keep < 1 || keep > nt)
+            keep = nt;
+
+        ref = 0.0;
+        for (k = 0; k < keep; k++)
+            ref += tbuf[k];
+        ref /= (double)keep;
+    }
+    free(tbuf);
+    return ref;
+}
+
+void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
+{
+    if (!opts)
+        return;
+    opts->n_avgs = 5;
+    opts->n_median_filter = 0;
+    opts->range = 0.45;
+    opts->median_subsample = 2;
+    opts->fill_thresh = 0.5;
+    opts->correct_thickness = PBT_CORRECT_MM;
+    opts->sulcal_width = 5.0;
+    opts->pve_distance = 0;
+    opts->sulcal_barrier = 0;
+    opts->barrier_dmin = 2.0;
+    opts->barrier_gmtmax = 0.0;
+    opts->barrier_gmtref = 0.0;
+    opts->barrier_gmtfactor = 1.5;
+    opts->barrier_gmtpct = 90.0;
+    opts->barrier_ramp = 0.5;
+    opts->barrier_local = 0.0;
+    opts->barrier_q = 0.7;
+    opts->barrier_tmin = 0.5;
+    opts->barrier_halfwidth = 0.0;
+    opts->oriented_filter = 1;
+    opts->oriented_strength = 1.0;
+    opts->oriented_cutoff = 0.0; /* 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
+    opts->fast = 0;
+    opts->verbose = 0;
+}
+
+/**
+ * \brief Compute projection-based cortical thickness and percentage position map.
+ *
+ * Implements the full PBT pipeline consisting of averaged WM/CSF distance
+ * estimation, sulcal and gyral thickness estimation, PPM construction, and an
+ * optional weighted local median-filter cleanup of the final PPM.
+ *
+ * If opts->n_median_filter > 0, the median filter is not applied globally.
+ * Instead, a topology-artifact likelihood map is estimated from the positive
+ * residual PPM - smooth(PPM), restricted to sufficiently thick cortex
+ * (GMT > 1.5), regularized morphologically, then smoothed. This soft weight
+ * map blends the original PPM with a locally median-filtered PPM so that only
+ * likely topology-artifact regions receive strong filtering.
+ *
+ * \param src            (in)  input PVE label image (CSF=1, GM=2, WM=3)
+ * \param GMT_out        (out) output gray matter thickness map
+ * \param PPM_out        (out) output percentage position map
+ * \param dist_CSF_out   (out) optional output CSF distance map, or NULL
+ * \param dist_WM_out    (out) optional output WM distance map, or NULL
+ * \param dims           (in)  volume dimensions [nx, ny, nz]
+ * \param voxelsize      (in)  voxel sizes in mm [dx, dy, dz]
+ * \param opts           (in)  algorithm options, including n_median_filter for
+ *                             weighted local PPM cleanup
+ * \return 0 on success, non-zero on error
+ */
+int CAT_VolComputePbt(
+    const float *src,
+    float *GMT_out,
+    float *PPM_out,
+    float *dist_CSF_out,
+    float *dist_WM_out,
+    int dims[3],
+    double voxelsize[3],
+    const CAT_PbtOptions *opts)
+{
+    int i;
+    int nvox;
+    int n_avgs, n_median_filter, subsample;
+    double fill_thresh, correct_thickness;
+    int verbose;
+    float mean_vx_size, shrink, gmt2_min;
+    double sum_dist;
+    double s[3], threshold[2], prctile[2];
+
+    /* sheetness field driving the oriented replacements of the isotropic
+       medians; NULL keeps every filter isotropic and the result unchanged */
+    float *sheet = NULL;
+    float *sheet_nrm = NULL;
+
+    /* sulcal medial surface used as a barrier for the CSF distance */
+    float *medial = NULL;
+
+    unsigned char *mask = NULL;
+    float *input = NULL;
+    float *dist_CSF = NULL;
+    float *dist_WM = NULL;
+    float *GMT = NULL;
+    float *GMT1 = NULL;
+    float *GMT2 = NULL;
+    float *PPM = NULL;
+    float *src_copy = NULL;
+
+    if (!src || !GMT_out || !PPM_out || !dims || !voxelsize || !opts)
+        return -1;
+
+    nvox = dims[0] * dims[1] * dims[2];
+    mean_vx_size = (voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0f;
+    if (mean_vx_size <= 0.0f)
+        return -1;
+
+    /* mm-defined constants expressed in the voxel units used internally */
+    shrink = (float)(PBT_SHRINK_MM / mean_vx_size);
+    gmt2_min = (float)(PBT_GMT2_MIN_MM / mean_vx_size);
+
+    /* Copy options (handle fast mode) */
+    n_avgs = opts->n_avgs;
+    n_median_filter = opts->n_median_filter;
+    fill_thresh = opts->fill_thresh;
+    correct_thickness = opts->correct_thickness;
+    verbose = opts->verbose;
+    subsample = opts->median_subsample;
+
+    if (opts->fast)
+    {
+        n_avgs /= 2;
+        n_median_filter = 0;
+        fill_thresh = 0.0;
+    }
+    if (n_avgs < 1)
+        n_avgs = 1;
+
+    /* Allocate working arrays */
+    mask = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
+    input = (float *)malloc(sizeof(float) * nvox);
+    dist_CSF = (float *)malloc(sizeof(float) * nvox);
+    dist_WM = (float *)malloc(sizeof(float) * nvox);
+    GMT = (float *)malloc(sizeof(float) * nvox);
+    GMT1 = (float *)malloc(sizeof(float) * nvox);
+    GMT2 = (float *)malloc(sizeof(float) * nvox);
+    PPM = (float *)malloc(sizeof(float) * nvox);
+    src_copy = (float *)malloc(sizeof(float) * nvox);
+
+    if (!mask || !input || !dist_CSF || !dist_WM || !GMT || !GMT1 || !GMT2 || !PPM || !src_copy)
+    {
+        if (mask)
+            free(mask);
+        if (input)
+            free(input);
+        if (dist_CSF)
+            free(dist_CSF);
+        if (dist_WM)
+            free(dist_WM);
+        if (GMT)
+            free(GMT);
+        if (GMT1)
+            free(GMT1);
+        if (GMT2)
+            free(GMT2);
+        if (PPM)
+            free(PPM);
+        if (src_copy)
+            free(src_copy);
+        return -2;
+    }
+
+    if (estimate_distances(src, src_copy, dist_CSF, dist_WM, mask, input,
+                           &sheet, &sheet_nrm, dims, voxelsize, n_avgs,
+                           opts) != 0)
+    {
+        free(mask); free(input); free(dist_CSF); free(dist_WM);
+        free(GMT); free(GMT1); free(GMT2); free(PPM); free(src_copy);
+        free(sheet); free(sheet_nrm);
+        return -2;
+    }
+
     /* Sulcal barrier.
      *
      * Where the classifier lost the CSF in a sulcus there is no boundary for
@@ -434,79 +529,47 @@ int CAT_VolComputePbt(
              *
              * dist_WM + dist_CSF is the local thickness -- for a band of
              * locally constant thickness the two are complementary and sum to
-             * it exactly -- so its median over the GM band is the median
-             * cortical thickness, and a median is unmoved by the glued
-             * minority the gate exists to catch.  Twice that is the criterion
-             * in its natural form: a glued sulcus is two cortices back to
-             * back.  Subsampled by two per axis, which is far more than enough
-             * for a median and keeps the buffer small.
+             * it exactly -- so its trimmed mean over the GM band is the
+             * typical cortical thickness, and a multiple of that is the
+             * criterion in its natural form: a glued sulcus is two cortices
+             * back to back.
              *
              * Note this is the thickness *before* the projection, the
              * min(GMT1, GMT2) and the median filters, and it runs a little
              * high against the GMT that finally comes out -- 2.72 mm against
              * 2.36 mm on the subject it was checked on, about 15%.  The factor
              * is therefore relative to this proxy, not to the reported
-             * thickness; a factor of 2.0 here is roughly 2.3x the final GMT.
-             * Reported under -verbose so the number in use is never a
-             * guess. */
+             * thickness.
+             *
+             * barrier_gmtref replaces the estimate with a value the caller
+             * derived beforehand, typically the mean over both hemispheres
+             * from CAT_VolPbtBarrierReference(), so that both are gated by
+             * the same criterion.  Reported under -verbose so the number in
+             * use is never a guess. */
             if (opts->barrier_gmtmax <= 0.0 && opts->barrier_gmtfactor > 0.0)
             {
-                int cap = (dims[0] / 2 + 1) * (dims[1] / 2 + 1) * (dims[2] / 2 + 1);
-                double *tbuf = (double *)malloc(sizeof(double) * (size_t)cap);
-                int bx, by, bz, nt = 0;
+                const int given = (opts->barrier_gmtref > 0.0);
+                const double ref_vox = given
+                                           ? opts->barrier_gmtref / (double)mean_vx_size
+                                           : barrier_reference(src_copy, dist_WM, dist_CSF,
+                                                               dims, opts->barrier_gmtpct);
 
-                if (tbuf)
+                if (ref_vox > 0.0)
                 {
-                    for (bz = 0; bz < dims[2]; bz += 2)
-                        for (by = 0; by < dims[1]; by += 2)
-                            for (bx = 0; bx < dims[0]; bx += 2)
-                            {
-                                const int bi = bx + by * dims[0] +
-                                               bz * dims[0] * dims[1];
-                                if (src_copy[bi] > CGM && src_copy[bi] < GWM &&
-                                    nt < cap)
-                                    tbuf[nt++] = (double)dist_WM[bi] +
-                                                 (double)dist_CSF[bi];
-                            }
-
-                    if (nt >= 100)
-                    {
-                        /* Mean of the values below barrier_gmtpct, not the
-                           median.
-                           The proxy runs high because the glued sulci it exists
-                           to find sit in its upper tail, and a median only
-                           limits their influence -- it still sits inside a
-                           distribution they have skewed.  Cutting the tail off
-                           and averaging what is left tracks the cortex more
-                           closely: measured against the GMT finally reported on
-                           four hemispheres from two datasets, the ratio spans
-                           0.087 for this estimator against 0.102 for the median,
-                           so the factor calibrated against it transfers better
-                           between subjects. */
-                        double med;
-                        int keep;
-
-                        qsort(tbuf, (size_t)nt, sizeof(double), cmp_double_asc);
-
-                        keep = (int)((double)nt * opts->barrier_gmtpct / 100.0);
-                        if (keep < 1 || keep > nt)
-                            keep = nt;
-
-                        med = 0.0;
-                        for (int k = 0; k < keep; k++)
-                            med += tbuf[k];
-                        med /= (double)keep;
-                        gmtmax_vox = opts->barrier_gmtfactor * med;
-                        if (verbose)
-                            fprintf(stderr, "Sulcal barrier: mean dist_WM+"
-                                            "dist_CSF below p%.0f = %.2f mm, "
-                                            "gate at %.2fx = %.2f mm.\n",
-                                    opts->barrier_gmtpct,
-                                    med * (double)mean_vx_size,
-                                    opts->barrier_gmtfactor,
-                                    gmtmax_vox * (double)mean_vx_size);
-                    }
-                    free(tbuf);
+                    gmtmax_vox = opts->barrier_gmtfactor * ref_vox;
+                    if (verbose && given)
+                        fprintf(stderr, "Sulcal barrier: reference thickness "
+                                        "%.2f mm (given), gate at %.2fx = %.2f mm.\n",
+                                opts->barrier_gmtref, opts->barrier_gmtfactor,
+                                gmtmax_vox * (double)mean_vx_size);
+                    else if (verbose)
+                        fprintf(stderr, "Sulcal barrier: mean dist_WM+"
+                                        "dist_CSF below p%.0f = %.2f mm, "
+                                        "gate at %.2fx = %.2f mm.\n",
+                                opts->barrier_gmtpct,
+                                ref_vox * (double)mean_vx_size,
+                                opts->barrier_gmtfactor,
+                                gmtmax_vox * (double)mean_vx_size);
                 }
             }
 
@@ -886,8 +949,6 @@ int CAT_VolComputePbt(
     free(GMT2);
     free(PPM);
     free(src_copy);
-    if (src_val)
-        free(src_val);
     if (sheet)
         free(sheet);
     if (sheet_nrm)
@@ -916,6 +977,85 @@ int CAT_VolComputePbt(
  * \param dims (in) volume dimensions {nx, ny, nz}
  * \return ramp width in voxels, >= 1.0
  */
+/**
+ * \brief Reference cortical thickness the sulcal-barrier gate is derived from.
+ *
+ * Runs the same preprocessing and distance estimation as CAT_VolComputePbt()
+ * and returns the trimmed mean of dist_WM + dist_CSF over the GM band (the
+ * values below opts->barrier_gmtpct), i.e. exactly the reference a full run
+ * would multiply by barrier_gmtfactor.  Nothing after the distance maps is
+ * computed, so this is a fraction of the cost of a PBT run.
+ *
+ * The point is to derive the reference once for several label maps and pass
+ * the combined value back through opts->barrier_gmtref: the two hemispheres of
+ * a subject differ by up to 10% in this estimate, mostly because they contain
+ * different amounts of fused sulci, and gating both with their mean makes the
+ * corrected thickness more symmetric.
+ *
+ * \param src       (in)  PVE label image (CSF=1, GM=2, WM=3), already
+ *                        preprocessed like the input of the PBT run it is for
+ * \param dims      (in)  volume dimensions [nx, ny, nz]
+ * \param voxelsize (in)  voxel sizes in mm [dx, dy, dz]
+ * \param opts      (in)  PBT options; the fields that shape the distance maps
+ *                        (n_avgs, fast, range, pve_distance, oriented_*) and
+ *                        barrier_gmtpct are used, everything else is ignored
+ * \return reference thickness in mm, or a negative value on error or when the
+ *         GM band is too small
+ */
+double CAT_VolPbtBarrierReference(
+    const float *src,
+    int dims[3],
+    double voxelsize[3],
+    const CAT_PbtOptions *opts)
+{
+    int nvox, n_avgs;
+    double mean_vx_size, ref = -1.0;
+    unsigned char *mask;
+    float *input, *dist_CSF, *dist_WM, *src_copy;
+    float *sheet = NULL;
+    float *sheet_nrm = NULL;
+
+    if (!src || !dims || !voxelsize || !opts)
+        return -1.0;
+
+    nvox = dims[0] * dims[1] * dims[2];
+    mean_vx_size = (voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0;
+    if (nvox <= 0 || mean_vx_size <= 0.0)
+        return -1.0;
+
+    /* the same number of levels as the run the reference is meant for */
+    n_avgs = opts->fast ? opts->n_avgs / 2 : opts->n_avgs;
+    if (n_avgs < 1)
+        n_avgs = 1;
+
+    mask = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
+    input = (float *)malloc(sizeof(float) * nvox);
+    dist_CSF = (float *)malloc(sizeof(float) * nvox);
+    dist_WM = (float *)malloc(sizeof(float) * nvox);
+    src_copy = (float *)malloc(sizeof(float) * nvox);
+
+    if (mask && input && dist_CSF && dist_WM && src_copy &&
+        estimate_distances(src, src_copy, dist_CSF, dist_WM, mask, input,
+                           &sheet, &sheet_nrm, dims, voxelsize, n_avgs,
+                           opts) == 0)
+    {
+        ref = barrier_reference(src_copy, dist_WM, dist_CSF, dims,
+                                opts->barrier_gmtpct);
+        if (ref > 0.0)
+            ref *= mean_vx_size;
+    }
+
+    free(mask);
+    free(input);
+    free(dist_CSF);
+    free(dist_WM);
+    free(src_copy);
+    free(sheet);
+    free(sheet_nrm);
+
+    return ref;
+}
+
 static double estimate_pve_width(const float *src, int dims[3])
 {
     const int nvox = dims[0] * dims[1] * dims[2];
@@ -1001,7 +1141,7 @@ static double estimate_pve_width(const float *src, int dims[3])
  *  - ND: Array of Euclidean distances.
  *  - WMD: White Matter Distance for the current voxel.
  *  - SEGI: Segmentation value of the current voxel.
- *  - sA: Size of the arrays (number of elements to consider).
+ *  - sA: Size of the arrays (number of elements to consider, indices 0..sA-1).
  *
  * Returns:
  *  The calculated maximum value under the specified conditions.
@@ -1017,8 +1157,11 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
     float maximum = WMD;
     int i;
 
-    // Calculate the pure maximum under specified conditions
-    for (i = 0; i <= sA; i++)
+    // Calculate the pure maximum under specified conditions.  sA is the
+    // number of neighbours, so the last one is sA - 1: reading index sA took
+    // whatever followed the arrays on the stack as a 15th neighbour, which made
+    // repeated runs on the same input differ by up to a millimetre.
+    for (i = 0; i < sA; i++)
     {
         if ((GMT[i] < FLT_MAX) && (maximum < GMT[i]) &&           /* thickness/WMD of neighbours should be larger */
             (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&   /* projection range */
@@ -1032,7 +1175,7 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
 
     // Calculate the mean of the highest values under the same conditions
     float maximum2 = maximum, m2n = 0.0;
-    for (i = 0; i <= sA; i++)
+    for (i = 0; i < sA; i++)
     {
         if ((GMT[i] < FLT_MAX) && ((maximum - 1) < GMT[i]) &&
             (SEG[i] >= 1.0) && (SEGI > 1.2 && SEGI <= 2.75) &&

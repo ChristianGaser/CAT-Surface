@@ -38,6 +38,8 @@ int sulcal_barrier = 0;
 double barrier_q = -1.0;
 double barrier_dmin = -1.0;
 double barrier_gmtmax = -1.0;
+double barrier_gmtref = -1.0;
+int barrier_ref_only = 0;
 double barrier_gmtfactor = -1.0;
 double barrier_gmtpct = -1.0;
 double barrier_ramp = -1.0;
@@ -138,7 +140,7 @@ static ArgvInfo argTable[] = {
      against 0.102 for a median."},
 
     {"-barrier-gmtfactor", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtfactor,
-     "Multiple of the median thickness at which the gate sits (library default 1.75; 0 or\n\
+     "Multiple of the reference thickness at which the gate sits (library default 1.5; 0 or\n\
      less disables the gate). This is the criterion in its natural form: a glued\n\
      sulcus is two cortices back to back, so the threshold belongs at twice the\n\
      typical thickness of the brain being processed, not at a fixed millimetre\n\
@@ -147,6 +149,21 @@ static ArgvInfo argTable[] = {
      constant thickness those are complementary and sum to it exactly - and a\n\
      median is unmoved by the glued minority the gate exists to catch. Use\n\
      -barrier-gmtmax to override it with an absolute value."},
+
+    {"-barrier-gmtref", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtref,
+     "Reference thickness the gate is a multiple of, in mm (default 0 =\n\
+     estimate it from this label map). Pass the value -barrier-ref-only printed\n\
+     for both hemispheres, averaged, so that both are gated by the same\n\
+     criterion. The estimate differs by up to 10% between the hemispheres of a\n\
+     subject, mostly because they contain different amounts of fused sulci.\n\
+     -barrier-gmtfactor still applies; -barrier-gmtmax overrides both."},
+
+    {"-barrier-ref-only", ARGV_CONSTANT, (char *)1, (char *)&barrier_ref_only,
+     "Only estimate the reference thickness of the sulcal-barrier gate, print it\n\
+     in mm to stdout and exit. The input is preprocessed exactly as in a full\n\
+     run with the same options (blood-vessel correction, -n-avgs, -fast,\n\
+     -range, -pve-distance, oriented filter, -barrier-gmtpct), so the value is\n\
+     the one that run would derive. No output files are written or needed."},
 
     {"-barrier-gmtmax", ARGV_FLOAT, (char *)1, (char *)&barrier_gmtmax,
      "Absolute override for the gate, in mm (default 0 = derive it from\n\
@@ -254,6 +271,11 @@ Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
     impossible for cortex; run with -verbose to see the fraction of the GM band\n\
     it touched, which should be a few percent.\n\
 \n\
+    The gate is a multiple of a reference thickness estimated from the label\n\
+    map. To gate both hemispheres of a subject by the same criterion, print\n\
+    the reference of each with -barrier-ref-only (a few seconds, no outputs),\n\
+    average the two and pass the mean to both runs with -barrier-gmtref.\n\
+\n\
     -oriented-filter replaces the isotropic median filters with sheetness-\n\
     oriented ones, which cannot close a thin structure. Where no sheet is\n\
     detected it is identical to the isotropic filter.\n\
@@ -266,9 +288,12 @@ Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
 Examples:\n\
     %s input.nii gmt.nii ppm.nii\n\
     %s -sulcal-barrier -verbose input.nii gmt.nii ppm.nii\n\
-    %s -sulcal-barrier -oriented-filter input.nii gmt.nii ppm.nii wmd.nii csd.nii\n\n";
+    %s -sulcal-barrier -oriented-filter input.nii gmt.nii ppm.nii wmd.nii csd.nii\n\
+    ref=$(%s -barrier-ref-only lh.seg.nii)   # likewise for rh, then average\n\
+    %s -sulcal-barrier -barrier-gmtref 3.2 lh.seg.nii gmt.nii ppm.nii\n\n";
 
-    fprintf(stderr, usage_str, executable, executable, executable, executable);
+    fprintf(stderr, usage_str, executable, executable, executable, executable,
+            executable, executable);
 }
 
 int main(int argc, char *argv[])
@@ -300,7 +325,7 @@ int main(int argc, char *argv[])
         (void)sprintf(out_GMT, "%s", argv[2]);
         (void)sprintf(out_PPM, "%s", argv[3]);
     }
-    else
+    else if (!barrier_ref_only)
     {
 #if !defined(_WIN32) && !defined(_WIN64)
         (void)sprintf(out_GMT, "%s/gmt_%s", dirname(infile), basename(infile));
@@ -344,17 +369,17 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* Change some defaults for fast option */
+    /* Change some defaults for fast option.  n_avgs is left alone: the library
+       halves it for opts.fast and keeps it at least 1, and doing either here
+       as well turned the unset sentinel into a single level -- every run
+       without -n-avgs used 1 instead of the library default -- and halved an
+       explicit value twice under -fast. */
     if (fast)
     {
-        n_avgs /= 2;
         n_median_filter = 0;
         fill_thresh = 0.0;
         downsample = 0.0;
     }
-
-    /* Ensure that n_avgs is at least 1 */
-    n_avgs = (n_avgs < 1) ? 1 : n_avgs;
 
     /* Optional blood-vessel correction before any other operation */
     if (blood_vessel_correction > 0.0)
@@ -387,6 +412,7 @@ int main(int argc, char *argv[])
     if (barrier_q         >= 0.0) opts.barrier_q = barrier_q;
     if (barrier_dmin      >= 0.0) opts.barrier_dmin = barrier_dmin;
     if (barrier_gmtmax    >= 0.0) opts.barrier_gmtmax = barrier_gmtmax;
+    if (barrier_gmtref    >= 0.0) opts.barrier_gmtref = barrier_gmtref;
     if (barrier_gmtfactor >= 0.0) opts.barrier_gmtfactor = barrier_gmtfactor;
     if (barrier_gmtpct    >= 0.0) opts.barrier_gmtpct = barrier_gmtpct;
     if (barrier_ramp      >= 0.0) opts.barrier_ramp = barrier_ramp;
@@ -395,6 +421,19 @@ int main(int argc, char *argv[])
     if (barrier_halfwidth >= 0.0) opts.barrier_halfwidth = barrier_halfwidth;
     if (oriented_strength >= 0.0) opts.oriented_strength = oriented_strength;
     if (oriented_cutoff   >= 0.0) opts.oriented_cutoff = oriented_cutoff;
+
+    if (barrier_ref_only)
+    {
+        double ref = CAT_VolPbtBarrierReference(src, dims, voxelsize, &opts);
+
+        if (ref <= 0.0)
+        {
+            fprintf(stderr, "Error estimating the barrier reference thickness.\n");
+            exit(EXIT_FAILURE);
+        }
+        fprintf(stdout, "%.6f\n", ref);
+        exit(EXIT_SUCCESS);
+    }
 
     if (CAT_VolComputePbt(src, GMT, PPM, dist_CSF, dist_WM, dims, voxelsize, &opts) != 0)
     {
