@@ -15,6 +15,9 @@
 #include "CAT_PpmSulci.h"
 
 #define CHUNK_SIZE    1000000
+
+/** Sheetness a defect region needs before the steering overrides genus0. */
+#define CAT_TOPO_STEER_THRESH 0.05
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
 
 void correct_topology(
@@ -36,6 +39,7 @@ object_struct *apply_marching_cubes(
     int n_iter,
     double strength_gyri_mask,
     const CAT_PpmSulciOpts *sulci_opts,
+    double topo_sheet,
     int verbose);
 
 object_struct *apply_marching_cubes_fast(

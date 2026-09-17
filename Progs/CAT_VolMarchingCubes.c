@@ -14,6 +14,7 @@
 /* argument defaults */
 char *label_filename = NULL;
 double min_threshold = 0.5;
+double topo_sheet = CAT_TOPO_STEER_THRESH;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
@@ -101,6 +102,17 @@ static ArgvInfo argTable[] = {
   {"-sulci-scales", ARGV_INT, (char *) TRUE, (char *) &sulci_scales,
     "Number of log-spaced sheetness scales (library default 3)."},
   
+  {"-topo-sheet", ARGV_FLOAT, (char *) TRUE, (char *) &topo_sheet,
+     "Sheetness a topological defect needs before its resolution follows the\n\
+     anatomy instead of genus0 (default 0.05; 0 disables). genus0 decides\n\
+     globally whether to cut a handle or to fill it, and it cuts: on three test\n\
+     hemispheres every voxel it changed was a removal and 60-100% of them sat on\n\
+     a ridge of the map - thin gyral blades severed where the hole through the\n\
+     blade should have been closed. The signed sheetness tells a blade (ridge)\n\
+     from a sulcal sheet (valley), so a defect in a blade is closed and one in a\n\
+     sheet is opened. The last iteration is always left to genus0, so the result\n\
+     is genus 0 either way."},
+
   {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
     "Define the volume threshold, also known as the isovalue.\n\
      This value is crucial for initial image thresholding."},
@@ -273,7 +285,7 @@ int main(int argc, char *argv[]) {
 
         object = apply_marching_cubes(input_float, nii_ptr, label, 
                     min_threshold, pre_fwhm, iter_laplacian, dist_morph, n_median_filter, 
-                    n_iter, strength_gyri_mask, sulci_ptr, verbose);
+                    n_iter, strength_gyri_mask, sulci_ptr, topo_sheet, verbose);
     }
     if (object) {
         output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
