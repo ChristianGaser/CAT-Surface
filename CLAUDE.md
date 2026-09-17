@@ -227,6 +227,14 @@ thickness removed where Tfs agrees / mean PBT - mean Tfs):
 Precision falls with every step and the false correction accelerates below 1.2, where the mean
 also drops under Tfs (which itself runs short through shortcuts). 1.2 matches the Tfs mean best.
 
+Through the full T1Prep surface pipeline (19 subjects, both hemispheres), 1.2 against 1.3 lowers
+the mean PBT by 0.023 mm and the final thickness by 0.022 mm while Tfs moves only 0.009 mm, cuts
+the vertices above 1.6x the median by 42% (0.93% -> 0.54%; BUSS02 rh 4.4% -> 2.2%) and the upper
+thickness skewness by 0.11. The surfaces barely move (mean 0.043 mm, 0.58% of the vertices by
+> 0.5 mm) and their quality does not change systematically: the glued fraction goes down in 20
+and up in 18 hemispheres (it reacts strongly and in both directions to small changes), and one
+Euler defect at 1.2 (002 rh) stands against one intersecting central surface at 1.3.
+
 ### Shared reference for both hemispheres (`barrier_gmtref`)
 
 The reference estimate differs by up to 10% between the hemispheres of a subject (mean 4.2%
