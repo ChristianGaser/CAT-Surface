@@ -532,6 +532,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double barrier_q=-1.0, double barrier_tmin=-1.0,
                       double barrier_gmtfactor=-1.0, double barrier_gmtpct=-1.0, double barrier_ramp=-1.0, double barrier_local=-1.0,
                       double barrier_gmtmax=-1.0,
+                      double barrier_gmtref=-1.0,
                       double barrier_dmin=-1.0,
                       double barrier_halfwidth=-1.0,
                       bint oriented_filter=False,
@@ -553,12 +554,12 @@ def vol_thickness_pbt(volume, voxelsize=None,
     voxelsize : array_like, shape (3,), float64, optional
         Voxel dimensions in mm.  Default ``[1, 1, 1]``.
     n_avgs : int
-        Number of averages for distance estimation (default 2).
+        Number of averages for distance estimation (default 5).
     n_median_filter : int
         Iterations of weighted local median filtering of the PPM
-        (default 2).  Set to 0 to disable.
+        (default 0).  Set to 0 to disable.
     median_subsample : int
-        Subsampling size for the median filter (default 4).
+        Subsampling size for the median filter (default 2).
     range_val : float
         Range extension for Euclidean distance masking (default 0.45).
     fill_thresh : float
@@ -572,7 +573,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
         ``correct_voxelsize * mean(voxelsize)``.
     sulcal_width : float
         Max distance from CSF boundary for sulcal PPM correction
-        (default 2.5 mm).  Set to 0 to disable.
+        (default 5.0 mm).  Set to 0 to disable.
     pve_distance : bool
         EXPERIMENTAL, default False.  Correct the WM/CSF distance maps
         for partial volume: the distance transform measures to the
@@ -603,8 +604,8 @@ def vol_thickness_pbt(volume, voxelsize=None,
         midline; the result is flat over a wide band and then falls off,
         so the default sits in the middle of the flat region.
     barrier_gmtfactor : float
-        Multiple of the median thickness at which the gate sits (default
-        2.0; <= 0 disables the gate).  The criterion in its natural form —
+        Multiple of the reference thickness at which the gate sits (default
+        1.5; <= 0 disables the gate).  The criterion in its natural form —
         a glued sulcus is *two* cortices back to back, so the threshold
         belongs at twice the typical thickness of the brain being
         processed rather than at a fixed millimetre value that is only
@@ -615,8 +616,8 @@ def vol_thickness_pbt(volume, voxelsize=None,
         *pre-projection* proxy though, running ~15% high against the
         reported GMT, so 2.0 here is nearer 2.3x the final thickness.
     barrier_gmtmax : float
-        Only bound where the implied thickness is impossible for cortex,
-        in mm (default 5.0; 0 disables).  This is the gate that matters.
+        Absolute gate in mm, overriding the derived one (default 0.0 =
+        derive it from ``barrier_gmtfactor``).  This is the gate that matters.
         A glued sulcus does not merely look thick, it looks like *two*
         cortices back to back — 5-6 mm where 2-3 mm is normal — so the
         implied thickness at the voxel, ``dist_WM + dist_CSF``, separates
@@ -626,6 +627,15 @@ def vol_thickness_pbt(volume, voxelsize=None,
         gate takes the capped fraction of the cortex from 20.5% to 2.4%
         and the mean thickness from 1.81 mm back to 2.28 mm against an
         unbarriered 2.31 mm.
+    barrier_gmtref : float
+        Reference thickness the gate is a multiple of, in mm (default 0.0 =
+        estimate it from this label map).  Pass a value from
+        :func:`vol_pbt_barrier_reference` -- typically the mean over both
+        hemispheres -- so that both are gated by the same criterion.  The
+        estimate differs by up to 10% between the hemispheres of a subject,
+        mostly because they contain different amounts of fused sulci.
+        ``barrier_gmtfactor`` still applies; ``barrier_gmtmax`` overrides
+        both.
     barrier_dmin : float
         Only bound a CSF distance already implausible for real cortex, in
         mm (default 2.0; 0 disables).  Bounding always shrinks the
@@ -723,6 +733,7 @@ def vol_thickness_pbt(volume, voxelsize=None,
     if barrier_ramp      >= 0.0: opts.barrier_ramp = barrier_ramp
     if barrier_local     >= 0.0: opts.barrier_local = barrier_local
     if barrier_gmtmax    >= 0.0: opts.barrier_gmtmax = barrier_gmtmax
+    if barrier_gmtref    >= 0.0: opts.barrier_gmtref = barrier_gmtref
     if barrier_dmin      >= 0.0: opts.barrier_dmin = barrier_dmin
     if barrier_tmin      >= 0.0: opts.barrier_tmin = barrier_tmin
     if barrier_halfwidth >= 0.0: opts.barrier_halfwidth = barrier_halfwidth
@@ -746,6 +757,98 @@ def vol_thickness_pbt(volume, voxelsize=None,
         raise RuntimeError(f"CAT_VolComputePbt returned error code {rc}")
 
     return gmt, ppm, dcsf, dwm
+
+
+# keywords of vol_thickness_pbt that do not shape the distance maps; accepted
+# by vol_pbt_barrier_reference so that one kwargs dict can drive both calls
+_PBT_ONLY_KEYWORDS = frozenset((
+    "n_median_filter", "median_subsample", "fill_thresh", "correct_thickness",
+    "sulcal_width", "sulcal_barrier", "barrier_q", "barrier_tmin",
+    "barrier_gmtfactor", "barrier_ramp", "barrier_local", "barrier_gmtmax",
+    "barrier_gmtref", "barrier_dmin", "barrier_halfwidth",
+))
+
+
+def vol_pbt_barrier_reference(volume, voxelsize=None, int n_avgs=-1,
+                              double range_val=-1.0, bint pve_distance=False,
+                              double barrier_gmtpct=-1.0,
+                              bint oriented_filter=False,
+                              double oriented_strength=-1.0,
+                              double oriented_cutoff=-1.0,
+                              bint fast=False, bint verbose=False, **kwargs):
+    """
+    Reference thickness the sulcal-barrier gate is derived from, in mm.
+
+    Mirrors ``CAT_VolThicknessPbt -barrier-ref-only``.  Runs the same
+    preprocessing and distance estimation as :func:`vol_thickness_pbt`
+    and returns the trimmed mean of ``dist_WM + dist_CSF`` over the GM
+    band -- exactly the value a full run with the same arguments
+    multiplies by ``barrier_gmtfactor``, at a fraction of the cost.
+
+    Compute it for both hemispheres, average, and pass the mean to both
+    PBT runs as ``barrier_gmtref`` so that both are gated by the same
+    criterion.
+
+    Accepts every keyword of :func:`vol_thickness_pbt`, so the same
+    argument dict can drive both calls; the ones that do not affect the
+    distance maps are ignored.  Defaults match :func:`vol_thickness_pbt`
+    (note ``oriented_filter`` is off there unless asked for).
+
+    Parameters
+    ----------
+    volume : array_like, 3-D, float32
+        Tissue-label volume (PVE-style), preprocessed like the input of
+        the PBT run the reference is meant for.
+    voxelsize : array_like, shape (3,), float64, optional
+        Voxel dimensions in mm.  Default ``[1, 1, 1]``.
+    n_avgs, range_val, pve_distance, barrier_gmtpct, oriented_filter,
+    oriented_strength, oriented_cutoff, fast, verbose
+        As in :func:`vol_thickness_pbt`.
+
+    Returns
+    -------
+    float
+        Reference thickness in mm.
+    """
+    unknown = set(kwargs) - _PBT_ONLY_KEYWORDS
+    if unknown:
+        raise TypeError("vol_pbt_barrier_reference() got unexpected keyword "
+                        f"argument(s): {', '.join(sorted(unknown))}")
+
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] src = np.asfortranarray(volume, dtype=np.float32)
+    if src.ndim != 3:
+        raise ValueError("volume must be 3-D")
+
+    cdef int dims[3]
+    dims[0] = src.shape[0]
+    dims[1] = src.shape[1]
+    dims[2] = src.shape[2]
+
+    cdef double vx[3]
+    if voxelsize is not None:
+        vs = np.asarray(voxelsize, dtype=np.float64).ravel()
+        vx[0] = vs[0]; vx[1] = vs[1]; vx[2] = vs[2]
+    else:
+        vx[0] = 1.0; vx[1] = 1.0; vx[2] = 1.0
+
+    cdef C.CAT_PbtOptions opts
+    C.CAT_PbtOptionsInit(&opts)
+    if n_avgs         >= 0:   opts.n_avgs = n_avgs
+    if range_val      >= 0.0: opts.range = range_val
+    if barrier_gmtpct >= 0.0: opts.barrier_gmtpct = barrier_gmtpct
+    opts.pve_distance = 1 if pve_distance else 0
+    opts.oriented_filter = 1 if oriented_filter else 0
+    if oriented_strength >= 0.0: opts.oriented_strength = oriented_strength
+    if oriented_cutoff   >= 0.0: opts.oriented_cutoff = oriented_cutoff
+    opts.fast = 1 if fast else 0
+    opts.verbose = 1 if verbose else 0
+
+    cdef double ref = C.CAT_VolPbtBarrierReference(<const float *>src.data,
+                                                   dims, vx, &opts)
+    if ref <= 0.0:
+        raise RuntimeError("CAT_VolPbtBarrierReference failed "
+                           "(empty GM band or out of memory)")
+    return ref
 
 
 # ===================================================================

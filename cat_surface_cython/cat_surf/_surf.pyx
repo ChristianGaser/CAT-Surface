@@ -583,7 +583,8 @@ def correct_thickness_folding(vertices, faces, thickness,
     slope : float
         Thickness-based weighting strength (default 0.0 = disabled).
         Larger thickness values are corrected more strongly when
-        ``slope > 0``.  Applied only for positive mean curvature.
+        ``slope > 0``.  The correction is applied only for positive mean
+        curvature (convex, i.e. gyral, cortex).
     max_dist : float
         Upper clip for output values (default 6.0 mm).  Values exceeding
         this are clipped.  Set to 0 or +inf to disable.

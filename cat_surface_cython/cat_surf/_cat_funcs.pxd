@@ -409,6 +409,7 @@ cdef extern from "CAT_VolPbt.h":
         double barrier_gmtpct
         double barrier_gmtfactor
         double barrier_gmtmax
+        double barrier_gmtref
         double barrier_dmin
         double barrier_tmin
         double barrier_halfwidth
@@ -419,6 +420,11 @@ cdef extern from "CAT_VolPbt.h":
         int verbose
 
     void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
+    double CAT_VolPbtBarrierReference(
+             const float *src,
+             int dims[3],
+             double voxelsize[3],
+             const CAT_PbtOptions *opts)
     int  CAT_VolComputePbt(
              const float *src,
              float *GMT_out,

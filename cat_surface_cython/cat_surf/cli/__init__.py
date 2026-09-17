@@ -85,6 +85,7 @@ from cat_surf import (
     vol_marching_cubes as _vol_marching_cubes,
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
+    vol_pbt_barrier_reference as _vol_pbt_barrier_reference,
     vol_smooth as _vol_smooth,
     vol_calc as _vol_calc,
     vol_sheetness as _vol_sheetness,
@@ -531,16 +532,21 @@ def vol_sanlm(input_file, output_file=None, is_rician=False, strength=1.0):
 
 
 def vol_thickness_pbt(input_file, gmt_file=None, ppm_file=None,
-                      dist_csf_file=None, dist_wm_file=None, **kwargs):
+                      dist_csf_file=None, dist_wm_file=None, ref_only=False,
+                      **kwargs):
     """Mirror of ``CAT_VolThicknessPbt``.
 
     Writes any of the four outputs whose file path is provided; pass
-    ``None`` to skip an output.
+    ``None`` to skip an output.  With ``ref_only=True`` (``-barrier-ref-only``)
+    nothing is written and the reference thickness of the sulcal-barrier gate
+    is returned in mm instead; pass it back as ``barrier_gmtref``.
     """
     import nibabel as nib
     img = nib.load(input_file)
     vol = img.get_fdata().astype(np.float32)
     vx = img.header.get_zooms()[:3]
+    if ref_only:
+        return _vol_pbt_barrier_reference(vol, voxelsize=vx, **kwargs)
     gmt, ppm, dcsf, dwm = _vol_thickness_pbt(vol, voxelsize=vx, **kwargs)
     if gmt_file:
         _save_volume_like(gmt_file, gmt, img, dtype=np.float32)

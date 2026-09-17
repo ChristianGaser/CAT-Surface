@@ -298,6 +298,43 @@ def test_barrier_gate_scales_with_thickness():
               np.array_equal(g0, g1) and np.array_equal(p0, p1))
 
 
+def test_barrier_reference():
+    section("Shared barrier reference")
+
+    M = 64
+    v = np.ones((M, M, M), np.float32)
+    v[26:38, 10:54, 10:54] = 2.0
+    v[18:26, 10:54, 10:54] = 3.0
+    v[38:46, 10:54, 10:54] = 3.0
+    vx = (0.5, 0.5, 0.5)
+    kw = dict(sulcal_barrier=True, oriented_filter=True, n_avgs=5)
+
+    # One kwargs dict drives both calls, so the reference is the one the run
+    # would derive -- and handing it back must not change the result.
+    ref = cat_surf.vol_pbt_barrier_reference(v, voxelsize=vx, **kw)
+    check("the reference is a thickness in mm", 0.5 < ref < 10.0, f"{ref:.3f}")
+    g0, p0, _, _ = cat_surf.vol_thickness_pbt(v, voxelsize=vx, **kw)
+    g1, p1, _, _ = cat_surf.vol_thickness_pbt(v, voxelsize=vx, barrier_gmtref=ref, **kw)
+    check("a given reference reproduces the derived run",
+          np.array_equal(g0, g1) and np.array_equal(p0, p1))
+
+    # the gate follows it: a smaller reference corrects more
+    g2, _, _, _ = cat_surf.vol_thickness_pbt(v, voxelsize=vx, barrier_gmtref=0.5 * ref, **kw)
+    check("a smaller reference corrects more", g2.sum() < g0.sum(),
+          f"{g2.sum():.1f} vs {g0.sum():.1f}")
+
+    try:
+        cat_surf.vol_pbt_barrier_reference(v, voxelsize=vx, barrier_gmtfatcor=2.0)
+        raised = False
+    except TypeError:
+        raised = True
+    check("a misspelt keyword is rejected", raised)
+
+    # repeated calls in one process are reproducible
+    g3, _, _, _ = cat_surf.vol_thickness_pbt(v, voxelsize=vx, **kw)
+    check("repeated runs are identical", np.array_equal(g0, g3))
+
+
 def test_option_no_ops():
     section("Backward compatibility of the new options")
 
@@ -490,7 +527,8 @@ def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
-                 test_barrier_gate_scales_with_thickness, test_option_no_ops,
+                 test_barrier_gate_scales_with_thickness, test_barrier_reference,
+                 test_option_no_ops,
                  test_surf_info, test_vol_calc):
         try:
             test()
