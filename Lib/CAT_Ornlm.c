@@ -52,7 +52,6 @@
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <pthread.h>
-pthread_mutex_t mutex_ornlm = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 #define MAX_NTHREADS 16
@@ -392,13 +391,7 @@ ThreadFunc_ornlm(void *pArguments)
 
                     if (totalweight != 0.0f)
                     {
-#if !defined(_WIN32) && !defined(_WIN64)
-                        pthread_mutex_lock(&mutex_ornlm);
-#endif
                         Value_block_ornlm(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
-#if !defined(_WIN32) && !defined(_WIN64)
-                        pthread_mutex_unlock(&mutex_ornlm);
-#endif
                     }
                 }
                 else
@@ -407,13 +400,7 @@ ThreadFunc_ornlm(void *pArguments)
                     Average_block_ornlm(ima, i, j, k, f, average, wmax, dims);
                     totalweight += wmax;
 
-#if !defined(_WIN32) && !defined(_WIN64)
-                    pthread_mutex_lock(&mutex_ornlm);
-#endif
                     Value_block_ornlm(Estimate, Label, i, j, k, f, average, totalweight, dims, hh);
-#if !defined(_WIN32) && !defined(_WIN64)
-                    pthread_mutex_unlock(&mutex_ornlm);
-#endif
                 }
             }
         }
@@ -556,53 +543,27 @@ void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
     }
 
     /* --------------------- multithreaded filter ------------------------ */
+    /* The volume is cut into slabs along z, one per thread.  A block writes
+     * one slice beyond its own slab on either side, so neighbouring slabs
+     * share a slice, and when they ran concurrently the order in which their
+     * contributions were added to it depended on timing -- float sums are
+     * order dependent, and repeated runs on the same input differed (by up to
+     * 1 mm in the PBT thickness downstream).  Slabs of the same parity never
+     * touch as long as each is at least two slices thick, so the even slabs
+     * run first and the odd ones second: no two threads ever write the same
+     * voxel, no lock is needed, and the result is reproducible. */
     {
-        int Nthreads = dims[2] < MAX_NTHREADS ? dims[2] : MAX_NTHREADS;
+        int Nthreads = dims[2] / 2 < MAX_NTHREADS ? dims[2] / 2 : MAX_NTHREADS;
+        int pass;
+        myargument *ThreadArgs;
+
         if (Nthreads < 1)
             Nthreads = 1;
 
-        myargument *ThreadArgs;
-
-#if defined(_WIN32) || defined(_WIN64)
-        /* Sequential execution on Windows (no pthread dependency) */
-        ThreadArgs = SAFE_MALLOC(myargument, Nthreads);
-
-        for (i = 0; i < Nthreads; i++)
-        {
-            int ini = (i * dims[2]) / Nthreads;
-            int fin = ((i + 1) * dims[2]) / Nthreads;
-
-            ThreadArgs[i].cols = dims[0];
-            ThreadArgs[i].rows = dims[1];
-            ThreadArgs[i].slices = dims[2];
-            ThreadArgs[i].in_image = ima;
-            ThreadArgs[i].means_image = means;
-            ThreadArgs[i].var_image = variances;
-            ThreadArgs[i].estimate = Estimate;
-            ThreadArgs[i].label = Label;
-            ThreadArgs[i].ini = ini;
-            ThreadArgs[i].fin = fin;
-            ThreadArgs[i].radioB = v;
-            ThreadArgs[i].radioS = f;
-            ThreadArgs[i].hh = hh;
-            ThreadArgs[i].inv_h2 = 1.0f / (h * h);
-            ThreadArgs[i].dims = dims;
-
-            ThreadFunc_ornlm(&ThreadArgs[i]);
-        }
-
-        free(ThreadArgs);
-
-#else /* POSIX */
-        pthread_t *ThreadList;
-        ThreadList = SAFE_CALLOC(pthread_t, Nthreads);
         ThreadArgs = SAFE_CALLOC(myargument, Nthreads);
 
         for (i = 0; i < Nthreads; i++)
         {
-            int ini = (i * dims[2]) / Nthreads;
-            int fin = ((i + 1) * dims[2]) / Nthreads;
-
             ThreadArgs[i].cols = dims[0];
             ThreadArgs[i].rows = dims[1];
             ThreadArgs[i].slices = dims[2];
@@ -611,26 +572,41 @@ void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
             ThreadArgs[i].var_image = variances;
             ThreadArgs[i].estimate = Estimate;
             ThreadArgs[i].label = Label;
-            ThreadArgs[i].ini = ini;
-            ThreadArgs[i].fin = fin;
+            ThreadArgs[i].ini = (i * dims[2]) / Nthreads;
+            ThreadArgs[i].fin = ((i + 1) * dims[2]) / Nthreads;
             ThreadArgs[i].radioB = v;
             ThreadArgs[i].radioS = f;
             ThreadArgs[i].hh = hh;
             ThreadArgs[i].inv_h2 = 1.0f / (h * h);
             ThreadArgs[i].dims = dims;
-
-            if (pthread_create(&ThreadList[i], NULL, ThreadFunc_ornlm, &ThreadArgs[i]))
-            {
-                printf("Threads cannot be created\n");
-                exit(1);
-            }
         }
 
-        for (i = 0; i < Nthreads; i++)
-            pthread_join(ThreadList[i], NULL);
-        free(ThreadList);
-        free(ThreadArgs);
+        for (pass = 0; pass < 2; pass++)
+        {
+#if defined(_WIN32) || defined(_WIN64)
+            /* Sequential execution on Windows (no pthread dependency), in the
+               same order as the threaded passes */
+            for (i = pass; i < Nthreads; i += 2)
+                ThreadFunc_ornlm(&ThreadArgs[i]);
+#else /* POSIX */
+            pthread_t *ThreadList = SAFE_CALLOC(pthread_t, Nthreads);
+
+            for (i = pass; i < Nthreads; i += 2)
+            {
+                if (pthread_create(&ThreadList[i], NULL, ThreadFunc_ornlm, &ThreadArgs[i]))
+                {
+                    printf("Threads cannot be created\n");
+                    exit(1);
+                }
+            }
+
+            for (i = pass; i < Nthreads; i += 2)
+                pthread_join(ThreadList[i], NULL);
+            free(ThreadList);
 #endif
+        }
+
+        free(ThreadArgs);
     }
     /* ------------------- end multithreaded filter ---------------------- */
 

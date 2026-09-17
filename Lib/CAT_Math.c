@@ -53,11 +53,15 @@ int pinv(int m, int n, double **A, double **Ainv)
     }
     else
     {
-        for (i = 0; i < r; i++)
+        /* S is n x n, and all of it enters the products below: the entries
+           outside the leading r x r block are the dropped singular values and
+           must be zero.  ALLOC2D does not clear memory, so a rank-deficient A
+           would otherwise pick up whatever the allocator returned. */
+        for (i = 0; i < n; i++)
         {
-            for (j = 0; j < r; j++)
+            for (j = 0; j < n; j++)
             {
-                if (i == j)
+                if (i == j && i < r)
                     S[i][j] = 1 / (W[i] + EPS);
                 else
                     S[i][j] = 0.0;
