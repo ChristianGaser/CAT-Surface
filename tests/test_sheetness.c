@@ -4,6 +4,7 @@
 #include "CAT_PpmSulci.h"
 #include "CAT_Vol.h"
 #include "CAT_Math.h"
+#include "CAT_VolPbt.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -686,6 +687,98 @@ static void test_sulcal_barrier(void)
     free(band);
 }
 
+/* Two fused banks of 3 voxels each between WM cores, reachable by CSF from
+   the sides -- the layout the Python smoke test uses for the barrier. */
+#define MB 48
+#define IDXB(x, y, z) ((x) + (y) * MB + (z) * MB * MB)
+
+static void build_fused_banks(float *lab)
+{
+    const int mid = MB / 2, bank = 3;
+    const int a0 = mid - 2 * bank, b1 = mid + 2 * bank;
+    int x, y, z;
+
+    for (z = 0; z < MB; z++)
+        for (y = 0; y < MB; y++)
+            for (x = 0; x < MB; x++)
+            {
+                float v = 1.0f;
+                if (y >= 6 && y < MB - 6 && z >= 6 && z < MB - 6)
+                {
+                    if (x >= a0 && x < b1)
+                        v = 2.0f;
+                    else if ((x >= a0 - 8 && x < a0) || (x >= b1 && x < b1 + 8))
+                        v = 3.0f;
+                }
+                lab[IDXB(x, y, z)] = v;
+            }
+}
+
+/* The reference the gate is derived from can be computed up front and handed
+   back, so that both hemispheres are gated alike.  It has to be the very
+   value a full run derives, or sharing it would change the result. */
+static void test_barrier_reference(void)
+{
+    const int nvox = MB * MB * MB;
+    int dims[3] = {MB, MB, MB};
+    double vx[3] = {0.5, 0.5, 0.5};
+    double vx1mm[3] = {1.0, 1.0, 1.0};
+    float *lab = (float *)malloc(sizeof(float) * nvox);
+    float *gmt_a = (float *)malloc(sizeof(float) * nvox);
+    float *gmt_b = (float *)malloc(sizeof(float) * nvox);
+    float *ppm = (float *)malloc(sizeof(float) * nvox);
+    double ref, ref1mm, maxdiff = 0.0, sum_a = 0.0, sum_b = 0.0;
+    CAT_PbtOptions opts;
+    int i;
+
+    MU_ASSERT("alloc", lab && gmt_a && gmt_b && ppm);
+
+    build_fused_banks(lab);
+    CAT_PbtOptionsInit(&opts);
+    opts.sulcal_barrier = 1;
+
+    ref = CAT_VolPbtBarrierReference(lab, dims, vx, &opts);
+    MU_ASSERT("the reference is a thickness", ref > 0.5 && ref < 10.0);
+
+    /* distances are measured in voxels, so without the (mm-scaled) sheetness
+       the reference is exactly proportional to the voxel size */
+    opts.oriented_filter = 0;
+    ref = CAT_VolPbtBarrierReference(lab, dims, vx, &opts);
+    ref1mm = CAT_VolPbtBarrierReference(lab, dims, vx1mm, &opts);
+    MU_ASSERT("the reference is in mm", fabs(ref1mm - 2.0 * ref) < 1e-9);
+    opts.oriented_filter = 1;
+
+    /* handing the reference back reproduces the run that derived it */
+    ref = CAT_VolPbtBarrierReference(lab, dims, vx, &opts);
+    MU_ASSERT("derived run",
+              CAT_VolComputePbt(lab, gmt_a, ppm, NULL, NULL, dims, vx, &opts) == 0);
+    opts.barrier_gmtref = ref;
+    MU_ASSERT("run with the given reference",
+              CAT_VolComputePbt(lab, gmt_b, ppm, NULL, NULL, dims, vx, &opts) == 0);
+    for (i = 0; i < nvox; i++)
+        maxdiff = fmax(maxdiff, fabs((double)gmt_a[i] - (double)gmt_b[i]));
+    MU_ASSERT("a given reference equals the derived one", maxdiff < 1e-5);
+
+    /* and it is what the gate follows: a smaller reference corrects more */
+    opts.barrier_gmtref = 0.5 * ref;
+    MU_ASSERT("run with a smaller reference",
+              CAT_VolComputePbt(lab, gmt_b, ppm, NULL, NULL, dims, vx, &opts) == 0);
+    for (i = 0; i < nvox; i++)
+    {
+        sum_a += gmt_a[i];
+        sum_b += gmt_b[i];
+    }
+    MU_ASSERT("a tighter gate corrects more", sum_b < sum_a);
+
+    MU_ASSERT("invalid input is rejected",
+              CAT_VolPbtBarrierReference(NULL, dims, vx, &opts) < 0.0);
+
+    free(lab);
+    free(gmt_a);
+    free(gmt_b);
+    free(ppm);
+}
+
 /* ------------------------------------------------------------------ */
 /* the signed response tells a valley from a ridge                     */
 /* ------------------------------------------------------------------ */
@@ -781,6 +874,7 @@ int main(void)
     MU_RUN_TEST(test_sheetness_skeleton);
     MU_RUN_TEST(test_sheetness_signed);
     MU_RUN_TEST(test_sulcal_barrier);
+    MU_RUN_TEST(test_barrier_reference);
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
     MU_RUN_TEST(test_oriented_median_cutoff);
     MU_RUN_TEST(test_open_ppm_sulci);
