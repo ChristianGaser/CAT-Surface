@@ -96,7 +96,7 @@ through pip, which installs it from `build-system.requires`).
 
 The defaults in `CAT_PbtOptionsInit()` are the values tuned on real data and both front-ends
 defer to them: `n_avgs` 5, `n_median_filter` 0, `median_subsample` 2, `sulcal_width` 5.0,
-`barrier_gmtfactor` 1.8, `barrier_q` 0.7. `sulcal_barrier` itself defaults to **off**, as
+`barrier_gmtfactor` 1.5, `barrier_q` 0.7. `sulcal_barrier` itself defaults to **off**, as
 `CAT_PpmSulciOpts::strength` does, so the correction stays out of the way until asked for.
 `correct_thickness` is deliberately left at its old default: it compensates the border shift
 of whichever segmentation produced the label map, so it is a per-pipeline value (0.0 for
@@ -169,7 +169,7 @@ by being near the white matter.
 
 **The threshold is derived from the data, not fixed.** A glued sulcus is two cortices back to
 back, so the gate belongs at a multiple of *this brain's* thickness — `barrier_gmtfactor`,
-default 2.0 — rather than at a millimetre value that is only right for the cortex it was
+default 1.5 — rather than at a millimetre value that is only right for the cortex it was
 tuned on. The proxy is `dist_WM + dist_CSF` in the GM band: for a band of locally constant thickness
 those are complementary and sum to it exactly. It is summarised by the **mean of the values
 below `barrier_gmtpct` (default p90)**, not by a median — the glued sulci the gate exists to
@@ -195,6 +195,50 @@ With the gate the parameters stop mattering, which was the whole point. Across
 0.04 mm, against 0.34 mm without it. `-verbose` reports the capped percentage: a few percent
 is glued sulci being fixed, anything approaching double digits means the gate is too loose.
 
+**The gate does not remove the parameter dependence -- it moves it into the factor.**
+Measured on 5 subjects (T1Prep settings), the mean GM-band correction runs 0.215 / 0.151 /
+0.117 / 0.094 mm at `barrier_gmtfactor` 1.3 / 1.5 / 1.7 / 2.0 and never levels off: about
+0.027 mm per 10% change of the gate. No per-voxel or per-patch quantity separates fused from
+normal cortex either (implied thickness, CSF distance and CSF/WM ratio at the medial voxels,
+patch medians -- all unimodal). A stricter `q` cannot replace the gate: at `q = 0.2` without
+it, 27-47% of the band is still capped, because `min(dist_CSF, dist_medial)` turns every
+medial voxel into CSF for everything around it.
+
+### Shared reference for both hemispheres (`barrier_gmtref`)
+
+The reference estimate differs by up to 10% between the hemispheres of a subject (mean 4.2%
+over 19 subjects), and the difference follows the amount of fusion, not the thickness: a
+hemisphere with more fused sulci gets a *looser* gate and still *more* correction (r = 0.85
+between gate and capped fraction). `CAT_VolPbtBarrierReference()` (`-barrier-ref-only`,
+`cat_surf.vol_pbt_barrier_reference`) returns the reference a full run would derive -- same
+preprocessing, bit-identical -- in ~13 s, and `barrier_gmtref` (`-barrier-gmtref`) hands it
+back. Gating both hemispheres with their mean took the lh-rh difference of the corrected
+thickness from 0.120 to 0.095 mm on the five most asymmetric subjects, although the
+corrections themselves then differ more. T1Prep does this by default: each hemisphere process
+publishes its reference in `{bname}_barrier-ref-{hemi}.json`, waits for the other one's (or
+computes it when that process is not running) and passes the mean; `t1prep.py` folds both into
+the report as `barrier_ref_lh/rh/shared`.
+
+The reference was not what changed between T1Prep 0.7.1 and 0.7.3 (improved ventricle
+filling): gate and correction moved by at most 0.7% and 0.011 mm. The hemisphere asymmetries
+that appeared there came from `CAT_SurfCorrectThicknessFolding` -- see below.
+
+### PBT is deterministic now
+
+`projection_based_thickness()` used to vary between calls on the same input, by up to 1 mm
+per voxel on the fused-bank phantom (most visible with the barrier on), for two reasons:
+`pmax()` read a 15th neighbour past the end of its 14-element stack arrays, and `ornlm()`
+added the contributions of neighbouring thread slabs to their shared slice in
+timing-dependent order -- float sums depend on it, and the projection amplifies 1e-7 into
+tenths of a millimetre. The slabs now run in two passes (even, then odd), which never share
+a slice, so no lock is needed either. On real data this moves single voxels by up to 0.57 mm
+and the mean by 1e-4 mm; the runtime is unchanged.
+
+The CLI also ignored the library's `n_avgs` unless `-n-avgs` was given: it clamped the unset
+sentinel to 1, and halved an explicit value twice under `-fast`. Results from
+`CAT_VolThicknessPbt` without `-n-avgs` before this fix used a single distance level (the
+reference on ADHD200 lh: 4.93 mm with one level, 4.85 mm with the default five).
+
 Two things that do **not** work, both measured rather than assumed:
 
 - **Smoothing the arrival time before differentiating.** Intuition says a derivative operator
@@ -203,6 +247,28 @@ Two things that do **not** work, both measured rather than assumed:
 - **Raising `q` towards 1.** `||grad T|| = 1` is the regular value of an uncollided front, so
   `q = 1` admits everything: on an all-healthy phantom it caps 56448 voxels and costs
   0.57 mm of mean thickness, where 0.4-0.8 cap none at all.
+
+## Folding correction (`CAT_SurfCorrectThicknessFolding`)
+
+The correction is applied where the smoothed mean curvature is positive. With the
+outward-oriented surfaces CAT writes, that is **convex (gyral)** cortex -- the opposite of
+FreeSurfer's `?h.curv` sign: on real central surfaces the mean curvature averages -0.12 in the
+deepest quarter of the sulcal depth and +0.14 in the shallowest.
+
+The sign used to be taken after the curvature was centred on its mean. A few hundred
+degenerate vertices of the averaged central surface reach |H| ~ 1e4 against a p1-p99 range of
+-0.9 to 0.3, so the mean -- and with it the selection -- jumped between hemispheres and
+between versions: 0.1% of the vertices were corrected in one hemisphere, 99.6% in another.
+That, not the sulcal barrier, is what made ADHD200 rh, BUSS02 rh, OASIS rh, HR075 lh and
+yv98 lh change between T1Prep 0.7.1 and 0.7.3 (the PBT maps themselves agree to 0.015 mm).
+With the sign taken before centring, 50-53% of every hemisphere is corrected, the
+0.7.1 -> 0.7.3 change drops from 0.135 to 0.015 mm (max) and the lh-rh difference of the
+correction from 0.144 to 0.043 mm (max). The same outliers make the Gaussian-curvature,
+curvedness and mean-curvature columns of the regression nearly inert; in practice the shape
+index drives it. Winsorizing them was measured and changes nothing worth having.
+
+`pinv()` also left the part of `S` outside the leading rank block uninitialized, which only
+matters for rank-deficient designs (`tests/test_folding.c`).
 
 ## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
 
