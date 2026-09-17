@@ -313,6 +313,47 @@ index drives it. Winsorizing them was measured and changes nothing worth having.
 `pinv()` also left the part of `S` outside the leading rank block uninitialized, which only
 matters for rank-deficient designs (`tests/test_folding.c`).
 
+## Topology correction (`CAT_VolMarchingCubes`)
+
+Three mechanisms decide whether a topological defect is opened or closed, and two
+of them used to ignore anatomy entirely.
+
+**The morphological step was the expensive one.** Before genus0 the binary volume is
+opened or closed globally by `dist_morph`, and that distance used to be chosen by the
+number of voxels *genus0* changed afterwards -- its own cost was never counted.
+Measured on three hemispheres: it picked a 1.5 mm closing that changes 95448 voxels
+(3.3% of the foreground, 94% of them inside sulcal sheets, i.e. every sulcus narrower
+than 3 mm bridged) to save genus0 the 9 voxels it would otherwise have changed; on
+another hemisphere a 1.0 mm opening, 16703 voxels, 89% on gyral ridges. The search now
+counts the morphology's own voxels too, which picks `dist = 0` on all three, and Euler 2
+is still reached in one or two iterations -- ADNI_014 lh gains 5.8% of surface area
+(901 -> 954 cm2) that the opening had eaten.
+
+**genus0 cuts where it should fill.** Every voxel genus0 changed on those hemispheres
+was a removal, and 60-100% of them sat on a *ridge* of the PPM: thin gyral blades
+severed, where the hole through the blade should have been closed instead. The signed
+sheetness separates the two cases -- a sulcal CSF sheet is a valley, a gyral blade a
+ridge -- so `-topo-sheet` (default 0.05, 0 disables) runs genus0 twice on the same
+input, once filling and once cutting, and composes the result region by region: a
+region whose mean signed sheetness is above the threshold is taken from the filling
+run, everything else from the cutting run.
+
+Two things are needed to make that safe, both measured rather than assumed:
+
+- **Do not undo a decision afterwards.** Reverting genus0's cut only puts the handle
+  back, a local closing rarely closes it, and the surface ends at Euler -6 instead
+  of 2. Composing the two resolutions genus0 itself produces avoids that.
+- **Run the local Euler pass on the composed volume.** Mixing two genus-0 results
+  leaves configurations that genus0 accepts -- it analyses 6-connected foreground --
+  while marching cubes turns them into handles. Without `correct_topology()` after the
+  composition the loop stalls: genus0 changes nothing and the mesh keeps Euler -6
+  through all five iterations.
+
+With both, the mesh is genus 0 and the glued fraction drops where defects were decided
+differently: at the T1Prep settings (`strength_sulci` 1.0, `sheet_offset` 0.2) 002 rh
+goes 0.80% -> 0.43% and BUSS02 rh 2.40% -> 0.18%, at unchanged area, while a hemisphere
+with no contested defect (ADNI_014 lh) is bit-identical.
+
 ## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
 
 A global isovalue shift cannot fix glued sulci without breaking thin gyri, because it moves
