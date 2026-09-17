@@ -236,19 +236,22 @@ int CAT_SurfEstimatePialWhite(
         copy_polygons(polygons_white, white_out);
 
     /* Optionally repair self-intersections of both surfaces.  The pial surface
-     * is the more critical one because it is pushed outwards into tight sulci,
-     * but the white surface can fold in deep gyri as well.  The repair is
+     * is pushed outwards into tight sulci, and the two sides of a thin gyral
+     * blade can be driven through each other on either surface -- inside the
+     * blade the white target is never reached.  Local smoothing cannot
+     * separate such crossed sheets, so defects that survive it retreat
+     * towards the central surface both surfaces started from.  The repair is
      * topology preserving, so the vertex correspondence between central, pial
      * and white surfaces - and with it the per-vertex thickness - is kept. */
     if (opts->remove_intersect)
     {
         if (opts->verbose)
             fprintf(stdout, "Remove self-intersections of pial surface\n");
-        remove_intersections(pial_out, opts->verbose);
+        remove_intersections_ref(pial_out, central->points, 10, 50, opts->verbose);
 
         if (opts->verbose)
             fprintf(stdout, "Remove self-intersections of white surface\n");
-        remove_intersections(white_out, opts->verbose);
+        remove_intersections_ref(white_out, central->points, 10, 50, opts->verbose);
     }
 
     /* Cleanup */

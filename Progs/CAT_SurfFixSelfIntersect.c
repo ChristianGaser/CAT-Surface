@@ -18,6 +18,7 @@
 static int max_passes = 10;
 static int maxiter = 50;
 static double near_threshold = 0.0;
+static char *reference_file = NULL;
 static int verbose = 0;
 
 static ArgvInfo argTable[] = {
@@ -28,6 +29,11 @@ static ArgvInfo argTable[] = {
     {"-near", ARGV_FLOAT, (char *)1, (char *)&near_threshold,
      "Additionally push apart non-adjacent vertices closer than this multiple\n\
                  of the average edge length (0 = off)."},
+    {"-reference", ARGV_STRING, (char *)1, (char *)&reference_file,
+     "Surface with the same topology to retreat towards where smoothing\n\
+                 cannot resolve a defect, e.g. the surface a deformation started\n\
+                 from.  Crossed sheets -- the two sides of a thin gyral blade\n\
+                 driven through each other -- survive any amount of smoothing."},
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
      "Print progress of the correction."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
@@ -40,7 +46,9 @@ usage(char *executable)
     Remove self-intersections from a triangle mesh by locally smoothing the\n\
     intersecting regions.  Intersecting triangles are detected, grouped into\n\
     defect regions and then relaxed until they no longer intersect; regions\n\
-    that do not improve are expanded before the next attempt.\n\n\
+    that do not improve are expanded before the next attempt.  With\n\
+    -reference, defects that smoothing cannot resolve are moved part of the\n\
+    way back to the reference surface and repaired again.\n\n\
     The mesh topology is preserved: the number of vertices and faces and their\n\
     connectivity are unchanged, so per-vertex data such as thickness stays\n\
     valid.\n\n\
@@ -61,6 +69,8 @@ main(int argc, char *argv[])
     int *n_neighbours, **neighbours;
     int n_objects, n_before, n_after, n_remaining;
     File_formats format;
+    object_struct **ref_objects = NULL;
+    polygons_struct *reference = NULL;
 
     if (ParseArgv(&argc, argv, argTable, 0) || argc != 3)
     {
@@ -99,6 +109,27 @@ main(int argc, char *argv[])
 
     polygons = get_polygons_ptr(objects[0]);
 
+    if (reference_file)
+    {
+        File_formats ref_format;
+        int n_ref;
+
+        if (input_graphics_any_format(reference_file, &ref_format, &n_ref,
+                                      &ref_objects) != OK || n_ref != 1 ||
+            get_object_type(ref_objects[0]) != POLYGONS)
+        {
+            fprintf(stderr, "Error reading reference file %s\n", reference_file);
+            exit(EXIT_FAILURE);
+        }
+        reference = get_polygons_ptr(ref_objects[0]);
+        if (reference->n_points != polygons->n_points)
+        {
+            fprintf(stderr, "Reference surface has %d vertices, input %d.\n",
+                    reference->n_points, polygons->n_points);
+            exit(EXIT_FAILURE);
+        }
+    }
+
     /* count self-intersections before the correction */
     defects = (int *)malloc(sizeof(int) * polygons->n_points);
     polydefects = (int *)malloc(sizeof(int) * polygons->n_items);
@@ -113,8 +144,9 @@ main(int argc, char *argv[])
 
     if (n_before > 0)
     {
-        n_remaining = remove_intersections_iter(polygons, max_passes, maxiter,
-                                                verbose);
+        n_remaining = remove_intersections_ref(polygons,
+                                               reference ? reference->points : NULL,
+                                               max_passes, maxiter, verbose);
         if (n_remaining > 0)
             fprintf(stderr, "Warning: %d self intersection(s) could not be "
                             "corrected within %d passes.\n",
@@ -145,6 +177,8 @@ main(int argc, char *argv[])
                                     neighbours, NULL, NULL);
 
     delete_object_list(n_objects, objects);
+    if (ref_objects)
+        delete_object_list(1, ref_objects);
 
     return (n_after > 0);
 }

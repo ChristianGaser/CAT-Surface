@@ -1175,6 +1175,110 @@ int remove_intersections_iter(polygons_struct *polygons, int max_passes,
     return n_intersects;
 }
 
+/**
+ * \brief Remove self-intersections, retreating stubborn defects towards a reference.
+ *
+ * Runs remove_intersections_iter() and, where defects survive it, moves their
+ * vertices together with CAT_RETREAT_RINGS rings of neighbours by
+ * CAT_RETREAT_FRACTION of the way back to the reference positions, then
+ * repairs again, for at most CAT_RETREAT_STEPS steps, stopping early when two
+ * steps in a row bring no progress -- which is what happens where the
+ * reference crosses itself in the same place.
+ *
+ * The smoothing inside remove_intersections_iter() can only undo crossings it
+ * can reach by relaxing the mesh locally.  Two sheets that pass through each
+ * other stay crossed however long they are smoothed: the two sides of a thin
+ * gyral blade that a deformation drove through each other (the white surface
+ * of thin gyri: the target isovalue is never reached inside the blade), or a
+ * sheet of a deformed central surface folded onto itself.  Measured on T1Prep
+ * surfaces, three times the passes or four times the iterations left 265 of
+ * 269 pairs.  Any surface a deformation started from gives the way back: the
+ * central surface for the pial and white surfaces, the start mesh for the
+ * central one.  One step resolved 86-226 remaining pairs by moving 0.2-0.4%
+ * of the vertices, with the mean label error of the surface unchanged to
+ * 5e-4.  The reference need not be free of intersections everywhere, only
+ * where the surface is repaired.
+ *
+ * \param polygons   (in/out) mesh to repair
+ * \param reference  (in)     reference positions, one per vertex of polygons
+ *                            (same topology, e.g. the start of the
+ *                            deformation); NULL makes this identical to
+ *                            remove_intersections_iter()
+ * \param max_passes (in)     detect/smooth passes of each repair (default 10)
+ * \param maxiter    (in)     smoothing iterations per pass (default 50)
+ * \param verbose    (in)     1 for progress output; 0 for silent
+ * \return number of self-intersecting defect regions that remain (0 = fully repaired)
+ */
+int remove_intersections_ref(polygons_struct *polygons, const Point *reference,
+                             int max_passes, int maxiter, int verbose)
+{
+    int *defects, *polydefects, *n_neighbours, **neighbours;
+    int p, step, n_remaining, n_previous, n_stalled = 0;
+
+    n_remaining = remove_intersections_iter(polygons, max_passes, maxiter, verbose);
+    if (n_remaining == 0 || reference == NULL)
+        return n_remaining;
+
+    defects = (int *)malloc(sizeof(int) * polygons->n_points);
+    polydefects = (int *)malloc(sizeof(int) * polygons->n_items);
+    if (!defects || !polydefects)
+    {
+        free(defects);
+        free(polydefects);
+        return n_remaining;
+    }
+    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
+                                    &neighbours, NULL, NULL);
+
+    for (step = 0; step < CAT_RETREAT_STEPS && n_remaining > 0; step++)
+    {
+        n_previous = n_remaining;
+
+        if (verbose)
+            printf("%3d self intersections left, retreating towards the reference.\n",
+                   n_remaining);
+
+        /* the vertices of the remaining defects and their neighbourhood */
+        find_selfintersections(polygons, defects, polydefects, 1);
+        expand_defects(polygons, defects, polydefects, 0, CAT_RETREAT_RINGS,
+                       n_neighbours, neighbours);
+
+        for (p = 0; p < polygons->n_points; p++)
+        {
+            if (defects[p] == 0)
+                continue;
+            Point_x(polygons->points[p]) += CAT_RETREAT_FRACTION *
+                (Point_x(reference[p]) - Point_x(polygons->points[p]));
+            Point_y(polygons->points[p]) += CAT_RETREAT_FRACTION *
+                (Point_y(reference[p]) - Point_y(polygons->points[p]));
+            Point_z(polygons->points[p]) += CAT_RETREAT_FRACTION *
+                (Point_z(reference[p]) - Point_z(polygons->points[p]));
+        }
+
+        n_remaining = remove_intersections_iter(polygons, max_passes, maxiter,
+                                                verbose);
+
+        /* Retreating cannot help where the reference crosses itself too, and
+           every step costs a full repair -- give up after two without
+           progress. */
+        n_stalled = (n_remaining < n_previous) ? 0 : n_stalled + 1;
+        if (n_stalled > 1)
+        {
+            if (verbose)
+                printf("%3d self intersections left that the reference cannot "
+                       "resolve.\n", n_remaining);
+            break;
+        }
+    }
+
+    free(defects);
+    free(polydefects);
+    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours,
+                                    NULL, NULL);
+
+    return n_remaining;
+}
+
 /* Find and remove near self-intersections */
 /**
  * \brief Remove near-intersecting vertices by iterative vertex repositioning.

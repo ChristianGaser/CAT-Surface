@@ -55,6 +55,37 @@ int has_selfintersections(polygons_struct *, int *, int);
 int find_intersecting_defects(polygons_struct *, int *, int, int *);
 void remove_intersections(polygons_struct *, int);
 int remove_intersections_iter(polygons_struct *, int, int, int);
+
+/** Share of the way back to the reference per retreat step. */
+#define CAT_RETREAT_FRACTION 0.25
+/** Rings of neighbours moved together with a remaining defect. */
+#define CAT_RETREAT_RINGS 2
+/** Maximum number of retreat steps. */
+#define CAT_RETREAT_STEPS 16
+
+/**
+ * \brief Remove self-intersections, retreating stubborn defects towards a reference.
+ *
+ * Runs remove_intersections_iter() and, where defects survive it, moves their
+ * vertices and CAT_RETREAT_RINGS rings of neighbours by CAT_RETREAT_FRACTION of
+ * the way back to the reference positions before repairing again, for at most
+ * CAT_RETREAT_STEPS steps, stopping early when two steps bring no progress.
+ * Local smoothing cannot separate two sheets that were driven through each
+ * other, e.g. the two sides of a thin gyral blade; the surface a deformation
+ * started from gives the way back.
+ *
+ * \param polygons   (in/out) mesh to repair
+ * \param reference  (in)     reference positions, one per vertex of polygons
+ *                            (same topology, e.g. the start of the
+ *                            deformation); NULL makes this identical to
+ *                            remove_intersections_iter()
+ * \param max_passes (in)     detect/smooth passes of each repair (default 10)
+ * \param maxiter    (in)     smoothing iterations per pass (default 50)
+ * \param verbose    (in)     1 for progress output; 0 for silent
+ * \return number of self-intersecting defect regions that remain (0 = fully repaired)
+ */
+int remove_intersections_ref(polygons_struct *polygons, const Point *reference,
+                             int max_passes, int maxiter, int verbose);
 int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, 
                             int *n_hits_out);
 

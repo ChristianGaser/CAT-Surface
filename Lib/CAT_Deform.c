@@ -270,10 +270,21 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     Point points[MAX_POINTS_PER_POLYGON];
     polygons_struct *polygons_orig;
     object_struct *orig_object;
+    Point *start_points;
 
     orig_object = create_object(POLYGONS);
     polygons_orig = get_polygons_ptr(orig_object);
     copy_polygons(polygons, polygons_orig);
+
+    // Start positions: the way back for defects the repair cannot smooth out
+    // (polygons_orig itself is moved to the result below)
+    start_points = (Point *)malloc(sizeof(Point) * polygons->n_points);
+    if (!start_points)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    memcpy(start_points, polygons->points, sizeof(Point) * polygons->n_points);
 
     // Extract image dimensions and voxel size
     dims[0] = nii_ptr->nx;
@@ -460,15 +471,17 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     // surface off the isovalue (HR075: PPM error 0.0220 -> 0.0194).
     smooth_laplacian(polygons, 2, 0.1, 0.5);
 
-    // Remove self-intersections by locally smoothing the intersecting regions.
+    // Remove self-intersections by locally smoothing the intersecting regions,
+    // retreating the ones smoothing cannot resolve towards the start surface.
     // This preserves the mesh topology, i.e. the number of vertices and faces
     // and their connectivity are left unchanged.
     if (remove_selfintersect)
     {
         if (verbose)
             fprintf(stdout, "\n");
-        remove_intersections(polygons, verbose);
+        remove_intersections_ref(polygons, start_points, 10, 50, verbose);
     }
+    free(start_points);
 
     // Free allocated memory
     free(gradient_x);
