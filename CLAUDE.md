@@ -204,6 +204,29 @@ patch medians -- all unimodal). A stricter `q` cannot replace the gate: at `q = 
 it, 27-47% of the band is still capped, because `min(dist_CSF, dist_medial)` turns every
 medial voxel into CSF for everything around it.
 
+**Choosing the factor against the pial-white distance.** T1Prep uses 1.3, below the library
+default of 1.5. Scored against Tfs on 8 hemispheres (precision: share of the removed thickness
+lying where the unbarriered PBT exceeds Tfs by > 0.5 mm; recall: share of an excess > 1 mm that
+is removed), 1.3 has the same precision as 1.5 (45-47% vs 45-46%), better recall (48-49% vs
+35-38%) and puts the mean PBT within 0.02-0.03 mm of the mean Tfs (1.5: 0.04-0.05; no barrier:
+0.13-0.14). Tfs is not independent of PBT -- the pial search starts at central + half the PBT
+thickness -- so this was checked against two references, surfaces built from gate-1.3 PBT
+(0.7.4) and from gate-1.5 PBT (0.7.1); the ranking is the same. Tfs is not ground truth either.
+
+Lower factors do not improve on it (shared reference, same 8 hemispheres, precision / recall /
+thickness removed where Tfs agrees / mean PBT - mean Tfs):
+
+| factor | correction | capped | PPM pushed below 0.5 per 1000 | prec. | recall | removed @ agree | PBT - Tfs |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1.3 | 0.162 | 16% | 23 | 45-47% | 48-49% | 0.063 | +0.02/+0.03 |
+| 1.2 | 0.198 | 20% | 28 | 43-46% | 55-56% | 0.074 | -0.01/+0.01 |
+| 1.1 | 0.250 | 24% | 36 | 41-43% | 62-63% | 0.094 | -0.04/-0.03 |
+| 1.0 | 0.319 | 27% | 47 | 39-41% | 70-71% | 0.127 | -0.09/-0.08 |
+| 0.9 | 0.407 | 31% | 60 | 37-38% | 78-79% | 0.178 | -0.17/-0.15 |
+
+Precision falls with every step and the false correction accelerates below 1.2, where the mean
+also drops under Tfs (which itself runs short through shortcuts). 1.2 matches the Tfs mean best.
+
 ### Shared reference for both hemispheres (`barrier_gmtref`)
 
 The reference estimate differs by up to 10% between the hemispheres of a subject (mean 4.2%
@@ -212,12 +235,15 @@ hemisphere with more fused sulci gets a *looser* gate and still *more* correctio
 between gate and capped fraction). `CAT_VolPbtBarrierReference()` (`-barrier-ref-only`,
 `cat_surf.vol_pbt_barrier_reference`) returns the reference a full run would derive -- same
 preprocessing, bit-identical -- in ~13 s, and `barrier_gmtref` (`-barrier-gmtref`) hands it
-back. Gating both hemispheres with their mean took the lh-rh difference of the corrected
-thickness from 0.120 to 0.095 mm on the five most asymmetric subjects, although the
-corrections themselves then differ more. T1Prep does this by default: each hemisphere process
-publishes its reference in `{bname}_barrier-ref-{hemi}.json`, waits for the other one's (or
-computes it when that process is not running) and passes the mean; `t1prep.py` folds both into
-the report as `barrier_ref_lh/rh/shared`.
+back. The benefit is small and is about applying one criterion to both sides rather than about
+the mean: at factor 1.3 on all 19 subjects the mean thickness is unchanged, a hemisphere's
+band mean moves by 0.007 mm on average (at most 0.019 mm), and the mean |lh-rh| drops from
+0.080 to 0.069 mm (smaller in 15/19; up to 0.04 mm where the references differ by 7-9%).
+That matters for asymmetry analyses, where effects are of the same size. T1Prep does this by
+default in the simplest way: each hemisphere process estimates both references itself (~20 s
+extra) and passes the mean -- the estimate is deterministic, so both arrive at the same value
+without any coordination -- and writes the references into its QA sidecar for the report
+(`barrier_ref_lh/rh/shared`).
 
 The reference was not what changed between T1Prep 0.7.1 and 0.7.3 (improved ventricle
 filling): gate and correction moved by at most 0.7% and 0.011 mm. The hemisphere asymmetries
@@ -239,7 +265,7 @@ sentinel to 1, and halved an explicit value twice under `-fast`. Results from
 `CAT_VolThicknessPbt` without `-n-avgs` before this fix used a single distance level (the
 reference on ADHD200 lh: 4.93 mm with one level, 4.85 mm with the default five).
 
-Two things that do **not** work, both measured rather than assumed:
+Three things that do **not** work, all measured rather than assumed:
 
 - **Smoothing the arrival time before differentiating.** Intuition says a derivative operator
   wants a smoothed input; in fact flattening the field lowers `||grad T||` everywhere and
@@ -247,6 +273,15 @@ Two things that do **not** work, both measured rather than assumed:
 - **Raising `q` towards 1.** `||grad T|| = 1` is the regular value of an uncollided front, so
   `q = 1` admits everything: on an all-healthy phantom it caps 56448 voxels and costs
   0.57 mm of mean thickness, where 0.4-0.8 cap none at all.
+- **Keeping only collisions with a label dip.** Across the ridge of `dist_WM` about 40% of the
+  medial voxels show a dip of >= 0.1 in the label map (19% on the ADHD200 motion scan), the
+  rest none -- two populations, but the dipping one has no gap to cut at. As the only gate it
+  over-corrects: 0.39 mm mean correction at a dip of 0.1, 30% of the band capped, the mean PBT
+  0.20 mm *below* Tfs and 0.29 mm removed where Tfs and the unbarriered PBT agree; the result
+  still moves 0.43 -> 0.22 mm over dips of 0.05-0.3. Combined with the thickness gate it halves
+  the correction without raising its precision (45% vs 47%). Dips of 0.1-0.3 are within the
+  label noise of grey matter (p10-p90 1.85-2.20), so a dip does not prove a lost sulcus -- the
+  information that makes the pial profile search useful is not available at the collision.
 
 ## Folding correction (`CAT_SurfCorrectThicknessFolding`)
 
