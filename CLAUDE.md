@@ -329,30 +329,79 @@ counts the morphology's own voxels too, which picks `dist = 0` on all three, and
 is still reached in one or two iterations -- ADNI_014 lh gains 5.8% of surface area
 (901 -> 954 cm2) that the opening had eaten.
 
-**genus0 cuts where it should fill.** Every voxel genus0 changed on those hemispheres
-was a removal, and 60-100% of them sat on a *ridge* of the PPM: thin gyral blades
-severed, where the hole through the blade should have been closed instead. The signed
-sheetness separates the two cases -- a sulcal CSF sheet is a valley, a gyral blade a
-ridge -- so `-topo-sheet` (default 0.05, 0 disables) runs genus0 twice on the same
-input, once filling and once cutting, and composes the result region by region: a
-region whose mean signed sheetness is above the threshold is taken from the filling
-run, everything else from the cutting run.
+**Filling is the safer default, and the order enforces it.** The pair of genus0 calls
+resolves a defect by filling it if the first (filling, 6-connected) call can, and cuts
+only what is left for the second. That asymmetry is deliberate: cutting a defect that sits
+in a gyral blade severs the blade, and a severed blade is a hole in the surface, while an
+unnecessary fill is a local thickening. `-topo-sheet` (default 0.3, 0 disables) does not
+change the order. It runs genus0 twice on the same input to see both resolutions, and
+takes away only the defects where filling is the wrong default -- a sulcus whose banks
+nearly touch, which the filling closes into a bridge. Those are cut in the volume the pair
+is then given; everything else reaches the pair untouched and is filled as before.
 
-Two things are needed to make that safe, both measured rather than assumed:
+**The absolute sheetness of a defect says nothing, and reading it as if it did is what cut
+gyri.** Filling adds *background* voxels, which are dark and therefore read as a valley;
+cutting removes *foreground* voxels, which are bright and read as a ridge. Measured on four
+hemispheres, all 15 contested regions had a negative fill mean (-0.05 to -0.57) and a
+positive cut mean (+0.03 to +0.59) -- the sign is a property of the operation, not of the
+anatomy. A rule that took the mean over both sets therefore cut 11 of those 15 regions,
+i.e. it silently replaced fill-priority with cut-priority. What does carry information is
+how strong the structure each action would damage is, so the two means are only ever
+compared with each other: cut when the filling would run along a dark sheet of at least
+`topo_sheet` **and** cutting damages less (`-mean_fill > mean_cut`). That selects 8 of the
+15.
 
-- **Do not undo a decision afterwards.** Reverting genus0's cut only puts the handle
-  back, a local closing rarely closes it, and the surface ends at Euler -6 instead
-  of 2. Composing the two resolutions genus0 itself produces avoids that.
-- **Run the local Euler pass on the composed volume.** Mixing two genus-0 results
-  leaves configurations that genus0 accepts -- it analyses 6-connected foreground --
-  while marching cubes turns them into handles. Without `correct_topology()` after the
-  composition the loop stalls: genus0 changes nothing and the mesh keeps Euler -6
-  through all five iterations.
+Two more things were measured rather than assumed:
 
-With both, the mesh is genus 0 and the glued fraction drops where defects were decided
-differently: at the T1Prep settings (`strength_sulci` 1.0, `sheet_offset` 0.2) 002 rh
-goes 0.80% -> 0.43% and BUSS02 rh 2.40% -> 0.18%, at unchanged area, while a hemisphere
-with no contested defect (ADNI_014 lh) is bit-identical.
+- **Do not undo a decision afterwards.** Reverting genus0's cut only puts the handle back,
+  a local closing rarely closes it, and the surface ends at Euler -6 instead of 2.
+  Pre-resolving in the *input*, before genus0 runs, avoids that.
+- **Do not run the local Euler pass on the result.** It only ever removed voxels, and the
+  corner it picks is the one whose probability is closest to the isovalue -- exactly the
+  voxels a fill has just added. It is only needed when two genus-0 results are mixed,
+  which this no longer does.
+
+**The rough pass before genus0 was removal-only for the same reason**, and there it is not
+a mixing artefact but the rule itself: it resolved a 2x2x2 defect by flipping the most
+ambiguous *foreground* corner, so a defect in a thin blade was always resolved by severing
+the blade -- adding the one ambiguous hole voxel was never even a candidate, although the
+apply step has always handled both directions. Both now compete on the same
+|prob - thresh|. It fires rarely: over 36 hemispheres the surfaces move 0.002 mm on average
+(0.03% of the vertices by more than 0.5 mm), the mean thickness by 0.001 mm and the area by
+0.006%, while the glued fraction drops from 0.52% to 0.50% (lower in 10 hemispheres, higher
+in 7) and one of the two central surfaces that still had self-intersections comes out clean.
+
+Taking the cut run as the base also applied every removal it had made anywhere, not only
+in the contested regions: 002 rh lost 1910 vertices that way on a hemisphere where genus0
+found no defect at all.
+
+`-verbose` prints one line per contested defect -- the two means and the decision -- which
+is the diagnostic that separates the two failure modes.
+
+At the T1Prep settings (`strength_sulci` 1.0, `sheet_offset` 0.2) the pre-cut lowers the
+glued fraction of the marching-cubes surface -- 002 lh 0.37% -> 0.23%, BUSS02 rh 0.55% ->
+0.25%, ADNI_014 lh 0.048% -> 0.042% -- and removes the intersections that the touching
+banks caused (58 -> 0 and 37 -> 0 pairs), at Euler 2 everywhere. A hemisphere with no
+contested defect is bit-identical to plain genus0.
+
+Through the full T1Prep pipeline, on 19 subjects from the same segmentations (36
+hemispheres; the 4397 scan is excluded, its GM/WM segmentation fails on huge ventricles):
+
+| | genus0 alone | **pre-cut + symmetric pass** | mean over both sets, cut-priority |
+| --- | --- | --- | --- |
+| glued fraction | 0.574% | **0.502%** | 0.365% |
+| mean thickness | 2.266 | 2.272 | 2.247 |
+| area (mm2) | 99961 | 99987 | 99881 |
+| white surfaces left with self-intersections | 4 (up to 121 pairs) | **0** | 1 (52) |
+| pial | 2 (8, 24) | **0** | 0 |
+| central | 1 (2) | 1 (11) | 0 |
+
+Against plain genus0 the glued fraction falls in 17 of the 36 hemispheres and rises in 5,
+every white and pial surface comes out clean, and the thickness and area barely move
+(+0.006 mm, +0.03%). **16 hemispheres are bit-identical**: the rule only acts where a
+defect is genuinely contested. The cut-priority column is the version this replaced -- it
+reaches the lowest glued fraction of the three, and has the smallest area and the thinnest
+cortex to go with it, which is what severed blades look like in the mean.
 
 ## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
 
