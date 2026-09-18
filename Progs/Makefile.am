@@ -26,11 +26,6 @@ else
 LDADD = ../libCAT.la -lm
 endif
 
-# Distribute scripts
-dist_bin_SCRIPTS = \
-    CAT_ResampleFS_ui \
-    CAT_Resample_ui 
-
 # Programs to build
 bin_PROGRAMS = \
     CAT_Surf2Sheet \
