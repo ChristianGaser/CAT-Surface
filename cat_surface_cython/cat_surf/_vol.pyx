@@ -1059,16 +1059,18 @@ def vol_marching_cubes(volume, double threshold=0.5,
         positive on the other and one addition lowers sulci while raising
         blades -- which a global isovalue shift cannot do.
     topo_sheet : float
-        Sheetness a topological defect needs before its resolution follows
-        the anatomy instead of genus0 (default 0.05; 0 disables).  genus0
-        chooses globally between cutting a handle and filling it, and it
-        cuts -- on three test hemispheres every voxel it changed was a
-        removal and 60-100% of them lay on a ridge of the map, i.e. thin
-        gyral blades severed where the hole through the blade should have
-        been closed.  The signed sheetness separates a blade (ridge) from a
-        sulcal sheet (valley), so a defect in a blade is closed and one in a
-        sheet opened.  The last iteration is always left to genus0, so the
-        surface is genus 0 either way.
+        Dark-sheet response a topological defect must run along before it is
+        cut instead of filled (default 0.3; 0 disables).  A defect is
+        resolved by filling it whenever that is possible, because cutting one
+        that sits in a gyral blade severs the blade.  That default is wrong
+        only where the two banks of a sulcus nearly touch and filling closes
+        the sulcus into a bridge; such a defect is cut in advance when the
+        voxels the filling would add run along a sulcal sheet of at least
+        this response and cutting damages less.  The absolute levels carry no
+        information -- filling always adds dark voxels and cutting always
+        removes bright ones -- so the two are only ever compared with each
+        other.  genus0 resolves everything else, so the surface is genus 0
+        either way.
     sheet_offset_gyri : float
         The same offset for the raising half alone.  Negative (default)
         means "use ``sheet_offset``", i.e. the signed map is applied whole.
@@ -1182,7 +1184,7 @@ def vol_marching_cubes(volume, double threshold=0.5,
                 threshold, pre_fwhm, iter_laplacian,
                 dist_morph_val, n_median_filter, n_iter,
                 strength_gyri_mask, sulci_ptr,
-                topo_sheet if topo_sheet >= 0.0 else C.CAT_TOPO_STEER_THRESH,
+                topo_sheet if topo_sheet >= 0.0 else C.CAT_TOPO_PRECUT_THRESH,
                 1 if verbose else 0)
     finally:
         vh.close()

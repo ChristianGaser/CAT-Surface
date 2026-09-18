@@ -359,7 +359,7 @@ cdef extern from "CAT_Surf.h":
 # CAT_MarchingCubes.h — Isosurface extraction
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_MarchingCubes.h":
-    double CAT_TOPO_STEER_THRESH
+    double CAT_TOPO_PRECUT_THRESH
     object_struct *apply_marching_cubes(
         float *input_float,
         nifti_image *nii_ptr,
