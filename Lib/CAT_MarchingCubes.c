@@ -156,23 +156,27 @@ run_topology_pass(float *volume,float *vol_changed,  const float *vol_prob,
                 if (V - E + F != bad_chi)
                     continue;
 
-                /* Find the single foreground corner whose flip resolves the
-                 * defect. Prefer the corner with the smallest |prob - thresh|:
-                 * that voxel has the lowest anatomical confidence and is the
-                 * most "free" to change without distorting anatomy.
+                /* Find the single corner whose flip resolves the defect.
+                 * Prefer the corner with the smallest |prob - thresh|: that
+                 * voxel has the lowest anatomical confidence and is the most
+                 * "free" to change without distorting anatomy.
                  * vol_prob holds the original pre-correction probabilities so
-                 * that this metric is not degraded by earlier iterations.     */
+                 * that this metric is not degraded by earlier iterations.
+                 * Both directions compete: removing a foreground corner cuts
+                 * the structure, adding a background one closes a hole in it,
+                 * and in a thin gyral blade the hole is the cheaper of the
+                 * two.  Only removals used to be considered, so every defect
+                 * in a blade was resolved by severing it.                     */
                 int   best_corner = -1;
+                int   best_value  = 0;
                 float best_dist   = FLT_MAX;
 
                 for (i = 0; i < 8; i++)
                 {
-                    if (!cube[i])
-                        continue;
-
+                    int value = cube[i] ? 0 : 1;
                     int test[8];
                     for (j = 0; j < 8; j++) test[j] = cube[j];
-                    test[i] = 0;
+                    test[i] = value;
 
                     int tV = 0, tE = 0, tF = 0;
                     for (j = 0; j < 8; j++) tV += test[j];
@@ -190,13 +194,14 @@ run_topology_pass(float *volume,float *vol_changed,  const float *vol_prob,
                     {
                         best_dist   = dist;
                         best_corner = i;
+                        best_value  = value;
                     }
                 }
 
                 if (best_corner >= 0)
                 {
                     /* Minimal fix: flip just the most ambiguous corner */
-                    vol_euler[cidx[best_corner]] = 0.0f;
+                    vol_euler[cidx[best_corner]] = (float)best_value;
                 }
                 else
                 {
@@ -738,46 +743,55 @@ extract_isosurface(
  */
 
 /**
- * \brief Pick per defect between filling a handle and cutting it.
+ * \brief Cut the defects whose filling would close a sulcus.
  *
- * genus0 decides globally, and it cuts: measured on three hemispheres, every
- * voxel it changed was a removal and 60-100% of them sat on a *ridge* of the
- * PPM -- a thin gyral blade severed where the hole through the blade should
- * have been closed instead.  The signed sheetness tells the two cases apart: a
- * sulcal CSF sheet is a valley (negative), a gyral blade a ridge (positive).
+ * The pair of genus0 calls the caller runs resolves a defect by filling it if
+ * the first (filling) call can, and by cutting it only otherwise.  That order
+ * is deliberate -- filling is the safer default, because cutting a defect that
+ * sits in a gyral blade severs the blade -- and it is kept here.  This only
+ * takes away the defects where filling is the *wrong* default: a sulcus whose
+ * two banks nearly touch, which the filling run closes into a bridge.
  *
- * Rather than undoing a decision afterwards -- which only puts the handle back
- * and leaves the surface non-genus-0 -- this composes the two resolutions
- * genus0 itself produces: one run that fills and one that cuts.  Every
- * connected region in which they differ from the input is taken from the run
- * the sheetness asks for, and from the cutting run where it has no opinion.
- * The composed volume goes through the normal genus0 pass afterwards, so the
- * result is genus 0 regardless of what was chosen here.
+ * The two candidate actions are judged by the voxels each of them would
+ * change, and only ever against each other.  Their absolute levels say
+ * nothing: filling adds background voxels, which are dark and therefore read
+ * as a valley, and cutting removes foreground voxels, which are bright and
+ * read as a ridge -- measured on four hemispheres, every single region had a
+ * negative fill mean and a positive cut mean.  What does carry information is
+ * *how strong* the structure each action would damage is:
  *
- * \param out     (out) composed volume, nvol elements
- * \param base    (in)  volume both genus0 runs were given
- * \param fill    (in)  result of the filling run
- * \param cut     (in)  result of the cutting run
- * \param sheet   (in)  signed sheetness of the PPM, valleys negative
- * \param dims    (in)  {nx, ny, nz}
- * \param thresh  (in)  sheetness a region needs before it decides
- * \param verbose (in)  1 to report the split
- * \return number of regions taken from the filling run
+ *   - filling runs along a dark sheet (mean < -thresh), i.e. a real sulcus,
+ *   - and cutting damages less than filling would (-mean_fill > mean_cut)
+ *
+ * then the defect is pre-cut.  Everything else is left to the pair, which
+ * fills it as before.
+ *
+ * \param out      (out) volume for the genus0 pair: base with those regions
+ *                       already cut, nvol elements
+ * \param base     (in)  volume both genus0 runs were given
+ * \param fill     (in)  result of the filling run
+ * \param cut      (in)  result of the cutting run
+ * \param sheet    (in)  signed sheetness of the PPM, valleys negative
+ * \param dims     (in)  {nx, ny, nz}
+ * \param thresh   (in)  sheetness the filling must run along before it is
+ *                       overruled
+ * \param verbose  (in)  1 to report every defect and the split
+ * \return number of regions pre-cut
  */
 static int
-compose_topology_defects(unsigned short *out, const unsigned short *base,
-                         const unsigned short *fill, const unsigned short *cut,
-                         const float *sheet, int dims[3], double thresh,
-                         int verbose)
+precut_bridged_sulci(unsigned short *out, const unsigned short *base,
+                     const unsigned short *fill, const unsigned short *cut,
+                     const float *sheet, int dims[3], double thresh,
+                     int verbose)
 {
     const int nx = dims[0], ny = dims[1], nz = dims[2], xy = nx * ny;
     const int nvol = xy * nz;
     int *stack, *cluster, n_stack, n_cluster, i, j;
-    int n_fill = 0, n_cut = 0;
+    int n_cut = 0, n_left = 0;
     unsigned char *seen;
 
     for (i = 0; i < nvol; i++)
-        out[i] = cut[i];
+        out[i] = base[i];
 
     seen = (unsigned char *)calloc(nvol, sizeof(unsigned char));
     stack = (int *)malloc(sizeof(int) * nvol);
@@ -792,12 +806,13 @@ compose_topology_defects(unsigned short *out, const unsigned short *base,
 
     for (i = 0; i < nvol; i++)
     {
-        double sum = 0.0;
+        double sum_fill = 0.0, sum_cut = 0.0, s_fill, s_cut;
+        int n_f = 0, n_c = 0, take_cut;
 
         if (seen[i] || (fill[i] == base[i] && cut[i] == base[i]))
             continue;
 
-        /* one connected region of disagreement (26-connected) */
+        /* one connected region in which the two resolutions differ */
         n_stack = n_cluster = 0;
         stack[n_stack++] = i;
         seen[i] = 1;
@@ -809,7 +824,16 @@ compose_topology_defects(unsigned short *out, const unsigned short *base,
             int dx, dy, dz;
 
             cluster[n_cluster++] = c;
-            sum += sheet[c];
+            if (fill[c] != base[c])
+            {
+                sum_fill += sheet[c];
+                n_f++;
+            }
+            if (cut[c] != base[c])
+            {
+                sum_cut += sheet[c];
+                n_c++;
+            }
 
             for (dz = -1; dz <= 1; dz++)
                 for (dy = -1; dy <= 1; dy++)
@@ -829,27 +853,35 @@ compose_topology_defects(unsigned short *out, const unsigned short *base,
                     }
         }
 
-        /* a ridge is a blade with a hole: fill it.  A valley is a bridged
-           sulcus: cut it, which is what `out` already holds. */
-        if (sum / (double)n_cluster > thresh)
+        s_fill = (n_f > 0) ? sum_fill / (double)n_f : 0.0;
+        s_cut = (n_c > 0) ? sum_cut / (double)n_c : 0.0;
+        take_cut = (n_f > 0 && n_c > 0 && s_fill < -thresh && -s_fill > s_cut);
+
+        if (take_cut)
         {
             for (j = 0; j < n_cluster; j++)
-                out[cluster[j]] = fill[cluster[j]];
-            n_fill++;
+                if (cut[cluster[j]] != base[cluster[j]])
+                    out[cluster[j]] = cut[cluster[j]];
+            n_cut++;
         }
         else
-            n_cut++;
+            n_left++;
+
+        if (verbose)
+            fprintf(stdout, "  defect: filling %5d voxels (sheet %+0.3f), "
+                            "cutting %5d (%+0.3f) -> %s\n",
+                    n_f, s_fill, n_c, s_cut, take_cut ? "cut" : "genus0");
     }
 
-    if (verbose && (n_fill || n_cut))
-        fprintf(stdout, "Sheetness on %d defect regions: %d filled (gyral "
-                        "blade), %d cut (sulcal sheet).\n",
-                n_fill + n_cut, n_fill, n_cut);
+    if (verbose && (n_cut || n_left))
+        fprintf(stdout, "Sheetness on %d defect regions: %d cut (sulcus about "
+                        "to be bridged), %d left to genus0.\n",
+                n_cut + n_left, n_cut, n_left);
 
     free(seen);
     free(stack);
     free(cluster);
-    return n_fill;
+    return n_cut;
 }
 
 object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
@@ -1347,9 +1379,9 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
     while ((EC != 2) && (count < n_iter))
     {
-        /* Let genus0 resolve the defects both ways and keep, region by region,
-           the resolution the anatomy asks for.  The pass below then runs on the
-           composed volume as usual, so its result is genus 0 either way. */
+        /* Ask genus0 what filling and what cutting would do here, and cut in
+           advance the defects that filling would resolve by closing a sulcus.
+           The pair below then runs as usual, so the result is genus 0. */
         if (topo_sheetness && best_change_values > 0)
         {
             memcpy(vol_pre, vol_uint16, nvol * sizeof(unsigned short));
@@ -1371,19 +1403,8 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             if (genus0(g0))
                 return (NULL);
 
-            compose_topology_defects(vol_uint16, vol_pre, vol_fill, g0->output,
-                                     topo_sheetness, dims, topo_sheet, verbose);
-
-            /* Mixing two genus-0 results can leave local configurations that
-               genus0 accepts -- it analyses 6-connected foreground -- while
-               marching cubes turns them into handles, which is what the local
-               Euler pass is for.  Without it the loop stalls: genus0 changes
-               nothing and the mesh keeps its defects. */
-            for (i = 0; i < nvol; i++)
-                vol_float[i] = (float)vol_uint16[i];
-            correct_topology(vol_float, vol_changed, 0.5f, dims, conn_arr);
-            for (i = 0; i < nvol; i++)
-                vol_uint16[i] = (vol_float[i] >= 0.5f) ? 1 : 0;
+            precut_bridged_sulci(vol_uint16, vol_pre, vol_fill, g0->output,
+                                 topo_sheetness, dims, topo_sheet, verbose);
         }
 
         /* Only move on if topology correction is still necessary */

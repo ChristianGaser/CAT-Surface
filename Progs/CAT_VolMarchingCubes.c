@@ -14,7 +14,7 @@
 /* argument defaults */
 char *label_filename = NULL;
 double min_threshold = 0.5;
-double topo_sheet = CAT_TOPO_STEER_THRESH;
+double topo_sheet = CAT_TOPO_PRECUT_THRESH;
 double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
@@ -103,15 +103,16 @@ static ArgvInfo argTable[] = {
     "Number of log-spaced sheetness scales (library default 3)."},
   
   {"-topo-sheet", ARGV_FLOAT, (char *) TRUE, (char *) &topo_sheet,
-     "Sheetness a topological defect needs before its resolution follows the\n\
-     anatomy instead of genus0 (default 0.05; 0 disables). genus0 decides\n\
-     globally whether to cut a handle or to fill it, and it cuts: on three test\n\
-     hemispheres every voxel it changed was a removal and 60-100% of them sat on\n\
-     a ridge of the map - thin gyral blades severed where the hole through the\n\
-     blade should have been closed. The signed sheetness tells a blade (ridge)\n\
-     from a sulcal sheet (valley), so a defect in a blade is closed and one in a\n\
-     sheet is opened. The last iteration is always left to genus0, so the result\n\
-     is genus 0 either way."},
+     "Dark-sheet response a defect must run along before it is cut instead of\n\
+     filled (default 0.3; 0 disables). A defect is resolved by filling it\n\
+     whenever that is possible, because cutting one that sits in a gyral blade\n\
+     severs the blade. That is wrong only where the two banks of a sulcus nearly\n\
+     touch, and filling closes the sulcus into a bridge. Such a defect is cut in\n\
+     advance when the voxels the filling would add run along a sulcal sheet of at\n\
+     least this response and cutting damages less. The absolute levels carry no\n\
+     information - filling always adds dark voxels and cutting always removes\n\
+     bright ones - so the two are only ever compared with each other. genus0\n\
+     resolves everything else, so the result is genus 0 either way."},
 
   {"-thresh", ARGV_FLOAT, (char *) TRUE, (char *) &min_threshold,
     "Define the volume threshold, also known as the isovalue.\n\

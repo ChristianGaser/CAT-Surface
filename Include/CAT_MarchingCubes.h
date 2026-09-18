@@ -16,8 +16,8 @@
 
 #define CHUNK_SIZE    1000000
 
-/** Sheetness a defect region needs before the steering overrides genus0. */
-#define CAT_TOPO_STEER_THRESH 0.05
+/** Dark-sheet response a defect must run along before it is cut, not filled. */
+#define CAT_TOPO_PRECUT_THRESH 0.3
 #define IDX(x, y, z, nx, ny) ((z) * (nx) * (ny) + (y) * (nx) + (x))
 
 void correct_topology(
