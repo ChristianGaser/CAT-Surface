@@ -24,17 +24,12 @@ jobs:
           # A --disable-shared libtool build emits non-PIC objects by default,
           # so the flag has to be forced here.  CFLAGS is also forwarded to the
           # bundled FFTW3 sub-configure (see configure.ac), which needs it too.
-          ./configure --enable-static --disable-shared --disable-doc \
+          ./configure --enable-static --disable-shared \
             CFLAGS="-O2 -fPIC" CPPFLAGS="-O2"
       - name: Build
         run: make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
       - name: Test
         run: make check
-      - name: Run simple tests
-        run: |
-          make check || true
-          ./Progs/CAT_ResampleSurf || true
-
       # The generated cat_surf/_*.c sources are build artifacts and are not
       # tracked, so nothing in the repository proves the .pyx sources still
       # cythonize, compile and link against libCAT.  These two steps are that
