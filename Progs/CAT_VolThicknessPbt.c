@@ -196,7 +196,8 @@ static ArgvInfo argTable[] = {
 
     {"-barrier-halfwidth", ARGV_FLOAT, (char *)1, (char *)&barrier_halfwidth,
      "Half the width of the CSF sheet the barrier stands for, in mm (default 0,\n\
-     which selects half a voxel). The distance transform measures to the medial\n\
+     which selects one voxel, because the collision test admits a band about\n\
+     two voxels across). The distance transform measures to the medial\n\
      voxel centre while the grey matter ends at that sheet's surface, so the raw\n\
      distance is short by half its width."},
 
@@ -276,9 +277,9 @@ Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
     the reference of each with -barrier-ref-only (a few seconds, no outputs),\n\
     average the two and pass the mean to both runs with -barrier-gmtref.\n\
 \n\
-    -oriented-filter replaces the isotropic median filters with sheetness-\n\
-    oriented ones, which cannot close a thin structure. Where no sheet is\n\
-    detected it is identical to the isotropic filter.\n\
+    The median filters are sheetness-oriented, so they cannot close a thin\n\
+    structure; where no sheet is detected they are identical to the isotropic\n\
+    filter. -oriented-cutoff sets their admission cutoff.\n\
 \n\
     Every option is listed under 'Command-specific options' above. The values\n\
     shown there are the library defaults from CAT_PbtOptionsInit(), which is\n\
@@ -288,7 +289,7 @@ Usage: %s [options] <input.nii> <output_GMT.nii> <output_PPM.nii>\n\
 Examples:\n\
     %s input.nii gmt.nii ppm.nii\n\
     %s -sulcal-barrier -verbose input.nii gmt.nii ppm.nii\n\
-    %s -sulcal-barrier -oriented-filter input.nii gmt.nii ppm.nii wmd.nii csd.nii\n\
+    %s -sulcal-barrier input.nii gmt.nii ppm.nii wmd.nii csd.nii\n\
     ref=$(%s -barrier-ref-only lh.seg.nii)   # likewise for rh, then average\n\
     %s -sulcal-barrier -barrier-gmtref 3.2 lh.seg.nii gmt.nii ppm.nii\n\n";
 

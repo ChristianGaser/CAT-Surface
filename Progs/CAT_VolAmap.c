@@ -134,21 +134,17 @@ Usage: %s [options] -label <label.nii> <in.nii> [<out.nii>]\n\
     the AMAP EM loop with an optional MRF prior refined by ICM, then the 5-class\n\
     partial volume estimate and a final cleanup.\n\
 \n\
-    -mrf sets the strength of the MRF prior.  It is isotropic by default, which\n\
+    -mrf sets the strength of the MRF prior.  The prior is isotropic, which\n\
     means it penalizes boundary area and therefore removes thin structures\n\
     whichever side of the label boundary they lie on -- the same prior that\n\
-    closes a glued sulcus also closes a cerebellar fissure.  -mrf-aniso relaxes\n\
-    it along thin sheets found by a Hessian plate filter (see CAT_VolSheetness):\n\
-    mode 1 scales the prior down on a sheet, mode 2 keeps its strength but\n\
-    down-weights neighbours lying across the sheet.  Both are exact no-ops where\n\
-    no sheet is detected, so behaviour away from thin structures is unchanged.\n\
+    closes a glued sulcus also closes a cerebellar fissure.\n\
 \n\
     Every option is listed with its default under 'Command-specific options'\n\
     above.\n\
 \n\
 Examples:\n\
     %s -label p0.nii t1.nii\n\
-    %s -mrf 0.3 -mrf-aniso 2 -label p0.nii t1.nii seg.nii\n\n";
+    %s -mrf 0.3 -label p0.nii t1.nii seg.nii\n\n";
 
     fprintf(stderr, usage_str, executable, executable, executable);
 }
@@ -164,7 +160,7 @@ main(int argc, char *argv[])
     char *arg_string, buffer[1024];
     float *src, *buffer_vol;
     double slope, val, voxelsize[3];    
-    double mean[n_classes], mu[n_pure_classes], var[n_pure_classes];
+    double mean[MAX_NC], mu[n_pure_classes], var[n_pure_classes];
     char *label_arr[] = {"CSF", "GM", "WM"};
 
     /* Get arguments */

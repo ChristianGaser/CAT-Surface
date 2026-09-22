@@ -16,6 +16,7 @@ clean-local:
 
 distclean-local:
 	-cd $(FFTW3_BUILDDIR) && $(MAKE) $(AM_MAKEFLAGS) distclean
+	-rm -rf $(FFTW3_BUILDDIR)
 
 CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
     -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti \
@@ -49,6 +50,30 @@ EXTRA_DIST = \
     scripts/generate_doxygen_docs.sh \
     3rdparty/gifticlib/LICENSE.gifti \
     3rdparty/gifticlib/README.gifti \
+    3rdparty/fftw \
+    3rdparty/bicpl-surface/Include \
+    3rdparty/bicpl-surface/bicpl_clapack/blaswrap.h \
+    3rdparty/bicpl-surface/bicpl_clapack/f2c.h \
+    3rdparty/volume_io/Include \
+    3rdparty/expat/lib/ascii.h \
+    3rdparty/expat/lib/asciitab.h \
+    3rdparty/expat/lib/expat.h \
+    3rdparty/expat/lib/expat_config.h \
+    3rdparty/expat/lib/expat_external.h \
+    3rdparty/expat/lib/iasciitab.h \
+    3rdparty/expat/lib/internal.h \
+    3rdparty/expat/lib/latin1tab.h \
+    3rdparty/expat/lib/macconfig.h \
+    3rdparty/expat/lib/nametab.h \
+    3rdparty/expat/lib/utf8tab.h \
+    3rdparty/expat/lib/winconfig.h \
+    3rdparty/expat/lib/xmlrole.h \
+    3rdparty/expat/lib/xmltok.h \
+    3rdparty/expat/lib/xmltok_impl.h \
+    3rdparty/nii2mesh/LICENSE \
+    3rdparty/nii2mesh/README.md \
+    3rdparty/nii2mesh/meshtypes.h \
+    3rdparty/nii2mesh/quadric.h \
     $(m4_files)
 
 s2kit10_SRC = \
@@ -310,6 +335,9 @@ noinst_HEADERS = \
     Include/CAT_SafeAlloc.h \
     Include/CAT_BBReg.h \
     Include/CAT_VolumeReg.h \
+    Include/CAT_Deform.h \
+    Include/CAT_LayerSmooth.h \
+    Include/CAT_Nlm.h \
     3rdparty/bicpl-surface/Include/bicpl.h \
     3rdparty/genus0/LookUpTable.h \
     3rdparty/genus0/genus0.h \
@@ -398,7 +426,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Sanlm.c \
     Lib/CAT_Ornlm.c \
     Lib/CAT_Deform.c \
-    Lib//CAT_MarchingCubes.c \
+    Lib/CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
     Lib/CAT_SafeAlloc.c \
     Lib/CAT_BBReg.c \

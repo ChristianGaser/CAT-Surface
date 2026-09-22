@@ -45,7 +45,7 @@ typedef struct SpatialGrid
  * \param min Output: the minimum bounding box corner (x_min, y_min, z_min).
  * \param max Output: the maximum bounding box corner (x_max, y_max, z_max).
  */
-void get_polygon_bounding_box(polygons_struct *polygons, Point *min, Point *max)
+static void get_polygon_bounding_box(polygons_struct *polygons, Point *min, Point *max)
 {
     int i;
     double x, y, z;
@@ -83,13 +83,13 @@ void get_polygon_bounding_box(polygons_struct *polygons, Point *min, Point *max)
 }
 
 // Get grid index from 3D coordinate
-int get_grid_index(int x, int y, int z, int res)
+static int get_grid_index(int x, int y, int z, int res)
 {
     return x + y * res + z * res * res;
 }
 
 // Insert a vertex into a grid cell
-void insert_into_grid(SpatialGrid *grid, int v, Point *points)
+static void insert_into_grid(SpatialGrid *grid, int v, Point *points)
 {
     int xi = (int)((Point_x(points[v]) - Point_x(grid->min)) / grid->cell_size);
     int yi = (int)((Point_y(points[v]) - Point_y(grid->min)) / grid->cell_size);
@@ -107,7 +107,7 @@ void insert_into_grid(SpatialGrid *grid, int v, Point *points)
 }
 
 // Build spatial grid from surface vertices
-SpatialGrid *build_spatial_grid(polygons_struct *polygons, int res)
+static SpatialGrid *build_spatial_grid(polygons_struct *polygons, int res)
 {
     int i;
     SpatialGrid *grid = malloc(sizeof(SpatialGrid));
@@ -130,7 +130,7 @@ SpatialGrid *build_spatial_grid(polygons_struct *polygons, int res)
 }
 
 // Free memory used by spatial grid
-void destroy_spatial_grid(SpatialGrid *grid)
+static void destroy_spatial_grid(SpatialGrid *grid)
 {
     int i, total = grid->res * grid->res * grid->res;
     for (i = 0; i < total; i++)
@@ -148,7 +148,7 @@ void destroy_spatial_grid(SpatialGrid *grid)
 }
 
 // Estimate average edge length
-double estimate_average_edge_length(polygons_struct *polygons, int *n_neighbours, int **neighbours)
+static double estimate_average_edge_length(polygons_struct *polygons, int *n_neighbours, int **neighbours)
 {
     double total = 0.0;
     int i, j, count = 0;
@@ -400,8 +400,8 @@ int intersect_poly_poly(int poly0, int poly1, polygons_struct *surface)
  * (sharing vertices) to avoid false positives. Uses segment-triangle intersection tests for
  * all three edges of the first triangle. Proper 3D geometric computation.
  *
- * \param pidx0[3] (in) vertex indices of first triangle
- * \param pidx1[3] (in) vertex indices of second triangle
+ * \param pidx0    (in) int[3]; vertex indices of first triangle
+ * \param pidx1    (in) int[3]; vertex indices of second triangle
  * \param surface (in) mesh containing vertex coordinates
  * \return 1 if triangles intersect, 0 if disjoint
  */
@@ -449,7 +449,7 @@ int intersect_triangle_triangle(int pidx0[3], int pidx1[3],
  *
  * \param p0 (in) first endpoint of line segment
  * \param p1 (in) second endpoint of line segment
- * \param tpidx[3] (in) vertex indices of triangle
+ * \param tpidx    (in) int[3]; vertex indices of triangle
  * \param surface (in) mesh with vertex coordinates
  * \return -1 degenerate triangle, 0 no intersection, 1 unique intersection, 2 coplanar
  */
@@ -523,17 +523,19 @@ int intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
 }
 
 /**
- * \brief Public API for find_selfintersections.
+ * \brief Find self-intersecting triangles of a mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * Tests every pair of triangles whose bounding boxes overlap in an octree and
+ * labels both triangles of each intersecting pair with the running pair number.
+ * The per-vertex labels are then derived from the per-triangle ones.
  *
- * \param polygons (in/out) Parameter of find_selfintersections.
- * \param defects (in/out) Parameter of find_selfintersections.
- * \param polydefects (in/out) Parameter of find_selfintersections.
- * \param init (in/out) Parameter of find_selfintersections.
- * \return Return value of find_selfintersections.
+ * \param polygons    (in)     triangle mesh
+ * \param defects     (out)    per-vertex labels (0 = no intersection)
+ * \param polydefects (in/out) per-triangle labels; with init == 0, triangles
+ *                             with a negative label are skipped
+ * \param init        (in)     non-zero to clear polydefects first
+ * \return number of intersecting triangle pairs
  */
-
 int find_selfintersections(polygons_struct *polygons, int *defects, int *polydefects, int init)
 {
     int n_intersects, p, b;
@@ -627,7 +629,6 @@ static int find_label(int *parent, int x)
  * \param parent (in/out) union-find parent array
  * \param a (in) first label
  * \param b (in) second label
- * \return void
  */
 static void union_labels(int *parent, int a, int b)
 {
@@ -1091,18 +1092,16 @@ int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
 }
 
 /**
- * \\brief Remove all self-intersections from mesh using multi-pass repair strategies.
+ * \brief Remove all self-intersections from mesh using multi-pass repair strategies.
  *
  * Entry point for intersection removal: detects intersections via octree acceleration,
  * consolidates defect regions, and applies iterative smoothing with periodic defect
  * expansion. Continues until all intersections resolved. Recomputes surface normals
  * after completion. Optional progress reporting.
  *
- * \\param polygons (in/out) mesh to repair
- * \\param verbose (in) 1 for progress output; 0 for silent
- * \\return void
+ * \param polygons (in/out) mesh to repair
+ * \param verbose (in) 1 for progress output; 0 for silent
  */
-/* Find and remove intersections */
 void remove_intersections(polygons_struct *polygons, int verbose)
 {
     remove_intersections_iter(polygons, 10, 50, verbose);
@@ -1293,7 +1292,6 @@ int remove_intersections_ref(polygons_struct *polygons, const Point *reference,
  * \param polygons   (in)  source 3D polygonal mesh to be modified in-place
  * \param threshold  (in)  distance threshold for near-intersection detection (typically 0.05-0.20 times edge length)
  * \param verbose    (in)  1 to print progress messages to stdout, 0 for silent operation
- * \return void
  */
 void remove_near_intersections(polygons_struct *polygons, double threshold, int verbose)
 {

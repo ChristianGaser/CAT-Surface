@@ -77,7 +77,7 @@ int
 separate_cluster(polygons_struct *polygons, int desired_index, double *values)
 {
     int     ind, p_ind, point, vertex, size, i, j, tmp;
-    int     *new_point_ids, n_objects, comp, c;
+    int     *new_point_ids, comp, c;
     int     biggest;
     int     *point_classes;
     int     n_parts, *n_in_class, *ordered;
@@ -109,7 +109,7 @@ separate_cluster(polygons_struct *polygons, int desired_index, double *values)
     FREE(n_in_class);
     FREE(ordered);
 
-    return(n_objects);
+    return(n_parts);
 }
 
 int

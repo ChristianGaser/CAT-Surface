@@ -6,9 +6,22 @@
  * $Id$
  */
 
+#include <bicpl.h>
+#include <ParseArgv.h>
+
 #include "CAT_FixTopology.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Defect.h"
+
+/* argument defaults */
+int bw = 512;
+int lim = 128;
+int n_triangles = 81920;
+double max_refine_length = 2;
+double laplace_thresh = 0.01;
+char *reparam_file = NULL;
+int holes = 0;
+int handles = 0;
 
 /* the argument table */
 ArgvInfo argTable[] = {

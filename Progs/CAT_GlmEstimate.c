@@ -21,12 +21,12 @@ usage(char *executable)
 {
     char *usage_str = "\n\
 NAME\n\
-    CAT_GLM_Estimate - estimation of a General Linear Model (GLM)\n\n\
+    CAT_GlmEstimate - estimation of a General Linear Model (GLM)\n\n\
 SYNOPSIS\n\
-    CAT_GLM_Estimate file1_grp1 file2_grp1 ... + file1_grp2 file2_grp2 ... : covariate_file \n\
-    CAT_GLM_Estimate scan1 scan2 ... scanX -formula \"~ group.csv + age.csv\"\n\n\
+    CAT_GlmEstimate file1_grp1 file2_grp1 ... + file1_grp2 file2_grp2 ... : covariate_file \n\
+    CAT_GlmEstimate scan1 scan2 ... scanX -formula \"~ group.csv + age.csv\"\n\n\
 DESCRIPTION\n\
-    CAT_GLM_Estimate estimates the beta parameters for the GLM and\n\
+    CAT_GlmEstimate estimates the beta parameters for the GLM and\n\
     writes the resulting parameter estimates for each column of the\n\
     design matrix to the current working directory.  The files are\n\
     named beta_xxxx, where xxxx are numbered according to the\n\

@@ -72,8 +72,8 @@ static ArgvInfo argTable[] = {
      The automatic noise scale of the sheetness filter is half the largest\n\
      Hessian norm in the volume, which on real data is set by the cortical\n\
      ribbon itself. A thin sulcal valley is far weaker than that, so the raw\n\
-     response typically sits an order of magnitude below -sulci-thresh and\n\
-     -strength-sulci does nothing at all at a gain of 1. This is the same\n\
+     response typically sits an order of magnitude below the library\n\
+     threshold (0.3) and -strength-sulci does nothing at all at a gain of 1. This is the same\n\
      reason the sheetness gain exists at all, and the value\n\
      does NOT carry over: that one is measured on the intensity image, this\n\
      one on the PPM. Run with -verbose -- it reports the p99 and maximum of\n\
@@ -81,7 +81,7 @@ static ArgvInfo argTable[] = {
 
   {"-sulci-sigma-factor", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sigma_factor,
     "Largest sheetness scale as a multiple of the median cortical thickness\n\
-     (default 1.25; 0 or less keeps -sulci-sigma-max as given). The structure\n\
+     (library default 0.75; 0 or less keeps -sulci-sigma-max as given). The structure\n\
      the filter has to find is a valley whose width is set by how far apart the\n\
      two banks stand, so the scale belongs at a multiple of this brain's\n\
      thickness rather than at a fixed millimetre value. The thickness is read\n\
@@ -95,9 +95,11 @@ static ArgvInfo argTable[] = {
 
   {"-sulci-sigma-max", ARGV_FLOAT, (char *) TRUE, (char *) &sulci_sigma_max,
     "Largest sheetness scale in mm. Overrides -sulci-sigma-factor when set.\n\
-     lever on what gets found: a sulcus wider than the largest scale is not seen\n\
-     as a sheet at all. Raise it if glued sulci persist, and use -sulci-skeleton\n\
-     so the wider response still lands on the midline."},
+     This is the main lever on what gets found: a sulcus wider than the largest\n\
+     scale is not seen as a sheet at all. Raise it if glued sulci persist; the\n\
+     wider response then spreads over more voxels, which the skeletonization of\n\
+     the library (sulci_skeleton in cat_surf.vol_marching_cubes) collapses back\n\
+     onto the midline."},
 
   {"-sulci-scales", ARGV_INT, (char *) TRUE, (char *) &sulci_scales,
     "Number of log-spaced sheetness scales (library default 3)."},

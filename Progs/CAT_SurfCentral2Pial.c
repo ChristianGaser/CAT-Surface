@@ -53,7 +53,6 @@ main(int argc, char *argv[])
     double *thickness_values, *area_inner, *area_outer, *extents;
     double value, surface_area, pos;
     double extent;
-    Status status;
     char *src_file, *out_file, *values_file;
     File_formats format;
     nifti_image *nii_ptr;
@@ -139,5 +138,5 @@ main(int argc, char *argv[])
         
     free(extents);
     
-    return(status != OK);
+    return(EXIT_SUCCESS);
 }

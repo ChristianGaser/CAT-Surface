@@ -114,7 +114,7 @@ static ArgvInfo argTable[] = {
   {"-debug", ARGV_CONSTANT, (char *) TRUE, (char *) &debug,
    "Save debug files."},
     {"-debug-dc-weights", ARGV_CONSTANT, (char *) TRUE, (char *) &debug_dc_weights,
-     "Save dc_weights.pgm (requires -distortion-correction)."},
+     "No effect: the distortion correction whose weights it saved was removed.\n\tKept so existing command lines still parse."},
    {NULL, ARGV_END, NULL, NULL, NULL}
 };
 

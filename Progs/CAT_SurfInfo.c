@@ -43,7 +43,6 @@ static ArgvInfo argTable[] = {
  * \brief Print usage for CAT_SurfInfo.
  *
  * \param executable (in) name the tool was invoked with
- * \return void (no return value).
  */
 static void
 usage(const char *executable)

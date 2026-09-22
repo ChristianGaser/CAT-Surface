@@ -9,6 +9,9 @@
 
 /* Program to make a conformal map more isometric. */
 
+#include <bicpl.h>
+#include <ParseArgv.h>
+
 #include "CAT_Isometrics.h"
 
 #define PRE_AND_POST 0

@@ -13,6 +13,7 @@
 #include "CAT_Map.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Surf.h"
+#include "CAT_Warp.h"
 #include "dartel.h"
 #include "CAT_SafeAlloc.h"
 

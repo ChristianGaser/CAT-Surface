@@ -73,7 +73,7 @@ ArgvInfo argTable[] = {
    "Additional thickness file for mapping inside defined normalized cortical thickness of GM.\n\t\t   If this option is used then -start and -end will be handled as normalized (relative) values:\n\t\t   e.g. start=-0.5, steps=7 and end=0.5 for a central surface will map all values inside the GM-band (-0.5:1/6:0.5)\n\t\t   that is defined using the normalized cortical thickness."},
 
   {"-offset", ARGV_STRING, (char *)1, (char *)&offset_file,
-   "Additional thickness file defining an offset according to the given surface.\n\t\t   If this option is used then also use the option -offset_value to define the offset (default 0)."},
+   "Additional thickness file defining an offset according to the given surface.\n\t\t   If this option is used then also use the option -offset-value to define the offset (default 0)."},
 
   {"-offset-value", ARGV_FLOAT, (char *)1, (char *)&offset_value,
    "Offset to the surface according to a thickness file. A value of 0.5 means that the \n\t\t   WM surface will be used if a central surface is used as input (adding half of the thickness).\n\t\t   A negative value of -0.5 can be used to define the pial surface."},

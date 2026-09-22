@@ -68,7 +68,8 @@ ArgvInfo argTable[] = {
          weak to reach the thresholds the consumers gate on -- notably the hard\n\
          0.5 of the oriented median, below which it is exactly the isotropic\n\
          median.  0 reproduces the isotropic filters exactly.  The same knob is\n\
-         called -sheet-strength in the tools that consume the field."},
+         called -sheet-strength in CAT_VolLocalStat and -sulci-sheet-strength\n\
+         in CAT_VolMarchingCubes."},
     {"-signed", ARGV_CONSTANT, (char *) 1, (char *) &signed_map,
          "Write the polarity as a sign instead of a magnitude: a valley -- dark\n\
          sheet, a sulcus -- comes out negative and a ridge -- bright sheet, a\n\
@@ -78,7 +79,9 @@ ArgvInfo argTable[] = {
          the map to a PPM lowers it along sulci and raises it along blades at\n\
          once, which a global isovalue shift cannot do -- that opens sulci and\n\
          severs thin gyri with the same stroke.  This is the map\n\
-         CAT_VolMarchingCubes -sheet-offset applies internally.\n\
+         CAT_VolMarchingCubes -strength-sulci adds to the PPM internally,\n\
+         scaled by the library's sheet offset (sheet_offset in\n\
+         cat_surf.vol_marching_cubes).\n\
          Combine with -skeleton: the flanks of a valley curve upward and so read\n\
          as ridges, carrying the opposite sign, and an unthinned signed map\n\
          would push a surface the wrong way immediately beside every structure."},
@@ -135,10 +138,10 @@ Usage: %s [options] <input.nii> [<output.nii>]\n\
 \n\
     The response is written as a float map in [0,1].  Its main use is to\n\
     check the scale range and the polarity on a new protocol before enabling\n\
-    any of the options that consume it -- CAT_VolLocalStat -oriented,\n\
-    CAT_VolThicknessPbt -oriented-filter, all of\n\
-    which estimate the field\n\
-    themselves rather than reading it from a file.  The accompanying sheet\n\
+    any of the consumers -- CAT_VolLocalStat -oriented, the oriented medians\n\
+    of CAT_VolThicknessPbt (on by default) and CAT_VolMarchingCubes\n\
+    -strength-sulci -- all of which estimate the field themselves rather than\n\
+    reading it from a file.  The accompanying sheet\n\
     normals are not written: a 3-vector per voxel needs a 4-D image, which\n\
     write_nifti_float() does not produce, and recomputing the field is cheap.\n\
 \n\
