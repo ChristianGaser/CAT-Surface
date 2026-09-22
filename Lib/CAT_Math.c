@@ -10,10 +10,18 @@
 #include "CAT_Math.h"
 
 /**
- * produces a matrix Ainv of the same dimensions as A', so that
- * A*Ainv*A = Ainv and A*Ainv and Ainv*A are Hermitian. The computation is
- * based and SVD(A) and any singular values less than a tolerance of 1e-10
- * are treated as zero. The rank of the matrix A is returned.
+ * \brief Moore-Penrose pseudo-inverse of an m x n matrix.
+ *
+ * Produces Ainv, of the same dimensions as A', so that A*Ainv*A = A,
+ * Ainv*A*Ainv = Ainv, and A*Ainv and Ainv*A are symmetric. The computation is
+ * based on SVD(A); singular values below a tolerance of 1e-10 are treated as
+ * zero.
+ *
+ * \param m    (in)  number of rows of A
+ * \param n    (in)  number of columns of A
+ * \param A    (in)  m x n matrix (bicpl ALLOC2D layout)
+ * \param Ainv (out) n x m pseudo-inverse, allocated by the caller
+ * \return rank of A
  */
 int pinv(int m, int n, double **A, double **Ainv)
 {
@@ -155,33 +163,6 @@ int orthogonal_poly(const double *x, int n, int degree, double *out)
 }
 
 /**
- * convert_input_type - Converts various data types to a floating point array.
- *
- * This function is designed to convert a data array of various types into an array
- * of floats. This is useful for standardizing data input types for functions that
- * are specifically defined to work with floating point data, especially in contexts
- * like image processing where data might come in various formats.
- *
- * data: Pointer to the input data array. The actual data type of this array is
- *        determined by the 'datatype' parameter.
- *
- * buffer: Pointer to the output float array where the converted data will be stored.
- *          This array should be pre-allocated with enough space to hold 'n' elements.
- *          The function fills this array with the converted float values.
- *
- * n: Integer representing the number of elements in the input data array.
- *
- * datatype: Integer that specifies the type of data in the input array. This parameter
- *            uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.) to represent
- *            different data types like char, unsigned char, short, unsigned short, etc.
- *
- * The function iterates over the input array, converting each element to a float based
- * on the specified datatype, and stores the result in the output float array. This
- * facilitates the use of functions that require floating point input by providing a
- * uniform data format.
- *
- */
-/**
  * \brief Convert arbitrary datatype array to double-precision buffer.
  *
  * Reads n elements from input data pointer and converts them to double values
@@ -301,33 +282,6 @@ void convert_input_type_float(void *data, float *buffer, int n, int datatype)
 }
 
 /**
- * convert_output_type - Converts a floating point array back to various data types.
- *
- * This function reverses the operation performed by `convert_input_type`. It converts
- * an array of floats (typically after some processing) back to a specified data type.
- * This is useful in contexts like image processing where data needs to be restored to
- * its original format after processing.
- *
- * data: Pointer to the output data array where the converted data will be stored.
- *        The actual data type of this array is determined by the 'datatype' parameter.
- *        This array should be pre-allocated with enough space to hold 'n' elements.
- *
- * buffer: Pointer to the input float array containing the data to be converted.
- *          This array contains 'n' elements of type float.
- *
- * n: Integer representing the number of elements in the input float array.
- *
- * datatype: Integer that specifies the desired output data type for the 'data' array.
- *            This parameter uses predefined constants (e.g., DT_INT8, DT_UINT8, etc.)
- *            to represent different data types like char, unsigned char, short, etc.
- *
- * The function iterates over the input float array, converting each float element back
- * to the specified data type using rounding (via `roundf` function) and stores the
- * result in the output array. This allows for the processed data to be converted back
- * to its original or a different format as needed.
- *
- */
-/**
  * \brief Convert double-precision buffer back to arbitrary output datatype.
  *
  * Reads n double values from buffer and converts them to the target datatype,
@@ -430,27 +384,12 @@ void convert_output_type_float(void *data, float *buffer, int n, int datatype)
 }
 
 /* Comparison functions for qsort */
-int compare_doubles(const void *a, const void *b)
+static int compare_doubles(const void *a, const void *b)
 {
     double diff = *(const double *)a - *(const double *)b;
     return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 }
 
-/**
- * get_median - Calculate the median of an array of doubles.
- *
- * This function finds the median value in an array of doubles. It sorts the array
- * using quicksort and then calculates the median.
- *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Returns:
- *  The median value of the array.
- *
- */
 /**
  * \brief Get median value from double array with optional zero exclusion.
  *
@@ -515,19 +454,6 @@ double get_median_double(double *arr, int n, int exclude_zeros)
 }
 
 /**
- * get_sum - Calculate the sum of an array of doubles.
- *
- * This function calculates the sum of all elements in an array of doubles.
- *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Returns:
- *  The sum of the array elements.
- */
-/**
  * \brief Get sum of elements in double array with optional zero exclusion.
  *
  * Computes the sum of array elements. Optionally excludes zero values.
@@ -555,19 +481,6 @@ double get_sum_double(double *arr, int n, int exclude_zeros)
     return sum;
 }
 
-/**
- * get_mean - Calculate the mean of an array of doubles.
- *
- * This function calculates the mean (average) value of an array of doubles.
- *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Returns:
- *  The mean value of the array.
- */
 /**
  * \brief Get mean value from double array with optional zero exclusion.
  *
@@ -602,19 +515,6 @@ double get_mean_double(double *arr, int n, int exclude_zeros)
     return sum / (double)n0;
 }
 
-/**
- * get_std - Calculate the standard deviation of an array of doubles.
- *
- * This function calculates the standard deviation of an array of doubles. It first
- * calculates the mean, then computes the variance, and finally the standard deviation.
- *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Returns: The standard deviation of the array.
- */
 /**
  * \brief Get standard deviation from double array with optional zero exclusion.
  *
@@ -659,19 +559,6 @@ double get_std_double(double *arr, int n, int exclude_zeros)
 }
 
 /**
- * get_min - Find the minimum value in an array of doubles.
- *
- * This function iterates through an array of doubles to find the smallest element.
- *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Returns:
- *  The minimum value in the array.
- */
-/**
  * \brief Get minimum value from double array with optional zero exclusion.
  *
  * Finds the minimum element in the array. Optionally excludes zero values.
@@ -701,19 +588,6 @@ double get_min_double(double *arr, int n, int exclude_zeros)
     return result;
 }
 
-/**
- * get_max - Find the maximum value in an array of doubles.
- *
- * This function iterates through an array of doubles to find the largest element.
- *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Returns:
- *  The maximum value in the array.
- */
 /**
  * \brief Get maximum value from double array with optional zero exclusion.
  *
@@ -772,7 +646,7 @@ double get_max_double(double *arr, int n, int exclude_zeros)
  *         elements are selected (e.g., due to all being NaN or masked out), the behavior
  *         is not defined (potential division by zero).
  */
-double get_masked_mean_array_double(double *arr, int n, unsigned char *mask)
+static double get_masked_mean_array_double(double *arr, int n, unsigned char *mask)
 {
     double sum = 0.0;
     int i, count = 0;
@@ -854,21 +728,18 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
 }
 
 /**
- * get_prctile - Calculate percentile-based thresholds.
+ * \brief Calculate percentile-based thresholds.
  *
- * This function computes two thresholds for a given data (src) based on the
+ * This function computes two thresholds for the given data based on the
  * specified percentiles. It can optionally exclude zeros from the calculation.
- * The calculated thresholds are stored in the 'threshold' array.
+ * A sorted copy of the data is indexed at round((n - 1) * P / 100); the input
+ * is left unchanged. Exits if no value remains after excluding zeros.
  *
- * Parameters:
- *  - src: Pointer to the source.
- *  - n_vol: Number of data points.
- *  - threshold: Array where the calculated threshold values will be stored.
- *  - prctile: Array containing two percentile values for which thresholds are calculated.
- *  - exclude_zeros: Flag to indicate whether zeros should be excluded from calculations.
- *
- * Notes:
- *  - The function uses a histogram-based approach to calculate the thresholds.
+ * \param data          (in)  array of n values
+ * \param n             (in)  number of values
+ * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param prctile       (in)  the two percentiles, in 0..100
+ * \param exclude_zeros (in)  if non-zero, zeros are ignored
  */
 void get_prctile_double(double *data, int n, double threshold[2],
                         double prctile[2], int exclude_zeros)
@@ -914,16 +785,14 @@ void get_prctile_double(double *data, int n, double threshold[2],
 }
 
 /**
- * normalize_double - Subtract mean from an array of doubles.
+ * \brief Subtract mean from an array of doubles.
  *
  * This function iterates through an array of doubles to obtain a mean of 0.
  *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
+ * \param arr Array of doubles.
+ * \param n Number of elements in the array.
  *
- * Returns:
- *  Overwrites the array by the mean-corrected array.
+ * The array is overwritten by the mean-corrected values.
  */
 void normalize_double(double *arr, int n)
 {
@@ -936,22 +805,20 @@ void normalize_double(double *arr, int n)
 }
 
 /**
- * clip_double - Clip an array of doubles to specified bounds.
+ * \brief Clip an array of doubles to specified bounds.
  *
  * This function iterates through an array of doubles and restricts each element
  * to the range specified by the limits array. Values lower than the lower limit
  * are set to the lower limit, and values higher than the upper limit are set to
  * the upper limit.
  *
- * Parameters:
- *  - arr: Array of doubles.
- *  - n: Number of elements in the array.
- *  - limit: Array of two doubles specifying the lower and upper bounds (limit[0] = lower, limit[1] = upper).
+ * \param arr Array of doubles.
+ * \param n Number of elements in the array.
+ * \param limit Array of two doubles specifying the lower and upper bounds (limit[0] = lower, limit[1] = upper).
  *
- * Returns:
- *  Overwrites the array with the clipped values.
+ * The array is overwritten with the clipped values.
  */
-void clip_double(double *arr, int n, double limit[2])
+static void clip_double(double *arr, int n, double limit[2])
 {
     int i;
     for (i = 0; i < n; i++)
@@ -964,21 +831,19 @@ void clip_double(double *arr, int n, double limit[2])
 }
 
 /**
- * get_corrcoef_double - calculate Pearson correlation coefficient from two array
+ * \brief calculate Pearson correlation coefficient from two array
  *                       of doubles.
  *
  * This function iterates through two array of doubles to obtain Pearson correlation
  * coefficient.
  *
- * Parameters:
- *  - x: Array of doubles.
- *  - y: Array of doubles with same size as x.
- *  - n: Number of elements in the array.
+ * \param x Array of doubles.
+ * \param y Array of doubles with same size as x.
+ * \param n Number of elements in the array.
  *
- * Returns:
- *  Pearson correlation coefficient.
+ * \return Pearson correlation coefficient.
  */
-double get_corrcoef_double(const double *x, const double *y, int n, int exclude_zeros)
+static double get_corrcoef_double(const double *x, const double *y, int n, int exclude_zeros)
 {
     double sum_x = 0, sum_y = 0, sum_xy = 0;
     double sum_x2 = 0, sum_y2 = 0;
@@ -1005,7 +870,7 @@ double get_corrcoef_double(const double *x, const double *y, int n, int exclude_
     return numerator / denominator;
 }
 
-/**
+/*
  * Generic functions
  *
  * These function additionally provide conversion between different data types
@@ -1205,6 +1070,17 @@ double get_std(void *data, int n, int exclude_zeros, int datatype)
     return (result);
 }
 
+/**
+ * \brief Mean of an array of any NIfTI datatype, optionally within a mask.
+ *
+ * NaN and infinite values are ignored.
+ *
+ * \param data     (in)  array of n values of type datatype
+ * \param n        (in)  number of values
+ * \param mask     (in)  n mask values; only entries > 0 count (NULL: all)
+ * \param datatype (in)  NIfTI datatype code of data (DT_FLOAT32, ...)
+ * \return mean of the included values, NaN if there are none
+ */
 double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatype)
 {
     double *buffer, result;
@@ -1225,6 +1101,18 @@ double get_masked_mean_array(void *data, int n, unsigned char *mask, int datatyp
     return (result);
 }
 
+/**
+ * \brief Standard deviation of an array of any NIfTI datatype, optionally
+ *        within a mask.
+ *
+ * NaN and infinite values are ignored.
+ *
+ * \param data     (in)  array of n values of type datatype
+ * \param n        (in)  number of values
+ * \param mask     (in)  n mask values; only entries > 0 count (NULL: all)
+ * \param datatype (in)  NIfTI datatype code of data (DT_FLOAT32, ...)
+ * \return sample standard deviation of the included values
+ */
 double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype)
 {
     double *buffer, result;
@@ -1245,18 +1133,14 @@ double get_masked_std_array(void *data, int n, unsigned char *mask, int datatype
     return (result);
 }
 /**
- * \brief Public API for clip_data.
+ * \brief Clip an array of any NIfTI datatype to [lower_limit, upper_limit].
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param data (in/out) Parameter of clip_data.
- * \param n (in/out) Parameter of clip_data.
- * \param lower_limit (in/out) Parameter of clip_data.
- * \param upper_limit (in/out) Parameter of clip_data.
- * \param datatype (in/out) Parameter of clip_data.
- * \return void (no return value).
+ * \param data        (in/out) array of n values of type datatype, clipped in-place
+ * \param n           (in)     number of values
+ * \param lower_limit (in)     values below are set to it
+ * \param upper_limit (in)     values above are set to it
+ * \param datatype    (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-
 void clip_data(void *data, int n, double lower_limit, double upper_limit, int datatype)
 {
     double *buffer;
@@ -1278,19 +1162,17 @@ void clip_data(void *data, int n, double lower_limit, double upper_limit, int da
     free(buffer);
 }
 /**
- * \brief Public API for get_prctile.
+ * \brief Percentile thresholds of an array of any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * Converts the data to double and calls get_prctile_double().
  *
- * \param data (in/out) Parameter of get_prctile.
- * \param n (in/out) Parameter of get_prctile.
- * \param threshold (in/out) Parameter of get_prctile.
- * \param prctile (in/out) Parameter of get_prctile.
- * \param exclude_zeros (in/out) Parameter of get_prctile.
- * \param datatype (in/out) Parameter of get_prctile.
- * \return void (no return value).
+ * \param data          (in)  array of n values of type datatype
+ * \param n             (in)  number of values
+ * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param prctile       (in)  the two percentiles, in 0..100
+ * \param exclude_zeros (in)  if non-zero, zeros are ignored
+ * \param datatype      (in)  NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-
 void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype)
 {
     double *buffer;
@@ -1310,18 +1192,15 @@ void get_prctile(void *data, int n, double threshold[2], double prctile[2], int 
     free(buffer);
 }
 /**
- * \brief Public API for get_corrcoef.
+ * \brief Pearson correlation coefficient of two arrays of any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param x (in/out) Parameter of get_corrcoef.
- * \param y (in/out) Parameter of get_corrcoef.
- * \param n (in/out) Parameter of get_corrcoef.
- * \param exclude_zeros (in/out) Parameter of get_corrcoef.
- * \param datatype (in/out) Parameter of get_corrcoef.
- * \return Return value of get_corrcoef.
+ * \param x             (in)  array of n values of type datatype
+ * \param y             (in)  array of n values of type datatype
+ * \param n             (in)  number of values
+ * \param exclude_zeros (in)  if non-zero, pairs with a zero in x or y are ignored
+ * \param datatype      (in)  NIfTI datatype code of x and y (DT_FLOAT32, ...)
+ * \return correlation coefficient
  */
-
 double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype)
 {
     double *buffer_x, *buffer_y;

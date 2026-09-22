@@ -21,15 +21,6 @@
  * \param midpoint    (out) midpoint index if present
  * \return TRUE if found, FALSE otherwise
  */
-/**
- * \brief Look up an existing edge midpoint in the hash table.
- *
- * \param edge_lookup (in)  hash table of midpoints
- * \param p0          (in)  first vertex index
- * \param p1          (in)  second vertex index
- * \param midpoint    (out) midpoint index if present
- * \return TRUE if found, FALSE otherwise
- */
 private BOOLEAN lookup_edge_midpoint(
     hash2_table_struct *edge_lookup,
     int p0,
@@ -56,21 +47,6 @@ private BOOLEAN lookup_edge_midpoint(
  * \param p2                (in)  second endpoint index
  * \param new_polygons      (in/out) mesh being refined
  * \param length_points     (in/out) length-space points array
- * \return void
- */
-/**
- * \brief Subdivide an edge and register the new midpoint.
- *
- * Adds a midpoint to the polygon list and the length_points array and
- * stores the midpoint index in the edge lookup table.
- *
- * \param edge_lookup       (in/out) hash table of midpoints
- * \param normalized_length (in)  normalized edge length (unused)
- * \param p1                (in)  first endpoint index
- * \param p2                (in)  second endpoint index
- * \param new_polygons      (in/out) mesh being refined
- * \param length_points     (in/out) length-space points array
- * \return void
  */
 private void subdivide_edge(
     hash2_table_struct *edge_lookup,
@@ -111,22 +87,6 @@ private void subdivide_edge(
  * \param edge_lookup   (in)  edge midpoint lookup table
  * \param new_polygons  (in/out) refined mesh
  * \param n_indices     (in/out) index cursor
- * \return void
- */
-/**
- * \brief Add subdivided polygons based on edge midpoints.
- *
- * Recursively subdivides a triangle based on which edge midpoints are
- * present and appends resulting triangles to the new mesh.
- *
- * \param p0            (in)  first vertex index
- * \param p1            (in)  second vertex index
- * \param p2            (in)  third vertex index
- * \param length_points (in)  length-space points array
- * \param edge_lookup   (in)  edge midpoint lookup table
- * \param new_polygons  (in/out) refined mesh
- * \param n_indices     (in/out) index cursor
- * \return void
  */
 private void add_polygons(
     int p0,
@@ -138,7 +98,7 @@ private void add_polygons(
     int *n_indices)
 {
     int tri, edge, mid[3], n_present, indices[3], i0, i1, i2;
-    int n_new_triangles, new_indices[4][3], offset;
+    int n_new_triangles = 0, new_indices[4][3], offset;
     BOOLEAN mid_present[3];
 
     indices[0] = p0;
@@ -250,20 +210,6 @@ private void add_polygons(
     }
 }
 
-/**
- * \brief Refine a mesh by subdividing long edges.
- *
- * Inserts midpoints on edges longer than max_length (optionally weighted
- * by curvature), subdivides affected triangles, and returns the number of
- * new polygons created.
- *
- * \param length_points   (in/out) points used for length measurement
- * \param polygons        (in)  input mesh
- * \param max_length      (in)  maximum allowed edge length
- * \param new_polygons    (out) refined mesh
- * \param weight_curvature (in) curvature weighting (0 disables)
- * \return Number of new polygons added
- */
 /**
  * \brief Refine a mesh by subdividing long edges.
  *

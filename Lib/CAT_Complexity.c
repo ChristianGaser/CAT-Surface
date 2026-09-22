@@ -94,7 +94,6 @@ get_globalfd(double *x, double *y, int len)
  * \param x_len      (in)  number of scales
  * \param fd         (out) per-vertex fractal dimension values
  * \param smoothflag (in)  non-zero to apply smoothing
- * \return void
  */
 void get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
                  double *fd, int smoothflag)
@@ -338,7 +337,6 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
  * \param polygons  (in)  surface mesh
  * \param values    (in/out) per-vertex values to smooth
  * \param fwhm      (in)  full-width at half-maximum in mm
- * \return void
  */
 void get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 {

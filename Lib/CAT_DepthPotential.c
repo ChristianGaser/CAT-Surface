@@ -20,6 +20,18 @@
 #include "CAT_DepthPotential.h"
 #include "CAT_SafeAlloc.h"
 
+/* file-local helpers, defined below */
+private void gauss_seidel( int, int *, int *, double *, double *, 
+                              double *, int, double, double, int );
+private void init_csr_matrix( int, int *, int **, struct csr_matrix * );
+private void free_csr_matrix( struct csr_matrix * );
+private void assemble( double, int, int, struct csr_matrix * );
+private void stable_normals( int, Point [], Vector [], int *, int ** );
+private double * compute_mean_curvature( int, Point [], double *,
+                              Vector [] , struct csr_matrix * );
+private void cot_laplacian_operator( int, Point [], struct csr_matrix *,
+                              int *, int ** );
+
 #define vec_sub(a, b, c)                         \
     {                                            \
         c.coords[0] = a.coords[0] - b.coords[0]; \
@@ -316,7 +328,6 @@ compute_mean_curvature(int n_points, Point coords[], double *areas,
  * \param mat      (in/out) Laplacian matrix to fill
  * \param n_ngh    (in)  neighbor counts per vertex
  * \param ngh      (in)  ordered neighbor lists
- * \return void
  */
 private void
 cot_laplacian_operator(int n_points, Point coords[], struct csr_matrix *mat,
@@ -464,7 +475,6 @@ local_depth_potential(int n_points, Point coords[], double *areas,
  * \param tol      (in)  relative tolerance
  * \param SOR      (in)  relaxation factor
  * \param verbose  (in)  non-zero to print progress
- * \return void
  */
 private void
 gauss_seidel(int nnode, int *ia, int *ja, double *mat,
@@ -530,7 +540,6 @@ gauss_seidel(int nnode, int *ia, int *ja, double *mat,
  * \param n_ngh    (in)  neighbor counts per vertex
  * \param ngh      (in)  neighbor index lists
  * \param mat      (out) CSR matrix structure
- * \return void
  */
 private void
 init_csr_matrix(int n_points, int *n_ngh, int **ngh,
@@ -580,7 +589,6 @@ init_csr_matrix(int n_points, int *n_ngh, int **ngh,
  * Releases CSR arrays and resets matrix metadata.
  *
  * \param mat (in/out) CSR matrix to free
- * \return void
  */
 private void
 free_csr_matrix(struct csr_matrix *mat)
@@ -610,7 +618,6 @@ free_csr_matrix(struct csr_matrix *mat)
  * \param row (in)  row index
  * \param col (in)  column index
  * \param mat (in/out) CSR matrix
- * \return void
  */
 private void
 assemble(double val, int row, int col, struct csr_matrix *mat)
@@ -669,7 +676,6 @@ assemble(double val, int row, int col, struct csr_matrix *mat)
  * \param normals  (out) computed vertex normals
  * \param n_ngh    (in)  neighbor counts per vertex
  * \param ngh      (in)  ordered neighbor lists
- * \return void
  */
 private void
 stable_normals(int n_points, Point coords[], Vector normals[],

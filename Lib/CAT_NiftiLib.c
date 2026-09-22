@@ -57,7 +57,6 @@ int equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2)
  * This function provides explicit control over all header parameters for
  * clarity and maintainability.\n *
  * \param nii_ptr (in/out) NIfTI image structure to initialize
- * \return void
  */
 void init_nifti_header(nifti_image *nii_ptr)
 {

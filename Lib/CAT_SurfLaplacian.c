@@ -66,9 +66,8 @@
  * \param dims        (in)     volume dimensions [nx, ny, nz]
  * \param vx          (in)     voxel sizes [dx, dy, dz]
  * \param ribbon_pial (in)     pial-side ribbon boundary (phi = 1 fixed)
- * \param ribbon_white(in)     white-side ribbon boundary (phi = 0 fixed)
+ * \param ribbon_white (in)    white-side ribbon boundary (phi = 0 fixed)
  * \param phi         (out)    solution volume (pre-allocated)
- * \param nii_ptr     (in)     NIfTI header for optional debug output
  * \param max_iter    (in)     maximum SOR iterations
  * \param tol         (in)     convergence tolerance
  * \param verbose     (in)     print progress
@@ -426,7 +425,6 @@ skip_territory:
  * \param gx      (out) world gradient, x component
  * \param gy      (out) world gradient, y component
  * \param gz      (out) world gradient, z component
- * \return void
  */
 static void
 world_gradient(double M[3][3], float *grad_x, float *grad_y, float *grad_z,

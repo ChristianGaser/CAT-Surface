@@ -167,7 +167,6 @@ int write_SPHxyz(char *file, int bandwidth, double *rcx, double *rcy, double *rc
  * \param n_triangles          (in)  number of triangles in sphere (for vertex count)
  * \param reparam              (in)  reference sphere topology/remapping structure
  * \param bandwidth            (in)  spherical harmonics bandwidth
- * \return void
  */
 void sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
                             polygons_struct *sphere, int n_triangles,
@@ -271,7 +270,6 @@ void sample_sphere_from_sph(double *rdatax, double *rdatay, double *rdataz,
  * \param bandwidth_limited (in) maximum degree to copy from filter
  * \param coeffs            (in/out) coefficient array to update
  * \param coeffs_filter     (in) source coefficients for limited bandwidth
- * \return void
  */
 void replaceSPH(int bandwidth, int bandwidth_limited,
                 double *coeffs, double *coeffs_filter)
@@ -301,7 +299,6 @@ void replaceSPH(int bandwidth, int bandwidth_limited,
  * \param rcx,rcy,rcz (in) real SH coefficients for x, y, z
  * \param icx,icy,icz (in) imaginary SH coefficients for x, y, z
  * \param shape_desc (out) energy per degree l (bandwidth elements)
- * \return void
  */
 void shape_description(int bandwidth, double *rcx, double *rcy, double *rcz,
                        double *icx, double *icy, double *icz, double *shape_desc)
@@ -336,7 +333,6 @@ void shape_description(int bandwidth, double *rcx, double *rcy, double *rcz,
  * \param bandwidth_limited (in) cutoff frequency for filter
  * \param coeffs_old        (in) input coefficients
  * \param coeffs_new        (out) filtered coefficients
- * \return void
  */
 void butterworth_filter(int bandwidth, int bandwidth_limited,
                         double *coeffs_old, double *coeffs_new)
@@ -377,7 +373,6 @@ void butterworth_filter(int bandwidth, int bandwidth_limited,
  * \param bw_hi       (in) maximum degree to keep
  * \param coeffs_old  (in) input coefficients
  * \param coeffs_new  (out) bandpass-filtered coefficients
- * \return void
  */
 void bandpass_bandwidth(int bandwidth, int bw_lo, int bw_hi,
                         double *coeffs_old, double *coeffs_new)
@@ -410,7 +405,6 @@ void bandpass_bandwidth(int bandwidth, int bw_lo, int bw_hi,
  * \param bandwidth_limited (in) maximum degree to keep
  * \param coeffs_old        (in) input coefficients
  * \param coeffs_new        (out) bandwidth-limited coefficients
- * \return void
  */
 void limit_bandwidth(int bandwidth, int bandwidth_limited,
                      double *coeffs_old, double *coeffs_new)
@@ -445,7 +439,6 @@ void limit_bandwidth(int bandwidth, int bandwidth_limited,
  * \param dataformat (in) format identifier (0=real, 1=complex)
  * \param rc        (out) real parts of SH coefficients
  * \param ic        (out) imaginary parts of SH coefficients
- * \return void
  */
 void get_sph_coeffs_of_realdata(double *rdata, int bandwidth, int dataformat,
                                 double *rc, double *ic)
@@ -519,7 +512,6 @@ void get_sph_coeffs_of_realdata(double *rdata, int bandwidth, int dataformat,
  * \param dataformat (in) format identifier (0=real, 1=complex)
  * \param rc        (in)  real parts of SH coefficients
  * \param ic        (in)  imaginary parts of SH coefficients
- * \return void
  */
 void get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
                                   double *rc, double *ic)
@@ -588,7 +580,6 @@ void get_realdata_from_sph_coeffs(double *rdata, int bandwidth, int dataformat,
  * \param sphere   (in)  reference sphere for coordinate mapping
  * \param bandwidth (in) grid resolution (determines 2D sampling density)
  * \param xcoord,ycoord,zcoord (out) uniform 2D gridded coordinates from mesh
- * \return void
  */
 void get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
                                            polygons_struct *sphere,
@@ -665,21 +656,20 @@ void get_equally_sampled_coords_of_polygon(polygons_struct *polygons,
 }
 
 /**
- * \\brief Extract equally sampled 2D coordinates handling topological defects.
+ * \brief Extract equally sampled 2D coordinates handling topological defects.
  *
  * Maps 3D mesh vertices onto uniformly sampled 2D grid with explicit handling of defined
  * topological defects. Defect-aware coordinate remapping prevents discontinuities at holes/handles.
  * Produces regular grid coordinates suitable for SH analysis even with mesh singularities.
  *
  * \param polygons     (in) source 3D polygonal mesh
- * \\param sphere       (in) reference sphere for mapping
+ * \param sphere       (in) reference sphere for mapping
  * \param defects      (in) per-vertex defect labels
  * \param n_defects    (in) number of defects to separate
  * \param holes        (in) classification of defects as holes (1) or handles (2)
  * \param bandwidth    (in) grid resolution (determines point density)
  * \param xcoord,ycoord,zcoord (out) uniform 2D sampled coordinates
  * \param force        (in) flag for forcing specific handling mode
- * \return void
  */
 void get_equally_sampled_coords_holes(polygons_struct *polygons,
                                       polygons_struct *sphere, int *defects,
@@ -782,6 +772,16 @@ void get_equally_sampled_coords_holes(polygons_struct *polygons,
     delete_the_bintree(&scaled_sphere->bintree);
 }
 
+/**
+ * \brief Unit sphere sampled on a regular (theta, phi) grid.
+ *
+ * Creates n_theta * (n_phi - 1) grid points plus the two poles, connected into
+ * 2 * n_theta * (n_phi - 1) triangles.
+ *
+ * \param n_theta (in) number of samples in longitude
+ * \param n_phi   (in) number of samples in latitude, poles included
+ * \return new object array containing a single POLYGONS object
+ */
 object_struct **
 create_equally_sampled_unit_sphere(int n_theta, int n_phi)
 {
@@ -881,7 +881,6 @@ create_equally_sampled_unit_sphere(int n_theta, int n_phi)
  * \param y   (out) y coordinate (0 to sy-1)
  * \param sxy (in)  total array size (width * height)
  * \param sy  (in)  grid height (number of columns)
- * \return void
  */
 void ind2sub2D(int i, int *x, int *y, int sxy, int sy)
 {

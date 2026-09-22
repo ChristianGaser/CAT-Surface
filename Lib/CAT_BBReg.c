@@ -840,7 +840,8 @@ static double powell_minimise(CAT_RigidParams *p,
  *
  * \param p_init          (in)     initial 6-DOF parameters
  * \param p_best          (out)    optimised 6-DOF parameters
- * \param surface         (in)     WM surface in surface-native RAS space
+ * \param surfs           (in)     array of CAT_SurfData (lh + rh, or just one)
+ * \param n_surfs         (in)     number of elements in surfs[]
  * \param vol             (in)     floating-point volume data (moving image)
  * \param nii_ptr         (in)     NIfTI header of the moving volume
  * \param dims            (in)     volume dimensions [nx, ny, nz]

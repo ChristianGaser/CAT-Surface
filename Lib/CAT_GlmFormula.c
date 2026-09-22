@@ -581,6 +581,16 @@ free_ctx(Ctx *ctx)
     }
 }
 
+/**
+ * \brief Build a design matrix from an R-style model formula.
+ *
+ * See CAT_GlmFormula.h for the formula syntax and the contrast coding.
+ *
+ * \param formula (in)  the model formula string
+ * \param n_obs   (in)  number of observations; each variable file must match
+ * \param design  (out) design matrix, filled on success
+ * \return 1 on success, 0 on error (with a message on stderr)
+ */
 int
 glm_build_design(const char *formula, int n_obs, GlmDesign *design)
 {
@@ -604,6 +614,11 @@ glm_build_design(const char *formula, int n_obs, GlmDesign *design)
     return 1;
 }
 
+/**
+ * \brief Release all memory held by a GlmDesign.
+ *
+ * \param design (in/out) design to free; may be partially built
+ */
 void
 glm_free_design(GlmDesign *design)
 {

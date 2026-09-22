@@ -137,7 +137,6 @@ private BOOLEAN triangulate_one_polygon(
  *
  * \param polygons  (in)  input mesh with polygons
  * \param triangles (out) triangulated mesh
- * \return void
  */
 void triangulate_polygons(
     polygons_struct *polygons,

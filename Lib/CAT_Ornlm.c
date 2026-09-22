@@ -71,9 +71,8 @@
  * \param average         (in/out) block accumulator array
  * \param weight          (in)  weight for this block
  * \param vol_size        (in)  volume dimensions [cols, rows, slices]
- * \return void
  */
-void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize,
+static void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize,
                          float *average, float weight, const int *vol_size)
 {
     int x_pos, y_pos, z_pos;
@@ -130,9 +129,8 @@ void Average_block_ornlm(float *ima, int x, int y, int z, int neighborhoodsize,
  * \param global_sum      (in)  sum of weights for this block
  * \param vol_size        (in)  volume dimensions [cols, rows, slices]
  * \param hh              (in)  2*sigma^2 term for Rician correction
- * \return void
  */
-void Value_block_ornlm(float *Estimate, unsigned char *Label, int x, int y, int z,
+static void Value_block_ornlm(float *Estimate, unsigned char *Label, int x, int y, int z,
                        int neighborhoodsize, float *average, float global_sum,
                        const int *vol_size, float hh)
 {
@@ -202,7 +200,7 @@ void Value_block_ornlm(float *Estimate, unsigned char *Label, int x, int y, int 
  * \param sz  (in)  volume size in z
  * \return Average squared distance between patches
  */
-float distance_ornlm(float *ima, int x, int y, int z,
+static float distance_ornlm(float *ima, int x, int y, int z,
                      int nx, int ny, int nz, int f,
                      int sx, int sy, int sz)
 {
@@ -425,7 +423,6 @@ ThreadFunc_ornlm(void *pArguments)
  * \param h     (in)  filtering parameter
  * \param sigma (in)  noise standard deviation for Rician correction
  * \param dims  (in)  volume dimensions [cols, rows, slices]
- * \return void
  */
 void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims)
 {

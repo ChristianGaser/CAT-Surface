@@ -73,7 +73,6 @@ static double fwhm_to_sigma(double fwhm)
  * \param dims       (in)  volume dimensions [nx, ny, nz]
  * \param voxelsize  (in)  voxel size in mm [dx, dy, dz]
  * \param extend     (in)  extension outside GM band in mm
- * \return void
  */
 void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float *dist_CSF_out,
                             int dims[3], double voxelsize[3], double extend)
@@ -213,7 +212,6 @@ void compute_cortical_depth(float *seg, float *depth, float *dist_WM_out, float 
  * \param voxelsize (in)  voxel size in mm [dx, dy, dz]
  * \param fwhm      (in)  spatial FWHM in mm
  * \param extend    (in)  extension outside GM band in mm
- * \return void
  */
 void smooth_within_cortex_float(float *data, float *seg, int dims[3], double voxelsize[3],
                                 double fwhm, double extend)
@@ -418,7 +416,6 @@ void smooth_within_cortex_float(float *data, float *seg, int dims[3], double vox
  * \param fwhm      (in)  spatial FWHM in mm
  * \param extend    (in)  extension outside GM band in mm
  * \param datatype  (in)  NIfTI datatype of input
- * \return void
  */
 void smooth_within_cortex(void *data, float *seg, int dims[3], double voxelsize[3],
                           double fwhm, double extend, int datatype)

@@ -23,7 +23,6 @@
  *
  * \param mean   (in)  array of three mean values
  * \param order  (out) index order from largest to smallest
- * \return void
  */
 void get_order(const double mean[3], int order[3])
 {
@@ -82,7 +81,7 @@ void get_order(const double mean[3], int order[3])
  * \param new_mean  (in)  updated class means (length 3)
  * \return true if order changed, false otherwise
  */
-bool is_order_changed(const double old_mean[3], const double new_mean[3])
+static bool is_order_changed(const double old_mean[3], const double new_mean[3])
 {
     int old_order[3], new_order[3], i;
     get_order(old_mean, old_order);
@@ -112,9 +111,8 @@ bool is_order_changed(const double old_mean[3], const double new_mean[3])
  * \param var            (in)  class variances for pure tissues
  * \param n_pure_classes (in)  number of pure tissue classes
  * \param dims           (in)  volume dimensions [nx, ny, nz]
- * \return void
  */
-void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, double *mean, double *var, int n_pure_classes, int *dims)
+static void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *prob, double *mean, double *var, int n_pure_classes, int *dims)
 {
     int x, y, z, z_area, y_dims, index, label_value;
     int i, ix, iy, iz, ind, ind2;
@@ -207,9 +205,8 @@ void ComputeInitialPveLabel(float *src, unsigned char *label, unsigned char *pro
  * \param bg     (in)  background label threshold
  * \param a      (in)  half-window size along x
  * \param dims   (in)  volume dimensions [nx, ny, nz]
- * \return void
  */
-void xaverage(unsigned char *label, float *bias, long *n1, double *bs, int bg, int a, int *dims)
+static void xaverage(unsigned char *label, float *bias, long *n1, double *bs, int bg, int a, int *dims)
 {
     int x, y, z, r;
 
@@ -252,9 +249,8 @@ void xaverage(unsigned char *label, float *bias, long *n1, double *bs, int bg, i
  * \param bias  (out) y-averaged bias sums per voxel
  * \param b     (in)  half-window size along y
  * \param dims  (in)  volume dimensions [nx, ny, nz]
- * \return void
  */
-void yaverage(long *n1, double *bs, long *n2, float *bias, int b, int *dims)
+static void yaverage(long *n1, double *bs, long *n2, float *bias, int b, int *dims)
 {
     int x, y, z, r;
 
@@ -296,9 +292,8 @@ void yaverage(long *n1, double *bs, long *n2, float *bias, int b, int *dims)
  * \param bg    (in)  background label threshold
  * \param c     (in)  half-window size along z
  * \param dims  (in)  volume dimensions [nx, ny, nz]
- * \return void
  */
-void zaverage(long *n2, float *bias, long *n1, double *bs, int bg, int c, int *dims)
+static void zaverage(long *n2, float *bias, long *n1, double *bs, int bg, int c, int *dims)
 {
     int x, y, z, r;
 
@@ -340,9 +335,8 @@ void zaverage(long *n2, float *bias, long *n1, double *bs, int bg, int c, int *d
  * \param b      (in)  half-window size along y
  * \param c      (in)  half-window size along z
  * \param dims   (in)  volume dimensions [nx, ny, nz]
- * \return void
  */
-void movingAverage(unsigned char *label, float *bias, int BG, int a, int b, int c, int *dims)
+static void movingAverage(unsigned char *label, float *bias, int BG, int a, int b, int c, int *dims)
 {
     int i, j, x, y, z, r, l, h;
     double *bs;
@@ -400,7 +394,6 @@ void movingAverage(unsigned char *label, float *bias, int BG, int a, int b, int 
  * \param dims     (in)  volume dimensions [nx, ny, nz]
  * \param pve      (in)  enable partial volume estimation if non-zero
  * \param verbose  (in)  non-zero to print progress
- * \return void
  */
 void Bmap(float *src, unsigned char *label, unsigned char *prob, double *mean,
           int n_classes, int BG, int niters, int a, int b, int c,

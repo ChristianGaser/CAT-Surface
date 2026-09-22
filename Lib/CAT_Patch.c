@@ -21,7 +21,7 @@
  * \param poly     (in)  polygon index
  * \return Allocated patchinfo node
  */
-struct patchinfo *
+static struct patchinfo *
 newnode(polygons_struct *polygons, int poly)
 {
     struct patchinfo *node;
@@ -146,7 +146,7 @@ get_neighbor_polys(polygons_struct *polygons, int poly, int *polyflag,
  * \param head     (in)  list of patch polygons
  * \return Allocated object list containing the patch mesh
  */
-object_struct **
+static object_struct **
 make_patch(polygons_struct *polygons, struct patchinfo *head)
 {
     struct patchinfo *cur;

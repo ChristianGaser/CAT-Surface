@@ -32,7 +32,6 @@
  * \brief Initialize pial/white estimation options with defaults.
  *
  * \param opts (out) options structure to initialize
- * \return void
  */
 void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
 {
@@ -40,9 +39,9 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
         return;
     opts->w1 = 0.05;
     opts->w2 = 0.05;
-    opts->w3 = 0.1;
+    opts->w3 = 0.05;
     opts->sigma = 0.2;
-    opts->iterations = 200;
+    opts->iterations = 100;
     opts->method = 2;
     opts->pial_profile = 1;
     CAT_PialProfileOptionsInit(&opts->profile);

@@ -70,7 +70,7 @@ edge_strength(double M[3][3], double gx, double gy, double gz, const double n[3]
  *                            values decrease smoothing there. Magnitudes >1 are clipped by
  *                            the final [0..1] clamp of the blend.
  */
-void smooth_displacement_field_blended(double (*displacement_field)[3],
+static void smooth_displacement_field_blended(double (*displacement_field)[3],
                                        polygons_struct *polygons,
                                        int *n_neighbours, int **neighbours,
                                        int iterations, double sigma,
@@ -491,51 +491,6 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
     free(displacement_field);
     delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
 }
-/**
- * \brief Jointly deforms two homologous surface meshes (pial and white) with image forces,
- *        distance constraint, and curvature-/Jacobian-blended smoothing.
- *
- * This routine performs a coupled deformation of two meshes that share topology and vertex
- * correspondence (e.g., pial and white matter surfaces). For each vertex, the total
- * displacement combines:
- *  - Internal smoothing (neighbor centroid attraction)
- *  - External image forces (gradient alignment and balloon force based on intensity offset)
- *  - A distance constraint to maintain target inter-surface spacing
- *
- * Displacement fields are iteratively smoothed using a blended scheme that increases smoothing
- * where local Jacobians suggest non-diffeomorphic risk, and modulates smoothing by curvature:
- *  - polygons1: less smoothing in positive curvature (gyri) regions
- *  - polygons2: less smoothing in negative curvature (sulci) regions
- * Curvature is computed once from the provided baseline mesh and reused each iteration.
- *
- * Parameters
- *  - polygons1, polygons2: Input/output meshes to be jointly deformed (same topology).
- *  - polygons_orig: Baseline mesh used to initialize both surfaces and compute curvature.
- *                   Must be non-NULL and share topology with polygons1/2.
- *  - input: Pointer to the scalar 3D image used to derive external forces.
- *  - nii_ptr: NIfTI image header (provides dimensions and voxel size).
- *  - w[4]: Weights for force terms:
- *      w[0]: internal smoothing weight
- *      w[1]: gradient alignment weight (edge attraction along normal)
- *      w[2]: balloon force weight (proportional to intensity difference)
- *  - sigma: Smoothing decay factor for displacement field averaging.
- *  - lim1, lim2: Isovalue targets for pial and white surfaces (controls balloon term).
- *  - target_distance: Array of desired distances between corresponding vertices on polygons1/2.
- *  - it: Number of deformation iterations.
- *  - verbose: If non-zero, prints per-iteration error metrics.
- *
- * Behavior and safeguards
- *  - External forces are limited to avoid instabilities (e.g., clamped normal alignment).
- *  - Balloon term is adaptively boosted when far from the isosurface, with an upper cap.
- *  - Blended smoothing uses a logistic of the Jacobian determinant and curvature-dependent
- *    weights (positive curvature → less smoothing for polygons1; negative for polygons2).
- *  - Self-intersections are detected and locally counteracted each iteration.
- *
- * Note
- *  This function expects polygons_orig to be provided as a shared baseline. Curvature is
- *  taken from this geometry once (fixed across iterations) because polygons1 and polygons2
- *  are similarly folded, which reduces compute and improves stability.
- */
 /**
  * \brief Simultaneously deform two surfaces (e.g., white+pial) toward image gradients.
  *

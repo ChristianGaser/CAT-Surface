@@ -249,7 +249,7 @@ bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vert
     return (status);
 }
 
-void swapFloat(float *n)
+static void swapFloat(float *n)
 {
     char *by = (char *)n;
     char sw[4] = {by[3], by[2], by[1], by[0]};
@@ -257,7 +257,7 @@ void swapFloat(float *n)
     *n = *(float *)sw;
 }
 
-void swapInt(int *n)
+static void swapInt(int *n)
 {
     char *by = (char *)n;
     char sw[4] = {by[3], by[2], by[1], by[0]};
@@ -273,7 +273,7 @@ void swapShort(short *n)
     *n = *(short *)sw;
 }
 
-int fwriteFloat(float f, FILE *fp)
+static int fwriteFloat(float f, FILE *fp)
 {
 
 #if (BYTE_ORDER == LITTLE_ENDIAN)
@@ -282,7 +282,7 @@ int fwriteFloat(float f, FILE *fp)
     return (fwrite(&f, sizeof(float), 1, fp));
 }
 
-int fwriteInt(int v, FILE *fp)
+static int fwriteInt(int v, FILE *fp)
 {
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&v);
@@ -290,7 +290,7 @@ int fwriteInt(int v, FILE *fp)
     return (fwrite(&v, sizeof(int), 1, fp));
 }
 
-int fwrite3(int v, FILE *fp)
+static int fwrite3(int v, FILE *fp)
 {
     int i = (v << 8);
 
@@ -300,7 +300,7 @@ int fwrite3(int v, FILE *fp)
     return (fwrite(&i, 3, 1, fp));
 }
 
-int freadInt(FILE *fp)
+static int freadInt(FILE *fp)
 {
     int temp;
     int count;
@@ -312,7 +312,7 @@ int freadInt(FILE *fp)
     return (temp);
 }
 
-float freadFloat(FILE *fp)
+static float freadFloat(FILE *fp)
 {
     float temp;
     int count;
@@ -324,7 +324,7 @@ float freadFloat(FILE *fp)
     return (temp);
 }
 
-int fread3(int *v, FILE *fp)
+static int fread3(int *v, FILE *fp)
 {
     int i = 0;
     int ret;
@@ -1429,23 +1429,6 @@ int output_gifti_curv(char *fname, int nvertices, double *data)
 }
 
 /**
- * \brief Read polygon mesh and optional texture data from GIFTI format.
- *
- * Parses GIFTI (.gii) format files containing surface mesh coordinates, topology,
- * and optional per-vertex data. Handles both embedded (base64/gzip) and external
- * binary (.gii + .dat pairs) encodings. Works around path resolution issues by
- * temporarily changing to the GIFTI file's directory for reading paired .dat files.
- * Allocates polygon structure and texture arrays as needed.
- *
- * \param file         (in)  path to GIFTI file (.gii)
- * \param format       (out) set to ASCII_FORMAT
- * \param n_objects    (out) number of objects loaded (typically 1)
- * \param object_list  (out) allocated array of objects containing the mesh
- * \param n_values     (out) number of per-vertex values (0 if no texture)
- * \param values       (out) allocated shape data array (NULL if not present)
- * \return OK on success; ERROR if file is invalid or corrupted
- */
-/**
  * \brief Read a GIFTI image with the working directory set to its own folder.
  *
  * For .gii/.dat pairs the ExternalFileName stored in the XML is typically a
@@ -1497,6 +1480,23 @@ read_gifti_image_in_dir(const char *file, int read_data)
     return image;
 }
 
+/**
+ * \brief Read polygon mesh and optional texture data from GIFTI format.
+ *
+ * Parses GIFTI (.gii) format files containing surface mesh coordinates, topology,
+ * and optional per-vertex data. Handles both embedded (base64/gzip) and external
+ * binary (.gii + .dat pairs) encodings. Works around path resolution issues by
+ * temporarily changing to the GIFTI file's directory for reading paired .dat files.
+ * Allocates polygon structure and texture arrays as needed.
+ *
+ * \param file         (in)  path to GIFTI file (.gii)
+ * \param format       (out) set to ASCII_FORMAT
+ * \param n_objects    (out) number of objects loaded (typically 1)
+ * \param object_list  (out) allocated array of objects containing the mesh
+ * \param n_values     (out) number of per-vertex values (0 if no texture)
+ * \param values       (out) allocated shape data array (NULL if not present)
+ * \return OK on success; ERROR if file is invalid or corrupted
+ */
 int input_gifti(char *file, File_formats *format, int *n_objects,
                 object_struct ***object_list, int *n_values, double **values)
 {
@@ -1692,7 +1692,6 @@ darray_is_readable(const giiDataArray *da)
  * \param dst (out) destination buffer
  * \param src (in)  source string, may be NULL
  * \param len (in)  size of the destination buffer
- * \return void
  */
 static void
 copy_field(char *dst, const char *src, size_t len)
@@ -1925,6 +1924,15 @@ int input_gifti_mesh_and_texture(char *file, File_formats *format,
     return OK;
 }
 
+/**
+ * \brief Write the first polygons object of a list as a FreeSurfer triangle surface.
+ *
+ * \param file        (in) output file name
+ * \param format      (in) unused; FreeSurfer surfaces are always binary
+ * \param n_objects   (in) number of objects in object_list (only the first is written)
+ * \param object_list (in) objects; the first must be POLYGONS
+ * \return OK on success
+ */
 int output_freesurfer(char *file, File_formats format, int n_objects,
                       object_struct *object_list[])
 {
@@ -1962,6 +1970,14 @@ int output_freesurfer(char *file, File_formats format, int n_objects,
     return (OK);
 }
 
+/**
+ * \brief Write per-vertex values as a FreeSurfer curvature file (new format).
+ *
+ * \param fname     (in) output file name
+ * \param nvertices (in) number of values
+ * \param data      (in) values, stored as float
+ * \return OK on success
+ */
 int output_freesurfer_curv(char *fname, int nvertices, double *data)
 {
     FILE *fp;
@@ -1983,6 +1999,17 @@ int output_freesurfer_curv(char *fname, int nvertices, double *data)
     return (OK);
 }
 
+/**
+ * \brief Read a FreeSurfer triangle surface into a new polygons object.
+ *
+ * Quad surfaces are not supported.
+ *
+ * \param file        (in)     input file name
+ * \param format      (out)    set to ASCII_FORMAT
+ * \param n_objects   (out)    number of objects read (1)
+ * \param object_list (in/out) list the new POLYGONS object is appended to
+ * \return OK on success, ERROR for quad files or an unknown magic number
+ */
 int input_freesurfer(char *file, File_formats *format, int *n_objects,
                      object_struct ***object_list)
 {
@@ -2423,7 +2450,7 @@ int write_pgm(char *file, double *data, int nx, int ny)
     return (0);
 }
 
-Status
+static Status
 input_txt_values(
     STRING filename,
     int *n_values,
@@ -2487,7 +2514,7 @@ input_values_any_format(char *file, int *n_values, double **values)
 Status
 output_values_any_format(const char *file, int n_values, void *values, int flag)
 {
-    Status status;
+    Status status = OK;
     double *buffer;
     double *d;
     int i, *r;

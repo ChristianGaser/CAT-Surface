@@ -20,7 +20,7 @@
 /* to print out fsavg.index2D_256x128.txt */
 // #define DEBUG 1
 
-double
+static double
 compute_clockwise_rotation2(double x, double y)
 {
     double radians;
@@ -62,7 +62,6 @@ compute_clockwise_rotation2(double x, double y)
  * \param point (in)  3D point on unit sphere (x² + y² + z² = 1)
  * \param u     (out) horizontal coordinate [0, 1] (azimuth/longitude)
  * \param v     (out) vertical coordinate [0, 1] (elevation/latitude)
- * \return void
  */
 void point_to_uv(Point *point, double *u, double *v)
 {
@@ -98,7 +97,6 @@ void point_to_uv(Point *point, double *u, double *v)
  * \param u     (in)  horizontal coordinate [0, 1] (azimuth/longitude)
  * \param v     (in)  vertical coordinate [0, 1] (elevation/latitude)
  * \param point (out) 3D point on unit sphere with x² + y² + z² = 1
- * \return void
  */
 void uv_to_point(double u, double v, Point *point)
 {
@@ -124,21 +122,25 @@ void uv_to_point(double u, double v, Point *point)
 }
 
 /**
- * \brief Map scalar values from sphere surface onto flat 2D sheet using (u,v) coordinates.
+ * \brief Map per-vertex values of a surface onto a 2D (u,v) sheet via its sphere.
  *
- * Projects per-vertex values from a spherical mesh onto a 2D rectangular texture/image
- * by converting sphere vertex coordinates to (u,v) and inserting values at corresponding
- * sheet pixel locations using bilinear interpolation. Useful for generating flat maps
- * of cortical properties (thickness, curvature) as rectangular images.
+ * Every sheet pixel is converted to a point on the unit sphere, the closest
+ * triangle of the (normalized) sphere is found and the values of its vertices
+ * are interpolated with barycentric weights. The result is rescaled linearly
+ * to [0, 1]. Used to build the flat maps that DARTEL surface registration works
+ * on.
  *
- * \param polygons      (in)  target flat mesh (2D or flattened sphere)
- * \param sphere        (in)  source spherical mesh
- * \param sphere_values (in)  scalar values per sphere vertex
- * \param sheet_values  (out) allocated 2D array of interpolated values
- * \param offset        (in)  offset for 2D coordinates (typically 0)
- * \param sheet_index   (out) index array for sheet mapping
- * \param interpolate   (in)  if non-zero, perform bilinear interpolation
- * \return void
+ * \param polygons      (in)     surface the values belong to
+ * \param sphere        (in)     its spherical mapping; NULL creates a
+ *                               tetrahedral unit sphere with the same number of
+ *                               triangles
+ * \param sphere_values (in/out) per-vertex values; NULL computes smoothed
+ *                               curvatures of type curvtype, otherwise they are
+ *                               smoothed in-place when fwhm > 0
+ * \param mapped_data   (out)    dm[0]*dm[1] sheet values in [0, 1]
+ * \param fwhm          (in)     heat-kernel FWHM in mm applied first (0: none)
+ * \param dm            (in)     sheet dimensions {nu, nv}
+ * \param curvtype      (in)     curvature type used when sphere_values is NULL
  */
 void map_sphere_values_to_sheet(polygons_struct *polygons,
                                 polygons_struct *sphere, double *sphere_values,
@@ -251,19 +253,18 @@ void map_sphere_values_to_sheet(polygons_struct *polygons,
 }
 
 /**
- * \brief Map scalar values from 2D sheet surface back onto sphere using (u,v) coordinates.
+ * \brief Sample a 2D (u,v) sheet at the vertices of a sphere.
  *
- * Inverse operation of map_sphere_values_to_sheet: takes 2D texture values and
- * resamples them onto a spherical mesh by converting sphere coordinates to (u,v),
- * looking up values in the 2D sheet, and using bilinear interpolation. Useful for
- * applying flat-map processed data (e.g., filters, masks) back to sphere representation.
+ * Inverse of map_sphere_values_to_sheet(): the vertices of a tetrahedral unit
+ * sphere with as many triangles as polygons are converted to (u,v) and the
+ * sheet is read there, bilinearly interpolated or at the nearest pixel.
  *
- * \param sheet2d   (in) 2D array of texture values
- * \param values    (out) allocated array of per-vertex values on sphere
- * \param polygons  (in) spherical mesh (target)
- * \param n_values  (in) number of vertices in sphere
- * \param sheet_index (in) index array mapping 2D to sphere
- * \return void
+ * \param sheet2d     (in)  dm[0]*dm[1] sheet values
+ * \param values      (out) polygons->n_points values, allocated by the caller
+ * \param polygons    (in)  mesh whose triangle count defines the sphere
+ * \param interpolate (in)  non-zero for bilinear interpolation, zero for the
+ *                          nearest pixel
+ * \param dm          (in)  sheet dimensions {nu, nv}
  */
 void map_sheet2d_to_sphere(double *sheet2d, double *values,
                            polygons_struct *polygons, int interpolate, int *dm)
@@ -371,21 +372,6 @@ void map_sheet2d_to_unit_sphere(double *sheet2d, double *values,
 }
 
 /**
- * upsample_flow_field - Upsample a 2D flow field by factor 2 using bilinear interpolation
- *
- * @param src_flow:  Source flow field [2 * src_dm[0] * src_dm[1]]
- * @param src_dm:    Source dimensions [width, height]
- * @param dst_flow:  Destination flow field [2 * dst_dm[0] * dst_dm[1]]
- * @param dst_dm:    Destination dimensions [width, height] (must be 2x source)
- *
- * The flow field has two components (u, v) stored as:
- *   - u-component: src_flow[0 .. m-1]
- *   - v-component: src_flow[m .. 2m-1]
- * where m = src_dm[0] * src_dm[1]
- *
- * Flow values are scaled by 2 since the grid spacing is halved.
- */
-/**
  * \brief Upsample a 2D flow field by factor of 2 using bilinear interpolation.
  *
  * Enlarges a 2D flow field (e.g., displacement field, optical flow) from
@@ -397,7 +383,6 @@ void map_sheet2d_to_unit_sphere(double *sheet2d, double *values,
  * \param src_dm   (in)  source dimensions [width, height]
  * \param dst_flow (out) destination flow field (size dst_dm[0]*dst_dm[1])
  * \param dst_dm   (in)  destination dimensions [width, height]
- * \return void
  */
 void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow, int *dst_dm)
 {
@@ -479,14 +464,6 @@ void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow, int *d
 }
 
 /**
- * downsample_image - Downsample a 2D image by factor 2 using area averaging
- *
- * @param src:     Source image [src_dm[0] * src_dm[1]]
- * @param src_dm:  Source dimensions [width, height]
- * @param dst:     Destination image [dst_dm[0] * dst_dm[1]]
- * @param dst_dm:  Destination dimensions [width, height] (must be src/2)
- */
-/**
  * \brief Downsample a 2D image by factor of 2 using area averaging.
  *
  * Reduces a 2D image from src_dm to dst_dm dimensions (typically 0.5x in each direction)
@@ -497,7 +474,6 @@ void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow, int *d
  * \param src_dm (in) source dimensions [width, height]
  * \param dst (out) destination image (size dst_dm[0]*dst_dm[1])
  * \param dst_dm (in) destination dimensions [width, height]
- * \return void
  */
 void downsample_image(double *src, int *src_dm, double *dst, int *dst_dm)
 {

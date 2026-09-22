@@ -105,7 +105,7 @@ gmv_reduce_worker(void *p)
             const struct ipoint *pi = &a.ir[ind];
 
             a.r[ind].n = pi->n;
-            if (pi->n > G)
+            if (pi->n > AMAP_MIN_VOXELS)
             {
                 if (pi->n == 1)
                 {
@@ -355,7 +355,6 @@ static void GetMeansVariances(float *src, unsigned char *label, int n_classes,
  * \param label   (in/out) tissue labels; updated with PVE intensity estimates
  * \param mean    (in)  tissue class means [CS, GM, WM]
  * \param dims    (in)  array [nx, ny, nz] specifying volume dimensions
- * \return void
  */
 void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, int *dims)
 {
@@ -456,7 +455,6 @@ void Pve5(float *src, unsigned char *prob, unsigned char *label, double *mean, i
  * \param init       (in)  if 1, initialize alphas to 1.0; if 0, compute from data
  * \param dims       (in)  array [nx, ny, nz] specifying volume dimensions
  * \param verbose    (in)  1 to print parameters to stdout, 0 for silent
- * \return void
  */
 void MrfPrior(unsigned char *label, int n_classes, double *alpha, double *beta, int init, int *dims, int verbose)
 {
@@ -625,7 +623,7 @@ Jussi Tohka
 */
 
 /**
- * \\brief Compute likelihood for mixed-tissue voxels via marginalized integration.
+ * \brief Compute likelihood for mixed-tissue voxels via marginalized integration.
  *
  * Models voxel intensity as a mixture of two tissue classes via partial volume:
  * y = t*x1 + (1-t)*x2 where t is mixing fraction ∈ [0,1]. Integrates over all
@@ -633,13 +631,13 @@ Jussi Tohka
  * value. Uses numerical quadrature with user-specified interval count. Required
  * for accurate classification of boundary voxels in multi-tissue segmentation.
  *
- * \\param value           (in)  measured intensity value
- * \\param mean1           (in)  first tissue class mean
- * \\param mean2           (in)  second tissue class mean
- * \\param var1            (in)  first tissue class variance
- * \\param var2            (in)  second tissue class variance
- * \\param nof_intervals   (in)  number of integration steps (higher = more accurate, slower)
- * \\return Marginalized likelihood p(value | tissue1, tissue2)
+ * \param value           (in)  measured intensity value
+ * \param mean1           (in)  first tissue class mean
+ * \param mean2           (in)  second tissue class mean
+ * \param var1            (in)  first tissue class variance
+ * \param var2            (in)  second tissue class variance
+ * \param nof_intervals   (in)  number of integration steps (higher = more accurate, slower)
+ * \return Marginalized likelihood p(value | tissue1, tissue2)
  */
 double ComputeMarginalizedLikelihood(double value, double mean1, double mean2,
                                      double var1, double var2, unsigned int nof_intervals)
@@ -662,16 +660,16 @@ double ComputeMarginalizedLikelihood(double value, double mean1, double mean2,
 
 /* Find maximum argument out of the n possibilities */
 /**
- * \\brief Find index of maximum value in array.
+ * \brief Find index of maximum value in array.
  *
  * Scans an array of likelihood or probability values and returns the
  * array index corresponding to the maximum value. Used to determine the
  * most likely tissue class for a given voxel during hard segmentation.
  * Returns 1-indexed class label (not 0-indexed).
  *
- * \\param val  (in)  array of likelihood or probability values
- * \\param n    (in)  length of array
- * \\return 1-indexed class label (tissue class), 1 to n
+ * \param val  (in)  array of likelihood or probability values
+ * \param n    (in)  length of array
+ * \return 1-indexed class label (tissue class), 1 to n
  */
 unsigned char MaxArg(double *val, unsigned char n)
 {
@@ -703,7 +701,6 @@ unsigned char MaxArg(double *val, unsigned char n)
  *
  * \param val  (in/out) array of values to normalize; modified in-place
  * \param n    (in)  length of array
- * \return void
  */
 void Normalize(double *val, char n)
 {
@@ -723,7 +720,7 @@ void Normalize(double *val, char n)
 }
 
 /* Compute initial PVE labeling based on marginalized likelihood for Amap */
-void ComputeInitialPveLabelSub(float *src, unsigned char *label, unsigned char *prob, struct point *r, int n_pure_classes, int sub, int *dims)
+static void ComputeInitialPveLabelSub(float *src, unsigned char *label, unsigned char *prob, struct point *r, int n_pure_classes, int sub, int *dims)
 {
     int x, y, z, z_area, y_dims, index, label_value;
     int i, ix, iy, iz, ind, ind2, nix, niy, niz, narea, nvol;
@@ -840,9 +837,8 @@ void ComputeInitialPveLabelSub(float *src, unsigned char *label, unsigned char *
  * \param beta             (in)  Potts strength for this voxel
  * \param voxelsize_squared (in) normalized squared voxel sizes
  * \param class_weights    (in)  per-class weights, or NULL for uniform
- * \return void
  */
-void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned char *label, int x, int y, int z, int *dims,
+static void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned char *label, int x, int y, int z, int *dims,
                            int n_classes, double beta, double *voxelsize_squared,
                            const double *class_weights)
 {
@@ -902,9 +898,8 @@ void ComputeMrfProbability(double *mrf_probability, double *exponent, unsigned c
  * \param voxelsize     (in)     voxel dimensions in mm
  * \param verbose       (in)     1 to print progress
  * \param class_weights (in)     per-class weights, or NULL for uniform
- * \return void
  */
-void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations,
+static void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, double beta, int iterations,
          double *voxelsize, int verbose, const double *class_weights)
 {
 
@@ -975,7 +970,7 @@ void ICM(unsigned char *prob, unsigned char *label, int n_classes, int *dims, do
         printf("\n");
 }
 
-void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
+static void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
                           struct point *r, struct point *r_large, double *mean, double *var, int n_classes,
                           int niters, int sub, int sub_large, int *dims, double *voxelsize, double *thresh,
                           double *beta, int verbose, int use_median)
@@ -1160,35 +1155,34 @@ void EstimateSegmentation(float *src, unsigned char *label, unsigned char *prob,
     }
 }
 
-/* perform adaptive MAP on given src and initial segmentation label */ /**
-                                                                        * \brief Adaptive Segmentation atlas Mapping (Amap): tissue classification via EM.
-                                                                        *
-                                                                        * Core adaptive maximum-likelihood segmentation algorithm for brain tissue
-                                                                        * classification (CSF/GM/WM) from multimodal MRI. Implements unified EM loop
-                                                                        * with optional Markov Random Field smoothing via Iterated Conditional Modes
-                                                                        * (ICM) and partial volume estimation (PVE). Supports multi-step refinement
-                                                                        * schedules, edge-preserving MRF priors, and class-specific weighting. Adaptively
-                                                                        * adjusts class parameters and labels while iterating to convergence. Widely used
-                                                                        * as the foundational segmentation method in CAT12 preprocessing pipelines.
-                                                                        *
-                                                                        * \param src              (in)  input MRI intensity image
-                                                                        * \param label            (out) hard tissue classification labels (1=CSF, 3=GM, 5=WM)
-                                                                        * \param prob             (out) soft tissue probability maps (n_classes*nvol)
-                                                                        * \param mean             (in/out) class mean intensity estimates; updated in-place
-                                                                        * \param n_classes        (in)  number of tissue classes (typically 3-5)
-                                                                        * \param niters           (in)  maximum EM iterations
-                                                                        * \param sub              (in)  subsampling factor for speed/accuracy trade-off
-                                                                        * \param dims             (in)  array [nx, ny, nz] volume dimensions
-                                                                        * \param pve              (in)  1 for partial volume estimation, 0 to skip
-                                                                        * \param weight_MRF       (in)  MRF regularization strength (0=no smoothing, 1=strong)
-                                                                        * \param voxelsize        (in)  array [dx, dy, dz] voxel dimensions in mm
-                                                                        * \param niters_ICM       (in)  iterations of ICM mode refinement per EM step
-                                                                        * \param verbose          (in)  1 to print progress, 0 for silent
-                                                                        * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
-                                                                        * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
-                                                                        * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
-                                                                        * \return void
-                                                                        */
+/**
+ * \brief Adaptive Segmentation atlas Mapping (Amap): tissue classification via EM.
+ *
+ * Core adaptive maximum-likelihood segmentation algorithm for brain tissue
+ * classification (CSF/GM/WM) from multimodal MRI. Implements unified EM loop
+ * with optional Markov Random Field smoothing via Iterated Conditional Modes
+ * (ICM) and partial volume estimation (PVE). Supports multi-step refinement
+ * schedules, edge-preserving MRF priors, and class-specific weighting. Adaptively
+ * adjusts class parameters and labels while iterating to convergence. Widely used
+ * as the foundational segmentation method in CAT12 preprocessing pipelines.
+ *
+ * \param src              (in)  input MRI intensity image
+ * \param label            (out) hard tissue classification labels (1=CSF, 3=GM, 5=WM)
+ * \param prob             (out) soft tissue probability maps (n_classes*nvol)
+ * \param mean             (in/out) class mean intensity estimates; updated in-place
+ * \param n_classes        (in)  number of tissue classes (typically 3-5)
+ * \param niters           (in)  maximum EM iterations
+ * \param sub              (in)  subsampling factor for speed/accuracy trade-off
+ * \param dims             (in)  array [nx, ny, nz] volume dimensions
+ * \param pve              (in)  1 for partial volume estimation, 0 to skip
+ * \param weight_MRF       (in)  MRF regularization strength (0=no smoothing, 1=strong)
+ * \param voxelsize        (in)  array [dx, dy, dz] voxel dimensions in mm
+ * \param niters_ICM       (in)  iterations of ICM mode refinement per EM step
+ * \param verbose          (in)  1 to print progress, 0 for silent
+ * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
+ * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
+ * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
+ */
 void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
           int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
           double *voxelsize, int niters_ICM, int verbose,

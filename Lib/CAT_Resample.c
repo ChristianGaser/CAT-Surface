@@ -46,7 +46,7 @@ typedef struct
 
 // Thread function for parallel execution
 #if !defined(_WIN32) && !defined(_WIN64)
-THREAD_RETURN process_resample_surface(void *args)
+static THREAD_RETURN process_resample_surface(void *args)
 {
     ThreadArgs *thread_args = (ThreadArgs *)args;
     int i, k, poly, n_points;
@@ -281,7 +281,7 @@ void correct_shift_scale_sphere(polygons_struct *source_sphere, polygons_struct 
 
 // Thread function (used only on non-Windows systems)
 #if !defined(_WIN32) && !defined(_WIN64)
-THREAD_RETURN process_target_points(void *args)
+static THREAD_RETURN process_target_points(void *args)
 {
     ThreadArgs_process_target_points *thread_args = (ThreadArgs_process_target_points *)args;
 

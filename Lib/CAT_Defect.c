@@ -234,7 +234,6 @@ int find_topological_defects(polygons_struct *surface, polygons_struct *sphere,
  * \param level        (in) number of dilation iterations
  * \param n_neighbours (in) per-vertex neighbor counts
  * \param neighbours   (in) per-vertex neighbor lists
- * \return void
  */
 void expand_defects(polygons_struct *surface, int *defects, int *polydefects,
                     int defect, int level, int *n_neighbours, int **neighbours)
@@ -272,18 +271,6 @@ void expand_defects(polygons_struct *surface, int *defects, int *polydefects,
 /**
  * \brief Update per-vertex defect labels from per-polygon (triangle) defect labels.
  *
- * Propagates polygon-level defect assignments to all vertices of defective triangles.
- * Ensure vertices of defective polygons are marked as defective. Clears deactivated
- * vertex labels before propagating from polygons (memset to 0).
- *
- * \param surface     (in) input mesh
- * \param polydefects (in) per-polygon defect labels
- * \param defects     (out) per-vertex defect labels (cleared and updated)
- * \return void
- */
-/**
- * \brief Update per-vertex defect labels from per-polygon (triangle) defect labels.
- *
  * Propagates defect information from the polygonal mesh level to the vertex level.
  * Each vertex inherits the defect label of any polygon it belongs to; all three vertices
  * of a defective polygon are marked with the same defect ID. Inverse of update_polydefects.
@@ -291,7 +278,6 @@ void expand_defects(polygons_struct *surface, int *defects, int *polydefects,
  * \param surface    (in)  input mesh
  * \param polydefects (in) per-polygon defect labels
  * \param defects    (out) per-vertex defect labels (overwritten)
- * \return void
  */
 void update_defects(polygons_struct *surface, int *polydefects, int *defects)
 {
@@ -323,7 +309,6 @@ void update_defects(polygons_struct *surface, int *polydefects, int *defects)
  * \param surface     (in) input mesh
  * \param defects     (in) per-vertex defect labels
  * \param polydefects (out) per-polygon defect labels (updated)
- * \return void
  */
 void update_polydefects(polygons_struct *surface, int *defects, int *polydefects)
 {
@@ -413,7 +398,7 @@ Point get_defect_center(polygons_struct *surface, int *defects, int defect)
  * \param surface       (in) input mesh
  * \param defects       (in) per-vertex defect labels
  * \param n_defects     (in) total number of defects
- * \param defect_size   (out) per-vertex size values (normalized 0-1)\n * \return void
+ * \param defect_size   (out) per-vertex size values (normalized 0-1)
  */
 void get_defect_size(polygons_struct *surface, int *defects, int n_defects,
                      double *defect_size)
@@ -459,7 +444,6 @@ void get_defect_size(polygons_struct *surface, int *defects, int n_defects,
  * \param holes        (in/out) array identifying hole vs handle classification
  * \param bisected     (out) per-vertex marking indicating bisection result
  * \param detect_euler (in)  flag to compute Euler characteristic for classification
- * \return void
  */
 void bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defects, int n_defects,
                     int *holes, int *bisected, int detect_euler)
@@ -571,7 +555,6 @@ void bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defe
  * separation of holes and handles based on sulcal depth differences.
  *
  * \param polygons (in/out) surface mesh modified in place by inflation and smoothing operations
- * \return void
  */
 void inflate_surface_with_topology_defects(polygons_struct *polygons)
 {
@@ -654,7 +637,6 @@ void inflate_surface_with_topology_defects(polygons_struct *polygons)
  * \param remap            (in)  target spherical reference surface (bintree built if missing)
  * \param remap_defects    (out) per-vertex defect labels on target
  * \param remap_polydefects (out) per-polygon defect labels on target
- * \return void
  */
 void remap_defect(polygons_struct *sphere, int *defects, int *polydefects,
                   polygons_struct *remap, int *remap_defects, int *remap_polydefects)
@@ -694,6 +676,22 @@ void remap_defect(polygons_struct *sphere, int *defects, int *polydefects,
     update_polydefects(remap, remap_defects, remap_polydefects);
 }
 
+/**
+ * \brief Find surface artifacts as regions far from a reference surface.
+ *
+ * Marks every vertex whose distance to the closest point of the reference
+ * surface (usually a smoothed copy) exceeds dist, merges marked neighbours into
+ * connected regions, drops regions of 4 vertices or fewer, expands the rest and
+ * keeps only those with a non-negative Euler characteristic.
+ *
+ * \param surface      (in)  surface to examine
+ * \param sph          (in)  reference surface, e.g. a smoothed copy of surface
+ * \param artifacts    (out) per-vertex artifact labels (0 = none, 1..n)
+ * \param n_neighbours (in)  per-vertex neighbour counts
+ * \param neighbours   (in)  per-vertex neighbour lists
+ * \param dist         (in)  distance above which a vertex is an artifact candidate
+ * \return number of artifacts found
+ */
 int find_artifacts(polygons_struct *surface, polygons_struct *sph,
                    int *artifacts, int *n_neighbours, int **neighbours, double dist)
 {

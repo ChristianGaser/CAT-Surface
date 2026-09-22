@@ -30,7 +30,6 @@
  * \param polygons (in) source mesh
  * \param rotated_polygons (out) output mesh (if NULL, modifies input in-place)
  * \param rotation_matrix (in) 9-element row-major 3x3 rotation matrix
- * \return void
  */
 void rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygons,
                      double *rotation_matrix)
@@ -66,7 +65,6 @@ void rotate_polygons(polygons_struct *polygons, polygons_struct *rotated_polygon
  * \param alpha (in) rotation angle about X-axis (radians)
  * \param beta (in) rotation angle about Y-axis (radians)
  * \param gamma (in) rotation angle about Z-axis (radians)
- * \return void
  */
 void rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
                         double gamma)
@@ -123,7 +121,6 @@ void rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
  * \param deform (in) 2D deformation field (interleaved ux/vy values)
  * \param dm (in) deformation field dimensions [width, height]
  * \param inverse (in) 1 for inverse warp direction; 0 for forward
- * \return void
  */
 void apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *deform,
                 int *dm, int inverse)
@@ -292,7 +289,6 @@ void apply_warp(polygons_struct *polygons, polygons_struct *sphere, double *defo
  * \param ux (in) u-component displacement field
  * \param vy (in) v-component displacement field (same size as ux)
  * \param inverse (in) 1 for inverse warp; 0 for forward
- * \return void
  */
 void apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere, double *ux,
                    double *vy, int inverse)
@@ -467,7 +463,7 @@ cost_for_rotation(OptimizationParams *p, const double *R)
     return sum_sq;
 }
 
-double compute_cost(double *angles, void *params)
+static double compute_cost(double *angles, void *params)
 {
     OptimizationParams *p = (OptimizationParams *) params;
     double R[9];
@@ -485,7 +481,7 @@ double compute_cost(double *angles, void *params)
     return cost_for_rotation(p, R);
 }
 
-void nelder_mead(double **simplex, double *f_values, int n, int max_iter, double tol, OptimizationParams *params, double *optimal_params, int verbose)
+static void nelder_mead(double **simplex, double *f_values, int n, int max_iter, double tol, OptimizationParams *params, double *optimal_params, int verbose)
 {
     int i, j, iter;
     int highest, second_highest, lowest;
@@ -649,7 +645,6 @@ void nelder_mead(double **simplex, double *f_values, int n, int max_iter, double
  * \param xsurf (in) first surface
  * \param zsurf (in/out) second surface (result stored here)
  * \param surface (in) third surface parameter (unused)
- * \return void
  */
 void average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
                      polygons_struct *surface)
@@ -705,26 +700,23 @@ void average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
     free(wz);
 }
 
-/* This function find the optimal rotation parameters to minimize differences in
-   the curvature maps of target and source using the Nelder-Mead (Downhill) approach
-   Optionally applies distortion correction weighting by sin(theta) for better
-   2D-to-sphere registration on spherical surfaces */
 /**
- * \brief Compute optimal 3D rotation to align source surface with atlas template.
+ * \brief Find the sphere rotation that best aligns a source surface with a template.
  *
- * Optimization-based alignment: uses Nelder-Mead simplex method with curvature-based cost
- * function to find best rotation. Returns result as matrix and can compute per-vertex
- * correspondences. Highly computationally intensive but produces quality alignment.
+ * Minimizes the difference between the smoothed curvature maps of source and
+ * target over three rotation angles: a coarse multi-start grid (wider along the
+ * anterior-posterior axis, where the one-sulcus-off ambiguity is strongest)
+ * picks a seed, which the Nelder-Mead simplex method then refines.
  *
- * \param src (in) source surface to align
- * \param src_sphere (in) source spherical parameterization
- * \param trg (in) target atlas spherical reference (unused)
- * \param trg_sphere (in) target atlas spherical parameterization
- * \param threshold (in) optimization convergence threshold
- * \param n_defects (in) number of defect regions
- * \param rotation_matrix (out) optimal 3x3 rotation result
- * \param verbose (in) 1 for progress output; 0 silent
- * \return void
+ * \param src        (in)  source surface
+ * \param src_sphere (in)  its spherical mapping
+ * \param trg        (in)  template surface
+ * \param trg_sphere (in)  its spherical mapping
+ * \param fwhm       (in)  FWHM of the curvature smoothing in mm
+ * \param curvtype   (in)  curvature type, as in get_polygon_vertex_curvatures_cg()
+ * \param rot        (out) the three rotation angles in radians (see
+ *                         rotation_to_matrix())
+ * \param verbose    (in)  non-zero to print progress
  */
 void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
                               polygons_struct *trg, polygons_struct *trg_sphere,
@@ -828,7 +820,6 @@ void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
  * \param refine          (in)  1 = Nelder-Mead refine of the residual afterwards
  * \param rotation_matrix (out) 9-element row-major rotation for the source sphere
  * \param verbose         (in)  1 for progress output; 0 silent
- * \return void
  */
 void
 rotate_polygons_to_atlas_global(polygons_struct *src, polygons_struct *src_sphere,

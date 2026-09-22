@@ -67,7 +67,6 @@ find_root(int *parent, int x)
  * \param parent (in/out) union-find parent array
  * \param a      (in)     first vertex
  * \param b      (in)     second vertex
- * \return void
  */
 static void
 union_roots(int *parent, int a, int b)
@@ -93,7 +92,6 @@ union_roots(int *parent, int a, int b)
  *
  * \param polygons (in)  input mesh
  * \param info     (out) area, volume, centroid and area statistics
- * \return void
  */
 static void
 accumulate_geometry(polygons_struct *polygons, surf_info_struct *info)
@@ -173,7 +171,6 @@ accumulate_geometry(polygons_struct *polygons, surf_info_struct *info)
  *
  * \param polygons (in)  input mesh
  * \param info     (out) edge counts, edge lengths and component count
- * \return void
  */
 static void
 accumulate_edges(polygons_struct *polygons, surf_info_struct *info)
@@ -266,7 +263,6 @@ accumulate_edges(polygons_struct *polygons, surf_info_struct *info)
  *
  * \param polygons (in)  input mesh
  * \param info     (out) intersection counts
- * \return void
  */
 static void
 accumulate_intersections(polygons_struct *polygons, surf_info_struct *info)
@@ -309,7 +305,6 @@ accumulate_intersections(polygons_struct *polygons, surf_info_struct *info)
  * \param info                (out) filled summary, see surf_info_struct
  * \param check_intersections (in)  if non-zero, run the self-intersection test
  * \param verbose             (in)  if non-zero, print progress information
- * \return void (no return value).
  */
 void
 compute_surf_info(polygons_struct *polygons, surf_info_struct *info,
@@ -361,7 +356,6 @@ compute_surf_info(polygons_struct *polygons, surf_info_struct *info,
  * \param info (in) summary filled by compute_surf_info()
  * \param name (in) name shown in the header, may be NULL
  * \param fp   (in) output stream
- * \return void (no return value).
  */
 void
 print_surf_info(const surf_info_struct *info, const char *name, FILE *fp)
@@ -449,7 +443,6 @@ print_surf_info(const surf_info_struct *info, const char *name, FILE *fp)
  * \param info (in) summary filled by compute_surf_info()
  * \param name (in) value of the "file" key, may be NULL
  * \param fp   (in) output stream
- * \return void (no return value).
  */
 void
 print_surf_info_tabular(const surf_info_struct *info, const char *name,
@@ -534,7 +527,6 @@ format_dims(const gifti_darray_info *info, char *buf, size_t len)
  * \param arrays   (in) descriptions from input_gifti_darrays()
  * \param n_arrays (in) number of entries in arrays
  * \param fp       (in) output stream
- * \return void (no return value).
  */
 void
 print_gifti_darrays(const gifti_darray_info *arrays, int n_arrays, FILE *fp)
@@ -584,7 +576,6 @@ print_gifti_darrays(const gifti_darray_info *arrays, int n_arrays, FILE *fp)
  * \param arrays   (in) descriptions from input_gifti_darrays()
  * \param n_arrays (in) number of entries in arrays
  * \param fp       (in) output stream
- * \return void (no return value).
  */
 void
 print_gifti_darrays_tabular(const gifti_darray_info *arrays, int n_arrays,

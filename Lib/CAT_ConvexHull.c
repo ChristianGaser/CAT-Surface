@@ -13,6 +13,17 @@
 
 #include "CAT_ConvexHull.h"
 
+static int KeyFactor = 100000;
+
+/* file-local helpers, defined below */
+private  int  get_points_of_region(polygons_struct  *, Point ** );
+private  void  get_convex_hull(int, Point *, polygons_struct * );
+private  int  get_convex_hull_2d(int, float *, float *, int *, int, int );
+private int get_surface_point_normals( polygons_struct *, int *, Point *[],
+                              Vector *[], int *[], int **[] );
+private int get_surface_neighbours( polygons_struct *, int *[],
+                                    int ** [] );
+
 /* debug output flags */
 int dbg = 0;
 int dbg2 = 0;
@@ -410,7 +421,6 @@ get_edge_key(
  * \param polygons   (in)  mesh containing the edge
  * \param poly       (in)  polygon index
  * \param edge       (in)  edge index within polygon
- * \return void
  */
 private void
 add_edge_to_list(
@@ -592,7 +602,6 @@ get_plane_polygon_vertices(
  * \param n_points (in)  number of input points
  * \param points   (in)  input point array
  * \param polygons (out) output convex hull mesh
- * \return void
  */
 private void
 get_convex_hull(

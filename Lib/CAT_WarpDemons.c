@@ -49,7 +49,6 @@
  * \brief Free the arrays allocated by init_dartel_poly so it can be re-built.
  *
  * \param dpoly (in/out) dartel helper whose sample-point arrays are released
- * \return void
  */
 static void
 free_dartel_poly(struct dartel_poly *dpoly)
@@ -69,7 +68,6 @@ free_dartel_poly(struct dartel_poly *dpoly)
  *
  * \param sphere (in/out) spherical mesh whose vertices are reprojected
  * \param radius (in)     target radius
- * \return void
  */
 static void
 normalize_sphere_radius(polygons_struct *sphere, double radius)
@@ -148,7 +146,6 @@ min_neighbour_angle(polygons_struct *sphere, int *n_neighbours, int **neighbours
  * \param f        (in)  double[n_points]; scalar field
  * \param dtheta   (out) double[n_points]; d/dtheta component
  * \param dphi     (out) double[n_points]; d/dphi component
- * \return void
  */
 static void
 gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
@@ -177,7 +174,6 @@ gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
  *
  * \param data   (in/out) double[length]; standardized in place
  * \param length (in)     number of values
- * \return void
  */
 static void
 normalizeVector(double *data, int length)
@@ -245,7 +241,6 @@ Correlation(double *x, double *y, int N)
  * \param m        (in)  number of points
  * \param radius   (in)  output radius
  * \param ox,oy,oz (out) the weighted mean, reprojected to \p radius
- * \return void
  */
 static void
 spherical_weighted_mean(const double *px, const double *py, const double *pz,
@@ -313,7 +308,6 @@ spherical_weighted_mean(const double *px, const double *py, const double *pz,
  * \param oy       (out) double[nq]; interpolated y
  * \param oz       (out) double[nq]; interpolated z
  * \param geodesic (in)  if nonzero, blend the (ax,ay,az) point geodesically
- * \return void
  */
 static void
 resample_xyz(polygons_struct *src, Point *query, int nq,
@@ -370,7 +364,6 @@ resample_xyz(polygons_struct *src, Point *query, int nq,
  * \param radius     (in)  sphere radius used for reprojection
  * \param min_angle  (in)  smallest neighbour angle (radians) for step sizing
  * \param out_points (out) Point[n_points]; integrated vertex positions
- * \return void
  */
 static void
 spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
@@ -463,7 +456,6 @@ spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
  * \param sphere (in)  spherical mesh
  * \param e1     (out) double[3*n]; first tangent unit vector per vertex
  * \param e2     (out) double[3*n]; second tangent unit vector per vertex
- * \return void
  */
 static void
 compute_tangent_basis(polygons_struct *sphere, double *e1, double *e2)
@@ -524,7 +516,6 @@ compute_tangent_basis(polygons_struct *sphere, double *e1, double *e2)
  * \param scale  (in)  scalar applied to both gradient components
  * \param ge1    (out) double[n]; gradient component along e1
  * \param ge2    (out) double[n]; gradient component along e2
- * \return void
  */
 static void
 tangent_gradient(polygons_struct *sphere, int *n_nbr, int **nbr,
@@ -577,7 +568,6 @@ tangent_gradient(polygons_struct *sphere, int *n_nbr, int **nbr,
  * \param radius     (in)  sphere radius used for reprojection
  * \param min_angle  (in)  smallest neighbour angle (radians) for step sizing
  * \param out_points (out) Point[n]; integrated vertex positions
- * \return void
  */
 static void
 spherical_exp_map_tangent(polygons_struct *ref_sphere,
@@ -673,7 +663,6 @@ spherical_exp_map_tangent(polygons_struct *ref_sphere,
  * \param mask_level        (in)  per-vertex cortex mask at this level's
  *                                resolution (0 excludes a vertex from the data
  *                                term), or NULL to include all vertices
- * \return void
  */
 static void
 warp_demon(polygons_struct *src, polygons_struct *src_sphere,
@@ -1194,7 +1183,6 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
  * Override individual fields afterwards before calling CAT_WarpDemonsRegister().
  *
  * \param opt (out) options struct to initialize
- * \return void
  */
 void
 CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
@@ -1205,10 +1193,12 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
      * mean-curvature stage are available but tend to overfit the noisy
      * high-frequency curvature and degrade the overall alignment. */
     opt->n_steps             = 4;
-    opt->level_points[0]     = 5120;
-    opt->level_points[1]     = 20480;
-    opt->level_points[2]     = 81920;
-    opt->level_points[3]     = 327680;
+    /* finest level = n_points, each coarser one a quarter of it, as both
+       front-ends set it */
+    opt->level_points[0]     = 320;
+    opt->level_points[1]     = 1280;
+    opt->level_points[2]     = 5120;
+    opt->level_points[3]     = 20480;
     opt->curvtype[0]         = 1000;   /* sulcal-depth-like */
     opt->curvtype[1]         = 250;
     opt->curvtype[2]         = 125;
@@ -1218,7 +1208,7 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->rot_max_degrees     = 64.0; /* FreeSurfer's default global search span */
     opt->rot_min_degrees     = 1.0;  /* NM refine polishes below this */
     opt->rot_nangles         = 4;    /* (4+1)^3 = 125 evaluations per pass */
-    opt->smooth_velocity     = 1;   /* SD default: velocity smoothing off */
+    opt->smooth_velocity     = 1;   /* on (the original SD default is off) */
     opt->smooth_displacement = 1;   /* SD default: elastic displacement smoothing on */
     opt->use_hessian         = 1;
     opt->use_line_search     = 0;
@@ -1231,10 +1221,10 @@ CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
     opt->fwhm_disp           = 6.0;
     opt->rate                = 1.0;
     opt->max_step_deg        = 25.0;
-    opt->sigma_x             = 20.0;  /* SD max_step = 2 */
+    opt->sigma_x             = 20.0;  /* the original SD uses 2 */
     opt->step_factor         = 1.0;
     opt->cortex_mask         = NULL; /* no cortex masking by default */
-    opt->l_dist              = 0.6;  /* metric-distortion regularizer off */
+    opt->l_dist              = 0.6;  /* metric-distortion regularizer on */
     opt->coarse_stiffness    = 1.0;  /* no extra coarse-level stiffness by default */
     opt->verbose             = 0;
     opt->debug               = 0;
@@ -1341,7 +1331,6 @@ unfold_mesh(polygons_struct *sphere, int *n_nbr, int **nbr,
  *
  * \param orig (in) undeformed sphere (radius SPHERE_RADIUS)
  * \param warp (in) deformed sphere, same topology as orig
- * \return void
  */
 static void
 report_warp_distortion(polygons_struct *orig, polygons_struct *warp)

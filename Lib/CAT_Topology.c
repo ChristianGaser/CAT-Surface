@@ -15,6 +15,7 @@
 #include "CAT_Curvature.h"
 #include "CAT_Defect.h"
 #include "CAT_Refine.h"
+#include "CAT_FixTopology.h"
 
 #define DATAFORMAT 1 /* 1 = real data, 0 = complex data */
 #define DEBUG 0
@@ -38,7 +39,6 @@
  *
  * \param bw   (in/out) binary/label volume (size dims[0]*dims[1]*dims[2])
  * \param dims (in)     volume dimensions (x,y,z)
- * \return void
  */
 void get_cluster_size(unsigned int *bw, int dims[3])
 {
@@ -131,9 +131,8 @@ void get_cluster_size(unsigned int *bw, int dims[3])
  * \param p            (in)  start vertex index
  * \param flag         (in/out) flag array (length n_points)
  * \param level        (in)  recursion depth (0 uses distance test)
- * \return void
  */
-void add_neighbours(polygons_struct *surface, polygons_struct *lbw,
+static void add_neighbours(polygons_struct *surface, polygons_struct *lbw,
                     int **neighbours, int *n_neighbours, int p, int *flag, int level)
 {
     int n, idx;
@@ -182,9 +181,8 @@ void add_neighbours(polygons_struct *surface, polygons_struct *lbw,
  * \param remap_defects     (out) resampled per-vertex defects
  * \param remap_polydefects (out) resampled per-polygon defects
  * \param n_items           (in)  number of triangles for the remapped sphere
- * \return void
  */
-void resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
+static void resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefects,
                           int *remap_defects, int *remap_polydefects, int n_items)
 {
     object_struct **objects;
@@ -223,9 +221,8 @@ void resample_defects_sph(polygons_struct *sphere, int *defects, int *polydefect
  * \param holes      (in)  per-vertex hole/handle labels
  * \param hbw        (in/out) high-bandwidth sphere
  * \param lbw        (in)  low-bandwidth sphere
- * \return void
  */
-void sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects,
+static void sph_postcorrect(polygons_struct *surface, polygons_struct *sphere, int *defects, int *polydefects,
                      int n_defects, int *holes, polygons_struct *hbw, polygons_struct *lbw)
 {
     object_struct *surface_object;

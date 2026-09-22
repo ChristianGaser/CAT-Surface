@@ -26,7 +26,6 @@
  *
  * \param polygons (in)  source polygon mesh
  * \param node     (in/out) triangle node with vertex indices set
- * \return void
  */
 void get_triangle_bounds(polygons_struct *polygons, struct polynode *node)
 {
@@ -155,9 +154,8 @@ point_in_bounds(Point pt, double bounds[6])
  *
  * \param tree (in/out) octree
  * \param node (in) triangle node to insert
- * \return void
  */
-void insert_triangle(struct octree *tree, struct polynode *node)
+static void insert_triangle(struct octree *tree, struct polynode *node)
 {
     int n, i;
     unsigned char insertedflag = 0;
@@ -305,9 +303,8 @@ build_octree(polygons_struct *polygons)
  * dense meshes, which would overflow the stack if freed recursively.
  *
  * \param n (in) head of list to free
- * \return void
  */
-void recursive_node_delete(struct polynode *n)
+static void recursive_node_delete(struct polynode *n)
 {
     struct polynode *next;
 
@@ -324,7 +321,6 @@ void recursive_node_delete(struct polynode *n)
  * \brief Free an octree and all associated nodes.
  *
  * \param tree (in/out) octree to delete
- * \return void
  */
 void delete_octree(struct octree *tree)
 {

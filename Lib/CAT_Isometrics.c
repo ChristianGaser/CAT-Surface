@@ -96,7 +96,7 @@ getmetricdata(polygons_struct *polygons)
  * \param map   (in)  mapped surface mesh
  * \return Mean area distortion value
  */
-double
+static double
 areadistortion(struct metricdata *brain, polygons_struct *map)
 {
     double ratio, area, area2, value;

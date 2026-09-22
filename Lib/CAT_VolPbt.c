@@ -311,6 +311,14 @@ barrier_reference(const float *src_copy, const float *dist_WM,
     return ref;
 }
 
+/**
+ * \brief Initialize PBT options with the default values.
+ *
+ * These defaults are the single source of truth: both front-ends keep them
+ * for every option that is not set explicitly.
+ *
+ * \param opts (out) options structure to initialize
+ */
 void CAT_PbtOptionsInit(CAT_PbtOptions *opts)
 {
     if (!opts)
@@ -960,24 +968,6 @@ int CAT_VolComputePbt(
 }
 
 /**
- * \brief Estimate the width of the partial-volume ramp, in voxels.
- *
- * Port of estimatePVEsize() from CAT12's cat_vol_pbtsimpleCS4.m (the accurate
- * branch). For both tissue transitions it measures how far apart the two pure
- * tissue cores are: the distance from a PVE voxel out to the lower core plus
- * the distance in to the upper core spans the ramp plus the voxel itself, so
- * one is subtracted. Only PVE voxels contribute -- inside either core one of
- * the two distances is zero because the voxel is either in the source set or
- * outside the mask, so the sum is zero and the percentile call skips it.
- *
- * The result is the median over the volume and is floored at one voxel: a ramp
- * cannot be sharper than the sampling.
- *
- * \param src  (in) PVE label image (CSF=1, GM=2, WM=3)
- * \param dims (in) volume dimensions {nx, ny, nz}
- * \return ramp width in voxels, >= 1.0
- */
-/**
  * \brief Reference cortical thickness the sulcal-barrier gate is derived from.
  *
  * Runs the same preprocessing and distance estimation as CAT_VolComputePbt()
@@ -1056,6 +1046,24 @@ double CAT_VolPbtBarrierReference(
     return ref;
 }
 
+/**
+ * \brief Estimate the width of the partial-volume ramp, in voxels.
+ *
+ * Port of estimatePVEsize() from CAT12's cat_vol_pbtsimpleCS4.m (the accurate
+ * branch). For both tissue transitions it measures how far apart the two pure
+ * tissue cores are: the distance from a PVE voxel out to the lower core plus
+ * the distance in to the upper core spans the ramp plus the voxel itself, so
+ * one is subtracted. Only PVE voxels contribute -- inside either core one of
+ * the two distances is zero because the voxel is either in the source set or
+ * outside the mask, so the sum is zero and the percentile call skips it.
+ *
+ * The result is the median over the volume and is floored at one voxel: a ramp
+ * cannot be sharper than the sampling.
+ *
+ * \param src  (in) PVE label image (CSF=1, GM=2, WM=3)
+ * \param dims (in) volume dimensions {nx, ny, nz}
+ * \return ramp width in voxels, >= 1.0
+ */
 static double estimate_pve_width(const float *src, int dims[3])
 {
     const int nvox = dims[0] * dims[1] * dims[2];
@@ -1127,24 +1135,22 @@ static double estimate_pve_width(const float *src, int dims[3])
 }
 
 /**
- * pmax - Calculate a conditional maximum value from a set of voxels.
+ * \brief Calculate a conditional maximum value from a set of voxels.
  *
  * This function is used in the projection_based_thickness process to find the maximum value among
  * the voxels that are in the range of White Matter Distance (WMD), considering certain constraints.
  * It first finds the pure maximum based on several criteria and then calculates the mean of the
  * highest values under the same constraints.
  *
- * Parameters:
- *  - GMT: Array of thickness/WMD values of neighbours.
- *  - PPM: Array of projection values.
- *  - SEG: Array of segmentation values.
- *  - ND: Array of Euclidean distances.
- *  - WMD: White Matter Distance for the current voxel.
- *  - SEGI: Segmentation value of the current voxel.
- *  - sA: Size of the arrays (number of elements to consider, indices 0..sA-1).
+ * \param GMT Array of thickness/WMD values of neighbours.
+ * \param PPM Array of projection values.
+ * \param SEG Array of segmentation values.
+ * \param ND Array of Euclidean distances.
+ * \param WMD White Matter Distance for the current voxel.
+ * \param SEGI Segmentation value of the current voxel.
+ * \param sA Size of the arrays (number of elements to consider, indices 0..sA-1).
  *
- * Returns:
- *  The calculated maximum value under the specified conditions.
+ * \return The calculated maximum value under the specified conditions.
  *
  * Notes:
  *  The function applies several constraints based on segmentation and distance measures to determine
@@ -1194,17 +1200,21 @@ pmax(const float *GMT, const float *PPM, const float *SEG, const float *ND, cons
 }
 
 /**
- * \brief Public API for projection_based_thickness.
+ * \brief Projection-based thickness (PBT) of the grey-matter band.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * For every GM voxel the thickness is propagated from the WM distance map
+ * along the direction of steepest descent in a forward and a backward sweep
+ * over the 14-voxel half neighbourhood, and then refined in a post-processing
+ * pass. SEG is first replaced by the minimum of itself and an ORNLM-filtered
+ * copy. Requires WM and CSF voxels to be present.
  *
- * \param SEG (in/out) Parameter of projection_based_thickness.
- * \param WMD (in/out) Parameter of projection_based_thickness.
- * \param CSFD (in/out) Parameter of projection_based_thickness.
- * \param GMT (in/out) Parameter of projection_based_thickness.
- * \param dims (in/out) Parameter of projection_based_thickness.
- * \param voxelsize (in/out) Parameter of projection_based_thickness.
- * \return void (no return value).
+ * \param SEG       (in/out) PVE label image, CSF 1, GM 2, WM 3; filtered in-place
+ * \param WMD       (in)     white-matter distance map
+ * \param CSFD      (in)     CSF distance map
+ * \param GMT       (out)    thickness image (allocated here if NULL, but then
+ *                           not returned)
+ * \param dims      (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize (in)     voxel size in mm {dx, dy, dz}
  */
 void projection_based_thickness(float *SEG, float *WMD, float *CSFD, float *GMT, int dims[3], double *voxelsize)
 {
@@ -1812,7 +1822,6 @@ void blood_vessel_correction_pve_float(float *Yp0, int dims[3],
  * to the requested datatype.
  *
  * \param data             (in/out) PVE label volume data
- * \param Ygmt             (in)     optional local gray-matter thickness map (NULL -> scalar replacement)
  * \param dims             (in)     dimensions {nx, ny, nz}
  * \param vx_vol           (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  * \param datatype         (in)     datatype code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)

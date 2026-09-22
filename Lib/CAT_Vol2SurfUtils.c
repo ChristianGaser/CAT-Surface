@@ -116,7 +116,6 @@ CAT_Vol2SurfEvaluateFunction(const double *val_array, int n_val, int map_func,
  * \param n            (in)  number of entries
  * \param exp_half     (in)  half-decay distance
  * \param kernel_out   (out) output kernel (length n)
- * \return void
  */
 void CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_half,
                                 double *kernel_out)
@@ -155,7 +154,6 @@ void CAT_Vol2SurfBuildExpKernel(const double *length_array, int n, double exp_ha
  * \param grid_steps  (in)  total grid steps
  * \param grid_steps1 (in)  number of kernel samples
  * \param kernel_out  (out) output kernel (length grid_steps1)
- * \return void
  */
 void CAT_Vol2SurfBuildGaussianKernel50(int grid_steps, int grid_steps1,
                                        double *kernel_out)

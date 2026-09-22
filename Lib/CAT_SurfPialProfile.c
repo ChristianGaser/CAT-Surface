@@ -53,7 +53,6 @@ typedef struct
  * \brief Initialize pial profile placement options with defaults.
  *
  * \param opts (out) options structure to initialize
- * \return void
  */
 void CAT_PialProfileOptionsInit(CAT_PialProfileOptions *opts)
 {

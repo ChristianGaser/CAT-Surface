@@ -59,7 +59,7 @@ projectToPlane(Vector projected, Vector basis[2])
  * \param normal (in) surface normal vector
  * \return          vector component in tangent plane (perpendicular to normal)
  */
-Vector
+static Vector
 projectionVector(Vector vector, Vector normal)
 {
     Vector xyz;
@@ -90,7 +90,7 @@ projectionVector(Vector vector, Vector normal)
  * \param k1    (out) maximum principal curvature
  * \param k2    (out) minimum principal curvature
  */
-void leastSquares_curv(const int num, Vector dc[], Vector dn[], double *k1, double *k2)
+static void leastSquares_curv(const int num, Vector dc[], Vector dn[], double *k1, double *k2)
 {
     int i;
     double sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
@@ -391,6 +391,18 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
     FREE(point_done);
 }
 
+/**
+ * \brief Curvature of a surface, heat-kernel smoothed and scaled to [0, 1].
+ *
+ * Computes get_polygon_vertex_curvatures_cg() (with a 3 mm neighbourhood for
+ * curvtype 0), smooths it with smooth_heatkernel() and rescales the result
+ * linearly so that its minimum is 0 and its maximum 1.
+ *
+ * \param polygons (in)  surface mesh
+ * \param values   (out) n_points curvature values in [0, 1]
+ * \param fwhm     (in)  FWHM of the heat-kernel smoothing in mm
+ * \param curvtype (in)  curvature type, as in get_polygon_vertex_curvatures_cg()
+ */
 void get_smoothed_curvatures(polygons_struct *polygons,
                              double *values, double fwhm, int curvtype)
 {

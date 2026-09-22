@@ -88,7 +88,7 @@ static const int g_faces[6][4] = {
  * \param nx,ny,nz      (in)     volume dimensions
  * \param conn          (in)     connectivity: 18 or 26
  * \param vol_euler     (in/out) scratch buffer, nvol floats
- * \param vol_euler_orig(in/out) scratch buffer, nvol floats
+ * \param vol_euler_orig (in/out) scratch buffer, nvol floats
  * \param vol_bin       (in/out) scratch buffer, nvol unsigned shorts
  * \return number of defective cubes corrected
  */
@@ -258,7 +258,6 @@ run_topology_pass(float *volume,float *vol_changed,  const float *vol_prob,
  * \param thresh        (in)     voxels >= thresh are foreground
  * \param dims          (in)     [nx, ny, nz] volume dimensions
  * \param conn_arr      (in)     two connectivity values, e.g. {18, 26}
- * \return void
  */
 void correct_topology(float *volume, float *vol_changed, float thresh, int dims[3], int conn_arr[2])
 {
@@ -571,7 +570,6 @@ extract_surface(
         }
 }
 
-void
 /**
  * \brief Extract polygonal surface mesh from volumetric data using marching cubes.
  *
@@ -595,8 +593,8 @@ void
  * \param valid_high      (in)  highest valid data value
  * \param polygons        (out) output mesh structure; allocated and populated by function
  * \param verbose         (in)  1 to print progress, 0 for silent operation
- * \return void
  */
+void
 extract_isosurface(
     float *vol,
     int sizes[3],
@@ -705,42 +703,6 @@ extract_isosurface(
 }
 
 /* Function to apply marching cubes and extract polygons */
-/**
- * \brief Extract brain surface mesh with advanced preprocessing and topology correction.
- *
- * Comprehensive surface extraction pipeline including smoothing, median filtering,
- * gyral masking, and topology correction. Applies optional edge-preserving smoothing,
- * median filter to strengthen structures, largest component selection, hole filling,
- * and topology correction using Euler characteristic. Iteratively applies Laplacian
- * smoothing and morphological post-processing. Creates separate inner and outer
- * surfaces with appropriate labeling for CAT12 cortical mesh processing.
- *
- * \param input_float       (in)  input 3D probabilistic tissue segmentation
- * \param nii_ptr           (in)  NIfTI image header with voxel dimensions and affine
- * \param label             (in)  optional tissue label mask (NULL to skip)
- * \param min_threshold     (in)  isosurface threshold value (typically 0.5 for probabilities)
- * \param pre_fwhm          (in)  Gaussian smoothing FWHM in mm (0 to skip)
- * \param iter_laplacian    (in)  number of Laplacian smoothing iterations
- * \param dist_morph        (in)  distance offset for morphological expansion (mm)
- * \param n_median_filter   (in)  iterations of median filtering to apply
- * \param n_iter            (in)  total outer loop iterations
- * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
- * \param sulci_opts        (in)  buried-sulcus correction on the PPM, or NULL to skip
- *                                it. A buried sulcus is a valley in the PPM whose floor
- *                                never drops below the isovalue, so the two banks fuse
- *                                when the isosurface is extracted. No intensity image is
- *                                needed: the PPM carries the geometry itself, and a
- *                                Hessian sheetness filter finds the valley. The field is
- *                                used three times -- to push those floors below the
- *                                isovalue, to damp the gyral boost above (which would
- *                                otherwise lift a sulcal floor back over it), and to
- *                                orient the median filter so it cannot close what was
- *                                just opened. Note sulci_opts->sheet_strength: the raw
- *                                response on real data sits well below the thresholds,
- *                                so a gain of 1 leaves the whole correction inert.
- * \param verbose           (in)  1 to print progress, 0 for silent
- * \return Allocated object_struct containing pial surface polygons; caller must free
- */
 
 /**
  * \brief Cut the defects whose filling would close a sulcus.
@@ -884,6 +846,42 @@ precut_bridged_sulci(unsigned short *out, const unsigned short *base,
     return n_cut;
 }
 
+/**
+ * \brief Extract brain surface mesh with advanced preprocessing and topology correction.
+ *
+ * Comprehensive surface extraction pipeline including smoothing, median filtering,
+ * gyral masking, and topology correction. Applies optional edge-preserving smoothing,
+ * median filter to strengthen structures, largest component selection, hole filling,
+ * and topology correction using Euler characteristic. Iteratively applies Laplacian
+ * smoothing and morphological post-processing. Creates separate inner and outer
+ * surfaces with appropriate labeling for CAT12 cortical mesh processing.
+ *
+ * \param input_float       (in)  input 3D probabilistic tissue segmentation
+ * \param nii_ptr           (in)  NIfTI image header with voxel dimensions and affine
+ * \param label             (in)  optional tissue label mask (NULL to skip)
+ * \param min_threshold     (in)  isosurface threshold value (typically 0.5 for probabilities)
+ * \param pre_fwhm          (in)  Gaussian smoothing FWHM in mm (0 to skip)
+ * \param iter_laplacian    (in)  number of Laplacian smoothing iterations
+ * \param dist_morph        (in)  distance offset for morphological expansion (mm)
+ * \param n_median_filter   (in)  iterations of median filtering to apply
+ * \param n_iter            (in)  total outer loop iterations
+ * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
+ * \param sulci_opts        (in)  buried-sulcus correction on the PPM, or NULL to skip
+ *                                it. A buried sulcus is a valley in the PPM whose floor
+ *                                never drops below the isovalue, so the two banks fuse
+ *                                when the isosurface is extracted. No intensity image is
+ *                                needed: the PPM carries the geometry itself, and a
+ *                                Hessian sheetness filter finds the valley. The field is
+ *                                used three times -- to push those floors below the
+ *                                isovalue, to damp the gyral boost above (which would
+ *                                otherwise lift a sulcal floor back over it), and to
+ *                                orient the median filter so it cannot close what was
+ *                                just opened. Note sulci_opts->sheet_strength: the raw
+ *                                response on real data sits well below the thresholds,
+ *                                so a gain of 1 leaves the whole correction inert.
+ * \param verbose           (in)  1 to print progress, 0 for silent
+ * \return Allocated object_struct containing pial surface polygons; caller must free
+ */
 object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                                     float *label, double min_threshold, double pre_fwhm,
                                     int iter_laplacian, double dist_morph, int n_median_filter,
@@ -1197,7 +1195,8 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                                     "opened), %ld up (blades kept)%s.\n",
                             x_dn, x_up,
                             (x_up > 2 * x_dn) ? " -- the raising half dominates; "
-                                                "lower -sheet-offset-gyri" : "");
+                                                "lower offset_gyri (sheet_offset_gyri "
+                                                "in cat_surf.vol_marching_cubes)" : "");
                 }
             }
             free(signed_sheet);

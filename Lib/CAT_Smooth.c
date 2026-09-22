@@ -96,7 +96,7 @@ void get_all_polygon_point_neighbours(polygons_struct *polygons,
  * \param sigma (in)  kernel bandwidth parameter
  * \return            kernel weight in range (0, 1]
  */
-double
+static double
 evaluate_heatkernel(double x, double sigma)
 {
     return (exp(-(x * x) / (2.0 * sigma * sigma)));
@@ -291,52 +291,20 @@ void smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
 }
 
 /**
- * Reduce a triangle mesh using Quadric Error Metrics (QEM).
+ * \brief HC Laplacian smoothing of a mesh (Vollmer et al., 1999).
  *
- * This function mirrors the calling style used by spm_mesh_reduce.c: you specify
- * a target number of triangles and an aggressiveness value. Internally, the input
- * polygons are treated as triangles; non-triangle faces are fan-triangulated.
+ * Laplacian smoothing with Humphrey's Classes: after each Laplacian step the
+ * points are pushed back towards a blend of the original and the previous
+ * positions, which keeps the volume from shrinking. Border edges are locked.
+ * The mesh is fan-triangulated if it is not already a triangle mesh.
  *
- * Parameters
- * ----------
- * polygons        : (in/out) BICPL polygons_struct to be simplified in-place.
- * target_faces    : desired number of triangles after simplification. If <= 0,
- *                   half of the current triangle count is used.
- * aggressiveness  : simplifier aggressiveness (typical ~7.0; larger => stronger/rougher).
- * preserve_sharp  : if non-zero, prevent aggressive collapses across sharp edges.
- * verbose         : if non-zero, print progress and summary to stderr.
- *
- */
-/**
- * \brief Reduce mesh complexity using Quadric Error Metrics (QEM).
- *
- * Function: reduce_mesh_quadrics
- *
- * \param polygons (polygons_struct *)
- * \param target_faces (int)
- * \param aggressiveness (double)
- * \param preserve_sharp (int)
- * \param verbose (int)
- * \return See function description for return value semantics.
- */
-/**
- * \brief Apply Laplacian smoothing to polygon mesh and scalar data.
- *
- * Implements iterative Laplacian smoothing (diffusion-like) where each vertex is
- * updated as a weighted average of itself and its neighbors. The update rule
- * is: new_vertex = (1-weight)*vertex + weight*neighbor_average.
- * Can optionally smooth associated scalar values using the same iterations.
- *
- * Algorithm:
- *  1. For each iteration:
- *  2. For each vertex: compute weighted average of position and neighbors
- *  3. Optionally smooth scalar values with same iterations
- *
- * \param polygons      (in/out) polygon mesh; coordinates smoothed in-place
- * \param values        (in/out) optional double array; scalar values to smooth (can be NULL)
- * \param n_iterations  (in)     number of smoothing iterations
- * \param weight        (in)     blending weight for smoothing (0..1); higher=stronger smoothing
- * \return              0 on success; <0 on error
+ * \param polygons (in/out) mesh, smoothed in-place
+ * \param iter     (in)     number of iterations
+ * \param alpha    (in)     weight of the original positions in the correction
+ *                          (0..1; 0.1 is typical)
+ * \param beta     (in)     weight of a point's own correction against that of
+ *                          its neighbours (0..1; 0.5 is typical)
+ * \return 0 on success, -1 on an empty mesh or allocation failure
  */
 int smooth_laplacian(polygons_struct *polygons,
                      int iter,

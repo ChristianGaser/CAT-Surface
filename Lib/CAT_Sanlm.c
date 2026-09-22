@@ -82,7 +82,7 @@ double max;
  * \param x (in) input value
  * \return I0(x)
  */
-double bessi0(double x)
+static double bessi0(double x)
 {
     double ax, res, a;
     double y;
@@ -112,7 +112,7 @@ double bessi0(double x)
  * \param x (in) input value
  * \return I1(x)
  */
-double bessi1(double x)
+static double bessi1(double x)
 {
     double ax, res;
     double y;
@@ -138,7 +138,7 @@ double bessi1(double x)
  * \param snr (in) signal-to-noise ratio
  * \return Rician correction factor
  */
-double Epsi(double snr)
+static double Epsi(double snr)
 {
     double val;
     val = 2 + snr * snr - (PI / 8) * exp(-(snr * snr) / 2) * ((2 + snr * snr) * bessi0((snr * snr) / 4) + (snr * snr) * bessi1((snr * snr) / 4)) * ((2 + snr * snr) * bessi0((snr * snr) / 4) + (snr * snr) * bessi1((snr * snr) / 4));
@@ -165,9 +165,8 @@ double Epsi(double snr)
  * \param sx              (in)  volume size x
  * \param sy              (in)  volume size y
  * \param sz              (in)  volume size z
- * \return void
  */
-void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float *average, double weight, int sx, int sy, int sz)
+static void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float *average, double weight, int sx, int sy, int sz)
 {
     int x_pos, y_pos, z_pos;
     int is_outside;
@@ -232,9 +231,8 @@ void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float 
  * \param sx              (in)  volume size x
  * \param sy              (in)  volume size y
  * \param sz              (in)  volume size z
- * \return void
  */
-void Value_block(float *Estimate, unsigned char *Label, int x, int y, int z, int neighborhoodsize, float *average, double global_sum, int sx, int sy, int sz)
+static void Value_block(float *Estimate, unsigned char *Label, int x, int y, int z, int neighborhoodsize, float *average, double global_sum, int sx, int sy, int sz)
 {
     int x_pos, y_pos, z_pos;
     int is_outside;
@@ -295,7 +293,7 @@ void Value_block(float *Estimate, unsigned char *Label, int x, int y, int z, int
  * \param sz  (in) volume size z
  * \return Average squared distance between patches
  */
-double distance(float *ima, int x, int y, int z, int nx, int ny, int nz, int f, int sx, int sy, int sz)
+static double distance(float *ima, int x, int y, int z, int nx, int ny, int nz, int f, int sx, int sy, int sz)
 {
     double d, acu, distancetotal;
     int i, j, k, ni1, nj1, ni2, nj2, nk1, nk2;
@@ -372,7 +370,7 @@ double distance(float *ima, int x, int y, int z, int nx, int ny, int nz, int f, 
  * \param sz    (in) volume size z
  * \return Average squared distance between patches
  */
-double distance2(float *ima, float *means, int x, int y, int z, int nx, int ny, int nz, int f, int sx, int sy, int sz)
+static double distance2(float *ima, float *means, int x, int y, int z, int nx, int ny, int nz, int f, int sx, int sy, int sz)
 {
     double d, acu, distancetotal;
     int i, j, k, ni1, nj1, ni2, nj2, nk1, nk2;
@@ -442,9 +440,8 @@ double distance2(float *ima, float *means, int x, int y, int z, int nx, int ny, 
  * \param sx  (in)  volume size x
  * \param sy  (in)  volume size y
  * \param sz  (in)  volume size z
- * \return void
  */
-void Regularize(float *in, float *out, int r, int sx, int sy, int sz)
+static void Regularize(float *in, float *out, int r, int sx, int sy, int sz)
 {
     double acu, *temp;
     int ind, i, j, k, ni, nj, nk, ii, jj, kk;
@@ -753,7 +750,6 @@ ThreadFunc(void *pArguments)
  * \param use_rician  (in)  non-zero for Rician correction
  * \param strength    (in)  strength scaling for adaptive weights
  * \param dims        (in)  volume dimensions [x, y, z]
- * \return void
  */
 void sanlm(float *ima, int v, int f, int use_rician, double strength, const int *dims)
 {

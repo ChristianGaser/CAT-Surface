@@ -59,18 +59,17 @@ cat_parallel_run(int nthreads, void *(*worker)(void *), void *args, size_t argsz
 }
 
 /**
- * ind2sub - Convert a linear index to 3D array coordinates.
+ * \brief Convert a linear index to 3D array coordinates.
  *
  * This function calculates the x, y, and z coordinates corresponding to a linear index
  * in a 3D array. It's useful for converting a 1D array index to 3D coordinates in a volume.
  *
- * Parameters:
- *  - i: The linear index in the array.
- *  - x: Pointer to store the calculated x-coordinate.
- *  - y: Pointer to store the calculated y-coordinate.
- *  - z: Pointer to store the calculated z-coordinate.
- *  - sxy: Product of the dimensions in the x and y directions (sx * sy).
- *  - sx: The dimension in the x direction.
+ * \param i The linear index in the array.
+ * \param x Pointer to store the calculated x-coordinate.
+ * \param y Pointer to store the calculated y-coordinate.
+ * \param z Pointer to store the calculated z-coordinate.
+ * \param sxy Product of the dimensions in the x and y directions (sx * sy).
+ * \param sx The dimension in the x direction.
  */
 void ind2sub(int i, int *x, int *y, int *z, int sxy, int sx)
 {
@@ -82,21 +81,19 @@ void ind2sub(int i, int *x, int *y, int *z, int sxy, int sx)
 }
 
 /**
- * sub2ind - Convert 3D array coordinates to a linear index.
+ * \brief Convert 3D array coordinates to a linear index.
  *
  * This function calculates the linear index corresponding to the x, y, and z coordinates
  * in a 3D array. It is useful for accessing elements in a linearly stored 3D array.
  *
  * Boundary handling is implemented to ensure the coordinates stay within the array limits.
  *
- * Parameters:
- *  - x: The x-coordinate in the array.
- *  - y: The y-coordinate in the array.
- *  - z: The z-coordinate in the array.
- *  - s: Array containing the dimensions of the 3D array.
+ * \param x The x-coordinate in the array.
+ * \param y The y-coordinate in the array.
+ * \param z The z-coordinate in the array.
+ * \param s Array containing the dimensions of the 3D array.
  *
- * Returns:
- *  The linear index corresponding to the provided 3D coordinates.
+ * \return The linear index corresponding to the provided 3D coordinates.
  *
  * See Also:
  *  - ind2sub function for the inverse operation.
@@ -115,24 +112,6 @@ int sub2ind(int x, int y, int z, int s[3])
     return z * s[0] * s[1] + y * s[0] + x;
 }
 
-/**
- * localstat_double - Calculate local statistics for a 3D float array.
- *
- * This function calculates mean, median, min, max, and standard deviation
- * within a defined distance from voxel center for each element in a 3D double array. It
- * optionally uses a Euclidean (instead of block) distance to restrict the search area and
- * an optional mask to optimize performance.
- *
- * Parameters:
- *  - input: Pointer to the input 3D float array.
- *  - dims: Array representing the dimensions of the input array.
- *  - dist: search distance from voxel center (1..10).
- *  - use_euclidean_dist: Flag to use Euclidean instead of block distance in calculations.
- *  - mask: Optional mask array to optimize calculations.
- *  - stat_func: Function selector for the type of statistic to calculate.
- *
- * Note: The function modifies the input array to store the results.
- */
 /* Per-thread arguments for one filter pass of localstat_double (one [ini,fin)
    slab of z-planes).  Each worker reads `input` (whole volume) and writes its
    own disjoint z-slab of `buffer`, so no locking is required. */
@@ -229,7 +208,25 @@ localstat_worker(void *p)
     return NULL;
 }
 
-void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
+/**
+ * \brief Calculate local statistics for a 3D float array.
+ *
+ * This function calculates mean, median, min, max, and standard deviation
+ * within a defined distance from voxel center for each element in a 3D double array. It
+ * optionally uses a Euclidean (instead of block) distance to restrict the search area and
+ * an optional mask to optimize performance.
+ *
+ * \param input              (in/out) 3D double array, replaced by the result
+ * \param mask               (in)     optional mask; voxels with 0 are skipped (NULL: all)
+ * \param dims               (in)     dimensions of the array
+ * \param dist               (in)     search distance from the voxel centre (1..10)
+ * \param stat_func          (in)     statistic (F_MEAN, F_MEDIAN, ...)
+ * \param iters              (in)     number of iterations
+ * \param use_euclidean_dist (in)     non-zero for Euclidean instead of block distance
+ *
+ * Note: The function modifies the input array to store the results.
+ */
+static void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
                       int stat_func, int iters, int use_euclidean_dist)
 {
     int i, t, it, nthreads;
@@ -301,19 +298,21 @@ void localstat_double(double *input, unsigned char *mask, int dims[3], int dist,
 }
 
 /**
- * \brief Public API for localstat3.
+ * \brief Local statistic over a voxel neighbourhood, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * Converts the volume to double, runs the statistic within dist voxels of
+ * every voxel and converts the result back in-place.
  *
- * \param data (in/out) Parameter of localstat3.
- * \param mask (in/out) Parameter of localstat3.
- * \param dims (in/out) Parameter of localstat3.
- * \param dist (in/out) Parameter of localstat3.
- * \param stat_func (in/out) Parameter of localstat3.
- * \param iters (in/out) Parameter of localstat3.
- * \param use_euclidean_dist (in/out) Parameter of localstat3.
- * \param datatype (in/out) Parameter of localstat3.
- * \return void (no return value).
+ * \param data               (in/out) volume of type datatype, replaced by the result
+ * \param mask               (in)     optional mask; voxels with 0 are skipped (NULL: all)
+ * \param dims               (in)     volume dimensions {nx, ny, nz}
+ * \param dist               (in)     search distance from the voxel centre, 1..10 voxels
+ * \param stat_func          (in)     statistic: F_MEAN, F_MIN, F_MAX, F_STD, F_MEDIAN, ...
+ *                                   (0=mean, 1=min, 2=max, 3=std, 7=median, 12=close,
+ *                                   13=open; see CAT_VolLocalStat)
+ * \param iters              (in)     number of iterations
+ * \param use_euclidean_dist (in)     non-zero for a Euclidean, zero for a block neighbourhood
+ * \param datatype           (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
 void localstat3(void *data, unsigned char *mask, int dims[3], int dist,
                 int stat_func, int iters, int use_euclidean_dist, int datatype)
@@ -412,17 +411,19 @@ void pmin(float *A, int sA, float *minimum, int *index)
 }
 
 /**
- * \brief Public API for isoval.
+ * \brief Trilinearly interpolated volume value at a point.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * With nii_ptr the point is given in world coordinates (mm) and mapped to
+ * voxel space through the inverse of sto_xyz; without it, (x, y, z) are voxel
+ * coordinates. NaN and infinite neighbours are left out of the weighting.
  *
- * \param vol (in/out) Parameter of isoval.
- * \param x (in/out) Parameter of isoval.
- * \param y (in/out) Parameter of isoval.
- * \param z (in/out) Parameter of isoval.
- * \param dims (in/out) Parameter of isoval.
- * \param nii_ptr (in/out) Parameter of isoval.
- * \return Return value of isoval.
+ * \param vol     (in) float volume
+ * \param x       (in) x coordinate
+ * \param y       (in) y coordinate
+ * \param z       (in) z coordinate
+ * \param dims    (in) volume dimensions {nx, ny, nz}
+ * \param nii_ptr (in) header providing the world-to-voxel mapping, or NULL
+ * \return interpolated value, or NaN if no neighbour is finite
  */
 float isoval(float *vol, float x, float y, float z, int dims[3], nifti_image *nii_ptr)
 {
@@ -555,19 +556,18 @@ conv_col_worker(void *p)
 
 /* ===================== Multithreaded convxy_float ===================== */
 /**
- * convxy_float - Apply 2D convolution to a slice of data.
+ * \brief Apply 2D convolution to a slice of data.
  *
  * This function applies a slice-wise 2D convolution to a given input data array
  * using specified filter kernels along x and y dimensions. The result is stored
  * in the output array.
  *
- * Parameters:
- *  - out: Output array where the convolution result is stored.
+ * \param out Output array where the convolution result is stored.
  *  - xdim, ydim: Dimensions of the input data slice.
  *  - filtx, filty: Filter kernels for convolution along x and y dimensions.
  *  - fxdim, fydim: Dimensions of the filter kernels.
  *  - xoff, yoff: Offsets for the filter kernels.
- *  - buff: Buffer array for intermediate results.
+ * \param buff Buffer array for intermediate results.
  *
  * Notes:
  * This is a slightly modified function from spm_conv_vol.c from SPM12.
@@ -832,22 +832,20 @@ convxyz_stage2_worker(void *p)
 
 /* ========================= Multithreaded convxyz_float ========================= */
 /**
- * convxyz_float - Apply 3D convolution to a volume.
+ * \brief Apply 3D convolution to a volume.
  *
  * This function applies 3D convolution to a given volume using separate 1D
  * filter kernels along x, y, and z dimensions. The output is stored in a
  * separate output volume.
  *
- * Parameters:
- *  - iVol: Input volume for convolution.
+ * \param iVol Input volume for convolution.
  *  - filtx, filty, filtz: Filter kernels for convolution along x, y, and z dimensions.
  *  - fxdim, fydim, fzdim: Dimensions of the filter kernels.
  *  - xoff, yoff, zoff: Offsets for the filter kernels.
- *  - oVol: Output volume where the convolution result is stored.
- *  - dims: Array containing the dimensions of the input volume.
+ * \param oVol Output volume where the convolution result is stored.
+ * \param dims Array containing the dimensions of the input volume.
  *
- * Returns:
- * 0 on successful completion.
+ * \return 0 on successful completion.
  *
  * Notes:
  * The function applies a slice-wise 2D convolution using 'convxy_float'
@@ -859,7 +857,7 @@ convxyz_stage2_worker(void *p)
  *  No locks needed: each thread works on disjoint z (or z_out) ranges.
  *  Memory: uses one temporary volume convxy_vol[z][y][x].
  */
-int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
+static int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
                   int fxdim, int fydim, int fzdim,
                   int xoff, int yoff, int zoff, float *oVol, int dims[3])
 {
@@ -1023,22 +1021,20 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
 }
 
 /**
- * convxyz_uint8 - Apply 3D convolution to a volume with type unsigned char.
+ * \brief Apply 3D convolution to a volume with type unsigned char.
  *
  * This function applies 3D convolution to a given volume using separate 1D
  * filter kernels along x, y, and z dimensions. The output is stored in a
  * separate output volume.
  *
- * Parameters:
- *  - iVol: Input volume for convolution.
+ * \param iVol Input volume for convolution.
  *  - filtx, filty, filtz: Filter kernels for convolution along x, y, and z dimensions.
  *  - fxdim, fydim, fzdim: Dimensions of the filter kernels.
  *  - xoff, yoff, zoff: Offsets for the filter kernels.
- *  - oVol: Output volume where the convolution result is stored.
- *  - dims: Array containing the dimensions of the input volume.
+ * \param oVol Output volume where the convolution result is stored.
+ * \param dims Array containing the dimensions of the input volume.
  *
- * Returns:
- * 0 on successful completion.
+ * \return 0 on successful completion.
  *
  * Notes:
  * The function applies a slice-wise 2D convolution using 'convxy_float'
@@ -1047,7 +1043,7 @@ int convxyz_float(float *iVol, double *filtx, double *filty, double *filtz,
  * management.
  * This is a slightly modified function from spm_conv_vol.c from SPM12
  */
-int convxyz_uint8(unsigned char *iVol, double *filtx, double *filty, double *filtz,
+static int convxyz_uint8(unsigned char *iVol, double *filtx, double *filty, double *filtz,
                   int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
                   unsigned char *oVol, int dims[3])
 {
@@ -1129,25 +1125,24 @@ int convxyz_uint8(unsigned char *iVol, double *filtx, double *filty, double *fil
 }
 
 /**
- * smooth_float - Apply Gaussian smoothing to a 3D volume.
+ * \brief Apply Gaussian smoothing to a 3D volume.
  *
  * This function performs Gaussian smoothing on a 3D volume. The size of the
  * Gaussian kernel is defined by the Full Width at Half Maximum (FWHM) parameter.
  * Optionally, the function can perform smoothing only inside a specified mask
  * and correct the smoothed values based on the mask.
  *
- * Parameters:
- *  - vol: Pointer to the 3D volume to be smoothed.
- *  - dims: Array containing the dimensions of the volume.
- *  - voxelsize: Array containing the size of each voxel.
- *  - fwhm: Array containing the FWHM values for each dimension.
- *  - use_mask: Flag to indicate whether masked smoothing should be used.
+ * \param vol Pointer to the 3D volume to be smoothed.
+ * \param dims Array containing the dimensions of the volume.
+ * \param voxelsize Array containing the size of each voxel.
+ * \param fwhm Array containing the FWHM values for each dimension.
+ * \param use_mask Flag to indicate whether masked smoothing should be used.
  *
  * Notes:
  *  - The function calculates the Gaussian kernel based on FWHM and voxel size.
  *  - Masked smoothing excludes zero-valued voxels and adjusts the smoothing accordingly.
  */
-void smooth_float(float *vol, int dims[3], double voxelsize[3], double fwhm[3], int use_mask)
+static void smooth_float(float *vol, int dims[3], double voxelsize[3], double fwhm[3], int use_mask)
 {
     int i;
     double xsum, ysum, zsum;
@@ -1292,7 +1287,7 @@ void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3], int u
 }
 
 /**
- * \brief Public API for euclidean_distance.
+ * \brief Euclidean distance transform with an optional nearest-source lookup.
  *
  * For every voxel whose input value is <= 0 or NaN the function computes the
  * Euclidean distance (in physical units given by `voxelsize`) to the nearest
@@ -1544,6 +1539,12 @@ void euclidean_distance_src(float *V, unsigned char *M, int dims[3], double *vox
  *
  * Thin wrapper that keeps the historical signature; equivalent to calling
  * euclidean_distance_src() with no nearest-source output.
+ *
+ * \param V         (in/out) float volume; positive values are distance sources
+ * \param M         (in)     optional uint8 mask (same dims); NULL = all-ones
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing; NULL -> {1,1,1}
+ * \param replace   (in)     0 = output distances; >0 = output nearest values
  */
 void euclidean_distance(float *V, unsigned char *M, int dims[3], double *voxelsize, int replace)
 {
@@ -1784,7 +1785,7 @@ void downcut_float(float *labels, const float *intensity, float *dist,
  * \param voxelsize         (in)     voxel spacing {sx, sy, sz}; NULL -> {1,1,1}
  * \param dd                (in)     distance/intensity weights {w_dist, w_int}; NULL -> defaults
  * \param labels_datatype   (in)     datatype code of labels input/output
- * \param intensity_datatype(in)     datatype code of intensity input
+ * \param intensity_datatype (in)     datatype code of intensity input
  * \param dist_datatype     (in)     datatype code of dist output (ignored if dist==NULL)
  */
 void downcut3(void *labels, void *intensity, void *dist,
@@ -1860,17 +1861,16 @@ void downcut3(void *labels, void *intensity, void *dist,
 }
 
 /**
- * laplace3R - Apply Laplace filter on a 3D volume.
+ * \brief Apply Laplace filter on a 3D volume.
  *
  * This function performs Laplace filtering on a 3D volume. It filters the volume
  * within the intensity range defined by a mask until the changes are below a
  * specified threshold.
  *
- * Parameters:
- *  - SEG: 3D single input matrix (volume to be filtered).
- *  - M: 3D volume that defines the filter area (mask).
- *  - dims: Array containing the dimensions of the volume.
- *  - TH: Threshold controlling the number of iterations (maximum change allowed after an iteration).
+ * \param SEG 3D single input matrix (volume to be filtered).
+ * \param M 3D volume that defines the filter area (mask).
+ * \param dims Array containing the dimensions of the volume.
+ * \param TH Threshold controlling the number of iterations (maximum change allowed after an iteration).
  *
  * Notes:
  *  - The function iterates until the maximum difference in the filtered volume is
@@ -2515,7 +2515,7 @@ void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
  * \param niter      (in)     number of dilation iterations (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
  */
-void morph_dilate_float(float *vol, int dims[3], int niter, double th)
+static void morph_dilate_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3] = {1, 1, 1};
     int i, x, y, z, j, band, dims2[3];
@@ -2615,7 +2615,7 @@ void morph_dilate(void *data, int dims[3], int niter, double th, int datatype)
  * \param niter      (in)     number of iterations for each operation (<=0: no-op)
  * \param th         (in)     threshold as fraction of max(vol) in [0,1]
  */
-void morph_close_float(float *vol, int dims[3], int niter, double th)
+static void morph_close_float(float *vol, int dims[3], int niter, double th)
 {
     double filt[3] = {1, 1, 1};
     unsigned char *buffer;
@@ -2726,7 +2726,7 @@ void morph_close(void *data, int dims[3], int niter, double th, int datatype)
  * \param th          (in)     threshold as fraction of max(vol) in [0,1]
  * \param keep_values (in)     if >0, preserve original foreground values and zero only removed regions
  */
-void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_values)
+static void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_values)
 {
     unsigned char *buffer;
     double filt[3] = {1, 1, 1};
@@ -2956,7 +2956,7 @@ void grey_close(void *data, int dims[3], int niter, int datatype)
     free(buffer);
 }
 
-void estimate_target_dimensions(int dims[3], double voxelsize[3], double target_voxelsize, int min_target_dim, int dims_samp[3])
+static void estimate_target_dimensions(int dims[3], double voxelsize[3], double target_voxelsize, int min_target_dim, int dims_samp[3])
 {
     int i;
 
@@ -2987,7 +2987,6 @@ void estimate_target_dimensions(int dims[3], double voxelsize[3], double target_
  * For each point in the output array, it computes the interpolated value using
  * the surrounding points in the input array.
  *
- * Parameters:
  *   in - Pointer to the input float array.
  *   out - Pointer to the output float array. If this is NULL, the function will
  *         allocate memory for the output array.
@@ -3071,7 +3070,7 @@ subsample_float_worker(void *p)
     return NULL;
 }
 
-void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
+static void subsample_float(float *in, float *out, int dims[3], int dims_samp[3])
 {
     int i, t, nthreads;
     double samp[3];
@@ -3153,7 +3152,7 @@ void subsample3(void *in, void *out, int dims[3], int dims_samp[3], int datatype
     free(buffer);
 }
 
-void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3],
+static void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3],
                             double s[3], int use_mask, double samp_voxelsize)
 {
     int i, nvox_samp, nvox;
@@ -3194,6 +3193,21 @@ void smooth_subsample_float(float *vol, int dims[3], double voxelsize[3],
     free(vol_samp);
 }
 
+/**
+ * \brief Gaussian smoothing on a subsampled grid, for any NIfTI datatype.
+ *
+ * Subsamples the volume to samp_voxelsize (at least 32 voxels per axis),
+ * smooths it there and interpolates the result back, which makes a large
+ * kernel cheap.
+ *
+ * \param data           (in/out) volume of type datatype, smoothed in-place
+ * \param dims           (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize      (in)     voxel size in mm
+ * \param s              (in)     FWHM in mm per axis
+ * \param use_mask       (in)     non-zero for masked smoothing (zeros are excluded)
+ * \param samp_voxelsize (in)     voxel size in mm of the subsampled grid
+ * \param datatype       (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
+ */
 void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3],
                        int use_mask, double samp_voxelsize, int datatype)
 {
@@ -3242,17 +3256,17 @@ void smooth_subsample3(void *data, int dims[3], double voxelsize[3], double s[3]
 }
 
 /**
- * \brief Public API for median_subsample3.
+ * \brief Median filter on a subsampled grid, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * Shorthand for localstat_subsample3() with a 1-voxel block neighbourhood
+ * and F_MEDIAN.
  *
- * \param data (in/out) Parameter of median_subsample3.
- * \param dims (in/out) Parameter of median_subsample3.
- * \param voxelsize (in/out) Parameter of median_subsample3.
- * \param niter (in/out) Parameter of median_subsample3.
- * \param samp_voxelsize (in/out) Parameter of median_subsample3.
- * \param datatype (in/out) Parameter of median_subsample3.
- * \return void (no return value).
+ * \param data           (in/out) volume of type datatype, filtered in-place
+ * \param dims           (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize      (in)     voxel size in mm
+ * \param niter          (in)     number of median iterations
+ * \param samp_voxelsize (in)     voxel size in mm of the subsampled grid
+ * \param datatype       (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
 
 void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, double samp_voxelsize, int datatype)
@@ -3262,20 +3276,21 @@ void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, 
 }
 
 /**
- * \brief Public API for localstat_subsample3.
+ * \brief Local statistic computed on a subsampled grid, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
+ * Subsamples the volume to samp_voxelsize (at least 32 voxels per axis),
+ * runs localstat3() there and interpolates the result back to the original
+ * grid, which makes a large neighbourhood cheap.
  *
- * \param data (in/out) Parameter of median_subsample3.
- * \param dims (in/out) Parameter of median_subsample3.
- * \param voxelsize (in/out) Parameter of median_subsample3.
- * \param dist (in/out) Parameter of localstat3.
- * \param stat_func (in/out) Parameter of localstat3.
- * \param iters (in/out) Parameter of localstat3.
- * \param use_euclidean_dist (in/out) Parameter of localstat3.
- * \param samp_voxelsize (in/out) Parameter of median_subsample3.
- * \param datatype (in/out) Parameter of median_subsample3.
- * \return void (no return value).
+ * \param data               (in/out) volume of type datatype, replaced by the result
+ * \param dims               (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize          (in)     voxel size in mm
+ * \param dist               (in)     search distance on the subsampled grid, 1..10 voxels
+ * \param stat_func          (in)     statistic, as in localstat3()
+ * \param niter              (in)     number of iterations
+ * \param use_euclidean_dist (in)     non-zero for a Euclidean, zero for a block neighbourhood
+ * \param samp_voxelsize     (in)     voxel size in mm of the subsampled grid
+ * \param datatype           (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
 void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist,
                           int stat_func, int niter, int use_euclidean_dist,
@@ -3342,7 +3357,7 @@ void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist
  * \param bias_fwhm (in)     FWHM of Gaussian smoothing kernel for bias field (mm)
  * \param label_th  (in)     label threshold for selective correction (e.g., 2 for WM only)
  */
-void correct_bias_label(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
+static void correct_bias_label(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, int label_th)
 {
     int i, j, nvox, nvoxr, n[MAX_NC], n_classes = 0;
     int dimsr[3];
@@ -3843,7 +3858,7 @@ void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3], int st
  * with zeros and the original values are retained otherwise.
  *
  */
-void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn)
+static void keep_largest_cluster_float(float *inData, double thresh, int *dims, int min_size, int retain_above_th, int conn)
 {
     float valToAdd;
     float *outData;
@@ -4006,7 +4021,7 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
 }
 
 /**
- * \\brief Fill holes in a binary or thresholded volume.
+ * \brief Fill holes in a binary or thresholded volume.
  *
  * Identifies and fills small background regions (holes) in a thresholded volume.
  * Uses connected-component analysis to identify isolated background voxels and
@@ -4019,13 +4034,13 @@ void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, in
  *  4. Fill identified holes with specified value or smooth estimate from neighbors
  *  5. Convert result back to original datatype
  *
- * \\param data      (in/out) void pointer to volume data; type given by datatype parameter
- * \\param dims      (in)     {nx, ny, nz} volume dimensions
- * \\param thresh    (in)     threshold value; voxels < thresh are treated as potential holes
- * \\param fill_value (in)    value to fill holes with;
+ * \param data      (in/out) void pointer to volume data; type given by datatype parameter
+ * \param dims      (in)     {nx, ny, nz} volume dimensions
+ * \param thresh    (in)     threshold value; voxels < thresh are treated as potential holes
+ * \param fill_value (in)    value to fill holes with;
  *                            if negative, holes are filled with locally estimated values
  *                            if >=0, holes are filled with this fixed value
- * \\param datatype  (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ * \param datatype  (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
 void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype)
 {
@@ -4083,7 +4098,7 @@ void fill_holes(void *data, int *dims, double thresh, double fill_value, int dat
 /**
  * Compute x-gradient of 3D volume
  */
-float gradientX(float *src, int i, int j, int k, int dims[3], double voxelsize[3])
+static float gradientX(float *src, int i, int j, int k, int dims[3], double voxelsize[3])
 {
     int index = sub2ind(i, j, k, dims);
     float dx = voxelsize[0]; // X-axis voxel size
@@ -4099,7 +4114,7 @@ float gradientX(float *src, int i, int j, int k, int dims[3], double voxelsize[3
 /**
  * Compute y-gradient of 3D volume
  */
-float gradientY(float *src, int i, int j, int k, int dims[3], double voxelsize[3])
+static float gradientY(float *src, int i, int j, int k, int dims[3], double voxelsize[3])
 {
     int index = sub2ind(i, j, k, dims);
     float dy = voxelsize[1]; // Y-axis voxel size
@@ -4115,7 +4130,7 @@ float gradientY(float *src, int i, int j, int k, int dims[3], double voxelsize[3
 /**
  * Compute z-gradient of 3D volume
  */
-float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3])
+static float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3])
 {
     int index = sub2ind(i, j, k, dims);
     float dz = voxelsize[2]; // Z-axis voxel size
@@ -4129,23 +4144,6 @@ float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3
 }
 
 /**
- * \brief Compute local gradient magnitude and components for a 3D volume.
- *
- * Calculates the spatial gradient (first derivatives) at each voxel using
- * finite differences, with boundary-aware handling at volume edges.
- * Optionally outputs the gradient magnitude and individual x, y, z components.
- *
- * \param src       (in)  input volume float[dims[0]*dims[1]*dims[2]]
- * \param grad_mag  (out) gradient magnitude; NULL to skip (optional)
- * \param grad_x    (out) x-component of gradient; NULL to skip (optional)
- * \param grad_y    (out) y-component of gradient; NULL to skip (optional)
- * \param grad_z    (out) z-component of gradient; NULL to skip (optional)
- * \param dims      (in)  volume dimensions {nx, ny, nz}
- * \param voxelsize (in)  voxel spacing in mm {dx, dy, dz}
- *
- * \note Boundary voxels use one-sided differences to avoid out-of-bounds access.
- */
-/**
  * \brief Matrix that maps a gradient3D() gradient into world space.
  *
  * With x = A u + b (A = sto_xyz) the world gradient is A^-T dI/du, and
@@ -4153,7 +4151,6 @@ float gradientZ(float *src, int i, int j, int k, int dims[3], double voxelsize[3
  *
  * \param nii_ptr (in)  NIfTI header (sto_xyz and voxel size dx, dy, dz)
  * \param M       (out) 3x3 matrix, g_world = M * g_gradient3D
- * \return void
  */
 void gradient3D_world_matrix(const nifti_image *nii_ptr, double M[3][3])
 {
@@ -4212,6 +4209,23 @@ gradient3D_worker(void *p)
     return NULL;
 }
 
+/**
+ * \brief Compute local gradient magnitude and components for a 3D volume.
+ *
+ * Calculates the spatial gradient (first derivatives) at each voxel using
+ * finite differences, with boundary-aware handling at volume edges.
+ * Optionally outputs the gradient magnitude and individual x, y, z components.
+ *
+ * \param src       (in)  input volume float[dims[0]*dims[1]*dims[2]]
+ * \param grad_mag  (out) gradient magnitude; NULL to skip (optional)
+ * \param grad_x    (out) x-component of gradient; NULL to skip (optional)
+ * \param grad_y    (out) y-component of gradient; NULL to skip (optional)
+ * \param grad_z    (out) z-component of gradient; NULL to skip (optional)
+ * \param dims      (in)  volume dimensions {nx, ny, nz}
+ * \param voxelsize (in)  voxel spacing in mm {dx, dy, dz}
+ *
+ * \note Boundary voxels use one-sided differences to avoid out-of-bounds access.
+ */
 void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
                 float *grad_z, int dims[3], double voxelsize[3])
 {

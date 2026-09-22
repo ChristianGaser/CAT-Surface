@@ -67,7 +67,7 @@ bound(int i, int j, int dm[])
  * \param p (Point *)
  * \param xyz (double *)
  */
-void
+static void
 to_array(Point *p, double *xyz) {
     int i;
 
@@ -84,7 +84,7 @@ to_array(Point *p, double *xyz) {
  * \param xyz (double *)
  * \param p (Point *)
  */
-void
+static void
 from_array(double *xyz, Point *p) {
     int i;
 
@@ -357,19 +357,17 @@ get_area_of_polygons(polygons_struct *polygons, double *area_values)
 }
 
 /**
- * localstat_surface_double — Per-vertex local statistics on a surface (fixed 1-ring).
+ * \brief Per-vertex local statistics on a surface (fixed 1-ring).
  *
- * Computes mean/median/std/min/max over each vertex’s immediate neighbours
+ * Computes mean/median/std/min/max over each vertex's immediate neighbours
  * (plus the center vertex) as defined by get_all_polygon_point_neighbours().
  * Optional mask (0 = skip) and multi-iteration behaviour matches localstat_double.
  *
- * Parameters
- * ----------
- *  polygons : mesh (BICPL polygons_struct)
- *  input    : in/out, length = polygons->n_points (per-vertex doubles)
- *  mask     : optional uchar mask, length = n_points (can be NULL)
- *  stat_func: F_MEAN, F_MEDIAN, F_STD, F_MIN, F_MAX
- *  iters    : number of iterations (>=1)
+ * \param polygons  (in)     mesh
+ * \param input     (in/out) polygons->n_points per-vertex values
+ * \param mask      (in)     optional mask of n_points entries; 0 = skip (NULL: all)
+ * \param stat_func (in)     F_MEAN, F_MEDIAN, F_STD, F_MIN or F_MAX
+ * \param iters     (in)     number of iterations (>= 1)
  */
 void localstat_surface_double(polygons_struct *polygons,
                               double *input,
@@ -604,12 +602,10 @@ get_radius_of_points(polygons_struct *polygons, double *radius)
 }
 
 /**
- * \brief Compute or return a derived quantity from the mesh.
+ * \brief Axis-aligned bounding box of a mesh.
  *
- * Function: get_bounds
- *
- * \param polygons (polygons_struct *)
- * \param param (double bounds[6)
+ * \param polygons (in)  mesh
+ * \param bounds   (out) {xmin, xmax, ymin, ymax, zmin, zmax}
  */
 void
 get_bounds(polygons_struct *polygons, double bounds[6])
@@ -644,7 +640,7 @@ get_bounds(polygons_struct *polygons, double bounds[6])
  * \param neighbours (int *)
  * \return See function description for return value semantics.
  */
-int
+static int
 count_edges(polygons_struct *polygons, int n_neighbours[], int *neighbours[], int verbose)
 {
     int p, n, nn, n_edges, n_duplicate_edges;
@@ -1162,7 +1158,7 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
  * \param p2 (Point *)
  * \return See function description for return value semantics.
  */
-double manhattan_distance_between_points(Point *p1, Point *p2) {
+static double manhattan_distance_between_points(Point *p1, Point *p2) {
     double dx = fabs(Point_x(*p2) - Point_x(*p1));
     double dy = fabs(Point_y(*p2) - Point_y(*p1));
     double dz = fabs(Point_z(*p2) - Point_z(*p1));
@@ -1622,7 +1618,7 @@ surf_to_sphere(polygons_struct *polygons, int stop_at, int verbose)
  * \param point_error (signed char)
  * \return See function description for return value semantics.
  */
-BOOLEAN
+static BOOLEAN
 ccw_neighbours(Point *centroid, Vector *normal, Point points[],
          int n_nb, int neighbours[], signed char point_error[])
 {
@@ -1664,7 +1660,7 @@ ccw_neighbours(Point *centroid, Vector *normal, Point points[],
  * \param polygons (polygons_struct *)
  * \param new_points (Point)
  */
-void
+static void
 check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
 {
     int vertidx, ptidx, poly, size;
@@ -1748,16 +1744,21 @@ check_polygons_shape_integrity(polygons_struct *polygons, Point new_points[])
     free(point_done);
 }
 
-/*
- * Calls central_to_pial, but creates a new surface object and does not modify the original surface
- * The direct implementation into central_to_pial was not working because of issues with the function 
- * check_polygons_shape_integrity.
- */
 /**
  * \brief Create a new pial/white surface from a central surface without modifying the input.
  *
- * Thin wrapper around \c central_to_pial that works on a copy (due to integrity checks).
- * \return new object array containing a single POLYGONS object.
+ * Calls central_to_pial() on a copy and returns it as a new object. Working on
+ * the input directly failed because of check_polygons_shape_integrity().
+ *
+ * \param polygons         (in) central surface, left unchanged
+ * \param thickness_values (in) per-vertex thickness values
+ * \param extents          (in) per-vertex displacement multipliers (0.5: pial,
+ *                              -0.5: white)
+ * \param check_intersects (in) if non-zero, remove near self-intersections
+ * \param sigma            (in) smoothing sigma for the displacement field
+ * \param iterations       (in) smoothing iterations
+ * \param verbose          (in) verbosity flag
+ * \return new object array containing a single POLYGONS object
  */
 object_struct **
 central_to_new_pial(polygons_struct *polygons, double *thickness_values, double *extents, int check_intersects, double sigma, int iterations, int verbose)
@@ -1915,7 +1916,7 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
  * \param weight (double)
  * \return See function description for return value semantics.
  */
-double
+static double
 get_distance_mesh_correction(polygons_struct *polygons, polygons_struct *polygons_reference, float* vol,
     nifti_image *nii_ptr, double isovalue, double *curvatures, double weight)
 {
