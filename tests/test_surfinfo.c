@@ -32,7 +32,6 @@ static const int octa_tri[8][3] = {
  * \param n_pts    (in)  number of vertices
  * \param tri      (in)  n_tri x 3 vertex indices
  * \param n_tri    (in)  number of triangles
- * \return void
  */
 static void
 make_mesh(polygons_struct *polygons, const double (*pts)[3], int n_pts,
@@ -64,7 +63,6 @@ make_mesh(polygons_struct *polygons, const double (*pts)[3], int n_pts,
  * \brief Release a mesh built by make_mesh().
  *
  * \param polygons (in/out) mesh to free
- * \return void
  */
 static void
 free_mesh(polygons_struct *polygons)

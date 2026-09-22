@@ -6,6 +6,9 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/nii2mesh \
     -I$(top_srcdir)/3rdparty/nifti
 
+# Included by the tests rather than compiled on their own.
+EXTRA_DIST = minunit.h math_subset.c
+
 check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot
 TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot
 
