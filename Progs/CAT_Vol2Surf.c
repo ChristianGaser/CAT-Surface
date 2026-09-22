@@ -55,7 +55,6 @@ char *offset_file = NULL;      /* thickness file for defining offset to (central
 char *sphere_src_file = NULL;  /* source sphere for resampling */
 char *sphere_trg_file = NULL;  /* target source for resampling */
 char *annot_file = NULL;       /* annotation atlas file */
-int degrees_continuity = 1000; /* interpolation */
 BOOLEAN verbose = FALSE;       /* be verbose */
 
 /* the argument table */
@@ -181,12 +180,6 @@ int main(int argc, char *argv[])
 
     volume_file = &argv[1];
     output_values_file = volume_file[argc - 2];
-
-    /* give warning if interpolation options are still used */
-    if (degrees_continuity != 1000)
-    {
-        fprintf(stderr, "WARNING: Interpolation options are not supported anymore.\n");
-    }
 
     if (map_func == F_MULTI && argc > 4)
     {

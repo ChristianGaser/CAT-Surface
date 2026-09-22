@@ -19,18 +19,11 @@ double pre_fwhm = 2.0;
 double dist_morph = FLT_MAX;
 double strength_gyri_mask = 0.1;
 double strength_sulci = -1.0;
-double sulci_cutoff = -1.0;
 double sulci_sheet_strength = -1.0;
-double sulci_thresh = -1.0;
-double sulci_band = -1.0;
-double sulci_normalize = -1.0;
-int sulci_skeleton = -1;
 double sulci_sigma_factor = -1.0;
 double sulci_sigma_min = -1.0;
 double sulci_sigma_max = -1.0;
 int sulci_scales = -1;
-double sulci_offset = -1.0;
-double sulci_offset_gyri = -1.0;
 int iter_laplacian = 50;
 int n_median_filter = 2;
 int verbose = 0;
@@ -257,10 +250,6 @@ int main(int argc, char *argv[]) {
                apart in the first place. */
             CAT_PpmSulciOptionsInit(&sulci_opts);
             if (sulci_sheet_strength >= 0.0) sulci_opts.sheet_strength = sulci_sheet_strength;
-            if (sulci_normalize      >= 0.0) sulci_opts.sheet_normalize = sulci_normalize;
-            if (sulci_skeleton       >= 0)   sulci_opts.sheet_skeleton = sulci_skeleton;
-            if (sulci_thresh         >= 0.0) sulci_opts.thresh = sulci_thresh;
-            if (sulci_band           >= 0.0) sulci_opts.band = sulci_band;
             if (sulci_sigma_factor   >= 0.0) sulci_opts.sigma_factor = sulci_sigma_factor;
             if (sulci_sigma_min      >= 0.0) sulci_opts.sigma_min = sulci_sigma_min;
             if (sulci_sigma_max      >= 0.0)
@@ -277,11 +266,7 @@ int main(int argc, char *argv[]) {
                     sulci_opts.sigma_factor = 0.0;
             }
             if (sulci_scales         >= 1)   sulci_opts.n_scales = sulci_scales;
-            if (sulci_offset  >= 0.0) sulci_opts.offset = sulci_offset;
-            if (sulci_offset_gyri >= 0.0)
-                sulci_opts.offset_gyri = sulci_offset_gyri;
             if (strength_sulci >= 0.0) sulci_opts.strength = strength_sulci;
-            if (sulci_cutoff   >= 0.0) sulci_opts.cutoff = sulci_cutoff;
             sulci_opts.verbose = verbose;
             sulci_ptr = &sulci_opts;
         }

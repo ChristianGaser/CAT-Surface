@@ -33,7 +33,6 @@ double fill_thresh = -1.0;
 double correct_thickness = NAN;
 double sulcal_width = -1.0;
 int pve_distance = 0;
-int oriented_filter = 1;
 int sulcal_barrier = 0;
 double barrier_q = -1.0;
 double barrier_dmin = -1.0;
@@ -46,7 +45,6 @@ double barrier_ramp = -1.0;
 double barrier_local = -1.0;
 double barrier_tmin = -1.0;
 double barrier_halfwidth = -1.0;
-double oriented_strength = -1.0;
 double oriented_cutoff = -1.0;
 
 static ArgvInfo argTable[] = {
@@ -408,7 +406,6 @@ int main(int argc, char *argv[])
     opts.pve_distance = pve_distance;
     opts.fast = fast;
     opts.verbose = verbose;
-    opts.oriented_filter = oriented_filter;
     opts.sulcal_barrier = sulcal_barrier;
     if (barrier_q         >= 0.0) opts.barrier_q = barrier_q;
     if (barrier_dmin      >= 0.0) opts.barrier_dmin = barrier_dmin;
@@ -420,7 +417,6 @@ int main(int argc, char *argv[])
     if (barrier_local     >= 0.0) opts.barrier_local = barrier_local;
     if (barrier_tmin      >= 0.0) opts.barrier_tmin = barrier_tmin;
     if (barrier_halfwidth >= 0.0) opts.barrier_halfwidth = barrier_halfwidth;
-    if (oriented_strength >= 0.0) opts.oriented_strength = oriented_strength;
     if (oriented_cutoff   >= 0.0) opts.oriented_cutoff = oriented_cutoff;
 
     if (barrier_ref_only)
