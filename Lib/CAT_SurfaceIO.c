@@ -2624,6 +2624,34 @@ output_graphics_any_format(char *file, File_formats format, int n_objects,
     return (status);
 }
 
+/*
+ * Read a length-prefixed annotation string into dst (size dstsize).
+ *
+ * FreeSurfer stores the length including a terminating NUL, but files written
+ * by write_annotation_table before cat-surf 1.0.29 end the name with a space
+ * instead of a NUL.  fread() alone therefore left the name unterminated in a
+ * malloc'd table, and every later strlen() ran on into the heap; resampling
+ * such an annot copied those bytes into the output names.  Terminate always,
+ * never write past dst, skip what does not fit, and drop the trailing space so
+ * both kinds of file give the same name.
+ */
+static void
+fread_annot_name(FILE *fp, char *dst, size_t dstsize, int len)
+{
+    size_t keep, n;
+
+    if (len < 0)
+        len = 0;
+    keep = (size_t)len < dstsize - 1 ? (size_t)len : dstsize - 1;
+    n = fread(dst, sizeof(char), keep, fp);
+    dst[n] = '\0';
+    if ((size_t)len > keep)
+        fseek(fp, (long)((size_t)len - keep), SEEK_CUR);
+    n = strlen(dst);
+    while (n > 0 && dst[n - 1] == ' ')
+        dst[--n] = '\0';
+}
+
 /**
  * \brief Read FreeSurfer annotation table (ROI labels) from file.
  *
@@ -2676,13 +2704,13 @@ int read_annotation_table(char *file, int *n_array, int **out_array, int *n_labe
 
     if (*n_labels > 0)
     {
-        atable = (ATABLE *)malloc(*n_labels * sizeof(ATABLE));
+        atable = (ATABLE *)calloc(*n_labels, sizeof(ATABLE));
         len = freadInt(fp);
-        fread(&annot_name, sizeof(char), len, fp);
+        fread_annot_name(fp, annot_name, sizeof(annot_name), len);
         for (i = 0; i < *n_labels; i++)
         {
             len = freadInt(fp);
-            fread(&atable[i].name, sizeof(char), len, fp);
+            fread_annot_name(fp, atable[i].name, sizeof(atable[i].name), len);
             atable[i].r = freadInt(fp);
             atable[i].g = freadInt(fp);
             atable[i].b = freadInt(fp);
@@ -2701,14 +2729,14 @@ int read_annotation_table(char *file, int *n_array, int **out_array, int *n_labe
         }
         *n_labels = freadInt(fp);
         len = freadInt(fp);
-        fread(&annot_name, sizeof(char), len, fp);
+        fread_annot_name(fp, annot_name, sizeof(annot_name), len);
         *n_labels = freadInt(fp);
-        atable = (ATABLE *)malloc(*n_labels * sizeof(ATABLE));
+        atable = (ATABLE *)calloc(*n_labels, sizeof(ATABLE));
         for (i = 0; i < *n_labels; i++)
         {
             structure = freadInt(fp) + 1;
             len = freadInt(fp);
-            fread(&atable[i].name, sizeof(char), len, fp);
+            fread_annot_name(fp, atable[i].name, sizeof(atable[i].name), len);
             atable[i].r = freadInt(fp);
             atable[i].g = freadInt(fp);
             atable[i].b = freadInt(fp);
@@ -2761,8 +2789,12 @@ int write_annotation_table(char *file, int n_array, int *array, int n_labels, AT
     for (i = 0; i < n_labels; i++)
     {
         fwriteInt(i, fp);
-        fwriteInt(strlen(atable[i].name) + 1, fp);
-        fwrite(strcat(atable[i].name, " "), sizeof(char), strlen(atable[i].name), fp);
+        /* FreeSurfer convention: the length counts the terminating NUL,
+         * which is written too.  The name used to be padded with a space
+         * in place (strcat) and written without its NUL. */
+        len = strlen(atable[i].name) + 1;
+        fwriteInt(len, fp);
+        fwrite(atable[i].name, sizeof(char), len, fp);
         fwriteInt(atable[i].r, fp);
         fwriteInt(atable[i].g, fp);
         fwriteInt(atable[i].b, fp);
