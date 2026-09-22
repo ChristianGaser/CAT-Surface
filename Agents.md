@@ -130,14 +130,14 @@ shrinks nothing.
 
 | Consumer | Option | What the field does there |
 | --- | --- | --- |
-| `Progs/CAT_VolSheetness` | (the tool itself) | writes the response map, for tuning scales and polarity |
-| `Progs/CAT_VolLocalStat` | `-oriented` | median over a sheet-oriented neighbourhood (`-stat 7` only) |
-| `Progs/CAT_VolThicknessPbt` | `-oriented-filter` | replaces the three isotropic medians inside PBT |
-| `Progs/CAT_VolMarchingCubes` | `-strength-sulci` | opens buried sulci in the PPM itself; needs no intensity image |
+| `Progs/CAT_VolSheetness.c` | (the tool itself) | writes the response map, for tuning scales and polarity |
+| `Progs/CAT_VolLocalStat.c` | `-oriented` | median over a sheet-oriented neighbourhood (`-stat 7` only) |
+| `Progs/CAT_VolThicknessPbt.c` | always (`oriented_filter`, on by default; `-oriented-cutoff`) | replaces the three isotropic medians inside PBT |
+| `Progs/CAT_VolMarchingCubes.c` | `-strength-sulci` | opens buried sulci in the PPM itself; needs no intensity image |
 
 **Invariant every consumer relies on:** where the sheetness is zero the oriented operator
 must be numerically identical to the isotropic one it replaces. That is what makes each of
-these safe to enable by default-off. It is asserted voxel by voxel on both sides of the
+these safe to enable; only the PBT medians are on by default. It is asserted voxel by voxel on both sides of the
 binding boundary: `tests/test_sheetness.c` (C, via `make check`) and
 `cat_surface_cython/tests/smoke_test.py` (Python, via CI). Do not break it.
 
@@ -189,7 +189,7 @@ Three knobs on the response side, in order of preference:
 | Knob | Where | Effect |
 | --- | --- | --- |
 | `-c` | `CAT_VolSheetness` only | lowers the noise scale; the principled fix, but needs the intensity units |
-| `-strength` / `-sheet-strength` / `-oriented-strength` | every tool | gain on the map, clamped to `[0,1]`; blunt but unit-free |
+| `-strength` / `-sheet-strength` / `-sulci-sheet-strength` | every tool (`oriented_strength` in the PBT library options) | gain on the map, clamped to `[0,1]`; blunt but unit-free |
 | `-sigma-min` / `-sigma-max` | every tool | must bracket the voxel size; the defaults are for 0.5 mm data |
 
 The gain is `CAT_SheetnessOpts::gain`, applied inside `CAT_VolSheetness()` after

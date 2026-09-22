@@ -88,6 +88,12 @@ sphere, so they are drop-in interchangeable:
 Defaults live in the C source of truth (`Include/CAT_WarpDemons.h` +
 `CAT_WarpDemonsDefaults`); the Cython signature/docstring and the docs must match it.
 
+For PBT, `cat_surf.cli.vol_thickness_pbt` reproduces `CAT_VolThicknessPbt` bit for bit: it
+applies the blood-vessel correction first (`blood_vessel_correction=False` is `-no-bvc`). The
+array API `cat_surf.vol_thickness_pbt` does **not** -- T1Prep runs its own vessel correction
+before calling it, so a second one inside would apply it twice. Every other PBT keyword,
+`oriented_filter` included, is a sentinel that keeps the `CAT_PbtOptionsInit()` default.
+
 `cat_surf/_*.c` are Cython build artifacts, gitignored and regenerated from the `.pyx` at
 build time — never commit them. Building needs Cython (`pip install cython`, or just build
 through pip, which installs it from `build-system.requires`).
@@ -403,7 +409,12 @@ defect is genuinely contested. The cut-priority column is the version this repla
 reaches the lowest glued fraction of the three, and has the smallest area and the thinnest
 cortex to go with it, which is what severed blades look like in the mean.
 
-## The signed sheetness offset (`CAT_VolMarchingCubes -sheet-offset`)
+## The signed sheetness offset (`CAT_PpmSulciOpts::offset`)
+
+`CAT_VolMarchingCubes` no longer exposes the offset knobs (removed in `7b8abd6`); they are set
+through `CAT_PpmSulciOpts` or the `sheet_offset`, `sheet_offset_gyri` and `sulci_skeleton`
+keywords of `cat_surf.vol_marching_cubes`. T1Prep passes those keywords, so they must stay
+in the Python API. The option names below are the ones used when this was measured.
 
 A global isovalue shift cannot fix glued sulci without breaking thin gyri, because it moves
 every voxel the same way regardless of what is there. Measured on an ADNI PPM, lowering the
@@ -422,13 +433,14 @@ the map lowers the PPM along sulci and raises it along blades in one pass. Same 
 
 Balanced, and two orders of magnitude more surgical.
 
-The defaults in `CAT_PpmSulciOptionsInit()` are the values tuned on real data and are what
-both front-ends use unless told otherwise: `strength` 15, `sheet_strength` 30, `offset` 0.6,
-`sigma_factor` 0.9, `cutoff` 0.4, `sheet_skeleton` off. That last one is a deliberate
-trade against the flank argument below — the unthinned map does push the flanks the wrong
-way, but across subjects the stronger correction won. `strength` itself defaults to **0**,
-so the correction stays off until it is asked for; the tuned values above are what it uses
-once `strength_sulci` is raised.
+The defaults in `CAT_PpmSulciOptionsInit()` are what both front-ends use unless told
+otherwise: `sheet_strength` 1.0, `offset` 0.2, `sigma_factor` 0.75, `cutoff` 0.2,
+`sheet_skeleton` off -- the values T1Prep passes explicitly. (Before the response was
+anchored they were `sheet_strength` 30, `offset` 0.6, `sigma_factor` 0.9, `cutoff` 0.4.)
+`sheet_skeleton` off is a deliberate trade against the flank argument below — the unthinned
+map does push the flanks the wrong way, but across subjects the stronger correction won.
+`strength` itself defaults to **0**, so the correction stays off until it is asked for
+(T1Prep uses 1.0); the values above are what it uses once `strength_sulci` is raised.
 
 **The map must be skeletonized before it is used as an offset**, and that is not a
 preference. The flanks of a valley curve upward and therefore read as *ridges*, carrying the
@@ -436,21 +448,21 @@ opposite sign: on a profile through a one-voxel valley the response runs
 `+0.19 +0.29 -0.86 +0.29 +0.19`. Added unthinned, the offset would push the surface the wrong
 way immediately beside every structure. Non-maximum suppression along the normal removes the
 flanks and leaves the structure's own value untouched; `tests/test_sheetness.c` asserts both
-halves of that. Skeletonization is **off** by default (`-sulci-skeleton` enables it), and it
-is a weaker correction at the same offset -- roughly a third of the crossings -- so raise
-`-sheet-offset` by about 3x when comparing against the unthinned field.
+halves of that. Skeletonization is **off** by default (`sulci_skeleton=True` enables it), and
+it is a weaker correction at the same offset -- roughly a third of the crossings -- so raise
+`offset` by about 3x when comparing against the unthinned field.
 
 Everything internal to the filter stays defined on the magnitude; the sign is applied last,
 after the anchor, the gain and the skeleton. Never hand a signed map to the oriented filters
 -- they clamp to [0,1] and would silently discard every sulcus.
 
-### The two halves are not symmetric (`-sheet-offset-gyri`)
+### The two halves are not symmetric (`offset_gyri`)
 
 One offset scales both halves of the signed map, and that is not what the data wants. Only
 the *raising* half can re-glue banks: lowering a valley opens a sulcus, while raising a ridge
 protects a thin blade but lifts the sulcal floor beside it at the same time. On real PPMs the
 raising half is also the larger one, so the "balanced" offset **adds** tissue on net --
-measured at `-sheet-offset 0.6`:
+measured at `offset` 0.6:
 
 | subject | down (sulci opened) | up | ratio |
 | --- | --- | --- | --- |
@@ -467,7 +479,8 @@ the diagnostic that shows whether the offset is opening the surface or growing i
 
 ### `sigma_factor` derives a scale that is too coarse
 
-`sigma_factor` ties `sigma_max` to the PPM's own median thickness (0.9x). The derived value is
+`sigma_factor` ties `sigma_max` to the PPM's own median thickness (0.9x when measured, 0.75x
+since `7b8abd6`). The derived value is
 the **worst** of the tested range on all four subjects above, and by a wide margin on the two
 thin-cortex ones -- it maximizes the raising half without opening more sulci. A single fine
 scale (`n_scales = 1`, i.e. `sigma_min` = 0.3 mm alone) is better everywhere:
@@ -482,15 +495,15 @@ scale (`n_scales = 1`, i.e. `sigma_min` = 0.3 mm alone) is better everywhere:
 On OASIS and ADNI it raises the absolute opening too (87608 -> 102329, 111507 -> 129095). The
 reason is in the `-sigma-max` help text: a sulcal CSF sheet at 0.5 mm is one to three voxels,
 and 1.9 mm of sigma is about four -- large scales start answering to the cortical ribbon
-itself, which is a ridge, not the sulcus. The defaults are unchanged pending more subjects,
-but `sigma_factor` should be regarded as unproven rather than tuned.
+itself, which is a ridge, not the sulcus. The factor has since been lowered to 0.75, but
+`sigma_factor` should still be regarded as unproven rather than tuned.
 
 **`sigma_max` used to be silently ignored.** The derivation runs whenever `sigma_factor > 0`
 and overwrote whatever the caller passed, so `-sulci-sigma-max` -- the one knob the docs point
 at -- did nothing at all. Setting it explicitly now switches the derivation off unless
 `sigma_factor` is passed too. Both front-ends were affected.
 
-## The sheetness family (`Include/CAT_Sheetness.h`)## The sheetness family (`Include/CAT_Sheetness.h`)
+## The sheetness family (`Include/CAT_Sheetness.h`)
 
 One shared shape prior feeds four tools, so a change to `Lib/CAT_Sheetness.c` propagates to
 all of them — treat them as one unit. It exists because every isotropic regularizer (local
@@ -502,7 +515,7 @@ closes a cerebellar fissure.
 | --- | --- |
 | `CAT_VolSheetness` | the tool itself — writes the response map for tuning |
 | `CAT_VolLocalStat` | `-oriented` (with `-stat 7`) |
-| `CAT_VolThicknessPbt` | `-oriented-filter` |
+| `CAT_VolThicknessPbt` | always (`oriented_filter`, on by default; `-oriented-cutoff`) |
 | `CAT_VolMarchingCubes` | `-strength-sulci` — on the PPM, no intensity image needed |
 
 **The response is anchored, so thresholds are data-independent.**
@@ -512,7 +525,7 @@ the volume, so the raw level depends on whatever the strongest structure in that
 which is why fixed thresholds used to need a per-dataset gain of 20 or more before anything
 happened. The anchor removes that, and every threshold is now read as a fraction of it:
 
-- `csf_thresh` / `wm_thresh` / `CAT_PpmSulciOpts::thresh` = **0.3** — full effect at twice
+- `CAT_PpmSulciOpts::thresh` = **0.3** — full effect at twice
   that, 0.60, which is where the p99 of the reference response sits (raw 0.20 / p99.9 0.33).
 - `CAT_ORIENTED_MEDIAN_CUTOFF` = **0.10**, i.e. preservation from 0.20. Lowered from the
   0.30 that the same derivation gives, because on real data the median needs to protect
@@ -526,12 +539,13 @@ Gaussian that produced it, so a large `sigma_max` locates a structure well but a
 several voxels into the tissue on either side, and the per-voxel gates then correct that
 tissue too. Non-maximum suppression along the sheet normal collapses the band onto its
 ridge line — one voxel at any scale — leaving the ridge value exactly unchanged. Off by
-default; `-skeleton` on `CAT_VolSheetness`, `-sulci-skeleton` on `CAT_VolMarchingCubes`.
+default; `-skeleton` on `CAT_VolSheetness`, `sulci_skeleton=True` in
+`cat_surf.vol_marching_cubes`.
 It runs *before* the anchor, so p99.9 is then taken over ridge values.
 
 `sheet_strength` / `gain` survives as a deliberate relative adjustment but should no longer
-be needed for calibration. Pass `-sheet-normalize 0` (or `-normalize 0` on
-`CAT_VolSheetness`) to get the raw response back — the one case that needs it is an image
+be needed for calibration. Pass `-normalize 0` to `CAT_VolSheetness` (`sulci_normalize=0`
+in `cat_surf.vol_marching_cubes`) to get the raw response back — the one case that needs it is an image
 that may contain no sheets at all, where a percentile anchor amplifies noise.
 
 **Invariant:** where the sheetness is zero, every oriented operator must be numerically
