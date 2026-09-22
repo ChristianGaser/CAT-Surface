@@ -120,7 +120,7 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | --- | --- | --- |
 | `vol_sanlm` | Structure-adaptive non-local means denoising | `CAT_VolSanlm` |
 | `vol_blood_vessel_correction` | Blood vessel intensity correction | *(no CLI; the correction `CAT_VolThicknessPbt` applies unless `-no-bvc`)* |
-| `vol_thickness_pbt` | Cortical thickness via projection-based method | `CAT_VolThicknessPbt` |
+| `vol_thickness_pbt` | Cortical thickness via projection-based method; unlike the binary it does not apply the blood-vessel correction first (see `vol_blood_vessel_correction`) | `CAT_VolThicknessPbt` |
 | `vol_amap` | Adaptive maximum a posteriori tissue segmentation | `CAT_VolAmap` (core only) |
 | `vol_marching_cubes` | Isosurface extraction with genus-0 topology correction | `CAT_VolMarchingCubes` |
 | `vol_smooth` | Isotropic Gaussian volume smoothing | `CAT_VolSmooth` |
@@ -158,8 +158,8 @@ sheet, normal = cat_surf.vol_sheetness(t1, voxelsize=vx, polarity=-1,
 # A median that cannot close a sulcus (orientation taken from the intensity)
 clean = cat_surf.vol_oriented_median(lab, guide=t1, voxelsize=vx)
 
-gmt, ppm, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=vx,
-                                            oriented_filter=True)
+# the medians inside PBT are sheetness-oriented by default
+gmt, ppm, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=vx)
 
 # The T1 is gone by the surface stage, but the PPM carries the geometry:
 # a sulcus is a valley in it and a gyral blade a ridge, so the same filter
@@ -308,7 +308,7 @@ The full mapping:
 | `CAT_VolSanlm` | `vol_sanlm` |
 | `CAT_VolSheetness` | `vol_sheetness` |
 | `CAT_VolSmooth` | `vol_smooth` |
-| `CAT_VolThicknessPbt` | `vol_thickness_pbt` |
+| `CAT_VolThicknessPbt` | `vol_thickness_pbt` (applies the blood-vessel correction like the binary; `blood_vessel_correction=False` is `-no-bvc`) |
 
 For composable in-memory pipelines, prefer the lower-level `cat_surf`
 API directly — the CLI shims are just thin convenience wrappers.

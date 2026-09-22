@@ -86,6 +86,7 @@ from cat_surf import (
     vol_sanlm as _vol_sanlm,
     vol_thickness_pbt as _vol_thickness_pbt,
     vol_pbt_barrier_reference as _vol_pbt_barrier_reference,
+    vol_blood_vessel_correction as _vol_blood_vessel_correction,
     vol_smooth as _vol_smooth,
     vol_calc as _vol_calc,
     vol_sheetness as _vol_sheetness,
@@ -537,18 +538,26 @@ def vol_sanlm(input_file, output_file=None, is_rician=False, strength=1.0):
 
 def vol_thickness_pbt(input_file, gmt_file=None, ppm_file=None,
                       dist_csf_file=None, dist_wm_file=None, ref_only=False,
-                      **kwargs):
+                      blood_vessel_correction=True, **kwargs):
     """Mirror of ``CAT_VolThicknessPbt``.
 
     Writes any of the four outputs whose file path is provided; pass
     ``None`` to skip an output.  With ``ref_only=True`` (``-barrier-ref-only``)
     nothing is written and the reference thickness of the sulcal-barrier gate
     is returned in mm instead; pass it back as ``barrier_gmtref``.
+
+    Like the binary, the blood-vessel correction is applied to the label map
+    before anything else, the reference included;
+    ``blood_vessel_correction=False`` is ``-no-blood-vessel-correction``.
+    The remaining keywords are those of :func:`cat_surf.vol_thickness_pbt`.
+    ``-downsample`` has no equivalent here.
     """
     import nibabel as nib
     img = nib.load(input_file)
     vol = img.get_fdata().astype(np.float32)
     vx = img.header.get_zooms()[:3]
+    if blood_vessel_correction:
+        vol = _vol_blood_vessel_correction(vol, voxelsize=vx)
     if ref_only:
         return _vol_pbt_barrier_reference(vol, voxelsize=vx, **kwargs)
     gmt, ppm, dcsf, dwm = _vol_thickness_pbt(vol, voxelsize=vx, **kwargs)

@@ -399,6 +399,61 @@ def test_fix_self_intersect_reference():
               cli.surf_fix_self_intersect(out, count_only=True) == 0)
 
 
+def test_pbt_front_ends_agree():
+    section("PBT: the Python front-ends follow CAT_VolThicknessPbt")
+
+    # WM core, GM band, and a WM-bright tube through the GM that the
+    # blood-vessel correction removes
+    x, y, z = np.meshgrid(np.arange(N), np.arange(N), np.arange(N),
+                          indexing="ij")
+    lab = np.ones((N, N, N), np.float32)
+    lab[(x >= 6) & (x <= 17)] = 2.0
+    lab[(x >= 9) & (x <= 14)] = 3.0
+    tube = ((x - 7) ** 2 + (y - 12) ** 2 <= 1) & (z > 2) & (z < 21)
+    lab[tube] = 3.0
+
+    g_def, p_def, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=VX)
+    g_on, p_on, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=VX,
+                                                  oriented_filter=True)
+    check("oriented_filter left unset keeps the library default (on)",
+          np.array_equal(g_def, g_on) and np.array_equal(p_def, p_on))
+    r_def = cat_surf.vol_pbt_barrier_reference(lab, voxelsize=VX)
+    r_on = cat_surf.vol_pbt_barrier_reference(lab, voxelsize=VX,
+                                              oriented_filter=True)
+    check("the barrier reference keeps it too", r_def == r_on,
+          f"{r_def} vs {r_on}")
+
+    bv = cat_surf.vol_blood_vessel_correction(lab, voxelsize=VX)
+    check("the phantom has a vessel for the correction to remove",
+          np.any(bv[tube] != lab[tube]))
+    g_raw, _, _, _ = cat_surf.vol_thickness_pbt(lab, voxelsize=VX, fast=True)
+    check("the array API leaves the vessel correction to the caller",
+          np.array_equal(g_raw, cat_surf.vol_thickness_pbt(
+              lab, voxelsize=VX, fast=True)[0]))
+
+    try:
+        import nibabel as nib
+    except ImportError:
+        print("  skip the CLI mirror applies the vessel correction "
+              "(needs nibabel)")
+        return
+    g_bv, p_bv, _, _ = cat_surf.vol_thickness_pbt(bv, voxelsize=VX, fast=True)
+    with tempfile.TemporaryDirectory() as d:
+        src, gmt, ppm, gmt0 = (os.path.join(d, n) for n in
+                               ("seg.nii", "gmt.nii", "ppm.nii", "gmt0.nii"))
+        nib.save(nib.Nifti1Image(lab, np.eye(4)), src)
+        cli.vol_thickness_pbt(src, gmt, ppm, fast=True)
+        cli.vol_thickness_pbt(src, gmt0, fast=True,
+                              blood_vessel_correction=False)
+        g_cli = np.asarray(nib.load(gmt).dataobj)
+        p_cli = np.asarray(nib.load(ppm).dataobj)
+        g_cli0 = np.asarray(nib.load(gmt0).dataobj)
+    check("the CLI mirror applies the vessel correction, like the binary",
+          np.array_equal(g_cli, g_bv) and np.array_equal(p_cli, p_bv))
+    check("blood_vessel_correction=False is -no-blood-vessel-correction",
+          np.array_equal(g_cli0, g_raw) and not np.array_equal(g_cli0, g_bv))
+
+
 def test_option_no_ops():
     section("Backward compatibility of the new options")
 
@@ -592,7 +647,8 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_barrier_reference,
-                 test_fix_self_intersect_reference, test_option_no_ops,
+                 test_fix_self_intersect_reference, test_pbt_front_ends_agree,
+                 test_option_no_ops,
                  test_surf_info, test_vol_calc):
         try:
             test()

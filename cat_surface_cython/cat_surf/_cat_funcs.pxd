@@ -102,9 +102,6 @@ cdef extern from "CAT_Surf.h":
     void correct_bounds_to_target_with_scaling(polygons_struct *source,
                                                polygons_struct *target)
 
-    void apply_warp(polygons_struct *source, polygons_struct *target,
-                    double *warp_array, int *warp_dims, int n_steps)
-
     void areal_smoothing(polygons_struct *poly, double fwhm,
                          int n_iter, int itertype, int *mask, int verbose)
     void linear_smoothing(polygons_struct *poly, double fwhm,
@@ -304,6 +301,8 @@ cdef extern from "CAT_SurfPialWhite.h":
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Warp.h":
     int INVERSE_WARPING
+    void apply_warp(polygons_struct *source, polygons_struct *target,
+                    double *warp_array, int *warp_dims, int n_steps)
     void rotate_polygons(polygons_struct *src, polygons_struct *dst,
                          double *rotation_matrix)
     void rotation_to_matrix(double *matrix, double alpha, double beta,

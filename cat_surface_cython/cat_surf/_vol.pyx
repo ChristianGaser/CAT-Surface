@@ -535,17 +535,23 @@ def vol_thickness_pbt(volume, voxelsize=None,
                       double barrier_gmtref=-1.0,
                       double barrier_dmin=-1.0,
                       double barrier_halfwidth=-1.0,
-                      bint oriented_filter=False,
+                      oriented_filter=None,
                       double oriented_strength=-1.0, double oriented_cutoff=-1.0,
                       bint fast=False, bint verbose=False):
     """
     Compute projection-based cortical thickness (PBT).
 
-    Mirrors ``CAT_VolThicknessPbt``.  Every argument defaults to a
-    sentinel meaning "not asked for", so the value actually used comes
+    Runs the PBT core of ``CAT_VolThicknessPbt``.  Every argument defaults
+    to a sentinel meaning "not asked for", so the value actually used comes
     from ``CAT_PbtOptionsInit`` in the library -- the single source of
     truth.  ``correct_thickness`` takes ``None`` rather than a negative
     sentinel, because a negative correction is a legitimate value.
+
+    Unlike the binary, this function does not apply the blood-vessel
+    correction to ``volume`` first: callers that preprocess the label map
+    themselves must not get it twice.  To reproduce the binary, pass the
+    output of :func:`vol_blood_vessel_correction`, or use
+    :func:`cat_surf.cli.vol_thickness_pbt`, which applies it by default.
 
     Parameters
     ----------
@@ -652,9 +658,9 @@ def vol_thickness_pbt(volume, voxelsize=None,
         nearest medial voxel centre while the grey matter ends at the
         surface of that set.  It does not move the 0.5 crossing — it
         trades against thickness accuracy only.
-    oriented_filter : bool
+    oriented_filter : bool or None
         Replace the isotropic 3x3x3 median filters by sheetness-oriented
-        ones (default False).  An isotropic median penalizes boundary
+        ones (default None, which keeps the library default: on).  An isotropic median penalizes boundary
         area, so it removes thin structures whichever side of the label
         boundary they lie on: the same filter that opens a glued sulcus
         closes a cerebellar fissure.  The oriented variant admits only
@@ -737,7 +743,8 @@ def vol_thickness_pbt(volume, voxelsize=None,
     if barrier_dmin      >= 0.0: opts.barrier_dmin = barrier_dmin
     if barrier_tmin      >= 0.0: opts.barrier_tmin = barrier_tmin
     if barrier_halfwidth >= 0.0: opts.barrier_halfwidth = barrier_halfwidth
-    opts.oriented_filter = 1 if oriented_filter else 0
+    if oriented_filter is not None:
+        opts.oriented_filter = 1 if oriented_filter else 0
     if oriented_strength >= 0.0: opts.oriented_strength = oriented_strength
     if oriented_cutoff   >= 0.0: opts.oriented_cutoff = oriented_cutoff
     opts.fast = 1 if fast else 0
@@ -772,7 +779,7 @@ _PBT_ONLY_KEYWORDS = frozenset((
 def vol_pbt_barrier_reference(volume, voxelsize=None, int n_avgs=-1,
                               double range_val=-1.0, bint pve_distance=False,
                               double barrier_gmtpct=-1.0,
-                              bint oriented_filter=False,
+                              oriented_filter=None,
                               double oriented_strength=-1.0,
                               double oriented_cutoff=-1.0,
                               bint fast=False, bint verbose=False, **kwargs):
@@ -791,8 +798,9 @@ def vol_pbt_barrier_reference(volume, voxelsize=None, int n_avgs=-1,
 
     Accepts every keyword of :func:`vol_thickness_pbt`, so the same
     argument dict can drive both calls; the ones that do not affect the
-    distance maps are ignored.  Defaults match :func:`vol_thickness_pbt`
-    (note ``oriented_filter`` is off there unless asked for).
+    distance maps are ignored.  Defaults match :func:`vol_thickness_pbt`.
+    Like it, this does not apply the blood-vessel correction; pass the
+    volume the PBT run will receive.
 
     Parameters
     ----------
@@ -837,7 +845,8 @@ def vol_pbt_barrier_reference(volume, voxelsize=None, int n_avgs=-1,
     if range_val      >= 0.0: opts.range = range_val
     if barrier_gmtpct >= 0.0: opts.barrier_gmtpct = barrier_gmtpct
     opts.pve_distance = 1 if pve_distance else 0
-    opts.oriented_filter = 1 if oriented_filter else 0
+    if oriented_filter is not None:
+        opts.oriented_filter = 1 if oriented_filter else 0
     if oriented_strength >= 0.0: opts.oriented_strength = oriented_strength
     if oriented_cutoff   >= 0.0: opts.oriented_cutoff = oriented_cutoff
     opts.fast = 1 if fast else 0
