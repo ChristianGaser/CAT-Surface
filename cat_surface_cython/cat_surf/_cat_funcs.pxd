@@ -80,7 +80,6 @@ cdef extern from "CAT_SurfaceIO.h":
 cdef extern from "CAT_Surf.h":
     double get_area_of_points(polygons_struct *poly, double *area_values)
     double get_vertex_areas(polygons_struct *poly, double *areas)
-    void   get_radius_of_points(polygons_struct *poly, double *radii)
     double get_sphere_radius(polygons_struct *poly)
     double *get_surface_ratio(double radius, polygons_struct *polygons,
                               int normalize)
@@ -104,8 +103,6 @@ cdef extern from "CAT_Surf.h":
 
     void areal_smoothing(polygons_struct *poly, double fwhm,
                          int n_iter, int itertype, int *mask, int verbose)
-    void linear_smoothing(polygons_struct *poly, double fwhm,
-                          int n_iter, int itertype, int *mask, int verbose)
     void distance_smoothing(polygons_struct *poly, double fwhm,
                             int n_iter, int itertype, int *mask, int verbose)
 
@@ -217,7 +214,6 @@ cdef extern from "CAT_Deform.h":
 cdef extern from "CAT_Intersect.h":
     int  find_selfintersections(polygons_struct *polygons, int *defects,
                                 int *polydefects, int init)
-    void remove_intersections(polygons_struct *polygons, int verbose)
     int  remove_intersections_iter(polygons_struct *polygons, int max_passes,
                                    int maxiter, int verbose)
     int  remove_intersections_ref(polygons_struct *polygons, const Point *reference,
