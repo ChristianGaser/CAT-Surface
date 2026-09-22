@@ -16,12 +16,6 @@
 #include <unistd.h>
 #include <math.h>
 
-static const char *basename(const char *path)
-{
-    const char *base = strrchr(path, '/');
-    return base ? base + 1 : path;
-}
-
 static const char *basename_no_path(const char *p)
 {
     const char *s1 = strrchr(p, '/');
@@ -203,52 +197,6 @@ int qem_target(int nf_total, int target)
     return target;
 }
 
-/**
- * \brief Convert BICPL polygons_struct to flat vertex and face arrays for external processing.
- *
- * Unpacks polygon coordinates into a flat vertex array (x,y,z interleaved as columns)
- * and polygon indices into a flat face array. Outputs are column-major for compatibility with
- * MATLAB-style array handling. Face indices are 1-indexed (MATLAB convention).
- *
- * \param polygons (in)  input mesh with points and indices
- * \param faces    (out) allocated array of shape (n_items, 3) containing 1-indexed vertex indices
- * \param vertices (out) allocated array of shape (3, n_points) with x,y,z coordinates
- * \return OK on success; ERROR if any polygon is non-triangular
- */
-Status
-bicpl_to_facevertexdata(polygons_struct *polygons, double **faces, double **vertices)
-{
-    int i, j;
-    Status status;
-
-    status = OK;
-    for (i = 0; i < polygons->n_points; i++)
-    {
-        (*vertices)[i] = Point_x(polygons->points[i]);
-        (*vertices)[i + polygons->n_points] = Point_y(polygons->points[i]);
-        (*vertices)[i + 2 * polygons->n_points] = Point_z(polygons->points[i]);
-    }
-
-    for (i = 0; i < polygons->n_items; i++)
-    {
-        if (GET_OBJECT_SIZE(*polygons, i) != 3)
-        {
-            status = ERROR;
-            return (status);
-        }
-
-        /* add "1" to faces (for matlab arrays) */
-        for (j = 0; j < 3; j++)
-        {
-            (*faces)[i + j * polygons->n_items] = polygons->indices[POINT_INDEX(
-                                                      polygons->end_indices, i, j)] +
-                                                  1;
-        }
-    }
-
-    return (status);
-}
-
 static void swapFloat(float *n)
 {
     char *by = (char *)n;
@@ -263,14 +211,6 @@ static void swapInt(int *n)
     char sw[4] = {by[3], by[2], by[1], by[0]};
 
     *n = *(int *)sw;
-}
-
-void swapShort(short *n)
-{
-    char *by = (char *)n;
-    char sw[2] = {by[1], by[0]};
-
-    *n = *(short *)sw;
 }
 
 static int fwriteFloat(float f, FILE *fp)

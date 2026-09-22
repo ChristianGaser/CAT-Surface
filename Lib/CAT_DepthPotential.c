@@ -24,7 +24,6 @@
 private void gauss_seidel( int, int *, int *, double *, double *, 
                               double *, int, double, double, int );
 private void init_csr_matrix( int, int *, int **, struct csr_matrix * );
-private void free_csr_matrix( struct csr_matrix * );
 private void assemble( double, int, int, struct csr_matrix * );
 private void stable_normals( int, Point [], Vector [], int *, int ** );
 private double * compute_mean_curvature( int, Point [], double *,
@@ -577,32 +576,6 @@ init_csr_matrix(int n_points, int *n_ngh, int **ngh,
             nnz++;
         }
     }
-}
-
-/* -------------------------------------------------------------------
-     Free the memory for the data structures of a sparse matrix in CSR
-     format.
-*/
-/**
- * \brief Free CSR sparse matrix storage.
- *
- * Releases CSR arrays and resets matrix metadata.
- *
- * \param mat (in/out) CSR matrix to free
- */
-private void
-free_csr_matrix(struct csr_matrix *mat)
-{
-
-    free(mat->ia);
-    free(mat->ja);
-    free(mat->A);
-
-    mat->nnz = 0;
-    mat->n = 0;
-    mat->ia = NULL;
-    mat->ja = NULL;
-    mat->A = NULL;
 }
 
 /* -------------------------------------------------------------------

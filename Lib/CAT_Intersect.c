@@ -366,34 +366,6 @@ static int poly_intersects_any(polygons_struct *polygons, struct octree *tree, i
 }
 
 /**
- * \brief Check if two polygons (triangular faces) intersect geometrically.
- *
- * Tests whether two triangular faces in a polygonal mesh intersect by extracting
- * vertex indices and delegating to triangle-triangle intersection test.
- *
- * \param poly0 (in) index of first polygon/triangle
- * \param poly1 (in) index of second polygon/triangle
- * \param surface (in) polygonal mesh containing both polygons
- * \return 1 if triangles intersect, 0 otherwise
- */
-int intersect_poly_poly(int poly0, int poly1, polygons_struct *surface)
-{
-    int i, t[3], t2[3];
-
-    for (i = 0; i < 3; i++)
-    {
-        t[i] = surface->indices[POINT_INDEX(surface->end_indices, poly0, i)];
-    }
-
-    for (i = 0; i < 3; i++)
-    {
-        t2[i] = surface->indices[POINT_INDEX(surface->end_indices, poly1, i)];
-    }
-
-    return (intersect_triangle_triangle(t, t2, surface));
-}
-
-/**
  * \brief Test geometric intersection between two triangles in 3D space.
  *
  * Determines if two triangles defined by vertex indices intersect. Skips adjacent triangles
@@ -946,7 +918,7 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
         }
 
         /* test if self-intersections repaired - one octree pass for all
-           defects instead of one has_selfintersections() call per defect */
+           defects instead of one octree per defect */
         find_intersecting_defects(surface, polydefects, n_defects, siflags);
 
         for (d = 1; d <= n_defects; d++)
@@ -1012,47 +984,12 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
 }
 
 /**
- * \brief Check if a specific defect region still contains self-intersections (boolean test).
- *
- * Tests whether any polygon pairs marked with given defect ID still intersect geometrically.
- * All-pairs intersection test over polygons in defect region. Used for monitoring
- * repair progress and detecting successful corrections.
- *
- * \param polygons (in) mesh to check
- * \param polydefects (in) per-polygon defect labels
- * \param defect (in) specific defect ID to test (1, 2, ...)
- * \return 1 if self-intersections remain in defect region, 0 if repaired
- */
-int has_selfintersections(polygons_struct *polygons, int *polydefects, int defect)
-{
-    int p, result = 0;
-    struct octree *tree;
-
-    tree = build_octree(polygons);
-
-    for (p = 0; p < polygons->n_items; p++)
-    {
-        if (polydefects[p] != defect)
-            continue; /* skip */
-
-        if (poly_intersects_any(polygons, tree, p))
-        {
-            result = 1;
-            break;
-        }
-    }
-
-    delete_octree(tree);
-    return result;
-}
-
-/**
  * \brief Test all defect regions for remaining self-intersections in a single pass.
  *
- * Batch version of has_selfintersections(): builds the octree once and marks every
- * defect that still contains an intersecting triangle. Calling has_selfintersections()
- * per defect would rebuild the octree n_defects times, which dominates the runtime of
- * the repair loop as soon as a surface has more than a handful of defects.
+ * Builds the octree once and marks every defect that still contains an
+ * intersecting triangle. Testing each defect on its own would rebuild the octree
+ * n_defects times, which dominates the runtime of the repair loop as soon as a
+ * surface has more than a handful of defects.
  *
  * \param polygons (in) mesh to check
  * \param polydefects (in) per-polygon defect labels
@@ -1092,27 +1029,11 @@ int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
 }
 
 /**
- * \brief Remove all self-intersections from mesh using multi-pass repair strategies.
- *
- * Entry point for intersection removal: detects intersections via octree acceleration,
- * consolidates defect regions, and applies iterative smoothing with periodic defect
- * expansion. Continues until all intersections resolved. Recomputes surface normals
- * after completion. Optional progress reporting.
- *
- * \param polygons (in/out) mesh to repair
- * \param verbose (in) 1 for progress output; 0 for silent
- */
-void remove_intersections(polygons_struct *polygons, int verbose)
-{
-    remove_intersections_iter(polygons, 10, 50, verbose);
-}
-
-/**
  * \brief Remove all self-intersections from a mesh with explicit iteration limits.
  *
- * Same as remove_intersections() but with the two loop limits exposed, because they
- * are what governs the runtime: each pass re-detects the remaining defects and runs
- * up to maxiter smoothing iterations on them.
+ * The two loop limits are exposed because they are what governs the runtime:
+ * each pass re-detects the remaining defects and runs up to maxiter smoothing
+ * iterations on them.
  *
  * \param polygons (in/out) mesh to repair
  * \param max_passes (in) maximum number of detect/smooth passes (default 10)
@@ -1285,7 +1206,7 @@ int remove_intersections_ref(polygons_struct *polygons, const Point *reference,
  * Fixes near-intersection problems by finding pairs of non-adjacent vertices
  * within a distance threshold and repositioning them toward the surface
  * centroid. Applies iterative correction until no intersections remain or
- * maximum iterations exceeded. Unlike remove_intersections() which handles
+ * maximum iterations exceeded. Unlike remove_intersections_iter(), which handles
  * topological self-intersections, this function targets geometric near-collisions
  * that may not cause topological defects but indicate surface quality issues.
  *

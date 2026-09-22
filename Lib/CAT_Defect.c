@@ -327,35 +327,6 @@ void update_polydefects(polygons_struct *surface, int *defects, int *polydefects
     }
 }
 
-/* returns the bounds of a defect */
-void get_defect_bounds(polygons_struct *surface, int *defects, int defect,
-                       double bounds[6])
-{
-    int p;
-
-    bounds[0] = bounds[2] = bounds[4] = PINF;
-    bounds[1] = bounds[3] = bounds[5] = NINF;
-
-    for (p = 0; p < surface->n_points; p++)
-    {
-        if (defects[p] != defect)
-            continue;
-
-        if (Point_x(surface->points[p]) < bounds[0])
-            bounds[0] = Point_x(surface->points[p]);
-        if (Point_x(surface->points[p]) > bounds[1])
-            bounds[1] = Point_x(surface->points[p]);
-        if (Point_y(surface->points[p]) < bounds[2])
-            bounds[2] = Point_y(surface->points[p]);
-        if (Point_y(surface->points[p]) > bounds[3])
-            bounds[3] = Point_y(surface->points[p]);
-        if (Point_z(surface->points[p]) < bounds[4])
-            bounds[4] = Point_z(surface->points[p]);
-        if (Point_z(surface->points[p]) > bounds[5])
-            bounds[5] = Point_z(surface->points[p]);
-    }
-}
-
 /* holes = 1, handles = 2, large errors = 3, ventricles = 4 */
 
 /**

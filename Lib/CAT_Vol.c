@@ -382,35 +382,6 @@ void median3(void *data, unsigned char *mask, int dims[3], int iters, int dataty
 }
 
 /**
- * \brief Find the minimum positive value in a float array.
- *
- * Searches for the smallest positive (> 0) value in an array of floats,
- * along with its array index. Non-positive values are ignored.
- * Useful for finding the nearest positive voxel distance or similar applications.
- *
- * \param A        (in)  float array to search through
- * \param sA       (in)  size of array A
- * \param minimum  (out) pointer to store the minimum positive value found (FLT_MAX if none)
- * \param index    (out) pointer to store the index of the minimum positive value (0 if none)
- */
-void pmin(float *A, int sA, float *minimum, int *index)
-{
-    int i;
-
-    *minimum = FLT_MAX;
-    *index = 0;
-
-    for (i = 0; i < sA; i++)
-    {
-        if ((A[i] > 0.0) && (*minimum > A[i]))
-        {
-            *minimum = A[i];
-            *index = i;
-        }
-    }
-}
-
-/**
  * \brief Trilinearly interpolated volume value at a point.
  *
  * With nii_ptr the point is given in world coordinates (mm) and mapped to

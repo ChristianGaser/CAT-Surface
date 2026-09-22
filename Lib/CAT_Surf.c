@@ -357,91 +357,6 @@ get_area_of_polygons(polygons_struct *polygons, double *area_values)
 }
 
 /**
- * \brief Per-vertex local statistics on a surface (fixed 1-ring).
- *
- * Computes mean/median/std/min/max over each vertex's immediate neighbours
- * (plus the center vertex) as defined by get_all_polygon_point_neighbours().
- * Optional mask (0 = skip) and multi-iteration behaviour matches localstat_double.
- *
- * \param polygons  (in)     mesh
- * \param input     (in/out) polygons->n_points per-vertex values
- * \param mask      (in)     optional mask of n_points entries; 0 = skip (NULL: all)
- * \param stat_func (in)     F_MEAN, F_MEDIAN, F_STD, F_MIN or F_MAX
- * \param iters     (in)     number of iterations (>= 1)
- */
-void localstat_surface_double(polygons_struct *polygons,
-                              double *input,
-                              unsigned char *mask,
-                              int stat_func,
-                              int iters)
-{
-    if (!polygons || polygons->n_points <= 0) {
-        fprintf(stderr, "localstat_surface_double: invalid polygons.\n");
-        return;
-    }
-    if (iters < 1) iters = 1;
-
-    /* Use neighbours to calculate local statistics */
-    int *n_neighbours = NULL;
-    int **neighbours  = NULL;
-    int i, it, v;
-    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
-
-    double *buffer = SAFE_MALLOC(double, polygons->n_points);
-    double *arr    = SAFE_MALLOC(double, polygons->n_points);
-    for (i = 0; i < polygons->n_points; ++i) buffer[i] = input[i];
-
-    for (it = 0; it < iters; ++it) {
-        for (v = 0; v < polygons->n_points; ++v) {
-            /* Skip masked/invalid centers exactly like the volume code. */
-            if ((mask && mask[v] == 0) || isnan(input[v]) || !isfinite(input[v])) {
-                buffer[v] = input[v];
-                continue;
-            }
-
-            int n = 0;
-
-            /* Include center value if valid. */
-            if (!mask || mask[v] != 0) {
-                if (isfinite(input[v]) && !isnan(input[v])) arr[n++] = input[v];
-            }
-
-            /* Add neighbours from the precomputed lists. */
-            const int nn = n_neighbours[v];
-            int *nb = neighbours[v];
-            for (i = 0; i < nn; ++i) {
-                const int u = nb[i];
-                if (mask && mask[u] == 0) continue;
-                if (!isfinite(input[u]) || isnan(input[u])) continue;
-                arr[n++] = input[u];
-            }
-
-            if (n <= 0) { buffer[v] = input[v]; continue; }
-
-            switch (stat_func) {
-                case F_MEAN:   buffer[v] = get_mean_double(arr,   n, 0); break;
-                case F_MEDIAN: buffer[v] = get_median_double(arr, n, 0); break;
-                case F_STD:    buffer[v] = get_std_double(arr,    n, 0); break;
-                case F_MIN:    buffer[v] = get_min_double(arr,    n, 0); break;
-                case F_MAX:    buffer[v] = get_max_double(arr,    n, 0); break;
-                default:
-                    fprintf(stderr, "Data Function %d not handled\n", stat_func);
-                    buffer[v] = input[v];
-                    break;
-            }
-        }
-        /* write back this iteration */
-        for (i = 0; i < polygons->n_points; ++i) input[i] = buffer[i];
-    }
-
-    /* Cleanup (get_all_polygon_point_neighbours allocates a single flat block for neighbours[0]). */
-    free(buffer);
-    free(arr);
-    if (n_neighbours) free(n_neighbours);
-    if (neighbours)   { if (neighbours[0]) free(neighbours[0]); free(neighbours); }
-}
-
-/**
  * \brief Mixed boundary condition index mapping for a 2‑D lattice.
  *
  * Function: correct_bounds_to_target
@@ -578,27 +493,6 @@ set_vector_length(Point *p, double newLength)
         for (j = 0; j < 3; j++)
             Point_coord(*p, j) *= scale;
     }
-}
-
-/**
- * \brief Compute per-vertex radius values from the origin.
- *
- * \param polygons (in)  input mesh
- * \param radius   (out) per-vertex radii (length n_points)
- */
-void
-get_radius_of_points(polygons_struct *polygons, double *radius)
-{
-    int i;
-    Vector xyz;
-  
-    for (i = 0; i < polygons->n_points; i++) {
-        fill_Vector(xyz, Point_x(polygons->points[i]),
-                 Point_y(polygons->points[i]),
-                 Point_z(polygons->points[i]));
-        radius[i] = MAGNITUDE(xyz);
-    }
-
 }
 
 /**
@@ -940,84 +834,6 @@ convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *polygons,
         xyz[2] = (radius * xyz[2]) / C;
         from_array(xyz, &polygons->points[i]);
     }
-}
-
-/**
- * \brief Linear (umbrella) smoothing with optional edge-only passes.
- *
- * \param polygons                   (in/out) mesh to smooth
- * \param strength                   (in)     in (0,1]; larger moves more toward neighbor average
- * \param iters                      (in)     number of iterations
- * \param smoothEdgesEveryXIters     (in)     smooth only on these iterations (0 disables)
- * \param smoothOnlyTheseNodes       (in)     optional mask (length n_points) for selective smoothing
- * \param projectToSphereEveryXIters (in)     project to current sphere radius every X iterations (0 disables)
- */
-void
-linear_smoothing(polygons_struct *polygons, double strength, int iters,
-         int smoothEdgesEveryXIters, int *smoothOnlyTheseNodes,
-         int projectToSphereEveryXIters)
-{
-    int i, j, k, l;
-    int *n_neighbours, **neighbours;
-    int pidx;
-    BOOLEAN smoothSubsetOfNodes = 0;
-    const double invstr = 1.0 - strength;
-    double  xyz[3], pt[3];
-    double radius = get_sphere_radius(polygons);
-  
-    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours,
-                    &neighbours, NULL, NULL);
-  
-    if (smoothOnlyTheseNodes != NULL) {
-        smoothSubsetOfNodes = 1;
-    }
-
-    for (k = 1; k < iters; k++) {
-        /* Should edges be smoothed? */
-        BOOLEAN smoothEdges = 0;
-        if (smoothEdgesEveryXIters > 0) {
-            if ((k % smoothEdgesEveryXIters) == 0)
-                smoothEdges = 1;
-        }
-
-        for (i = 0; i < polygons->n_points; i++) {
-            BOOLEAN smoothIt = smoothEdges;
-            if (smoothIt && smoothSubsetOfNodes) {
-                smoothIt = (smoothOnlyTheseNodes)[i];
-                if (!smoothIt) continue;
-            }
-            if (!smoothIt || n_neighbours[i] <= 0)
-                continue; /* skip this point */
-    
-            for (j = 0; j < 3; j++)
-                xyz[j] = 0.0;
-            for (j = 0; j < n_neighbours[i]; j++) {
-                pidx = neighbours[i][j];
-                to_array(&polygons->points[pidx], pt);
-                xyz[0] += pt[0];
-                xyz[1] += pt[1];
-                xyz[2] += pt[2];
-            }
-            /* Update the nodes position */
-            to_array(&polygons->points[i], pt);
-            for (l = 0; l < 3; l++) {
-                pt[l] = (pt[l] * invstr) +
-                    (xyz[l] / (double) n_neighbours[i] *
-                     strength);
-            }
-            from_array(pt, &polygons->points[i]);
-        }
-    
-        /* If the surface should be projected to a sphere */
-        if (projectToSphereEveryXIters > 0) {
-            if ((k % projectToSphereEveryXIters) == 0)
-                for (i = 0; i < polygons->n_points; i++) 
-                    set_vector_length(&polygons->points[i],
-                              radius);
-        }
-    }
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
 }
 
 /**

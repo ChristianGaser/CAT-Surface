@@ -322,55 +322,6 @@ void map_sheet2d_to_sphere(double *sheet2d, double *values,
     delete_polygons(&unit_sphere);
 }
 
-void map_sheet2d_to_unit_sphere(double *sheet2d, double *values,
-                                polygons_struct *sphere, int interpolate, int *dm)
-{
-    double tmp_x, tmp_y;
-    double u, v;
-    int i, x, y;
-    double xp, yp, xm, ym;
-    double H00, H01, H10, H11;
-    Point unit_pt;
-
-    create_polygons_bintree(sphere, ROUND((double)sphere->n_items *
-                                          BINTREE_FACTOR));
-
-    tmp_x = (double)dm[0];
-    tmp_y = (double)dm[1];
-
-    for (i = 0; i < sphere->n_points; i++)
-    {
-        unit_pt = sphere->points[i];
-        set_vector_length(&unit_pt, 1.0);
-        point_to_uv(&unit_pt, &u, &v);
-
-        x = (int)(u * tmp_x - 0.5);
-        y = (int)(v * tmp_y - 0.5);
-
-        if (interpolate)
-        {
-            xp = u * tmp_x - 0.5 - x;
-            yp = v * tmp_y - 0.5 - y;
-            xm = 1.0 - xp;
-            ym = 1.0 - yp;
-            H00 = sheet2d[bound(x, y, dm)];
-            H01 = sheet2d[bound(x, y + 1, dm)];
-            H10 = sheet2d[bound(x + 1, y, dm)];
-            H11 = sheet2d[bound(x + 1, y + 1, dm)];
-
-            values[i] = (ym * (xm * H00 + xp * H10) +
-                         yp * (xm * H01 + xp * H11));
-        }
-        else
-            values[i] = sheet2d[x + y * dm[0]];
-
-        /* prevent unlikely values at the poles */
-        if (values[i] < -1e15 || values[i] > 1e15)
-            values[i] = 0.0;
-    }
-    delete_the_bintree(&sphere->bintree);
-}
-
 /**
  * \brief Upsample a 2D flow field by factor of 2 using bilinear interpolation.
  *
