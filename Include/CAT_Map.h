@@ -10,6 +10,8 @@
 #ifndef _CAT_MAP_H_
 #define _CAT_MAP_H_
 
+#include <bicpl.h>
+
 typedef struct {
     long x;
     long y;
@@ -21,43 +23,70 @@ typedef struct {
 } Vector2D;
 
 /**
- * \brief Public API for point_to_uv.
+ * \brief Convert 3D Cartesian point on unit sphere to 2D (u,v) spherical coordinates.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of point_to_uv.
- * \param param (in/out) Parameter of point_to_uv.
- * \param param (in/out) Parameter of point_to_uv.
- * \return void (no return value).
+ * \param point (in)  3D point on unit sphere (x² + y² + z² = 1)
+ * \param u     (out) horizontal coordinate [0, 1] (azimuth/longitude)
+ * \param v     (out) vertical coordinate [0, 1] (elevation/latitude)
  */
-void point_to_uv(Point *, double *, double *);
+void point_to_uv(Point *point, double *u, double *v);
 /**
- * \brief Public API for uv_to_point.
+ * \brief Convert 2D (u,v) spherical coordinates to 3D point on unit sphere.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param double (in/out) Parameter of uv_to_point.
- * \param double (in/out) Parameter of uv_to_point.
- * \param param (in/out) Parameter of uv_to_point.
- * \return void (no return value).
+ * \param u     (in)  horizontal coordinate [0, 1] (azimuth/longitude)
+ * \param v     (in)  vertical coordinate [0, 1] (elevation/latitude)
+ * \param point (out) 3D point on unit sphere with x² + y² + z² = 1
  */
-void uv_to_point(double, double, Point *);
-void map_sphere_values_to_sheet(polygons_struct *, polygons_struct *,
-                                      double *, double *, double, int *, int);
+void uv_to_point(double u, double v, Point *point);
 /**
- * \brief Public API for map_sheet2d_to_sphere.
+ * \brief Map per-vertex values of a surface onto a 2D (u,v) sheet via its sphere.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of map_sheet2d_to_sphere.
- * \param param (in/out) Parameter of map_sheet2d_to_sphere.
- * \param param (in/out) Parameter of map_sheet2d_to_sphere.
- * \param int (in/out) Parameter of map_sheet2d_to_sphere.
- * \param param (in/out) Parameter of map_sheet2d_to_sphere.
- * \return void (no return value).
+ * \param polygons      (in)     surface the values belong to
+ * \param sphere        (in)     its spherical mapping; NULL creates a
+ *                                   tetrahedral unit sphere with the same number of
+ *                                   triangles
+ * \param sphere_values (in/out) per-vertex values; NULL computes smoothed
+ *                                   curvatures of type curvtype, otherwise they are
+ *                                   smoothed in-place when fwhm > 0
+ * \param mapped_data   (out)    dm[0]*dm[1] sheet values in [0, 1]
+ * \param fwhm          (in)     heat-kernel FWHM in mm applied first (0: none)
+ * \param dm            (in)     sheet dimensions {nu, nv}
+ * \param curvtype      (in)     curvature type used when sphere_values is NULL
  */
-void map_sheet2d_to_sphere(double *, double *, polygons_struct *, int, int *);
-void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow, int *dst_dm);
+void map_sphere_values_to_sheet(polygons_struct *polygons,
+                                polygons_struct *sphere, double *sphere_values,
+                                double *mapped_data, double fwhm, int *dm,
+                                int curvtype);
+/**
+ * \brief Sample a 2D (u,v) sheet at the vertices of a sphere.
+ *
+ * \param sheet2d     (in)  dm[0]*dm[1] sheet values
+ * \param values      (out) polygons->n_points values, allocated by the caller
+ * \param polygons    (in)  mesh whose triangle count defines the sphere
+ * \param interpolate (in)  non-zero for bilinear interpolation, zero for the
+ *                              nearest pixel
+ * \param dm          (in)  sheet dimensions {nu, nv}
+ */
+void map_sheet2d_to_sphere(double *sheet2d, double *values,
+                           polygons_struct *polygons, int interpolate, int *dm);
+/**
+ * \brief Upsample a 2D flow field by factor of 2 using bilinear interpolation.
+ *
+ * \param src_flow (in)  source flow field (size src_dm[0]*src_dm[1])
+ * \param src_dm   (in)  source dimensions [width, height]
+ * \param dst_flow (out) destination flow field (size dst_dm[0]*dst_dm[1])
+ * \param dst_dm   (in)  destination dimensions [width, height]
+ */
+void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow,
+                         int *dst_dm);
+/**
+ * \brief Downsample a 2D image by factor of 2 using area averaging.
+ *
+ * \param src (in)  source image (size src_dm[0]*src_dm[1])
+ * \param src_dm (in) source dimensions [width, height]
+ * \param dst (out) destination image (size dst_dm[0]*dst_dm[1])
+ * \param dst_dm (in) destination dimensions [width, height]
+ */
 void downsample_image(double *src, int *src_dm, double *dst, int *dst_dm);
 
 #endif

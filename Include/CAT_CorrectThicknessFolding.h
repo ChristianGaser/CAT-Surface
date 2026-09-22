@@ -16,50 +16,41 @@ extern "C"
 #endif
 
     /**
-     * Correct thickness values for folding-related variation.
+     * \brief Correct thickness values for folding-related variation (weighted).
      *
-     * The correction is applied in-place and preserves the original mean.
-     *
-     * Parameters are chosen to match the behavior of the command line tool
-     * CAT_SurfCorrectThicknessFolding:
-     * - Uses 4 folding-related curvature measures (curvtype 1..4)
-     * - Uses linear and squared terms for each measure
-     * - Applies heatkernel smoothing with FWHM = 3mm
-     * - Removes the projection of thickness onto the resulting design matrix
-     *
-     * @param polygons Surface mesh.
-     * @param n_vals Number of thickness values (must equal polygons->n_points).
-     * @param thickness Thickness values (in/out).
-     *
-     * @return OK on success, ERROR otherwise.
-     */
-    /**
-     * Correct thickness values for folding-related variation with optional
-     * slope-controlled weighting.
+     * The correction is applied in-place and preserves the original mean. It
+     * matches CAT_SurfCorrectThicknessFolding:
+     * - uses 4 folding-related curvature measures (curvtype 1..4)
+     * - uses linear and squared terms for each measure
+     * - applies heat-kernel smoothing with FWHM = 3 mm
+     * - removes the projection of thickness onto the resulting design matrix
      *
      * The correction term is scaled by a per-vertex weight using a bounded
-     * transfer function:
+     * transfer function, w_i = 1 + |slope| * tanh(f_i), where f_i is the
+     * z-scored thickness, so larger thickness values get stronger correction.
+     * It is only applied where the mean curvature, measured before it is
+     * centred, is positive. With outward normals that is convex (gyral)
+     * cortex -- the opposite of FreeSurfer's ?h.curv sign.
      *
-     *   w_i = 1 + |slope| * tanh(f_i)
-     *
-    * where f_i is z-scored thickness. Larger thickness values therefore get
-    * stronger correction and smaller thickness values get weaker correction.
-    *
-    * The correction is only applied for vertices with positive mean
-    * curvature, measured before the curvature is centred. With outward
-    * normals that is convex (gyral) cortex -- the opposite of FreeSurfer's
-    * ?h.curv sign.
-     *
-     * With slope=0, this reduces to the unweighted correction.
-     *
-    * @param slope Thickness-based weighting strength; sign is ignored and
-    *              magnitude controls strength.
+     * \param polygons  (in)     surface mesh
+     * \param n_vals    (in)     number of thickness values (must equal n_points)
+     * \param thickness (in/out) thickness values, corrected in-place
+     * \param slope     (in)     weighting strength; its sign is ignored and 0
+     *                          reduces this to the unweighted correction
+     * \return OK on success, ERROR otherwise
      */
     Status CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
                                                double *thickness, double slope);
 
     /**
-     * Backward-compatible unweighted correction (slope = 0).
+     * \brief Correct thickness values for folding-related variation (unweighted).
+     *
+     * Same as CAT_CorrectThicknessFoldingWeighted() with slope = 0.
+     *
+     * \param polygons  (in)     surface mesh
+     * \param n_vals    (in)     number of thickness values (must equal n_points)
+     * \param thickness (in/out) thickness values, corrected in-place
+     * \return OK on success, ERROR otherwise
      */
     Status CAT_CorrectThicknessFolding(polygons_struct *polygons, int n_vals,
                                        double *thickness);

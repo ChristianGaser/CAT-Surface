@@ -37,9 +37,9 @@ extern "C" {
  * @param infiles       Array of input GIFTI filenames.
  * @param nfiles        Number of input files.
  * @param verbose       If non-zero, print progress to stdout.
- * @param avg_values    Output: averaged vertex values (caller must free).
- * @param n_avg_values  Output: number of averaged values.
- * @param out_object    Output: averaged mesh object (caller must free).
+ * @param avg_values_out   Output: averaged vertex values (caller must free).
+ * @param n_avg_values_out Output: number of averaged values.
+ * @param out_object_out   Output: averaged mesh object (caller must free).
  *
  * @return 0 on success, non-zero on error.
  */
@@ -47,9 +47,9 @@ int CAT_AverageValuesCompute(
     char **infiles,
     int nfiles,
     int verbose,
-    double **avg_values,
-    int *n_avg_values,
-    object_struct **out_object
+    double **avg_values_out,
+    int *n_avg_values_out,
+    object_struct **out_object_out
 );
 
 /**
@@ -62,7 +62,7 @@ int CAT_AverageValuesCompute(
  * @param nfiles        Number of input files.
  * @param avg_values    Average values from CAT_AverageValuesCompute().
  * @param n_avg_values  Number of average values.
- * @param std_values    Output: per-vertex standard deviation (caller must free).
+ * @param std_values_out Output: per-vertex standard deviation (caller must free).
  *
  * @return 0 on success, non-zero on error.
  */
@@ -71,7 +71,7 @@ int CAT_AverageValuesStd(
     int nfiles,
     const double *avg_values,
     int n_avg_values,
-    double **std_values
+    double **std_values_out
 );
 
 /**

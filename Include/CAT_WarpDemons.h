@@ -51,7 +51,8 @@ typedef struct {
     double rot_min_degrees;     /* rotation search: stop below this span */
     int    rot_nangles;         /* rotation search: grid samples per axis per pass;
                                    cost grows as (nangles+1)^3 per pass. */
-    int    smooth_velocity;     /* low-pass the velocity update (fluid prior; SD default off) */
+    int    smooth_velocity;     /* low-pass the velocity update (fluid prior; default
+                                   on, the original SD default is off) */
     int    smooth_displacement; /* low-pass the displacement field (elastic prior; SD default on) */
     int    use_hessian;         /* per-vertex Gauss-Newton 2x2 Hessian update */
     int    use_line_search;     /* adaptive step backtracking on stalled CC */
@@ -70,7 +71,8 @@ typedef struct {
     double fwhm_disp;           /* FWHM for displacement-field smoothing (elastic) */
     double rate;                /* per-iteration multiplier for fwhm_flow */
     double max_step_deg;        /* clamp per-iteration step (deg); <=0 disables */
-    double sigma_x;             /* SD regularization weight (= max_step; SD default 2) */
+    double sigma_x;             /* SD regularization weight (= max_step; default 20,
+                                   the original SD uses 2) */
     double step_factor;         /* global step-size factor */
     double *cortex_mask;        /* optional per-vertex cortex mask on the TEMPLATE
                                    mesh, length trg->n_points. 0 excludes a vertex
@@ -98,14 +100,14 @@ typedef struct {
  * \brief Fill an options struct with the default multi-resolution SD setup.
  *
  * Uses Spherical Demons (Yeo et al.) with diffeomorphic integration and a
- * 2-level coarse-to-fine sulcal-depth pyramid (5120 -> 20480 points), which is
- * the empirical accuracy/runtime sweet spot. Smoothing FWHM is scaled by mesh
- * spacing, anchored to a fixed reference resolution. Rotation pre-alignment and
- * the SD regularization (constant Tikhonov, sigma_x = 2, elastic displacement
- * smoothing) are enabled.
+ * 4-level coarse-to-fine depth-potential pyramid (320 -> 1280 -> 5120 -> 20480
+ * points: n_points at the finest level, a quarter of it at each coarser one).
+ * Smoothing FWHM is scaled by mesh spacing, anchored to a fixed reference
+ * resolution. Rotation pre-alignment, velocity and elastic displacement
+ * smoothing, the Tikhonov regularization (sigma_x = 20) and the
+ * metric-distortion regularizer (l_dist = 0.6) are enabled.
  *
  * \param opt (out) options struct to initialize
- * \return void
  */
 void CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt);
 

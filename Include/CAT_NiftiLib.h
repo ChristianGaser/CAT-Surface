@@ -24,47 +24,68 @@
 #endif
 
 /**
- * \brief Public API for equal_image_dimensions.
+ * \brief Compare image dimensions and voxel sizes of two NIfTI images.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param nii_ptr (in/out) Parameter of equal_image_dimensions.
- * \param nii_ptr2 (in/out) Parameter of equal_image_dimensions.
- * \return Return value of equal_image_dimensions.
+ * \param nii_ptr  (in) first NIfTI image
+ * \param nii_ptr2 (in) second NIfTI image to compare
+ * \return 1 if dimensions match (within tolerance), 0 if mismatched
  */
 int equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2);
+/**
+ * \brief Initialize NIfTI image header structure to reasonable defaults.
+ *
+ * \param nii_ptr (in/out) NIfTI image structure to initialize
+ */
 void init_nifti_header(nifti_image *nii_ptr);
 /**
- * \brief Public API for write_nifti_double.
+ * \brief Write double-precision volume data to NIfTI file with type conversion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param output_filename (in/out) Parameter of write_nifti_double.
- * \param image (in/out) Parameter of write_nifti_double.
- * \param data_type (in/out) Parameter of write_nifti_double.
- * \param slope (in/out) Parameter of write_nifti_double.
- * \param dim (in/out) Parameter of write_nifti_double.
- * \param vox (in/out) Parameter of write_nifti_double.
- * \param in_ptr (in/out) Parameter of write_nifti_double.
- * \return Return value of write_nifti_double.
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) linear array of voxel values (size dim[0]*dim[1]*dim[2])
+ * \param data_type       (in) target NIfTI datatype (DT_UINT8, DT_INT16, DT_FLOAT32, etc.)
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim            (in) array of 3 image dimensions [nx, ny, nz]
+ * \param vox            (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr         (in) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
  */
-int write_nifti_double( const char *output_filename, double image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr);
+int write_nifti_double(const char *output_filename, double image[],
+                       int data_type, double slope, int dim[], double vox[],
+                       nifti_image *in_ptr);
 /**
- * \brief Public API for write_nifti_float.
+ * \brief Write single-precision volume data to NIfTI file with type conversion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param output_filename (in/out) Parameter of write_nifti_float.
- * \param image (in/out) Parameter of write_nifti_float.
- * \param data_type (in/out) Parameter of write_nifti_float.
- * \param slope (in/out) Parameter of write_nifti_float.
- * \param dim (in/out) Parameter of write_nifti_float.
- * \param vox (in/out) Parameter of write_nifti_float.
- * \param in_ptr (in/out) Parameter of write_nifti_float.
- * \return Return value of write_nifti_float.
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) linear array of float voxel values
+ * \param data_type       (in) target NIfTI datatype
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim            (in) array of 3 image dimensions [nx, ny, nz]
+ * \param vox            (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr         (in) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
  */
-int write_nifti_float( const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr);
-nifti_image *read_nifti_double( const char *input_filename, double *image[], int read_data);
-nifti_image *read_nifti_float( const char *input_filename, float *image[], int read_data);
+int write_nifti_float(const char *output_filename, float image[], int data_type,
+                      double slope, int dim[], double vox[],
+                      nifti_image *in_ptr);
+/**
+ * \brief Read NIfTI image file and load data into double-precision array.
+ *
+ * \param input_filename (in)  path to NIfTI file
+ * \param image          (out) pointer to allocated double array (size nx*ny*nz)
+ * \param read_data      (in)  if non-zero, read voxel data; if 0, read header only
+ * \return pointer to NIfTI image structure on success; NULL on error
+ */
+nifti_image *read_nifti_double(const char *input_filename, double *image[],
+                               int read_data);
+/**
+ * \brief Read NIfTI image file and load data into single-precision array.
+ *
+ * \param input_filename (in)  path to NIfTI file
+ * \param image          (out) pointer to allocated float array (size nx*ny*nz)
+ * \param read_data      (in)  if non-zero, read voxel data; if 0, read header only
+ * \return pointer to NIfTI image structure on success; NULL on error
+ */
+nifti_image *read_nifti_float(const char *input_filename, float *image[],
+                              int read_data);
 
 #endif

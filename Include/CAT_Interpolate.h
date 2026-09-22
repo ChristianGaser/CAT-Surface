@@ -21,20 +21,69 @@
 #define  NEW_COORDINATE_SYSTEM   1
 
 /**
- * \brief Public API for interp_point_unit_sphere.
+ * \brief Interpolate scalar value at a 3D point on a unit sphere mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of interp_point_unit_sphere.
- * \param param (in/out) Parameter of interp_point_unit_sphere.
- * \param Point (in/out) Parameter of interp_point_unit_sphere.
- * \return Return value of interp_point_unit_sphere.
+ * \param sphere    (in)  polygon mesh representing the unit sphere
+ * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
+ * \param pt        (in)  3D point at which to interpolate (should be near sphere)
+ * \return               Interpolated scalar value using barycentric weighting
  */
-double interp_point_unit_sphere(polygons_struct *, double *, Point);
-double interp_point_sphere(polygons_struct *, double *, Point);
-double interp_uv_unit_sphere(polygons_struct *, double *, double, double);
-double interp_uv_sphere(polygons_struct *, double *, double, double);
-double interp_xyz_sphere(polygons_struct *, double *, double, double, double);
-double interp_xyz_unit_sphere(polygons_struct *, double *, double, double, double z);
+double interp_point_unit_sphere(polygons_struct *sphere, double *values,
+                                Point pt);
+/**
+ * \brief Interpolate scalar value at a 3D point on a sphere mesh of arbitrary radius.
+ *
+ * \param sphere    (in)  polygon mesh representing a sphere (any radius)
+ * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
+ * \param pt        (in)  3D point at which to interpolate
+ * \return               Interpolated scalar value
+ */
+double interp_point_sphere(polygons_struct *sphere, double *values, Point pt);
+/**
+ * \brief Interpolate scalar value at (u,v) latitude/longitude coordinates on unit sphere.
+ *
+ * \param sphere    (in)  polygon mesh representing the unit sphere
+ * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
+ * \param u         (in)  first spherical coordinate (0..1 or other range)
+ * \param v         (in)  second spherical coordinate (0..1 or other range)
+ * \return               Interpolated scalar value at (u,v)
+ */
+double interp_uv_unit_sphere(polygons_struct *sphere, double *values, double u,
+                             double v);
+/**
+ * \brief Interpolate scalar value at (u,v) latitude/longitude coordinates on arbitrary sphere.
+ *
+ * \param sphere    (in)  polygon mesh representing a sphere (any radius)
+ * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
+ * \param u         (in)  first spherical coordinate
+ * \param v         (in)  second spherical coordinate
+ * \return               Interpolated scalar value at (u,v)
+ */
+double interp_uv_sphere(polygons_struct *sphere, double *values, double u,
+                        double v);
+/**
+ * \brief Interpolate scalar value at Cartesian coordinates (x,y,z) on arbitrary sphere.
+ *
+ * \param sphere    (in)  polygon mesh representing a sphere (any radius)
+ * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
+ * \param x         (in)  x-coordinate of interpolation point
+ * \param y         (in)  y-coordinate of interpolation point
+ * \param z         (in)  z-coordinate of interpolation point
+ * \return               Interpolated scalar value at (x,y,z)
+ */
+double interp_xyz_sphere(polygons_struct *sphere, double *values, double x,
+                         double y, double z);
+/**
+ * \brief Interpolate scalar value at Cartesian coordinates (x,y,z) on unit sphere.
+ *
+ * \param sphere    (in)  polygon mesh representing the unit sphere
+ * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
+ * \param x         (in)  x-coordinate of interpolation point
+ * \param y         (in)  y-coordinate of interpolation point
+ * \param z         (in)  z-coordinate of interpolation point
+ * \return               Interpolated scalar value at (x,y,z)
+ */
+double interp_xyz_unit_sphere(polygons_struct *sphere, double *values, double x,
+                              double y, double z);
 
 #endif

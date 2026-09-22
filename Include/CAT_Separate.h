@@ -13,25 +13,22 @@
 #include <bicpl.h>
 
 /**
- * \brief Public API for separate_polygons.
+ * \brief Separate a mesh into connected components.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of separate_polygons.
- * \param int (in/out) Parameter of separate_polygons.
- * \param param (in/out) Parameter of separate_polygons.
- * \return Return value of separate_polygons.
+ * \param polygons      (in)  input mesh
+ * \param desired_index (in)  component index to extract, or -1 for all
+ * \param out           (out) array of output objects (allocated)
+ * \return Number of output objects
  */
-int separate_polygons(polygons_struct *, int, object_struct ***);
+int separate_polygons(polygons_struct *polygons, int desired_index,
+                      object_struct **out[]);
 /**
- * \brief Public API for triangulate_polygons.
+ * \brief Triangulate all polygons in a mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of triangulate_polygons.
- * \param param (in/out) Parameter of triangulate_polygons.
- * \return void (no return value).
+ * \param polygons  (in)  input mesh with polygons
+ * \param triangles (out) triangulated mesh
  */
-void  triangulate_polygons(polygons_struct *, polygons_struct *);
+void triangulate_polygons(polygons_struct *polygons,
+                          polygons_struct *triangles);
 
 #endif

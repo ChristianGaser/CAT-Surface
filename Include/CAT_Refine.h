@@ -17,17 +17,17 @@
 #endif
 
 /**
- * \brief Public API for refine_mesh.
+ * \brief Refine a mesh by subdividing long edges.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of refine_mesh.
- * \param param (in/out) Parameter of refine_mesh.
- * \param double (in/out) Parameter of refine_mesh.
- * \param param (in/out) Parameter of refine_mesh.
- * \param double (in/out) Parameter of refine_mesh.
- * \return Return value of refine_mesh.
+ * \param length_points   (in/out) points used for length measurement
+ * \param polygons        (in)  input mesh
+ * \param max_length      (in)  maximum allowed edge length
+ * \param new_polygons    (out) refined mesh
+ * \param weight_curvature (in) curvature weighting (0 disables)
+ * \return Number of new polygons added
  */
-int  refine_mesh(Point **, polygons_struct *, double, polygons_struct *, double);
+int refine_mesh(Point *length_points[], polygons_struct *polygons,
+                double max_length, polygons_struct *new_polygons,
+                double weight_curvature);
 
 #endif

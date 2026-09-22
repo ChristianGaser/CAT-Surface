@@ -11,7 +11,6 @@
 #define _CAT_ISOMETRICS_H_
 
 #include <bicpl.h>
-#include <ParseArgv.h>
 
 #include "CAT_Curvature.h"
 #include "CAT_Smooth.h"
@@ -41,53 +40,48 @@ struct pointdata {
 };
 
 /**
- * \brief Public API for getmetricdata.
+ * \brief Build per-vertex metric data for isometric mapping.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of getmetricdata.
- * \return Return value of getmetricdata.
+ * \param polygons (in)  input surface mesh
+ * \return Allocated metricdata structure (caller must free)
  */
-struct metricdata * getmetricdata(polygons_struct *);
+struct metricdata * getmetricdata(polygons_struct *polygons);
 /**
- * \brief Public API for smooth.
+ * \brief Smooth the map to reduce area distortion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of smooth.
- * \param param (in/out) Parameter of smooth.
- * \param int (in/out) Parameter of smooth.
- * \param int (in/out) Parameter of smooth.
- * \param double (in/out) Parameter of smooth.
- * \return Return value of smooth.
+ * \param brain      (in)  metric data for the original surface
+ * \param map        (in/out) map surface to optimize
+ * \param maxiters   (in)  maximum iterations
+ * \param selectflag (in)  SELECT_ON to accept only improvements
+ * \param tolerance  (in)  stopping tolerance for improvement
+ * \return Number of iterations performed
  */
-int smooth(struct metricdata *, polygons_struct *, int, int, double);
+int smooth(struct metricdata *brain, polygons_struct *map, int maxiters,
+           int selectflag, double tolerance);
 /**
- * \brief Public API for distortcorrect.
+ * \brief Correct area distortion using weighted triangle centers.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of distortcorrect.
- * \param param (in/out) Parameter of distortcorrect.
- * \param int (in/out) Parameter of distortcorrect.
- * \param int (in/out) Parameter of distortcorrect.
- * \param double (in/out) Parameter of distortcorrect.
- * \return Return value of distortcorrect.
+ * \param brain      (in)  metric data for the original surface
+ * \param map        (in/out) map surface to optimize
+ * \param maxiters   (in)  maximum iterations
+ * \param selectflag (in)  SELECT_ON to accept only improvements
+ * \param tolerance  (in)  stopping tolerance for improvement
+ * \return Number of iterations performed, or -1 on mismatch
  */
-int distortcorrect(struct metricdata *, polygons_struct *, int, int, double);
+int distortcorrect(struct metricdata *brain, polygons_struct *map, int maxiters,
+                   int selectflag, double tolerance);
 /**
- * \brief Public API for stretch.
+ * \brief Optimize stretch to preserve edge lengths and avoid flips.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of stretch.
- * \param param (in/out) Parameter of stretch.
- * \param int (in/out) Parameter of stretch.
- * \param int (in/out) Parameter of stretch.
- * \param int (in/out) Parameter of stretch.
- * \param double (in/out) Parameter of stretch.
- * \return Return value of stretch.
+ * \param brain      (in)  metric data for the original surface
+ * \param map        (in/out) map surface to optimize
+ * \param maxiters   (in)  maximum iterations
+ * \param selectflag (in)  SELECT_ON to accept only improvements
+ * \param largeonly  (in)  LARGE_ONLY to restrict updates to large errors
+ * \param tolerance  (in)  stopping tolerance for improvement
+ * \return Number of iterations performed, or -1 on mismatch
  */
-int stretch(struct metricdata *, polygons_struct *, int, int, int, double);
+int stretch(struct metricdata *brain, polygons_struct *map, int maxiters,
+            int selectflag, int largeonly, double tolerance);
 
 #endif

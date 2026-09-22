@@ -13,32 +13,27 @@
 #include <math.h>
 
 /**
- * \brief Public API for ornlm.
+ * \brief Optimized blockwise non-local means filter for 3D images.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param ima (in/out) Parameter of ornlm.
- * \param v (in/out) Parameter of ornlm.
- * \param f (in/out) Parameter of ornlm.
- * \param h (in/out) Parameter of ornlm.
- * \param sigma (in/out) Parameter of ornlm.
- * \param dims (in/out) Parameter of ornlm.
- * \return void (no return value).
+ * \param ima   (in/out) input image volume, filtered in-place
+ * \param v     (in)  search window half-size
+ * \param f     (in)  patch window half-size
+ * \param h     (in)  filtering parameter
+ * \param sigma (in)  noise standard deviation for Rician correction
+ * \param dims  (in)  volume dimensions [cols, rows, slices]
  */
-void ornlm(float* ima, int v, int f, float h, float sigma, const int* dims);
+void ornlm(float *ima, int v, int f, float h, float sigma, const int *dims);
 /**
- * \brief Public API for sanlm.
+ * \brief Spatially adaptive non-local means filter for 3D images.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param ima (in/out) Parameter of sanlm.
- * \param v (in/out) Parameter of sanlm.
- * \param f (in/out) Parameter of sanlm.
- * \param is_rician (in/out) Parameter of sanlm.
- * \param strength (in/out) Parameter of sanlm.
- * \param dims (in/out) Parameter of sanlm.
- * \return void (no return value).
+ * \param ima         (in/out) input image volume
+ * \param v           (in)  search window half-size
+ * \param f           (in)  patch window half-size
+ * \param use_rician  (in)  non-zero for Rician correction
+ * \param strength    (in)  strength scaling for adaptive weights
+ * \param dims        (in)  volume dimensions [x, y, z]
  */
-void sanlm(float* ima, int v, int f, int is_rician, double strength, const int* dims);
+void sanlm(float *ima, int v, int f, int use_rician, double strength,
+           const int *dims);
 
 #endif

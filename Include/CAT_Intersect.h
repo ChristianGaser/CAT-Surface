@@ -17,44 +17,143 @@
 
 #define BINTREE_FACTOR 0.5
 
-int intersect_poly_poly(int, int, polygons_struct *);
-int intersect_triangle_triangle(int [3], int [3], polygons_struct *);
-int intersect_segment_triangle(Point, Point, int [3], polygons_struct *);
 /**
- * \brief Public API for find_selfintersections.
+ * \brief Check if two polygons (triangular faces) intersect geometrically.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of find_selfintersections.
- * \param param (in/out) Parameter of find_selfintersections.
- * \param param (in/out) Parameter of find_selfintersections.
- * \param int (in/out) Parameter of find_selfintersections.
- * \return Return value of find_selfintersections.
+ * \param poly0 (in) index of first polygon/triangle
+ * \param poly1 (in) index of second polygon/triangle
+ * \param surface (in) polygonal mesh containing both polygons
+ * \return 1 if triangles intersect, 0 otherwise
  */
-int find_selfintersections(polygons_struct *, int *, int *, int);
+int intersect_poly_poly(int poly0, int poly1, polygons_struct *surface);
 /**
- * \brief Public API for join_intersections.
+ * \brief Test geometric intersection between two triangles in 3D space.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of join_intersections.
- * \param param (in/out) Parameter of join_intersections.
- * \param param (in/out) Parameter of join_intersections.
- * \param param (in/out) Parameter of join_intersections.
- * \param param (in/out) Parameter of join_intersections.
- * \return Return value of join_intersections.
+ * \param pidx0    (in) int[3]; vertex indices of first triangle
+ * \param pidx1    (in) int[3]; vertex indices of second triangle
+ * \param surface (in) mesh containing vertex coordinates
+ * \return 1 if triangles intersect, 0 if disjoint
  */
-int join_intersections(polygons_struct *, int *, int *, int *, int **);
-int find_remaining_intersections(polygons_struct *, int *, int *, int *,
-                                 int **);
-int patch_selfintersections(polygons_struct *, polygons_struct *, int *, int *,
-                            int, int *, int **);
-int smooth_selfintersections(polygons_struct *, int *, int *, int, int *,
-                             int **, int);
-int has_selfintersections(polygons_struct *, int *, int);
-int find_intersecting_defects(polygons_struct *, int *, int, int *);
-void remove_intersections(polygons_struct *, int);
-int remove_intersections_iter(polygons_struct *, int, int, int);
+int intersect_triangle_triangle(int pidx0[3], int pidx1[3],
+                                polygons_struct *surface);
+/**
+ * \brief Test if a line segment intersects a triangle in 3D space.
+ *
+ * \param p0 (in) first endpoint of line segment
+ * \param p1 (in) second endpoint of line segment
+ * \param tpidx    (in) int[3]; vertex indices of triangle
+ * \param surface (in) mesh with vertex coordinates
+ * \return -1 degenerate triangle, 0 no intersection, 1 unique intersection, 2 coplanar
+ */
+int intersect_segment_triangle(Point p0, Point p1, int tpidx[3],
+                               polygons_struct *surface);
+/**
+ * \brief Find self-intersecting triangles of a mesh.
+ *
+ * \param polygons    (in)     triangle mesh
+ * \param defects     (out)    per-vertex labels (0 = no intersection)
+ * \param polydefects (in/out) per-triangle labels; with init == 0, triangles
+ *                                 with a negative label are skipped
+ * \param init        (in)     non-zero to clear polydefects first
+ * \return number of intersecting triangle pairs
+ */
+int find_selfintersections(polygons_struct *polygons, int *defects,
+                           int *polydefects, int init);
+/**
+ * \brief Consolidate spatially-connected self-intersection regions into components.
+ *
+ * \param surface (in) mesh structure with neighborhood info
+ * \param defects (in/out) per-vertex defect labels (remapped and consolidated)
+ * \param polydefects (in/out) per-polygon defect labels (updated from consolidated vertex labels)
+ * \param n_neighbours (in) neighbor counts per vertex
+ * \param neighbours (in) neighbor lists per vertex
+ * \return number of consolidated defect components
+ */
+int join_intersections(polygons_struct *surface, int *defects, int *polydefects,
+                       int *n_neighbours, int **neighbours);
+/**
+ * \brief Re-test marked self-intersections to identify which ones persist after correction.
+ *
+ * \param surface (in) mesh after partial correction attempt
+ * \param defects (in/out) per-vertex labels (recomputed from remaining intersections)
+ * \param polydefects (in/out) per-polygon labels (cleared for resolved, updated for persistent)
+ * \param n_neighbours (in) vertex connectivity
+ * \param neighbours (in) neighbor lists
+ * \return count of remaining unresolved intersection groups
+ */
+int find_remaining_intersections(polygons_struct *surface, int *defects,
+                                 int *polydefects, int *n_neighbours,
+                                 int **neighbours);
+/**
+ * \brief Replace intersection regions with corrected coordinates from reference patch surface.
+ *
+ * \param surface (in/out) mesh to repair
+ * \param patch (in) reference surface with corrected geometry
+ * \param defects (in/out) per-vertex defect labels
+ * \param polydefects (in/out) per-polygon defect labels
+ * \param n_defects (in) number of distinct defects (for context)
+ * \param n_neighbours (in) vertex connectivity
+ * \param neighbours (in) neighbor lists
+ * \return remaining self-intersections after patching
+ */
+int patch_selfintersections(polygons_struct *surface, polygons_struct *patch,
+                            int *defects, int *polydefects, int n_defects,
+                            int *n_neighbours, int **neighbours);
+/**
+ * \brief Iteratively smooth defect regions to resolve self-intersections via Laplacian relaxation.
+ *
+ * \param surface (in/out) mesh modified by iterative smoothing
+ * \param defects (in/out) per-vertex defect labels
+ * \param polydefects (in/out) per-polygon defect labels
+ * \param n_defects (in) number of distinct defects to track
+ * \param n_neighbours (in) vertex neighbor counts
+ * \param neighbours (in/out) neighbor lists (may be updated)
+ * \param maxiter (in) maximum smoothing iterations (typical 200-500)
+ * \return number of defects successfully repaired
+ */
+int smooth_selfintersections(polygons_struct *surface, int *defects,
+                             int *polydefects, int n_defects, int *n_neighbours,
+                             int **neighbours, int maxiter);
+/**
+ * \brief Check if a specific defect region still contains self-intersections (boolean test).
+ *
+ * \param polygons (in) mesh to check
+ * \param polydefects (in) per-polygon defect labels
+ * \param defect (in) specific defect ID to test (1, 2, ...)
+ * \return 1 if self-intersections remain in defect region, 0 if repaired
+ */
+int has_selfintersections(polygons_struct *polygons, int *polydefects,
+                          int defect);
+/**
+ * \brief Test all defect regions for remaining self-intersections in a single pass.
+ *
+ * \param polygons (in) mesh to check
+ * \param polydefects (in) per-polygon defect labels
+ * \param n_defects (in) largest defect ID in use
+ * \param siflags (out) array of n_defects+1 entries; siflags[d] is set to 1 if defect
+ *                          d still self-intersects, 0 otherwise (index 0 is unused)
+ * \return number of defects that still self-intersect
+ */
+int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
+                              int n_defects, int *siflags);
+/**
+ * \brief Remove all self-intersections from mesh using multi-pass repair strategies.
+ *
+ * \param polygons (in/out) mesh to repair
+ * \param verbose (in) 1 for progress output; 0 for silent
+ */
+void remove_intersections(polygons_struct *polygons, int verbose);
+/**
+ * \brief Remove all self-intersections from a mesh with explicit iteration limits.
+ *
+ * \param polygons (in/out) mesh to repair
+ * \param max_passes (in) maximum number of detect/smooth passes (default 10)
+ * \param maxiter (in) maximum smoothing iterations per pass (default 50)
+ * \param verbose (in) 1 for progress output; 0 for silent
+ * \return number of self-intersecting defect regions that remain (0 = fully repaired)
+ */
+int remove_intersections_iter(polygons_struct *polygons, int max_passes,
+                              int maxiter, int verbose);
 
 /** Share of the way back to the reference per retreat step. */
 #define CAT_RETREAT_FRACTION 0.25
@@ -86,8 +185,16 @@ int remove_intersections_iter(polygons_struct *, int, int, int);
  */
 int remove_intersections_ref(polygons_struct *polygons, const Point *reference,
                              int max_passes, int maxiter, int verbose);
-int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, 
-                            int *n_hits_out);
+/**
+ * \brief Find vertices closer to a non-adjacent vertex than a distance threshold.
+ *
+ * \param polygons         (in)  source 3D polygonal mesh (normals are not used)
+ * \param threshold_factor (in)  multiplier for average edge length to define search radius
+ * \param n_hits_out       (out) number of flagged vertices; may be NULL
+ * \return Allocated array of flags (length = n_points, 1 = near hit), caller must free
+ */
+int *find_near_self_intersections(polygons_struct *polygons,
+                                  double threshold_factor, int *n_hits_out);
 
 /**
  * \brief Find vertices close to a facing sheet of the same mesh.
@@ -105,6 +212,14 @@ int *find_near_self_intersections(polygons_struct *polygons, double threshold_fa
  */
 int *find_near_facing_intersections(polygons_struct *polygons, double threshold_factor,
                                     double min_opposition, int *n_hits_out);
-void remove_near_intersections(polygons_struct *polygons, double threshold, int verbose);
+/**
+ * \brief Remove near-intersecting vertices by iterative vertex repositioning.
+ *
+ * \param polygons   (in)  source 3D polygonal mesh to be modified in-place
+ * \param threshold  (in)  distance threshold for near-intersection detection (typically 0.05-0.20 times edge length)
+ * \param verbose    (in)  1 to print progress messages to stdout, 0 for silent operation
+ */
+void remove_near_intersections(polygons_struct *polygons, double threshold,
+                               int verbose);
 
 #endif

@@ -25,25 +25,14 @@ extern int dbg2;
 #define  POINT_USED_IN_CONVEX_HULL  1
 #define  POINT_DISCARDED            2
 
-static int KeyFactor = 100000;
-
 /**
- * \brief Public API for surface_get_convex_hull.
+ * \brief Compute convex hull surface and optionally resample to a target sphere.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of surface_get_convex_hull.
- * \param param (in/out) Parameter of surface_get_convex_hull.
- * \return Return value of surface_get_convex_hull.
+ * \param polygons        (in)  input surface mesh
+ * \param polygons_sphere (in)  target spherical mesh (NULL to skip resampling)
+ * \return Newly allocated object list containing the convex hull surface
  */
-object_struct **  surface_get_convex_hull(polygons_struct *, polygons_struct * );
-private  int  get_points_of_region(polygons_struct  *, Point ** );
-private  void  get_convex_hull(int, Point *, polygons_struct * );
-private  int  get_convex_hull_2d(int, float *, float *, int *, int, int );
-private int get_surface_point_normals( polygons_struct *, int *, Point *[],
-                              Vector *[], int *[], int **[] );
-private int get_surface_neighbours( polygons_struct *, int *[],
-                                    int ** [] );
-void find_conformal_map(polygons_struct *polygons);
+object_struct ** surface_get_convex_hull(polygons_struct *polygons,
+                                         polygons_struct *polygons_sphere);
 
 #endif

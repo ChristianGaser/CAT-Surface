@@ -70,6 +70,15 @@ enum
   #define FNAN 0.0f/0.0f
 #endif
 
+/**
+ * \brief Moore-Penrose pseudo-inverse of an m x n matrix.
+ *
+ * \param m    (in)  number of rows of A
+ * \param n    (in)  number of columns of A
+ * \param A    (in)  m x n matrix (bicpl ALLOC2D layout)
+ * \param Ainv (out) n x m pseudo-inverse, allocated by the caller
+ * \return rank of A
+ */
 int pinv(int m, int n, double **A, double **Ainv);
 /**
  * \brief Build an orthogonal polynomial basis, matching R's poly(x, degree).
@@ -87,109 +96,231 @@ int pinv(int m, int n, double **A, double **Ainv);
  * \return 1 on success, 0 on failure (bad arguments or degenerate data)
  */
 int orthogonal_poly(const double *x, int n, int degree, double *out);
+/**
+ * \brief Convert arbitrary datatype array to double-precision buffer.
+ *
+ * \param data     (in)  void pointer to input array; interpretation based on datatype
+ * \param buffer   (out) double[n]; pre-allocated target array
+ * \param n        (in)  number of elements to convert
+ * \param datatype (in)  data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, DT_FLOAT64, etc.)
+ */
 void convert_input_type(void *data, double *buffer, int n, int datatype);
+/**
+ * \brief Convert double-precision buffer back to arbitrary output datatype.
+ *
+ * \param data     (out) void pointer to output array; interpretation based on datatype
+ * \param buffer   (in)  double[n]; source array with converted values
+ * \param n        (in)  number of elements to convert back
+ * \param datatype (in)  target data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void convert_output_type(void *data, double *buffer, int n, int datatype);
+/**
+ * \brief Convert arbitrary datatype array to single-precision float buffer.
+ *
+ * \param data     (in)  void pointer to input array; interpretation based on datatype
+ * \param buffer   (out) float[n]; pre-allocated target array
+ * \param n        (in)  number of elements to convert
+ * \param datatype (in)  data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, DT_FLOAT64, etc.)
+ */
 void convert_input_type_float(void *data, float *buffer, int n, int datatype);
+/**
+ * \brief Convert single-precision float buffer back to arbitrary output datatype.
+ *
+ * \param data     (out) void pointer to output array; interpretation based on datatype
+ * \param buffer   (in)  float[n]; source array with converted values
+ * \param n        (in)  number of elements to convert back
+ * \param datatype (in)  target data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void convert_output_type_float(void *data, float *buffer, int n, int datatype);
+/**
+ * \brief Subtract mean from an array of doubles.
+ *
+ * \param arr Array of doubles.
+ * \param n Number of elements in the array.
+ */
 void normalize_double(double *arr, int n);
-double get_min_double(double *arr, int n, int mask_zeros);
-double get_max_double(double *arr, int n, int mask_zeros);
-double get_mean_double(double *arr, int n, int mask_zeros);
 /**
- * \brief Public API for get_median_double.
+ * \brief Get minimum value from double array with optional zero exclusion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param arr (in/out) Parameter of get_median_double.
- * \param n (in/out) Parameter of get_median_double.
- * \param mask_zeros (in/out) Parameter of get_median_double.
- * \return Return value of get_median_double.
+ * \param arr            (in)  double[n]; array to search
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are ignored (use DBL_MAX as minimum)
+ * \return               The minimum value (or minimum of non-zero values if exclude_zeros=1)
  */
-double get_median_double(double *arr, int n, int mask_zeros);
+double get_min_double(double *arr, int n, int exclude_zeros);
 /**
- * \brief Public API for get_std_double.
+ * \brief Get maximum value from double array with optional zero exclusion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param arr (in/out) Parameter of get_std_double.
- * \param n (in/out) Parameter of get_std_double.
- * \param mask_zeros (in/out) Parameter of get_std_double.
- * \return Return value of get_std_double.
+ * \param arr            (in)  double[n]; array to search
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are ignored
+ * \return               The maximum value (or maximum of non-zero values if exclude_zeros=1)
  */
-double get_std_double(double *arr, int n, int mask_zeros);
-double get_sum_double(double *arr, int n, int mask_zeros);
+double get_max_double(double *arr, int n, int exclude_zeros);
 /**
- * \brief Public API for get_min.
+ * \brief Get mean value from double array with optional zero exclusion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param arr (in/out) Parameter of get_min.
- * \param n (in/out) Parameter of get_min.
- * \param mask_zeros (in/out) Parameter of get_min.
- * \param datatype (in/out) Parameter of get_min.
- * \return Return value of get_min.
+ * \param arr            (in)  double[n]; array to compute mean from
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are excluded from mean calculation
+ * \return               The mean value (or mean of non-zero values if exclude_zeros=1)
  */
-double get_min(void *arr, int n, int mask_zeros, int datatype);
+double get_mean_double(double *arr, int n, int exclude_zeros);
 /**
- * \brief Public API for get_max.
+ * \brief Get median value from double array with optional zero exclusion.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param arr (in/out) Parameter of get_max.
- * \param n (in/out) Parameter of get_max.
- * \param mask_zeros (in/out) Parameter of get_max.
- * \param datatype (in/out) Parameter of get_max.
- * \return Return value of get_max.
+ * \param arr            (in/out) double[n]; array to compute median from; sorted in-place
+ * \param n              (in)     array size
+ * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
+ * \return               The median value (or median of non-zero values if exclude_zeros=1)
  */
-double get_max(void *arr, int n, int mask_zeros, int datatype);
-double get_mean(void *arr, int n, int mask_zeros, int datatype);
-double get_median(void *arr, int n, int mask_zeros, int datatype);
-double get_std(void *arr, int n, int mask_zeros, int datatype);
-double get_sum(void *arr, int n, int mask_zeros, int datatype);
-double get_masked_mean_array(void *arr, int n, unsigned char *mask, int datatype);
-double get_masked_std_array(void *arr, int n, unsigned char *mask, int datatype);
+double get_median_double(double *arr, int n, int exclude_zeros);
+/**
+ * \brief Get standard deviation from double array with optional zero exclusion.
+ *
+ * \param arr            (in)  double[n]; array to compute std dev from
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are excluded from calculation
+ * \return               The standard deviation (or std dev of non-zero values)
+ */
+double get_std_double(double *arr, int n, int exclude_zeros);
+/**
+ * \brief Get sum of elements in double array with optional zero exclusion.
+ *
+ * \param arr            (in)  double[n]; array to sum
+ * \param n              (in)  array size
+ * \param exclude_zeros  (in)  if non-zero, zero values are excluded from sum
+ * \return               The sum (or sum of non-zero values if exclude_zeros=1)
+ */
+double get_sum_double(double *arr, int n, int exclude_zeros);
+/**
+ * \brief Get minimum from arbitrary datatype array.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded (use DBL_MAX as min)
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The minimum value
+ */
+double get_min(void *data, int n, int exclude_zeros, int datatype);
+/**
+ * \brief Get maximum from arbitrary datatype array.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The maximum value
+ */
+double get_max(void *data, int n, int exclude_zeros, int datatype);
+/**
+ * \brief Get mean from arbitrary datatype array.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from mean
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The mean value
+ */
+double get_mean(void *data, int n, int exclude_zeros, int datatype);
+/**
+ * \brief Get median from arbitrary datatype array.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from median
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The median value
+ */
+double get_median(void *data, int n, int exclude_zeros, int datatype);
+/**
+ * \brief Get standard deviation from arbitrary datatype array.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from calculation
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The standard deviation
+ */
+double get_std(void *data, int n, int exclude_zeros, int datatype);
+/**
+ * \brief Get sum from arbitrary datatype array.
+ *
+ * \param data            (in)  void pointer to input array
+ * \param n               (in)  array size
+ * \param exclude_zeros   (in)  if non-zero, zeros are excluded from sum
+ * \param datatype        (in)  data type code (DT_UINT8, DT_FLOAT32, etc.)
+ * \return                The sum value
+ */
+double get_sum(void *data, int n, int exclude_zeros, int datatype);
+/**
+ * \brief Mean of an array of any NIfTI datatype, optionally within a mask.
+ *
+ * \param data     (in)  array of n values of type datatype
+ * \param n        (in)  number of values
+ * \param mask     (in)  n mask values; only entries > 0 count (NULL: all)
+ * \param datatype (in)  NIfTI datatype code of data (DT_FLOAT32, ...)
+ * \return mean of the included values, NaN if there are none
+ */
+double get_masked_mean_array(void *data, int n, unsigned char *mask,
+                             int datatype);
+/**
+ * \brief Standard deviation of an array of any NIfTI datatype, optionally
+ *               within a mask.
+ *
+ * \param data     (in)  array of n values of type datatype
+ * \param n        (in)  number of values
+ * \param mask     (in)  n mask values; only entries > 0 count (NULL: all)
+ * \param datatype (in)  NIfTI datatype code of data (DT_FLOAT32, ...)
+ * \return sample standard deviation of the included values
+ */
+double get_masked_std_array(void *data, int n, unsigned char *mask,
+                            int datatype);
+/**
+ * \brief Calculate percentile-based thresholds.
+ *
+ * \param data          (in)  array of n values
+ * \param n             (in)  number of values
+ * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param prctile       (in)  the two percentiles, in 0..100
+ * \param exclude_zeros (in)  if non-zero, zeros are ignored
+ */
 void get_prctile_double(double *data, int n, double threshold[2],
                         double prctile[2], int exclude_zeros);
 
 /**
- * \brief Public API for get_prctile.
+ * \brief Percentile thresholds of an array of any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param data (in/out) Parameter of get_prctile.
- * \param n (in/out) Parameter of get_prctile.
- * \param threshold (in/out) Parameter of get_prctile.
- * \param prctile (in/out) Parameter of get_prctile.
- * \param exclude_zeros (in/out) Parameter of get_prctile.
- * \param datatype (in/out) Parameter of get_prctile.
- * \return void (no return value).
+ * \param data          (in)  array of n values of type datatype
+ * \param n             (in)  number of values
+ * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param prctile       (in)  the two percentiles, in 0..100
+ * \param exclude_zeros (in)  if non-zero, zeros are ignored
+ * \param datatype      (in)  NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-void get_prctile(void *data, int n, double threshold[2], double prctile[2], int exclude_zeros, int datatype);
+void get_prctile(void *data, int n, double threshold[2], double prctile[2],
+                 int exclude_zeros, int datatype);
 /**
- * \brief Public API for get_corrcoef.
+ * \brief Pearson correlation coefficient of two arrays of any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param x (in/out) Parameter of get_corrcoef.
- * \param y (in/out) Parameter of get_corrcoef.
- * \param n (in/out) Parameter of get_corrcoef.
- * \param exclude_zeros (in/out) Parameter of get_corrcoef.
- * \param datatype (in/out) Parameter of get_corrcoef.
- * \return Return value of get_corrcoef.
+ * \param x             (in)  array of n values of type datatype
+ * \param y             (in)  array of n values of type datatype
+ * \param n             (in)  number of values
+ * \param exclude_zeros (in)  if non-zero, pairs with a zero in x or y are ignored
+ * \param datatype      (in)  NIfTI datatype code of x and y (DT_FLOAT32, ...)
+ * \return correlation coefficient
  */
 double get_corrcoef(void *x, void *y, int n, int exclude_zeros, int datatype);
 /**
- * \brief Public API for clip_data.
+ * \brief Clip an array of any NIfTI datatype to [lower_limit, upper_limit].
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param data (in/out) Parameter of clip_data.
- * \param n (in/out) Parameter of clip_data.
- * \param lower_limit (in/out) Parameter of clip_data.
- * \param upper_limit (in/out) Parameter of clip_data.
- * \param datatype (in/out) Parameter of clip_data.
- * \return void (no return value).
+ * \param data        (in/out) array of n values of type datatype, clipped in-place
+ * \param n           (in)     number of values
+ * \param lower_limit (in)     values below are set to it
+ * \param upper_limit (in)     values above are set to it
+ * \param datatype    (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-void clip_data(void *data, int n, double lower_limit, double upper_limit, int datatype);
+void clip_data(void *data, int n, double lower_limit, double upper_limit,
+               int datatype);
 
 #endif

@@ -21,28 +21,39 @@ struct csr_matrix {
 };
 
 /**
- * \brief Public API for compute_depth_potential.
+ * \brief Compute depth potential on a surface mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of compute_depth_potential.
- * \param double (in/out) Parameter of compute_depth_potential.
- * \return Return value of compute_depth_potential.
+ * \param polygons (in)  input surface mesh
+ * \param alpha    (in)  regularization weight for the Laplacian system
+ * \return Allocated depth potential array (length n_points)
  */
-double * compute_depth_potential( polygons_struct *, double);
-double * compute_areas( int, Point [], int *, 
-                              int **, int );
-double * local_depth_potential( int, Point [], double *, struct csr_matrix *, 
-                              double *, double, double );
-private void gauss_seidel( int, int *, int *, double *, double *, 
-                              double *, int, double, double, int );
-private void init_csr_matrix( int, int *, int **, struct csr_matrix * );
-private void free_csr_matrix( struct csr_matrix * );
-private void assemble( double, int, int, struct csr_matrix * );
-private void stable_normals( int, Point [], Vector [], int *, int ** );
-private double * compute_mean_curvature( int, Point [], double *,
-                              Vector [] , struct csr_matrix * );
-private void cot_laplacian_operator( int, Point [], struct csr_matrix *,
-                              int *, int ** );
+double * compute_depth_potential(polygons_struct *polygons, double alpha);
+/**
+ * \brief Compute per-vertex mixed Voronoi areas.
+ *
+ * \param n_points (in)  number of vertices
+ * \param coords   (in)  vertex coordinates
+ * \param n_ngh    (in)  neighbor counts per vertex
+ * \param ngh      (in)  ordered neighbor lists
+ * \param lambda   (in)  area mode selector
+ * \return Allocated per-vertex area array
+ */
+double * compute_areas(int n_points, Point coords[], int *n_ngh, int **ngh,
+                       int lambda);
+/**
+ * \brief Solve the depth potential linear system.
+ *
+ * \param n_points (in)  number of vertices
+ * \param coords   (in)  vertex coordinates
+ * \param areas    (in)  per-vertex areas
+ * \param mat      (in)  cotangent Laplacian matrix
+ * \param mc       (in)  mean curvature values
+ * \param alpha    (in)  regularization weight
+ * \param SOR      (in)  successive over-relaxation factor
+ * \return Allocated depth potential array
+ */
+double * local_depth_potential(int n_points, Point coords[], double *areas,
+                               struct csr_matrix *mat, double *mc, double alpha,
+                               double SOR);
 
 #endif

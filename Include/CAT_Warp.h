@@ -36,43 +36,73 @@ typedef struct {
 } OptimizationParams;
 
 /**
- * \brief Public API for rotate_polygons.
+ * \brief Apply 3x3 rotation matrix to all vertices of a mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of rotate_polygons.
- * \param param (in/out) Parameter of rotate_polygons.
- * \param rotation_matrix (in/out) Parameter of rotate_polygons.
- * \return void (no return value).
+ * \param polygons (in) source mesh
+ * \param rotated_polygons (out) output mesh (if NULL, modifies input in-place)
+ * \param rotation_matrix (in) 9-element row-major 3x3 rotation matrix
  */
-void rotate_polygons(polygons_struct *, polygons_struct *, double *rotation_matrix);
+void rotate_polygons(polygons_struct *polygons,
+                     polygons_struct *rotated_polygons,
+                     double *rotation_matrix);
 /**
- * \brief Public API for rotation_to_matrix.
+ * \brief Compute 3x3 rotation matrix from Euler angles (alpha, beta, gamma).
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of rotation_to_matrix.
- * \param double (in/out) Parameter of rotation_to_matrix.
- * \param double (in/out) Parameter of rotation_to_matrix.
- * \param gamma (in/out) Parameter of rotation_to_matrix.
- * \return void (no return value).
+ * \param rotation_matrix (out) 9-element row-major result matrix
+ * \param alpha (in) rotation angle about X-axis (radians)
+ * \param beta (in) rotation angle about Y-axis (radians)
+ * \param gamma (in) rotation angle about Z-axis (radians)
  */
-void rotation_to_matrix(double *, double, double, double gamma);          
-void apply_warp(polygons_struct *, polygons_struct *, double *, int *, int);
-void apply_uv_warp(polygons_struct *, polygons_struct *, double *, double *, int );
+void rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
+                        double gamma);          
 /**
- * \brief Public API for average_xz_surf.
+ * \brief Apply 2D deformation warp to surface using displacement field on sphere.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param param (in/out) Parameter of average_xz_surf.
- * \param param (in/out) Parameter of average_xz_surf.
- * \param param (in/out) Parameter of average_xz_surf.
- * \return void (no return value).
+ * \param polygons (in/out) source mesh modified by warp
+ * \param sphere (in) reference spherical mapping (NULL creates unit sphere)
+ * \param deform (in) 2D deformation field (interleaved ux/vy values)
+ * \param dm (in) deformation field dimensions [width, height]
+ * \param inverse (in) 1 for inverse warp direction; 0 for forward
  */
-void average_xz_surf(polygons_struct *, polygons_struct *, polygons_struct *);
-void rotate_polygons_to_atlas(polygons_struct *, polygons_struct *,
-             polygons_struct *, polygons_struct *, double, int, double *, int);
+void apply_warp(polygons_struct *polygons, polygons_struct *sphere,
+                double *deform, int *dm, int inverse);
+/**
+ * \brief Apply 2D UV-space deformation directly using separated u,v displacement fields.
+ *
+ * \param polygons (in/out) mesh modified by warp
+ * \param sphere (in) spherical reference surface
+ * \param ux (in) u-component displacement field
+ * \param vy (in) v-component displacement field (same size as ux)
+ * \param inverse (in) 1 for inverse warp; 0 for forward
+ */
+void apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere,
+                   double *ux, double *vy, int inverse);
+/**
+ * \brief Average geometry between two surfaces storing result in second argument.
+ *
+ * \param xsurf (in) first surface
+ * \param zsurf (in/out) second surface (result stored here)
+ * \param surface (in) third surface parameter (unused)
+ */
+void average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
+                     polygons_struct *surface);
+/**
+ * \brief Find the sphere rotation that best aligns a source surface with a template.
+ *
+ * \param src        (in)  source surface
+ * \param src_sphere (in)  its spherical mapping
+ * \param trg        (in)  template surface
+ * \param trg_sphere (in)  its spherical mapping
+ * \param fwhm       (in)  FWHM of the curvature smoothing in mm
+ * \param curvtype   (in)  curvature type, as in get_polygon_vertex_curvatures_cg()
+ * \param rot        (out) the three rotation angles in radians (see
+ *                             rotation_to_matrix())
+ * \param verbose    (in)  non-zero to print progress
+ */
+void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
+                              polygons_struct *trg, polygons_struct *trg_sphere,
+                              double fwhm, int curvtype, double *rot,
+                              int verbose);
 
 /**
  * \brief Exhaustive coarse-to-fine global search for the initial rigid rotation.
@@ -107,7 +137,6 @@ void rotate_polygons_to_atlas(polygons_struct *, polygons_struct *,
  * \param refine          (in)  1 = Nelder-Mead refine of the residual afterwards
  * \param rotation_matrix (out) 9-element row-major rotation for the source sphere
  * \param verbose         (in)  1 for progress output; 0 silent
- * \return void
  */
 void rotate_polygons_to_atlas_global(polygons_struct *src,
              polygons_struct *src_sphere, polygons_struct *trg,

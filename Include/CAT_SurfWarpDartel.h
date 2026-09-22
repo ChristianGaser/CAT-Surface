@@ -35,18 +35,30 @@ typedef struct {
     const char *jacdet_file;
 } CAT_SurfWarpDartelOptions;
 
-Status CAT_SurfWarpSolveDartelFlow(
-    polygons_struct *src,
-    polygons_struct *src_sphere,
-    polygons_struct *trg,
-    polygons_struct *trg_sphere,
-    struct dartel_prm *prm,
-    int dm[3],
-    int n_steps,
-    double rot[3],
-    double *flow,
-    int n_loops,
-    const CAT_SurfWarpDartelOptions *opt);
+/**
+ * \brief Solve a multi-resolution DARTEL flow for spherical registration.
+ *
+ * \param src        (in)  source surface mesh
+ * \param src_sphere (in)  spherical source mesh
+ * \param trg        (in)  target surface mesh
+ * \param trg_sphere (in)  spherical target mesh
+ * \param prm        (in)  DARTEL parameter array
+ * \param dm         (in)  sheet dimensions for 2D mapping
+ * \param n_steps    (in)  number of smoothing/registration steps
+ * \param rot        (in/out) rotation vector updated for initial alignment
+ * \param flow       (out) output flow field (2 * dm[0] * dm[1])
+ * \param n_loops    (in)  number of DARTEL loops per step
+ * \param opt        (in)  solver options
+ * \return OK on success, ERROR on failure
+ */
+Status CAT_SurfWarpSolveDartelFlow(polygons_struct *src,
+                                   polygons_struct *src_sphere,
+                                   polygons_struct *trg,
+                                   polygons_struct *trg_sphere,
+                                   struct dartel_prm *prm, int dm[3],
+                                   int n_steps, double rot[3], double *flow,
+                                   int n_loops,
+                                   const CAT_SurfWarpDartelOptions *opt);
 
 #ifdef __cplusplus
 }

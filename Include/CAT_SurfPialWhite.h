@@ -54,12 +54,9 @@ extern "C"
     } CAT_PialWhiteOptions;
 
     /**
-     * \brief Public API for CAT_PialWhiteOptionsInit.
+     * \brief Initialize pial/white estimation options with defaults.
      *
-     * This function is part of the CAT-Surface public library interface and is used by command-line tools.
-     *
-     * \param opts (in/out) Parameter of CAT_PialWhiteOptionsInit.
-     * \return void (no return value).
+     * \param opts (out) options structure to initialize
      */
     void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts);
 

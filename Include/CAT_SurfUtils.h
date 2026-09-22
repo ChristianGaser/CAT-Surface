@@ -29,51 +29,61 @@
 #define MAX_NEIGHBOURS 2000
 #endif
 
+/**
+ * \brief Apply mixed boundary conditions to grid indices.
+ *
+ * \param i  input x index (can be negative/out of bounds)
+ * \param j  input y index (can be negative/out of bounds)
+ * \param dm two-element array with lattice extents \c {nx, ny}
+ * \return flattened index in \c [0, nx*ny)
+ */
 int bound(int i, int j, int dm[]);
 /**
- * \brief Public API for get_bounds.
+ * \brief Axis-aligned bounding box of a mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param polygons (in/out) Parameter of get_bounds.
- * \param bounds (in/out) Parameter of get_bounds.
- * \return void (no return value).
+ * \param polygons (in)  mesh
+ * \param bounds   (out) {xmin, xmax, ymin, ymax, zmin, zmax}
  */
 void get_bounds(polygons_struct *polygons, double bounds[6]);
 /**
- * \brief Public API for set_vector_length.
+ * \brief Set or scale a geometric quantity.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param p (in/out) Parameter of set_vector_length.
- * \param newLength (in/out) Parameter of set_vector_length.
- * \return void (no return value).
+ * \param p (Point *)
+ * \param newLength (double)
  */
 void set_vector_length(Point *p, double newLength);
 
 /**
- * \brief Public API for translate_to_center_of_mass.
+ * \brief Translate or align a mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param polygons (in/out) Parameter of translate_to_center_of_mass.
- * \return void (no return value).
+ * \param polygons (polygons_struct *)
  */
 void translate_to_center_of_mass(polygons_struct *polygons);
-double get_area_of_polygons(polygons_struct *polygons, double *areas);
-double get_area_of_points_normalized_to_sphere(polygons_struct *polygons,
-											   polygons_struct *sphere,
-											   double *areas);
 /**
- * \brief Public API for surf_to_sphere.
+ * \brief Compute or return a derived quantity from the mesh.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param polygons (in/out) Parameter of surf_to_sphere.
- * \param n_triangles (in/out) Parameter of surf_to_sphere.
- * \param verbose (in/out) Parameter of surf_to_sphere.
- * \return void (no return value).
+ * \param polygons (polygons_struct *)
+ * \param area_values (double *)
+ * \return See function description for return value semantics.
  */
-void surf_to_sphere(polygons_struct *polygons, int n_triangles, int verbose);
+double get_area_of_polygons(polygons_struct *polygons, double *area_values);
+/**
+ * \brief Resample per-vertex area values to the sphere and normalize to equal area.
+ *
+ * \param polygons        source mesh.
+ * \param sphere          target spherical mesh (same topology).
+ * \param area_values     output array (length \c n_points).
+ * \return total surface area of the resampled spherical mesh.
+ */
+double get_area_of_points_normalized_to_sphere(polygons_struct *polygons,
+                                               polygons_struct *sphere,
+                                               double *area_values);
+/**
+ * \brief Multi-stage pipeline to convert a mesh into (increasingly smoothed/inflated) spherical form.
+ *
+ * \param stop_at stage index (1..5) controlling how far to proceed.
+ * \param verbose print stage info and iteration scaling for large meshes.
+ */
+void surf_to_sphere(polygons_struct *polygons, int stop_at, int verbose);
 
 #endif

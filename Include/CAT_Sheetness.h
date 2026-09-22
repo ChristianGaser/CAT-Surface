@@ -68,7 +68,7 @@ typedef struct
                            the response depends on whatever the strongest
                            structure in that image happens to be.  Anchoring to
                            the map's own p99.9 makes every threshold downstream
-                           -- CAT_ORIENTED_MEDIAN_CUTOFF, csf_thresh, wm_thresh
+                           -- CAT_ORIENTED_MEDIAN_CUTOFF, CAT_PpmSulciOpts::thresh
                            -- mean the same thing on every dataset.  Scaling is
                            a single positive factor, so the ranking of voxels,
                            the winning scale and the zero set are unchanged, and

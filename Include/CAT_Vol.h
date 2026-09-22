@@ -75,204 +75,349 @@ typedef struct
 } convxyz_s2_args_t;
 
 /**
- * \brief Public API for median3.
+ * \brief Apply median filtering to a 3D volume.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param D (in/out) Parameter of median3.
- * \param mask (in/out) Parameter of median3.
- * \param dims (in/out) Parameter of median3.
- * \param iters (in/out) Parameter of median3.
- * \param datatype (in/out) Parameter of median3.
- * \return void (no return value).
+ * \param data      (in/out) void pointer to volume data; type given by datatype parameter
+ * \param mask      (in)     optional unsigned char mask (NULL to process entire volume)
+ * \param dims      (in)     {nx, ny, nz} dimension array
+ * \param iters     (in)     number of median filtering iterations
+ * \param datatype  (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void median3(void *D, unsigned char *mask, int dims[3], int iters, int datatype);
+void median3(void *data, unsigned char *mask, int dims[3], int iters,
+             int datatype);
 /**
- * \brief Public API for localstat3.
+ * \brief Local statistic over a voxel neighbourhood, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param input (in/out) Parameter of localstat3.
- * \param mask (in/out) Parameter of localstat3.
- * \param dims (in/out) Parameter of localstat3.
- * \param dist (in/out) Parameter of localstat3.
- * \param stat_func (in/out) Parameter of localstat3.
- * \param iters (in/out) Parameter of localstat3.
- * \param use_euclidean_dist (in/out) Parameter of localstat3.
- * \param datatype (in/out) Parameter of localstat3.
- * \return void (no return value).
+ * \param data               (in/out) volume of type datatype, replaced by the result
+ * \param mask               (in)     optional mask; voxels with 0 are skipped (NULL: all)
+ * \param dims               (in)     volume dimensions {nx, ny, nz}
+ * \param dist               (in)     search distance from the voxel centre, 1..10 voxels
+ * \param stat_func          (in)     statistic: F_MEAN, F_MIN, F_MAX, F_STD, F_MEDIAN, ...
+ *                                       (0=mean, 1=min, 2=max, 3=std, 7=median, 12=close,
+ *                                       13=open; see CAT_VolLocalStat)
+ * \param iters              (in)     number of iterations
+ * \param use_euclidean_dist (in)     non-zero for a Euclidean, zero for a block neighbourhood
+ * \param datatype           (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-void localstat3(void *input, unsigned char mask[], int dims[3], int dist, int stat_func, int iters, int use_euclidean_dist, int datatype);
+void localstat3(void *data, unsigned char *mask, int dims[3], int dist,
+                int stat_func, int iters, int use_euclidean_dist, int datatype);
+/**
+ * \brief Apply Laplace filter on a 3D volume.
+ *
+ * \param SEG 3D single input matrix (volume to be filtered).
+ * \param M 3D volume that defines the filter area (mask).
+ * \param dims Array containing the dimensions of the volume.
+ * \param TH Threshold controlling the number of iterations (maximum change allowed after an iteration).
+ */
 void laplace3R(float *SEG, unsigned char *M, int dims[3], double TH);
 /**
- * \brief Public API for smooth3.
+ * \brief Smooth a 3D volume with a Gaussian filter.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param vol (in/out) Parameter of smooth3.
- * \param dims (in/out) Parameter of smooth3.
- * \param voxelsize (in/out) Parameter of smooth3.
- * \param s (in/out) Parameter of smooth3.
- * \param use_mask (in/out) Parameter of smooth3.
- * \param datatype (in/out) Parameter of smooth3.
- * \return void (no return value).
+ * \param data       (in/out) void pointer to volume data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz} dimension array
+ * \param voxelsize  (in)     voxel spacing in mm; used to scale FWHM to physical units
+ * \param fwhm       (in)     {fwhm_x, fwhm_y, fwhm_z} smoothing kernel FWHM in mm
+ * \param use_mask   (in)     unused/reserved for compatibility (pass 0)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void smooth3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, int datatype);
-void smooth_subsample3(void *vol, int dims[3], double voxelsize[3], double s[3], int use_mask, double samp_voxelsize, int datatype);
+void smooth3(void *data, int dims[3], double voxelsize[3], double fwhm[3],
+             int use_mask, int datatype);
 /**
- * \brief Public API for median_subsample3.
+ * \brief Gaussian smoothing on a subsampled grid, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param data (in/out) Parameter of median_subsample3.
- * \param dims (in/out) Parameter of median_subsample3.
- * \param voxelsize (in/out) Parameter of median_subsample3.
- * \param niter (in/out) Parameter of median_subsample3.
- * \param samp_voxelsize (in/out) Parameter of median_subsample3.
- * \param datatype (in/out) Parameter of median_subsample3.
- * \return void (no return value).
+ * \param data           (in/out) volume of type datatype, smoothed in-place
+ * \param dims           (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize      (in)     voxel size in mm
+ * \param s              (in)     FWHM in mm per axis
+ * \param use_mask       (in)     non-zero for masked smoothing (zeros are excluded)
+ * \param samp_voxelsize (in)     voxel size in mm of the subsampled grid
+ * \param datatype       (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter, double samp_voxelsize, int datatype);
+void smooth_subsample3(void *data, int dims[3], double voxelsize[3],
+                       double s[3], int use_mask, double samp_voxelsize,
+                       int datatype);
 /**
- * \brief Public API for isoval.
+ * \brief Median filter on a subsampled grid, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param vol (in/out) Parameter of isoval.
- * \param x (in/out) Parameter of isoval.
- * \param y (in/out) Parameter of isoval.
- * \param z (in/out) Parameter of isoval.
- * \param s (in/out) Parameter of isoval.
- * \param nii_ptr (in/out) Parameter of isoval.
- * \return Return value of isoval.
+ * \param data           (in/out) volume of type datatype, filtered in-place
+ * \param dims           (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize      (in)     voxel size in mm
+ * \param niter          (in)     number of median iterations
+ * \param samp_voxelsize (in)     voxel size in mm of the subsampled grid
+ * \param datatype       (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
+void median_subsample3(void *data, int dims[3], double voxelsize[3], int niter,
+                       double samp_voxelsize, int datatype);
 /**
- * \brief Public API for localstat_subsample3.
+ * \brief Local statistic computed on a subsampled grid, for any NIfTI datatype.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param data (in/out) Parameter of median_subsample3.
- * \param dims (in/out) Parameter of median_subsample3.
- * \param voxelsize (in/out) Parameter of median_subsample3.
- * \param dist (in/out) Parameter of localstat3.
- * \param stat_func (in/out) Parameter of localstat3.
- * \param iters (in/out) Parameter of localstat3.
- * \param use_euclidean_dist (in/out) Parameter of localstat3.
- * \param samp_voxelsize (in/out) Parameter of median_subsample3.
- * \param datatype (in/out) Parameter of median_subsample3.
- * \return void (no return value).
+ * \param data               (in/out) volume of type datatype, replaced by the result
+ * \param dims               (in)     volume dimensions {nx, ny, nz}
+ * \param voxelsize          (in)     voxel size in mm
+ * \param dist               (in)     search distance on the subsampled grid, 1..10 voxels
+ * \param stat_func          (in)     statistic, as in localstat3()
+ * \param niter              (in)     number of iterations
+ * \param use_euclidean_dist (in)     non-zero for a Euclidean, zero for a block neighbourhood
+ * \param samp_voxelsize     (in)     voxel size in mm of the subsampled grid
+ * \param datatype           (in)     NIfTI datatype code of data (DT_FLOAT32, ...)
  */
-void localstat_subsample3(void *data, int dims[3], double voxelsize[3], int dist,
-                int stat_func, int niter, int use_euclidean_dist, 
-                double samp_voxelsize, int datatype);
-float isoval(float vol[], float x, float y, float z, int s[], nifti_image *nii_ptr);
+void localstat_subsample3(void *data, int dims[3], double voxelsize[3],
+                          int dist, int stat_func, int niter,
+                          int use_euclidean_dist, double samp_voxelsize,
+                          int datatype);
 /**
- * \brief Public API for correct_bias.
+ * \brief Trilinearly interpolated volume value at a point.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param src (in/out) Parameter of correct_bias.
- * \param biasfield (in/out) Parameter of correct_bias.
- * \param label (in/out) Parameter of correct_bias.
- * \param dims (in/out) Parameter of correct_bias.
- * \param voxelsize (in/out) Parameter of correct_bias.
- * \param bias_fwhm (in/out) Parameter of correct_bias.
- * \param weight_las (in/out) Parameter of correct_bias.
- * \return void (no return value).
+ * \param vol     (in) float volume
+ * \param x       (in) x coordinate
+ * \param y       (in) y coordinate
+ * \param z       (in) z coordinate
+ * \param dims    (in) volume dimensions {nx, ny, nz}
+ * \param nii_ptr (in) header providing the world-to-voxel mapping, or NULL
+ * \return interpolated value, or NaN if no neighbour is finite
  */
-void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims, double *voxelsize, double bias_fwhm, double weight_las);
-void morph_erode(void *vol, int dims[3], int niter, double th, int datatype);
+float isoval(float *vol, float x, float y, float z, int dims[3],
+             nifti_image *nii_ptr);
 /**
- * \brief Public API for morph_dilate.
+ * \brief Adaptive bias correction for MRI images with optional subcortical refinement.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param vol (in/out) Parameter of morph_dilate.
- * \param dims (in/out) Parameter of morph_dilate.
- * \param niter (in/out) Parameter of morph_dilate.
- * \param th (in/out) Parameter of morph_dilate.
- * \param datatype (in/out) Parameter of morph_dilate.
- * \return void (no return value).
+ * \param src       (in/out) float[nvox]; source image, modified in-place with bias correction
+ * \param biasfield (out)    float[nvox]; estimated bias field (can be NULL)
+ * \param label     (in)     unsigned char[nvox]; tissue label map (CSF=1, GM=2, WM=3, etc.)
+ * \param dims      (in)     {nx, ny, nz} volume dimensions
+ * \param voxelsize (in)     {sx, sy, sz} voxel spacing in mm
+ * \param bias_fwhm (in)     FWHM of Gaussian smoothing kernel for WM correction (mm)
+ * \param weight_las (in)    weight for local adaptive segmentation GM correction (0..1);
+ *                                0 = WM only, >0 = blend WM and GM with distance weighting
  */
-void morph_dilate(void *vol, int dims[3], int niter, double th, int datatype);
+void correct_bias(float *src, float *biasfield, unsigned char *label, int *dims,
+                  double *voxelsize, double bias_fwhm, double weight_las);
 /**
- * \brief Public API for morph_close.
+ * \brief Wrapper for binary morphological erosion (generic datatype).
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param vol (in/out) Parameter of morph_close.
- * \param dims (in/out) Parameter of morph_close.
- * \param niter (in/out) Parameter of morph_close.
- * \param th (in/out) Parameter of morph_close.
- * \param datatype (in/out) Parameter of morph_close.
- * \return void (no return value).
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of erosion iterations (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void morph_close(void *vol, int dims[3], int niter, double th, int datatype);
+void morph_erode(void *data, int dims[3], int niter, double th, int datatype);
 /**
- * \brief Public API for morph_open.
+ * \brief Wrapper for binary morphological dilation (generic datatype).
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param vol (in/out) Parameter of morph_open.
- * \param dims (in/out) Parameter of morph_open.
- * \param niter (in/out) Parameter of morph_open.
- * \param th (in/out) Parameter of morph_open.
- * \param keep_values (in/out) Parameter of morph_open.
- * \param datatype (in/out) Parameter of morph_open.
- * \return void (no return value).
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of dilation iterations (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void morph_open(void *vol, int dims[3], int niter, double th, int keep_values, int datatype);
+void morph_dilate(void *data, int dims[3], int niter, double th, int datatype);
+/**
+ * \brief Wrapper for binary morphological closing (generic datatype).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void morph_close(void *data, int dims[3], int niter, double th, int datatype);
+/**
+ * \brief Wrapper for binary morphological opening (generic datatype).
+ *
+ * \param data        (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims        (in)     {nx, ny, nz}
+ * \param niter       (in)     number of iterations for each operation (<=0: no-op)
+ * \param th          (in)     threshold as fraction of max(data) in [0,1]
+ * \param keep_values (in)     if >0, preserve original values and zero only removed regions
+ * \param datatype    (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void morph_open(void *data, int dims[3], int niter, double th, int keep_values,
+                int datatype);
+/**
+ * \brief Grey-scale morphological erosion.
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of erosion iterations (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
 void grey_erode(void *data, int dims[3], int niter, int datatype);
-void grey_dilate(void *data, int dims[3], int niter, int datatype);
-void grey_open(void *data, int dims[3], int niter, int datatype);
-void grey_close(void *data, int dims[3], int niter, int datatype);
-void dist_close(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
-void dist_open(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
-void dist_erode(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
-void dist_dilate(void *vol, int dims[3], double voxelsize[3], double dist, double th, int datatype);
-void dist_dilate_float(float *vol, int dims[3], double voxelsize[3], double dist, double th, unsigned char *mask);
 /**
- * \brief Public API for subsample3.
+ * \brief Grey-scale morphological dilation.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param in (in/out) Parameter of subsample3.
- * \param out (in/out) Parameter of subsample3.
- * \param dims (in/out) Parameter of subsample3.
- * \param dims_samp (in/out) Parameter of subsample3.
- * \param datatype (in/out) Parameter of subsample3.
- * \return void (no return value).
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of dilation iterations (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void subsample3(void *in, void *out, int dims[3], int dims_samp[3], int datatype);
+void grey_dilate(void *data, int dims[3], int niter, int datatype);
+/**
+ * \brief Grey-scale morphological opening (erosion followed by dilation).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void grey_open(void *data, int dims[3], int niter, int datatype);
+/**
+ * \brief Grey-scale morphological closing (dilation followed by erosion).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param niter      (in)     number of iterations for each operation (<=0: no-op)
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void grey_close(void *data, int dims[3], int niter, int datatype);
+/**
+ * \brief Wrapper for morphological closing (generic datatype).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void dist_close(void *data, int dims[3], double voxelsize[3], double dist,
+                double th, int datatype);
+/**
+ * \brief Morphological closing (binary) using the Euclidean distance transform.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                                When provided, the close is decomposed into a masked
+ *                                dilation followed by a masked erosion for efficiency.
+ */
+void dist_close_float(float *vol, int dims[3], double voxelsize[3], double dist,
+                      double th, unsigned char *mask);
+/**
+ * \brief Wrapper for morphological opening (generic datatype).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void dist_open(void *data, int dims[3], double voxelsize[3], double dist,
+               double th, int datatype);
+/**
+ * \brief Morphological opening (binary) using the Euclidean distance transform.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                                When provided, the open is decomposed into a masked
+ *                                erosion followed by a masked dilation for efficiency.
+ */
+void dist_open_float(float *vol, int dims[3], double voxelsize[3], double dist,
+                     double th, unsigned char *mask);
+/**
+ * \brief Wrapper for morphological erosion (generic datatype).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void dist_erode(void *data, int dims[3], double voxelsize[3], double dist,
+                double th, int datatype);
+/**
+ * \brief Morphological erosion (binary) using the Euclidean distance transform.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                                Voxels with mask==0 keep their original foreground/background
+ *                                classification and are excluded from the EDT sweep, which
+ *                                speeds up computation when most of the volume is irrelevant.
+ */
+void dist_erode_float(float *vol, int dims[3], double voxelsize[3], double dist,
+                      double th, unsigned char *mask);
+/**
+ * \brief Wrapper for morphological dilation (generic datatype).
+ *
+ * \param data       (in/out) void pointer to image data; type given by datatype parameter
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(data) in [0,1]
+ * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
+ */
+void dist_dilate(void *data, int dims[3], double voxelsize[3], double dist,
+                 double th, int datatype);
+/**
+ * \brief Morphological dilation (binary) using the Euclidean distance transform.
+ *
+ * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
+ * \param dims       (in)     {nx, ny, nz}
+ * \param voxelsize  (in)     voxel spacing in mm (or consistent units)
+ * \param dist       (in)     structuring radius in same units as voxelsize (<=0: no-op)
+ * \param th         (in)     threshold as fraction of max(vol) in [0,1]
+ * \param mask       (in)     optional uint8 ROI mask (same dims); NULL = full volume.
+ *                                Voxels with mask==0 keep their original foreground/background
+ *                                classification and are excluded from the EDT sweep.
+ */
+void dist_dilate_float(float *vol, int dims[3], double voxelsize[3],
+                       double dist, double th, unsigned char *mask);
+/**
+ * \brief Resample a 3D volume to a different size using trilinear interpolation.
+ *
+ * \param in        (in)  input volume data (pointer to any supported datatype)
+ * \param out       (out) output volume data (pointer to pre-allocated array)
+ * \param dims      (in)  original volume dimensions {nx, ny, nz}
+ * \param dims_samp (in)  target volume dimensions {nx_new, ny_new, nz_new}
+ * \param datatype  (in)  data type descriptor (e.g., DT_FLOAT32, DT_UINT8)
+ */
+void subsample3(void *in, void *out, int dims[3], int dims_samp[3],
+                int datatype);
+/**
+ * \brief Approximate missing values in a volume by interpolating from neighbors.
+ *
+ * \param vol       (in/out) float[dims[0]*dims[1]*dims[2]]; modified in place
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing in mm (or consistent units)
+ */
 void vol_approx(float *vol, int dims[3], double voxelsize[3]);
 /**
- * \brief Public API for cleanup_brain.
+ * \brief Clean up tissue probability map by morphological refinement.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param probs (in/out) Parameter of cleanup_brain.
- * \param dims (in/out) Parameter of cleanup_brain.
- * \param voxelsize (in/out) Parameter of cleanup_brain.
- * \param strength (in/out) Parameter of cleanup_brain.
- * \return void (no return value).
+ * \param prob     (in/out) unsigned char[3*nvox]; tissue probability array
+ *                              [0:nvox-1]=CSF, [nvox:2*nvox-1]=GM, [2*nvox:3*nvox-1]=WM
+ *                              Modified in-place by cleanup operations
+ * \param dims     (in)     {nx, ny, nz} volume dimensions
+ * \param voxelsize (in)     {sx, sy, sz} voxel spacing in mm; used for morphological scaling
+ * \param strength  (in)     cleanup strength (0..N); controls dilation threshold
+ *                               (higher = more aggressive cleanup)
  */
-void cleanup_brain(unsigned char *probs, int dims[3], double voxelsize[3], int strength);
+void cleanup_brain(unsigned char *prob, int dims[3], double voxelsize[3],
+                   int strength);
 /**
- * \brief Public API for euclidean_distance.
+ * \brief Euclidean distance transform (see euclidean_distance_src()).
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param V (in/out) Parameter of euclidean_distance.
- * \param IO (in/out) Parameter of euclidean_distance.
- * \param dims (in/out) Parameter of euclidean_distance.
- * \param voxelsize (in/out) Parameter of euclidean_distance.
- * \param replace (in/out) Parameter of euclidean_distance.
- * \return void (no return value).
+ * \param V         (in/out) float volume; positive values are distance sources
+ * \param M         (in)     optional uint8 mask (same dims); NULL = all-ones
+ * \param dims      (in)     {nx, ny, nz}
+ * \param voxelsize (in)     voxel spacing; NULL -> {1,1,1}
+ * \param replace   (in)     0 = output distances; >0 = output nearest values
  */
-void euclidean_distance(float *V, unsigned char *IO, int dims[3], double *voxelsize, int replace);
+void euclidean_distance(float *V, unsigned char *M, int dims[3],
+                        double *voxelsize, int replace);
 /**
  * \brief euclidean_distance() with the value at the nearest source voxel.
  *
@@ -283,15 +428,14 @@ void euclidean_distance(float *V, unsigned char *IO, int dims[3], double *voxels
  * centre-to-centre distance into a centre-to-boundary distance.
  *
  * \param V (in/out) float volume; positive values are distance sources.
- * \param IO (in) optional uint8 mask; NULL = all-ones.
+ * \param M (in) optional uint8 mask; NULL = all-ones.
  * \param dims (in) {nx, ny, nz}.
  * \param voxelsize (in) voxel spacing; NULL -> {1,1,1}.
  * \param replace (in) 0 = output distances; >0 = output nearest values.
  * \param src (in) optional array sampled at the nearest source; NULL to skip.
  * \param src_out (out) optional array receiving src[nearest source]; NULL to skip.
- * \return void (no return value).
  */
-void euclidean_distance_src(float *V, unsigned char *IO, int dims[3], double *voxelsize,
+void euclidean_distance_src(float *V, unsigned char *M, int dims[3], double *voxelsize,
                             int replace, const float *src, float *src_out);
 /**
  * \brief Intensity-limited region growing with distance/intensity path cost.
@@ -329,8 +473,27 @@ void downcut_float(float *labels, const float *intensity, float *dist,
 void downcut3(void *labels, void *intensity, void *dist,
               int dims[3], double limit, double voxelsize[3], double dd[2],
               int labels_datatype, int intensity_datatype, int dist_datatype);
-void ind2sub(int i, int *x, int *y, int *z, int sxy, int sy);
-int sub2ind(int x, int y, int z, int s[]);
+/**
+ * \brief Convert a linear index to 3D array coordinates.
+ *
+ * \param i The linear index in the array.
+ * \param x Pointer to store the calculated x-coordinate.
+ * \param y Pointer to store the calculated y-coordinate.
+ * \param z Pointer to store the calculated z-coordinate.
+ * \param sxy Product of the dimensions in the x and y directions (sx * sy).
+ * \param sx The dimension in the x direction.
+ */
+void ind2sub(int i, int *x, int *y, int *z, int sxy, int sx);
+/**
+ * \brief Convert 3D array coordinates to a linear index.
+ *
+ * \param x The x-coordinate in the array.
+ * \param y The y-coordinate in the array.
+ * \param z The z-coordinate in the array.
+ * \param s Array containing the dimensions of the 3D array.
+ * \return The linear index corresponding to the provided 3D coordinates.
+ */
+int sub2ind(int x, int y, int z, int s[3]);
 /**
  * \brief Connected-component filter on a thresholded volume.
  *
@@ -338,7 +501,7 @@ int sub2ind(int x, int y, int z, int s[]);
  * largest of them or keeps every component above a size floor, depending on the
  * sign of `min_size`.
  *
- * \param inData          (in/out) volume data in `datatype`, filtered in place
+ * \param data            (in/out) volume data in `datatype`, filtered in place
  * \param thresh          (in)     voxels >= thresh are cluster members
  * \param dims            (in)     {nx, ny, nz}
  * \param datatype        (in)     datatype code of inData (e.g. DT_FLOAT32)
@@ -350,21 +513,33 @@ int sub2ind(int x, int y, int z, int s[]);
  *                                 zero everything below thresh
  * \param conn            (in)     connectivity: 6, 18 or 26
  */
-void keep_largest_cluster(void *inData, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
+void keep_largest_cluster(void *data, double thresh, int *dims, int datatype, int min_size, int retain_above_th, int conn);
 /**
- * \brief Public API for fill_holes.
+ * \brief Fill holes in a binary or thresholded volume.
  *
- * This function is part of the CAT-Surface public library interface and is used by command-line tools.
- *
- * \param data (in/out) Parameter of fill_holes.
- * \param dims (in/out) Parameter of fill_holes.
- * \param thresh (in/out) Parameter of fill_holes.
- * \param fill_value (in/out) Parameter of fill_holes.
- * \param datatype (in/out) Parameter of fill_holes.
- * \return void (no return value).
+ * \param data      (in/out) void pointer to volume data; type given by datatype parameter
+ * \param dims      (in)     {nx, ny, nz} volume dimensions
+ * \param thresh    (in)     threshold value; voxels < thresh are treated as potential holes
+ * \param fill_value (in)    value to fill holes with;
+ *                                if negative, holes are filled with locally estimated values
+ *                                if >=0, holes are filled with this fixed value
+ * \param datatype  (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
-void fill_holes(void *data, int *dims, double thresh, double fill_value, int datatype);
-void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, float *grad_z, int dims[3], double voxelsize[3]);
+void fill_holes(void *data, int *dims, double thresh, double fill_value,
+                int datatype);
+/**
+ * \brief Compute local gradient magnitude and components for a 3D volume.
+ *
+ * \param src       (in)  input volume float[dims[0]*dims[1]*dims[2]]
+ * \param grad_mag  (out) gradient magnitude; NULL to skip (optional)
+ * \param grad_x    (out) x-component of gradient; NULL to skip (optional)
+ * \param grad_y    (out) y-component of gradient; NULL to skip (optional)
+ * \param grad_z    (out) z-component of gradient; NULL to skip (optional)
+ * \param dims      (in)  volume dimensions {nx, ny, nz}
+ * \param voxelsize (in)  voxel spacing in mm {dx, dy, dz}
+ */
+void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
+                float *grad_z, int dims[3], double voxelsize[3]);
 
 /**
  * \brief Matrix that maps a gradient3D() gradient into world space.
@@ -377,7 +552,6 @@ void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y, float
  *
  * \param nii_ptr (in)  NIfTI header (sto_xyz and voxel size dx, dy, dz)
  * \param M       (out) 3x3 matrix, g_world = M * g_gradient3D
- * \return void
  */
 void gradient3D_world_matrix(const nifti_image *nii_ptr, double M[3][3]);
 #endif
