@@ -30,7 +30,7 @@ INPUT                  = Include Lib Progs cat_surface_cython
 FILE_PATTERNS          = *.h *.c *.cpp *.cc *.cxx *.py
 RECURSIVE              = YES
 EXCLUDE                = 3rdparty build-native-arm64 deprecated .git .venv .vscode
-EXCLUDE_PATTERNS       = */__pycache__/*
+EXCLUDE_PATTERNS       = */__pycache__/* */build/* */build-* */cat_surf/_*.c
 
 # Extraction policy
 EXTRACT_ALL            = NO
