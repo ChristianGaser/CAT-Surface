@@ -64,24 +64,6 @@ double get_vertex_areas(polygons_struct *polygons, double *vertex_areas);
  */
 double get_area_of_points(polygons_struct *polygons, double *area_values);
 /**
- * \brief Compute per-vertex radius values from the origin.
- *
- * \param polygons (in)  input mesh
- * \param radius   (out) per-vertex radii (length n_points)
- */
-void get_radius_of_points(polygons_struct *polygons, double *radius);
-/**
- * \brief Per-vertex local statistics on a surface (fixed 1-ring).
- *
- * \param polygons  (in)     mesh
- * \param input     (in/out) polygons->n_points per-vertex values
- * \param mask      (in)     optional mask of n_points entries; 0 = skip (NULL: all)
- * \param stat_func (in)     F_MEAN, F_MEDIAN, F_STD, F_MIN or F_MAX
- * \param iters     (in)     number of iterations (>= 1)
- */
-void localstat_surface_double(polygons_struct *polygons, double *input,
-                              unsigned char *mask, int stat_func, int iters);
-/**
  * \brief Mixed boundary condition index mapping for a 2‑D lattice.
  *
  * \param polygons (polygons_struct *)
@@ -164,19 +146,6 @@ int euler_characteristic(polygons_struct *polygons, int verbose);
  */
 void convert_ellipsoid_to_sphere_with_surface_area(polygons_struct *polygons,
                                                    double desiredSurfaceArea);
-/**
- * \brief Linear (umbrella) smoothing with optional edge-only passes.
- *
- * \param polygons                   (in/out) mesh to smooth
- * \param strength                   (in)     in (0,1]; larger moves more toward neighbor average
- * \param iters                      (in)     number of iterations
- * \param smoothEdgesEveryXIters     (in)     smooth only on these iterations (0 disables)
- * \param smoothOnlyTheseNodes       (in)     optional mask (length n_points) for selective smoothing
- * \param projectToSphereEveryXIters (in)     project to current sphere radius every X iterations (0 disables)
- */
-void linear_smoothing(polygons_struct *polygons, double strength, int iters,
-                      int smoothEdgesEveryXIters, int *smoothOnlyTheseNodes,
-                      int projectToSphereEveryXIters);
 /**
  * \brief Areal smoothing with weights based on local triangle areas.
  *

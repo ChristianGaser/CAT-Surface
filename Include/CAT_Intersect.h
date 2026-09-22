@@ -18,15 +18,6 @@
 #define BINTREE_FACTOR 0.5
 
 /**
- * \brief Check if two polygons (triangular faces) intersect geometrically.
- *
- * \param poly0 (in) index of first polygon/triangle
- * \param poly1 (in) index of second polygon/triangle
- * \param surface (in) polygonal mesh containing both polygons
- * \return 1 if triangles intersect, 0 otherwise
- */
-int intersect_poly_poly(int poly0, int poly1, polygons_struct *surface);
-/**
  * \brief Test geometric intersection between two triangles in 3D space.
  *
  * \param pidx0    (in) int[3]; vertex indices of first triangle
@@ -115,16 +106,6 @@ int smooth_selfintersections(polygons_struct *surface, int *defects,
                              int *polydefects, int n_defects, int *n_neighbours,
                              int **neighbours, int maxiter);
 /**
- * \brief Check if a specific defect region still contains self-intersections (boolean test).
- *
- * \param polygons (in) mesh to check
- * \param polydefects (in) per-polygon defect labels
- * \param defect (in) specific defect ID to test (1, 2, ...)
- * \return 1 if self-intersections remain in defect region, 0 if repaired
- */
-int has_selfintersections(polygons_struct *polygons, int *polydefects,
-                          int defect);
-/**
  * \brief Test all defect regions for remaining self-intersections in a single pass.
  *
  * \param polygons (in) mesh to check
@@ -136,13 +117,6 @@ int has_selfintersections(polygons_struct *polygons, int *polydefects,
  */
 int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
                               int n_defects, int *siflags);
-/**
- * \brief Remove all self-intersections from mesh using multi-pass repair strategies.
- *
- * \param polygons (in/out) mesh to repair
- * \param verbose (in) 1 for progress output; 0 for silent
- */
-void remove_intersections(polygons_struct *polygons, int verbose);
 /**
  * \brief Remove all self-intersections from a mesh with explicit iteration limits.
  *

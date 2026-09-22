@@ -136,16 +136,6 @@ int tri_arrays_to_polygons(polygons_struct *poly, const vec3d *V,
  */
 int qem_target(int nf_total, int target);
 /**
- * \brief Convert BICPL polygons_struct to flat vertex and face arrays for external processing.
- *
- * \param polygons (in)  input mesh with points and indices
- * \param faces    (out) allocated array of shape (n_items, 3) containing 1-indexed vertex indices
- * \param vertices (out) allocated array of shape (3, n_points) with x,y,z coordinates
- * \return OK on success; ERROR if any polygon is non-triangular
- */
-Status bicpl_to_facevertexdata(polygons_struct *polygons, double **faces,
-                               double **vertices);
-/**
  * \brief Read 1D scalar values from file in auto-detected format.
  *
  * \param file     (in)  input file path
