@@ -101,7 +101,7 @@ jobs:
             mkdir -p "$V/3rdparty/$d"
             cp -r "3rdparty/$d/"* "$V/3rdparty/$d/"
           done
-          for d in nifti gifticlib nii2mesh zlib expat dartel; do
+          for d in nifti gifticlib nii2mesh zlib expat; do
             mkdir -p "$V/3rdparty/$d"
             cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
           done
@@ -228,7 +228,7 @@ jobs:
               mkdir -p "$V/3rdparty/$d"
               cp -r "3rdparty/$d/"* "$V/3rdparty/$d/"
             done
-            for d in nifti gifticlib nii2mesh zlib expat dartel; do
+            for d in nifti gifticlib nii2mesh zlib expat; do
               mkdir -p "$V/3rdparty/$d"
               cp 3rdparty/$d/*.h "$V/3rdparty/$d/" 2>/dev/null || true
             done
