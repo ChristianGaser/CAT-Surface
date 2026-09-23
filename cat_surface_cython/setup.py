@@ -192,7 +192,6 @@ include_dirs = [
     os.path.join(CAT_ROOT, "3rdparty", "nii2mesh"),
     os.path.join(CAT_ROOT, "3rdparty", "zlib"),
     os.path.join(CAT_ROOT, "3rdparty", "expat"),
-    os.path.join(CAT_ROOT, "3rdparty", "dartel"),
     BUILD_DIR,                       # for config.h
 ]
 
@@ -280,11 +279,6 @@ extensions = [
     Extension(
         "cat_surf._vol2surf",
         [os.path.join("cat_surf", "_vol2surf" + ext_suffix)],
-        **common_kwargs,
-    ),
-    Extension(
-        "cat_surf._surf_warp",
-        [os.path.join("cat_surf", "_surf_warp" + ext_suffix)],
         **common_kwargs,
     ),
     Extension(

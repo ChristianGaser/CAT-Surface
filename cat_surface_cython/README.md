@@ -111,7 +111,6 @@ smoothed = cat_surf.smooth_heatkernel(vertices, faces, area, fwhm=20.0)
 | `surf_deform` | Deform a surface toward a volume isovalue | `CAT_SurfDeform` |
 | `surf_to_pial_white` | Estimate pial + white surfaces from a central surface; the pial surface is placed by profile search (`pial_profile`), `remove_intersect` repairs both | `CAT_Surf2PialWhite` |
 | `central_to_pial` | Generate a pial surface from central + thickness | — |
-| `surf_warp` | DARTEL-based spherical registration | `CAT_SurfWarp` |
 | `spherical_demon` | Spherical Demons spherical registration | `CAT_SurfSphericalDemon` |
 
 ### Volume operations
@@ -299,7 +298,6 @@ The full mapping:
 | `CAT_SurfFixSelfIntersect` | `surf_fix_self_intersect` |
 | `CAT_SurfResample` | `surf_resample` |
 | `CAT_SurfSphericalDemon` | `surf_spherical_demon` |
-| `CAT_SurfWarp` | `surf_warp` |
 | `CAT_Vol2Surf` | `vol2surf` |
 | `CAT_VolAmap` | `vol_amap` |
 | `CAT_VolCalc` | `vol_calc` |

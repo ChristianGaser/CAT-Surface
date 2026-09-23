@@ -15,7 +15,7 @@
    is inlined so a class can be copied back into a live package as needed.
    Several array-passing interfaces here still use the older ``BaseInterface`` /
    ``traits.Any`` pattern; prefer the file-based ``SimpleInterface`` style
-   (see ``CatSurfWarp`` / ``CatSurfSphericalDemon``) when promoting one.
+   (see ``CatSurfSphericalDemon``) when promoting one.
 
 Every public function in ``cat_surf`` that T1Prep exposes is wrapped as a
 separate :class:`~nipype.interfaces.base.BaseInterface` sub-class so that
@@ -49,7 +49,6 @@ Interfaces
 * :class:`CatSurfDeform`                   – ``cat_surf.surf_deform``
 * :class:`CatSurfToPialWhite`              – ``cat_surf.surf_to_pial_white``
 * :class:`CatSurfToSphere`                 – ``cat_surf.surf_to_sphere``
-* :class:`CatSurfWarp`                     – ``cat_surf.cli.surf_warp``
 * :class:`CatSurfSphericalDemon`           – ``cat_surf.cli.surf_spherical_demon``
 * :class:`CatSurfAverage`                  – ``cat_surf.cli.surf_average``
 * :class:`CatSurfResampleToSphere`         – ``cat_surf.resample_to_sphere``
@@ -1069,79 +1068,6 @@ class CatSurfToSphere(BaseInterface):
 # ---------------------------------------------------------------------------
 
 
-class CatSurfWarpInputSpec(TraitedSpec):
-    source_file = File(
-        exists=True, mandatory=True, desc="Source surface file (central surface)."
-    )
-    source_sphere_file = File(exists=True, mandatory=True, desc="Source sphere file.")
-    target_file = File(
-        exists=True,
-        mandatory=True,
-        desc="Target (average) surface file used as registration template.",
-    )
-    target_sphere_file = File(
-        exists=True, mandatory=True, desc="Target (average) sphere file."
-    )
-    output_sphere_file = File(
-        mandatory=True, desc="Output registered sphere file path."
-    )
-    n_steps = traits.Int(
-        2, usedefault=True, desc="Number of DARTEL warp steps (default 2)."
-    )
-    avg = traits.Bool(
-        True, usedefault=True, desc="Use average-shape regularisation during warp."
-    )
-    verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
-
-
-class CatSurfWarpOutputSpec(TraitedSpec):
-    output_sphere_file = File(desc="Registered sphere file.")
-
-
-class CatSurfWarp(SimpleInterface):
-    """Perform DARTEL-based spherical surface registration.
-
-    Wraps the file-based
-    ``cat_surf.cli.surf_warp(source_file, source_sphere_file, target_file,
-    target_sphere_file, output_sphere_file, n_steps=…, avg=…, verbose=…)``,
-    which reads the four input meshes and writes the warped source sphere.
-
-    This is T1Prep's surface estimation step 10b (``CAT_SurfWarp``).  For the
-    diffeomorphic Spherical Demons alternative, see :class:`CatSurfSphericalDemon`.
-
-    Examples
-    --------
-    >>> node = CatSurfWarp()
-    >>> node.inputs.source_file = 'lh.central.sub-01.gii'  # doctest: +SKIP
-    >>> node.inputs.source_sphere_file = 'lh.sphere.sub-01.gii'  # doctest: +SKIP
-    >>> node.inputs.target_file = 'lh.central.freesurfer.gii'  # doctest: +SKIP
-    >>> node.inputs.target_sphere_file = 'lh.sphere.freesurfer.gii'  # doctest: +SKIP
-    >>> node.inputs.output_sphere_file = 'lh.sphere.reg.sub-01.gii'
-    """
-
-    input_spec = CatSurfWarpInputSpec
-    output_spec = CatSurfWarpOutputSpec
-
-    def _run_interface(self, runtime):
-        cli = _cat_surf_cli()
-        out_file = os.path.abspath(self.inputs.output_sphere_file)
-        cli.surf_warp(
-            source_file=self.inputs.source_file,
-            source_sphere_file=self.inputs.source_sphere_file,
-            target_file=self.inputs.target_file,
-            target_sphere_file=self.inputs.target_sphere_file,
-            output_sphere_file=out_file,
-            n_steps=self.inputs.n_steps,
-            avg=self.inputs.avg,
-            verbose=self.inputs.verbose,
-        )
-        self._results["output_sphere_file"] = out_file
-        return runtime
-
-
-# ---------------------------------------------------------------------------
-
-
 class CatSurfSphericalDemonInputSpec(TraitedSpec):
     source_file = File(
         exists=True, mandatory=True, desc="Source surface file (central surface)."
@@ -1188,9 +1114,8 @@ class CatSurfSphericalDemon(SimpleInterface):
     target_file, target_sphere_file, output_sphere_file, mask_file=…,
     n_steps=…, unfold=…, verbose=…)`` — the mirror of ``CAT_SurfSphericalDemon``.
 
-    The positional interface matches :class:`CatSurfWarp` so the DARTEL and
-    Spherical Demons back-ends are drop-in interchangeable in a workflow; this
-    is the registration back-end used by T1Prep's surface estimation step 10b.
+    This is the registration back-end used by T1Prep's surface estimation
+    step 10b.
 
     Examples
     --------

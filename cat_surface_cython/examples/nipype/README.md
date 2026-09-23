@@ -31,7 +31,7 @@ kept here so any of them can be promoted back when a workflow needs it.
 - Imports use absolute `nipype.*` paths and `_import_cat_surf` is inlined, so a
   class can be copied straight back into a live package.
 - The registration/geometry interfaces demonstrating the recommended pattern
-  (`TraitedSpec` + `SimpleInterface` + file-based I/O, e.g. `CatSurfWarp`,
+  (`TraitedSpec` + `SimpleInterface` + file-based I/O, e.g.
   `CatSurfSphericalDemon`, `CatSurfGetArea`) should be the template when
   promoting an older `traits.Any` array-passing interface.
 

@@ -37,17 +37,14 @@ binary-calling path, allowing A/B comparison.
 
 ## Coverage
 
-All spherical-registration variants used by `surface_estimation()` are
-replaced in-process via `cat_surf` / `cat_surf.cli`:
+The spherical registration used by `surface_estimation()` is replaced
+in-process via `cat_surf` / `cat_surf.cli`:
 
-- **`CAT_SurfWarp`** (DARTEL) — `cat_surf.cli.surf_warp`, including the
-  `-avg` rotated double-run via `avg=True`.
-- **`CAT_SurfSphericalDemon`** (Spherical Demons) — `cat_surf.cli.surf_spherical_demon`.
+- **`CAT_SurfSphericalDemon`** (Spherical Demons) — `cat_surf.cli.surf_spherical_demon`,
+  taking `source, source_sphere, target, target_sphere, output_sphere` and
+  writing the warped source sphere.
 
-Both take the same positional order
-(`source, source_sphere, target, target_sphere, output_sphere`) and
-write the warped source sphere, so either registration back-end can be
-selected without changing the surrounding port code.
+The DARTEL back-end (`CAT_SurfWarp`) was deprecated; see `deprecated/`.
 
 Two steps still fall through to the binaries:
 

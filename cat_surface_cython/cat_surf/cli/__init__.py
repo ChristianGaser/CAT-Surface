@@ -38,7 +38,6 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_SurfRatio                     -> surf_ratio
     CAT_SurfSulcusDepth               -> surf_sulcus_depth
     CAT_SurfSphericalDemon            -> surf_spherical_demon
-    CAT_SurfWarp                      -> surf_warp  (use avg=True for -avg)
     CAT_Vol2Surf                      -> vol2surf
     CAT_VolAmap                       -> vol_amap
     CAT_VolCalc                       -> vol_calc
@@ -78,7 +77,6 @@ from cat_surf import (
     resample_to_sphere as _resample_to_sphere,
     resample_annot as _resample_annot,
     surf_curvature as _surf_curvature,
-    surf_warp as _surf_warp,
     spherical_demon as _spherical_demon,
     vol2surf as _vol2surf,
     vol_amap as _vol_amap,
@@ -378,23 +376,6 @@ def surf_resample(surface_file_or_None, sphere_file_or_None,
         write_values(output_values_file, nvals)
 
 
-def surf_warp(source_file, source_sphere_file,
-              target_file, target_sphere_file,
-              output_sphere_file, **kwargs):
-    """Mirror of ``CAT_SurfWarp`` (DARTEL spherical registration).
-
-    Writes the warped source sphere.  The Jacobian-determinant / PGM
-    outputs of the binary are not surfaced.  Pass ``avg=True`` to
-    enable the CLI's ``-avg`` flag (pole-rotated double run averaged).
-    """
-    sv, sf = read_surface(source_file)
-    ssv, ssf = read_surface(source_sphere_file)
-    tv, tf = read_surface(target_file)
-    tsv, tsf = read_surface(target_sphere_file)
-    wv, wf = _surf_warp((sv, sf), (ssv, ssf), (tv, tf), (tsv, tsf), **kwargs)
-    write_surface(output_sphere_file, wv, wf)
-
-
 def surf_spherical_demon(source_file, source_sphere_file,
                          target_file, target_sphere_file,
                          output_sphere_file, output_surface_file=None,
@@ -403,7 +384,7 @@ def surf_spherical_demon(source_file, source_sphere_file,
 
     Warps the source sphere onto the template sphere by matching curvature
     features and writes the warped source sphere (the binary's ``-ws``
-    output).  The positional order matches :func:`surf_warp`.
+    output).
 
     Parameters
     ----------
@@ -1010,7 +991,6 @@ __all__ = [
     "surf_curvature",
     "surf_sulcus_depth",
     "surf_spherical_demon",
-    "surf_warp",
     "surf2roi_multi",
     # Volume tools
     "vol2surf",

@@ -284,16 +284,7 @@ cdef extern from "CAT_SurfPialWhite.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_SurfWarpDartel.h — declared in _dartel.pxd
-# ---------------------------------------------------------------------------
-# dartel.h has no include guards AND defines an unhygienic `#define S 1.0`
-# macro that breaks any file including stdint-based unions. To avoid
-# polluting every cimport, the DARTEL declarations live in cat_surf/_dartel.pxd
-# and are only cimported by cat_surf/_surf_warp.pyx.
-
-
-# ---------------------------------------------------------------------------
-# CAT_Warp.h — Warp/rotation primitives used by SurfWarp
+# CAT_Warp.h — Warp/rotation primitives
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Warp.h":
     int INVERSE_WARPING

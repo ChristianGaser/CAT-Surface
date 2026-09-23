@@ -60,7 +60,7 @@ def test_api_surface():
     # Importing the package pulls in every extension module; name them
     # explicitly so a failure says which one broke.
     for mod in ("_io", "_surf", "_vol", "_convert", "_volume", "_bbreg",
-                "_vol2surf", "_surf_warp", "_spherical_demon"):
+                "_vol2surf", "_spherical_demon"):
         try:
             __import__(f"cat_surf.{mod}")
             ok = True

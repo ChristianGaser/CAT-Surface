@@ -6,7 +6,7 @@ Run this after changing either ``cat_surf`` (the ``cat-surf`` package) or the
 validates three things:
 
 1. **cat_surf API** — the ``spherical_demon`` default is in range and the
-   ``cat_surf.cli`` mirror is present with an interface matching ``surf_warp``.
+   ``cat_surf.cli`` mirror is present with the expected positional order.
 2. **Call contracts** — every ``cat_surf`` function that a Nipype interface
    calls actually exists and accepts the keyword arguments the interface
    passes (this is the check that catches "bbreg() got an unexpected keyword
@@ -77,7 +77,6 @@ EXPECTED_COMMANDS = {
 REMOVED_INTERFACES = {
     "CatSurfReadSurface",
     "CatSurfGetArea",
-    "CatSurfWarp",
     "CatSurfSphericalDemon",
     "CatSurfDeform",
     "CatSurfVolMarchingCubes",
@@ -148,7 +147,7 @@ def check_cat_surf():
     except Exception as exc:  # noqa: BLE001
         record(FAIL, "spherical_demon n_steps default", str(exc))
 
-    # cli mirror parity with surf_warp
+    # cli mirror presence
     try:
         from cat_surf import cli
         has_sd = hasattr(cli, "surf_spherical_demon")
@@ -156,12 +155,13 @@ def check_cat_surf():
         record(PASS if (has_sd and in_all) else FAIL,
                "cli.surf_spherical_demon present",
                f"attr={has_sd}, in __all__={in_all}")
-        if has_sd and hasattr(cli, "surf_warp"):
-            sw = list(inspect.signature(cli.surf_warp).parameters)[:5]
+        if has_sd:
             sd = list(inspect.signature(cli.surf_spherical_demon).parameters)[:5]
-            record(PASS if sw == sd else FAIL,
-                   "surf_warp / surf_spherical_demon positional parity",
-                   f"{sw} vs {sd}")
+            want = ["source_file", "source_sphere_file", "target_file",
+                    "target_sphere_file", "output_sphere_file"]
+            record(PASS if sd == want else FAIL,
+                   "surf_spherical_demon positional order",
+                   f"{sd}")
     except Exception as exc:  # noqa: BLE001
         record(FAIL, "cli mirror", str(exc))
 

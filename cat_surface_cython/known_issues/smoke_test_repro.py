@@ -257,7 +257,6 @@ skip("surf_average",       "needs >=2 input surfaces of matching topology")
 skip("surf_to_pial_white", "needs thickness + matching PPM; exercised in T1Prep main loop")
 skip("central_to_pial",    "needs thickness; exercised in T1Prep main loop")
 skip("surf_deform",        "exercised separately in T1Prep via PPM_volume")
-skip("surf_warp",          "needs source+target sphere/values pairs")
 
 
 # ---------------------------------------------------------------- I/O

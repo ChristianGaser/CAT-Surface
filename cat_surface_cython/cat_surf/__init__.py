@@ -112,7 +112,6 @@ from cat_surf._bbreg import (
 from cat_surf._vol2surf import vol2surf
 
 # --- DARTEL spherical surface registration ---
-from cat_surf._surf_warp import surf_warp
 
 # --- Spherical Demons spherical surface registration ---
 from cat_surf._spherical_demon import spherical_demon
@@ -358,7 +357,6 @@ __all__ = [
     # Volume-to-surface
     "vol2surf",
     # DARTEL surface warp
-    "surf_warp",
     # Spherical Demons surface registration
     "spherical_demon",
 ]
