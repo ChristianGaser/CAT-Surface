@@ -57,8 +57,6 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_VolSheetness**            | Multi-scale Hessian sheetness (plate) filter: detects thin sheet-like structures — sulcal CSF, gyral white-matter blades — and ignores blobs (see below). |
 | **CAT_VolSmooth**               | Smooths a volume with an isotropic Gaussian kernel. |
 | **CAT_VolThicknessPbt**         | Estimates cortical thickness from volumetric tissue maps using a projection-based thickness method. Its internal median filters are sheetness-oriented, so they cannot close a thin structure (see below). |
-| **CAT_SurfApplyWarp**           | Applies a flow field from CAT_SurfWarp to a sphere. |
-| **CAT_SurfApplyWarpValues**     | Applies surface deformations to vertex-wise data arrays (e.g., morphometric parameters). |
 | **CAT_SurfSmooth**              | Performs heat kernel smoothing on surface meshes or vertex-wise data, using an exact spectral method. |
 | **CAT_SurfDeform**              | Deforms a surface mesh towards an isovalue of a volume, e.g. the central surface onto the 0.5 level of the PPM (used by T1Prep to refine the marching-cubes surface). |
 | **CAT_SurfCurvature**           | Extracts folding-related surface parameters (e.g., mean curvature, Gaussian curvature, sulcal depth) and optionally smooths results using the diffusion heat kernel. |
@@ -78,9 +76,8 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_Surf2PialWhite**          | Derives pial and white matter surfaces from a central cortical surface representation. |
 | **CAT_Surf2Sheet**              | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
 | **CAT_Surf2Sphere**             | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
-| **CAT_SurfWarp**                | Warps one surface to another using non-linear surface-based registration (DARTEL). |
 | **CAT_SurfBBReg**               | Boundary-Based Registration (BBR): rigid co-registration of a functional volume to cortical surfaces. Includes NMI-based volume initialisation, automatic T1/T2 contrast detection, and optional pre-smoothing. |
-| **CAT_SurfSphericalDemon**      | Spherical Demons registration of a surface to a template; interface-compatible with CAT_SurfWarp. |
+| **CAT_SurfSphericalDemon**      | Spherical Demons registration of a surface to a template. |
 | **CAT_SurfFixSelfIntersect**    | Removes self-intersections by locally smoothing the intersecting regions; `-reference` retreats towards the surface a deformation started from where smoothing cannot separate crossed sheets. |
 | **CAT_SurfSelfIntersect**       | Counts self-intersections and marks the intersecting triangles. |
 | **CAT_SurfFixTopology**         | Corrects the topology of a brain surface. |

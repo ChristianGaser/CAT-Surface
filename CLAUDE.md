@@ -76,14 +76,19 @@ cat_surface_cython/  Cython bindings (`cat-surf` package) exposing libCAT to Pyt
 - **Downstream callers**: T1Prep's `surface_estimation.py` and the Nipype
   `nipype.interfaces.t1prep.cat_surf` interfaces call `cat_surf.cli.*`.
 
-The two spherical-registration back-ends must stay interface-compatible — both take
-`(source, source_sphere, target, target_sphere)` and return/write the warped source
-sphere, so they are drop-in interchangeable:
+Spherical registration is Spherical Demons:
 
 | Algorithm | Binary | Array API | CLI mirror |
 | --- | --- | --- | --- |
-| DARTEL | `CAT_SurfWarp` | `cat_surf.surf_warp` | `cat_surf.cli.surf_warp` |
 | Spherical Demons | `CAT_SurfSphericalDemon` | `cat_surf.spherical_demon` | `cat_surf.cli.surf_spherical_demon` |
+
+The DARTEL back-end was deprecated: `CAT_SurfWarp`, `CAT_SurfApplyWarp`,
+`CAT_SurfApplyWarpValues`, `CAT_SurfWarpDartel.[ch]` and the sphere solver
+(`3rdparty/dartel/diffeosphere.c`, `optimizersphere.c`) now live in `deprecated/`, and
+`cat_surf.surf_warp` / `cat_surf.cli.surf_warp` are gone. What remains of DARTEL is
+`3rdparty/dartel/diffeopoly.c`: Spherical Demons uses its `init_dartel_poly()`, so four
+small helpers (`pow2`, `dotprod`, `addscaled`, `norm`) were moved into it from the
+deprecated files.
 
 Defaults live in the C source of truth (`Include/CAT_WarpDemons.h` +
 `CAT_WarpDemonsDefaults`); the Cython signature/docstring and the docs must match it.

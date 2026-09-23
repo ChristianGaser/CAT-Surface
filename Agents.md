@@ -110,10 +110,11 @@ The Cython package exposes libCAT to Python in three layers that must stay consi
   `Lib/CAT_WarpDemons.c` define the defaults that the Cython signature, its docstring,
   and the docs must all match (e.g. `n_steps` max is `CAT_WARP_DEMONS_MAX_STEPS` = 4).
 
-The two spherical-registration back-ends are kept interface-compatible — both take
-`(source, source_sphere, target, target_sphere)` and produce the warped source sphere:
-`CAT_SurfWarp`/`surf_warp` (DARTEL) and `CAT_SurfSphericalDemon`/`surf_spherical_demon`
-(Spherical Demons). When you change one, mirror the change in the other layer and the docs.
+Spherical registration is `CAT_SurfSphericalDemon`/`surf_spherical_demon` (Spherical
+Demons), taking `(source, source_sphere, target, target_sphere)` and producing the warped
+source sphere. When you change one layer, mirror the change in the other and in the docs.
+The DARTEL back-end (`CAT_SurfWarp` and the flow-field tools `CAT_SurfApplyWarp` /
+`CAT_SurfApplyWarpValues`) was deprecated and moved to `deprecated/`.
 
 ### The sheetness family (`Include/CAT_Sheetness.h`)
 
