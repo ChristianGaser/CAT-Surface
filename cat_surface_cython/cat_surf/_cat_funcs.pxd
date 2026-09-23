@@ -288,14 +288,10 @@ cdef extern from "CAT_SurfPialWhite.h":
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Warp.h":
     int INVERSE_WARPING
-    void apply_warp(polygons_struct *source, polygons_struct *target,
-                    double *warp_array, int *warp_dims, int n_steps)
     void rotate_polygons(polygons_struct *src, polygons_struct *dst,
                          double *rotation_matrix)
     void rotation_to_matrix(double *matrix, double alpha, double beta,
                             double gamma)
-    void average_xz_surf(polygons_struct *a, polygons_struct *b,
-                         polygons_struct *out)
 
 
 # ---------------------------------------------------------------------------
