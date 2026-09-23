@@ -69,24 +69,5 @@ void map_sphere_values_to_sheet(polygons_struct *polygons,
  */
 void map_sheet2d_to_sphere(double *sheet2d, double *values,
                            polygons_struct *polygons, int interpolate, int *dm);
-/**
- * \brief Upsample a 2D flow field by factor of 2 using bilinear interpolation.
- *
- * \param src_flow (in)  source flow field (size src_dm[0]*src_dm[1])
- * \param src_dm   (in)  source dimensions [width, height]
- * \param dst_flow (out) destination flow field (size dst_dm[0]*dst_dm[1])
- * \param dst_dm   (in)  destination dimensions [width, height]
- */
-void upsample_flow_field(double *src_flow, int *src_dm, double *dst_flow,
-                         int *dst_dm);
-/**
- * \brief Downsample a 2D image by factor of 2 using area averaging.
- *
- * \param src (in)  source image (size src_dm[0]*src_dm[1])
- * \param src_dm (in) source dimensions [width, height]
- * \param dst (out) destination image (size dst_dm[0]*dst_dm[1])
- * \param dst_dm (in) destination dimensions [width, height]
- */
-void downsample_image(double *src, int *src_dm, double *dst, int *dst_dm);
 
 #endif

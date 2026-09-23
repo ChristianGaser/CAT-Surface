@@ -31,16 +31,5 @@
 double interp_point_unit_sphere(polygons_struct *sphere, double *values,
                                 Point pt);
 
-/**
- * \brief Interpolate scalar value at (u,v) latitude/longitude coordinates on unit sphere.
- *
- * \param sphere    (in)  polygon mesh representing the unit sphere
- * \param values    (in)  double[sphere->n_points]; scalar values at each vertex
- * \param u         (in)  first spherical coordinate (0..1 or other range)
- * \param v         (in)  second spherical coordinate (0..1 or other range)
- * \return               Interpolated scalar value at (u,v)
- */
-double interp_uv_unit_sphere(polygons_struct *sphere, double *values, double u,
-                             double v);
 
 #endif

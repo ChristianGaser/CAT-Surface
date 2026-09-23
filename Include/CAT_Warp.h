@@ -56,17 +56,6 @@ void rotate_polygons(polygons_struct *polygons,
 void rotation_to_matrix(double *rotation_matrix, double alpha, double beta,
                         double gamma);          
 /**
- * \brief Apply 2D deformation warp to surface using displacement field on sphere.
- *
- * \param polygons (in/out) source mesh modified by warp
- * \param sphere (in) reference spherical mapping (NULL creates unit sphere)
- * \param deform (in) 2D deformation field (interleaved ux/vy values)
- * \param dm (in) deformation field dimensions [width, height]
- * \param inverse (in) 1 for inverse warp direction; 0 for forward
- */
-void apply_warp(polygons_struct *polygons, polygons_struct *sphere,
-                double *deform, int *dm, int inverse);
-/**
  * \brief Apply 2D UV-space deformation directly using separated u,v displacement fields.
  *
  * \param polygons (in/out) mesh modified by warp
@@ -77,32 +66,6 @@ void apply_warp(polygons_struct *polygons, polygons_struct *sphere,
  */
 void apply_uv_warp(polygons_struct *polygons, polygons_struct *sphere,
                    double *ux, double *vy, int inverse);
-/**
- * \brief Average geometry between two surfaces storing result in second argument.
- *
- * \param xsurf (in) first surface
- * \param zsurf (in/out) second surface (result stored here)
- * \param surface (in) third surface parameter (unused)
- */
-void average_xz_surf(polygons_struct *xsurf, polygons_struct *zsurf,
-                     polygons_struct *surface);
-/**
- * \brief Find the sphere rotation that best aligns a source surface with a template.
- *
- * \param src        (in)  source surface
- * \param src_sphere (in)  its spherical mapping
- * \param trg        (in)  template surface
- * \param trg_sphere (in)  its spherical mapping
- * \param fwhm       (in)  FWHM of the curvature smoothing in mm
- * \param curvtype   (in)  curvature type, as in get_polygon_vertex_curvatures_cg()
- * \param rot        (out) the three rotation angles in radians (see
- *                             rotation_to_matrix())
- * \param verbose    (in)  non-zero to print progress
- */
-void rotate_polygons_to_atlas(polygons_struct *src, polygons_struct *src_sphere,
-                              polygons_struct *trg, polygons_struct *trg_sphere,
-                              double fwhm, int curvtype, double *rot,
-                              int verbose);
 
 /**
  * \brief Exhaustive coarse-to-fine global search for the initial rigid rotation.
