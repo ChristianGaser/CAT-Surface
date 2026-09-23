@@ -18,7 +18,7 @@ distclean-local:
 	-cd $(FFTW3_BUILDDIR) && $(MAKE) $(AM_MAKEFLAGS) distclean
 	-rm -rf $(FFTW3_BUILDDIR)
 
-CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
+CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti \
     -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 \
     -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/expat/lib \
@@ -114,11 +114,6 @@ nifti_SRC = \
 gifti_SRC = \
     3rdparty/gifticlib/gifti_io.c \
     3rdparty/gifticlib/gifti_xml.c
-
-dartel_SRC = \
-    3rdparty/dartel/diffeosphere.c \
-    3rdparty/dartel/optimizersphere.c \
-    3rdparty/dartel/diffeopoly.c 
 
 nii2mesh_SRC = \
     3rdparty/nii2mesh/quadric.c
@@ -288,7 +283,6 @@ bic_SRC = \
     
 noinst_HEADERS = \
     Include/CAT_CorrectThicknessFolding.h \
-    Include/CAT_SurfWarpDartel.h \
     Include/CAT_WarpDemons.h \
     Include/CAT_ROIStats.h \
     Include/CAT_Vol2SurfUtils.h \
@@ -342,7 +336,6 @@ noinst_HEADERS = \
     3rdparty/genus0/LookUpTable.h \
     3rdparty/genus0/genus0.h \
     3rdparty/genus0/tricases.h \
-    3rdparty/dartel/dartel.h \
     3rdparty/nifti/analyze75.h \
     3rdparty/nifti/nifti1.h \
     3rdparty/nifti/nifti1_io.h \
@@ -377,11 +370,9 @@ libCAT_la_SOURCES = \
     $(zlib_SRC) \
     $(nifti_SRC) \
     $(gifti_SRC) \
-    $(dartel_SRC) \
     $(nii2mesh_SRC) \
     $(s2kit10_SRC) \
     Lib/CAT_CorrectThicknessFolding.c \
-    Lib/CAT_SurfWarpDartel.c \
     Lib/CAT_WarpDemons.c \
     Lib/CAT_ROIStats.c \
     Lib/CAT_Vol2SurfUtils.c \

@@ -1,5 +1,5 @@
 # Compiler flags
-AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include -I$(top_srcdir)/3rdparty/dartel \
+AM_CFLAGS = -DHAVE_ZLIB -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/genus0 -I$(top_srcdir)/3rdparty/nifti \
     -I$(top_srcdir)/3rdparty/nifti -I$(top_srcdir)/3rdparty/s2kit10 \
     -I$(top_srcdir)/3rdparty/gifticlib -I$(top_srcdir)/3rdparty/expat/lib \
@@ -32,8 +32,6 @@ bin_PROGRAMS = \
     CAT_SurfSheet2Surf \
     CAT_Vol2Surf \
     CAT_SurfCurvature \
-    CAT_SurfApplyWarp \
-    CAT_SurfApplyWarpValues \
     CAT_SurfArea \
     CAT_SurfInfo \
     CAT_SurfRatio \
@@ -55,7 +53,6 @@ bin_PROGRAMS = \
     CAT_SurfValuesAverage \
     CAT_SurfFixTopology \
     CAT_SurfIsometize \
-    CAT_SurfWarp \
     CAT_SurfSphericalDemon \
     CAT_SurfSmoothAreal \
     CAT_SurfSmoothLaplacian \

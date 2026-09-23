@@ -24,7 +24,6 @@
 #include "CAT_Resample.h"
 #include "CAT_Smooth.h"
 #include "CAT_Math.h"
-#include "dartel.h"
 
 #define SPHERE_RADIUS 100.0
 #define EXP_MAX_COMPOSITIONS 12
@@ -45,20 +44,97 @@
  * matching the convention of the additive theta/phi update. */
 #define EXP_INVERSE 1
 
-/**
- * \brief Free the arrays allocated by init_dartel_poly so it can be re-built.
+/* Sphere sample points for the finite-difference gradient below.
  *
- * \param dpoly (in/out) dartel helper whose sample-point arrays are released
+ * Originally struct dartel_poly / init_dartel_poly() of
+ * 3rdparty/dartel/diffeopoly.c; that file was deprecated together with the
+ * DARTEL registration, and Spherical Demons was its only remaining user, so
+ * the little that is still needed lives here.
+ */
+#define THETA 0.0175 /* theta step, 1 degree */
+#define PHI   0.0175 /* phi step, 1 degree */
+
+struct sphere_steps
+{
+    int n_points;
+    double *u;      /* longitude of every vertex */
+    double *v;      /* latitude of every vertex */
+    Point *ntheta;  /* vertices rotated by -THETA */
+    Point *ptheta;  /* vertices rotated by +THETA */
+    Point *nphi;    /* vertices rotated by -PHI */
+    Point *pphi;    /* vertices rotated by +PHI */
+};
+
+/**
+ * \brief Build the (u,v) coordinates and the four rotated copies of a sphere.
+ *
+ * \param sphere (in)  spherical mesh
+ * \param steps  (out) sample points, released with free_sphere_steps()
  */
 static void
-free_dartel_poly(struct dartel_poly *dpoly)
+init_sphere_steps(polygons_struct *sphere, struct sphere_steps *steps)
 {
-    if (dpoly->u)      { free(dpoly->u);      dpoly->u = NULL; }
-    if (dpoly->v)      { free(dpoly->v);      dpoly->v = NULL; }
-    if (dpoly->ntheta) { free(dpoly->ntheta); dpoly->ntheta = NULL; }
-    if (dpoly->ptheta) { free(dpoly->ptheta); dpoly->ptheta = NULL; }
-    if (dpoly->nphi)   { free(dpoly->nphi);   dpoly->nphi = NULL; }
-    if (dpoly->pphi)   { free(dpoly->pphi);   dpoly->pphi = NULL; }
+    int i;
+    double x, y, z, xo, yo, zo;
+
+    steps->n_points = sphere->n_points;
+    steps->u = (double *) malloc(sizeof(double) * steps->n_points);
+    steps->v = (double *) malloc(sizeof(double) * steps->n_points);
+    steps->ntheta = (Point *) malloc(sizeof(Point) * steps->n_points);
+    steps->ptheta = (Point *) malloc(sizeof(Point) * steps->n_points);
+    steps->nphi = (Point *) malloc(sizeof(Point) * steps->n_points);
+    steps->pphi = (Point *) malloc(sizeof(Point) * steps->n_points);
+
+    for (i = 0; i < sphere->n_points; i++) {
+        xo = Point_x(sphere->points[i]);
+        yo = Point_y(sphere->points[i]);
+        zo = Point_z(sphere->points[i]);
+
+        point_to_uv(&sphere->points[i], &steps->u[i], &steps->v[i]);
+
+        /* +THETA */
+        x = xo * cos(THETA) + zo * sin(THETA);
+        y = xo * -sin(THETA) * sin(THETA) + yo * cos(THETA)
+          + zo * cos(THETA) * sin(THETA);
+        z = xo * -sin(THETA) * cos(THETA) + yo * -sin(THETA)
+          + zo * cos(THETA) * cos(THETA);
+        fill_Point(steps->ptheta[i], x, y, z);
+
+        /* -THETA */
+        x = xo * cos(-THETA) + zo * sin(-THETA);
+        y = xo * -sin(-THETA) * sin(-THETA) + yo * cos(-THETA)
+          + zo * cos(-THETA) * sin(-THETA);
+        z = xo * -sin(-THETA) * cos(-THETA) + yo * -sin(-THETA)
+          + zo * cos(-THETA) * cos(-THETA);
+        fill_Point(steps->ntheta[i], x, y, z);
+
+        /* +PHI */
+        x = xo * cos(PHI) + yo * sin(PHI);
+        y = xo * -sin(PHI) + yo * cos(PHI);
+        z = zo;
+        fill_Point(steps->pphi[i], x, y, z);
+
+        /* -PHI */
+        x = xo * cos(-PHI) + yo * sin(-PHI);
+        y = xo * -sin(-PHI) + yo * cos(-PHI);
+        fill_Point(steps->nphi[i], x, y, z);
+    }
+}
+
+/**
+ * \brief Free the arrays allocated by init_sphere_steps() so it can be re-built.
+ *
+ * \param steps (in/out) sphere sample points whose sample-point arrays are released
+ */
+static void
+free_sphere_steps(struct sphere_steps *steps)
+{
+    if (steps->u)      { free(steps->u);      steps->u = NULL; }
+    if (steps->v)      { free(steps->v);      steps->v = NULL; }
+    if (steps->ntheta) { free(steps->ntheta); steps->ntheta = NULL; }
+    if (steps->ptheta) { free(steps->ptheta); steps->ptheta = NULL; }
+    if (steps->nphi)   { free(steps->nphi);   steps->nphi = NULL; }
+    if (steps->pphi)   { free(steps->pphi);   steps->pphi = NULL; }
 }
 
 /**
@@ -139,26 +215,26 @@ min_neighbour_angle(polygons_struct *sphere, int *n_neighbours, int **neighbours
  * \brief Central-difference gradient of a scalar field in (theta, phi).
  *
  * Samples the field at the precomputed +/-1 degree neighbour points of each
- * vertex (dartel chart) and forms the symmetric difference.
+ * vertex (theta/phi chart) and forms the symmetric difference.
  *
  * \param polygons (in)  spherical mesh the field lives on
- * \param dpoly    (in)  dartel helper with theta/phi sample points
+ * \param steps    (in)  sphere sample points with theta/phi sample points
  * \param f        (in)  double[n_points]; scalar field
  * \param dtheta   (out) double[n_points]; d/dtheta component
  * \param dphi     (out) double[n_points]; d/dphi component
  */
 static void
-gradient_poly(polygons_struct *polygons, struct dartel_poly *dpoly,
+gradient_poly(polygons_struct *polygons, struct sphere_steps *steps,
               double f[], double dtheta[], double dphi[])
 {
     int i, mm = polygons->n_points;
     double kxm, kxp, kym, kyp;
 
     for (i = 0; i < mm; i++) {
-        kxm = interp_point_unit_sphere(polygons, f, dpoly->ntheta[i]);
-        kxp = interp_point_unit_sphere(polygons, f, dpoly->ptheta[i]);
-        kym = interp_point_unit_sphere(polygons, f, dpoly->nphi[i]);
-        kyp = interp_point_unit_sphere(polygons, f, dpoly->pphi[i]);
+        kxm = interp_point_unit_sphere(polygons, f, steps->ntheta[i]);
+        kxp = interp_point_unit_sphere(polygons, f, steps->ptheta[i]);
+        kym = interp_point_unit_sphere(polygons, f, steps->nphi[i]);
+        kyp = interp_point_unit_sphere(polygons, f, steps->pphi[i]);
         dtheta[i] = (kxp - kxm) / 2.0;
         dphi[i]   = (kyp - kym) / 2.0;
     }
@@ -352,7 +428,7 @@ resample_xyz(polygons_struct *src, Point *query, int nq,
 /**
  * \brief Diffeomorphic exponential map of a tangent velocity field.
  *
- * Integrates the velocity field (du, dv), expressed in the dartel theta/phi
+ * Integrates the velocity field (du, dv), expressed in the theta/phi
  * chart, into a displacement of the reference sphere's vertices using scaling
  * and squaring. The field is scaled by 2^-N, applied once with a first-order
  * step, then composed with itself N times (each composition doubles the
@@ -654,8 +730,8 @@ spherical_exp_map_tangent(polygons_struct *ref_sphere,
  * \param trg               (in)  template surface
  * \param trg_sphere        (in)  template sphere
  * \param warped_src_sphere (out) deformed source sphere for this stage
- * \param dpoly_src         (in)  dartel helper built on src_sphere
- * \param dpoly_trg         (in)  dartel helper built on trg_sphere
+ * \param steps_src         (in)  sphere sample points built on src_sphere
+ * \param steps_trg         (in)  sphere sample points built on trg_sphere
  * \param type              (in)  curvature type for this stage
  * \param opt               (in)  registration options
  * \param fwhm_flow_start   (in)  initial velocity-smoothing FWHM for this level
@@ -668,7 +744,7 @@ static void
 warp_demon(polygons_struct *src, polygons_struct *src_sphere,
            polygons_struct *orig_sphere, polygons_struct *trg,
            polygons_struct *trg_sphere, polygons_struct *warped_src_sphere,
-           struct dartel_poly *dpoly_src, struct dartel_poly *dpoly_trg,
+           struct sphere_steps *steps_src, struct sphere_steps *steps_trg,
            int type, const CAT_WarpDemonsOptions *opt, double fwhm_flow_start,
            double fwhm_disp_level, double *mask_level)
 {
@@ -736,7 +812,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     if (neighbours) { free(neighbours[0]); free(neighbours); }
 
     /* SD constant Tikhonov regularizer: in SD_computeAtlas2SphereInvariantUpdate
-     * the Hessian gets H += I/(max_step^2 * min_step). Mapped into the dartel
+     * the Hessian gets H += I/(max_step^2 * min_step). Mapped into the theta/phi
      * theta/phi chart (gradients sampled at +/-THETA, displacement = radius*angle)
      * this becomes reg = THETA^2 / (sigma_x^2 * min_angle^2). It is constant per
      * level (depends on resolution via min_angle), unlike a data-dependent term. */
@@ -799,7 +875,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     }
 
     /* gradient of the static (template) feature */
-    gradient_poly(trg_sphere, dpoly_trg, curv_trg, dtheta_trg, dphi_trg);
+    gradient_poly(trg_sphere, steps_trg, curv_trg, dtheta_trg, dphi_trg);
 
     if (diffeo) {
         cx = (double *) malloc(sizeof(double) * n);
@@ -937,7 +1013,7 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         } else {
             /* ---- lat-lon chart update ---- */
             /* gradient of the moving (source) feature */
-            gradient_poly(src_sphere, dpoly_src, curv_src, dtheta_src, dphi_src);
+            gradient_poly(src_sphere, steps_src, curv_src, dtheta_src, dphi_src);
 
             sum_diff2 = 0.0;
             for (i = 0; i < n; i++) {
@@ -1542,7 +1618,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         double fwhm_disp_level = opt->fwhm_disp * scale * stiff;
         polygons_struct sm_src, sm_trg, sm_src_sphere, sm_trg_sphere;
         polygons_struct orig_sphere, level_warped;
-        struct dartel_poly dpoly_src, dpoly_trg;
+        struct sphere_steps steps_src, steps_trg;
         object_struct **objects;
         double *mask_level = NULL;
 
@@ -1553,7 +1629,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         /* current warp resampled onto this level's grid */
         resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere, NULL, NULL, np);
 
-        init_dartel_poly(&sm_trg_sphere, &dpoly_trg);
+        init_sphere_steps(&sm_trg_sphere, &steps_trg);
 
         /* Pre-smooth the surface geometry before curvature estimation. This must
          * run on every level and on BOTH surfaces (as in CAT_SurfWarpDartel).
@@ -1569,7 +1645,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
             smooth_heatkernel(&sm_trg, NULL, fwhm_curv0/1.5);
         }
 
-        init_dartel_poly(&sm_src_sphere, &dpoly_src);
+        init_sphere_steps(&sm_src_sphere, &steps_src);
 
         /* Resample the template cortex mask (defined at full template
          * resolution) onto this level's template grid. */
@@ -1584,7 +1660,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                    mask_level ? ", cortex-masked" : "");
 
         warp_demon(&sm_src, &sm_src_sphere, &orig_sphere, &sm_trg,
-                   &sm_trg_sphere, &level_warped, &dpoly_src, &dpoly_trg,
+                   &sm_trg_sphere, &level_warped, &steps_src, &steps_trg,
                    ctype, opt, fwhm_level, fwhm_disp_level, mask_level);
 
         /* Carry this level's warp up to the full input resolution, stored as the
@@ -1600,8 +1676,8 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
         copy_polygons(get_polygons_ptr(objects[0]), cur_sphere);
         delete_object_list(1, objects);
 
-        free_dartel_poly(&dpoly_src);
-        free_dartel_poly(&dpoly_trg);
+        free_sphere_steps(&steps_src);
+        free_sphere_steps(&steps_trg);
         delete_polygons(&sm_src);
         delete_polygons(&sm_trg);
         delete_polygons(&sm_src_sphere);
