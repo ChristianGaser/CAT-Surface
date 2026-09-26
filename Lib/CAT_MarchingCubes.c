@@ -81,6 +81,8 @@ static const int g_faces[6][4] = {
  * Changes are accumulated then written back to volume before returning.
  *
  * \param volume        (in/out) current working volume
+ * \param vol_changed   (out)    per voxel -1 where a voxel was removed, +1 where
+ *                               one was added, untouched elsewhere
  * \param vol_prob      (in)     original pre-correction probability snapshot
  * \param thresh        (in)     foreground threshold (>= is foreground)
  * \param mn            (in)     value written when a voxel is removed
@@ -255,6 +257,8 @@ run_topology_pass(float *volume,float *vol_changed,  const float *vol_prob,
  * fundi) are preferred, minimising anatomical distortion.
  *
  * \param volume        (in/out) floating-point volume (probability or binary)
+ * \param vol_changed   (out)    per voxel -1 where a voxel was removed, +1 where
+ *                               one was added, untouched elsewhere
  * \param thresh        (in)     voxels >= thresh are foreground
  * \param dims          (in)     [nx, ny, nz] volume dimensions
  * \param conn_arr      (in)     two connectivity values, e.g. {18, 26}
@@ -866,6 +870,9 @@ precut_bridged_sulci(unsigned short *out, const unsigned short *base,
  * \param n_median_filter   (in)  iterations of median filtering to apply
  * \param n_iter            (in)  total outer loop iterations
  * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
+ * \param topo_sheet        (in)  dark-sheet response a defect must run along
+ *                               before it is cut instead of filled; 0 disables
+ *                               the pre-cut and leaves plain genus0 behaviour
  * \param sulci_opts        (in)  buried-sulcus correction on the PPM, or NULL to skip
  *                                it. A buried sulcus is a valley in the PPM whose floor
  *                                never drops below the isovalue, so the two banks fuse

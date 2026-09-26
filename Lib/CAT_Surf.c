@@ -532,6 +532,7 @@ get_bounds(polygons_struct *polygons, double bounds[6])
  * \param polygons (polygons_struct *)
  * \param n_neighbours (int)
  * \param neighbours (int *)
+ * \param verbose      (in)  non-zero to print the counts
  * \return See function description for return value semantics.
  */
 static int
@@ -1317,6 +1318,7 @@ inflate_surface_and_smooth_fingers(polygons_struct *polygonsIn,
  * \brief Multi-stage pipeline to convert a mesh into (increasingly smoothed/inflated) spherical form.
  *
  * Stages: low smooth → inflate → very inflate → high smooth → ellipsoid projection → optional areal smoothing.
+ * \param polygons mesh to map onto a sphere, transformed in place.
  * \param stop_at stage index (1..5) controlling how far to proceed.
  * \param verbose print stage info and iteration scaling for large meshes.
  */

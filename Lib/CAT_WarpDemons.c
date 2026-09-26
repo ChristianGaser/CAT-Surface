@@ -440,6 +440,8 @@ resample_xyz(polygons_struct *src, Point *query, int nq,
  * \param radius     (in)  sphere radius used for reprojection
  * \param min_angle  (in)  smallest neighbour angle (radians) for step sizing
  * \param out_points (out) Point[n_points]; integrated vertex positions
+ * \param geodesic   (in)  non-zero to compose the warp with geodesic (slerp)
+ *                         interpolation instead of linear-then-renormalize
  */
 static void
 spherical_exp_map(polygons_struct *ref_sphere, double *du, double *dv,
@@ -644,6 +646,8 @@ tangent_gradient(polygons_struct *sphere, int *n_nbr, int **nbr,
  * \param radius     (in)  sphere radius used for reprojection
  * \param min_angle  (in)  smallest neighbour angle (radians) for step sizing
  * \param out_points (out) Point[n]; integrated vertex positions
+ * \param geodesic   (in)  non-zero to compose the warp with geodesic (slerp)
+ *                         interpolation instead of linear-then-renormalize
  */
 static void
 spherical_exp_map_tangent(polygons_struct *ref_sphere,

@@ -38,8 +38,8 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Resample.h"
 
-int label_interpolation = 0;
-int areal_interpolation = 0;
+int label_interpolation = 0;  /**< -label: nearest-neighbour interpolation of integer labels */
+int areal_interpolation = 0;  /**< -areal: area-preserving interpolation of values */
 
 static ArgvInfo argTable[] = {
   {"-label", ARGV_CONSTANT, (char *) TRUE, (char *) &label_interpolation,
@@ -79,6 +79,13 @@ void usage(char *executable)
     fprintf(stderr, usage_str, executable, executable);
 }
 
+/**
+ * \brief Resample a surface, and optionally values, onto a target sphere.
+ *
+ * \param argc (in) argument count
+ * \param argv (in) argument vector
+ * \return EXIT_SUCCESS, or EXIT_FAILURE on a usage or I/O error
+ */
 int main(int argc, char *argv[])
 {
     char *surface_file, *sphere_file, *output_surface_file, *target_sphere_file;

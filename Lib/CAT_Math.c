@@ -840,6 +840,7 @@ static void clip_double(double *arr, int n, double limit[2])
  * \param x Array of doubles.
  * \param y Array of doubles with same size as x.
  * \param n Number of elements in the array.
+ * \param exclude_zeros If non-zero, pairs with a zero in x or y are ignored.
  *
  * \return Pearson correlation coefficient.
  */
