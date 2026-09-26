@@ -327,6 +327,7 @@ noinst_HEADERS = \
     Include/CAT_NiftiLib.h \
     Include/CAT_MarchingCubes.h \
     Include/CAT_SafeAlloc.h \
+    Include/CAT_ArgvCheck.h \
     Include/CAT_BBReg.h \
     Include/CAT_VolumeReg.h \
     Include/CAT_Deform.h \
@@ -420,6 +421,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_MarchingCubes.c \
     Lib/CAT_SPH.c \
     Lib/CAT_SafeAlloc.c \
+    Lib/CAT_ArgvCheck.c \
     Lib/CAT_BBReg.c \
     Lib/CAT_VolumeReg.c
 .PHONY: docs docs-clean
