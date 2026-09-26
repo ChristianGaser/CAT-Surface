@@ -9,8 +9,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
 # Included by the tests rather than compiled on their own.
 EXTRA_DIST = minunit.h math_subset.c
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph
 
 test_math_SOURCES = test_math.c
 
@@ -51,3 +51,7 @@ test_intersect_LDADD = $(top_builddir)/libCAT.la -lm
 test_annot_SOURCES = test_annot.c
 
 test_annot_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_morph_SOURCES = test_morph.c
+
+test_morph_LDADD = $(top_builddir)/libCAT.la -lm
