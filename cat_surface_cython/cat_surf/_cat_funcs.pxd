@@ -555,6 +555,8 @@ cdef extern from "CAT_NiftiLib.h":
 cdef extern from "CAT_Vol.h":
     void smooth3(void *vol, int dims[3], double voxelsize[3],
                  double s[3], int use_mask, int datatype)
+    void morph_dilate_geodesic(unsigned char *mask, const unsigned char *region,
+                               int dims[3], int niter, int alternate)
 
 
 # ---------------------------------------------------------------------------
