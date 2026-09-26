@@ -770,6 +770,15 @@ not move the surfaces.
    write results.
 3. New feature → create `Include/CAT_Feature.h` + `Lib/CAT_Feature.c` first,
    then write the slim CLI.
+4. **Reject unknown options.** `ParseArgv()` leaves an argument it does not
+   recognize in `argv` instead of failing, so a mistyped or removed flag is
+   taken for a file name and the tool fails with a confusing message about that
+   "file" -- which is how the examples using the removed `-oriented-filter`
+   looked. Every tool therefore calls `cat_check_unknown_options()`
+   (`Include/CAT_ArgvCheck.h`) after `ParseArgv()`, or before the first
+   positional argument is read where there is no option table, and prints its
+   usage when that returns non-zero. A negative number is a value, not an
+   option, so `-1` and `-0.5` positional arguments keep working.
 
 ## Adding a new library module
 

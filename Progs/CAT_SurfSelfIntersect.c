@@ -16,6 +16,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_Patch.h"
 #include "CAT_Intersect.h"
+#include "CAT_ArgvCheck.h"
 
 void
 usage(char *executable)
@@ -44,6 +45,14 @@ main(int argc, char** argv)
     File_formats format;
 
     initialize_argument_processing(argc, argv);
+    /* an argument that looks like an option is a typo: the tool takes
+       only positional arguments, so it would be read as a file name */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
+        fprintf(stderr, "\nUsage: %s surface_file output_values_file\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
+    }
     if (!get_string_argument(NULL, &surface_file) ||
       !get_string_argument(NULL, &out_file)) {
         fprintf(stderr, "\nUsage: %s surface_file output_values_file\n",

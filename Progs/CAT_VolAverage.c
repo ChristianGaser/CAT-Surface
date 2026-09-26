@@ -14,6 +14,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "CAT_SafeAlloc.h"
+#include "CAT_ArgvCheck.h"
 
 int verbose = 0;
 
@@ -47,6 +48,17 @@ int main(int argc, char *argv[])
 
     /* Get arguments */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
+        (void) fprintf(stderr, 
+        "\nUsage: %s [-std std-out.nii] [-zscore zscore.csv] in1.nii ... inx.nii out.nii\n", argv[0]);
+        (void) fprintf(stderr, 
+        "     %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         (void) fprintf(stderr, 
         "\nUsage: %s [-std std-out.nii] [-zscore zscore.csv] in1.nii ... inx.nii out.nii\n", argv[0]);
         (void) fprintf(stderr, 

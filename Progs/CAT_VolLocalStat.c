@@ -18,6 +18,7 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Vol.h"
 #include "CAT_Sheetness.h"
+#include "CAT_ArgvCheck.h"
 
 /* Defaults */
 int    stat_func          = F_MEAN;
@@ -175,6 +176,15 @@ main(int argc, char *argv[])
 
     /* Parse arguments */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2)) {
+        usage(argv[0]);
+        (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);

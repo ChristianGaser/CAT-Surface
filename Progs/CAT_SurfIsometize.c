@@ -13,6 +13,7 @@
 #include <ParseArgv.h>
 
 #include "CAT_Isometrics.h"
+#include "CAT_ArgvCheck.h"
 
 #define PRE_AND_POST 0
 #define PRE_ONLY   1
@@ -55,6 +56,15 @@ main(int argc, char** argv)
     double         radius;
 
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
+        usage(argv[0]);
+        fprintf(stderr, "   %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         fprintf(stderr, "   %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);

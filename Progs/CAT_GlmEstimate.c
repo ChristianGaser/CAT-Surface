@@ -13,6 +13,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_GlmFormula.h"
+#include "CAT_ArgvCheck.h"
 
 #define VERBOSE 0
 
@@ -419,6 +420,33 @@ main(int argc, char *argv[])
             usage(argv[0]);
             exit(EXIT_SUCCESS);
         }
+    }
+
+    /* An argument that looks like an option is a typo or a removed flag; this
+       parser would take it for a scan file. -formula and its value are its own,
+       so they are hidden from the check, and -help exits above. */
+    {
+        char **args = (char **)malloc(sizeof(char *) * (size_t)argc);
+        int n_args = 0;
+
+        if (!args) {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        args[n_args++] = argv[0];
+        for (i = 1; i < argc; i++) {
+            if (equal_strings(argv[i], "-formula")) {
+                i++;                 /* the formula string, not an option */
+                continue;
+            }
+            args[n_args++] = argv[i];
+        }
+        if (cat_check_unknown_options(n_args, args, argv[0])) {
+            free(args);
+            usage(argv[0]);
+            exit(EXIT_FAILURE);
+        }
+        free(args);
     }
 
     /* look for the -formula option */

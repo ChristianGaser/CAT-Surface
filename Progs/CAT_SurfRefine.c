@@ -9,6 +9,7 @@
 
 #include "CAT_Refine.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_ArgvCheck.h"
 
 private  void  usage(
     STRING   executable )
@@ -36,6 +37,13 @@ int  main(
 
     initialize_argument_processing( argc, argv );
 
+    /* an argument that looks like an option is a typo: the tool takes
+       only positional arguments, so it would be read as a file name */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
+        usage( argv[0] );
+        return( 1 );
+    }
     if( !get_string_argument( NULL, &input_filename ) ||
         !get_string_argument( NULL, &output_filename ) ||
         !get_real_argument( 0.0, &max_length ) )

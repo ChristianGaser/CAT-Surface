@@ -16,6 +16,7 @@
 
 #include "CAT_WarpDemons.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_ArgvCheck.h"
 
 /* defaults (kept in sync with CAT_WarpDemonsDefaults) */
 char *src_file = NULL;
@@ -120,6 +121,15 @@ int main(int argc, char *argv[])
         src_file == NULL || trg_file == NULL ||
         src_sphere_file == NULL || trg_sphere_file == NULL ||
         (output_surface_file == NULL && output_sphere_file == NULL))
+    {
+        fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
+        fprintf(stderr, "       %s -help\n\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
     {
         fprintf(stderr, "\nUsage: %s [options]\n", argv[0]);
         fprintf(stderr, "       %s -help\n\n", argv[0]);

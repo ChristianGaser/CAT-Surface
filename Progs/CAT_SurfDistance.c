@@ -12,6 +12,7 @@
 
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_ArgvCheck.h"
 
 enum {Tfs, Tlink};
 
@@ -71,6 +72,15 @@ main(int argc, char *argv[])
     if (ParseArgv(&argc, argv, argTable, 0) ||
       ((argc < 4) && (thickness_file == NULL)) ||
       ((argc < 3) && (thickness_file != NULL))) {
+        usage(argv[0]);
+        fprintf(stderr, "       %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         fprintf(stderr, "       %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);

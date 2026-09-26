@@ -14,6 +14,7 @@
 #include "CAT_Vol.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Smooth.h"
+#include "CAT_ArgvCheck.h"
 
 /* argument defaults */
 int   check_intersect = 0;
@@ -61,6 +62,15 @@ main(int argc, char *argv[])
 
     /* get the arguments from the command line */
     if (ParseArgv(&argc, argv, argTable, 0)) {
+        usage(argv[0]);
+        fprintf(stderr, "   %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         fprintf(stderr, "   %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);

@@ -19,6 +19,7 @@
 #include <ParseArgv.h>
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_ArgvCheck.h"
 
 /* Defaults */
 static double ratio = 0.50;          /* target faces as ratio of input triangles */
@@ -99,6 +100,15 @@ main(int argc, char *argv[])
     initialize_argument_processing(argc, argv);
 
     if (ParseArgv(&argc, argv, argTable, 0)) {
+        usage(argv[0]);
+        fprintf(stderr, "       %s -help\n\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         fprintf(stderr, "       %s -help\n\n", argv[0]);
         return EXIT_FAILURE;

@@ -27,6 +27,7 @@
 #include "CAT_ROIStats.h"
 #include "CAT_Vol2SurfUtils.h"
 #include "CAT_SafeAlloc.h"
+#include "CAT_ArgvCheck.h"
 
 #define GET_grid_POINT(result, grid_start, normal, length)              \
     {                                                                   \
@@ -163,6 +164,15 @@ int main(int argc, char *argv[])
 
     /* Call ParseArgv */
     if (ParseArgv(&argc, argv, argTable, 0))
+    {
+        fprintf(stdout, "\nUsage: %s [options] surface_file volume_file(s) output_values_file\n\n", argv[0]);
+        fprintf(stdout, "Map data from a volume to a surface.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
     {
         fprintf(stdout, "\nUsage: %s [options] surface_file volume_file(s) output_values_file\n\n", argv[0]);
         fprintf(stdout, "Map data from a volume to a surface.\n");

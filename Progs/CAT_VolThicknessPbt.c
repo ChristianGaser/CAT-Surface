@@ -20,6 +20,7 @@
 #include "CAT_Vol.h"
 #include "CAT_VolPbt.h"
 #include "CAT_Math.h"
+#include "CAT_ArgvCheck.h"
 
 int fast = 0;
 int verbose = 0;
@@ -305,6 +306,15 @@ int main(int argc, char *argv[])
     initialize_argument_processing(argc, argv);
 
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 2))
+    {
+        usage(argv[0]);
+        fprintf(stderr, "     %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
     {
         usage(argv[0]);
         fprintf(stderr, "     %s -help\n\n", argv[0]);

@@ -11,6 +11,7 @@
 #include "CAT_Smooth.h"
 #include "CAT_Curvature.h"
 #include "CAT_SurfaceIO.h"
+#include "CAT_ArgvCheck.h"
 
 void
 usage(char *executable)
@@ -36,6 +37,13 @@ main(int argc, char *argv[])
 
     initialize_argument_processing(argc, argv);
 
+    /* an argument that looks like an option is a typo: the tool takes
+       only positional arguments, so it would be read as a file name */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
     if (!get_string_argument(NULL, &object_file) ||
       !get_string_argument(NULL, &output_surface_file)) {
         usage(argv[0]);

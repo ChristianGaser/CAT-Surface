@@ -37,6 +37,7 @@
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_Resample.h"
+#include "CAT_ArgvCheck.h"
 
 int label_interpolation = 0;  /**< -label: nearest-neighbour interpolation of integer labels */
 int areal_interpolation = 0;  /**< -areal: area-preserving interpolation of values */
@@ -108,6 +109,15 @@ int main(int argc, char *argv[])
         !get_string_argument(NULL, &sphere_file) ||
         !get_string_argument(NULL, &target_sphere_file) ||
         !get_string_argument(NULL, &output_surface_file)) {
+        usage(argv[0]);
+        fprintf(stderr, "   %s -help\n\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         fprintf(stderr, "   %s -help\n\n", argv[0]);
         exit(EXIT_FAILURE);

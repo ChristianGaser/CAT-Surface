@@ -25,6 +25,7 @@
 #include "CAT_SurfaceIO.h"
 #include "CAT_AverageValues.h"
 #include "CAT_SafeAlloc.h"
+#include "CAT_ArgvCheck.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -64,6 +65,25 @@ main(int argc, char *argv[])
 
     /* ---- parse arguments ---- */
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3)) {
+        fprintf(stderr,
+            "\nUsage: %s [options] in1.gii ... inN.gii out.gii\n\n"
+            "Average values/textures (and meshes) from resampled GIFTI mesh\n"
+            "files.  Only GIFTI files that contain both a surface mesh and\n"
+            "texture (SHAPE) data arrays are accepted.\n\n"
+            "Options:\n"
+            "  -std <file>         Write standard deviation of values.\n"
+            "  -zscore <file.csv>  Write filenames and z-scores as CSV.\n"
+            "  -zscore-txt <file>  Write z-scores as plain text.\n"
+            "  -v                  Verbose output.\n\n"
+            "  %s -help\n\n",
+            argv[0], argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         fprintf(stderr,
             "\nUsage: %s [options] in1.gii ... inN.gii out.gii\n\n"
             "Average values/textures (and meshes) from resampled GIFTI mesh\n"

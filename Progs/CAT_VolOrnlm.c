@@ -15,6 +15,7 @@
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_Nlm.h"
+#include "CAT_ArgvCheck.h"
 
 double h_ornlm = 0.05;
 double sigma_ornlm = -1.0;
@@ -59,6 +60,15 @@ int main(int argc, char *argv[])
     nifti_image *nii_ptr;
     
     if (ParseArgv(&argc, argv, argTable, 0) ||(argc < 2)) {
+        usage(argv[0]);
+        (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
+         exit(EXIT_FAILURE);
+    }
+
+    /* a leftover that looks like an option is a typo or a removed flag;
+       ParseArgv() keeps it, so it would be read as a file name below */
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
         usage(argv[0]);
         (void) fprintf(stderr, "     %s -help\n\n", argv[0]);
          exit(EXIT_FAILURE);
