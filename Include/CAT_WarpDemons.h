@@ -29,16 +29,16 @@ extern "C" {
  * calling CAT_WarpDemonsRegister().
  */
 typedef struct {
-    int    n_points;            /* fallback spherical resolution if level_points unset */
-    int    level_points[CAT_WARP_DEMONS_MAX_STEPS]; /* resolution per pyramid level
+    int    n_points;            /**< fallback spherical resolution if level_points unset */
+    int    level_points[CAT_WARP_DEMONS_MAX_STEPS]; /**< resolution per pyramid level
                                    (coarse -> fine); <=0 falls back to n_points */
-    int    n_steps;             /* number of multi-resolution levels (1..3) */
-    int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /* curvature type per level:
+    int    n_steps;             /**< number of multi-resolution levels (1..3) */
+    int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /**< curvature type per level:
                                    0 mean curv (3mm, deg), 1 gaussian,
                                    2 curvedness, 3 shape index,
                                    4 mean curv (rad), 5 sulcal-depth-like */
-    int    iters;               /* maximum iterations per level */
-    int    rotate;              /* rigid rotation pre-alignment on level 0. The
+    int    iters;               /**< maximum iterations per level */
+    int    rotate;              /**< rigid rotation pre-alignment on level 0. The
                                    rotation is found by an exhaustive
                                    coarse-to-fine global search over all three
                                    angles (as FreeSurfer's
@@ -47,44 +47,44 @@ typedef struct {
                                    of one basin - a local search cannot escape
                                    the neighbouring-fold minimum that the
                                    quasi-periodic folding pattern creates. */
-    double rot_max_degrees;     /* rotation search: half-width of the initial span */
-    double rot_min_degrees;     /* rotation search: stop below this span */
-    int    rot_nangles;         /* rotation search: grid samples per axis per pass;
+    double rot_max_degrees;     /**< rotation search: half-width of the initial span */
+    double rot_min_degrees;     /**< rotation search: stop below this span */
+    int    rot_nangles;         /**< rotation search: grid samples per axis per pass;
                                    cost grows as (nangles+1)^3 per pass. */
-    int    smooth_velocity;     /* low-pass the velocity update (fluid prior; default
+    int    smooth_velocity;     /**< low-pass the velocity update (fluid prior; default
                                    on, the original SD default is off) */
-    int    smooth_displacement; /* low-pass the displacement field (elastic prior; SD default on) */
-    int    use_hessian;         /* per-vertex Gauss-Newton 2x2 Hessian update */
-    int    use_line_search;     /* adaptive step backtracking on stalled CC */
-    int    use_expmap;          /* diffeomorphic scaling-and-squaring exp map */
-    int    use_tangent;         /* per-vertex tangent-plane update (SD) instead of
+    int    smooth_displacement; /**< low-pass the displacement field (elastic prior; SD default on) */
+    int    use_hessian;         /**< per-vertex Gauss-Newton 2x2 Hessian update */
+    int    use_line_search;     /**< adaptive step backtracking on stalled CC */
+    int    use_expmap;          /**< diffeomorphic scaling-and-squaring exp map */
+    int    use_tangent;         /**< per-vertex tangent-plane update (SD) instead of
                                    the global lat-lon chart; requires use_expmap */
-    int    geodesic;            /* compose the exp-map warp with geodesic (slerp)
+    int    geodesic;            /**< compose the exp-map warp with geodesic (slerp)
                                    barycentric interpolation on the sphere instead
                                    of linear-then-renormalize */
-    int    unfold;              /* if nonzero, run a post-step that relaxes folded
+    int    unfold;              /**< if nonzero, run a post-step that relaxes folded
                                    (negative-area) triangles in the final warp
                                    until orientations are restored (or this many
                                    iterations); removes up-sampling folds */
-    double fwhm_flow;           /* FWHM for velocity-update smoothing (fluid) */
-    double fwhm_curv;           /* FWHM for the initial curvature smoothing */
-    double fwhm_disp;           /* FWHM for displacement-field smoothing (elastic) */
-    double rate;                /* per-iteration multiplier for fwhm_flow */
-    double max_step_deg;        /* clamp per-iteration step (deg); <=0 disables */
-    double sigma_x;             /* SD regularization weight (= max_step; default 20,
+    double fwhm_flow;           /**< FWHM for velocity-update smoothing (fluid) */
+    double fwhm_curv;           /**< FWHM for the initial curvature smoothing */
+    double fwhm_disp;           /**< FWHM for displacement-field smoothing (elastic) */
+    double rate;                /**< per-iteration multiplier for fwhm_flow */
+    double max_step_deg;        /**< clamp per-iteration step (deg); <=0 disables */
+    double sigma_x;             /**< SD regularization weight (= max_step; default 20,
                                    the original SD uses 2) */
-    double step_factor;         /* global step-size factor */
-    double *cortex_mask;        /* optional per-vertex cortex mask on the TEMPLATE
+    double step_factor;         /**< global step-size factor */
+    double *cortex_mask;        /**< optional per-vertex cortex mask on the TEMPLATE
                                    mesh, length trg->n_points. 0 excludes a vertex
                                    (e.g. medial wall) from the data term; resampled
                                    to each pyramid level.
                                    NULL = include all vertices. */
-    double l_dist;              /* weight of the metric-distortion regularizer
+    double l_dist;              /**< weight of the metric-distortion regularizer
                                    (FreeSurfer-style distance term): per-iteration
                                    gradient step pulling warped neighbour distances
                                    back toward the original sphere metric. Resists
                                    local stretch/fold. 0 = off. */
-    double coarse_stiffness;    /* extra large-scale regularization on the coarser
+    double coarse_stiffness;    /**< extra large-scale regularization on the coarser
                                    pyramid levels (Dartel-like stiffness): the flow
                                    and displacement smoothing FWHM are multiplied by
                                    a factor that is coarse_stiffness at level 0 and
@@ -92,8 +92,8 @@ typedef struct {
                                    stiffer coarse warp moves whole folds together and
                                    resists a sulcus slipping one wavelength into its
                                    neighbour. 1.0 = off (default); try 1.5-2.5. */
-    int    verbose;             /* print per-iteration progress */
-    int    debug;               /* write intermediate debug files */
+    int    verbose;             /**< print per-iteration progress */
+    int    debug;               /**< write intermediate debug files */
 } CAT_WarpDemonsOptions;
 
 /**

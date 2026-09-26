@@ -94,11 +94,16 @@
 #endif /* BYTE_ORDER */
 ///////////////////////////////////////////////////
 
+/**
+ * \brief One entry of a FreeSurfer annotation colour table.
+ */
 typedef struct
 {
-  int    r, g, b ;
-  int    annotation ;
-  char   name[1000] ;
+  int    r ;              /**< red component of the label colour, 0..255 */
+  int    g ;              /**< green component */
+  int    b ;              /**< blue component */
+  int    annotation ;     /**< packed colour as stored in the .annot file */
+  char   name[1000] ;     /**< label name */
 }
 ATABLE ;
 

@@ -53,29 +53,49 @@
 
 #include <math.h>
 
+/**
+ * \brief Arguments of one thread that accumulates class statistics on the grid.
+ *
+ * The volume is divided into sub x sub x sub blocks; every thread takes a
+ * disjoint range of grid planes and sums the intensities of each class into its
+ * own block of ir, so no locking is needed.
+ */
 typedef struct {
     /* inputs */
-    const float *src;
-    const unsigned char *label;
-    int n_classes;
-    int sub;
-    const int *dims;         /* dims[0]=X, dims[1]=Y, dims[2]=Z */
-    const double *thresh;    /* thresh[0] .. (optional thresh[1]) */
+    const float *src;            /**< intensity image */
+    const unsigned char *label;  /**< current hard labels, one per voxel */
+    int n_classes;               /**< number of classes accumulated */
+    int sub;                     /**< block size of the grid in voxels */
+    const int *dims;             /**< volume dimensions {nx, ny, nz} */
+    const double *thresh;        /**< lower (and optional upper) intensity bound */
     /* grid geometry (precomputed) */
-    int nix, niy, niz, narea, nvol, area;
+    int nix;                     /**< grid blocks along x */
+    int niy;                     /**< grid blocks along y */
+    int niz;                     /**< grid blocks along z */
+    int narea;                   /**< blocks per grid plane, nix * niy */
+    int nvol;                    /**< blocks in the grid, narea * niz */
+    int area;                    /**< voxels per volume slice, nx * ny */
     /* shared output accumulator */
-    struct ipoint *ir;       /* size: n_classes * nvol */
+    struct ipoint *ir;           /**< per-class block sums, n_classes * nvol entries */
     /* work partition on grid-z */
-    int z_ini, z_fin;        /* [z_ini, z_fin) in 0..niz */
+    int z_ini;                   /**< first grid plane of this thread's range */
+    int z_fin;                   /**< one past its last grid plane, at most niz */
 } gmv_accum_args_t;
 
+/**
+ * \brief Arguments of one thread that turns the accumulated sums into statistics.
+ *
+ * Converts the sums in ir into the mean and variance (or median) per class and
+ * block; every thread takes a disjoint range of blocks.
+ */
 typedef struct {
-    struct point *r;
-    const struct ipoint *ir;
-    int n_classes;
-    int nvol;
-    int use_median;
-    int j_ini, j_fin;   /* j-range [j_ini, j_fin) */
+    struct point *r;             /**< per-class block statistics, n_classes * nvol */
+    const struct ipoint *ir;     /**< accumulated sums from gmv_accum_args_t */
+    int n_classes;               /**< number of classes */
+    int nvol;                    /**< blocks in the grid */
+    int use_median;              /**< non-zero to use the median instead of the mean */
+    int j_ini;                   /**< first block of this thread's range */
+    int j_fin;                   /**< one past its last block */
 } gmv_reduce_args_t;
 
 /**
@@ -165,18 +185,26 @@ void Normalize(double *val, char n);
  */
 unsigned char MaxArg(double *val, unsigned char n);
 
+/**
+ * \brief Statistics of one class within one grid block.
+ */
 struct point {
-  int n;
-  double median;
-  double mean;
-  double var;
+  int n;          /**< number of voxels of the class in the block, 0 if too few */
+  double median;  /**< median intensity (unused unless use_median) */
+  double mean;    /**< mean intensity, or the median with use_median */
+  double var;     /**< sample variance of the intensities */
 };
 
+/**
+ * \brief Intensity sums of one class within one grid block.
+ *
+ * Filled by the accumulation pass and reduced into a struct point afterwards.
+ */
 struct ipoint {
-  int n;
-  double s;
-  double ss;
-  double *arr;
+  int n;        /**< number of voxels accumulated */
+  double s;     /**< sum of the intensities */
+  double ss;    /**< sum of the squared intensities */
+  double *arr;  /**< the intensities themselves, needed for the median */
 };
 
 #endif

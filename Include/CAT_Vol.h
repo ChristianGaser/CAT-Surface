@@ -29,49 +29,92 @@
 #define MAX_NC 6
 
 /* --------------------------- Thread args --------------------------- */
+
+/**
+ * \brief Arguments of one thread of the row pass of a separable convolution.
+ *
+ * The row pass convolves along x in place; every thread takes a disjoint range
+ * of rows, so no locking is needed.
+ */
 typedef struct
 {
-    float *out;
-    int xdim, ydim;
-    const double *filtx, *filty;
-    int fxdim, fydim;
-    int xoff, yoff;
-    int ini, fin; /* range on outer index: rows for row-pass, cols for col-pass */
+    float *out;           /**< slice to convolve in place, indexed x + y*xdim */
+    int xdim;             /**< number of columns of the slice */
+    int ydim;             /**< number of rows of the slice */
+    const double *filtx;  /**< kernel along x, fxdim samples */
+    const double *filty;  /**< kernel along y, fydim samples (unused here) */
+    int fxdim;            /**< length of filtx */
+    int fydim;            /**< length of filty */
+    int xoff;             /**< origin of filtx within the kernel */
+    int yoff;             /**< origin of filty within the kernel */
+    int ini;              /**< first row of this thread's range */
+    int fin;              /**< one past its last row */
 } conv_args_row;
 
+/**
+ * \brief Arguments of one thread of the column pass of a separable convolution.
+ *
+ * As conv_args_row, but the pass runs along y and the range is over columns.
+ */
 typedef struct
 {
-    float *out;
-    int xdim, ydim;
-    const double *filtx, *filty;
-    int fxdim, fydim;
-    int xoff, yoff;
-    int ini, fin; /* columns range */
+    float *out;           /**< slice to convolve in place, indexed x + y*xdim */
+    int xdim;             /**< number of columns of the slice */
+    int ydim;             /**< number of rows of the slice */
+    const double *filtx;  /**< kernel along x, fxdim samples (unused here) */
+    const double *filty;  /**< kernel along y, fydim samples */
+    int fxdim;            /**< length of filtx */
+    int fydim;            /**< length of filty */
+    int xoff;             /**< origin of filtx within the kernel */
+    int yoff;             /**< origin of filty within the kernel */
+    int ini;              /**< first column of this thread's range */
+    int fin;              /**< one past its last column */
 } conv_args_col;
 
+/**
+ * \brief Arguments of one thread of the in-plane stage of a 3D convolution.
+ *
+ * Stage 1 convolves every z slice along x and y and writes it to convxy_vol;
+ * each thread owns a disjoint range of slices.
+ */
 typedef struct
 {
     /* inputs */
-    const float *iVol;
-    int xdim, ydim, zdim;
-    const double *filtx, *filty;
-    int fxdim, fydim;
-    int xoff, yoff;
+    const float *iVol;    /**< input volume, [zdim * xdim * ydim] */
+    int xdim;             /**< number of columns */
+    int ydim;             /**< number of rows */
+    int zdim;             /**< number of slices */
+    const double *filtx;  /**< kernel along x, fxdim samples */
+    const double *filty;  /**< kernel along y, fydim samples */
+    int fxdim;            /**< length of filtx */
+    int fydim;            /**< length of filty */
+    int xoff;             /**< origin of filtx within the kernel */
+    int yoff;             /**< origin of filty within the kernel */
     /* outputs */
-    float *convxy_vol; /* [zdim * xdim * ydim] */
+    float *convxy_vol;    /**< in-plane filtered volume, [zdim * xdim * ydim] */
     /* range */
-    int z_ini, z_fin; /* [z_ini, z_fin) */
+    int z_ini;            /**< first slice of this thread's range */
+    int z_fin;            /**< one past its last slice */
 } convxyz_s1_args_t;
 
+/**
+ * \brief Arguments of one thread of the through-plane stage of a 3D convolution.
+ *
+ * Stage 2 convolves the output of stage 1 along z; each thread writes a disjoint
+ * range of output slices.
+ */
 typedef struct
 {
-    const float *convxy_vol; /* [zdim * xdim * ydim] */
-    float *oVol;             /* [zdim * xdim * ydim] */
-    int xdim, ydim, zdim;
-    const double *filtz;
-    int fzdim;
-    int zoff;
-    int z_out_ini, z_out_fin; /* [z_out_ini, z_out_fin) */
+    const float *convxy_vol; /**< in-plane filtered volume, [zdim * xdim * ydim] */
+    float *oVol;             /**< output volume, [zdim * xdim * ydim] */
+    int xdim;                /**< number of columns */
+    int ydim;                /**< number of rows */
+    int zdim;                /**< number of slices */
+    const double *filtz;     /**< kernel along z, fzdim samples */
+    int fzdim;               /**< length of filtz */
+    int zoff;                /**< origin of filtz within the kernel */
+    int z_out_ini;           /**< first output slice of this thread's range */
+    int z_out_fin;           /**< one past its last output slice */
 } convxyz_s2_args_t;
 
 /**
@@ -222,6 +265,18 @@ void morph_dilate(void *data, int dims[3], int niter, double th, int datatype);
  * \param datatype   (in)     data type code (DT_UINT8, DT_UINT16, DT_FLOAT32, etc.)
  */
 void morph_close(void *data, int dims[3], int niter, double th, int datatype);
+/**
+ * \brief Geodesic (region-constrained) binary dilation.
+ *
+ * \param mask      (in/out) unsigned char[nvox]; non-zero is foreground, written as 0/1
+ * \param region    (in)     unsigned char[nvox] or NULL; growth is confined to non-zero voxels
+ * \param dims      (in)     {nx, ny, nz}
+ * \param niter     (in)     number of dilation steps (<=0: no-op)
+ * \param alternate (in)     non-zero: alternate 6- and 26-connected steps, starting with 6
+ */
+void morph_dilate_geodesic(unsigned char *mask, const unsigned char *region,
+                           int dims[3], int niter, int alternate);
+
 /**
  * \brief Wrapper for binary morphological opening (generic datatype).
  *

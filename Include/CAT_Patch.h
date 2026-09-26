@@ -12,11 +12,14 @@
 
 #include <bicpl.h>
 
+/**
+ * \brief One triangle of a surface patch, in a linked list.
+ */
 struct patchinfo {
-        int num;
-        int pts[3];
+        int num;     /**< index of the triangle in the original mesh */
+        int pts[3];  /**< its vertex indices */
 
-        struct patchinfo *next;
+        struct patchinfo *next;  /**< next triangle of the patch, NULL at the end */
 };
 
 /**

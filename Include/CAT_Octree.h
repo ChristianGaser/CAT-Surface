@@ -20,24 +20,30 @@
 #define PINF  1.7976931348623157e+308 /* for doubles */
 #define NINF -1.7976931348623157e+308 /* for doubles */
 
+/**
+ * \brief One triangle in an octree box, in a linked list.
+ */
 struct polynode {
-        int num;           /* number of the triangle in the original mesh */
-        int pts[3];        /* points in the triangle */
+        int num;           /**< number of the triangle in the original mesh */
+        int pts[3];        /**< points in the triangle */
 
-        double bounds[6];  /* triangle bounds */
+        double bounds[6];  /**< triangle bounds */
 
-        struct polynode *next; /* the next one in a linked list */
+        struct polynode *next; /**< the next one in a linked list */
 };
 
+/**
+ * \brief Octree over the triangles of a mesh, for intersection queries.
+ */
 struct octree {
-        double bbox[6]; /* the entire bounding box for the brain */
-        int nodeflag[NBOXES]; /* flag for keeping track of what's been done */
-        int *polyflag; /* flag for keeping track of what's been done */
-        int npoly;
+        double bbox[6]; /**< the entire bounding box for the brain */
+        int nodeflag[NBOXES]; /**< flag for keeping track of what's been done */
+        int *polyflag; /**< flag for keeping track of what's been done */
+        int npoly; /**< number of triangles in the mesh */
 
-        struct polynode **nodelist; /* raw list of triangles */
-        struct polynode *nodes[NBOXES]; /* the triangles in each box */
-        double bounds[NBOXES][6]; /* bounds for boxes */
+        struct polynode **nodelist; /**< raw list of triangles */
+        struct polynode *nodes[NBOXES]; /**< the triangles in each box */
+        double bounds[NBOXES][6]; /**< bounds for boxes */
 };
 
 

@@ -30,9 +30,9 @@ typedef struct CAT_CalcExpr CAT_CalcExpr;
  * is therefore enough to evaluate the same expression concurrently.
  */
 typedef struct {
-    const double *values;   /* n_img values: i1..iN at the current voxel   */
-    int           n_img;    /* number of input images                      */
-    double       *scratch;  /* CAT_CalcScratchSize() doubles of workspace  */
+    const double *values;   /**< n_img values: i1..iN at the current voxel   */
+    int           n_img;    /**< number of input images                      */
+    double       *scratch;  /**< CAT_CalcScratchSize() doubles of workspace  */
 } CAT_CalcCtx;
 
 /**

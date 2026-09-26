@@ -118,7 +118,7 @@ typedef struct
                            governs every gyral crown. */
     double cutoff;    /**< admission cutoff of the oriented median the caller may run
                            alongside; <= 0 selects CAT_ORIENTED_MEDIAN_CUTOFF */
-    int verbose;
+    int verbose;      /**< non-zero to report the response and what it changed */
 } CAT_PpmSulciOpts;
 
 /**

@@ -21,10 +21,10 @@
  * "(Intercept)", "age", "group[patient]" or "group[patient]:age".
  */
 typedef struct {
-    int      n_obs;      /* number of observations (== number of scans)   */
-    int      n_beta;     /* number of design-matrix columns               */
-    double **G;          /* n_obs x n_beta design matrix (bicpl ALLOC2D)  */
-    char   **colnames;   /* n_beta column labels (heap strings)           */
+    int      n_obs;      /**< number of observations (== number of scans)   */
+    int      n_beta;     /**< number of design-matrix columns               */
+    double **G;          /**< n_obs x n_beta design matrix (bicpl ALLOC2D)  */
+    char   **colnames;   /**< n_beta column labels (heap strings)           */
 } GlmDesign;
 
 /**

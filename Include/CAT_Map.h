@@ -12,14 +12,20 @@
 
 #include <bicpl.h>
 
+/**
+ * \brief Dimensions of a 2D sheet.
+ */
 typedef struct {
-    long x;
-    long y;
+    long x;  /**< width in pixels */
+    long y;  /**< height in pixels */
 } Header;
 
+/**
+ * \brief A 2D vector, e.g. a (u,v) offset on a sheet.
+ */
 typedef struct {
-    double x;
-    double y;
+    double x;  /**< first component */
+    double y;  /**< second component */
 } Vector2D;
 
 /**

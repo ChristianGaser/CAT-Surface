@@ -16,19 +16,24 @@ extern "C"
 {
 #endif
 
-    /* -----------------------------------------------------------------------
-     * Rigid-body transform: 6 DOF (tx, ty, tz, rx, ry, rz in radians).
+    /**
+     * \brief Rigid-body transform, 6 DOF.
+     *
      * The convention follows FreeSurfer bbregister:
-     *   T_full = T_trans * R_z * R_y * R_x
-     * ----------------------------------------------------------------------- */
+     * T_full = T_trans * R_z * R_y * R_x
+     */
     typedef struct
     {
-        double tx, ty, tz; /* translation (mm) */
-        double rx, ry, rz; /* rotation angles (radians) */
+        double tx; /**< translation along x (mm) */
+        double ty; /**< translation along y (mm) */
+        double tz; /**< translation along z (mm) */
+        double rx; /**< rotation about x (radians) */
+        double ry; /**< rotation about y (radians) */
+        double rz; /**< rotation about z (radians) */
     } CAT_RigidParams;
 
-    /* -----------------------------------------------------------------------
-     * One surface with optional per-vertex data.
+    /**
+     * \brief One surface with optional per-vertex data.
      *
      * cortex_mask  : array of n_points floats; vertex included if > 0.5.
      *                Pass NULL to include all vertices.
@@ -38,13 +43,13 @@ extern "C"
      * gm_proj_frac : fraction of local thickness for GM sampling offset
      *                (0 = use gm_dist_abs, 1 = full thickness).
      *                Ignored when thickness is NULL.
-     * ----------------------------------------------------------------------- */
+     */
     typedef struct
     {
-        polygons_struct *surface; /* white-matter surface mesh */
-        float *cortex_mask;       /* per-vertex cortex label (or NULL) */
-        float *thickness;         /* per-vertex thickness in mm (or NULL) */
-        double gm_proj_frac;      /* fraction of thickness for GM offset */
+        polygons_struct *surface; /**< white-matter surface mesh */
+        float *cortex_mask;       /**< per-vertex cortex label (or NULL) */
+        float *thickness;         /**< per-vertex thickness in mm (or NULL) */
+        double gm_proj_frac;      /**< fraction of thickness for GM offset */
     } CAT_SurfData;
 
     /**

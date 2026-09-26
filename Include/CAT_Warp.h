@@ -23,14 +23,17 @@
 #define SIGMA 0.5    // Shrinkage coefficient
 #define TOL 1e-4     // Convergence tolerance
 
+/**
+ * \brief State of the rotation search of rotate_polygons_to_atlas().
+ */
 typedef struct {
-    polygons_struct *src;
-    polygons_struct *src_sphere;
-    polygons_struct *trg_sphere;
-    double *orig_trg;  // Precomputed target curvatures
-    double *map_trg;   // Preallocated buffer for rotated target curvatures
-    double *map_src;   // Precomputed source curvatures
-    double *pre_rot;   // Optional 3x3 row-major seed rotation pre-multiplied
+    polygons_struct *src;        /**< source surface whose curvature is matched */
+    polygons_struct *src_sphere; /**< spherical mapping of the source */
+    polygons_struct *trg_sphere; /**< spherical mapping of the template */
+    double *orig_trg;  ///< Precomputed target curvatures
+    double *map_trg;   ///< Preallocated buffer for rotated target curvatures
+    double *map_src;   ///< Precomputed source curvatures
+    double *pre_rot;   ///< Optional 3x3 row-major seed rotation pre-multiplied
                        // into every candidate (NULL = none); lets the
                        // Nelder-Mead refine reside in the residual angles.
 } OptimizationParams;

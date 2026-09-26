@@ -14,11 +14,14 @@
 extern "C" {
 #endif
 
+/**
+ * \brief Accumulator of one region while ROI means are computed.
+ */
 typedef struct {
-    int id;               /* annotation id */
-    const char *name;     /* pointer into ATABLE (owned by caller) or "unknown" */
-    double sum;           /* sum over all non-NaN values for this id */
-    int n;                /* number of samples contributing to sum */
+    int id;               /**< annotation id */
+    const char *name;     /**< pointer into ATABLE (owned by caller) or "unknown" */
+    double sum;           /**< sum over all non-NaN values for this id */
+    int n;                /**< number of samples contributing to sum */
 } CAT_ROIStat;
 
 /**

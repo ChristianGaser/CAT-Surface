@@ -12,12 +12,15 @@
 
 #include <bicpl.h>
 
+/**
+ * \brief A sparse matrix in compressed sparse row (CSR) form.
+ */
 struct csr_matrix {
-  int   n;        // size of matrix
-  int   nnz;      // number of non-zero coeffs
-  int * ia;       // row pointers
-  int * ja;       // column pointers
-  double * A;       // coefficients
+  int   n;        ///< size of matrix
+  int   nnz;      ///< number of non-zero coeffs
+  int * ia;       ///< row pointers
+  int * ja;       ///< column pointers
+  double * A;       ///< coefficients
 };
 
 /**

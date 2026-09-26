@@ -26,17 +26,26 @@
 #define QUIET_OFF      0
 #define QUIET_ON       1
 
+/**
+ * \brief A mesh together with the neighbourhood metrics the smoothing needs.
+ */
 struct metricdata {
-        polygons_struct *polygons;
-        int *n_neigh;
-        int **neigh;
-        struct pointdata **ptdata;
+        polygons_struct *polygons;   /**< the mesh itself */
+        int *n_neigh;                /**< neighbours per vertex */
+        int **neigh;                 /**< neighbour indices per vertex */
+        struct pointdata **ptdata;   /**< per-vertex metrics, one entry per vertex */
 };
 
+/**
+ * \brief Metrics of the triangle fan around one vertex.
+ *
+ * Every array has n_neigh[p] entries, one per triangle of the fan, in the order
+ * of the vertex's neighbour list.
+ */
 struct pointdata {
-        double *lengths;
-        Vector *norm;
-        double *areas;
+        double *lengths;  /**< distance to each neighbour */
+        Vector *norm;     /**< normal of each fan triangle, filled on demand */
+        double *areas;    /**< area of each fan triangle */
 };
 
 /**

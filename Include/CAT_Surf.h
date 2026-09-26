@@ -29,12 +29,24 @@
 #define DATAFORMAT 1 /* 1 = double data, 0 = complex data */
 #define _PI 3.14159265358979323846264338327510
 
-/* edge incidence */
-typedef struct { int a,b,c, idx; } keytri_t;
+/**
+ * \brief A triangle keyed by its sorted vertex indices, for edge incidence.
+ */
 typedef struct {
-    int a,b;      /* a<b undirected edge key */
-    int tri;      /* triangle index */
-    double area;  /* triangle area for ranking */
+    int a;    /**< smallest vertex index of the triangle */
+    int b;    /**< middle vertex index */
+    int c;    /**< largest vertex index */
+    int idx;  /**< index of the triangle in the mesh */
+} keytri_t;
+
+/**
+ * \brief One occurrence of an undirected edge in a triangle.
+ */
+typedef struct {
+    int a;        /**< first vertex of the edge, a < b */
+    int b;        /**< second vertex of the edge */
+    int tri;      /**< triangle index */
+    double area;  /**< triangle area for ranking */
 } edge_occ;
 
 /**
