@@ -1329,13 +1329,15 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             if (genus0(g0))
                 return (NULL); /* check for error */
 
+            /* save changes -- before the output replaces vol_uint16, which is
+               what g0->input points to: counted afterwards, the difference was
+               always zero and the filling pass never entered the cost */
+            for (i = 0; i < nvol; i++)
+                change += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
+
             /* save results as next input */
             for (i = 0; i < nvol; i++)
                 vol_uint16[i] = g0->output[i];
-
-            /* save changes */
-            for (i = 0; i < nvol; i++)
-                change += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
 
             /* call genus0 a 2nd time with other parameters */
             g0->input = vol_uint16;
@@ -1434,7 +1436,10 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                                  topo_sheetness, dims, topo_sheet, verbose);
         }
 
-        /* Only move on if topology correction is still necessary */
+        /* Only move on if topology correction is still necessary.  When it is
+           not, the winner of the search changed nothing -- neither its
+           morphology nor either genus0 pass -- so the g0->output it left behind,
+           which keep_largest_cluster() reads below, is the input volume. */
         if (best_change_values > 0)
         {
             if (best_dist > 0.0)
@@ -1451,13 +1456,14 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
             if (genus0(g0))
                 return (NULL); /* check for error */
 
+            /* save changes -- before the output replaces vol_uint16 (= g0->input),
+               or the voxels the filling pass adds are never recorded */
+            for (i = 0; i < nvol; i++)
+                vol_changed[i] += (float)(count + 2) * ((float)g0->output[i] - (float)g0->input[i]);
+
             /* save results as next input */
             for (i = 0; i < nvol; i++)
                 vol_uint16[i] = g0->output[i];
-
-            /* save changes */
-            for (i = 0; i < nvol; i++)
-                vol_changed[i] += (float)(count + 2) * ((float)g0->output[i] - (float)g0->input[i]);
 
             /* call genus0 a 2nd time with other parameters */
             g0->input = vol_uint16;

@@ -253,14 +253,15 @@ over 19 subjects), and the difference follows the amount of fusion, not the thic
 hemisphere with more fused sulci gets a *looser* gate and still *more* correction (r = 0.85
 between gate and capped fraction). `CAT_VolPbtBarrierReference()` (`-barrier-ref-only`,
 `cat_surf.vol_pbt_barrier_reference`) returns the reference a full run would derive -- same
-preprocessing, bit-identical -- in ~13 s, and `barrier_gmtref` (`-barrier-gmtref`) hands it
-back. The benefit is small and is about applying one criterion to both sides rather than about
+preprocessing, bit-identical -- in ~13 s on real data before the speed-ups under
+*Performance* (6.6 -> 3.1 s on the phantom there), and `barrier_gmtref` (`-barrier-gmtref`)
+hands it back. The benefit is small and is about applying one criterion to both sides rather than about
 the mean: at factor 1.3 on all 19 subjects the mean thickness is unchanged, a hemisphere's
 band mean moves by 0.007 mm on average (at most 0.019 mm), and the mean |lh-rh| drops from
 0.080 to 0.069 mm (smaller in 15/19; up to 0.04 mm where the references differ by 7-9%).
 That matters for asymmetry analyses, where effects are of the same size. T1Prep does this by
 default in the simplest way: each hemisphere process estimates both references itself (~20 s
-extra) and passes the mean -- the estimate is deterministic, so both arrive at the same value
+extra before the speed-ups, about half that now) and passes the mean -- the estimate is deterministic, so both arrive at the same value
 without any coordination -- and writes the references into its QA sidecar for the report
 (`barrier_ref_lh/rh/shared`).
 
@@ -339,6 +340,23 @@ another hemisphere a 1.0 mm opening, 16703 voxels, 89% on gyral ridges. The sear
 counts the morphology's own voxels too, which picks `dist = 0` on all three, and Euler 2
 is still reached in one or two iterations -- ADNI_014 lh gains 5.8% of surface area
 (901 -> 954 cm2) that the opening had eaten.
+
+**The filling pass used to count as zero -- and that switched the pre-cut off.** After the first
+genus0 call, `vol_uint16` (which `g0->input` points to) was overwritten with the output *before*
+the changes were summed, so the difference was always zero: the voxels the filling pass adds
+never entered the search's cost, `best_change_values` or `vol_changed`. Since
+`best_change_values > 0` gates both the `-topo-sheet` pre-cut and the genus0 pair in the main
+loop, a hemisphere whose defects filling alone resolves reported no change at all: no pre-cut,
+no median over the corrected areas, and the main loop reused the search's genus0 output. The
+changes are now summed before the copy. On the phantom under *Performance*, at the T1Prep
+settings: 0 -> 286 voxels changed (281 filled), the pre-cut now runs and cuts all 16 contested
+regions, and the surface changes (267004 -> 270134 vertices). Where the cut pass had work
+anyway -- a configuration with 166 changed voxels -- the surface is identical; only the count
+(-> 380) and the change map differ. Every measurement in this section predates the fix, so the
+pre-cut in it only acted on hemispheres where the cut pass or the morphology had work; the 16
+bit-identical hemispheres below are at least partly the fill-only ones it skipped. They need to
+be re-run. The search itself should still pick `dist = 0`: the fills are tens to hundreds of
+voxels against thousands to tens of thousands for any opening or closing.
 
 **Filling is the safer default, and the order enforces it.** The pair of genus0 calls
 resolves a defect by filling it if the first (filling, 6-connected) call can, and cuts
@@ -755,6 +773,13 @@ Two safeguards against self-intersections cost accuracy, measured on six central
 
 The surfaces move 0.08-0.15 mm on average. `surf_deform_dual` still uses the distance test.
 
+**Open issue: the near-contact search misses pairs.** `find_near_intersections()` searches
++-1 cell of a grid whose cell is bbox/250 -- 0.49 mm on the phantom under *Performance*, ~0.56 mm
+on a real hemisphere -- while the threshold is 0.75x the mean edge, 0.68 mm on that reduced mesh.
+Contacts between the two can sit two cells away and are never tested. Sizing the cells from the
+threshold fixes it, but more vertices are then frozen or reverted, so the central, pial and
+white surfaces change; it is left for an evaluation on real hemispheres.
+
 The result is then smoothed with 2 HC Laplacian iterations, before `-remove_intersect`. Unlike
 smoothing the accumulated displacement, this reduces the error: on HR075 lh the PPM error goes
 0.0220 -> 0.0194 and the umbrella roughness 0.084 -> 0.072, with 0 intersections after the repair.
@@ -762,6 +787,60 @@ smoothing the accumulated displacement, this reduces the error: on HR075 lh the 
 `-giter` (gradient refinement) was removed, from the Python binding (`gradient_iterations`) too:
 it searched for the slope sample nearest to the vertex, which is the vertex itself, so it did
 not move the surfaces.
+
+## Performance (the T1Prep path)
+
+Per hemisphere on a 0.5 mm phantom (190x280x240 voxels, a 67k-vertex central surface -- a
+real one has about twice the vertices), with every output byte-identical before and after:
+
+| stage | before | after |
+| --- | --- | --- |
+| `vol_pbt_barrier_reference` (T1Prep runs it twice) | 6.6 s | 3.1 s |
+| `vol_thickness_pbt` | 23.8 s | 12.7 s |
+| `vol_marching_cubes` | 36.4 s | 16.8 s |
+| `surf_deform` | 7.4 s | 6.0 s |
+| all cat-surf calls of one hemisphere | 107 s | 68 s |
+
+Fixing the genus0 change count (see *Topology correction*) then took marching cubes to 31.4 s
+(82 s in total): the pre-cut and the genus0 pair now run on hemispheres where the bug skipped
+them. That is work that should have been done, not overhead -- but the pre-cut's filling call
+repeats the search's `dist = 0` filling call on the same volume and could reuse its output.
+
+Where it came from, and what keeps it:
+
+- **Order statistics are selected, never sorted.** `get_median_double()`,
+  `get_prctile_double()` and the oriented median use Hoare selection, which returns exactly the
+  value a sorted copy holds at that index. The median filters used to pay a `qsort` per voxel
+  (and `get_median_double` a malloc/free on top), and every sheetness normalization sorted
+  ~10^7 responses to read one percentile -- 12 s of the old PBT between them.
+  `tests/test_sheetness.c` checks both against a sort-based reference. Do not reintroduce a
+  sort or an allocation inside a per-voxel loop.
+- **Per-voxel stencils run on `cat_parallel_run()`** (`Include/CAT_Vol.h`), split by slices
+  and capped at `MAX_NTHREADS` = 4 per process, since T1Prep runs both hemispheres at once
+  (raising it to 8 gained 3% on an 8-core 4P+4E Mac). The sheetness eigen loop and
+  `CAT_VolOrientedMedian()` use it; every voxel writes only its own output, so the result
+  cannot depend on the split. `projection_based_thickness()` cannot be split that way: its
+  forward and backward sweeps propagate in raster order.
+- **The oriented median skips constant neighbourhoods** -- any admitted subset of equal values
+  has that value as its median -- and most voxels of a label map or a PPM sit in one. Its
+  neighbours are admitted in antipodal pairs, so the count is always odd.
+- **The `dist_morph` search evaluates `dist = 0` first and prunes.** A candidate's own
+  morphology voxels are a lower bound on its total, since genus0 only adds to it, so any
+  candidate that cannot beat the best so far is skipped without running genus0; ties still go
+  to the earlier entry of `dist_values`, so the choice is the one an exhaustive search makes.
+  Up to 12 whole-volume genus0 calls became typically 2.
+- **The deform loops pass their neighbour table** to `find_near_*_intersections_nb()` instead of
+  rebuilding it every iteration, and the spatial grid keeps its nodes in one pool, so freeing
+  it no longer walks all 250^3 cells.
+
+Measured and deliberately not done:
+
+- Masking the sheetness to the brain: the p99.9 anchor is taken over every non-zero response,
+  including faint ones outside the brain, so a mask would move the normalization.
+- Masking PBT's final median to where its blend weight is non-zero: that is 47% of the
+  volume, and the median costs 0.11 s there.
+- Fusing the valley and the signed sheetness runs in marching cubes (~1.4 s): the signed run
+  sees the PPM after the gyri-mask offset, so fusing changes results.
 
 ## Architecture rules
 
