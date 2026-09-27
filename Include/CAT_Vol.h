@@ -118,6 +118,29 @@ typedef struct
 } convxyz_s2_args_t;
 
 /**
+ * \brief Run a worker on several threads and wait for all of them.
+ *
+ * A parallel-for with an implicit barrier: worker t receives the address of
+ * its own pre-filled argument slot, args + t * argsz, which carries the index
+ * range it owns.  Without pthreads (Windows) the workers run sequentially.
+ *
+ * \param nthreads (in) number of workers, from cat_parallel_nthreads()
+ * \param worker   (in) function run once per argument slot
+ * \param args     (in) array of nthreads argument slots
+ * \param argsz    (in) size of one argument slot in bytes
+ */
+void cat_parallel_run(int nthreads, void *(*worker)(void *), void *args,
+                      size_t argsz);
+
+/**
+ * \brief Number of worker threads for a loop over n_units independent units.
+ *
+ * \param n_units (in) number of units the work can be split into (e.g. slices)
+ * \return min(n_units, MAX_NTHREADS), at least 1
+ */
+int cat_parallel_nthreads(int n_units);
+
+/**
  * \brief Apply median filtering to a 3D volume.
  *
  * \param data      (in/out) void pointer to volume data; type given by datatype parameter

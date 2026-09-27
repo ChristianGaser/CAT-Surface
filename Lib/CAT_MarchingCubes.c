@@ -1269,10 +1269,27 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     if (dist_morph == FLT_MAX)
     {
         double dist_values[] = {-1.0, -0.5, 0.0, 0.5, 1.0, 1.5};
-        int change_values[] = {0, 0, 0, 0, 0, 0};
-        int n_values = sizeof(change_values) / sizeof(change_values[0]);
-        for (k = 0; k < n_values; k++)
+        /* The candidate without morphology (0.0) goes first: it costs no
+           voxels of its own and is what the search settles on for every
+           hemisphere measured, so it usually sets a bound the other candidates
+           cannot reach (below). */
+        const int order[] = {2, 0, 1, 3, 4, 5};
+        const int n_values = sizeof(order) / sizeof(order[0]);
+        int ind_min_value = -1;
+        int min_value = 0;
+        int m;
+
+        for (m = 0; m < n_values; m++)
         {
+            int change = 0;
+
+            k = order[m];
+
+            /* Nothing undercuts zero and a later candidate loses a tie, so once
+               one changed nothing, those after it in dist_values are decided
+               without even computing their morphology. */
+            if (ind_min_value >= 0 && min_value == 0 && k > ind_min_value)
+                continue;
 
             for (i = 0; i < nvol; i++)
                 vol_uint16[i] = (input_float[i] >= min_threshold) ? 1 : 0;
@@ -1289,8 +1306,19 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                narrower than 3 mm bridged -- to save genus0 the 9 voxels it
                would have changed without it. */
             for (i = 0; i < nvol; i++)
-                change_values[k] += (vol_uint16[i] !=
-                                     ((input_float[i] >= min_threshold) ? 1 : 0));
+                change += (vol_uint16[i] !=
+                           ((input_float[i] >= min_threshold) ? 1 : 0));
+
+            /* Those voxels are a lower bound on the candidate's total, because
+               genus0 can only add to it.  A candidate that cannot beat the best
+               so far -- or could only tie it from a later place in dist_values,
+               which the first-minimum rule would not pick -- is skipped instead
+               of running genus0 twice on the whole volume.  The choice is the
+               one evaluating every candidate in dist_values order would make,
+               and usually leaves a single candidate to evaluate. */
+            if (ind_min_value >= 0 &&
+                (change > min_value || (change == min_value && k > ind_min_value)))
+                continue;
 
             /* call genus0 for the 1st time */
             g0->input = vol_uint16;
@@ -1307,7 +1335,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
             /* save changes */
             for (i = 0; i < nvol; i++)
-                change_values[k] += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
+                change += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
 
             /* call genus0 a 2nd time with other parameters */
             g0->input = vol_uint16;
@@ -1320,25 +1348,18 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
             /* save changes */
             for (i = 0; i < nvol; i++)
-                change_values[k] += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
-            if (change_values[k] == 0)
+                change += (int)fabs((float)g0->output[i] - (float)g0->input[i]);
+
+            /* the first minimum in dist_values order wins a tie */
+            if (ind_min_value < 0 || change < min_value ||
+                (change == min_value && k < ind_min_value))
             {
-                n_values = k + 1;
-                break;
-            }
-        }
-        int ind_min_value;
-        int min_value = 1E9;
-        for (k = 0; k < n_values; k++)
-        {
-            if (change_values[k] < min_value)
-            {
-                min_value = change_values[k];
+                min_value = change;
                 ind_min_value = k;
             }
         }
         best_dist = dist_values[ind_min_value];
-        best_change_values = change_values[ind_min_value];
+        best_change_values = min_value;
     }
     else
     {

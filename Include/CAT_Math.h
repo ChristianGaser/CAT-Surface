@@ -169,7 +169,9 @@ double get_mean_double(double *arr, int n, int exclude_zeros);
 /**
  * \brief Get median value from double array with optional zero exclusion.
  *
- * \param arr            (in/out) double[n]; array to compute median from; sorted in-place
+ * NaN and infinite values are ignored; the input array is not modified.
+ *
+ * \param arr            (in)     double[n]; array to compute median from
  * \param n              (in)     array size
  * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
  * \return               The median value (or median of non-zero values if exclude_zeros=1)

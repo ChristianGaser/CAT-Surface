@@ -215,6 +215,93 @@ static double sample_trilinear(const float *vol, const int dims[3],
                        fx * vol[x1 + y1 * nx + z1 * xy]));
 }
 
+/* Arguments of one thread of the per-scale eigen-analysis in
+   CAT_VolSheetness(); each owns the slices [z0, z1). */
+typedef struct
+{
+    const float *work;
+    const unsigned char *mask;
+    float *sheetness;
+    float *normal;
+    signed char *sgn;
+    int nx, ny, xy;
+    double vx, vy, vz;
+    double gamma, a2, b2, c2;
+    int polarity;
+    int z0, z1;
+} sheetness_args;
+
+/* Hessian plate response of one scale for the slices of one thread, kept where
+   it beats the best scale so far.  The body is the former serial loop; every
+   voxel reads the smoothed image and writes only its own outputs. */
+static void *sheetness_worker(void *p)
+{
+    const sheetness_args *a = (const sheetness_args *)p;
+    const float *work = a->work;
+    const int nx = a->nx, ny = a->ny, xy = a->xy;
+    const double vx = a->vx, vy = a->vy, vz = a->vz;
+    const double gamma = a->gamma, a2 = a->a2, b2 = a->b2, c2 = a->c2;
+    int x, y, z;
+
+    for (z = a->z0; z < a->z1; z++)
+        for (y = 1; y < ny - 1; y++)
+            for (x = 1; x < nx - 1; x++)
+            {
+                const int idx = x + y * nx + z * xy;
+                double h[6], eval[3], evec[3];
+                double l1, l2, l3, rs, rb, rn, S;
+
+                if (a->mask && !a->mask[idx])
+                    continue;
+
+                /* second derivatives in mm^-2, gamma-normalized */
+                h[0] = gamma * (work[idx + 1] - 2.0 * work[idx] + work[idx - 1]) / (vx * vx);
+                h[3] = gamma * (work[idx + nx] - 2.0 * work[idx] + work[idx - nx]) / (vy * vy);
+                h[5] = gamma * (work[idx + xy] - 2.0 * work[idx] + work[idx - xy]) / (vz * vz);
+                h[1] = gamma * (work[idx + 1 + nx] - work[idx + 1 - nx] - work[idx - 1 + nx] + work[idx - 1 - nx]) / (4.0 * vx * vy);
+                h[2] = gamma * (work[idx + 1 + xy] - work[idx + 1 - xy] - work[idx - 1 + xy] + work[idx - 1 - xy]) / (4.0 * vx * vz);
+                h[4] = gamma * (work[idx + nx + xy] - work[idx + nx - xy] - work[idx - nx + xy] + work[idx - nx - xy]) / (4.0 * vy * vz);
+
+                CAT_EigenSym3(h, eval, a->normal ? evec : NULL);
+
+                l1 = eval[0];
+                l2 = eval[1];
+                l3 = eval[2];
+
+                /* a plate needs a dominant third eigenvalue */
+                if (fabs(l3) < 1e-12)
+                    continue;
+
+                /* polarity: +1 wants a ridge (l3 < 0), -1 a valley (l3 > 0) */
+                if (a->polarity > 0 && l3 >= 0.0)
+                    continue;
+                if (a->polarity < 0 && l3 <= 0.0)
+                    continue;
+
+                rs = fabs(l2) / fabs(l3);
+                rb = fabs(2.0 * fabs(l3) - fabs(l2) - fabs(l1)) / fabs(l3);
+                rn = l1 * l1 + l2 * l2 + l3 * l3;
+
+                S = exp(-(rs * rs) / a2) *
+                    (1.0 - exp(-(rb * rb) / b2)) *
+                    (1.0 - exp(-rn / c2));
+
+                if (S > (double)a->sheetness[idx])
+                {
+                    a->sheetness[idx] = (float)S;
+                    if (a->sgn)
+                        a->sgn[idx] = (l3 > 0.0) ? -1 : 1;
+                    if (a->normal)
+                    {
+                        a->normal[3 * idx + 0] = (float)evec[0];
+                        a->normal[3 * idx + 1] = (float)evec[1];
+                        a->normal[3 * idx + 2] = (float)evec[2];
+                    }
+                }
+            }
+    return NULL;
+}
+
 /**
  * \brief Multi-scale Hessian sheetness (plate) filter.
  *
@@ -389,62 +476,40 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
         if (c2 <= 0.0)
             c2 = 1.0;
 
-        for (z = 1; z < nz - 1; z++)
-            for (y = 1; y < ny - 1; y++)
-                for (x = 1; x < nx - 1; x++)
-                {
-                    const int idx = x + y * nx + z * xy;
-                    double h[6], eval[3], evec[3];
-                    double l1, l2, l3, rs, rb, rn, S;
+        /* The per-voxel eigen-analysis dominates the filter and every voxel
+           writes only its own outputs, so the slices are split across threads;
+           the result does not depend on the split. */
+        {
+            sheetness_args args[64];
+            int nthreads = cat_parallel_nthreads(nz - 2);
+            int t;
 
-                    if (mask && !mask[idx])
-                        continue;
+            if (nthreads > 64)
+                nthreads = 64;
 
-                    /* second derivatives in mm^-2, gamma-normalized */
-                    h[0] = gamma * (work[idx + 1] - 2.0 * work[idx] + work[idx - 1]) / (vx * vx);
-                    h[3] = gamma * (work[idx + nx] - 2.0 * work[idx] + work[idx - nx]) / (vy * vy);
-                    h[5] = gamma * (work[idx + xy] - 2.0 * work[idx] + work[idx - xy]) / (vz * vz);
-                    h[1] = gamma * (work[idx + 1 + nx] - work[idx + 1 - nx] - work[idx - 1 + nx] + work[idx - 1 - nx]) / (4.0 * vx * vy);
-                    h[2] = gamma * (work[idx + 1 + xy] - work[idx + 1 - xy] - work[idx - 1 + xy] + work[idx - 1 - xy]) / (4.0 * vx * vz);
-                    h[4] = gamma * (work[idx + nx + xy] - work[idx + nx - xy] - work[idx - nx + xy] + work[idx - nx - xy]) / (4.0 * vy * vz);
-
-                    CAT_EigenSym3(h, eval, normal ? evec : NULL);
-
-                    l1 = eval[0];
-                    l2 = eval[1];
-                    l3 = eval[2];
-
-                    /* a plate needs a dominant third eigenvalue */
-                    if (fabs(l3) < 1e-12)
-                        continue;
-
-                    /* polarity: +1 wants a ridge (l3 < 0), -1 a valley (l3 > 0) */
-                    if (opts->polarity > 0 && l3 >= 0.0)
-                        continue;
-                    if (opts->polarity < 0 && l3 <= 0.0)
-                        continue;
-
-                    rs = fabs(l2) / fabs(l3);
-                    rb = fabs(2.0 * fabs(l3) - fabs(l2) - fabs(l1)) / fabs(l3);
-                    rn = l1 * l1 + l2 * l2 + l3 * l3;
-
-                    S = exp(-(rs * rs) / a2) *
-                        (1.0 - exp(-(rb * rb) / b2)) *
-                        (1.0 - exp(-rn / c2));
-
-                    if (S > (double)sheetness[idx])
-                    {
-                        sheetness[idx] = (float)S;
-                        if (sgn)
-                            sgn[idx] = (l3 > 0.0) ? -1 : 1;
-                        if (normal)
-                        {
-                            normal[3 * idx + 0] = (float)evec[0];
-                            normal[3 * idx + 1] = (float)evec[1];
-                            normal[3 * idx + 2] = (float)evec[2];
-                        }
-                    }
-                }
+            for (t = 0; t < nthreads; t++)
+            {
+                args[t].work = work;
+                args[t].mask = mask;
+                args[t].sheetness = sheetness;
+                args[t].normal = normal;
+                args[t].sgn = sgn;
+                args[t].nx = nx;
+                args[t].ny = ny;
+                args[t].xy = xy;
+                args[t].vx = vx;
+                args[t].vy = vy;
+                args[t].vz = vz;
+                args[t].gamma = gamma;
+                args[t].a2 = a2;
+                args[t].b2 = b2;
+                args[t].c2 = c2;
+                args[t].polarity = opts->polarity;
+                args[t].z0 = 1 + (t * (nz - 2)) / nthreads;
+                args[t].z1 = 1 + ((t + 1) * (nz - 2)) / nthreads;
+            }
+            cat_parallel_run(nthreads, sheetness_worker, args, sizeof(sheetness_args));
+        }
 
         if (opts->verbose)
             fprintf(stderr, "  sheetness scale %d/%d: sigma = %.2f mm\n",
@@ -634,16 +699,162 @@ int CAT_VolSheetness(const float *src, float *sheetness, float *normal,
     return 0;
 }
 
-/* comparison for qsort over floats */
-static int cmp_float(const void *a, const void *b)
+/* k-th smallest of a[0..n-1] by Hoare-partition selection.  On return
+   a[0..k-1] <= a[k] <= a[k+1..n-1].  An order statistic is a value, not a
+   position, so this yields what sorting would; qsort() with a comparator call
+   per comparison cost several times the rest of the filter.  No NaN. */
+static float select_kth_float(float *a, int n, int k)
 {
-    const float fa = *(const float *)a;
-    const float fb = *(const float *)b;
-    if (fa < fb)
-        return -1;
-    if (fa > fb)
-        return 1;
-    return 0;
+    int lo = 0, hi = n - 1;
+
+    while (lo < hi)
+    {
+        const float pivot = a[lo + (hi - lo) / 2];
+        int i = lo, j = hi;
+
+        while (i <= j)
+        {
+            while (a[i] < pivot)
+                i++;
+            while (a[j] > pivot)
+                j--;
+            if (i <= j)
+            {
+                const float t = a[i];
+                a[i] = a[j];
+                a[j] = t;
+                i++;
+                j--;
+            }
+        }
+        if (k <= j)
+            hi = j;
+        else if (k >= i)
+            lo = i;
+        else
+            break; /* a[k] equals the pivot and is in place */
+    }
+    return a[k];
+}
+
+/* Median of a[0..n-1], n >= 1, as the sorted middle element(s) would give.
+   The oriented median always passes an odd n -- its admission test depends on
+   the squared cosine, so neighbours come in antipodal pairs around the centre --
+   but the even case is kept so the helper stays a plain median. */
+static float median_float(float *a, int n)
+{
+    const int k = n / 2;
+    const float hi = select_kth_float(a, n, k);
+    float lo;
+    int i;
+
+    if (n & 1)
+        return hi;
+
+    /* even: a[0..k-1] <= a[k] after the selection, so the lower middle value
+       is their maximum */
+    lo = a[0];
+    for (i = 1; i < k; i++)
+        if (a[i] > lo)
+            lo = a[i];
+    return 0.5f * (lo + hi);
+}
+
+/* Arguments of one thread of CAT_VolOrientedMedian(); each owns the slices
+   [z0, z1). */
+typedef struct
+{
+    float *vol;
+    const float *in;
+    const float *sheetness;
+    const float *normal;
+    const unsigned char *mask;
+    int nx, ny, xy;
+    double cutoff;
+    int z0, z1;
+} omedian_args;
+
+/* One pass of the oriented median over the slices of one thread.  Reads the
+   previous pass from `in`, writes `vol`; voxels never read each other's
+   output, so the split cannot change the result. */
+static void *omedian_worker(void *p)
+{
+    const omedian_args *a = (const omedian_args *)p;
+    const float *in = a->in;
+    const int nx = a->nx, ny = a->ny, xy = a->xy;
+    const double cutoff = a->cutoff;
+    int x, y, z, i, j, k;
+
+    for (z = a->z0; z < a->z1; z++)
+        for (y = 1; y < ny - 1; y++)
+            for (x = 1; x < nx - 1; x++)
+            {
+                const int idx = x + y * nx + z * xy;
+                const float c = in[idx];
+                float buf[27];
+                int n = 0, uniform = 1;
+                double s = 0.0, nvec[3] = {0.0, 0.0, 0.0};
+
+                if (a->mask && !a->mask[idx])
+                    continue;
+
+                /* A neighbourhood that is constant throughout keeps its value
+                   whichever neighbours are admitted -- the median of any subset
+                   of equal values that contains the centre is that value -- and
+                   vol[idx] already holds it.  Most voxels of a label map or a
+                   PPM sit in such plateaus. */
+                for (k = -1; k <= 1 && uniform; k++)
+                    for (j = -1; j <= 1 && uniform; j++)
+                    {
+                        const float *row = in + idx + j * nx + k * xy;
+                        if (row[-1] != c || row[0] != c || row[1] != c)
+                            uniform = 0;
+                    }
+                if (uniform)
+                    continue;
+
+                if (a->sheetness && a->normal)
+                {
+                    s = (double)a->sheetness[idx];
+                    nvec[0] = (double)a->normal[3 * idx + 0];
+                    nvec[1] = (double)a->normal[3 * idx + 1];
+                    nvec[2] = (double)a->normal[3 * idx + 2];
+                    if (s < 0.0)
+                        s = 0.0;
+                    if (s > 1.0)
+                        s = 1.0;
+                    /* no usable normal -> stay isotropic */
+                    if (nvec[0] == 0.0 && nvec[1] == 0.0 && nvec[2] == 0.0)
+                        s = 0.0;
+                }
+
+                for (k = -1; k <= 1; k++)
+                    for (j = -1; j <= 1; j++)
+                        for (i = -1; i <= 1; i++)
+                        {
+                            double d2, cosine;
+
+                            if (i == 0 && j == 0 && k == 0)
+                            {
+                                buf[n++] = c;
+                                continue;
+                            }
+
+                            d2 = (double)(i * i + j * j + k * k);
+                            cosine = ((double)i * nvec[0] + (double)j * nvec[1] +
+                                      (double)k * nvec[2]);
+                            cosine = cosine * cosine / d2;
+
+                            /* s = 0 admits every offset at any cutoff, which is
+                               what keeps this identical to the isotropic median
+                               away from thin structures */
+                            if (s * cosine < cutoff)
+                                buf[n++] = in[idx + i + j * nx + k * xy];
+                        }
+
+                a->vol[idx] = median_float(buf, n);
+            }
+    return NULL;
 }
 
 /**
@@ -675,7 +886,7 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
     const int xy = nx * ny;
     const int nvox = xy * nz;
     float *in = NULL;
-    int it, x, y, z, i, j, k;
+    int it;
 
     if (!vol || !dims || nvox <= 0)
         return -1;
@@ -691,63 +902,30 @@ int CAT_VolOrientedMedian(float *vol, const float *sheetness, const float *norma
 
     for (it = 0; it < iters; it++)
     {
+        omedian_args args[64];
+        int nthreads = cat_parallel_nthreads(nz - 2);
+        int t;
+
+        if (nthreads > 64)
+            nthreads = 64;
+
         memcpy(in, vol, sizeof(float) * (size_t)nvox);
 
-        for (z = 1; z < nz - 1; z++)
-            for (y = 1; y < ny - 1; y++)
-                for (x = 1; x < nx - 1; x++)
-                {
-                    const int idx = x + y * nx + z * xy;
-                    float buf[27];
-                    int n = 0;
-                    double s = 0.0, nvec[3] = {0.0, 0.0, 0.0};
-
-                    if (mask && !mask[idx])
-                        continue;
-
-                    if (sheetness && normal)
-                    {
-                        s = (double)sheetness[idx];
-                        nvec[0] = (double)normal[3 * idx + 0];
-                        nvec[1] = (double)normal[3 * idx + 1];
-                        nvec[2] = (double)normal[3 * idx + 2];
-                        if (s < 0.0)
-                            s = 0.0;
-                        if (s > 1.0)
-                            s = 1.0;
-                        /* no usable normal -> stay isotropic */
-                        if (nvec[0] == 0.0 && nvec[1] == 0.0 && nvec[2] == 0.0)
-                            s = 0.0;
-                    }
-
-                    for (k = -1; k <= 1; k++)
-                        for (j = -1; j <= 1; j++)
-                            for (i = -1; i <= 1; i++)
-                            {
-                                double d2, cosine;
-
-                                if (i == 0 && j == 0 && k == 0)
-                                {
-                                    buf[n++] = in[idx];
-                                    continue;
-                                }
-
-                                d2 = (double)(i * i + j * j + k * k);
-                                cosine = ((double)i * nvec[0] + (double)j * nvec[1] +
-                                          (double)k * nvec[2]);
-                                cosine = cosine * cosine / d2;
-
-                                /* s = 0 admits every offset at any cutoff, which is
-                                   what keeps this identical to the isotropic median
-                                   away from thin structures */
-                                if (s * cosine < cutoff)
-                                    buf[n++] = in[idx + i + j * nx + k * xy];
-                            }
-
-                    qsort(buf, (size_t)n, sizeof(float), cmp_float);
-                    vol[idx] = (n & 1) ? buf[n / 2]
-                                       : 0.5f * (buf[n / 2 - 1] + buf[n / 2]);
-                }
+        for (t = 0; t < nthreads; t++)
+        {
+            args[t].vol = vol;
+            args[t].in = in;
+            args[t].sheetness = sheetness;
+            args[t].normal = normal;
+            args[t].mask = mask;
+            args[t].nx = nx;
+            args[t].ny = ny;
+            args[t].xy = xy;
+            args[t].cutoff = cutoff;
+            args[t].z0 = 1 + (t * (nz - 2)) / nthreads;
+            args[t].z1 = 1 + ((t + 1) * (nz - 2)) / nthreads;
+        }
+        cat_parallel_run(nthreads, omedian_worker, args, sizeof(omedian_args));
     }
 
     free(in);

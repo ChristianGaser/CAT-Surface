@@ -33,6 +33,7 @@ typedef struct GridCell
 typedef struct SpatialGrid
 {
     GridCell *cells;
+    PointNode *pool; /* one node per vertex; pool[v] belongs to vertex v */
     int res;
     double cell_size;
     Point min, max;
@@ -100,7 +101,7 @@ static void insert_into_grid(SpatialGrid *grid, int v, Point *points)
 
     int index = get_grid_index(xi, yi, zi, grid->res);
 
-    PointNode *node = malloc(sizeof(PointNode));
+    PointNode *node = &grid->pool[v];
     node->index = v;
     node->next = grid->cells[index].points;
     grid->cells[index].points = node;
@@ -113,6 +114,7 @@ static SpatialGrid *build_spatial_grid(polygons_struct *polygons, int res)
     SpatialGrid *grid = malloc(sizeof(SpatialGrid));
     grid->res = res;
     grid->cells = calloc(res * res * res, sizeof(GridCell));
+    grid->pool = malloc(sizeof(PointNode) * (polygons->n_points > 0 ? polygons->n_points : 1));
 
     get_polygon_bounding_box(polygons, &grid->min, &grid->max);
 
@@ -129,20 +131,12 @@ static SpatialGrid *build_spatial_grid(polygons_struct *polygons, int res)
     return grid;
 }
 
-// Free memory used by spatial grid
+// Free memory used by spatial grid.  The nodes live in one pool, so nothing
+// has to walk the res^3 cells -- 15.6 million at GRID_RES 250, for a mesh of
+// 10^5 vertices, which took longer than the search itself.
 static void destroy_spatial_grid(SpatialGrid *grid)
 {
-    int i, total = grid->res * grid->res * grid->res;
-    for (i = 0; i < total; i++)
-    {
-        PointNode *node = grid->cells[i].points;
-        while (node)
-        {
-            PointNode *tmp = node;
-            node = node->next;
-            free(tmp);
-        }
-    }
+    free(grid->pool);
     free(grid->cells);
     free(grid);
 }
@@ -169,18 +163,23 @@ static double estimate_average_edge_length(polygons_struct *polygons, int *n_nei
 /* Shared core of find_near_self_intersections() and
  * find_near_facing_intersections(): flags vertices whose nearest non-neighbour
  * vertex (optionally restricted to opposing normals) is closer than
- * threshold_factor times the mean edge length. */
+ * threshold_factor times the mean edge length.  nb_count/nb_list is the point
+ * neighbour table of the mesh, or NULL to build (and free) it here. */
 static int *
-find_near_intersections(polygons_struct *polygons, double threshold_factor,
-                        int facing_only, double min_opposition, int *n_hits_out)
+find_near_intersections(polygons_struct *polygons, int *nb_count, int **nb_list,
+                        double threshold_factor, int facing_only,
+                        double min_opposition, int *n_hits_out)
 {
     int i, j, dx, dy, dz;
-    int *n_neighbours, **neighbours;
+    int *n_neighbours = nb_count, **neighbours = nb_list;
     int *flags = calloc(polygons->n_points, sizeof(int));
     int n_hits = 0;
 
-    check_polygons_neighbours_computed(polygons);
-    create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
+    if (!nb_count || !nb_list)
+    {
+        check_polygons_neighbours_computed(polygons);
+        create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
+    }
 
     SpatialGrid *grid = build_spatial_grid(polygons, GRID_RES);
     double threshold = estimate_average_edge_length(polygons, n_neighbours, neighbours) * threshold_factor;
@@ -265,7 +264,8 @@ find_near_intersections(polygons_struct *polygons, double threshold_factor,
     }
 
     destroy_spatial_grid(grid);
-    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
+    if (!nb_count || !nb_list)
+        delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
 
     if (n_hits_out)
         *n_hits_out = n_hits;
@@ -289,7 +289,29 @@ find_near_intersections(polygons_struct *polygons, double threshold_factor,
  */
 int *find_near_self_intersections(polygons_struct *polygons, double threshold_factor, int *n_hits_out)
 {
-    return find_near_intersections(polygons, threshold_factor, 0, 0.0, n_hits_out);
+    return find_near_intersections(polygons, NULL, NULL, threshold_factor, 0, 0.0, n_hits_out);
+}
+
+/**
+ * \brief find_near_self_intersections() with a precomputed neighbour table.
+ *
+ * For callers that test the same mesh repeatedly while only its vertices move,
+ * such as the deformation loops: the table depends on the topology alone, and
+ * rebuilding it on every call cost more than the search.
+ *
+ * \param polygons         (in)  source 3D polygonal mesh (normals are not used)
+ * \param n_neighbours     (in)  neighbour counts from create_polygon_point_neighbours()
+ * \param neighbours       (in)  neighbour lists from create_polygon_point_neighbours()
+ * \param threshold_factor (in)  multiplier for average edge length to define search radius
+ * \param n_hits_out       (out) number of flagged vertices; may be NULL
+ * \return Allocated array of flags (length = n_points, 1 = near hit), caller must free
+ */
+int *find_near_self_intersections_nb(polygons_struct *polygons, int *n_neighbours,
+                                     int **neighbours, double threshold_factor,
+                                     int *n_hits_out)
+{
+    return find_near_intersections(polygons, n_neighbours, neighbours,
+                                   threshold_factor, 0, 0.0, n_hits_out);
 }
 
 /**
@@ -312,7 +334,29 @@ int *find_near_self_intersections(polygons_struct *polygons, double threshold_fa
 int *find_near_facing_intersections(polygons_struct *polygons, double threshold_factor,
                                     double min_opposition, int *n_hits_out)
 {
-    return find_near_intersections(polygons, threshold_factor, 1, min_opposition, n_hits_out);
+    return find_near_intersections(polygons, NULL, NULL, threshold_factor, 1,
+                                   min_opposition, n_hits_out);
+}
+
+/**
+ * \brief find_near_facing_intersections() with a precomputed neighbour table.
+ *
+ * See find_near_self_intersections_nb() for why the table is passed in.
+ *
+ * \param polygons         (in)  source 3D polygonal mesh with current normals
+ * \param n_neighbours     (in)  neighbour counts from create_polygon_point_neighbours()
+ * \param neighbours       (in)  neighbour lists from create_polygon_point_neighbours()
+ * \param threshold_factor (in)  multiplier for average edge length to define search radius
+ * \param min_opposition   (in)  required opposition of the normals (e.g. 0.3)
+ * \param n_hits_out       (out) number of flagged vertices; may be NULL
+ * \return Allocated array of flags (length = n_points, 1 = near hit), caller must free
+ */
+int *find_near_facing_intersections_nb(polygons_struct *polygons, int *n_neighbours,
+                                       int **neighbours, double threshold_factor,
+                                       double min_opposition, int *n_hits_out)
+{
+    return find_near_intersections(polygons, n_neighbours, neighbours,
+                                   threshold_factor, 1, min_opposition, n_hits_out);
 }
 
 /**

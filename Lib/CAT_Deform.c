@@ -397,7 +397,8 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
         }
 
         int n_self_hits = 0;
-        int *flags = find_near_facing_intersections(polygons, 0.75, 0.3, &n_self_hits);
+        int *flags = find_near_facing_intersections_nb(polygons, n_neighbours, neighbours,
+                                                       0.75, 0.3, &n_self_hits);
         for (v = 0; v < polygons->n_points; v++)
         {
             if (flags[v])
@@ -779,7 +780,8 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         if (have1)
         {
             n_self_hits = 0;
-            int *flags1 = find_near_self_intersections(polygons1, 0.75, &n_self_hits);
+            int *flags1 = find_near_self_intersections_nb(polygons1, n_neighbours, neighbours,
+                                                          0.75, &n_self_hits);
             for (v = 0; v < n_points; v++)
             {
                 if (flags1[v])
@@ -798,7 +800,8 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
         if (have2)
         {
             n_self_hits = 0;
-            int *flags2 = find_near_self_intersections(polygons2, 0.75, &n_self_hits);
+            int *flags2 = find_near_self_intersections_nb(polygons2, n_neighbours, neighbours,
+                                                          0.75, &n_self_hits);
             for (v = 0; v < n_points; v++)
             {
                 if (flags2[v])

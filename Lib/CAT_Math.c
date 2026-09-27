@@ -390,28 +390,74 @@ static int compare_doubles(const void *a, const void *b)
     return (diff < 0) ? -1 : (diff > 0) ? 1 : 0;
 }
 
+/*
+ * k-th smallest value of a[lo..hi] (inclusive), by Hoare-partition selection.
+ *
+ * On return a[k] holds that value, a[lo..k-1] are all <= it and a[k+1..hi]
+ * all >= it.  An order statistic is a value, not a position, so this returns
+ * exactly what sorting and indexing would; it only skips ordering the parts
+ * nobody reads.  A median or a percentile used to pay a full qsort for that --
+ * per voxel in the median filters, over the whole volume in get_prctile().
+ * The data must not contain NaN.
+ */
+static double select_kth_double(double *a, int lo, int hi, int k)
+{
+    while (lo < hi)
+    {
+        const double pivot = a[lo + (hi - lo) / 2];
+        int i = lo, j = hi;
+
+        while (i <= j)
+        {
+            while (a[i] < pivot)
+                i++;
+            while (a[j] > pivot)
+                j--;
+            if (i <= j)
+            {
+                const double t = a[i];
+                a[i] = a[j];
+                a[j] = t;
+                i++;
+                j--;
+            }
+        }
+        if (k <= j)
+            hi = j;
+        else if (k >= i)
+            lo = i;
+        else
+            break; /* a[k] equals the pivot and is in place */
+    }
+    return a[k];
+}
+
 /**
  * \brief Get median value from double array with optional zero exclusion.
  *
- * Computes the median value from an array of doubles using quicksort-based sorting.
- * Optionally excludes zero values from the median calculation. The input array
- * is modified in-place during sorting.
+ * Computes the median value from an array of doubles by selecting the middle
+ * element(s) of a copy, which gives the same value as sorting. Optionally
+ * excludes zero values from the median calculation; NaN and infinite values
+ * are always ignored. The input array is not modified.
  *
- * \param arr            (in/out) double[n]; array to compute median from; sorted in-place
+ * \param arr            (in)     double[n]; array to compute median from
  * \param n              (in)     array size
  * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
  * \return               The median value (or median of non-zero values if exclude_zeros=1)
  */
 double get_median_double(double *arr, int n, int exclude_zeros)
 {
-    int i, filtered_count = 0;
+    int i, k, filtered_count = 0;
     double median;
+    double small[128];
 
     if (n <= 0)
         return NAN; // Handle empty array
 
-    // Allocate memory for a copy of the data
-    double *copy = malloc(n * sizeof(double));
+    // Copy of the data: on the stack for the small neighbourhoods of the
+    // median filters, which call this once per voxel -- a malloc/free pair
+    // there cost more than the median itself
+    double *copy = (n <= 128) ? small : malloc(n * sizeof(double));
     if (copy == NULL)
     {
         fprintf(stderr, "Memory allocation failed");
@@ -430,26 +476,29 @@ double get_median_double(double *arr, int n, int exclude_zeros)
     if (filtered_count == 0)
     {
         fprintf(stderr, "Error: No valid data points after filtering.\n");
-        free(copy);
+        if (copy != small)
+            free(copy);
         exit(EXIT_FAILURE);
     }
 
-    // Sort the filtered data
-    qsort(copy, filtered_count, sizeof(double), compare_doubles);
+    // Select the middle element instead of sorting everything
+    k = filtered_count / 2;
+    median = select_kth_double(copy, 0, filtered_count - 1, k);
 
-    // Compute the median
     if (filtered_count % 2 == 0)
     {
-        // Even number of elements: average of the two middle elements
-        median = (copy[filtered_count / 2 - 1] + copy[filtered_count / 2]) / 2.0;
-    }
-    else
-    {
-        // Odd number of elements: middle element
-        median = copy[filtered_count / 2];
+        // Even number of elements: average of the two middle elements.  The
+        // selection left copy[0..k-1] <= copy[k], so the lower one is their
+        // maximum.
+        double lower = copy[0];
+        for (i = 1; i < k; i++)
+            if (copy[i] > lower)
+                lower = copy[i];
+        median = (lower + median) / 2.0;
     }
 
-    free(copy);
+    if (copy != small)
+        free(copy);
     return median;
 }
 
@@ -732,8 +781,9 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
  *
  * This function computes two thresholds for the given data based on the
  * specified percentiles. It can optionally exclude zeros from the calculation.
- * A sorted copy of the data is indexed at round((n - 1) * P / 100); the input
- * is left unchanged. Exits if no value remains after excluding zeros.
+ * The result is the value a sorted copy would hold at round((n - 1) * P / 100),
+ * found by selection rather than a full sort; NaN is ignored and the input is
+ * left unchanged. Exits if no value remains after excluding zeros.
  *
  * \param data          (in)  array of n values
  * \param n             (in)  number of values
@@ -746,7 +796,7 @@ void get_prctile_double(double *data, int n, double threshold[2],
 {
     int i, filtered_count = 0;
 
-    // Create a copy of the data for sorting
+    // Create a copy of the data for the selection
     double *copy = malloc(n * sizeof(double));
     if (copy == NULL)
     {
@@ -754,9 +804,12 @@ void get_prctile_double(double *data, int n, double threshold[2],
         exit(EXIT_FAILURE);
     }
 
-    // Copy data, optionally excluding zeros
+    // Copy data, optionally excluding zeros.  NaN has no place in an order and
+    // is skipped: qsort() left it wherever its comparisons happened to put it.
     for (i = 0; i < n; i++)
     {
+        if (isnan(data[i]))
+            continue;
         if (!exclude_zeros || data[i] != 0.0)
         {
             copy[filtered_count++] = data[i];
@@ -771,15 +824,21 @@ void get_prctile_double(double *data, int n, double threshold[2],
         exit(EXIT_FAILURE);
     }
 
-    // Sort the copy
-    qsort(copy, filtered_count, sizeof(double), compare_doubles);
-
     // Calculate indices using the formula: index = round((n - 1) * (P/100))
     int lower_index = (int)round((filtered_count - 1) * prctile[0] / 100.0);
     int upper_index = (int)round((filtered_count - 1) * prctile[1] / 100.0);
 
-    threshold[0] = copy[lower_index];
-    threshold[1] = copy[upper_index];
+    // Two order statistics are all that is read, so select them instead of
+    // sorting the whole copy: the larger index over everything, then the
+    // smaller one inside copy[0..k_hi-1], which the first selection has
+    // already filled with exactly the k_hi smallest values.
+    int k_hi = (lower_index > upper_index) ? lower_index : upper_index;
+    int k_lo = (lower_index > upper_index) ? upper_index : lower_index;
+    double v_hi = select_kth_double(copy, 0, filtered_count - 1, k_hi);
+    double v_lo = (k_lo < k_hi) ? select_kth_double(copy, 0, k_hi - 1, k_lo) : v_hi;
+
+    threshold[0] = (lower_index == k_lo) ? v_lo : v_hi;
+    threshold[1] = (upper_index == k_hi) ? v_hi : v_lo;
 
     free(copy);
 }

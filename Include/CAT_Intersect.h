@@ -186,6 +186,38 @@ int *find_near_self_intersections(polygons_struct *polygons,
  */
 int *find_near_facing_intersections(polygons_struct *polygons, double threshold_factor,
                                     double min_opposition, int *n_hits_out);
+
+/**
+ * \brief find_near_self_intersections() with a precomputed neighbour table.
+ *
+ * For meshes tested repeatedly while only their vertices move, as in the
+ * deformation loops; the table depends on the topology alone.
+ *
+ * \param polygons         (in)  source 3D polygonal mesh (normals are not used)
+ * \param n_neighbours     (in)  neighbour counts from create_polygon_point_neighbours()
+ * \param neighbours       (in)  neighbour lists from create_polygon_point_neighbours()
+ * \param threshold_factor (in)  search radius as multiple of the mean edge length
+ * \param n_hits_out       (out) number of flagged vertices; may be NULL
+ * \return allocated flag array (length n_points), caller must free
+ */
+int *find_near_self_intersections_nb(polygons_struct *polygons, int *n_neighbours,
+                                     int **neighbours, double threshold_factor,
+                                     int *n_hits_out);
+
+/**
+ * \brief find_near_facing_intersections() with a precomputed neighbour table.
+ *
+ * \param polygons         (in)  mesh with current normals
+ * \param n_neighbours     (in)  neighbour counts from create_polygon_point_neighbours()
+ * \param neighbours       (in)  neighbour lists from create_polygon_point_neighbours()
+ * \param threshold_factor (in)  search radius as multiple of the mean edge length
+ * \param min_opposition   (in)  required opposition of the normals (e.g. 0.3)
+ * \param n_hits_out       (out) number of flagged vertices; may be NULL
+ * \return allocated flag array (length n_points), caller must free
+ */
+int *find_near_facing_intersections_nb(polygons_struct *polygons, int *n_neighbours,
+                                       int **neighbours, double threshold_factor,
+                                       double min_opposition, int *n_hits_out);
 /**
  * \brief Remove near-intersecting vertices by iterative vertex repositioning.
  *

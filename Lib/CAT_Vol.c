@@ -22,18 +22,23 @@
 #define MAX_NTHREADS 4 /* Overhead is otherwise too large */
 #endif
 
-/* ---------------------------------------------------------------------------
- * Minimal pthreads fan-out helper.
+/**
+ * \brief Run a worker on several threads and wait for all of them.
  *
- * Each of the `nthreads` workers receives the address of its own pre-filled
- * argument slot (args + t*argsz), which carries the [ini, fin) index range it
- * owns.  Threads are joined before returning, so this behaves as a
- * parallel-for with an implicit barrier -- the replacement for the former
- * OpenMP `#pragma omp parallel for schedule(static)` regions.  On Windows
- * (no pthreads) the workers run sequentially, matching the convxy_float
- * fallback elsewhere in this file.
- * ------------------------------------------------------------------------- */
-static void
+ * Minimal pthreads fan-out helper.  Each of the `nthreads` workers receives
+ * the address of its own pre-filled argument slot (args + t*argsz), which
+ * carries the [ini, fin) index range it owns.  Threads are joined before
+ * returning, so this behaves as a parallel-for with an implicit barrier --
+ * the replacement for the former OpenMP `#pragma omp parallel for
+ * schedule(static)` regions.  On Windows (no pthreads) the workers run
+ * sequentially, matching the convxy_float fallback elsewhere in this file.
+ *
+ * \param nthreads (in) number of workers, from cat_parallel_nthreads()
+ * \param worker   (in) function run once per argument slot
+ * \param args     (in) array of nthreads argument slots
+ * \param argsz    (in) size of one argument slot in bytes
+ */
+void
 cat_parallel_run(int nthreads, void *(*worker)(void *), void *args, size_t argsz)
 {
     int t;
@@ -56,6 +61,19 @@ cat_parallel_run(int nthreads, void *(*worker)(void *), void *args, size_t argsz
         pthread_join(threads[t], NULL);
     free(threads);
 #endif
+}
+
+/**
+ * \brief Number of worker threads for a loop over n_units independent units.
+ *
+ * \param n_units (in) number of units the work can be split into (e.g. slices)
+ * \return min(n_units, MAX_NTHREADS), at least 1
+ */
+int
+cat_parallel_nthreads(int n_units)
+{
+    int n = (n_units < MAX_NTHREADS) ? n_units : MAX_NTHREADS;
+    return (n < 1) ? 1 : n;
 }
 
 /**

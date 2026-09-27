@@ -864,6 +864,222 @@ static void test_sheetness_signed(void)
     free(sgn);
 }
 
+/* ------------------------------------------------------------------ */
+/* selection-based median and percentile                              */
+/* ------------------------------------------------------------------ */
+
+/* The medians and percentiles select order statistics instead of sorting.
+ * An order statistic is a value, so the result must equal a sort-based
+ * reference exactly -- including ties, even counts and the zero exclusion. */
+
+static unsigned int lcg_state = 12345u;
+static double lcg_uniform(void)
+{
+    lcg_state = lcg_state * 1664525u + 1013904223u;
+    return (double)(lcg_state >> 8) / 16777216.0;
+}
+
+static int ref_cmp_double(const void *a, const void *b)
+{
+    const double x = *(const double *)a, y = *(const double *)b;
+    return (x < y) ? -1 : ((x > y) ? 1 : 0);
+}
+
+static int ref_cmp_float(const void *a, const void *b)
+{
+    const float x = *(const float *)a, y = *(const float *)b;
+    return (x < y) ? -1 : ((x > y) ? 1 : 0);
+}
+
+static void test_median_selection(void)
+{
+    double arr[200], ref[200];
+    int n, trial, ez, bad = 0;
+
+    for (n = 1; n <= 200; n++)
+        for (trial = 0; trial < 20; trial++)
+            for (ez = 0; ez <= 1; ez++)
+            {
+                int i, m = 0;
+                double want, got;
+
+                /* few distinct values, so ties are the rule */
+                for (i = 0; i < n; i++)
+                    arr[i] = (double)(int)(lcg_uniform() * 5.0) * 0.5;
+                arr[0] = 1.5; /* at least one non-zero value */
+                for (i = 0; i < n; i++)
+                    if (!ez || arr[i] != 0.0)
+                        ref[m++] = arr[i];
+                qsort(ref, (size_t)m, sizeof(double), ref_cmp_double);
+                want = (m % 2) ? ref[m / 2] : (ref[m / 2 - 1] + ref[m / 2]) / 2.0;
+                got = get_median_double(arr, n, ez);
+                if (got != want)
+                    bad++;
+            }
+    MU_ASSERT("get_median_double equals the sorted middle element(s)", bad == 0);
+}
+
+static void test_prctile_selection(void)
+{
+    static const int sizes[] = {1, 2, 7, 64, 1000, 5001};
+    static const double pcts[][2] = {{0.0, 100.0}, {50.0, 99.9}, {99.0, 0.1},
+                                     {30.0, 30.0}, {10.0, 90.0}};
+    int si, pi, ez, trial, bad = 0;
+
+    for (si = 0; si < (int)(sizeof(sizes) / sizeof(sizes[0])); si++)
+        for (trial = 0; trial < 5; trial++)
+            for (ez = 0; ez <= 1; ez++)
+                for (pi = 0; pi < (int)(sizeof(pcts) / sizeof(pcts[0])); pi++)
+                {
+                    const int n = sizes[si];
+                    double *data = (double *)malloc(sizeof(double) * n);
+                    double *ref = (double *)malloc(sizeof(double) * n);
+                    double pct[2] = {pcts[pi][0], pcts[pi][1]}, got[2];
+                    int i, m = 0, lo, hi;
+
+                    for (i = 0; i < n; i++)
+                        data[i] = (trial & 1) ? (double)(int)(lcg_uniform() * 4.0)
+                                              : lcg_uniform() - 0.3;
+                    data[0] = 2.0;
+                    for (i = 0; i < n; i++)
+                        if (!ez || data[i] != 0.0)
+                            ref[m++] = data[i];
+                    qsort(ref, (size_t)m, sizeof(double), ref_cmp_double);
+                    lo = (int)round((m - 1) * pct[0] / 100.0);
+                    hi = (int)round((m - 1) * pct[1] / 100.0);
+
+                    get_prctile_double(data, n, got, pct, ez);
+                    if (got[0] != ref[lo] || got[1] != ref[hi])
+                        bad++;
+                    free(data);
+                    free(ref);
+                }
+    MU_ASSERT("get_prctile_double equals indexing a sorted copy", bad == 0);
+}
+
+/* The oriented median as it was before selection, the plateau shortcut and
+   the threads: serial, qsort per voxel.  Kept as the reference. */
+static void ref_oriented_median(float *vol, const float *sheetness, const float *normal,
+                                const unsigned char *mask, int dims[3], double cutoff,
+                                int iters)
+{
+    const int nx = dims[0], ny = dims[1], nz = dims[2], xy = nx * ny;
+    float *in = (float *)malloc(sizeof(float) * nx * ny * nz);
+    int it, x, y, z, i, j, k;
+
+    for (it = 0; it < iters; it++)
+    {
+        memcpy(in, vol, sizeof(float) * nx * ny * nz);
+        for (z = 1; z < nz - 1; z++)
+            for (y = 1; y < ny - 1; y++)
+                for (x = 1; x < nx - 1; x++)
+                {
+                    const int idx = x + y * nx + z * xy;
+                    float buf[27];
+                    int n = 0;
+                    double s = 0.0, nvec[3] = {0.0, 0.0, 0.0};
+
+                    if (mask && !mask[idx])
+                        continue;
+                    if (sheetness && normal)
+                    {
+                        s = (double)sheetness[idx];
+                        nvec[0] = (double)normal[3 * idx + 0];
+                        nvec[1] = (double)normal[3 * idx + 1];
+                        nvec[2] = (double)normal[3 * idx + 2];
+                        if (s < 0.0)
+                            s = 0.0;
+                        if (s > 1.0)
+                            s = 1.0;
+                        if (nvec[0] == 0.0 && nvec[1] == 0.0 && nvec[2] == 0.0)
+                            s = 0.0;
+                    }
+                    for (k = -1; k <= 1; k++)
+                        for (j = -1; j <= 1; j++)
+                            for (i = -1; i <= 1; i++)
+                            {
+                                double d2, cosine;
+                                if (i == 0 && j == 0 && k == 0)
+                                {
+                                    buf[n++] = in[idx];
+                                    continue;
+                                }
+                                d2 = (double)(i * i + j * j + k * k);
+                                cosine = ((double)i * nvec[0] + (double)j * nvec[1] +
+                                          (double)k * nvec[2]);
+                                cosine = cosine * cosine / d2;
+                                if (s * cosine < cutoff)
+                                    buf[n++] = in[idx + i + j * nx + k * xy];
+                            }
+                    qsort(buf, (size_t)n, sizeof(float), ref_cmp_float);
+                    vol[idx] = (n & 1) ? buf[n / 2] : 0.5f * (buf[n / 2 - 1] + buf[n / 2]);
+                }
+    }
+    free(in);
+}
+
+static void test_oriented_median_matches_reference(void)
+{
+    const int nvox = N * N * N;
+    float *vol = (float *)malloc(sizeof(float) * nvox);
+    float *ref = (float *)malloc(sizeof(float) * nvox);
+    float *sheet = (float *)malloc(sizeof(float) * nvox);
+    float *nrm = (float *)malloc(sizeof(float) * 3 * nvox);
+    unsigned char *mask = (unsigned char *)malloc(nvox);
+    int i, use_mask, bad = 0;
+
+    for (i = 0; i < nvox; i++)
+    {
+        const int x = i % N;
+        double nx, ny, nz, len;
+
+        /* plateaus of a label map on one half, a continuous field on the
+           other, so both the shortcut and the full median are exercised */
+        vol[i] = (x < N / 2) ? (float)(int)(lcg_uniform() * 1.2 + (x / 6))
+                             : (float)lcg_uniform();
+        sheet[i] = (float)(lcg_uniform() * 1.4 - 0.2); /* also outside [0,1] */
+        nx = lcg_uniform() - 0.5;
+        ny = lcg_uniform() - 0.5;
+        nz = lcg_uniform() - 0.5;
+        len = sqrt(nx * nx + ny * ny + nz * nz);
+        if (lcg_uniform() < 0.1)
+            len = 0.0; /* no usable normal */
+        nrm[3 * i + 0] = (len > 0.0) ? (float)(nx / len) : 0.0f;
+        nrm[3 * i + 1] = (len > 0.0) ? (float)(ny / len) : 0.0f;
+        nrm[3 * i + 2] = (len > 0.0) ? (float)(nz / len) : 0.0f;
+        mask[i] = (lcg_uniform() < 0.8);
+    }
+
+    for (use_mask = 0; use_mask <= 1; use_mask++)
+    {
+        float *work = (float *)malloc(sizeof(float) * nvox);
+        memcpy(work, vol, sizeof(float) * nvox);
+        memcpy(ref, vol, sizeof(float) * nvox);
+        CAT_VolOrientedMedian(work, sheet, nrm, use_mask ? mask : NULL, dims3, 0.1, 2);
+        ref_oriented_median(ref, sheet, nrm, use_mask ? mask : NULL, dims3, 0.1, 2);
+        for (i = 0; i < nvox; i++)
+            if (work[i] != ref[i])
+                bad++;
+
+        /* the isotropic degenerate case as well */
+        memcpy(work, vol, sizeof(float) * nvox);
+        memcpy(ref, vol, sizeof(float) * nvox);
+        CAT_VolOrientedMedian(work, NULL, NULL, use_mask ? mask : NULL, dims3, 0.1, 1);
+        ref_oriented_median(ref, NULL, NULL, use_mask ? mask : NULL, dims3, 0.1, 1);
+        for (i = 0; i < nvox; i++)
+            if (work[i] != ref[i])
+                bad++;
+        free(work);
+    }
+    MU_ASSERT("threaded oriented median equals the serial sort-based one", bad == 0);
+
+    free(vol);
+    free(ref);
+    free(sheet);
+    free(nrm);
+    free(mask);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_eigen_diagonal);
@@ -878,6 +1094,9 @@ int main(void)
     MU_RUN_TEST(test_oriented_median_preserves_sheet);
     MU_RUN_TEST(test_oriented_median_cutoff);
     MU_RUN_TEST(test_open_ppm_sulci);
+    MU_RUN_TEST(test_median_selection);
+    MU_RUN_TEST(test_prctile_selection);
+    MU_RUN_TEST(test_oriented_median_matches_reference);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
