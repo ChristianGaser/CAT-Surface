@@ -815,7 +815,7 @@ def resample_to_sphere(vertices, faces, sphere_vertices, sphere_faces,
     label_interpolation : bool
         Use nearest-neighbor (label) interpolation.
     areal_interpolation : bool
-        Use areal-weighted interpolation.
+        Use sum-preserving areal interpolation, e.g. for surface area.
 
     Returns
     -------
