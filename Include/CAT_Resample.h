@@ -50,7 +50,8 @@ object_struct ** resample_surface(polygons_struct *surface,
  * \param input_values        (in)  double[n_points]; scalar data on source surface
  * \param output_values       (out) double[n_points]; interpolated values on output surface
  * \param label_interpolation (in)  0/1; use per-triangle label refinement if 1
- * \param areal_interpolation (in)  0/1; use area-weighted interpolation if 1
+ * \param areal_interpolation (in)  0/1; sum-preserving interpolation of values
+ *                                  (e.g. surface area) if 1
  * \return                          object_struct** containing resampled surface mesh
  */
 object_struct ** resample_surface_to_target_sphere(polygons_struct *polygons,
@@ -67,7 +68,7 @@ object_struct ** resample_surface_to_target_sphere(polygons_struct *polygons,
  * \param target_sphere       (in)  target spherical mesh (aligned)
  * \param invals              (in)  double[n_points]; source vertex values
  * \param outvals             (out) double[n_points]; interpolated target vertex values
- * \param areal_interpolation (in)  0/1; apply area-weighted interpolation if 1
+ * \param areal_interpolation (in)  0/1; apply sum-preserving areal interpolation if 1
  */
 void resample_values_sphere_noscale(polygons_struct *source_sphere,
                                     polygons_struct *target_sphere,
@@ -81,7 +82,7 @@ void resample_values_sphere_noscale(polygons_struct *source_sphere,
  * \param invals               (in)  double[n_points]; source vertex values
  * \param outvals              (out) double[n_points]; interpolated target values
  * \param scale_and_shift      (in)  0/1; normalize sphere alignment if 1
- * \param areal_interpolation  (in)  0/1; use area-weighted interpolation if 1
+ * \param areal_interpolation  (in)  0/1; use sum-preserving areal interpolation if 1
  */
 void resample_values_sphere(polygons_struct *source_sphere,
                             polygons_struct *target_sphere, double *invals,
