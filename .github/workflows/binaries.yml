@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  # manylinux_2_28 (AlmaLinux 8, glibc 2.28) keeps binaries compatible with
-  # any Linux system from ~2019 onwards — far broader than compiling on the
-  # bare ubuntu-22.04 runner (glibc 2.35).  manylinux2014 (glibc 2.17) cannot
-  # be used because the GitHub Actions Node 24 runner requires glibc >= 2.28.
+  # manylinux_2_28 (AlmaLinux 8, glibc 2.28) is far older than the bare
+  # ubuntu-22.04 runner (glibc 2.35). manylinux2014 (glibc 2.17) cannot be
+  # used because the GitHub Actions Node 24 runner requires glibc >= 2.28.
+  # .github/glibc_compat.h pins the few symbols that glibc 2.27+ versioned
+  # anew (expf, ...), so that the binaries also run on older systems such as
+  # RHEL/CentOS 7; "Check the glibc floor" below enforces this.
   # -static-libgcc bundles the GCC runtime so binaries don't depend on the
   # host compiler libraries either.
   build_linux:
@@ -44,7 +46,8 @@ jobs:
         shell: bash
         run: |
           autoreconf -fi
-          export CFLAGS="-O2"
+          # CFLAGS (and not CPPFLAGS) also reach the bundled FFTW
+          export CFLAGS="-O2 -include $PWD/.github/glibc_compat.h"
           export CPPFLAGS="-O2"
           export LDFLAGS="-static-libgcc"
           ./configure --enable-static --disable-shared --disable-doc
@@ -92,6 +95,48 @@ jobs:
             fi
           done
 
+      # The loader treats the glibc symbol versions a binary imports as a hard
+      # minimum, and nothing on the build machine notices a raised floor.
+      # glibc_compat.h pins the symbols that would raise it, and the floor below
+      # is what remains: memcpy@GLIBC_2.14 on x86-64 and the aarch64 baseline.
+      # Raise it only deliberately: it is the oldest Linux CAT runs on.
+      - name: Check the glibc floor
+        shell: bash
+        run: |
+          case "$(uname -m)" in
+            x86_64)  max_allowed=2.14 ;;
+            aarch64) max_allowed=2.17 ;;
+            *)       echo "::error::unknown architecture $(uname -m)"; exit 1 ;;
+          esac
+          echo "builder: $(ldd --version | sed -n 1p)"
+          status=0
+          checked=0
+          for f in $(find Progs -maxdepth 1 -type f -executable -name 'CAT_*' ! -name '*_ui' | sort); do
+            name=$(basename "$f")
+            imports=$(objdump -T "$f" |
+                      sed -nE 's/.*[ (]GLIBC_([0-9][0-9.]*)\)?[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)$/\1 \2/p' |
+                      sort -uV)
+            if [ -z "$imports" ]; then
+              echo "::error::$name imports no versioned glibc symbol (is it dynamically linked?)"
+              status=1
+              continue
+            fi
+            checked=$((checked+1))
+            highest=$(printf '%s\n' "$imports" | tail -n1 | cut -d' ' -f1)
+            if [ "$(printf '%s\n%s\n' "$max_allowed" "$highest" | sort -V | tail -n1)" = "$max_allowed" ]; then
+              echo "ok: $name needs at most GLIBC_$highest"
+            else
+              echo "::error::$name needs GLIBC_$highest, above the GLIBC_$max_allowed floor"
+              printf '%s\n' "$imports" | sed 's/^/    GLIBC_/'
+              status=1
+            fi
+          done
+          if [ "$checked" -eq 0 ]; then
+            echo "::error::no binary was checked"
+            status=1
+          fi
+          exit $status
+
       - name: Package binaries
         run: zip -r ${{ matrix.artifact }}.zip Progs
 
@@ -107,13 +152,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # macos_target is the oldest macOS the binaries run on. Without it they
+        # inherit the SDK version of the runner (macOS 15) as minimum and are
+        # refused on older systems. arm64 starts at macOS 11, and 10.13 is the
+        # oldest target the current Xcode supports.
         include:
           - os: macos-15
             arch: arm64
             artifact: cat-surface-macos-arm64
+            macos_target: "11.0"
           - os: macos-15-intel
             arch: x64
             artifact: cat-surface-macos-x86
+            macos_target: "10.13"
           - os: windows-latest
             arch: x64
             artifact: cat-surface-windows-x86
@@ -140,6 +191,8 @@ jobs:
       # ---------------- Configure ----------------
       - name: Configure (macOS)
         if: startsWith(matrix.os, 'macos')
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_target }}
         run: |
           autoupdate
           autoreconf -fi
@@ -159,6 +212,8 @@ jobs:
       # ---------------- Build ----------------
       - name: Build (macOS)
         if: startsWith(matrix.os, 'macos')
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_target }}
         run: make -j$(sysctl -n hw.ncpu)
 
       - name: Build (Windows)
@@ -167,6 +222,39 @@ jobs:
         run: make -j$(nproc)
 
       # ---------------- Verify binaries ----------------
+      # Every binary has to run on matrix.macos_target. This fails if the
+      # deployment target got lost somewhere (e.g. in a sub-configure).
+      - name: Verify binaries (macOS)
+        if: startsWith(matrix.os, 'macos')
+        env:
+          MACOS_TARGET: ${{ matrix.macos_target }}
+        run: |
+          status=0
+          checked=0
+          for bin in $(find Progs -maxdepth 1 -type f -perm -u+x -name 'CAT_*' ! -name '*_ui' | sort); do
+            file "$bin" | grep -q 'Mach-O' || continue
+            checked=$((checked+1))
+            minos=$(otool -l "$bin" | awk '/LC_BUILD_VERSION/{b=1} b&&/minos/{print $2; exit} /LC_VERSION_MIN_MACOSX/{v=1} v&&/version/{print $2; exit}')
+            if "$bin" --help </dev/null >/dev/null 2>&1; [ $? -ge 126 ]; then
+              echo "::error::execution of $bin failed"
+              status=1
+            fi
+            if [ -z "$minos" ]; then
+              echo "::error::$bin has no minimum macOS version"
+              status=1
+            elif [ "$(printf '%s\n%s\n' "$MACOS_TARGET" "$minos" | sort -V | tail -n1)" != "$MACOS_TARGET" ]; then
+              echo "::error::$bin needs macOS $minos, above the target $MACOS_TARGET"
+              status=1
+            else
+              echo "ok: $bin needs macOS $minos"
+            fi
+          done
+          if [ "$checked" -eq 0 ]; then
+            echo "::error::no binary was checked"
+            status=1
+          fi
+          exit $status
+
       - name: Verify binaries (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
