@@ -292,6 +292,7 @@ noinst_HEADERS = \
     Include/CAT_Calc.h \
     Include/CAT_AverageSurf.h \
     Include/CAT_AverageValues.h \
+    Include/CAT_VolAverage.h \
     Include/CAT_SurfPialWhite.h \
     Include/CAT_SurfPialProfile.h \
     Include/CAT_SurfLaplacian.h \
@@ -383,6 +384,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_Calc.c \
     Lib/CAT_AverageSurf.c \
     Lib/CAT_AverageValues.c \
+    Lib/CAT_VolAverage.c \
     Lib/CAT_SurfPialWhite.c \
     Lib/CAT_SurfPialProfile.c \
     Lib/CAT_SurfLaplacian.c \
