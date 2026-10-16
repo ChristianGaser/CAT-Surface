@@ -112,7 +112,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfSmoothDiffusion**     | Heat-kernel diffusion smoothing of values or surface points. |
 | **CAT_SurfSmoothLaplacian**     | HC Laplacian smoothing of surface meshes (Vollmer et al., 1999). |
 | **CAT_GlmEstimate**             | Estimates a general linear model on vertex- or voxel-wise data, from groups and covariate files or an R-style model formula (`-formula`). |
-| **CAT_VolAverage**              | Averages volumes, optionally writing the standard deviation and z-scores. |
+| **CAT_VolAverage**              | Averages volumes (`-mean`; each volume of a 4D file is one sample), optionally writing the standard deviation and z-scores. |
 | **CAT_VolLayerSmooth**          | Smooths within cortical layers, along iso-depth contours, without crossing the GM/WM or GM/CSF boundary. |
 | **CAT_VolOrnlm**                | Optimized blockwise non-local means (ORNLM) denoising. |
 
