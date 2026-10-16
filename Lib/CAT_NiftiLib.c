@@ -150,13 +150,38 @@ void init_nifti_header(nifti_image *nii_ptr)
 }
 
 /**
+ * \brief Make a NIfTI header describe a single 3D volume.
+ *
+ * The writers always store nx*ny*nz voxels. A template header taken from a 4D
+ * file still carries its time dimension, and written as it is the file would
+ * claim nt volumes while holding one -- which readers such as FSL take at their
+ * word (fslinfo reports dim4 = nt). Sets ndim to 3 and dimensions 4 to 7 to 1.
+ *
+ * \param nii_ptr (in/out) header of the volume about to be written; nx, ny and nz must be set
+ */
+static void set_single_volume(nifti_image *nii_ptr)
+{
+    int i;
+
+    nii_ptr->ndim = 3;
+    nii_ptr->nt = nii_ptr->nu = nii_ptr->nv = nii_ptr->nw = 1;
+    nii_ptr->dim[0] = 3;
+    nii_ptr->dim[1] = nii_ptr->nx;
+    nii_ptr->dim[2] = nii_ptr->ny;
+    nii_ptr->dim[3] = nii_ptr->nz;
+    for (i = 4; i < MAX_NII_DIMS; i++)
+        nii_ptr->dim[i] = 1;
+}
+
+/**
  * \brief Write double-precision volume data to NIfTI file with type conversion.
  *
  * Exports a 3D volume array (stored as linear double array) to NIfTI format.
  * Converts from double precision to specified output datatype (int8, int16, int32,
  * float32, float64, etc.) with optional slope-based scaling. Automatically scales
  * data range to fit target datatype. If no input header provided, initializes
- * default header with given dimensions and voxel sizes.
+ * default header with given dimensions and voxel sizes. The file always holds a
+ * single 3D volume, also when the template header comes from a 4D file.
  *
  * \param output_filename (in) path to output .nii/.nii.gz file
  * \param image           (in) linear array of voxel values (size dim[0]*dim[1]*dim[2])
@@ -232,7 +257,7 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
     nii_ptr->scl_slope = slope;
     nii_ptr->scl_inter = 0;
     nii_ptr->nvox = dim[0] * dim[1] * dim[2];
-    nii_ptr->ndim = 3;
+    set_single_volume(nii_ptr);
 
     /* for floating data no rescaling is necessary */
     if ((slope == 0.0) && ((data_type == DT_FLOAT32) || (data_type == DT_FLOAT64)))
@@ -474,6 +499,7 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
     nifti_image_write(nii_ptr);
 
     free(nii_ptr->data);
+    nii_ptr->data = NULL;
 
     return (1);
 }
@@ -484,7 +510,8 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
  * Exports a 3D volume array (stored as linear float array) to NIfTI format.
  * Converts from float to specified output datatype. Similar to write_nifti_double
  * but accepts input as single-precision floats. Useful when source data is already
- * float and double conversion overhead should be avoided.
+ * float and double conversion overhead should be avoided. The file always holds a
+ * single 3D volume, also when the template header comes from a 4D file.
  *
  * \param output_filename (in) path to output .nii/.nii.gz file
  * \param image           (in) linear array of float voxel values
@@ -560,7 +587,7 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
     nii_ptr->scl_slope = slope;
     nii_ptr->scl_inter = 0;
     nii_ptr->nvox = dim[0] * dim[1] * dim[2];
-    nii_ptr->ndim = 3;
+    set_single_volume(nii_ptr);
 
     /* for floating data no rescaling is necessary */
     if ((slope == 0.0) && ((data_type == DT_FLOAT32) || (data_type == DT_FLOAT64)))
@@ -799,6 +826,7 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
     nifti_image_write(nii_ptr);
 
     free(nii_ptr->data);
+    nii_ptr->data = NULL;
 
     return (1);
 }
@@ -808,12 +836,17 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
  *
  * Parses NIfTI (.nii or .nii.gz) format files and converts voxels to double
  * precision. Handles all NIfTI integer and floating-point datatypes. Automatically
- * allocates output array and applies datatype scaling/slope corrections. Optional
- * lazy loading (read_data=0) reads header only without loading voxel data.
+ * allocates output array and applies datatype scaling/slope corrections. Non-finite
+ * values of float images are read as 0 (the NIfTI library replaces NaN and Inf).
+ *
+ * A 4D file is returned as its nt volumes one after the other: volume v starts at
+ * image[v * nvox], where nvox of the returned header is the voxel count of ONE
+ * volume (nx*ny*nz) and nt the number of volumes.
  *
  * \param input_filename (in)  path to NIfTI file
- * \param image          (out) pointer to allocated double array (size nx*ny*nz)
- * \param read_data      (in)  if non-zero, read voxel data; if 0, read header only
+ * \param image          (out) pointer to allocated double array (size nx*ny*nz*nt)
+ * \param read_data      (in)  if non-zero, keep the raw NIfTI data in the returned
+ *                             header; if 0, release it (image is returned either way)
  * \return pointer to NIfTI image structure on success; NULL on error
  */
 nifti_image *read_nifti_double(const char *input_filename, double *image[], int read_data)
@@ -829,13 +862,15 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
         return (NULL);
     }
 
-    /* read as double format */
-    *image = (double *)malloc(sizeof(double) * nii_ptr->nvox * nii_ptr->nt);
+    /* read as double format; nvox already counts all dimensions, also the
+       volumes of a 4D file */
+    *image = (double *)malloc(sizeof(double) * nii_ptr->nvox);
 
     /* check for memory */
-    if (!image)
+    if (!*image)
     {
         fprintf(stderr, "read_nifti_double: Memory allocation error\n");
+        nifti_image_free(nii_ptr);
         return (NULL);
     }
 
@@ -890,7 +925,10 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
     }
 
     if (!read_data)
+    {
         free(nii_ptr->data);
+        nii_ptr->data = NULL;
+    }
 
     return (nii_ptr);
 }
