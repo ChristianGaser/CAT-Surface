@@ -2327,11 +2327,12 @@ void dist_open(void *data, int dims[3], double voxelsize[3], double dist, double
 }
 
 /**
- * \brief Binary morphological erosion using separable convolution.
+ * \brief Binary morphological erosion with a cubic structuring element.
  *
- * Thresholds input to a binary mask M = (vol > th * max(vol)), then applies
- * erosion with a 3x3x3 cube structuring element repeated niter times.
- * Erosion removes foreground voxels on the boundary, effectively shrinking objects.
+ * Thresholds input to a binary mask M = (vol > th * max(vol)), then erodes it
+ * with a (2*niter+1)^3 cube -- the same as niter steps with a 3x3x3 cube --
+ * using morph_box().  Voxels outside the volume are background on every face,
+ * so a voxel within niter of the border is removed.
  *
  * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
  * \param dims       (in)     {nx, ny, nz}
@@ -2340,10 +2341,10 @@ void dist_open(void *data, int dims[3], double voxelsize[3], double dist, double
  */
 void morph_erode_float(float *vol, int dims[3], int niter, double th)
 {
-    double filt[3] = {1, 1, 1};
-    int i, j;
+    int j;
     float max_vol;
     int nvox = dims[0] * dims[1] * dims[2];
+    unsigned char *mask;
 
     if (niter < 1)
         return;
@@ -2351,23 +2352,29 @@ void morph_erode_float(float *vol, int dims[3], int niter, double th)
     max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
+    mask = (unsigned char *)malloc((size_t)nvox);
+    if (!mask)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
     /* threshold input */
     for (j = 0; j < nvox; j++)
-        vol[j] = vol[j] > (float)th;
+        mask[j] = (unsigned char)(vol[j] > (float)th);
 
-    for (i = 0; i < niter; i++)
-    {
-        convxyz_float(vol, filt, filt, filt, 3, 3, 3, -1, -1, -1, vol, dims);
-        for (j = 0; j < nvox; j++)
-            vol[j] = vol[j] >= 9.0;
-    }
+    morph_box(mask, mask, dims, niter, MORPH_BOX_ERODE);
+
+    for (j = 0; j < nvox; j++)
+        vol[j] = (float)mask[j];
+    free(mask);
 }
 
 /**
  * \brief Wrapper for binary morphological erosion (generic datatype).
  *
  * Applies morph_erode_float() by converting input to float, processing, and converting back.
- * Erosion is performed using separable convolution with a 3x3x3 structuring element.
+ * Erosion uses morph_box() with a (2*niter+1)^3 cube; outside the volume is background.
  *
  * \param data       (in/out) void pointer to image data; type given by datatype parameter
  * \param dims       (in)     {nx, ny, nz}
@@ -2398,44 +2405,12 @@ void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
 }
 
 /**
- * \brief One 3x3x3 step of binary dilation or erosion on a 0/1 float volume.
+ * \brief Binary morphological dilation with a cubic structuring element.
  *
- * The 27-voxel sum is taken with the float convolution, whose z pass divides
- * it by the kernel weight (3), and compared exactly: any foreground voxel in
- * the neighbourhood dilates (> 0), only a full neighbourhood survives an
- * erosion (>= 9, which is 27 / 3).
- *
- * It must not be done with an 8-bit convolution.  That one rounds sum / 3 to
- * the nearest integer, so a voxel whose only foreground neighbour is a single
- * voxel (1/3) rounded to 0 and was never dilated into -- an isolated voxel
- * vanished -- while an erosion accepted 26 voxels of 27 (26 / 3 rounds to 9).
- *
- * \param buf    (in/out) float[dims[0]*dims[1]*dims[2]] holding 0/1; overwritten with 0/1
- * \param dims   (in)     {nx, ny, nz}
- * \param erode  (in)     non-zero: erosion, otherwise dilation
- */
-static void morph_step_float(float *buf, int dims[3], int erode)
-{
-    double filt[3] = {1, 1, 1};
-    const size_t nvox = (size_t)dims[0] * dims[1] * dims[2];
-    size_t j;
-
-    convxyz_float(buf, filt, filt, filt, 3, 3, 3, -1, -1, -1, buf, dims);
-    if (erode)
-        for (j = 0; j < nvox; j++)
-            buf[j] = (buf[j] >= 9.0f);
-    else
-        for (j = 0; j < nvox; j++)
-            buf[j] = (buf[j] > 0.0f);
-}
-
-/**
- * \brief Binary morphological dilation using separable convolution.
- *
- * Thresholds input to a binary mask M = (vol > th * max(vol)), then applies
- * dilation with a 3x3x3 cube structuring element repeated niter times.
- * Input image is padded with a zero band to avoid clipping at volume borders.
- * Dilation expands foreground objects by niter voxels in all directions.
+ * Thresholds input to a binary mask M = (vol > th * max(vol)), then dilates it
+ * with a (2*niter+1)^3 cube -- the same as niter steps with a 3x3x3 cube --
+ * using morph_box().  Growth stops at the border of the volume without
+ * clipping what lies inside it.
  *
  * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
  * \param dims       (in)     {nx, ny, nz}
@@ -2444,10 +2419,10 @@ static void morph_step_float(float *buf, int dims[3], int erode)
  */
 static void morph_dilate_float(float *vol, int dims[3], int niter, double th)
 {
-    int i, x, y, z, band, dims2[3];
+    int j;
     float max_vol;
-    float *buffer;
     int nvox = dims[0] * dims[1] * dims[2];
+    unsigned char *mask;
 
     if (niter < 1)
         return;
@@ -2455,42 +2430,29 @@ static void morph_dilate_float(float *vol, int dims[3], int niter, double th)
     max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
-    /* add band with zeros to image to avoid clipping */
-    band = niter;
-    for (i = 0; i < 3; i++)
-        dims2[i] = dims[i] + 2 * band;
-
-    buffer = (float *)calloc((size_t)dims2[0] * dims2[1] * dims2[2], sizeof(float));
-
-    if (!buffer)
+    mask = (unsigned char *)malloc((size_t)nvox);
+    if (!mask)
     {
         fprintf(stderr, "Memory allocation error\n");
         exit(EXIT_FAILURE);
     }
 
     /* threshold input */
-    for (x = 0; x < dims[0]; x++)
-        for (y = 0; y < dims[1]; y++)
-            for (z = 0; z < dims[2]; z++)
-                buffer[sub2ind(x + band, y + band, z + band, dims2)] = ((double)vol[sub2ind(x, y, z, dims)] > th) ? 1.0f : 0.0f;
+    for (j = 0; j < nvox; j++)
+        mask[j] = (unsigned char)((double)vol[j] > th);
 
-    for (i = 0; i < niter; i++)
-        morph_step_float(buffer, dims2, 0);
+    morph_box(mask, mask, dims, niter, MORPH_BOX_DILATE);
 
-    /* return image */
-    for (x = 0; x < dims[0]; x++)
-        for (y = 0; y < dims[1]; y++)
-            for (z = 0; z < dims[2]; z++)
-                vol[sub2ind(x, y, z, dims)] = buffer[sub2ind(x + band, y + band, z + band, dims2)];
-
-    free(buffer);
+    for (j = 0; j < nvox; j++)
+        vol[j] = (float)mask[j];
+    free(mask);
 }
 
 /**
  * \brief Wrapper for binary morphological dilation (generic datatype).
  *
  * Applies morph_dilate_float() by converting input to float, processing, and converting back.
- * Dilation is performed using separable convolution with a 3x3x3 structuring element applied iteratively.
+ * Dilation uses morph_box() with a (2*niter+1)^3 cube, the same as niter 3x3x3 steps.
  *
  * \param data       (in/out) void pointer to image data; type given by datatype parameter
  * \param dims       (in)     {nx, ny, nz}
@@ -2938,12 +2900,14 @@ void morph_box(const unsigned char *src, unsigned char *dst, int dims[3], int ra
 /**
  * \brief Binary morphological closing (dilation followed by erosion).
  *
- * Thresholds input to a binary mask, then applies:
- *   1. niter dilations (using 3x3x3 structuring element)
- *   2. niter erosions (using 3x3x3 structuring element)
+ * Thresholds input to a binary mask, then applies, using morph_box():
+ *   1. a dilation with a (2*niter+1)^3 cube (niter 3x3x3 steps)
+ *   2. an erosion with the same cube
  *
  * Closing fills small holes (background regions) while preserving shape.
- * Input is padded with zeros to avoid border clipping during growth.
+ * Input is padded with a zero band of niter voxels, so the volume behaves as
+ * if surrounded by background that the dilation may grow into: foreground
+ * touching the border is not eroded away.
  *
  * \param vol        (in/out) float[dims[0]*dims[1]*dims[2]]; overwritten with 0/1
  * \param dims       (in)     {nx, ny, nz}
@@ -2952,7 +2916,7 @@ void morph_box(const unsigned char *src, unsigned char *dst, int dims[3], int ra
  */
 static void morph_close_float(float *vol, int dims[3], int niter, double th)
 {
-    float *buffer;
+    unsigned char *buffer;
     int i, x, y, z, band, dims2[3];
     float max_vol;
     int nvox = dims[0] * dims[1] * dims[2];
@@ -2968,7 +2932,7 @@ static void morph_close_float(float *vol, int dims[3], int niter, double th)
     for (i = 0; i < 3; i++)
         dims2[i] = dims[i] + 2 * band;
 
-    buffer = (float *)calloc((size_t)dims2[0] * dims2[1] * dims2[2], sizeof(float));
+    buffer = (unsigned char *)calloc((size_t)dims2[0] * dims2[1] * dims2[2], 1);
 
     if (!buffer)
     {
@@ -2977,24 +2941,18 @@ static void morph_close_float(float *vol, int dims[3], int niter, double th)
     }
 
     /* threshold input */
-    for (x = 0; x < dims[0]; x++)
+    for (z = 0; z < dims[2]; z++)
         for (y = 0; y < dims[1]; y++)
-            for (z = 0; z < dims[2]; z++)
-                buffer[sub2ind(x + band, y + band, z + band, dims2)] = ((double)vol[sub2ind(x, y, z, dims)] > th) ? 1.0f : 0.0f;
+            for (x = 0; x < dims[0]; x++)
+                buffer[sub2ind(x + band, y + band, z + band, dims2)] = (unsigned char)((double)vol[sub2ind(x, y, z, dims)] > th);
 
-    /* dilate */
-    for (i = 0; i < niter; i++)
-        morph_step_float(buffer, dims2, 0);
-
-    /* erode */
-    for (i = 0; i < niter; i++)
-        morph_step_float(buffer, dims2, 1);
+    morph_box(buffer, buffer, dims2, niter, MORPH_BOX_CLOSE);
 
     /* return image */
-    for (x = 0; x < dims[0]; x++)
+    for (z = 0; z < dims[2]; z++)
         for (y = 0; y < dims[1]; y++)
-            for (z = 0; z < dims[2]; z++)
-                vol[sub2ind(x, y, z, dims)] = buffer[sub2ind(x + band, y + band, z + band, dims2)];
+            for (x = 0; x < dims[0]; x++)
+                vol[sub2ind(x, y, z, dims)] = (float)buffer[sub2ind(x + band, y + band, z + band, dims2)];
 
     free(buffer);
 }
@@ -3003,7 +2961,7 @@ static void morph_close_float(float *vol, int dims[3], int niter, double th)
  * \brief Wrapper for binary morphological closing (generic datatype).
  *
  * Applies morph_close_float() by converting input to float, processing, and converting back.
- * Closing combines dilation followed by erosion using separable convolution.
+ * Closing combines dilation followed by erosion, using morph_box() on a zero-padded volume.
  *
  * \param data       (in/out) void pointer to image data; type given by datatype parameter
  * \param dims       (in)     {nx, ny, nz}
@@ -3036,11 +2994,13 @@ void morph_close(void *data, int dims[3], int niter, double th, int datatype)
 /**
  * \brief Binary morphological opening (erosion followed by dilation).
  *
- * Thresholds input to a binary mask, then applies:
- *   1. niter erosions (using 3x3x3 structuring element)
- *   2. niter dilations (using 3x3x3 structuring element)
+ * Thresholds input to a binary mask, then applies, using morph_box():
+ *   1. an erosion with a (2*niter+1)^3 cube (niter 3x3x3 steps)
+ *   2. a dilation with the same cube
  *
  * Opening removes small foreground objects (noise) while preserving shape of larger structures.
+ * Voxels outside the volume are background on every face, so the erosion
+ * removes what lies within niter of the border.
  * If keep_values > 0, output marks only zero regions (areas successfully removed) from input;
  * otherwise outputs the binary result of opening.
  *
@@ -3052,7 +3012,7 @@ void morph_close(void *data, int dims[3], int niter, double th, int datatype)
  */
 static void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_values)
 {
-    float *buffer;
+    unsigned char *mask;
     int i, j, nvox;
     float max_vol;
 
@@ -3063,9 +3023,9 @@ static void morph_open_float(float *vol, int dims[3], int niter, double th, int 
     max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
-    buffer = (float *)malloc(sizeof(float) * (size_t)nvox);
+    mask = (unsigned char *)malloc((size_t)nvox);
 
-    if (!buffer)
+    if (!mask)
     {
         fprintf(stderr, "Memory allocation error\n");
         exit(EXIT_FAILURE);
@@ -3073,36 +3033,32 @@ static void morph_open_float(float *vol, int dims[3], int niter, double th, int 
 
     /* threshold input */
     for (j = 0; j < nvox; j++)
-        buffer[j] = (vol[j] > th) ? 1.0f : 0.0f;
+        mask[j] = (unsigned char)(vol[j] > th);
 
-    for (i = 0; i < niter; i++)
-        morph_step_float(buffer, dims, 1);
-
-    for (i = 0; i < niter; i++)
-        morph_step_float(buffer, dims, 0);
+    morph_box(mask, mask, dims, niter, MORPH_BOX_OPEN);
 
     // sometimes it's helpful to keep the original volume, but set areas to zero
     // where opening was successful
     if (keep_values > 0)
     {
         for (i = 0; i < nvox; i++)
-            if (buffer[i] == 0.0f)
+            if (mask[i] == 0)
                 vol[i] = 0.0;
     }
     else
     {
         for (i = 0; i < nvox; i++)
-            vol[i] = buffer[i];
+            vol[i] = (float)mask[i];
     }
 
-    free(buffer);
+    free(mask);
 }
 
 /**
  * \brief Wrapper for binary morphological opening (generic datatype).
  *
  * Applies morph_open_float() by converting input to float, processing, and converting back.
- * Opening combines erosion followed by dilation using separable convolution.
+ * Opening combines erosion followed by dilation, using morph_box().
  *
  * \param data        (in/out) void pointer to image data; type given by datatype parameter
  * \param dims        (in)     {nx, ny, nz}
@@ -4577,4 +4533,365 @@ void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
 
     cat_parallel_run(nthreads, gradient3D_worker, args, sizeof(gradient3D_args));
     free(args);
+}
+
+/* ===================== Quadratic B-spline sampling ===================== */
+
+/* Pole of the quadratic B-spline prefilter, sqrt(8) - 3 */
+#define BSPLINE2_POLE (-0.17157287525380990239662255158060)
+/* Samples in the causal initialisation of a long line: z^k drops below
+   e^-30 after ceil(-30 / log|z|) = 18 of them */
+#define BSPLINE2_HORIZON 18
+
+/**
+ * \brief Quadratic B-spline prefilter along the rows of an n x m block, in place.
+ *
+ * Filters each of the m columns of the row-major block b (n rows) with Unser's
+ * recursive filter: pole sqrt(8)-3, a causal and an anti-causal first-order
+ * recursion with mirror-symmetric boundaries.  The causal recursion starts
+ * from the boundary sum, truncated after BSPLINE2_HORIZON samples on longer
+ * lines, the anti-causal one from its closed form -- step for step what
+ * spline_resize (utils.filter_last_dim) does.  Doing m columns at once keeps
+ * the inner loops contiguous.  A line of one sample is left as it is (the
+ * closed form divides by zero there).
+ *
+ * \param b (in/out) double[n*m]
+ * \param n (in)     length of the lines (rows of the block)
+ * \param m (in)     number of lines (columns of the block)
+ */
+static void
+bspline2_filter_block(double *b, int n, size_t m)
+{
+    const double z = BSPLINE2_POLE;
+    const double gain = (1.0 - z) * (1.0 - 1.0 / z);
+    const double end = z / (z * z - 1.0);
+    double zk;
+    size_t j;
+    int i, k;
+
+    if (n < 2)
+        return;
+    for (i = 0; i < n; i++)
+        for (j = 0; j < m; j++)
+            b[(size_t)i * m + j] *= gain;
+
+    /* causal initialisation, into row 0 */
+    if (BSPLINE2_HORIZON < n)
+    {
+        zk = 1.0;
+        for (k = 1; k < BSPLINE2_HORIZON; k++)
+        {
+            zk *= z;
+            for (j = 0; j < m; j++)
+                b[j] += b[(size_t)k * m + j] * zk;
+        }
+    }
+    else
+    {
+        const double a = pow(z, n - 1);
+
+        zk = 1.0;
+        for (k = 1; k < n - 1; k++)
+        {
+            double w;
+
+            zk *= z;
+            w = zk + a * a / zk;
+            for (j = 0; j < m; j++)
+                b[j] += b[(size_t)k * m + j] * w;
+        }
+        for (j = 0; j < m; j++)
+            b[j] = (b[j] + a * b[(size_t)(n - 1) * m + j]) / (1.0 - a * a);
+    }
+
+    /* causal recursion */
+    for (i = 1; i < n; i++)
+        for (j = 0; j < m; j++)
+            b[(size_t)i * m + j] += z * b[(size_t)(i - 1) * m + j];
+
+    /* anti-causal initialisation and recursion */
+    for (j = 0; j < m; j++)
+        b[(size_t)(n - 1) * m + j] =
+            (z * b[(size_t)(n - 2) * m + j] + b[(size_t)(n - 1) * m + j]) * end;
+    for (i = n - 2; i >= 0; i--)
+        for (j = 0; j < m; j++)
+            b[(size_t)i * m + j] = z * (b[(size_t)(i + 1) * m + j] - b[(size_t)i * m + j]);
+}
+
+/** Argument slot of one prefilter worker. */
+typedef struct
+{
+    float *coef;
+    int nx, ny, nz;
+    int axis;     /* 2: along z, 1: along y, 0: along x */
+    int ini, fin; /* this worker's y-rows (axis 2) or z-planes (axes 1 and 0) */
+} bspline2_filter_args_t;
+
+/** \brief Worker of bspline2_prefilter(): filters its share of lines along one axis. */
+static void *
+bspline2_filter_worker(void *arg)
+{
+    const bspline2_filter_args_t *a = (const bspline2_filter_args_t *)arg;
+    const int nx = a->nx, ny = a->ny, nz = a->nz;
+    const size_t nxy = (size_t)nx * ny;
+    const size_t len = (a->axis == 2) ? (size_t)nz * nx : nxy;
+    double *b = (double *)malloc(sizeof(double) * len);
+    size_t i;
+    int x, y, z;
+
+    if (!b)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    if (a->axis == 2)
+    {
+        /* the x-row of every plane at this y, as an nz x nx block */
+        for (y = a->ini; y < a->fin; y++)
+        {
+            for (z = 0; z < nz; z++)
+                for (x = 0; x < nx; x++)
+                    b[(size_t)z * nx + x] = a->coef[(size_t)z * nxy + (size_t)y * nx + x];
+            bspline2_filter_block(b, nz, (size_t)nx);
+            for (z = 0; z < nz; z++)
+                for (x = 0; x < nx; x++)
+                    a->coef[(size_t)z * nxy + (size_t)y * nx + x] = (float)b[(size_t)z * nx + x];
+        }
+    }
+    else
+    {
+        for (z = a->ini; z < a->fin; z++)
+        {
+            float *plane = a->coef + (size_t)z * nxy;
+
+            if (a->axis == 1)
+            {
+                /* the plane itself is an ny x nx block */
+                for (i = 0; i < nxy; i++)
+                    b[i] = plane[i];
+                bspline2_filter_block(b, ny, (size_t)nx);
+                for (i = 0; i < nxy; i++)
+                    plane[i] = (float)b[i];
+            }
+            else
+            {
+                /* along x: transpose the plane into an nx x ny block */
+                for (y = 0; y < ny; y++)
+                    for (x = 0; x < nx; x++)
+                        b[(size_t)x * ny + y] = plane[(size_t)y * nx + x];
+                bspline2_filter_block(b, nx, (size_t)ny);
+                for (y = 0; y < ny; y++)
+                    for (x = 0; x < nx; x++)
+                        plane[(size_t)y * nx + x] = (float)b[(size_t)x * ny + y];
+            }
+        }
+    }
+    free(b);
+    return NULL;
+}
+
+/**
+ * \brief Quadratic B-spline coefficients of a volume, in place.
+ *
+ * Filters along z, then y, then x -- the order of spline_resize -- with each
+ * pass split across up to MAX_NTHREADS threads.
+ *
+ * \param coef (in/out) float[nx*ny*nz]: the volume, replaced by its coefficients
+ * \param dims (in)     {nx, ny, nz}
+ */
+static void
+bspline2_prefilter(float *coef, int dims[3])
+{
+    int axis, t;
+
+    for (axis = 2; axis >= 0; axis--)
+    {
+        const int units = (axis == 2) ? dims[1] : dims[2];
+        const int nthreads = cat_parallel_nthreads(units);
+        bspline2_filter_args_t *args =
+            (bspline2_filter_args_t *)malloc((size_t)nthreads * sizeof(bspline2_filter_args_t));
+
+        if (!args)
+        {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        for (t = 0; t < nthreads; t++)
+        {
+            args[t].coef = coef;
+            args[t].nx = dims[0];
+            args[t].ny = dims[1];
+            args[t].nz = dims[2];
+            args[t].axis = axis;
+            args[t].ini = (int)(((long)t * units) / nthreads);
+            args[t].fin = (int)(((long)(t + 1) * units) / nthreads);
+        }
+        cat_parallel_run(nthreads, bspline2_filter_worker, args, sizeof(bspline2_filter_args_t));
+        free(args);
+    }
+}
+
+/**
+ * \brief Offsets and weights of the three B-spline taps along one axis.
+ *
+ * Taps outside the volume, and every tap of a non-finite position, get
+ * weight 0 and offset 0 (the zero padding of spline_resize).
+ */
+static void
+bspline2_taps(double g, int n, int align_corners, size_t stride, size_t idx[3], double w[3])
+{
+    /* normalised coordinate -> voxel coordinate */
+    const double u = align_corners ? (g + 1.0) * 0.5 * (double)(n - 1)
+                                   : ((g + 1.0) * (double)n - 1.0) * 0.5;
+    const double fl = floor(u - 0.5);
+    int t;
+
+    for (t = 0; t < 3; t++)
+    {
+        const double node = fl + (double)t;
+
+        if (node >= 0.0 && node < (double)n) /* false for NaN as well */
+        {
+            const double x = fabs(u - node);
+
+            idx[t] = (size_t)node * stride;
+            w[t] = (x < 0.5) ? 0.75 - x * x : 0.5 * (1.5 - x) * (1.5 - x);
+        }
+        else
+        {
+            idx[t] = 0;
+            w[t] = 0.0;
+        }
+    }
+}
+
+/** Argument slot of one sampling worker. */
+typedef struct
+{
+    const float *coef;
+    const float *grid;
+    float *out;
+    int nx, ny, nz;
+    int align_corners;
+    size_t ini, fin; /* this worker's positions */
+} bspline2_sample_args_t;
+
+/** \brief Worker of bspline_sample(): 27 taps per position. */
+static void *
+bspline2_sample_worker(void *arg)
+{
+    const bspline2_sample_args_t *a = (const bspline2_sample_args_t *)arg;
+    const size_t sy = (size_t)a->nx, sz = (size_t)a->nx * a->ny;
+    size_t p, ix[3], iy[3], iz[3];
+    double wx[3], wy[3], wz[3];
+    int i, j, k;
+
+    for (p = a->ini; p < a->fin; p++)
+    {
+        const float *g = a->grid + 3 * p;
+        double acc = 0.0;
+
+        bspline2_taps((double)g[0], a->nx, a->align_corners, 1, ix, wx);
+        bspline2_taps((double)g[1], a->ny, a->align_corners, sy, iy, wy);
+        bspline2_taps((double)g[2], a->nz, a->align_corners, sz, iz, wz);
+        for (i = 0; i < 3; i++)
+            for (j = 0; j < 3; j++)
+            {
+                const double wzy = wz[i] * wy[j];
+                const float *c = a->coef + iz[i] + iy[j];
+
+                for (k = 0; k < 3; k++)
+                    acc += (double)c[ix[k]] * (wzy * wx[k]);
+            }
+        a->out[p] = (float)acc;
+    }
+    return NULL;
+}
+
+/**
+ * \brief Sample a volume with a quadratic B-spline at normalised positions.
+ *
+ * With prefilter the volume is first turned into B-spline coefficients, so the
+ * samples interpolate it; the 27 coefficients around each position are then
+ * weighted with the quadratic B-spline.  Positions follow the convention of
+ * torch.nn.functional.grid_sample: normalised to [-1, 1] per axis, -1 and 1
+ * being the centres of the first and last voxel with align_corners and their
+ * outer edges without it.  Taps outside the volume count as 0, as does every
+ * tap of a non-finite position.  With align_corners this is
+ * spline_resize.grid_sample up to float rounding: the filter and the sums run
+ * in double precision, the coefficients are stored as float.  Both stages run
+ * on up to MAX_NTHREADS threads.
+ *
+ * \param vol           (in)  float[nx*ny*nz], x fastest
+ * \param dims          (in)  {nx, ny, nz}
+ * \param grid          (in)  float[3*npoints]: x, y, z of each position
+ * \param npoints       (in)  number of positions
+ * \param out           (out) float[npoints]
+ * \param align_corners (in)  non-zero: -1 and 1 are voxel centres, otherwise voxel edges
+ * \param prefilter     (in)  non-zero: interpolate; 0: use the volume as the coefficients
+ * \param use_mask      (in)  non-zero, with prefilter: voxels equal to mask_value keep it
+ *                            as their coefficient
+ * \param mask_value    (in)  see use_mask
+ */
+void bspline_sample(const float *vol, int dims[3], const float *grid, size_t npoints,
+                    float *out, int align_corners, int prefilter, int use_mask,
+                    float mask_value)
+{
+    const size_t nvox = (size_t)(dims[0] > 0 ? dims[0] : 0) *
+                        (size_t)(dims[1] > 0 ? dims[1] : 0) *
+                        (size_t)(dims[2] > 0 ? dims[2] : 0);
+    const float *src = vol;
+    float *coef = NULL;
+    bspline2_sample_args_t *args;
+    size_t v;
+    int nthreads, t;
+
+    if (npoints == 0)
+        return;
+    if (nvox == 0)
+    {
+        for (v = 0; v < npoints; v++)
+            out[v] = 0.0f;
+        return;
+    }
+
+    if (prefilter)
+    {
+        coef = (float *)malloc(sizeof(float) * nvox);
+        if (!coef)
+        {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(coef, vol, sizeof(float) * nvox);
+        bspline2_prefilter(coef, dims);
+        if (use_mask)
+            for (v = 0; v < nvox; v++)
+                if (vol[v] == mask_value)
+                    coef[v] = mask_value;
+        src = coef;
+    }
+
+    nthreads = cat_parallel_nthreads(npoints > (size_t)INT_MAX ? INT_MAX : (int)npoints);
+    args = (bspline2_sample_args_t *)malloc((size_t)nthreads * sizeof(bspline2_sample_args_t));
+    if (!args)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    for (t = 0; t < nthreads; t++)
+    {
+        args[t].coef = src;
+        args[t].grid = grid;
+        args[t].out = out;
+        args[t].nx = dims[0];
+        args[t].ny = dims[1];
+        args[t].nz = dims[2];
+        args[t].align_corners = align_corners;
+        args[t].ini = (npoints / (size_t)nthreads) * (size_t)t;
+        args[t].fin = (t == nthreads - 1) ? npoints : (npoints / (size_t)nthreads) * (size_t)(t + 1);
+    }
+    cat_parallel_run(nthreads, bspline2_sample_worker, args, sizeof(bspline2_sample_args_t));
+    free(args);
+    free(coef);
 }

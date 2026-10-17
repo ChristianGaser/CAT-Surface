@@ -659,4 +659,31 @@ void gradient3D(float *src, float *grad_mag, float *grad_x, float *grad_y,
  * \param M       (out) 3x3 matrix, g_world = M * g_gradient3D
  */
 void gradient3D_world_matrix(const nifti_image *nii_ptr, double M[3][3]);
+
+/**
+ * \brief Sample a volume with a quadratic B-spline at normalised positions.
+ *
+ * With prefilter the samples interpolate the volume (B-spline coefficients via
+ * Unser's recursive filter, pole sqrt(8)-3); 27 taps per position.  Positions
+ * follow torch.nn.functional.grid_sample: normalised to [-1, 1] per axis, -1
+ * and 1 the centres of the first and last voxel with align_corners and their
+ * outer edges without it.  Taps outside the volume count as 0, as does every
+ * tap of a non-finite position.  With align_corners this is
+ * spline_resize.grid_sample up to float rounding.  Runs on up to MAX_NTHREADS
+ * threads.
+ *
+ * \param vol           (in)  float[nx*ny*nz], x fastest
+ * \param dims          (in)  {nx, ny, nz}
+ * \param grid          (in)  float[3*npoints]: x, y, z of each position
+ * \param npoints       (in)  number of positions
+ * \param out           (out) float[npoints]
+ * \param align_corners (in)  non-zero: -1 and 1 are voxel centres, otherwise voxel edges
+ * \param prefilter     (in)  non-zero: interpolate; 0: use the volume as the coefficients
+ * \param use_mask      (in)  non-zero, with prefilter: voxels equal to mask_value keep it
+ *                            as their coefficient
+ * \param mask_value    (in)  see use_mask
+ */
+void bspline_sample(const float *vol, int dims[3], const float *grid, size_t npoints,
+                    float *out, int align_corners, int prefilter, int use_mask,
+                    float mask_value);
 #endif
