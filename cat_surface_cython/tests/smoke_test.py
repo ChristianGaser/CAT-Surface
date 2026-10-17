@@ -638,6 +638,68 @@ def test_vol_calc():
 
 
 # ---------------------------------------------------------------------------
+# Box morphology: a cube of side 2r+1, outside the volume is background.
+# The reference is the definition, built from shifted copies of a padded mask.
+# ---------------------------------------------------------------------------
+def _box_reference(mask, r, erode):
+    """Any (dilate) or all (erode) of the (2r+1)^3 cube; outside is background."""
+    padded = np.pad(mask, r, constant_values=False)
+    nx, ny, nz = mask.shape
+    out = np.ones(mask.shape, bool) if erode else np.zeros(mask.shape, bool)
+    for dx in range(2 * r + 1):
+        for dy in range(2 * r + 1):
+            for dz in range(2 * r + 1):
+                shifted = padded[dx:dx + nx, dy:dy + ny, dz:dz + nz]
+                out = (out & shifted) if erode else (out | shifted)
+    return out
+
+
+def test_box_morph():
+    section("Box morphology")
+
+    rng = np.random.default_rng(0)
+    vol = rng.random((13, 11, 9)) < 0.3
+    before = vol.copy()
+    for r in (1, 2, 4):
+        dil = _box_reference(vol, r, False)
+        ero = _box_reference(vol, r, True)
+        check(f"dilation by {r} is the (2r+1)^3 cube",
+              np.array_equal(cat_surf.vol_box_morph(vol, "dilate", r), dil))
+        check(f"erosion by {r} is the (2r+1)^3 cube",
+              np.array_equal(cat_surf.vol_box_morph(vol, "erode", r), ero))
+        check(f"closing by {r} is a dilation then an erosion",
+              np.array_equal(cat_surf.vol_box_morph(vol, "close", r),
+                             _box_reference(dil, r, True)))
+        check(f"opening by {r} is an erosion then a dilation",
+              np.array_equal(cat_surf.vol_box_morph(vol, "open", r),
+                             _box_reference(ero, r, False)))
+
+    out = cat_surf.vol_box_morph(vol, "dilate", 2)
+    check("the result is boolean and keeps the shape",
+          out.dtype == np.bool_ and out.shape == vol.shape)
+    check("the input is not modified", np.array_equal(vol, before))
+    check("radius 0 returns the mask", np.array_equal(
+        cat_surf.vol_box_morph(vol, "erode", 0), vol))
+    check("a Fortran-ordered input gives the same result", np.array_equal(
+        cat_surf.vol_box_morph(np.asfortranarray(vol), "dilate", 2), out))
+    check("any non-zero value is foreground", np.array_equal(
+        cat_surf.vol_box_morph(vol.astype(np.uint8) * 7, "dilate", 2), out))
+    single = np.zeros((9, 9, 9), bool)
+    single[4, 4, 4] = True
+    check("one voxel dilated by 1 is a 3x3x3 cube",
+          cat_surf.vol_box_morph(single, "dilate", 1).sum() == 27)
+
+    for args, why in (((vol, "boundary", 1), "an unknown operation"),
+                      ((vol[0], "dilate", 1), "a 2-D mask")):
+        try:
+            cat_surf.vol_box_morph(*args)
+            raised = False
+        except ValueError:
+            raised = True
+        check(f"{why} is a ValueError", raised)
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -649,7 +711,7 @@ def main():
                  test_barrier_gate_scales_with_thickness, test_barrier_reference,
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
-                 test_surf_info, test_vol_calc):
+                 test_surf_info, test_vol_calc, test_box_morph):
         try:
             test()
         except Exception:  # pragma: no cover

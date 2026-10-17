@@ -557,6 +557,8 @@ cdef extern from "CAT_Vol.h":
                  double s[3], int use_mask, int datatype)
     void morph_dilate_geodesic(unsigned char *mask, const unsigned char *region,
                                int dims[3], int niter, int alternate)
+    void morph_box(const unsigned char *src, unsigned char *dst, int dims[3],
+                   int radius, int op)
 
 
 # ---------------------------------------------------------------------------

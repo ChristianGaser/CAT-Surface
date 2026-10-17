@@ -1411,3 +1411,76 @@ def vol_dilate_geodesic(mask, region=None, int iterations=1,
     C.morph_dilate_geodesic(<unsigned char *>out.data, reg_ptr, dims,
                             iterations, 1 if alternate else 0)
     return out.view(np.bool_)
+
+
+# ===================================================================
+# Box morphology  (mirrors morph_box)
+# ===================================================================
+_BOX_OPERATIONS = {"dilate": 0, "erode": 1, "close": 2, "open": 3}
+
+
+def vol_box_morph(mask, str operation="dilate", int iterations=1):
+    """
+    Binary dilation, erosion, closing or opening with a cubic structuring element.
+
+    The cube has ``2 * iterations + 1`` voxels per side, so a dilation by
+    ``iterations`` equals that many steps of 26-connected dilation.  Each axis
+    is done with a sliding-window count, so the cost does not depend on
+    ``iterations``.  Voxels outside the array are background: a dilation does
+    not wrap, and an erosion removes every voxel within ``iterations`` of the
+    border.
+
+    The result is bit-identical to ``scipy.ndimage.maximum_filter`` (dilation)
+    or ``minimum_filter`` (erosion) with ``size=2 * iterations + 1``,
+    ``mode="constant"`` and ``cval=0`` on a boolean array.
+
+    Parameters
+    ----------
+    mask : array_like, 3-D
+        Non-zero voxels are foreground.  Not modified.
+    operation : {"dilate", "erode", "close", "open"}
+        Closing is a dilation followed by an erosion, opening an erosion
+        followed by a dilation, both by ``iterations``.  Default "dilate".
+    iterations : int
+        Half the side of the cube, in voxels.  ``<= 0`` returns the mask as
+        booleans.  Default 1.
+
+    Returns
+    -------
+    out : ndarray, 3-D, bool
+        The result, in the shape of ``mask``.
+
+    Notes
+    -----
+    The cube is isotropic, so the array's memory order does not matter: the
+    dimensions are handed to C in the order the array stores them.  No axis may
+    be longer than 65535 voxels.
+    """
+    cdef int op
+    cdef int dims[3]
+    if operation not in _BOX_OPERATIONS:
+        raise ValueError("operation must be one of 'dilate', 'erode', 'close' "
+                         "or 'open', not %r" % (operation,))
+    op = _BOX_OPERATIONS[operation]
+
+    arr = np.ascontiguousarray(mask)
+    if arr.ndim != 3:
+        raise ValueError("mask must be 3-D")
+    if max(arr.shape) > 65535:
+        raise ValueError("an axis longer than 65535 voxels is not supported")
+    if arr.dtype == np.bool_ or arr.dtype == np.uint8:
+        arr = arr.view(np.uint8)
+    else:
+        arr = np.ascontiguousarray(arr != 0).view(np.uint8)
+
+    cdef cnp.ndarray[cnp.uint8_t, ndim=3] src = arr
+    cdef cnp.ndarray[cnp.uint8_t, ndim=3] out = np.empty(
+        (src.shape[0], src.shape[1], src.shape[2]), dtype=np.uint8)
+
+    dims[0] = src.shape[2]          # the fastest axis of a C-ordered array
+    dims[1] = src.shape[1]
+    dims[2] = src.shape[0]
+
+    C.morph_box(<const unsigned char *>src.data, <unsigned char *>out.data,
+                dims, iterations, op)
+    return out.view(np.bool_)
