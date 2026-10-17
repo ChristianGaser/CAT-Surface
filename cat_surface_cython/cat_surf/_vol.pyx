@@ -1484,3 +1484,82 @@ def vol_box_morph(mask, str operation="dilate", int iterations=1):
     C.morph_box(<const unsigned char *>src.data, <unsigned char *>out.data,
                 dims, iterations, op)
     return out.view(np.bool_)
+
+
+# ===================================================================
+# Quadratic B-spline sampling  (mirrors bspline_sample)
+# ===================================================================
+def vol_bspline_sample(volume, grid, bint align_corners=True,
+                       bint prefilter=True, mask_value=None):
+    """
+    Sample a volume with a quadratic B-spline at normalised positions.
+
+    The B-spline interpolation of ``spline_resize.grid_sample``: the volume
+    is turned into B-spline coefficients by a recursive prefilter, then the
+    27 coefficients around each position are weighted with the quadratic
+    B-spline.  With ``align_corners=True`` the result is that of
+    ``spline_resize.grid_sample`` up to float rounding; the filter and the
+    sums run in double precision on up to four threads.
+
+    Parameters
+    ----------
+    volume : array_like, 3-D
+        Values on a (D, H, W) grid -- the order of a torch volume.
+    grid : array_like, (..., 3)
+        Positions normalised to [-1, 1], the last axis holding (x, y, z) with
+        x along the last axis of ``volume``: the convention of
+        ``torch.nn.functional.grid_sample``.
+    align_corners : bool
+        True: -1 and 1 are the centres of the first and last voxel; False:
+        their outer edges.  Default True.
+    prefilter : bool
+        True: interpolate, so that the samples reproduce ``volume`` at its
+        voxel centres.  False: use ``volume`` as the coefficients, which
+        smooths it.  Default True.
+    mask_value : float, optional
+        With ``prefilter``, voxels whose value is exactly this keep it as
+        their coefficient (``spline_resize``'s ``mask_value``), so that
+        background stays background.  Default None.
+
+    Returns
+    -------
+    out : ndarray, float32
+        The samples, in the shape of ``grid`` without its last axis.  Taps
+        outside the volume count as 0, and so does every tap of a non-finite
+        position.
+
+    Notes
+    -----
+    ``spline_resize`` itself takes ``align_corners=False`` against the wrong
+    axis sizes; this follows ``torch.nn.functional.grid_sample`` there.
+    """
+    cdef int dims[3]
+    cdef int use_mask = 0
+    cdef float value = 0.0
+    cdef Py_ssize_t npoints
+
+    vol_arr = np.ascontiguousarray(volume, dtype=np.float32)
+    if vol_arr.ndim != 3:
+        raise ValueError("volume must be 3-D")
+    grid_arr = np.ascontiguousarray(grid, dtype=np.float32)
+    if grid_arr.ndim < 1 or grid_arr.shape[grid_arr.ndim - 1] != 3:
+        raise ValueError("grid must hold (x, y, z) in its last axis")
+
+    cdef cnp.ndarray[cnp.float32_t, ndim=3] vol = vol_arr
+    cdef cnp.ndarray[cnp.float32_t, ndim=1] pos = grid_arr.reshape(-1)
+    npoints = pos.shape[0] // 3
+    cdef cnp.ndarray[cnp.float32_t, ndim=1] out = np.empty(npoints, dtype=np.float32)
+
+    if mask_value is not None:
+        use_mask = 1
+        value = float(mask_value)
+
+    dims[0] = vol.shape[2]          # the fastest axis of a C-ordered array
+    dims[1] = vol.shape[1]
+    dims[2] = vol.shape[0]
+
+    if npoints:
+        C.bspline_sample(<const float *>vol.data, dims, <const float *>pos.data,
+                         <size_t>npoints, <float *>out.data, align_corners,
+                         prefilter, use_mask, value)
+    return out.reshape(grid_arr.shape[:grid_arr.ndim - 1])

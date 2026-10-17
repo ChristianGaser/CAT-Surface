@@ -559,6 +559,9 @@ cdef extern from "CAT_Vol.h":
                                int dims[3], int niter, int alternate)
     void morph_box(const unsigned char *src, unsigned char *dst, int dims[3],
                    int radius, int op)
+    void bspline_sample(const float *vol, int dims[3], const float *grid,
+                        size_t npoints, float *out, int align_corners,
+                        int prefilter, int use_mask, float mask_value)
 
 
 # ---------------------------------------------------------------------------

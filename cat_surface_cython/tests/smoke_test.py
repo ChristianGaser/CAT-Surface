@@ -700,6 +700,62 @@ def test_box_morph():
 
 
 # ---------------------------------------------------------------------------
+# B-spline sampling: torch's grid convention (x along the last axis), and an
+# interpolation, so the voxel centres come back unchanged.
+# ---------------------------------------------------------------------------
+def _centres(n):
+    """Normalised coordinates of the voxel centres along an axis of n voxels."""
+    return np.linspace(-1.0, 1.0, n)
+
+
+def test_bspline_sample():
+    section("B-spline sampling")
+
+    d, h, w = 9, 11, 13
+    ramp_w = np.broadcast_to(np.arange(w, dtype=np.float32), (d, h, w)).copy()
+    ramp_d = np.broadcast_to(np.arange(d, dtype=np.float32)[:, None, None],
+                             (d, h, w)).copy()
+    # an interior line of voxel centres along x, at y and z in the middle
+    xs = _centres(w)[3:-3]
+    line_x = np.stack([xs, np.zeros_like(xs), np.zeros_like(xs)], axis=-1)
+    zs = _centres(d)[2:-2]
+    line_z = np.stack([np.zeros_like(zs), np.zeros_like(zs), zs], axis=-1)
+    check("grid x runs along the last axis of the volume",
+          np.allclose(cat_surf.vol_bspline_sample(ramp_w, line_x),
+                      np.arange(w)[3:-3], atol=1e-4))
+    check("grid z runs along the first axis of the volume",
+          np.allclose(cat_surf.vol_bspline_sample(ramp_d, line_z),
+                      np.arange(d)[2:-2], atol=1e-4))
+
+    rng = np.random.default_rng(0)
+    vol = rng.random((d, h, w)).astype(np.float32) + 1.0
+    zz, yy, xx = np.meshgrid(_centres(d)[1:-1], _centres(h)[1:-1],
+                             _centres(w)[1:-1], indexing="ij")
+    grid = np.stack([xx, yy, zz], axis=-1).astype(np.float32)
+    out = cat_surf.vol_bspline_sample(vol, grid)
+    check("the result has the shape of the grid without its last axis",
+          out.shape == grid.shape[:-1] and out.dtype == np.float32)
+    check("interior voxel centres come back unchanged",
+          np.allclose(out, vol[1:-1, 1:-1, 1:-1], atol=1e-4))
+    check("a mask value that does not occur changes nothing",
+          np.array_equal(cat_surf.vol_bspline_sample(vol, grid, mask_value=0.0), out))
+    check("align_corners=False samples elsewhere",
+          not np.allclose(cat_surf.vol_bspline_sample(vol, grid, align_corners=False),
+                          out))
+    check("an empty grid gives an empty result",
+          cat_surf.vol_bspline_sample(vol, np.zeros((0, 3), np.float32)).shape == (0,))
+
+    for args, why in (((vol[0], grid), "a 2-D volume"),
+                      ((vol, grid[..., :2]), "a grid without three coordinates")):
+        try:
+            cat_surf.vol_bspline_sample(*args)
+            raised = False
+        except ValueError:
+            raised = True
+        check(f"{why} is a ValueError", raised)
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -711,7 +767,8 @@ def main():
                  test_barrier_gate_scales_with_thickness, test_barrier_reference,
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
-                 test_surf_info, test_vol_calc, test_box_morph):
+                 test_surf_info, test_vol_calc, test_box_morph,
+                 test_bspline_sample):
         try:
             test()
         except Exception:  # pragma: no cover
