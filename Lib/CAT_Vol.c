@@ -1020,116 +1020,6 @@ static int convxyz_float(float *iVol, double *filtx, double *filty, double *filt
 }
 
 /**
- * \brief Apply 3D convolution to a volume with type unsigned char.
- *
- * This function applies 3D convolution to a given volume using separate 1D
- * filter kernels along x, y, and z dimensions. The output is stored in a
- * separate output volume.
- *
- * \param iVol  Input volume for convolution.
- * \param filtx Kernel along x, fxdim samples.
- * \param filty Kernel along y, fydim samples.
- * \param filtz Kernel along z, fzdim samples.
- * \param fxdim Length of filtx.
- * \param fydim Length of filty.
- * \param fzdim Length of filtz.
- * \param xoff  Origin of filtx within the kernel.
- * \param yoff  Origin of filty within the kernel.
- * \param zoff  Origin of filtz within the kernel.
- * \param oVol  Output volume where the convolution result is stored.
- * \param dims Array containing the dimensions of the input volume.
- *
- * \return 0 on successful completion.
- *
- * Notes:
- * The function applies a slice-wise 2D convolution using 'convxy_float'
- * and then combines these results to achieve 3D convolution. It allocates
- * temporary buffers for intermediate results and performs necessary memory
- * management.
- * This is a slightly modified function from spm_conv_vol.c from SPM12
- */
-static int convxyz_uint8(unsigned char *iVol, double *filtx, double *filty, double *filtz,
-                  int fxdim, int fydim, int fzdim, int xoff, int yoff, int zoff,
-                  unsigned char *oVol, int dims[3])
-{
-    float *tmp, *buff, **sortedv;
-    int xy, z, y, x, k, fstart, fend, startz, endz;
-    int xdim, ydim, zdim;
-    float tmp2;
-    unsigned char *obuf;
-
-    xdim = dims[0];
-    ydim = dims[1];
-    zdim = dims[2];
-
-    tmp = (float *)malloc(sizeof(float) * xdim * ydim * fzdim);
-    buff = (float *)malloc(sizeof(float) * ((ydim > xdim) ? ydim : xdim));
-    sortedv = (float **)malloc(sizeof(float *) * fzdim);
-
-    if (!tmp || !buff || !sortedv)
-    {
-        fprintf(stderr, "Memory allocation error\n");
-        exit(EXIT_FAILURE);
-    }
-
-    startz = ((fzdim + zoff - 1 < 0) ? fzdim + zoff - 1 : 0);
-    endz = zdim + fzdim + zoff - 1;
-
-    for (z = startz; z < endz; z++)
-    {
-        double sum2 = 0.0;
-
-        if (z >= 0 && z < zdim)
-        {
-            for (y = 0; y < ydim; y++)
-                for (x = 0; x < xdim; x++)
-                    tmp[((z % fzdim) * xdim * ydim) + (y * xdim) + x] = (float)iVol[(z * xdim * ydim) + (y * xdim) + x];
-            convxy_float(tmp + ((z % fzdim) * xdim * ydim), xdim, ydim,
-                         filtx, filty, fxdim, fydim, xoff, yoff, buff);
-        }
-        if (z - fzdim - zoff + 1 >= 0 && z - fzdim - zoff + 1 < zdim)
-        {
-            fstart = ((z >= zdim) ? z - zdim + 1 : 0);
-            fend = ((z - fzdim < 0) ? z + 1 : fzdim);
-
-            for (k = 0; k < fzdim; k++)
-            {
-                int z1 = (((z - k) % fzdim) + fzdim) % fzdim;
-                sortedv[k] = &(tmp[z1 * xdim * ydim]);
-            }
-
-            for (k = fstart, sum2 = 0.0; k < fend; k++)
-                sum2 += filtz[k];
-
-            obuf = oVol;
-            obuf = &obuf[(z - fzdim - zoff + 1) * ydim * xdim];
-            if (sum2)
-            {
-                for (xy = 0; xy < xdim * ydim; xy++)
-                {
-                    float sum1 = 0.0;
-                    for (k = fstart; k < fend; k++)
-                        sum1 += filtz[k] * sortedv[k][xy];
-                    tmp2 = sum1 / sum2;
-                    if (tmp2 < 0.0)
-                        tmp2 = 0.0;
-                    else if (tmp2 > 255.0)
-                        tmp2 = 255.0;
-                    obuf[xy] = (unsigned char)roundf(tmp2);
-                }
-            }
-            else
-                for (xy = 0; xy < xdim * ydim; xy++)
-                    obuf[xy] = 0;
-        }
-    }
-    free(tmp);
-    free(buff);
-    free(sortedv);
-    return (0);
-}
-
-/**
  * \brief Apply Gaussian smoothing to a 3D volume.
  *
  * This function performs Gaussian smoothing on a 3D volume. The size of the
@@ -2508,6 +2398,38 @@ void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
 }
 
 /**
+ * \brief One 3x3x3 step of binary dilation or erosion on a 0/1 float volume.
+ *
+ * The 27-voxel sum is taken with the float convolution, whose z pass divides
+ * it by the kernel weight (3), and compared exactly: any foreground voxel in
+ * the neighbourhood dilates (> 0), only a full neighbourhood survives an
+ * erosion (>= 9, which is 27 / 3).
+ *
+ * It must not be done with an 8-bit convolution.  That one rounds sum / 3 to
+ * the nearest integer, so a voxel whose only foreground neighbour is a single
+ * voxel (1/3) rounded to 0 and was never dilated into -- an isolated voxel
+ * vanished -- while an erosion accepted 26 voxels of 27 (26 / 3 rounds to 9).
+ *
+ * \param buf    (in/out) float[dims[0]*dims[1]*dims[2]] holding 0/1; overwritten with 0/1
+ * \param dims   (in)     {nx, ny, nz}
+ * \param erode  (in)     non-zero: erosion, otherwise dilation
+ */
+static void morph_step_float(float *buf, int dims[3], int erode)
+{
+    double filt[3] = {1, 1, 1};
+    const size_t nvox = (size_t)dims[0] * dims[1] * dims[2];
+    size_t j;
+
+    convxyz_float(buf, filt, filt, filt, 3, 3, 3, -1, -1, -1, buf, dims);
+    if (erode)
+        for (j = 0; j < nvox; j++)
+            buf[j] = (buf[j] >= 9.0f);
+    else
+        for (j = 0; j < nvox; j++)
+            buf[j] = (buf[j] > 0.0f);
+}
+
+/**
  * \brief Binary morphological dilation using separable convolution.
  *
  * Thresholds input to a binary mask M = (vol > th * max(vol)), then applies
@@ -2522,10 +2444,9 @@ void morph_erode(void *data, int dims[3], int niter, double th, int datatype)
  */
 static void morph_dilate_float(float *vol, int dims[3], int niter, double th)
 {
-    double filt[3] = {1, 1, 1};
-    int i, x, y, z, j, band, dims2[3];
+    int i, x, y, z, band, dims2[3];
     float max_vol;
-    unsigned char *buffer;
+    float *buffer;
     int nvox = dims[0] * dims[1] * dims[2];
 
     if (niter < 1)
@@ -2539,7 +2460,7 @@ static void morph_dilate_float(float *vol, int dims[3], int niter, double th)
     for (i = 0; i < 3; i++)
         dims2[i] = dims[i] + 2 * band;
 
-    buffer = (unsigned char *)malloc(sizeof(unsigned char) * dims2[0] * dims2[1] * dims2[2]);
+    buffer = (float *)calloc((size_t)dims2[0] * dims2[1] * dims2[2], sizeof(float));
 
     if (!buffer)
     {
@@ -2547,26 +2468,20 @@ static void morph_dilate_float(float *vol, int dims[3], int niter, double th)
         exit(EXIT_FAILURE);
     }
 
-    memset(buffer, 0, sizeof(unsigned char) * dims2[0] * dims2[1] * dims2[2]);
-
     /* threshold input */
     for (x = 0; x < dims[0]; x++)
         for (y = 0; y < dims[1]; y++)
             for (z = 0; z < dims[2]; z++)
-                buffer[sub2ind(x + band, y + band, z + band, dims2)] = (unsigned char)((double)vol[sub2ind(x, y, z, dims)] > th);
+                buffer[sub2ind(x + band, y + band, z + band, dims2)] = ((double)vol[sub2ind(x, y, z, dims)] > th) ? 1.0f : 0.0f;
 
     for (i = 0; i < niter; i++)
-    {
-        convxyz_uint8(buffer, filt, filt, filt, 3, 3, 3, -1, -1, -1, buffer, dims2);
-        for (j = 0; j < dims2[0] * dims2[1] * dims2[2]; j++)
-            buffer[j] = buffer[j] > 0;
-    }
+        morph_step_float(buffer, dims2, 0);
 
     /* return image */
     for (x = 0; x < dims[0]; x++)
         for (y = 0; y < dims[1]; y++)
             for (z = 0; z < dims[2]; z++)
-                vol[sub2ind(x, y, z, dims)] = (float)buffer[sub2ind(x + band, y + band, z + band, dims2)];
+                vol[sub2ind(x, y, z, dims)] = buffer[sub2ind(x + band, y + band, z + band, dims2)];
 
     free(buffer);
 }
@@ -2753,6 +2668,273 @@ void morph_dilate_geodesic(unsigned char *mask, const unsigned char *region,
     free(next);
 }
 
+/* ===================== Box morphology (sliding-window counts) ===================== */
+
+#define BOX_PASS_XY 0 /* x then y, one z-plane at a time, the plane stays in cache */
+#define BOX_PASS_Z 1  /* along z: whole rows, one counter per (y, x)                */
+
+/** Argument slot of one box-morphology worker. */
+typedef struct
+{
+    const unsigned char *src;
+    unsigned char *dst;
+    int nx, ny, nz;
+    int radius;
+    int erode;
+    int pass;
+    int ini, fin; /* this worker's share: z-planes (XY pass) or y-rows (Z pass) */
+} box_args_t;
+
+/**
+ * \brief One line of the box filter: out[i] = any (or all) of in[i-r .. i+r].
+ *
+ * Keeps a running count of the foreground voxels in the window, so the cost
+ * does not depend on r.  Voxels outside the line count as background: a window
+ * that sticks out of the line can never be full, which is why the erosion
+ * removes everything within r of the ends (the cval=0 border of
+ * scipy.ndimage).
+ *
+ * \param in     (in)  0/1 values
+ * \param out    (out) 0/1 values; must not overlap in
+ * \param n      (in)  length of the line
+ * \param r      (in)  radius of the window (the window has 2r+1 voxels)
+ * \param erode  (in)  non-zero: all of the window, otherwise any of it
+ */
+static void
+box_line(const unsigned char *in, unsigned char *out, int n, int r, int erode)
+{
+    const int w = 2 * r + 1;
+    const int hi = (r < n - 1) ? r : n - 1;
+    int i, cnt = 0;
+
+    for (i = 0; i <= hi; i++)
+        cnt += in[i];
+    for (i = 0; i < n; i++)
+    {
+        out[i] = (unsigned char)(erode ? (cnt == w) : (cnt != 0));
+        if (i + r + 1 < n)
+            cnt += in[i + r + 1];
+        if (i >= r)
+            cnt -= in[i - r];
+    }
+}
+
+/**
+ * \brief Emit one row of a row-wise box pass and slide the window by one row.
+ *
+ * cnt holds, per element, how many foreground voxels the current window
+ * covers; add and rem are the rows entering and leaving the window (an
+ * all-zero row where it leaves the volume).  The loops have no dependency
+ * between elements, so the compiler vectorises them.
+ */
+static void
+box_row_step(unsigned short *restrict cnt, unsigned char *restrict out,
+             const unsigned char *restrict add, const unsigned char *restrict rem,
+             size_t n, int w, int erode)
+{
+    size_t i;
+
+    if (erode)
+        for (i = 0; i < n; i++)
+        {
+            const unsigned short c = cnt[i];
+            out[i] = (unsigned char)(c == w);
+            cnt[i] = (unsigned short)(c + add[i] - rem[i]);
+        }
+    else
+        for (i = 0; i < n; i++)
+        {
+            const unsigned short c = cnt[i];
+            out[i] = (unsigned char)(c != 0);
+            cnt[i] = (unsigned short)(c + add[i] - rem[i]);
+        }
+}
+
+/** \brief Worker of box_pass(): filters its share of planes or rows. */
+static void *
+box_worker(void *arg)
+{
+    const box_args_t *a = (const box_args_t *)arg;
+    const int nx = a->nx, ny = a->ny, nz = a->nz;
+    const int r = a->radius, w = 2 * r + 1, erode = a->erode;
+    const size_t nxy = (size_t)nx * ny;
+    int y, z, k;
+    size_t i;
+
+    if (a->pass == BOX_PASS_XY)
+    {
+        const int hi = (r < ny - 1) ? r : ny - 1;
+        unsigned char *line = (unsigned char *)malloc((size_t)nx);
+        unsigned char *plane = (unsigned char *)malloc(nxy);
+        unsigned char *zero = (unsigned char *)calloc((size_t)nx, 1);
+        unsigned short *cnt = (unsigned short *)malloc(sizeof(unsigned short) * (size_t)nx);
+
+        if (!line || !plane || !zero || !cnt)
+        {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        for (z = a->ini; z < a->fin; z++)
+        {
+            const unsigned char *s = a->src + (size_t)z * nxy;
+            unsigned char *d = a->dst + (size_t)z * nxy;
+
+            /* along x: every line of the plane, into the plane buffer */
+            for (y = 0; y < ny; y++)
+            {
+                for (i = 0; i < (size_t)nx; i++)
+                    line[i] = (unsigned char)(s[(size_t)y * nx + i] != 0);
+                box_line(line, plane + (size_t)y * nx, nx, r, erode);
+            }
+            /* along y: rows of the plane buffer, into the output plane */
+            for (i = 0; i < (size_t)nx; i++)
+                cnt[i] = 0;
+            for (k = 0; k <= hi; k++)
+                for (i = 0; i < (size_t)nx; i++)
+                    cnt[i] = (unsigned short)(cnt[i] + plane[(size_t)k * nx + i]);
+            for (y = 0; y < ny; y++)
+                box_row_step(cnt, d + (size_t)y * nx,
+                             (y + r + 1 < ny) ? plane + (size_t)(y + r + 1) * nx : zero,
+                             (y >= r) ? plane + (size_t)(y - r) * nx : zero,
+                             (size_t)nx, w, erode);
+        }
+        free(line);
+        free(plane);
+        free(zero);
+        free(cnt);
+    }
+    else
+    {
+        /* the rows [ini, fin) of every plane are one contiguous slab of n voxels */
+        const size_t n = (size_t)(a->fin - a->ini) * nx;
+        const size_t y0 = (size_t)a->ini * nx;
+        const int hi = (r < nz - 1) ? r : nz - 1;
+        unsigned short *cnt;
+        unsigned char *zero;
+
+        if (n == 0)
+            return NULL;
+        cnt = (unsigned short *)calloc(n, sizeof(unsigned short));
+        zero = (unsigned char *)calloc(n, 1);
+        if (!cnt || !zero)
+        {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
+        }
+        for (k = 0; k <= hi; k++)
+            for (i = 0; i < n; i++)
+                cnt[i] = (unsigned short)(cnt[i] + a->src[(size_t)k * nxy + y0 + i]);
+        for (z = 0; z < nz; z++)
+            box_row_step(cnt, a->dst + (size_t)z * nxy + y0,
+                         (z + r + 1 < nz) ? a->src + (size_t)(z + r + 1) * nxy + y0 : zero,
+                         (z >= r) ? a->src + (size_t)(z - r) * nxy + y0 : zero,
+                         n, w, erode);
+        free(cnt);
+        free(zero);
+    }
+    return NULL;
+}
+
+/** \brief Run one pass of the box filter over the whole volume on several threads. */
+static void
+box_pass(int pass, const unsigned char *src, unsigned char *dst, const int dims[3],
+         int radius, int erode)
+{
+    const int units = (pass == BOX_PASS_Z) ? dims[1] : dims[2];
+    const int nthreads = cat_parallel_nthreads(units);
+    box_args_t *args = (box_args_t *)malloc((size_t)nthreads * sizeof(box_args_t));
+    int t;
+
+    if (!args)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    for (t = 0; t < nthreads; t++)
+    {
+        args[t].src = src;
+        args[t].dst = dst;
+        args[t].nx = dims[0];
+        args[t].ny = dims[1];
+        args[t].nz = dims[2];
+        args[t].radius = radius;
+        args[t].erode = erode;
+        args[t].pass = pass;
+        args[t].ini = (int)(((long)t * units) / nthreads);
+        args[t].fin = (int)(((long)(t + 1) * units) / nthreads);
+    }
+    cat_parallel_run(nthreads, box_worker, args, sizeof(box_args_t));
+    free(args);
+}
+
+/**
+ * \brief Binary dilation, erosion, closing or opening with a cubic structuring element.
+ *
+ * The (2r+1)^3 cube is separable, so each operation is one sliding-window
+ * pass per axis whose cost does not depend on r -- where repeating a
+ * 3x3x3 step r times (morph_dilate() and friends) costs r times as much.
+ * Voxels outside the volume count as background: a dilation does not wrap, and
+ * an erosion removes every voxel within r of the border.  A dilation by r is
+ * the same as r steps of 26-connected dilation, and the result is bit for bit
+ * what scipy.ndimage.maximum_filter / minimum_filter give with
+ * size=2r+1, mode="constant", cval=0 on a boolean array.
+ *
+ * Closing is a dilation followed by an erosion, opening an erosion followed
+ * by a dilation, both by the same r.  The passes run on up to MAX_NTHREADS
+ * threads (see cat_parallel_nthreads()).
+ *
+ * \param src    (in)  unsigned char[nvox]; non-zero is foreground
+ * \param dst    (out) unsigned char[nvox]; written as 0/1; may be the same array as src
+ * \param dims   (in)  {nx, ny, nz}; each at most 65535
+ * \param radius (in)  half side of the cube in voxels (<= 0: dst is a 0/1 copy of src)
+ * \param op     (in)  MORPH_BOX_DILATE, MORPH_BOX_ERODE, MORPH_BOX_CLOSE or MORPH_BOX_OPEN
+ */
+void morph_box(const unsigned char *src, unsigned char *dst, int dims[3], int radius, int op)
+{
+    const size_t nvox = (size_t)dims[0] * dims[1] * dims[2];
+    unsigned char *tmp;
+    size_t i;
+    int pass_erode[2], n_ops, k;
+
+    if (dims[0] < 1 || dims[1] < 1 || dims[2] < 1)
+        return;
+
+    switch (op)
+    {
+    case MORPH_BOX_DILATE: n_ops = 1; pass_erode[0] = 0; break;
+    case MORPH_BOX_ERODE:  n_ops = 1; pass_erode[0] = 1; break;
+    case MORPH_BOX_CLOSE:  n_ops = 2; pass_erode[0] = 0; pass_erode[1] = 1; break;
+    case MORPH_BOX_OPEN:   n_ops = 2; pass_erode[0] = 1; pass_erode[1] = 0; break;
+    default:
+        fprintf(stderr, "morph_box: unknown operation %d\n", op);
+        return;
+    }
+
+    if (radius < 1)
+    {
+        for (i = 0; i < nvox; i++)
+            dst[i] = (unsigned char)(src[i] != 0);
+        return;
+    }
+    /* a cube larger than the volume changes nothing, and this keeps 2r+1 small */
+    radius = MIN(radius, MAX(dims[0], MAX(dims[1], dims[2])));
+
+    tmp = (unsigned char *)malloc(nvox);
+    if (!tmp)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+    /* Each operation is the XY pass src -> tmp and the Z pass tmp -> dst, so
+       src may be dst, and the second operation of closing / opening reads dst. */
+    for (k = 0; k < n_ops; k++)
+    {
+        box_pass(BOX_PASS_XY, k ? dst : src, tmp, dims, radius, pass_erode[k]);
+        box_pass(BOX_PASS_Z, tmp, dst, dims, radius, pass_erode[k]);
+    }
+    free(tmp);
+}
+
 /**
  * \brief Binary morphological closing (dilation followed by erosion).
  *
@@ -2770,9 +2952,8 @@ void morph_dilate_geodesic(unsigned char *mask, const unsigned char *region,
  */
 static void morph_close_float(float *vol, int dims[3], int niter, double th)
 {
-    double filt[3] = {1, 1, 1};
-    unsigned char *buffer;
-    int i, x, y, z, j, band, dims2[3];
+    float *buffer;
+    int i, x, y, z, band, dims2[3];
     float max_vol;
     int nvox = dims[0] * dims[1] * dims[2];
 
@@ -2787,7 +2968,7 @@ static void morph_close_float(float *vol, int dims[3], int niter, double th)
     for (i = 0; i < 3; i++)
         dims2[i] = dims[i] + 2 * band;
 
-    buffer = (unsigned char *)malloc(sizeof(unsigned char) * dims2[0] * dims2[1] * dims2[2]);
+    buffer = (float *)calloc((size_t)dims2[0] * dims2[1] * dims2[2], sizeof(float));
 
     if (!buffer)
     {
@@ -2795,35 +2976,25 @@ static void morph_close_float(float *vol, int dims[3], int niter, double th)
         exit(EXIT_FAILURE);
     }
 
-    memset(buffer, 0, sizeof(unsigned char) * dims2[0] * dims2[1] * dims2[2]);
-
     /* threshold input */
     for (x = 0; x < dims[0]; x++)
         for (y = 0; y < dims[1]; y++)
             for (z = 0; z < dims[2]; z++)
-                buffer[sub2ind(x + band, y + band, z + band, dims2)] = (unsigned char)((double)vol[sub2ind(x, y, z, dims)] > th);
+                buffer[sub2ind(x + band, y + band, z + band, dims2)] = ((double)vol[sub2ind(x, y, z, dims)] > th) ? 1.0f : 0.0f;
 
     /* dilate */
     for (i = 0; i < niter; i++)
-    {
-        convxyz_uint8(buffer, filt, filt, filt, 3, 3, 3, -1, -1, -1, buffer, dims2);
-        for (j = 0; j < dims2[0] * dims2[1] * dims2[2]; j++)
-            buffer[j] = (buffer[j] > 0);
-    }
+        morph_step_float(buffer, dims2, 0);
 
     /* erode */
     for (i = 0; i < niter; i++)
-    {
-        convxyz_uint8(buffer, filt, filt, filt, 3, 3, 3, -1, -1, -1, buffer, dims2);
-        for (j = 0; j < dims2[0] * dims2[1] * dims2[2]; j++)
-            buffer[j] = (buffer[j] >= 9);
-    }
+        morph_step_float(buffer, dims2, 1);
 
     /* return image */
     for (x = 0; x < dims[0]; x++)
         for (y = 0; y < dims[1]; y++)
             for (z = 0; z < dims[2]; z++)
-                vol[sub2ind(x, y, z, dims)] = (float)buffer[sub2ind(x + band, y + band, z + band, dims2)];
+                vol[sub2ind(x, y, z, dims)] = buffer[sub2ind(x + band, y + band, z + band, dims2)];
 
     free(buffer);
 }
@@ -2881,8 +3052,7 @@ void morph_close(void *data, int dims[3], int niter, double th, int datatype)
  */
 static void morph_open_float(float *vol, int dims[3], int niter, double th, int keep_values)
 {
-    unsigned char *buffer;
-    double filt[3] = {1, 1, 1};
+    float *buffer;
     int i, j, nvox;
     float max_vol;
 
@@ -2893,7 +3063,7 @@ static void morph_open_float(float *vol, int dims[3], int niter, double th, int 
     max_vol = get_max(vol, nvox, 0, DT_FLOAT32);
     th *= (double)max_vol;
 
-    buffer = (unsigned char *)malloc(sizeof(unsigned char) * nvox);
+    buffer = (float *)malloc(sizeof(float) * (size_t)nvox);
 
     if (!buffer)
     {
@@ -2903,34 +3073,26 @@ static void morph_open_float(float *vol, int dims[3], int niter, double th, int 
 
     /* threshold input */
     for (j = 0; j < nvox; j++)
-        buffer[j] = (unsigned char)(vol[j] > th);
+        buffer[j] = (vol[j] > th) ? 1.0f : 0.0f;
 
     for (i = 0; i < niter; i++)
-    {
-        convxyz_uint8(buffer, filt, filt, filt, 3, 3, 3, -1, -1, -1, buffer, dims);
-        for (j = 0; j < nvox; j++)
-            buffer[j] = (buffer[j] >= 9);
-    }
+        morph_step_float(buffer, dims, 1);
 
     for (i = 0; i < niter; i++)
-    {
-        convxyz_uint8(buffer, filt, filt, filt, 3, 3, 3, -1, -1, -1, buffer, dims);
-        for (j = 0; j < nvox; j++)
-            buffer[j] = (buffer[j] > 0);
-    }
+        morph_step_float(buffer, dims, 0);
 
     // sometimes it's helpful to keep the original volume, but set areas to zero
     // where opening was successful
     if (keep_values > 0)
     {
         for (i = 0; i < nvox; i++)
-            if (buffer[i] == 0)
+            if (buffer[i] == 0.0f)
                 vol[i] = 0.0;
     }
     else
     {
         for (i = 0; i < nvox; i++)
-            vol[i] = (float)buffer[i];
+            vol[i] = buffer[i];
     }
 
     free(buffer);

@@ -300,6 +300,33 @@ void morph_close(void *data, int dims[3], int niter, double th, int datatype);
 void morph_dilate_geodesic(unsigned char *mask, const unsigned char *region,
                            int dims[3], int niter, int alternate);
 
+/** Operations of morph_box(). */
+#define MORPH_BOX_DILATE 0
+#define MORPH_BOX_ERODE 1
+#define MORPH_BOX_CLOSE 2
+#define MORPH_BOX_OPEN 3
+
+/**
+ * \brief Binary dilation, erosion, closing or opening with a cubic structuring element.
+ *
+ * Sliding-window counts along each axis, so the cost does not depend on the
+ * radius.  Voxels outside the volume are background (a dilation does not wrap,
+ * an erosion removes every voxel within \a radius of the border).  Dilation by
+ * \a radius equals \a radius steps of 26-connected dilation and is bit-identical
+ * to scipy.ndimage.maximum_filter(size=2*radius+1, mode="constant", cval=0) on a
+ * boolean array; erosion likewise to minimum_filter.  Closing is dilation then
+ * erosion, opening erosion then dilation, both by \a radius.  Runs on up to
+ * MAX_NTHREADS threads.
+ *
+ * \param src    (in)  unsigned char[nvox]; non-zero is foreground
+ * \param dst    (out) unsigned char[nvox]; written as 0/1; may be the same array as src
+ * \param dims   (in)  {nx, ny, nz}; each at most 65535
+ * \param radius (in)  half side of the cube in voxels (<=0: dst is a 0/1 copy of src)
+ * \param op     (in)  MORPH_BOX_DILATE, MORPH_BOX_ERODE, MORPH_BOX_CLOSE or MORPH_BOX_OPEN
+ */
+void morph_box(const unsigned char *src, unsigned char *dst, int dims[3],
+               int radius, int op);
+
 /**
  * \brief Wrapper for binary morphological opening (generic datatype).
  *
