@@ -351,12 +351,15 @@ test_box_edge_cases(void)
 }
 
 /*
- * morph_dilate(), morph_close() and morph_open() repeat a 3x3x3 step niter
- * times, which is a (2*niter+1)^3 cube.  An earlier version took the 27-voxel
- * sum with an 8-bit convolution that rounded sum / 3, so a voxel whose only
- * foreground neighbour was one voxel (1/3 -> 0) was never dilated into -- an
- * isolated voxel disappeared -- and an erosion accepted 26 of 27.  These tests
- * hold the steps to the definition.
+ * morph_erode(), morph_dilate(), morph_close() and morph_open() stand for
+ * niter steps with a 3x3x3 cube, which is a (2*niter+1)^3 cube.  They used to
+ * take each step as a convolution, which went wrong twice: an 8-bit version
+ * rounded sum / 3, so a voxel whose only foreground neighbour was one voxel
+ * (1/3 -> 0) was never dilated into -- an isolated voxel disappeared -- and an
+ * erosion accepted 26 of 27; and the z pass divided the border planes by the
+ * taps inside the volume, so an erosion kept voxels on the first and last
+ * z-plane that it removed on the other four faces.  These tests hold all four
+ * to the definition, outside the volume being background on every face.
  */
 
 /** \brief Closing as libCAT defines it: the volume sits in an infinite background. */
@@ -385,19 +388,6 @@ close_reference(const unsigned char *src, unsigned char *dst, int dims[3], int r
     free(a);
     free(b);
     free(c);
-}
-
-/** \brief Zero every voxel within `margin` of the volume border. */
-static void
-clear_margin(unsigned char *mask, int dims[3], int margin)
-{
-    int x, y, z;
-    for (z = 0; z < dims[2]; z++)
-        for (y = 0; y < dims[1]; y++)
-            for (x = 0; x < dims[0]; x++)
-                if (x < margin || y < margin || z < margin || x >= dims[0] - margin ||
-                    y >= dims[1] - margin || z >= dims[2] - margin)
-                    mask[(size_t)z * dims[0] * dims[1] + (size_t)y * dims[0] + x] = 0;
 }
 
 static void
@@ -448,6 +438,54 @@ test_morph_dilate_is_exact(void)
 }
 
 static void
+test_morph_erode_is_exact(void)
+{
+    int dims[3] = {21, 19, 17};
+    size_t nvox = (size_t)dims[0] * dims[1] * dims[2], i, sum;
+    static const int density[3] = {300, 930, 990};
+    unsigned char *mask = (unsigned char *)malloc(nvox);
+    unsigned char *want = (unsigned char *)malloc(nvox);
+    unsigned char *got = (unsigned char *)malloc(nvox);
+    float *fl = (float *)malloc(nvox * sizeof(float));
+    int d, r, mismatch = 0, runs = 0;
+
+    for (d = 0; d < 3; d++)
+        for (r = 1; r <= 3; r++)
+        {
+            fill_density(mask, nvox, 400 + 3 * d + r, density[d]);
+            box_reference(mask, want, dims, r, 1);
+
+            memcpy(got, mask, nvox);
+            morph_erode(got, dims, r, 0.5, DT_UINT8);
+            runs++;
+            if (memcmp(got, want, nvox) != 0)
+                mismatch++;
+
+            for (i = 0; i < nvox; i++)
+                fl[i] = mask[i] ? 1.0f : 0.0f;
+            morph_erode(fl, dims, r, 0.5, DT_FLOAT32);
+            for (i = 0; i < nvox; i++)
+                got[i] = fl[i] != 0.0f;
+            if (memcmp(got, want, nvox) != 0)
+                mismatch++;
+        }
+    MU_ASSERT("morph_erode is the exact (2r+1)^3 erosion", mismatch == 0 && runs == 9);
+
+    /* the face the old z pass got wrong: a full volume loses r voxels on
+       all six faces, so what is left is the inner box */
+    memset(mask, 1, nvox);
+    morph_erode(mask, dims, 2, 0.5, DT_UINT8);
+    for (i = 0, sum = 0; i < nvox; i++)
+        sum += mask[i];
+    MU_ASSERT("eroding a full volume peels every face, z included",
+              sum == (size_t)(dims[0] - 4) * (dims[1] - 4) * (dims[2] - 4));
+    free(mask);
+    free(want);
+    free(got);
+    free(fl);
+}
+
+static void
 test_morph_close_open_are_exact(void)
 {
     int dims[3] = {21, 19, 17};
@@ -469,10 +507,9 @@ test_morph_close_open_are_exact(void)
             if (memcmp(got, want, nvox) != 0)
                 mismatch_close++;
 
-            /* opening: foreground kept r voxels from the border, where the
-               border convention of the erosion does not come into it */
+            /* opening: any mask too; the erosion removes what lies within r
+               of every face, the z faces included */
             fill_density(mask, nvox, 300 + 3 * d + r, density[d]);
-            clear_margin(mask, dims, r + 1);
             box_reference_op(mask, want, dims, r, MORPH_BOX_OPEN);
             memcpy(got, mask, nvox);
             morph_open(got, dims, r, 0.5, 0, DT_UINT8);
@@ -494,6 +531,7 @@ int main(void)
     MU_RUN_TEST(test_box_matches_the_definition);
     MU_RUN_TEST(test_box_in_place);
     MU_RUN_TEST(test_box_edge_cases);
+    MU_RUN_TEST(test_morph_erode_is_exact);
     MU_RUN_TEST(test_morph_dilate_is_exact);
     MU_RUN_TEST(test_morph_close_open_are_exact);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
