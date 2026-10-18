@@ -853,7 +853,7 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
 {
     nifti_image *nii_ptr;
     double tmp;
-    int i;
+    size_t i;
 
     nii_ptr = nifti_image_read(input_filename, 1);
     if (!nii_ptr)
@@ -907,6 +907,9 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
             break;
         default:
             fprintf(stderr, "read_nifti_double: Unknown datatype\n");
+            free(*image);
+            *image = NULL;
+            nifti_image_free(nii_ptr);
             return (NULL);
             break;
         }
@@ -940,16 +943,21 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
  * Similar to read_nifti_double but saves memory for large volumes where double
  * precision is not required. Handles all NIfTI datatypes and applies scaling corrections.
  *
+ * A 4D file is returned as its nt volumes one after the other: volume v starts at
+ * image[v * nvox], where nvox of the returned header is the voxel count of ONE
+ * volume (nx*ny*nz) and nt the number of volumes.
+ *
  * \param input_filename (in)  path to NIfTI file
- * \param image          (out) pointer to allocated float array (size nx*ny*nz)
- * \param read_data      (in)  if non-zero, read voxel data; if 0, read header only
+ * \param image          (out) pointer to allocated float array (size nx*ny*nz*nt)
+ * \param read_data      (in)  if non-zero, keep the raw NIfTI data in the returned
+ *                             header; if 0, release it (image is returned either way)
  * \return pointer to NIfTI image structure on success; NULL on error
  */
 nifti_image *read_nifti_float(const char *input_filename, float *image[], int read_data)
 {
     nifti_image *nii_ptr;
     float tmp;
-    int i;
+    size_t i;
 
     nii_ptr = nifti_image_read(input_filename, 1);
     if (!nii_ptr)
@@ -958,13 +966,16 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
         return (NULL);
     }
 
-    /* read as float format */
-    *image = (float *)malloc(sizeof(float) * nii_ptr->nvox * nii_ptr->nt);
+    /* read as float format; nvox already counts all dimensions, also the
+       volumes of a 4D file -- multiplying by nt again asked a 300-volume
+       64x64x36 series for 53 GB */
+    *image = (float *)malloc(sizeof(float) * nii_ptr->nvox);
 
     /* check for memory */
-    if (!image)
+    if (!*image)
     {
         fprintf(stderr, "read_nifti_float: Memory allocation error\n");
+        nifti_image_free(nii_ptr);
         return (NULL);
     }
 
@@ -1001,6 +1012,9 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
             break;
         default:
             fprintf(stderr, "read_nifti_float: Unknown datatype\n");
+            free(*image);
+            *image = NULL;
+            nifti_image_free(nii_ptr);
             return (NULL);
             break;
         }
@@ -1019,7 +1033,10 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
     }
 
     if (!read_data)
+    {
         free(nii_ptr->data);
+        nii_ptr->data = NULL;
+    }
 
     return (nii_ptr);
 }

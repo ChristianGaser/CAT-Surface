@@ -92,9 +92,14 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[],
 /**
  * \brief Read NIfTI image file and load data into single-precision array.
  *
+ * A 4D file is returned as its nt volumes one after the other, as by
+ * read_nifti_double(): volume v starts at image[v * nvox], where nvox of the
+ * returned header is the voxel count of ONE volume.
+ *
  * \param input_filename (in)  path to NIfTI file
- * \param image          (out) pointer to allocated float array (size nx*ny*nz)
- * \param read_data      (in)  if non-zero, read voxel data; if 0, read header only
+ * \param image          (out) pointer to allocated float array (size nx*ny*nz*nt)
+ * \param read_data      (in)  if non-zero, keep the raw NIfTI data in the returned
+ *                             header; if 0, release it (image is returned either way)
  * \return pointer to NIfTI image structure on success; NULL on error
  */
 nifti_image *read_nifti_float(const char *input_filename, float *image[],

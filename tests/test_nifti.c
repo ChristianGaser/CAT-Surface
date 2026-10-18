@@ -89,6 +89,44 @@ test_4d_read_layout(void)
     remove(file);
 }
 
+/** \brief read_nifti_float() returns the same layout as read_nifti_double(). */
+static void
+test_4d_read_float_layout(void)
+{
+    const char *file = "test_nifti_4d_float.nii";
+    float *img = NULL;
+    nifti_image *nii;
+    int t, i, ok = 1;
+
+    write_4d(file);
+    nii = read_nifti_float(file, &img, 0);
+
+    MU_ASSERT("float: the 4D file is read", nii != NULL && img != NULL);
+    if (nii && img)
+    {
+        MU_ASSERT("float: nt is the number of volumes", nii->nt == NT);
+        MU_ASSERT("float: nvox is that of one volume", nii->nvox == NVOX);
+        MU_ASSERT("float: the raw data are released with read_data = 0",
+                  nii->data == NULL);
+        for (t = 0; t < NT; t++)
+            for (i = 0; i < NVOX; i++)
+                if (img[t * NVOX + i] != (float)(100 * t + i))
+                    ok = 0;
+        MU_ASSERT("float: volume t starts at t * nvox", ok);
+        nifti_image_free(nii);
+    }
+    free(img);
+
+    /* read_data keeps the raw data, which the header then owns */
+    nii = read_nifti_float(file, &img, 1);
+    MU_ASSERT("float: read_data = 1 keeps the raw data",
+              nii != NULL && nii->data != NULL);
+    if (nii)
+        nifti_image_free(nii);
+    free(img);
+    remove(file);
+}
+
 /** \brief Both writers store one 3D volume although the template is 4D. */
 static void
 test_writers_drop_the_time_dimension(void)
@@ -140,6 +178,7 @@ test_writers_drop_the_time_dimension(void)
 int main(void)
 {
     MU_RUN_TEST(test_4d_read_layout);
+    MU_RUN_TEST(test_4d_read_float_layout);
     MU_RUN_TEST(test_writers_drop_the_time_dimension);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
