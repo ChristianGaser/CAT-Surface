@@ -956,13 +956,16 @@ CAT_BBReg_optimise(const CAT_RigidParams *p_init,
 /**
  * \brief Write a 4×4 RAS-to-RAS transform to a plain-text file.
  *
- * Format (compatible with FSL flirt -init / ANTs):
+ * Format:
  *
  *   # CAT_BBReg RAS-to-RAS transform
  *   m00 m01 m02 m03
  *   m10 m11 m12 m13
  *   m20 m21 m22 m23
  *   0   0   0   1
+ *
+ * A world-space matrix, not FSL's scaled-voxel convention that flirt -init
+ * reads (see ras_to_fsl_matrix()) nor an ITK transform for ANTs.
  *
  * \param filename (in) output file path
  * \param m        (in) 4×4 row-major matrix

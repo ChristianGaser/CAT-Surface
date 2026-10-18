@@ -221,7 +221,9 @@ matrix, cost = cat_surf.bbreg(
 print(f"BBR cost: {cost:.4f}")
 print("EPI → T1 matrix:\n", matrix)
 
-# Save the 4×4 transform for use with FSL / ANTs
+# Save the 4×4 world-space (RAS-to-RAS) transform.  This is not the
+# convention of flirt -init (FSL's scaled voxel coordinates; see
+# CAT_SurfBBReg -fsl-matrix) nor an ITK transform for ANTs.
 import numpy as np
 np.savetxt("epi_to_t1.txt", matrix)
 ```
