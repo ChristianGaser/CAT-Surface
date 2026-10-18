@@ -476,9 +476,9 @@ cdef extern from "CAT_Sheetness.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_SurfInfo.h — geometric and topological summary of a mesh
+# CAT_MeshInfo.h — geometric and topological summary of a mesh (CAT_SurfInfo)
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_SurfInfo.h":
+cdef extern from "CAT_MeshInfo.h":
     int CAT_SURFINFO_SKIPPED
 
     ctypedef struct surf_info_struct:

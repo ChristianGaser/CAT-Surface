@@ -11,7 +11,7 @@
 #include <math.h>
 #include <float.h>
 
-#include "CAT_SurfInfo.h"
+#include "CAT_MeshInfo.h"
 #include "CAT_Surf.h"
 #include "CAT_SafeAlloc.h"
 
@@ -259,7 +259,7 @@ accumulate_edges(polygons_struct *polygons, surf_info_struct *info)
  * Runs the same two-stage test as CAT_SurfSelfIntersect: intersecting triangle
  * pairs are found first, then spatially connected ones are merged into one
  * region each.  The hit count inherits the octree double-counting described in
- * CAT_SurfInfo.h; the region and polygon counts do not.
+ * CAT_MeshInfo.h; the region and polygon counts do not.
  *
  * \param polygons (in)  input mesh
  * \param info     (out) intersection counts

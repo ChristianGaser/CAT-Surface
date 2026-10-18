@@ -292,7 +292,7 @@ noinst_HEADERS = \
     Include/CAT_Calc.h \
     Include/CAT_AverageSurf.h \
     Include/CAT_AverageValues.h \
-    Include/CAT_VolAverage.h \
+    Include/CAT_VolumeStats.h \
     Include/CAT_SurfPialWhite.h \
     Include/CAT_SurfPialProfile.h \
     Include/CAT_SurfLaplacian.h \
@@ -300,7 +300,7 @@ noinst_HEADERS = \
     Include/CAT_Smooth.h \
     Include/CAT_Curvature.h \
     Include/CAT_Surf.h \
-    Include/CAT_SurfInfo.h \
+    Include/CAT_MeshInfo.h \
     Include/CAT_SurfUtils.h \
     Include/CAT_Warp.h \
     Include/CAT_SurfaceIO.h \
@@ -385,14 +385,14 @@ libCAT_la_SOURCES = \
     Lib/CAT_Calc.c \
     Lib/CAT_AverageSurf.c \
     Lib/CAT_AverageValues.c \
-    Lib/CAT_VolAverage.c \
+    Lib/CAT_VolumeStats.c \
     Lib/CAT_SurfPialWhite.c \
     Lib/CAT_SurfPialProfile.c \
     Lib/CAT_SurfLaplacian.c \
     Lib/CAT_Math.c \
     Lib/CAT_GlmFormula.c \
     Lib/CAT_Surf.c \
-    Lib/CAT_SurfInfo.c \
+    Lib/CAT_MeshInfo.c \
     Lib/CAT_Warp.c \
     Lib/CAT_Curvature.c \
     Lib/CAT_SurfaceIO.c \
