@@ -32,6 +32,18 @@
  */
 int equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2);
 /**
+ * \brief Make sto_xyz the voxel-to-world matrix FSL and nibabel use.
+ *
+ * libCAT maps voxels to world coordinates with sto_xyz, which nifti1_io sets
+ * only from an sform. This uses the sform when sform_code > 0, otherwise the
+ * qform, and updates sto_ijk. sform_code is left unchanged. The readers
+ * read_nifti_float() and read_nifti_double() apply it; call it yourself on a
+ * header from nifti_image_read().
+ *
+ * \param nii_ptr (in/out) header whose sto_xyz and sto_ijk are set
+ */
+void set_world_matrix(nifti_image *nii_ptr);
+/**
  * \brief Initialize NIfTI image header structure to reasonable defaults.
  *
  * \param nii_ptr (in/out) NIfTI image structure to initialize
@@ -100,7 +112,9 @@ int write_nifti_float_4d(const char *output_filename, float image[], int data_ty
  * A 4D file is returned as its nt volumes one after the other: volume v starts at
  * image[v * nvox], where nvox of the returned header is the voxel count of ONE
  * volume (nx*ny*nz) and nt the number of volumes. Non-finite values of float
- * images are read as 0 (the NIfTI library replaces NaN and Inf).
+ * images are read as 0 (the NIfTI library replaces NaN and Inf). sto_xyz of the
+ * returned header is the voxel-to-world matrix, also for a qform-only file
+ * (see set_world_matrix()).
  *
  * \param input_filename (in)  path to NIfTI file
  * \param image          (out) pointer to allocated double array (size nx*ny*nz*nt)
@@ -115,7 +129,8 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[],
  *
  * A 4D file is returned as its nt volumes one after the other, as by
  * read_nifti_double(): volume v starts at image[v * nvox], where nvox of the
- * returned header is the voxel count of ONE volume.
+ * returned header is the voxel count of ONE volume. sto_xyz is the
+ * voxel-to-world matrix, also for a qform-only file (see set_world_matrix()).
  *
  * \param input_filename (in)  path to NIfTI file
  * \param image          (out) pointer to allocated float array (size nx*ny*nz*nt)

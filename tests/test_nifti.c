@@ -261,12 +261,114 @@ test_4d_writer_round_trip(void)
     remove(out_new);
 }
 
+/**
+ * \brief Write a 3D float file with a qform, and an sform if requested.
+ *
+ * The qform turns 180 degrees about z with voxel sizes 2, 3 and 4 mm, so its
+ * matrix is diag(-2, -3, 4) with offset (10, -20, 30); the sform is diag(2, 3,
+ * 4) with offset (1, 2, 3).
+ */
+static void
+write_xform(const char *file, int with_sform)
+{
+    int dims[8] = {3, NX, NY, NZ, 1, 1, 1, 1};
+    nifti_image *nim = nifti_make_new_nim(dims, DT_FLOAT32, 1);
+    int i, j;
+
+    nim->dx = nim->pixdim[1] = 2.0f;
+    nim->dy = nim->pixdim[2] = 3.0f;
+    nim->dz = nim->pixdim[3] = 4.0f;
+    nim->qform_code = NIFTI_XFORM_SCANNER_ANAT;
+    nim->quatern_b = 0.0f;
+    nim->quatern_c = 0.0f;
+    nim->quatern_d = 1.0f;
+    nim->qoffset_x = 10.0f;
+    nim->qoffset_y = -20.0f;
+    nim->qoffset_z = 30.0f;
+    nim->qfac = 1.0f;
+    nim->sform_code = NIFTI_XFORM_UNKNOWN;
+    if (with_sform)
+    {
+        nim->sform_code = NIFTI_XFORM_ALIGNED_ANAT;
+        for (i = 0; i < 4; i++)
+            for (j = 0; j < 4; j++)
+                nim->sto_xyz.m[i][j] = 0.0f;
+        nim->sto_xyz.m[0][0] = 2.0f;
+        nim->sto_xyz.m[1][1] = 3.0f;
+        nim->sto_xyz.m[2][2] = 4.0f;
+        nim->sto_xyz.m[0][3] = 1.0f;
+        nim->sto_xyz.m[1][3] = 2.0f;
+        nim->sto_xyz.m[2][3] = 3.0f;
+        nim->sto_xyz.m[3][3] = 1.0f;
+    }
+    nifti_set_filenames(nim, file, 0, 1);
+    nifti_image_write(nim);
+    nifti_image_free(nim);
+}
+
+/** \brief Without an sform, sto_xyz is the qform; with one, it is the sform. */
+static void
+test_world_matrix(void)
+{
+    const char *qonly = "test_nifti_qform.nii";
+    const char *both = "test_nifti_sform.nii";
+    const char *back = "test_nifti_qform_back.nii";
+    int dims[3] = {NX, NY, NZ};
+    double vox[3] = {2.0, 3.0, 4.0};
+    float *img = NULL;
+    nifti_image *nii, *nii2;
+    mat44 m;
+
+    write_xform(qonly, 0);
+    nii = read_nifti_float(qonly, &img, 0);
+    MU_ASSERT("qform only: the file is read", nii != NULL);
+    if (nii)
+    {
+        m = nii->sto_xyz;
+        MU_ASSERT("qform only: sto_xyz is the qform",
+                  m.m[0][0] == -2.0f && m.m[1][1] == -3.0f && m.m[2][2] == 4.0f &&
+                  m.m[0][3] == 10.0f && m.m[1][3] == -20.0f && m.m[2][3] == 30.0f);
+        MU_ASSERT("qform only: sto_ijk is its inverse",
+                  fabs(nii->sto_ijk.m[0][0] + 0.5) < 1e-6 &&
+                  fabs(nii->sto_ijk.m[0][3] - 5.0) < 1e-5);
+        MU_ASSERT("qform only: sform_code stays 0", nii->sform_code == 0);
+
+        /* written back, the header still has no sform */
+        MU_ASSERT("qform only: written back",
+                  write_nifti_float(back, img, DT_FLOAT32, 0.0, dims, vox, nii));
+        nii2 = nifti_image_read(back, 0);
+        MU_ASSERT("qform only: no sform is invented on writing",
+                  nii2 != NULL && nii2->sform_code == 0 && nii2->qform_code > 0);
+        if (nii2)
+            nifti_image_free(nii2);
+        nifti_image_free(nii);
+    }
+    free(img);
+
+    write_xform(both, 1);
+    nii = read_nifti_float(both, &img, 0);
+    MU_ASSERT("sform and qform: the file is read", nii != NULL);
+    if (nii)
+    {
+        m = nii->sto_xyz;
+        MU_ASSERT("sform and qform: sto_xyz is the sform",
+                  m.m[0][0] == 2.0f && m.m[1][1] == 3.0f && m.m[2][2] == 4.0f &&
+                  m.m[0][3] == 1.0f && m.m[1][3] == 2.0f && m.m[2][3] == 3.0f);
+        nifti_image_free(nii);
+    }
+    free(img);
+    remove(qonly);
+    remove(both);
+    remove(back);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_4d_read_layout);
     MU_RUN_TEST(test_4d_read_float_layout);
     MU_RUN_TEST(test_writers_drop_the_time_dimension);
     MU_RUN_TEST(test_4d_writer_round_trip);
+    MU_RUN_TEST(test_world_matrix);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

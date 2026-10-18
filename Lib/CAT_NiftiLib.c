@@ -154,6 +154,27 @@ void init_nifti_header(nifti_image *nii_ptr)
 }
 
 /**
+ * \brief Make sto_xyz the voxel-to-world matrix FSL and nibabel use.
+ *
+ * libCAT maps voxels to world coordinates with sto_xyz, but nifti1_io fills it
+ * only from an sform: for a file that has just a qform it stays zero, and
+ * every registration or surface position computed from it is garbage. This
+ * applies the rule of FSL and nibabel: the sform when sform_code > 0,
+ * otherwise the qform (which nifti1_io sets from pixdim when qform_code is 0
+ * as well). sform_code is left alone, so a header written back still stores
+ * only the transforms the file had.
+ *
+ * \param nii_ptr (in/out) header whose sto_xyz and sto_ijk are set
+ */
+void set_world_matrix(nifti_image *nii_ptr)
+{
+    if (nii_ptr->sform_code > 0)
+        return;
+    nii_ptr->sto_xyz = nii_ptr->qto_xyz;
+    nii_ptr->sto_ijk = nii_ptr->qto_ijk;
+}
+
+/**
  * \brief Make a NIfTI header describe a single 3D volume.
  *
  * The writers always store nx*ny*nz voxels. A template header taken from a 4D
@@ -1003,6 +1024,9 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
             (*image)[i] = (nii_ptr->scl_slope * tmp) + nii_ptr->scl_inter;
     }
 
+    /* sto_xyz is what libCAT maps voxels with; a qform-only file left it zero */
+    set_world_matrix(nii_ptr);
+
     /* ensure that nvox is that of a 3D image */
     if (nii_ptr->nt > 1)
     {
@@ -1107,6 +1131,9 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
         else
             (*image)[i] = ((float)nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter;
     }
+
+    /* sto_xyz is what libCAT maps voxels with; a qform-only file left it zero */
+    set_world_matrix(nii_ptr);
 
     /* ensure that nvox is that of a 3D image */
     if (nii_ptr->nt > 1)
