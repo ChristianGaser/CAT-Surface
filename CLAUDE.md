@@ -922,8 +922,10 @@ template's tissue maps (better in all 8 trials), at about 1.7x the BBR run time.
    this reason. Name the library after the algorithm and drop the
    `Vol`/`Surf` prefix the tool carries, as `CAT_BBReg` / `CAT_SurfBBReg`,
    `CAT_MarchingCubes` / `CAT_VolMarchingCubes` and `CAT_Realign` /
-   `CAT_VolRealign` do. `CAT_SurfInfo` and `CAT_VolAverage` predate the rule
-   and are not a precedent.
+   `CAT_VolRealign` do. Where that leaves a name too generic or taken, name
+   what the library computes: the libraries of `CAT_SurfInfo` and
+   `CAT_VolAverage`, which also broke the rule, became `CAT_MeshInfo` and
+   `CAT_VolumeStats`.
 
 ## Adding a new library module
 
