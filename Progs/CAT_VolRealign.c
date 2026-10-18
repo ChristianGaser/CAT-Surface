@@ -7,7 +7,7 @@
 
 /* Head-motion correction of a 4D series with mcflirt's command line and
  * outputs, for the options fMRIPrep's head-motion workflow uses.  This is a
- * thin CLI wrapper around the library functions in CAT_VolRealign.
+ * thin CLI wrapper around the library functions in CAT_Realign.
  *
  * Input  : -in, a 4D NIfTI series; optionally -reffile, a 3D reference.
  * Output : the realigned series (always), and with -mats, -plots, -rmsabs
@@ -21,7 +21,7 @@
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_ArgvCheck.h"
-#include "CAT_VolRealign.h"
+#include "CAT_Realign.h"
 
 static CAT_VolRealignOpts opts; /* defaults set in main() before parsing */
 

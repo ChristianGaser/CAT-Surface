@@ -844,7 +844,7 @@ Measured and deliberately not done:
 
 ## Head-motion correction (`CAT_VolRealign`, an mcflirt replacement)
 
-`CAT_VolRealign` (`Include/CAT_VolRealign.h`, `cat_surf.vol_realign`,
+`CAT_VolRealign` (library `Include/CAT_Realign.h`, `cat_surf.vol_realign`,
 `cat_surf.cli.vol_realign`) replaces FSL `mcflirt` for what fMRIPrep's head-motion workflow
 uses: `mcflirt -in bold -out bold_mcf.nii.gz -reffile boldref -mats -plots -rmsabs -rmsrel`,
 everything else at the default.  fMRIPrep reads only the MAT files (to ITK for its single
@@ -916,10 +916,21 @@ template's tissue maps (better in all 8 trials), at about 1.7x the BBR run time.
    positional argument is read where there is no option table, and prints its
    usage when that returns non-zero. A negative number is a value, not an
    option, so `-1` and `-0.5` positional arguments keep working.
+5. **A library module never shares its file name with a CLI tool.** Every
+   file name in `Lib/` and `Progs/` must be unique: `Lib/CAT_VolRealign.c`
+   next to `Progs/CAT_VolRealign.c` was renamed to `Lib/CAT_Realign.c` for
+   this reason. Name the library after the algorithm and drop the
+   `Vol`/`Surf` prefix the tool carries, as `CAT_BBReg` / `CAT_SurfBBReg`,
+   `CAT_MarchingCubes` / `CAT_VolMarchingCubes` and `CAT_Realign` /
+   `CAT_VolRealign` do. Where that leaves a name too generic or taken, name
+   what the library computes: the libraries of `CAT_SurfInfo` and
+   `CAT_VolAverage`, which also broke the rule, became `CAT_MeshInfo` and
+   `CAT_VolumeStats`.
 
 ## Adding a new library module
 
-1. Create `Include/CAT_Feature.h` and `Lib/CAT_Feature.c`.
+1. Create `Include/CAT_Feature.h` and `Lib/CAT_Feature.c`, with a name that
+   no tool in `Progs/` has (see *Architecture rules*, rule 5).
 2. Add the `.c` to `libCAT_la_SOURCES` in `Makefile.am`.
 3. Add the header to `noinst_HEADERS` in `Makefile.am`.
 4. Re-run `./autogen.sh && ./configure`.  `Makefile.in` is gitignored and

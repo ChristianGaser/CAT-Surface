@@ -4,7 +4,7 @@
 #include <string.h>
 #include <math.h>
 
-#include "CAT_SurfInfo.h"
+#include "CAT_MeshInfo.h"
 #include "CAT_SurfaceIO.h"
 
 /*

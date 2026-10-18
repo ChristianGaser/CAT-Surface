@@ -12,7 +12,7 @@
  * Command-line tool that prints geometric and topological information about a
  * surface: number of vertices, faces and edges, surface area, Euler number and
  * the number of self-intersections.  Calls compute_surf_info() from
- * CAT_SurfInfo.c.
+ * CAT_MeshInfo.c.
  */
 
 #include <stdio.h>
@@ -20,7 +20,7 @@
 #include <bicpl.h>
 #include <ParseArgv.h>
 
-#include "CAT_SurfInfo.h"
+#include "CAT_MeshInfo.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_ArgvCheck.h"
 

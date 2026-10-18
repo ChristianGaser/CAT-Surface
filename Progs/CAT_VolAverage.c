@@ -8,7 +8,7 @@
  */
 
 /* Mean, standard deviation and z-scores of volumes.  This is a thin CLI
- * wrapper around the library functions in CAT_VolAverage.
+ * wrapper around the library functions in CAT_VolumeStats.
  *
  * Input  : one or more NIfTI files, all with the same matrix size.  A 3D file
  *          is one sample, a 4D file one sample per volume.
@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include "CAT_SafeAlloc.h"
 #include "CAT_ArgvCheck.h"
-#include "CAT_VolAverage.h"
+#include "CAT_VolumeStats.h"
 
 int verbose = 0;
 
