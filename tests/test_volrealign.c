@@ -6,7 +6,7 @@
 
 #include "CAT_NiftiLib.h"
 #include "CAT_BBReg.h"
-#include "CAT_VolRealign.h"
+#include "CAT_Realign.h"
 
 /*
  * Motion correction of a 4D series in mcflirt's conventions.

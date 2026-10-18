@@ -686,9 +686,9 @@ cdef extern from "CAT_VolumeReg.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_VolRealign.h — Head-motion correction (mcflirt replacement)
+# CAT_Realign.h — Head-motion correction (mcflirt replacement, CAT_VolRealign)
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_VolRealign.h":
+cdef extern from "CAT_Realign.h":
     ctypedef struct CAT_VolRealignOpts:
         int refvol
         CAT_VolumeRegOpts reg
