@@ -26,6 +26,7 @@ from libc.string cimport memcpy
 from cat_surf._nifti_types cimport (
     nifti_image, nifti_image_free, DT_FLOAT32,
 )
+from cat_surf._volume cimport _build_nii
 from cat_surf._bic_types cimport polygons_struct
 from cat_surf._convert cimport PolygonsMesh
 from cat_surf._convert import arrays_to_polygons
@@ -650,3 +651,178 @@ def volume_register_robust(str fixed_file,
             free(fixed_flat)
             fixed_nii.data = NULL
             nifti_image_free(fixed_nii)
+
+
+# ---------------------------------------------------------------------------
+# Head-motion correction (CAT_VolRealign, an mcflirt replacement)
+# ---------------------------------------------------------------------------
+
+def vol_realign(series, affine, ref=None, ref_affine=None, int refvol=-1,
+                n_levels=None, max_iter=None, sat_k=None, iscale=None,
+                bint resample=True, bint verbose=False):
+    """
+    Head-motion correction of a 4-D series, in mcflirt's conventions.
+
+    Every volume is registered rigidly to the reference with the robust
+    registration of :func:`volume_register_robust` (global intensity scale
+    included), outward from the middle volume, each starting from its
+    neighbour's estimate.  The results are what ``CAT_VolRealign`` -- and
+    mcflirt with ``-mats -plots -rmsabs -rmsrel`` -- write.
+
+    Parameters
+    ----------
+    series : ndarray, shape (nx, ny, nz, nt) or (nx, ny, nz)
+        The series; cast to float32.
+    affine : ndarray, shape (4, 4)
+        Voxel-to-world matrix of the series.
+    ref : ndarray, shape (mx, my, mz), optional
+        Separate reference volume (mcflirt's ``-reffile``); the realigned
+        series is resampled into its grid.  Default: volume ``refvol``.
+    ref_affine : ndarray, shape (4, 4), optional
+        Voxel-to-world matrix of ``ref``; default ``affine``.
+    refvol : int
+        Reference volume of the series without ``ref`` (0-based); -1, the
+        default, is ``nt // 2`` as in mcflirt.
+    n_levels, max_iter, sat_k, iscale : optional
+        Options of each registration; ``None`` keeps the default of
+        ``CAT_VolRealignOptionsInit()`` (3 levels, 20 iterations, 4.685,
+        intensity scale on).
+    resample : bool
+        Also return the realigned series (default True).
+    verbose : bool
+
+    Returns
+    -------
+    dict
+        ``realigned`` (float32, reference grid, with ``resample``),
+        ``ras`` and ``fsl`` (nt, 4, 4) volume -> reference transforms in
+        world space and in FSL's convention (mcflirt's MAT files), ``par``
+        (nt, 6) rx ry rz (rad) tx ty tz (mm), ``rms_abs`` (nt,) and
+        ``rms_rel`` (nt-1,) RMS displacements (mm) with ``rms_abs_mean`` and
+        ``rms_rel_mean``, ``scale`` (nt,) intensity scales and
+        ``ref_index`` (-1 for a separate reference).
+    """
+    cdef cnp.ndarray s = np.asfortranarray(series, dtype=np.float32)
+    if s.ndim == 3:
+        s = np.asfortranarray(s[..., None])
+    if s.ndim != 4:
+        raise ValueError("series must be a 3-D or 4-D array")
+    cdef cnp.ndarray aff = np.ascontiguousarray(affine, dtype=np.float64)
+    cdef cnp.ndarray vol0 = np.asfortranarray(s[..., 0])
+    cdef cnp.ndarray r = None, raff = None
+    if ref is not None:
+        r = np.asfortranarray(ref, dtype=np.float32)
+        if r.ndim == 4:
+            r = np.asfortranarray(r[..., 0])
+        if r.ndim != 3:
+            raise ValueError("ref must be a 3-D array")
+        raff = np.ascontiguousarray(aff if ref_affine is None else ref_affine,
+                                    dtype=np.float64)
+
+    cdef int nt = s.shape[3]
+    cdef int dims[3]
+    cdef int rdims[3]
+    dims[0] = s.shape[0]; dims[1] = s.shape[1]; dims[2] = s.shape[2]
+    cdef nifti_image *snii = NULL
+    cdef nifti_image *rnii = NULL
+    cdef C.CAT_VolRealignOpts opts
+    cdef C.CAT_VolRealignResult res
+    cdef cnp.ndarray out = None
+    cdef int rc, t
+
+    C.CAT_VolRealignOptionsInit(&opts)
+    opts.refvol = refvol
+    if n_levels is not None:
+        opts.reg.n_levels = n_levels
+    if max_iter is not None:
+        opts.reg.max_iter = max_iter
+    if sat_k is not None:
+        opts.reg.sat_k = sat_k
+    if iscale is not None:
+        opts.reg.iscale = 1 if iscale else 0
+    opts.verbose = 1 if verbose else 0
+    res.nt = 0
+    res.ras = res.fsl = res.par = NULL
+    res.rms_abs = res.rms_rel = res.scale = NULL
+
+    try:
+        snii = _build_nii(vol0, aff)
+        if r is not None:
+            rnii = _build_nii(r, raff)
+            rdims[0] = r.shape[0]; rdims[1] = r.shape[1]; rdims[2] = r.shape[2]
+            rc = C.CAT_VolRealignEstimate(<float *>cnp.PyArray_DATA(s), snii, dims, nt,
+                                          <float *>cnp.PyArray_DATA(r), rnii, rdims,
+                                          &opts, &res)
+        else:
+            rdims[0] = dims[0]; rdims[1] = dims[1]; rdims[2] = dims[2]
+            rc = C.CAT_VolRealignEstimate(<float *>cnp.PyArray_DATA(s), snii, dims, nt,
+                                          NULL, NULL, NULL, &opts, &res)
+        if rc != 0:
+            raise RuntimeError("CAT_VolRealignEstimate failed")
+
+        result = {
+            "ras": np.array(<double[:16 * nt]>res.ras).reshape(nt, 4, 4),
+            "fsl": np.array(<double[:16 * nt]>res.fsl).reshape(nt, 4, 4),
+            "par": np.array(<double[:6 * nt]>res.par).reshape(nt, 6),
+            "rms_abs": np.array(<double[:nt]>res.rms_abs),
+            "rms_rel": (np.array(<double[:nt - 1]>res.rms_rel) if nt > 1
+                        else np.zeros(0)),
+            "rms_abs_mean": res.rms_abs_mean,
+            "rms_rel_mean": res.rms_rel_mean,
+            "scale": np.array(<double[:nt]>res.scale),
+            "ref_index": res.ref_index,
+        }
+        if resample:
+            out = np.empty((rdims[0], rdims[1], rdims[2], nt), dtype=np.float32,
+                           order="F")
+            rc = C.CAT_VolRealignResample(<float *>cnp.PyArray_DATA(s), snii, dims, nt,
+                                          rnii if rnii != NULL else snii, rdims,
+                                          &res, <float *>cnp.PyArray_DATA(out))
+            if rc != 0:
+                raise MemoryError("CAT_VolRealignResample failed")
+            result["realigned"] = out
+        return result
+    finally:
+        C.CAT_VolRealignFree(&res)
+        if snii != NULL:
+            snii.data = NULL
+            nifti_image_free(snii)
+        if rnii != NULL:
+            rnii.data = NULL
+            nifti_image_free(rnii)
+
+
+def _realign_write(str base, dict result, bint mats, bint plots,
+                   bint rmsabs, bint rmsrel):
+    """Write mcflirt's text outputs of a :func:`vol_realign` result.
+
+    Calls ``CAT_VolRealignWrite()``, so the files are those ``CAT_VolRealign``
+    writes: ``<base>.mat/MAT_%04d``, ``<base>.par``, ``<base>_abs.rms``,
+    ``<base>_rel.rms`` and the two ``_mean.rms`` files.
+    """
+    cdef cnp.ndarray fsl = np.ascontiguousarray(result["fsl"], dtype=np.float64).ravel()
+    cdef cnp.ndarray par = np.ascontiguousarray(result["par"], dtype=np.float64).ravel()
+    cdef cnp.ndarray ra = np.ascontiguousarray(result["rms_abs"], dtype=np.float64)
+    cdef cnp.ndarray rr = np.ascontiguousarray(
+        np.append(result["rms_rel"], 0.0), dtype=np.float64)
+    cdef C.CAT_VolRealignResult res
+    res.nt = ra.shape[0]
+    res.ref_index = result.get("ref_index", -1)
+    res.ras = NULL
+    res.fsl = <double *>cnp.PyArray_DATA(fsl)
+    res.par = <double *>cnp.PyArray_DATA(par)
+    res.rms_abs = <double *>cnp.PyArray_DATA(ra)
+    res.rms_rel = <double *>cnp.PyArray_DATA(rr)
+    res.scale = NULL
+    res.rms_abs_mean = result["rms_abs_mean"]
+    res.rms_rel_mean = result["rms_rel_mean"]
+    if C.CAT_VolRealignWrite(base.encode("utf-8"), &res, mats, plots,
+                             rmsabs, rmsrel) != 0:
+        raise IOError(f"could not write the outputs of '{base}'")
+
+
+def _realign_image_name(str base):
+    """File name of the realigned series for an output base (as mcflirt)."""
+    cdef char buf[4096]
+    C.CAT_VolRealignImageName(base.encode("utf-8"), buf, sizeof(buf))
+    return buf.decode("utf-8")

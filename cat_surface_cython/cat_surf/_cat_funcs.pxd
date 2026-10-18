@@ -683,3 +683,44 @@ cdef extern from "CAT_VolumeReg.h":
                                       CAT_RigidParams *p_out,
                                       int n_levels, int n_bins,
                                       int max_iter, int verbose)
+
+
+# ---------------------------------------------------------------------------
+# CAT_VolRealign.h — Head-motion correction (mcflirt replacement)
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_VolRealign.h":
+    ctypedef struct CAT_VolRealignOpts:
+        int refvol
+        CAT_VolumeRegOpts reg
+        int verbose
+
+    ctypedef struct CAT_VolRealignResult:
+        int     nt
+        int     ref_index
+        double *ras
+        double *fsl
+        double *par
+        double *rms_abs
+        double *rms_rel
+        double *scale
+        double  rms_abs_mean
+        double  rms_rel_mean
+
+    void CAT_VolRealignOptionsInit(CAT_VolRealignOpts *opts)
+    int  CAT_VolRealignEstimate(const float *series,
+                                const nifti_image *series_nii,
+                                const int dims[3], int nt,
+                                const float *ref, const nifti_image *ref_nii,
+                                const int ref_dims[3],
+                                const CAT_VolRealignOpts *opts,
+                                CAT_VolRealignResult *res)
+    int  CAT_VolRealignResample(const float *series,
+                                const nifti_image *series_nii,
+                                const int dims[3], int nt,
+                                const nifti_image *ref_nii,
+                                const int ref_dims[3],
+                                const CAT_VolRealignResult *res, float *out)
+    int  CAT_VolRealignWrite(const char *base, const CAT_VolRealignResult *res,
+                             int mats, int plots, int rmsabs, int rmsrel)
+    void CAT_VolRealignImageName(const char *base, char *image, size_t size)
+    void CAT_VolRealignFree(CAT_VolRealignResult *res)

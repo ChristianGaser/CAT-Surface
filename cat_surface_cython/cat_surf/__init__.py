@@ -109,6 +109,7 @@ from cat_surf._bbreg import (
     bbreg_detect_contrast,
     volume_register_nmi,
     volume_register_robust,
+    vol_realign,
 )
 
 # --- Volume-to-surface mapping ---
@@ -360,6 +361,7 @@ __all__ = [
     "bbreg_detect_contrast",
     "volume_register_nmi",
     "volume_register_robust",
+    "vol_realign",
     # Volume-to-surface
     "vol2surf",
     # DARTEL surface warp

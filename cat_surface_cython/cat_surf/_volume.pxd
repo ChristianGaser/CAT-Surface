@@ -4,7 +4,13 @@ Shared NIfTI volume helper.  Exposes ``VolumeHandle`` and ``open_volume``
 so other modules can accept volumes as a path, a (ndarray, affine)
 tuple, or a nibabel-image-like object.
 """
+cimport numpy as cnp
 from cat_surf._nifti_types cimport nifti_image
+
+
+# Minimal header for a 3-D float32 array and its 4x4 affine (sform); the
+# array's buffer is borrowed as data.
+cdef nifti_image *_build_nii(cnp.ndarray arr_f32, cnp.ndarray affine) except NULL
 
 
 cdef class VolumeHandle:
