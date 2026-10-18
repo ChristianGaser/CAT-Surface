@@ -174,6 +174,175 @@ void set_world_matrix(nifti_image *nii_ptr)
     nii_ptr->sto_ijk = nii_ptr->qto_ijk;
 }
 
+/* C = A * B for 4x4 row-major matrices; C may not alias A or B */
+static void mat4_mul(const double A[16], const double B[16], double C[16])
+{
+    int r, c, k;
+
+    for (r = 0; r < 4; r++)
+        for (c = 0; c < 4; c++)
+        {
+            double s = 0.0;
+            for (k = 0; k < 4; k++)
+                s += A[4 * r + k] * B[4 * k + c];
+            C[4 * r + c] = s;
+        }
+}
+
+/* inverse of a 4x4 row-major affine matrix (last row 0 0 0 1) */
+static void affine_inverse(const double A[16], double inv[16])
+{
+    double a = A[0], b = A[1], c = A[2], d = A[4], e = A[5], f = A[6];
+    double g = A[8], h = A[9], k = A[10];
+    double det = a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g);
+    double R[9];
+    int r;
+
+    R[0] = (e * k - f * h) / det;
+    R[1] = (c * h - b * k) / det;
+    R[2] = (b * f - c * e) / det;
+    R[3] = (f * g - d * k) / det;
+    R[4] = (a * k - c * g) / det;
+    R[5] = (c * d - a * f) / det;
+    R[6] = (d * h - e * g) / det;
+    R[7] = (b * g - a * h) / det;
+    R[8] = (a * e - b * d) / det;
+    for (r = 0; r < 3; r++)
+    {
+        inv[4 * r] = R[3 * r];
+        inv[4 * r + 1] = R[3 * r + 1];
+        inv[4 * r + 2] = R[3 * r + 2];
+        inv[4 * r + 3] = -(R[3 * r] * A[3] + R[3 * r + 1] * A[7] +
+                           R[3 * r + 2] * A[11]);
+    }
+    inv[12] = inv[13] = inv[14] = 0.0;
+    inv[15] = 1.0;
+}
+
+/* sto_xyz of a header as a row-major double matrix */
+static void vox2world_matrix(const nifti_image *nii_ptr, double V[16])
+{
+    int r, c;
+
+    for (r = 0; r < 4; r++)
+        for (c = 0; c < 4; c++)
+            V[4 * r + c] = (double)nii_ptr->sto_xyz.m[r][c];
+}
+
+/**
+ * \brief Matrix from voxel indices to FSL's scaled voxel coordinates.
+ *
+ * FSL states transforms in voxel index times voxel size (pixdim), with the x
+ * axis reversed for an image whose voxel-to-world matrix has a positive
+ * determinant (neurological storage), so that FSL coordinates always run
+ * radiologically. A world shift to the right is a negative FSL x either way.
+ *
+ * \param nii_ptr (in)  image header (sto_xyz, nx, dx, dy, dz)
+ * \param M       (out) 4x4 row-major matrix, FSL coordinate = M * voxel index
+ */
+void vox2fsl_matrix(const nifti_image *nii_ptr, double M[16])
+{
+    double V[16], det;
+    int i;
+
+    vox2world_matrix(nii_ptr, V);
+    det = V[0] * (V[5] * V[10] - V[6] * V[9]) - V[1] * (V[4] * V[10] - V[6] * V[8]) +
+          V[2] * (V[4] * V[9] - V[5] * V[8]);
+    for (i = 0; i < 16; i++)
+        M[i] = (i % 5 == 0) ? 1.0 : 0.0;
+    M[0] = fabs(nii_ptr->dx);
+    M[5] = fabs(nii_ptr->dy);
+    M[10] = fabs(nii_ptr->dz);
+    if (det > 0.0)
+    {
+        M[0] = -M[0];
+        M[3] = (nii_ptr->nx - 1) * fabs(nii_ptr->dx);
+    }
+}
+
+/**
+ * \brief Convert a world-space transform between two images to FSL's convention.
+ *
+ * fsl = F_ref * V_ref^-1 * ras * V_src * F_src^-1, with V the voxel-to-world
+ * matrix (sto_xyz) and F the vox2fsl_matrix() of an image.
+ *
+ * \param ras (in)  4x4 row-major world transform, source -> reference
+ * \param src (in)  header of the source image
+ * \param ref (in)  header of the reference image
+ * \param fsl (out) 4x4 row-major FSL transform, source -> reference
+ */
+void ras_to_fsl_matrix(const double ras[16], const nifti_image *src,
+                       const nifti_image *ref, double fsl[16])
+{
+    double Vs[16], Fs[16], Fs_inv[16], Vr[16], Vr_inv[16], Fr[16];
+    double t1[16], t2[16];
+
+    vox2world_matrix(src, Vs);
+    vox2fsl_matrix(src, Fs);
+    affine_inverse(Fs, Fs_inv);
+    vox2world_matrix(ref, Vr);
+    affine_inverse(Vr, Vr_inv);
+    vox2fsl_matrix(ref, Fr);
+
+    mat4_mul(Vs, Fs_inv, t1);    /* FSL source -> world source */
+    mat4_mul(ras, t1, t2);       /* -> world reference */
+    mat4_mul(Vr_inv, t2, t1);    /* -> voxel reference */
+    mat4_mul(Fr, t1, fsl);       /* -> FSL reference */
+}
+
+/**
+ * \brief Convert an FSL transform between two images to world space.
+ *
+ * ras = V_ref * F_ref^-1 * fsl * F_src * V_src^-1, the inverse of
+ * ras_to_fsl_matrix().
+ *
+ * \param fsl (in)  4x4 row-major FSL transform, source -> reference
+ * \param src (in)  header of the source image
+ * \param ref (in)  header of the reference image
+ * \param ras (out) 4x4 row-major world transform, source -> reference
+ */
+void fsl_to_ras_matrix(const double fsl[16], const nifti_image *src,
+                       const nifti_image *ref, double ras[16])
+{
+    double Vs[16], Vs_inv[16], Fs[16], Vr[16], Fr[16], Fr_inv[16];
+    double t1[16], t2[16];
+
+    vox2world_matrix(src, Vs);
+    affine_inverse(Vs, Vs_inv);
+    vox2fsl_matrix(src, Fs);
+    vox2world_matrix(ref, Vr);
+    vox2fsl_matrix(ref, Fr);
+    affine_inverse(Fr, Fr_inv);
+
+    mat4_mul(Fs, Vs_inv, t1);    /* world source -> FSL source */
+    mat4_mul(fsl, t1, t2);       /* -> FSL reference */
+    mat4_mul(Fr_inv, t2, t1);    /* -> voxel reference */
+    mat4_mul(Vr, t1, ras);       /* -> world reference */
+}
+
+/**
+ * \brief Write a 4x4 matrix as FSL writes it (flirt -omat, mcflirt -mats).
+ *
+ * \param filename (in) output file
+ * \param m        (in) 4x4 row-major matrix
+ * \return 0 on success, -1 if the file cannot be written
+ */
+int write_fsl_matrix(const char *filename, const double m[16])
+{
+    FILE *fp = fopen(filename, "w");
+    int r;
+
+    if (!fp)
+    {
+        fprintf(stderr, "write_fsl_matrix: cannot open '%s'\n", filename);
+        return -1;
+    }
+    for (r = 0; r < 4; r++)
+        fprintf(fp, "%f %f %f %f \n", m[4 * r], m[4 * r + 1], m[4 * r + 2],
+                m[4 * r + 3]);
+    return fclose(fp) == 0 ? 0 : -1;
+}
+
 /**
  * \brief Make a NIfTI header describe a single 3D volume.
  *

@@ -362,6 +362,96 @@ test_world_matrix(void)
     remove(back);
 }
 
+/** \brief A header with a diagonal sform of voxel sizes (sx, 3, 4) and an offset. */
+static nifti_image *
+make_diag_header(float sx)
+{
+    int dims[8] = {3, NX, NY, NZ, 1, 1, 1, 1};
+    nifti_image *nim = nifti_make_new_nim(dims, DT_FLOAT32, 0);
+    int i, j;
+
+    for (i = 0; i < 4; i++)
+        for (j = 0; j < 4; j++)
+            nim->sto_xyz.m[i][j] = 0.0f;
+    nim->sto_xyz.m[0][0] = sx;
+    nim->sto_xyz.m[1][1] = 3.0f;
+    nim->sto_xyz.m[2][2] = 4.0f;
+    nim->sto_xyz.m[0][3] = 7.0f;
+    nim->sto_xyz.m[1][3] = -5.0f;
+    nim->sto_xyz.m[2][3] = 11.0f;
+    nim->sto_xyz.m[3][3] = 1.0f;
+    nim->sform_code = NIFTI_XFORM_SCANNER_ANAT;
+    nim->dx = fabsf(sx);
+    nim->dy = 3.0f;
+    nim->dz = 4.0f;
+    return nim;
+}
+
+/**
+ * \brief FSL coordinates: radiological in both storage orders, and round trips.
+ *
+ * FSL's frame is voxel times voxel size, x reversed for neurological storage
+ * (positive determinant). A world shift of +2 mm in x is therefore a shift of
+ * -2 in FSL x whichever way the image is stored.
+ */
+static void
+test_fsl_matrices(void)
+{
+    nifti_image *rad = make_diag_header(-2.0f), *neu = make_diag_header(2.0f);
+    double F[16], shift[16], fsl[16], back[16], ras[16];
+    const char *file = "test_nifti_fsl.mat";
+    double read[16];
+    FILE *fp;
+    int i, ok = 1, n = 0;
+
+    vox2fsl_matrix(rad, F);
+    MU_ASSERT("radiological storage: FSL frame is voxel times size",
+              F[0] == 2.0 && F[3] == 0.0 && F[5] == 3.0 && F[10] == 4.0);
+    vox2fsl_matrix(neu, F);
+    MU_ASSERT("neurological storage: FSL x is reversed",
+              F[0] == -2.0 && F[3] == (NX - 1) * 2.0 && F[5] == 3.0);
+
+    for (i = 0; i < 16; i++)
+        shift[i] = (i % 5 == 0) ? 1.0 : 0.0;
+    shift[3] = 2.0;
+    ras_to_fsl_matrix(shift, rad, rad, fsl);
+    MU_ASSERT("radiological: +2 mm world x is -2 FSL x",
+              fabs(fsl[3] + 2.0) < 1e-9 && fabs(fsl[7]) < 1e-9 && fabs(fsl[0] - 1.0) < 1e-9);
+    ras_to_fsl_matrix(shift, neu, neu, fsl);
+    MU_ASSERT("neurological: +2 mm world x is -2 FSL x",
+              fabs(fsl[3] + 2.0) < 1e-9 && fabs(fsl[7]) < 1e-9 && fabs(fsl[0] - 1.0) < 1e-9);
+
+    /* a rotation between differently stored images survives the round trip */
+    ras[0] = cos(0.1);  ras[1] = -sin(0.1); ras[2] = 0.0;  ras[3] = 1.5;
+    ras[4] = sin(0.1);  ras[5] = cos(0.1);  ras[6] = 0.0;  ras[7] = -2.5;
+    ras[8] = 0.0;       ras[9] = 0.0;       ras[10] = 1.0; ras[11] = 0.75;
+    ras[12] = ras[13] = ras[14] = 0.0; ras[15] = 1.0;
+    ras_to_fsl_matrix(ras, rad, neu, fsl);
+    fsl_to_ras_matrix(fsl, rad, neu, back);
+    for (i = 0; i < 16; i++)
+        if (fabs(back[i] - ras[i]) > 1e-9)
+            ok = 0;
+    MU_ASSERT("RAS -> FSL -> RAS is the identity", ok);
+
+    MU_ASSERT("write_fsl_matrix succeeds", write_fsl_matrix(file, fsl) == 0);
+    fp = fopen(file, "r");
+    if (fp)
+    {
+        while (n < 16 && fscanf(fp, "%lf", &read[n]) == 1)
+            n++;
+        fclose(fp);
+    }
+    ok = (n == 16);
+    for (i = 0; ok && i < 16; i++)
+        if (fabs(read[i] - fsl[i]) > 5e-7)
+            ok = 0;
+    MU_ASSERT("the FSL matrix file holds the 16 values to 6 decimals", ok);
+
+    remove(file);
+    nifti_image_free(rad);
+    nifti_image_free(neu);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_4d_read_layout);
@@ -369,6 +459,7 @@ int main(void)
     MU_RUN_TEST(test_writers_drop_the_time_dimension);
     MU_RUN_TEST(test_4d_writer_round_trip);
     MU_RUN_TEST(test_world_matrix);
+    MU_RUN_TEST(test_fsl_matrices);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

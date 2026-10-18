@@ -44,6 +44,58 @@ int equal_image_dimensions(nifti_image *nii_ptr, nifti_image *nii_ptr2);
  */
 void set_world_matrix(nifti_image *nii_ptr);
 /**
+ * \brief Matrix from voxel indices to FSL's scaled voxel coordinates.
+ *
+ * FSL (flirt, mcflirt, applyxfm4D) states transforms in scaled voxel
+ * coordinates: voxel index times voxel size, with the x axis reversed when the
+ * voxel-to-world matrix (sto_xyz) has a positive determinant, i.e. for images
+ * stored neurologically. FSL coordinates therefore always run radiologically.
+ *
+ * \param nii_ptr (in)  image header (sto_xyz, nx, dx, dy, dz)
+ * \param M       (out) 4x4 row-major matrix, FSL coordinate = M * voxel index
+ */
+void vox2fsl_matrix(const nifti_image *nii_ptr, double M[16]);
+/**
+ * \brief Convert a world-space transform between two images to FSL's convention.
+ *
+ * ras maps world coordinates of the source (input) image to world coordinates
+ * of the reference, the direction of a flirt matrix. The result maps FSL
+ * coordinates of the source to FSL coordinates of the reference, as flirt
+ * -init and -applyxfm read it:
+ *   fsl = F_ref * V_ref^-1 * ras * V_src * F_src^-1
+ * with V the voxel-to-world (sto_xyz) and F the vox2fsl_matrix() of an image.
+ *
+ * \param ras (in)  4x4 row-major world transform, source -> reference
+ * \param src (in)  header of the source image
+ * \param ref (in)  header of the reference image
+ * \param fsl (out) 4x4 row-major FSL transform, source -> reference
+ */
+void ras_to_fsl_matrix(const double ras[16], const nifti_image *src,
+                       const nifti_image *ref, double fsl[16]);
+/**
+ * \brief Convert an FSL transform between two images to world space.
+ *
+ * Inverse of ras_to_fsl_matrix().
+ *
+ * \param fsl (in)  4x4 row-major FSL transform, source -> reference
+ * \param src (in)  header of the source image
+ * \param ref (in)  header of the reference image
+ * \param ras (out) 4x4 row-major world transform, source -> reference
+ */
+void fsl_to_ras_matrix(const double fsl[16], const nifti_image *src,
+                       const nifti_image *ref, double ras[16]);
+/**
+ * \brief Write a 4x4 matrix as FSL writes it (flirt -omat, mcflirt -mats).
+ *
+ * Four lines of four "%f " values and no comment lines, which FSL's matrix
+ * reader would not skip.
+ *
+ * \param filename (in) output file
+ * \param m        (in) 4x4 row-major matrix
+ * \return 0 on success, -1 if the file cannot be written
+ */
+int write_fsl_matrix(const char *filename, const double m[16]);
+/**
  * \brief Initialize NIfTI image header structure to reasonable defaults.
  *
  * \param nii_ptr (in/out) NIfTI image structure to initialize
