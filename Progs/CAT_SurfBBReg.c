@@ -314,6 +314,7 @@ int main(int argc, char *argv[])
     float *vol = NULL;
     float *vol3d = NULL;  /* mid-frame 3-D buffer used for vol-reg and BBR */
     int dims[3];
+    double vox[3];        /* voxel size, for writing -output-volume */
     int nvox3;            /* dims[0]*dims[1]*dims[2] */
     CAT_RigidParams p_init, p_best;
     double m_best[16]; /* surface(T1)→EPI; internal optimizer direction */
@@ -410,6 +411,9 @@ int main(int argc, char *argv[])
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
+    vox[0] = nii_ptr->dx;
+    vox[1] = nii_ptr->dy;
+    vox[2] = nii_ptr->dz;
 
     /* --- Extract mid-frame for registration (matches FreeSurfer fMRIframe()) ---
      * For 4-D series the mid-frame is used so that both vol-reg and BBR see a
@@ -616,25 +620,14 @@ int main(int argc, char *argv[])
                     nii_ptr->qfac = qfac;
                 }
 
-                if (nii_ptr->nt > 1)
-                    nii_ptr->nvox = (size_t)dims[0] * (size_t)dims[1] *
-                                    (size_t)dims[2] * (size_t)nii_ptr->nt;
-                nii_ptr->datatype = DT_FLOAT32;
-                nii_ptr->nbyper = sizeof(float);
-                nii_ptr->scl_slope = 0.0;
-                nii_ptr->scl_inter = 0.0;
-                nii_ptr->data = (void *)vol;
-
-                if (nifti_set_filenames(nii_ptr, output_volume_file, 0, 1) != 0)
-                    fprintf(stderr, "Error setting output volume filename: %s\n",
-                            output_volume_file);
-                else
-                {
-                    nifti_image_write(nii_ptr);
+                if (write_nifti_float_4d(output_volume_file, vol, DT_FLOAT32, 0.0,
+                                         dims, nii_ptr->nt > 1 ? nii_ptr->nt : 1,
+                                         vox, nii_ptr))
                     printf("Coregistered volume written to: %s\n",
                            output_volume_file);
-                }
-                nii_ptr->data = NULL;
+                else
+                    fprintf(stderr, "Error writing output volume: %s\n",
+                            output_volume_file);
             }
 
             free(vol3d);
@@ -811,30 +804,15 @@ int main(int argc, char *argv[])
             nii_ptr->qfac = qfac;
         }
 
-        /* Write original (float-converted) voxel data with updated header.
-         * read_nifti_float() divided nvox by nt to give the 3D slice count, but
-         * vol[] holds all nt timepoints.  Restore the full 4D voxel count so
-         * nifti_image_write() writes every timepoint, not just the first. */
-        if (nii_ptr->nt > 1)
-            nii_ptr->nvox = (size_t)dims[0] * (size_t)dims[1] *
-                            (size_t)dims[2] * (size_t)nii_ptr->nt;
-
-        nii_ptr->datatype = DT_FLOAT32;
-        nii_ptr->nbyper = sizeof(float);
-        nii_ptr->scl_slope = 0.0;
-        nii_ptr->scl_inter = 0.0;
-        nii_ptr->data = (void *)vol;
-
-        if (nifti_set_filenames(nii_ptr, output_volume_file, 0, 1) != 0)
-            fprintf(stderr, "Error setting output volume filename: %s\n",
-                    output_volume_file);
-        else
-        {
-            nifti_image_write(nii_ptr);
+        /* Write the original (float-converted) voxel data, every volume of a
+         * 4D series, with the updated header. */
+        if (write_nifti_float_4d(output_volume_file, vol, DT_FLOAT32, 0.0,
+                                 dims, nii_ptr->nt > 1 ? nii_ptr->nt : 1,
+                                 vox, nii_ptr))
             printf("Coregistered volume written to: %s\n", output_volume_file);
-        }
-
-        nii_ptr->data = NULL; /* prevent double-free; vol is freed below */
+        else
+            fprintf(stderr, "Error writing output volume: %s\n",
+                    output_volume_file);
     }
 
     free(vol3d);

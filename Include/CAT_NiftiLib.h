@@ -74,6 +74,27 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
                       double slope, int dim[], double vox[],
                       nifti_image *in_ptr);
 /**
+ * \brief Write a single-precision 4D time series to a NIfTI file.
+ *
+ * Like write_nifti_float(), but the file holds nt volumes, stored one after the
+ * other in image as read_nifti_float() returns them (volume v at v*nx*ny*nz).
+ * The time step of a 4D template header is kept, otherwise it is set to 1.
+ * Float32 output is written from image without a copy.
+ *
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) nt volumes of dim[0]*dim[1]*dim[2] float values
+ * \param data_type       (in) target NIfTI datatype
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim             (in) array of 3 image dimensions [nx, ny, nz]
+ * \param nt              (in) number of volumes (at least 1; 1 writes a 3D file)
+ * \param vox             (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr          (in/out) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype or nt, no extension, write failed)
+ */
+int write_nifti_float_4d(const char *output_filename, float image[], int data_type,
+                         double slope, int dim[], int nt, double vox[],
+                         nifti_image *in_ptr);
+/**
  * \brief Read NIfTI image file and load data into double-precision array.
  *
  * A 4D file is returned as its nt volumes one after the other: volume v starts at

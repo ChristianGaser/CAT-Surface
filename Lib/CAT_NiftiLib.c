@@ -63,6 +63,10 @@ void init_nifti_header(nifti_image *nii_ptr)
     int i, j;
     double val;
 
+    /* the writers pass a stack record: fields not set below, such as the
+       extension list nifti_image_write() walks, must not be left as garbage */
+    memset(nii_ptr, 0, sizeof(*nii_ptr));
+
     nii_ptr->ndim = 0;
 
     nii_ptr->nx = nii_ptr->ny = nii_ptr->nz = nii_ptr->nt = nii_ptr->nu =
@@ -171,6 +175,34 @@ static void set_single_volume(nifti_image *nii_ptr)
     nii_ptr->dim[3] = nii_ptr->nz;
     for (i = 4; i < MAX_NII_DIMS; i++)
         nii_ptr->dim[i] = 1;
+}
+
+/**
+ * \brief Make a NIfTI header describe nt 3D volumes of a time series.
+ *
+ * Counterpart of set_single_volume() for the 4D writer. The time step of a 4D
+ * template header is kept; a header without one gets 1.
+ *
+ * \param nii_ptr (in/out) header of the series about to be written; nx, ny and nz must be set
+ * \param nt      (in)     number of volumes, at least 2
+ */
+static void set_volumes(nifti_image *nii_ptr, int nt)
+{
+    int i;
+
+    nii_ptr->ndim = 4;
+    nii_ptr->nt = nt;
+    nii_ptr->nu = nii_ptr->nv = nii_ptr->nw = 1;
+    nii_ptr->dim[0] = 4;
+    nii_ptr->dim[1] = nii_ptr->nx;
+    nii_ptr->dim[2] = nii_ptr->ny;
+    nii_ptr->dim[3] = nii_ptr->nz;
+    nii_ptr->dim[4] = nt;
+    for (i = 5; i < MAX_NII_DIMS; i++)
+        nii_ptr->dim[i] = 1;
+    if (!(nii_ptr->dt > 0.0))
+        nii_ptr->dt = 1.0;
+    nii_ptr->pixdim[4] = nii_ptr->dt;
 }
 
 /**
@@ -505,28 +537,31 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
 }
 
 /**
- * \brief Write single-precision volume data to NIfTI file with type conversion.
+ * \brief Write nt float volumes to a NIfTI file with type conversion.
  *
- * Exports a 3D volume array (stored as linear float array) to NIfTI format.
- * Converts from float to specified output datatype. Similar to write_nifti_double
- * but accepts input as single-precision floats. Useful when source data is already
- * float and double conversion overhead should be avoided. The file always holds a
- * single 3D volume, also when the template header comes from a 4D file.
+ * Shared body of write_nifti_float() (nt = 1) and write_nifti_float_4d(). The
+ * volumes follow one another in image, as the readers return them. Float32
+ * output is written straight from image instead of from a converted copy: the
+ * values would be identical, and a copy doubles the memory a 4D series needs.
  *
  * \param output_filename (in) path to output .nii/.nii.gz file
- * \param image           (in) linear array of float voxel values
+ * \param image           (in) nt volumes of dim[0]*dim[1]*dim[2] float values
  * \param data_type       (in) target NIfTI datatype
  * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
- * \param dim            (in) array of 3 image dimensions [nx, ny, nz]
- * \param vox            (in) array of 3 voxel spacings [dx, dy, dz]
- * \param in_ptr         (in) optional template NIfTI header; NULL to use defaults
+ * \param dim             (in) array of 3 image dimensions [nx, ny, nz]
+ * \param nt              (in) number of volumes; 1 writes a 3D file
+ * \param vox             (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr          (in) optional template NIfTI header; NULL to use defaults
  * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
  */
-int write_nifti_float(const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
+static int write_nifti_float_volumes(const char *output_filename, float image[],
+                                     int data_type, double slope, int dim[], int nt,
+                                     double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
     char *extension, buffer[1024];
-    int i;
+    size_t i;
+    int borrowed = 0;
     double img_range[2], dt_range[2], val;
 
     if ((data_type != DT_UINT8) &&
@@ -586,8 +621,11 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
     nii_ptr->data = NULL;
     nii_ptr->scl_slope = slope;
     nii_ptr->scl_inter = 0;
-    nii_ptr->nvox = dim[0] * dim[1] * dim[2];
-    set_single_volume(nii_ptr);
+    nii_ptr->nvox = (size_t)dim[0] * (size_t)dim[1] * (size_t)dim[2] * (size_t)nt;
+    if (nt > 1)
+        set_volumes(nii_ptr, nt);
+    else
+        set_single_volume(nii_ptr);
 
     /* for floating data no rescaling is necessary */
     if ((slope == 0.0) && ((data_type == DT_FLOAT32) || (data_type == DT_FLOAT64)))
@@ -774,22 +812,11 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
         }
         break;
     case DT_FLOAT32:
+        /* slope is never 0 here (reset above), so every value is image[i]
+           itself: write the caller's buffer instead of a copy of it */
         nii_ptr->nbyper = 4;
-        nii_ptr->data = (float *)malloc(sizeof(float) * nii_ptr->nvox);
-        /* check for memory */
-        if (!nii_ptr->data)
-        {
-            fprintf(stderr, "Memory allocation error\n");
-            return (0);
-        }
-        for (i = 0; i < nii_ptr->nvox; i++)
-        {
-            if (slope == 0.0)
-                val = (double)(image[i] - (float)nii_ptr->scl_inter) / (float)nii_ptr->scl_slope;
-            else
-                val = (double)image[i];
-            ((float *)nii_ptr->data)[i] = val;
-        }
+        nii_ptr->data = image;
+        borrowed = 1;
         break;
     case DT_FLOAT64:
         nii_ptr->nbyper = 8;
@@ -825,10 +852,66 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
 
     nifti_image_write(nii_ptr);
 
-    free(nii_ptr->data);
+    if (!borrowed)
+        free(nii_ptr->data);
     nii_ptr->data = NULL;
 
     return (1);
+}
+
+/**
+ * \brief Write single-precision volume data to NIfTI file with type conversion.
+ *
+ * Exports a 3D volume array (stored as linear float array) to NIfTI format.
+ * Converts from float to specified output datatype. Similar to write_nifti_double
+ * but accepts input as single-precision floats. Useful when source data is already
+ * float and double conversion overhead should be avoided. The file always holds a
+ * single 3D volume, also when the template header comes from a 4D file.
+ *
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) linear array of float voxel values
+ * \param data_type       (in) target NIfTI datatype
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim            (in) array of 3 image dimensions [nx, ny, nz]
+ * \param vox            (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr         (in) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
+ */
+int write_nifti_float(const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
+{
+    return write_nifti_float_volumes(output_filename, image, data_type, slope,
+                                     dim, 1, vox, in_ptr);
+}
+
+/**
+ * \brief Write a single-precision 4D time series to a NIfTI file.
+ *
+ * Like write_nifti_float(), but the file holds nt volumes, stored one after
+ * the other in image as read_nifti_float() returns them. The header describes
+ * a 4D image (dim[4] = nt); the time step of a 4D template is kept, otherwise
+ * it is set to 1. With nt = 1 this is write_nifti_float().
+ *
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) nt volumes of dim[0]*dim[1]*dim[2] float values
+ * \param data_type       (in) target NIfTI datatype
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim             (in) array of 3 image dimensions [nx, ny, nz]
+ * \param nt              (in) number of volumes (at least 1)
+ * \param vox             (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr          (in) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
+ */
+int write_nifti_float_4d(const char *output_filename, float image[], int data_type,
+                         double slope, int dim[], int nt, double vox[],
+                         nifti_image *in_ptr)
+{
+    if (nt < 1)
+    {
+        fprintf(stderr, "write_nifti_float_4d: invalid number of volumes %d.\n", nt);
+        return (0);
+    }
+    return write_nifti_float_volumes(output_filename, image, data_type, slope,
+                                     dim, nt, vox, in_ptr);
 }
 
 /**

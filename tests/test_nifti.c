@@ -1,4 +1,5 @@
 #include "minunit.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -175,11 +176,97 @@ test_writers_drop_the_time_dimension(void)
     remove(flt);
 }
 
+/** \brief write_nifti_float_4d() stores every volume and reads back unchanged. */
+static void
+test_4d_writer_round_trip(void)
+{
+    const char *src = "test_nifti_4d_src.nii";
+    const char *out = "test_nifti_4d_out.nii";
+    const char *out_int = "test_nifti_4d_int16.nii";
+    const char *out_new = "test_nifti_4d_new.nii";
+    int dims[3] = {NX, NY, NZ};
+    double vox[3] = {2.0, 2.0, 2.0};
+    float *img = NULL, *back = NULL;
+    nifti_image *nii, *nii2;
+    short dim[8];
+    long size;
+    int t, i, ok = 1, intact = 1, close = 1;
+
+    write_4d(src);
+    nii = read_nifti_float(src, &img, 0);
+    MU_ASSERT("4D writer: the template is read", nii != NULL && img != NULL);
+    if (!nii || !img)
+        return;
+    nii->dt = 2.5f; /* the repetition time has to survive */
+
+    MU_ASSERT("write_nifti_float_4d succeeds",
+              write_nifti_float_4d(out, img, DT_FLOAT32, 0.0, dims, NT, vox, nii));
+    MU_ASSERT("4D writer: the header describes NT volumes",
+              read_raw_header(out, dim, &size) && dim[0] == 4 && dim[4] == NT);
+    MU_ASSERT("4D writer: the file holds every volume",
+              size == 352 + (long)sizeof(float) * NVOX * NT);
+    for (t = 0; t < NT; t++)
+        for (i = 0; i < NVOX; i++)
+            if (img[t * NVOX + i] != (float)(100 * t + i))
+                intact = 0;
+    MU_ASSERT("4D writer: the caller's buffer is left as it was", intact);
+
+    nii2 = read_nifti_float(out, &back, 0);
+    MU_ASSERT("4D writer: the output is read", nii2 != NULL && back != NULL);
+    if (nii2 && back)
+    {
+        MU_ASSERT("4D writer: nt survives", nii2->nt == NT);
+        MU_ASSERT("4D writer: the time step survives", fabs(nii2->dt - 2.5) < 1e-6);
+        for (i = 0; i < NVOX * NT; i++)
+            if (back[i] != img[i])
+                ok = 0;
+        MU_ASSERT("4D writer: float32 values survive exactly", ok);
+        nifti_image_free(nii2);
+    }
+    free(back);
+
+    /* integer output is scaled over all volumes together */
+    MU_ASSERT("write_nifti_float_4d int16 succeeds",
+              write_nifti_float_4d(out_int, img, DT_INT16, 0.0, dims, NT, vox, nii));
+    nii2 = read_nifti_float(out_int, &back, 0);
+    MU_ASSERT("4D writer: the int16 output is read", nii2 != NULL && back != NULL);
+    if (nii2 && back)
+    {
+        for (i = 0; i < NVOX * NT; i++)
+            if (fabs(back[i] - img[i]) > 0.5 * nii2->scl_slope + 1e-6)
+                close = 0;
+        MU_ASSERT("4D writer: int16 values within half a step", close);
+        nifti_image_free(nii2);
+    }
+    free(back);
+
+    /* without a template the series gets a time step of 1 */
+    MU_ASSERT("write_nifti_float_4d without template succeeds",
+              write_nifti_float_4d(out_new, img, DT_FLOAT32, 0.0, dims, NT, vox, NULL));
+    nii2 = read_nifti_float(out_new, &back, 0);
+    MU_ASSERT("4D writer: a new series has nt volumes and dt 1",
+              nii2 != NULL && nii2->nt == NT && fabs(nii2->dt - 1.0) < 1e-6);
+    if (nii2)
+        nifti_image_free(nii2);
+    free(back);
+
+    MU_ASSERT("write_nifti_float_4d rejects nt = 0",
+              !write_nifti_float_4d(out_new, img, DT_FLOAT32, 0.0, dims, 0, vox, NULL));
+
+    nifti_image_free(nii);
+    free(img);
+    remove(src);
+    remove(out);
+    remove(out_int);
+    remove(out_new);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_4d_read_layout);
     MU_RUN_TEST(test_4d_read_float_layout);
     MU_RUN_TEST(test_writers_drop_the_time_dimension);
+    MU_RUN_TEST(test_4d_writer_round_trip);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
