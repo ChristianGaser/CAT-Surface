@@ -37,3 +37,10 @@ kept here so any of them can be promoted back when a workflow needs it.
 
 This file is **not** imported by the package and is not part of the build or the
 Nipype test suite.
+
+`CatSurfVolRealign` (wraps `cat_surf.cli.vol_realign`) is the candidate to replace
+FSL `mcflirt` in that subset: its inputs and outputs carry the names of
+`nipype.interfaces.fsl.MCFLIRT` (`in_file`, `ref_file`, `save_mats`, `save_plots`,
+`save_rms` -> `out_file`, `mat_file`, `par_file`, `rms_files`), and the files follow
+mcflirt's naming and conventions, so fMRIPrep's head-motion node can be swapped
+without changing its connections.

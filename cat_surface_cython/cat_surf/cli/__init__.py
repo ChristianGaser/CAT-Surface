@@ -88,6 +88,7 @@ from cat_surf import (
     vol_smooth as _vol_smooth,
     vol_calc as _vol_calc,
     vol_sheetness as _vol_sheetness,
+    vol_realign as _vol_realign,
     vol_oriented_median as _vol_oriented_median,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
@@ -780,6 +781,84 @@ def vol_sheetness(input_file, output_file=None, **kwargs):
         b = os.path.basename(input_file)
         output_file = os.path.join(d, "sheet_" + b)
     _save_volume_like(output_file, out, img, dtype=np.float32)
+
+
+def vol_realign(in_file, out=None, reffile=None, refvol=-1, mats=False,
+                plots=False, rmsabs=False, rmsrel=False, levels=None,
+                iterations=None, sat=None, iscale=None, verbose=False):
+    """Mirror of ``CAT_VolRealign``, head-motion correction as mcflirt.
+
+    Writes what the binary writes, named by appending to ``out`` as mcflirt
+    does: the realigned series, and with ``mats``, ``plots``, ``rmsabs`` and
+    ``rmsrel`` the files ``<out>.mat/MAT_%04d``, ``<out>.par``,
+    ``<out>_abs.rms`` / ``<out>_abs_mean.rms`` and ``<out>_rel.rms`` /
+    ``<out>_rel_mean.rms``.  fMRIPrep's head-motion workflow corresponds to
+    ``vol_realign(bold, "bold_mcf.nii.gz", reffile=boldref, mats=True,
+    plots=True, rmsabs=True, rmsrel=True)``.
+
+    Parameters
+    ----------
+    in_file : str
+        4-D NIfTI series (``-in``).
+    out : str, optional
+        Output base (``-out``); default ``<in_file>_mcf`` without the
+        extension.  ``.nii.gz`` is appended for the image of a base without
+        ``.nii``/``.nii.gz``.
+    reffile : str, optional
+        Separate 3-D reference (``-reffile``); the series is resampled into
+        its grid.
+    refvol : int
+        Reference volume without ``reffile`` (``-refvol``); -1 is nt // 2.
+    mats, plots, rmsabs, rmsrel : bool
+        Write the matrices, parameters and RMS files.
+    levels, iterations, sat, iscale : optional
+        ``-levels``, ``-iter``, ``-sat`` and the inverse of ``-no-iscale``;
+        ``None`` keeps the library defaults.
+    verbose : bool
+
+    Returns
+    -------
+    dict
+        The result of :func:`cat_surf.vol_realign` without ``realigned``,
+        plus ``out_file``, the path of the realigned series.
+    """
+    import nibabel as nib
+    from cat_surf._bbreg import _realign_write, _realign_image_name
+
+    img = nib.load(in_file)
+    series = img.get_fdata(dtype=np.float32)
+    ref = ref_img = None
+    if reffile is not None:
+        ref_img = nib.load(reffile)
+        ref = ref_img.get_fdata(dtype=np.float32)
+        if ref.ndim == 4:
+            ref = ref[..., 0]
+    res = _vol_realign(series, img.affine, ref=ref,
+                       ref_affine=None if ref_img is None else ref_img.affine,
+                       refvol=refvol, n_levels=levels, max_iter=iterations,
+                       sat_k=sat, iscale=iscale, verbose=verbose)
+
+    if out is None:
+        out = in_file
+        for ext in (".nii.gz", ".nii"):
+            if out.endswith(ext):
+                out = out[: -len(ext)]
+                break
+        out += "_mcf"
+    out_file = _realign_image_name(out)
+
+    like = ref_img if ref_img is not None else img
+    hdr = like.header.copy()
+    realigned = res.pop("realigned")
+    tr = img.header.get_zooms()[3] if len(img.header.get_zooms()) > 3 else 1.0
+    image = nib.Nifti1Image(realigned, like.affine, hdr)
+    image.header.set_data_dtype(np.float32)
+    image.header.set_zooms(tuple(like.header.get_zooms()[:3]) + (tr,))
+    nib.save(image, out_file)
+
+    _realign_write(out, res, mats, plots, rmsabs, rmsrel)
+    res["out_file"] = out_file
+    return res
 
 
 def surf_resample_multi(units, output_file, fwhm=0.0, areal=False):

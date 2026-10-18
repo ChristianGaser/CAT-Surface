@@ -6,8 +6,8 @@
  *
  * Registers a moving NIfTI volume to one or two WM surfaces (left and/or right
  * hemisphere) using the BBR cost function (Greve & Fischl 2009, NeuroImage
- * 48:63-72).  Outputs a plain 4×4 RAS-to-RAS transform matrix compatible
- * with FSL (flirt -init) and ANTs.
+ * 48:63-72).  Outputs a plain 4×4 RAS-to-RAS transform matrix and, with
+ * -fsl-matrix, the same transform in FSL's convention for flirt -init.
  *
  * Copyright Christian Gaser, University of Jena.
  */
@@ -63,7 +63,9 @@ static double vol_reg_sat     = 4.685;/* Tukey saturation (ROB mode only) */
 static int    vol_reg_iter    = 30;   /* Powell/IRLS iterations per level */
 static int    no_vol_reg      = 0;    /* skip volume registration init    */
 static int    vol_reg_rob     = 0;    /* use IRLS/ROB instead of NMI      */
+static int    vol_reg_no_iscale = 0;  /* ROB: keep the intensity scale at 1 */
 static char  *ref_vol_file    = NULL; /* separate reference volume (T1w)  */
+static char  *fsl_matrix_file = NULL; /* transform in FSL's convention    */
 
 /* -----------------------------------------------------------------------
  * Argument table
@@ -158,6 +160,11 @@ static ArgvInfo argTable[] =
          " header is updated to reflect the registration transform;"
          " voxel data is not resampled."},
 
+        {"-fsl-matrix", ARGV_STRING, (char *)1, (char *)&fsl_matrix_file,
+         "Also write the transform in FSL's convention (flirt -init / -applyxfm"
+         " with the volume as -in and the -ref volume as -ref).  Requires -ref,"
+         " which must be in the space of the surfaces."},
+
         /* ----- robust volume registration (init) options ----- */
         {"-ref", ARGV_STRING, (char *)1, (char *)&ref_vol_file,
          "Reference (fixed) volume for NMI-based volume registration initialisation"
@@ -180,6 +187,10 @@ static ArgvInfo argTable[] =
          "Use same-modality IRLS/ROB cost instead of NMI for volume registration."
          " Use this for T1w-to-T1w or EPI-to-EPI alignment."},
 
+        {"-vol-reg-no-iscale", ARGV_CONSTANT, (char *)1, (char *)&vol_reg_no_iscale,
+         "With -vol-reg-rob: do not estimate a global intensity scale between"
+         " the two volumes (estimated by default)."},
+
         {"-no-vol-reg", ARGV_CONSTANT, (char *)1, (char *)&no_vol_reg,
          "Skip volume registration initialisation entirely; start BBR from"
          " -init-tx/ty/tz/rx/ry/rz values (or identity)."},
@@ -197,7 +208,8 @@ usage(const char *exe)
             "  Boundary-Based Registration (BBR) of a NIfTI volume to one or both\n"
             "  white-matter surfaces.  Surfaces must be in the same RAS coordinate\n"
             "  space as the volume.  The output is a plain-text 4x4 RAS-to-RAS rigid\n"
-            "  transform matrix compatible with FSL (flirt -init) and ANTs.\n\n"
+            "  transform matrix (volume -> surface space).  This is not the convention\n"
+            "  of flirt -init; -fsl-matrix writes that as well.\n\n"
             "  At least one surface must be supplied via -lh and/or -rh.\n\n"
             "  Cortex label files (-lh-label / -rh-label) should contain one float\n"
             "  value per vertex; vertices with value <= 0.5 are excluded from the\n"
@@ -234,6 +246,8 @@ usage(const char *exe)
             "                          volume for BBR (mid-frame); default 0 = off\n"
             "  -verbose                Print optimisation progress\n"
             "  -output-volume <file>   Save coregistered volume (header update only)\n"
+            "  -fsl-matrix <file>      Also write the transform for flirt -init\n"
+            "                          (FSL convention; needs -ref)\n"
             "\n"
             "NMI volume registration (initialisation for BBR):\n"
             "  -ref <file>             T1w reference volume (fixed). Without surfaces,\n"
@@ -243,6 +257,7 @@ usage(const char *exe)
             "  -vol-reg-iter <n>       Powell iterations per level (default: 30)\n"
             "  -vol-reg-rob            Use IRLS/ROB cost (same-modality) instead of NMI\n"
             "  -vol-reg-sat <val>      Tukey multiplier for -vol-reg-rob (default: 4.685)\n"
+            "  -vol-reg-no-iscale      -vol-reg-rob without the global intensity scale\n"
             "  -no-vol-reg             Skip volume-registration initialisation\n\n");
 }
 
@@ -305,6 +320,31 @@ load_scalars(const char *filename, int expected_n, const char *desc)
 }
 
 /* -----------------------------------------------------------------------
+ * Helper: write the volume -> reference transform in FSL's convention
+ * ----------------------------------------------------------------------- */
+static int
+write_fsl_output(const char *filename, const double ras[16],
+                 const nifti_image *src, const char *ref_file)
+{
+    nifti_image *ref = nifti_image_read(ref_file, 0);
+    double fsl[16];
+    int ret;
+
+    if (!ref)
+    {
+        fprintf(stderr, "Error reading reference header: %s\n", ref_file);
+        return -1;
+    }
+    set_world_matrix(ref);
+    ras_to_fsl_matrix(ras, src, ref, fsl);
+    ret = write_fsl_matrix(filename, fsl);
+    nifti_image_free(ref);
+    if (ret == 0)
+        printf("FSL transform written to: %s\n", filename);
+    return ret;
+}
+
+/* -----------------------------------------------------------------------
  * main
  * ----------------------------------------------------------------------- */
 int main(int argc, char *argv[])
@@ -314,6 +354,7 @@ int main(int argc, char *argv[])
     float *vol = NULL;
     float *vol3d = NULL;  /* mid-frame 3-D buffer used for vol-reg and BBR */
     int dims[3];
+    double vox[3];        /* voxel size, for writing -output-volume */
     int nvox3;            /* dims[0]*dims[1]*dims[2] */
     CAT_RigidParams p_init, p_best;
     double m_best[16]; /* surface(T1)→EPI; internal optimizer direction */
@@ -346,6 +387,15 @@ int main(int argc, char *argv[])
 
     volume_file = argv[1];
     output_file = argv[2];
+
+    /* --- The FSL convention is relative to a reference grid --- */
+    if (fsl_matrix_file && !ref_vol_file)
+    {
+        fprintf(stderr,
+                "Error: -fsl-matrix needs the reference volume (-ref) whose grid"
+                " the FSL coordinates refer to.\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* --- Require either at least one surface OR a reference volume --- */
     if (!lh_surf_file && !rh_surf_file && !ref_vol_file)
@@ -410,6 +460,9 @@ int main(int argc, char *argv[])
     dims[0] = nii_ptr->nx;
     dims[1] = nii_ptr->ny;
     dims[2] = nii_ptr->nz;
+    vox[0] = nii_ptr->dx;
+    vox[1] = nii_ptr->dy;
+    vox[2] = nii_ptr->dz;
 
     /* --- Extract mid-frame for registration (matches FreeSurfer fMRIframe()) ---
      * For 4-D series the mid-frame is used so that both vol-reg and BBR see a
@@ -511,17 +564,25 @@ int main(int argc, char *argv[])
         if (vol_reg_rob)
         {
             /* Same-modality: linearised intensity matching + Tukey biweight */
+            CAT_VolumeRegOpts vr_opts;
+            double vr_scale = 0.0;
+            CAT_VolumeRegOptionsInit(&vr_opts);
+            vr_opts.n_levels = vol_reg_levels;
+            vr_opts.sat_k = vol_reg_sat;
+            vr_opts.max_iter = vol_reg_iter;
+            vr_opts.iscale = !vol_reg_no_iscale;
+            vr_opts.verbose = verbose;
             vol_res = CAT_VolumeReg_register(
                 ref_vol,  ref_nii,  ref_dims,
                 vol_reg,  nii_ptr,  dims,
-                &p_init,
-                vol_reg_levels, vol_reg_sat, vol_reg_iter, verbose);
+                &p_init, &vr_scale, &vr_opts);
             if (verbose)
                 printf("VolumeReg done (ROB): residual=%.4f  "
-                       "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
+                       "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f"
+                       "  scale=%.4f\n",
                        vol_res,
                        p_init.tx, p_init.ty, p_init.tz,
-                       p_init.rx, p_init.ry, p_init.rz);
+                       p_init.rx, p_init.ry, p_init.rz, vr_scale);
         }
         else
         {
@@ -572,6 +633,17 @@ int main(int argc, char *argv[])
                    p_init.tx, p_init.ty, p_init.tz,
                    p_init.rx, p_init.ry, p_init.rz);
 
+            /* before -output-volume moves the header into reference space */
+            if (fsl_matrix_file &&
+                write_fsl_output(fsl_matrix_file, m_vol_inv, nii_ptr,
+                                 ref_vol_file) != 0)
+            {
+                free(vol3d); free(vol);
+                nii_ptr->data = NULL;
+                nifti_image_free(nii_ptr);
+                exit(EXIT_FAILURE);
+            }
+
             /* Write coregistered volume with updated sform/qform if requested */
             if (output_volume_file)
             {
@@ -616,25 +688,14 @@ int main(int argc, char *argv[])
                     nii_ptr->qfac = qfac;
                 }
 
-                if (nii_ptr->nt > 1)
-                    nii_ptr->nvox = (size_t)dims[0] * (size_t)dims[1] *
-                                    (size_t)dims[2] * (size_t)nii_ptr->nt;
-                nii_ptr->datatype = DT_FLOAT32;
-                nii_ptr->nbyper = sizeof(float);
-                nii_ptr->scl_slope = 0.0;
-                nii_ptr->scl_inter = 0.0;
-                nii_ptr->data = (void *)vol;
-
-                if (nifti_set_filenames(nii_ptr, output_volume_file, 0, 1) != 0)
-                    fprintf(stderr, "Error setting output volume filename: %s\n",
-                            output_volume_file);
-                else
-                {
-                    nifti_image_write(nii_ptr);
+                if (write_nifti_float_4d(output_volume_file, vol, DT_FLOAT32, 0.0,
+                                         dims, nii_ptr->nt > 1 ? nii_ptr->nt : 1,
+                                         vox, nii_ptr))
                     printf("Coregistered volume written to: %s\n",
                            output_volume_file);
-                }
-                nii_ptr->data = NULL;
+                else
+                    fprintf(stderr, "Error writing output volume: %s\n",
+                            output_volume_file);
             }
 
             free(vol3d);
@@ -762,6 +823,16 @@ int main(int argc, char *argv[])
            p_best.tx, p_best.ty, p_best.tz,
            p_best.rx, p_best.ry, p_best.rz);
 
+    /* before -output-volume moves the header into surface space */
+    if (fsl_matrix_file &&
+        write_fsl_output(fsl_matrix_file, m_inv, nii_ptr, ref_vol_file) != 0)
+    {
+        free(vol3d); free(vol);
+        nii_ptr->data = NULL;
+        nifti_image_free(nii_ptr);
+        exit(EXIT_FAILURE);
+    }
+
     /* --- Optionally write coregistered volume (header update only) --- */
     if (output_volume_file)
     {
@@ -811,30 +882,15 @@ int main(int argc, char *argv[])
             nii_ptr->qfac = qfac;
         }
 
-        /* Write original (float-converted) voxel data with updated header.
-         * read_nifti_float() divided nvox by nt to give the 3D slice count, but
-         * vol[] holds all nt timepoints.  Restore the full 4D voxel count so
-         * nifti_image_write() writes every timepoint, not just the first. */
-        if (nii_ptr->nt > 1)
-            nii_ptr->nvox = (size_t)dims[0] * (size_t)dims[1] *
-                            (size_t)dims[2] * (size_t)nii_ptr->nt;
-
-        nii_ptr->datatype = DT_FLOAT32;
-        nii_ptr->nbyper = sizeof(float);
-        nii_ptr->scl_slope = 0.0;
-        nii_ptr->scl_inter = 0.0;
-        nii_ptr->data = (void *)vol;
-
-        if (nifti_set_filenames(nii_ptr, output_volume_file, 0, 1) != 0)
-            fprintf(stderr, "Error setting output volume filename: %s\n",
-                    output_volume_file);
-        else
-        {
-            nifti_image_write(nii_ptr);
+        /* Write the original (float-converted) voxel data, every volume of a
+         * 4D series, with the updated header. */
+        if (write_nifti_float_4d(output_volume_file, vol, DT_FLOAT32, 0.0,
+                                 dims, nii_ptr->nt > 1 ? nii_ptr->nt : 1,
+                                 vox, nii_ptr))
             printf("Coregistered volume written to: %s\n", output_volume_file);
-        }
-
-        nii_ptr->data = NULL; /* prevent double-free; vol is freed below */
+        else
+            fprintf(stderr, "Error writing output volume: %s\n",
+                    output_volume_file);
     }
 
     free(vol3d);

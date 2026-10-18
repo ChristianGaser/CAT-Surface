@@ -756,6 +756,64 @@ def test_bspline_sample():
 
 
 # ---------------------------------------------------------------------------
+# Head-motion correction: known shifts of an analytic phantom are recovered,
+# the reference volume is the identity, and mcflirt's outputs have their
+# shapes.  The phantom is a sum of Gaussian blobs without symmetry.
+# ---------------------------------------------------------------------------
+_BLOBS = ((0.0, 0.0, 0.0, 12.0, 60.0), (-10.0, 7.0, 3.0, 4.5, 80.0),
+          (8.0, -5.0, 8.0, 3.5, -50.0), (5.0, 12.0, -7.0, 5.0, 70.0),
+          (-8.0, -10.0, -9.0, 3.0, 90.0))
+
+
+def _phantom(shape, voxel, shift):
+    """Blob phantom on a grid centred on the origin, moved by shift (mm)."""
+    axes = [(np.arange(n) - 0.5 * (n - 1)) * voxel for n in shape]
+    x, y, z = np.meshgrid(*axes, indexing="ij")
+    v = np.full(shape, 10.0)
+    for bx, by, bz, s, a in _BLOBS:
+        d2 = ((x - shift[0] - bx) ** 2 + (y - shift[1] - by) ** 2 +
+              (z - shift[2] - bz) ** 2)
+        v += a * np.exp(-0.5 * d2 / (s * s))
+    return v
+
+
+def test_vol_realign():
+    section("Head-motion correction (mcflirt replacement)")
+
+    shape, voxel = (30, 32, 28), 2.0
+    affine = np.diag([voxel, voxel, voxel, 1.0])
+    affine[:3, 3] = [-0.5 * (n - 1) * voxel for n in shape]
+    shifts = np.array([[0.0, 0.0, 0.0], [0.6, -0.4, 0.3], [1.1, -0.2, 0.7],
+                       [1.5, 0.3, 1.0]])
+    rng = np.random.default_rng(0)
+    series = np.stack([_phantom(shape, voxel, d) + rng.normal(0.0, 0.5, shape)
+                       for d in shifts], axis=-1).astype(np.float32)
+
+    res = cat_surf.vol_realign(series, affine, refvol=0)
+    est = -res["ras"][:, :3, 3]          # volume -> reference undoes the shift
+    check("volume 0 is the reference", res["ref_index"] == 0)
+    check("the reference matrix is exactly the identity",
+          np.array_equal(res["fsl"][0], np.eye(4)))
+    check("shifts are recovered within 0.1 mm",
+          np.abs(est - shifts).max() < 0.1, f"{np.abs(est - shifts).max():.3f}")
+    check("mcflirt's outputs have their shapes",
+          res["par"].shape == (4, 6) and res["rms_abs"].shape == (4,)
+          and res["rms_rel"].shape == (3,) and res["realigned"].shape == shape + (4,))
+    check("the mean RMS files hold the means",
+          abs(res["rms_abs_mean"] - res["rms_abs"].mean()) < 1e-12
+          and abs(res["rms_rel_mean"] - res["rms_rel"].mean()) < 1e-12)
+
+    bright = (1.25 * _phantom(shape, voxel, (0.0, 0.0, 0.0))).astype(np.float32)
+    res = cat_surf.vol_realign(series, affine, ref=bright, resample=False)
+    est = -res["ras"][:, :3, 3]
+    check("a brighter separate reference: the intensity scale is its gain",
+          np.abs(res["scale"] - 1.25).max() < 0.02, f"{res['scale']}")
+    check("a brighter separate reference: shifts within 0.1 mm",
+          np.abs(est - shifts).max() < 0.1, f"{np.abs(est - shifts).max():.3f}")
+    check("resample=False returns no series", "realigned" not in res)
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -768,7 +826,7 @@ def main():
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
-                 test_bspline_sample):
+                 test_bspline_sample, test_vol_realign):
         try:
             test()
         except Exception:  # pragma: no cover

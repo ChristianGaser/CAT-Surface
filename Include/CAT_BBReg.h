@@ -224,13 +224,19 @@ extern "C"
     /**
      * \brief Write a 4×4 RAS-to-RAS transform to a plain-text file.
      *
-     * Format (compatible with FSL flirt -init / ANTs):
+     * Format:
      *
      *   # CAT_BBReg RAS-to-RAS transform
      *   m00 m01 m02 m03
      *   m10 m11 m12 m13
      *   m20 m21 m22 m23
      *   0   0   0   1
+     *
+     * This is a world-space (scanner RAS) matrix, as FreeSurfer's RAS2RAS
+     * LTAs and nibabel affines are; it is NOT what FSL or ANTs read.  flirt
+     * -init/-applyxfm expect FSL's scaled-voxel convention (convert with
+     * ras_to_fsl_matrix() and write with write_fsl_matrix(), or use
+     * CAT_SurfBBReg -fsl-matrix), and ANTs reads ITK transforms in LPS.
      *
      * \param filename (in) output file path
      * \param m        (in) 4×4 row-major matrix

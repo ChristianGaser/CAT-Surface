@@ -2273,3 +2273,107 @@ class CatSurfVolumeRegisterRobust(BaseInterface):
         outputs = self._outputs().get()
         outputs["out_matrix_file"] = os.path.abspath(self.inputs.out_matrix_file)
         return outputs
+
+
+# ---------------------------------------------------------------------------
+
+
+class CatSurfVolRealignInputSpec(TraitedSpec):
+    in_file = File(
+        exists=True, mandatory=True, desc="4D series to motion-correct (mcflirt -in)."
+    )
+    out_file = File(
+        desc="Realigned series (mcflirt -out); default <in_file>_mcf.nii.gz in the "
+        "working directory.  The other outputs append to this name."
+    )
+    ref_file = File(
+        exists=True, desc="Separate 3D reference volume (mcflirt -reffile)."
+    )
+    ref_vol = traits.Int(
+        desc="Reference volume of the series without ref_file (mcflirt -refvol); "
+        "default nt // 2."
+    )
+    save_mats = traits.Bool(
+        False, usedefault=True, desc="Write <out_file>.mat/MAT_%04d (mcflirt -mats)."
+    )
+    save_plots = traits.Bool(
+        False, usedefault=True, desc="Write <out_file>.par (mcflirt -plots)."
+    )
+    save_rms = traits.Bool(
+        False,
+        usedefault=True,
+        desc="Write <out_file>_abs.rms and _rel.rms (mcflirt -rmsabs -rmsrel).",
+    )
+    verbose = traits.Bool(False, usedefault=True, desc="Print every volume's estimate.")
+
+
+class CatSurfVolRealignOutputSpec(TraitedSpec):
+    out_file = File(exists=True, desc="Realigned series.")
+    mat_file = traits.List(
+        File(exists=True), desc="Volume -> reference transforms, FSL convention."
+    )
+    par_file = File(exists=True, desc="Motion parameters rx ry rz (rad) tx ty tz (mm).")
+    rms_files = traits.List(
+        File(exists=True), desc="RMS displacement files [_abs.rms, _rel.rms]."
+    )
+
+
+class CatSurfVolRealign(SimpleInterface):
+    """Head-motion correction in mcflirt's conventions (replaces ``fsl.MCFLIRT``).
+
+    Wraps the file-based ``cat_surf.cli.vol_realign`` -- the mirror of
+    ``CAT_VolRealign``.  Inputs and outputs carry the names of
+    ``nipype.interfaces.fsl.MCFLIRT``, and the files are named and formatted
+    as mcflirt's (FSL 6.0.7.23), so fMRIPrep's head-motion node
+
+        fsl.MCFLIRT(save_mats=True, save_plots=True, save_rms=True)
+
+    can become ``CatSurfVolRealign(save_mats=True, save_plots=True,
+    save_rms=True)`` with the same connections: ``mat_file`` to
+    ``MCFLIRT2ITK``, ``par_file`` to ``NormalizeMotionParams(format='FSL')``
+    and ``rms_files[-1]`` as ``rmsd``.
+
+    Examples
+    --------
+    >>> node = CatSurfVolRealign(save_mats=True, save_plots=True, save_rms=True)
+    >>> node.inputs.in_file = 'sub-01_task-rest_bold.nii.gz'  # doctest: +SKIP
+    >>> node.inputs.ref_file = 'sub-01_task-rest_boldref.nii.gz'  # doctest: +SKIP
+    """
+
+    input_spec = CatSurfVolRealignInputSpec
+    output_spec = CatSurfVolRealignOutputSpec
+
+    def _run_interface(self, runtime):
+        cli = _cat_surf_cli()
+        if isdefined(self.inputs.out_file):
+            out = os.path.abspath(self.inputs.out_file)
+        else:
+            out = fname_presuffix(
+                self.inputs.in_file, suffix="_mcf", newpath=runtime.cwd
+            )
+            if not out.endswith((".nii", ".nii.gz")):
+                out += ".nii.gz"
+        kwargs = dict(
+            out=out,
+            mats=self.inputs.save_mats,
+            plots=self.inputs.save_plots,
+            rmsabs=self.inputs.save_rms,
+            rmsrel=self.inputs.save_rms,
+            verbose=self.inputs.verbose,
+        )
+        if isdefined(self.inputs.ref_file):
+            kwargs["reffile"] = self.inputs.ref_file
+        if isdefined(self.inputs.ref_vol):
+            kwargs["refvol"] = self.inputs.ref_vol
+        res = cli.vol_realign(self.inputs.in_file, **kwargs)
+
+        self._results["out_file"] = res["out_file"]
+        if self.inputs.save_mats:
+            self._results["mat_file"] = [
+                "%s.mat/MAT_%04d" % (out, t) for t in range(len(res["par"]))
+            ]
+        if self.inputs.save_plots:
+            self._results["par_file"] = out + ".par"
+        if self.inputs.save_rms:
+            self._results["rms_files"] = [out + "_abs.rms", out + "_rel.rms"]
+        return runtime

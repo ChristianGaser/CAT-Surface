@@ -655,6 +655,15 @@ cdef extern from "CAT_BBReg.h":
 # CAT_VolumeReg.h — Volume-to-volume rigid registration
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_VolumeReg.h":
+    ctypedef struct CAT_VolumeRegOpts:
+        int    n_levels
+        double sat_k
+        int    max_iter
+        int    iscale
+        int    verbose
+
+    void   CAT_VolumeRegOptionsInit(CAT_VolumeRegOpts *opts)
+
     double CAT_VolumeReg_register(float *fixed_vol,
                                   nifti_image *fixed_nii,
                                   int fixed_dims[3],
@@ -662,8 +671,8 @@ cdef extern from "CAT_VolumeReg.h":
                                   nifti_image *moving_nii,
                                   int moving_dims[3],
                                   CAT_RigidParams *p_out,
-                                  int n_levels, double sat_k,
-                                  int max_iter, int verbose)
+                                  double *scale,
+                                  const CAT_VolumeRegOpts *opts)
 
     double CAT_VolumeReg_register_NMI(float *fixed_vol,
                                       nifti_image *fixed_nii,
@@ -674,3 +683,44 @@ cdef extern from "CAT_VolumeReg.h":
                                       CAT_RigidParams *p_out,
                                       int n_levels, int n_bins,
                                       int max_iter, int verbose)
+
+
+# ---------------------------------------------------------------------------
+# CAT_VolRealign.h — Head-motion correction (mcflirt replacement)
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_VolRealign.h":
+    ctypedef struct CAT_VolRealignOpts:
+        int refvol
+        CAT_VolumeRegOpts reg
+        int verbose
+
+    ctypedef struct CAT_VolRealignResult:
+        int     nt
+        int     ref_index
+        double *ras
+        double *fsl
+        double *par
+        double *rms_abs
+        double *rms_rel
+        double *scale
+        double  rms_abs_mean
+        double  rms_rel_mean
+
+    void CAT_VolRealignOptionsInit(CAT_VolRealignOpts *opts)
+    int  CAT_VolRealignEstimate(const float *series,
+                                const nifti_image *series_nii,
+                                const int dims[3], int nt,
+                                const float *ref, const nifti_image *ref_nii,
+                                const int ref_dims[3],
+                                const CAT_VolRealignOpts *opts,
+                                CAT_VolRealignResult *res)
+    int  CAT_VolRealignResample(const float *series,
+                                const nifti_image *series_nii,
+                                const int dims[3], int nt,
+                                const nifti_image *ref_nii,
+                                const int ref_dims[3],
+                                const CAT_VolRealignResult *res, float *out)
+    int  CAT_VolRealignWrite(const char *base, const CAT_VolRealignResult *res,
+                             int mats, int plots, int rmsabs, int rmsrel)
+    void CAT_VolRealignImageName(const char *base, char *image, size_t size)
+    void CAT_VolRealignFree(CAT_VolRealignResult *res)

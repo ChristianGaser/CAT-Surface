@@ -63,6 +63,10 @@ void init_nifti_header(nifti_image *nii_ptr)
     int i, j;
     double val;
 
+    /* the writers pass a stack record: fields not set below, such as the
+       extension list nifti_image_write() walks, must not be left as garbage */
+    memset(nii_ptr, 0, sizeof(*nii_ptr));
+
     nii_ptr->ndim = 0;
 
     nii_ptr->nx = nii_ptr->ny = nii_ptr->nz = nii_ptr->nt = nii_ptr->nu =
@@ -150,6 +154,196 @@ void init_nifti_header(nifti_image *nii_ptr)
 }
 
 /**
+ * \brief Make sto_xyz the voxel-to-world matrix FSL and nibabel use.
+ *
+ * libCAT maps voxels to world coordinates with sto_xyz, but nifti1_io fills it
+ * only from an sform: for a file that has just a qform it stays zero, and
+ * every registration or surface position computed from it is garbage. This
+ * applies the rule of FSL and nibabel: the sform when sform_code > 0,
+ * otherwise the qform (which nifti1_io sets from pixdim when qform_code is 0
+ * as well). sform_code is left alone, so a header written back still stores
+ * only the transforms the file had.
+ *
+ * \param nii_ptr (in/out) header whose sto_xyz and sto_ijk are set
+ */
+void set_world_matrix(nifti_image *nii_ptr)
+{
+    if (nii_ptr->sform_code > 0)
+        return;
+    nii_ptr->sto_xyz = nii_ptr->qto_xyz;
+    nii_ptr->sto_ijk = nii_ptr->qto_ijk;
+}
+
+/* C = A * B for 4x4 row-major matrices; C may not alias A or B */
+static void mat4_mul(const double A[16], const double B[16], double C[16])
+{
+    int r, c, k;
+
+    for (r = 0; r < 4; r++)
+        for (c = 0; c < 4; c++)
+        {
+            double s = 0.0;
+            for (k = 0; k < 4; k++)
+                s += A[4 * r + k] * B[4 * k + c];
+            C[4 * r + c] = s;
+        }
+}
+
+/* inverse of a 4x4 row-major affine matrix (last row 0 0 0 1) */
+static void affine_inverse(const double A[16], double inv[16])
+{
+    double a = A[0], b = A[1], c = A[2], d = A[4], e = A[5], f = A[6];
+    double g = A[8], h = A[9], k = A[10];
+    double det = a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g);
+    double R[9];
+    int r;
+
+    R[0] = (e * k - f * h) / det;
+    R[1] = (c * h - b * k) / det;
+    R[2] = (b * f - c * e) / det;
+    R[3] = (f * g - d * k) / det;
+    R[4] = (a * k - c * g) / det;
+    R[5] = (c * d - a * f) / det;
+    R[6] = (d * h - e * g) / det;
+    R[7] = (b * g - a * h) / det;
+    R[8] = (a * e - b * d) / det;
+    for (r = 0; r < 3; r++)
+    {
+        inv[4 * r] = R[3 * r];
+        inv[4 * r + 1] = R[3 * r + 1];
+        inv[4 * r + 2] = R[3 * r + 2];
+        inv[4 * r + 3] = -(R[3 * r] * A[3] + R[3 * r + 1] * A[7] +
+                           R[3 * r + 2] * A[11]);
+    }
+    inv[12] = inv[13] = inv[14] = 0.0;
+    inv[15] = 1.0;
+}
+
+/* sto_xyz of a header as a row-major double matrix */
+static void vox2world_matrix(const nifti_image *nii_ptr, double V[16])
+{
+    int r, c;
+
+    for (r = 0; r < 4; r++)
+        for (c = 0; c < 4; c++)
+            V[4 * r + c] = (double)nii_ptr->sto_xyz.m[r][c];
+}
+
+/**
+ * \brief Matrix from voxel indices to FSL's scaled voxel coordinates.
+ *
+ * FSL states transforms in voxel index times voxel size (pixdim), with the x
+ * axis reversed for an image whose voxel-to-world matrix has a positive
+ * determinant (neurological storage), so that FSL coordinates always run
+ * radiologically. A world shift to the right is a negative FSL x either way.
+ *
+ * \param nii_ptr (in)  image header (sto_xyz, nx, dx, dy, dz)
+ * \param M       (out) 4x4 row-major matrix, FSL coordinate = M * voxel index
+ */
+void vox2fsl_matrix(const nifti_image *nii_ptr, double M[16])
+{
+    double V[16], det;
+    int i;
+
+    vox2world_matrix(nii_ptr, V);
+    det = V[0] * (V[5] * V[10] - V[6] * V[9]) - V[1] * (V[4] * V[10] - V[6] * V[8]) +
+          V[2] * (V[4] * V[9] - V[5] * V[8]);
+    for (i = 0; i < 16; i++)
+        M[i] = (i % 5 == 0) ? 1.0 : 0.0;
+    M[0] = fabs(nii_ptr->dx);
+    M[5] = fabs(nii_ptr->dy);
+    M[10] = fabs(nii_ptr->dz);
+    if (det > 0.0)
+    {
+        M[0] = -M[0];
+        M[3] = (nii_ptr->nx - 1) * fabs(nii_ptr->dx);
+    }
+}
+
+/**
+ * \brief Convert a world-space transform between two images to FSL's convention.
+ *
+ * fsl = F_ref * V_ref^-1 * ras * V_src * F_src^-1, with V the voxel-to-world
+ * matrix (sto_xyz) and F the vox2fsl_matrix() of an image.
+ *
+ * \param ras (in)  4x4 row-major world transform, source -> reference
+ * \param src (in)  header of the source image
+ * \param ref (in)  header of the reference image
+ * \param fsl (out) 4x4 row-major FSL transform, source -> reference
+ */
+void ras_to_fsl_matrix(const double ras[16], const nifti_image *src,
+                       const nifti_image *ref, double fsl[16])
+{
+    double Vs[16], Fs[16], Fs_inv[16], Vr[16], Vr_inv[16], Fr[16];
+    double t1[16], t2[16];
+
+    vox2world_matrix(src, Vs);
+    vox2fsl_matrix(src, Fs);
+    affine_inverse(Fs, Fs_inv);
+    vox2world_matrix(ref, Vr);
+    affine_inverse(Vr, Vr_inv);
+    vox2fsl_matrix(ref, Fr);
+
+    mat4_mul(Vs, Fs_inv, t1);    /* FSL source -> world source */
+    mat4_mul(ras, t1, t2);       /* -> world reference */
+    mat4_mul(Vr_inv, t2, t1);    /* -> voxel reference */
+    mat4_mul(Fr, t1, fsl);       /* -> FSL reference */
+}
+
+/**
+ * \brief Convert an FSL transform between two images to world space.
+ *
+ * ras = V_ref * F_ref^-1 * fsl * F_src * V_src^-1, the inverse of
+ * ras_to_fsl_matrix().
+ *
+ * \param fsl (in)  4x4 row-major FSL transform, source -> reference
+ * \param src (in)  header of the source image
+ * \param ref (in)  header of the reference image
+ * \param ras (out) 4x4 row-major world transform, source -> reference
+ */
+void fsl_to_ras_matrix(const double fsl[16], const nifti_image *src,
+                       const nifti_image *ref, double ras[16])
+{
+    double Vs[16], Vs_inv[16], Fs[16], Vr[16], Fr[16], Fr_inv[16];
+    double t1[16], t2[16];
+
+    vox2world_matrix(src, Vs);
+    affine_inverse(Vs, Vs_inv);
+    vox2fsl_matrix(src, Fs);
+    vox2world_matrix(ref, Vr);
+    vox2fsl_matrix(ref, Fr);
+    affine_inverse(Fr, Fr_inv);
+
+    mat4_mul(Fs, Vs_inv, t1);    /* world source -> FSL source */
+    mat4_mul(fsl, t1, t2);       /* -> FSL reference */
+    mat4_mul(Fr_inv, t2, t1);    /* -> voxel reference */
+    mat4_mul(Vr, t1, ras);       /* -> world reference */
+}
+
+/**
+ * \brief Write a 4x4 matrix as FSL writes it (flirt -omat, mcflirt -mats).
+ *
+ * \param filename (in) output file
+ * \param m        (in) 4x4 row-major matrix
+ * \return 0 on success, -1 if the file cannot be written
+ */
+int write_fsl_matrix(const char *filename, const double m[16])
+{
+    FILE *fp = fopen(filename, "w");
+    int r;
+
+    if (!fp)
+    {
+        fprintf(stderr, "write_fsl_matrix: cannot open '%s'\n", filename);
+        return -1;
+    }
+    for (r = 0; r < 4; r++)
+        fprintf(fp, "%f %f %f %f \n", m[4 * r], m[4 * r + 1], m[4 * r + 2],
+                m[4 * r + 3]);
+    return fclose(fp) == 0 ? 0 : -1;
+}
+
+/**
  * \brief Make a NIfTI header describe a single 3D volume.
  *
  * The writers always store nx*ny*nz voxels. A template header taken from a 4D
@@ -171,6 +365,34 @@ static void set_single_volume(nifti_image *nii_ptr)
     nii_ptr->dim[3] = nii_ptr->nz;
     for (i = 4; i < MAX_NII_DIMS; i++)
         nii_ptr->dim[i] = 1;
+}
+
+/**
+ * \brief Make a NIfTI header describe nt 3D volumes of a time series.
+ *
+ * Counterpart of set_single_volume() for the 4D writer. The time step of a 4D
+ * template header is kept; a header without one gets 1.
+ *
+ * \param nii_ptr (in/out) header of the series about to be written; nx, ny and nz must be set
+ * \param nt      (in)     number of volumes, at least 2
+ */
+static void set_volumes(nifti_image *nii_ptr, int nt)
+{
+    int i;
+
+    nii_ptr->ndim = 4;
+    nii_ptr->nt = nt;
+    nii_ptr->nu = nii_ptr->nv = nii_ptr->nw = 1;
+    nii_ptr->dim[0] = 4;
+    nii_ptr->dim[1] = nii_ptr->nx;
+    nii_ptr->dim[2] = nii_ptr->ny;
+    nii_ptr->dim[3] = nii_ptr->nz;
+    nii_ptr->dim[4] = nt;
+    for (i = 5; i < MAX_NII_DIMS; i++)
+        nii_ptr->dim[i] = 1;
+    if (!(nii_ptr->dt > 0.0))
+        nii_ptr->dt = 1.0;
+    nii_ptr->pixdim[4] = nii_ptr->dt;
 }
 
 /**
@@ -505,28 +727,31 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
 }
 
 /**
- * \brief Write single-precision volume data to NIfTI file with type conversion.
+ * \brief Write nt float volumes to a NIfTI file with type conversion.
  *
- * Exports a 3D volume array (stored as linear float array) to NIfTI format.
- * Converts from float to specified output datatype. Similar to write_nifti_double
- * but accepts input as single-precision floats. Useful when source data is already
- * float and double conversion overhead should be avoided. The file always holds a
- * single 3D volume, also when the template header comes from a 4D file.
+ * Shared body of write_nifti_float() (nt = 1) and write_nifti_float_4d(). The
+ * volumes follow one another in image, as the readers return them. Float32
+ * output is written straight from image instead of from a converted copy: the
+ * values would be identical, and a copy doubles the memory a 4D series needs.
  *
  * \param output_filename (in) path to output .nii/.nii.gz file
- * \param image           (in) linear array of float voxel values
+ * \param image           (in) nt volumes of dim[0]*dim[1]*dim[2] float values
  * \param data_type       (in) target NIfTI datatype
  * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
- * \param dim            (in) array of 3 image dimensions [nx, ny, nz]
- * \param vox            (in) array of 3 voxel spacings [dx, dy, dz]
- * \param in_ptr         (in) optional template NIfTI header; NULL to use defaults
+ * \param dim             (in) array of 3 image dimensions [nx, ny, nz]
+ * \param nt              (in) number of volumes; 1 writes a 3D file
+ * \param vox             (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr          (in) optional template NIfTI header; NULL to use defaults
  * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
  */
-int write_nifti_float(const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
+static int write_nifti_float_volumes(const char *output_filename, float image[],
+                                     int data_type, double slope, int dim[], int nt,
+                                     double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
     char *extension, buffer[1024];
-    int i;
+    size_t i;
+    int borrowed = 0;
     double img_range[2], dt_range[2], val;
 
     if ((data_type != DT_UINT8) &&
@@ -586,8 +811,11 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
     nii_ptr->data = NULL;
     nii_ptr->scl_slope = slope;
     nii_ptr->scl_inter = 0;
-    nii_ptr->nvox = dim[0] * dim[1] * dim[2];
-    set_single_volume(nii_ptr);
+    nii_ptr->nvox = (size_t)dim[0] * (size_t)dim[1] * (size_t)dim[2] * (size_t)nt;
+    if (nt > 1)
+        set_volumes(nii_ptr, nt);
+    else
+        set_single_volume(nii_ptr);
 
     /* for floating data no rescaling is necessary */
     if ((slope == 0.0) && ((data_type == DT_FLOAT32) || (data_type == DT_FLOAT64)))
@@ -774,22 +1002,11 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
         }
         break;
     case DT_FLOAT32:
+        /* slope is never 0 here (reset above), so every value is image[i]
+           itself: write the caller's buffer instead of a copy of it */
         nii_ptr->nbyper = 4;
-        nii_ptr->data = (float *)malloc(sizeof(float) * nii_ptr->nvox);
-        /* check for memory */
-        if (!nii_ptr->data)
-        {
-            fprintf(stderr, "Memory allocation error\n");
-            return (0);
-        }
-        for (i = 0; i < nii_ptr->nvox; i++)
-        {
-            if (slope == 0.0)
-                val = (double)(image[i] - (float)nii_ptr->scl_inter) / (float)nii_ptr->scl_slope;
-            else
-                val = (double)image[i];
-            ((float *)nii_ptr->data)[i] = val;
-        }
+        nii_ptr->data = image;
+        borrowed = 1;
         break;
     case DT_FLOAT64:
         nii_ptr->nbyper = 8;
@@ -825,10 +1042,66 @@ int write_nifti_float(const char *output_filename, float image[], int data_type,
 
     nifti_image_write(nii_ptr);
 
-    free(nii_ptr->data);
+    if (!borrowed)
+        free(nii_ptr->data);
     nii_ptr->data = NULL;
 
     return (1);
+}
+
+/**
+ * \brief Write single-precision volume data to NIfTI file with type conversion.
+ *
+ * Exports a 3D volume array (stored as linear float array) to NIfTI format.
+ * Converts from float to specified output datatype. Similar to write_nifti_double
+ * but accepts input as single-precision floats. Useful when source data is already
+ * float and double conversion overhead should be avoided. The file always holds a
+ * single 3D volume, also when the template header comes from a 4D file.
+ *
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) linear array of float voxel values
+ * \param data_type       (in) target NIfTI datatype
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim            (in) array of 3 image dimensions [nx, ny, nz]
+ * \param vox            (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr         (in) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
+ */
+int write_nifti_float(const char *output_filename, float image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
+{
+    return write_nifti_float_volumes(output_filename, image, data_type, slope,
+                                     dim, 1, vox, in_ptr);
+}
+
+/**
+ * \brief Write a single-precision 4D time series to a NIfTI file.
+ *
+ * Like write_nifti_float(), but the file holds nt volumes, stored one after
+ * the other in image as read_nifti_float() returns them. The header describes
+ * a 4D image (dim[4] = nt); the time step of a 4D template is kept, otherwise
+ * it is set to 1. With nt = 1 this is write_nifti_float().
+ *
+ * \param output_filename (in) path to output .nii/.nii.gz file
+ * \param image           (in) nt volumes of dim[0]*dim[1]*dim[2] float values
+ * \param data_type       (in) target NIfTI datatype
+ * \param slope           (in) optional scaling slope; 0.0 for auto-scaling
+ * \param dim             (in) array of 3 image dimensions [nx, ny, nz]
+ * \param nt              (in) number of volumes (at least 1)
+ * \param vox             (in) array of 3 voxel spacings [dx, dy, dz]
+ * \param in_ptr          (in) optional template NIfTI header; NULL to use defaults
+ * \return 1 on success; 0 on error (invalid datatype, no extension, write failed)
+ */
+int write_nifti_float_4d(const char *output_filename, float image[], int data_type,
+                         double slope, int dim[], int nt, double vox[],
+                         nifti_image *in_ptr)
+{
+    if (nt < 1)
+    {
+        fprintf(stderr, "write_nifti_float_4d: invalid number of volumes %d.\n", nt);
+        return (0);
+    }
+    return write_nifti_float_volumes(output_filename, image, data_type, slope,
+                                     dim, nt, vox, in_ptr);
 }
 
 /**
@@ -853,7 +1126,7 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
 {
     nifti_image *nii_ptr;
     double tmp;
-    int i;
+    size_t i;
 
     nii_ptr = nifti_image_read(input_filename, 1);
     if (!nii_ptr)
@@ -907,6 +1180,9 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
             break;
         default:
             fprintf(stderr, "read_nifti_double: Unknown datatype\n");
+            free(*image);
+            *image = NULL;
+            nifti_image_free(nii_ptr);
             return (NULL);
             break;
         }
@@ -916,6 +1192,9 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
         else
             (*image)[i] = (nii_ptr->scl_slope * tmp) + nii_ptr->scl_inter;
     }
+
+    /* sto_xyz is what libCAT maps voxels with; a qform-only file left it zero */
+    set_world_matrix(nii_ptr);
 
     /* ensure that nvox is that of a 3D image */
     if (nii_ptr->nt > 1)
@@ -940,16 +1219,21 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
  * Similar to read_nifti_double but saves memory for large volumes where double
  * precision is not required. Handles all NIfTI datatypes and applies scaling corrections.
  *
+ * A 4D file is returned as its nt volumes one after the other: volume v starts at
+ * image[v * nvox], where nvox of the returned header is the voxel count of ONE
+ * volume (nx*ny*nz) and nt the number of volumes.
+ *
  * \param input_filename (in)  path to NIfTI file
- * \param image          (out) pointer to allocated float array (size nx*ny*nz)
- * \param read_data      (in)  if non-zero, read voxel data; if 0, read header only
+ * \param image          (out) pointer to allocated float array (size nx*ny*nz*nt)
+ * \param read_data      (in)  if non-zero, keep the raw NIfTI data in the returned
+ *                             header; if 0, release it (image is returned either way)
  * \return pointer to NIfTI image structure on success; NULL on error
  */
 nifti_image *read_nifti_float(const char *input_filename, float *image[], int read_data)
 {
     nifti_image *nii_ptr;
     float tmp;
-    int i;
+    size_t i;
 
     nii_ptr = nifti_image_read(input_filename, 1);
     if (!nii_ptr)
@@ -958,13 +1242,16 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
         return (NULL);
     }
 
-    /* read as float format */
-    *image = (float *)malloc(sizeof(float) * nii_ptr->nvox * nii_ptr->nt);
+    /* read as float format; nvox already counts all dimensions, also the
+       volumes of a 4D file -- multiplying by nt again asked a 300-volume
+       64x64x36 series for 53 GB */
+    *image = (float *)malloc(sizeof(float) * nii_ptr->nvox);
 
     /* check for memory */
-    if (!image)
+    if (!*image)
     {
         fprintf(stderr, "read_nifti_float: Memory allocation error\n");
+        nifti_image_free(nii_ptr);
         return (NULL);
     }
 
@@ -1001,6 +1288,9 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
             break;
         default:
             fprintf(stderr, "read_nifti_float: Unknown datatype\n");
+            free(*image);
+            *image = NULL;
+            nifti_image_free(nii_ptr);
             return (NULL);
             break;
         }
@@ -1011,6 +1301,9 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
             (*image)[i] = ((float)nii_ptr->scl_slope * tmp) + (float)nii_ptr->scl_inter;
     }
 
+    /* sto_xyz is what libCAT maps voxels with; a qform-only file left it zero */
+    set_world_matrix(nii_ptr);
+
     /* ensure that nvox is that of a 3D image */
     if (nii_ptr->nt > 1)
     {
@@ -1019,7 +1312,10 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
     }
 
     if (!read_data)
+    {
         free(nii_ptr->data);
+        nii_ptr->data = NULL;
+    }
 
     return (nii_ptr);
 }

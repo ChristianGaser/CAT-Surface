@@ -9,8 +9,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
 # Included by the tests rather than compiled on their own.
 EXTRA_DIST = minunit.h math_subset.c
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign
 
 test_math_SOURCES = test_math.c
 
@@ -71,3 +71,11 @@ test_volaverage_LDADD = $(top_builddir)/libCAT.la -lm
 test_bspline_SOURCES = test_bspline.c
 
 test_bspline_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_volumereg_SOURCES = test_volumereg.c
+
+test_volumereg_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_volrealign_SOURCES = test_volrealign.c
+
+test_volrealign_LDADD = $(top_builddir)/libCAT.la -lm

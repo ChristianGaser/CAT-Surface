@@ -331,6 +331,7 @@ noinst_HEADERS = \
     Include/CAT_ArgvCheck.h \
     Include/CAT_BBReg.h \
     Include/CAT_VolumeReg.h \
+    Include/CAT_VolRealign.h \
     Include/CAT_Deform.h \
     Include/CAT_LayerSmooth.h \
     Include/CAT_Nlm.h \
@@ -425,7 +426,8 @@ libCAT_la_SOURCES = \
     Lib/CAT_SafeAlloc.c \
     Lib/CAT_ArgvCheck.c \
     Lib/CAT_BBReg.c \
-    Lib/CAT_VolumeReg.c
+    Lib/CAT_VolumeReg.c \
+    Lib/CAT_VolRealign.c
 .PHONY: docs docs-clean
 
 docs:
