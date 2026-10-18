@@ -35,6 +35,14 @@ typedef struct
     double sijk[16]; /* world→voxel, row-major */
 } VLevel;
 
+/* Gaussian pyramid of one volume: lv[0] is the volume itself, lv[l] has been
+ * blurred and subsampled l times. */
+struct CAT_VolPyramid
+{
+    int     n_levels;
+    VLevel *lv;
+};
+
 /* =========================================================================
  * Low-level helpers
  * ========================================================================= */
@@ -149,55 +157,64 @@ static float *downsample2(const float *vol, int nx, int ny, int nz,
     return out;
 }
 
-/* Build pyramid level: smooth then downsample 2^(level) times.
- * Level 0 = original; level k = 1/2^k resolution.
- * sxyz_in/sijk_in are the original world<->voxel matrices. */
-static VLevel build_level(const float *vol, int nx, int ny, int nz,
-                          const double sxyz_in[16],
-                          int level)
+/* world→voxel matrix of a level: the inverse of its voxel→world matrix */
+static void set_world_to_voxel(VLevel *lv)
 {
-    VLevel lv;
-    float *cur = (float *)malloc((size_t)nx * ny * nz * sizeof(float));
-    memcpy(cur, vol, (size_t)nx * ny * nz * sizeof(float));
-    int cx = nx, cy = ny, cz = nz;
-
-    int l;
-    for (l = 0; l < level; l++)
-    {
-        /* Anti-aliasing: blur by 0.5 voxels before subsampling */
-        smooth_vol(cur, cx, cy, cz, 0.5);
-        int nx2, ny2, nz2;
-        float *next = downsample2(cur, cx, cy, cz, &nx2, &ny2, &nz2);
-        free(cur);
-        cur = next;
-        cx = nx2; cy = ny2; cz = nz2;
-    }
-
-    lv.data = cur;
-    lv.nx = cx; lv.ny = cy; lv.nz = cz;
-
-    /* Scale the voxel→world matrix: voxel size doubles at each level */
+    mat44 m44, inv44;
     int r, c;
-    double scale = (double)(1 << level);
-    for (r = 0; r < 4; r++)
-        for (c = 0; c < 4; c++)
-        {
-            double v = sxyz_in[r * 4 + c];
-            /* Scale the rotation/scale columns (0-2) */
-            lv.sxyz[r * 4 + c] = (c < 3) ? v * scale : v;
-        }
 
-    /* Compute world→voxel by inverting sxyz (rigid, use transpose trick) */
-    mat44 m44;
     for (r = 0; r < 4; r++)
         for (c = 0; c < 4; c++)
-            m44.m[r][c] = (float)lv.sxyz[r * 4 + c];
-    mat44 inv44 = nifti_mat44_inverse(m44);
+            m44.m[r][c] = (float)lv->sxyz[r * 4 + c];
+    inv44 = nifti_mat44_inverse(m44);
     for (r = 0; r < 4; r++)
         for (c = 0; c < 4; c++)
-            lv.sijk[r * 4 + c] = (double)inv44.m[r][c];
+            lv->sijk[r * 4 + c] = (double)inv44.m[r][c];
+}
 
-    return lv;
+/* Finest pyramid level: a copy of the volume.  Returns 0 if out of memory. */
+static int first_level(const float *vol, int nx, int ny, int nz,
+                       const double sxyz[16], VLevel *lv)
+{
+    size_t n = (size_t)nx * ny * nz;
+
+    lv->data = (float *)malloc(n * sizeof(float));
+    if (!lv->data)
+        return 0;
+    memcpy(lv->data, vol, n * sizeof(float));
+    lv->nx = nx; lv->ny = ny; lv->nz = nz;
+    memcpy(lv->sxyz, sxyz, 16 * sizeof(double));
+    set_world_to_voxel(lv);
+    return 1;
+}
+
+/* Next coarser level: blur a copy of `fine` by 0.5 voxels (anti-aliasing),
+ * then keep every second voxel.  The voxel→world columns double, which is
+ * exact in floating point, so building level by level gives what repeating
+ * the blur and subsampling from the finest level would.  Returns 0 if out of
+ * memory. */
+static int coarser_level(const VLevel *fine, VLevel *lv)
+{
+    size_t n = (size_t)fine->nx * fine->ny * fine->nz;
+    float *cur = (float *)malloc(n * sizeof(float));
+    int r, c;
+
+    if (!cur)
+        return 0;
+    memcpy(cur, fine->data, n * sizeof(float));
+    smooth_vol(cur, fine->nx, fine->ny, fine->nz, 0.5);
+    lv->data = downsample2(cur, fine->nx, fine->ny, fine->nz,
+                           &lv->nx, &lv->ny, &lv->nz);
+    free(cur);
+    if (!lv->data)
+        return 0;
+
+    for (r = 0; r < 4; r++)
+        for (c = 0; c < 4; c++)
+            lv->sxyz[r * 4 + c] = (c < 3) ? 2.0 * fine->sxyz[r * 4 + c]
+                                          : fine->sxyz[r * 4 + c];
+    set_world_to_voxel(lv);
+    return 1;
 }
 
 /* =========================================================================
@@ -552,7 +569,139 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
  * ========================================================================= */
 
 /**
+ * \brief Build the Gaussian image pyramid of one volume.
+ *
+ * Level 0 is a copy of the volume; every further level blurs the previous one
+ * by 0.5 voxels and keeps every second voxel along each axis, with the
+ * voxel-to-world matrix scaled to match.  The volume is not referenced after
+ * the call.
+ *
+ * \param vol      (in) volume data (float, x fastest)
+ * \param nii      (in) header whose sto_xyz maps voxels to world coordinates
+ * \param dims     (in) [nx, ny, nz]
+ * \param n_levels (in) number of levels, clamped to 1..6
+ * \return the pyramid, or NULL if out of memory; free with
+ *         CAT_VolumeReg_pyramid_free()
+ */
+CAT_VolPyramid *
+CAT_VolumeReg_pyramid(const float *vol, const nifti_image *nii,
+                      const int dims[3], int n_levels)
+{
+    CAT_VolPyramid *pyr;
+    double sxyz[16];
+    int l, ok;
+
+    if (n_levels < 1) n_levels = 1;
+    if (n_levels > 6) n_levels = 6;
+
+    pyr = (CAT_VolPyramid *)malloc(sizeof(CAT_VolPyramid));
+    if (!pyr)
+        return NULL;
+    pyr->lv = (VLevel *)calloc((size_t)n_levels, sizeof(VLevel));
+    if (!pyr->lv)
+    {
+        free(pyr);
+        return NULL;
+    }
+    pyr->n_levels = n_levels;
+
+    mat44_to_d16(nii->sto_xyz, sxyz);
+    ok = first_level(vol, dims[0], dims[1], dims[2], sxyz, &pyr->lv[0]);
+    for (l = 1; ok && l < n_levels; l++)
+        ok = coarser_level(&pyr->lv[l - 1], &pyr->lv[l]);
+    if (!ok)
+    {
+        CAT_VolumeReg_pyramid_free(pyr);
+        return NULL;
+    }
+    return pyr;
+}
+
+/**
+ * \brief Release a pyramid from CAT_VolumeReg_pyramid().
+ *
+ * \param pyr (in/out) pyramid to free; NULL is ignored
+ */
+void
+CAT_VolumeReg_pyramid_free(CAT_VolPyramid *pyr)
+{
+    int l;
+
+    if (!pyr)
+        return;
+    for (l = 0; l < pyr->n_levels; l++)
+        free(pyr->lv[l].data);
+    free(pyr->lv);
+    free(pyr);
+}
+
+/**
+ * \brief Robust rigid registration of two prepared pyramids.
+ *
+ * Runs the Tukey-biweight Gauss-Newton registration of
+ * CAT_VolumeReg_register() coarse to fine over the levels both pyramids have.
+ * A reference that many volumes are registered to only needs its pyramid built
+ * once.
+ *
+ * \param fixed    (in)     pyramid of the reference volume
+ * \param moving   (in)     pyramid of the moving volume
+ * \param p        (in/out) initial and estimated rigid parameters (fixed→moving)
+ * \param sat_k    (in)     Tukey saturation multiplier (4.685 = Gaussian 95%)
+ * \param max_iter (in)     IRLS iterations per level
+ * \param verbose  (in)     non-zero to print progress
+ * \return final normalised residual (lower = better alignment)
+ */
+double
+CAT_VolumeReg_register_pyramids(const CAT_VolPyramid *fixed,
+                                const CAT_VolPyramid *moving,
+                                CAT_RigidParams *p,
+                                double sat_k,
+                                int max_iter,
+                                int verbose)
+{
+    int n_levels = (fixed->n_levels < moving->n_levels) ? fixed->n_levels
+                                                        : moving->n_levels;
+    double final_res = 1.0;
+    int l;
+
+    /* Coarse-to-fine: level (n_levels-1) → 0 */
+    for (l = n_levels - 1; l >= 0; l--)
+    {
+        const VLevel *fl = &fixed->lv[l], *ml = &moving->lv[l];
+
+        if (verbose)
+            printf("VolumeReg level %d  (%dx%dx%d fixed, %dx%dx%d moving)\n",
+                   l, fl->nx, fl->ny, fl->nz, ml->nx, ml->ny, ml->nz);
+
+        final_res = register_level(fl, ml, p, sat_k, max_iter, verbose, l);
+
+        if (verbose)
+            printf("  → residual=%.4f  tx=%.2f ty=%.2f tz=%.2f"
+                   "  rx=%.4f ry=%.4f rz=%.4f\n",
+                   final_res, p->tx, p->ty, p->tz, p->rx, p->ry, p->rz);
+    }
+    return final_res;
+}
+
+/**
  * \brief Robust multi-resolution volume-to-volume rigid registration.
+ *
+ * Builds the pyramids of both volumes and calls
+ * CAT_VolumeReg_register_pyramids().  To register many volumes to one
+ * reference, build the reference pyramid once and call that directly.
+ *
+ * \param fixed_vol   (in)  reference volume data (float, x fastest)
+ * \param fixed_nii   (in)  NIfTI header of the reference volume
+ * \param fixed_dims  (in)  [nx, ny, nz] of the reference volume
+ * \param moving_vol  (in)  moving volume data (float)
+ * \param moving_nii  (in)  NIfTI header of the moving volume
+ * \param moving_dims (in)  [nx, ny, nz] of the moving volume
+ * \param p_out       (in/out) initial and estimated 6-DOF rigid parameters
+ * \param n_levels    (in)  Gaussian pyramid levels (3–4 recommended)
+ * \param sat_k       (in)  Tukey saturation multiplier (4.685 = Gaussian 95%)
+ * \param max_iter    (in)  IRLS iterations per level (10–20)
+ * \param verbose     (in)  non-zero to print progress
+ * \return            final normalised residual (lower = better alignment)
  */
 double
 CAT_VolumeReg_register(float *fixed_vol,
@@ -567,55 +716,19 @@ CAT_VolumeReg_register(float *fixed_vol,
                        int max_iter,
                        int verbose)
 {
-    double fsxyz[16], msxyz[16];
-    mat44_to_d16(fixed_nii->sto_xyz,  fsxyz);
-    mat44_to_d16(moving_nii->sto_xyz, msxyz);
-
-    /* Clamp n_levels to a sensible range */
-    if (n_levels < 1) n_levels = 1;
-    if (n_levels > 6) n_levels = 6;
-
-    /* Build pyramids for fixed and moving */
-    VLevel *fpyr = (VLevel *)malloc((size_t)n_levels * sizeof(VLevel));
-    VLevel *mpyr = (VLevel *)malloc((size_t)n_levels * sizeof(VLevel));
-    if (!fpyr || !mpyr) { free(fpyr); free(mpyr); return 1.0; }
-
-    int l;
-    for (l = 0; l < n_levels; l++)
-    {
-        fpyr[l] = build_level(fixed_vol,  fixed_dims[0],  fixed_dims[1],  fixed_dims[2],  fsxyz, l);
-        mpyr[l] = build_level(moving_vol, moving_dims[0], moving_dims[1], moving_dims[2], msxyz, l);
-    }
-
-    /* Initialise parameters from caller (or zero if unset) */
-    CAT_RigidParams p = *p_out;
-
+    CAT_VolPyramid *fpyr, *mpyr;
     double final_res = 1.0;
 
-    /* Coarse-to-fine: level (n_levels-1) → 0 */
-    for (l = n_levels - 1; l >= 0; l--)
-    {
-        if (verbose)
-            printf("VolumeReg level %d  (%dx%dx%d fixed, %dx%dx%d moving)\n",
-                   l,
-                   fpyr[l].nx, fpyr[l].ny, fpyr[l].nz,
-                   mpyr[l].nx, mpyr[l].ny, mpyr[l].nz);
+    fpyr = CAT_VolumeReg_pyramid(fixed_vol, fixed_nii, fixed_dims, n_levels);
+    mpyr = CAT_VolumeReg_pyramid(moving_vol, moving_nii, moving_dims, n_levels);
+    if (fpyr && mpyr)
+        final_res = CAT_VolumeReg_register_pyramids(fpyr, mpyr, p_out,
+                                                    sat_k, max_iter, verbose);
+    else
+        fprintf(stderr, "CAT_VolumeReg_register: out of memory\n");
 
-        final_res = register_level(&fpyr[l], &mpyr[l],
-                                   &p, sat_k, max_iter, verbose, l);
-
-        if (verbose)
-            printf("  → residual=%.4f  tx=%.2f ty=%.2f tz=%.2f"
-                   "  rx=%.4f ry=%.4f rz=%.4f\n",
-                   final_res, p.tx, p.ty, p.tz, p.rx, p.ry, p.rz);
-    }
-
-    *p_out = p;
-
-    /* Free pyramids */
-    for (l = 0; l < n_levels; l++) { free(fpyr[l].data); free(mpyr[l].data); }
-    free(fpyr); free(mpyr);
-
+    CAT_VolumeReg_pyramid_free(fpyr);
+    CAT_VolumeReg_pyramid_free(mpyr);
     return final_res;
 }
 
@@ -1023,29 +1136,24 @@ CAT_VolumeReg_register_NMI(float *fixed_vol,
                             int verbose)
 {
     int l, j;
-    double fsxyz[16], msxyz[16];
-    mat44_to_d16(fixed_nii->sto_xyz,  fsxyz);
-    mat44_to_d16(moving_nii->sto_xyz, msxyz);
 
-    if (n_levels < 1)  n_levels = 1;
-    if (n_levels > 6)  n_levels = 6;
     if (n_bins  < 16)  n_bins   = 16;
     if (n_bins  > 256) n_bins   = 256;
 
     /* Build Gaussian pyramids */
-    VLevel *fpyr = (VLevel *)malloc((size_t)n_levels * sizeof(VLevel));
-    VLevel *mpyr = (VLevel *)malloc((size_t)n_levels * sizeof(VLevel));
-    if (!fpyr || !mpyr) { free(fpyr); free(mpyr); return 0.0; }
-
-    for (l = 0; l < n_levels; l++)
+    CAT_VolPyramid *fpyramid = CAT_VolumeReg_pyramid(fixed_vol, fixed_nii,
+                                                     fixed_dims, n_levels);
+    CAT_VolPyramid *mpyramid = CAT_VolumeReg_pyramid(moving_vol, moving_nii,
+                                                     moving_dims, n_levels);
+    if (!fpyramid || !mpyramid)
     {
-        fpyr[l] = build_level(fixed_vol,
-                              fixed_dims[0],  fixed_dims[1],  fixed_dims[2],
-                              fsxyz, l);
-        mpyr[l] = build_level(moving_vol,
-                              moving_dims[0], moving_dims[1], moving_dims[2],
-                              msxyz, l);
+        CAT_VolumeReg_pyramid_free(fpyramid);
+        CAT_VolumeReg_pyramid_free(mpyramid);
+        return 0.0;
     }
+    n_levels = fpyramid->n_levels;
+    VLevel *fpyr = fpyramid->lv;
+    VLevel *mpyr = mpyramid->lv;
 
     /* Compute intensity normalisation from the coarsest level (fastest).
      * Clip to 1st–99th percentile to suppress outlier voxels. */
@@ -1105,13 +1213,8 @@ CAT_VolumeReg_register_NMI(float *fixed_vol,
 
     *p_out = p;
 
-    for (l = 0; l < n_levels; l++)
-    {
-        free(fpyr[l].data);
-        free(mpyr[l].data);
-    }
-    free(fpyr);
-    free(mpyr);
+    CAT_VolumeReg_pyramid_free(fpyramid);
+    CAT_VolumeReg_pyramid_free(mpyramid);
 
     return final_nmi;
 }
