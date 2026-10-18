@@ -541,7 +541,7 @@ static double line_cost(const LineCtx *ctx, double t)
 
 static double brent_minimize(const LineCtx *ctx,
                              double ax, double bx, double cx,
-                             double tol, double *fmin)
+                             double tol, double abs_tol, double *fmin)
 {
     int iter;
     double a, b, d = 0.0, e = 0.0, etemp, fu, fv, fw, fx;
@@ -555,7 +555,7 @@ static double brent_minimize(const LineCtx *ctx,
     for (iter = 0; iter < BRENT_ITMAX; iter++)
     {
         xm = 0.5 * (a + b);
-        tol1 = tol * fabs(x) + BRENT_ZEPS;
+        tol1 = tol * fabs(x) + abs_tol;
         tol2 = 2.0 * tol1;
 
         if (fabs(x - xm) <= (tol2 - 0.5 * (b - a)))
@@ -653,9 +653,14 @@ static double line_minimize(const LineCtx *ctx,
     }
     if (f1 > f0)
     {
-        *t_out = 0.0;
-        return f0;
-    } /* no descent direction */
+        /* Both neighbours are uphill, so the minimum lies between them.
+         * Returning 0 here left every parameter within a step of its optimum
+         * unrefined: 0.5 mm and 0.005 rad after the grid search.  The
+         * absolute tolerance replaces |x|-relative termination, which
+         * starting from 0 would chase the optimum to 1e-10. */
+        *t_out = brent_minimize(ctx, -step, 0.0, step, 1e-4, 1e-2 * step, &fmin);
+        return fmin;
+    }
 
     /* Expand bracket until we find a minimum */
     double t2 = t1 * 1.618;
@@ -672,7 +677,7 @@ static double line_minimize(const LineCtx *ctx,
     }
 
     /* Brent on [t0, t2] with initial guess t1 */
-    double tmin = brent_minimize(ctx, t0, t1, t2, 1e-4, &fmin);
+    double tmin = brent_minimize(ctx, t0, t1, t2, 1e-4, BRENT_ZEPS, &fmin);
     *t_out = tmin;
     return fmin;
 }

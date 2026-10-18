@@ -1034,7 +1034,7 @@ static double nmi_line_cost(const NMILineCtx *ctx, double t)
 /* Brent's 1-D minimiser; same algorithm as in CAT_BBReg.c */
 static double nmi_brent(const NMILineCtx *ctx,
                         double ax, double bx, double cx,
-                        double tol, double *fmin)
+                        double tol, double abs_tol, double *fmin)
 {
     int iter;
     double a, b, d = 0.0, e = 0.0, etemp, fu, fv, fw, fx;
@@ -1048,7 +1048,7 @@ static double nmi_brent(const NMILineCtx *ctx,
     for (iter = 0; iter < 100; iter++)
     {
         xm   = 0.5 * (a + b);
-        tol1 = tol * fabs(x) + 1.0e-10;
+        tol1 = tol * fabs(x) + abs_tol;
         tol2 = 2.0 * tol1;
         if (fabs(x - xm) <= (tol2 - 0.5 * (b - a))) { *fmin = fx; return x; }
 
@@ -1110,7 +1110,16 @@ static double nmi_line_minimize(const NMILineCtx *ctx,
 
     /* Ensure we step downhill first */
     if (f1 > f0) { t1 = -step; f1 = nmi_line_cost(ctx, t1); }
-    if (f1 > f0) { *t_out = 0.0; return f0; }
+    if (f1 > f0)
+    {
+        /* Both neighbours are uphill, so the minimum lies between them.
+         * Returning 0 here left every parameter within a step of its optimum
+         * at its start value -- 28 of 60 parameters of 10 test registrations
+         * stayed exactly 0.  The absolute tolerance replaces |x|-relative
+         * termination, which starting from 0 would chase it to 1e-10. */
+        *t_out = nmi_brent(ctx, -step, 0.0, step, 1e-4, 1e-2 * step, &fmin);
+        return fmin;
+    }
 
     /* Expand bracket with golden ratio until we bracket a minimum */
     double t2 = t1 * 1.618, f2 = nmi_line_cost(ctx, t2);
@@ -1123,7 +1132,7 @@ static double nmi_line_minimize(const NMILineCtx *ctx,
         f2 = nmi_line_cost(ctx, t2);
     }
 
-    double tmin = nmi_brent(ctx, t0, t1, t2, 1e-4, &fmin);
+    double tmin = nmi_brent(ctx, t0, t1, t2, 1e-4, 1.0e-10, &fmin);
     *t_out = tmin;
     return fmin;
 }
