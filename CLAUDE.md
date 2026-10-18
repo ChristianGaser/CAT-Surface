@@ -842,6 +842,64 @@ Measured and deliberately not done:
 - Fusing the valley and the signed sheetness runs in marching cubes (~1.4 s): the signed run
   sees the PPM after the gyri-mask offset, so fusing changes results.
 
+## Head-motion correction (`CAT_VolRealign`, an mcflirt replacement)
+
+`CAT_VolRealign` (`Include/CAT_VolRealign.h`, `cat_surf.vol_realign`,
+`cat_surf.cli.vol_realign`) replaces FSL `mcflirt` for what fMRIPrep's head-motion workflow
+uses: `mcflirt -in bold -out bold_mcf.nii.gz -reffile boldref -mats -plots -rmsabs -rmsrel`,
+everything else at the default.  fMRIPrep reads only the MAT files (to ITK for its single
+resampling), the `.par` (motion confounds and FD) and `_rel.rms` (`rmsd`); the realigned series
+is written but never read.  `CatSurfVolRealign` in `cat_surface_cython/examples/nipype` carries
+`fsl.MCFLIRT`'s input and output names, so that node can be swapped without new connections.
+
+**The output conventions are mcflirt's and were checked against it** (FSL 6.0.7.23), because
+FD and the ITK transforms are computed from them.  Given mcflirt's own matrices the library
+reproduces its `.par` to 5e-7 rad and 1e-4 mm and its RMS files to 1.5e-4 mm, i.e. to the
+precision of FSL's text output:
+
+- Names append to the whole `-out` string: `bold_mcf.nii.gz.par`, `bold_mcf.nii.gz.mat/MAT_0000`,
+  `bold_mcf.nii.gz_abs.rms` (Nipype computes these paths itself).
+- MAT files map the volume to the reference in FSL's scaled-voxel coordinates: voxel times
+  pixdim, x reversed for neurological storage (`vox2fsl_matrix()`, `ras_to_fsl_matrix()`).
+- `.par` is rx ry rz (rad) tx ty tz (mm) with R = Rx Ry Rz, the translation taken after
+  rotating about the reference's **centre of mass** -- computed, as FSL does, from the
+  intensities **minus the image minimum** (an offset of 1000 moves it, and the translations,
+  by 0.05 mm otherwise).  FD uses these translations.
+- The RMS is Jenkinson's over an 80 mm sphere around the **grid centre** (n - 1) / 2 * pixdim,
+  not the centre of mass; `_abs.rms` has nt values, `_rel.rms` nt - 1.
+
+The registration is CAT_VolumeReg's robust Gauss-Newton, outward from the middle volume on two
+threads, each volume starting from its neighbour's estimate (as mcflirt), with the reference
+pyramid built once.  **The global intensity scale is what makes it usable here**: fMRIPrep's
+boldref is usually the median of the non-steady-state volumes, brighter than the series, and
+without the scale most of the brain is a Tukey outlier.  Error against known motion (mean / max
+mm, 60 synthetic EPI volumes of 3 mm each):
+
+| series | CAT_VolRealign | without the scale | mcflirt |
+| --- | --- | --- | --- |
+| fMRIPrep-like, brighter `-reffile` | **0.038 / 0.087** | 1.41 / 4.18 | 0.286 / 0.611 |
+| smooth drift, `-refvol 30` | **0.046 / 0.090** | 0.042 / 0.078 | 0.100 / 0.161 |
+| random jumps of 2 deg / 2 mm (24 volumes) | **0.032 / 0.054** | -- | 0.320 / 1.177 |
+
+A run takes about as long as mcflirt (6.7 s against 6 s for 60 volumes of 60x72x60).  3 and 4
+pyramid levels gave identical results; 3 is the default because an EPI with few slices would
+have a nearly empty fourth level.  Synthetic motion is perfectly rigid with white noise, so the
+advantage over mcflirt still needs confirming on real runs (FD, `rmsd`, tSNR).  mcflirt aborts
+on a `-reffile` with another grid; CAT_VolRealign resamples into it.
+
+Along the way, `CAT_VolumeReg` sorted all residuals twice per iteration for the MAD (now Hoare
+selection, 2.9x faster, bit-identical), rebuilt the reference pyramid per call (now
+`CAT_VolumeReg_pyramid()`), and every libCAT reader left `sto_xyz` zero for qform-only files
+(now `set_world_matrix()`: the sform, else the qform -- a qform-only pair used to register to
+the identity, silently).
+
+**The Powell line searches of BBR and the NMI path gave up when both trial steps were
+uphill** -- the one case where the minimum is bracketed -- so any parameter within a step of its
+optimum stayed put (0.5 mm / 0.005 rad for BBR after its grid search; 28 of 60 NMI parameters
+stayed exactly at 0 in a test).  With Brent on [-step, step], NMI went from 0.87 to 0.05 mm on
+same-modality pairs and BBR from 0.37 to 0.21 mm on BOLD-like images synthesised from the MNI
+template's tissue maps (better in all 8 trials), at about 1.7x the BBR run time.
+
 ## Architecture rules
 
 1. **Library-first:** All non-trivial logic belongs in `Lib/`, not `Progs/`.

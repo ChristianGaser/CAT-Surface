@@ -198,7 +198,8 @@ sizes`, `sto_xyz`).
 | `bbreg` | Full BBR pipeline: optional NMI init → boundary-based surface registration |
 | `bbreg_detect_contrast` | Auto-detect T1/FLAIR vs T2/BOLD from WM/GM intensity ratio |
 | `volume_register_nmi` | Cross-modal rigid registration via Normalised Mutual Information (≈ `mri_coreg`) |
-| `volume_register_robust` | Same-modality rigid registration via Tukey biweight M-estimation (≈ `mri_robust_register`) |
+| `volume_register_robust` | Same-modality rigid registration via Tukey biweight M-estimation (≈ `mri_robust_register --iscale`) |
+| `vol_realign` | Head-motion correction of a 4-D series in mcflirt's conventions (≈ `mcflirt`) |
 
 #### Basic BBR usage
 
@@ -234,8 +235,26 @@ np.savetxt("epi_to_t1.txt", matrix)
 # Cross-modal (EPI ↔ T1w) — NMI
 matrix, nmi = cat_surf.volume_register_nmi("T1w.nii.gz", "bold_mean.nii.gz")
 
-# Same-modality (T1w ↔ T1w) — robust IRLS
+# Same-modality (T1w ↔ T1w) — robust IRLS; a global intensity scale is
+# estimated along with the motion (iscale=True)
 matrix, res = cat_surf.volume_register_robust("t1_ref.nii.gz", "t1_moving.nii.gz")
+```
+
+#### Head-motion correction (mcflirt replacement)
+
+```python
+# What fMRIPrep's head-motion workflow asks of mcflirt
+#   mcflirt -in bold -out bold_mcf.nii.gz -reffile boldref -mats -plots -rmsabs -rmsrel
+# with the same files: bold_mcf.nii.gz, bold_mcf.nii.gz.mat/MAT_%04d,
+# bold_mcf.nii.gz.par, bold_mcf.nii.gz_{abs,rel}{,_mean}.rms
+from cat_surf import cli
+res = cli.vol_realign("bold.nii.gz", "bold_mcf.nii.gz", reffile="boldref.nii.gz",
+                      mats=True, plots=True, rmsabs=True, rmsrel=True)
+
+# In memory: transforms (world and FSL), mcflirt's parameters, RMS displacements
+res = cat_surf.vol_realign(series_4d, affine, ref=boldref, ref_affine=affine)
+res["par"]       # (nt, 6) rx ry rz (rad) tx ty tz (mm), as mcflirt's .par
+res["fsl"]       # (nt, 4, 4) volume -> reference, as mcflirt's MAT files
 ```
 
 #### Contrast auto-detection
@@ -305,6 +324,7 @@ The full mapping:
 | `CAT_VolCalc` | `vol_calc` |
 | `CAT_VolLocalStat` | `vol_local_stat` (`-oriented` only) |
 | `CAT_VolMarchingCubes` | `vol_marching_cubes` |
+| `CAT_VolRealign` | `vol_realign` (mcflirt's flags as keywords: `reffile`, `refvol`, `mats`, `plots`, `rmsabs`, `rmsrel`) |
 | `CAT_VolSanlm` | `vol_sanlm` |
 | `CAT_VolSheetness` | `vol_sheetness` |
 | `CAT_VolSmooth` | `vol_smooth` |
