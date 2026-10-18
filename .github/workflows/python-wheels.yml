@@ -120,7 +120,8 @@ jobs:
           python-version: "3.12"
 
       - name: Install cibuildwheel
-        run: pip install cibuildwheel==2.23.3
+        # >= 3.1 builds CPython 3.14, >= 4.2 CPython 3.15 (final 3.15.0 in 4.3.1)
+        run: pip install cibuildwheel==4.3.1
 
       - name: Build wheels
         working-directory: cat_surface_cython
@@ -190,13 +191,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install cibuildwheel
-        run: pip install cibuildwheel==2.23.3
+        # >= 3.1 builds CPython 3.14, >= 4.2 CPython 3.15 (final 3.15.0 in 4.3.1)
+        run: pip install cibuildwheel==4.3.1
 
       - name: Build wheels
         working-directory: cat_surface_cython
         env:
           CIBW_ARCHS: ${{ matrix.cibw-archs }}
-          # The manylinux_2_28 (glibc 2.28) containers ship GCC 10.2.1, but a
+          # The manylinux2014 (glibc 2.17) containers ship GCC 10.2.1, but a
           # very new NumPy sdist requires GCC >= 10.3 to compile.  Forbid pip
           # from source-building NumPy so it falls back to the newest release
           # that ships a compatible (aarch64/x86_64) wheel — both when pip
@@ -206,10 +208,15 @@ jobs:
           PIP_ONLY_BINARY: numpy
           CIBW_ENVIRONMENT_PASS_LINUX: PIP_ONLY_BINARY
           # Build libCAT.a from source inside the manylinux container so it
-          # links against the container's glibc (manylinux compliance).
+          # links against the container's glibc (manylinux compliance).  This
+          # runs once per image: manylinux2014 (CentOS 7) up to cp313 and
+          # manylinux_2_28 (AlmaLinux 8) from cp314, see pyproject.toml.
+          # configure.ac uses no AX_* macros, so autoconf-archive is optional
+          # (AlmaLinux 8 only has it in EPEL).
           CIBW_BEFORE_ALL_LINUX: |
             set -e
-            yum install -y autoconf automake libtool autoconf-archive make gcc expat-devel
+            yum install -y autoconf automake libtool make gcc expat-devel
+            yum install -y autoconf-archive || true
             mkdir /tmp/cat-build && cd /tmp/cat-build
             tar xzf /project/_build_src.tar.gz
             autoupdate

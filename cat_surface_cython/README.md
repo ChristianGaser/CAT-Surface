@@ -27,7 +27,7 @@ Pre-built wheels are available for:
 
 - **macOS** — arm64 (Apple Silicon), x86_64 (Intel)
 - **Linux** — x86_64, aarch64 (manylinux)
-- **Python** 3.9 – 3.13
+- **Python** 3.9 – 3.15
 
 ### Building from source
 

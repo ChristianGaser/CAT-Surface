@@ -4,14 +4,17 @@
 # the floor runs on every later 2.x at runtime (see the numpy>=2.0 runtime
 # dependency below).  Pinning the floor also avoids resolving to a very new
 # NumPy that has no prebuilt aarch64 wheel and would otherwise be compiled
-# from source inside the manylinux_2_28 container, whose GCC 10.2.1 is too
-# old (NumPy's meson build requires GCC >= 10.3).
+# from source inside the manylinux container, whose GCC 10.2.1 is too old
+# (NumPy's meson build requires GCC >= 10.3).  The floors are the first
+# releases with wheels for that Python: 2.1.0 (3.13), 2.3.2 (3.14), 2.5.2 (3.15).
 requires = [
     "setuptools>=64",
     "wheel",
     "Cython>=3.0",
     "numpy>=2.0.0,<2.1; python_version < '3.13'",
-    "numpy>=2.1.0,<2.2; python_version >= '3.13'",
+    "numpy>=2.1.0,<2.2; python_version == '3.13'",
+    "numpy>=2.3.2,<2.4; python_version == '3.14'",
+    "numpy>=2.5.2; python_version >= '3.15'",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -51,7 +54,19 @@ Repository = "https://github.com/ChristianGaser/CAT-Surface"
 include = ["cat_surf*"]
 
 [tool.cibuildwheel]
-build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+# Plain cp3XX-* patterns: the free-threaded cp314t/cp315t builds are not made.
+build = "cp39-* cp310-* cp311-* cp312-* cp313-* cp314-* cp315-*"
 skip = "*-musllinux_*"
+# cibuildwheel >= 3 defaults to manylinux_2_28.  Keep the glibc 2.17 wheels
+# for the Pythons NumPy still serves on manylinux2014 ...
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
 test-requires = "numpy"
 test-command = "python -c \"import cat_surf; print('cat_surf', cat_surf.__version__, 'OK')\""
+
+# ... and use manylinux_2_28 from 3.14 on: NumPy ships no manylinux2014 wheels
+# for 3.14+, so neither the build nor the installed wheel could get a NumPy.
+[[tool.cibuildwheel.overrides]]
+select = "cp31[4-9]-*"
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
