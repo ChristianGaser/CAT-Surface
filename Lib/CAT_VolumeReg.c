@@ -305,13 +305,17 @@ static double tukey_w(double r, double sat)
 }
 
 /* =========================================================================
- * 6×6 Cholesky solve (positive-definite symmetric ATA)
+ * Cholesky solve of the n×n normal equations (n = 6 motion parameters, 7
+ * with the intensity scale; positive-definite symmetric ATA)
  * ========================================================================= */
 
-static int cholesky6(double A[6][6], double L[6][6])
+#define MAX_PARAMS 7
+
+static int cholesky_n(double A[MAX_PARAMS][MAX_PARAMS],
+                      double L[MAX_PARAMS][MAX_PARAMS], int n)
 {
     int i, j, k;
-    for (i = 0; i < 6; i++)
+    for (i = 0; i < n; i++)
     {
         for (j = 0; j <= i; j++)
         {
@@ -325,43 +329,81 @@ static int cholesky6(double A[6][6], double L[6][6])
             else
                 L[i][j] = s / L[j][j];
         }
-        for (j = i + 1; j < 6; j++) L[i][j] = 0.0;
+        for (j = i + 1; j < n; j++) L[i][j] = 0.0;
     }
     return 0;
 }
 
 /* Solve L L^T x = b */
-static void cholesky6_solve(double L[6][6], double b[6], double x[6])
+static void cholesky_n_solve(double L[MAX_PARAMS][MAX_PARAMS],
+                             double b[MAX_PARAMS], double x[MAX_PARAMS], int n)
 {
     int i, k;
     /* Forward substitution: L y = b */
-    double y[6];
-    for (i = 0; i < 6; i++)
+    double y[MAX_PARAMS];
+    for (i = 0; i < n; i++)
     {
         double s = b[i];
         for (k = 0; k < i; k++) s -= L[i][k] * y[k];
         y[i] = s / L[i][i];
     }
     /* Back substitution: L^T x = y */
-    for (i = 5; i >= 0; i--)
+    for (i = n - 1; i >= 0; i--)
     {
         double s = y[i];
-        for (k = i + 1; k < 6; k++) s -= L[k][i] * x[k];
+        for (k = i + 1; k < n; k++) s -= L[k][i] * x[k];
         x[i] = s / L[i][i];
     }
+}
+
+/* Least-squares intensity scale s of s * moving = fixed at transform p, over
+ * the voxels of `fixed` that map into `moving`; 1 if there are none. */
+static double fit_scale(const VLevel *fixed, const VLevel *moving,
+                        const CAT_RigidParams *p)
+{
+    double M[16], sfm = 0.0, smm = 0.0;
+    int x, y, z;
+
+    CAT_BBReg_params_to_matrix(p, M);
+    for (z = 0; z < fixed->nz; z++)
+        for (y = 0; y < fixed->ny; y++)
+            for (x = 0; x < fixed->nx; x++)
+            {
+                const double *f = fixed->sxyz, *g = moving->sijk;
+                double fw0 = f[0]*x + f[1]*y + f[2]*z + f[3];
+                double fw1 = f[4]*x + f[5]*y + f[6]*z + f[7];
+                double fw2 = f[8]*x + f[9]*y + f[10]*z + f[11];
+                double mw0 = M[0]*fw0 + M[1]*fw1 + M[2]*fw2 + M[3];
+                double mw1 = M[4]*fw0 + M[5]*fw1 + M[6]*fw2 + M[7];
+                double mw2 = M[8]*fw0 + M[9]*fw1 + M[10]*fw2 + M[11];
+                double I_m = sample_vol(moving->data, moving->nx, moving->ny,
+                                        moving->nz,
+                                        g[0]*mw0 + g[1]*mw1 + g[2]*mw2 + g[3],
+                                        g[4]*mw0 + g[5]*mw1 + g[6]*mw2 + g[7],
+                                        g[8]*mw0 + g[9]*mw1 + g[10]*mw2 + g[11]);
+                if (isnan(I_m))
+                    continue;
+                sfm += I_m * (double)fixed->data[x + fixed->nx * (y + fixed->ny * z)];
+                smm += I_m * I_m;
+            }
+    return (smm > 0.0 && sfm > 0.0) ? sfm / smm : 1.0;
 }
 
 /* =========================================================================
  * One registration level: IRLS loop
  * ========================================================================= */
 
+/* The residual is s * moving(T x) - fixed(x).  With iscale the intensity
+ * scale s is the 7th parameter of the Gauss-Newton step; otherwise it stays
+ * at its value (1) and the step solves for the motion alone. */
 static double register_level(const VLevel *fixed, const VLevel *moving,
-                             CAT_RigidParams *p,
+                             CAT_RigidParams *p, double *s, int iscale,
                              double sat_k, int max_iter, int verbose,
                              int level)
 {
     int iter, x, y, z;
     const int fnx = fixed->nx, fny = fixed->ny, fnz = fixed->nz;
+    const int np = iscale ? 7 : 6;
     double residual = 1.0;
 
     /* Pre-compute 3×3 upper-left of moving's world→voxel matrix (for
@@ -450,7 +492,7 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
                     if (isnan(I_m)) continue;
 
                     double I_f = (double)fixed->data[x + fnx*(y + fny*z)];
-                    res_arr[n_res++] = (float)(I_m - I_f);
+                    res_arr[n_res++] = (float)(*s * I_m - I_f);
                 }
 
         if (n_res < 10) { free(res_arr); break; }
@@ -468,8 +510,8 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
         double sat = sat_k * sigma;
 
         /* ---- Build weighted normal equations ---- */
-        double ATA[6][6];
-        double ATb[6];
+        double ATA[MAX_PARAMS][MAX_PARAMS];
+        double ATb[MAX_PARAMS];
         memset(ATA, 0, sizeof(ATA));
         memset(ATb, 0, sizeof(ATb));
         double wsum = 0.0, wres2 = 0.0;
@@ -506,7 +548,7 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
                     if (isnan(I_m)) continue;
 
                     double I_f = (double)fixed->data[x + fnx*(y + fny*z)];
-                    double ri  = I_m - I_f;
+                    double ri  = *s * I_m - I_f;
 
                     double w = tukey_w(ri - (double)med_r, sat);
                     if (w < 1e-12) continue;
@@ -532,20 +574,25 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
                      *   a[3]    = gw[2]*mw[1] - gw[1]*mw[2]  (rot x)
                      *   a[4]    = gw[0]*mw[2] - gw[2]*mw[0]  (rot y)
                      *   a[5]    = gw[1]*mw[0] - gw[0]*mw[1]  (rot z)
-                     * Position used is mw[] = position in MOVING world space. */
-                    double a[6];
+                     *   a[6]    = I_m                         (scale, iscale)
+                     * Position used is mw[] = position in MOVING world space.
+                     * The motion columns carry the factor s of the residual. */
+                    double a[MAX_PARAMS];
                     a[0] = gw[0];
                     a[1] = gw[1];
                     a[2] = gw[2];
                     a[3] = gw[2] * mw[1] - gw[1] * mw[2];
                     a[4] = gw[0] * mw[2] - gw[2] * mw[0];
                     a[5] = gw[1] * mw[0] - gw[0] * mw[1];
+                    for (k = 0; k < 6; k++)
+                        a[k] *= *s;
+                    a[6] = I_m;
 
                     /* Accumulate ATA and ATb.
                      * Gauss-Newton: ATA dp = -A^T W r  (descent toward minimum)
                      * so accumulate the negative of A^T W r into ATb. */
                     int r2, c2;
-                    for (r2 = 0; r2 < 6; r2++)
+                    for (r2 = 0; r2 < np; r2++)
                     {
                         ATb[r2] -= w2 * a[r2] * ri;
                         for (c2 = 0; c2 <= r2; c2++)
@@ -562,8 +609,8 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
         /* Symmetrize ATA */
         {
             int r2, c2;
-            for (r2 = 0; r2 < 6; r2++)
-                for (c2 = r2 + 1; c2 < 6; c2++)
+            for (r2 = 0; r2 < np; r2++)
+                for (c2 = r2 + 1; c2 < np; c2++)
                     ATA[r2][c2] = ATA[c2][r2];
         }
 
@@ -571,16 +618,23 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
         {
             int j;
             double tr = 0.0;
-            for (j = 0; j < 6; j++) tr += ATA[j][j];
-            double eps_reg = 1e-8 * tr / 6.0;
-            for (j = 0; j < 6; j++) ATA[j][j] += eps_reg;
+            for (j = 0; j < np; j++) tr += ATA[j][j];
+            double eps_reg = 1e-8 * tr / (double)np;
+            for (j = 0; j < np; j++) ATA[j][j] += eps_reg;
         }
 
         /* Cholesky solve: ATA * dp = -A^T W r  (stored as positive ATb above) */
-        double L[6][6];
-        if (cholesky6(ATA, L) != 0) break;
-        double dp[6];
-        cholesky6_solve(L, ATb, dp);
+        double L[MAX_PARAMS][MAX_PARAMS];
+        if (cholesky_n(ATA, L, np) != 0) break;
+        double dp[MAX_PARAMS];
+        cholesky_n_solve(L, ATb, dp, np);
+        double ds = 0.0;
+        if (iscale)
+        {
+            /* the scale cannot change sign; halve it rather than cross 0 */
+            ds = (*s + dp[6] > 0.0) ? dp[6] : -0.5 * *s;
+            *s += ds;
+        }
 
         /* Update parameters */
         p->tx += dp[0]; p->ty += dp[1]; p->tz += dp[2];
@@ -590,15 +644,15 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
 
         if (verbose > 1)
             printf("  Level %d  iter %2d  residual=%.4f  sigma=%.2f"
-                   "  n_valid=%d  dp_t=%.3f dp_r=%.5f\n",
+                   "  n_valid=%d  dp_t=%.3f dp_r=%.5f  scale=%.4f\n",
                    level, iter + 1, residual, sigma, n_valid,
                    sqrt(dp[0]*dp[0]+dp[1]*dp[1]+dp[2]*dp[2]),
-                   sqrt(dp[3]*dp[3]+dp[4]*dp[4]+dp[5]*dp[5]));
+                   sqrt(dp[3]*dp[3]+dp[4]*dp[4]+dp[5]*dp[5]), *s);
 
         /* Convergence: small parameter update */
         double dt = sqrt(dp[0]*dp[0] + dp[1]*dp[1] + dp[2]*dp[2]);
         double dr = sqrt(dp[3]*dp[3] + dp[4]*dp[4] + dp[5]*dp[5]);
-        if (dt < 0.01 && dr < 1e-4) break;
+        if (dt < 0.01 && dr < 1e-4 && fabs(ds) < 1e-4 * *s) break;
     }
 
     free(gx_m); free(gy_m); free(gz_m);
@@ -677,50 +731,83 @@ CAT_VolumeReg_pyramid_free(CAT_VolPyramid *pyr)
 }
 
 /**
+ * \brief Set the default options of the robust rigid registration.
+ *
+ * \param opts (out) options to initialise
+ */
+void
+CAT_VolumeRegOptionsInit(CAT_VolumeRegOpts *opts)
+{
+    opts->n_levels = 4;
+    opts->sat_k = 4.685;
+    opts->max_iter = 20;
+    opts->iscale = 1;
+    opts->verbose = 0;
+}
+
+/**
  * \brief Robust rigid registration of two prepared pyramids.
  *
  * Runs the Tukey-biweight Gauss-Newton registration of
  * CAT_VolumeReg_register() coarse to fine over the levels both pyramids have.
  * A reference that many volumes are registered to only needs its pyramid built
- * once.
+ * once.  With opts->iscale a global intensity scale s (s * moving = fixed) is
+ * estimated along with the motion; it starts from *scale when that is
+ * positive, otherwise from a least-squares fit at the coarsest level.
  *
- * \param fixed    (in)     pyramid of the reference volume
- * \param moving   (in)     pyramid of the moving volume
- * \param p        (in/out) initial and estimated rigid parameters (fixed→moving)
- * \param sat_k    (in)     Tukey saturation multiplier (4.685 = Gaussian 95%)
- * \param max_iter (in)     IRLS iterations per level
- * \param verbose  (in)     non-zero to print progress
+ * \param fixed  (in)     pyramid of the reference volume
+ * \param moving (in)     pyramid of the moving volume
+ * \param p      (in/out) initial and estimated rigid parameters (fixed→moving)
+ * \param scale  (in/out) start value (<= 0: fit one) and estimate of the
+ *                        intensity scale; 1 without iscale.  May be NULL.
+ * \param opts   (in)     options; NULL for CAT_VolumeRegOptionsInit()
  * \return final normalised residual (lower = better alignment)
  */
 double
 CAT_VolumeReg_register_pyramids(const CAT_VolPyramid *fixed,
                                 const CAT_VolPyramid *moving,
                                 CAT_RigidParams *p,
-                                double sat_k,
-                                int max_iter,
-                                int verbose)
+                                double *scale,
+                                const CAT_VolumeRegOpts *opts)
 {
     int n_levels = (fixed->n_levels < moving->n_levels) ? fixed->n_levels
                                                         : moving->n_levels;
-    double final_res = 1.0;
+    CAT_VolumeRegOpts defaults;
+    double final_res = 1.0, s = 1.0;
     int l;
+
+    if (!opts)
+    {
+        CAT_VolumeRegOptionsInit(&defaults);
+        opts = &defaults;
+    }
+    if (opts->iscale)
+    {
+        if (scale && *scale > 0.0)
+            s = *scale;
+        else
+            s = fit_scale(&fixed->lv[n_levels - 1], &moving->lv[n_levels - 1], p);
+    }
 
     /* Coarse-to-fine: level (n_levels-1) → 0 */
     for (l = n_levels - 1; l >= 0; l--)
     {
         const VLevel *fl = &fixed->lv[l], *ml = &moving->lv[l];
 
-        if (verbose)
+        if (opts->verbose)
             printf("VolumeReg level %d  (%dx%dx%d fixed, %dx%dx%d moving)\n",
                    l, fl->nx, fl->ny, fl->nz, ml->nx, ml->ny, ml->nz);
 
-        final_res = register_level(fl, ml, p, sat_k, max_iter, verbose, l);
+        final_res = register_level(fl, ml, p, &s, opts->iscale, opts->sat_k,
+                                   opts->max_iter, opts->verbose, l);
 
-        if (verbose)
+        if (opts->verbose)
             printf("  → residual=%.4f  tx=%.2f ty=%.2f tz=%.2f"
-                   "  rx=%.4f ry=%.4f rz=%.4f\n",
-                   final_res, p->tx, p->ty, p->tz, p->rx, p->ry, p->rz);
+                   "  rx=%.4f ry=%.4f rz=%.4f  scale=%.4f\n",
+                   final_res, p->tx, p->ty, p->tz, p->rx, p->ry, p->rz, s);
     }
+    if (scale)
+        *scale = s;
     return final_res;
 }
 
@@ -738,10 +825,9 @@ CAT_VolumeReg_register_pyramids(const CAT_VolPyramid *fixed,
  * \param moving_nii  (in)  NIfTI header of the moving volume
  * \param moving_dims (in)  [nx, ny, nz] of the moving volume
  * \param p_out       (in/out) initial and estimated 6-DOF rigid parameters
- * \param n_levels    (in)  Gaussian pyramid levels (3–4 recommended)
- * \param sat_k       (in)  Tukey saturation multiplier (4.685 = Gaussian 95%)
- * \param max_iter    (in)  IRLS iterations per level (10–20)
- * \param verbose     (in)  non-zero to print progress
+ * \param scale       (in/out) intensity scale, see
+ *                             CAT_VolumeReg_register_pyramids(); may be NULL
+ * \param opts        (in)  options; NULL for CAT_VolumeRegOptionsInit()
  * \return            final normalised residual (lower = better alignment)
  */
 double
@@ -752,19 +838,22 @@ CAT_VolumeReg_register(float *fixed_vol,
                        nifti_image *moving_nii,
                        int moving_dims[3],
                        CAT_RigidParams *p_out,
-                       int n_levels,
-                       double sat_k,
-                       int max_iter,
-                       int verbose)
+                       double *scale,
+                       const CAT_VolumeRegOpts *opts)
 {
     CAT_VolPyramid *fpyr, *mpyr;
+    CAT_VolumeRegOpts defaults;
     double final_res = 1.0;
 
-    fpyr = CAT_VolumeReg_pyramid(fixed_vol, fixed_nii, fixed_dims, n_levels);
-    mpyr = CAT_VolumeReg_pyramid(moving_vol, moving_nii, moving_dims, n_levels);
+    if (!opts)
+    {
+        CAT_VolumeRegOptionsInit(&defaults);
+        opts = &defaults;
+    }
+    fpyr = CAT_VolumeReg_pyramid(fixed_vol, fixed_nii, fixed_dims, opts->n_levels);
+    mpyr = CAT_VolumeReg_pyramid(moving_vol, moving_nii, moving_dims, opts->n_levels);
     if (fpyr && mpyr)
-        final_res = CAT_VolumeReg_register_pyramids(fpyr, mpyr, p_out,
-                                                    sat_k, max_iter, verbose);
+        final_res = CAT_VolumeReg_register_pyramids(fpyr, mpyr, p_out, scale, opts);
     else
         fprintf(stderr, "CAT_VolumeReg_register: out of memory\n");
 

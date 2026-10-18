@@ -63,6 +63,7 @@ static double vol_reg_sat     = 4.685;/* Tukey saturation (ROB mode only) */
 static int    vol_reg_iter    = 30;   /* Powell/IRLS iterations per level */
 static int    no_vol_reg      = 0;    /* skip volume registration init    */
 static int    vol_reg_rob     = 0;    /* use IRLS/ROB instead of NMI      */
+static int    vol_reg_no_iscale = 0;  /* ROB: keep the intensity scale at 1 */
 static char  *ref_vol_file    = NULL; /* separate reference volume (T1w)  */
 
 /* -----------------------------------------------------------------------
@@ -180,6 +181,10 @@ static ArgvInfo argTable[] =
          "Use same-modality IRLS/ROB cost instead of NMI for volume registration."
          " Use this for T1w-to-T1w or EPI-to-EPI alignment."},
 
+        {"-vol-reg-no-iscale", ARGV_CONSTANT, (char *)1, (char *)&vol_reg_no_iscale,
+         "With -vol-reg-rob: do not estimate a global intensity scale between"
+         " the two volumes (estimated by default)."},
+
         {"-no-vol-reg", ARGV_CONSTANT, (char *)1, (char *)&no_vol_reg,
          "Skip volume registration initialisation entirely; start BBR from"
          " -init-tx/ty/tz/rx/ry/rz values (or identity)."},
@@ -243,6 +248,7 @@ usage(const char *exe)
             "  -vol-reg-iter <n>       Powell iterations per level (default: 30)\n"
             "  -vol-reg-rob            Use IRLS/ROB cost (same-modality) instead of NMI\n"
             "  -vol-reg-sat <val>      Tukey multiplier for -vol-reg-rob (default: 4.685)\n"
+            "  -vol-reg-no-iscale      -vol-reg-rob without the global intensity scale\n"
             "  -no-vol-reg             Skip volume-registration initialisation\n\n");
 }
 
@@ -515,17 +521,25 @@ int main(int argc, char *argv[])
         if (vol_reg_rob)
         {
             /* Same-modality: linearised intensity matching + Tukey biweight */
+            CAT_VolumeRegOpts vr_opts;
+            double vr_scale = 0.0;
+            CAT_VolumeRegOptionsInit(&vr_opts);
+            vr_opts.n_levels = vol_reg_levels;
+            vr_opts.sat_k = vol_reg_sat;
+            vr_opts.max_iter = vol_reg_iter;
+            vr_opts.iscale = !vol_reg_no_iscale;
+            vr_opts.verbose = verbose;
             vol_res = CAT_VolumeReg_register(
                 ref_vol,  ref_nii,  ref_dims,
                 vol_reg,  nii_ptr,  dims,
-                &p_init,
-                vol_reg_levels, vol_reg_sat, vol_reg_iter, verbose);
+                &p_init, &vr_scale, &vr_opts);
             if (verbose)
                 printf("VolumeReg done (ROB): residual=%.4f  "
-                       "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
+                       "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f"
+                       "  scale=%.4f\n",
                        vol_res,
                        p_init.tx, p_init.ty, p_init.tz,
-                       p_init.rx, p_init.ry, p_init.rz);
+                       p_init.rx, p_init.ry, p_init.rz, vr_scale);
         }
         else
         {

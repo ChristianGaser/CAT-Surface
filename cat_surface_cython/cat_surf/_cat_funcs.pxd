@@ -655,6 +655,15 @@ cdef extern from "CAT_BBReg.h":
 # CAT_VolumeReg.h — Volume-to-volume rigid registration
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_VolumeReg.h":
+    ctypedef struct CAT_VolumeRegOpts:
+        int    n_levels
+        double sat_k
+        int    max_iter
+        int    iscale
+        int    verbose
+
+    void   CAT_VolumeRegOptionsInit(CAT_VolumeRegOpts *opts)
+
     double CAT_VolumeReg_register(float *fixed_vol,
                                   nifti_image *fixed_nii,
                                   int fixed_dims[3],
@@ -662,8 +671,8 @@ cdef extern from "CAT_VolumeReg.h":
                                   nifti_image *moving_nii,
                                   int moving_dims[3],
                                   CAT_RigidParams *p_out,
-                                  int n_levels, double sat_k,
-                                  int max_iter, int verbose)
+                                  double *scale,
+                                  const CAT_VolumeRegOpts *opts)
 
     double CAT_VolumeReg_register_NMI(float *fixed_vol,
                                       nifti_image *fixed_nii,

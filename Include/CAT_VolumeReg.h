@@ -54,25 +54,56 @@ extern "C"
     void CAT_VolumeReg_pyramid_free(CAT_VolPyramid *pyr);
 
     /**
+     * \brief Options of the robust rigid registration.
+     *
+     * Set the defaults with CAT_VolumeRegOptionsInit() and change what you need.
+     */
+    typedef struct
+    {
+        int    n_levels; /**< Gaussian pyramid levels (default 4); used by
+                              CAT_VolumeReg_register(), prepared pyramids
+                              bring their own */
+        double sat_k;    /**< Tukey saturation multiplier (default 4.685, the
+                              95% efficiency point for Gaussian residuals) */
+        int    max_iter; /**< IRLS iterations per pyramid level (default 20) */
+        int    iscale;   /**< non-zero: estimate a global intensity scale
+                              (default 1) */
+        int    verbose;  /**< 0 quiet (default), 1 level summaries, >1 every
+                              iteration */
+    } CAT_VolumeRegOpts;
+
+    /**
+     * \brief Set the default options of the robust rigid registration.
+     *
+     * The defaults are the source of truth for every front-end: 4 pyramid
+     * levels, a Tukey multiplier of 4.685, 20 iterations per level, and a
+     * global intensity scale estimated along with the motion.
+     *
+     * \param opts (out) options to initialise
+     */
+    void CAT_VolumeRegOptionsInit(CAT_VolumeRegOpts *opts);
+
+    /**
      * \brief Robust rigid registration of two prepared pyramids.
      *
      * The registration of CAT_VolumeReg_register(), run coarse to fine over the
      * levels both pyramids have.
      *
-     * \param fixed    (in)     pyramid of the reference volume
-     * \param moving   (in)     pyramid of the moving volume
-     * \param p        (in/out) initial and estimated rigid parameters (fixed→moving)
-     * \param sat_k    (in)     Tukey saturation multiplier (4.685 = Gaussian 95%)
-     * \param max_iter (in)     IRLS iterations per level
-     * \param verbose  (in)     non-zero to print progress
+     * \param fixed  (in)     pyramid of the reference volume
+     * \param moving (in)     pyramid of the moving volume
+     * \param p      (in/out) initial and estimated rigid parameters (fixed→moving)
+     * \param scale  (in/out) intensity scale s of the model s * moving = fixed;
+     *                        in: a positive start value, or <= 0 to fit one by
+     *                        least squares at the coarsest level; out: the
+     *                        estimate, 1 without opts->iscale.  May be NULL.
+     * \param opts   (in)     options; NULL for the defaults
      * \return final normalised residual (lower = better alignment)
      */
     double CAT_VolumeReg_register_pyramids(const CAT_VolPyramid *fixed,
                                            const CAT_VolPyramid *moving,
                                            CAT_RigidParams *p,
-                                           double sat_k,
-                                           int max_iter,
-                                           int verbose);
+                                           double *scale,
+                                           const CAT_VolumeRegOpts *opts);
 
     /**
      * \brief Robust multi-resolution volume-to-volume rigid registration.
@@ -80,6 +111,13 @@ extern "C"
      * Implements a linearised intensity-matching criterion with Tukey biweight
      * M-estimation, analogous to FreeSurfer's mri_robust_register --cost ROB.
      * A Gaussian image pyramid is used for coarse-to-fine initialisation.
+     *
+     * By default a global intensity scale s is estimated along with the motion
+     * (the residual is s * moving - fixed, like mri_robust_register --iscale):
+     * a reference brighter than the series, such as the median of its
+     * non-steady-state volumes or a single-band reference, otherwise turns
+     * most of the brain into Tukey outliers.  Without it the registration of
+     * such a series was off by 1.4 mm on average, with it by 0.04 mm.
      *
      * Reference: Reuter M, Rosas HD, Fischl B (2010), NeuroImage 53:1181-1196.
      *
@@ -95,10 +133,9 @@ extern "C"
      * \param moving_nii  (in)  NIfTI header of the moving volume
      * \param moving_dims (in)  [nx, ny, nz] of the moving volume
      * \param p_out       (in/out) initial and estimated 6-DOF rigid parameters (T1w→EPI)
-     * \param n_levels    (in)  Gaussian pyramid levels (3–4 recommended)
-     * \param sat_k       (in)  Tukey saturation multiplier (4.685 = Gaussian 95%)
-     * \param max_iter    (in)  IRLS iterations per level (10–20)
-     * \param verbose     (in)  non-zero to print progress
+     * \param scale       (in/out) intensity scale, see
+     *                             CAT_VolumeReg_register_pyramids(); may be NULL
+     * \param opts        (in)  options; NULL for the defaults
      * \return            final normalised residual (lower = better alignment)
      */
     double CAT_VolumeReg_register(float *fixed_vol,
@@ -108,10 +145,8 @@ extern "C"
                                   nifti_image *moving_nii,
                                   int moving_dims[3],
                                   CAT_RigidParams *p_out,
-                                  int n_levels,
-                                  double sat_k,
-                                  int max_iter,
-                                  int verbose);
+                                  double *scale,
+                                  const CAT_VolumeRegOpts *opts);
 
     /**
      * \brief Cross-modal rigid registration using Normalised Mutual Information.

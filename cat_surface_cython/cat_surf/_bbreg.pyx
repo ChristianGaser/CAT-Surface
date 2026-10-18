@@ -554,6 +554,7 @@ def volume_register_robust(str fixed_file,
                             int n_levels=4,
                             double sat_k=4.685,
                             int max_iter=20,
+                            bint iscale=True,
                             bint verbose=False):
     """
     Same-modality rigid registration with Tukey biweight M-estimation.
@@ -575,6 +576,12 @@ def volume_register_robust(str fixed_file,
         Tukey saturation multiplier (default 4.685 ≈ Gaussian 95 %).
     max_iter : int
         IRLS iterations per pyramid level (default 20).
+    iscale : bool
+        Estimate a global intensity scale between the two volumes along with
+        the motion (default True), like ``mri_robust_register --iscale``.
+        Without it a reference brighter than the moving volume, such as the
+        median of the non-steady-state volumes of a BOLD series, makes most
+        of the brain a Tukey outlier.
     verbose : bool
 
     Returns
@@ -592,10 +599,18 @@ def volume_register_robust(str fixed_file,
     cdef int  fixed_dims[3], moving_dims[3]
     cdef int  nvox3_moving, nt
     cdef C.CAT_RigidParams p
+    cdef C.CAT_VolumeRegOpts opts
     cdef double m[16], m_inv[16]
     cdef double residual
+    cdef double scale = 0.0
 
     p.tx = p.ty = p.tz = p.rx = p.ry = p.rz = 0.0
+    C.CAT_VolumeRegOptionsInit(&opts)
+    opts.n_levels = n_levels
+    opts.sat_k = sat_k
+    opts.max_iter = max_iter
+    opts.iscale = 1 if iscale else 0
+    opts.verbose = 1 if verbose else 0
 
     try:
         bfixed = fixed_file.encode("utf-8")
@@ -620,8 +635,7 @@ def volume_register_robust(str fixed_file,
         residual = C.CAT_VolumeReg_register(
             fixed_flat, fixed_nii, fixed_dims,
             moving3d,   moving_nii, moving_dims,
-            &p, n_levels, sat_k, max_iter,
-            1 if verbose else 0)
+            &p, &scale, &opts)
 
         C.CAT_BBReg_params_to_matrix(&p, m)
         C.CAT_BBReg_invert_matrix(m, m_inv)

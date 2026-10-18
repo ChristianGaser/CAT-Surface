@@ -142,28 +142,30 @@ test_pyramids_match_pairwise(void)
 {
     nifti_image *nii = make_header();
     int dims[3] = {N, N, N};
-    double m[16], dt, dr;
+    double m[16], dt, dr, s1 = 0.0, s2 = 0.0;
     float *fixed, *moving;
     CAT_RigidParams p1 = {0, 0, 0, 0, 0, 0}, p2 = {0, 0, 0, 0, 0, 0};
     CAT_VolPyramid *fp, *mp;
+    CAT_VolumeRegOpts opts;
 
+    CAT_VolumeRegOptionsInit(&opts);
+    opts.n_levels = 3;
     CAT_BBReg_params_to_matrix(&truth, m);
     fixed = sample(nii, NULL, 1.0, 1);
     moving = sample(nii, m, 1.0, 2);
 
-    CAT_VolumeReg_register(fixed, nii, dims, moving, nii, dims, &p1,
-                           3, 4.685, 20, 0);
+    CAT_VolumeReg_register(fixed, nii, dims, moving, nii, dims, &p1, &s1, &opts);
 
     fp = CAT_VolumeReg_pyramid(fixed, nii, dims, 3);
     mp = CAT_VolumeReg_pyramid(moving, nii, dims, 3);
     MU_ASSERT("pyramids are built", fp != NULL && mp != NULL);
     if (fp && mp)
-        CAT_VolumeReg_register_pyramids(fp, mp, &p2, 4.685, 20, 0);
+        CAT_VolumeReg_register_pyramids(fp, mp, &p2, &s2, &opts);
     CAT_VolumeReg_pyramid_free(fp);
     CAT_VolumeReg_pyramid_free(mp);
 
     MU_ASSERT("pyramids: the same estimate as the pairwise call",
-              memcmp(&p1, &p2, sizeof(p1)) == 0);
+              memcmp(&p1, &p2, sizeof(p1)) == 0 && s1 == s2);
 
     param_error(&p1, &truth, &dt, &dr);
     if (dt >= 0.05 || dr >= 0.002)
@@ -177,9 +179,58 @@ test_pyramids_match_pairwise(void)
     nifti_image_free(nii);
 }
 
+/**
+ * \brief A reference brighter than the moving image: the scale is estimated.
+ *
+ * Like a BOLD series registered to the median of its non-steady-state volumes.
+ * The scale s of s * moving = fixed comes out as the inverse of the gain, and
+ * the motion is recovered as without the gain.
+ */
+static void
+test_intensity_scale(void)
+{
+    nifti_image *nii = make_header();
+    int dims[3] = {N, N, N};
+    double m[16], dt, dr, s = 0.0;
+    const double gain = 1.0 / 1.4;
+    float *fixed, *moving;
+    CAT_RigidParams p = {0, 0, 0, 0, 0, 0};
+    CAT_VolumeRegOpts opts;
+
+    CAT_VolumeRegOptionsInit(&opts);
+    MU_ASSERT("the intensity scale is estimated by default", opts.iscale != 0);
+    opts.n_levels = 3;
+    CAT_BBReg_params_to_matrix(&truth, m);
+    fixed = sample(nii, NULL, 1.0, 1);
+    moving = sample(nii, m, gain, 2);
+
+    CAT_VolumeReg_register(fixed, nii, dims, moving, nii, dims, &p, &s, &opts);
+
+    param_error(&p, &truth, &dt, &dr);
+    if (dt >= 0.05 || dr >= 0.002 || fabs(s * gain - 1.0) >= 0.01)
+        printf("  scaled: t %.4f %.4f %.4f r %.5f %.5f %.5f s %.4f\n",
+               p.tx, p.ty, p.tz, p.rx, p.ry, p.rz, s);
+    MU_ASSERT("scaled: the scale is the inverse gain within 1%",
+              fabs(s * gain - 1.0) < 0.01);
+    MU_ASSERT("scaled: the translation is recovered within 0.05 mm", dt < 0.05);
+    MU_ASSERT("scaled: the rotation is recovered within 0.002 rad", dr < 0.002);
+
+    /* without the scale it stays at 1 */
+    opts.iscale = 0;
+    s = 0.0;
+    p.tx = p.ty = p.tz = p.rx = p.ry = p.rz = 0.0;
+    CAT_VolumeReg_register(fixed, nii, dims, moving, nii, dims, &p, &s, &opts);
+    MU_ASSERT("iscale = 0 reports a scale of 1", s == 1.0);
+
+    free(fixed);
+    free(moving);
+    nifti_image_free(nii);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_pyramids_match_pairwise);
+    MU_RUN_TEST(test_intensity_scale);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
