@@ -6,8 +6,8 @@
  *
  */
 
-#ifndef _CAT_SURFINFO_H_
-#define _CAT_SURFINFO_H_
+#ifndef _CAT_MESHINFO_H_
+#define _CAT_MESHINFO_H_
 
 #include <stdio.h>
 #include <bicpl.h>

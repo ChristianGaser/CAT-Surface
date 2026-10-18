@@ -5,11 +5,11 @@
  * Copyright Christian Gaser, University of Jena.
  */
 
-#ifndef CAT_VOLREALIGN_H
-#define CAT_VOLREALIGN_H
+#ifndef CAT_REALIGN_H
+#define CAT_REALIGN_H
 
 /**
- * \file CAT_VolRealign.h
+ * \file CAT_Realign.h
  * \brief Head-motion correction of a 4D series, in mcflirt's conventions.
  *
  * Every volume is registered rigidly to a reference with the robust
@@ -233,4 +233,4 @@ extern "C"
 }
 #endif
 
-#endif /* CAT_VOLREALIGN_H */
+#endif /* CAT_REALIGN_H */

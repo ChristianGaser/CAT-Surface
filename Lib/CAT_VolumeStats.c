@@ -8,11 +8,11 @@
  */
 
 /**
- * \file CAT_VolAverage.c
+ * \file CAT_VolumeStats.c
  * \brief Voxel-wise mean, standard deviation and z-scores of NIfTI volumes.
  *
  * Every volume is one sample: a 3D file contributes one and a 4D file one per
- * volume. See CAT_VolAverage.h.
+ * volume. See CAT_VolumeStats.h.
  */
 
 #include <math.h>
@@ -21,7 +21,7 @@
 #include <string.h>
 
 #include "CAT_SafeAlloc.h"
-#include "CAT_VolAverage.h"
+#include "CAT_VolumeStats.h"
 
 /**
  * \brief Number of volumes of a NIfTI header (1 for a 3D image).

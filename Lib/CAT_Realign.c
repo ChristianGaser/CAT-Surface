@@ -18,7 +18,7 @@
 #include <direct.h>
 #endif
 
-#include "CAT_VolRealign.h"
+#include "CAT_Realign.h"
 #include "CAT_BBReg.h"
 #include "CAT_Vol.h"
 

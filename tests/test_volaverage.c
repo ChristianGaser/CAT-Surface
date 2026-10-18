@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "CAT_VolAverage.h"
+#include "CAT_VolumeStats.h"
 
 /*
  * CAT_VolAverage takes every volume as one sample.

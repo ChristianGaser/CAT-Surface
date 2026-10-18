@@ -476,9 +476,9 @@ cdef extern from "CAT_Sheetness.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_SurfInfo.h — geometric and topological summary of a mesh
+# CAT_MeshInfo.h — geometric and topological summary of a mesh (CAT_SurfInfo)
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_SurfInfo.h":
+cdef extern from "CAT_MeshInfo.h":
     int CAT_SURFINFO_SKIPPED
 
     ctypedef struct surf_info_struct:
@@ -686,9 +686,9 @@ cdef extern from "CAT_VolumeReg.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_VolRealign.h — Head-motion correction (mcflirt replacement)
+# CAT_Realign.h — Head-motion correction (mcflirt replacement, CAT_VolRealign)
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_VolRealign.h":
+cdef extern from "CAT_Realign.h":
     ctypedef struct CAT_VolRealignOpts:
         int refvol
         CAT_VolumeRegOpts reg

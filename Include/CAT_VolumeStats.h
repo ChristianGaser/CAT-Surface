@@ -7,11 +7,11 @@
  *
  */
 
-#ifndef _CAT_VOLAVERAGE_H_
-#define _CAT_VOLAVERAGE_H_
+#ifndef _CAT_VOLUMESTATS_H_
+#define _CAT_VOLUMESTATS_H_
 
 /**
- * \file CAT_VolAverage.h
+ * \file CAT_VolumeStats.h
  * \brief Voxel-wise mean, standard deviation and z-scores of NIfTI volumes.
  *
  * A sample is one 3D volume. A 3D file contributes one sample and a 4D file
@@ -118,4 +118,4 @@ void CAT_VolAverageFree(CAT_VolAverageResult *res);
 }
 #endif
 
-#endif /* _CAT_VOLAVERAGE_H_ */
+#endif /* _CAT_VOLUMESTATS_H_ */
