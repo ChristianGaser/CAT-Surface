@@ -221,34 +221,76 @@ static int coarser_level(const VLevel *fine, VLevel *lv)
  * Robust statistics
  * ========================================================================= */
 
-static int cmp_float(const void *a, const void *b)
+/* k-th smallest of a[0..n-1] by Hoare-partition selection.  On return
+   a[0..k-1] <= a[k] <= a[k+1..n-1].  An order statistic is a value, not a
+   position, so this yields what sorting would; the two qsort() calls per
+   IRLS iteration (median and MAD of the residuals over the whole volume) were
+   two thirds of the registration time.  No NaN. */
+static float select_kth_float(float *a, int n, int k)
 {
-    float fa = *(const float *)a, fb = *(const float *)b;
-    return (fa > fb) - (fa < fb);
+    int lo = 0, hi = n - 1;
+
+    while (lo < hi)
+    {
+        const float pivot = a[lo + (hi - lo) / 2];
+        int i = lo, j = hi;
+
+        while (i <= j)
+        {
+            while (a[i] < pivot)
+                i++;
+            while (a[j] > pivot)
+                j--;
+            if (i <= j)
+            {
+                const float t = a[i];
+                a[i] = a[j];
+                a[j] = t;
+                i++;
+                j--;
+            }
+        }
+        if (k <= j)
+            hi = j;
+        else if (k >= i)
+            lo = i;
+        else
+            break; /* a[k] equals the pivot and is in place */
+    }
+    return a[k];
 }
 
-/* Median of a float array (sorts a copy) */
-static float median_f(float *arr, int n)
+/* Median of a[0..n-1], n >= 1, as the sorted middle element(s) would give.
+   Reorders a. */
+static float median_inplace(float *a, int n)
 {
-    float *tmp = (float *)malloc((size_t)n * sizeof(float));
-    memcpy(tmp, arr, (size_t)n * sizeof(float));
-    qsort(tmp, (size_t)n, sizeof(float), cmp_float);
-    float med = (n & 1) ? tmp[n / 2] : 0.5f * (tmp[n/2 - 1] + tmp[n/2]);
-    free(tmp);
-    return med;
+    const int k = n / 2;
+    const float hi = select_kth_float(a, n, k);
+    float lo;
+    int i;
+
+    if (n & 1)
+        return hi;
+
+    /* even: a[0..k-1] <= a[k] after the selection, so the lower middle value
+       is their maximum */
+    lo = a[0];
+    for (i = 1; i < k; i++)
+        if (a[i] > lo)
+            lo = a[i];
+    return 0.5f * (lo + hi);
 }
 
-/* Percentile of a float array (sorts a copy); pct in [0,1] */
+/* Percentile of a float array (selects in a copy); pct in [0,1] */
 static float vol_percentile(const float *data, int n, float pct)
 {
     float *tmp = (float *)malloc((size_t)n * sizeof(float));
     if (!tmp) return 0.0f;
     memcpy(tmp, data, (size_t)n * sizeof(float));
-    qsort(tmp, (size_t)n, sizeof(float), cmp_float);
     int idx = (int)(pct * (float)(n - 1));
     if (idx < 0)     idx = 0;
     if (idx >= n)    idx = n - 1;
-    float v = tmp[idx];
+    float v = select_kth_float(tmp, n, idx);
     free(tmp);
     return v;
 }
@@ -413,14 +455,13 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
 
         if (n_res < 10) { free(res_arr); break; }
 
-        /* Robust sigma via MAD */
-        float med_r = median_f(res_arr, n_res);
-        float *abs_dev = (float *)malloc((size_t)n_res * sizeof(float));
+        /* Robust sigma via MAD.  The median reorders res_arr, which does not
+           change the set of absolute deviations taken from it next. */
+        float med_r = median_inplace(res_arr, n_res);
         int i;
         for (i = 0; i < n_res; i++)
-            abs_dev[i] = fabsf(res_arr[i] - med_r);
-        float mad = median_f(abs_dev, n_res);
-        free(abs_dev);
+            res_arr[i] = fabsf(res_arr[i] - med_r);
+        float mad = median_inplace(res_arr, n_res);
         free(res_arr);
         double sigma = 1.4826 * (double)mad;
         if (sigma < 1e-6) sigma = 1e-6;
