@@ -49,7 +49,7 @@ test:
 
 about:
   home: https://github.com/ChristianGaser/CAT-Surface
-  license: GPL-2.0-only
+  license: GPL-2.0-or-later
   license_file: LICENSE
   summary: Cython bindings to the CAT-Surface library (libCAT) for cortical surface analysis
   description: |

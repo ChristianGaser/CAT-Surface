@@ -23,7 +23,7 @@ name = "cat-surf"
 version = "1.1.0"
 description = "Cython bindings to the CAT-Surface library (libCAT) for cortical surface analysis"
 readme = "README.md"
-license = "GPL-2.0-only"
+license = "GPL-2.0-or-later"
 requires-python = ">=3.9"
 authors = [
     { name = "Christian Gaser", email = "christian.gaser@uni-jena.de" },

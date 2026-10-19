@@ -44,6 +44,14 @@ It does not grant any rights to third-party components unless explicitly
 stated otherwise. Third-party components remain subject to their own license
 terms.
 
+In particular, every CAT-Surface binary, libCAT and the cat-surf Python
+package as built from this repository contain GPL-licensed third-party code
+(FFTW, statically linked, and s2kit10). These binaries can therefore only be
+distributed under the GPL. A commercial product needs, in addition to a
+commercial license for the original code, a commercial FFTW license and a
+replacement for s2kit10. See 3rdparty/README.md for the
+license of every bundled component.
+
 ================================================================================
 THIRD-PARTY COMPONENTS
 ================================================================================
