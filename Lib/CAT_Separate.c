@@ -7,7 +7,10 @@
  *
  */
 
+#include <stdlib.h>
+
 #include "CAT_Separate.h"
+#include "CAT_Smooth.h"
 
 /**
  * \brief Recursively triangulate a polygon using neighbor connectivity.
@@ -490,4 +493,222 @@ int separate_polygons(
     FREE(ordered);
 
     return (n_objects);
+}
+
+/* size of a cluster and the order in which it was found */
+typedef struct
+{
+    int size;
+    int id;
+} cluster_size;
+
+/**
+ * \brief qsort() order of clusters: largest first, then in the order found.
+ *
+ * \param a (in) first cluster_size
+ * \param b (in) second cluster_size
+ * \return negative if a comes first, positive if b does
+ */
+private int compare_cluster_size(const void *a, const void *b)
+{
+    const cluster_size *ca = (const cluster_size *)a;
+    const cluster_size *cb = (const cluster_size *)b;
+
+    if (ca->size != cb->size)
+        return (ca->size < cb->size) ? 1 : -1;
+    return (ca->id > cb->id) - (ca->id < cb->id);
+}
+
+/**
+ * \brief Label the clusters of positive values on a mesh.
+ *
+ * Each cluster is grown from its lowest vertex by a breadth-first search
+ * along the mesh edges, so a cluster is found whole however far it extends.
+ * The clusters are then renumbered by size, 1 being the largest; clusters of
+ * equal size keep the order of their lowest vertex index.
+ *
+ * \param polygons (in)  mesh
+ * \param values   (in)  double[n_points]; value per vertex
+ * \param labels   (out) int[n_points]; cluster number per vertex, 0 where the
+ *                       value is <= 0 or NaN
+ * \return number of clusters
+ */
+int label_value_clusters(
+    polygons_struct *polygons,
+    const double values[],
+    int labels[])
+{
+    int point, current, n, neigh, n_clusters;
+    int *n_neighbours, **neighbours, *rank;
+    cluster_size *clusters;
+    QUEUE_STRUCT(int) queue;
+
+    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
+
+    /* -1 marks a vertex of a cluster that has not been grown yet; NaN fails
+       the comparison and stays outside like every value <= 0 */
+    for_less(point, 0, polygons->n_points)
+        labels[point] = (values[point] > 0.0) ? -1 : 0;
+
+    ALLOC(clusters, polygons->n_points);
+    n_clusters = 0;
+
+    for_less(point, 0, polygons->n_points)
+    {
+        if (labels[point] != -1)
+            continue;
+
+        clusters[n_clusters].id = n_clusters + 1;
+        clusters[n_clusters].size = 0;
+        ++n_clusters;
+
+        INITIALIZE_QUEUE(queue);
+        INSERT_IN_QUEUE(queue, point);
+        labels[point] = n_clusters;
+
+        while (!IS_QUEUE_EMPTY(queue))
+        {
+            REMOVE_FROM_QUEUE(queue, current);
+            ++clusters[n_clusters - 1].size;
+
+            for_less(n, 0, n_neighbours[current])
+            {
+                neigh = neighbours[current][n];
+                if (labels[neigh] == -1)
+                {
+                    labels[neigh] = n_clusters;
+                    INSERT_IN_QUEUE(queue, neigh);
+                }
+            }
+        }
+
+        DELETE_QUEUE(queue);
+    }
+
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
+
+    /* renumber the clusters by size */
+    if (n_clusters > 1)
+        qsort(clusters, n_clusters, sizeof(cluster_size), compare_cluster_size);
+    ALLOC(rank, n_clusters + 1);
+    for_less(n, 0, n_clusters)
+        rank[clusters[n].id] = n + 1;
+    for_less(point, 0, polygons->n_points)
+    {
+        if (labels[point] > 0)
+            labels[point] = rank[labels[point]];
+    }
+
+    FREE(rank);
+    FREE(clusters);
+
+    return (n_clusters);
+}
+
+/**
+ * \brief Whether every vertex of a polygon carries the given label.
+ *
+ * \param polygons (in) mesh
+ * \param poly     (in) polygon index
+ * \param labels   (in) int[n_points]; label per vertex
+ * \param label    (in) label to test for
+ * \return TRUE if the polygon lies entirely in the label
+ */
+private BOOLEAN polygon_has_label(
+    polygons_struct *polygons,
+    int poly,
+    const int labels[],
+    int label)
+{
+    int vertex, size;
+
+    size = GET_OBJECT_SIZE(*polygons, poly);
+    for_less(vertex, 0, size)
+    {
+        if (labels[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]] != label)
+            return (FALSE);
+    }
+    return (TRUE);
+}
+
+/**
+ * \brief Extract the polygons of one label as a new mesh.
+ *
+ * A polygon belongs to the label if all its vertices do, so polygons that
+ * straddle the border of a cluster are left out, and a cluster without a
+ * complete polygon gives an empty mesh.  The vertices keep their order.
+ *
+ * \param polygons (in)  mesh
+ * \param labels   (in)  int[n_points]; label per vertex
+ * \param label    (in)  label to extract
+ * \param out      (out) the polygons whose vertices all carry the label, with
+ *                       the vertices renumbered; free with delete_polygons()
+ * \return number of polygons in out
+ */
+int extract_label_polygons(
+    polygons_struct *polygons,
+    const int labels[],
+    int label,
+    polygons_struct *out)
+{
+    int poly, size, vertex, point, n_indices, ind, p_ind;
+    int *new_point_ids;
+
+    initialize_polygons(out, WHITE, NULL);
+
+    /* -2 marks the vertices of the polygons that are kept */
+    ALLOC(new_point_ids, polygons->n_points);
+    for_less(point, 0, polygons->n_points)
+        new_point_ids[point] = -1;
+
+    n_indices = 0;
+    for_less(poly, 0, polygons->n_items)
+    {
+        if (!polygon_has_label(polygons, poly, labels, label))
+            continue;
+
+        size = GET_OBJECT_SIZE(*polygons, poly);
+        ++out->n_items;
+        n_indices += size;
+        for_less(vertex, 0, size)
+            new_point_ids[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]] = -2;
+    }
+
+    if (out->n_items > 0)
+    {
+        for_less(point, 0, polygons->n_points)
+        {
+            if (new_point_ids[point] == -2)
+                new_point_ids[point] = out->n_points++;
+        }
+
+        ALLOC(out->points, out->n_points);
+        ALLOC(out->normals, out->n_points);
+        for_less(point, 0, polygons->n_points)
+        {
+            if (new_point_ids[point] >= 0)
+                out->points[new_point_ids[point]] = polygons->points[point];
+        }
+
+        ALLOC(out->end_indices, out->n_items);
+        ALLOC(out->indices, n_indices);
+        ind = 0;
+        p_ind = 0;
+        for_less(poly, 0, polygons->n_items)
+        {
+            if (!polygon_has_label(polygons, poly, labels, label))
+                continue;
+
+            size = GET_OBJECT_SIZE(*polygons, poly);
+            for_less(vertex, 0, size)
+                out->indices[ind++] = new_point_ids[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]];
+            out->end_indices[p_ind++] = ind;
+        }
+
+        compute_polygon_normals(out);
+    }
+
+    FREE(new_point_ids);
+
+    return (out->n_items);
 }

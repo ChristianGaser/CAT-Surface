@@ -30,5 +30,32 @@ int separate_polygons(polygons_struct *polygons, int desired_index,
  */
 void triangulate_polygons(polygons_struct *polygons,
                           polygons_struct *triangles);
+/**
+ * \brief Label the clusters of positive values on a mesh.
+ *
+ * A cluster is a set of vertices with a value > 0 that are connected along
+ * mesh edges.  The clusters are numbered by size, 1 being the largest;
+ * clusters of equal size keep the order of their lowest vertex index.
+ *
+ * \param polygons (in)  mesh
+ * \param values   (in)  double[n_points]; value per vertex
+ * \param labels   (out) int[n_points]; cluster number per vertex, 0 where the
+ *                       value is <= 0 or NaN
+ * \return number of clusters
+ */
+int label_value_clusters(polygons_struct *polygons, const double values[],
+                         int labels[]);
+/**
+ * \brief Extract the polygons of one label as a new mesh.
+ *
+ * \param polygons (in)  mesh
+ * \param labels   (in)  int[n_points]; label per vertex
+ * \param label    (in)  label to extract
+ * \param out      (out) the polygons whose vertices all carry the label, with
+ *                       the vertices renumbered; free with delete_polygons()
+ * \return number of polygons in out
+ */
+int extract_label_polygons(polygons_struct *polygons, const int labels[],
+                           int label, polygons_struct *out);
 
 #endif
