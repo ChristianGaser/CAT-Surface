@@ -465,7 +465,10 @@ void surf_deform(polygons_struct *polygons, float *input, nifti_image *nii_ptr,
         Point_y(polygons_orig->points[v]) += displacement_field[v][1];
         Point_z(polygons_orig->points[v]) += displacement_field[v][2];
     }
+    /* copy_polygons() allocates new arrays, so the old ones are freed first */
+    delete_polygons(polygons);
     copy_polygons(polygons_orig, polygons);
+    delete_object(orig_object);
 
     // The per-vertex forces leave the mesh noisier than its start surface.  Two
     // iterations of HC Laplacian smoothing remove that noise without pulling the
@@ -865,6 +868,8 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             Point_y(polygons1_orig->points[v]) += displacement_field1[v][1];
             Point_z(polygons1_orig->points[v]) += displacement_field1[v][2];
         }
+        /* copy_polygons() allocates new arrays, so the old ones are freed first */
+        delete_polygons(polygons1);
         copy_polygons(polygons1_orig, polygons1);
     }
 
@@ -888,6 +893,7 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
             Point_y(polygons2_orig->points[v]) += displacement_field2[v][1];
             Point_z(polygons2_orig->points[v]) += displacement_field2[v][2];
         }
+        delete_polygons(polygons2);
         copy_polygons(polygons2_orig, polygons2);
     }
 
@@ -914,5 +920,9 @@ void surf_deform_dual(polygons_struct *polygons1, polygons_struct *polygons2,
     if (displacement_field2)
         free(displacement_field2);
     free(curv);
+    if (orig_object1)
+        delete_object(orig_object1);
+    if (orig_object2)
+        delete_object(orig_object2);
     delete_polygon_point_neighbours(active, n_neighbours, neighbours, NULL, NULL);
 }
