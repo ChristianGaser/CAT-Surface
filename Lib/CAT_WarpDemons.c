@@ -801,19 +801,14 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
     get_all_polygon_point_neighbours(trg, &n_neighbours, &neighbours);
     get_polygon_vertex_curvatures_cg(trg, n_neighbours, neighbours,
                                      distance, type, curv_trg0);
-    /* get_all_polygon_point_neighbours allocates a single flat block for
-     * neighbours[0]; free it directly (delete_polygon_point_neighbours assumes
-     * per-vertex allocations and would corrupt the heap here). */
-    free(n_neighbours);
-    if (neighbours) { free(neighbours[0]); free(neighbours); }
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 
     get_all_polygon_point_neighbours(src, &n_neighbours, &neighbours);
     get_polygon_vertex_curvatures_cg(src, n_neighbours, neighbours,
                                      distance, type, curv_src0);
 
     min_angle = min_neighbour_angle(src_sphere, n_neighbours, neighbours);
-    free(n_neighbours);
-    if (neighbours) { free(neighbours[0]); free(neighbours); }
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 
     /* SD constant Tikhonov regularizer: in SD_computeAtlas2SphereInvariantUpdate
      * the Hessian gets H += I/(max_step^2 * min_step). Mapped into the theta/phi
@@ -1235,10 +1230,8 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
         free(dist_orig);
         free(dfx); free(dfy); free(dfz);
     }
-    if (tangent || use_dist) {
-        free(tn_nbr);
-        if (tnbr) { free(tnbr[0]); free(tnbr); }
-    }
+    if (tangent || use_dist)
+        delete_all_polygon_point_neighbours(tn_nbr, tnbr);
 
     free(curv_src0);
     free(curv_src);
@@ -1723,8 +1716,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
      * irregular mesh; clean the output too. */
     if (opt->unfold) {
         unfold_mesh(warped_src_sphere, unf_nbr, unf_nbrs, 200, SPHERE_RADIUS, opt->verbose);
-        free(unf_nbr);
-        if (unf_nbrs) { free(unf_nbrs[0]); free(unf_nbrs); }
+        delete_all_polygon_point_neighbours(unf_nbr, unf_nbrs);
     }
 
     compute_polygon_normals(warped_src_sphere);

@@ -189,15 +189,7 @@ CAT_CorrectThicknessFoldingWeighted(polygons_struct *polygons, int n_vals,
     free(mean_curvatures);
     free(orig_thickness);
 
-    /* Cleanup (get_all_polygon_point_neighbours allocates a single flat block for neighbours[0]). */
-    if (n_neighbours)
-        free(n_neighbours);
-    if (neighbours)
-    {
-        if (neighbours[0])
-            free(neighbours[0]);
-        free(neighbours);
-    }
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 
     return (OK);
 }

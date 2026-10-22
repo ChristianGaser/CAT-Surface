@@ -115,8 +115,7 @@ main(int argc, char *argv[])
             object_list, NULL) != OK)
         exit(EXIT_FAILURE);
     
-    delete_polygon_point_neighbours(polygons, n_neighbours,
-                    neighbours, NULL, NULL);
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
     free(convexity);
 
     return(EXIT_SUCCESS);
