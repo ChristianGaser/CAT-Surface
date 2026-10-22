@@ -87,6 +87,27 @@ void get_all_polygon_point_neighbours(polygons_struct *polygons,
 }
 
 /**
+ * \brief Free the neighbour lists returned by get_all_polygon_point_neighbours().
+ *
+ * The lists of all points are slices of one block that starts at
+ * point_neighbours[0]. bicpl's delete_polygon_point_neighbours() frees every
+ * list on its own and therefore aborts at the second one.
+ *
+ * \param n_point_neighbours (in)  int[n_points]; neighbour counts, freed
+ * \param point_neighbours   (in)  int*[n_points]; neighbour lists, freed
+ */
+void delete_all_polygon_point_neighbours(int n_point_neighbours[],
+                                         int *point_neighbours[])
+{
+    FREE(n_point_neighbours);
+    if (point_neighbours != NULL)
+    {
+        FREE(point_neighbours[0]);
+        FREE(point_neighbours);
+    }
+}
+
+/**
  * \brief Evaluate heat diffusion kernel for a given distance.
  *
  * Computes the Gaussian heat kernel: exp(-(x*x) / (2*sigma*sigma))
@@ -289,7 +310,7 @@ void smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
     else
         free(smooth_pts);
 
-    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 }
 
 /**

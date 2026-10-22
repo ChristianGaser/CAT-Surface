@@ -26,6 +26,10 @@
 /**
  * \brief Extract all unique vertex neighbors for every point on a polygon mesh.
  *
+ * The lists of all points share one block, so they are released with
+ * delete_all_polygon_point_neighbours(), never with bicpl's
+ * delete_polygon_point_neighbours().
+ *
  * \param polygons                (in)  polygon mesh structure
  * \param n_point_neighbours_ptr (out)  int[n_points]; count of neighbors for each point
  * \param point_neighbours_ptr   (out)  int*[n_points]; neighbor vertex indices for each point
@@ -33,6 +37,14 @@
 void get_all_polygon_point_neighbours(polygons_struct *polygons,
                                       int *n_point_neighbours_ptr[],
                                       int **point_neighbours_ptr[]);
+/**
+ * \brief Free the neighbour lists returned by get_all_polygon_point_neighbours().
+ *
+ * \param n_point_neighbours (in)  int[n_points]; neighbour counts, freed
+ * \param point_neighbours   (in)  int*[n_points]; neighbour lists, freed
+ */
+void delete_all_polygon_point_neighbours(int n_point_neighbours[],
+                                         int *point_neighbours[]);
 /**
  * \brief Apply weighted averaging for a point using heat kernel distance weighting.
  *
