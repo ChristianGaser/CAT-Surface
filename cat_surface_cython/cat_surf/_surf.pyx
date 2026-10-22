@@ -305,16 +305,18 @@ def surf_curvature(vertices, faces, int curvtype=0, double fwhm=0.0,
     cdef polygons_struct *poly = mesh.ptr()
     cdef int n = poly.n_points
 
-    cdef int *n_neighbours = NULL
-    cdef int **neighbours  = NULL
-    C.get_all_polygon_point_neighbours(poly, &n_neighbours, &neighbours)
-
     cdef double distance = 3.0 if curvtype == 0 else 0.0
 
     cdef cnp.ndarray[cnp.float64_t, ndim=1] curv = np.zeros(n, dtype=np.float64)
+
+    # Nothing between building and freeing the neighbour lists can raise.
+    cdef int *n_neighbours = NULL
+    cdef int **neighbours  = NULL
+    C.get_all_polygon_point_neighbours(poly, &n_neighbours, &neighbours)
     C.get_polygon_vertex_curvatures_cg(
         poly, n_neighbours, neighbours,
         distance, curvtype, <double *>curv.data)
+    C.delete_all_polygon_point_neighbours(n_neighbours, neighbours)
 
     # Mirror the CLI's range clip for the unit-normalised measures.
     if (0 < curvtype < 4) or curvtype == 10:

@@ -340,12 +340,6 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
  */
 void get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
 {
-    int i, j, n_iter;
-    double *sm_values;
-    int *n_neighbours, **neighbours;
-    Point point;
-
-    get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
     smooth_heatkernel(polygons, values, fwhm);
 }
 
