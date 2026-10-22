@@ -25,6 +25,16 @@ static const char *file_4d = "test_volaverage_4d.nii";
 static const char *file_mid = "test_volaverage_mid.nii";
 static char vol_names[NT][40];
 
+/*
+ * The samples exactly as make_fixture() wrote them.  The references read them
+ * from here instead of calling sample() again: GCC contracts a*b+c into an FMA
+ * by default wherever the target has one, as aarch64 always does, so the same
+ * float expression can round differently at two call sites -- and one ulp at
+ * 50 is 4e-6, far above the 1e-9 the means and standard deviations are
+ * compared at.
+ */
+static float fixture[NT * NVOX];
+
 /** \brief Voxel i of volume t: a bright "brain" with a little structure. */
 static float
 sample(int t, int i)
@@ -52,19 +62,18 @@ write_series(const char *file, int nx, int ny, int nz, int nt, const float *data
 static void
 make_fixture(float outlier)
 {
-    float data[NT * NVOX];
     int t, i;
 
     for (t = 0; t < NT; t++)
         for (i = 0; i < NVOX; i++)
-            data[t * NVOX + i] = sample(t, i) + ((t == NT - 1) ? outlier : 0.0f);
+            fixture[t * NVOX + i] = sample(t, i) + ((t == NT - 1) ? outlier : 0.0f);
 
-    write_series(file_4d, NX, NY, NZ, NT, data);
-    write_series(file_mid, NX, NY, NZ, 3, data + NVOX);
+    write_series(file_4d, NX, NY, NZ, NT, fixture);
+    write_series(file_mid, NX, NY, NZ, 3, fixture + NVOX);
     for (t = 0; t < NT; t++)
     {
         sprintf(vol_names[t], "test_volaverage_v%d.nii", t);
-        write_series(vol_names[t], NX, NY, NZ, 1, data + t * NVOX);
+        write_series(vol_names[t], NX, NY, NZ, 1, fixture + t * NVOX);
     }
 }
 
@@ -102,12 +111,12 @@ reference(int first, int n, double *mean, double *sd)
     {
         s = 0.0;
         for (t = first; t < first + n; t++)
-            s += (double)sample(t, i);
+            s += (double)fixture[t * NVOX + i];
         mean[i] = s / n;
         s = 0.0;
         for (t = first; t < first + n; t++)
         {
-            d = (double)sample(t, i) - mean[i];
+            d = (double)fixture[t * NVOX + i] - mean[i];
             s += d * d;
         }
         sd[i] = sqrt(s / (n - 1));
@@ -213,7 +222,7 @@ test_std_needs_two_volumes(void)
     make_fixture(0.0f);
     in[0] = vol_names[0];
     for (i = 0; i < NVOX; i++)
-        v0[i] = (double)sample(0, i);
+        v0[i] = (double)fixture[i];
 
     MU_ASSERT("a single volume is scanned", CAT_VolAverageScan(in, 1, 0, &r) == 0);
     MU_ASSERT("n = 1 has no standard deviation", CAT_VolAverageCompute(in, 1, 1, 0, &r) != 0);
