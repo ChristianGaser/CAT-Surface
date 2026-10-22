@@ -19,6 +19,7 @@
  *
  */
 
+#include <string.h>
 #include <quadric.h>
 #include "CAT_Surf.h"
 #include "CAT_SafeAlloc.h"
@@ -1615,18 +1616,11 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     int *n_neighbours, **neighbours;
     int i, p, n_steps, dims[3];
     double x, y, z, val, length;
-    polygons_struct *polygons_out;
     Point *new_pts;
-    object_struct **objects_out;
 
     compute_polygon_normals(polygons);
     check_polygons_neighbours_computed(polygons);
 
-    objects_out  = SAFE_MALLOC(object_struct *, 1);
-    *objects_out = create_object(POLYGONS);
-    polygons_out = get_polygons_ptr(*objects_out);
-            
-    copy_polygons(polygons, polygons_out);
     if (((sigma > 0.0) && (iterations > 0)))
         create_polygon_point_neighbours(polygons, TRUE, &n_neighbours, &neighbours, NULL, NULL);
 
@@ -1637,9 +1631,14 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
     /* Allocate displacement field */
     double (*displacements)[3] = (double (*)[3]) SAFE_MALLOC(double, 3 * polygons->n_points);
 
+    /* Each step is checked against the points of the previous one, so it is
+       built in a scratch array and copied back afterwards.  Copying the whole
+       surface for that left one copy behind per step. */
+    new_pts = SAFE_MALLOC(Point, polygons->n_points);
+
     for (i = 0; i < n_steps; i++) {
-        copy_polygons(polygons, polygons_out);
-        
+        memcpy(new_pts, polygons->points, sizeof(Point) * polygons->n_points);
+
         /* decrease length of change for each step by ratio of 2 to achieve larger changes
            in the first steps which will get smaller from step to step */
         if ((i+1) < n_steps)
@@ -1660,17 +1659,16 @@ central_to_pial(polygons_struct *polygons, double *thickness_values, double *ext
 
         /* Apply smoothed displacements */
         for (p = 0; p < polygons->n_points; p++) {
-            Point_x(polygons_out->points[p]) += displacements[p][0];
-            Point_y(polygons_out->points[p]) += displacements[p][1];
-            Point_z(polygons_out->points[p]) += displacements[p][2];
+            Point_x(new_pts[p]) += displacements[p][0];
+            Point_y(new_pts[p]) += displacements[p][1];
+            Point_z(new_pts[p]) += displacements[p][2];
         }
 
-        new_pts = polygons_out->points;
-                
         /* check polygon integrity of new points */
         check_polygons_shape_integrity(polygons, new_pts);
-        polygons->points = new_pts;
+        memcpy(polygons->points, new_pts, sizeof(Point) * polygons->n_points);
     }
+    free(new_pts);
 
     compute_polygon_normals(polygons);
 
@@ -1711,7 +1709,8 @@ get_area_of_points_central_to_pial(polygons_struct *polygons, double *area, doub
         0, 0.0, 0, 0);
     polygons_transformed = get_polygons_ptr(objects_transformed[0]);
     surface_area = get_area_of_points(polygons_transformed, area);
-    
+
+    delete_object_list(1, objects_transformed);
     free(extents);
 
     return(surface_area);
