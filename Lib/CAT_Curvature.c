@@ -420,6 +420,7 @@ void get_smoothed_curvatures(polygons_struct *polygons,
 
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                                      distance, curvtype, values);
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 
     smooth_heatkernel(polygons, values, fwhm);
 

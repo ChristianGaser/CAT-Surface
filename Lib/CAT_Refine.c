@@ -244,6 +244,7 @@ int refine_mesh(
         get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
         get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                                          3.0, 0, curvatures);
+        delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 
         /* get absolute value, transform data to more normally distributed data
            with x^0.4 and finally get maximum */

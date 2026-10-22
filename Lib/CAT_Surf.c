@@ -1810,6 +1810,7 @@ correct_mesh_folding(polygons_struct *polygons, polygons_struct *polygons_refere
     get_all_polygon_point_neighbours(polygons, &n_neighbours, &neighbours);
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                  avg, curvtype, curvatures);
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
     
     /* smooth curvature values to minimize noisy meshes */
     smooth_heatkernel(polygons, curvatures, fwhm);

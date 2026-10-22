@@ -3,6 +3,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/gifticlib \
+    -I$(top_srcdir)/3rdparty/expat/lib \
     -I$(top_srcdir)/3rdparty/nii2mesh \
     -I$(top_srcdir)/3rdparty/nifti
 

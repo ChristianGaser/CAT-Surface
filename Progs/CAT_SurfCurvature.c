@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
 
     get_polygon_vertex_curvatures_cg(polygons, n_neighbours, neighbours,
                                      distance, curvtype, curvatures);
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
 
     /* limit range to values between -1..1 for some normalized curvtypes */
     if (((curvtype > 0) && (curvtype < 4)) || (curvtype == 10))

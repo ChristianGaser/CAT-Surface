@@ -146,6 +146,7 @@ int CAT_SurfEstimatePialWhite(
 
     /* Compute curvature-based weights (negative mean curvature -> smoothing) */
     get_polygon_vertex_curvatures_cg(central, n_neighbours, neighbours, 3.0, 0.0, weight);
+    delete_all_polygon_point_neighbours(n_neighbours, neighbours);
     for (p = 0; p < n_points; p++)
     {
         weight[p] = fmin(0.0, weight[p]);   /* Only negative curvatures */
@@ -257,8 +258,6 @@ int CAT_SurfEstimatePialWhite(
     free(extents);
     free(weight);
     free(polygons_smoothed);
-//    if (n_neighbours && neighbours)
-//        delete_polygon_point_neighbours(central, n_neighbours, neighbours, NULL, NULL);
 
     return 0;
 }

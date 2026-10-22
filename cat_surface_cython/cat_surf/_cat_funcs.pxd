@@ -149,6 +149,8 @@ cdef extern from "CAT_Smooth.h":
     void get_all_polygon_point_neighbours(polygons_struct *poly,
                                           int *n_neighbours_ptr[],
                                           int **neighbours_ptr[])
+    void delete_all_polygon_point_neighbours(int *n_neighbours,
+                                             int **neighbours)
     void smooth_heatkernel(polygons_struct *poly, double *values,
                            double kernel_size)
     int  smooth_laplacian(polygons_struct *poly, int iters,
