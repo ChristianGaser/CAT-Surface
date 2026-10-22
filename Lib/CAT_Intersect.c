@@ -1294,6 +1294,8 @@ void remove_near_intersections(polygons_struct *polygons, double threshold, int 
     } while (n_intersects > 1 && counter < 5);
 
     free(polydefects);
+    free(defects);
+    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
 
     compute_polygon_normals(polygons);
 }

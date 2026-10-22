@@ -51,6 +51,21 @@ void CAT_PialWhiteOptionsInit(CAT_PialWhiteOptions *opts)
 }
 
 /**
+ * \brief Delete the start surfaces made by central_to_new_pial().
+ *
+ * \param pial_objects  (in) object list of the pial start surface, or NULL
+ * \param white_objects (in) object list of the white start surface, or NULL
+ */
+static void
+delete_start_surfaces(object_struct **pial_objects, object_struct **white_objects)
+{
+    if (pial_objects)
+        delete_object_list(1, pial_objects);
+    if (white_objects)
+        delete_object_list(1, white_objects);
+}
+
+/**
  * \brief Estimate pial and white surfaces from a central surface.
  *
  * Creates initial pial/white surfaces from thickness values, applies
@@ -86,7 +101,8 @@ int CAT_SurfEstimatePialWhite(
     double *weight = NULL;
     int *n_neighbours = NULL;
     int **neighbours = NULL;
-    object_struct **objects_out;
+    object_struct **pial_objects = NULL;
+    object_struct **white_objects = NULL;
     polygons_struct *polygons_pial = NULL;
     polygons_struct *polygons_white = NULL;
     polygons_struct *polygons_smoothed = NULL;
@@ -159,9 +175,9 @@ int CAT_SurfEstimatePialWhite(
     {
         for (p = 0; p < n_points; p++)
             extents[p] = 0.5;
-        objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
-                                          1, 0.5 * opts->sigma, 5, opts->verbose);
-        polygons_pial = get_polygons_ptr(objects_out[0]);
+        pial_objects = central_to_new_pial(central, (double *)thickness_values, extents,
+                                           1, 0.5 * opts->sigma, 5, opts->verbose);
+        polygons_pial = get_polygons_ptr(pial_objects[0]);
     }
 
     /* Smooth pial surface based on local curvature */
@@ -178,15 +194,16 @@ int CAT_SurfEstimatePialWhite(
         Point_z(polygons_pial->points[p]) = weight[p] * Point_z(polygons_smoothed->points[p]) +
                                             (1.0 - weight[p]) * Point_z(polygons_pial->points[p]);
     }
+    delete_polygons(polygons_smoothed);
 
     /* Initial estimate of white surface */
     if (opts->method == 0)
     {
         for (p = 0; p < n_points; p++)
             extents[p] = -0.5;
-        objects_out = central_to_new_pial(central, (double *)thickness_values, extents,
-                                          0, 0.5 * opts->sigma, 5, opts->verbose);
-        polygons_white = get_polygons_ptr(objects_out[0]);
+        white_objects = central_to_new_pial(central, (double *)thickness_values, extents,
+                                            0, 0.5 * opts->sigma, 5, opts->verbose);
+        polygons_white = get_polygons_ptr(white_objects[0]);
     }
 
     if (!polygons_pial || !polygons_white)
@@ -194,6 +211,7 @@ int CAT_SurfEstimatePialWhite(
         free(extents);
         free(weight);
         free(polygons_smoothed);
+        delete_start_surfaces(pial_objects, white_objects);
         return -3;
     }
     
@@ -217,6 +235,7 @@ int CAT_SurfEstimatePialWhite(
             free(extents);
             free(weight);
             free(polygons_smoothed);
+            delete_start_surfaces(pial_objects, white_objects);
             return -4;
         }
 
@@ -258,6 +277,7 @@ int CAT_SurfEstimatePialWhite(
     free(extents);
     free(weight);
     free(polygons_smoothed);
+    delete_start_surfaces(pial_objects, white_objects);
 
     return 0;
 }
