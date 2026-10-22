@@ -288,6 +288,8 @@ void smooth_heatkernel(polygons_struct *polygons, double *values, double fwhm)
         free(smooth_values);
     else
         free(smooth_pts);
+
+    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours, NULL, NULL);
 }
 
 /**
