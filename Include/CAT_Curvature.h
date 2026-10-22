@@ -71,14 +71,15 @@ void get_smoothed_curvatures(polygons_struct *polygons, double *values,
  */
 void compute_sulcus_depth(polygons_struct *surface, double *depth);
 /**
- * \brief Compute FreeSurfer-style sulcal depth via iterative surface inflation.
+ * \brief Compute FreeSurfer-style sulcal depth (average convexity).
  *
- * Inflates a copy of the surface and projects each vertex's displacement onto
- * its original surface normal. Provides a signed depth measure comparable to
- * FreeSurfer's sulc file (curvtype 11 in get_polygon_vertex_curvatures_cg).
+ * Smooths a copy of the surface in small steps and sums the movement of each
+ * vertex along its current normal, as FreeSurfer does for ?h.sulc during
+ * inflation (curvtype 11 in get_polygon_vertex_curvatures_cg).
  *
- * \param surface (in/out) surface mesh; centered in-place at its center of mass
- * \param depth   (out)    double[n_points]; signed displacement along surface normal
+ * \param surface (in)  surface mesh; not modified
+ * \param depth   (out) double[n_points]; zero-mean sulcal depth in mm,
+ *                      positive in sulci and negative on gyri
  */
 void compute_sulcal_depth_inflation(polygons_struct *surface, double *depth);
 /**

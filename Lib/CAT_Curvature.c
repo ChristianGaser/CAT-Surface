@@ -18,13 +18,14 @@
 #include "CAT_ConvexHull.h"
 #include "CAT_DepthPotential.h"
 
-/* Forward declarations for functions defined in CAT_Surf.c */
-void inflate_surface_and_smooth_fingers(polygons_struct *, const int,
-                                        const double, const int, const double,
-                                        const double, const double, const int);
-void translate_to_center_of_mass(polygons_struct *);
-
 #define PI2 0.6366197724 /* 2/pi */
+
+/* Average convexity (curvtype 11): total smoothing in mm and the number of
+   steps it is summed over. On two recon-all reconstructions of one subject,
+   30 mm reproduces FreeSurfer's ?h.sulc vertex by vertex (Spearman 0.99, same
+   interquartile range); 20 or 50 mm reach 0.94 only. */
+#define SULC_FWHM 30.0
+#define SULC_STEPS 25
 
 /**
  * \brief Project a 3D vector onto a 2D plane defined by basis vectors.
@@ -482,76 +483,69 @@ void compute_sulcus_depth(polygons_struct *surface, double *depth)
 }
 
 /**
- * \brief Compute FreeSurfer-style sulcal depth via iterative surface inflation.
+ * \brief Compute FreeSurfer-style sulcal depth (average convexity).
  *
- * Inflates a copy of the surface using the same spring-model inflation as
- * surf_to_sphere() and measures the displacement of each vertex projected onto
- * its original surface normal. Sulcal vertices move outward during inflation
- * (positive values) while gyral vertices move less, producing a measure of
- * fold depth comparable to FreeSurfer's sulc file, which is aka average convexity.
+ * Follows FreeSurfer's definition of ?h.sulc: the surface is inflated by
+ * smoothing, and the movement of each vertex along its *current* normal is
+ * summed over the course of the inflation. Sulcal vertices move outwards and
+ * gyral vertices inwards, so the depth is positive in sulci and negative on
+ * gyri. A copy of the surface is smoothed in SULC_STEPS heat-kernel steps that
+ * add up to SULC_FWHM, and the result is centred on zero, as FreeSurfer's is.
  *
- * Algorithm:
- *  1. Center the surface at its center of mass.
- *  2. Compute and save the original surface normals and vertex positions.
- *  3. Inflate a copy with two stages of inflate_surface_and_smooth_fingers()
- *     matching the first two stages of surf_to_sphere().
- *  4. For each vertex: depth[i] = dot(inflated[i] - original[i], normal[i]).
+ * Only displacement by smoothing is summed. The net displacement of an
+ * inflation that also expands the surface, as surf_to_sphere() does, projected
+ * onto the original normals is dominated by the expansion and measures how the
+ * surface faces its centre rather than how it is folded.
  *
- * \param surface (in/out) surface mesh; centered in-place at its center of mass
- * \param depth   (out)    double[n_points]; signed displacement along surface normal
+ * \param surface (in)  surface mesh; not modified
+ * \param depth   (out) double[n_points]; sulcal depth in mm, positive in sulci
  */
 void compute_sulcal_depth_inflation(polygons_struct *surface, double *depth)
 {
-    int i;
+    int i, step;
+    double step_fwhm = SULC_FWHM / sqrt((double)SULC_STEPS);
+    double mean = 0.0;
     object_struct *inflated_obj;
     polygons_struct *inflated;
-    Point *orig_pts;
-    double dx, dy, dz;
+    Point *prev_pts;
+    Vector *normals;
 
-    /* Step 1: center the original surface so the internal re-centering inside
-       inflate_surface_and_smooth_fingers() is a no-op. */
-    translate_to_center_of_mass(surface);
-
-    /* Step 2: compute normals on the centered original and save positions. */
-    compute_polygon_normals(surface);
-    orig_pts = (Point *)malloc(surface->n_points * sizeof(Point));
-    for (i = 0; i < surface->n_points; i++)
-        orig_pts[i] = surface->points[i];
-
-    /* Step 3: inflate a copy using parameters from the first two stages of
-       surf_to_sphere() — enough to separate sulci from gyri. */
     inflated_obj = create_object(POLYGONS);
     inflated = get_polygons_ptr(inflated_obj);
     copy_polygons(surface, inflated);
 
-    inflate_surface_and_smooth_fingers(inflated,
-                                       /*  cycles              */ 1,
-                                       /*  reg smooth strength */ 0.2,
-                                       /*  reg smooth iters   */ 50,
-                                       /*  inflation factor   */ 1.0,
-                                       /*  comp/stretch thresh */ 3.0,
-                                       /*  finger smooth str  */ 1.0,
-                                       /*  finger smooth iters*/ 0);
+    prev_pts = (Point *)malloc(surface->n_points * sizeof(Point));
+    normals = (Vector *)malloc(surface->n_points * sizeof(Vector));
 
-    inflate_surface_and_smooth_fingers(inflated,
-                                       /*  cycles              */ 2,
-                                       /*  reg smooth strength */ 1.0,
-                                       /*  reg smooth iters   */ 30,
-                                       /*  inflation factor   */ 1.4,
-                                       /*  comp/stretch thresh */ 3.0,
-                                       /*  finger smooth str  */ 1.0,
-                                       /*  finger smooth iters*/ 30);
-
-    /* Step 4: project displacement onto original surface normal. */
     for (i = 0; i < surface->n_points; i++)
+        depth[i] = 0.0;
+
+    for (step = 0; step < SULC_STEPS; step++)
     {
-        dx = Point_x(inflated->points[i]) - Point_x(orig_pts[i]);
-        dy = Point_y(inflated->points[i]) - Point_y(orig_pts[i]);
-        dz = Point_z(inflated->points[i]) - Point_z(orig_pts[i]);
-        depth[i] = dx * Vector_x(surface->normals[i]) + dy * Vector_y(surface->normals[i]) + dz * Vector_z(surface->normals[i]);
+        /* Normals at the start of the step; smoothing may update the copy's */
+        compute_polygon_normals(inflated);
+        for (i = 0; i < surface->n_points; i++)
+        {
+            prev_pts[i] = inflated->points[i];
+            normals[i] = inflated->normals[i];
+        }
+
+        smooth_heatkernel(inflated, NULL, step_fwhm);
+
+        for (i = 0; i < surface->n_points; i++)
+            depth[i] += (Point_x(inflated->points[i]) - Point_x(prev_pts[i])) * Vector_x(normals[i]) +
+                        (Point_y(inflated->points[i]) - Point_y(prev_pts[i])) * Vector_y(normals[i]) +
+                        (Point_z(inflated->points[i]) - Point_z(prev_pts[i])) * Vector_z(normals[i]);
     }
 
-    free(orig_pts);
+    for (i = 0; i < surface->n_points; i++)
+        mean += depth[i];
+    mean /= (double)surface->n_points;
+    for (i = 0; i < surface->n_points; i++)
+        depth[i] -= mean;
+
+    free(prev_pts);
+    free(normals);
     delete_object(inflated_obj);
 }
 

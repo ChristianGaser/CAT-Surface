@@ -9,8 +9,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
 # Included by the tests rather than compiled on their own.
 EXTRA_DIST = minunit.h math_subset.c
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_sulc
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_sulc
 
 test_math_SOURCES = test_math.c
 
@@ -43,6 +43,10 @@ test_deform_LDADD = $(top_builddir)/libCAT.la -lm
 test_folding_SOURCES = test_folding.c
 
 test_folding_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_sulc_SOURCES = test_sulc.c
+
+test_sulc_LDADD = $(top_builddir)/libCAT.la -lm
 
 test_intersect_SOURCES = test_intersect.c
 
