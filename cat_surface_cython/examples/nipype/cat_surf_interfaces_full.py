@@ -2149,7 +2149,7 @@ class CatSurfBbreg(SimpleInterface):
 
     Examples
     --------
-    >>> node = CatSurfBbreg(invert_contrast=1, wm_dist=2.0, gm_proj_frac=0.5)
+    >>> node = CatSurfBbreg(invert_contrast=1, gm_proj_frac=0.5)
     >>> node.inputs.in_file = 'bold_ref.nii.gz'               # doctest: +SKIP
     >>> node.inputs.ref_file = 'sub-01_desc-preproc_T1w.nii.gz'  # doctest: +SKIP
     >>> node.inputs.lh_surface = 'sub-01_hemi-L_white.surf.gii'  # doctest: +SKIP

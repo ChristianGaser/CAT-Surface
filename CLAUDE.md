@@ -928,6 +928,22 @@ large, symmetric sampling removed that, and tissue brighter than GM beyond the r
 BOLD) added 1.5% more.  bbregister's --9/--12 use the same cost.  On sub-01 of the fMRIPrep
 example data 9 DOF gave scales of 1.003 / 1.011 / 0.991 (0.5 mm from the rigid result, +20 s).
 
+**One set of BBR defaults: `CAT_BBRegOptionsInit()`**, shared by CAT_SurfBBReg and
+`cat_surf.bbreg`; the smoke test fails if the binding's signature drifts from it.  They had
+drifted: the binding, added 21 minutes after the CLI was tuned (cc99536, 2026-05-10), kept a
++-15 mm grid in 5 mm steps, tol 1e-5 and one fwhm (0) for both stages.  On BOLD-like images
+synthesised from sub-01's tissue maps with a known transform (8 trials per cell), the +-4 mm
+grid in 1 mm steps failed less from the header with up to 10 mm / 6 deg motion (worst trial
+9.8 instead of 28 mm at a WM distance of 2 mm).  **WM is sampled 0.5 mm inside the surface,
+not bbregister's 2 mm.**  2 mm doubled the error with T1Prep's surfaces (0.072 vs 0.047 mm,
+with 3x noise 0.140 vs 0.058 mm; a 2x2 ablation pins it on wm_dist) and changed nothing with
+FreeSurfer's (0.104 vs 0.109 mm); on sub-01's real BOLD it moved the result from 0.48 to
+0.31 mm from bbregister with T1Prep surfaces (0.24 vs 0.26 mm with recon-all's).  The price is
+capture range: from the header with up to 10 mm / 6 deg the worst trial went from 9.8 to
+44.8 mm with recon-all surfaces (13.5 mm with T1Prep's), while with the NMI initialisation no
+trial failed at either distance.  The contrast auto-detection samples at wm_dist too; on that
+real run its contrast fell from -5.7 / -4.5% to -3.7 / -3.2%, three times the 1% threshold.
+
 ## Architecture rules
 
 1. **Library-first:** All non-trivial logic belongs in `Lib/`, not `Progs/`.

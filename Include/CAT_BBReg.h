@@ -112,7 +112,7 @@ extern "C"
     /**
      * \brief Set the default settings of a boundary-based registration.
      *
-     * WM is sampled 2 mm inside the surface and GM 0.5 mm outside it, with a
+     * WM and GM are sampled 0.5 mm inside and outside the surface, with a
      * cost slope of 0.5 and the contrast detected from the image; a grid of
      * translations of up to 4 mm in 1 mm steps precedes Powell's method (200
      * iterations, tolerance 1e-6), rigidly.  The volume initialisation (NMI, 4

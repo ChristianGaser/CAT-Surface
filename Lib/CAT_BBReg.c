@@ -64,13 +64,16 @@ static double sample_vox(const float *vol, const int dims[3],
  *
  * The values tuned for CAT_SurfBBReg (grid steps, tolerance and the two
  * smoothing kernels in May 2026); cat_surf.bbreg and the CLI take them from
- * here.
+ * here.  WM is sampled 0.5 mm inside the surface rather than bbregister's
+ * 2 mm: on BOLD-like images with a known transform 2 mm doubled the error
+ * with T1Prep's surfaces (0.14 instead of 0.06 mm with noise) and changed
+ * nothing with FreeSurfer's.
  *
  * \param opts (out) settings to initialise
  */
 void CAT_BBRegOptionsInit(CAT_BBRegOpts *opts)
 {
-    opts->wm_dist = 2.0;
+    opts->wm_dist = 0.5;
     opts->gm_dist = 0.5;
     opts->gm_proj_frac = 0.0;
     opts->slope = 0.5;
