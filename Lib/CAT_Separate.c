@@ -632,6 +632,79 @@ private BOOLEAN polygon_has_label(
 }
 
 /**
+ * \brief Copy a subset of the polygons of a mesh into a new mesh.
+ *
+ * The cost is proportional to the subset, not to the mesh, so that a mesh
+ * can be split into many small parts in linear time.
+ *
+ * \param polygons      (in)     mesh
+ * \param poly_list     (in)     int[n_polys]; polygons to copy, in this order
+ * \param n_polys       (in)     number of polygons
+ * \param point_list    (in)     int[n_list]; ascending vertex indices that
+ *                               include every vertex of the polygons
+ * \param n_list        (in)     number of those vertices
+ * \param new_point_ids (in/out) int[n_points]; all -1, and so again on return
+ * \param out           (out)    mesh set up by initialize_polygons()
+ */
+private void copy_polygon_subset(
+    polygons_struct *polygons,
+    const int poly_list[],
+    int n_polys,
+    const int point_list[],
+    int n_list,
+    int new_point_ids[],
+    polygons_struct *out)
+{
+    int i, poly, size, vertex, point, n_indices, ind;
+
+    if (n_polys == 0)
+        return;
+
+    /* -2 marks the vertices the polygons use; they are numbered in order */
+    n_indices = 0;
+    for_less(i, 0, n_polys)
+    {
+        poly = poly_list[i];
+        size = GET_OBJECT_SIZE(*polygons, poly);
+        n_indices += size;
+        for_less(vertex, 0, size)
+            new_point_ids[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]] = -2;
+    }
+    for_less(i, 0, n_list)
+    {
+        if (new_point_ids[point_list[i]] == -2)
+            new_point_ids[point_list[i]] = out->n_points++;
+    }
+
+    ALLOC(out->points, out->n_points);
+    ALLOC(out->normals, out->n_points);
+    for_less(i, 0, n_list)
+    {
+        point = point_list[i];
+        if (new_point_ids[point] >= 0)
+            out->points[new_point_ids[point]] = polygons->points[point];
+    }
+
+    out->n_items = n_polys;
+    ALLOC(out->end_indices, n_polys);
+    ALLOC(out->indices, n_indices);
+    ind = 0;
+    for_less(i, 0, n_polys)
+    {
+        poly = poly_list[i];
+        size = GET_OBJECT_SIZE(*polygons, poly);
+        for_less(vertex, 0, size)
+            out->indices[ind++] = new_point_ids[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]];
+        out->end_indices[i] = ind;
+    }
+
+    compute_polygon_normals(out);
+
+    for_less(i, 0, n_list)
+        new_point_ids[point_list[i]] = -1;
+}
+
+/**
  * \brief Extract the polygons of one label as a new mesh.
  *
  * A polygon belongs to the label if all its vertices do, so polygons that
@@ -651,64 +724,148 @@ int extract_label_polygons(
     int label,
     polygons_struct *out)
 {
-    int poly, size, vertex, point, n_indices, ind, p_ind;
-    int *new_point_ids;
+    int poly, point, n_polys, n_list;
+    int *poly_list, *point_list, *new_point_ids;
 
     initialize_polygons(out, WHITE, NULL);
 
-    /* -2 marks the vertices of the polygons that are kept */
+    ALLOC(poly_list, polygons->n_items);
+    n_polys = 0;
+    for_less(poly, 0, polygons->n_items)
+    {
+        if (polygon_has_label(polygons, poly, labels, label))
+            poly_list[n_polys++] = poly;
+    }
+
+    ALLOC(point_list, polygons->n_points);
+    ALLOC(new_point_ids, polygons->n_points);
+    n_list = 0;
+    for_less(point, 0, polygons->n_points)
+    {
+        new_point_ids[point] = -1;
+        if (labels[point] == label)
+            point_list[n_list++] = point;
+    }
+
+    copy_polygon_subset(polygons, poly_list, n_polys, point_list, n_list,
+                        new_point_ids, out);
+
+    FREE(poly_list);
+    FREE(point_list);
+    FREE(new_point_ids);
+
+    return (out->n_items);
+}
+
+/**
+ * \brief A vertex label, or 0 if it lies outside 1..n_labels.
+ *
+ * \param label    (in) label of a vertex
+ * \param n_labels (in) highest valid label
+ * \return label, or 0 if it is out of range
+ */
+private int label_in_range(int label, int n_labels)
+{
+    return (label > 0 && label <= n_labels) ? label : 0;
+}
+
+/**
+ * \brief Split a labelled mesh into one mesh per label.
+ *
+ * Does for every label 1..n_labels what extract_label_polygons() does for
+ * one, but sorts the polygons and vertices by label in a single pass, so the
+ * cost is linear in the size of the mesh however many labels there are.
+ *
+ * \param polygons (in)  mesh
+ * \param labels   (in)  int[n_points]; label per vertex, 0 or 1..n_labels
+ * \param n_labels (in)  highest label
+ * \param out      (out) object_struct*[n_labels], allocated; (*out)[k - 1]
+ *                       holds the polygons of label k and is empty if no
+ *                       polygon lies entirely in it; free with
+ *                       delete_object_list()
+ * \return number of labels with at least one polygon
+ */
+int split_label_polygons(
+    polygons_struct *polygons,
+    const int labels[],
+    int n_labels,
+    object_struct **out[])
+{
+    int poly, point, k, label, n_nonempty;
+    int *poly_label, *poly_start, *poly_list, *point_start, *point_list;
+    int *new_point_ids, *fill;
+
+    /* label of every polygon that lies entirely in one label, else 0; labels
+       outside 1..n_labels count as 0 so that they cannot index past the
+       arrays below */
+    ALLOC(poly_label, polygons->n_items);
+    for_less(poly, 0, polygons->n_items)
+    {
+        label = labels[polygons->indices[POINT_INDEX(polygons->end_indices, poly, 0)]];
+        poly_label[poly] = (label > 0 && label <= n_labels &&
+                            polygon_has_label(polygons, poly, labels, label)) ? label : 0;
+    }
+
+    /* counting sort of the polygons and the vertices by label; both keep
+       their order within a label */
+    ALLOC(poly_start, n_labels + 2);
+    ALLOC(point_start, n_labels + 2);
+    for_less(k, 0, n_labels + 2)
+    {
+        poly_start[k] = 0;
+        point_start[k] = 0;
+    }
+    for_less(poly, 0, polygons->n_items)
+        poly_start[poly_label[poly] + 1]++;
+    for_less(point, 0, polygons->n_points)
+        point_start[label_in_range(labels[point], n_labels) + 1]++;
+    for_less(k, 1, n_labels + 2)
+    {
+        poly_start[k] += poly_start[k - 1];
+        point_start[k] += point_start[k - 1];
+    }
+
+    ALLOC(fill, n_labels + 1);
+    ALLOC(poly_list, polygons->n_items);
+    for_less(k, 0, n_labels + 1)
+        fill[k] = poly_start[k];
+    for_less(poly, 0, polygons->n_items)
+        poly_list[fill[poly_label[poly]]++] = poly;
+    ALLOC(point_list, polygons->n_points);
+    for_less(k, 0, n_labels + 1)
+        fill[k] = point_start[k];
+    for_less(point, 0, polygons->n_points)
+        point_list[fill[label_in_range(labels[point], n_labels)]++] = point;
+
     ALLOC(new_point_ids, polygons->n_points);
     for_less(point, 0, polygons->n_points)
         new_point_ids[point] = -1;
 
-    n_indices = 0;
-    for_less(poly, 0, polygons->n_items)
+    ALLOC(*out, n_labels);
+    n_nonempty = 0;
+    for_less(k, 1, n_labels + 1)
     {
-        if (!polygon_has_label(polygons, poly, labels, label))
-            continue;
+        polygons_struct *part;
 
-        size = GET_OBJECT_SIZE(*polygons, poly);
-        ++out->n_items;
-        n_indices += size;
-        for_less(vertex, 0, size)
-            new_point_ids[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]] = -2;
+        (*out)[k - 1] = create_object(POLYGONS);
+        part = get_polygons_ptr((*out)[k - 1]);
+        initialize_polygons(part, WHITE, NULL);
+        copy_polygon_subset(polygons, &poly_list[poly_start[k]],
+                            poly_start[k + 1] - poly_start[k],
+                            &point_list[point_start[k]],
+                            point_start[k + 1] - point_start[k],
+                            new_point_ids, part);
+        if (part->n_items > 0)
+            ++n_nonempty;
     }
 
-    if (out->n_items > 0)
-    {
-        for_less(point, 0, polygons->n_points)
-        {
-            if (new_point_ids[point] == -2)
-                new_point_ids[point] = out->n_points++;
-        }
-
-        ALLOC(out->points, out->n_points);
-        ALLOC(out->normals, out->n_points);
-        for_less(point, 0, polygons->n_points)
-        {
-            if (new_point_ids[point] >= 0)
-                out->points[new_point_ids[point]] = polygons->points[point];
-        }
-
-        ALLOC(out->end_indices, out->n_items);
-        ALLOC(out->indices, n_indices);
-        ind = 0;
-        p_ind = 0;
-        for_less(poly, 0, polygons->n_items)
-        {
-            if (!polygon_has_label(polygons, poly, labels, label))
-                continue;
-
-            size = GET_OBJECT_SIZE(*polygons, poly);
-            for_less(vertex, 0, size)
-                out->indices[ind++] = new_point_ids[polygons->indices[POINT_INDEX(polygons->end_indices, poly, vertex)]];
-            out->end_indices[p_ind++] = ind;
-        }
-
-        compute_polygon_normals(out);
-    }
-
+    FREE(poly_label);
+    FREE(poly_start);
+    FREE(point_start);
+    FREE(fill);
+    FREE(poly_list);
+    FREE(point_list);
     FREE(new_point_ids);
 
-    return (out->n_items);
+    return (n_nonempty);
 }
