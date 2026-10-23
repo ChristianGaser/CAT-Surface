@@ -226,12 +226,79 @@ static void test_extract_cluster_polygons(void)
     delete_polygons(&p);
 }
 
+/* same vertices, in the same order, and the same polygons */
+static int
+same_mesh(const polygons_struct *a, const polygons_struct *b)
+{
+    int i;
+
+    if (a->n_points != b->n_points || a->n_items != b->n_items)
+        return 0;
+    for (i = 0; i < a->n_points; i++)
+        if (!EQUAL_POINTS(a->points[i], b->points[i]))
+            return 0;
+    for (i = 0; i < a->n_items; i++)
+        if (a->end_indices[i] != b->end_indices[i])
+            return 0;
+    for (i = 0; i < NUMBER_INDICES(*a); i++)
+        if (a->indices[i] != b->indices[i])
+            return 0;
+    return 1;
+}
+
+static void test_split_equals_extract(void)
+{
+    polygons_struct p, one;
+    object_struct **parts;
+    double *values;
+    int *labels, i, k, n, n_clusters, n_nonempty, equator = 0, n_different = 0;
+
+    make_sphere(&p);
+    n = p.n_points;
+    values = (double *)malloc(sizeof(double) * n);
+    labels = (int *)malloc(sizeof(int) * n);
+
+    /* two caps with polygons, and one vertex on the equator without any */
+    for (i = 0; i < n; i++)
+    {
+        double z = Point_z(p.points[i]);
+
+        values[i] = (z > 0.7) ? 2.0 : ((z < -0.4) ? 0.5 : 0.0);
+        if (fabs(z) < fabs(Point_z(p.points[equator])))
+            equator = i;
+    }
+    values[equator] = 1.0;
+    n_clusters = label_value_clusters(&p, values, labels);
+
+    n_nonempty = split_label_polygons(&p, labels, n_clusters, &parts);
+    for (k = 1; k <= n_clusters; k++)
+    {
+        extract_label_polygons(&p, labels, k, &one);
+        if (!same_mesh(get_polygons_ptr(parts[k - 1]), &one))
+            n_different++;
+        delete_polygons(&one);
+    }
+
+    MU_ASSERT("two caps and a single vertex are three clusters", n_clusters == 3);
+    MU_ASSERT("two of them have polygons", n_nonempty == 2);
+    MU_ASSERT("the single vertex gives an empty surface",
+              get_polygons_ptr(parts[2])->n_items == 0);
+    MU_ASSERT("splitting gives every cluster exactly as extracting it alone",
+              n_different == 0);
+
+    delete_object_list(n_clusters, parts);
+    free(values);
+    free(labels);
+    delete_polygons(&p);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_wide_cluster_is_one);
     MU_RUN_TEST(test_clusters_numbered_by_size);
     MU_RUN_TEST(test_ties_keep_vertex_order);
     MU_RUN_TEST(test_extract_cluster_polygons);
+    MU_RUN_TEST(test_split_equals_extract);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

@@ -57,5 +57,22 @@ int label_value_clusters(polygons_struct *polygons, const double values[],
  */
 int extract_label_polygons(polygons_struct *polygons, const int labels[],
                            int label, polygons_struct *out);
+/**
+ * \brief Split a labelled mesh into one mesh per label.
+ *
+ * Does for every label 1..n_labels what extract_label_polygons() does for
+ * one, in time linear in the size of the mesh however many labels there are.
+ *
+ * \param polygons (in)  mesh
+ * \param labels   (in)  int[n_points]; label per vertex, 0 or 1..n_labels
+ * \param n_labels (in)  highest label
+ * \param out      (out) object_struct*[n_labels], allocated; (*out)[k - 1]
+ *                       holds the polygons of label k and is empty if no
+ *                       polygon lies entirely in it; free with
+ *                       delete_object_list()
+ * \return number of labels with at least one polygon
+ */
+int split_label_polygons(polygons_struct *polygons, const int labels[],
+                         int n_labels, object_struct **out[]);
 
 #endif

@@ -57,13 +57,12 @@ static void usage(const char *executable)
 int main(int argc, char *argv[])
 {
     char *surface_file, *values_file, out_file[1024];
-    int i, k, first, last, base_len, n_objects, n_values, n_clusters;
-    int n_items, n_skipped;
+    int i, k, base_len, n_objects, n_values, n_clusters, n_out, n_items, n_skipped;
     int *labels, *sizes;
     double *values;
     File_formats format;
-    object_struct **object_list, *cluster_object;
-    polygons_struct *polygons;
+    object_struct **object_list, **cluster_objects;
+    polygons_struct *polygons, *cluster;
 
     if (ParseArgv(&argc, argv, argTable, 0)) {
         usage(argv[0]);
@@ -100,6 +99,19 @@ int main(int argc, char *argv[])
     }
     polygons = get_polygons_ptr(object_list[0]);
 
+    /* GIfTI keeps three indices per polygon, so a larger polygon would be cut
+       without notice */
+    if (surface_prefix != NULL) {
+        for (i = 0; i < polygons->n_items; i++) {
+            if (GET_OBJECT_SIZE(*polygons, i) != 3) {
+                (void) fprintf(stderr, "Error: -surface writes GIfTI, which holds only "
+                               "triangles, but %s has a polygon with %d vertices.\n",
+                               surface_file, GET_OBJECT_SIZE(*polygons, i));
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
     if (input_values_any_format(values_file, &n_values, &values) != OK) {
         (void) fprintf(stderr, "Error: Cannot read values from %s.\n", values_file);
         exit(EXIT_FAILURE);
@@ -129,9 +141,6 @@ int main(int argc, char *argv[])
     else
         fprintf(stdout, "No vertex has a value > 0\n");
 
-    first = (which > 0) ? which : 1;
-    last = (which > 0) ? which : n_clusters;
-
     if (label_file != NULL) {
         if (which > 0) {
             for (i = 0; i < polygons->n_points; i++) {
@@ -150,25 +159,44 @@ int main(int argc, char *argv[])
         if (base_len > 4 && strcmp(surface_prefix + base_len - 4, ".gii") == 0)
             base_len -= 4;
 
-        n_skipped = 0;
-        for (k = first; k <= last; k++) {
-            (void) snprintf(out_file, sizeof(out_file), "%.*s_%d.gii",
-                            base_len, surface_prefix, k);
+        /* all clusters in one pass over the mesh; extracting them one by one
+           would scan the whole mesh once per cluster */
+        if (which > 0) {
+            n_out = 1;
+            ALLOC(cluster_objects, 1);
+            cluster_objects[0] = create_object(POLYGONS);
+            extract_label_polygons(polygons, labels, which,
+                                   get_polygons_ptr(cluster_objects[0]));
+        } else {
+            n_out = n_clusters;
+            split_label_polygons(polygons, labels, n_clusters, &cluster_objects);
+        }
 
-            cluster_object = create_object(POLYGONS);
-            n_items = extract_label_polygons(polygons, labels, k,
-                                             get_polygons_ptr(cluster_object));
+        n_skipped = 0;
+        for (i = 0; i < n_out; i++) {
+            k = (which > 0) ? which : i + 1;
+            cluster = get_polygons_ptr(cluster_objects[i]);
+            n_items = cluster->n_items;
             if (n_items == 0) {
                 n_skipped++;
-            } else {
-                if (output_graphics_any_format(out_file, format, 1, &cluster_object,
-                                               NULL) != OK)
-                    exit(EXIT_FAILURE);
-                fprintf(stdout, "%s: cluster %d, %d vertices, %d polygons\n",
-                        out_file, k, sizes[k], n_items);
+                continue;
             }
-            delete_object(cluster_object);
+
+            /* a truncated name would lose the cluster number, and clusters
+               would overwrite each other */
+            if (snprintf(out_file, sizeof(out_file), "%.*s_%d.gii", base_len,
+                         surface_prefix, k) >= (int) sizeof(out_file)) {
+                (void) fprintf(stderr, "Error: The name of the output for cluster %d is "
+                               "longer than %d characters.\n", k, (int) sizeof(out_file) - 1);
+                exit(EXIT_FAILURE);
+            }
+            if (output_graphics_any_format(out_file, format, 1, &cluster_objects[i],
+                                           NULL) != OK)
+                exit(EXIT_FAILURE);
+            fprintf(stdout, "%s: cluster %d, %d vertices, %d polygons\n",
+                    out_file, k, sizes[k], n_items);
         }
+        delete_object_list(n_out, cluster_objects);
 
         if (which > 0 && n_skipped > 0) {
             (void) fprintf(stderr, "Error: Cluster %d has no polygon whose vertices all "
