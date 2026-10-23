@@ -621,6 +621,26 @@ cdef extern from "CAT_BBReg.h":
         float           *thickness
         double           gm_proj_frac
 
+    ctypedef struct CAT_BBRegOpts:
+        double wm_dist
+        double gm_dist
+        double gm_proj_frac
+        double slope
+        int    invert_contrast
+        double grid_range_mm
+        double grid_range_rad
+        int    grid_steps
+        int    max_iter
+        double tol
+        int    dof
+        double fwhm
+        double fwhm_bbr
+        int    vol_reg_levels
+        int    vol_reg_bins
+        int    vol_reg_iter
+
+    void   CAT_BBRegOptionsInit(CAT_BBRegOpts *opts)
+
     ctypedef struct CAT_AffineParams:
         CAT_RigidParams rigid
         double sx, sy, sz

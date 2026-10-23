@@ -2062,9 +2062,9 @@ class CatSurfVolBloodVesselCorrection(BaseInterface):
 def _read_vertex_values(cs, path):
     """Per-vertex values of a surface overlay as float32.
 
-    GIFTI files are read with nibabel: libCAT's reader rejects the
-    ``Version="1"`` that Connectome Workbench writes (sMRIPrep's cortex masks,
-    for one).
+    GIFTI files are read with nibabel, which takes every writer's files;
+    libCAT's reader refused the ``Version="1"`` that Connectome Workbench
+    writes (sMRIPrep's cortex masks, for one) until that was fixed.
     """
     if str(path).endswith(".gii"):
         import nibabel as nb
@@ -2123,7 +2123,12 @@ class CatSurfBbregInputSpec(TraitedSpec):
     gm_proj_frac = traits.Float(
         desc="GM sampling distance as a fraction of the thickness (0 = gm_dist)."
     )
-    fwhm = traits.Float(desc="Pre-smoothing FWHM (mm) for initialisation and BBR.")
+    fwhm = traits.Float(
+        desc="Pre-smoothing FWHM (mm) of both volumes for the NMI initialisation."
+    )
+    fwhm_bbr = traits.Float(
+        desc="Pre-smoothing FWHM (mm) of the moving volume for BBR."
+    )
     verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
 
 
@@ -2140,7 +2145,7 @@ class CatSurfBbreg(SimpleInterface):
     fixed RAS, the direction of ``bbregister``'s RAS2RAS) as text.  Surfaces
     are read with ``cat_surf.read_surface``, masks and thickness with
     :func:`_read_vertex_values`.  Inputs left undefined keep the defaults of
-    ``cat_surf.bbreg``.
+    ``cat_surf.bbreg``, which are those of ``CAT_SurfBBReg``.
 
     Examples
     --------
@@ -2174,6 +2179,7 @@ class CatSurfBbreg(SimpleInterface):
             "gm_dist",
             "gm_proj_frac",
             "fwhm",
+            "fwhm_bbr",
         ):
             value = getattr(self.inputs, name)
             if isdefined(value):
