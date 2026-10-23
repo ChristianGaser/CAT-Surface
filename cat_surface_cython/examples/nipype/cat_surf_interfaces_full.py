@@ -2052,227 +2052,317 @@ class CatSurfVolBloodVesselCorrection(BaseInterface):
 # ===========================================================================
 # Registration
 # ===========================================================================
+#
+# File-based like the four registration interfaces that ship in
+# ``nipype.interfaces.t1prep.cat_surf``; CatSurfBbreg here also takes what
+# the shipped one leaves out of ``cat_surf.bbreg``: cortex masks, thickness,
+# sampling distances and degrees of freedom.
 
 
-class CatSurfBbreg(BaseInterface):
-    """Register a functional/diffusion image to a T1w using boundary-based registration.
+def _read_vertex_values(cs, path):
+    """Per-vertex values of a surface overlay as float32.
 
-    Wraps ``cat_surf.bbreg(moving_file, fixed_file, ...) → transform``.
+    GIFTI files are read with nibabel, which takes every writer's files;
+    libCAT's reader refused the ``Version="1"`` that Connectome Workbench
+    writes (sMRIPrep's cortex masks, for one) until that was fixed.
+    """
+    if str(path).endswith(".gii"):
+        import nibabel as nb
 
-    Boundary-based registration (BBR) aligns a moving volume to a fixed
-    anatomical image by maximising the gradient magnitude at GM/WM
-    boundaries projected onto the registered surface.
+        return np.asarray(nb.load(path).agg_data(), dtype=np.float32)
+    return np.asarray(cs.read_values(path), dtype=np.float32)
+
+
+def _matrix_file(matrix, out_matrix_file, source, suffix, cwd):
+    """Write a 4x4 matrix as text to out_matrix_file or <source><suffix> in cwd."""
+    if isdefined(out_matrix_file):
+        out = os.path.abspath(out_matrix_file)
+    else:
+        out = fname_presuffix(source, suffix=suffix, newpath=cwd, use_ext=False)
+    np.savetxt(out, np.asarray(matrix, dtype=float))
+    return out
+
+
+class CatSurfBbregInputSpec(TraitedSpec):
+    in_file = File(
+        exists=True,
+        mandatory=True,
+        desc="Moving image, e.g. a BOLD reference (the middle volume of a 4D series "
+        "is used).",
+    )
+    lh_surface = File(exists=True, desc="Left white-matter surface.")
+    rh_surface = File(exists=True, desc="Right white-matter surface.")
+    lh_mask = File(
+        exists=True, desc="Left cortex mask, per vertex (> 0.5 enters the cost)."
+    )
+    rh_mask = File(
+        exists=True, desc="Right cortex mask, per vertex (> 0.5 enters the cost)."
+    )
+    lh_thickness = File(
+        exists=True, desc="Left cortical thickness (mm), per vertex; see gm_proj_frac."
+    )
+    rh_thickness = File(
+        exists=True, desc="Right cortical thickness (mm), per vertex; see gm_proj_frac."
+    )
+    ref_file = File(
+        exists=True,
+        desc="Volume in the space of the surfaces (e.g. the T1w) for the rigid NMI "
+        "initialisation; without it BBR starts from the headers.",
+    )
+    out_matrix_file = File(desc="Output 4x4 transform (moving RAS -> fixed RAS).")
+    dof = traits.Enum(
+        6, 9, 12, desc="6 rigid (cat_surf default), 9 + scales, 12 + shears."
+    )
+    invert_contrast = traits.Enum(
+        -1, 0, 1, desc="-1 auto-detect (cat_surf default), 0 T1/FLAIR, 1 T2/BOLD."
+    )
+    wm_dist = traits.Float(desc="WM sampling distance inside the surface (mm).")
+    gm_dist = traits.Float(
+        desc="GM sampling distance outside the surface (mm) without gm_proj_frac."
+    )
+    gm_proj_frac = traits.Float(
+        desc="GM sampling distance as a fraction of the thickness (0 = gm_dist)."
+    )
+    fwhm = traits.Float(
+        desc="Pre-smoothing FWHM (mm) of both volumes for the NMI initialisation."
+    )
+    fwhm_bbr = traits.Float(
+        desc="Pre-smoothing FWHM (mm) of the moving volume for BBR."
+    )
+    verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
+
+
+class CatSurfBbregOutputSpec(TraitedSpec):
+    out_matrix_file = File(exists=True, desc="4x4 transform (moving RAS -> fixed RAS).")
+    cost = traits.Float(desc="Final BBR cost (lower is better).")
+
+
+class CatSurfBbreg(SimpleInterface):
+    """Boundary-based registration of a volume to white-matter surfaces.
+
+    Wraps ``cat_surf.bbreg(in_file, lh_surface=..., rh_surface=..., ...) ->
+    (matrix, cost)`` and writes the 4x4 world-space transform (moving RAS ->
+    fixed RAS, the direction of ``bbregister``'s RAS2RAS) as text.  Surfaces
+    are read with ``cat_surf.read_surface``, masks and thickness with
+    :func:`_read_vertex_values`.  Inputs left undefined keep the defaults of
+    ``cat_surf.bbreg``, which are those of ``CAT_SurfBBReg``.
 
     Examples
     --------
-    >>> node = CatSurfBbreg()
-    >>> node.inputs.moving_file = 'bold_ref.nii.gz'  # doctest: +SKIP
-    >>> node.inputs.fixed_file = 'sub-01_T1w.nii.gz'  # doctest: +SKIP
-    >>> node.inputs.surface_file = 'lh.white.sub-01.gii'  # doctest: +SKIP
+    >>> node = CatSurfBbreg(invert_contrast=1, wm_dist=2.0, gm_proj_frac=0.5)
+    >>> node.inputs.in_file = 'bold_ref.nii.gz'               # doctest: +SKIP
+    >>> node.inputs.ref_file = 'sub-01_desc-preproc_T1w.nii.gz'  # doctest: +SKIP
+    >>> node.inputs.lh_surface = 'sub-01_hemi-L_white.surf.gii'  # doctest: +SKIP
+    >>> node.inputs.rh_surface = 'sub-01_hemi-R_white.surf.gii'  # doctest: +SKIP
+    >>> res = node.run()                                      # doctest: +SKIP
     """
 
-    class input_spec(BaseInterfaceInputSpec):
-        moving_file = File(
-            exists=True, mandatory=True, desc="Moving (source) NIfTI image."
-        )
-        fixed_file = File(
-            exists=True, mandatory=True, desc="Fixed (reference) T1w NIfTI image."
-        )
-        surface_file = File(
-            exists=True,
-            desc="White-matter surface file used for BBR cost calculation.",
-        )
-        init_matrix = File(
-            exists=True,
-            desc="Initial 4×4 affine transform matrix file (.mat or .txt).",
-        )
-        out_matrix_file = File(desc="Output affine transform file path.")
-        dof = traits.Enum(
-            6,
-            9,
-            12,
-            usedefault=False,
-            desc="Degrees of freedom for the registration (6, 9, or 12).",
-        )
-        verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
-
-    class output_spec(TraitedSpec):
-        out_matrix_file = File(desc="Output affine transform matrix file.")
+    input_spec = CatSurfBbregInputSpec
+    output_spec = CatSurfBbregOutputSpec
 
     def _run_interface(self, runtime):
         cs = _import_cat_surf()
-        kwargs = {
-            "moving_file": self.inputs.moving_file,
-            "fixed_file": self.inputs.fixed_file,
-        }
-        for opt in ("surface_file", "init_matrix", "out_matrix_file", "dof"):
-            val = getattr(self.inputs, opt)
-            if isdefined(val):
-                kwargs[opt] = val
-        kwargs["verbose"] = self.inputs.verbose
-        self._result = cs.bbreg(**kwargs)
-        return runtime
+        kwargs = {"verbose": self.inputs.verbose}
+        for hemi in ("lh", "rh"):
+            surface = getattr(self.inputs, hemi + "_surface")
+            if isdefined(surface):
+                kwargs[hemi + "_surface"] = cs.read_surface(surface)
+            for name in ("mask", "thickness"):
+                path = getattr(self.inputs, "%s_%s" % (hemi, name))
+                if isdefined(path):
+                    kwargs["%s_%s" % (hemi, name)] = _read_vertex_values(cs, path)
+        for name in (
+            "ref_file",
+            "dof",
+            "invert_contrast",
+            "wm_dist",
+            "gm_dist",
+            "gm_proj_frac",
+            "fwhm",
+            "fwhm_bbr",
+        ):
+            value = getattr(self.inputs, name)
+            if isdefined(value):
+                kwargs[name] = value
 
-    def _list_outputs(self):
-        outputs = self._outputs().get()
-        if isdefined(self.inputs.out_matrix_file):
-            outputs["out_matrix_file"] = os.path.abspath(self.inputs.out_matrix_file)
-        return outputs
+        matrix, cost = cs.bbreg(self.inputs.in_file, **kwargs)
+
+        self._results["out_matrix_file"] = _matrix_file(
+            matrix, self.inputs.out_matrix_file, self.inputs.in_file, "_bbreg.txt",
+            runtime.cwd,
+        )
+        self._results["cost"] = float(cost)
+        return runtime
 
 
 # ---------------------------------------------------------------------------
 
 
-class CatSurfBbregDetectContrast(BaseInterface):
-    """Automatically detect the image contrast type for BBR registration.
+class CatSurfBbregDetectContrastInputSpec(TraitedSpec):
+    in_file = File(
+        exists=True, mandatory=True, desc="Volume whose WM/GM contrast to detect."
+    )
+    lh_surface = File(exists=True, desc="Left white-matter surface.")
+    rh_surface = File(exists=True, desc="Right white-matter surface.")
+    lh_mask = File(exists=True, desc="Left cortex mask, per vertex.")
+    rh_mask = File(exists=True, desc="Right cortex mask, per vertex.")
+    wm_dist = traits.Float(desc="WM sampling distance inside the surface (mm).")
+    gm_dist = traits.Float(desc="GM sampling distance outside the surface (mm).")
 
-    Wraps ``cat_surf.bbreg_detect_contrast(volume_file) → contrast_type``.
 
-    Returns a string indicating the detected contrast (e.g. ``'T1'``, ``'T2'``,
-    ``'PD'``) which is passed to :class:`CatSurfBbreg`.
+class CatSurfBbregDetectContrastOutputSpec(TraitedSpec):
+    contrast = traits.Int(
+        desc="0 = T1/FLAIR (WM brighter), 1 = T2/BOLD (WM darker), -1 = undetermined."
+    )
+
+
+class CatSurfBbregDetectContrast(SimpleInterface):
+    """Detect the WM/GM contrast polarity of a volume for BBR.
+
+    Wraps ``cat_surf.bbreg_detect_contrast(in_file, lh_surface=...,
+    rh_surface=..., ...) -> int``, sampled at the headers' alignment; the
+    result feeds :attr:`CatSurfBbreg.invert_contrast`.
 
     Examples
     --------
     >>> node = CatSurfBbregDetectContrast()
-    >>> node.inputs.volume_file = 'bold_ref.nii.gz'  # doctest: +SKIP
+    >>> node.inputs.in_file = 'bold_ref.nii.gz'                  # doctest: +SKIP
+    >>> node.inputs.lh_surface = 'sub-01_hemi-L_white.surf.gii'  # doctest: +SKIP
+    >>> res = node.run()                                         # doctest: +SKIP
     """
 
-    class input_spec(BaseInterfaceInputSpec):
-        volume_file = File(
-            exists=True, mandatory=True, desc="NIfTI volume file to analyse."
-        )
-
-    class output_spec(TraitedSpec):
-        contrast_type = traits.Str(
-            desc="Detected contrast type string (e.g. 'T1', 'T2', 'PD')."
-        )
+    input_spec = CatSurfBbregDetectContrastInputSpec
+    output_spec = CatSurfBbregDetectContrastOutputSpec
 
     def _run_interface(self, runtime):
         cs = _import_cat_surf()
-        self._contrast = str(cs.bbreg_detect_contrast(self.inputs.volume_file))
+        kwargs = {}
+        for hemi in ("lh", "rh"):
+            surface = getattr(self.inputs, hemi + "_surface")
+            if isdefined(surface):
+                kwargs[hemi + "_surface"] = cs.read_surface(surface)
+            mask = getattr(self.inputs, hemi + "_mask")
+            if isdefined(mask):
+                kwargs[hemi + "_mask"] = _read_vertex_values(cs, mask)
+        for name in ("wm_dist", "gm_dist"):
+            value = getattr(self.inputs, name)
+            if isdefined(value):
+                kwargs[name] = value
+        self._results["contrast"] = int(
+            cs.bbreg_detect_contrast(self.inputs.in_file, **kwargs)
+        )
         return runtime
-
-    def _list_outputs(self):
-        outputs = self._outputs().get()
-        outputs["contrast_type"] = self._contrast
-        return outputs
 
 
 # ---------------------------------------------------------------------------
 
 
-class CatSurfVolumeRegisterNmi(BaseInterface):
-    """Register two volumes by maximising Normalised Mutual Information.
+class CatSurfVolumeRegisterNmiInputSpec(TraitedSpec):
+    moving_file = File(exists=True, mandatory=True, desc="Moving (source) image.")
+    fixed_file = File(exists=True, mandatory=True, desc="Fixed (reference) image.")
+    out_matrix_file = File(desc="Output 4x4 transform (moving RAS -> fixed RAS).")
+    n_levels = traits.Int(desc="Gaussian pyramid levels (cat_surf default 4).")
+    n_bins = traits.Int(desc="Joint-histogram bins per axis (cat_surf default 64).")
+    max_iter = traits.Int(desc="Powell iterations per level (cat_surf default 30).")
+    verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
 
-    Wraps
-    ``cat_surf.volume_register_nmi(moving_file, fixed_file, out_matrix_file,
-    [dof, verbose]) → out_matrix_file``.
+
+class CatSurfVolumeRegisterNmiOutputSpec(TraitedSpec):
+    out_matrix_file = File(exists=True, desc="4x4 transform (moving RAS -> fixed RAS).")
+    nmi = traits.Float(desc="Final normalised mutual information (higher is better).")
+
+
+class CatSurfVolumeRegisterNmi(SimpleInterface):
+    """Cross-modal rigid registration by normalised mutual information.
+
+    Wraps ``cat_surf.volume_register_nmi(fixed_file, moving_file, ...) ->
+    (matrix, nmi)`` (6 DOF, as ``mri_coreg``) and writes the matrix as text.
 
     Examples
     --------
     >>> node = CatSurfVolumeRegisterNmi()
-    >>> node.inputs.moving_file = 'sub-01_T1w.nii.gz'  # doctest: +SKIP
-    >>> node.inputs.fixed_file = 'template_T1.nii.gz'  # doctest: +SKIP
-    >>> node.inputs.out_matrix_file = 'sub-01_to_template.mat'
+    >>> node.inputs.moving_file = 'bold_ref.nii.gz'   # doctest: +SKIP
+    >>> node.inputs.fixed_file = 'sub-01_T1w.nii.gz'  # doctest: +SKIP
+    >>> res = node.run()                              # doctest: +SKIP
     """
 
-    class input_spec(BaseInterfaceInputSpec):
-        moving_file = File(
-            exists=True, mandatory=True, desc="Moving (source) NIfTI image."
-        )
-        fixed_file = File(
-            exists=True, mandatory=True, desc="Fixed (reference) NIfTI image."
-        )
-        out_matrix_file = File(mandatory=True, desc="Output affine matrix file path.")
-        dof = traits.Enum(
-            12,
-            6,
-            9,
-            usedefault=False,
-            desc="Degrees of freedom (6, 9, or 12).",
-        )
-        verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
-
-    class output_spec(TraitedSpec):
-        out_matrix_file = File(desc="Output affine matrix file.")
+    input_spec = CatSurfVolumeRegisterNmiInputSpec
+    output_spec = CatSurfVolumeRegisterNmiOutputSpec
 
     def _run_interface(self, runtime):
         cs = _import_cat_surf()
-        kwargs = {
-            "moving_file": self.inputs.moving_file,
-            "fixed_file": self.inputs.fixed_file,
-            "out_matrix_file": self.inputs.out_matrix_file,
-        }
-        if isdefined(self.inputs.dof):
-            kwargs["dof"] = self.inputs.dof
-        kwargs["verbose"] = self.inputs.verbose
-        cs.volume_register_nmi(**kwargs)
+        kwargs = {"verbose": self.inputs.verbose}
+        for name in ("n_levels", "n_bins", "max_iter"):
+            value = getattr(self.inputs, name)
+            if isdefined(value):
+                kwargs[name] = value
+        matrix, nmi = cs.volume_register_nmi(
+            self.inputs.fixed_file, self.inputs.moving_file, **kwargs
+        )
+        self._results["out_matrix_file"] = _matrix_file(
+            matrix, self.inputs.out_matrix_file, self.inputs.moving_file, "_nmi.txt",
+            runtime.cwd,
+        )
+        self._results["nmi"] = float(nmi)
         return runtime
-
-    def _list_outputs(self):
-        outputs = self._outputs().get()
-        outputs["out_matrix_file"] = os.path.abspath(self.inputs.out_matrix_file)
-        return outputs
 
 
 # ---------------------------------------------------------------------------
 
 
-class CatSurfVolumeRegisterRobust(BaseInterface):
-    """Register two volumes using robust (outlier-resistant) optimisation.
+class CatSurfVolumeRegisterRobustInputSpec(TraitedSpec):
+    moving_file = File(exists=True, mandatory=True, desc="Moving (source) image.")
+    fixed_file = File(exists=True, mandatory=True, desc="Fixed (reference) image.")
+    out_matrix_file = File(desc="Output 4x4 transform (moving RAS -> fixed RAS).")
+    n_levels = traits.Int(desc="Gaussian pyramid levels (cat_surf default 4).")
+    sat_k = traits.Float(desc="Tukey saturation multiplier (cat_surf default 4.685).")
+    max_iter = traits.Int(desc="Iterations per level (cat_surf default 20).")
+    iscale = traits.Bool(
+        desc="Estimate a global intensity scale (cat_surf default True)."
+    )
+    verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
 
-    Wraps
-    ``cat_surf.volume_register_robust(moving_file, fixed_file, out_matrix_file,
-    [dof, verbose]) → out_matrix_file``.
 
-    Robust registration is less sensitive to intensity outliers (e.g. lesions)
-    than standard NMI registration.
+class CatSurfVolumeRegisterRobustOutputSpec(TraitedSpec):
+    out_matrix_file = File(exists=True, desc="4x4 transform (moving RAS -> fixed RAS).")
+    residual = traits.Float(desc="Final normalised residual (lower is better).")
+
+
+class CatSurfVolumeRegisterRobust(SimpleInterface):
+    """Same-modality rigid registration by robust (Tukey biweight) M-estimation.
+
+    Wraps ``cat_surf.volume_register_robust(fixed_file, moving_file, ...) ->
+    (matrix, residual)`` (6 DOF, as ``mri_robust_register --iscale``) and
+    writes the matrix as text.  Less sensitive to intensity outliers, such as
+    lesions, than the NMI variant.
 
     Examples
     --------
     >>> node = CatSurfVolumeRegisterRobust()
-    >>> node.inputs.moving_file = 'sub-01_T1w.nii.gz'  # doctest: +SKIP
-    >>> node.inputs.fixed_file = 'template_T1.nii.gz'  # doctest: +SKIP
-    >>> node.inputs.out_matrix_file = 'sub-01_to_template_robust.mat'
+    >>> node.inputs.moving_file = 'sub-01_ses-2_T1w.nii.gz'  # doctest: +SKIP
+    >>> node.inputs.fixed_file = 'sub-01_ses-1_T1w.nii.gz'   # doctest: +SKIP
+    >>> res = node.run()                                     # doctest: +SKIP
     """
 
-    class input_spec(BaseInterfaceInputSpec):
-        moving_file = File(
-            exists=True, mandatory=True, desc="Moving (source) NIfTI image."
-        )
-        fixed_file = File(
-            exists=True, mandatory=True, desc="Fixed (reference) NIfTI image."
-        )
-        out_matrix_file = File(mandatory=True, desc="Output affine matrix file path.")
-        dof = traits.Enum(
-            12,
-            6,
-            9,
-            usedefault=False,
-            desc="Degrees of freedom (6, 9, or 12).",
-        )
-        verbose = traits.Bool(False, usedefault=True, desc="Print diagnostic output.")
-
-    class output_spec(TraitedSpec):
-        out_matrix_file = File(desc="Output affine matrix file.")
+    input_spec = CatSurfVolumeRegisterRobustInputSpec
+    output_spec = CatSurfVolumeRegisterRobustOutputSpec
 
     def _run_interface(self, runtime):
         cs = _import_cat_surf()
-        kwargs = {
-            "moving_file": self.inputs.moving_file,
-            "fixed_file": self.inputs.fixed_file,
-            "out_matrix_file": self.inputs.out_matrix_file,
-        }
-        if isdefined(self.inputs.dof):
-            kwargs["dof"] = self.inputs.dof
-        kwargs["verbose"] = self.inputs.verbose
-        cs.volume_register_robust(**kwargs)
+        kwargs = {"verbose": self.inputs.verbose}
+        for name in ("n_levels", "sat_k", "max_iter", "iscale"):
+            value = getattr(self.inputs, name)
+            if isdefined(value):
+                kwargs[name] = value
+        matrix, residual = cs.volume_register_robust(
+            self.inputs.fixed_file, self.inputs.moving_file, **kwargs
+        )
+        self._results["out_matrix_file"] = _matrix_file(
+            matrix, self.inputs.out_matrix_file, self.inputs.moving_file,
+            "_robust.txt", runtime.cwd,
+        )
+        self._results["residual"] = float(residual)
         return runtime
-
-    def _list_outputs(self):
-        outputs = self._outputs().get()
-        outputs["out_matrix_file"] = os.path.abspath(self.inputs.out_matrix_file)
-        return outputs
 
 
 # ---------------------------------------------------------------------------

@@ -10,12 +10,15 @@ passed as ``(vertices, faces)`` numpy array pairs.
 For 4-D EPI series the middle frame is automatically selected, matching
 the FreeSurfer ``mri_segreg`` convention.
 
-Smoothing (``fwhm > 0``) is applied
+Smoothing is applied
 - *symmetrically* to both images for the volume-registration initialisation
-  step, and
-- to the *moving* (EPI) image only before the BBR optimiser starts —
-  the BBR cost function then sees the same pre-smoothed frame at every
-  iteration, matching ``mri_segreg --fwhm`` behaviour.
+  step (``fwhm``), and
+- to the *moving* (EPI) image only before the BBR optimiser starts
+  (``fwhm_bbr``) — the BBR cost function then sees the same pre-smoothed
+  frame at every iteration, matching ``mri_segreg --fwhm`` behaviour.
+
+The defaults of :func:`bbreg` are those of ``CAT_SurfBBReg``, set in the
+library by ``CAT_BBRegOptionsInit()``.
 """
 
 import numpy as np
@@ -66,6 +69,17 @@ cdef void _smooth_inplace(float *buf, int dims[3],
     C.smooth3(<void *>buf, dims, vs, fv, 0, DT_FLOAT32)
 
 
+def _bbreg_defaults():
+    """Return the defaults of ``CAT_BBRegOptionsInit()`` as a dict.
+
+    The source of truth for the defaults of :func:`bbreg` and
+    ``CAT_SurfBBReg``; the smoke test checks the signature against it.
+    """
+    cdef C.CAT_BBRegOpts opts
+    C.CAT_BBRegOptionsInit(&opts)
+    return opts
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -79,27 +93,38 @@ def bbreg(str volume_file,
           lh_thickness=None,
           rh_thickness=None,
           double gm_proj_frac=0.0,
-          double wm_dist=0.5,
+          double wm_dist=2.0,
           double gm_dist=0.5,
           double slope=0.5,
           int invert_contrast=-1,
-          double fwhm=0.0,
-          double grid_range_mm=15.0,
-          double grid_range_rad=0.3,
-          int grid_steps=3,
+          double fwhm=5.0,
+          double grid_range_mm=4.0,
+          double grid_range_rad=0.07,
+          int grid_steps=4,
           int max_iter=200,
-          double tol=1e-5,
+          double tol=1e-6,
           int vol_reg_levels=4,
           int vol_reg_bins=64,
           int vol_reg_iter=30,
-          bint verbose=False):
+          bint verbose=False,
+          int dof=6,
+          double fwhm_bbr=2.0):
     """
     Boundary-Based Registration (BBR) of a volume to cortical surfaces.
 
     Mirrors the ``CAT_SurfBBReg`` command-line tool.  When ``ref_file`` is
     provided an NMI volume-registration step initialises the transform before
     BBR.  When no surfaces are given the function returns the volume-
-    registration result directly (standalone mode).
+    registration result directly (standalone mode).  With ``dof`` 9 or 12
+    the rigid BBR result is refined with scales (and shears), as
+    ``CAT_SurfBBReg -dof``.
+
+    The defaults are those of ``CAT_SurfBBReg`` (``CAT_BBRegOptionsInit()``
+    in the library), so the two give the same transform for the same inputs.
+    Earlier versions had other defaults here -- ``wm_dist`` 0.5, a
+    translation grid of +-15 mm in 5 mm steps, ``tol`` 1e-5 and no
+    smoothing -- and ``fwhm`` smoothed for BBR as well, which ``fwhm_bbr``
+    now does.
 
     Parameters
     ----------
@@ -119,7 +144,7 @@ def bbreg(str volume_file,
     gm_proj_frac : float
         GM sampling offset as fraction of local thickness (0 = use gm_dist).
     wm_dist : float
-        WM-side sampling offset in mm (default 0.5).
+        WM-side sampling offset in mm (default 2.0).
     gm_dist : float
         GM-side absolute sampling offset in mm (default 0.5).
     slope : float
@@ -128,32 +153,43 @@ def bbreg(str volume_file,
         ``-1`` auto-detect (default), ``0`` force T1/FLAIR, ``1`` force
         T2/BOLD.
     fwhm : float
-        Gaussian pre-smoothing FWHM in mm.  Applied symmetrically to both
-        volumes for vol-reg, and to the moving volume before BBR.  0 = off.
+        Gaussian pre-smoothing FWHM in mm of both volumes for the NMI
+        initialisation (default 5.0, 0 = off).
     grid_range_mm : float
-        Stage-1 brute-force translation grid half-width (mm).
+        Stage-1 brute-force translation grid half-width (mm, default 4.0).
     grid_range_rad : float
-        Stage-1 brute-force rotation grid half-width (radians).
+        Stage-1 rotation grid half-width (radians, default 0.07); unused,
+        the grid searches translations only.
     grid_steps : int
-        Stage-1 steps per DOF.
+        Stage-1 steps on either side of the start (default 4).
     max_iter : int
-        Powell maximum iterations for BBR.
+        Powell maximum iterations for BBR (default 200).
     tol : float
-        Powell convergence tolerance.
+        Powell convergence tolerance (default 1e-6).
     vol_reg_levels : int
-        Gaussian pyramid levels for NMI initialisation.
+        Gaussian pyramid levels for NMI initialisation (default 4).
     vol_reg_bins : int
-        NMI histogram bins per axis.
+        NMI histogram bins per axis (default 64).
     vol_reg_iter : int
-        Powell iterations per pyramid level.
+        Powell iterations per pyramid level (default 30).
     verbose : bool
+    dof : int
+        Degrees of freedom of the BBR: 6 (rigid, default), 9 (+ scales) or
+        12 (+ shears).  9 and 12 refine the rigid result and need surfaces;
+        the NMI initialisation is always rigid.  The BBR contrast peaks where
+        the boundary lies midway between the WM and GM samples, which scales
+        can follow: with ``wm_dist`` larger than the GM offset they come out
+        larger by about (wm_dist - GM offset) / 2 mm at the cortex.
+    fwhm_bbr : float
+        Gaussian pre-smoothing FWHM in mm of the moving volume before BBR
+        (default 2.0, 0 = off).
 
     Returns
     -------
     matrix : ndarray, shape (4, 4), float64
-        Rigid transform in the standard output convention: moving (EPI) RAS
-        → fixed (T1) RAS.  Equivalent to the matrix written by
-        ``CAT_SurfBBReg`` / ``bbregister``.
+        Transform in the standard output convention: moving (EPI) RAS
+        → fixed (T1) RAS, rigid unless ``dof`` is 9 or 12.  Equivalent to
+        the matrix written by ``CAT_SurfBBReg`` / ``bbregister``.
     cost : float
         Final BBR cost (lower = better).  Returns 0.0 when only volume
         registration is performed (no surfaces).
@@ -171,6 +207,7 @@ def bbreg(str volume_file,
     cdef float        *ref_for_reg             # ref_flat or ref_smooth_buf
     cdef float        *vol_bbr                 # vol3d or vol_bbr_buf
     cdef C.CAT_RigidParams p_init, p_best
+    cdef C.CAT_AffineParams a_init, a_best
     cdef C.CAT_SurfData    surfs[2]
     cdef int  n_surfs = 0
     cdef int  dims[3], ref_dims[3]
@@ -185,6 +222,12 @@ def bbreg(str volume_file,
     rh_thick_np = None
     cdef PolygonsMesh lh_mesh = None
     cdef PolygonsMesh rh_mesh = None
+
+    if dof not in (6, 9, 12):
+        raise ValueError(f"dof must be 6, 9 or 12, not {dof}")
+    if dof != 6 and lh_surface is None and rh_surface is None:
+        raise ValueError(
+            f"dof {dof} needs surfaces; the volume registration alone is rigid.")
 
     try:
         # --- 1. Load moving volume -----------------------------------------
@@ -300,13 +343,13 @@ def bbreg(str volume_file,
 
         # --- 5. Pre-smooth for BBR (once, before optimiser starts) ---------
         vol_bbr = vol3d
-        if fwhm > 0.0:
+        if n_surfs > 0 and fwhm_bbr > 0.0:
             vol_bbr_buf = <float *>malloc(<size_t>nvox3 * sizeof(float))
             if vol_bbr_buf == NULL:
                 raise MemoryError()
             memcpy(vol_bbr_buf, vol3d, <size_t>nvox3 * sizeof(float))
             _smooth_inplace(vol_bbr_buf, dims,
-                            nii.dx, nii.dy, nii.dz, fwhm)
+                            nii.dx, nii.dy, nii.dz, fwhm_bbr)
             vol_bbr = vol_bbr_buf
 
         # --- 6. Standalone vol-reg exit (no surfaces) ----------------------
@@ -336,8 +379,19 @@ def bbreg(str volume_file,
             grid_range_mm, grid_range_rad, grid_steps,
             max_iter, tol, 1 if verbose else 0)
 
-        C.CAT_BBReg_params_to_matrix(&p_best, m_best)
-        C.CAT_BBReg_invert_matrix(m_best, m_inv)
+        # --- 9. Scales (and shears) refine the rigid result ----------------
+        if dof > 6:
+            C.CAT_BBReg_affine_init(&p_best, surfs, n_surfs, &a_init)
+            final_cost = C.CAT_BBReg_optimise_affine(
+                &a_init, &a_best, dof, surfs, n_surfs,
+                vol_bbr, nii, dims,
+                wm_dist, gm_dist, slope, ic,
+                max_iter, tol, 1 if verbose else 0)
+            C.CAT_BBReg_affine_to_matrix(&a_best, m_best)
+            C.CAT_BBReg_invert_affine(m_best, m_inv)
+        else:
+            C.CAT_BBReg_params_to_matrix(&p_best, m_best)
+            C.CAT_BBReg_invert_matrix(m_best, m_inv)
         return _m16_to_numpy(m_inv), final_cost
 
     finally:
@@ -359,7 +413,7 @@ def bbreg_detect_contrast(str volume_file,
                            rh_surface=None,
                            lh_mask=None,
                            rh_mask=None,
-                           double wm_dist=0.5,
+                           double wm_dist=2.0,
                            double gm_dist=0.5,
                            bint verbose=False):
     """
@@ -376,9 +430,9 @@ def bbreg_detect_contrast(str volume_file,
     lh_surface, rh_surface : tuple (vertices, faces) or None
     lh_mask, rh_mask : array_like, shape (V,), float32, optional
     wm_dist : float
-        WM-side sampling offset in mm.
+        WM-side sampling offset in mm (default 2.0, as for :func:`bbreg`).
     gm_dist : float
-        GM-side sampling offset in mm.
+        GM-side sampling offset in mm (default 0.5, as for :func:`bbreg`).
     verbose : bool
 
     Returns

@@ -195,7 +195,7 @@ sizes`, `sto_xyz`).
 
 | Function | Description |
 | --- | --- |
-| `bbreg` | Full BBR pipeline: optional NMI init → boundary-based surface registration |
+| `bbreg` | Full BBR pipeline: optional NMI init → boundary-based surface registration, rigid or with scales / shears (`dof=9` / `dof=12`) |
 | `bbreg_detect_contrast` | Auto-detect T1/FLAIR vs T2/BOLD from WM/GM intensity ratio |
 | `volume_register_nmi` | Cross-modal rigid registration via Normalised Mutual Information (≈ `mri_coreg`) |
 | `volume_register_robust` | Same-modality rigid registration via Tukey biweight M-estimation (≈ `mri_robust_register --iscale`) |
@@ -227,6 +227,18 @@ print("EPI → T1 matrix:\n", matrix)
 # CAT_SurfBBReg -fsl-matrix) nor an ITK transform for ANTs.
 import numpy as np
 np.savetxt("epi_to_t1.txt", matrix)
+
+# Scales (dof=9) or scales and shears (dof=12) refine the rigid result, e.g.
+# for distortion a rigid transform cannot absorb.  The BBR contrast peaks
+# where the boundary lies midway between the WM and GM samples, so with
+# wm_dist larger than the GM offset the scales come out slightly too large.
+matrix, cost = cat_surf.bbreg(
+    "bold_mean.nii.gz",
+    lh_surface=(lh_verts, lh_faces),
+    rh_surface=(rh_verts, rh_faces),
+    ref_file="T1w.nii.gz",
+    dof=9,
+)
 ```
 
 #### Standalone volume registration

@@ -53,6 +53,77 @@ extern "C"
     } CAT_SurfData;
 
     /**
+     * \brief Affine transform, 12 DOF: a rigid core with scales and shears.
+     *
+     *   M = T_trans * Rz * Ry * Rx * T(centre) * K * T(-centre)
+     *
+     *       | sx  hxy hxz |
+     *   K = | 0   sy  hyz |
+     *       | 0   0   sz  |
+     *
+     * M maps the fixed surface (T1) RAS space to the moving volume (EPI) RAS
+     * space, as the matrix of CAT_RigidParams does.  The scales and shears act
+     * along the axes of the fixed space about centre, which they leave where
+     * the rigid core puts it; with unit scales and no shear M is the rigid
+     * matrix of \p rigid exactly.  9 DOF are the rigid core and the scales,
+     * 12 DOF add the shears.
+     */
+    typedef struct
+    {
+        CAT_RigidParams rigid; /**< rotation (about the origin) and translation */
+        double sx, sy, sz;     /**< scales along the fixed x, y, z axes (1 = none) */
+        double hxy, hxz, hyz;  /**< shears (0 = none) */
+        double centre[3];      /**< fixed RAS point the scales and shears keep */
+    } CAT_AffineParams;
+
+    /**
+     * \brief Settings of a boundary-based registration as CAT_SurfBBReg runs it.
+     *
+     * The sampling, cost, search, smoothing and volume-initialisation settings
+     * of the whole pipeline, shared by CAT_SurfBBReg and cat_surf.bbreg.  Set
+     * the defaults with CAT_BBRegOptionsInit(), the single source of truth for
+     * both, and change what you need.
+     */
+    typedef struct
+    {
+        double wm_dist;         /**< WM sampling distance inside the surface (mm) */
+        double gm_dist;         /**< GM sampling distance outside the surface (mm),
+                                     used without thickness or gm_proj_frac */
+        double gm_proj_frac;    /**< GM distance as a fraction of the thickness
+                                     (0 = gm_dist) */
+        double slope;           /**< saturation slope of the cost */
+        int    invert_contrast; /**< -1 auto-detect, 0 T1/FLAIR, 1 T2/BOLD */
+        double grid_range_mm;   /**< half-width of the translation grid search (mm) */
+        double grid_range_rad;  /**< half-width of a rotation grid (rad); the
+                                     grid searches translations only */
+        int    grid_steps;      /**< grid steps on either side of the start */
+        int    max_iter;        /**< Powell iterations */
+        double tol;             /**< Powell convergence tolerance */
+        int    dof;             /**< 6, 9 or 12, see CAT_BBReg_optimise_affine() */
+        double fwhm;            /**< smoothing of both volumes for the volume
+                                     initialisation (mm, 0 = off) */
+        double fwhm_bbr;        /**< smoothing of the moving volume for BBR
+                                     (mm, 0 = off) */
+        int    vol_reg_levels;  /**< pyramid levels of the volume initialisation */
+        int    vol_reg_bins;    /**< joint-histogram bins per axis */
+        int    vol_reg_iter;    /**< Powell iterations per pyramid level */
+    } CAT_BBRegOpts;
+
+    /**
+     * \brief Set the default settings of a boundary-based registration.
+     *
+     * WM is sampled 2 mm inside the surface and GM 0.5 mm outside it, with a
+     * cost slope of 0.5 and the contrast detected from the image; a grid of
+     * translations of up to 4 mm in 1 mm steps precedes Powell's method (200
+     * iterations, tolerance 1e-6), rigidly.  The volume initialisation (NMI, 4
+     * levels, 64 bins, 30 iterations) sees both volumes smoothed by 5 mm, BBR
+     * the moving one by 2 mm.
+     *
+     * \param opts (out) settings to initialise
+     */
+    void CAT_BBRegOptionsInit(CAT_BBRegOpts *opts);
+
+    /**
      * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
      *
      * The resulting matrix maps points expressed in the *fixed* surface's (T1) RAS
@@ -97,6 +168,44 @@ extern "C"
     void CAT_BBReg_invert_matrix(const double m[16], double inv[16]);
 
     /**
+     * \brief Invert a 4×4 affine homogeneous matrix (last row 0 0 0 1).
+     *
+     * Unlike CAT_BBReg_invert_matrix() also for matrices with scales and
+     * shears, such as those of CAT_BBReg_affine_to_matrix().
+     *
+     * \param m    (in)  4×4 row-major affine matrix
+     * \param inv  (out) 4×4 row-major inverse
+     */
+    void CAT_BBReg_invert_affine(const double m[16], double inv[16]);
+
+    /**
+     * \brief Convert affine parameters to a 4×4 homogeneous matrix (row-major).
+     *
+     * M = T_trans * Rz * Ry * Rx * T(centre) * K * T(-centre), see
+     * CAT_AffineParams; the direction is that of CAT_BBReg_params_to_matrix().
+     *
+     * \param p  (in)  affine parameters
+     * \param m  (out) 4×4 matrix, row-major, 16 doubles
+     */
+    void CAT_BBReg_affine_to_matrix(const CAT_AffineParams *p, double m[16]);
+
+    /**
+     * \brief Affine parameters of a rigid transform, centred on the surfaces.
+     *
+     * Unit scales, no shear, and as centre the mean position of the vertices
+     * the cost uses (cortex_mask > 0.5), so that scaling does not move the
+     * brain.  The start of CAT_BBReg_optimise_affine() from a rigid result.
+     *
+     * \param rigid   (in)  rigid core, e.g. from CAT_BBReg_optimise()
+     * \param surfs   (in)  array of CAT_SurfData structures
+     * \param n_surfs (in)  number of elements in surfs[]
+     * \param p       (out) affine parameters
+     */
+    void CAT_BBReg_affine_init(const CAT_RigidParams *rigid,
+                               const CAT_SurfData *surfs, int n_surfs,
+                               CAT_AffineParams *p);
+
+    /**
      * \brief Compute the BBR cost over one or more surfaces.
      *
      * For each vertex (not masked out by cortex_mask) the volume is sampled at
@@ -137,6 +246,38 @@ extern "C"
                           double gm_dist,
                           double slope,
                           int invert_contrast);
+
+    /**
+     * \brief Compute the BBR cost at any 4×4 transform.
+     *
+     * CAT_BBReg_cost() for a matrix instead of rigid parameters, e.g. one of
+     * CAT_BBReg_affine_to_matrix().  The sampling positions are taken along
+     * the normals of the fixed surface and then transformed, so an affine
+     * transform also scales the sampling distances.
+     *
+     * \param m               (in)  4×4 row-major transform, fixed (T1) RAS →
+     *                              moving (EPI) RAS
+     * \param surfs           (in)  array of CAT_SurfData structures
+     * \param n_surfs         (in)  number of elements in surfs[]
+     * \param vol             (in)  floating-point volume data (moving image)
+     * \param nii_ptr         (in)  NIfTI header of the moving volume
+     * \param dims            (in)  volume dimensions [nx, ny, nz]
+     * \param wm_dist         (in)  WM sampling offset (mm, positive)
+     * \param gm_dist         (in)  absolute GM offset (mm); used when no thickness
+     * \param slope           (in)  saturation slope of the cost function
+     * \param invert_contrast (in)  non-zero for T2/BOLD
+     * \return mean BBR cost (lower = better alignment)
+     */
+    double CAT_BBReg_cost_matrix(const double m[16],
+                                 const CAT_SurfData *surfs,
+                                 int n_surfs,
+                                 float *vol,
+                                 nifti_image *nii_ptr,
+                                 int dims[3],
+                                 double wm_dist,
+                                 double gm_dist,
+                                 double slope,
+                                 int invert_contrast);
 
     /**
      * \brief Optimise the BBR cost function using a two-stage strategy.
@@ -180,6 +321,48 @@ extern "C"
                               int max_iter,
                               double tol,
                               int verbose);
+
+    /**
+     * \brief Refine a BBR estimate with scales (9 DOF) or scales and shears (12 DOF).
+     *
+     * Powell's direction-set method over the first dof parameters
+     * (translations, rotations, scales, shears; the others keep their values
+     * from p_init).  Without a grid search, so p_init has to be close:
+     * normally CAT_BBReg_affine_init() of the result of CAT_BBReg_optimise().
+     * Scales and shears start with Powell steps of 0.005.
+     *
+     * \param p_init          (in)  initial parameters (and the centre)
+     * \param p_best          (out) optimised parameters
+     * \param dof             (in)  6, 9 or 12
+     * \param surfs           (in)  array of CAT_SurfData (lh + rh, or just one)
+     * \param n_surfs         (in)  number of elements in surfs[]
+     * \param vol             (in)  floating-point volume data (moving image)
+     * \param nii_ptr         (in)  NIfTI header of the moving volume
+     * \param dims            (in)  volume dimensions [nx, ny, nz]
+     * \param wm_dist         (in)  WM sampling offset (mm)
+     * \param gm_dist         (in)  GM absolute sampling offset (mm)
+     * \param slope           (in)  BBR cost saturation slope
+     * \param invert_contrast (in)  non-zero for T2/BOLD
+     * \param max_iter        (in)  maximum Powell iterations
+     * \param tol             (in)  convergence tolerance for Powell
+     * \param verbose         (in)  non-zero to print progress
+     * \return final BBR cost, or -1 for an unsupported dof (p_best = p_init)
+     */
+    double CAT_BBReg_optimise_affine(const CAT_AffineParams *p_init,
+                                     CAT_AffineParams *p_best,
+                                     int dof,
+                                     const CAT_SurfData *surfs,
+                                     int n_surfs,
+                                     float *vol,
+                                     nifti_image *nii_ptr,
+                                     int dims[3],
+                                     double wm_dist,
+                                     double gm_dist,
+                                     double slope,
+                                     int invert_contrast,
+                                     int max_iter,
+                                     double tol,
+                                     int verbose);
 
     /**
      * \brief Automatically detect image contrast type from WM/GM intensity.

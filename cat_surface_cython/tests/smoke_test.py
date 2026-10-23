@@ -814,6 +814,33 @@ def test_vol_realign():
 
 
 # ---------------------------------------------------------------------------
+# Boundary-based registration: cat_surf.bbreg takes its defaults from
+# CAT_BBRegOptionsInit(), as CAT_SurfBBReg does, so the two give the same
+# transform.  They had drifted apart: wm_dist 0.5 against 2.0, a +-15 mm
+# grid against +-4 mm, no smoothing against 5 and 2 mm.
+# ---------------------------------------------------------------------------
+def test_bbreg_defaults():
+    section("BBR defaults")
+
+    import inspect
+
+    from cat_surf._bbreg import _bbreg_defaults
+
+    lib = _bbreg_defaults()
+    params = inspect.signature(cat_surf.bbreg).parameters
+    check("every setting of CAT_BBRegOpts is a parameter of bbreg",
+          set(lib) <= set(params), str(set(lib) - set(params)))
+    differ = {name: (params[name].default, value) for name, value in lib.items()
+              if name in params and params[name].default != value}
+    check("bbreg's defaults are CAT_BBRegOptionsInit()'s", not differ, str(differ))
+
+    detect = inspect.signature(cat_surf.bbreg_detect_contrast).parameters
+    check("contrast detection samples where bbreg does",
+          detect["wm_dist"].default == lib["wm_dist"] and
+          detect["gm_dist"].default == lib["gm_dist"])
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -826,7 +853,7 @@ def main():
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
-                 test_bspline_sample, test_vol_realign):
+                 test_bspline_sample, test_vol_realign, test_bbreg_defaults):
         try:
             test()
         except Exception:  # pragma: no cover

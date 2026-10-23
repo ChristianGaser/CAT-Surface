@@ -60,6 +60,35 @@ static double sample_vox(const float *vol, const int dims[3],
  * ========================================================================= */
 
 /**
+ * \brief Set the default settings of a boundary-based registration.
+ *
+ * The values tuned for CAT_SurfBBReg (grid steps, tolerance and the two
+ * smoothing kernels in May 2026); cat_surf.bbreg and the CLI take them from
+ * here.
+ *
+ * \param opts (out) settings to initialise
+ */
+void CAT_BBRegOptionsInit(CAT_BBRegOpts *opts)
+{
+    opts->wm_dist = 2.0;
+    opts->gm_dist = 0.5;
+    opts->gm_proj_frac = 0.0;
+    opts->slope = 0.5;
+    opts->invert_contrast = -1;
+    opts->grid_range_mm = 4.0;
+    opts->grid_range_rad = 0.07;
+    opts->grid_steps = 4;
+    opts->max_iter = 200;
+    opts->tol = 1e-6;
+    opts->dof = 6;
+    opts->fwhm = 5.0;
+    opts->fwhm_bbr = 2.0;
+    opts->vol_reg_levels = 4;
+    opts->vol_reg_bins = 64;
+    opts->vol_reg_iter = 30;
+}
+
+/**
  * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
  *
  * The resulting matrix maps points in the *fixed* surface (T1) RAS space to
@@ -165,14 +194,126 @@ void CAT_BBReg_invert_matrix(const double m[16], double inv[16])
 }
 
 /**
- * \brief Compute the BBR cost over one or more surfaces.
+ * \brief Invert a 4×4 affine homogeneous matrix (last row 0 0 0 1).
+ *
+ * \param m    (in)  4×4 row-major affine matrix
+ * \param inv  (out) 4×4 row-major inverse
+ */
+void CAT_BBReg_invert_affine(const double m[16], double inv[16])
+{
+    double a = m[0], b = m[1], c = m[2], d = m[4], e = m[5], f = m[6];
+    double g = m[8], h = m[9], k = m[10];
+    double det = a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g);
+    double R[9];
+    int r;
+
+    R[0] = (e * k - f * h) / det;
+    R[1] = (c * h - b * k) / det;
+    R[2] = (b * f - c * e) / det;
+    R[3] = (f * g - d * k) / det;
+    R[4] = (a * k - c * g) / det;
+    R[5] = (c * d - a * f) / det;
+    R[6] = (d * h - e * g) / det;
+    R[7] = (b * g - a * h) / det;
+    R[8] = (a * e - b * d) / det;
+    for (r = 0; r < 3; r++)
+    {
+        inv[4 * r] = R[3 * r];
+        inv[4 * r + 1] = R[3 * r + 1];
+        inv[4 * r + 2] = R[3 * r + 2];
+        inv[4 * r + 3] = -(R[3 * r] * m[3] + R[3 * r + 1] * m[7] +
+                           R[3 * r + 2] * m[11]);
+    }
+    inv[12] = inv[13] = inv[14] = 0.0;
+    inv[15] = 1.0;
+}
+
+/**
+ * \brief Convert affine parameters to a 4×4 homogeneous matrix (row-major).
+ *
+ * M x = R (K (x - c) + c) + t: the rigid matrix times K about the centre c.
+ * With K the identity, K c - c is exactly 0 and M is exactly the rigid
+ * matrix.
+ *
+ * \param p  (in)  affine parameters
+ * \param m  (out) 4×4 matrix, row-major, 16 doubles
+ */
+void CAT_BBReg_affine_to_matrix(const CAT_AffineParams *p, double m[16])
+{
+    const double *c = p->centre;
+    double r[16], k[9], d[3];
+    int i, j;
+
+    CAT_BBReg_params_to_matrix(&p->rigid, r);
+    k[0] = p->sx; k[1] = p->hxy; k[2] = p->hxz;
+    k[3] = 0.0;   k[4] = p->sy;  k[5] = p->hyz;
+    k[6] = 0.0;   k[7] = 0.0;    k[8] = p->sz;
+
+    /* d = c - K c, the translation that keeps c in place */
+    for (i = 0; i < 3; i++)
+        d[i] = c[i] - (k[3 * i] * c[0] + k[3 * i + 1] * c[1] + k[3 * i + 2] * c[2]);
+    for (i = 0; i < 3; i++)
+    {
+        for (j = 0; j < 3; j++)
+            m[4 * i + j] = r[4 * i] * k[j] + r[4 * i + 1] * k[3 + j] +
+                           r[4 * i + 2] * k[6 + j];
+        m[4 * i + 3] = r[4 * i] * d[0] + r[4 * i + 1] * d[1] +
+                       r[4 * i + 2] * d[2] + r[4 * i + 3];
+    }
+    m[12] = m[13] = m[14] = 0.0;
+    m[15] = 1.0;
+}
+
+/**
+ * \brief Affine parameters of a rigid transform, centred on the surfaces.
+ *
+ * \param rigid   (in)  rigid core
+ * \param surfs   (in)  array of CAT_SurfData structures
+ * \param n_surfs (in)  number of elements in surfs[]
+ * \param p       (out) affine parameters: unit scales, no shear, centre the
+ *                      mean of the vertices with cortex_mask > 0.5 (or of all
+ *                      vertices without a mask; the origin without vertices)
+ */
+void CAT_BBReg_affine_init(const CAT_RigidParams *rigid,
+                           const CAT_SurfData *surfs, int n_surfs,
+                           CAT_AffineParams *p)
+{
+    double sum[3] = {0.0, 0.0, 0.0};
+    long n = 0;
+    int s, i;
+
+    p->rigid = *rigid;
+    p->sx = p->sy = p->sz = 1.0;
+    p->hxy = p->hxz = p->hyz = 0.0;
+    for (s = 0; s < n_surfs; s++)
+    {
+        const polygons_struct *surface = surfs[s].surface;
+        const float *mask = surfs[s].cortex_mask;
+
+        for (i = 0; i < surface->n_points; i++)
+        {
+            if (mask && mask[i] <= 0.5f)
+                continue;
+            sum[0] += Point_x(surface->points[i]);
+            sum[1] += Point_y(surface->points[i]);
+            sum[2] += Point_z(surface->points[i]);
+            n++;
+        }
+    }
+    for (i = 0; i < 3; i++)
+        p->centre[i] = (n > 0) ? sum[i] / (double)n : 0.0;
+}
+
+/**
+ * \brief Compute the BBR cost at any 4×4 transform.
  *
  * For each non-masked vertex the volume is sampled at WM and GM sides of the
  * surface normal.  When thickness data and a fractional projection factor are
  * provided the per-vertex GM offset is frac * thickness[i]; otherwise the
- * fixed gm_dist is used.
+ * fixed gm_dist is used.  Both sampling points are placed in the fixed space
+ * and then transformed by m.
  *
- * \param p               (in)  current 6-DOF rigid parameters
+ * \param m               (in)  4×4 row-major transform, fixed → moving RAS
  * \param surfs           (in)  array of CAT_SurfData structures
  * \param n_surfs         (in)  number of elements in surfs[]
  * \param vol             (in)  floating-point volume data (moving image)
@@ -185,24 +326,21 @@ void CAT_BBReg_invert_matrix(const double m[16], double inv[16])
  * \return mean BBR cost (lower = better alignment)
  */
 double
-CAT_BBReg_cost(const CAT_RigidParams *p,
-               const CAT_SurfData *surfs,
-               int n_surfs,
-               float *vol,
-               nifti_image *nii_ptr,
-               int dims[3],
-               double wm_dist,
-               double gm_dist,
-               double slope,
-               int invert_contrast)
+CAT_BBReg_cost_matrix(const double m[16],
+                      const CAT_SurfData *surfs,
+                      int n_surfs,
+                      float *vol,
+                      nifti_image *nii_ptr,
+                      int dims[3],
+                      double wm_dist,
+                      double gm_dist,
+                      double slope,
+                      int invert_contrast)
 {
-    double m[16];
     double cost = 0.0;
     int n_valid = 0;
     int s, i;
     const double eps = 1e-6;
-
-    CAT_BBReg_params_to_matrix(p, m);
 
     /* Precompute voxel-space inverse once (world → voxel) to avoid
      * recomputing it inside isoval() for every sample point. */
@@ -302,14 +440,48 @@ CAT_BBReg_cost(const CAT_RigidParams *p,
     return cost / (double)n_valid;
 }
 
-/* Print BBR intensity statistics at a given parameter set (verbose diagnostic). */
-static void bbr_print_stats(const CAT_RigidParams *p,
+/**
+ * \brief Compute the BBR cost over one or more surfaces.
+ *
+ * CAT_BBReg_cost_matrix() at the matrix of the rigid parameters.
+ *
+ * \param p               (in)  current 6-DOF rigid parameters
+ * \param surfs           (in)  array of CAT_SurfData structures
+ * \param n_surfs         (in)  number of elements in surfs[]
+ * \param vol             (in)  floating-point volume data (moving image)
+ * \param nii_ptr         (in)  NIfTI header of the moving volume
+ * \param dims            (in)  volume dimensions [nx, ny, nz]
+ * \param wm_dist         (in)  WM sampling offset (mm, positive)
+ * \param gm_dist         (in)  absolute GM offset (mm); used when no thickness
+ * \param slope           (in)  saturation slope of the cost function
+ * \param invert_contrast (in)  non-zero for T2/BOLD
+ * \return mean BBR cost (lower = better alignment)
+ */
+double
+CAT_BBReg_cost(const CAT_RigidParams *p,
+               const CAT_SurfData *surfs,
+               int n_surfs,
+               float *vol,
+               nifti_image *nii_ptr,
+               int dims[3],
+               double wm_dist,
+               double gm_dist,
+               double slope,
+               int invert_contrast)
+{
+    double m[16];
+
+    CAT_BBReg_params_to_matrix(p, m);
+    return CAT_BBReg_cost_matrix(m, surfs, n_surfs, vol, nii_ptr, dims,
+                                 wm_dist, gm_dist, slope, invert_contrast);
+}
+
+/* Print BBR intensity statistics at a given transform (verbose diagnostic). */
+static void bbr_print_stats(const double m[16],
                             const CAT_SurfData *surfs, int n_surfs,
                             float *vol, nifti_image *nii_ptr, int dims[3],
                             double wm_dist, double gm_dist)
 {
-    double m[16];
-    CAT_BBReg_params_to_matrix(p, m);
     mat44 sto_ijk = nifti_mat44_inverse(nii_ptr->sto_xyz);
     double ij[12];
     int r, col;
@@ -500,11 +672,26 @@ int CAT_BBReg_detect_contrast(const CAT_RigidParams *p,
  * Powell optimizer (self-contained, no external deps)
  * ========================================================================= */
 
+/* The search runs over a vector of parameters in this order:
+ *   tx ty tz (mm), rx ry rz (rad), sx sy sz, hxy hxz hyz
+ * of which the first n are searched: 6 in the rigid stage, 6, 9 or 12 in
+ * the affine one. */
+#define MAX_DOF 12
+
+/* Initial Powell step of each parameter: mm, rad, scale and shear factors */
+static const double powell_step[MAX_DOF] = {0.5, 0.5, 0.5,
+                                            0.005, 0.005, 0.005,
+                                            0.005, 0.005, 0.005,
+                                            0.005, 0.005, 0.005};
+
 /* Context struct passed to the 1-D line function. */
 typedef struct
 {
-    CAT_RigidParams base;
-    double dir[6]; /* unit direction in parameter space */
+    int n;                  /* number of searched parameters */
+    int affine;             /* non-zero: the vector is that of fixed */
+    CAT_AffineParams fixed; /* parameters beyond n, and the centre */
+    double base[MAX_DOF];   /* origin of the line */
+    double dir[MAX_DOF];    /* unit direction in parameter space */
     const CAT_SurfData *surfs;
     int n_surfs;
     float *vol;
@@ -516,21 +703,110 @@ typedef struct
     int invert_contrast;
 } LineCtx;
 
+/* Context of a search over n parameters; fixed NULL for the rigid stage */
+static void line_ctx_init(LineCtx *ctx, int n, const CAT_AffineParams *fixed,
+                          const CAT_SurfData *surfs, int n_surfs,
+                          float *vol, nifti_image *nii_ptr, int dims[3],
+                          double wm_dist, double gm_dist, double slope,
+                          int invert_contrast)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->n = n;
+    ctx->affine = (fixed != NULL);
+    if (fixed)
+        ctx->fixed = *fixed;
+    ctx->surfs = surfs;
+    ctx->n_surfs = n_surfs;
+    ctx->vol = vol;
+    ctx->nii_ptr = nii_ptr;
+    ctx->dims[0] = dims[0];
+    ctx->dims[1] = dims[1];
+    ctx->dims[2] = dims[2];
+    ctx->wm_dist = wm_dist;
+    ctx->gm_dist = gm_dist;
+    ctx->slope = slope;
+    ctx->invert_contrast = invert_contrast;
+}
+
+/* All 12 parameters of a as a vector */
+static void affine_to_vector(const CAT_AffineParams *a, double x[MAX_DOF])
+{
+    x[0] = a->rigid.tx;
+    x[1] = a->rigid.ty;
+    x[2] = a->rigid.tz;
+    x[3] = a->rigid.rx;
+    x[4] = a->rigid.ry;
+    x[5] = a->rigid.rz;
+    x[6] = a->sx;
+    x[7] = a->sy;
+    x[8] = a->sz;
+    x[9] = a->hxy;
+    x[10] = a->hxz;
+    x[11] = a->hyz;
+}
+
+/* Set the first n parameters of a from the vector x */
+static void vector_to_affine(const double *x, int n, CAT_AffineParams *a)
+{
+    a->rigid.tx = x[0];
+    a->rigid.ty = x[1];
+    a->rigid.tz = x[2];
+    a->rigid.rx = x[3];
+    a->rigid.ry = x[4];
+    a->rigid.rz = x[5];
+    if (n > 6)
+    {
+        a->sx = x[6];
+        a->sy = x[7];
+        a->sz = x[8];
+    }
+    if (n > 9)
+    {
+        a->hxy = x[9];
+        a->hxz = x[10];
+        a->hyz = x[11];
+    }
+}
+
+/* Cost at the parameter vector x */
+static double vector_cost(const LineCtx *ctx, const double *x)
+{
+    double m[16];
+
+    if (ctx->affine)
+    {
+        CAT_AffineParams a = ctx->fixed;
+
+        vector_to_affine(x, ctx->n, &a);
+        CAT_BBReg_affine_to_matrix(&a, m);
+    }
+    else
+    {
+        CAT_RigidParams p;
+
+        p.tx = x[0];
+        p.ty = x[1];
+        p.tz = x[2];
+        p.rx = x[3];
+        p.ry = x[4];
+        p.rz = x[5];
+        CAT_BBReg_params_to_matrix(&p, m);
+    }
+    return CAT_BBReg_cost_matrix(m, ctx->surfs, ctx->n_surfs,
+                                 ctx->vol, ctx->nii_ptr,
+                                 (int *)ctx->dims, ctx->wm_dist, ctx->gm_dist,
+                                 ctx->slope, ctx->invert_contrast);
+}
+
 /* Evaluate cost along a 1-D line: params = base + t * dir */
 static double line_cost(const LineCtx *ctx, double t)
 {
-    CAT_RigidParams p;
-    p.tx = ctx->base.tx + t * ctx->dir[0];
-    p.ty = ctx->base.ty + t * ctx->dir[1];
-    p.tz = ctx->base.tz + t * ctx->dir[2];
-    p.rx = ctx->base.rx + t * ctx->dir[3];
-    p.ry = ctx->base.ry + t * ctx->dir[4];
-    p.rz = ctx->base.rz + t * ctx->dir[5];
+    double x[MAX_DOF];
+    int i;
 
-    return CAT_BBReg_cost(&p, ctx->surfs, ctx->n_surfs,
-                          ctx->vol, ctx->nii_ptr,
-                          (int *)ctx->dims, ctx->wm_dist, ctx->gm_dist,
-                          ctx->slope, ctx->invert_contrast);
+    for (i = 0; i < ctx->n; i++)
+        x[i] = ctx->base[i] + t * ctx->dir[i];
+    return vector_cost(ctx, x);
 }
 
 /* Brent's 1-D minimiser (no derivative).
@@ -682,81 +958,53 @@ static double line_minimize(const LineCtx *ctx,
     return fmin;
 }
 
-/* Powell's direction-set method.  Mutates *p toward the minimum. */
-static double powell_minimise(CAT_RigidParams *p,
-                              const CAT_SurfData *surfs,
-                              int n_surfs,
-                              float *vol, nifti_image *nii_ptr,
-                              int dims[3],
-                              double wm_dist, double gm_dist,
-                              double slope, int invert_contrast,
+/* Powell's direction-set method over the ctx->n parameters of x.  Mutates
+ * x toward the minimum and returns the cost there. */
+static double powell_minimise(double *x, LineCtx *ctx,
                               int max_iter, double tol, int verbose)
 {
-    const int N = 6;                                        /* number of DOF */
-    double steps[6] = {0.5, 0.5, 0.5, 0.005, 0.005, 0.005}; /* mm / rad */
+    const int N = ctx->n;
+    double steps[MAX_DOF];
     /* Direction matrix: start as identity */
-    double dirs[6][6];
-    int i, j, iter;
+    double dirs[MAX_DOF][MAX_DOF];
+    double xstart[MAX_DOF], new_dir[MAX_DOF];
+    int i, j, g, iter;
     double f_curr, f_prev, t_opt, f_opt;
     double delta_max, delta_i;
     int idx_max;
 
     for (i = 0; i < N; i++)
+    {
+        steps[i] = powell_step[i];
         for (j = 0; j < N; j++)
             dirs[i][j] = (i == j) ? 1.0 : 0.0;
+    }
 
-    LineCtx ctx;
-    ctx.surfs = surfs;
-    ctx.n_surfs = n_surfs;
-    ctx.vol = vol;
-    ctx.nii_ptr = nii_ptr;
-    ctx.dims[0] = dims[0];
-    ctx.dims[1] = dims[1];
-    ctx.dims[2] = dims[2];
-    ctx.wm_dist = wm_dist;
-    ctx.gm_dist = gm_dist;
-    ctx.slope = slope;
-    ctx.invert_contrast = invert_contrast;
-
-    f_curr = CAT_BBReg_cost(p, surfs, n_surfs, vol, nii_ptr, dims,
-                            wm_dist, gm_dist, slope, invert_contrast);
+    f_curr = vector_cost(ctx, x);
 
     for (iter = 0; iter < max_iter; iter++)
     {
         f_prev = f_curr;
         delta_max = 0.0;
         idx_max = 0;
-
-        double p_arr[6];
-        p_arr[0] = p->tx;
-        p_arr[1] = p->ty;
-        p_arr[2] = p->tz;
-        p_arr[3] = p->rx;
-        p_arr[4] = p->ry;
-        p_arr[5] = p->rz;
+        for (j = 0; j < N; j++)
+            xstart[j] = x[j];
 
         for (i = 0; i < N; i++)
         {
             /* Set up line context */
-            ctx.base.tx = p->tx;
-            ctx.base.ty = p->ty;
-            ctx.base.tz = p->tz;
-            ctx.base.rx = p->rx;
-            ctx.base.ry = p->ry;
-            ctx.base.rz = p->rz;
             for (j = 0; j < N; j++)
-                ctx.dir[j] = dirs[i][j];
+            {
+                ctx->base[j] = x[j];
+                ctx->dir[j] = dirs[i][j];
+            }
 
             double f_before = f_curr;
-            f_opt = line_minimize(&ctx, steps[i], &t_opt);
+            f_opt = line_minimize(ctx, steps[i], &t_opt);
 
-            /* Update p along direction */
-            p->tx += t_opt * dirs[i][0];
-            p->ty += t_opt * dirs[i][1];
-            p->tz += t_opt * dirs[i][2];
-            p->rx += t_opt * dirs[i][3];
-            p->ry += t_opt * dirs[i][4];
-            p->rz += t_opt * dirs[i][5];
+            /* Update x along direction */
+            for (j = 0; j < N; j++)
+                x[j] += t_opt * dirs[i][j];
             f_curr = f_opt;
 
             delta_i = f_before - f_curr;
@@ -776,37 +1024,17 @@ static double powell_minimise(CAT_RigidParams *p,
             tol * (fabs(f_prev) + fabs(f_curr) + 1e-20))
             break;
 
-        /* Conjugate direction update (Powell rule):
-         * Replace direction idx_max with the average direction taken. */
-        double new_dir[6];
-        new_dir[0] = p->tx - (p_arr[0] + dirs[0][0] * 0.0); /* placeholder: rebuild below */
-
-        /* Rebuild new_dir = current p - p at start of this iteration */
-        double pstart[6];
-        pstart[0] = p_arr[0];
-        pstart[1] = p_arr[1];
-        pstart[2] = p_arr[2];
-        pstart[3] = p_arr[3];
-        pstart[4] = p_arr[4];
-        pstart[5] = p_arr[5];
-
-        double p_now[6];
-        p_now[0] = p->tx;
-        p_now[1] = p->ty;
-        p_now[2] = p->tz;
-        p_now[3] = p->rx;
-        p_now[4] = p->ry;
-        p_now[5] = p->rz;
-
+        /* Conjugate direction update (Powell rule): the direction taken in
+         * this iteration replaces the one of the largest decrease. */
         double len2 = 0.0;
         for (j = 0; j < N; j++)
         {
-            new_dir[j] = p_now[j] - pstart[j];
+            new_dir[j] = x[j] - xstart[j];
             len2 += new_dir[j] * new_dir[j];
         }
         if (len2 > 1e-20)
         {
-            double inv_len = 1.0 / sqrt(len2);
+            double inv_len = 1.0 / sqrt(len2), step = 1e30;
             for (j = 0; j < N; j++)
                 new_dir[j] *= inv_len;
 
@@ -820,15 +1048,19 @@ static double powell_minimise(CAT_RigidParams *p,
             for (j = 0; j < N; j++)
                 dirs[N - 1][j] = new_dir[j];
 
-            /* Adaptive step for the new conjugate direction based on its
-             * translational vs rotational content, so that the line minimizer
-             * explores a physically meaningful range regardless of direction. */
-            double trans_sq = 0.0, rot_sq = 0.0;
-            for (j = 0; j < 3; j++) trans_sq += new_dir[j] * new_dir[j];
-            for (j = 3; j < N; j++) rot_sq   += new_dir[j] * new_dir[j];
-            double step_t = (trans_sq > 1e-10) ? 0.5  / sqrt(trans_sq) : 1e30;
-            double step_r = (rot_sq   > 1e-10) ? 0.005 / sqrt(rot_sq)  : 1e30;
-            steps[N - 1] = (step_t < step_r) ? step_t : step_r;
+            /* Adaptive step for the new conjugate direction from its content
+             * in each group of parameters (translations, rotations, scales,
+             * shears), so that the line minimizer explores a physically
+             * meaningful range regardless of direction. */
+            for (g = 0; g < N; g += 3)
+            {
+                double sq = 0.0;
+                for (j = g; j < g + 3; j++)
+                    sq += new_dir[j] * new_dir[j];
+                if (sq > 1e-10 && powell_step[g] / sqrt(sq) < step)
+                    step = powell_step[g] / sqrt(sq);
+            }
+            steps[N - 1] = step;
             if (steps[N - 1] < 1e-8 || steps[N - 1] > 1.0)
                 steps[N - 1] = 0.5;
         }
@@ -940,21 +1172,120 @@ CAT_BBReg_optimise(const CAT_RigidParams *p_init,
     if (verbose)
         printf("BBReg Stage 2: Powell optimisation...\n");
 
-    double f_final = powell_minimise(p_best, surfs, n_surfs, vol, nii_ptr, dims,
-                                     wm_dist, gm_dist, slope, invert_contrast,
-                                     max_iter, tol, verbose);
+    LineCtx ctx;
+    double x[MAX_DOF];
+
+    line_ctx_init(&ctx, 6, NULL, surfs, n_surfs, vol, nii_ptr, dims,
+                  wm_dist, gm_dist, slope, invert_contrast);
+    x[0] = p_best->tx;
+    x[1] = p_best->ty;
+    x[2] = p_best->tz;
+    x[3] = p_best->rx;
+    x[4] = p_best->ry;
+    x[5] = p_best->rz;
+    double f_final = powell_minimise(x, &ctx, max_iter, tol, verbose);
+    p_best->tx = x[0];
+    p_best->ty = x[1];
+    p_best->tz = x[2];
+    p_best->rx = x[3];
+    p_best->ry = x[4];
+    p_best->rz = x[5];
 
     if (verbose)
     {
+        double m[16];
+
         printf("BBReg Stage 2 final cost: %.6f  "
                "(tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f)\n",
                f_final,
                p_best->tx, p_best->ty, p_best->tz,
                p_best->rx, p_best->ry, p_best->rz);
-        bbr_print_stats(p_best, surfs, n_surfs, vol, nii_ptr, dims,
+        CAT_BBReg_params_to_matrix(p_best, m);
+        bbr_print_stats(m, surfs, n_surfs, vol, nii_ptr, dims,
                         wm_dist, gm_dist);
     }
 
+    return f_final;
+}
+
+/**
+ * \brief Refine a BBR estimate with scales (9 DOF) or scales and shears (12 DOF).
+ *
+ * Powell's direction-set method over the first dof parameters of p_init,
+ * without the grid search of CAT_BBReg_optimise(); dof 6 refines the rigid
+ * core with the scales and shears of p_init kept.
+ *
+ * \param p_init          (in)  initial parameters (and the centre)
+ * \param p_best          (out) optimised parameters
+ * \param dof             (in)  6, 9 or 12
+ * \param surfs           (in)  array of CAT_SurfData (lh + rh, or just one)
+ * \param n_surfs         (in)  number of elements in surfs[]
+ * \param vol             (in)  floating-point volume data (moving image)
+ * \param nii_ptr         (in)  NIfTI header of the moving volume
+ * \param dims            (in)  volume dimensions [nx, ny, nz]
+ * \param wm_dist         (in)  WM sampling offset (mm)
+ * \param gm_dist         (in)  GM absolute sampling offset (mm)
+ * \param slope           (in)  BBR cost saturation slope
+ * \param invert_contrast (in)  non-zero for T2/BOLD
+ * \param max_iter        (in)  maximum Powell iterations
+ * \param tol             (in)  convergence tolerance for Powell
+ * \param verbose         (in)  non-zero to print progress
+ * \return final BBR cost, or -1 for an unsupported dof (p_best = p_init)
+ */
+double
+CAT_BBReg_optimise_affine(const CAT_AffineParams *p_init,
+                          CAT_AffineParams *p_best,
+                          int dof,
+                          const CAT_SurfData *surfs,
+                          int n_surfs,
+                          float *vol,
+                          nifti_image *nii_ptr,
+                          int dims[3],
+                          double wm_dist,
+                          double gm_dist,
+                          double slope,
+                          int invert_contrast,
+                          int max_iter,
+                          double tol,
+                          int verbose)
+{
+    LineCtx ctx;
+    double x[MAX_DOF], f_final;
+
+    *p_best = *p_init;
+    if (dof != 6 && dof != 9 && dof != 12)
+    {
+        fprintf(stderr, "CAT_BBReg_optimise_affine: dof must be 6, 9 or 12,"
+                        " not %d\n", dof);
+        return -1.0;
+    }
+
+    line_ctx_init(&ctx, dof, p_init, surfs, n_surfs, vol, nii_ptr, dims,
+                  wm_dist, gm_dist, slope, invert_contrast);
+    affine_to_vector(p_init, x);
+    if (verbose)
+        printf("BBReg affine refinement (%d DOF, centre %.1f %.1f %.1f mm):"
+               " initial cost %.6f\n", dof, p_init->centre[0],
+               p_init->centre[1], p_init->centre[2], vector_cost(&ctx, x));
+
+    f_final = powell_minimise(x, &ctx, max_iter, tol, verbose);
+    vector_to_affine(x, dof, p_best);
+
+    if (verbose)
+    {
+        double m[16];
+
+        printf("BBReg affine final cost: %.6f  (tx=%.3f ty=%.3f tz=%.3f"
+               "  rx=%.4f ry=%.4f rz=%.4f  sx=%.4f sy=%.4f sz=%.4f"
+               "  hxy=%.4f hxz=%.4f hyz=%.4f)\n", f_final,
+               p_best->rigid.tx, p_best->rigid.ty, p_best->rigid.tz,
+               p_best->rigid.rx, p_best->rigid.ry, p_best->rigid.rz,
+               p_best->sx, p_best->sy, p_best->sz,
+               p_best->hxy, p_best->hxz, p_best->hyz);
+        CAT_BBReg_affine_to_matrix(p_best, m);
+        bbr_print_stats(m, surfs, n_surfs, vol, nii_ptr, dims,
+                        wm_dist, gm_dist);
+    }
     return f_final;
 }
 
