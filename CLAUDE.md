@@ -900,6 +900,18 @@ stayed exactly at 0 in a test).  With Brent on [-step, step], NMI went from 0.87
 same-modality pairs and BBR from 0.37 to 0.21 mm on BOLD-like images synthesised from the MNI
 template's tissue maps (better in all 8 trials), at about 1.7x the BBR run time.
 
+**Affine BBR (`-dof 9/12`, `cat_surf.bbreg(dof=)`) refines the rigid result** with scales and
+shears about the centroid of the cortex vertices (`CAT_AffineParams`: M = T R T(c) K T(-c), K
+upper triangular); the grid search and the NMI init stay rigid, and the 6-DOF path is bit
+identical to before (one Powell now serves 6, 9 and 12 parameters).  On `test_bbreg`'s phantom
+9 DOF recover scales of 3-4% within 0.18 mm (rigid: 1.9 mm) and 12 DOF shears within 0.14 mm.
+**The BBR cost is biased for scales**, which a rigid transform hides: the contrast peaks where
+the boundary lies midway between the WM and GM samples, and around a closed surface only a
+scale can move it everywhere at once.  With the 2 / 1 mm sampling the scales came out 1% too
+large, symmetric sampling removed that, and tissue brighter than GM beyond the ribbon (CSF in
+BOLD) added 1.5% more.  bbregister's --9/--12 use the same cost.  On sub-01 of the fMRIPrep
+example data 9 DOF gave scales of 1.003 / 1.011 / 0.991 (0.5 mm from the rigid result, +20 s).
+
 ## Architecture rules
 
 1. **Library-first:** All non-trivial logic belongs in `Lib/`, not `Progs/`.

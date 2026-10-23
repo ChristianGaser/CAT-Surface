@@ -6,8 +6,9 @@
  *
  * Registers a moving NIfTI volume to one or two WM surfaces (left and/or right
  * hemisphere) using the BBR cost function (Greve & Fischl 2009, NeuroImage
- * 48:63-72).  Outputs a plain 4×4 RAS-to-RAS transform matrix and, with
- * -fsl-matrix, the same transform in FSL's convention for flirt -init.
+ * 48:63-72), rigidly or, with -dof 9 / 12, affinely.  Outputs a plain 4×4
+ * RAS-to-RAS transform matrix and, with -fsl-matrix, the same transform in
+ * FSL's convention for flirt -init.
  *
  * Copyright Christian Gaser, University of Jena.
  */
@@ -38,6 +39,7 @@ static double grid_range_mm = 4.0;   /* Stage-1 translation range (mm)      */
 static double grid_range_rad = 0.07; /* Stage-1 rotation range (rad, ~4°)   */
 static int grid_steps = 4;           /* Stage-1 steps per DOF               */
 static int max_iter = 200;           /* Powell iterations                   */
+static int dof = 6;                  /* 6 rigid, 9 + scales, 12 + shears    */
 static double tol = 1e-6;            /* Powell convergence tolerance        */
 static int verbose = 0;
 static double fwhm = 5.0;               /* Gaussian pre-smoothing FWHM (mm, 0=off) */
@@ -130,6 +132,11 @@ static ArgvInfo argTable[] =
         {"-tol", ARGV_FLOAT, (char *)1, (char *)&tol,
          "Fractional convergence tolerance for Powell optimizer. Default: 1e-5"},
 
+        {"-dof", ARGV_INT, (char *)1, (char *)&dof,
+         "Degrees of freedom: 6 (rigid), 9 (+ scales) or 12 (+ shears).  9 and 12"
+         " refine the rigid result; the grid search and the volume-registration"
+         " initialisation stay rigid. Default: 6"},
+
         {"-init-tx", ARGV_FLOAT, (char *)1, (char *)&init_tx,
          "Initial x-translation (mm). Default: 0"},
         {"-init-ty", ARGV_FLOAT, (char *)1, (char *)&init_ty,
@@ -207,9 +214,10 @@ usage(const char *exe)
             "\nUsage: %s [options] volume_file output_matrix_file\n\n"
             "  Boundary-Based Registration (BBR) of a NIfTI volume to one or both\n"
             "  white-matter surfaces.  Surfaces must be in the same RAS coordinate\n"
-            "  space as the volume.  The output is a plain-text 4x4 RAS-to-RAS rigid\n"
-            "  transform matrix (volume -> surface space).  This is not the convention\n"
-            "  of flirt -init; -fsl-matrix writes that as well.\n\n"
+            "  space as the volume.  The output is a plain-text 4x4 RAS-to-RAS\n"
+            "  transform matrix (volume -> surface space), rigid or, with -dof 9/12,\n"
+            "  affine.  This is not the convention of flirt -init; -fsl-matrix writes\n"
+            "  that as well.\n\n"
             "  At least one surface must be supplied via -lh and/or -rh.\n\n"
             "  Cortex label files (-lh-label / -rh-label) should contain one float\n"
             "  value per vertex; vertices with value <= 0.5 are excluded from the\n"
@@ -238,6 +246,8 @@ usage(const char *exe)
             "  -grid-steps <n>         Stage-1 steps per DOF (default: 2)\n"
             "  -max-iter <n>           Powell max iterations (default: 200)\n"
             "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
+            "  -dof <6|9|12>           Rigid, + scales or + shears; 9 and 12 refine\n"
+            "                          the rigid result (default: 6)\n"
             "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
             "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
             "  -fwhm <mm>              Gaussian pre-smoothing FWHM: for vol-reg init\n"
@@ -387,6 +397,19 @@ int main(int argc, char *argv[])
 
     volume_file = argv[1];
     output_file = argv[2];
+
+    if (dof != 6 && dof != 9 && dof != 12)
+    {
+        fprintf(stderr, "Error: -dof must be 6, 9 or 12, not %d.\n", dof);
+        exit(EXIT_FAILURE);
+    }
+    if (dof != 6 && !lh_surf_file && !rh_surf_file)
+    {
+        fprintf(stderr,
+                "Error: -dof %d needs surfaces (-lh/-rh); the volume registration"
+                " alone is rigid.\n", dof);
+        exit(EXIT_FAILURE);
+    }
 
     /* --- The FSL convention is relative to a reference grid --- */
     if (fsl_matrix_file && !ref_vol_file)
@@ -796,6 +819,20 @@ int main(int argc, char *argv[])
                                     grid_range_mm, grid_range_rad, grid_steps,
                                     max_iter, tol, verbose);
 
+    /* --- Scales (and shears) refine the rigid result --- */
+    CAT_AffineParams a_best;
+    if (dof > 6)
+    {
+        CAT_AffineParams a_init;
+        CAT_BBReg_affine_init(&p_best, surfs, n_surfs, &a_init);
+        final_cost = CAT_BBReg_optimise_affine(&a_init, &a_best, dof,
+                                               surfs, n_surfs,
+                                               vol_bbr, nii_ptr, dims,
+                                               wm_dist, gm_dist, slope,
+                                               invert_contrast,
+                                               max_iter, tol, verbose);
+    }
+
     /* --- Convert best parameters to 4x4 matrix and write ---
      * m_best maps fixed-surface(T1) RAS → moving-volume(EPI) RAS; that is the
      * direction the optimizer uses to transform surface sample points into the
@@ -803,8 +840,16 @@ int main(int argc, char *argv[])
      * (matching bbregister / bbreg) is the *inverse*: EPI RAS → T1 RAS.
      * Applying the inverse to the original sform (voxel→EPI RAS) then gives
      * the updated sform (voxel→T1 RAS). */
-    CAT_BBReg_params_to_matrix(&p_best, m_best);
-    CAT_BBReg_invert_matrix(m_best, m_inv);
+    if (dof > 6)
+    {
+        CAT_BBReg_affine_to_matrix(&a_best, m_best);
+        CAT_BBReg_invert_affine(m_best, m_inv);
+    }
+    else
+    {
+        CAT_BBReg_params_to_matrix(&p_best, m_best);
+        CAT_BBReg_invert_matrix(m_best, m_inv);
+    }
 
     free(vol_bbr_buf); /* NULL when fwhm == 0; free(NULL) is safe */
 
@@ -819,9 +864,19 @@ int main(int argc, char *argv[])
 
     printf("BBReg done.  Final cost: %.6f\n", final_cost);
     printf("Transform written to: %s\n", output_file);
-    printf("Parameters (T1->EPI, internal): tx=%.3f ty=%.3f tz=%.3f  rx=%.4f ry=%.4f rz=%.4f\n",
-           p_best.tx, p_best.ty, p_best.tz,
-           p_best.rx, p_best.ry, p_best.rz);
+    if (dof > 6)
+        printf("Parameters (T1->EPI, internal): tx=%.3f ty=%.3f tz=%.3f"
+               "  rx=%.4f ry=%.4f rz=%.4f  sx=%.4f sy=%.4f sz=%.4f"
+               "  hxy=%.4f hxz=%.4f hyz=%.4f\n",
+               a_best.rigid.tx, a_best.rigid.ty, a_best.rigid.tz,
+               a_best.rigid.rx, a_best.rigid.ry, a_best.rigid.rz,
+               a_best.sx, a_best.sy, a_best.sz,
+               a_best.hxy, a_best.hxz, a_best.hyz);
+    else
+        printf("Parameters (T1->EPI, internal): tx=%.3f ty=%.3f tz=%.3f"
+               "  rx=%.4f ry=%.4f rz=%.4f\n",
+               p_best.tx, p_best.ty, p_best.tz,
+               p_best.rx, p_best.ry, p_best.rz);
 
     /* before -output-volume moves the header into surface space */
     if (fsl_matrix_file &&
@@ -853,6 +908,14 @@ int main(int argc, char *argv[])
                 new_sto.m[i][j] = (float)sum;
             }
         nii_ptr->sto_xyz = new_sto;
+
+        /* A qform holds no scales or shears: after an affine registration
+         * only the sform describes the volume */
+        if (dof > 6 && nii_ptr->qform_code > 0)
+        {
+            nii_ptr->qform_code = NIFTI_XFORM_UNKNOWN;
+            printf("qform cleared: the affine transform is in the sform only.\n");
+        }
 
         /* Update qform with the same transform if it was set */
         if (nii_ptr->qform_code > 0)

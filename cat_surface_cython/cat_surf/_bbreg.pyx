@@ -92,14 +92,17 @@ def bbreg(str volume_file,
           int vol_reg_levels=4,
           int vol_reg_bins=64,
           int vol_reg_iter=30,
-          bint verbose=False):
+          bint verbose=False,
+          int dof=6):
     """
     Boundary-Based Registration (BBR) of a volume to cortical surfaces.
 
     Mirrors the ``CAT_SurfBBReg`` command-line tool.  When ``ref_file`` is
     provided an NMI volume-registration step initialises the transform before
     BBR.  When no surfaces are given the function returns the volume-
-    registration result directly (standalone mode).
+    registration result directly (standalone mode).  With ``dof`` 9 or 12
+    the rigid BBR result is refined with scales (and shears), as
+    ``CAT_SurfBBReg -dof``.
 
     Parameters
     ----------
@@ -147,13 +150,20 @@ def bbreg(str volume_file,
     vol_reg_iter : int
         Powell iterations per pyramid level.
     verbose : bool
+    dof : int
+        Degrees of freedom of the BBR: 6 (rigid, default), 9 (+ scales) or
+        12 (+ shears).  9 and 12 refine the rigid result and need surfaces;
+        the NMI initialisation is always rigid.  The BBR contrast peaks where
+        the boundary lies midway between the WM and GM samples, which scales
+        can follow: with ``wm_dist`` larger than the GM offset they come out
+        larger by about (wm_dist - GM offset) / 2 mm at the cortex.
 
     Returns
     -------
     matrix : ndarray, shape (4, 4), float64
-        Rigid transform in the standard output convention: moving (EPI) RAS
-        → fixed (T1) RAS.  Equivalent to the matrix written by
-        ``CAT_SurfBBReg`` / ``bbregister``.
+        Transform in the standard output convention: moving (EPI) RAS
+        → fixed (T1) RAS, rigid unless ``dof`` is 9 or 12.  Equivalent to
+        the matrix written by ``CAT_SurfBBReg`` / ``bbregister``.
     cost : float
         Final BBR cost (lower = better).  Returns 0.0 when only volume
         registration is performed (no surfaces).
@@ -171,6 +181,7 @@ def bbreg(str volume_file,
     cdef float        *ref_for_reg             # ref_flat or ref_smooth_buf
     cdef float        *vol_bbr                 # vol3d or vol_bbr_buf
     cdef C.CAT_RigidParams p_init, p_best
+    cdef C.CAT_AffineParams a_init, a_best
     cdef C.CAT_SurfData    surfs[2]
     cdef int  n_surfs = 0
     cdef int  dims[3], ref_dims[3]
@@ -185,6 +196,12 @@ def bbreg(str volume_file,
     rh_thick_np = None
     cdef PolygonsMesh lh_mesh = None
     cdef PolygonsMesh rh_mesh = None
+
+    if dof not in (6, 9, 12):
+        raise ValueError(f"dof must be 6, 9 or 12, not {dof}")
+    if dof != 6 and lh_surface is None and rh_surface is None:
+        raise ValueError(
+            f"dof {dof} needs surfaces; the volume registration alone is rigid.")
 
     try:
         # --- 1. Load moving volume -----------------------------------------
@@ -336,8 +353,19 @@ def bbreg(str volume_file,
             grid_range_mm, grid_range_rad, grid_steps,
             max_iter, tol, 1 if verbose else 0)
 
-        C.CAT_BBReg_params_to_matrix(&p_best, m_best)
-        C.CAT_BBReg_invert_matrix(m_best, m_inv)
+        # --- 9. Scales (and shears) refine the rigid result ----------------
+        if dof > 6:
+            C.CAT_BBReg_affine_init(&p_best, surfs, n_surfs, &a_init)
+            final_cost = C.CAT_BBReg_optimise_affine(
+                &a_init, &a_best, dof, surfs, n_surfs,
+                vol_bbr, nii, dims,
+                wm_dist, gm_dist, slope, ic,
+                max_iter, tol, 1 if verbose else 0)
+            C.CAT_BBReg_affine_to_matrix(&a_best, m_best)
+            C.CAT_BBReg_invert_affine(m_best, m_inv)
+        else:
+            C.CAT_BBReg_params_to_matrix(&p_best, m_best)
+            C.CAT_BBReg_invert_matrix(m_best, m_inv)
         return _m16_to_numpy(m_inv), final_cost
 
     finally:

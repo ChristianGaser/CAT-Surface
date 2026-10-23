@@ -621,11 +621,30 @@ cdef extern from "CAT_BBReg.h":
         float           *thickness
         double           gm_proj_frac
 
+    ctypedef struct CAT_AffineParams:
+        CAT_RigidParams rigid
+        double sx, sy, sz
+        double hxy, hxz, hyz
+        double centre[3]
+
     void   CAT_BBReg_params_to_matrix(const CAT_RigidParams *p,
                                       double m[16])
     void   CAT_BBReg_apply_matrix(polygons_struct *surface,
                                   const double m[16])
     void   CAT_BBReg_invert_matrix(const double m[16], double inv[16])
+    void   CAT_BBReg_invert_affine(const double m[16], double inv[16])
+    void   CAT_BBReg_affine_to_matrix(const CAT_AffineParams *p,
+                                      double m[16])
+    void   CAT_BBReg_affine_init(const CAT_RigidParams *rigid,
+                                 const CAT_SurfData *surfs, int n_surfs,
+                                 CAT_AffineParams *p)
+
+    double CAT_BBReg_cost_matrix(const double m[16],
+                                 const CAT_SurfData *surfs, int n_surfs,
+                                 float *vol, nifti_image *nii_ptr,
+                                 int dims[3],
+                                 double wm_dist, double gm_dist,
+                                 double slope, int invert_contrast)
 
     double CAT_BBReg_cost(const CAT_RigidParams *p,
                           const CAT_SurfData *surfs, int n_surfs,
@@ -642,6 +661,15 @@ cdef extern from "CAT_BBReg.h":
                               double grid_range_mm, double grid_range_rad,
                               int grid_steps, int max_iter, double tol,
                               int verbose)
+
+    double CAT_BBReg_optimise_affine(const CAT_AffineParams *p_init,
+                                     CAT_AffineParams *p_best, int dof,
+                                     const CAT_SurfData *surfs, int n_surfs,
+                                     float *vol, nifti_image *nii_ptr,
+                                     int dims[3],
+                                     double wm_dist, double gm_dist,
+                                     double slope, int invert_contrast,
+                                     int max_iter, double tol, int verbose)
 
     int    CAT_BBReg_detect_contrast(const CAT_RigidParams *p,
                                      const CAT_SurfData *surfs, int n_surfs,

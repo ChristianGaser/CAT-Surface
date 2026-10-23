@@ -76,7 +76,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_Surf2PialWhite**          | Derives pial and white matter surfaces from a central cortical surface representation. |
 | **CAT_Surf2Sheet**              | Flattens surface data (e.g., curvature, morphometry) onto a 2D sheet (PGM image), for visualization or further analysis. |
 | **CAT_Surf2Sphere**             | Inflates a cortical surface mesh onto a sphere using the Caret/Van Essen inflation approach. |
-| **CAT_SurfBBReg**               | Boundary-Based Registration (BBR): rigid co-registration of a functional volume to cortical surfaces. Includes NMI-based volume initialisation, automatic T1/T2 contrast detection, and optional pre-smoothing. |
+| **CAT_SurfBBReg**               | Boundary-Based Registration (BBR): rigid co-registration of a functional volume to cortical surfaces, optionally refined with scales and shears (`-dof 9` / `-dof 12`). Includes NMI-based volume initialisation, automatic T1/T2 contrast detection, and optional pre-smoothing. |
 | **CAT_SurfSphericalDemon**      | Spherical Demons registration of a surface to a template. |
 | **CAT_SurfFixSelfIntersect**    | Removes self-intersections by locally smoothing the intersecting regions; `-reference` retreats towards the surface a deformation started from where smoothing cannot separate crossed sheets. |
 | **CAT_SurfSelfIntersect**       | Counts self-intersections and marks the intersecting triangles. |
