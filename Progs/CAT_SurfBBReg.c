@@ -911,6 +911,8 @@ int main(int argc, char *argv[])
          * only the sform describes the volume */
         if (opts.dof > 6 && nii_ptr->qform_code > 0)
         {
+            if (nii_ptr->sform_code <= 0)
+                nii_ptr->sform_code = NIFTI_XFORM_ALIGNED_ANAT;
             nii_ptr->qform_code = NIFTI_XFORM_UNKNOWN;
             printf("qform cleared: the affine transform is in the sform only.\n");
         }
