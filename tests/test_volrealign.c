@@ -375,6 +375,7 @@ test_symmetric_object(void)
                        m[4 * i + 3] - centre;
             d += e * e;
         }
+        MU_ASSERT("symmetric object: the mapped centre is finite", isfinite(d));
         worst = fmax(worst, sqrt(d));
     }
     if (worst >= 0.5)
