@@ -12,6 +12,7 @@
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_SafeAlloc.h"
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
@@ -1377,6 +1378,11 @@ int output_gifti_curv(char *fname, int nvertices, double *data)
  * directory.  Work around this by temporarily changing to the .gii file's
  * directory before reading, then restoring the working directory.
  *
+ * A version that is 1 as a number is set to GIFTI_XML_VERSION ("1.0"), the
+ * only one gifti_valid_gifti_image() accepts: Connectome Workbench writes
+ * Version="1", and its files (sMRIPrep's cortex masks and fsLR spheres, for
+ * one) were otherwise rejected as invalid.
+ *
  * \param file      (in) path to the GIFTI file
  * \param read_data (in) non-zero to load the DataArray contents as well
  * \return the image, or NULL when it could not be read
@@ -1416,6 +1422,15 @@ read_gifti_image_in_dir(const char *file, int read_data)
     /* restore original working directory */
     if (did_chdir)
         (void)chdir(saved_cwd);
+
+    if (image && image->version && strcmp(image->version, GIFTI_XML_VERSION) != 0)
+    {
+        char *end;
+        double version = strtod(image->version, &end);
+
+        if (end != image->version && *end == '\0' && version == 1.0)
+            gifti_str2attr_gifti(image, "Version", GIFTI_XML_VERSION);
+    }
 
     return image;
 }

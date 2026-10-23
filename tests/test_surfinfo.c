@@ -315,6 +315,98 @@ test_gifti_data_arrays(void)
     remove(file);
 }
 
+/** \brief Set the Version attribute of a GIFTI file's root element; 0 on success. */
+static int
+set_gifti_version(const char *file, const char *version)
+{
+    FILE *fp = fopen(file, "rb");
+    char *text, *start, *end;
+    long size;
+    int ok = 0;
+
+    if (!fp)
+        return -1;
+    fseek(fp, 0, SEEK_END);
+    size = ftell(fp);
+    rewind(fp);
+    text = (char *) malloc((size_t) size + 1);
+    if (text && fread(text, 1, (size_t) size, fp) == (size_t) size)
+        ok = 1;
+    fclose(fp);
+    if (!ok) {
+        free(text);
+        return -1;
+    }
+    text[size] = '\0';
+
+    /* the XML declaration spells it "version", the GIFTI element "Version" */
+    start = strstr(text, "Version=\"");
+    end = start ? strchr(start + 9, '"') : NULL;
+    fp = end ? fopen(file, "wb") : NULL;
+    if (!fp) {
+        free(text);
+        return -1;
+    }
+    fwrite(text, 1, (size_t) (start + 9 - text), fp);
+    fputs(version, fp);
+    fwrite(end, 1, strlen(end), fp);
+    fclose(fp);
+    free(text);
+    return 0;
+}
+
+static void
+test_gifti_workbench_version(void)
+{
+    /* Connectome Workbench writes Version="1", which gifticlib's validity
+       check refused -- sMRIPrep's cortex masks and fsLR spheres among them */
+    char file[] = "test_surfinfo_wb.gii";
+    object_struct obj;
+    object_struct *object = &obj;
+    object_struct **objects = NULL;
+    polygons_struct *polygons;
+    File_formats format;
+    double values[6], *read = NULL;
+    int n_objects = 0, n_read = 0, i;
+
+    obj.object_type = POLYGONS;
+    obj.visibility = TRUE;
+    polygons = get_polygons_ptr(object);
+    make_mesh(polygons, octa_pts, 6, octa_tri, 8);
+    for (i = 0; i < 6; i++)
+        values[i] = (double) (i + 1);
+
+    if (output_graphics_any_format(file, ASCII_FORMAT, 1, &object,
+                                   values) != OK ||
+        set_gifti_version(file, "1") != 0) {
+        MU_ASSERT("the test file could be written", 0);
+        free_mesh(polygons);
+        return;
+    }
+
+    MU_ASSERT("Version=\"1\": the surface is read",
+              input_graphics_any_format(file, &format, &n_objects,
+                                        &objects) == OK &&
+              n_objects == 1 && get_polygons_ptr(objects[0])->n_points == 6);
+    if (n_objects > 0)
+        delete_object_list(n_objects, objects);
+
+    MU_ASSERT("Version=\"1\": the values are read",
+              input_values_any_format(file, &n_read, &read) == OK &&
+              n_read == 6 && read[5] == 6.0);
+    free(read);
+    read = NULL;
+
+    /* only a version equal to 1 is taken for 1.0 */
+    set_gifti_version(file, "2.0");
+    MU_ASSERT("Version=\"2.0\" is still refused",
+              input_values_any_format(file, &n_read, &read) != OK);
+    free(read);
+
+    free_mesh(polygons);
+    remove(file);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_octahedron_counts);
@@ -324,6 +416,7 @@ int main(void)
     MU_RUN_TEST(test_self_intersection_detected);
     MU_RUN_TEST(test_skipped_intersections);
     MU_RUN_TEST(test_gifti_data_arrays);
+    MU_RUN_TEST(test_gifti_workbench_version);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
