@@ -343,7 +343,7 @@ def bbreg(str volume_file,
 
         # --- 5. Pre-smooth for BBR (once, before optimiser starts) ---------
         vol_bbr = vol3d
-        if fwhm_bbr > 0.0:
+        if n_surfs > 0 and fwhm_bbr > 0.0:
             vol_bbr_buf = <float *>malloc(<size_t>nvox3 * sizeof(float))
             if vol_bbr_buf == NULL:
                 raise MemoryError()
