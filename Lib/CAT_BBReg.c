@@ -60,6 +60,35 @@ static double sample_vox(const float *vol, const int dims[3],
  * ========================================================================= */
 
 /**
+ * \brief Set the default settings of a boundary-based registration.
+ *
+ * The values tuned for CAT_SurfBBReg (grid steps, tolerance and the two
+ * smoothing kernels in May 2026); cat_surf.bbreg and the CLI take them from
+ * here.
+ *
+ * \param opts (out) settings to initialise
+ */
+void CAT_BBRegOptionsInit(CAT_BBRegOpts *opts)
+{
+    opts->wm_dist = 2.0;
+    opts->gm_dist = 0.5;
+    opts->gm_proj_frac = 0.0;
+    opts->slope = 0.5;
+    opts->invert_contrast = -1;
+    opts->grid_range_mm = 4.0;
+    opts->grid_range_rad = 0.07;
+    opts->grid_steps = 4;
+    opts->max_iter = 200;
+    opts->tol = 1e-6;
+    opts->dof = 6;
+    opts->fwhm = 5.0;
+    opts->fwhm_bbr = 2.0;
+    opts->vol_reg_levels = 4;
+    opts->vol_reg_bins = 64;
+    opts->vol_reg_iter = 30;
+}
+
+/**
  * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
  *
  * The resulting matrix maps points in the *fixed* surface (T1) RAS space to

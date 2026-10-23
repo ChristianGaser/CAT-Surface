@@ -77,6 +77,53 @@ extern "C"
     } CAT_AffineParams;
 
     /**
+     * \brief Settings of a boundary-based registration as CAT_SurfBBReg runs it.
+     *
+     * The sampling, cost, search, smoothing and volume-initialisation settings
+     * of the whole pipeline, shared by CAT_SurfBBReg and cat_surf.bbreg.  Set
+     * the defaults with CAT_BBRegOptionsInit(), the single source of truth for
+     * both, and change what you need.
+     */
+    typedef struct
+    {
+        double wm_dist;         /**< WM sampling distance inside the surface (mm) */
+        double gm_dist;         /**< GM sampling distance outside the surface (mm),
+                                     used without thickness or gm_proj_frac */
+        double gm_proj_frac;    /**< GM distance as a fraction of the thickness
+                                     (0 = gm_dist) */
+        double slope;           /**< saturation slope of the cost */
+        int    invert_contrast; /**< -1 auto-detect, 0 T1/FLAIR, 1 T2/BOLD */
+        double grid_range_mm;   /**< half-width of the translation grid search (mm) */
+        double grid_range_rad;  /**< half-width of a rotation grid (rad); the
+                                     grid searches translations only */
+        int    grid_steps;      /**< grid steps on either side of the start */
+        int    max_iter;        /**< Powell iterations */
+        double tol;             /**< Powell convergence tolerance */
+        int    dof;             /**< 6, 9 or 12, see CAT_BBReg_optimise_affine() */
+        double fwhm;            /**< smoothing of both volumes for the volume
+                                     initialisation (mm, 0 = off) */
+        double fwhm_bbr;        /**< smoothing of the moving volume for BBR
+                                     (mm, 0 = off) */
+        int    vol_reg_levels;  /**< pyramid levels of the volume initialisation */
+        int    vol_reg_bins;    /**< joint-histogram bins per axis */
+        int    vol_reg_iter;    /**< Powell iterations per pyramid level */
+    } CAT_BBRegOpts;
+
+    /**
+     * \brief Set the default settings of a boundary-based registration.
+     *
+     * WM is sampled 2 mm inside the surface and GM 0.5 mm outside it, with a
+     * cost slope of 0.5 and the contrast detected from the image; a grid of
+     * translations of up to 4 mm in 1 mm steps precedes Powell's method (200
+     * iterations, tolerance 1e-6), rigidly.  The volume initialisation (NMI, 4
+     * levels, 64 bins, 30 iterations) sees both volumes smoothed by 5 mm, BBR
+     * the moving one by 2 mm.
+     *
+     * \param opts (out) settings to initialise
+     */
+    void CAT_BBRegOptionsInit(CAT_BBRegOpts *opts);
+
+    /**
      * \brief Convert 6-DOF rigid parameters to a 4×4 homogeneous matrix (row-major).
      *
      * The resulting matrix maps points expressed in the *fixed* surface's (T1) RAS

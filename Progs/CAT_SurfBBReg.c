@@ -30,20 +30,10 @@
 /* -----------------------------------------------------------------------
  * Argument defaults
  * ----------------------------------------------------------------------- */
-static double wm_dist = 2.0;         /* mm inside WM                        */
-static double gm_dist = 0.5;         /* mm inside GM (absolute, fallback)   */
-static double gm_proj_frac = 0.0;    /* fraction of thickness for GM offset */
-static double slope = 0.5;           /* BBR cost slope                      */
-static int invert_contrast = -1;     /* -1=auto-detect, 0=T1/FLAIR, 1=T2/BOLD */
-static double grid_range_mm = 4.0;   /* Stage-1 translation range (mm)      */
-static double grid_range_rad = 0.07; /* Stage-1 rotation range (rad, ~4°)   */
-static int grid_steps = 4;           /* Stage-1 steps per DOF               */
-static int max_iter = 200;           /* Powell iterations                   */
-static int dof = 6;                  /* 6 rigid, 9 + scales, 12 + shears    */
-static double tol = 1e-6;            /* Powell convergence tolerance        */
+/* sampling, cost, search, smoothing and NMI initialisation; the defaults are
+   CAT_BBRegOptionsInit()'s, set in main() before parsing */
+static CAT_BBRegOpts opts;
 static int verbose = 0;
-static double fwhm = 5.0;               /* Gaussian pre-smoothing FWHM (mm, 0=off) */
-static double fwhm_bbr = 2.0;           /* Gaussian pre-smoothing FWHM for BBR approach (mm, 0=off) */
 static char *output_volume_file = NULL; /* optional coregistered volume output */
 
 /* Surface / label / thickness file names (NULL = not provided) */
@@ -58,11 +48,8 @@ static char *rh_thick_file = NULL;
 static double init_tx = 0.0, init_ty = 0.0, init_tz = 0.0;
 static double init_rx = 0.0, init_ry = 0.0, init_rz = 0.0;
 
-/* Volume registration (robust init) options */
-static int    vol_reg_levels  = 4;    /* Gaussian pyramid levels          */
-static int    vol_reg_bins    = 64;   /* NMI histogram bins per axis      */
+/* Volume registration (init) options beyond CAT_BBRegOpts */
 static double vol_reg_sat     = 4.685;/* Tukey saturation (ROB mode only) */
-static int    vol_reg_iter    = 30;   /* Powell/IRLS iterations per level */
 static int    no_vol_reg      = 0;    /* skip volume registration init    */
 static int    vol_reg_rob     = 0;    /* use IRLS/ROB instead of NMI      */
 static int    vol_reg_no_iscale = 0;  /* ROB: keep the intensity scale at 1 */
@@ -95,47 +82,48 @@ static ArgvInfo argTable[] =
          "Right-hemisphere cortical thickness scalar file (mm).  Used with"
          " -gm-proj-frac."},
 
-        {"-gm-proj-frac", ARGV_FLOAT, (char *)1, (char *)&gm_proj_frac,
+        {"-gm-proj-frac", ARGV_FLOAT, (char *)1, (char *)&opts.gm_proj_frac,
          "Fraction of cortical thickness to use as GM sampling offset."
-         " Requires -lh-thickness / -rh-thickness.  0 = use -gm-dist. Default: 0"},
+         " Requires -lh-thickness / -rh-thickness.  0 = use -gm-dist."},
 
-        {"-wm-dist", ARGV_FLOAT, (char *)1, (char *)&wm_dist,
-         "Sampling distance inside white matter along inward surface normal (mm). Default: 2.0"},
+        {"-wm-dist", ARGV_FLOAT, (char *)1, (char *)&opts.wm_dist,
+         "Sampling distance inside white matter along inward surface normal (mm)."},
 
-        {"-gm-dist", ARGV_FLOAT, (char *)1, (char *)&gm_dist,
+        {"-gm-dist", ARGV_FLOAT, (char *)1, (char *)&opts.gm_dist,
          "Absolute GM sampling offset (mm); used when -gm-proj-frac is 0 or"
-         " no thickness file is given. Default: 0.5"},
+         " no thickness file is given."},
 
-        {"-slope", ARGV_FLOAT, (char *)1, (char *)&slope,
-         "Saturation slope of the BBR cost function. Default: 0.5"},
+        {"-slope", ARGV_FLOAT, (char *)1, (char *)&opts.slope,
+         "Saturation slope of the BBR cost function."},
 
-        {"-t2", ARGV_CONSTANT, (char *)1, (char *)&invert_contrast,
+        {"-t2", ARGV_CONSTANT, (char *)1, (char *)&opts.invert_contrast,
          "Force T2/BOLD contrast (WM darker than GM). Skips auto-detection."
          " Default: auto-detect from surface WM/GM intensities."},
 
-        {"-t1", ARGV_CONSTANT, (char *)0, (char *)&invert_contrast,
+        {"-t1", ARGV_CONSTANT, (char *)0, (char *)&opts.invert_contrast,
          "Force T1/FLAIR contrast (WM brighter than GM). Skips auto-detection."
          " Default: auto-detect from surface WM/GM intensities."},
 
-        {"-grid-range-mm", ARGV_FLOAT, (char *)1, (char *)&grid_range_mm,
-         "Half-width of Stage-1 brute-force translation search (mm). Default: 4.0"},
+        {"-grid-range-mm", ARGV_FLOAT, (char *)1, (char *)&opts.grid_range_mm,
+         "Half-width of Stage-1 brute-force translation search (mm)."},
 
-        {"-grid-range-rad", ARGV_FLOAT, (char *)1, (char *)&grid_range_rad,
-         "Half-width of Stage-1 brute-force rotation search (radians). Default: 0.07"},
+        {"-grid-range-rad", ARGV_FLOAT, (char *)1, (char *)&opts.grid_range_rad,
+         "Half-width of a Stage-1 rotation search (radians); the grid searches"
+         " translations only."},
 
-        {"-grid-steps", ARGV_INT, (char *)1, (char *)&grid_steps,
-         "Number of grid steps per translation DOF in Stage-1 search. Default: 2"},
+        {"-grid-steps", ARGV_INT, (char *)1, (char *)&opts.grid_steps,
+         "Number of grid steps per translation DOF in Stage-1 search."},
 
-        {"-max-iter", ARGV_INT, (char *)1, (char *)&max_iter,
-         "Maximum Powell iterations in Stage-2 optimisation. Default: 200"},
+        {"-max-iter", ARGV_INT, (char *)1, (char *)&opts.max_iter,
+         "Maximum Powell iterations in Stage-2 optimisation."},
 
-        {"-tol", ARGV_FLOAT, (char *)1, (char *)&tol,
-         "Fractional convergence tolerance for Powell optimizer. Default: 1e-5"},
+        {"-tol", ARGV_FLOAT, (char *)1, (char *)&opts.tol,
+         "Fractional convergence tolerance for Powell optimizer."},
 
-        {"-dof", ARGV_INT, (char *)1, (char *)&dof,
+        {"-dof", ARGV_INT, (char *)1, (char *)&opts.dof,
          "Degrees of freedom: 6 (rigid), 9 (+ scales) or 12 (+ shears).  9 and 12"
          " refine the rigid result; the grid search and the volume-registration"
-         " initialisation stay rigid. Default: 6"},
+         " initialisation stay rigid."},
 
         {"-init-tx", ARGV_FLOAT, (char *)1, (char *)&init_tx,
          "Initial x-translation (mm). Default: 0"},
@@ -150,14 +138,14 @@ static ArgvInfo argTable[] =
         {"-init-rz", ARGV_FLOAT, (char *)1, (char *)&init_rz,
          "Initial z-rotation (radians). Default: 0"},
 
-        {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&fwhm,
-         "Gaussian pre-smoothing FWHM (mm).  Applied to volumes for volume-based"
-         " initialisation, Default: 0 (off)."},
+        {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&opts.fwhm,
+         "Gaussian pre-smoothing FWHM (mm) of both volumes for the volume-based"
+         " initialisation.  0 = off."},
 
-        {"-fwhm-bbr", ARGV_FLOAT, (char *)1, (char *)&fwhm_bbr,
+        {"-fwhm-bbr", ARGV_FLOAT, (char *)1, (char *)&opts.fwhm_bbr,
          "Gaussian pre-smoothing FWHM (mm) for BBR approach.  Applied to the"
          " moving volume (mid-frame) before the BBR optimizer starts — matching"
-         " FreeSurfer mri_segreg --fwhm behaviour.  Default: 0 (off)."},
+         " FreeSurfer mri_segreg --fwhm behaviour.  0 = off."},
 
         {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&verbose,
          "Print optimisation progress. Default: off"},
@@ -178,14 +166,14 @@ static ArgvInfo argTable[] =
          " (e.g. T1w anatomical). When surfaces are provided this initialises BBR;"
          " without surfaces only volume registration is performed."},
 
-        {"-vol-reg-levels", ARGV_INT, (char *)1, (char *)&vol_reg_levels,
-         "Number of Gaussian pyramid levels for volume registration (default: 4)."},
+        {"-vol-reg-levels", ARGV_INT, (char *)1, (char *)&opts.vol_reg_levels,
+         "Number of Gaussian pyramid levels for volume registration."},
 
-        {"-vol-reg-bins", ARGV_INT, (char *)1, (char *)&vol_reg_bins,
-         "Number of histogram bins per axis for NMI registration (default: 64)."},
+        {"-vol-reg-bins", ARGV_INT, (char *)1, (char *)&opts.vol_reg_bins,
+         "Number of histogram bins per axis for NMI registration."},
 
-        {"-vol-reg-iter", ARGV_INT, (char *)1, (char *)&vol_reg_iter,
-         "Maximum Powell/IRLS iterations per pyramid level (default: 30)."},
+        {"-vol-reg-iter", ARGV_INT, (char *)1, (char *)&opts.vol_reg_iter,
+         "Maximum Powell/IRLS iterations per pyramid level."},
 
         {"-vol-reg-sat", ARGV_FLOAT, (char *)1, (char *)&vol_reg_sat,
          "Tukey saturation multiplier used only with -vol-reg-rob (default: 4.685)."},
@@ -210,6 +198,9 @@ static ArgvInfo argTable[] =
 static void
 usage(const char *exe)
 {
+    CAT_BBRegOpts d;
+
+    CAT_BBRegOptionsInit(&d);
     fprintf(stdout,
             "\nUsage: %s [options] volume_file output_matrix_file\n\n"
             "  Boundary-Based Registration (BBR) of a NIfTI volume to one or both\n"
@@ -235,40 +226,46 @@ usage(const char *exe)
             "  -rh-label <file>        Right cortex label (per-vertex float, 0/1)\n"
             "  -lh-thickness <file>    Left cortical thickness (mm, per-vertex)\n"
             "  -rh-thickness <file>    Right cortical thickness (mm, per-vertex)\n"
-            "  -gm-proj-frac <frac>    GM offset = frac * thickness (default: 0)\n"
-            "  -wm-dist <mm>           WM sampling offset (default: 2.0)\n"
-            "  -gm-dist <mm>           Absolute GM sampling offset (default: 0.5)\n"
-            "  -slope <val>            BBR cost saturation slope (default: 0.5)\n"
+            "  -gm-proj-frac <frac>    GM offset = frac * thickness (default: %g)\n"
+            "  -wm-dist <mm>           WM sampling offset (default: %g)\n"
+            "  -gm-dist <mm>           Absolute GM sampling offset (default: %g)\n"
+            "  -slope <val>            BBR cost saturation slope (default: %g)\n"
             "  -t1                     Force T1/FLAIR contrast (WM > GM); skip auto-detect\n"
             "  -t2                     Force T2/BOLD  contrast (WM < GM); skip auto-detect\n"
-            "  -grid-range-mm <mm>     Stage-1 translation search range (default: 4.0)\n"
-            "  -grid-range-rad <rad>   Stage-1 rotation search range (default: 0.07)\n"
-            "  -grid-steps <n>         Stage-1 steps per DOF (default: 2)\n"
-            "  -max-iter <n>           Powell max iterations (default: 200)\n"
-            "  -tol <val>              Powell convergence tolerance (default: 1e-5)\n"
+            "  -grid-range-mm <mm>     Stage-1 translation search range (default: %g)\n"
+            "  -grid-range-rad <rad>   Stage-1 rotation range; unused, the grid searches\n"
+            "                          translations only (default: %g)\n"
+            "  -grid-steps <n>         Stage-1 steps per DOF (default: %d)\n"
+            "  -max-iter <n>           Powell max iterations (default: %d)\n"
+            "  -tol <val>              Powell convergence tolerance (default: %g)\n"
             "  -dof <6|9|12>           Rigid, + scales or + shears; 9 and 12 refine\n"
-            "                          the rigid result (default: 6)\n"
+            "                          the rigid result (default: %d)\n"
             "  -init-tx/ty/tz <mm>     Initial translation (default: 0)\n"
             "  -init-rx/ry/rz <rad>    Initial rotation (default: 0)\n"
-            "  -fwhm <mm>              Gaussian pre-smoothing FWHM: for vol-reg init\n"
-            "                          (default 0 = off)\n"
-            "  -fwhm-bbr <mm>          Gaussian pre-smoothing FWHM: for moving-only\n"
-            "                          volume for BBR (mid-frame); default 0 = off\n"
+            "  -fwhm <mm>              Gaussian pre-smoothing FWHM of both volumes for\n"
+            "                          the vol-reg init (default: %g, 0 = off)\n"
+            "  -fwhm-bbr <mm>          Gaussian pre-smoothing FWHM of the moving volume\n"
+            "                          (mid-frame) for BBR (default: %g, 0 = off)\n"
             "  -verbose                Print optimisation progress\n"
             "  -output-volume <file>   Save coregistered volume (header update only)\n"
             "  -fsl-matrix <file>      Also write the transform for flirt -init\n"
             "                          (FSL convention; needs -ref)\n"
-            "\n"
+            "\n",
+            d.gm_proj_frac, d.wm_dist, d.gm_dist, d.slope, d.grid_range_mm,
+            d.grid_range_rad, d.grid_steps, d.max_iter, d.tol, d.dof, d.fwhm,
+            d.fwhm_bbr);
+    fprintf(stdout,
             "NMI volume registration (initialisation for BBR):\n"
             "  -ref <file>             T1w reference volume (fixed). Without surfaces,\n"
             "                          only volume registration is performed (no BBR).\n"
-            "  -vol-reg-levels <n>     Gaussian pyramid levels (default: 4)\n"
-            "  -vol-reg-bins <n>       NMI histogram bins per axis (default: 64)\n"
-            "  -vol-reg-iter <n>       Powell iterations per level (default: 30)\n"
+            "  -vol-reg-levels <n>     Gaussian pyramid levels (default: %d)\n"
+            "  -vol-reg-bins <n>       NMI histogram bins per axis (default: %d)\n"
+            "  -vol-reg-iter <n>       Powell iterations per level (default: %d)\n"
             "  -vol-reg-rob            Use IRLS/ROB cost (same-modality) instead of NMI\n"
-            "  -vol-reg-sat <val>      Tukey multiplier for -vol-reg-rob (default: 4.685)\n"
+            "  -vol-reg-sat <val>      Tukey multiplier for -vol-reg-rob (default: %g)\n"
             "  -vol-reg-no-iscale      -vol-reg-rob without the global intensity scale\n"
-            "  -no-vol-reg             Skip volume-registration initialisation\n\n");
+            "  -no-vol-reg             Skip volume-registration initialisation\n\n",
+            d.vol_reg_levels, d.vol_reg_bins, d.vol_reg_iter, vol_reg_sat);
 }
 
 /* -----------------------------------------------------------------------
@@ -381,6 +378,7 @@ int main(int argc, char *argv[])
     float *lh_thick = NULL;
     float *rh_thick = NULL;
 
+    CAT_BBRegOptionsInit(&opts);
     if (ParseArgv(&argc, argv, argTable, 0) || argc != 3)
     {
         usage(argv[0]);
@@ -398,16 +396,16 @@ int main(int argc, char *argv[])
     volume_file = argv[1];
     output_file = argv[2];
 
-    if (dof != 6 && dof != 9 && dof != 12)
+    if (opts.dof != 6 && opts.dof != 9 && opts.dof != 12)
     {
-        fprintf(stderr, "Error: -dof must be 6, 9 or 12, not %d.\n", dof);
+        fprintf(stderr, "Error: -dof must be 6, 9 or 12, not %d.\n", opts.dof);
         exit(EXIT_FAILURE);
     }
-    if (dof != 6 && !lh_surf_file && !rh_surf_file)
+    if (opts.dof != 6 && !lh_surf_file && !rh_surf_file)
     {
         fprintf(stderr,
                 "Error: -dof %d needs surfaces (-lh/-rh); the volume registration"
-                " alone is rigid.\n", dof);
+                " alone is rigid.\n", opts.dof);
         exit(EXIT_FAILURE);
     }
 
@@ -446,8 +444,8 @@ int main(int argc, char *argv[])
         surfs[n_surfs].surface = lh_poly;
         surfs[n_surfs].cortex_mask = lh_label;
         surfs[n_surfs].thickness = lh_thick;
-        surfs[n_surfs].gm_proj_frac = (lh_thick && gm_proj_frac > 0.0)
-                                          ? gm_proj_frac
+        surfs[n_surfs].gm_proj_frac = (lh_thick && opts.gm_proj_frac > 0.0)
+                                          ? opts.gm_proj_frac
                                           : 0.0;
         n_surfs++;
     }
@@ -467,8 +465,8 @@ int main(int argc, char *argv[])
         surfs[n_surfs].surface = rh_poly;
         surfs[n_surfs].cortex_mask = rh_label;
         surfs[n_surfs].thickness = rh_thick;
-        surfs[n_surfs].gm_proj_frac = (rh_thick && gm_proj_frac > 0.0)
-                                          ? gm_proj_frac
+        surfs[n_surfs].gm_proj_frac = (rh_thick && opts.gm_proj_frac > 0.0)
+                                          ? opts.gm_proj_frac
                                           : 0.0;
         n_surfs++;
     }
@@ -540,9 +538,9 @@ int main(int argc, char *argv[])
          * penalised by noise the other does not have.  A temporary copy of the
          * mid-frame (vol3d) is used so vol3d itself stays unsmoothed for BBR.
          * ref_vol is smoothed in-place because it is freed right after registration. */
-        float *vol_reg = vol3d; /* unsmoothed mid-frame; used when fwhm == 0 */
+        float *vol_reg = vol3d; /* unsmoothed mid-frame; used when opts.fwhm == 0 */
         float *vol_smooth_buf = NULL;
-        if (fwhm > 0.0)
+        if (opts.fwhm > 0.0)
         {
             double mv[3], rf[3], mv_fv[3], rf_fv[3];
             mv[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
@@ -551,8 +549,8 @@ int main(int argc, char *argv[])
             rf[0] = ref_nii->dx > 0.0 ? ref_nii->dx : 1.0;
             rf[1] = ref_nii->dy > 0.0 ? ref_nii->dy : 1.0;
             rf[2] = ref_nii->dz > 0.0 ? ref_nii->dz : 1.0;
-            mv_fv[0] = fwhm / mv[0]; mv_fv[1] = fwhm / mv[1]; mv_fv[2] = fwhm / mv[2];
-            rf_fv[0] = fwhm / rf[0]; rf_fv[1] = fwhm / rf[1]; rf_fv[2] = fwhm / rf[2];
+            mv_fv[0] = opts.fwhm / mv[0]; mv_fv[1] = opts.fwhm / mv[1]; mv_fv[2] = opts.fwhm / mv[2];
+            rf_fv[0] = opts.fwhm / rf[0]; rf_fv[1] = opts.fwhm / rf[1]; rf_fv[2] = opts.fwhm / rf[2];
 
             vol_smooth_buf = (float *)malloc((size_t)nvox3 * sizeof(float));
             if (!vol_smooth_buf)
@@ -571,7 +569,7 @@ int main(int argc, char *argv[])
                 printf("Smoothing for VolumeReg: FWHM %.2f mm"
                        " (moving %.2fx%.2fx%.2f vox,"
                        " fixed %.2fx%.2fx%.2f vox)\n",
-                       fwhm,
+                       opts.fwhm,
                        mv_fv[0], mv_fv[1], mv_fv[2],
                        rf_fv[0], rf_fv[1], rf_fv[2]);
         }
@@ -590,9 +588,9 @@ int main(int argc, char *argv[])
             CAT_VolumeRegOpts vr_opts;
             double vr_scale = 0.0;
             CAT_VolumeRegOptionsInit(&vr_opts);
-            vr_opts.n_levels = vol_reg_levels;
+            vr_opts.n_levels = opts.vol_reg_levels;
             vr_opts.sat_k = vol_reg_sat;
-            vr_opts.max_iter = vol_reg_iter;
+            vr_opts.max_iter = opts.vol_reg_iter;
             vr_opts.iscale = !vol_reg_no_iscale;
             vr_opts.verbose = verbose;
             vol_res = CAT_VolumeReg_register(
@@ -614,7 +612,7 @@ int main(int argc, char *argv[])
                 ref_vol,  ref_nii,  ref_dims,
                 vol_reg,  nii_ptr,  dims,
                 &p_init,
-                vol_reg_levels, vol_reg_bins, vol_reg_iter, verbose);
+                opts.vol_reg_levels, opts.vol_reg_bins, opts.vol_reg_iter, verbose);
             if (verbose)
                 printf("VolumeReg done (NMI=%.4f):  "
                        "tx=%.2f ty=%.2f tz=%.2f  rx=%.4f ry=%.4f rz=%.4f\n",
@@ -623,7 +621,7 @@ int main(int argc, char *argv[])
                        p_init.rx, p_init.ry, p_init.rz);
         }
 
-        free(vol_smooth_buf); /* NULL when fwhm == 0; free(NULL) is safe */
+        free(vol_smooth_buf); /* NULL when opts.fwhm == 0; free(NULL) is safe */
         free(ref_vol);
         ref_nii->data = NULL;
         nifti_image_free(ref_nii);
@@ -759,16 +757,16 @@ int main(int argc, char *argv[])
                    rh_thick ? ", thickness proj" : "");
         printf("Volume:  %s (%dx%dx%d)\n",
                volume_file, dims[0], dims[1], dims[2]);
-        printf("WM dist: %.2f mm  ", wm_dist);
-        if (gm_proj_frac > 0.0)
-            printf("GM frac: %.2f of thickness", gm_proj_frac);
+        printf("WM dist: %.2f mm  ", opts.wm_dist);
+        if (opts.gm_proj_frac > 0.0)
+            printf("GM frac: %.2f of thickness", opts.gm_proj_frac);
         else
-            printf("GM dist: %.2f mm", gm_dist);
-        printf("  slope: %.3f  %s\n", slope,
-               invert_contrast == 1 ? "T2/BOLD (forced)"  :
-               invert_contrast == 0 ? "T1/FLAIR (forced)" : "auto-detect");
+            printf("GM dist: %.2f mm", opts.gm_dist);
+        printf("  slope: %.3f  %s\n", opts.slope,
+               opts.invert_contrast == 1 ? "T2/BOLD (forced)"  :
+               opts.invert_contrast == 0 ? "T1/FLAIR (forced)" : "auto-detect");
         printf("Stage-1 grid: +/-%.1f mm, +/-%.3f rad, %d steps per DOF\n",
-               grid_range_mm, grid_range_rad, grid_steps);
+               opts.grid_range_mm, opts.grid_range_rad, opts.grid_steps);
     }
 
     /* --- Optional pre-smoothing for BBR (matches FreeSurfer mri_segreg --fwhm) ---
@@ -776,13 +774,13 @@ int main(int argc, char *argv[])
      * function then sees the same smoothed image at every iteration. */
     float *vol_bbr = vol3d;
     float *vol_bbr_buf = NULL;
-    if (fwhm_bbr > 0.0)
+    if (opts.fwhm_bbr > 0.0)
     {
         double mv[3], mv_fv[3];
         mv[0] = nii_ptr->dx > 0.0 ? nii_ptr->dx : 1.0;
         mv[1] = nii_ptr->dy > 0.0 ? nii_ptr->dy : 1.0;
         mv[2] = nii_ptr->dz > 0.0 ? nii_ptr->dz : 1.0;
-        mv_fv[0] = fwhm_bbr / mv[0]; mv_fv[1] = fwhm_bbr / mv[1]; mv_fv[2] = fwhm_bbr / mv[2];
+        mv_fv[0] = opts.fwhm_bbr / mv[0]; mv_fv[1] = opts.fwhm_bbr / mv[1]; mv_fv[2] = opts.fwhm_bbr / mv[2];
         vol_bbr_buf = (float *)malloc((size_t)nvox3 * sizeof(float));
         if (!vol_bbr_buf)
         {
@@ -795,18 +793,18 @@ int main(int argc, char *argv[])
         vol_bbr = vol_bbr_buf;
         if (verbose)
             printf("Smoothing for BBR: FWHM %.2f mm (%.2fx%.2fx%.2f vox)\n",
-                   fwhm_bbr, mv_fv[0], mv_fv[1], mv_fv[2]);
+                   opts.fwhm_bbr, mv_fv[0], mv_fv[1], mv_fv[2]);
     }
 
     /* --- Auto-detect contrast type if not forced by -t1 / -t2 --- */
-    if (invert_contrast < 0)
+    if (opts.invert_contrast < 0)
     {
         int detected = CAT_BBReg_detect_contrast(&p_init,
                                                  surfs, n_surfs,
                                                  vol_bbr, nii_ptr, dims,
-                                                 wm_dist, gm_dist,
+                                                 opts.wm_dist, opts.gm_dist,
                                                  verbose);
-        invert_contrast = (detected >= 0) ? detected : 0;
+        opts.invert_contrast = (detected >= 0) ? detected : 0;
         if (detected < 0 && verbose)
             printf("Contrast auto-detection inconclusive — defaulting to T1.\n");
     }
@@ -815,22 +813,22 @@ int main(int argc, char *argv[])
     final_cost = CAT_BBReg_optimise(&p_init, &p_best,
                                     surfs, n_surfs,
                                     vol_bbr, nii_ptr, dims,
-                                    wm_dist, gm_dist, slope, invert_contrast,
-                                    grid_range_mm, grid_range_rad, grid_steps,
-                                    max_iter, tol, verbose);
+                                    opts.wm_dist, opts.gm_dist, opts.slope, opts.invert_contrast,
+                                    opts.grid_range_mm, opts.grid_range_rad, opts.grid_steps,
+                                    opts.max_iter, opts.tol, verbose);
 
     /* --- Scales (and shears) refine the rigid result --- */
     CAT_AffineParams a_best;
-    if (dof > 6)
+    if (opts.dof > 6)
     {
         CAT_AffineParams a_init;
         CAT_BBReg_affine_init(&p_best, surfs, n_surfs, &a_init);
-        final_cost = CAT_BBReg_optimise_affine(&a_init, &a_best, dof,
+        final_cost = CAT_BBReg_optimise_affine(&a_init, &a_best, opts.dof,
                                                surfs, n_surfs,
                                                vol_bbr, nii_ptr, dims,
-                                               wm_dist, gm_dist, slope,
-                                               invert_contrast,
-                                               max_iter, tol, verbose);
+                                               opts.wm_dist, opts.gm_dist, opts.slope,
+                                               opts.invert_contrast,
+                                               opts.max_iter, opts.tol, verbose);
     }
 
     /* --- Convert best parameters to 4x4 matrix and write ---
@@ -840,7 +838,7 @@ int main(int argc, char *argv[])
      * (matching bbregister / bbreg) is the *inverse*: EPI RAS → T1 RAS.
      * Applying the inverse to the original sform (voxel→EPI RAS) then gives
      * the updated sform (voxel→T1 RAS). */
-    if (dof > 6)
+    if (opts.dof > 6)
     {
         CAT_BBReg_affine_to_matrix(&a_best, m_best);
         CAT_BBReg_invert_affine(m_best, m_inv);
@@ -851,7 +849,7 @@ int main(int argc, char *argv[])
         CAT_BBReg_invert_matrix(m_best, m_inv);
     }
 
-    free(vol_bbr_buf); /* NULL when fwhm == 0; free(NULL) is safe */
+    free(vol_bbr_buf); /* NULL when opts.fwhm_bbr == 0; free(NULL) is safe */
 
     if (CAT_BBReg_write_matrix(output_file, m_inv) != 0)
     {
@@ -864,7 +862,7 @@ int main(int argc, char *argv[])
 
     printf("BBReg done.  Final cost: %.6f\n", final_cost);
     printf("Transform written to: %s\n", output_file);
-    if (dof > 6)
+    if (opts.dof > 6)
         printf("Parameters (T1->EPI, internal): tx=%.3f ty=%.3f tz=%.3f"
                "  rx=%.4f ry=%.4f rz=%.4f  sx=%.4f sy=%.4f sz=%.4f"
                "  hxy=%.4f hxz=%.4f hyz=%.4f\n",
@@ -911,7 +909,7 @@ int main(int argc, char *argv[])
 
         /* A qform holds no scales or shears: after an affine registration
          * only the sform describes the volume */
-        if (dof > 6 && nii_ptr->qform_code > 0)
+        if (opts.dof > 6 && nii_ptr->qform_code > 0)
         {
             nii_ptr->qform_code = NIFTI_XFORM_UNKNOWN;
             printf("qform cleared: the affine transform is in the sform only.\n");
