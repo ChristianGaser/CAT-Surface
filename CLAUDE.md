@@ -893,6 +893,22 @@ selection, 2.9x faster, bit-identical), rebuilt the reference pyramid per call (
 (now `set_world_matrix()`: the sform, else the qform -- a qform-only pair used to register to
 the identity, silently).
 
+**The Gauss-Newton step of `CAT_VolumeReg` was undamped**, so directions the images do not
+determine moved freely.  On a noisy spherical phantom the motion-free volumes, which start from a
+moved neighbour's estimate, ended with the object up to 238 mm away (a third of them beyond
+0.5 mm), and a 40-volume motion-free series came out 61 mm off.  A Levenberg-Marquardt floor of
+1e-3 x diag(A'WA) stops this (object within 0.26 mm at every noise level tried; a floor of 1e-6
+does not); a step that keeps less than half of the overlap or doubles the weighted residual is
+solved again with more damping.  A strict "the cost must not rise" test was tried and dropped:
+the residual of noisy images follows the sub-voxel offset, because trilinear interpolation
+averages the moving image's noise, and refusing every rise stopped registrations early (0.10
+instead of 0.07 mm on the realign test phantom).  Where the images determine the motion nothing
+changed: 7 phantom scenarios x 20 seeds (thin slabs, 7 mm / 0.15 rad starts, noise, gain) agree
+within 1e-4 mm, and a real run lies 0.0001 mm from the undamped one at the same speed.  The
+rotation about a symmetric object's centre stays noise-driven, for mcflirt too (median 22 deg
+for mcflirt, 39 deg here over 40 motion-free volumes): `.par` rotations and FD of spherical QA
+phantoms mean nothing, though the images are realigned.
+
 **The Powell line searches of BBR and the NMI path gave up when both trial steps were
 uphill** -- the one case where the minimum is bracketed -- so any parameter within a step of its
 optimum stayed put (0.5 mm / 0.005 rad for BBR after its grid search; 28 of 60 NMI parameters
