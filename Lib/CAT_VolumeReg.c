@@ -6,7 +6,7 @@
  *
  * Algorithm: linearised intensity matching with Tukey biweight M-estimation
  * (Gauss-Newton IRLS), solved via 6×6 normal equations at each resolution
- * level of a Gaussian image pyramid.
+ * level of a Gaussian image pyramid, every step damped (Levenberg-Marquardt).
  *
  * Reference: Reuter M, Rosas HD, Fischl B (2010). Highly Accurate Inverse
  *   Consistent Registration: A Robust Approach. NeuroImage 53:1181-1196.
@@ -393,28 +393,104 @@ static double fit_scale(const VLevel *fixed, const VLevel *moving,
  * One registration level: IRLS loop
  * ========================================================================= */
 
+/* Damping of the Gauss-Newton step (Levenberg-Marquardt): lambda * diag(ATA)
+ * is added to the normal equations.  LM_LAMBDA_MIN is the start and the
+ * floor: it keeps directions the images do not determine from running away,
+ * and a floor of 1e-6 did not.  A step that keeps less than LM_MIN_OVERLAP of
+ * the sampled voxels, or raises the weighted residual it minimises by more
+ * than LM_MAX_INCREASE, is solved again with ten times the damping; beyond
+ * LM_LAMBDA_MAX the level stops.  Smaller increases are accepted: near the
+ * optimum the residual of noisy images follows the sub-voxel offset, since
+ * trilinear interpolation averages the noise of the moving image by up to a
+ * factor of 8 in variance, and refusing every increase stopped the
+ * registration early (0.10 instead of 0.07 mm off on the phantom of
+ * test_volrealign). */
+#define LM_LAMBDA_MIN 1e-3
+#define LM_LAMBDA_MAX 1e6
+#define LM_MIN_OVERLAP 0.5
+#define LM_MAX_INCREASE 2.0
+
+/* Residuals s * moving(M x) - fixed(x) of all voxels x of `fixed` at
+ * transform p, NaN where the moving image is not sampled.  Returns the
+ * number of valid voxels. */
+static int level_residuals(const VLevel *fixed, const VLevel *moving,
+                           const CAT_RigidParams *p, double s, float *r)
+{
+    const int fnx = fixed->nx, fny = fixed->ny, fnz = fixed->nz;
+    const double *f = fixed->sxyz, *g = moving->sijk;
+    double M[16];
+    int x, y, z, n_valid = 0;
+    size_t i = 0;
+
+    CAT_BBReg_params_to_matrix(p, M);
+    for (z = 0; z < fnz; z++)
+        for (y = 0; y < fny; y++)
+            for (x = 0; x < fnx; x++, i++)
+            {
+                /* fixed voxel -> world -> moving world -> moving voxel */
+                double fw0 = f[0]*x + f[1]*y + f[2]*z + f[3];
+                double fw1 = f[4]*x + f[5]*y + f[6]*z + f[7];
+                double fw2 = f[8]*x + f[9]*y + f[10]*z + f[11];
+                double mw0 = M[0]*fw0 + M[1]*fw1 + M[2]*fw2 + M[3];
+                double mw1 = M[4]*fw0 + M[5]*fw1 + M[6]*fw2 + M[7];
+                double mw2 = M[8]*fw0 + M[9]*fw1 + M[10]*fw2 + M[11];
+                double I_m = sample_vol(moving->data, moving->nx, moving->ny,
+                                        moving->nz,
+                                        g[0]*mw0 + g[1]*mw1 + g[2]*mw2 + g[3],
+                                        g[4]*mw0 + g[5]*mw1 + g[6]*mw2 + g[7],
+                                        g[8]*mw0 + g[9]*mw1 + g[10]*mw2 + g[11]);
+                if (isnan(I_m))
+                {
+                    r[i] = NAN;
+                    continue;
+                }
+                r[i] = (float)(s * I_m - (double)fixed->data[i]);
+                n_valid++;
+            }
+    return n_valid;
+}
+
 /* The residual is s * moving(T x) - fixed(x).  With iscale the intensity
  * scale s is the 7th parameter of the Gauss-Newton step; otherwise it stays
- * at its value (1) and the step solves for the motion alone. */
+ * at its value (1) and the step solves for the motion alone.
+ *
+ * Every step is damped and checked (Levenberg-Marquardt): a step that loses
+ * much of the overlap or multiplies the weighted residual it minimises --
+ * with the weights of the accepted position, over the voxels sampled at both
+ * positions -- is solved again with more damping.  The residuals of a kept
+ * step are those of the next iteration, so the check costs a pass over the
+ * volume only for a rejected step.  The undamped step was not limited in
+ * directions the images do not determine: rotations about the centre of a
+ * symmetric object took steps of 0.1 rad, and volumes identical to the
+ * reference ended 190 mm away from it. */
 static double register_level(const VLevel *fixed, const VLevel *moving,
                              CAT_RigidParams *p, double *s, int iscale,
                              double sat_k, int max_iter, int verbose,
                              int level)
 {
-    int iter, x, y, z;
+    int iter = 0, x, y, z;
     const int fnx = fixed->nx, fny = fixed->ny, fnz = fixed->nz;
+    const size_t nf = (size_t)fnx * fny * fnz;
     const int np = iscale ? 7 : 6;
-    double residual = 1.0;
-
-    /* Pre-compute 3×3 upper-left of moving's world→voxel matrix (for
-     * converting world gradient to voxel-space efficiently later) */
+    double residual = 1.0, lambda = LM_LAMBDA_MIN;
+    int n_acc, done = 0;
 
     /* Gradient of moving image in voxel space (precomputed once per level) */
     const int mnx = moving->nx, mny = moving->ny, mnz = moving->nz;
     float *gx_m = (float *)calloc((size_t)mnx * mny * mnz, sizeof(float));
     float *gy_m = (float *)calloc((size_t)mnx * mny * mnz, sizeof(float));
     float *gz_m = (float *)calloc((size_t)mnx * mny * mnz, sizeof(float));
-    if (!gx_m || !gy_m || !gz_m) { free(gx_m); free(gy_m); free(gz_m); return 1.0; }
+    /* residuals at the accepted position and at a trial step, NaN where the
+       moving image is not sampled; work holds the valid ones for the MAD */
+    float *r_acc = (float *)malloc(nf * sizeof(float));
+    float *r_try = (float *)malloc(nf * sizeof(float));
+    float *work = (float *)malloc(nf * sizeof(float));
+    if (!gx_m || !gy_m || !gz_m || !r_acc || !r_try || !work)
+    {
+        free(gx_m); free(gy_m); free(gz_m);
+        free(r_acc); free(r_try); free(work);
+        return 1.0;
+    }
 
     /* Central-difference gradient in VOXEL space for the moving image */
     for (z = 0; z < mnz; z++)
@@ -436,10 +512,8 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
 #undef MI
             }
 
-    /* Moving image sto_ijk upper-left 3×3 (world→voxel Jacobian).
-     * We need this to convert gradient from voxel to world units. */
-    /* Actually we convert gradient to world coords by multiplying the voxel
-     * gradient by the world→voxel Jacobian transposed:
+    /* The gradient converts from voxel to world units with the world→voxel
+     * Jacobian of the moving image, transposed:
      *   g_world[k] = sum_j g_vox[j] * sijk[j][k]   (j,k = 0..2) */
     double Jm[3][3]; /* rows: output vox axis; cols: world axis */
     {
@@ -449,62 +523,25 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
                 Jm[r2][c2] = moving->sijk[r2 * 4 + c2];
     }
 
-    for (iter = 0; iter < max_iter; iter++)
+    n_acc = level_residuals(fixed, moving, p, *s, r_acc);
+    while (!done && iter < max_iter && n_acc >= 10)
     {
         /* Build 4×4 rigid matrix from current parameters */
         double M[16];
         CAT_BBReg_params_to_matrix(p, M);
 
-        /* ---- Accumulate residuals for MAD sigma estimation ---- */
+        /* ---- Robust sigma via MAD of the valid residuals ---- */
         int n_res = 0;
-        float *res_arr = (float *)malloc(
-            (size_t)fnx * fny * fnz * sizeof(float));
-        if (!res_arr) break;
-
-        for (z = 0; z < fnz; z++)
-            for (y = 0; y < fny; y++)
-                for (x = 0; x < fnx; x++)
-                {
-                    /* Fixed voxel → world */
-                    double fw[3];
-                    fw[0] = fixed->sxyz[0]*x + fixed->sxyz[1]*y +
-                            fixed->sxyz[2]*z + fixed->sxyz[3];
-                    fw[1] = fixed->sxyz[4]*x + fixed->sxyz[5]*y +
-                            fixed->sxyz[6]*z + fixed->sxyz[7];
-                    fw[2] = fixed->sxyz[8]*x + fixed->sxyz[9]*y +
-                            fixed->sxyz[10]*z + fixed->sxyz[11];
-
-                    /* Apply transform: fixed world → moving world */
-                    double mw[3];
-                    mw[0] = M[0]*fw[0] + M[1]*fw[1] + M[2]*fw[2] + M[3];
-                    mw[1] = M[4]*fw[0] + M[5]*fw[1] + M[6]*fw[2] + M[7];
-                    mw[2] = M[8]*fw[0] + M[9]*fw[1] + M[10]*fw[2] + M[11];
-
-                    /* Moving world → moving voxel */
-                    double mvx = moving->sijk[0]*mw[0] + moving->sijk[1]*mw[1] +
-                                 moving->sijk[2]*mw[2] + moving->sijk[3];
-                    double mvy = moving->sijk[4]*mw[0] + moving->sijk[5]*mw[1] +
-                                 moving->sijk[6]*mw[2] + moving->sijk[7];
-                    double mvz = moving->sijk[8]*mw[0] + moving->sijk[9]*mw[1] +
-                                 moving->sijk[10]*mw[2] + moving->sijk[11];
-
-                    double I_m = sample_vol(moving->data, mnx, mny, mnz, mvx, mvy, mvz);
-                    if (isnan(I_m)) continue;
-
-                    double I_f = (double)fixed->data[x + fnx*(y + fny*z)];
-                    res_arr[n_res++] = (float)(*s * I_m - I_f);
-                }
-
-        if (n_res < 10) { free(res_arr); break; }
-
-        /* Robust sigma via MAD.  The median reorders res_arr, which does not
-           change the set of absolute deviations taken from it next. */
-        float med_r = median_inplace(res_arr, n_res);
-        int i;
-        for (i = 0; i < n_res; i++)
-            res_arr[i] = fabsf(res_arr[i] - med_r);
-        float mad = median_inplace(res_arr, n_res);
-        free(res_arr);
+        size_t i;
+        for (i = 0; i < nf; i++)
+            if (!isnan(r_acc[i]))
+                work[n_res++] = r_acc[i];
+        /* The median reorders work, which does not change the set of
+           absolute deviations taken from it next. */
+        float med_r = median_inplace(work, n_res);
+        for (i = 0; i < (size_t)n_res; i++)
+            work[i] = fabsf(work[i] - med_r);
+        float mad = median_inplace(work, n_res);
         double sigma = 1.4826 * (double)mad;
         if (sigma < 1e-6) sigma = 1e-6;
         double sat = sat_k * sigma;
@@ -613,49 +650,110 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
                 for (c2 = r2 + 1; c2 < np; c2++)
                     ATA[r2][c2] = ATA[c2][r2];
         }
-
-        /* Regularise diagonal slightly for numerical stability */
-        {
-            int j;
-            double tr = 0.0;
-            for (j = 0; j < np; j++) tr += ATA[j][j];
-            double eps_reg = 1e-8 * tr / (double)np;
-            for (j = 0; j < np; j++) ATA[j][j] += eps_reg;
-        }
-
-        /* Cholesky solve: ATA * dp = -A^T W r  (stored as positive ATb above) */
-        double L[MAX_PARAMS][MAX_PARAMS];
-        if (cholesky_n(ATA, L, np) != 0) break;
-        double dp[MAX_PARAMS];
-        cholesky_n_solve(L, ATb, dp, np);
-        double ds = 0.0;
-        if (iscale)
-        {
-            /* the scale cannot change sign; halve it rather than cross 0 */
-            ds = (*s + dp[6] > 0.0) ? dp[6] : -0.5 * *s;
-            *s += ds;
-        }
-
-        /* Update parameters */
-        p->tx += dp[0]; p->ty += dp[1]; p->tz += dp[2];
-        p->rx += dp[3]; p->ry += dp[4]; p->rz += dp[5];
-
         residual = (wsum > 0.0) ? sqrt(wres2 / wsum) : 1.0;
 
-        if (verbose > 1)
-            printf("  Level %d  iter %2d  residual=%.4f  sigma=%.2f"
-                   "  n_valid=%d  dp_t=%.3f dp_r=%.5f  scale=%.4f\n",
-                   level, iter + 1, residual, sigma, n_valid,
-                   sqrt(dp[0]*dp[0]+dp[1]*dp[1]+dp[2]*dp[2]),
-                   sqrt(dp[3]*dp[3]+dp[4]*dp[4]+dp[5]*dp[5]), *s);
+        /* ---- Damped step, solved again with more damping while it fails
+         * the check ---- */
+        for (;;)
+        {
+            double A[MAX_PARAMS][MAX_PARAMS], L[MAX_PARAMS][MAX_PARAMS];
+            double dp[MAX_PARAMS], tr = 0.0, ds = 0.0, s_try = *s;
+            double e_acc = 0.0, e_try = 0.0;
+            CAT_RigidParams q = *p;
+            int j, k, n_try, n_common = 0;
 
-        /* Convergence: small parameter update */
-        double dt = sqrt(dp[0]*dp[0] + dp[1]*dp[1] + dp[2]*dp[2]);
-        double dr = sqrt(dp[3]*dp[3] + dp[4]*dp[4] + dp[5]*dp[5]);
-        if (dt < 0.01 && dr < 1e-4 && fabs(ds) < 1e-4 * *s) break;
+            /* The diagonal also gets a trace-relative epsilon, so that a
+             * parameter without any gradient (zero column) stays solvable. */
+            for (j = 0; j < np; j++) tr += ATA[j][j];
+            for (j = 0; j < np; j++)
+            {
+                for (k = 0; k < np; k++)
+                    A[j][k] = ATA[j][k];
+                A[j][j] += lambda * ATA[j][j] + 1e-8 * tr / (double)np;
+            }
+
+            /* Cholesky solve: A * dp = -A^T W r  (stored as positive ATb above) */
+            if (cholesky_n(A, L, np) != 0)
+            {
+                done = 1;
+                break;
+            }
+            cholesky_n_solve(L, ATb, dp, np);
+            if (iscale)
+            {
+                /* the scale cannot change sign; halve it rather than cross 0 */
+                ds = (*s + dp[6] > 0.0) ? dp[6] : -0.5 * *s;
+                s_try = *s + ds;
+            }
+            q.tx += dp[0]; q.ty += dp[1]; q.tz += dp[2];
+            q.rx += dp[3]; q.ry += dp[4]; q.rz += dp[5];
+
+            double dt = sqrt(dp[0]*dp[0] + dp[1]*dp[1] + dp[2]*dp[2]);
+            double dr = sqrt(dp[3]*dp[3] + dp[4]*dp[4] + dp[5]*dp[5]);
+
+            /* Convergence: a step this small is taken without the check */
+            if (dt < 0.01 && dr < 1e-4 && fabs(ds) < 1e-4 * *s)
+            {
+                *p = q;
+                *s = s_try;
+                done = 1;
+                if (verbose > 1)
+                    printf("  Level %d  iter %2d  residual=%.4f  sigma=%.2f"
+                           "  n_valid=%d  dp_t=%.3f dp_r=%.5f  scale=%.4f"
+                           "  lambda=%.0e  converged\n", level, iter + 1,
+                           residual, sigma, n_valid, dt, dr, *s, lambda);
+                break;
+            }
+
+            /* the weighted residual the step minimises, with the weights of
+               the accepted position, before and after the step, over the
+               voxels sampled at both positions */
+            n_try = level_residuals(fixed, moving, &q, s_try, r_try);
+            iter++;
+            for (i = 0; i < nf; i++)
+                if (!isnan(r_acc[i]) && !isnan(r_try[i]))
+                {
+                    double w = tukey_w((double)r_acc[i] - (double)med_r, sat);
+                    double ra = r_acc[i], rt = r_try[i];
+
+                    e_acc += w * w * ra * ra;
+                    e_try += w * w * rt * rt;
+                    n_common++;
+                }
+            if (n_common >= LM_MIN_OVERLAP * n_acc &&
+                e_try <= LM_MAX_INCREASE * e_acc)
+            {
+                float *swap = r_acc;
+
+                *p = q;
+                *s = s_try;
+                r_acc = r_try;
+                r_try = swap;
+                n_acc = n_try;
+                if (verbose > 1)
+                    printf("  Level %d  iter %2d  residual=%.4f  sigma=%.2f"
+                           "  n_valid=%d  dp_t=%.3f dp_r=%.5f  scale=%.4f"
+                           "  lambda=%.0e\n", level, iter, residual, sigma,
+                           n_valid, dt, dr, *s, lambda);
+                lambda = fmax(0.1 * lambda, LM_LAMBDA_MIN);
+                break;
+            }
+
+            if (verbose > 1)
+                printf("  Level %d  iter %2d  step rejected: weighted residual"
+                       " %.6g -> %.6g on %d voxels  lambda=%.0e\n", level, iter,
+                       e_acc, e_try, n_common, lambda);
+            lambda *= 10.0;
+            if (lambda > LM_LAMBDA_MAX || iter >= max_iter)
+            {
+                done = 1;
+                break;
+            }
+        }
     }
 
     free(gx_m); free(gy_m); free(gz_m);
+    free(r_acc); free(r_try); free(work);
     return residual;
 }
 

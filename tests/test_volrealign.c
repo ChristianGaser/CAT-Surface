@@ -300,6 +300,94 @@ test_series_to_own_volume(void)
     nifti_image_free(nii);
 }
 
+/* ------------------------------------------------------------------------
+ * A spherically symmetric object on a grid of NS^3 voxels of VOX mm whose
+ * world origin is the corner voxel, 42 mm from the object, as a scanner
+ * origin away from the head is.
+ * ------------------------------------------------------------------------ */
+#define NS 24
+#define NS_T 4
+
+/** \brief Gaussian blob of 100 on 10 at the grid centre, moved by dx mm in x, plus noise. */
+static void
+sample_sphere(double dx, unsigned long seed, float *vol)
+{
+    unsigned long state = seed;
+    int x, y, z;
+
+    for (z = 0; z < NS; z++)
+        for (y = 0; y < NS; y++)
+            for (x = 0; x < NS; x++)
+            {
+                double ux = x - 0.5 * NS - dx / VOX, uy = y - 0.5 * NS, uz = z - 0.5 * NS;
+                vol[x + NS * (y + NS * z)] =
+                    (float)(100.0 * exp(-(ux * ux + uy * uy + uz * uz) / 30.0) + 10.0 +
+                            gauss(&state));
+            }
+}
+
+/**
+ * \brief A symmetric object is registered without running away.
+ *
+ * Rotations about the centre of the object leave the image unchanged, so the
+ * data do not determine them.  The undamped Gauss-Newton step moved freely
+ * along such directions: here the motion-free volumes, which start from the
+ * estimate of the moved one, ended with their object 88 mm from the
+ * reference's.  The rotation stays undetermined -- noise sets it, for mcflirt
+ * as well -- so only where the object lands is checked.
+ */
+static void
+test_symmetric_object(void)
+{
+    int dims8[8] = {3, NS, NS, NS, 1, 1, 1, 1}, dims[3] = {NS, NS, NS}, i, j, t;
+    nifti_image *nii = nifti_make_new_nim(dims8, DT_FLOAT32, 0);
+    size_t nvox = (size_t)NS * NS * NS;
+    float *series = (float *)malloc(sizeof(float) * nvox * NS_T);
+    float *ref = (float *)malloc(sizeof(float) * nvox);
+    double centre = 0.5 * NS * VOX, worst = 0.0;
+    CAT_VolRealignResult res;
+
+    for (i = 0; i < 4; i++)
+        for (j = 0; j < 4; j++)
+            nii->sto_xyz.m[i][j] = (i == j) ? (i < 3 ? (float)VOX : 1.0f) : 0.0f;
+    nii->sto_ijk = nifti_mat44_inverse(nii->sto_xyz);
+    nii->sform_code = NIFTI_XFORM_SCANNER_ANAT;
+    nii->dx = nii->dy = nii->dz = VOX;
+
+    /* volume 2, the first registered, moves by one voxel */
+    sample_sphere(0.0, 40, ref);
+    for (t = 0; t < NS_T; t++)
+        sample_sphere(t == 2 ? VOX : 0.0, 41 + t, series + t * nvox);
+
+    MU_ASSERT("symmetric object: estimation succeeds",
+              CAT_VolRealignEstimate(series, nii, dims, NS_T, ref, nii, dims, NULL, &res) == 0);
+
+    /* volume -> reference has to map the object's centre onto the reference's */
+    for (t = 0; t < NS_T; t++)
+    {
+        const double c[3] = {centre + (t == 2 ? VOX : 0.0), centre, centre};
+        const double *m = res.ras + 16 * t;
+        double d = 0.0;
+
+        for (i = 0; i < 3; i++)
+        {
+            double e = m[4 * i] * c[0] + m[4 * i + 1] * c[1] + m[4 * i + 2] * c[2] +
+                       m[4 * i + 3] - centre;
+            d += e * e;
+        }
+        MU_ASSERT("symmetric object: the mapped centre is finite", isfinite(d));
+        worst = fmax(worst, sqrt(d));
+    }
+    if (worst >= 0.5)
+        printf("  symmetric object: lands %.3f mm from the reference's\n", worst);
+    MU_ASSERT("symmetric object: every object lands within 0.5 mm", worst < 0.5);
+
+    CAT_VolRealignFree(&res);
+    free(series);
+    free(ref);
+    nifti_image_free(nii);
+}
+
 /** \brief The centre of mass subtracts the minimum and runs radiologically. */
 static void
 test_centre_of_mass(void)
@@ -401,6 +489,7 @@ int main(void)
     MU_RUN_TEST(test_centre_of_mass);
     MU_RUN_TEST(test_series_to_reference);
     MU_RUN_TEST(test_series_to_own_volume);
+    MU_RUN_TEST(test_symmetric_object);
     MU_RUN_TEST(test_outputs);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;

@@ -111,6 +111,10 @@ extern "C"
      * Implements a linearised intensity-matching criterion with Tukey biweight
      * M-estimation, analogous to FreeSurfer's mri_robust_register --cost ROB.
      * A Gaussian image pyramid is used for coarse-to-fine initialisation.
+     * Every Gauss-Newton step is damped (Levenberg-Marquardt), so a direction
+     * the images do not determine -- a rotation about the centre of a
+     * symmetric object -- cannot carry the estimate away; the estimate along
+     * such a direction is still arbitrary.
      *
      * By default a global intensity scale s is estimated along with the motion
      * (the residual is s * moving - fixed, like mri_robust_register --iscale):
