@@ -93,7 +93,7 @@ def bbreg(str volume_file,
           lh_thickness=None,
           rh_thickness=None,
           double gm_proj_frac=0.0,
-          double wm_dist=2.0,
+          double wm_dist=0.5,
           double gm_dist=0.5,
           double slope=0.5,
           int invert_contrast=-1,
@@ -121,10 +121,10 @@ def bbreg(str volume_file,
 
     The defaults are those of ``CAT_SurfBBReg`` (``CAT_BBRegOptionsInit()``
     in the library), so the two give the same transform for the same inputs.
-    Earlier versions had other defaults here -- ``wm_dist`` 0.5, a
-    translation grid of +-15 mm in 5 mm steps, ``tol`` 1e-5 and no
-    smoothing -- and ``fwhm`` smoothed for BBR as well, which ``fwhm_bbr``
-    now does.
+    Before cat-surf 1.1.3 the defaults here were others -- a translation
+    grid of +-15 mm in 5 mm steps, ``tol`` 1e-5 and no smoothing -- and
+    ``fwhm`` smoothed for BBR as well, which ``fwhm_bbr`` now does; in
+    1.1.3 ``wm_dist`` was 2.0, ``CAT_SurfBBReg``'s default until then.
 
     Parameters
     ----------
@@ -144,7 +144,10 @@ def bbreg(str volume_file,
     gm_proj_frac : float
         GM sampling offset as fraction of local thickness (0 = use gm_dist).
     wm_dist : float
-        WM-side sampling offset in mm (default 2.0).
+        WM-side sampling offset in mm (default 0.5).  0.5 rather than
+        bbregister's 2 mm: on BOLD-like images with a known transform 2 mm
+        doubled the error with T1Prep's surfaces and changed nothing with
+        FreeSurfer's.
     gm_dist : float
         GM-side absolute sampling offset in mm (default 0.5).
     slope : float
@@ -413,7 +416,7 @@ def bbreg_detect_contrast(str volume_file,
                            rh_surface=None,
                            lh_mask=None,
                            rh_mask=None,
-                           double wm_dist=2.0,
+                           double wm_dist=0.5,
                            double gm_dist=0.5,
                            bint verbose=False):
     """
@@ -430,7 +433,7 @@ def bbreg_detect_contrast(str volume_file,
     lh_surface, rh_surface : tuple (vertices, faces) or None
     lh_mask, rh_mask : array_like, shape (V,), float32, optional
     wm_dist : float
-        WM-side sampling offset in mm (default 2.0, as for :func:`bbreg`).
+        WM-side sampling offset in mm (default 0.5, as for :func:`bbreg`).
     gm_dist : float
         GM-side sampling offset in mm (default 0.5, as for :func:`bbreg`).
     verbose : bool
