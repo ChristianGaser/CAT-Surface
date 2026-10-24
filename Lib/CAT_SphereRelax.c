@@ -18,15 +18,6 @@
 
 #include "CAT_SphereRelax.h"
 #include "CAT_Smooth.h"
-#include "CAT_Vol.h" /* cat_parallel_nthreads() */
-
-#if !defined(_WIN32) && !defined(_WIN64)
-#include <pthread.h>
-#define RELAX_THREADS
-#endif
-
-/* upper bound of cat_parallel_nthreads(), for the per-thread arrays */
-#define RELAX_MAX_THREADS 16
 
 /* averaging scales of the gradient, coarse to fine (FreeSurfer's MRISunfold) */
 static const int relax_averages[] = {1024, 256, 64, 16, 4, 1, 0};
@@ -40,6 +31,21 @@ static const int relax_averages[] = {1024, 256, 64, 16, 4, 1, 0};
 #define MOMENTUM 0.9
 #define MAX_BACKTRACK 12
 
+/* Laplacian iterations that may remove the folds left after a scale */
+#define UNFOLD_ITER 200
+
+/* One level of the averaging hierarchy: a graph whose vertices are aggregates
+   of the vertices of the level below (level 0 is the mesh itself). */
+struct ml_level
+{
+    int n;          /* vertices of this level */
+    int *off, *adj; /* their neighbours, CSR; NULL at level 0 (uses nbr) */
+    int *agg;       /* vertex -> aggregate at the next level; NULL at the coarsest */
+    double *inv;    /* 1 / members of each vertex of this level (level > 0) */
+    double scale;   /* mesh vertices per vertex of this level */
+    double *buf;    /* 6 n doubles of scratch: two 3-vectors per vertex */
+};
+
 typedef struct
 {
     int n, n_pairs, n_faces;
@@ -49,6 +55,8 @@ typedef struct
     double *a0;        /* area of each triangle on the surface, scaled */
     int *n_nbr, **nbr; /* 1-ring neighbours, for the averaging */
     double l_nlarea;
+    int n_levels;      /* levels of the averaging hierarchy, 0 = the mesh */
+    struct ml_level *lv;
 } relax_ctx;
 
 /**
@@ -60,7 +68,7 @@ void CAT_SphereRelaxOptionsInit(CAT_SphereRelaxOpts *opts)
 {
     opts->n_rings = 2;
     opts->max_iter = 30;
-    opts->l_nlarea = 100.0;
+    opts->l_nlarea = 1000.0;
     opts->tol = 1e-4;
     opts->verbose = 0;
 }
@@ -302,140 +310,229 @@ static void tangent(const double *x, double *g, int n)
     }
 }
 
-/* n_avg times: every vertex's gradient becomes the mean over itself and its
-   1-ring (FreeSurfer's MRISaverageGradients).  Each pass reads only the
-   previous one, so the vertices are split between threads that meet at a
-   barrier after every pass: the result does not depend on the split, and it
-   is most of the work of the relaxation (1024 passes per step at the coarsest
-   scale). */
-#ifdef RELAX_THREADS
-typedef struct
+/* One pass of 1-ring averaging at level l: dst = mean over the vertex and its
+   neighbours (FreeSurfer's MRISaverageGradients). */
+static void average_pass(const relax_ctx *c, int l, const double *src, double *dst)
 {
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    int n, waiting, generation;
-} relax_barrier;
-
-static void barrier_wait(relax_barrier *b)
-{
-    int generation;
-
-    pthread_mutex_lock(&b->mutex);
-    generation = b->generation;
-    if (++b->waiting == b->n)
-    {
-        b->waiting = 0;
-        b->generation++;
-        pthread_cond_broadcast(&b->cond);
-    }
-    else
-        while (generation == b->generation)
-            pthread_cond_wait(&b->cond, &b->mutex);
-    pthread_mutex_unlock(&b->mutex);
-}
-#endif
-
-typedef struct
-{
-    const relax_ctx *c;
-    double *g, *tmp; /* ping-pong buffers, shared by all workers */
-    int n_avg, i0, i1;
-#ifdef RELAX_THREADS
-    relax_barrier *barrier;
-#endif
-} average_args;
-
-static void average_pass(const relax_ctx *c, const double *src, double *dst,
-                         int i0, int i1)
-{
+    const struct ml_level *lv = &c->lv[l];
     int i, k;
 
-    for (i = i0; i < i1; i++)
+    for (i = 0; i < lv->n; i++)
     {
-        double s[3];
-        s[0] = src[3 * i];
-        s[1] = src[3 * i + 1];
-        s[2] = src[3 * i + 2];
-        for (k = 0; k < c->n_nbr[i]; k++)
+        double s0 = src[3 * i], s1 = src[3 * i + 1], s2 = src[3 * i + 2];
+        int deg = l ? lv->off[i + 1] - lv->off[i] : c->n_nbr[i];
+        const int *nb = l ? lv->adj + lv->off[i] : c->nbr[i];
+        for (k = 0; k < deg; k++)
         {
-            const double *q = src + 3 * c->nbr[i][k];
-            s[0] += q[0];
-            s[1] += q[1];
-            s[2] += q[2];
+            const double *q = src + 3 * nb[k];
+            s0 += q[0];
+            s1 += q[1];
+            s2 += q[2];
         }
-        for (k = 0; k < 3; k++)
-            dst[3 * i + k] = s[k] / (1.0 + c->n_nbr[i]);
+        dst[3 * i] = s0 / (1.0 + deg);
+        dst[3 * i + 1] = s1 / (1.0 + deg);
+        dst[3 * i + 2] = s2 / (1.0 + deg);
     }
 }
 
-static void *average_worker(void *arg)
+/* n passes at level l on x, using tmp; the result ends in x */
+static void average_passes(const relax_ctx *c, int l, double *x, double *tmp, int n)
 {
-    average_args *a = (average_args *)arg;
-    double *src = a->g, *dst = a->tmp, *swap;
+    double *src = x, *dst = tmp, *swap;
     int pass;
 
-    for (pass = 0; pass < a->n_avg; pass++)
+    for (pass = 0; pass < n; pass++)
     {
-        average_pass(a->c, src, dst, a->i0, a->i1);
-#ifdef RELAX_THREADS
-        if (a->barrier)
-            barrier_wait(a->barrier);
-#endif
+        average_pass(c, l, src, dst);
         swap = src;
         src = dst;
         dst = swap;
     }
-    return NULL;
+    if (src != x)
+        memcpy(x, src, sizeof(double) * 3 * c->lv[l].n);
 }
+
+/* Average the gradient as n_avg passes of 1-ring averaging do (FreeSurfer's
+   MRISaverageGradients).  Up to ML_EXACT passes run as they are.  Beyond, the
+   gradient goes up the hierarchy to the coarsest level that still takes
+   ML_MIN_PASSES passes -- smoothed ML_PRE passes at every level before its
+   aggregates are averaged, since the gradient is almost all high frequency
+   (1024 passes keep 2.6% of its norm) and would otherwise alias into the
+   coarse levels -- is averaged there for the diffusion time that is left,
+   scaled down by the level's mesh vertices per vertex, and comes back down,
+   each level smoothed ML_POST passes.  On a T1Prep hemisphere this reproduces
+   1024, 256 and 64 passes of the real gradient with r 0.987, 0.991 and 0.998,
+   and the relaxation takes a few seconds instead of 46. */
+#define ML_EXACT 64
+#define ML_MIN_PASSES 8
+#define ML_PRE 32
+#define ML_POST 8
 
 static void average_gradient(const relax_ctx *c, double *g, double *tmp, int n_avg)
 {
-    average_args args[RELAX_MAX_THREADS];
-    int t, nthreads = cat_parallel_nthreads(c->n / 10000 + 1);
-#ifdef RELAX_THREADS
-    relax_barrier barrier;
-    pthread_t threads[RELAX_MAX_THREADS];
-#endif
+    double spent = 0.0;
+    int l, L = 0, i, k, n_coarse;
 
-    if (n_avg <= 0)
+    if (n_avg <= ML_EXACT || c->n_levels < 2)
+    {
+        average_passes(c, 0, g, tmp, n_avg);
         return;
-    if (nthreads > RELAX_MAX_THREADS)
-        nthreads = RELAX_MAX_THREADS;
-    for (t = 0; t < nthreads; t++)
-    {
-        args[t].c = c;
-        args[t].g = g;
-        args[t].tmp = tmp;
-        args[t].n_avg = n_avg;
-        args[t].i0 = (int)((long)c->n * t / nthreads);
-        args[t].i1 = (int)((long)c->n * (t + 1) / nthreads);
-#ifdef RELAX_THREADS
-        args[t].barrier = (nthreads > 1) ? &barrier : NULL;
-#endif
     }
-#ifdef RELAX_THREADS
-    if (nthreads > 1)
-    {
-        pthread_mutex_init(&barrier.mutex, NULL);
-        pthread_cond_init(&barrier.cond, NULL);
-        barrier.n = nthreads;
-        barrier.waiting = 0;
-        barrier.generation = 0;
-        for (t = 1; t < nthreads; t++)
-            pthread_create(&threads[t], NULL, average_worker, &args[t]);
-        average_worker(&args[0]);
-        for (t = 1; t < nthreads; t++)
-            pthread_join(threads[t], NULL);
-        pthread_cond_destroy(&barrier.cond);
-        pthread_mutex_destroy(&barrier.mutex);
-    }
-    else
-#endif
-        average_worker(&args[0]);
+    while (L + 1 < c->n_levels && n_avg / c->lv[L + 1].scale >= ML_MIN_PASSES)
+        L++;
 
-    /* after an odd number of passes the result is in tmp */
-    if (n_avg % 2)
-        memcpy(g, tmp, sizeof(double) * 3 * c->n);
+    /* up: smooth, then level l+1 holds the means of its aggregates */
+    memcpy(c->lv[0].buf, g, sizeof(double) * 3 * c->n);
+    for (l = 0; l < L; l++)
+    {
+        const struct ml_level *f = &c->lv[l], *q = &c->lv[l + 1];
+        average_passes(c, l, f->buf, f->buf + 3 * f->n, ML_PRE);
+        spent += (ML_PRE + ML_POST) * f->scale;
+        memset(q->buf, 0, sizeof(double) * 3 * q->n);
+        for (i = 0; i < f->n; i++)
+            for (k = 0; k < 3; k++)
+                q->buf[3 * f->agg[i] + k] += f->buf[3 * i + k];
+        for (i = 0; i < q->n; i++)
+            for (k = 0; k < 3; k++)
+                q->buf[3 * i + k] *= q->inv[i];
+    }
+    n_coarse = (int)((n_avg - spent) / c->lv[L].scale + 0.5);
+    average_passes(c, L, c->lv[L].buf, c->lv[L].buf + 3 * c->lv[L].n,
+                   n_coarse > 1 ? n_coarse : 1);
+
+    /* down: every vertex takes its aggregate's value, then is smoothed */
+    for (l = L - 1; l >= 0; l--)
+    {
+        const struct ml_level *f = &c->lv[l], *q = &c->lv[l + 1];
+        for (i = 0; i < f->n; i++)
+            for (k = 0; k < 3; k++)
+                f->buf[3 * i + k] = q->buf[3 * f->agg[i] + k];
+        average_passes(c, l, f->buf, f->buf + 3 * f->n, ML_POST);
+    }
+    memcpy(g, c->lv[0].buf, sizeof(double) * 3 * c->n);
+}
+
+/* The averaging hierarchy: an unassigned vertex and its unassigned neighbours
+   form an aggregate, aggregates are adjacent when members are, repeated until
+   fewer than ML_COARSEST vertices are left (168k -> 46k -> 13k -> 3.5k -> ...
+   on a T1Prep hemisphere).  Returns -1 if out of memory. */
+#define ML_COARSEST 500
+#define ML_MAX_LEVELS 16
+
+static int build_hierarchy(relax_ctx *c)
+{
+    int l;
+
+    c->lv = (struct ml_level *)calloc(ML_MAX_LEVELS, sizeof(struct ml_level));
+    if (!c->lv)
+        return -1;
+    c->lv[0].n = c->n;
+    c->lv[0].scale = 1.0;
+    c->n_levels = 1;
+    for (l = 0; l + 1 < ML_MAX_LEVELS && c->lv[l].n > ML_COARSEST; l++)
+    {
+        struct ml_level *f = &c->lv[l], *q = &c->lv[l + 1];
+        int i, k, a, nq = 0, *count, *start, *members, *stamp;
+
+        f->agg = (int *)malloc(sizeof(int) * f->n);
+        if (!f->agg)
+            return -1;
+        for (i = 0; i < f->n; i++)
+            f->agg[i] = -1;
+        for (i = 0; i < f->n; i++)
+        {
+            int deg = l ? f->off[i + 1] - f->off[i] : c->n_nbr[i];
+            const int *nb = l ? f->adj + f->off[i] : c->nbr[i];
+            if (f->agg[i] >= 0)
+                continue;
+            f->agg[i] = nq;
+            for (k = 0; k < deg; k++)
+                if (f->agg[nb[k]] < 0)
+                    f->agg[nb[k]] = nq;
+            nq++;
+        }
+
+        /* members of every aggregate, then its neighbours without repeats */
+        count = (int *)calloc(nq + 1, sizeof(int));
+        start = (int *)malloc(sizeof(int) * (nq + 1));
+        members = (int *)malloc(sizeof(int) * f->n);
+        stamp = (int *)malloc(sizeof(int) * nq);
+        q->off = (int *)malloc(sizeof(int) * (nq + 1));
+        q->inv = (double *)malloc(sizeof(double) * nq);
+        if (!count || !start || !members || !stamp || !q->off || !q->inv)
+        {
+            free(count); free(start); free(members); free(stamp);
+            return -1;
+        }
+        for (i = 0; i < f->n; i++)
+            count[f->agg[i]]++;
+        start[0] = 0;
+        for (a = 0; a < nq; a++)
+        {
+            start[a + 1] = start[a] + count[a];
+            q->inv[a] = 1.0 / count[a];
+        }
+        for (a = 0; a < nq; a++)
+            count[a] = 0;
+        for (i = 0; i < f->n; i++)
+            members[start[f->agg[i]] + count[f->agg[i]]++] = i;
+
+        {
+            int pass, total = 0;
+            for (pass = 0; pass < 2; pass++)
+            {
+                for (a = 0; a < nq; a++)
+                    stamp[a] = -1;
+                total = 0;
+                for (a = 0; a < nq; a++)
+                {
+                    int m;
+                    if (pass)
+                        q->off[a] = total;
+                    for (m = start[a]; m < start[a + 1]; m++)
+                    {
+                        int fi = members[m];
+                        int deg = l ? f->off[fi + 1] - f->off[fi] : c->n_nbr[fi];
+                        const int *nb = l ? f->adj + f->off[fi] : c->nbr[fi];
+                        for (k = 0; k < deg; k++)
+                        {
+                            int b = f->agg[nb[k]];
+                            if (b == a || stamp[b] == a)
+                                continue;
+                            stamp[b] = a;
+                            if (pass)
+                                q->adj[total] = b;
+                            total++;
+                        }
+                    }
+                }
+                if (!pass)
+                {
+                    q->adj = (int *)malloc(sizeof(int) * (total > 0 ? total : 1));
+                    if (!q->adj)
+                    {
+                        free(count); free(start); free(members); free(stamp);
+                        return -1;
+                    }
+                }
+            }
+            q->off[nq] = total;
+        }
+        free(count);
+        free(start);
+        free(members);
+        free(stamp);
+        q->n = nq;
+        q->scale = (double)c->n / nq;
+        c->n_levels++;
+    }
+    for (l = 0; l < c->n_levels; l++)
+    {
+        c->lv[l].buf = (double *)malloc(sizeof(double) * 6 * c->lv[l].n);
+        if (!c->lv[l].buf)
+            return -1;
+    }
+    return 0;
 }
 
 /* every vertex onto the sphere of the given radius */
@@ -454,6 +551,72 @@ static void project(double *x, int n, double radius)
             p[2] *= radius / r;
         }
     }
+}
+
+/* Laplacian step on the vertices of folded triangles and their 1-ring until no
+   more than target triangles are folded (or max_iter): a fold that a step of
+   the descent made is pushed back by the area term, and this removes what is
+   left of it.  Returns the number of folded triangles. */
+static int unfold(const relax_ctx *c, double *x, double *tmp, double radius,
+                  int target, int max_iter)
+{
+    char *mark = (char *)malloc(c->n);
+    int it, t, i, k, folds = count_folds(c, x);
+
+    if (!mark)
+        return folds;
+    for (it = 0; it < max_iter && folds > target; it++)
+    {
+        memset(mark, 0, c->n);
+        for (t = 0; t < c->n_faces; t++)
+        {
+            const int *tri = c->f + 3 * t;
+            const double *x0 = x + 3 * tri[0], *x1 = x + 3 * tri[1], *x2 = x + 3 * tri[2];
+            double u[3], v[3], cr[3];
+
+            for (k = 0; k < 3; k++)
+            {
+                u[k] = x1[k] - x0[k];
+                v[k] = x2[k] - x0[k];
+            }
+            cr[0] = u[1] * v[2] - u[2] * v[1];
+            cr[1] = u[2] * v[0] - u[0] * v[2];
+            cr[2] = u[0] * v[1] - u[1] * v[0];
+            if (cr[0] * (x0[0] + x1[0] + x2[0]) + cr[1] * (x0[1] + x1[1] + x2[1]) +
+                cr[2] * (x0[2] + x1[2] + x2[2]) < 0.0)
+                mark[tri[0]] = mark[tri[1]] = mark[tri[2]] = 1;
+        }
+        for (i = 0; i < c->n; i++)
+            if (mark[i] == 1)
+                for (k = 0; k < c->n_nbr[i]; k++)
+                    if (!mark[c->nbr[i][k]])
+                        mark[c->nbr[i][k]] = 2;
+        for (i = 0; i < c->n; i++)
+            if (mark[i] && c->n_nbr[i] > 0)
+            {
+                double s3[3] = {0.0, 0.0, 0.0};
+                for (k = 0; k < c->n_nbr[i]; k++)
+                {
+                    const double *q = x + 3 * c->nbr[i][k];
+                    s3[0] += q[0];
+                    s3[1] += q[1];
+                    s3[2] += q[2];
+                }
+                for (k = 0; k < 3; k++)
+                    tmp[3 * i + k] = s3[k] / c->n_nbr[i];
+            }
+        for (i = 0; i < c->n; i++)
+            if (mark[i] && c->n_nbr[i] > 0)
+            {
+                double r = sqrt(tmp[3 * i] * tmp[3 * i] + tmp[3 * i + 1] * tmp[3 * i + 1] +
+                                tmp[3 * i + 2] * tmp[3 * i + 2]);
+                for (k = 0; k < 3; k++)
+                    x[3 * i + k] = (r > 1e-12) ? tmp[3 * i + k] * radius / r : x[3 * i + k];
+            }
+        folds = count_folds(c, x);
+    }
+    free(mark);
+    return folds;
 }
 
 /* median of n values by Hoare selection on a copy; -1 if out of memory */
@@ -498,6 +661,20 @@ static double median_of(const double *values, int n)
 
 static void free_ctx(relax_ctx *c)
 {
+    int l;
+
+    if (c->lv)
+    {
+        for (l = 0; l < ML_MAX_LEVELS; l++)
+        {
+            free(c->lv[l].off);
+            free(c->lv[l].adj);
+            free(c->lv[l].agg);
+            free(c->lv[l].inv);
+            free(c->lv[l].buf);
+        }
+        free(c->lv);
+    }
     free(c->pi);
     free(c->pj);
     free(c->target);
@@ -512,10 +689,14 @@ static void free_ctx(relax_ctx *c)
  *
  * Gradient descent with momentum on E (see energy_grad()), on the sphere: the
  * gradient is made tangent, averaged over relax_averages[] neighbour
- * iterations, and a step is accepted when it lowers the energy without adding
- * a folded triangle, else it is halved.  A scale ends when no step is
- * accepted, after opts->max_iter steps, or when the energy falls by less than
- * opts->tol.  The original distances are Euclidean distances on the folded
+ * iterations, and a step is accepted when it lowers the energy, else it is
+ * halved.  A scale ends when no step is accepted, after opts->max_iter steps,
+ * or when the energy falls by less than opts->tol; folds left after it are
+ * removed by a local Laplacian (unfold()).  As in FreeSurfer, a step may fold a
+ * triangle -- the area term makes that expensive and pushes it back -- since
+ * refusing every such step stalled the descent: inflated spheres of T1Prep's
+ * meshes carry ~200 triangles crushed below 1% of their area, which flip under
+ * any step (energy -3% instead of -55%).  The original distances are Euclidean distances on the folded
  * surface between vertices up to opts->n_rings apart, as FreeSurfer's distance
  * term uses them, scaled by sqrt(area of the sphere / area of the surface).
  *
@@ -534,7 +715,7 @@ int CAT_SphereRelaxMetric(polygons_struct *surface, polygons_struct *sphere,
     double *v = NULL, *x = NULL, *xn = NULL, *g = NULL, *gt = NULL, *tmp = NULL;
     double *delta = NULL, radius = 0.0, centre[3], lo[3], hi[3];
     double area_v = 0.0, area_x = 0.0, scale, E, median_a0;
-    int i, k, s, folds0, ret = -1;
+    int i, k, s, folds0, folds, ret = -1;
 
     if (!opts)
     {
@@ -620,7 +801,8 @@ int CAT_SphereRelaxMetric(polygons_struct *surface, polygons_struct *sphere,
             c.a0[i] = 1e-3 * median_a0;
 
     get_all_polygon_point_neighbours(sphere, &c.n_nbr, &c.nbr);
-    if (build_pairs(&c, v, opts->n_rings < 1 ? 1 : opts->n_rings, scale) != 0)
+    if (build_pairs(&c, v, opts->n_rings < 1 ? 1 : opts->n_rings, scale) != 0 ||
+        build_hierarchy(&c) != 0)
         goto done;
 
     folds0 = count_folds(&c, x);
@@ -659,7 +841,7 @@ int CAT_SphereRelaxMetric(polygons_struct *surface, polygons_struct *sphere,
                     xn[i] = x[i] + MOMENTUM * delta[i] - alpha * gt[i];
                 project(xn, c.n, radius);
                 En = energy_grad(&c, xn, NULL);
-                if (En < E && count_folds(&c, xn) <= folds0)
+                if (En < E)
                 {
                     accepted = 1;
                     break;
@@ -685,9 +867,15 @@ int CAT_SphereRelaxMetric(polygons_struct *surface, polygons_struct *sphere,
             }
             E = En;
         }
+        folds = count_folds(&c, x);
+        if (folds > folds0)
+        {
+            folds = unfold(&c, x, tmp, radius, folds0, UNFOLD_ITER);
+            E = energy_grad(&c, x, g);
+        }
         if (opts->verbose)
-            printf("  averages %4d: %2d steps, energy/pair %.4f\n",
-                   relax_averages[s], it, E / c.n_pairs);
+            printf("  averages %4d: %2d steps, energy/pair %.4f, %d folded triangles\n",
+                   relax_averages[s], it, E / c.n_pairs, folds);
     }
 
     for (i = 0; i < c.n; i++)

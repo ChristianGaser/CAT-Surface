@@ -28,8 +28,8 @@ static ArgvInfo argTable[] = {
      "towards their distances on the input surface, with the gradient\n\t"
      "averaged over 1024 down to 0 neighbour iterations. The inflation leaves\n\t"
      "the poles compressed and the medial wall expanded, which spherical\n\t"
-     "registration inherits; use it for spheres that are registered (with\n\t"
-     "stop_at 10). Needs stop_at 5 or more."},
+     "registration inherits; use it for spheres that are registered. With it\n\t"
+     "stop_at 6 is enough (10 gives the same). Needs stop_at 5 or more."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
 
 void
