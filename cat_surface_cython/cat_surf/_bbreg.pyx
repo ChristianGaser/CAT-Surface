@@ -742,7 +742,8 @@ def vol_realign(series, affine, ref=None, ref_affine=None, int refvol=-1,
         default, is ``nt // 2`` as in mcflirt.
     n_levels, max_iter, sat_k, iscale : optional
         Options of each registration; ``None`` keeps the default of
-        ``CAT_VolRealignOptionsInit()`` (3 levels, 20 iterations, 4.685,
+        ``CAT_VolRealignOptionsInit()`` (3 levels, 20 iterations, a Tukey
+        multiplier of 20 -- only gross outliers lose their weight -- and the
         intensity scale on).
     resample : bool
         Also return the realigned series (default True).
