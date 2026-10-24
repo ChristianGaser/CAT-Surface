@@ -362,6 +362,42 @@ def _icosphere(level, radius):
     return radius * v / np.linalg.norm(v, axis=1, keepdims=True), np.array(f, np.int32)
 
 
+def test_surf_to_sphere_relax():
+    section("surf_to_sphere(relax=True)")
+
+    # an elongated, flattened ellipsoid: the inflation maps it unevenly
+    v, f = _icosphere(4, 1.0)
+    v = v * np.array([80.0, 45.0, 30.0])
+
+    # the relaxation minimises the distance distortion: edge lengths on the
+    # sphere against those on the surface, scaled to the same area
+    e = np.vstack([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]])
+    len0 = np.linalg.norm(v[e[:, 0]] - v[e[:, 1]], axis=1)
+
+    def stats(sv):
+        r = np.linalg.norm(sv, axis=1)
+        a = np.cross(sv[f[:, 1]] - sv[f[:, 0]], sv[f[:, 2]] - sv[f[:, 0]])
+        folds = int(((a * (sv[f[:, 0]] + sv[f[:, 1]] + sv[f[:, 2]])).sum(1) < 0).sum())
+        ratio = np.linalg.norm(sv[e[:, 0]] - sv[e[:, 1]], axis=1) / len0
+        return r.std() / r.mean(), folds, np.std(np.log2(ratio))
+
+    plain, _ = cat_surf.surf_to_sphere(v, f, stop_at=6)
+    relaxed, rf = cat_surf.surf_to_sphere(v, f, stop_at=6, relax=True)
+    r_plain, folds_plain, d_plain = stats(np.asarray(plain))
+    r_rel, folds_rel, d_rel = stats(np.asarray(relaxed))
+    check("relaxed map keeps the mesh", np.array_equal(np.asarray(rf), f))
+    check("relaxed map is a sphere", r_rel < 1e-6, f"radius cv {r_rel:.2e}")
+    check("relaxed map is fold-free", folds_rel == 0, f"{folds_rel} folds")
+    check("relaxation lowers the distance distortion", d_rel < d_plain,
+          f"{d_plain:.3f} -> {d_rel:.3f}")
+    try:
+        cat_surf.surf_to_sphere(v, f, stop_at=3, relax=True)
+        raised = False
+    except ValueError:
+        raised = True
+    check("relax=True before the sphere stage is refused", raised)
+
+
 def test_fix_self_intersect_reference():
     section("Self-intersection repair with a reference")
 
@@ -850,6 +886,7 @@ def main():
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_barrier_reference,
+                 test_surf_to_sphere_relax,
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
