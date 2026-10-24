@@ -410,6 +410,17 @@ static double fit_scale(const VLevel *fixed, const VLevel *moving,
 #define LM_MIN_OVERLAP 0.5
 #define LM_MAX_INCREASE 2.0
 
+/* The robust scale of the residuals (their median and MAD, which set the
+ * Tukey saturation) is taken over the foreground of the fixed image: the
+ * voxels above FG_FRACTION of its 98th percentile.  Taken over the whole field
+ * of view it is the scale of the background: 65-75% of an EPI volume is air,
+ * whose residuals are noise, and on real series that scale gave 6-22% of the
+ * brain zero weight -- a different part of it in every volume, which made the
+ * estimates jitter (mean FD 0.146 instead of 0.104 mm on a 2x2x3 mm run).
+ * With fewer than FG_MIN_VOXELS foreground voxels all valid voxels are used. */
+#define FG_FRACTION 0.1f
+#define FG_MIN_VOXELS 1000
+
 /* Residuals s * moving(M x) - fixed(x) of all voxels x of `fixed` at
  * transform p, NaN where the moving image is not sampled.  Returns the
  * number of valid voxels. */
@@ -485,12 +496,14 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
     float *r_acc = (float *)malloc(nf * sizeof(float));
     float *r_try = (float *)malloc(nf * sizeof(float));
     float *work = (float *)malloc(nf * sizeof(float));
+    float fg_thresh;
     if (!gx_m || !gy_m || !gz_m || !r_acc || !r_try || !work)
     {
         free(gx_m); free(gy_m); free(gz_m);
         free(r_acc); free(r_try); free(work);
         return 1.0;
     }
+    fg_thresh = FG_FRACTION * vol_percentile(fixed->data, (int)nf, 0.98f);
 
     /* Central-difference gradient in VOXEL space for the moving image */
     for (z = 0; z < mnz; z++)
@@ -530,12 +543,19 @@ static double register_level(const VLevel *fixed, const VLevel *moving,
         double M[16];
         CAT_BBReg_params_to_matrix(p, M);
 
-        /* ---- Robust sigma via MAD of the valid residuals ---- */
+        /* ---- Robust sigma via MAD of the valid foreground residuals ---- */
         int n_res = 0;
         size_t i;
         for (i = 0; i < nf; i++)
-            if (!isnan(r_acc[i]))
+            if (!isnan(r_acc[i]) && fixed->data[i] > fg_thresh)
                 work[n_res++] = r_acc[i];
+        if (n_res < FG_MIN_VOXELS)
+        {
+            n_res = 0;
+            for (i = 0; i < nf; i++)
+                if (!isnan(r_acc[i]))
+                    work[n_res++] = r_acc[i];
+        }
         /* The median reorders work, which does not change the set of
            absolute deviations taken from it next. */
         float med_r = median_inplace(work, n_res);

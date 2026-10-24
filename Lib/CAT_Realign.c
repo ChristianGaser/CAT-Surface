@@ -225,6 +225,14 @@ void CAT_VolRealignOptionsInit(CAT_VolRealignOpts *opts)
     opts->refvol = -1;
     CAT_VolumeRegOptionsInit(&opts->reg);
     opts->reg.n_levels = 3;
+    /* Tukey saturation at 20 robust SDs: only gross outliers (spikes,
+       dropouts) lose their weight.  BOLD residuals are physiological and
+       structured (spin history, slice timing), not outliers, and the 95%
+       efficiency point of 4.685 down-weights them enough to cost accuracy:
+       on six real runs from three scanners the edge variance after
+       resampling was within 0.1% of least squares at 20, and up to 1.6%
+       above it at 4.685. */
+    opts->reg.sat_k = 20.0;
     opts->verbose = 0;
 }
 

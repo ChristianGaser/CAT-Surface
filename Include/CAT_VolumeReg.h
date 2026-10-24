@@ -64,7 +64,10 @@ extern "C"
                               CAT_VolumeReg_register(), prepared pyramids
                               bring their own */
         double sat_k;    /**< Tukey saturation multiplier (default 4.685, the
-                              95% efficiency point for Gaussian residuals) */
+                              95% efficiency point for Gaussian residuals),
+                              in units of the robust SD (1.4826 MAD) of the
+                              residuals over the foreground of the fixed
+                              image; CAT_VolRealignOptionsInit() uses 20 */
         int    max_iter; /**< IRLS iterations per pyramid level (default 20) */
         int    iscale;   /**< non-zero: estimate a global intensity scale
                               (default 1) */
