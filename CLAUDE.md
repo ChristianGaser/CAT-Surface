@@ -842,6 +842,86 @@ Measured and deliberately not done:
 - Fusing the valley and the signed sheetness runs in marching cubes (~1.4 s): the signed run
   sees the PPM after the gyri-mask offset, so fusing changes results.
 
+## The input sphere of spherical registration (`CAT_Surf2Sphere -relax`)
+
+T1Prep's `space-fsaverage_desc-reg` sphere sat a median 2.8 / 3.0 deg (lh / rh) from recon-all's
+`sphere.reg` on sub-01 of the fMRIPrep example data, 90th percentile 5.6 / 7.4 deg, which made
+fMRIPrep's fsaverage5 time series of the two pipelines correlate at r 0.4.  **It is not a
+rotation**: the best global rotation between the two is 1.0 / 2.3 deg and removing it leaves the
+median unchanged.  Separated by input (median deviation from recon-all's `sphere.reg`, cortex):
+
+| Spherical Demons on | lh | rh |
+| --- | --- | --- |
+| recon-all's surface and sphere | 1.53 | 1.67 |
+| recon-all's surface, sphere from `CAT_Surf2Sphere` (`stop_at` 6) | 2.24 | 2.27 |
+| T1Prep's surface and sphere (T1Prep 0.7.9) | 2.77 | 3.00 |
+
+FreeSurfer's own sphere.reg and MSMSulc differ by 1.91 / 1.98 deg on the same surface, so the
+registration itself is fine; the sphere it starts from was not.  Per region the deviation was a
+fold slip, not a spread: rh inferior temporal 14.4 deg and fusiform 13.9 deg, on recon-all's
+surface too once the sphere came from `CAT_Surf2Sphere` (14.4 deg), 1.4 deg with FreeSurfer's.
+
+**The inflation compresses the poles and expands the medial wall.**  Area share of each DK region
+on the sphere against the cortex (log2, three hemispheres): frontal pole -1.2 to -1.7, cuneus and
+pericalcarine -0.9 to -1.5, parahippocampal +0.6 to +1.1; the SD over regions is 0.53-0.68
+against 0.36-0.39 for FreeSurfer's sphere.  The coarse levels of the registration (320 and 1280
+points) see a compressed lobe as a handful of vertices, and `l_dist` pulls towards the metric of
+the input sphere, so the distortion survives: on `stop_at` 10 spheres kappa is 0.834 / 0.837 /
+0.840 at `l_dist` 0.6 / 0.3 / 0, while with FreeSurfer's sphere 0.6 is the better setting (0.851
+vs 0.846).  More areal smoothing (`stop_at` 10, the value the tool's help has always recommended;
+T1Prep passed 6) removes the slip but hardly the regional distortion.
+
+`-relax` (`CAT_SphereRelaxMetric()`, `Include/CAT_SphereRelax.h`; `relax=True` in
+`cat_surf.surf_to_sphere`) does what FreeSurfer's `mris_sphere` does after the inflation: the
+distances between every vertex and its neighbours within two rings are pulled towards their
+distances on the folded surface, scaled to the area of the sphere, with the gradient averaged
+over 1024, 256, 64, 16, 4, 1 and 0 neighbour iterations in turn (`MRISunfold`) -- averaged over
+many neighbours it moves area between lobes, which no local step does.  FreeSurfer's nonlinear
+area term (weight 100) keeps triangles open and a step that folds one is not taken.  It costs a
+few seconds on top of the inflation (45 s at `stop_at` 10 for 130k vertices).  Regional area SD
+0.65 -> 0.34, triangles off by more than a factor of 2: 27% -> 7% (FreeSurfer's sphere: 0.39,
+11%).
+
+Kappa of manually edited DK labels mapped to fsaverage, against fsaverage's aparc
+(`validate_surface_registration` in Dropbox: three subjects, six hemispheres, recon-all surfaces;
+unknown, corpus callosum and insula excluded as in `calc_kappa_aparc.m`), and on sub-01 with
+T1Prep's own surface (its automatic aparc, which favours FreeSurfer's registration):
+
+| sphere given to Spherical Demons | manual labels | sub-01, T1Prep surface |
+| --- | --- | --- |
+| `stop_at` 6 (T1Prep until now) | 0.817 | 0.861 |
+| `stop_at` 10 | 0.834 | 0.892 |
+| **`stop_at` 10, `-relax`** | **0.851** | **0.898** |
+| FreeSurfer's `?h.sphere` | 0.851 | -- |
+| FreeSurfer's own `sphere.reg` | 0.857 (5 hemispheres) | 0.943 |
+
+The manual-label kappa rises in every one of the six hemispheres (+0.012 to +0.076).  On sub-01
+the deviation from recon-all drops to 2.33 / 2.57 deg (90th percentile 5.1 / 5.0, more than
+10 deg off: 0.3 / 6.6% -> 0.0 / 0.2%), and the points of the cortex that fMRIPrep samples for the
+fsaverage5 vertices lie a median 3.8 / 3.9 mm from recon-all's instead of 4.2 / 4.4 mm (more than
+10 mm apart: 3 / 4% instead of 5 / 10%; Spherical Demons on recon-all's own surface: 2.4 /
+2.6 mm).  One hemisphere went the other way: on recon-all's sub-01 rh surface the relaxed sphere
+let a medial frontal fold slip (kappa 0.903 against 0.920 at `stop_at` 10).  What is left on
+T1Prep's surface sits at the medial wall (anterior cingulate 6-8 deg, entorhinal 6-7 deg) and is
+the surface, not the registration: T1Prep's surface lies more than 2 mm from recon-all's over
+10-17 cm2, half of it at the ventral medial wall and insula, while the cingulate cortex itself
+agrees to 0.5 mm.
+
+Measured and not worth it (sub-01 and the validation set): a template cortex mask (no change);
+the white surface against fsaverage's white instead of the central surfaces (0.915 vs 0.915 on
+recon-all's surface, 0.901 vs 0.902 on T1Prep's); **FreeSurfer's features** -- the subject's sulc
+and curv against fsaverage's `avg_sulc` / `avg_curv`, sulc on the coarse levels and curv on the
+finest -- 0.852 against 0.853 for the depth potential on four hemispheres, and worse on T1Prep's
+surface (0.886 vs 0.898; the anterior cingulate to 11.8 deg), because sulc carries T1Prep's
+medial wall; the 164k instead of the 32k template (+0.003).
+
+The relaxation minimises distance distortion, not area distortion: on a brain the two fall
+together, on an elongated ellipsoid area distortion rises (the binding's smoke test checks the
+distance).  It is off by default, so `CAT_Surf2Sphere` and everything inside the library that
+inflates (gyrification, convex hull) are unchanged.  Spherical Demons re-centres both spheres on
+their vertex centroid, which is off-centre wherever vertices are spread unevenly: 0.2 mm on the
+32k template (a 0.1 deg shift of its frame), 1.8 mm on a T1Prep sphere; left as is.
+
 ## Head-motion correction (`CAT_VolRealign`, an mcflirt replacement)
 
 `CAT_VolRealign` (library `Include/CAT_Realign.h`, `cat_surf.vol_realign`,
