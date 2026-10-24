@@ -883,9 +883,46 @@ mm, 60 synthetic EPI volumes of 3 mm each):
 
 A run takes about as long as mcflirt (6.7 s against 6 s for 60 volumes of 60x72x60).  3 and 4
 pyramid levels gave identical results; 3 is the default because an EPI with few slices would
-have a nearly empty fourth level.  Synthetic motion is perfectly rigid with white noise, so the
-advantage over mcflirt still needs confirming on real runs (FD, `rmsd`, tSNR).  mcflirt aborts
-on a `-reffile` with another grid; CAT_VolRealign resamples into it.
+have a nearly empty fourth level.  mcflirt aborts on a `-reffile` with another grid;
+CAT_VolRealign resamples into it.
+
+**On real runs mcflirt reports the least motion, and that is not a sign of accuracy.**  Six
+runs from three scanners (sub-01 of the fMRIPrep example data, Prisma 2.5 mm; three sessions of
+the SPM course study, 3.3x3.3x4 mm; two sessions of the course's preprocessing data, Trio
+2x2 mm with 2 mm slices 3 mm apart), every method registered to the same reference, FD computed
+by one convention from the world-space matrices of each.  Since there is no ground truth, each
+run was resampled with every method's matrices and the same cubic B-spline, and the temporal SD
+at the brain edge measures how much motion is left (lower is better):
+
+| run | mcflirt | SPM12 (5 mm, quality 0.9) | CAT before | **CAT now** |
+| --- | --- | --- | --- | --- |
+| FD sub-01 | 0.045 | 0.061 | 0.055 | 0.052 |
+| FD course S1-S3 | 0.35-0.36 | 0.39-0.42 | 0.34-0.37 | 0.38 |
+| FD Trio 1 / 2 | 0.077 / 0.085 | 0.101 / 0.102 | 0.146 / 0.129 | 0.104 / 0.101 |
+| edge SD sub-01 | 3.470 | 3.373 | 3.358 | **3.347** |
+| edge SD course S1-S3 | 5.92-6.23 | 5.80-6.16 | 5.90-6.26 | **5.74-6.10** |
+| edge SD Trio 1 / 2 | 5.93 / 6.94 | 5.75 / 6.48 | 5.93 / 6.77 | **5.73 / 6.42** |
+
+mcflirt's FD is the lowest on every run while its series keep the most residual motion: it
+under-tracks volume-to-volume motion, and an FD from another tool is 10-35% higher for that
+reason alone (SPM12's too) -- FD thresholds do not transfer between tools.  The FD of CAT now
+correlates with mcflirt's at 0.80-0.99 and with SPM12's at 0.89-0.99, as closely as the two
+agree with each other (0.75-0.99).
+
+**What was wrong before: the Tukey scale was the air's.**  The median and MAD that set the
+saturation were taken over the whole field of view, 65-75% of which is air in an EPI volume.
+That scale gave 6% (sub-01) to 22% (the Trio runs, 15-27% from volume to volume) of the brain
+zero weight, a different part of it in every volume, and the estimates jittered: on the Trio runs
+FD 0.146 / 0.129 and a correlation with mcflirt's of only 0.37 / 0.33.  `CAT_VolumeReg` now takes
+the scale over the foreground of the fixed image (above 10% of its 98th percentile), which leaves
+0.5-0.8% of the brain to be rejected and makes the realignment 2-3x faster.  Even then the 95%
+efficiency point of 4.685 down-weights the structured residuals of BOLD (spin history, slice
+timing) enough to cost accuracy -- edge SD up to 1.6% above least squares on the course data --
+so `CAT_VolRealignOptionsInit()` saturates at 20 robust SDs: within 0.1% of least squares
+everywhere, while spikes and dropouts still lose their weight.  `test_volrealign`'s noisy object
+in air, mostly air like an EPI volume, was 2.6 mm off with the old scale and is at the noise
+floor (0.5 mm, as least squares) now.  Pre-smoothing the series (3 or 5 mm FWHM, as mcflirt and
+SPM smooth) and the intensity scale were measured and are not the cause.
 
 Along the way, `CAT_VolumeReg` sorted all residuals twice per iteration for the MAD (now Hoare
 selection, 2.9x faster, bit-identical), rebuilt the reference pyramid per call (now
