@@ -29,7 +29,8 @@ extern "C"
                               the mesh (default 2) */
         int    max_iter; /**< iterations per averaging scale (default 30) */
         double l_nlarea; /**< weight of FreeSurfer's nonlinear area term, which
-                              keeps triangles from collapsing (default 100) */
+                              keeps triangles from collapsing and pushes folded
+                              ones back (default 1000) */
         double tol;      /**< relative decrease of the energy below which a
                               scale ends (default 1e-4) */
         int    verbose;  /**< print the energy of every scale */
@@ -54,8 +55,8 @@ extern "C"
      * between whole lobes, which a local step cannot, and the inflation leaves
      * the poles of the brain compressed to a third of their area and the
      * medial wall expanded.  FreeSurfer's nonlinear area term keeps triangles
-     * from collapsing, and a step that would fold a triangle is not taken, so
-     * a fold-free sphere stays fold-free.
+     * from collapsing and pushes folded ones back; folds left after each scale
+     * are removed by a local Laplacian.
      *
      * \param surface (in)     the surface the sphere maps (e.g. the central
      *                         surface), same mesh as \p sphere

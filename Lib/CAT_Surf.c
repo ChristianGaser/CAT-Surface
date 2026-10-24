@@ -856,10 +856,10 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
     int i, j, k, l;
     int n1, n2, next;
     int *n_neighbours, **neighbours;
-    double *area_values;
-    Point pts[3];
+    const Point *p0, *p1, *p2;
+    float ux, uy, uz, vx, vy, vz, cx, cy, cz;
     double *tileAreas, *tileCenters;
-    double xyz[3], pt1[3], pt2[3], pt3[3];
+    double xyz[3], pt1[3];
     double totalArea, weight;
     BOOLEAN smoothSubsetOfNodes = 0;
     BOOLEAN smoothEdges, smoothIt;
@@ -897,8 +897,9 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
             if (!smoothIt || n_neighbours[i] <= 1)
                 continue; /* skip this point */
 
-            totalArea = 0.0;  
-          
+            totalArea = 0.0;
+            p0 = &polygons->points[i];
+
             /* Get 2 consecutive neighbors of this node */
             for (j = 0; j < n_neighbours[i]; j++) {
                 n1 = neighbours[i][j];
@@ -906,26 +907,36 @@ areal_smoothing(polygons_struct *polygons, double strength, int iters,
                 if (next >= n_neighbours[i])
                     next = 0;
                 n2 = neighbours[i][next];
-      
-                /* Area of the triangle */
-                pts[0] = polygons->points[i];
-                pts[1] = polygons->points[n1];
-                pts[2] = polygons->points[n2];
-                tileAreas[j] = get_polygon_surface_area(3, pts);
-                
+                p1 = &polygons->points[n1];
+                p2 = &polygons->points[n2];
+
+                /* Area of the triangle, computed inline with the arithmetic
+                   of bicpl's get_polygon_surface_area() -- float vectors,
+                   double products -- so the result is the same to the bit;
+                   the call and the copies of its points were most of the
+                   time of this loop */
+                ux = (float)((double)Point_x(*p1) - (double)Point_x(*p0));
+                uy = (float)((double)Point_y(*p1) - (double)Point_y(*p0));
+                uz = (float)((double)Point_z(*p1) - (double)Point_z(*p0));
+                vx = (float)((double)Point_x(*p2) - (double)Point_x(*p0));
+                vy = (float)((double)Point_y(*p2) - (double)Point_y(*p0));
+                vz = (float)((double)Point_z(*p2) - (double)Point_z(*p0));
+                cx = (float)((double)uy * (double)vz - (double)vy * (double)uz);
+                cy = (float)((double)uz * (double)vx - (double)vz * (double)ux);
+                cz = (float)((double)ux * (double)vy - (double)vx * (double)uy);
+                tileAreas[j] = sqrt((double)cx * (double)cx + (double)cy * (double)cy +
+                                    (double)cz * (double)cz) / 2.0;
+
                 if (isnan(tileAreas[j])) tileAreas[j] = 0.0;
                 tileAreas[j] = MIN(tileAreas[j], 1.0);
                 tileAreas[j] = MAX(tileAreas[j], 0.0);
                 totalArea += tileAreas[j];
 
                 /* Save center of this tile */
-                to_array(&polygons->points[i], pt1);
-                to_array(&polygons->points[n1], pt2);
-                to_array(&polygons->points[n2], pt3);
                 for (l = 0; l < 3; l++) {
-                    tileCenters[j*3+l] = (pt1[l] +
-                                pt2[l] +
-                                pt3[l]) / 3.0;
+                    tileCenters[j*3+l] = ((double)Point_coord(*p0, l) +
+                                (double)Point_coord(*p1, l) +
+                                (double)Point_coord(*p2, l)) / 3.0;
                 }
             }
 
