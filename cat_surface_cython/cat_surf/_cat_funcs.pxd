@@ -736,6 +736,22 @@ cdef extern from "CAT_VolumeReg.h":
 
 
 # ---------------------------------------------------------------------------
+# CAT_SphereRelax.h — FreeSurfer-style metric relaxation of a spherical map
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_SphereRelax.h":
+    ctypedef struct CAT_SphereRelaxOpts:
+        int    n_rings
+        int    max_iter
+        double l_nlarea
+        double tol
+        int    verbose
+
+    void CAT_SphereRelaxOptionsInit(CAT_SphereRelaxOpts *opts)
+    int  CAT_SphereRelaxMetric(polygons_struct *surface, polygons_struct *sphere,
+                               const CAT_SphereRelaxOpts *opts)
+
+
+# ---------------------------------------------------------------------------
 # CAT_Realign.h — Head-motion correction (mcflirt replacement, CAT_VolRealign)
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Realign.h":

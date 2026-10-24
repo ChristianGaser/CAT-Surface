@@ -449,7 +449,8 @@ def smooth_mesh(vertices, faces, int iterations=10,
 # ===================================================================
 # Sphere mapping  (mirrors CAT_Surf2Sphere)
 # ===================================================================
-def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False):
+def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False,
+                   bint relax=False):
     """
     Map a surface to a sphere using iterative inflation.
 
@@ -460,6 +461,12 @@ def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False):
     stop_at  : int
         Stopping stage (1-5+).  Higher → finer resolution.
     verbose  : bool
+    relax    : bool
+        Reduce the metric distortion of the sphere afterwards, as
+        FreeSurfer's mris_sphere does (``CAT_Surf2Sphere -relax``): the
+        distances between neighbours are pulled towards their distances on
+        the input surface, with the gradient averaged over 1024 down to 0
+        neighbour iterations.  Needs ``stop_at`` >= 5.  Default False.
 
     Returns
     -------
@@ -467,7 +474,18 @@ def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False):
     sphere_faces    : ndarray, shape (F, 3), int32
     """
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
+    cdef PolygonsMesh original
+    cdef C.CAT_SphereRelaxOpts opts
+    if relax:
+        if stop_at < 5:
+            raise ValueError("relax needs a sphere: stop_at must be >= 5")
+        original = _ensure_mesh(vertices, faces)
     C.surf_to_sphere(mesh.ptr(), stop_at, 1 if verbose else 0)
+    if relax:
+        C.CAT_SphereRelaxOptionsInit(&opts)
+        opts.verbose = 1 if verbose else 0
+        if C.CAT_SphereRelaxMetric(original.ptr(), mesh.ptr(), &opts) != 0:
+            raise RuntimeError("CAT_SphereRelaxMetric failed")
     return polygons_to_arrays(mesh)
 
 

@@ -157,13 +157,16 @@ def surf2pial_white(surface_file, thickness_file, label_file,
     write_surface(white_file, wv, wf)
 
 
-def surf2sphere(surface_file, output_file, stop_at=5, verbose=False):
+def surf2sphere(surface_file, output_file, stop_at=5, verbose=False,
+                relax=False):
     """Mirror of ``CAT_Surf2Sphere``.
 
-    Maps a surface to a sphere using iterative inflation.
+    Maps a surface to a sphere using iterative inflation; ``relax=True`` is
+    ``-relax``, the FreeSurfer-style metric relaxation afterwards.
     """
     v, f = read_surface(surface_file)
-    sv, sf = _surf_to_sphere(v, f, stop_at=stop_at, verbose=verbose)
+    sv, sf = _surf_to_sphere(v, f, stop_at=stop_at, verbose=verbose,
+                             relax=relax)
     write_surface(output_file, sv, sf)
 
 
