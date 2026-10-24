@@ -388,6 +388,91 @@ test_symmetric_object(void)
     nifti_image_free(nii);
 }
 
+/** \brief Smooth-edged head of radius 26 mm: 1 inside, 0 in the air around it. */
+static double
+head(double x, double y, double z)
+{
+    return 1.0 / (1.0 + exp((sqrt(x * x + y * y + z * z) - 26.0) / 1.0));
+}
+
+/**
+ * \brief Sample a noisy object in air: an EPI-like volume.
+ *
+ * The phantom inside the head, 0 outside, with noise of SD 1 in the air and 8
+ * in the object (thermal plus physiological), as in BOLD series.
+ */
+static void
+sample_in_air(const nifti_image *nii, const double *m, unsigned long seed,
+              float *vol)
+{
+    double inv[16];
+    unsigned long state = seed;
+    int x, y, z;
+
+    if (m)
+        CAT_BBReg_invert_matrix(m, inv);
+    for (z = 0; z < N; z++)
+        for (y = 0; y < N; y++)
+            for (x = 0; x < N; x++)
+            {
+                double w[3], p[3], h;
+                int r;
+                for (r = 0; r < 3; r++)
+                    w[r] = nii->sto_xyz.m[r][0] * x + nii->sto_xyz.m[r][1] * y +
+                           nii->sto_xyz.m[r][2] * z + nii->sto_xyz.m[r][3];
+                for (r = 0; r < 3; r++)
+                    p[r] = m ? inv[4 * r] * w[0] + inv[4 * r + 1] * w[1] +
+                                   inv[4 * r + 2] * w[2] + inv[4 * r + 3]
+                             : w[r];
+                h = head(p[0], p[1], p[2]);
+                vol[x + N * (y + N * z)] =
+                    (float)(h * (phantom(p[0], p[1], p[2]) + 90.0) +
+                            (1.0 + 7.0 * h) * gauss(&state));
+            }
+}
+
+/**
+ * \brief A noisy object in a field of view that is mostly air.
+ *
+ * Four fifths of this grid are air, as of an EPI volume.  The Tukey saturation
+ * used to be set by the MAD of the residuals over the whole field of view,
+ * i.e. by the noise of the air, which made most of the object an outlier;
+ * the motion is then estimated from a shifting remainder of it, 2.6 mm off.
+ * With the scale taken over the foreground the error is that of the noise
+ * (0.5-0.6 mm here, as for least squares).
+ */
+static void
+test_object_in_air(void)
+{
+    nifti_image *nii = make_header(-1);
+    int dims[3] = {N, N, N}, t;
+    size_t nvox = (size_t)N * N * N;
+    float *series = (float *)malloc(sizeof(float) * nvox * NT);
+    float *ref = (float *)malloc(sizeof(float) * nvox);
+    CAT_VolRealignResult res;
+    double err;
+
+    for (t = 0; t < NT; t++)
+    {
+        double m[16];
+        CAT_BBReg_params_to_matrix(&motion[t], m);
+        sample_in_air(nii, m, 60 + t, series + t * nvox);
+    }
+    sample_in_air(nii, NULL, 70, ref);
+
+    MU_ASSERT("object in air: estimation succeeds",
+              CAT_VolRealignEstimate(series, nii, dims, NT, ref, nii, dims, NULL, &res) == 0);
+    err = max_error(&res);
+    if (err >= 1.0)
+        printf("  object in air: largest error %.3f mm\n", err);
+    MU_ASSERT("object in air: motion within 1 mm RMS", err < 1.0);
+
+    CAT_VolRealignFree(&res);
+    free(series);
+    free(ref);
+    nifti_image_free(nii);
+}
+
 /** \brief The centre of mass subtracts the minimum and runs radiologically. */
 static void
 test_centre_of_mass(void)
@@ -490,6 +575,7 @@ int main(void)
     MU_RUN_TEST(test_series_to_reference);
     MU_RUN_TEST(test_series_to_own_volume);
     MU_RUN_TEST(test_symmetric_object);
+    MU_RUN_TEST(test_object_in_air);
     MU_RUN_TEST(test_outputs);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
