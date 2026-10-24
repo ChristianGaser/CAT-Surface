@@ -876,36 +876,73 @@ T1Prep passed 6) removes the slip but hardly the regional distortion.
 distances between every vertex and its neighbours within two rings are pulled towards their
 distances on the folded surface, scaled to the area of the sphere, with the gradient averaged
 over 1024, 256, 64, 16, 4, 1 and 0 neighbour iterations in turn (`MRISunfold`) -- averaged over
-many neighbours it moves area between lobes, which no local step does.  FreeSurfer's nonlinear
-area term (weight 100) keeps triangles open and a step that folds one is not taken.  It costs a
-few seconds on top of the inflation (45 s at `stop_at` 10 for 130k vertices).  Regional area SD
-0.65 -> 0.34, triangles off by more than a factor of 2: 27% -> 7% (FreeSurfer's sphere: 0.39,
-11%).
+many neighbours it moves area between lobes, which no local step does.  As in FreeSurfer a step
+may fold a triangle; the nonlinear area term (weight 1000) pushes it back and a local Laplacian
+removes what is left after each scale.  Refusing every folding step instead stalled the descent
+on T1Prep meshes (energy -3% against -56%): their inflated spheres carry ~200 triangles crushed
+below 1% of their area, which flip under any step.  The 1024 and 256 averages run on a
+hierarchy of aggregated vertices (168k -> 46k -> 13k -> 3.5k -> ...), each level smoothed 32
+passes before its aggregates are averaged -- the gradient is almost all high frequency and
+aliases otherwise -- which reproduces the exact averaging with r 0.987 / 0.991 at a fraction of
+the cost; the exact passes made the relaxation take 46 s.
+
+Time for one T1Prep hemisphere (168k vertices, MacBook Air M2, one thread):
+
+| `CAT_Surf2Sphere` | before | now |
+| --- | --- | --- |
+| `stop_at` 6 (T1Prep until now) | 15.0 s | 10.3 s |
+| `stop_at` 10 | 50.7 s | 33.2 s |
+| `stop_at` 6, `-relax` | -- | 23.6 s |
+
+The areal smoothing is 1.6x faster with bit-identical output: the tile areas are computed inline
+with the arithmetic of bicpl's `get_polygon_surface_area()` instead of copying three points into
+a call per tile.  Threads did not pay for the relaxation: split by vertices the averaging needs a
+barrier after every pass, and with more threads than free cores (several subjects at once) a
+hemisphere took 11 minutes; split by coordinate it gathers every neighbour three times and was
+no faster than one thread.
 
 Kappa of manually edited DK labels mapped to fsaverage, against fsaverage's aparc
 (`validate_surface_registration` in Dropbox: three subjects, six hemispheres, recon-all surfaces;
 unknown, corpus callosum and insula excluded as in `calc_kappa_aparc.m`), and on sub-01 with
-T1Prep's own surface (its automatic aparc, which favours FreeSurfer's registration):
+T1Prep's own surface (its automatic aparc, which favours FreeSurfer's registration; fsaverage5:
+median distance on the cortex between the points recon-all's and T1Prep's registration sample):
 
-| sphere given to Spherical Demons | manual labels | sub-01, T1Prep surface |
-| --- | --- | --- |
-| `stop_at` 6 (T1Prep until now) | 0.817 | 0.861 |
-| `stop_at` 10 | 0.834 | 0.892 |
-| **`stop_at` 10, `-relax`** | **0.851** | **0.898** |
-| FreeSurfer's `?h.sphere` | 0.851 | -- |
-| FreeSurfer's own `sphere.reg` | 0.857 (5 hemispheres) | 0.943 |
+| sphere given to Spherical Demons | manual labels | sub-01 kappa | sub-01 fsaverage5 |
+| --- | --- | --- | --- |
+| `stop_at` 6 (T1Prep until now) | 0.817 | 0.861 | 4.2 / 4.4 mm |
+| `stop_at` 10 | 0.834 | 0.892 | 3.9 / 4.0 mm |
+| `stop_at` 10, relaxation that refused folds | 0.851 | 0.898 | 3.8 / 3.9 mm |
+| **`stop_at` 6, `-relax`** | **0.847** | **0.908** | **3.4 / 3.4 mm** |
+| `stop_at` 10, `-relax` | 0.849 | 0.909 | 3.4 / 3.4 mm |
+| FreeSurfer's `?h.sphere` | 0.851 | -- | -- |
+| FreeSurfer's own `sphere.reg` | 0.857 (5 hemispheres) | 0.943 | -- |
 
-The manual-label kappa rises in every one of the six hemispheres (+0.012 to +0.076).  On sub-01
-the deviation from recon-all drops to 2.33 / 2.57 deg (90th percentile 5.1 / 5.0, more than
-10 deg off: 0.3 / 6.6% -> 0.0 / 0.2%), and the points of the cortex that fMRIPrep samples for the
-fsaverage5 vertices lie a median 3.8 / 3.9 mm from recon-all's instead of 4.2 / 4.4 mm (more than
-10 mm apart: 3 / 4% instead of 5 / 10%; Spherical Demons on recon-all's own surface: 2.4 /
-2.6 mm).  One hemisphere went the other way: on recon-all's sub-01 rh surface the relaxed sphere
-let a medial frontal fold slip (kappa 0.903 against 0.920 at `stop_at` 10).  What is left on
-T1Prep's surface sits at the medial wall (anterior cingulate 6-8 deg, entorhinal 6-7 deg) and is
-the surface, not the registration: T1Prep's surface lies more than 2 mm from recon-all's over
-10-17 cm2, half of it at the ventral medial wall and insula, while the cingulate cortex itself
-agrees to 0.5 mm.
+With `-relax`, `stop_at` 10 adds nothing.  On sub-01 more than 10 mm apart: 5 / 10% of the
+fsaverage5 vertices before, 0.4 / 1.3% now.  **Open: a criterion without labels disagrees.**  On
+36 T1Prep 0.7.7 hemispheres (19 subjects, `~/Dropbox/T1`) the correlation of the subject's sulc,
+mapped to fsaverage6, with fsaverage's `avg_sulc` is 0.807 for `stop_at` 6, 0.821 for `stop_at`
+10 with the relaxation that refused folds (better in 31/36) and 0.803 / 0.804 with `-relax` at
+`stop_at` 6 / 10.  On the validation set that criterion ranks the variants only loosely like the
+labels (Spearman 0.43; it rates `stop_at` 10 without any relaxation highest, the labels lowest),
+so it rewards fitting depth rather than correspondence -- but only labelled T1Prep data can
+settle which to trust.
+
+**Most of T1Prep's spheres are folded.**  `stop_at` 6 leaves folded triangles in 31 of these 36
+hemispheres (up to 2095, in a few clusters of hundreds; the meshes are consistently oriented,
+manifold and free of self-intersections; sub-01's sphere is fold-free), the same as T1Prep 0.7.7
+shipped.  They lie where registrations failed: inferior temporal 16%, lingual 12%, pericalcarine
+11%, entorhinal 10%, insula 8%, medial orbitofrontal 7%.  `stop_at` 10 removes 60% of them,
+`-relax` none (it only keeps from adding folds), and Laplacian relaxation of a growing region
+around them makes them worse.  FreeSurfer removes negative area before its distance
+optimisation; that step is still missing here.
+
+The FreeSurfer-faithful relaxation earlier on the manual-label set (refusing folds, weight 100):
+regional area SD 0.65 -> 0.34, triangles off by more than a factor of 2: 27% -> 7% (FreeSurfer's
+sphere: 0.39, 11%), and the kappa rose in all six hemispheres.  On sub-01 the deviation from
+recon-all's sphere.reg drops from 2.77 / 3.00 to 2.33 / 2.57 deg.  What is left on T1Prep's
+surface sits at the medial wall (anterior cingulate 6-8 deg, entorhinal 6-7 deg) and is partly
+the surface: T1Prep's surface lies more than 2 mm from recon-all's over 10-17 cm2, half of it at
+the ventral medial wall and insula, while the cingulate cortex itself agrees to 0.5 mm.
 
 Measured and not worth it (sub-01 and the validation set): a template cortex mask (no change);
 the white surface against fsaverage's white instead of the central surfaces (0.915 vs 0.915 on
