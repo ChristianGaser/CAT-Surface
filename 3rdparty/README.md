@@ -13,7 +13,7 @@ downloads are needed during compilation.
 | **nifti** | NIfTI-1 I/O library | Public Domain | [NIFTI](http://nifti.nimh.nih.gov/) |
 | **gifticlib** | GIFTI I/O library | Public Domain | [NITRC](http://www.nitrc.org/projects/gifti) |
 | **fftw** | Library for computing the discrete Fourier transform (DFT)  | GPL/FFTW License | [FFTW](https://fftw.org/) |
-| **zlib** | Compression library (version 1.2.3, 2005) | zlib License | [zlib.net](https://zlib.net/) |
+| **zlib** | Compression library (version 1.3.2, 2026) | zlib License | [zlib.net](https://zlib.net/) |
 | **expat** | XML parsing library (version 2.1.0) | MIT License | [libexpat](https://libexpat.github.io/) |
 | **nii2mesh** | Mesh simplification (quadric decimation) | BSD-2-Clause | [neurolabusc/nii2mesh](https://github.com/neurolabusc/nii2mesh) |
 | **s2kit10** | Spherical harmonics transform | GPL-2+ | Kostelec & Rockmore |
@@ -71,6 +71,8 @@ The following libraries have been modified from their original versions:
   removed (using NIfTI functions instead). ParseArgv.c added from minc-1.5.1.
 - **volume_io**: From minc-1.5.1, geometry and utility functions only.
 - **dartel**: Added more OpenMP support (now in `../deprecated/`).
+- **zlib**: 1.3.2 as released, except that `zconf.h` includes `unistd.h` on
+  every non-Windows system, as zlib's own `./configure` would set it.
 
 ## References
 

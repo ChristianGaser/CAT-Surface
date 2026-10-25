@@ -96,7 +96,10 @@ expat_SRC = \
 zlib_SRC = \
     3rdparty/zlib/adler32.c \
     3rdparty/zlib/crc32.c \
-    3rdparty/zlib/gzio.c  \
+    3rdparty/zlib/gzclose.c \
+    3rdparty/zlib/gzlib.c \
+    3rdparty/zlib/gzread.c \
+    3rdparty/zlib/gzwrite.c \
     3rdparty/zlib/inffast.c \
     3rdparty/zlib/inftrees.c \
     3rdparty/zlib/trees.c \
@@ -351,6 +354,7 @@ noinst_HEADERS = \
     3rdparty/gifticlib/gifti_xml.h \
     3rdparty/zlib/crc32.h \
     3rdparty/zlib/deflate.h \
+    3rdparty/zlib/gzguts.h \
     3rdparty/zlib/inffast.h \
     3rdparty/zlib/inffixed.h \
     3rdparty/zlib/inflate.h \
