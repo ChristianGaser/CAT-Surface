@@ -6,6 +6,7 @@
 #include <bicpl.h>
 #include "CAT_Resample.h"
 #include "CAT_Surf.h"
+#include "CAT_SurfUtils.h"
 
 /*
  * Areal interpolation has to preserve the sum of an extensive measure such as
@@ -169,12 +170,43 @@ static void test_areal_values_sphere(void)
     MU_ASSERT("resample_values_sphere with areal interpolation preserves the sum", d < 1e-9);
 }
 
+/*
+ * get_area_of_points_normalized_to_sphere() (CAT_SurfArea -sphere,
+ * cat_surf.get_area_normalized) freed the address of a local pointer and
+ * aborted on every input.  For a sphere that is its own parameterization the
+ * area is 4 pi r^2, and the values are normalized to add up to it.
+ */
+static void test_area_normalized_to_sphere(void)
+{
+    object_struct *obj = make_sphere(20480, 0.3);
+    polygons_struct *p = get_polygons_ptr(obj);
+    double *values = (double *)malloc(sizeof(double) * p->n_points);
+    double area, sum = 0.0, mn = 1e10;
+    int i;
+
+    area = get_area_of_points_normalized_to_sphere(p, p, values);
+    for (i = 0; i < p->n_points; i++)
+    {
+        sum += values[i];
+        mn = fmin(mn, values[i]);
+    }
+    printf("normalized area: %.1f, 4 pi r^2 = %.1f\n", area, 4.0 * PI * RADIUS * RADIUS);
+    MU_ASSERT("the normalized area of a sphere is 4 pi r^2",
+              fabs(area / (4.0 * PI * RADIUS * RADIUS) - 1.0) < 0.01);
+    MU_ASSERT("the values add up to it", fabs(sum / area - 1.0) < 1e-9);
+    MU_ASSERT("and are positive", mn > 0.0);
+
+    free(values);
+    delete_object(obj);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_areal_coarser_target);
     MU_RUN_TEST(test_areal_finer_target);
     MU_RUN_TEST(test_areal_same_mesh);
     MU_RUN_TEST(test_areal_values_sphere);
+    MU_RUN_TEST(test_area_normalized_to_sphere);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

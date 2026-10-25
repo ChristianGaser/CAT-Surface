@@ -214,7 +214,8 @@ get_surface_ratio(double radius, polygons_struct *polygons, int normalize)
  * \param polygons        source mesh.
  * \param sphere          target spherical mesh (same topology).
  * \param area_values     output array (length \c n_points).
- * \return total surface area of the resampled spherical mesh.
+ * \return total area of the surface resampled to the tetrahedral mesh
+ *         (81920 triangles), to which the values add up.
  */
 double
 get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_struct *sphere, double *area_values)
@@ -265,8 +266,8 @@ get_area_of_points_normalized_to_sphere(polygons_struct *polygons, polygons_stru
     free(areas_sphere);
 
     delete_object_list(1, object);
-    delete_object_list(1, &resampled_sphere_object);
-    
+    delete_object(resampled_sphere_object);
+
     return(native_area);
 }
 
