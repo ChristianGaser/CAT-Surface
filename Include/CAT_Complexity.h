@@ -43,10 +43,9 @@ double get_globalfd(double *x, double *y, int len);
  * \param areas      (in)  area ratios per scale and polygon
  * \param x_len      (in)  number of scales
  * \param fd         (out) per-vertex fractal dimension values
- * \param smoothflag (in)  non-zero to apply smoothing
  */
 void get_localfd(polygons_struct *polygons, double *x, double **areas,
-                 int x_len, double *fd, int smoothflag);
+                 int x_len, double *fd);
 /**
  * \brief Select next triangle count for multi-resolution resampling.
  *
@@ -63,22 +62,12 @@ int min_triangles_update(int *base6, int *base8, int *base20);
  * \param sphere     (in)  spherical parameterization of the surface
  * \param maxiters   (in)  number of resampling iterations
  * \param file       (in)  output filename for local FD values
- * \param smoothflag (in)  non-zero to smooth local FD values
  * \param debugflag  (in)  non-zero to write debug outputs
- * \return Global fractal dimension estimate
+ * \return Global fractal dimension estimate; NaN if the local FD values
+ *         could not be written
  */
 double fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
-                         int maxiters, char *file, int smoothflag,
-                         int debugflag);
-/**
- * \brief Smooth per-vertex values using heat kernel smoothing.
- *
- * \param polygons  (in)  surface mesh
- * \param values    (in/out) per-vertex values to smooth
- * \param fwhm      (in)  full-width at half-maximum in mm
- */
-void get_smoothed_values(polygons_struct *polygons, double *values,
-                         double fwhm);
+                         int maxiters, char *file, int debugflag);
 /**
  * \brief Compute fractal dimension using spherical harmonics bandwidth reduction.
  *
@@ -87,13 +76,12 @@ void get_smoothed_values(polygons_struct *polygons, double *values,
  * \param file        (in)  output filename for local FD values
  * \param n_triangles (in)  triangle count for resampled surfaces
  * \param reparam     (in)  reparameterized sphere for local FD computation
- * \param smoothflag  (in)  non-zero to smooth local FD values
  * \param debugflag   (in)  non-zero to write debug outputs
- * \return Global fractal dimension estimate
+ * \return Global fractal dimension estimate; NaN if the local FD values
+ *         could not be written
  */
 double fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                              char *file, int n_triangles,
-                             polygons_struct *reparam, int smoothflag,
-                             int debugflag);
+                             polygons_struct *reparam, int debugflag);
 
 #endif

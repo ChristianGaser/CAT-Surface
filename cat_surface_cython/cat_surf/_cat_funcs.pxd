@@ -136,12 +136,12 @@ cdef extern from "CAT_Surf.h":
 cdef extern from "CAT_Complexity.h":
     double fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                              int maxiters, char *output_file,
-                             int smoothflag, int debugflag)
+                             int debugflag)
     double fractal_dimension_sph(polygons_struct *surface,
                                  polygons_struct *sphere,
                                  char *output_file, int n_triangles,
                                  polygons_struct *reparam,
-                                 int smoothflag, int debugflag)
+                                 int debugflag)
 
 
 # ---------------------------------------------------------------------------

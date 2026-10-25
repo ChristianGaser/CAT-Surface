@@ -976,7 +976,7 @@ def surf_ratio(surface_file, output_values_file,
 
 def surf_fractal_dimension(surface_file, sphere_file, output_values_file,
                            n_triangles=327680, use_sph=True,
-                           maxiters=30, smooth=True, verbose=False):
+                           maxiters=30, smooth=False, verbose=False):
     """Mirror of ``CAT_SurfFractalDimension``.
 
     Compute local and global fractal dimension of a cortical surface,
@@ -997,7 +997,8 @@ def surf_fractal_dimension(surface_file, sphere_file, output_values_file,
     maxiters : int
         Scale iterations for the non-SPH method (default 30).
     smooth : bool
-        Smooth local FD values (default True).
+        Must stay False: local FD values are not smoothed here (smooth them
+        when resampling; ``-nosmooth`` of the CLI has no effect any more).
     verbose : bool
         Print progress (default False).
 

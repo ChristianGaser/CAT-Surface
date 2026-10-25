@@ -1490,7 +1490,7 @@ def surf_ratio(vertices, faces, double radius=20.0, bint normalize=True):
 # ===================================================================
 def surf_fractal_dimension(vertices, faces, sphere_vertices, sphere_faces,
                            int n_triangles=327680, bint use_sph=True,
-                           int maxiters=30, bint smooth=True,
+                           int maxiters=30, bint smooth=False,
                            bint verbose=False):
     """
     Compute local and global fractal dimension of a cortical surface.
@@ -1518,7 +1518,10 @@ def surf_fractal_dimension(vertices, faces, sphere_vertices, sphere_faces,
     maxiters : int
         Number of scale iterations for the non-SPH method (default 30).
     smooth : bool
-        Smooth local FD values after estimation (default True).
+        Must stay False.  The local FD values are no longer smoothed here:
+        smoothing belongs to the resampling of the values, and the old
+        30 mm heat kernel ran on the unit reparameterization sphere, where
+        it took hours and returned a constant map.  True raises ValueError.
     verbose : bool
         Print intermediate progress (default False).
 
@@ -1533,6 +1536,11 @@ def surf_fractal_dimension(vertices, faces, sphere_vertices, sphere_faces,
     """
     import tempfile
     import os as _os
+
+    if smooth:
+        raise ValueError(
+            "surf_fractal_dimension no longer smooths the local FD values; "
+            "smooth them when resampling")
 
     cdef PolygonsMesh surface = _ensure_mesh(vertices, faces)
     cdef PolygonsMesh sphere  = _ensure_mesh(sphere_vertices, sphere_faces)
@@ -1560,12 +1568,10 @@ def surf_fractal_dimension(vertices, faces, sphere_vertices, sphere_faces,
             global_fd = C.fractal_dimension_sph(
                 surface.ptr(), sphere.ptr(), b_tmp,
                 n_triangles, reparam_ptr,
-                1 if smooth else 0,
                 1 if verbose else 0)
         else:
             global_fd = C.fractal_dimension(
                 surface.ptr(), sphere.ptr(), maxiters, b_tmp,
-                1 if smooth else 0,
                 1 if verbose else 0)
 
         if C.input_values_any_format(b_tmp, &n_vals, &fd_ptr) != OK:
