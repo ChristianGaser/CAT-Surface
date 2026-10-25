@@ -32,7 +32,7 @@ def read_surface(str filename):
     Read a surface mesh from any format supported by libCAT.
 
     Supported formats: GIFTI (.gii), FreeSurfer (binary), BIC .obj,
-    DFS, DX, OOGL.
+    OOGL.
 
     Parameters
     ----------
