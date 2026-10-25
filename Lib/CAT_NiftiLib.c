@@ -399,7 +399,8 @@ static void set_volumes(nifti_image *nii_ptr, int nt)
  * \brief Set the image and header file names of an image about to be written.
  *
  * The names are allocated to fit, so an output path of any length works; a
- * fixed 1024-byte buffer used to overflow on longer paths.
+ * fixed 1024-byte buffer used to overflow on longer paths.  A template header
+ * comes with the names of the file it was read from, which are freed.
  *
  * \param nim       (in/out) image whose iname and fname are set
  * \param basename  (in)     output file name without its extension
@@ -414,6 +415,8 @@ static void set_output_filenames(nifti_image *nim, const char *basename,
     if ((nim->nifti_type == 0) || (nim->nifti_type == 2))
         hdr_extension = ".hdr";
 
+    free(nim->iname);
+    free(nim->fname);
     len = strlen(basename) + strlen(extension) + 1;
     nim->iname = malloc(len);
     (void)snprintf(nim->iname, len, "%s%s", basename, extension);
@@ -444,7 +447,7 @@ static void set_output_filenames(nifti_image *nim, const char *basename,
 int write_nifti_double(const char *output_filename, double image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
-    char *extension;
+    char *extension, *basename;
     int i;
     double img_range[2], dt_range[2], val;
 
@@ -490,7 +493,7 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
         strcpy(extension, ".img");
     }
 
-    output_filename = nifti_makebasename(output_filename);
+    basename = nifti_makebasename(output_filename);
 
     nii_ptr->nx = dim[0];
     nii_ptr->ny = dim[1];
@@ -731,12 +734,19 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
         break;
     }
 
-    set_output_filenames(nii_ptr, output_filename, extension);
+    set_output_filenames(nii_ptr, basename, extension);
+    free(basename);
 
     nifti_image_write(nii_ptr);
 
     free(nii_ptr->data);
     nii_ptr->data = NULL;
+    /* the names given to a template header stay with it */
+    if (nii_ptr == &nii_rec)
+    {
+        free(nii_rec.iname);
+        free(nii_rec.fname);
+    }
 
     return (1);
 }
@@ -764,7 +774,7 @@ static int write_nifti_float_volumes(const char *output_filename, float image[],
                                      double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
-    char *extension;
+    char *extension, *basename;
     size_t i;
     int borrowed = 0;
     double img_range[2], dt_range[2], val;
@@ -811,7 +821,7 @@ static int write_nifti_float_volumes(const char *output_filename, float image[],
         strcpy(extension, ".img");
     }
 
-    output_filename = nifti_makebasename(output_filename);
+    basename = nifti_makebasename(output_filename);
 
     nii_ptr->nx = dim[0];
     nii_ptr->ny = dim[1];
@@ -1043,13 +1053,20 @@ static int write_nifti_float_volumes(const char *output_filename, float image[],
         break;
     }
 
-    set_output_filenames(nii_ptr, output_filename, extension);
+    set_output_filenames(nii_ptr, basename, extension);
+    free(basename);
 
     nifti_image_write(nii_ptr);
 
     if (!borrowed)
         free(nii_ptr->data);
     nii_ptr->data = NULL;
+    /* the names given to a template header stay with it */
+    if (nii_ptr == &nii_rec)
+    {
+        free(nii_rec.iname);
+        free(nii_rec.fname);
+    }
 
     return (1);
 }

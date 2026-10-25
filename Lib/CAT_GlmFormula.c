@@ -223,6 +223,8 @@ get_var(Ctx *ctx, const char *filename, int forced, int poly_degree, int n_obs)
     v->poly_degree = poly_degree;
     if (!read_var(v, n_obs))
         return -1;
+    /* registered before the checks, so that free_ctx() frees it if one fails */
+    ctx->n_vars++;
 
     if (poly_degree > 0) {
         if (poly_degree > GLM_MAXPOLY) {
@@ -241,7 +243,7 @@ get_var(Ctx *ctx, const char *filename, int forced, int poly_degree, int n_obs)
             return -1;
         }
     }
-    return ctx->n_vars++;
+    return ctx->n_vars - 1;
 }
 
 /* ----------------------------------------------------------------------- */

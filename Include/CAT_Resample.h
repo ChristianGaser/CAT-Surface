@@ -21,8 +21,10 @@
  *
  * \param source_sphere     (in)  source spherical mesh (unmodified)
  * \param target_sphere     (in)  target spherical mesh (unmodified)
- * \param out_source_sphere (out) scaled and centered source sphere copy
- * \param out_target_sphere (out) scaled and centered target sphere copy
+ * \param out_source_sphere (out) scaled and centered source sphere copy; free
+ *                                with delete_polygons() and free()
+ * \param out_target_sphere (out) scaled and centered target sphere copy; free
+ *                                with delete_polygons() and free()
  */
 void correct_shift_scale_sphere(polygons_struct *source_sphere,
                                 polygons_struct *target_sphere,
