@@ -95,7 +95,6 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfAreaDistortion**      | Area distortion between two surfaces. |
 | **CAT_SurfAngularDistortion**   | Angular distortion between two surfaces. |
 | **CAT_SurfMetricDistortion**    | Metric distortion between a surface and its spherical map. |
-| **CAT_SurfIsometize**           | Adjusts a spherical map to be more isometric (area preserving). |
 | **CAT_SurfRefine**              | Refines a mesh to a maximum edge length, optionally shorter where the absolute mean curvature is large. |
 | **CAT_SurfSeparatePolygons**    | Splits a mesh into its disjoint parts; index -1 writes the largest one. |
 | **CAT_SurfSeparateClusters**    | Finds the connected clusters of vertex values on a surface. |
