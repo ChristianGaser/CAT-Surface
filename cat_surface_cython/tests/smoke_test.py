@@ -921,6 +921,23 @@ def test_bbreg_defaults():
 # FreeSurfer format whatever the name, so T1Prep's *.label.gii parcellations
 # were annot files that no GIfTI reader could open.
 # ---------------------------------------------------------------------------
+def test_sanlm_repeatable():
+    section("vol_sanlm: repeatable, and the noise model does not stick")
+    rng = np.random.default_rng(0)
+    x, y, z = np.mgrid[:48, :48, :48]
+    vol = (100 + 40 * (np.sqrt((x - 24) ** 2 + (y - 24) ** 2 + (z - 24) ** 2) < 15)
+           + rng.normal(0, 8, x.shape)).astype(np.float32)
+
+    first = np.asarray(cat_surf.vol_sanlm(vol.copy()))
+    again = np.asarray(cat_surf.vol_sanlm(vol.copy()))
+    check("two calls give the same result", np.array_equal(first, again),
+          f"max |diff| {np.abs(first - again).max():.3g}")
+    cat_surf.vol_sanlm(vol.copy(), is_rician=True)
+    after = np.asarray(cat_surf.vol_sanlm(vol.copy()))
+    check("a Rician call does not change later default calls",
+          np.array_equal(first, after), f"max |diff| {np.abs(first - after).max():.3g}")
+
+
 def _write_annot(path, codes, table):
     """FreeSurfer .annot with a version-2 colour table of (name, r, g, b)."""
     import struct
@@ -1000,7 +1017,7 @@ def main():
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
                  test_bspline_sample, test_vol_realign, test_bbreg_defaults,
-                 test_resample_annot_formats):
+                 test_resample_annot_formats, test_sanlm_repeatable):
         try:
             test()
         except Exception:  # pragma: no cover
