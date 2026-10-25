@@ -11,7 +11,7 @@ downloads are needed during compilation.
 | **bicpl-surface** | BIC Programming Library for surface mesh handling | MIT-like (MNI) | [BIC-MNI/bicpl](https://github.com/BIC-MNI/bicpl) |
 | **volume_io** | Volume I/O and geometry utilities from MINC | MIT-like (MNI) | [BIC-MNI/minc](https://github.com/BIC-MNI/minc) |
 | **nifti** | NIfTI-1 I/O library | Public Domain | [NIFTI](http://nifti.nimh.nih.gov/) |
-| **gifticlib** | GIFTI I/O library | Public Domain | [NITRC](http://www.nitrc.org/projects/gifti) |
+| **gifticlib** | GIFTI I/O library (version 1.17, 2021) | Public Domain | [gifti_clib](https://github.com/NIFTI-Imaging/gifti_clib) |
 | **fftw** | Library for computing the discrete Fourier transform (DFT)  | GPL/FFTW License | [FFTW](https://fftw.org/) |
 | **zlib** | Compression library (version 1.3.2, 2026) | zlib License | [zlib.net](https://zlib.net/) |
 | **expat** | XML parsing library (version 2.9.0, 2026) | MIT License | [libexpat](https://libexpat.github.io/) |
@@ -77,6 +77,10 @@ The following libraries have been modified from their original versions:
   `expat_config.h` in place of the one expat's configure generates (hash salt
   from `/dev/urandom` on POSIX systems, `rand_s()` on Windows); the unused
   `xmlwf` tool is not vendored.
+- **gifticlib**: 1.17 (NIFTI-Imaging/gifti_clib at d3e873d) as released,
+  except that `gifti_io.h` includes `nifti1_io.h`; upstream defaults to
+  `nifti2_io.h`, which is not vendored. The test and tool programs are not
+  vendored.
 
 ## References
 

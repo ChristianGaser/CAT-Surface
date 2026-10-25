@@ -363,8 +363,6 @@ noinst_HEADERS = \
     3rdparty/nifti/nifti1_local.h \
     3rdparty/nifti/znzlib.h \
     3rdparty/gifticlib/gifti_io.h \
-    3rdparty/gifticlib/gifti_test.h \
-    3rdparty/gifticlib/gifti_tool.h \
     3rdparty/gifticlib/gifti_xml.h \
     3rdparty/zlib/crc32.h \
     3rdparty/zlib/deflate.h \

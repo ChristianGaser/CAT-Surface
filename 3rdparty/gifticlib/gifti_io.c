@@ -129,9 +129,21 @@ static char * gifti_history[] =
   "     - both Index and Key work on read, Key is written out\n"
   "1.09 28 June, 2010: verify that num_dim is not too big\n",
   "     - the most significant dimension cannot be 1 (req by N Schmansky)\n"
+  "1.10 19 October, 2011: \n",
+  "     - can read/write ascii COMPLEX64, COMPLEX128, RGB24\n"
+  "       (requested by H Breman, J Mulders, N Schmansky)\n"
+  "1.11 07 March, 2012: fixed sizeof in memset of gim (noted by B Cox)\n",
+  "1.12 15 June, 2012: make num_dim violation a warning (mris_convert)\n",
+  "1.13 17 June, 2015: added gifti_read_image_buf\n"
+  "1.14 24 July, 2015: added gifti_rotate_DAs_to_front\n"
+  "1.15 01 March, 2016:\n"
+  "     - gifti_xml.c fix for Windows-style newline characters\n",
+  "     - noticed and fixed by R Vincent\n"
+  "1.16 02 May, 2017: added control over array indexing order\n"
+  "1.17 19 Feb, 2021: promote fabs() args explicitly to avoid warnings\n"
 };
 
-static char gifti_version[] = "gifti library version 1.09, 28 June, 2010";
+static char gifti_version[] = "gifti library version 1.17, 19 Feb, 2021";
 
 /* ---------------------------------------------------------------------- */
 /*! global lists of XML strings */
@@ -227,6 +239,7 @@ static int copy_data_as_float(void * dest, int dtype, void * src, int stype,
                               long long nvals);
 static int DA_data_exists(gifti_image * gim, const int * dalist, int len);
 static int str2list_index(char *list[], int max, const char *str);
+static int permute_by_index_order(void * dest, int new_ord, giiDataArray * da);
 
 /* ---------------------------------------------------------------------- */
 /*! giftilib globals */
@@ -257,6 +270,8 @@ int gifti_set_zlevel( int level )
     return gxml_set_zlevel(level);
 }
 
+int gifti_get_perm_by_iord(void )       { return gxml_get_perm_by_iord(); }
+int gifti_set_perm_by_iord(int level )  { return gxml_set_perm_by_iord(level); }
 int gifti_get_xml_buf_size(void)        { return gxml_get_buf_size(); }
 int gifti_set_xml_buf_size(int buf_size){ return gxml_set_buf_size(buf_size); }
 
@@ -344,6 +359,24 @@ gifti_image * gifti_read_image( const char * fname, int read_data )
 }
 
 /*----------------------------------------------------------------------
+ *! Like gifti_read_image, but read from a buffer.
+ *
+ *  return an allocated gifti_image struct on success,
+ *         NULL on error
+*//*-------------------------------------------------------------------*/
+gifti_image * gifti_read_image_buf(const char * buf, long long bsize)
+{
+    if( !buf || bsize <= 0 ) {
+        fprintf(stderr,"** gifti_read_image: missing filename\n");
+        return NULL;
+    }
+
+    gxml_set_verb(G.verb);
+
+    return gxml_read_image_buf(buf, bsize, NULL, 0);
+}
+
+/*----------------------------------------------------------------------
  *! Similar to gifti_read_data, this function also takes an integer list of
  *  DataArray indices to populate the gifti_image structure with.
  *
@@ -411,7 +444,7 @@ int gifti_free_image( gifti_image * gim )
         if(G.verb > 2) fprintf(stderr,"** free gifti_image w/NULL pointer\n");
         return 1;
     }
-    
+
     if( G.verb > 2 ) fprintf(stderr,"-- freeing gifti_image\n");
 
     if( gim->version ) { free(gim->version);  gim->version = NULL; }
@@ -436,7 +469,7 @@ int gifti_free_image_contents( gifti_image * gim )
         if(G.verb > 2) fprintf(stderr,"** GFIC: free w/NULL gifti_image ptr\n");
         return 1;
     }
-    
+
     if( G.verb > 2 ) fprintf(stderr,"-- freeing gifti_image contents\n");
 
     if( gim->version ) { free(gim->version);  gim->version = NULL; }
@@ -894,7 +927,7 @@ int gifti_valid_nbyper(int nbyper, int whine)
 
 /*----------------------------------------------------------------------
  *! check that dimension values are consistent (and with datatype)
- *  
+ *
  *      - num_dim is in range
  *      - each dims[c] is postive (c < num_dim)
  *      - nvals is product of dims
@@ -907,7 +940,7 @@ int gifti_valid_dims(const giiDataArray * da, int whine)
     int       c, nbyper;
 
     if( !da ) {
-        if( G.verb > 2 ) fprintf(stderr,"** GVD: no giiDataArray\n");
+        if( G.verb > 2 || whine ) fprintf(stderr,"** GVD: no giiDataArray\n");
         return 0;
     }
 
@@ -944,10 +977,11 @@ int gifti_valid_dims(const giiDataArray * da, int whine)
     /* verify that num_dim is not too big, the most significant dimension
      * is not allowed to be 1
      * (requested by N Schmansky)                       11 Mar 2010 */
-    if( da->num_dim > 1 && da->dims[da->num_dim-1] < 2 ) {
+    if( da->num_dim > 1 && da->dims[da->num_dim-1] < 2 && whine ) {
         fprintf(stderr,"** num_dim violation: num_dim = %d, yet dim[%d] = %d\n",
                        da->num_dim, da->num_dim-1, da->dims[da->num_dim-1]);
-        return 0;
+        /* now FS is writing these in mris_convert, grrrr...  15 Jun 2012 */
+        /* return 0; */
     }
 
     return 1;
@@ -984,14 +1018,18 @@ int gifti_str2attr_darray(giiDataArray * DA, const char *attr,
     else if( !strcmp(attr, "Dim3") )           DA->dims[3] = atoi(value);
     else if( !strcmp(attr, "Dim4") )           DA->dims[4] = atoi(value);
     else if( !strcmp(attr, "Dim5") )           DA->dims[5] = atoi(value);
-    else if( !strcmp(attr, "Encoding") ) 
+    else if( !strcmp(attr, "Encoding") )
         DA->encoding = gifti_str2encoding(value);
     else if( !strcmp(attr, "Endian") )
         DA->endian = gifti_str2endian(value);
     else if( !strcmp(attr, "ExternalFileName") )
         DA->ext_fname = gifti_strdup(value);
     else if( !strcmp(attr, "ExternalFileOffset") )
+#if defined(_WIN32) && !defined(__MINGW32__) && !defined(__CYGWIN__)
+        DA->ext_offset = atol(value);  /* There is no atoll defined in MS VC++ */
+#else
         DA->ext_offset = atoll(value);  /* assumes C99 */
+#endif
     else {
         if( G.verb > 1 )        /* might go into ex_atrs */
             fprintf(stderr,"** unknown giiDataArray attr, '%s'='%s'\n",
@@ -1027,6 +1065,14 @@ int gifti_str2ind_ord( const char * str )
     if( rv <= GIFTI_IND_ORD_UNDEF && G.verb > 1 )
         fprintf(stderr,"** bad index order, '%s'\n", str);
     return rv;
+}
+
+/*----------------------------------------------------------------------
+ *! return the GIFTI_IND_ORD_* string for the given index
+*//*-------------------------------------------------------------------*/
+char * gifti_ind_ord2str( int ind_ord )
+{
+    return gifti_list_index2string(gifti_index_order_list, ind_ord);
 }
 
 
@@ -1066,7 +1112,7 @@ char * gifti_list_index2string(char * list[], int index)
     }
 
     if( index < 0 || index >= lsize ) {
-        if( G.verb > 0) 
+        if( G.verb > 0)
             fprintf(stderr,"** GLI2S: index %d out of range {0..%d}\n",
                 index,lsize-1);
         return "INDEX OUT OF RANGE";
@@ -1195,6 +1241,55 @@ int gifti_add_empty_CS(giiDataArray * da)
     gifti_clear_CoordSystem(da->coordsys[da->numCS]);
 
     da->numCS++;
+
+    return 0;
+}
+
+/*----------------------------------------------------------------------
+ *! rotate DA list, moving from the back to the front
+ *
+ *  this (after add_empty) would allow one to add a new entry to the front
+ *
+ *  - allocate for nrot temp pointers
+ *  - copy nrot trailing pointers to temp
+ *  - shift numDA-nrot pointers to end
+ *  - copy temp pointers to start
+ *  - free temp array
+ *
+ *  return 0 on success
+ *         1 on error
+*//*-------------------------------------------------------------------*/
+int gifti_rotate_DAs_to_front(gifti_image * gim, int nrot)
+{
+    giiDataArray ** dtmp;
+    int             ind;
+
+    if( !gim || nrot < 0 || nrot >= gim->numDA) return 1;
+
+    if( nrot < 1 ) return 0;
+
+    if(G.verb > 3)fprintf(stderr,"++ rotate darray[%d] (%d)\n",gim->numDA,nrot);
+
+    /* allocate for temporary pointers */
+    dtmp = (giiDataArray **)malloc(nrot*sizeof(giiDataArray *));
+    if( !dtmp ) {
+       fprintf(stderr,"** failed to alloc %d DA pointers\n", nrot);
+       return 1;
+    }
+
+    /* copy nrot into temp list (cleaner than memcpy?) */
+    for( ind=0; ind < nrot; ind++ )
+       dtmp[ind] = gim->darray[gim->numDA-nrot+ind];
+
+    /* shift numDA-nrot to end (index downward over destinations) */
+    for( ind=gim->numDA-1; ind >= nrot; ind-- )
+       gim->darray[ind] = gim->darray[ind-nrot];
+
+    /* copy nrot from temp list to start */
+    for( ind=0; ind < nrot; ind++ )
+       gim->darray[ind] = dtmp[ind];
+
+    free(dtmp);
 
     return 0;
 }
@@ -1406,7 +1501,7 @@ int gifti_disp_DataArray(const char * mesg, const giiDataArray * p, int subs)
     if( subs ) gifti_disp_nvpairs("darray->meta", &p->meta);
     if( subs ) for( c = 0; c < p->numCS; c++ )
                    gifti_disp_CoordSystem("darray->coordsys", p->coordsys[c]);
-                
+
     fprintf(stderr,"    data       = %s\n"
                    "    nvals      = %u\n"
                    "    nbyper     = %d\n"
@@ -1656,30 +1751,27 @@ char * gifti_get_meta_value(const nvpairs * nvp, const char * name)
 /*----------------------------------------------------------------------
  *! return the number of 'rows' and 'columns' of a DataArray element
  *
- *  define rows to be the number of nodes, which should be the slowest
- *  changing element, depending on the index order (kuru kuru pa)
+ *  define rows to be along the first dimension, and collapse the
+ *  remaining dimensions as cols
 *//*-------------------------------------------------------------------*/
 int gifti_DA_rows_cols(giiDataArray * da, long long * rows, long long * cols)
 {
     *rows = da->dims[0];  /* init */
     *cols = 1;
-                                                                                
-    if( da->num_dim == 1 ) return 0;  /* use default */
-                                                                                
-    if( da->ind_ord == GIFTI_IND_ORD_ROW_MAJOR ) {
-        /* treat Dim[0] as nodes (they change most slowly) */
-        *rows = da->dims[0];
-        *cols = (*rows) ? da->nvals / *rows : 1;    /* be safe */
-    } else {
-        if( ! gifti_valid_num_dim(da->num_dim, 1) ){
-            fprintf(stderr,"** cannot assign DA_rows_cols");
-            return 1;
-        }
 
+    if( da->num_dim == 1 ) return 0;          /* use default */
+
+    /* ROW_MAJOR does not matter here    25 Apr 2017 [rickr] */
+    /* treat Dim[0] as nodes (they change most slowly)       */
+    *rows = da->dims[0];
+    *cols = (*rows) ? da->nvals / *rows : 1;      /* be safe */
+
+#if 0
+        /* old COL_MAJOR case... */
         *rows = da->dims[da->num_dim-1];  /* take highest index */
         *cols = (*rows > 0) ? da->nvals / *rows : 1;
-    }
-                                                                                
+#endif
+
     return 0;
 }
 
@@ -1729,7 +1821,7 @@ int gifti_disp_hex_data(const char *mesg, const void *data, int len, FILE *fp)
     const char * dp = (const char *)data;
     FILE       * stream;
     int          c;
-    
+
     stream = fp ? fp : stdout;
 
     if( !data || len < 1 ) return -1;
@@ -1750,7 +1842,7 @@ int gifti_swap_2bytes(void * data, long long nsets)
     char    * cp1 = (char *)data, * cp2;
     char      tval;
     long long c;
-    
+
     for( c = 0; c < nsets; c++ ) {
         cp2 = cp1 + 1;
         tval = *cp1;  *cp1 = *cp2;  *cp2 = tval;
@@ -1768,7 +1860,7 @@ int gifti_swap_4bytes(void * data, long long nsets)
     char    * cp0 = (char *)data, * cp1, * cp2;
     char      tval;
     long long c;
-    
+
     for( c = 0; c < nsets; c++ ) {
         cp1 = cp0;
         cp2 = cp0 + 3;
@@ -1783,7 +1875,7 @@ int gifti_swap_4bytes(void * data, long long nsets)
 
 /*----------------------------------------------------------------------
  *! swap sets of N-byte values
- *  
+ *
  *  if N < 2         : just return
  *  if N = 2 or N = 4: call explicit function for that size (speed)
  *  else             : swap in a loop
@@ -1804,7 +1896,7 @@ int gifti_swap_Nbytes(void * data, long long nsets, int swapsize)
     if     ( swapsize  < 2 ) return 0;  /* nothing to do */
     else if( swapsize == 2 ) return gifti_swap_2bytes(data, nsets);
     else if( swapsize == 4 ) return gifti_swap_4bytes(data, nsets);
-    
+
     /* peform a swap */
     cp0 = (char *)data;
     offset = swapsize-1;  /* just for speed */
@@ -1867,6 +1959,417 @@ int gifti_check_swap(void * data, int endian, long long nsets, int swapsize)
     (void)gifti_swap_Nbytes(data, nsets, swapsize);
 
     return 1;
+}
+
+#ifdef GIFTI_BAD_SIZEOF
+#undef GIFTI_BAD_SIZEOF
+#endif
+#define GIFTI_BAD_SIZEOF(mesg, type, size)                      \
+   ((sizeof(type) == size) ? 0 :                                \
+    (fprintf(stderr,"%s : sizeof(#type) != %d\n", mesg, size), 1))
+
+/*---------------------------------------------------------------------*/
+/*! Convert the ArrayIndexingOrder of the gifti_image DA elements to
+ *  the given order.                             28 Apr 2017 [rickr]
+ *
+ *  This is not just a tranpose, but a more general permutation of
+ *  the data in memory, so allocate a new data pointer.
+ *
+ *  Terminate on first DA failure.
+ *
+ *  return 1 if convertion occurred, 0 if not, -1 on error
+*//*-------------------------------------------------------------------*/
+int gifti_convert_ind_ord(gifti_image * gim, int new_ord)
+{
+   int dind, rv, perm=0;
+
+   if ( ! gim ) {
+      fprintf(stderr,"** gifti_convert_ind_ord: no gifti_image\n");
+      return 1;
+   }
+
+   for( dind = 0; dind < gim->numDA; dind++ ) {
+      rv = gifti_convert_DA_ind_ord(gim->darray[dind], new_ord);
+      if( rv < 0 ) return rv;   /* fail on any error */
+      if( rv > 0 ) perm = 1;    /* note that it happened */
+   }
+
+   return perm;
+}
+
+/*---------------------------------------------------------------------*/
+/*! Convert the ArrayIndexingOrder of the DataArry element to the
+ *  specified order.                          27 Apr 2017 [rickr]
+ *
+ *  This is not just a tranpose, but a more general permutation of
+ *  the data in memory, so allocate a new data pointer.
+ *
+ *  return 1 if converted, 0 of not, -1 on error
+*//*-------------------------------------------------------------------*/
+int gifti_convert_DA_ind_ord(giiDataArray * da, int new_ord)
+{
+   char * fname = "convert_ind_ord";
+   void * newdata = NULL;
+
+   if ( !gifti_valid_dims(da, 1) ) /* will whine */
+      return -1;
+
+   if( new_ord <= GIFTI_IND_ORD_UNDEF || new_ord > GIFTI_IND_ORD_MAX ) {
+      if( G.verb )
+         fprintf(stderr,"** %s: invalid order %d\n", fname, new_ord);
+      return -1;
+   }
+
+   if( da->ind_ord == new_ord ) {
+      if( G.verb > 4 )
+         fprintf(stderr,"-- %s: order already %d = %s\n", fname, new_ord,
+                 gifti_list_index2string(gifti_index_order_list, new_ord));
+      return 0;
+   }
+
+   if( da->nvals == 0 ) return 0;
+
+   /*--- have something to do ---*/
+
+   if( G.verb > 3 )
+      fprintf(stderr,"-- changing ind_ord from %d (%s) to %d (%s)...\n",
+              da->ind_ord,
+              gifti_list_index2string(gifti_index_order_list, da->ind_ord),
+              new_ord,
+              gifti_list_index2string(gifti_index_order_list, new_ord));
+
+   /* have something to do, but is it trivial? */
+   if( da->num_dim == 1 ) {
+      if( G.verb > 3 )
+         fprintf(stderr,"-- %s: num_dim == 1, so simply change field\n",fname);
+      da->ind_ord = new_ord;
+      return 0;
+   }
+
+   /*------ have something real to do, either RM->CM or the reverse ------*/
+
+   /* allocate output data array (or could overwrite input not to change it? */
+   newdata = malloc(da->nvals * da->nbyper);
+   if( ! newdata ) {
+      fprintf(stderr,"** %s: failed to alloc %lld bytes for DA\n",
+              fname, da->nvals*da->nbyper);
+      return -1;
+   }
+
+   /* actually permute the data */
+   if( permute_by_index_order(newdata, new_ord, da) ) {
+      free(newdata);
+      return -1;
+   }
+
+   /* insert result and clean up */
+   free(da->data);
+   da->data = newdata;
+   da->ind_ord = new_ord;
+
+   return 1;  /* change happened */
+}
+
+/*===========================================================================
+ * row major/column major index order permutation macros
+ *===========================================================================*/
+
+/* column major to row major conversion */
+#define GIFTI_PBIO_C2R_2(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      for( i0 = 0; i0 < m0; i0++ )                              \
+         for( i1 = 0; i1 < m1; i1++ )                           \
+            *doutp++ = dinp[i0 + m0 * i1];                      \
+   } while(0)
+
+
+#define GIFTI_PBIO_C2R_3(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2;                                 \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = dinp + i0;                                       \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               *doutp++ = *bp2;                                 \
+            } } }                                               \
+   } while(0)
+
+#define GIFTI_PBIO_C2R_4(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2, * bp3;                          \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = dinp + i0;                                       \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               for( i3 = 0; i3 < m3; i3++ ) {                   \
+                  bp3 = bp2 + i3 * m0*m1*m2;                    \
+                  *doutp++ = *bp3;                              \
+               } } } }                                          \
+   } while(0)
+
+#define GIFTI_PBIO_C2R_5(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2, * bp3, * bp4;                   \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = dinp + i0;                                       \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               for( i3 = 0; i3 < m3; i3++ ) {                   \
+                  bp3 = bp2 + i3 * m0*m1*m2;                    \
+                  for( i4 = 0; i4 < m4; i4++ ) {                \
+                     bp4 = bp3 + i4 * m0*m1*m2*m3;              \
+                     *doutp++ = *bp4;                           \
+                  } } } } }                                     \
+   } while(0)
+
+#define GIFTI_PBIO_C2R_6(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2, * bp3, * bp4, * bp5;            \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = dinp + i0;                                       \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               for( i3 = 0; i3 < m3; i3++ ) {                   \
+                  bp3 = bp2 + i3 * m0*m1*m2;                    \
+                  for( i4 = 0; i4 < m4; i4++ ) {                \
+                     bp4 = bp3 + i4 * m0*m1*m2*m3;              \
+                     for( i5 = 0; i5 < m5; i5++ ) {             \
+                        bp5 = bp4 + i5 * m0*m1*m2*m3*m4;        \
+                        *doutp++ = *bp5;                        \
+                     } } } } } }                                \
+   } while(0)
+
+
+/* row major to column major conversions */
+/* same indexing, but switch application between in and out pointers */
+#define GIFTI_PBIO_R2C_2(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      for( i0 = 0; i0 < m0; i0++ )                              \
+         for( i1 = 0; i1 < m1; i1++ )                           \
+            doutp[i0 + m0 * i1] = *dinp++;                      \
+   } while(0)
+
+
+#define GIFTI_PBIO_R2C_3(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2;                                 \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = doutp + i0;                                      \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               *bp2 = *dinp++;                                  \
+            } } }                                               \
+   } while(0)
+
+#define GIFTI_PBIO_R2C_4(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2, * bp3;                          \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = doutp + i0;                                      \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               for( i3 = 0; i3 < m3; i3++ ) {                   \
+                  bp3 = bp2 + i3 * m0*m1*m2;                    \
+                  *bp3 = *dinp++;                               \
+               } } } }                                          \
+   } while(0)
+
+#define GIFTI_PBIO_R2C_5(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2, * bp3, * bp4;                   \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = doutp + i0;                                      \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               for( i3 = 0; i3 < m3; i3++ ) {                   \
+                  bp3 = bp2 + i3 * m0*m1*m2;                    \
+                  for( i4 = 0; i4 < m4; i4++ ) {                \
+                     bp4 = bp3 + i4 * m0*m1*m2*m3;              \
+                     *bp4 = *dinp++;                            \
+                  } } } } }                                     \
+   } while(0)
+
+#define GIFTI_PBIO_R2C_6(type, din, dout)                       \
+   do {                                                         \
+      type * dinp = (type *)din, * doutp = (type *)dout;        \
+      type * bp0, * bp1, * bp2, * bp3, * bp4, * bp5;            \
+      for( i0 = 0; i0 < m0; i0++ ) {                            \
+         bp0 = doutp + i0;                                      \
+         for( i1 = 0; i1 < m1; i1++ ) {                         \
+            bp1 = bp0 + i1 * m0;                                \
+            for( i2 = 0; i2 < m2; i2++ ) {                      \
+               bp2 = bp1 + i2 * m0*m1;                          \
+               for( i3 = 0; i3 < m3; i3++ ) {                   \
+                  bp3 = bp2 + i3 * m0*m1*m2;                    \
+                  for( i4 = 0; i4 < m4; i4++ ) {                \
+                     bp4 = bp3 + i4 * m0*m1*m2*m3;              \
+                     for( i5 = 0; i5 < m5; i5++ ) {             \
+                        bp5 = bp4 + i5 * m0*m1*m2*m3*m4;        \
+                        *bp5 = *dinp++;                         \
+                     } } } } } }                                \
+   } while(0)
+
+
+/*===========================================================================*/
+
+/* decisions... slow and steady or fast and dangerous?
+ * let's change to slow and steady, since this should be uncommon
+ *
+ * return 0 on success
+ */
+static int permute_by_index_order(void * dest, int new_ord, giiDataArray * da)
+{
+   long long m0, m1, m2, m3, m4, m5;
+   long long i0, i1, i2, i3, i4, i5;
+   char    * mesg = "permute index order";
+
+   /* avoid repetitive indexing (for speed) */
+   m0 = da->dims[0]; m1 = da->dims[1]; m2 = da->dims[2];
+   m3 = da->dims[3]; m4 = da->dims[4]; m5 = da->dims[5];
+
+   /* we checked before, but hey... */
+   if( new_ord != GIFTI_IND_ORD_ROW_MAJOR &&
+       new_ord != GIFTI_IND_ORD_COL_MAJOR ) {
+      fprintf(stderr,"** PBIO: invalid index order %d\n", new_ord);
+      return 1;
+   }
+
+   if( G.verb > 3 ) {
+      fprintf(stderr,"-- permute order: %d to %d, nbyper %d\n   dims: ",
+              da->ind_ord, new_ord, da->nbyper);
+      gifti_disp_raw_data(da->dims, DT_INT32, da->num_dim, 1, stderr);
+   }
+
+   switch( da->nbyper ) {
+      default: {
+         /* don't need to fail after malloc, but this should be rare,
+            and this is a good place for a failure check */
+         fprintf(stderr,"** %s: not prepared for nbyper = %d\n",
+                 mesg, da->nbyper);
+         return 1;
+      }
+      case 1: { /* process as char (signed int8) */
+         if( GIFTI_BAD_SIZEOF(mesg, char, 1) ) return 1;
+
+         if( new_ord == GIFTI_IND_ORD_ROW_MAJOR ) {
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_C2R_2(char, da->data, dest); break;
+               case 3: GIFTI_PBIO_C2R_3(char, da->data, dest); break;
+               case 4: GIFTI_PBIO_C2R_4(char, da->data, dest); break;
+               case 5: GIFTI_PBIO_C2R_5(char, da->data, dest); break;
+               case 6: GIFTI_PBIO_C2R_6(char, da->data, dest); break;
+            }
+         } else { /* to GIFTI_IND_ORD_COL_MAJOR */
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_R2C_2(char, da->data, dest); break;
+               case 3: GIFTI_PBIO_R2C_3(char, da->data, dest); break;
+               case 4: GIFTI_PBIO_R2C_4(char, da->data, dest); break;
+               case 5: GIFTI_PBIO_R2C_5(char, da->data, dest); break;
+               case 6: GIFTI_PBIO_R2C_6(char, da->data, dest); break;
+            }
+         }
+         break;
+      }
+      case 2: { /* process as short (signed int16) */
+         if( GIFTI_BAD_SIZEOF(mesg, short, 2) ) return 1;
+
+         if( new_ord == GIFTI_IND_ORD_ROW_MAJOR ) {
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_C2R_2(short, da->data, dest); break;
+               case 3: GIFTI_PBIO_C2R_3(short, da->data, dest); break;
+               case 4: GIFTI_PBIO_C2R_4(short, da->data, dest); break;
+               case 5: GIFTI_PBIO_C2R_5(short, da->data, dest); break;
+               case 6: GIFTI_PBIO_C2R_6(short, da->data, dest); break;
+            }
+         } else { /* to GIFTI_IND_ORD_COL_MAJOR */
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_R2C_2(short, da->data, dest); break;
+               case 3: GIFTI_PBIO_R2C_3(short, da->data, dest); break;
+               case 4: GIFTI_PBIO_R2C_4(short, da->data, dest); break;
+               case 5: GIFTI_PBIO_R2C_5(short, da->data, dest); break;
+               case 6: GIFTI_PBIO_R2C_6(short, da->data, dest); break;
+            }
+         }
+         break;
+      }
+      case 4: { /* process as int (signed int32) */
+         if( GIFTI_BAD_SIZEOF(mesg, int,   4) ) return 1;
+
+         if( new_ord == GIFTI_IND_ORD_ROW_MAJOR ) {
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_C2R_2(int, da->data, dest); break;
+               case 3: GIFTI_PBIO_C2R_3(int, da->data, dest); break;
+               case 4: GIFTI_PBIO_C2R_4(int, da->data, dest); break;
+               case 5: GIFTI_PBIO_C2R_5(int, da->data, dest); break;
+               case 6: GIFTI_PBIO_C2R_6(int, da->data, dest); break;
+            }
+         } else { /* to GIFTI_IND_ORD_COL_MAJOR */
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_R2C_2(int, da->data, dest); break;
+               case 3: GIFTI_PBIO_R2C_3(int, da->data, dest); break;
+               case 4: GIFTI_PBIO_R2C_4(int, da->data, dest); break;
+               case 5: GIFTI_PBIO_R2C_5(int, da->data, dest); break;
+               case 6: GIFTI_PBIO_R2C_6(int, da->data, dest); break;
+            }
+         }
+         break;
+      }
+      case 8: { /* process as long long (signed int64) */
+         if( GIFTI_BAD_SIZEOF(mesg, long long, 8) ) return 1;
+
+         if( new_ord == GIFTI_IND_ORD_ROW_MAJOR ) {
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_C2R_2(long long, da->data, dest); break;
+               case 3: GIFTI_PBIO_C2R_3(long long, da->data, dest); break;
+               case 4: GIFTI_PBIO_C2R_4(long long, da->data, dest); break;
+               case 5: GIFTI_PBIO_C2R_5(long long, da->data, dest); break;
+               case 6: GIFTI_PBIO_C2R_6(long long, da->data, dest); break;
+            }
+         } else { /* to GIFTI_IND_ORD_COL_MAJOR */
+            switch( da->num_dim ) {
+               default: break; /* do nothing for 1 or unknown */
+               case 2: GIFTI_PBIO_R2C_2(long long, da->data, dest); break;
+               case 3: GIFTI_PBIO_R2C_3(long long, da->data, dest); break;
+               case 4: GIFTI_PBIO_R2C_4(long long, da->data, dest); break;
+               case 5: GIFTI_PBIO_R2C_5(long long, da->data, dest); break;
+               case 6: GIFTI_PBIO_R2C_6(long long, da->data, dest); break;
+            }
+         }
+         break;
+      }
+   }
+
+   return 0;
 }
 
 /*---------------------------------------------------------------------*/
@@ -2160,7 +2663,7 @@ char * gifti_strdup( const char * src )
  *  to be allocated, also.
  *
  *  If get_data is not set, gnew->data will be left as NULL.
- *  
+ *
  *  return the address of the newly allocated structure
 *//*-------------------------------------------------------------------*/
 giiDataArray * gifti_copy_DataArray(const giiDataArray * orig, int get_data)
@@ -2341,7 +2844,7 @@ char ** gifti_copy_char_list(char ** list, int len)
  *
  *  return 0 on success, 1 on failure to find, -1 on error
 *//*-------------------------------------------------------------------*/
-int gifti_copy_gifti_meta(gifti_image * dest, gifti_image * src, 
+int gifti_copy_gifti_meta(gifti_image * dest, gifti_image * src,
                           const char * name)
 {
     char * value;
@@ -3088,7 +3591,7 @@ int gifti_compare_nvpairs(const nvpairs * p1, const nvpairs * p2, int verb)
 {
     char * value;
     int    lverb = verb;        /* possibly override passed verb */
-    int    c, len, diffs = 0;
+    int    c, diffs = 0;
 
     if( G.verb > lverb ) lverb = G.verb;
 
@@ -3113,7 +3616,6 @@ int gifti_compare_nvpairs(const nvpairs * p1, const nvpairs * p2, int verb)
 
     /* search for mis-matches or non-existence from list 1 into list 2  */
     /* assume Names are unique (each that is not will show a mis-match) */
-    len = p1->length < p2->length ? p1->length : p2->length;
     for( c = 0; c < p1->length; c++ ) {
         if( ! p1->value[c] ) continue;  /* skip anything that doesn't exist */
         value = gifti_get_meta_value(p2, p1->name[c]);
@@ -3183,7 +3685,7 @@ static int compare_labeltables(const giiLabelTable *t1, const giiLabelTable *t2,
                                int verb, int approx)
 {
     int lverb = verb;        /* possibly override passed verb */
-    int c, roff, offset, diffs = 0;
+    int c, offset, diffs = 0;
 
     if( G.verb > lverb ) lverb = G.verb;
 
@@ -3221,7 +3723,6 @@ static int compare_labeltables(const giiLabelTable *t1, const giiLabelTable *t2,
     }
 
     /* walk through list to compare labels */
-    roff = 0;
     for( c = 0; c < t1->length; c++ ) {
         if( gifti_strdiff(t1->label[c], t2->label[c]) ) {
             if(lverb>2)printf("-- labeltable Label diff at index %d\n", c);
@@ -3354,7 +3855,8 @@ long long gifti_compare_raw_data(const void * p1, const void * p2,
 
 /* make a local definition for this symmetric fractional difference */
 #undef GIFTI_SFD
-#define GIFTI_SFD(a,b) (fabs((double)a-(double)b)/(fabs((double)a)+fabs((double)b)))
+#define GIFTI_SFD(a,b) (fabs((double)(a)-(double)(b)) \
+                             / (fabs((double)(a))+fabs((double)(b))))
 
 /*---------------------------------------------------------------------*/
 /*! approximate comparison of raw data, returing the first location difference
@@ -3378,7 +3880,7 @@ long long gifti_compare_raw_data(const void * p1, const void * p2,
  *
  * return offset index, so that < 0 (-1)  means no difference
  *
- * (return -1 if the pointers differ in whether they are set) 
+ * (return -1 if the pointers differ in whether they are set)
 *//*-------------------------------------------------------------------*/
 long long gifti_approx_diff_offset(const void * p1, const void * p2,
                                    long long length, int ni_type, double limit)
@@ -3878,7 +4380,7 @@ gifti_image * gifti_create_image( int numDA, int intent, int dtype, int ndim,
     if( !errs && alloc_data ) errs += gifti_alloc_DA_data(gim, NULL, 0);
 
     if( errs ) {  /* then fail out */
-        gifti_free_image(gim);      
+        gifti_free_image(gim);
         return NULL;
     }
 
@@ -4090,7 +4592,7 @@ int gifti_clear_gifti_image(gifti_image * gim)
     if( G.verb > 5 ) fprintf(stderr,"-- clearing gifti_image\n");
 
     /* set the version and clear all pointers */
-    memset(gim, 0, sizeof(gifti_image));
+    memset(gim, 0, sizeof(*gim));
 
     gim->version = NULL;
     gifti_clear_nvpairs(&gim->meta);
@@ -4307,7 +4809,7 @@ int gifti_valid_gifti_image( gifti_image * gim, int whine )
 /*! return whether data exists
  *
  *  - darray, each darray[i] and darray[i]->data must be set
- *  
+ *
  *  return 1 if true, 0 otherwise
 *//*-------------------------------------------------------------------*/
 int gifti_image_has_data(const gifti_image * gim)
@@ -4331,7 +4833,7 @@ int gifti_image_has_data(const gifti_image * gim)
  *  Allocate and copy all contents of the gifti_image structure and
  *  sub-structures.  If copy_data is not set, all data pointers within
  *  DataArray elements will be left as NULL.
- *  
+ *
  *  return a pointer to the newly allocated structure
 *//*-------------------------------------------------------------------*/
 gifti_image * gifti_copy_gifti_image(const gifti_image * gold, int copy_data)
