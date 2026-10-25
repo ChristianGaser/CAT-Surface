@@ -770,6 +770,9 @@ euler_characteristic(polygons_struct *polygons, int verbose)
 
     n_edges = count_edges(polygons, n_neighbours, neighbours, verbose);
 
+    delete_polygon_point_neighbours(polygons, n_neighbours,
+                    neighbours, NULL, NULL);
+
     return(polygons->n_items + polygons->n_points - n_edges);
 }
 

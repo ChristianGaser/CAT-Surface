@@ -850,6 +850,43 @@ precut_bridged_sulci(unsigned short *out, const unsigned short *base,
     return n_cut;
 }
 
+/*
+ * Replace a freshly extracted isosurface by its largest component, triangulated.
+ *
+ * separate_polygons() returns the component as a new object, and
+ * triangulate_polygons() builds the triangles in place of the old mesh: it
+ * starts with a struct copy, which would lose the old mesh's arrays, and the
+ * result takes over the component's points and normals.  Free the old mesh
+ * first and the component afterwards, minus what the result now owns -- the
+ * three structures used to leak about 100 MB per call on a real hemisphere.
+ */
+static void
+keep_largest_triangulated_component(polygons_struct *polygons)
+{
+    object_struct **object2;
+    polygons_struct *component;
+    int n_out;
+
+    n_out = separate_polygons(polygons, -1, &object2);
+    if (n_out < 1)
+        return;
+    delete_polygons(polygons);
+    component = get_polygons_ptr(object2[0]);
+    triangulate_polygons(component, polygons);
+
+    /* what else the struct copy shared belongs to the old faces */
+    component->points = NULL;
+    component->normals = NULL;
+    component->n_points = 0;
+    if (polygons->neighbours == component->neighbours)
+        polygons->neighbours = NULL;
+    if (polygons->bintree == component->bintree)
+        polygons->bintree = NULL;
+    if (polygons->visibilities == component->visibilities)
+        polygons->visibilities = NULL;
+    delete_object_list(n_out, object2);
+}
+
 /**
  * \brief Extract brain surface mesh with advanced preprocessing and topology correction.
  *
@@ -899,7 +936,6 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     double voxelsize[N_DIMENSIONS];
     double best_dist;
     int dims[MAX_DIMENSIONS], i, k, nvol, count_change = 0, best_change_values;
-    object_struct **object2;
     Marching_cubes_methods method = (Marching_cubes_methods)1;
 
     mat44 nii_mat = nii_ptr->sto_xyz;
@@ -1263,6 +1299,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
 
     object_struct *object = create_object(POLYGONS);
     polygons_struct *polygons = get_polygons_ptr(object);
+    initialize_polygons(polygons, WHITE, NULL);
 
     /* Find optimal dist-parameter for open/close to minimize the number of voxel that
        have to be changed during topology correction */
@@ -1511,13 +1548,15 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         for (i = 0; i < nvol; i++)
             vol_float[i] = (float)g0->output[i];
 
+        /* the previous iteration's mesh: extract_isosurface() only
+           re-initializes the struct */
+        delete_polygons(polygons);
         extract_isosurface(vol_float, dims, 0.0, -1.0, nii_mat, method, FALSE,
                            min_threshold, min_threshold, 0.0, -1.0, polygons, verbose);
 
         compute_polygon_normals(polygons);
         check_polygons_neighbours_computed(polygons);
-        int n_out = separate_polygons(polygons, -1, &object2);
-        triangulate_polygons(get_polygons_ptr(object2[0]), polygons);
+        keep_largest_triangulated_component(polygons);
 
         EC = euler_characteristic(polygons, verbose);
         count++;
@@ -1551,6 +1590,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     free(topo_sheetness);
     free(vol_pre);
     free(vol_fill);
+    genus0destruct(g0);
 
     return object;
 }
@@ -1578,7 +1618,6 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
     double voxelsize[N_DIMENSIONS];
     double best_dist;
     int dims[MAX_DIMENSIONS], i, k, nvol;
-    object_struct **object2;
     Marching_cubes_methods method = (Marching_cubes_methods)1;
 
     mat44 nii_mat = nii_ptr->sto_xyz;
@@ -1594,7 +1633,6 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
     /* Memory allocation */
     float *vol_float = (float *)malloc(nvol * sizeof(float));
     unsigned short *vol_uint16 = (unsigned short *)malloc(nvol * sizeof(unsigned short));
-    unsigned char *vol_uint8 = (unsigned char *)malloc(nvol * sizeof(unsigned char));
 
     if (!vol_float || !vol_uint16)
     {
@@ -1641,7 +1679,12 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
     g0->alt_contour_value = 1;
 
     if (genus0(g0))
+    {
+        free(vol_uint16);
+        free(vol_float);
+        genus0destruct(g0);
         return (NULL); /* check for error */
+    }
 
     keep_largest_cluster(g0->output, min_threshold, dims, DT_UINT16, 0, 1, 18);
 
@@ -1650,14 +1693,14 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
 
     object_struct *object = create_object(POLYGONS);
     polygons_struct *polygons = get_polygons_ptr(object);
+    initialize_polygons(polygons, WHITE, NULL);
 
     extract_isosurface(vol_float, dims, 0.0, -1.0, nii_mat, method, FALSE,
                        min_threshold, min_threshold, 0.0, -1.0, polygons, verbose);
 
     compute_polygon_normals(polygons);
     check_polygons_neighbours_computed(polygons);
-    int n_out = separate_polygons(polygons, -1, &object2);
-    triangulate_polygons(get_polygons_ptr(object2[0]), polygons);
+    keep_largest_triangulated_component(polygons);
 
     int EC = euler_characteristic(polygons, verbose);
     if (verbose)
@@ -1669,6 +1712,7 @@ object_struct *apply_marching_cubes_fast(float *input_float, nifti_image *nii_pt
 
     free(vol_uint16);
     free(vol_float);
+    genus0destruct(g0);
 
     return object;
 }
