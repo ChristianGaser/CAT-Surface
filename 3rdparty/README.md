@@ -14,7 +14,7 @@ downloads are needed during compilation.
 | **gifticlib** | GIFTI I/O library | Public Domain | [NITRC](http://www.nitrc.org/projects/gifti) |
 | **fftw** | Library for computing the discrete Fourier transform (DFT)  | GPL/FFTW License | [FFTW](https://fftw.org/) |
 | **zlib** | Compression library (version 1.3.2, 2026) | zlib License | [zlib.net](https://zlib.net/) |
-| **expat** | XML parsing library (version 2.1.0) | MIT License | [libexpat](https://libexpat.github.io/) |
+| **expat** | XML parsing library (version 2.9.0, 2026) | MIT License | [libexpat](https://libexpat.github.io/) |
 | **nii2mesh** | Mesh simplification (quadric decimation) | BSD-2-Clause | [neurolabusc/nii2mesh](https://github.com/neurolabusc/nii2mesh) |
 | **s2kit10** | Spherical harmonics transform | GPL-2+ | Kostelec & Rockmore |
 | **dartel** | Diffeomorphic registration (no longer bundled, see below) | GPL-2+ (SPM) | John Ashburner |
@@ -73,6 +73,10 @@ The following libraries have been modified from their original versions:
 - **dartel**: Added more OpenMP support (now in `../deprecated/`).
 - **zlib**: 1.3.2 as released, except that `zconf.h` includes `unistd.h` on
   every non-Windows system, as zlib's own `./configure` would set it.
+- **expat**: the `lib/` sources of 2.9.0 as released, with a hand-written
+  `expat_config.h` in place of the one expat's configure generates (hash salt
+  from `/dev/urandom` on POSIX systems, `rand_s()` on Windows); the unused
+  `xmlwf` tool is not vendored.
 
 ## References
 
