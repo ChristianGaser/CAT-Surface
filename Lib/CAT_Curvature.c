@@ -323,6 +323,7 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
         values = compute_depth_potential(polygons, alpha);
         for (pidx = 0; pidx < polygons->n_points; pidx++)
             curvatures[pidx] = values[pidx];
+        free(values);
         /* sulcal depth like estimator (single-step smoothing approximation) */
     }
     else if (curvtype == 5)
@@ -341,6 +342,7 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
                              (Point_y(polygonsIn->points[p]) - Point_y(polygons->points[p])) * Point_y(polygonsIn->normals[p]) +
                              (Point_z(polygonsIn->points[p]) - Point_z(polygons->points[p])) * Point_z(polygonsIn->normals[p]));
         }
+        delete_polygons(polygonsIn);
         free(polygonsIn);
     }
     else

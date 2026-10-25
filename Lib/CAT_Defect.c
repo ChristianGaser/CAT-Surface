@@ -512,9 +512,14 @@ void bisect_defects(polygons_struct *surface, polygons_struct *sphere, int *defe
     }
     free(pts);
     free(depth);
+    delete_object_list(1, objects);
 
     if (detect_euler)
+    {
         free(polydefects);
+        delete_polygon_point_neighbours(sphere, n_neighbours, neighbours,
+                                        NULL, NULL);
+    }
 }
 
 /**

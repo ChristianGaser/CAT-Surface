@@ -87,6 +87,9 @@ The following libraries have been modified from their original versions:
   except that `gifti_io.h` includes `nifti1_io.h`; upstream defaults to
   `nifti2_io.h`, which is not vendored. The test and tool programs are not
   vendored.
+- **nii2mesh**: `quadric.c` rejects edge collapses that would change the
+  topology of the mesh (a link-condition check), and allocates the neighbour
+  sets of that check with `malloc` instead of `alloca`.
 
 ## References
 
