@@ -450,7 +450,7 @@ def smooth_mesh(vertices, faces, int iterations=10,
 # Sphere mapping  (mirrors CAT_Surf2Sphere)
 # ===================================================================
 def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False,
-                   bint relax=False):
+                   bint relax=False, bint remove_folds=True):
     """
     Map a surface to a sphere using iterative inflation.
 
@@ -467,6 +467,13 @@ def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False,
         distances between neighbours are pulled towards their distances on
         the input surface, with the gradient averaged over 1024 down to 0
         neighbour iterations.  Needs ``stop_at`` >= 5.  Default False.
+    remove_folds : bool
+        Remove the folded (negative-area) triangles of the sphere as the last
+        step, once the surface is a sphere (``stop_at`` >= 5): every cluster
+        of them is re-embedded on a disk of the mesh around it
+        (``CAT_SphereRemoveFolds``), after the relaxation if ``relax`` is
+        set.  A sphere without folds is not changed.  ``False`` is
+        ``CAT_Surf2Sphere -keep-folds``.  Default True.
 
     Returns
     -------
@@ -476,9 +483,10 @@ def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False,
     cdef PolygonsMesh mesh = _ensure_mesh(vertices, faces)
     cdef PolygonsMesh original
     cdef C.CAT_SphereRelaxOpts opts
-    if relax:
-        if stop_at < 5:
-            raise ValueError("relax needs a sphere: stop_at must be >= 5")
+    cdef bint unfold = remove_folds and stop_at >= 5
+    if relax and stop_at < 5:
+        raise ValueError("relax needs a sphere: stop_at must be >= 5")
+    if relax or unfold:
         original = _ensure_mesh(vertices, faces)
     C.surf_to_sphere(mesh.ptr(), stop_at, 1 if verbose else 0)
     if relax:
@@ -486,7 +494,48 @@ def surf_to_sphere(vertices, faces, int stop_at=5, bint verbose=False,
         opts.verbose = 1 if verbose else 0
         if C.CAT_SphereRelaxMetric(original.ptr(), mesh.ptr(), &opts) != 0:
             raise RuntimeError("CAT_SphereRelaxMetric failed")
+    if unfold:
+        if C.CAT_SphereRemoveFolds(original.ptr(), mesh.ptr(), 1 if verbose else 0) < 0:
+            raise RuntimeError("CAT_SphereRemoveFolds failed")
     return polygons_to_arrays(mesh)
+
+
+def sphere_remove_folds(vertices, faces, sphere_vertices, bint verbose=False):
+    """
+    Remove the folded (negative-area) triangles of a spherical map.
+
+    Every cluster of folded triangles -- or of triangles so thin that a
+    single-precision write could flip them -- is re-embedded on a disk of the
+    mesh around it with the rim of the disk fixed, by minimising the barrier
+    energy of Garanzha et al. (2021) against the shape of the triangles on the
+    surface (``CAT_SphereRemoveFolds``; ``surf_to_sphere`` runs it by default).
+    A sphere without folds is returned unchanged.
+
+    Parameters
+    ----------
+    vertices        : array_like, shape (V, 3)
+        The surface the sphere maps (e.g. the central surface).
+    faces           : array_like, shape (F, 3)
+        Triangles of both meshes.
+    sphere_vertices : array_like, shape (V, 3)
+        The spherical map.
+    verbose         : bool
+
+    Returns
+    -------
+    sphere_vertices : ndarray, shape (V, 3), float64
+        The map without folds.
+    n_left          : int
+        Folded or degenerate triangles that could not be removed (0: none).
+    """
+    cdef PolygonsMesh surface = _ensure_mesh(vertices, faces)
+    cdef PolygonsMesh sphere = _ensure_mesh(sphere_vertices, faces)
+    cdef int left = C.CAT_SphereRemoveFolds(surface.ptr(), sphere.ptr(),
+                                            1 if verbose else 0)
+    if left < 0:
+        raise RuntimeError("CAT_SphereRemoveFolds failed")
+    sv, _ = polygons_to_arrays(sphere)
+    return sv, left
 
 
 # ===================================================================

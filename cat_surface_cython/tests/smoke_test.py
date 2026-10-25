@@ -398,6 +398,46 @@ def test_surf_to_sphere_relax():
     check("relax=True before the sphere stage is refused", raised)
 
 
+def test_sphere_remove_folds():
+    section("sphere_remove_folds / surf_to_sphere(remove_folds)")
+
+    # a regular sphere as surface, mapped with a radial crease in a polar cap:
+    # within 30 deg the polar angle becomes t + (cap/pi) sin(2 pi t / cap),
+    # which runs backwards in the middle third, so that band is mirrored
+    v, f = _icosphere(5, 100.0)
+    cap = np.radians(30.0)
+    theta = np.arccos(np.clip(v[:, 2] / 100.0, -1, 1))
+    phi = np.arctan2(v[:, 1], v[:, 0])
+    t = np.where(theta < cap, theta + cap / np.pi * np.sin(2 * np.pi * theta / cap), theta)
+    creased = 100.0 * np.c_[np.sin(t) * np.cos(phi), np.sin(t) * np.sin(phi), np.cos(t)]
+
+    def folds(sv):
+        a = np.cross(sv[f[:, 1]] - sv[f[:, 0]], sv[f[:, 2]] - sv[f[:, 0]])
+        return int(((a * (sv[f[:, 0]] + sv[f[:, 1]] + sv[f[:, 2]])).sum(1) < 0).sum())
+
+    fixed, left = cat_surf.sphere_remove_folds(v, f, creased)
+    fixed = np.asarray(fixed)
+    outside = theta > 2 * cap
+    check("creased map starts folded", folds(creased) > 0, f"{folds(creased)} folds")
+    check("folds removed", left == 0 and folds(fixed) == 0,
+          f"{left} left, {folds(fixed)} folds")
+    check("nothing outside the creased area moves",
+          np.allclose(fixed[outside], creased[outside], atol=1e-4))
+    check("map stays on the sphere",
+          np.abs(np.linalg.norm(fixed, axis=1) - 100.0).max() < 1e-2)
+    same, left = cat_surf.sphere_remove_folds(v, f, v)
+    check("fold-free map is returned unchanged",
+          left == 0 and np.allclose(np.asarray(same), v, atol=1e-4))
+
+    # surf_to_sphere runs it by default; without folds nothing changes
+    e, ef = _icosphere(4, 1.0)
+    e = e * np.array([80.0, 45.0, 30.0])
+    plain, _ = cat_surf.surf_to_sphere(e, ef, stop_at=6, remove_folds=False)
+    default, _ = cat_surf.surf_to_sphere(e, ef, stop_at=6)
+    check("fold-free sphere identical with and without remove_folds",
+          np.array_equal(np.asarray(plain), np.asarray(default)))
+
+
 def test_fix_self_intersect_reference():
     section("Self-intersection repair with a reference")
 
@@ -887,6 +927,7 @@ def main():
                  test_open_ppm_sulci, test_marching_cubes_sulci_kwargs, test_sulcal_barrier,
                  test_barrier_gate_scales_with_thickness, test_barrier_reference,
                  test_surf_to_sphere_relax,
+                 test_sphere_remove_folds,
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,

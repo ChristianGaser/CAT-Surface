@@ -752,6 +752,14 @@ cdef extern from "CAT_SphereRelax.h":
 
 
 # ---------------------------------------------------------------------------
+# CAT_SphereUntangle.h — removal of the folds of a spherical map
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_SphereUntangle.h":
+    int  CAT_SphereRemoveFolds(polygons_struct *surface, polygons_struct *sphere,
+                               int verbose)
+
+
+# ---------------------------------------------------------------------------
 # CAT_Realign.h — Head-motion correction (mcflirt replacement, CAT_VolRealign)
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Realign.h":

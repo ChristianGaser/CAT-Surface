@@ -931,10 +931,8 @@ settle which to trust.
 hemispheres (up to 2095, in a few clusters of hundreds; the meshes are consistently oriented,
 manifold and free of self-intersections; sub-01's sphere is fold-free), the same as T1Prep 0.7.7
 shipped.  They lie where registrations failed: inferior temporal 16%, lingual 12%, pericalcarine
-11%, entorhinal 10%, insula 8%, medial orbitofrontal 7%.  `stop_at` 10 removes 60% of them,
-`-relax` none (it only keeps from adding folds), and Laplacian relaxation of a growing region
-around them makes them worse.  FreeSurfer removes negative area before its distance
-optimisation; that step is still missing here.
+11%, entorhinal 10%, insula 8%, medial orbitofrontal 7%.  `stop_at` 10 removes 60% of them and
+`-relax` none (it only keeps from adding folds); they are removed now, see *Fold removal* below.
 
 The FreeSurfer-faithful relaxation earlier on the manual-label set (refusing folds, weight 100):
 regional area SD 0.65 -> 0.34, triangles off by more than a factor of 2: 27% -> 7% (FreeSurfer's
@@ -955,9 +953,97 @@ medial wall; the 164k instead of the 32k template (+0.003).
 The relaxation minimises distance distortion, not area distortion: on a brain the two fall
 together, on an elongated ellipsoid area distortion rises (the binding's smoke test checks the
 distance).  It is off by default, so `CAT_Surf2Sphere` and everything inside the library that
-inflates (gyrification, convex hull) are unchanged.  Spherical Demons re-centres both spheres on
+inflates (gyrification, convex hull) are unchanged by it; the fold removal below is on by
+default in `CAT_Surf2Sphere` and `cat_surf.surf_to_sphere`, but not inside the library, which
+calls `surf_to_sphere()` directly.  Spherical Demons re-centres both spheres on
 their vertex centroid, which is off-centre wherever vertices are spread unevenly: 0.2 mm on the
 32k template (a 0.1 deg shift of its frame), 1.8 mm on a T1Prep sphere; left as is.
+
+### Fold removal (`CAT_SphereRemoveFolds`, `Include/CAT_SphereUntangle.h`)
+
+`CAT_Surf2Sphere` removes the folds by default once the surface is a sphere (`stop_at` >= 5),
+as the last step, after `-relax` if given; `-keep-folds` skips it (`remove_folds=False` in
+`cat_surf.surf_to_sphere`; `cat_surf.sphere_remove_folds` runs it on its own).  A sphere without
+folds comes back bit for bit, so only defective spheres change.
+
+**The folds sit where the inflation crushes the map**, often by orders of magnitude: a cluster of
+657 vertices within 2.6 deg on Schneider sub-02 rh, a patch with det J ~ 1e-7 on sbg52 lh.  That
+is why everything local failed, measured on the worst hemisphere (2095 folded triangles at
+`stop_at` 6, 1385 after `-relax`):
+
+- FreeSurfer's negative-area removal (`mrisRemoveNegativeArea`: the area term alone, averages
+  1024 -> 0, passes with the distance weight raised 1e-6 -> 0.1) stalls at ~330: the force of an
+  area term on a vertex scales with the opposite edge, which is 100x shorter in a crushed region.
+  In C, inside the relaxation, it took 230 s per hemisphere and still left 256.
+- Scale-free re-embedding -- FreeSurfer's final `MRISremoveOverlapWithSmoothing` (a Laplacian on
+  the vertices of negative triangles) or Tutte's embedding of a region -- holds a rim that lies in
+  the crushed region and leaves the inside crushed into slivers: 1385 -> 9 negative, but 1134
+  zero-length edges, and 47 negative again once written in single precision.
+- Local LP untangling (Freitag & Plassmann: each vertex to the point that maximises the smallest
+  relative area of its star) cannot unfold a mirrored region from inside, where every link runs
+  clockwise: 1385 -> 2049 negative.
+- The metric relaxation refolds an untangled sphere (35 -> 3869 on the same hemisphere): its soft
+  area term costs a crushed triangle almost nothing.
+
+What works is the barrier energy of Garanzha et al. (2021, "Foldover-free maps in 50 lines of
+code") on a disk of the mesh.  A triangle is bad when its signed height (2 area / longest edge) is
+below 1e-6 of the radius -- folded, or thin enough for a float32 write to flip it.  Bad triangles
+sharing a vertex form a cluster; it is grown by 2, 4, 8, 16 or 32 rings, enclosed holes and
+enclosed vertices are added, the ring outside stays fixed, and in the gnomonic plane of the patch
+E = sum A_ref [(1 - theta) |J|^2 + theta (det^2 J + 1)] / chi(det J, eps), J against the cortical
+triangle (degenerate ones blended towards an equilateral one), theta 0.5, is minimised by L-BFGS
+while eps drops by the paper's rule until no triangle is folded.  A patch is accepted only if
+every triangle it touches ends up good.  Three details decide whether it works, each measured:
+
+1. **The rim must be a simple polygon in the plane**, or no fold-free embedding exists: the
+   657-vertex cluster had a rim crossing itself 4 times at 4 rings.  Such patches are skipped.
+2. **Start from Tutte's embedding of the patch**, not from the tangled map: from the map no patch
+   size succeeded within 40 stages; from Tutte 16 rings succeeded in 18.
+3. **Normalise the reference to the area inside the rim and start a fold-free Tutte embedding
+   with eps = 0.1 min det J.**  In a crushed patch det J is ~1e-7, below the paper's start of
+   eps = 1e-6; the barrier then cannot tell a fold from a thin triangle, and the minimisation
+   folded a fold-free start (sbg52 lh: 261 bad triangles left; with both, 0 in 0.3 s).
+
+On the 36 T1Prep 0.7.7 hemispheres every sphere ends fold-free, with `stop_at` 6 alone and with
+`-relax` (24641 bad triangles over the 72 spheres), also after a float32 write.  It costs 0.1-3 s
+per hemisphere (0.01 s to find that there is nothing to do); `CAT_Surf2Sphere` takes 0.2-1.3 s
+longer (MacBook Air M2: 11.7 -> 12.8 s at `stop_at` 6 and 20.9 -> 22.2 s with `-relax` on the
+worst hemisphere, 9.2 -> 9.3 s on a fold-free one).  1.3% of the vertices move on the
+worst hemisphere, median 2.9 deg, and the largest moves (20-33 deg) are flaps folded across the
+sphere, whose vertices sat 10x farther from their own neighbours than usual.  Within a patch the
+slivers become small, well-shaped triangles (SD of log2 area ratio 8.0 -> 2.4 there), but the
+patch as a whole stays as compressed as its rim -- the removal untangles, it does not
+decompress.
+
+**It does not make the registration measurably better, and is not meant to.**  The folds sit
+where the map is crushed, so after Spherical Demons few template vertices sample them: over the
+28 relaxed hemispheres with folds a median of 44 fsaverage6 vertices (0.1%) fall into the
+repaired regions dilated by four rings, 8 without `-relax`.  The registered spheres agree with
+those from the folded input within 0.001 deg (median; at most 1.9% of a hemisphere's vertices by
+more than 1 deg); the correlation of the mapped sulc with fsaverage's `avg_sulc` changes by
++0.0001 (worst -0.0002), and inside the repaired regions by -0.014 against `avg_sulc` and -0.008
+against the leave-one-out mean of the other hemispheres (better in 9 and 16 of 28) -- noise.
+What it buys is a valid map: no part of the sphere is covered twice, so point location,
+barycentric resampling and area measures on the sphere are well defined everywhere.
+
+**Removing the folds before `-relax` as well was measured and is not done.**  A tangled region
+cannot be pulled open, and on the distortion the order removal, relax, removal wins (36
+hemispheres, weighted by cortical area, mean (worst)):
+
+| sphere | folded | SD log2 area | area < 0.1x | area < 0.01x | mean \|log2 edge\| |
+| --- | --- | --- | --- | --- | --- |
+| `stop_at` 6 | 319 (2095) | 1.026 (2.069) | 0.72% (3.05) | 0.32% (2.31) | 0.456 (0.566) |
+| + fold removal | 0 | 0.939 (1.470) | 0.72% (3.06) | 0.26% (1.86) | 0.453 (0.551) |
+| `-relax` alone | 247 (1866) | 0.522 (1.475) | 0.080% (1.04) | 0.055% (0.75) | 0.296 (0.368) |
+| **relax, then removal** | **0** | **0.434 (0.761)** | **0.079% (1.11)** | **0.019% (0.26)** | **0.294 (0.375)** |
+| removal, relax, removal | 0 | 0.430 (0.671) | 0.061% (0.73) | 0.016% (0.14) | 0.292 (0.360) |
+
+But it changes the relaxation everywhere -- the registered spheres move 0.3 deg (median; up to
+47% of a hemisphere's vertices by more than 1 deg) -- and inside the repaired regions the sulc
+correlation fell from 0.274 to 0.203 against `avg_sulc` and from 0.296 to 0.224 against the
+leave-one-out mean (better in 12 and 11 of 28).  The relaxation also folds the untangled sphere
+again (369 -> 236 bad triangles on average, more than it started with on some hemispheres:
+BUSS02 lh 123 -> 147, yv98 lh 307 -> 399).
 
 ## Head-motion correction (`CAT_VolRealign`, an mcflirt replacement)
 

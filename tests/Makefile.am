@@ -10,8 +10,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
 # Included by the tests rather than compiled on their own.
 EXTRA_DIST = minunit.h math_subset.c
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle
 
 test_math_SOURCES = test_math.c
 
@@ -60,6 +60,10 @@ test_separate_LDADD = $(top_builddir)/libCAT.la -lm
 test_sphere_relax_SOURCES = test_sphere_relax.c
 
 test_sphere_relax_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_sphere_untangle_SOURCES = test_sphere_untangle.c
+
+test_sphere_untangle_LDADD = $(top_builddir)/libCAT.la -lm
 
 test_intersect_SOURCES = test_intersect.c
 
