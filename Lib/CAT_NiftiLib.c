@@ -396,6 +396,33 @@ static void set_volumes(nifti_image *nii_ptr, int nt)
 }
 
 /**
+ * \brief Set the image and header file names of an image about to be written.
+ *
+ * The names are allocated to fit, so an output path of any length works; a
+ * fixed 1024-byte buffer used to overflow on longer paths.
+ *
+ * \param nim       (in/out) image whose iname and fname are set
+ * \param basename  (in)     output file name without its extension
+ * \param extension (in)     extension of the image file (".nii", ".img", ...)
+ */
+static void set_output_filenames(nifti_image *nim, const char *basename,
+                                 const char *extension)
+{
+    const char *hdr_extension = extension;
+    size_t len;
+
+    if ((nim->nifti_type == 0) || (nim->nifti_type == 2))
+        hdr_extension = ".hdr";
+
+    len = strlen(basename) + strlen(extension) + 1;
+    nim->iname = malloc(len);
+    (void)snprintf(nim->iname, len, "%s%s", basename, extension);
+    len = strlen(basename) + strlen(hdr_extension) + 1;
+    nim->fname = malloc(len);
+    (void)snprintf(nim->fname, len, "%s%s", basename, hdr_extension);
+}
+
+/**
  * \brief Write double-precision volume data to NIfTI file with type conversion.
  *
  * Exports a 3D volume array (stored as linear double array) to NIfTI format.
@@ -417,7 +444,7 @@ static void set_volumes(nifti_image *nii_ptr, int nt)
 int write_nifti_double(const char *output_filename, double image[], int data_type, double slope, int dim[], double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
-    char *extension, buffer[1024];
+    char *extension;
     int i;
     double img_range[2], dt_range[2], val;
 
@@ -704,19 +731,7 @@ int write_nifti_double(const char *output_filename, double image[], int data_typ
         break;
     }
 
-    (void)sprintf(buffer, "%s%s", output_filename, extension);
-
-    nii_ptr->iname = NULL;
-    nii_ptr->iname = malloc(strlen(buffer) + 8);
-    strcpy(nii_ptr->iname, buffer);
-
-    if ((nii_ptr->nifti_type == 0) || (nii_ptr->nifti_type == 2))
-    {
-        (void)sprintf(buffer, "%s%s", output_filename, ".hdr");
-    }
-    nii_ptr->fname = NULL;
-    nii_ptr->fname = malloc(strlen(buffer) + 8);
-    strcpy(nii_ptr->fname, buffer);
+    set_output_filenames(nii_ptr, output_filename, extension);
 
     nifti_image_write(nii_ptr);
 
@@ -749,7 +764,7 @@ static int write_nifti_float_volumes(const char *output_filename, float image[],
                                      double vox[], nifti_image *in_ptr)
 {
     nifti_image *nii_ptr, nii_rec;
-    char *extension, buffer[1024];
+    char *extension;
     size_t i;
     int borrowed = 0;
     double img_range[2], dt_range[2], val;
@@ -1028,17 +1043,7 @@ static int write_nifti_float_volumes(const char *output_filename, float image[],
         break;
     }
 
-    (void)sprintf(buffer, "%s%s", output_filename, extension);
-
-    nii_ptr->iname = malloc(strlen(buffer) + 8);
-    strcpy(nii_ptr->iname, buffer);
-
-    if ((nii_ptr->nifti_type == 0) || (nii_ptr->nifti_type == 2))
-    {
-        (void)sprintf(buffer, "%s%s", output_filename, ".hdr");
-    }
-    nii_ptr->fname = malloc(strlen(buffer) + 8);
-    strcpy(nii_ptr->fname, buffer);
+    set_output_filenames(nii_ptr, output_filename, extension);
 
     nifti_image_write(nii_ptr);
 
