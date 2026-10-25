@@ -71,6 +71,8 @@ main(int argc, char *argv[])
 
     /* get convex hull */
     object_list = surface_get_convex_hull(polygons, sphere);
+    if (object_list == NULL)
+        exit(EXIT_FAILURE);
     convex = get_polygons_ptr(object_list[0]);
    
     if(output_graphics_any_format(output_surface_file, format, 1, 
