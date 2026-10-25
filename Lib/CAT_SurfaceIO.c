@@ -2877,11 +2877,10 @@ int read_annotation_table(char *file, int *n_array, int **out_array, int *n_labe
     {
         if (feof(fp))
         {
+            free(array);
             fclose(fp);
             fprintf(stderr, "Does not handle version %d\n", -count);
-            *n_array = n;
-            *out_array = array;
-            return (OK);
+            return (ERROR);
         }
         freadInt(fp); /* largest structure index + 1 */
     }

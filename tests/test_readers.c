@@ -166,8 +166,23 @@ static void
 test_annotation(void)
 {
     char file[] = "/tmp/test_readers.annot";
+    FILE *fp;
     int n_array, n_labels, *array = NULL;
     ATABLE *atable = NULL;
+
+    fp = fopen(file, "wb");
+    put_int(fp, 3);
+    put_int(fp, 0);
+    put_int(fp, 0x0a0b0c);
+    put_int(fp, 1);
+    put_int(fp, 0x0a0b0c);
+    put_int(fp, 2);
+    put_int(fp, 0x0a0b0c);
+    put_int(fp, 1);                 /* tag: a colour table follows */
+    fclose(fp);
+    MU_ASSERT("a colour-table tag without a count is an error",
+              read_annotation_table(file, &n_array, &array, &n_labels, &atable) == ERROR &&
+              array == NULL);
 
     write_annot(file, -1, 0, 0);
     MU_ASSERT("a negative vertex count is an error",
