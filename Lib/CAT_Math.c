@@ -443,7 +443,8 @@ static double select_kth_double(double *a, int lo, int hi, int k)
  * \param arr            (in)     double[n]; array to compute median from
  * \param n              (in)     array size
  * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
- * \return               The median value (or median of non-zero values if exclude_zeros=1)
+ * \return               The median value (or median of non-zero values if exclude_zeros=1);
+ *                       NaN if no finite value is left
  */
 double get_median_double(double *arr, int n, int exclude_zeros)
 {
@@ -472,13 +473,13 @@ double get_median_double(double *arr, int n, int exclude_zeros)
         copy[filtered_count++] = arr[i];
     }
 
-    // Check if we have valid data points left
+    // Nothing left after filtering: NaN, not the end of the process (this
+    // runs once per voxel in the local median, so it stays silent)
     if (filtered_count == 0)
     {
-        fprintf(stderr, "Error: No valid data points after filtering.\n");
         if (copy != small)
             free(copy);
-        exit(EXIT_FAILURE);
+        return NAN;
     }
 
     // Select the middle element instead of sorting everything
@@ -787,7 +788,8 @@ double get_masked_std_array_double(double *arr, int n, unsigned char *mask)
  *
  * \param data          (in)  array of n values
  * \param n             (in)  number of values
- * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param threshold     (out) the two thresholds, in the order of prctile; NaN
+ *                           if no finite value is left
  * \param prctile       (in)  the two percentiles, in 0..100
  * \param exclude_zeros (in)  if non-zero, zeros are ignored
  */
@@ -816,12 +818,13 @@ void get_prctile_double(double *data, int n, double threshold[2],
         }
     }
 
-    // Check if we have enough valid data points
+    // Nothing left after filtering: NaN thresholds, which compare false with
+    // every value, instead of ending the process
     if (filtered_count == 0)
     {
-        fprintf(stderr, "No valid data points after filtering.\n");
+        threshold[0] = threshold[1] = NAN;
         free(copy);
-        exit(EXIT_FAILURE);
+        return;
     }
 
     // Calculate indices using the formula: index = round((n - 1) * (P/100))
@@ -1228,7 +1231,8 @@ void clip_data(void *data, int n, double lower_limit, double upper_limit, int da
  *
  * \param data          (in)  array of n values of type datatype
  * \param n             (in)  number of values
- * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param threshold     (out) the two thresholds, in the order of prctile; NaN
+ *                           if no finite value is left
  * \param prctile       (in)  the two percentiles, in 0..100
  * \param exclude_zeros (in)  if non-zero, zeros are ignored
  * \param datatype      (in)  NIfTI datatype code of data (DT_FLOAT32, ...)

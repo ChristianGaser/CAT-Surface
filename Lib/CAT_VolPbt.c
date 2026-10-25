@@ -419,6 +419,27 @@ int CAT_VolComputePbt(
     if (mean_vx_size <= 0.0f)
         return -1;
 
+    /* The thickness is measured between the two boundaries, so a label map
+       without WM or without CSF has none; projection_based_thickness() used
+       to end the process there (it still does for its other caller). */
+    {
+        int n_wm = 0, n_csf = 0;
+
+        for (i = 0; i < nvox; i++)
+        {
+            if (src[i] >= GWM)
+                n_wm++;
+            if (src[i] <= CGM)
+                n_csf++;
+        }
+        if (n_wm == 0 || n_csf == 0)
+        {
+            fprintf(stderr, "CAT_VolComputePbt: the label map has no %s voxels.\n",
+                    n_wm == 0 ? "WM" : "CSF");
+            return -1;
+        }
+    }
+
     /* mm-defined constants expressed in the voxel units used internally */
     shrink = (float)(PBT_SHRINK_MM / mean_vx_size);
     gmt2_min = (float)(PBT_GMT2_MIN_MM / mean_vx_size);

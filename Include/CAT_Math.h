@@ -174,7 +174,8 @@ double get_mean_double(double *arr, int n, int exclude_zeros);
  * \param arr            (in)     double[n]; array to compute median from
  * \param n              (in)     array size
  * \param exclude_zeros  (in)     if non-zero, zero values are ignored in median calculation
- * \return               The median value (or median of non-zero values if exclude_zeros=1)
+ * \return               The median value (or median of non-zero values if exclude_zeros=1);
+ *                       NaN if no finite value is left
  */
 double get_median_double(double *arr, int n, int exclude_zeros);
 /**
@@ -283,7 +284,8 @@ double get_masked_std_array(void *data, int n, unsigned char *mask,
  *
  * \param data          (in)  array of n values
  * \param n             (in)  number of values
- * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param threshold     (out) the two thresholds, in the order of prctile; NaN
+ *                           if no finite value is left
  * \param prctile       (in)  the two percentiles, in 0..100
  * \param exclude_zeros (in)  if non-zero, zeros are ignored
  */
@@ -295,7 +297,8 @@ void get_prctile_double(double *data, int n, double threshold[2],
  *
  * \param data          (in)  array of n values of type datatype
  * \param n             (in)  number of values
- * \param threshold     (out) the two thresholds, in the order of prctile
+ * \param threshold     (out) the two thresholds, in the order of prctile; NaN
+ *                           if no finite value is left
  * \param prctile       (in)  the two percentiles, in 0..100
  * \param exclude_zeros (in)  if non-zero, zeros are ignored
  * \param datatype      (in)  NIfTI datatype code of data (DT_FLOAT32, ...)

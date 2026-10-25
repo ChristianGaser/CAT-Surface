@@ -12,6 +12,7 @@
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_SafeAlloc.h"
+#include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -296,6 +297,19 @@ file_size(FILE *fp)
     if (fseek(fp, pos, SEEK_SET) != 0)
         return -1;
     return size;
+}
+
+/* fopen() that reports a failure instead of ending the process: the readers
+   and writers return ERROR, so a caller -- the Python binding above all, which
+   runs in the user's interpreter -- can raise instead of dying with exit(1). */
+static FILE *
+fopen_reported(const char *path, const char *mode)
+{
+    FILE *fp = fopen(path, mode);
+
+    if (!fp)
+        fprintf(stderr, "Cannot open %s: %s\n", path, strerror(errno));
+    return fp;
 }
 
 /* Every face index must name one of the mesh's points.  The readers call
@@ -662,16 +676,18 @@ int input_oogl(char *file, File_formats *format, int *n_objects,
     Point point;
     object_struct *object;
 
-    /* prepare object and polygons */
     *n_objects = 0;
+    fp = fopen_reported(file, "rb");
+    if (!fp)
+        return (ERROR);
+    size = file_size(fp);
+
+    /* prepare object and polygons */
     object = create_object(POLYGONS);
     add_object_to_list(n_objects, object_list, object);
     polygons = get_polygons_ptr(object);
     initialize_polygons(polygons, WHITE, NULL);
     *format = ASCII_FORMAT;
-
-    fp = SAFE_FOPEN(file, "rb");
-    size = file_size(fp);
 
     if (fscanf(fp, "%999s", line) == 1 && !strcmp(line, "OFF"))
     {
@@ -780,7 +796,9 @@ int output_oogl(char *file, File_formats format, int n_objects,
     FILE *fp;
     polygons_struct *polygons;
 
-    fp = SAFE_FOPEN(file, "w");
+    fp = fopen_reported(file, "w");
+    if (!fp)
+        return (ERROR);
 
     polygons = get_polygons_ptr(object_list[0]);
 
@@ -891,7 +909,12 @@ int output_gifti(char *fname, File_formats format, int n_objects,
     FILE *fdat = NULL;
     if (use_extbin)
     {
-        fdat = SAFE_FOPEN(dat_fname, "wb");
+        fdat = fopen_reported(dat_fname, "wb");
+        if (!fdat)
+        {
+            gifti_free_image(image);
+            return -1;
+        }
     }
 
     /* ============================================================ */
@@ -1301,7 +1324,9 @@ int output_gifti_curv(char *fname, int nvertices, double *data)
             strcat(dat_fname, ".dat");
 
         remove(dat_fname); /* start clean */
-        fdat = SAFE_FOPEN(dat_fname, "wb");
+        fdat = fopen_reported(dat_fname, "wb");
+        if (!fdat)
+            return -1;
     }
 
     gifti_image *image = (gifti_image *)calloc(1, sizeof(gifti_image));
@@ -2200,7 +2225,9 @@ int output_freesurfer(char *file, File_formats format, int n_objects,
     unsigned char buffer;
     polygons_struct *polygons;
 
-    fp = SAFE_FOPEN(file, "wb");
+    fp = fopen_reported(file, "wb");
+    if (!fp)
+        return (ERROR);
 
     polygons = get_polygons_ptr(object_list[0]);
 
@@ -2243,7 +2270,9 @@ int output_freesurfer_curv(char *fname, int nvertices, double *data)
     double f;
     int k;
 
-    fp = SAFE_FOPEN(fname, "wb");
+    fp = fopen_reported(fname, "wb");
+    if (!fp)
+        return (ERROR);
     fwrite3(NEW_VERSION_MAGIC_NUMBER, fp);
     fwriteInt(nvertices, fp);
     fwriteInt(0, fp);
@@ -2280,15 +2309,17 @@ int input_freesurfer(char *file, File_formats *format, int *n_objects,
     Point point;
     object_struct *object;
 
-    /* prepare object and polygons */
     *n_objects = 0;
+    fp = fopen_reported(file, "rb");
+    if (!fp)
+        return (ERROR);
+
+    /* prepare object and polygons */
     object = create_object(POLYGONS);
     add_object_to_list(n_objects, object_list, object);
     polygons = get_polygons_ptr(object);
     initialize_polygons(polygons, WHITE, NULL);
     *format = ASCII_FORMAT;
-
-    fp = SAFE_FOPEN(file, "rb");
 
     /* read magic number for checking filetype */
     fread3(&magic, fp);
@@ -2393,7 +2424,9 @@ int input_freesurfer_curv(char *file, int *vnum, double **input_values)
 
     *vnum = 0;
 
-    fp = SAFE_FOPEN(file, "rb");
+    fp = fopen_reported(file, "rb");
+    if (!fp)
+        return (ERROR);
 
     /* read magic number for checking filetype */
     fread3(&magic, fp);
@@ -2445,7 +2478,12 @@ read_pgm(char *file, int *nx, int *ny)
     unsigned char *data_char;
     double *data;
 
-    fp = SAFE_FOPEN(file, "rb");
+    fp = fopen_reported(file, "rb");
+    if (!fp)
+    {
+        *nx = *ny = 0;
+        return (NULL);
+    }
     file_bytes = file_size(fp);
 
     /* read PGM header */
@@ -2539,7 +2577,12 @@ int write_pgm(char *file, double *data, int nx, int ny)
     for (i = 0; i < nx * ny; i++)
         data_char[i] = (char)ROUND((data[i] - offset) * scale);
 
-    fp = SAFE_FOPEN(file, "wb");
+    fp = fopen_reported(file, "wb");
+    if (!fp)
+    {
+        FREE(data_char);
+        return (ERROR);
+    }
 
     /* write PGM header */
     fprintf(fp, "P5\n");
@@ -2568,7 +2611,9 @@ input_txt_values(
     Status status;
     double value;
 
-    fp = SAFE_FOPEN(filename, "r");
+    fp = fopen_reported(filename, "r");
+    if (!fp)
+        return (ERROR);
 
     *n_values = 0;
     *values = NULL;
@@ -2645,7 +2690,12 @@ output_values_any_format(const char *file, int n_values, void *values, int flag)
 
     if (filename_extension_matches((char *)file, "txt"))
     {
-        fp = SAFE_FOPEN((char *)file, "w");
+        fp = fopen_reported(file, "w");
+        if (!fp)
+        {
+            free(buffer);
+            return (ERROR);
+        }
         for (i = 0; i < n_values; i++)
         {
             if (flag == TYPE_DOUBLE)
@@ -2816,7 +2866,9 @@ int read_annotation_table(char *file, int *n_array, int **out_array, int *n_labe
     *n_labels = 0;
     *out_atable = NULL;
 
-    fp = SAFE_FOPEN(file, "rb");
+    fp = fopen_reported(file, "rb");
+    if (!fp)
+        return (ERROR);
     size = file_size(fp);
 
     /* 8 bytes per (vertex, code) pair follow the count */
@@ -2957,7 +3009,9 @@ int write_annotation_table(char *file, int n_array, int *array, int n_labels, AT
     int i, flag, label, len, vno, tag;
     int version, structure;
 
-    fp = SAFE_FOPEN(file, "wb");
+    fp = fopen_reported(file, "wb");
+    if (!fp)
+        return (ERROR);
 
     fwriteInt(n_array, fp);
 

@@ -938,6 +938,24 @@ def test_sanlm_repeatable():
           np.array_equal(first, after), f"max |diff| {np.abs(first - after).max():.3g}")
 
 
+def test_missing_files_raise():
+    section("a missing file raises instead of ending the interpreter")
+    # The readers and writers used SAFE_FOPEN, which called exit(1): a missing
+    # FreeSurfer surface or text file ended the whole Python process.
+    for name, call in (
+            ("read_surface of a FreeSurfer file",
+             lambda: cat_surf.read_surface("/nonexistent/lh.white")),
+            ("read_values of a text file",
+             lambda: cat_surf.read_values("/nonexistent/values.txt")),
+            ("write_values into a missing directory",
+             lambda: cat_surf.write_values("/nonexistent_dir/values.txt", np.ones(3)))):
+        try:
+            call()
+            check(f"{name} raises OSError", False, "returned normally")
+        except OSError:
+            check(f"{name} raises OSError", True)
+
+
 def test_amap_rejects_bad_labels():
     section("vol_amap: out-of-range labels and empty classes are errors")
     x, y, z = np.mgrid[:32, :32, :32]
@@ -1043,7 +1061,7 @@ def main():
                  test_surf_info, test_vol_calc, test_box_morph,
                  test_bspline_sample, test_vol_realign, test_bbreg_defaults,
                  test_resample_annot_formats, test_sanlm_repeatable,
-                 test_amap_rejects_bad_labels):
+                 test_amap_rejects_bad_labels, test_missing_files_raise):
         try:
             test()
         except Exception:  # pragma: no cover
