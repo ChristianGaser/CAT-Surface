@@ -165,7 +165,7 @@ cdef extern from "CAT_Smooth.h":
 cdef extern from "CAT_Curvature.h":
     void get_smoothed_curvatures(polygons_struct *poly, double *curvatures,
                                  double fwhm, int n_iter)
-    void compute_sulcus_depth(polygons_struct *poly, double *depth)
+    int compute_sulcus_depth(polygons_struct *poly, double *depth)
     void compute_convexity(polygons_struct *poly, int n_neighbours[],
                            int *neighbours[], double *convexity)
     void compute_local_sharpness(polygons_struct *poly, int n_neighbours[],

@@ -88,7 +88,8 @@ main(int argc, char *argv[])
     sphere = get_polygons_ptr(objects[0]);
 
     depth_values = (double *) malloc(sizeof(double) * polygons->n_points);
-    compute_sulcus_depth(polygons, depth_values);
+    if (compute_sulcus_depth(polygons, depth_values) != 0)
+        exit(EXIT_FAILURE);
   
     if (use_sqrt) {
         for(i=0; i<polygons->n_points; i++) 
