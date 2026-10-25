@@ -47,6 +47,8 @@ cdef extern from "CAT_SurfaceIO.h":
                               ATABLE **atable_out)
     int write_annotation_table(char *filename, int n_values, int *annot,
                                int n_table, ATABLE *atable)
+    int output_gifti_label(char *fname, int nvertices, int *annotation,
+                           int n_labels, ATABLE *atable)
 
     int input_gifti(char *, File_formats *, int *, object_struct ***,
                     int *, double **)

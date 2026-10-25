@@ -917,6 +917,74 @@ def test_bbreg_defaults():
 
 
 # ---------------------------------------------------------------------------
+# resample_annot writes what the extension says.  It used to write the binary
+# FreeSurfer format whatever the name, so T1Prep's *.label.gii parcellations
+# were annot files that no GIfTI reader could open.
+# ---------------------------------------------------------------------------
+def _write_annot(path, codes, table):
+    """FreeSurfer .annot with a version-2 colour table of (name, r, g, b)."""
+    import struct
+    with open(path, "wb") as fh:
+        fh.write(struct.pack(">i", len(codes)))
+        for vno, code in enumerate(codes):
+            fh.write(struct.pack(">ii", vno, int(code)))
+        fh.write(struct.pack(">ii", 1, -2))          # colour table, version 2
+        fh.write(struct.pack(">i", len(table)))
+        fh.write(struct.pack(">i", 6) + b"smoke\0")
+        fh.write(struct.pack(">i", len(table)))
+        for i, (name, r, g, b) in enumerate(table):
+            label = name.encode() + b"\0"
+            fh.write(struct.pack(">ii", i, len(label)) + label)
+            fh.write(struct.pack(">iiii", r, g, b, 0))
+
+
+def test_resample_annot_formats():
+    section("resample_annot: the output extension picks the format")
+    src, src_f = _icosphere(3, 100.0)
+    tgt, tgt_f = _icosphere(2, 100.0)
+    table = [("north", 200, 30, 30), ("equator", 30, 200, 30), ("south", 30, 30, 200)]
+    codes = np.array([r + 256 * g + 65536 * b for _, r, g, b in table])
+    region = np.where(src[:, 2] > 30, 0, np.where(src[:, 2] < -30, 2, 1))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        sph = os.path.join(tmp, "src.gii")
+        tgt_sph = os.path.join(tmp, "tgt.gii")
+        annot = os.path.join(tmp, "in.annot")
+        cat_surf.write_surface(sph, src, src_f)
+        cat_surf.write_surface(tgt_sph, tgt, tgt_f)
+        _write_annot(annot, codes[region], table)
+
+        out_gii = os.path.join(tmp, "out.label.gii")
+        out_annot = os.path.join(tmp, "out.annot")
+        out_txt = os.path.join(tmp, "out.txt")
+        for out in (out_gii, out_annot, out_txt):
+            cat_surf.resample_annot(sph, sph, tgt_sph, annot, out)
+
+        with open(out_gii, "rb") as fh:
+            check("a .gii output is GIfTI XML", fh.read(5) == b"<?xml")
+        da = cat_surf.read_gifti_darrays(out_gii)[0]
+        check("with NIFTI_INTENT_LABEL data", da["intent"] == 1002,
+              str(da["intent_name"]))
+        check("whose keys are the colour-table rows",
+              da["min"] == 0 and da["max"] == len(table) - 1,
+              f"{da['min']}..{da['max']}")
+        with open(out_annot, "rb") as fh:
+            check("an .annot output is still the FreeSurfer format",
+                  int.from_bytes(fh.read(4), "big") == len(tgt))
+        values = np.loadtxt(out_txt)
+        check("anything else gets the annotation codes",
+              set(np.unique(values).astype(int)) <= set(codes.tolist()))
+
+        short = os.path.join(tmp, "short.annot")
+        _write_annot(short, codes[region[:len(tgt)]], table)
+        try:
+            cat_surf.resample_annot(sph, sph, tgt_sph, short, out_gii)
+            check("an annotation of the wrong length is a ValueError", False)
+        except ValueError:
+            check("an annotation of the wrong length is a ValueError", True)
+
+
+# ---------------------------------------------------------------------------
 # 6. Thickness QC tells a plate from a solid mass, which is the whole point:
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
@@ -931,7 +999,8 @@ def main():
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
-                 test_bspline_sample, test_vol_realign, test_bbreg_defaults):
+                 test_bspline_sample, test_vol_realign, test_bbreg_defaults,
+                 test_resample_annot_formats):
         try:
             test()
         except Exception:  # pragma: no cover

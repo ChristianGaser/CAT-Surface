@@ -1369,6 +1369,213 @@ int output_gifti_curv(char *fname, int nvertices, double *data)
     return OK;
 }
 
+/* An annotation code and the label-table row it belongs to, sortable by code. */
+typedef struct
+{
+    int code;
+    int row;
+} code_row;
+
+static int
+compare_code_row(const void *a, const void *b)
+{
+    int ca = ((const code_row *)a)->code, cb = ((const code_row *)b)->code;
+
+    return (ca > cb) - (ca < cb);
+}
+
+static int
+compare_int(const void *a, const void *b)
+{
+    int ia = *(const int *)a, ib = *(const int *)b;
+
+    return (ia > ib) - (ia < ib);
+}
+
+/**
+ * \brief Write per-vertex FreeSurfer annotation codes as a GIFTI label file.
+ *
+ * The data array gets NIFTI_INTENT_LABEL and holds, per vertex, the row of
+ * the colour table whose packed colour matches the vertex's annotation code;
+ * the label table lists those rows (key = row, name, RGBA), as FreeSurfer and
+ * Workbench label files do.  Codes that no row matches, such as the 0 or -1
+ * of unlabelled vertices, share one extra "???" entry, which is only added
+ * when such a vertex exists.  Without a colour table each distinct code is
+ * its own key, so the values are stored unchanged, named after the code and
+ * coloured from it, since a code packs r + 256 g + 65536 b.
+ *
+ * \param fname      (in) output GIFTI filename (.gii)
+ * \param nvertices  (in) number of vertices
+ * \param annotation (in) per-vertex annotation codes (size nvertices)
+ * \param n_labels   (in) number of colour-table entries (0 if there is none)
+ * \param atable     (in) colour table from read_annotation_table(), or NULL
+ * \return 0 on success; -1 on allocation or write error
+ */
+int output_gifti_label(char *fname, int nvertices, int *annotation,
+                       int n_labels, ATABLE *atable)
+{
+    gifti_image *image = NULL;
+    giiDataArray *da;
+    giiLabelTable *lt;
+    code_row *lookup = NULL, *hit, probe;
+    int *row_code = NULL, *keys = NULL;
+    int i, k, n_rows, n_extra = 0, has_table, status = -1;
+    char name[32];
+
+    if (nvertices <= 0 || annotation == NULL)
+        return -1;
+
+    /* the rows of the label table: the colour table, or the distinct codes */
+    has_table = (n_labels > 0 && atable != NULL);
+    n_rows = has_table ? n_labels : nvertices;
+    row_code = (int *)malloc(sizeof(int) * (size_t)n_rows);
+    keys = (int *)malloc(sizeof(int) * (size_t)nvertices);
+    if (!row_code || !keys)
+        goto cleanup;
+    if (has_table)
+    {
+        for (i = 0; i < n_rows; i++)
+            row_code[i] = atable[i].annotation;
+    }
+    else
+    {
+        memcpy(row_code, annotation, sizeof(int) * (size_t)nvertices);
+        qsort(row_code, (size_t)nvertices, sizeof(int), compare_int);
+        for (i = 0, n_rows = 0; i < nvertices; i++)
+            if (n_rows == 0 || row_code[i] != row_code[n_rows - 1])
+                row_code[n_rows++] = row_code[i];
+    }
+
+    /* key of every vertex; n_rows marks a code without a row */
+    lookup = (code_row *)malloc(sizeof(code_row) * (size_t)n_rows);
+    if (!lookup)
+        goto cleanup;
+    for (i = 0; i < n_rows; i++)
+    {
+        lookup[i].code = row_code[i];
+        lookup[i].row = i;
+    }
+    qsort(lookup, (size_t)n_rows, sizeof(code_row), compare_code_row);
+    for (k = 0; k < nvertices; k++)
+    {
+        if (!has_table)
+        {
+            /* every code is a row, and the code itself is the key */
+            keys[k] = annotation[k];
+            continue;
+        }
+        probe.code = annotation[k];
+        hit = (code_row *)bsearch(&probe, lookup, (size_t)n_rows,
+                                  sizeof(code_row), compare_code_row);
+        keys[k] = hit ? hit->row : n_rows;
+        if (!hit)
+            n_extra = 1;
+    }
+
+    image = (gifti_image *)calloc(1, sizeof(gifti_image));
+    if (!image)
+        goto cleanup;
+    image->version = (char *)calloc(strlen(GIFTI_XML_VERSION) + 1, sizeof(char));
+    if (!image->version)
+        goto cleanup;
+    strcpy(image->version, GIFTI_XML_VERSION);
+    gifti_add_to_meta(&image->meta, "Name", fname, 1);
+
+    /* label table; label pointers start NULL so a failure can be freed */
+    lt = &image->labeltable;
+    lt->length = n_rows + n_extra;
+    lt->key = (int *)malloc(sizeof(int) * (size_t)lt->length);
+    lt->label = (char **)calloc((size_t)lt->length, sizeof(char *));
+    lt->rgba = (float *)malloc(sizeof(float) * 4 * (size_t)lt->length);
+    if (!lt->key || !lt->label || !lt->rgba)
+    {
+        /* gifti_free_LabelTable() frees key and label only as a pair */
+        free(lt->key);
+        free(lt->label);
+        free(lt->rgba);
+        lt->key = NULL;
+        lt->label = NULL;
+        lt->rgba = NULL;
+        lt->length = 0;
+        goto cleanup;
+    }
+    for (i = 0; i < lt->length; i++)
+    {
+        lt->key[i] = (has_table || i == n_rows) ? i : row_code[i];
+        if (i == n_rows)
+        {
+            lt->label[i] = strdup("???");
+            lt->rgba[4 * i] = lt->rgba[4 * i + 1] = lt->rgba[4 * i + 2] = 0.0f;
+            lt->rgba[4 * i + 3] = 0.0f;
+        }
+        else if (has_table)
+        {
+            lt->label[i] = strdup(atable[i].name);
+            lt->rgba[4 * i] = (float)atable[i].r / 255.0f;
+            lt->rgba[4 * i + 1] = (float)atable[i].g / 255.0f;
+            lt->rgba[4 * i + 2] = (float)atable[i].b / 255.0f;
+            lt->rgba[4 * i + 3] = 1.0f;
+        }
+        else
+        {
+            snprintf(name, sizeof(name), "%d", row_code[i]);
+            lt->label[i] = strdup(name);
+            lt->rgba[4 * i] = (float)(row_code[i] & 0xff) / 255.0f;
+            lt->rgba[4 * i + 1] = (float)((row_code[i] >> 8) & 0xff) / 255.0f;
+            lt->rgba[4 * i + 2] = (float)((row_code[i] >> 16) & 0xff) / 255.0f;
+            lt->rgba[4 * i + 3] = 1.0f;
+        }
+        if (!lt->label[i])
+            goto cleanup;
+    }
+
+    da = gifti_alloc_and_add_darray(image);
+    if (!da)
+        goto cleanup;
+    da->intent = NIFTI_INTENT_LABEL;
+    da->datatype = NIFTI_TYPE_INT32;
+    da->ind_ord = GIFTI_IND_ORD_ROW_MAJOR;
+    da->num_dim = 1;
+    da->dims[0] = nvertices;
+    da->dims[1] = 0;
+    da->encoding = GIFTI_ENCODING_B64GZ;
+#if (BYTE_ORDER == LITTLE_ENDIAN)
+    da->endian = GIFTI_ENDIAN_LITTLE;
+#else
+    da->endian = GIFTI_ENDIAN_BIG;
+#endif
+    da->coordsys = NULL;
+    da->nvals = gifti_darray_nvals(da);
+    gifti_datatype_sizes(da->datatype, &da->nbyper, NULL);
+    gifti_add_to_meta(&da->meta, "Name", fname, 1);
+    da->data = malloc((size_t)da->nvals * (size_t)da->nbyper);
+    if (!da->data)
+        goto cleanup;
+    memcpy(da->data, keys, sizeof(int) * (size_t)nvertices);
+
+    if (!gifti_valid_gifti_image(image, 1))
+    {
+        fprintf(stderr, "output_gifti_label: GIFTI file %s is invalid!\n", fname);
+        goto cleanup;
+    }
+    if (gifti_write_image(image, fname, 1))
+    {
+        fprintf(stderr, "output_gifti_label: couldn't write image %s\n", fname);
+        goto cleanup;
+    }
+    status = 0;
+
+cleanup:
+    if (status != 0 && image == NULL)
+        fprintf(stderr, "output_gifti_label: out of memory writing %s\n", fname);
+    if (image)
+        gifti_free_image(image);
+    free(lookup);
+    free(keys);
+    free(row_code);
+    return status;
+}
+
 /**
  * \brief Read a GIFTI image with the working directory set to its own folder.
  *
