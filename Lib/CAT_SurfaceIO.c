@@ -12,6 +12,7 @@
 
 #include "CAT_SurfaceIO.h"
 #include "CAT_SafeAlloc.h"
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -233,20 +234,25 @@ static int fwriteInt(int v, FILE *fp)
 
 static int fwrite3(int v, FILE *fp)
 {
-    int i = (v << 8);
+    /* unsigned: the 3-byte magic numbers would overflow a signed shift */
+    unsigned int u = (unsigned int)v << 8;
+    int i;
 
+    memcpy(&i, &u, sizeof(i));
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&i);
 #endif
     return (fwrite(&i, 3, 1, fp));
 }
 
+/* A short read leaves 0, never an uninitialized value; the readers detect
+   the truncation with feof() once they have read what the header promised. */
 static int freadInt(FILE *fp)
 {
-    int temp;
-    int count;
+    int temp = 0;
 
-    count = fread(&temp, 4, 1, fp);
+    if (fread(&temp, 4, 1, fp) != 1)
+        return (0);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapInt(&temp);
 #endif
@@ -255,10 +261,10 @@ static int freadInt(FILE *fp)
 
 static float freadFloat(FILE *fp)
 {
-    float temp;
-    int count;
+    float temp = 0.0f;
 
-    count = fread(&temp, 4, 1, fp);
+    if (fread(&temp, 4, 1, fp) != 1)
+        return (0.0f);
 #if (BYTE_ORDER == LITTLE_ENDIAN)
     swapFloat(&temp);
 #endif
@@ -276,6 +282,43 @@ static int fread3(int *v, FILE *fp)
 #endif
     *v = ((i >> 8) & 0xffffff);
     return (ret);
+}
+
+/* Size of an open file in bytes, or -1 if it cannot be determined. */
+static long
+file_size(FILE *fp)
+{
+    long pos = ftell(fp), size;
+
+    if (pos < 0 || fseek(fp, 0, SEEK_END) != 0)
+        return -1;
+    size = ftell(fp);
+    if (fseek(fp, pos, SEEK_SET) != 0)
+        return -1;
+    return size;
+}
+
+/* Every face index must name one of the mesh's points.  The readers call
+   this before compute_polygon_normals(), which dereferences them, so one bad
+   index in a file is an error instead of an out-of-bounds read. */
+static Status
+check_polygon_indices(polygons_struct *polygons, const char *file)
+{
+    int i, n;
+
+    if (polygons->n_items <= 0)
+        return OK;
+    n = polygons->end_indices[polygons->n_items - 1];
+    for (i = 0; i < n; i++)
+    {
+        if (polygons->indices[i] < 0 || polygons->indices[i] >= polygons->n_points)
+        {
+            fprintf(stderr, "%s: face index %d is out of range (%d points)\n",
+                    file, polygons->indices[i], polygons->n_points);
+            return ERROR;
+        }
+    }
+    return OK;
 }
 
 static giiDataArray *
@@ -613,6 +656,7 @@ int input_oogl(char *file, File_formats *format, int *n_objects,
 {
     FILE *fp;
     int i, f, n_edges, dummy;
+    long size;
     char line[1000];
     polygons_struct *polygons;
     Point point;
@@ -627,46 +671,79 @@ int input_oogl(char *file, File_formats *format, int *n_objects,
     *format = ASCII_FORMAT;
 
     fp = SAFE_FOPEN(file, "rb");
+    size = file_size(fp);
 
-    fscanf(fp, "%s", line);
-
-    if (!strcmp(line, "OFF"))
+    if (fscanf(fp, "%999s", line) == 1 && !strcmp(line, "OFF"))
     {
-        fscanf(fp, "%d %d %d", &polygons->n_points,
-               &polygons->n_items, &dummy);
+        /* counts from the file: an ASCII point needs at least 6 bytes
+           ("0 0 0\n") and a face at least 8 ("3 0 1 2\n") */
+        if (fscanf(fp, "%d %d %d", &polygons->n_points,
+                   &polygons->n_items, &dummy) != 3 ||
+            polygons->n_points <= 0 || polygons->n_items <= 0 ||
+            polygons->n_items > INT_MAX / 3 ||
+            (size >= 0 &&
+             6.0 * polygons->n_points + 8.0 * polygons->n_items > (double)size))
+        {
+            fprintf(stderr, "input_oogl: %s has an invalid header.\n", file);
+            fclose(fp);
+            return (ERROR);
+        }
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
+        ALLOC(polygons->indices, 3 * polygons->n_items);
+        if (!polygons->points || !polygons->normals ||
+            !polygons->end_indices || !polygons->indices)
+        {
+            fprintf(stderr, "input_oogl: out of memory reading %s\n", file);
+            fclose(fp);
+            return (ERROR);
+        }
 
         polygons->bintree = (bintree_struct_ptr)NULL;
 
         for (i = 0; i < polygons->n_points; i++)
         {
-            fscanf(fp, "%f %f %f\n", &Point_x(point),
-                   &Point_y(point), &Point_z(point));
+            if (fscanf(fp, "%f %f %f\n", &Point_x(point),
+                       &Point_y(point), &Point_z(point)) != 3)
+            {
+                fprintf(stderr, "input_oogl: %s is truncated.\n", file);
+                fclose(fp);
+                return (ERROR);
+            }
             polygons->points[i] = point;
         }
 
         for (i = 0; i < (polygons->n_items); i++)
             polygons->end_indices[i] = (i + 1) * 3;
 
-        ALLOC(polygons->indices,
-              polygons->end_indices[polygons->n_items - 1]);
         for (f = 0; f < polygons->n_items; f++)
         {
-            fscanf(fp, "%d %d %d %d\n", &n_edges,
-                   &polygons->indices[POINT_INDEX(
-                       polygons->end_indices, f, 0)],
-                   &polygons->indices[POINT_INDEX(
-                       polygons->end_indices, f, 1)],
-                   &polygons->indices[POINT_INDEX(
-                       polygons->end_indices, f, 2)]);
+            if (fscanf(fp, "%d %d %d %d\n", &n_edges,
+                       &polygons->indices[POINT_INDEX(
+                           polygons->end_indices, f, 0)],
+                       &polygons->indices[POINT_INDEX(
+                           polygons->end_indices, f, 1)],
+                       &polygons->indices[POINT_INDEX(
+                           polygons->end_indices, f, 2)]) != 4)
+            {
+                fprintf(stderr, "input_oogl: %s is truncated.\n", file);
+                fclose(fp);
+                return (ERROR);
+            }
             if (n_edges != 3)
             {
                 fprintf(stderr,
                         "Only 3 elements per item allowed.\n");
+                fclose(fp);
                 return (ERROR);
             }
+        }
+
+        if (check_polygon_indices(polygons, file) != OK)
+        {
+            fclose(fp);
+            return (ERROR);
         }
 
         /* compute normals */
@@ -675,6 +752,7 @@ int input_oogl(char *file, File_formats *format, int *n_objects,
     else
     {
         fprintf(stderr, "Wrong oogl format\n");
+        fclose(fp);
         return (ERROR);
     }
 
@@ -1737,17 +1815,30 @@ int input_gifti(char *file, File_formats *format, int *n_objects,
             return (ERROR);
         }
 
+        if (num_vertices > INT_MAX || num_faces > INT_MAX / 3)
+        {
+            fprintf(stderr, "input_gifti: %s is too large (%lld vertices, %lld faces)\n",
+                    file, num_vertices, num_faces);
+            gifti_free_image(image);
+            return (ERROR);
+        }
         polygons->n_points = num_vertices;
         polygons->n_items = num_faces;
 
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
+        ALLOC(polygons->indices, 3 * polygons->n_items);
+        if (!polygons->points || !polygons->normals ||
+            !polygons->end_indices || !polygons->indices)
+        {
+            fprintf(stderr, "input_gifti: out of memory reading %s\n", file);
+            gifti_free_image(image);
+            return (ERROR);
+        }
         polygons->bintree = (bintree_struct_ptr)NULL;
         for (i = 0; i < polygons->n_items; i++)
             polygons->end_indices[i] = (i + 1) * 3;
-        ALLOC(polygons->indices,
-              polygons->end_indices[polygons->n_items - 1]);
 
         int vertex_index;
         for (vertex_index = 0; vertex_index < polygons->n_points; vertex_index++)
@@ -1761,6 +1852,12 @@ int input_gifti(char *file, File_formats *format, int *n_objects,
         for (face_index = 0; face_index < polygons->n_items; face_index++)
             for (j = 0; j < 3; j++)
                 polygons->indices[POINT_INDEX(polygons->end_indices, face_index, j)] = gifti_get_DA_value_2D(faces, face_index, j);
+
+        if (check_polygon_indices(polygons, file) != OK)
+        {
+            gifti_free_image(image);
+            return (ERROR);
+        }
 
         /* compute normals */
         compute_polygon_normals(polygons);
@@ -2103,7 +2200,7 @@ int output_freesurfer(char *file, File_formats format, int n_objects,
     unsigned char buffer;
     polygons_struct *polygons;
 
-    fp = SAFE_FOPEN(file, "w");
+    fp = SAFE_FOPEN(file, "wb");
 
     polygons = get_polygons_ptr(object_list[0]);
 
@@ -2177,6 +2274,7 @@ int input_freesurfer(char *file, File_formats *format, int *n_objects,
 {
     FILE *fp;
     int i, magic;
+    long size, pos;
     char line[1024];
     polygons_struct *polygons;
     Point point;
@@ -2197,6 +2295,7 @@ int input_freesurfer(char *file, File_formats *format, int *n_objects,
     if (magic == QUAD_FILE_MAGIC_NUMBER)
     {
         fprintf(stderr, "QUAD_FILE_MAGIC_NUMBER not yet prepared.\n");
+        fclose(fp);
         return (ERROR);
     }
     else if (magic == TRIANGLE_FILE_MAGIC_NUMBER)
@@ -2206,14 +2305,38 @@ int input_freesurfer(char *file, File_formats *format, int *n_objects,
         /* read # of vertices and faces */
         polygons->n_points = freadInt(fp);
         polygons->n_items = freadInt(fp);
+
+        /* the counts come from the file: they must be positive, fit the int
+           index array and be backed by the 12 bytes per point and per face
+           that follow, or a few bytes could ask for gigabytes */
+        size = file_size(fp);
+        pos = ftell(fp);
+        if (polygons->n_points <= 0 || polygons->n_items <= 0 ||
+            polygons->n_items > INT_MAX / 3 ||
+            (size >= 0 && pos >= 0 &&
+             12.0 * polygons->n_points + 12.0 * polygons->n_items > (double)(size - pos)))
+        {
+            fprintf(stderr, "input_freesurfer: %s declares %d points and %d faces, "
+                            "which the file does not hold.\n",
+                    file, polygons->n_points, polygons->n_items);
+            fclose(fp);
+            return (ERROR);
+        }
+
         ALLOC(polygons->points, polygons->n_points);
         ALLOC(polygons->normals, polygons->n_points);
         ALLOC(polygons->end_indices, polygons->n_items);
+        ALLOC(polygons->indices, 3 * polygons->n_items);
+        if (!polygons->points || !polygons->normals ||
+            !polygons->end_indices || !polygons->indices)
+        {
+            fprintf(stderr, "input_freesurfer: out of memory reading %s\n", file);
+            fclose(fp);
+            return (ERROR);
+        }
         polygons->bintree = (bintree_struct_ptr)NULL;
         for (i = 0; i < polygons->n_items; i++)
             polygons->end_indices[i] = (i + 1) * 3;
-        ALLOC(polygons->indices,
-              polygons->end_indices[polygons->n_items - 1]);
         for (i = 0; i < polygons->n_points; i++)
         {
             Point_x(point) = freadFloat(fp);
@@ -2224,12 +2347,25 @@ int input_freesurfer(char *file, File_formats *format, int *n_objects,
         for (i = 0; i < 3 * (polygons->n_items); i++)
             polygons->indices[i] = freadInt(fp);
 
+        if (feof(fp) || ferror(fp))
+        {
+            fprintf(stderr, "input_freesurfer: %s is truncated.\n", file);
+            fclose(fp);
+            return (ERROR);
+        }
+        if (check_polygon_indices(polygons, file) != OK)
+        {
+            fclose(fp);
+            return (ERROR);
+        }
+
         /* compute normals */
         compute_polygon_normals(polygons);
     }
     else
     {
         fprintf(stderr, "input_freesurfer: Unknown magic identifier: %d.\n", magic);
+        fclose(fp);
         return (ERROR);
     }
 
@@ -2304,11 +2440,13 @@ read_pgm(char *file, int *nx, int *ny)
 {
     FILE *fp;
     int i, size, max_val;
+    long file_bytes;
     char line[1000];
     unsigned char *data_char;
     double *data;
 
-    fp = SAFE_FOPEN(file, "r");
+    fp = SAFE_FOPEN(file, "rb");
+    file_bytes = file_size(fp);
 
     /* read PGM header */
     fgets(line, 256, fp);
@@ -2316,6 +2454,7 @@ read_pgm(char *file, int *nx, int *ny)
     {
         fprintf(stderr, "read_pgm: Can only read PGM binary files.\n");
         *nx = *ny = 0;
+        fclose(fp);
         return (NULL);
     }
 
@@ -2324,17 +2463,30 @@ read_pgm(char *file, int *nx, int *ny)
         fgets(line, 256, fp);
     while (line[0] == '\n')
         fgets(line, 256, fp);
-    sscanf(line, "%d %d", nx, ny);
+    /* the dimensions come from the file: the image must fit an int and the
+       bytes that follow */
+    if (sscanf(line, "%d %d", nx, ny) != 2 || *nx <= 0 || *ny <= 0 ||
+        *nx > INT_MAX / *ny ||
+        (file_bytes >= 0 && (double)(*nx) * (*ny) > (double)file_bytes))
+    {
+        fprintf(stderr, "read_pgm: %s has an invalid header.\n", file);
+        *nx = *ny = 0;
+        fclose(fp);
+        return (NULL);
+    }
     fgets(line, 256, fp);
     sscanf(line, "%d", &max_val);
 
     size = (*nx) * (*ny);
     ALLOC(data_char, size);
 
-    if (fread(data_char, sizeof(unsigned char), size, fp) != size)
+    if (!data_char || fread(data_char, sizeof(unsigned char), (size_t)size, fp) != (size_t)size)
     {
         fprintf(stderr, "Error reading data.\n");
         *nx = *ny = 0;
+        if (data_char)
+            FREE(data_char);
+        fclose(fp);
         return (NULL);
     }
 
@@ -2387,7 +2539,7 @@ int write_pgm(char *file, double *data, int nx, int ny)
     for (i = 0; i < nx * ny; i++)
         data_char[i] = (char)ROUND((data[i] - offset) * scale);
 
-    fp = SAFE_FOPEN(file, "w");
+    fp = SAFE_FOPEN(file, "wb");
 
     /* write PGM header */
     fprintf(fp, "P5\n");
@@ -2536,8 +2688,15 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
 
     if (filename_extension_matches(file, "obj"))
     {
+        int i;
+
         status = input_graphics_file(file, format,
                                      n_objects, object_list);
+        /* bicpl's reader does not check the faces either */
+        for (i = 0; status == OK && i < *n_objects; i++)
+            if (get_object_type((*object_list)[i]) == POLYGONS)
+                status = check_polygon_indices(
+                    get_polygons_ptr((*object_list)[i]), file);
     }
     else if (filename_extension_matches(file, "off"))
     {
@@ -2631,98 +2790,152 @@ fread_annot_name(FILE *fp, char *dst, size_t dstsize, int len)
 /**
  * \brief Read FreeSurfer annotation table (ROI labels) from file.
  *
- * Parses FreeSurfer .annot format files containing per-vertex anatomical region\n * labels and color/naming information. Maps vertex indices to region labels\n * and returns label definitions (name, RGB color) for visualization.\n *
+ * Parses FreeSurfer .annot files: per-vertex annotation codes (packed colours,
+ * r + 256 g + 65536 b) and, if present, the colour table with the name and
+ * colour of each label (old and version-2 layouts).  All counts come from the
+ * file and are checked against its size before anything is allocated, so a
+ * corrupt or truncated file is an error, never an oversized allocation.
+ *
  * \param file       (in)  path to .annot file
  * \param n_array    (out) number of vertices in annotation
- * \param out_array  (out) allocated array of per-vertex labels (indices into label table)
- * \param n_labels   (out) number of unique labels in table
- * \param out_atable (out) allocated label table with names and colors
- * \return number of entries read on success; ERROR on read failure
+ * \param out_array  (out) allocated array of per-vertex annotation codes
+ * \param n_labels   (out) number of colour-table entries; 0 if there is none
+ * \param out_atable (out) allocated colour table, or NULL if there is none
+ * \return OK on success; ERROR on a corrupt, truncated or unreadable file
  */
 int read_annotation_table(char *file, int *n_array, int **out_array, int *n_labels, ATABLE **out_atable)
 {
     FILE *fp;
-    char annot_name[1000], **struct_names;
-    int i, flag, label, len, vno, tag, *array;
-    int version, structure;
-    ATABLE *atable;
+    char annot_name[1000];
+    int i, label, len, vno, n, count, version_two, *array = NULL;
+    long size;
+    ATABLE *atable = NULL;
 
-    fp = SAFE_FOPEN(file, "r");
+    *n_array = 0;
+    *out_array = NULL;
+    *n_labels = 0;
+    *out_atable = NULL;
 
-    *n_array = freadInt(fp);
-    array = (int *)calloc(*n_array, sizeof(int));
+    fp = SAFE_FOPEN(file, "rb");
+    size = file_size(fp);
 
-    for (i = 0; i < *n_array; i++)
+    /* 8 bytes per (vertex, code) pair follow the count */
+    n = freadInt(fp);
+    if (n <= 0 || (size >= 0 && 4.0 + 8.0 * n > (double)size))
+    {
+        fprintf(stderr, "read_annotation_table: %s declares %d vertices, "
+                        "which the file does not hold.\n", file, n);
+        fclose(fp);
+        return (ERROR);
+    }
+    array = (int *)calloc((size_t)n, sizeof(int));
+    if (!array)
+    {
+        fprintf(stderr, "read_annotation_table: out of memory reading %s\n", file);
+        fclose(fp);
+        return (ERROR);
+    }
+
+    for (i = 0; i < n; i++)
     {
         vno = freadInt(fp);
         label = freadInt(fp);
-        if (vno >= *n_array || vno < 0)
+        if (vno >= n || vno < 0)
         {
             fprintf(stderr, "Vertex index out of range: "
                             "%d i=%8.8X, array_size=%d\n",
-                    vno, label, *n_array);
+                    vno, label, n);
         }
         else
             array[vno] = label;
     }
-
-    *out_array = array;
-
-    tag = freadInt(fp);
     if (feof(fp))
     {
+        fprintf(stderr, "read_annotation_table: %s is truncated.\n", file);
+        free(array);
+        fclose(fp);
+        return (ERROR);
+    }
+
+    freadInt(fp); /* tag: a colour table follows */
+    if (feof(fp))
+    {
+        /* codes without a colour table */
         fclose(fp);
         fprintf(stderr, "No colortable found\n");
+        *n_array = n;
+        *out_array = array;
         return (OK);
     }
 
-    *n_labels = freadInt(fp);
-
-    if (*n_labels > 0)
+    /* the old layout stores the entry count here, version 2 its negative
+       version number, the largest structure index, the table name and then
+       the count */
+    count = freadInt(fp);
+    version_two = (count <= 0);
+    if (version_two)
     {
-        atable = (ATABLE *)calloc(*n_labels, sizeof(ATABLE));
-        len = freadInt(fp);
-        fread_annot_name(fp, annot_name, sizeof(annot_name), len);
-        for (i = 0; i < *n_labels; i++)
-        {
-            len = freadInt(fp);
-            fread_annot_name(fp, atable[i].name, sizeof(atable[i].name), len);
-            atable[i].r = freadInt(fp);
-            atable[i].g = freadInt(fp);
-            atable[i].b = freadInt(fp);
-            flag = freadInt(fp);
-            atable[i].annotation = atable[i].r + atable[i].g * 256 + atable[i].b * 65536;
-        }
-    }
-    else
-    {
-        version = -(*n_labels);
         if (feof(fp))
         {
             fclose(fp);
-            fprintf(stderr, "Does not handle version %d\n", version);
+            fprintf(stderr, "Does not handle version %d\n", -count);
+            *n_array = n;
+            *out_array = array;
             return (OK);
         }
-        *n_labels = freadInt(fp);
-        len = freadInt(fp);
-        fread_annot_name(fp, annot_name, sizeof(annot_name), len);
-        *n_labels = freadInt(fp);
-        atable = (ATABLE *)calloc(*n_labels, sizeof(ATABLE));
-        for (i = 0; i < *n_labels; i++)
+        freadInt(fp); /* largest structure index + 1 */
+    }
+    len = freadInt(fp);
+    fread_annot_name(fp, annot_name, sizeof(annot_name), len);
+    if (version_two)
+        count = freadInt(fp);
+
+    /* an entry holds at least five ints (20 bytes) besides its name */
+    if (count < 0 || (size >= 0 && 20.0 * count > (double)(size - ftell(fp))))
+    {
+        fprintf(stderr, "read_annotation_table: %s declares %d colour-table "
+                        "entries, which the file does not hold.\n", file, count);
+        free(array);
+        fclose(fp);
+        return (ERROR);
+    }
+    if (count > 0)
+    {
+        atable = (ATABLE *)calloc((size_t)count, sizeof(ATABLE));
+        if (!atable)
         {
-            structure = freadInt(fp) + 1;
-            len = freadInt(fp);
-            fread_annot_name(fp, atable[i].name, sizeof(atable[i].name), len);
-            atable[i].r = freadInt(fp);
-            atable[i].g = freadInt(fp);
-            atable[i].b = freadInt(fp);
-            flag = freadInt(fp);
-            atable[i].annotation = atable[i].r + atable[i].g * 256 + atable[i].b * 65536;
+            fprintf(stderr, "read_annotation_table: out of memory reading %s\n", file);
+            free(array);
+            fclose(fp);
+            return (ERROR);
         }
     }
-    *out_atable = atable;
-
+    for (i = 0; i < count; i++)
+    {
+        if (version_two)
+            freadInt(fp); /* structure index */
+        len = freadInt(fp);
+        fread_annot_name(fp, atable[i].name, sizeof(atable[i].name), len);
+        atable[i].r = freadInt(fp);
+        atable[i].g = freadInt(fp);
+        atable[i].b = freadInt(fp);
+        freadInt(fp); /* transparency, unused */
+        atable[i].annotation = atable[i].r + atable[i].g * 256 + atable[i].b * 65536;
+    }
+    if (feof(fp))
+    {
+        fprintf(stderr, "read_annotation_table: %s is truncated.\n", file);
+        free(atable);
+        free(array);
+        fclose(fp);
+        return (ERROR);
+    }
     fclose(fp);
+
+    *n_array = n;
+    *out_array = array;
+    *n_labels = count;
+    *out_atable = atable;
 
     return (OK);
 }
@@ -2745,7 +2958,7 @@ int write_annotation_table(char *file, int n_array, int *array, int n_labels, AT
     int i, flag, label, len, vno, tag;
     int version, structure;
 
-    fp = SAFE_FOPEN(file, "w");
+    fp = SAFE_FOPEN(file, "wb");
 
     fwriteInt(n_array, fp);
 
