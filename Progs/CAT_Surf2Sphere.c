@@ -17,9 +17,11 @@
 #include "CAT_Surf.h"
 #include "CAT_SurfaceIO.h"
 #include "CAT_SphereRelax.h"
+#include "CAT_SphereUntangle.h"
 #include "CAT_ArgvCheck.h"
 
 int relax = 0;
+int keep_folds = 0;
 
 static ArgvInfo argTable[] = {
     {"-relax", ARGV_CONSTANT, (char *)TRUE, (char *)&relax,
@@ -30,13 +32,19 @@ static ArgvInfo argTable[] = {
      "the poles compressed and the medial wall expanded, which spherical\n\t"
      "registration inherits; use it for spheres that are registered. With it\n\t"
      "stop_at 6 is enough (10 gives the same). Needs stop_at 5 or more."},
+    {"-keep-folds", ARGV_CONSTANT, (char *)TRUE, (char *)&keep_folds,
+     "Do not remove the folded (negative-area) triangles of the sphere. By\n\t"
+     "default every cluster of folded triangles is re-embedded on a disk of\n\t"
+     "the mesh around it, as the last step once the surface is a sphere\n\t"
+     "(stop_at 5 or more, after -relax); a sphere without folds is not\n\t"
+     "changed."},
     {NULL, ARGV_END, NULL, NULL, NULL}};
 
 void
 usage(char *executable)
 {
     char *usage_str = "\n\
-Usage: %s [-relax] surface_file output_surface_file [stop_at] [verbose]\n\n\
+Usage: %s [-relax] [-keep-folds] surface_file output_surface_file [stop_at] [verbose]\n\n\
    Maps a surface to a sphere using the caret inflating approach.\n\n\
    The inflating can be limited using stop_at (default 5), where\n\
      1  - Low smooth\n\
@@ -48,7 +56,9 @@ Usage: %s [-relax] surface_file output_surface_file [stop_at] [verbose]\n\n\
       1000 iterations are used for each stop_at value > 5, thus \n\
       stop_at of 6 means 1000 iterations, stop_at of 7 means 2000 iterations, etc.\n\
       The recommended stop_at value is 10 that corresponds to 5000 iterations.\n\n\
-   -relax reduces the metric distortion of the sphere afterwards (see -help).\n";
+   -relax reduces the metric distortion of the sphere afterwards (see -help).\n\
+   Folded triangles of the sphere are removed at the end unless -keep-folds\n\
+   is given.\n";
 
     fprintf(stderr, usage_str, executable);
 }
@@ -57,7 +67,7 @@ int
 main(int argc, char *argv[])
 {
     char *input_file, *output_surface_file;
-    int n_objects, stop_at, verbose;
+    int n_objects, stop_at, verbose, unfold;
     File_formats format;
     object_struct **object_list;
     polygons_struct *polygons, original;
@@ -101,8 +111,10 @@ main(int argc, char *argv[])
 
     polygons = get_polygons_ptr(object_list[0]);
 
-    /* the relaxation compares the sphere with the surface it maps */
-    if (relax)
+    /* the relaxation and the fold removal compare the sphere with the
+       surface it maps */
+    unfold = !keep_folds && stop_at >= 5;
+    if (relax || unfold)
         copy_polygons(polygons, &original);
 
     surf_to_sphere(polygons, stop_at, verbose);
@@ -115,8 +127,20 @@ main(int argc, char *argv[])
         opts.verbose = verbose;
         if (CAT_SphereRelaxMetric(&original, polygons, &opts) != 0)
             exit(EXIT_FAILURE);
-        delete_polygons(&original);
     }
+
+    if (unfold)
+    {
+        int left = CAT_SphereRemoveFolds(&original, polygons, verbose);
+
+        if (left < 0)
+            exit(EXIT_FAILURE);
+        if (left > 0)
+            fprintf(stderr, "Warning: %d folded or degenerate triangles are left.\n",
+                    left);
+    }
+    if (relax || unfold)
+        delete_polygons(&original);
 
     if(output_graphics_any_format(output_surface_file, format, 1,
             object_list, NULL) != OK)
