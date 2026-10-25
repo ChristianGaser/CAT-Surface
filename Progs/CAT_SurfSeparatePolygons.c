@@ -72,9 +72,11 @@ Don't know whether this makes trouble or not, but sometimes this tool crashes fo
 
     object2  = create_object( POLYGONS );
     triangulate_polygons( get_polygons_ptr(object[0]), get_polygons_ptr(object2) );  
-    (void) output_graphics_any_format( output_filename, format, 1, &object2, NULL);
+    if (output_graphics_any_format( output_filename, format, 1, &object2, NULL) != OK)
+        exit(EXIT_FAILURE);
 */
-    (void) output_graphics_any_format( output_filename, format, 1, &object[0], NULL);
+    if (output_graphics_any_format( output_filename, format, 1, &object[0], NULL) != OK)
+        exit(EXIT_FAILURE);
 
     return(EXIT_SUCCESS);
 }

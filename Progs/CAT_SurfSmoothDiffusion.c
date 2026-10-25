@@ -158,8 +158,9 @@ main(int argc, char *argv[])
     }
 
     if (values_present) {
-        output_values_any_format(output_surface_file, polygons->n_points,
-                     values, TYPE_DOUBLE);
+        if (output_values_any_format(output_surface_file, polygons->n_points,
+                         values, TYPE_DOUBLE) != OK)
+            exit(EXIT_FAILURE);
         FREE(values);
     } else {
 

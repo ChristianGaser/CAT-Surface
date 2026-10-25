@@ -126,8 +126,9 @@ main(int argc, char *argv[])
         }
 
         if (std_filename) {
-            output_values_any_format(std_filename, n_avg_values,
-                                     std_values, TYPE_DOUBLE);
+            if (output_values_any_format(std_filename, n_avg_values,
+                                         std_values, TYPE_DOUBLE) != OK)
+                exit(EXIT_FAILURE);
         }
 
         /* ---- z-scores ---- */

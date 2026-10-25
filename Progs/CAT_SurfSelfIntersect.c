@@ -88,8 +88,9 @@ main(int argc, char** argv)
                       n_neighbours, neighbours);
     printf("Self Intersections:  %d\n", n_intersects);
 
-    output_values_any_format(out_file, polygons->n_points,
-                 defects, TYPE_INTEGER);
+    if (output_values_any_format(out_file, polygons->n_points,
+                     defects, TYPE_INTEGER) != OK)
+        exit(EXIT_FAILURE);
 
     free(defects);
     free(polydefects);

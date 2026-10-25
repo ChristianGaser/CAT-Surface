@@ -65,8 +65,9 @@ main(int argc, char *argv[])
     ALLOC(sharpness, polygons->n_points);
     compute_local_sharpness(polygons, n_neighbours, neighbours, sharpness);
 
-    output_values_any_format(output_surface_file, polygons->n_points,
-                 sharpness, TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, polygons->n_points,
+                     sharpness, TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
 
     delete_all_polygon_point_neighbours(n_neighbours, neighbours);
     delete_object_list(n_objects, objects);

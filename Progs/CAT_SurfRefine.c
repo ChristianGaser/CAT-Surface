@@ -80,8 +80,9 @@ int  main(
 
     fprintf(stdout,"Resampled into %d polygons.\n", polygons->n_items );
 
-    (void) output_graphics_any_format( output_filename, format, n_objects,
-                                 object_list, NULL);
+    if (output_graphics_any_format( output_filename, format, n_objects,
+                                     object_list, NULL) != OK)
+        exit(EXIT_FAILURE);
 
     return( 0 );
 }

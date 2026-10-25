@@ -191,9 +191,10 @@ main(int argc, char *argv[])
           exit(EXIT_FAILURE);
   
     if (values_specified) {
-        output_values_any_format(output_values_file,
-                     target_sphere->n_points,
-                     output_values, TYPE_DOUBLE);
+        if (output_values_any_format(output_values_file,
+                         target_sphere->n_points,
+                         output_values, TYPE_DOUBLE) != OK)
+            exit(EXIT_FAILURE);
         FREE(input_values);
         FREE(output_values);
     }

@@ -86,8 +86,9 @@ main(int argc, char *argv[])
 
     area_values = get_surface_ratio(radius, polygons, normalize);
   
-    output_values_any_format(output_surface_file, polygons->n_points,
-                 area_values, TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, polygons->n_points,
+                     area_values, TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
 
     delete_object_list(n_objects, objects);
     free(area_values);

@@ -109,8 +109,9 @@ main(int argc, char *argv[])
             area_values[i] = log10(area_values[i]);
 
     if (get_string_argument(NULL, &output_values_file)) {
-        output_values_any_format(output_values_file, polygons->n_points,
-                     area_values, TYPE_DOUBLE);
+        if (output_values_any_format(output_values_file, polygons->n_points,
+                         area_values, TYPE_DOUBLE) != OK)
+            exit(EXIT_FAILURE);
     }
     
     if (use_log) 

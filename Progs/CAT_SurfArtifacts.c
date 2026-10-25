@@ -104,8 +104,9 @@ main(int argc, char *argv[])
 
     printf("%d artifacts found\n", n_artifacts);
 
-    output_values_any_format(out_file, asurf->n_points,
-                 artifacts, TYPE_INTEGER);
+    if (output_values_any_format(out_file, asurf->n_points,
+                     artifacts, TYPE_INTEGER) != OK)
+        exit(EXIT_FAILURE);
 
     /* clean up */
     free(artifacts);

@@ -104,7 +104,8 @@ write_result_values(char *outfile, int is_volume, int n_vals, double *data,
             exit(EXIT_FAILURE);
         }
     } else {
-        output_values_any_format(outfile, n_vals, data, TYPE_DOUBLE);
+        if (output_values_any_format(outfile, n_vals, data, TYPE_DOUBLE) != OK)
+            exit(EXIT_FAILURE);
     }
 }
 

@@ -182,7 +182,8 @@ main(int argc, char *argv[])
             ad_values[i] /= n_polys[i];
     }
 
-    output_values_any_format(output_surface_file, n_obj, ad_values, TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, n_obj, ad_values, TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
     
     printf("Area distortion = %f\n", distortion / polygons->n_items);
 
