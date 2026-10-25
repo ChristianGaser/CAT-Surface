@@ -938,6 +938,31 @@ def test_sanlm_repeatable():
           np.array_equal(first, after), f"max |diff| {np.abs(first - after).max():.3g}")
 
 
+def test_amap_rejects_bad_labels():
+    section("vol_amap: out-of-range labels and empty classes are errors")
+    x, y, z = np.mgrid[:32, :32, :32]
+    r = np.sqrt((x - 16) ** 2 + (y - 16) ** 2 + (z - 16) ** 2)
+    labels = np.where(r < 6, 3, np.where(r < 9, 2, np.where(r < 12, 1, 0))).astype(np.float32)
+    t1 = (labels + np.random.default_rng(1).normal(0, 0.05, labels.shape)).astype(np.float32)
+
+    prob, lab, mean = cat_surf.vol_amap(t1, labels)
+    check("valid labels give finite class means", np.isfinite(mean).all(), str(mean))
+    for name, bad, kw in (("a label above the class count", 4, {}),
+                          ("a negative label", -1, {}),
+                          ("an unsupported class count", None, {"n_pure_classes": 7}),
+                          ("a class without voxels", "no-csf", {})):
+        trial = labels.copy()
+        if bad == "no-csf":
+            trial[trial == 1] = 2
+        elif bad is not None:
+            trial[16, 16, 16] = bad
+        try:
+            cat_surf.vol_amap(t1, trial, **kw)
+            check(f"{name} is a ValueError", False)
+        except ValueError:
+            check(f"{name} is a ValueError", True)
+
+
 def _write_annot(path, codes, table):
     """FreeSurfer .annot with a version-2 colour table of (name, r, g, b)."""
     import struct
@@ -1017,7 +1042,8 @@ def main():
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
                  test_bspline_sample, test_vol_realign, test_bbreg_defaults,
-                 test_resample_annot_formats, test_sanlm_repeatable):
+                 test_resample_annot_formats, test_sanlm_repeatable,
+                 test_amap_rejects_bad_labels):
         try:
             test()
         except Exception:  # pragma: no cover

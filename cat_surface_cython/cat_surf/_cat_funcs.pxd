@@ -433,7 +433,7 @@ cdef extern from "CAT_VolPbt.h":
 # CAT_Amap.h / CAT_Bmap.h — Brain tissue segmentation
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Amap.h":
-    void Amap(float *src, unsigned char *label, unsigned char *prob,
+    int Amap(float *src, unsigned char *label, unsigned char *prob,
               double *mean, int nc, int niters, int sub, int *dims,
               int pve, double weight_MRF, double *voxelsize,
               int niters_ICM, int verbose, int use_median,

@@ -1182,11 +1182,13 @@ static void EstimateSegmentation(float *src, unsigned char *label, unsigned char
  * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
  * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
  * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
+ * \return 0 on success; -1 if the class count is not supported, a label exceeds
+ *         it or a class has no voxels in the label image
  */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
-          int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
-          double *voxelsize, int niters_ICM, int verbose,
-          int use_median, const double *mrf_class_weights, int use_multistep)
+int Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
+         int n_classes, int niters, int sub, int *dims, int pve, double weight_MRF,
+         double *voxelsize, int niters_ICM, int verbose,
+         int use_median, const double *mrf_class_weights, int use_multistep)
 {
     int i, nix, niy, niz;
     int area, nvol, vol;
@@ -1199,6 +1201,42 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     int sub_steps[2];
     int n_steps = 0;
     double class_weights[MAX_NC];
+
+    area = dims[0] * dims[1];
+    vol = area * dims[2];
+
+    /* Labels index per-class arrays and the MRF tables directly, and an empty
+       class has no mean to start from, so check the input before anything is
+       indexed by it.  The MRF tables hold four neighbour classes (at most 5
+       classes), and the partial-volume model is built from CSF, GM and WM. */
+    if (n_classes < 2 || n_classes > MAX_NC - 1 || (pve && n_classes != 3))
+    {
+        fprintf(stderr, "Amap: %d tissue classes are not supported (%s).\n",
+                n_classes, pve ? "partial-volume estimation needs 3" : "2..5");
+        return -1;
+    }
+    for (j = 0; j < MAX_NC; j++)
+        n[j] = 0;
+    for (i = 0; i < vol; i++)
+    {
+        if (label[i] > n_classes)
+        {
+            fprintf(stderr, "Amap: label %d exceeds the %d tissue classes.\n",
+                    label[i], n_classes);
+            return -1;
+        }
+        if (label[i] > 0)
+            n[label[i] - 1]++;
+    }
+    for (j = 0; j < n_classes; j++)
+    {
+        if (n[j] == 0)
+        {
+            fprintf(stderr, "Amap: tissue class %d has no voxels in the label image.\n",
+                    j + 1);
+            return -1;
+        }
+    }
 
     /* we have to make sub independent from voxel size */
     mean_voxelsize = (voxelsize[0] + voxelsize[1] + voxelsize[2]) / 3.0;
@@ -1226,9 +1264,6 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     {
         sub_steps[n_steps++] = sub;
     }
-
-    area = dims[0] * dims[1];
-    vol = area * dims[2];
 
     /* run multi-step schedule: small -> large */
     for (i = 0; i < n_steps; i++)
@@ -1286,13 +1321,6 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
         }
     }
 
-    double max_label = get_max(label, vol, 0, DT_UINT8);
-    if (max_label > n_classes)
-    {
-        printf("Label maximum %g exceeds number of tissue classes.\n", max_label);
-        exit(EXIT_FAILURE);
-    }
-
     /* Use marginalized likelihood to estimate initial 5 classes */
     if (pve)
     {
@@ -1313,7 +1341,12 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
             mean[label[i] - 1] += (double)src[i];
         }
         for (j = 0; j < n_classes; j++)
-            mean[j] /= n[j];
+            if (n[j] > 0)
+                mean[j] /= n[j];
+        /* a mixed class nobody fell into lies between its pure neighbours */
+        for (j = 1; j < n_classes - 1; j++)
+            if (n[j] == 0)
+                mean[j] = 0.5 * (mean[j - 1] + mean[j + 1]);
     }
 
     /* use much smaller beta for if no pve is selected */
@@ -1342,6 +1375,6 @@ void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
     if (r_large)
         free(r_large);
 
-    return;
+    return 0;
 }
 

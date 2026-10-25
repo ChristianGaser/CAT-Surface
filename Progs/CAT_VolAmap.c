@@ -161,7 +161,7 @@ main(int argc, char *argv[])
     char *arg_string, buffer[1024];
     float *src, *buffer_vol;
     double slope, val, voxelsize[3];    
-    double mean[MAX_NC], mu[n_pure_classes], var[n_pure_classes];
+    double mean[MAX_NC] = {0.0}, mu[n_pure_classes], var[n_pure_classes];
     char *label_arr[] = {"CSF", "GM", "WM"};
 
     /* Get arguments */
@@ -242,10 +242,25 @@ main(int argc, char *argv[])
         fprintf(stderr,"Error reading %s.\n", label_filename);
         return(EXIT_FAILURE);
     }
+    if (label_ptr->nx != src_ptr->nx || label_ptr->ny != src_ptr->ny ||
+        label_ptr->nz != src_ptr->nz) {
+        fprintf(stderr, "%s has %dx%dx%d voxels, but the image %dx%dx%d.\n",
+                label_filename, label_ptr->nx, label_ptr->ny, label_ptr->nz,
+                src_ptr->nx, src_ptr->ny, src_ptr->nz);
+        exit(EXIT_FAILURE);
+    }
     
-    /* scale label image to a range 0..3 */
-    for (i = 0; i < src_ptr->nvox; i++) 
-        label[i] = (unsigned char) round(buffer_vol[i]);
+    /* the label image holds 0 (background) and the classes 1..3; anything
+       else would wrap around in the unsigned char */
+    for (i = 0; i < src_ptr->nvox; i++) {
+        val = round(buffer_vol[i]);
+        if (!(val >= 0.0 && val <= n_pure_classes)) {
+            fprintf(stderr, "%s: label %g is outside 0..%d.\n",
+                    label_filename, val, n_pure_classes);
+            exit(EXIT_FAILURE);
+        }
+        label[i] = (unsigned char) val;
+    }
 
     for (i = 0; i < n_pure_classes; i++)
         mu[i] = 0;
@@ -306,10 +321,10 @@ main(int argc, char *argv[])
         int BG = 1, sub_bias = 8;
         Bmap(src, label, prob, mean, n_pure_classes, BG, iters_amap, sub_bias, 
             sub_bias, sub_bias, biasfield, dims, pve, verbose);
-    } else
-        Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims, 
+    } else if (Amap(src, label, prob, mean, n_pure_classes, iters_amap, subsample, dims,
             pve, weight_MRF, voxelsize, iters_ICM, verbose, use_median,
-            mrf_class_weights, use_multistep);
+            mrf_class_weights, use_multistep) != 0)
+        exit(EXIT_FAILURE);
 
     /* PVE */
     if (pve) {
