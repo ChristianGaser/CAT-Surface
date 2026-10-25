@@ -2084,212 +2084,6 @@ int input_freesurfer_curv(char *file, int *vnum, double **input_values)
 }
 
 /**
- * \brief Read polygon mesh from OpenDX (Data Explorer) format.
- *
- * Parses OpenDX surface format (.dx files), extracting vertex coordinates and
- * connectivity information. Allocates BICPL polygon structure for further processing.\n *
- * \param file         (in)  path to OpenDX file
- * \param format       (out) set to ASCII_FORMAT
- * \param n_objects    (out) number of objects (typically 1)
- * \param object_list  (out) allocated polygon mesh object
- * \return OK on success; ERROR if file format is invalid
- */
-int input_dx(char *file, File_formats *format, int *n_objects,
-             object_struct ***object_list)
-{
-    FILE *fp;
-    int i, pos;
-    char line[1000];
-    char ch;
-    polygons_struct *polygons;
-    Point point;
-    object_struct *object;
-    Status status;
-
-    /* prepare object and polygons */
-    *n_objects = 0;
-    object = create_object(POLYGONS);
-    add_object_to_list(n_objects, object_list, object);
-
-    polygons = get_polygons_ptr(object);
-    initialize_polygons(polygons, WHITE, NULL);
-
-    *format = ASCII_FORMAT;
-
-    fp = SAFE_FOPEN(file, "r");
-
-    fgets(line, 54, fp);
-    if (equal_strings(line,
-                      "object 1 class array type float rank 1 shape 3 items "))
-    {
-        pos = 0;
-        status = OK;
-
-        do
-        {
-            status = input_character(fp, &ch);
-            pos++;
-        } while (status == OK && ch != ' ');
-
-        fseek(fp, -pos, SEEK_CUR);
-        fgets(line, pos, fp);
-        sscanf(line, "%d", &polygons->n_points);
-
-        polygons->bintree = (bintree_struct_ptr)NULL;
-        ALLOC(polygons->points, polygons->n_points);
-        ALLOC(polygons->normals, polygons->n_points);
-        for (i = 0; i <= polygons->n_points; i++)
-        {
-            fgets(line, 1000, fp);
-            sscanf(line, "%f %f %f", &Point_x(point),
-                   &Point_y(point), &Point_z(point));
-            polygons->points[i] = point;
-        }
-        fgets(line, 1000, fp);
-        fgets(line, 1000, fp);
-        fgets(line, 52, fp);
-
-        if (equal_strings(line,
-                          "object 2 class array type int rank 1 shape 3 items "))
-        {
-            pos = 0;
-            status = OK;
-
-            do
-            {
-                status = input_character(fp, &ch);
-                pos++;
-            } while (status == OK && ch != ' ');
-
-            fseek(fp, -pos, SEEK_CUR);
-            fgets(line, pos, fp);
-            sscanf(line, "%d", &polygons->n_items);
-        }
-        else
-        {
-            fprintf(stderr, "input_dx: Error reading %s\n", file);
-            return (ERROR);
-        }
-
-        ALLOC(polygons->end_indices, polygons->n_items);
-        for (i = 0; i < polygons->n_items; i++)
-            polygons->end_indices[i] = (i + 1) * 3;
-
-        ALLOC(polygons->indices,
-              polygons->end_indices[polygons->n_items - 1]);
-
-        for (i = 0; i <= polygons->n_items; i++)
-        {
-            fgets(line, 1000, fp);
-            sscanf(line, "%d %d %d", &polygons->indices[3 * i],
-                   &polygons->indices[3 * i + 1],
-                   &polygons->indices[3 * i + 2]);
-        }
-        compute_polygon_normals(polygons);
-    }
-    else
-    {
-        fprintf(stderr, "input_dx: Unknown dx format..\n");
-        return (ERROR);
-    }
-
-    fclose(fp);
-    return (OK);
-}
-
-/**
- * \brief Read polygon mesh from DFS (Freesurfer-specific) format.
- *
- * Parses DFS (Document File System) format files used by some FreeSurfer tools.
- * Extracts vertex coordinates and triangle connectivity from binary DFS format.\n *
- * \param file         (in)  path to DFS file
- * \param format       (out) format identifier
- * \param n_objects    (out) number of objects (typically 1)
- * \param object_list  (out) allocated polygon mesh object
- * \return OK on success; ERROR if format is not supported or invalid\n */
-int input_dfs(char *file, File_formats *format, int *n_objects,
-              object_struct ***object_list)
-{
-    FILE *fp;
-    int i, hdr_size, mdoffset, pdoffset, nStrips, stripSize, normals;
-    int uvStart, vcoffset, labelOffset, vertexAttributes, tmp;
-    char dummy[256], pad2[124];
-    float tmp2;
-    polygons_struct *polygons;
-    Point point;
-    object_struct *object;
-
-    fprintf(stderr, "Input of DFS data not working.\n");
-    return (ERROR);
-
-    /* prepare object and polygons */
-    *n_objects = 0;
-    object = create_object(POLYGONS);
-    add_object_to_list(n_objects, object_list, object);
-
-    polygons = get_polygons_ptr(object);
-    initialize_polygons(polygons, WHITE, NULL);
-
-    *format = ASCII_FORMAT;
-
-    fp = SAFE_FOPEN(file, "r");
-
-    fread(&dummy, sizeof(char), 12, fp);
-    fread(&hdr_size, 4, 1, fp);
-    fread(&mdoffset, 4, 1, fp);
-    fread(&pdoffset, 4, 1, fp);
-    fread(&polygons->n_points, 4, 1, fp); /* Number of triangles */
-    fread(&polygons->n_items, 4, 1, fp);  /* Number of vertices */
-    fprintf(stderr, "%s %d %d %d\n", dummy, hdr_size,
-            polygons->n_points, polygons->n_items);
-    fread(&nStrips, 4, 1, fp);
-    fread(&stripSize, 4, 1, fp);
-    fread(&normals, 4, 1, fp);
-    fread(&uvStart, 4, 1, fp);
-    fread(&vcoffset, 4, 1, fp);
-    fread(&labelOffset, 4, 1, fp);
-    fread(&vertexAttributes, 4, 1, fp);
-
-    fread(&pad2, sizeof(char), 124, fp);
-
-    fseek(fp, hdr_size, -1);
-
-    polygons->bintree = (bintree_struct_ptr)NULL;
-
-    ALLOC(polygons->points, polygons->n_points);
-    ALLOC(polygons->normals, polygons->n_points);
-    ALLOC(polygons->end_indices, polygons->n_items);
-
-    for (i = 0; i < polygons->n_items; i++)
-        polygons->end_indices[i] = (i + 1) * 3;
-
-    ALLOC(polygons->indices, polygons->end_indices[polygons->n_items - 1]);
-
-    for (i = 0; i < 3 * (polygons->n_items); i++)
-    {
-        fread(&tmp, 4, 1, fp);
-        polygons->indices[i] = tmp;
-    }
-
-    for (i = 0; i < polygons->n_points; i++)
-    {
-        fread(&tmp2, 4, 1, fp);
-        Point_x(point) = tmp2;
-        fread(&tmp2, 4, 1, fp);
-        Point_y(point) = tmp2;
-        fread(&tmp2, 4, 1, fp);
-        Point_z(point) = tmp2;
-        polygons->points[i] = point;
-    }
-
-    /* compute normals */
-    compute_polygon_normals(polygons);
-
-    fclose(fp);
-    return (OK);
-}
-
-/**
  * \brief Read 2D image data from PGM (Portable Graymap) format.
  *
  * Parses ASCII or binary PGM format image files (P2 or P5 magic numbers).\n * Allocates and returns a 2D image array with per-pixel intensity values.\n *
@@ -2517,7 +2311,10 @@ output_values_any_format(const char *file, int n_values, void *values, int flag)
 /**
  * \brief Read polygon mesh in auto-detected geometry format.
  *
- * Loads mesh from file with format detection based on file extension.\n * Supports OBJ, OFF (Geomview), GIFTI, FreeSurfer, DFS, and OpenDX formats.\n * Allocates polygon structure and returns both mesh object and format identifier.\n *
+ * Loads mesh from file with format detection based on file extension.
+ * Supports OBJ, OFF (Geomview), GIFTI and FreeSurfer formats.
+ * Allocates polygon structure and returns both mesh object and format identifier.
+ *
  * \param file         (in)  mesh file path
  * \param format       (out) detected file format
  * \param n_objects    (out) number of mesh objects (typically 1)
@@ -2544,16 +2341,6 @@ input_graphics_any_format(char *file, File_formats *format, int *n_objects,
     {
         status = input_gifti(file, format,
                              n_objects, object_list, NULL, NULL);
-    }
-    else if (filename_extension_matches(file, "dfs"))
-    {
-        status = input_dfs(file, format,
-                           n_objects, object_list);
-    }
-    else if (filename_extension_matches(file, "dx"))
-    {
-        status = input_dx(file, format,
-                          n_objects, object_list);
     }
     else
     {

@@ -347,28 +347,6 @@ Status input_gifti_darrays(char *file, int *n_arrays, gifti_darray_info **arrays
  */
 int input_gifti_curv(char *file, int *vnum, double **input_values);
 /**
- * \brief Read polygon mesh from OpenDX (Data Explorer) format.
- *
- * \param file         (in)  path to OpenDX file
- * \param format       (out) set to ASCII_FORMAT
- * \param n_objects    (out) number of objects (typically 1)
- * \param object_list  (out) allocated polygon mesh object
- * \return OK on success; ERROR if file format is invalid
- */
-int input_dx(char *file, File_formats *format, int *n_objects,
-             object_struct ***object_list);
-/**
- * \brief Read polygon mesh from DFS (Freesurfer-specific) format.
- *
- * \param file         (in)  path to DFS file
- * \param format       (out) format identifier
- * \param n_objects    (out) number of objects (typically 1)
- * \param object_list  (out) allocated polygon mesh object
- * \return OK on success; ERROR if format is not supported or invalid\n
- */
-int input_dfs(char *file, File_formats *format, int *n_objects,
-              object_struct ***object_list);
-/**
  * \brief Read 2D image data from PGM (Portable Graymap) format.
  *
  * \param file (in)  path to PGM file
