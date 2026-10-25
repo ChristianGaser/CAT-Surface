@@ -306,7 +306,6 @@ noinst_HEADERS = \
     Include/CAT_SurfaceIO.h \
     Include/CAT_SPH.h \
     Include/CAT_Interpolate.h \
-    Include/CAT_Isometrics.h \
     Include/CAT_Patch.h \
     Include/CAT_Resample.h \
     Include/CAT_Complexity.h \
@@ -409,7 +408,6 @@ libCAT_la_SOURCES = \
     Lib/CAT_Complexity.c \
     Lib/CAT_Refine.c \
     Lib/CAT_Interpolate.c \
-    Lib/CAT_Isometrics.c \
     Lib/CAT_Separate.c \
     Lib/CAT_ConvexHull.c \
     Lib/CAT_Gyrification.c \

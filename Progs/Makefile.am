@@ -52,7 +52,6 @@ bin_PROGRAMS = \
     CAT_SurfAverage \
     CAT_SurfValuesAverage \
     CAT_SurfFixTopology \
-    CAT_SurfIsometize \
     CAT_SurfSphericalDemon \
     CAT_SurfSmoothAreal \
     CAT_SurfSmoothLaplacian \
