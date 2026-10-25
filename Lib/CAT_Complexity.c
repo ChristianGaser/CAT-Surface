@@ -93,10 +93,9 @@ get_globalfd(double *x, double *y, int len)
  * \param areas      (in)  area ratios per scale and polygon
  * \param x_len      (in)  number of scales
  * \param fd         (out) per-vertex fractal dimension values
- * \param smoothflag (in)  non-zero to apply smoothing
  */
 void get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len,
-                 double *fd, int smoothflag)
+                 double *fd)
 {
     int xx, p, offset;
     double *logx, *logy;
@@ -151,12 +150,6 @@ void get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len
         fd[p] += 2;
     }
 
-    if (smoothflag)
-    {
-        /* smooth the FD values with FWHM = 30.0 mm */
-        get_smoothed_values(polygons, fd, FWHM);
-    }
-
     free(logx);
     free(logy);
     free(pcount);
@@ -206,19 +199,21 @@ int min_triangles_update(int *base6, int *base8, int *base20)
  *
  * Iteratively resamples the surface to lower triangle counts, computes
  * normalized surface areas, and estimates global and local fractal
- * dimensions from log-log slopes. Outputs local FD values to a file.
+ * dimensions from log-log slopes. Outputs local FD values to a file; they are
+ * not smoothed, which belongs to the resampling of the values.
  *
  * \param surface    (in)  input surface mesh
  * \param sphere     (in)  spherical parameterization of the surface
  * \param maxiters   (in)  number of resampling iterations
  * \param file       (in)  output filename for local FD values
- * \param smoothflag (in)  non-zero to smooth local FD values
- * \param debugflag  (in)  non-zero to write debug outputs
- * \return Global fractal dimension estimate
+ * \param debugflag  (in)  non-zero to write debug outputs (and fd_global.txt)
+ *                         into the working directory
+ * \return Global fractal dimension estimate; NaN if the local FD values
+ *         could not be written
  */
 double
 fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
-                  int maxiters, char *file, int smoothflag, int debugflag)
+                  int maxiters, char *file, int debugflag)
 {
     object_struct **object, **object2;
     polygons_struct *polygons, *resampled;
@@ -276,16 +271,16 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
             sprintf(str, "resamp_%d.obj", n_triangles);
             if (output_graphics_any_format(str, ASCII_FORMAT, 1,
                                            object, NULL) != OK)
-                exit(EXIT_FAILURE);
+                fprintf(stderr, "Cannot write debug file %s\n", str);
             sprintf(str, "reresamp_%d.obj", n_triangles);
             if (output_graphics_any_format(str, ASCII_FORMAT, 1,
                                            object2, NULL) != OK)
-                exit(EXIT_FAILURE);
+                fprintf(stderr, "Cannot write debug file %s\n", str);
             sprintf(str, "areas_%d.txt", n_triangles);
             if (output_values_any_format(str, sphere->n_items,
                                          bc_areas[iter],
                                          TYPE_DOUBLE) != OK)
-                exit(EXIT_FAILURE);
+                fprintf(stderr, "Cannot write debug file %s\n", str);
         }
 
         n_triangles = min_triangles_update(&base6, &base8, &base20);
@@ -301,20 +296,16 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
         iter--; /* skip >90% values */
 
     local_fd = (double *)malloc(sizeof(double) * surface->n_points);
-    get_localfd(surface, dimension, bc_areas, iter, local_fd, smoothflag);
+    get_localfd(surface, dimension, bc_areas, iter, local_fd);
 
     if (output_values_any_format(file, surface->n_points,
                                  local_fd, TYPE_DOUBLE) != OK)
-        exit(EXIT_FAILURE);
+        fd = NAN;
+    else
+        fd = get_globalfd(dimension, areas, iter);
 
-    fd = get_globalfd(dimension, areas, iter);
-
-    if (1)
-    {
-        if (output_values_any_format("fd_global.txt", maxiters,
-                                     areas, TYPE_DOUBLE) != OK)
-            exit(EXIT_FAILURE);
-    }
+    if (debugflag)
+        output_values_any_format("fd_global.txt", maxiters, areas, TYPE_DOUBLE);
 
     free(orig_areas);
     free(dimension);
@@ -328,21 +319,6 @@ fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
     return fd;
 }
 
-/**
- * \brief Smooth per-vertex values using heat kernel smoothing.
- *
- * Applies heat kernel smoothing with the specified FWHM to values
- * defined on mesh vertices. Neighbor lists are computed internally.
- *
- * \param polygons  (in)  surface mesh
- * \param values    (in/out) per-vertex values to smooth
- * \param fwhm      (in)  full-width at half-maximum in mm
- */
-void get_smoothed_values(polygons_struct *polygons, double *values, double fwhm)
-{
-    smooth_heatkernel(polygons, values, fwhm);
-}
-
 double bws[SPH_ITERS] = {11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 23.0, 26.0, 29.0};
 
 /*
@@ -354,23 +330,26 @@ double bws[SPH_ITERS] = {11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 23.0, 26.0, 2
  *
  * Computes SPH coefficients for the surface, progressively limits bandwidth,
  * reconstructs surfaces, and measures normalized areas to estimate global and
- * local fractal dimensions. Outputs local FD values to a file and optionally
- * writes debug artifacts.
+ * local fractal dimensions. Outputs local FD values to a file, unsmoothed
+ * (smoothing belongs to the resampling of the values), and optionally writes
+ * debug artifacts.
  *
  * \param surface     (in)  input surface mesh
  * \param sphere      (in)  spherical parameterization
  * \param file        (in)  output filename for local FD values
  * \param n_triangles (in)  triangle count for resampled surfaces
  * \param reparam     (in)  reparameterized sphere for local FD computation
- * \param smoothflag  (in)  non-zero to smooth local FD values
- * \param debugflag   (in)  non-zero to write debug outputs
- * \return Global fractal dimension estimate
+ * \param debugflag   (in)  non-zero to write debug outputs into the working
+ *                          directory
+ * \return Global fractal dimension estimate; NaN if the local FD values
+ *         could not be written
  */
 double
 fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
                       char *file, int n_triangles, polygons_struct *reparam,
-                      int smoothflag, int debugflag)
+                      int debugflag)
 {
+    int write_failed;
     polygons_struct *polygons;
     object_struct **object;
     double *rcx, *icx, *rcy, *icy, *rcz, *icz;
@@ -458,7 +437,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
         sprintf(str, "sph_%d.obj", BW);
         if (output_graphics_any_format(str, ASCII_FORMAT, 1,
                                        object, NULL) != OK)
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Cannot write debug file %s\n", str);
     }
     delete_polygons(polygons);
 
@@ -512,7 +491,7 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
             sprintf(str, "sph_%d.obj", (int)bws[it]);
             if (output_graphics_any_format(str, ASCII_FORMAT, 1,
                                            object, NULL) != OK)
-                exit(EXIT_FAILURE);
+                fprintf(stderr, "Cannot write debug file %s\n", str);
 
             sprintf(str, "area_%d.txt", (int)bws[it]);
             output_values_any_format(str, polygons->n_points,
@@ -523,18 +502,14 @@ fractal_dimension_sph(polygons_struct *surface, polygons_struct *sphere,
     }
 
     local_fd = (double *)malloc(sizeof(double) * reparam->n_points);
-    get_localfd(reparam, bws, sph_areas, SPH_ITERS, local_fd, smoothflag);
-    output_values_any_format(file, reparam->n_points, local_fd,
-                             TYPE_DOUBLE);
+    get_localfd(reparam, bws, sph_areas, SPH_ITERS, local_fd);
+    write_failed = (output_values_any_format(file, reparam->n_points, local_fd,
+                                             TYPE_DOUBLE) != OK);
 
     if (debugflag)
-    {
-        if (output_values_any_format("fd_global.txt", SPH_ITERS, areas,
-                                     TYPE_DOUBLE) != OK)
-            exit(EXIT_FAILURE);
-    }
+        output_values_any_format("fd_global.txt", SPH_ITERS, areas, TYPE_DOUBLE);
 
-    fd = get_globalfd(bws, areas, SPH_ITERS);
+    fd = write_failed ? NAN : get_globalfd(bws, areas, SPH_ITERS);
 
     free(rcx);
     free(rcy);

@@ -402,7 +402,8 @@ int main(int argc, char *argv[])
 
             if (filename_extension_matches(annot_file, "annot"))
         {
-            read_annotation_table(annot_file, &n_arrays, &in_annot, &n_labels, &atable);
+            if (read_annotation_table(annot_file, &n_arrays, &in_annot, &n_labels, &atable) != OK)
+                exit(EXIT_FAILURE);
 
             fp = SAFE_FOPEN(output_values_file, "w");
 
@@ -585,8 +586,9 @@ int main(int argc, char *argv[])
         if (sphere_src_file && sphere_trg_file && annot_file)
         {
 
-            output_values_any_format(output_values_file, n_labels,
-                         roi_values, TYPE_DOUBLE);
+            if (output_values_any_format(output_values_file, n_labels,
+                             roi_values, TYPE_DOUBLE) != OK)
+                exit(EXIT_FAILURE);
         }
         else if (map_func == F_MULTI)
         {
@@ -613,8 +615,9 @@ int main(int argc, char *argv[])
                 for (i = 0; i < polygons->n_points; i++)
                     values[i] = values2d[i][j];
 
-                output_values_any_format(tmp_string, polygons->n_points,
-                             values, TYPE_DOUBLE);
+                if (output_values_any_format(tmp_string, polygons->n_points,
+                                 values, TYPE_DOUBLE) != OK)
+                    exit(EXIT_FAILURE);
             }
             free(values2d);
             free(tmp_string);
@@ -645,14 +648,16 @@ int main(int argc, char *argv[])
                     atable[i].b = 0;
                 }
 
-                write_annotation_table(output_values_file, n_arrays, out_annot, n_labels, atable);
+                if (write_annotation_table(output_values_file, n_arrays, out_annot, n_labels, atable) != OK)
+                    exit(EXIT_FAILURE);
 
                 free(atable);
                 free(out_annot);
             }
             else
-                output_values_any_format(output_values_file, polygons->n_points,
-                             values, TYPE_DOUBLE);
+                if (output_values_any_format(output_values_file, polygons->n_points,
+                                 values, TYPE_DOUBLE) != OK)
+                    exit(EXIT_FAILURE);
         }
     }
 

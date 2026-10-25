@@ -117,11 +117,13 @@ typedef struct {
  * \param use_median       (in)  1 to use median in class statistics, 0 for mean only
  * \param mrf_class_weights (in) per-class MRF weights or NULL for uniform
  * \param use_multistep    (in)  1 for multi-resolution coarse-to-fine, 0 for single
+ * \return 0 on success; -1 if the class count is not supported, a label exceeds
+ *         it or a class has no voxels in the label image
  */
-void Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
-          int n_classes, int niters, int sub, int *dims, int pve,
-          double weight_MRF, double *voxelsize, int niters_ICM, int verbose,
-          int use_median, const double *mrf_class_weights, int use_multistep);
+int Amap(float *src, unsigned char *label, unsigned char *prob, double *mean,
+         int n_classes, int niters, int sub, int *dims, int pve,
+         double weight_MRF, double *voxelsize, int niters_ICM, int verbose,
+         int use_median, const double *mrf_class_weights, int use_multistep);
 /**
  * \brief Convert tissue classification to partial volume estimates (CSF/GM/WM).
  *

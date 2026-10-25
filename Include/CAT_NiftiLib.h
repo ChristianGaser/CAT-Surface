@@ -166,7 +166,8 @@ int write_nifti_float_4d(const char *output_filename, float image[], int data_ty
  * volume (nx*ny*nz) and nt the number of volumes. Non-finite values of float
  * images are read as 0 (the NIfTI library replaces NaN and Inf). sto_xyz of the
  * returned header is the voxel-to-world matrix, also for a qform-only file
- * (see set_world_matrix()).
+ * (see set_world_matrix()). A single-file NIfTI is read from the file named,
+ * also when one with the other extension (x.nii next to x.nii.gz) exists.
  *
  * \param input_filename (in)  path to NIfTI file
  * \param image          (out) pointer to allocated double array (size nx*ny*nz*nt)
@@ -183,6 +184,7 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[],
  * read_nifti_double(): volume v starts at image[v * nvox], where nvox of the
  * returned header is the voxel count of ONE volume. sto_xyz is the
  * voxel-to-world matrix, also for a qform-only file (see set_world_matrix()).
+ * Like read_nifti_double(), it reads a single-file NIfTI from the file named.
  *
  * \param input_filename (in)  path to NIfTI file
  * \param image          (out) pointer to allocated float array (size nx*ny*nz*nt)

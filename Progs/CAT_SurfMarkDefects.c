@@ -125,11 +125,13 @@ main(int argc, char *argv[])
     if(get_size) {
         defect_size = (double *) malloc(sizeof(double) * surface->n_points);
         get_defect_size(surface, defects, n_defects, defect_size);
-        output_values_any_format(out_file, sphere->n_points,
-                 defect_size, TYPE_DOUBLE);
+        if (output_values_any_format(out_file, sphere->n_points,
+                     defect_size, TYPE_DOUBLE) != OK)
+            exit(EXIT_FAILURE);
     } else              
-        output_values_any_format(out_file, sphere->n_points,
-                 defects, TYPE_INTEGER);
+        if (output_values_any_format(out_file, sphere->n_points,
+                     defects, TYPE_INTEGER) != OK)
+            exit(EXIT_FAILURE);
 
     if (dump_patch == TRUE) {
         for (p = 1; p <= n_defects; p++) {

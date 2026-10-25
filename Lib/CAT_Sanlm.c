@@ -47,10 +47,6 @@
 #define PI 3.1415926535
 #define MAX_NTHREADS 16
 
-#if !defined(_WIN32)
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
 typedef struct
 {
     int rows;
@@ -67,10 +63,9 @@ typedef struct
     int radioB;
     int radioS;
     double strength;
+    int rician;           /* Rician noise model (was a global that stuck) */
+    double max_intensity; /* largest input value */
 } myargument;
-
-int rician;
-double max;
 
 /*Returns the modified Bessel function I0(x) for any real x.*/
 /**
@@ -166,13 +161,11 @@ static double Epsi(double snr)
  * \param sy              (in)  volume size y
  * \param sz              (in)  volume size z
  */
-static void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float *average, double weight, int sx, int sy, int sz)
+static void Average_block(float *ima, int x, int y, int z, int neighborhoodsize, float *average, double weight, int sx, int sy, int sz, int rician)
 {
     int x_pos, y_pos, z_pos;
     int is_outside;
     int a, b, c, ns, sxy, index;
-
-    extern int rician;
 
     ns = 2 * neighborhoodsize + 1;
     sxy = sx * sy;
@@ -552,8 +545,8 @@ ThreadFunc(void *pArguments)
     unsigned char *Label;
     int rows, cols, slices, ini, fin, v, f, i, j, k, l, rc, ii, jj, kk, ni, nj, nk, Ndims;
 
-    extern int rician;
-    extern double max;
+    int rician;
+    double max;
 
     myargument arg;
     arg = *(myargument *)pArguments;
@@ -572,6 +565,8 @@ ThreadFunc(void *pArguments)
     v = arg.radioB;
     f = arg.radioS;
     strength = arg.strength;
+    rician = arg.rician;
+    max = arg.max_intensity;
 
     /* filter */
     epsilon = 1e-5;
@@ -697,7 +692,7 @@ ThreadFunc(void *pArguments)
 
                                             if (w > 0)
                                             {
-                                                Average_block(ima, ni, nj, nk, f, average, w, cols, rows, slices);
+                                                Average_block(ima, ni, nj, nk, f, average, w, cols, rows, slices, rician);
                                                 totalweight = totalweight + w;
                                             }
                                         }
@@ -709,33 +704,65 @@ ThreadFunc(void *pArguments)
 
                     if (wmax == 0.0)
                         wmax = 1.0;
-                    Average_block(ima, i, j, k, f, average, wmax, cols, rows, slices);
+                    Average_block(ima, i, j, k, f, average, wmax, cols, rows, slices, rician);
                     totalweight = totalweight + wmax;
-#if !defined(_WIN32)
-                    pthread_mutex_lock(&mutex);
-#endif
                     Value_block(Estimate, Label, i, j, k, f, average, totalweight, cols, rows, slices);
-#if !defined(_WIN32)
-                    pthread_mutex_unlock(&mutex);
-#endif
                 }
                 else
                 {
                     wmax = 1.0;
-                    Average_block(ima, i, j, k, f, average, wmax, cols, rows, slices);
+                    Average_block(ima, i, j, k, f, average, wmax, cols, rows, slices, rician);
                     totalweight = totalweight + wmax;
-#if !defined(_WIN32)
-                    pthread_mutex_lock(&mutex);
-#endif
                     Value_block(Estimate, Label, i, j, k, f, average, totalweight, cols, rows, slices);
-#if !defined(_WIN32)
-                    pthread_mutex_unlock(&mutex);
-#endif
                 }
             }
 
     free(average);
     return NULL;
+}
+
+/* Run ThreadFunc on every slab: the even slabs first, then the odd ones.
+   The blocks around the voxels of a slab reach f slices into its
+   neighbours, so slabs that touch must not run at the same time.  Two
+   slabs of the same parity never share a voxel when every slab is at least
+   2f + 1 slices thick, so no lock is needed and every voxel receives its
+   sums in the same order whatever the thread timing; the summation used to
+   follow the timing, under a mutex, and the Rician bias map was written
+   without any lock at all, so repeated runs differed.  Without threads
+   (Windows, or slabs too thin) the slabs run in the same order, so all
+   paths give the same result. */
+static void
+run_slabs(myargument *args, int n, int parallel)
+{
+    int i, parity;
+
+#if !defined(_WIN32)
+    if (parallel && n > 1)
+    {
+        pthread_t *threads = (pthread_t *)calloc(n, sizeof(pthread_t));
+
+        for (parity = 0; parity < 2; parity++)
+        {
+            for (i = parity; i < n; i += 2)
+            {
+                if (pthread_create(&threads[i], NULL, ThreadFunc, &args[i]))
+                {
+                    printf("Threads cannot be created\n");
+                    exit(1);
+                }
+            }
+            for (i = parity; i < n; i += 2)
+                pthread_join(threads[i], NULL);
+        }
+        free(threads);
+        return;
+    }
+#else
+    (void)parallel;
+#endif
+    for (parity = 0; parity < 2; parity++)
+        for (i = parity; i < n; i += 2)
+            ThreadFunc(&args[i]);
 }
 
 /**
@@ -757,15 +784,11 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
     unsigned char *Label;
     int ndim = 3;
     double SNR, mean, var, estimate, d;
-    int vol, slice, label, Ndims, i, j, k, ii, jj, kk, ni, nj, nk, indice, Nthreads, ini, fin, r;
-
-    extern int rician;
+    int vol, slice, label, Ndims, i, j, k, ii, jj, kk, ni, nj, nk, indice, Nthreads, r;
+    int rician = use_rician ? 1 : 0;
+    double max = 0.0;
 
     myargument *ThreadArgs;
-
-#if !defined(_WIN32)
-    pthread_t *ThreadList;
-#endif
 
     if (strength <= 0.0)
         strength = 1.0;
@@ -780,12 +803,7 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
     Estimate = (float *)malloc(vol * sizeof(float));
     Label = (unsigned char *)malloc(vol * sizeof(unsigned char));
 
-    /* set global parameter */
-    if (use_rician)
-        rician = 1;
-
-    if (rician)
-        bias = (float *)malloc(vol * sizeof(float));
+    bias = rician ? (float *)malloc(vol * sizeof(float)) : NULL;
 
     for (i = 0; i < vol; i++)
     {
@@ -795,7 +813,6 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
             bias[i] = 0.0;
     }
 
-    max = 0.0;
     for (k = 0; k < dims[2]; k++)
     {
         for (j = 0; j < dims[1]; j++)
@@ -877,45 +894,10 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
     if (Nthreads < 1)
         Nthreads = 1;
 
-#if defined(_WIN32)
-    /* Sequential execution on Windows (no pthread dependency) */
-    ThreadArgs = (myargument *)malloc(Nthreads * sizeof(myargument));
-
-    for (i = 0; i < Nthreads; i++)
-    {
-        /* Make Thread Structure */
-        ini = (i * dims[2]) / Nthreads;
-        fin = ((i + 1) * dims[2]) / Nthreads;
-        ThreadArgs[i].cols = dims[0];
-        ThreadArgs[i].rows = dims[1];
-        ThreadArgs[i].slices = dims[2];
-        ThreadArgs[i].in_image = ima;
-        ThreadArgs[i].var_image = variances;
-        ThreadArgs[i].means_image = means;
-        ThreadArgs[i].estimate = Estimate;
-        ThreadArgs[i].bias = bias;
-        ThreadArgs[i].label = Label;
-        ThreadArgs[i].ini = ini;
-        ThreadArgs[i].fin = fin;
-        ThreadArgs[i].radioB = v;
-        ThreadArgs[i].radioS = f;
-        ThreadArgs[i].strength = strength;
-
-        ThreadFunc(&ThreadArgs[i]);
-    }
-    free(ThreadArgs);
-
-#else
-
-    /* Reserve room for handles of threads in ThreadList*/
-    ThreadList = (pthread_t *)calloc(Nthreads, sizeof(pthread_t));
     ThreadArgs = (myargument *)calloc(Nthreads, sizeof(myargument));
-
     for (i = 0; i < Nthreads; i++)
     {
         /* Make Thread Structure */
-        ini = (i * dims[2]) / Nthreads;
-        fin = ((i + 1) * dims[2]) / Nthreads;
         ThreadArgs[i].cols = dims[0];
         ThreadArgs[i].rows = dims[1];
         ThreadArgs[i].slices = dims[2];
@@ -925,26 +907,16 @@ void sanlm(float *ima, int v, int f, int use_rician, double strength, const int 
         ThreadArgs[i].estimate = Estimate;
         ThreadArgs[i].bias = bias;
         ThreadArgs[i].label = Label;
-        ThreadArgs[i].ini = ini;
-        ThreadArgs[i].fin = fin;
+        ThreadArgs[i].ini = (i * dims[2]) / Nthreads;
+        ThreadArgs[i].fin = ((i + 1) * dims[2]) / Nthreads;
         ThreadArgs[i].radioB = v;
         ThreadArgs[i].radioS = f;
         ThreadArgs[i].strength = strength;
+        ThreadArgs[i].rician = rician;
+        ThreadArgs[i].max_intensity = max;
     }
-
-    for (i = 0; i < Nthreads; i++)
-    {
-        if (pthread_create(&ThreadList[i], NULL, ThreadFunc, &ThreadArgs[i]))
-        {
-            printf("Threads cannot be created\n");
-            exit(1);
-        }
-    }
-
-    for (i = 0; i < Nthreads; i++)
-        pthread_join(ThreadList[i], NULL);
-
-#endif
+    run_slabs(ThreadArgs, Nthreads, dims[2] / Nthreads >= 2 * f + 1);
+    free(ThreadArgs);
 
     if (rician)
     {

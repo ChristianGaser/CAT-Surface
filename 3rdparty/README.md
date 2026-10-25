@@ -11,10 +11,10 @@ downloads are needed during compilation.
 | **bicpl-surface** | BIC Programming Library for surface mesh handling | MIT-like (MNI) | [BIC-MNI/bicpl](https://github.com/BIC-MNI/bicpl) |
 | **volume_io** | Volume I/O and geometry utilities from MINC | MIT-like (MNI) | [BIC-MNI/minc](https://github.com/BIC-MNI/minc) |
 | **nifti** | NIfTI-1 I/O library | Public Domain | [NIFTI](http://nifti.nimh.nih.gov/) |
-| **gifticlib** | GIFTI I/O library | Public Domain | [NITRC](http://www.nitrc.org/projects/gifti) |
+| **gifticlib** | GIFTI I/O library (version 1.17, 2021) | Public Domain | [gifti_clib](https://github.com/NIFTI-Imaging/gifti_clib) |
 | **fftw** | Library for computing the discrete Fourier transform (DFT)  | GPL/FFTW License | [FFTW](https://fftw.org/) |
-| **zlib** | Compression library (version 1.2.3, 2005) | zlib License | [zlib.net](https://zlib.net/) |
-| **expat** | XML parsing library (version 2.1.0) | MIT License | [libexpat](https://libexpat.github.io/) |
+| **zlib** | Compression library (version 1.3.2, 2026) | zlib License | [zlib.net](https://zlib.net/) |
+| **expat** | XML parsing library (version 2.9.0, 2026) | MIT License | [libexpat](https://libexpat.github.io/) |
 | **nii2mesh** | Mesh simplification (quadric decimation) | BSD-2-Clause | [neurolabusc/nii2mesh](https://github.com/neurolabusc/nii2mesh) |
 | **s2kit10** | Spherical harmonics transform | GPL-2+ | Kostelec & Rockmore |
 | **dartel** | Diffeomorphic registration (no longer bundled, see below) | GPL-2+ (SPM) | John Ashburner |
@@ -56,12 +56,18 @@ authors (haker@bwh.harvard.edu) should be obtained and stored here as
 
 ## Security
 
-zlib 1.2.3 and expat 2.1.0 are old releases with known vulnerabilities in
-code that CAT-Surface uses when reading and writing GIfTI files (expat parses
-the XML, zlib inflates/deflates the gzip-base64 data arrays), e.g.
-CVE-2018-25032 (zlib < 1.2.12, memory corruption in deflate) and
-CVE-2022-40674 (expat < 2.4.9, use-after-free in the parser). Updating both,
-or linking the system libraries where available, is recommended.
+expat parses every GIfTI file, and zlib inflates and deflates the
+gzip-base64 GIfTI arrays and `.nii.gz` files, so both read data that can come
+from anywhere. They were updated from 2.1.0 (2012) and 1.2.3 (2005), which
+carried known memory-corruption bugs on these paths (e.g. expat
+CVE-2016-0718, zlib CVE-2018-25032), to expat 2.9.0 and zlib 1.3.2; keep them
+current. Two classes do not apply here: gifticlib installs an expat default
+handler, which turns internal entity expansion ("billion laughs") off, and
+nothing calls zlib's `inflateGetHeader()` (CVE-2022-37434). nifti1_io (1.43,
+2010) has nothing security-relevant in its upstream history since; note that
+nifti1_io looks for an image file by trying `.nii` before `.nii.gz`, which
+CAT's readers work around (`read_nifti_float/double` read the voxels from the
+file that was asked for).
 
 ## Modifications
 
@@ -71,6 +77,16 @@ The following libraries have been modified from their original versions:
   removed (using NIfTI functions instead). ParseArgv.c added from minc-1.5.1.
 - **volume_io**: From minc-1.5.1, geometry and utility functions only.
 - **dartel**: Added more OpenMP support (now in `../deprecated/`).
+- **zlib**: 1.3.2 as released, except that `zconf.h` includes `unistd.h` on
+  every non-Windows system, as zlib's own `./configure` would set it.
+- **expat**: the `lib/` sources of 2.9.0 as released, with a hand-written
+  `expat_config.h` in place of the one expat's configure generates (hash salt
+  from `/dev/urandom` on POSIX systems, `rand_s()` on Windows); the unused
+  `xmlwf` tool is not vendored.
+- **gifticlib**: 1.17 (NIFTI-Imaging/gifti_clib at d3e873d) as released,
+  except that `gifti_io.h` includes `nifti1_io.h`; upstream defaults to
+  `nifti2_io.h`, which is not vendored. The test and tool programs are not
+  vendored.
 
 ## References
 

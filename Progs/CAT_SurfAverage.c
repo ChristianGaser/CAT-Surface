@@ -140,7 +140,8 @@ main(int argc, char *argv[])
             value = sqrt(Point_x(sqr_pts[i]) + Point_y(sqr_pts[i]) + Point_z(sqr_pts[i]));
             values[i] = value;
         }
-        output_values_any_format(rms_file, n_pts, values, TYPE_DOUBLE);
+        if (output_values_any_format(rms_file, n_pts, values, TYPE_DOUBLE) != OK)
+            exit(EXIT_FAILURE);
         free(values);
         free(sqr_pts);
     }

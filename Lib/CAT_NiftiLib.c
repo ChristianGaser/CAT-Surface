@@ -1104,6 +1104,64 @@ int write_nifti_float_4d(const char *output_filename, float image[], int data_ty
                                      dim, nt, vox, in_ptr);
 }
 
+/* nifti_image_read() and nifti_image_load() find the image file by
+   stripping the extension and trying .nii before .nii.gz, so x.nii.gz with
+   an x.nii next to it came back with the header of the one and the voxels
+   of the other (upstream nifti1_io does the same).  A single-file NIfTI
+   keeps its voxels in the file the header was read from, so read them from
+   there; .hdr/.img pairs keep the library's own search. */
+static nifti_image *
+nifti_image_read_exact(const char *filename)
+{
+    nifti_image *nim = nifti_image_read(filename, 0);
+    znzFile fp;
+    size_t ntot;
+    char *same;
+
+    if (!nim)
+        return NULL;
+    if (nim->nifti_type != NIFTI_FTYPE_NIFTI1_1 || nim->fname == NULL ||
+        nim->iname_offset < 0)
+    {
+        if (nifti_image_load(nim) < 0)
+        {
+            nifti_image_free(nim);
+            return NULL;
+        }
+        return nim;
+    }
+
+    /* keep the header consistent with the file the voxels come from */
+    same = (char *)malloc(strlen(nim->fname) + 1);
+    if (!same)
+    {
+        nifti_image_free(nim);
+        return NULL;
+    }
+    strcpy(same, nim->fname);
+    free(nim->iname);
+    nim->iname = same;
+
+    /* the steps of nifti_image_load(), on the file that was asked for */
+    ntot = nifti_get_volsize(nim);
+    fp = znzopen(nim->fname, "rb", nifti_is_gzfile(nim->fname));
+    if (znz_isnull(fp))
+    {
+        nifti_image_free(nim);
+        return NULL;
+    }
+    nim->data = calloc(1, ntot);
+    if (!nim->data || znzseek(fp, (long)nim->iname_offset, SEEK_SET) < 0 ||
+        nifti_read_buffer(fp, nim->data, ntot, nim) < ntot)
+    {
+        znzclose(fp);
+        nifti_image_free(nim);
+        return NULL;
+    }
+    znzclose(fp);
+    return nim;
+}
+
 /**
  * \brief Read NIfTI image file and load data into double-precision array.
  *
@@ -1111,6 +1169,8 @@ int write_nifti_float_4d(const char *output_filename, float image[], int data_ty
  * precision. Handles all NIfTI integer and floating-point datatypes. Automatically
  * allocates output array and applies datatype scaling/slope corrections. Non-finite
  * values of float images are read as 0 (the NIfTI library replaces NaN and Inf).
+ * A single-file NIfTI is read from the file named, also when one with the other
+ * extension (x.nii next to x.nii.gz) exists.
  *
  * A 4D file is returned as its nt volumes one after the other: volume v starts at
  * image[v * nvox], where nvox of the returned header is the voxel count of ONE
@@ -1128,7 +1188,7 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
     double tmp;
     size_t i;
 
-    nii_ptr = nifti_image_read(input_filename, 1);
+    nii_ptr = nifti_image_read_exact(input_filename);
     if (!nii_ptr)
     {
         fprintf(stderr, "read_nifti_double: Error reading %s.\n", input_filename);
@@ -1218,6 +1278,7 @@ nifti_image *read_nifti_double(const char *input_filename, double *image[], int 
  * Parses NIfTI format files and converts voxels to float (single precision).
  * Similar to read_nifti_double but saves memory for large volumes where double
  * precision is not required. Handles all NIfTI datatypes and applies scaling corrections.
+ * Like read_nifti_double(), it reads a single-file NIfTI from the file named.
  *
  * A 4D file is returned as its nt volumes one after the other: volume v starts at
  * image[v * nvox], where nvox of the returned header is the voxel count of ONE
@@ -1235,7 +1296,7 @@ nifti_image *read_nifti_float(const char *input_filename, float *image[], int re
     float tmp;
     size_t i;
 
-    nii_ptr = nifti_image_read(input_filename, 1);
+    nii_ptr = nifti_image_read_exact(input_filename);
     if (!nii_ptr)
     {
         fprintf(stderr, "read_nifti_float: Error reading %s.\n", input_filename);

@@ -61,8 +61,9 @@ main(int argc, char *argv[])
     ALLOC(convexity, polygons->n_points);
     compute_convexity(polygons, n_neighbours, neighbours, convexity);
   
-    output_values_any_format(output_surface_file, polygons->n_points, convexity,
-                 TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, polygons->n_points, convexity,
+                     TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
     
     delete_polygon_point_neighbours(polygons, n_neighbours,
                     neighbours, NULL, NULL);

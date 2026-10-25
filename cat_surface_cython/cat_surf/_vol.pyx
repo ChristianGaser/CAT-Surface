@@ -923,7 +923,32 @@ def vol_amap(volume, labels, voxelsize=None,
     if vol.ndim != 3:
         raise ValueError("volume must be 3-D")
 
-    lab = np.asfortranarray(labels, dtype=np.uint8)
+    # Amap() indexes per-class arrays and the MRF tables with the class count
+    # and every label, so out-of-range values crashed the interpreter.  It
+    # checks them itself as well; here the messages are clearer, and the
+    # labels are rounded like CAT_VolAmap does before they become uint8,
+    # where -1 or 300 would silently wrap around.
+    if n_pure_classes < 2 or n_pure_classes > 5 or (pve and n_pure_classes != 3):
+        raise ValueError(
+            f"n_pure_classes={n_pure_classes} is not supported "
+            f"({'partial-volume estimation needs 3' if pve else '2..5'})")
+    lab_in = np.asarray(labels)
+    if not np.issubdtype(lab_in.dtype, np.integer):
+        # halves away from zero, as round() in C; np.rint would turn 2.5
+        # into 2 and accept -0.5 as background
+        lab_in = lab_in.astype(np.float64)
+        with np.errstate(invalid="ignore"):
+            whole = np.trunc(lab_in)
+            lab_in = whole + np.where(np.abs(lab_in - whole) >= 0.5,
+                                      np.sign(lab_in), 0.0)
+    # phrased so that NaN fails too, as in CAT_VolAmap
+    valid = (lab_in >= 0) & (lab_in <= n_pure_classes)
+    if not valid.all():
+        bad = lab_in[~valid]
+        raise ValueError(
+            f"{bad.size} labels lie outside 0..{n_pure_classes} "
+            f"(0 is background), e.g. {bad.flat[0]}")
+    lab = np.asfortranarray(lab_in, dtype=np.uint8)
     if lab.shape != vol.shape:
         raise ValueError("labels shape must match volume shape")
 
@@ -966,16 +991,18 @@ def vol_amap(volume, labels, voxelsize=None,
                 f"output classes ({n_out})")
         mrf_w_ptr = <double *>mrf_w.data
 
-    C.Amap(<float *>src.data,
-           <unsigned char *>lab_out.data,
-           <unsigned char *>prob.data,
-           <double *>mean.data,
-           n_pure_classes, n_iters, sub, dims,
-           pve_flag, weight_mrf, vx, n_iters_icm,
-           1 if verbose else 0,
-           1 if use_median else 0,
-           mrf_w_ptr,
-           1 if use_multistep else 0)
+    if C.Amap(<float *>src.data,
+              <unsigned char *>lab_out.data,
+              <unsigned char *>prob.data,
+              <double *>mean.data,
+              n_pure_classes, n_iters, sub, dims,
+              pve_flag, weight_mrf, vx, n_iters_icm,
+              1 if verbose else 0,
+              1 if use_median else 0,
+              mrf_w_ptr,
+              1 if use_multistep else 0) != 0:
+        # a class without voxels; Amap() printed which one
+        raise ValueError("Amap rejected the labels (see the message above)")
 
     return prob, lab_out, mean
 

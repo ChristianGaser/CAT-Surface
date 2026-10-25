@@ -87,8 +87,9 @@ int main(int argc, char *argv[])
 
     clip_data(thickness, n_vals, 1E-10, max_dist, DT_FLOAT64);
 
-    output_values_any_format(output_thickness_file, n_vals,
-                             thickness, TYPE_DOUBLE);
+    if (output_values_any_format(output_thickness_file, n_vals,
+                                 thickness, TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
 
     delete_object_list(n_objects, objects);
     free(thickness);

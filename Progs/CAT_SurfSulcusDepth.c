@@ -95,8 +95,9 @@ main(int argc, char *argv[])
             depth_values[i] = sqrt(depth_values[i]);
     }
 
-    output_values_any_format(output_surface_file, polygons->n_points,
-                     depth_values, TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, polygons->n_points,
+                         depth_values, TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
     
     delete_object_list(n_objects, objects);
 

@@ -286,7 +286,8 @@ int main(int argc, char *argv[]) {
                     n_iter, strength_gyri_mask, sulci_ptr, topo_sheet, verbose);
     }
     if (object) {
-        output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL);
+        if (output_graphics_any_format(output_filename, ASCII_FORMAT, 1, &object, NULL) != OK)
+            exit(EXIT_FAILURE);
     } else {
         fprintf(stderr, "Error generating surface.\n");
     }

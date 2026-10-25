@@ -60,16 +60,24 @@ EXTRA_DIST = \
     3rdparty/expat/lib/expat.h \
     3rdparty/expat/lib/expat_config.h \
     3rdparty/expat/lib/expat_external.h \
+    3rdparty/expat/lib/fallthrough.h \
+    3rdparty/expat/lib/hash_table.h \
     3rdparty/expat/lib/iasciitab.h \
     3rdparty/expat/lib/internal.h \
     3rdparty/expat/lib/latin1tab.h \
-    3rdparty/expat/lib/macconfig.h \
+    3rdparty/expat/lib/memory_sanitizer.h \
     3rdparty/expat/lib/nametab.h \
+    3rdparty/expat/lib/random_dev_urandom.h \
+    3rdparty/expat/lib/random_rand_s.h \
+    3rdparty/expat/lib/siphash.h \
     3rdparty/expat/lib/utf8tab.h \
     3rdparty/expat/lib/winconfig.h \
+    3rdparty/expat/lib/xcs.h \
     3rdparty/expat/lib/xmlrole.h \
     3rdparty/expat/lib/xmltok.h \
+    3rdparty/expat/lib/xmltok_impl.c \
     3rdparty/expat/lib/xmltok_impl.h \
+    3rdparty/expat/lib/xmltok_ns.c \
     3rdparty/nii2mesh/LICENSE \
     3rdparty/nii2mesh/README.md \
     3rdparty/nii2mesh/meshtypes.h \
@@ -86,17 +94,26 @@ s2kit10_SRC = \
     3rdparty/s2kit10/primitive.c
 
 
+# xmltok_impl.c and xmltok_ns.c are included by xmltok.c; the hash salt
+# comes from rand_s() on Windows and /dev/urandom elsewhere (expat_config.h)
 expat_SRC = \
+    3rdparty/expat/lib/xcs.c \
     3rdparty/expat/lib/xmlparse.c \
     3rdparty/expat/lib/xmlrole.c \
-    3rdparty/expat/lib/xmltok.c  \
-    3rdparty/expat/lib/xmltok_impl.c \
-    3rdparty/expat/lib/xmltok_ns.c
+    3rdparty/expat/lib/xmltok.c
+if WINDOWS
+expat_SRC += 3rdparty/expat/lib/random_rand_s.c
+else
+expat_SRC += 3rdparty/expat/lib/random_dev_urandom.c
+endif
 
 zlib_SRC = \
     3rdparty/zlib/adler32.c \
     3rdparty/zlib/crc32.c \
-    3rdparty/zlib/gzio.c  \
+    3rdparty/zlib/gzclose.c \
+    3rdparty/zlib/gzlib.c \
+    3rdparty/zlib/gzread.c \
+    3rdparty/zlib/gzwrite.c \
     3rdparty/zlib/inffast.c \
     3rdparty/zlib/inftrees.c \
     3rdparty/zlib/trees.c \
@@ -346,11 +363,10 @@ noinst_HEADERS = \
     3rdparty/nifti/nifti1_local.h \
     3rdparty/nifti/znzlib.h \
     3rdparty/gifticlib/gifti_io.h \
-    3rdparty/gifticlib/gifti_test.h \
-    3rdparty/gifticlib/gifti_tool.h \
     3rdparty/gifticlib/gifti_xml.h \
     3rdparty/zlib/crc32.h \
     3rdparty/zlib/deflate.h \
+    3rdparty/zlib/gzguts.h \
     3rdparty/zlib/inffast.h \
     3rdparty/zlib/inffixed.h \
     3rdparty/zlib/inflate.h \

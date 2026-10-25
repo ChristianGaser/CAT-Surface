@@ -136,12 +136,12 @@ cdef extern from "CAT_Surf.h":
 cdef extern from "CAT_Complexity.h":
     double fractal_dimension(polygons_struct *surface, polygons_struct *sphere,
                              int maxiters, char *output_file,
-                             int smoothflag, int debugflag)
+                             int debugflag)
     double fractal_dimension_sph(polygons_struct *surface,
                                  polygons_struct *sphere,
                                  char *output_file, int n_triangles,
                                  polygons_struct *reparam,
-                                 int smoothflag, int debugflag)
+                                 int debugflag)
 
 
 # ---------------------------------------------------------------------------
@@ -433,7 +433,7 @@ cdef extern from "CAT_VolPbt.h":
 # CAT_Amap.h / CAT_Bmap.h — Brain tissue segmentation
 # ---------------------------------------------------------------------------
 cdef extern from "CAT_Amap.h":
-    void Amap(float *src, unsigned char *label, unsigned char *prob,
+    int Amap(float *src, unsigned char *label, unsigned char *prob,
               double *mean, int nc, int niters, int sub, int *dims,
               int pve, double weight_MRF, double *voxelsize,
               int niters_ICM, int verbose, int use_median,

@@ -65,8 +65,9 @@ main(int argc, char *argv[])
 
     measure = compute_depth_potential( polygons, alpha); 
   
-    output_values_any_format(output_surface_file, polygons->n_points, measure,
-                 TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, polygons->n_points, measure,
+                     TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
     
     free(measure);
     delete_object_list(n_objects, objects);

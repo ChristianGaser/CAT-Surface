@@ -452,8 +452,69 @@ test_fsl_matrices(void)
     nifti_image_free(neu);
 }
 
+/** \brief Write a 3D float file whose voxels all hold value. */
+static void
+write_constant(const char *file, float value)
+{
+    int dims[8] = {3, NX, NY, NZ, 1, 1, 1, 1};
+    nifti_image *nim = nifti_make_new_nim(dims, DT_FLOAT32, 1);
+    int i;
+
+    for (i = 0; i < NVOX; i++)
+        ((float *)nim->data)[i] = value;
+    nifti_set_filenames(nim, file, 0, 1);
+    nifti_image_write(nim);
+    nifti_image_free(nim);
+}
+
+/**
+ * \brief x.nii.gz is read from x.nii.gz even when an x.nii lies next to it.
+ *
+ * nifti1_io looks for the image file by stripping the extension and trying
+ * .nii first, so the readers used to return the header of x.nii.gz with the
+ * voxels of x.nii -- e.g. a gunzipped copy that SPM had since modified.
+ */
+static void
+test_reads_the_file_asked_for(void)
+{
+    char gz[] = "/tmp/test_nifti_pair.nii.gz";
+    char nii[] = "/tmp/test_nifti_pair.nii";
+    nifti_image *nim;
+    double *img = NULL;
+    float *fimg = NULL;
+
+    write_constant(gz, 1.0f);
+    write_constant(nii, 2.0f);
+
+    nim = read_nifti_double(gz, &img, 0);
+    MU_ASSERT("read_nifti_double reads the voxels of x.nii.gz, not x.nii",
+              nim != NULL && img[0] == 1.0 && img[NVOX - 1] == 1.0);
+    if (nim)
+        nifti_image_free(nim);
+    free(img);
+
+    nim = read_nifti_float(gz, &fimg, 0);
+    MU_ASSERT("read_nifti_float reads the voxels of x.nii.gz, not x.nii",
+              nim != NULL && fimg[0] == 1.0f && fimg[NVOX - 1] == 1.0f);
+    if (nim)
+        nifti_image_free(nim);
+    free(fimg);
+
+    img = NULL;
+    nim = read_nifti_double(nii, &img, 0);
+    MU_ASSERT("and x.nii is still read from x.nii",
+              nim != NULL && img[0] == 2.0);
+    if (nim)
+        nifti_image_free(nim);
+    free(img);
+
+    remove(gz);
+    remove(nii);
+}
+
 int main(void)
 {
+    MU_RUN_TEST(test_reads_the_file_asked_for);
     MU_RUN_TEST(test_4d_read_layout);
     MU_RUN_TEST(test_4d_read_float_layout);
     MU_RUN_TEST(test_writers_drop_the_time_dimension);

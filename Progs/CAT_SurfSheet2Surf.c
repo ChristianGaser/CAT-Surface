@@ -78,8 +78,9 @@ main(int argc, char *argv[])
     
     map_sheet2d_to_sphere(image, values, polygons, interpolate, size_map);
 
-    output_values_any_format(output_surface_file, polygons->n_points,
-                 values, TYPE_DOUBLE);
+    if (output_values_any_format(output_surface_file, polygons->n_points,
+                     values, TYPE_DOUBLE) != OK)
+        exit(EXIT_FAILURE);
 
     delete_object_list(n_objects, objects);
 
