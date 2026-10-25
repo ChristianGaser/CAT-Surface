@@ -56,12 +56,18 @@ authors (haker@bwh.harvard.edu) should be obtained and stored here as
 
 ## Security
 
-zlib 1.2.3 and expat 2.1.0 are old releases with known vulnerabilities in
-code that CAT-Surface uses when reading and writing GIfTI files (expat parses
-the XML, zlib inflates/deflates the gzip-base64 data arrays), e.g.
-CVE-2018-25032 (zlib < 1.2.12, memory corruption in deflate) and
-CVE-2022-40674 (expat < 2.4.9, use-after-free in the parser). Updating both,
-or linking the system libraries where available, is recommended.
+expat parses every GIfTI file, and zlib inflates and deflates the
+gzip-base64 GIfTI arrays and `.nii.gz` files, so both read data that can come
+from anywhere. They were updated from 2.1.0 (2012) and 1.2.3 (2005), which
+carried known memory-corruption bugs on these paths (e.g. expat
+CVE-2016-0718, zlib CVE-2018-25032), to expat 2.9.0 and zlib 1.3.2; keep them
+current. Two classes do not apply here: gifticlib installs an expat default
+handler, which turns internal entity expansion ("billion laughs") off, and
+nothing calls zlib's `inflateGetHeader()` (CVE-2022-37434). nifti1_io (1.43,
+2010) has nothing security-relevant in its upstream history since; note that
+nifti1_io looks for an image file by trying `.nii` before `.nii.gz`, which
+CAT's readers work around (`read_nifti_float/double` read the voxels from the
+file that was asked for).
 
 ## Modifications
 
