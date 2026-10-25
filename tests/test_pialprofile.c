@@ -168,6 +168,7 @@ static void test_facing_walls_meet_in_the_middle(void)
     free(p.normals);
     free(p.end_indices);
     free(p.indices);
+    free(p.colours);    /* from initialize_polygons() */
     free(vol);
     nifti_image_free(nim);
 }

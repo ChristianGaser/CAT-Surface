@@ -95,7 +95,6 @@ static void test_depth_of_folded_sphere(void)
     double crest = 0.0, valley = 0.0, min_depth = 1e10;
     int i, n, n_crest = 0, n_valley = 0;
 
-    initialize_polygons(&p, WHITE, NULL);
     f = make_folded_sphere(&p);
     n = p.n_points;
     depth = (double *)malloc(sizeof(double) * n);
@@ -137,7 +136,6 @@ static void test_unused_vertices(void)
     int *indices;
     int i, n, first, same, unchanged;
 
-    initialize_polygons(&p, WHITE, NULL);
     free(make_folded_sphere(&p));
     n = p.n_points;
     depth = (double *)malloc(sizeof(double) * n);
