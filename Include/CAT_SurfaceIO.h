@@ -282,6 +282,23 @@ int output_gifti(char *fname, File_formats format, int n_objects,
  */
 int output_gifti_curv(char *fname, int nvertices, double *data);
 /**
+ * \brief Write per-vertex FreeSurfer annotation codes as a GIFTI label file.
+ *
+ * NIFTI_INTENT_LABEL data whose keys are rows of the colour table (key, name,
+ * RGBA), as in FreeSurfer and Workbench label files.  Codes without a row get
+ * one extra "???" entry; without a colour table every distinct code is its
+ * own key (values stored unchanged), coloured from the code itself.
+ *
+ * \param fname      (in) output GIFTI filename (.gii)
+ * \param nvertices  (in) number of vertices
+ * \param annotation (in) per-vertex annotation codes (size nvertices)
+ * \param n_labels   (in) number of colour-table entries (0 if there is none)
+ * \param atable     (in) colour table from read_annotation_table(), or NULL
+ * \return 0 on success; -1 on allocation or write error
+ */
+int output_gifti_label(char *fname, int nvertices, int *annotation,
+                       int n_labels, ATABLE *atable);
+/**
  * \brief Read polygon mesh and optional texture data from GIFTI format.
  *
  * \param file         (in)  path to GIFTI file (.gii)

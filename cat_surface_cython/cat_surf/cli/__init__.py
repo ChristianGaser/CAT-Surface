@@ -448,7 +448,8 @@ def surf_resample_annot(source_surface_file, source_sphere_file,
 
     Resample a FreeSurfer ``.annot`` label file from one cortical
     spherical parameterisation to another.  Used by T1Prep's atlas
-    label-resampling step.
+    label-resampling step.  The extension of ``annot_out_file`` picks the
+    format as in the CLI: ``.annot``, a ``.gii`` label file, or plain values.
     """
     return _resample_annot(source_surface_file, source_sphere_file,
                            target_sphere_file,

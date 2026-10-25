@@ -7,6 +7,8 @@ returns numpy arrays.  The conversion to/from the C polygons_struct
 is handled transparently.
 """
 
+import os
+
 import numpy as np
 cimport numpy as cnp
 from libc.stdlib cimport malloc, free
@@ -959,7 +961,11 @@ def resample_annot(str source_surface_file,
     annot_in_file : str
         FreeSurfer ``.annot`` file matching ``source_surface_file``.
     annot_out_file : str
-        Output ``.annot`` written with the resampled per-vertex labels.
+        Output for the resampled per-vertex labels; the extension picks the
+        format, as in the CLI: ``.annot`` writes a FreeSurfer annotation with
+        the input's colour table, ``.gii`` a GIfTI label file
+        (NIFTI_INTENT_LABEL with a label table of names and colours), and
+        anything else the integer annotation codes as plain values.
 
     Returns
     -------
@@ -1016,12 +1022,16 @@ def resample_annot(str source_surface_file,
         if C.read_annotation_table(b_annot_in, &n_values, &annot_in,
                                    &n_table, &atable) != 0:
             raise IOError(f"Cannot read annotation table: {annot_in_file}")
+        if n_values != src_sph_poly.n_points:
+            raise ValueError(
+                f"{annot_in_file} has {n_values} labels, but the source sphere "
+                f"has {src_sph_poly.n_points} vertices")
 
         in_vals  = <double *>malloc(sizeof(double) * <size_t>src_sph_poly.n_points)
         out_vals = <double *>malloc(sizeof(double) * <size_t>n_tgt)
         if in_vals == NULL or out_vals == NULL:
             raise MemoryError()
-        for i in range(min(n_values, src_sph_poly.n_points)):
+        for i in range(n_values):
             in_vals[i] = <double>annot_in[i]
 
         resampled_objs = C.resample_surface_to_target_sphere(
@@ -1040,9 +1050,19 @@ def resample_annot(str source_surface_file,
             # Round-to-nearest, matching the CLI's `(int)round(...)`.
             annot_out[i] = <int>(out_vals[i] + (0.5 if out_vals[i] >= 0.0 else -0.5))
 
-        if C.write_annotation_table(b_annot_o, n_tgt, annot_out,
-                                    n_table, atable) != 0:
-            raise IOError(f"Cannot write annotation table: {annot_out_file}")
+        ext = os.path.splitext(annot_out_file)[1].lower()
+        if ext == ".annot":
+            status = C.write_annotation_table(b_annot_o, n_tgt, annot_out,
+                                              n_table, atable)
+        elif ext == ".gii":
+            status = C.output_gifti_label(b_annot_o, n_tgt, annot_out,
+                                          n_table, atable)
+        else:
+            # TYPE_INTEGER = 2  (from CAT_SurfaceIO.h)
+            status = C.output_values_any_format(b_annot_o, n_tgt,
+                                                <void *>annot_out, 2)
+        if status != 0:
+            raise IOError(f"Cannot write resampled labels: {annot_out_file}")
 
         return n_tgt
 

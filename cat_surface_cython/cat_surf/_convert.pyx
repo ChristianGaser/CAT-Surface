@@ -101,6 +101,13 @@ def arrays_to_polygons(
         raise ValueError("vertices must have shape (V, 3)")
     if faces.shape[1] != 3:
         raise ValueError("faces must have shape (F, 3)")
+    # C dereferences every index (compute_polygon_normals below, and any
+    # function the mesh is passed to): one out of range is an out-of-bounds
+    # read, a crash or a silently wrong result, never an exception.
+    if n_items > 0 and (faces.min() < 0 or faces.max() >= n_points):
+        raise ValueError(
+            f"faces index vertices {faces.min()}..{faces.max()}, but there "
+            f"are only {n_points} vertices (0..{n_points - 1})")
 
     # --- allocate ---
     cdef object_struct *obj = create_object(POLYGONS)

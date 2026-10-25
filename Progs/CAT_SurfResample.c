@@ -93,12 +93,13 @@ int main(int argc, char *argv[])
     char *input_values_file, *output_values_file;
     File_formats format;
     int i, n_objects;
-    int n_points, n_values, n_table, *out_annot, *in_annot;
+    int n_points, n_values, n_table = 0, *out_annot, *in_annot;
     object_struct **objects, **objects_src_sphere, **objects_target_sphere;
     polygons_struct *polygons, *polygons_sphere, *target_sphere;
     double *input_values = NULL, *output_values = NULL;
-    BOOLEAN values_defined, output_values_defined;
-    ATABLE *atable;
+    BOOLEAN values_defined, output_values_defined, annot_input = FALSE;
+    ATABLE *atable = NULL;
+    Status status;
 
     // Initialize argument processing and parse command line arguments
     initialize_argument_processing(argc, argv);
@@ -206,15 +207,39 @@ int main(int argc, char *argv[])
             //exit(EXIT_FAILURE);
 
             label_interpolation = 1;
-            read_annotation_table(input_values_file, &n_values, &in_annot, &n_table, &atable);
+            annot_input = TRUE;
+            if (read_annotation_table(input_values_file, &n_values, &in_annot,
+                                      &n_table, &atable) != OK) {
+                fprintf(stderr, "Cannot read annotation %s.\n", input_values_file);
+                exit(EXIT_FAILURE);
+            }
+            if (n_values != n_points) {
+                fprintf(stderr, "%s has %d labels, but the source has %d vertices.\n",
+                        input_values_file, n_values, n_points);
+                exit(EXIT_FAILURE);
+            }
             for (i = 0 ; i < n_values ; i++)
                 input_values[i] = (double)in_annot[i];
         } else {
             // Handle standard value files
+            free(input_values);
             if (input_values_any_format(input_values_file, &n_values, &input_values) != OK) {
                 fprintf(stderr, "Cannot read values in %s.\n", input_values_file);
                  exit(EXIT_FAILURE);
             }
+            if (n_values != n_points) {
+                fprintf(stderr, "%s has %d values, but the source has %d vertices.\n",
+                        input_values_file, n_values, n_points);
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        // An annotation output needs the colour table of an annotation input
+        if (output_values_defined && !annot_input &&
+            filename_extension_matches(output_values_file, "annot")) {
+            fprintf(stderr, "Writing %s needs an .annot input for its colour table.\n",
+                    output_values_file);
+            exit(EXIT_FAILURE);
         }
     }
     
@@ -245,16 +270,22 @@ int main(int argc, char *argv[])
                     out_annot[i] = (int)round(output_values[i]);
             }
             
-            // Write output values to annotation or value files
-            if (filename_extension_matches(output_values_file, "annot")) {
-                write_annotation_table(output_values_file, target_sphere->n_points, out_annot, n_table, atable);
-            } else {
-                if (label_interpolation)
-                    output_values_any_format(output_values_file,
+            // Write output values to annotation, GIFTI label or value files
+            if (filename_extension_matches(output_values_file, "annot"))
+                status = write_annotation_table(output_values_file,
+                         target_sphere->n_points, out_annot, n_table, atable);
+            else if (annot_input && filename_extension_matches(output_values_file, "gii"))
+                status = output_gifti_label(output_values_file,
+                         target_sphere->n_points, out_annot, n_table, atable);
+            else if (label_interpolation)
+                status = output_values_any_format(output_values_file,
                          target_sphere->n_points, out_annot, TYPE_INTEGER);
-                else
-                    output_values_any_format(output_values_file,
+            else
+                status = output_values_any_format(output_values_file,
                          target_sphere->n_points, output_values, TYPE_DOUBLE);
+            if (status != OK) {
+                fprintf(stderr, "Cannot write %s.\n", output_values_file);
+                exit(EXIT_FAILURE);
             }
             // Free allocated memory for output annotations if used
             if ((filename_extension_matches(output_values_file, "annot")) || (label_interpolation))
