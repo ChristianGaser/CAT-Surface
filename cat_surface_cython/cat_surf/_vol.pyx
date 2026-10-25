@@ -934,11 +934,20 @@ def vol_amap(volume, labels, voxelsize=None,
             f"({'partial-volume estimation needs 3' if pve else '2..5'})")
     lab_in = np.asarray(labels)
     if not np.issubdtype(lab_in.dtype, np.integer):
-        lab_in = np.rint(lab_in)
-    if lab_in.size and (lab_in.min() < 0 or lab_in.max() > n_pure_classes):
+        # halves away from zero, as round() in C; np.rint would turn 2.5
+        # into 2 and accept -0.5 as background
+        lab_in = lab_in.astype(np.float64)
+        with np.errstate(invalid="ignore"):
+            whole = np.trunc(lab_in)
+            lab_in = whole + np.where(np.abs(lab_in - whole) >= 0.5,
+                                      np.sign(lab_in), 0.0)
+    # phrased so that NaN fails too, as in CAT_VolAmap
+    valid = (lab_in >= 0) & (lab_in <= n_pure_classes)
+    if not valid.all():
+        bad = lab_in[~valid]
         raise ValueError(
-            f"labels range {lab_in.min()}..{lab_in.max()}, but must lie in "
-            f"0..{n_pure_classes} (0 is background)")
+            f"{bad.size} labels lie outside 0..{n_pure_classes} "
+            f"(0 is background), e.g. {bad.flat[0]}")
     lab = np.asfortranarray(lab_in, dtype=np.uint8)
     if lab.shape != vol.shape:
         raise ValueError("labels shape must match volume shape")

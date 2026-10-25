@@ -965,8 +965,16 @@ def test_amap_rejects_bad_labels():
 
     prob, lab, mean = cat_surf.vol_amap(t1, labels)
     check("valid labels give finite class means", np.isfinite(mean).all(), str(mean))
+    # halves round away from zero, as round() in CAT_VolAmap: 0.5 is CSF,
+    # not background, and -0.5 is -1, not 0
+    trial, t1_trial = labels.copy(), t1.copy()
+    trial[1, 1, 1], t1_trial[1, 1, 1] = 0.5, 1.0
+    lab = cat_surf.vol_amap(t1_trial, trial)[1]
+    check("a label of 0.5 is CSF, not background", lab[1, 1, 1] != 0, str(lab[1, 1, 1]))
     for name, bad, kw in (("a label above the class count", 4, {}),
                           ("a negative label", -1, {}),
+                          ("a label of -0.5", -0.5, {}),
+                          ("a NaN label", np.nan, {}),
                           ("an unsupported class count", None, {"n_pure_classes": 7}),
                           ("a class without voxels", "no-csf", {})):
         trial = labels.copy()
