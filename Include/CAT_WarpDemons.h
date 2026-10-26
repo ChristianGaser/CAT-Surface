@@ -115,10 +115,11 @@ void CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt);
  * \brief Register a source surface to a template by warping its sphere.
  *
  * Resamples both surfaces and their spheres to opt->n_points, optionally
- * applies a rigid rotation pre-alignment, then runs Spherical Demons
- * registration for each feature stage, carrying the accumulated warp forward
- * between stages. The deformed source sphere at full input resolution is
- * returned.
+ * applies a rigid rotation pre-alignment to the source sphere, then runs
+ * Spherical Demons registration for each feature stage, carrying the
+ * accumulated warp forward between stages. The rotation is not part of the
+ * warp, so the elastic prior on the warp cannot shrink it back. The deformed
+ * source sphere at full input resolution is returned.
  *
  * \param src               (in)  source cortical surface mesh
  * \param src_sphere        (in)  spherical parameterization of src

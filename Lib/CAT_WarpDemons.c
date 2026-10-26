@@ -1483,8 +1483,9 @@ report_warp_distortion(polygons_struct *orig, polygons_struct *warp)
  * Runs Spherical Demons over a coarse-to-fine pyramid: at each level both
  * surfaces and spheres are resampled to opt->level_points[level], the chosen
  * curvature feature is matched, and the accumulated warp is carried forward to
- * the next (finer) level. An optional rigid rotation pre-aligns the coarsest
- * level. \p src and \p src_sphere (and likewise \p trg / \p trg_sphere) must
+ * the next (finer) level. An optional rigid rotation is applied to the source
+ * sphere before the coarsest level, so the warp's regularization never sees
+ * it. \p src and \p src_sphere (and likewise \p trg / \p trg_sphere) must
  * share vertex count and topology.
  *
  * \param src               (in)  source cortical surface mesh
@@ -1501,7 +1502,8 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                        polygons_struct *warped_src_sphere,
                        const CAT_WarpDemonsOptions *opt)
 {
-    polygons_struct *cur_sphere;
+    polygons_struct *cur_sphere, rot_sphere;
+    polygons_struct *sphere = src_sphere; /* source sphere the pyramid runs on */
     double rotation_matrix[9], fwhm_curv0;
     int    i, level;
     int    *unf_nbr = NULL, **unf_nbrs = NULL;
@@ -1519,16 +1521,9 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
     for (i = 0; i < trg_sphere->n_points; i++)
         set_vector_length(&trg_sphere->points[i], SPHERE_RADIUS);
 
-    /* The running warp is stored at the full input resolution as a deformed
-     * copy of src_sphere (initially the identity). It is resampled down to each
-     * pyramid level, refined, then resampled back up - so the warp accumulates
-     * across the coarse-to-fine levels. */
-    cur_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
-    copy_polygons(src_sphere, cur_sphere);
-
     /* Estimate the initial rigid rotation before the coarse-to-fine loop begins
-     * and fold it into the running warp; the level-0 reference sphere is then
-     * re-derived from cur_sphere like every other level.
+     * and apply it to the source sphere (see below for why it must not go into
+     * the running warp).
      *
      * The rotation comes from an exhaustive coarse-to-fine global search over all
      * three angles (FreeSurfer's MRISrigidBodyAlignGlobal strategy). A local
@@ -1567,29 +1562,38 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         /* The rotation search measures cost(R) = sum |f_src(s) - f_trg(R s)|^2
          * (see cost_for_rotation): the returned R maps SOURCE coordinates onto
-         * TARGET coordinates. The pyramid below needs the opposite direction -
-         * warp_demon pulls the source feature through cur_sphere and compares
-         * f_src(g(u)) against f_trg(u), so g must map TARGET coordinates onto
-         * SOURCE ones, i.e. g = R^-1. Applying R directly rotated every subject
-         * the wrong way, roughly doubling the misalignment instead of removing
-         * it; the error vanishes only when R is near identity, which is why
-         * well-aligned brains looked fine and misaligned ones failed badly.
-         * The rotation is orthonormal, so the inverse is the transpose. */
-        {
-            double rot_inv[9];
-            int r, c;
-
-            for (r = 0; r < 3; r++)
-                for (c = 0; c < 3; c++)
-                    rot_inv[r * 3 + c] = rotation_matrix[c * 3 + r];
-            rotate_polygons(cur_sphere, NULL, rot_inv);
-        }
+         * TARGET coordinates, so R s puts every source vertex where the
+         * template has it - the convention of the output sphere.
+         *
+         * The rotation is applied to (a copy of) the source sphere, and the
+         * pyramid starts from the identity on it. Folding it into the running
+         * warp instead (g = R^-1) made the elastic prior undo it: warp_demon
+         * smooths the TOTAL displacement against the undeformed grid in every
+         * iteration, and a rigid rotation is a first-order field that every
+         * heat-kernel pass shrinks. Where the data term is weak - around the
+         * featureless medial wall of the template - the warp drifted back
+         * towards the unrotated input. A bumpy sphere registered to itself
+         * through a map rotated by 20 deg (tests/test_demons.c) ended 1.17 deg
+         * off in its featureless cap, against 0.12 deg without the rotation, and
+         * on Mindboggle-101 (median rotation 15 deg) one parahippocampal gyrus
+         * was carried into the template's medial wall (Dice 0.72 -> 0.00; 0.77
+         * with the rotation applied here). */
+        copy_polygons(src_sphere, &rot_sphere);
+        rotate_polygons(&rot_sphere, NULL, rotation_matrix);
+        sphere = &rot_sphere;
 
         delete_polygons(&rot_src);
         delete_polygons(&rot_src_sphere);
         delete_polygons(&rot_trg);
         delete_polygons(&rot_trg_sphere);
     }
+
+    /* The running warp is stored at the full input resolution as a deformed
+     * copy of the source sphere (initially the identity). It is resampled down
+     * to each pyramid level, refined, then resampled back up - so the warp
+     * accumulates across the coarse-to-fine levels. */
+    cur_sphere = (polygons_struct *) malloc(sizeof(polygons_struct));
+    copy_polygons(sphere, cur_sphere);
 
     for (level = 0; level < opt->n_steps; level++) {
         int np = (opt->level_points[level] > 0) ? opt->level_points[level]
@@ -1621,10 +1625,10 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
         resample_spherical_surface(trg, trg_sphere, &sm_trg, NULL, NULL, np);
         resample_spherical_surface(trg_sphere, trg_sphere, &sm_trg_sphere, NULL, NULL, np);
-        resample_spherical_surface(src, src_sphere, &sm_src, NULL, NULL, np);
-        resample_spherical_surface(src_sphere, src_sphere, &orig_sphere, NULL, NULL, np);
+        resample_spherical_surface(src, sphere, &sm_src, NULL, NULL, np);
+        resample_spherical_surface(sphere, sphere, &orig_sphere, NULL, NULL, np);
         /* current warp resampled onto this level's grid */
-        resample_spherical_surface(cur_sphere, src_sphere, &sm_src_sphere, NULL, NULL, np);
+        resample_spherical_surface(cur_sphere, sphere, &sm_src_sphere, NULL, NULL, np);
 
         init_sphere_steps(&sm_trg_sphere, &steps_trg);
 
@@ -1668,7 +1672,7 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
          * the previous (orig_sphere, level_warped) order produced the inverse
          * g^{-1}, so every level past the first was fed the opposite warp. */
         objects = resample_surface_to_target_sphere(&level_warped, &orig_sphere,
-                                                     src_sphere, NULL, NULL, 0, 0);
+                                                     sphere, NULL, NULL, 0, 0);
         delete_polygons(cur_sphere);
         copy_polygons(get_polygons_ptr(objects[0]), cur_sphere);
         delete_object_list(1, objects);
@@ -1689,12 +1693,12 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
      * forward warp so it (and hence its inverse, the output) is a clean
      * diffeomorphism. Neighbour lists are shared with the output unfold below. */
     if (opt->unfold) {
-        get_all_polygon_point_neighbours(src_sphere, &unf_nbr, &unf_nbrs);
+        get_all_polygon_point_neighbours(sphere, &unf_nbr, &unf_nbrs);
         unfold_mesh(cur_sphere, unf_nbr, unf_nbrs, 200, SPHERE_RADIUS, opt->verbose);
     }
 
     if (opt->verbose) {
-        report_warp_distortion(src_sphere, cur_sphere);
+        report_warp_distortion(sphere, cur_sphere);
         printf("\n");
     }
 
@@ -1706,8 +1710,8 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
      * here (this is the same convention the single-level output always used). */
     {
         object_struct **inv;
-        inv = resample_surface_to_target_sphere(src_sphere, cur_sphere,
-                                                src_sphere, NULL, NULL, 0, 0);
+        inv = resample_surface_to_target_sphere(sphere, cur_sphere,
+                                                sphere, NULL, NULL, 0, 0);
         copy_polygons(get_polygons_ptr(inv[0]), warped_src_sphere);
         delete_object_list(1, inv);
     }
@@ -1723,6 +1727,8 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
 
     delete_polygons(cur_sphere);
     free(cur_sphere);
+    if (sphere != src_sphere)
+        delete_polygons(&rot_sphere);
 
     return OK;
 }
