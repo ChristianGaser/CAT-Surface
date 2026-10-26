@@ -94,5 +94,6 @@ bin_PROGRAMS = \
     CAT_Surf2ROIMulti \
     CAT_SurfSPH2Surf \
     CAT_SurfBBReg \
-    CAT_VolRealign
+    CAT_VolRealign \
+    CAT_VolShoot
 

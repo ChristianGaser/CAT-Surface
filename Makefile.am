@@ -26,7 +26,8 @@ CFLAGS0 = -DHAVE_ZLIB -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/volume_io/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include \
     -I$(top_srcdir)/3rdparty/bicpl-surface/Include/bicpl \
-    -I$(top_srcdir)/3rdparty/nii2mesh
+    -I$(top_srcdir)/3rdparty/nii2mesh \
+    -I$(top_srcdir)/3rdparty/spm_shoot
 
 if EMSCRIPTEN
 CFLAGS0 += -s USE_ZLIB=1 -s MODULARIZE=1 -s FETCH=1 -s WASM=1 -s EXPORT_ES6=1 \
@@ -41,9 +42,29 @@ endif
 AM_CPPFLAGS = @FFTW3_CFLAGS@ ${AM_CFLAGS}
 
 lib_LTLIBRARIES = libCAT.la
-libCAT_la_LIBADD = $(FFTW3_BUILDDIR)/libfftw3.la
+libCAT_la_LIBADD = $(FFTW3_BUILDDIR)/libfftw3.la libspmshoot.la
+
+# SPM's shooting primitives, built without floating-point contraction: SPM's
+# mex files have no fused multiply-add, and the port reproduces them bit for
+# bit only without it (clang honours the pragma in shoot_types.h, GCC needs
+# the flag).  A convenience library, so that the flag stays off libCAT.
+noinst_LTLIBRARIES = libspmshoot.la
+libspmshoot_la_CFLAGS = $(AM_CFLAGS) -ffp-contract=off
+libspmshoot_la_SOURCES = \
+    3rdparty/spm_shoot/shoot_boundary.c \
+    3rdparty/spm_shoot/shoot_regularisers.c \
+    3rdparty/spm_shoot/shoot_optim3d.c \
+    3rdparty/spm_shoot/shoot_multiscale.c \
+    3rdparty/spm_shoot/shoot_diffeo3d.c \
+    3rdparty/spm_shoot/shoot_expm3.c \
+    3rdparty/spm_shoot/shoot_invdef.c \
+    3rdparty/spm_shoot/bsplines.c \
+    3rdparty/spm_shoot/shoot_parallel.c \
+    3rdparty/spm_shoot/spm_shoot.c \
+    3rdparty/spm_shoot/spm_bsplines3.c
 
 EXTRA_DIST = \
+    3rdparty/spm_shoot/README.md \
     configure.ac \
     autogen.sh \
     Doxyfile \
@@ -347,6 +368,20 @@ noinst_HEADERS = \
     Include/CAT_ArgvCheck.h \
     Include/CAT_BBReg.h \
     Include/CAT_VolumeReg.h \
+    Include/CAT_VolShoot.h \
+    Include/CAT_Cat12Utils.h \
+    3rdparty/spm_shoot/spm_shoot.h \
+    3rdparty/spm_shoot/shoot_types.h \
+    3rdparty/spm_shoot/shoot_namespace.h \
+    3rdparty/spm_shoot/shoot_parallel.h \
+    3rdparty/spm_shoot/shoot_boundary.h \
+    3rdparty/spm_shoot/shoot_regularisers.h \
+    3rdparty/spm_shoot/shoot_optim3d.h \
+    3rdparty/spm_shoot/shoot_multiscale.h \
+    3rdparty/spm_shoot/shoot_diffeo3d.h \
+    3rdparty/spm_shoot/shoot_expm3.h \
+    3rdparty/spm_shoot/shoot_invdef.h \
+    3rdparty/spm_shoot/bsplines.h \
     Include/CAT_Realign.h \
     Include/CAT_SphereRelax.h \
     Include/CAT_SphereUntangle.h \
@@ -445,7 +480,9 @@ libCAT_la_SOURCES = \
     Lib/CAT_VolumeReg.c \
     Lib/CAT_Realign.c \
     Lib/CAT_SphereRelax.c \
-    Lib/CAT_SphereUntangle.c
+    Lib/CAT_SphereUntangle.c \
+    Lib/CAT_Cat12Utils.c \
+    Lib/CAT_VolShoot.c
 .PHONY: docs docs-clean
 
 docs:
