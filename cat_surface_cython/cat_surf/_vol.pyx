@@ -1623,7 +1623,7 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
     mat, template_mat : array_like, (4, 4)
         Voxel-to-world matrices of the input and template grids.
     affine : array_like, (4, 4), optional
-        Template-to-input world mapping (CAT's ``res.Affine``).  None means
+        Input-to-template world mapping (CAT's ``res.Affine``).  None means
         identity: maps already in template space, such as CAT's ``rp*`` or
         T1Prep's affine-registered maps.
     tpm_vx : float

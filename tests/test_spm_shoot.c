@@ -106,6 +106,28 @@ static void params(double s, const double rp[5], double prm[8], double param[8])
 
 static const double rp_cat[5] = {1e-4, 0.001, 0.2, 0.05, 0.2};
 
+static void test_cgs_zero_rhs(void)
+{
+    float *b = (float *)calloc(3*M, sizeof(float));
+    float *x = (float *)calloc(3*M, sizeof(float));
+    float *r = (float *)calloc(3*M, sizeof(float));
+    float *p = (float *)calloc(3*M, sizeof(float));
+    float *Ap = (float *)calloc(3*M, sizeof(float));
+    double prm[8], param[8];
+    size_t i;
+
+    params(1.0, rp_cat, prm, param);
+    spm_cgs3(dm, NULL, b, param, 1e-6, 5, x, r, p, Ap);
+    for (i = 0; i < 3*M; i++)
+        MU_ASSERT("zero right-hand side preserves the zero estimate", x[i] == 0.0f);
+
+    free(Ap);
+    free(p);
+    free(r);
+    free(x);
+    free(b);
+}
+
 static double maxabsdiff(const float *a, const float *b, size_t n)
 {
     double d = 0.0;
@@ -477,6 +499,7 @@ static void test_errors(void)
 int main(void)
 {
     spm_set_bound(0);
+    MU_RUN_TEST(test_cgs_zero_rhs);
     MU_RUN_TEST(test_pull_identity);
     MU_RUN_TEST(test_push_adjoint);
     MU_RUN_TEST(test_smalldef_zero);

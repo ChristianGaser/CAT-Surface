@@ -368,7 +368,7 @@ noinst_HEADERS = \
     Include/CAT_ArgvCheck.h \
     Include/CAT_BBReg.h \
     Include/CAT_VolumeReg.h \
-    Include/CAT_VolShoot.h \
+    Include/CAT_GeodesicShoot.h \
     Include/CAT_Cat12Utils.h \
     3rdparty/spm_shoot/spm_shoot.h \
     3rdparty/spm_shoot/shoot_types.h \
@@ -482,7 +482,7 @@ libCAT_la_SOURCES = \
     Lib/CAT_SphereRelax.c \
     Lib/CAT_SphereUntangle.c \
     Lib/CAT_Cat12Utils.c \
-    Lib/CAT_VolShoot.c
+    Lib/CAT_GeodesicShoot.c
 .PHONY: docs docs-clean
 
 docs:
@@ -490,4 +490,3 @@ docs:
 
 docs-clean:
 	rm -rf $(top_srcdir)/docs/doxygen
-
