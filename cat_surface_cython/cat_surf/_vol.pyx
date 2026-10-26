@@ -1590,3 +1590,172 @@ def vol_bspline_sample(volume, grid, bint align_corners=True,
                          <size_t>npoints, <float *>out.data, align_corners,
                          prefilter, use_mask, value)
     return out.reshape(grid_arr.shape[:grid_arr.ndim - 1])
+
+
+# ===================================================================
+# Geodesic shooting  (mirrors CAT_VolShoot)
+# ===================================================================
+def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
+              double tpm_vx=1.5, lesion=None, regstr=None, nits=None,
+              lowres=None, hydro=None, hotspot=None, n_threads=None,
+              bint verbose=False, bint inverse=False):
+    """
+    Geodesic shooting of GM/WM maps onto a shooting template series.
+
+    CAT12/CAT26's optimised shooting (``run_Shooting`` in
+    ``cat_main_registration.m``) on SPM's shooting primitives: the maps are
+    registered on a grid refined from ``lowres`` to the template resolution
+    together with the five templates, by Gauss-Newton updates of the initial
+    velocity of a geodesic.  CAT's safeguards -- a class of its own for very
+    large ventricles, the filtering of Jacobian hot spots, lesion masking --
+    are included.
+
+    Arrays are indexed ``[x, y, z]`` as nibabel returns them, and matrices
+    are nibabel affines (0-based voxels to mm).
+
+    Parameters
+    ----------
+    gm, wm : array_like, (X, Y, Z)
+        Tissue probabilities in [0, 1] on the input grid.
+    templates : sequence of 5 array_like, (X', Y', Z', K)
+        The shooting templates, coarse to fine (CAT's ``Template_0..4_GS``);
+        GM and WM are the first two volumes (K >= 2).
+    mat, template_mat : array_like, (4, 4)
+        Voxel-to-world matrices of the input and template grids.
+    affine : array_like, (4, 4), optional
+        Template-to-input world mapping (CAT's ``res.Affine``).  None means
+        identity: maps already in template space, such as CAT's ``rp*`` or
+        T1Prep's affine-registered maps.
+    tpm_vx : float
+        Voxel size of the tissue probability map in mm, which scales the
+        regularisation (1.5 for SPM's TPM, as in CAT).
+    lesion : array_like, (X, Y, Z), optional
+        Lesion mask on the input grid; the template replaces the tissue there.
+    regstr, nits, lowres, hydro, hotspot, n_threads : optional
+        None keeps the library default of ``CAT_VolShootOptionsInit()``:
+        regstr 0.5 (optimised shooting; 4 is SPM's default schedule), nits 64,
+        lowres 2.5 mm, hydro and hotspot on, the library's thread count.
+    verbose : bool
+        Print CAT's iteration log.
+    inverse : bool
+        Also return the inverse deformation.
+
+    Returns
+    -------
+    dict
+        ``y``: (X', Y', Z', 3) float32, for every template voxel the input
+        voxel (0-based) it pulls from; ``jac``: (X', Y', Z') float32, the
+        Jacobian determinant of ``y`` in voxel units; ``iy`` (with
+        ``inverse``): (X, Y, Z, 3) float32, for every input voxel the
+        template voxel (0-based) it maps to; ``info``: a dict with the
+        iterations per level, the final matching and regularisation terms,
+        the number of ventricle levels and hot-spot corrections, and the range
+        of the Jacobian determinants.
+    """
+    cdef C.CAT_VolShootOpts opts
+    cdef C.CAT_VolShootInfo info
+    cdef const float *cls[2]
+    cdef const float *tpl[5]
+    cdef int dims[3]
+    cdef int tdims[3]
+    cdef int k, ret
+    cdef double M[16]
+    cdef double TM[16]
+    cdef double A[16]
+    cdef const double *aff_ptr = NULL
+    cdef const float *les_ptr = NULL
+    cdef float *iy_ptr = NULL
+
+    C.CAT_VolShootOptionsInit(&opts)
+    if regstr is not None:
+        opts.regstr = float(regstr)
+    if nits is not None:
+        opts.nits = int(nits)
+    if lowres is not None:
+        opts.lowres = float(lowres)
+    if hydro is not None:
+        opts.hydro = 1 if hydro else 0
+    if hotspot is not None:
+        opts.hotspot = 1 if hotspot else 0
+    if n_threads is not None:
+        opts.n_threads = int(n_threads)
+    opts.verbose = 1 if verbose else 0
+
+    g = np.asfortranarray(gm, dtype=np.float32)
+    w = np.asfortranarray(wm, dtype=np.float32)
+    if g.ndim != 3 or w.shape != g.shape:
+        raise ValueError("gm and wm must be 3-D arrays of the same shape")
+    if len(templates) != 5:
+        raise ValueError("templates must hold the five shooting templates")
+    # no negative indices: this module is compiled with wraparound=False
+    tarrs = []
+    for t in templates:
+        t = np.asarray(t)
+        if t.ndim != 4 or t.shape[3] < 2:
+            raise ValueError("each template must be (X, Y, Z, K) with K >= 2")
+        ta = np.asfortranarray(t[..., :2], dtype=np.float32)
+        if tarrs and ta.shape != tarrs[0].shape:
+            raise ValueError("the templates differ in size")
+        tarrs.append(ta)
+    for k in range(3):
+        dims[k] = g.shape[k]
+        tdims[k] = tarrs[0].shape[k]
+
+    m = np.ascontiguousarray(mat, dtype=np.float64).reshape(-1)
+    tm = np.ascontiguousarray(template_mat, dtype=np.float64).reshape(-1)
+    if m.size != 16 or tm.size != 16:
+        raise ValueError("mat and template_mat must be 4x4")
+    for k in range(16):
+        M[k] = m[k]
+        TM[k] = tm[k]
+    if affine is not None:
+        a = np.ascontiguousarray(affine, dtype=np.float64).reshape(-1)
+        if a.size != 16:
+            raise ValueError("affine must be 4x4")
+        for k in range(16):
+            A[k] = a[k]
+        aff_ptr = A
+    if lesion is not None:
+        les = np.asfortranarray(lesion, dtype=np.float32)
+        if les.shape != g.shape:
+            raise ValueError("lesion must be on the grid of gm")
+        les_ptr = <const float *>cnp.PyArray_DATA(les)
+
+    cls[0] = <const float *>cnp.PyArray_DATA(g)
+    cls[1] = <const float *>cnp.PyArray_DATA(w)
+    for k in range(5):
+        tpl[k] = <const float *>cnp.PyArray_DATA(tarrs[k])
+
+    y = np.empty(tuple(tarrs[0].shape[:3]) + (3,), dtype=np.float32, order="F")
+    jac = np.empty(tuple(tarrs[0].shape[:3]), dtype=np.float32, order="F")
+    iy = None
+    if inverse:
+        iy = np.empty(tuple(g.shape) + (3,), dtype=np.float32, order="F")
+        iy_ptr = <float *>cnp.PyArray_DATA(iy)
+
+    ret = C.CAT_VolShoot(cls, 2, dims, M, aff_ptr, tpl, tdims, TM, tpm_vx,
+                         les_ptr, &opts, <float *>cnp.PyArray_DATA(y), iy_ptr,
+                         <float *>cnp.PyArray_DATA(jac), &info)
+    if ret == 1:
+        raise ValueError("vol_shoot: invalid input (grids, matrices or options)")
+    if ret:
+        raise MemoryError("vol_shoot: out of memory")
+
+    out = {
+        "y": y,
+        "jac": jac,
+        "info": {
+            "iterations": info.iterations,
+            "level_iterations": [info.level_iterations[k] for k in range(5)],
+            "level_res": [info.level_res[k] for k in range(5)],
+            "ll_match": info.ll_match,
+            "ll_reg": info.ll_reg,
+            "hydro_levels": info.hydro_levels,
+            "hotspot_corrections": info.hotspot_corrections,
+            "det_min": info.det_min,
+            "det_max": info.det_max,
+        },
+    }
+    if inverse:
+        out["iy"] = iy
+    return out
