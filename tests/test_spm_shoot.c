@@ -226,7 +226,7 @@ static void test_smalldef_zero(void)
 }
 
 /** \brief A zero right-hand side is already converged for cgs3. */
-static void test_cgs_zero_rhs(void)
+static void test_cgs_zero_rhs_with_A(void)
 {
     double prm[8], param[8];
     float *A = (float *)calloc(6*M, sizeof(float));
@@ -530,7 +530,7 @@ int main(void)
     MU_RUN_TEST(test_pull_identity);
     MU_RUN_TEST(test_push_adjoint);
     MU_RUN_TEST(test_smalldef_zero);
-    MU_RUN_TEST(test_cgs_zero_rhs);
+    MU_RUN_TEST(test_cgs_zero_rhs_with_A);
     MU_RUN_TEST(test_composition_identity);
     MU_RUN_TEST(test_fmg_inverts_vel2mom);
     MU_RUN_TEST(test_kernel_is_impulse_response);
