@@ -27,7 +27,7 @@ char *output_surface_file = NULL;
 char *output_sphere_file = NULL;
 char *mask_file = NULL;
 
-int n_points = 20480; /* finest pyramid level; coarser levels are 1/4 each */
+int n_points = 20480; /* finest pyramid level in triangles; coarser levels are 1/4 each */
 int rotate = 1;
 int curvtype0 = 1000; /* level 0: depth-potential (coarsest) */
 int curvtype1 = 250;  /* level 1: depth-potential */
@@ -42,7 +42,7 @@ double fwhm_curv = 16.0;
 double fwhm_disp = 6.0;
 double max_step_deg = 25.0;
 double sigma_x_default = 20.0; /* SD max_step = 2 */
-double l_dist = 0.6;           /* metric-distortion regularizer weight (prototype) */
+double l_dist = 0.6;           /* metric-distortion regularizer weight */
 double coarse_stiffness = 1; /* extra coarse-level regularization (1 = off) */
 double rot_max_degrees = 64.0; /* rotation search: initial half-span */
 double rot_min_degrees = 1.0;  /* rotation search: finest span */
@@ -61,7 +61,7 @@ static ArgvInfo argTable[] = {
     {"-mask", ARGV_STRING, (char *)1, (char *)&mask_file,
      "Per-vertex cortex mask on the TEMPLATE mesh (0 = exclude, e.g. medial wall;\n\t>0 = include). Excludes non-cortex from the data term (FreeSurfer-style).\n\tMust match the template vertex count; resampled to each pyramid level."},
     {"-dist", ARGV_FLOAT, (char *)1, (char *)&l_dist,
-     "Metric-distortion regularizer weight (FreeSurfer-style distance term): each\n\titeration takes a gradient step pulling warped neighbour distances back toward\n\tthe original sphere metric, resisting local stretch/fold. 0 = off (default).\n\tTry small values (e.g. 0.05-0.2); independent of -fwhm-disp smoothing."},
+     "Metric-distortion regularizer weight (FreeSurfer-style distance term): each\n\titeration takes a gradient step pulling warped neighbour distances back toward\n\tthe original sphere metric, resisting local stretch/fold. 0 = off;\n\tindependent of -fwhm-disp smoothing."},
     {"-unfold", ARGV_CONSTANT, (char *)TRUE, (char *)&use_unfold,
      "Post-step: relax folded (negative-area) triangles in the final warp until\n\torientations are restored. Removes folds introduced when up-sampling the\n\twarp onto an irregular full-resolution mesh. Default off."},
     {"-w", ARGV_STRING, (char *)1, (char *)&output_surface_file,
@@ -69,17 +69,17 @@ static ArgvInfo argTable[] = {
     {"-ws", ARGV_STRING, (char *)1, (char *)&output_sphere_file,
      "Warped input sphere."},
     {"-npoints", ARGV_INT, (char *)1, (char *)&n_points,
-     "Finest pyramid resolution (e.g. 81920); coarser levels use 1/4 the points each."},
+     "Finest pyramid resolution in triangles of the icosahedral grid (20480 =\n\t10242 vertices; e.g. 81920); each coarser level has a quarter of them."},
     {"-fwhm-flow", ARGV_FLOAT, (char *)1, (char *)&fwhm_flow,
      "Filter size for velocity update in FWHM."},
     {"-fwhm", ARGV_FLOAT, (char *)1, (char *)&fwhm_curv,
-     "Filter size for curvature map in FWHM."},
+     "FWHM of the surface smoothing before the feature is computed, divided by the\n\tlevel number (1-4) and by a further 1.5 for the template."},
     {"-max-step-deg", ARGV_FLOAT, (char *)1, (char *)&max_step_deg,
      "Clamp per-iteration |dtheta,dphi| to this many degrees (<=0 disables)."},
     {"-fwhm-disp", ARGV_FLOAT, (char *)1, (char *)&fwhm_disp,
      "Filter size for displacement field smoothing (elastic prior) in FWHM."},
     {"-sigma-x", ARGV_FLOAT, (char *)1, (char *)&sigma_x_default,
-     "Regularization weight sigma_x for Spherical Demons (default 1.0)."},
+     "Regularization weight sigma_x for Spherical Demons (the original Spherical\n\tDemons uses 2)."},
     {"-stiffness", ARGV_FLOAT, (char *)1, (char *)&coarse_stiffness,
      "Extra Dartel-like stiffness on the coarser pyramid levels: the flow and\n\tdisplacement smoothing FWHM are multiplied by a factor that is this value at\n\tthe coarsest level and decays to 1.0 at the finest. A stiffer coarse warp\n\tmoves whole folds together and resists a sulcus slipping one wavelength into\n\tits neighbour. 1.0 = off (default); try 1.5-2.5."},
     {"-maxiters", ARGV_INT, (char *)1, (char *)&iters,
@@ -87,7 +87,7 @@ static ArgvInfo argTable[] = {
     {"-steps", ARGV_INT, (char *)1, (char *)&n_steps,
      "Number of multi-resolution pyramid levels (1-4, coarse to fine)."},
     {"-norot", ARGV_CONSTANT, (char *)FALSE, (char *)&rotate,
-     "Don't rotate input surface before warping."},
+     "Skip the global rotation search; the input sphere is used as it is."},
     {"-rot-max-deg", ARGV_FLOAT, (char *)1, (char *)&rot_max_degrees,
      "Initial rotation search: half-width of the initial angular span in degrees\n\t(default 64, matching FreeSurfer). This is the capture range."},
     {"-rot-min-deg", ARGV_FLOAT, (char *)1, (char *)&rot_min_degrees,
@@ -95,13 +95,13 @@ static ArgvInfo argTable[] = {
     {"-rot-nangles", ARGV_INT, (char *)1, (char *)&rot_nangles,
      "Initial rotation search: grid samples per axis per pass (default 4). Cost\n\tgrows as (nangles+1)^3 per pass; raise for a denser search, lower for speed."},
     {"-type0", ARGV_INT, (char *)1, (char *)&curvtype0,
-     "Curvature type for level 1 (coarsest)\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t>5 - depth potential with parameter alpha = 1/curvtype."},
+     "Feature for level 1 (coarsest)\n\t0 - mean curvature (averaged over 3mm, in degrees)\n\t1 - gaussian curvature\n\t2 - curvedness\n\t3 - shape index\n\t4 - mean curvature (in radians)\n\t5 - sulcal depth like estimator\n\t6 - bending energy\n\t7 - sharpness\n\t8 - folding index\n\t9 - minimum curvature\n\t10 - maximum curvature\n\t11 - inflation-based sulcal depth (FreeSurfer sulc-style)\n\t>11 - depth potential with parameter alpha = 1/curvtype (the default\n\t      at every level)."},
     {"-type1", ARGV_INT, (char *)1, (char *)&curvtype1,
-     "Curvature type for level 2 (see -type0 for values)."},
+     "Feature for level 2 (see -type0 for values)."},
     {"-type2", ARGV_INT, (char *)1, (char *)&curvtype2,
-     "Curvature type for level 3 (see -type0 for values)."},
+     "Feature for level 3 (see -type0 for values)."},
     {"-type3", ARGV_INT, (char *)1, (char *)&curvtype3,
-     "Curvature type for level 4 (finest; see -type0 for values)."},
+     "Feature for level 4 (finest; see -type0 for values)."},
     {"-verbose", ARGV_CONSTANT, (char *)TRUE, (char *)&verbose,
      "Be verbose."},
     {"-debug", ARGV_CONSTANT, (char *)TRUE, (char *)&debug,
@@ -216,8 +216,8 @@ int main(int argc, char *argv[])
     if (opt.n_steps > CAT_WARP_DEMONS_MAX_STEPS)
         opt.n_steps = CAT_WARP_DEMONS_MAX_STEPS;
 
-    /* Build the coarse-to-fine pyramid: finest level = n_points, each coarser
-     * level uses 1/4 of the points (next tetrahedral subdivision down). */
+    /* Build the coarse-to-fine pyramid: finest level = n_points triangles,
+     * each coarser level a quarter of them (next tetrahedral subdivision down). */
     {
         int lvl, np = n_points;
         for (lvl = opt.n_steps - 1; lvl >= 0; lvl--)

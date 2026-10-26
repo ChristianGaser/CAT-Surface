@@ -76,23 +76,28 @@ def spherical_demon(source_surface,
     target_surface, target_sphere : (vertices, faces)
         Template surface and its sphere.
     n_points : int
-        Finest pyramid resolution (default 20480); each coarser level uses
-        1/4 the points.
+        Finest pyramid resolution in triangles of the icosahedral grid
+        (default 20480, i.e. 10242 vertices); each coarser level has a quarter
+        of them.
     n_steps : int
         Number of multi-resolution pyramid levels, coarse to fine
         (1..CAT_WARP_DEMONS_MAX_STEPS, i.e. 1..4; default 4).
     iters : int
         Maximum iterations per level (default 150).
     curvtype0, curvtype1, curvtype2, curvtype3 : int
-        Curvature feature per level (coarse to fine).  0 mean curvature
-        (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape index, 4 mean
-        curvature (rad), 5 sulcal-depth-like, >5 depth-potential with
-        alpha = 1/curvtype.  Defaults 1000, 250, 125, 15 (depth-potential;
-        the 4th level is only used with ``n_steps`` 4).
+        Feature per level (coarse to fine), as in :func:`surf_curvature`:
+        0 mean curvature (3 mm, deg), 1 gaussian, 2 curvedness, 3 shape
+        index, 4 mean curvature (rad), 5 sulcal-depth-like, 6 bending energy,
+        7 sharpness, 8 folding index, 9 minimum curvature, 10 maximum
+        curvature, 11 inflation-based sulcal depth, >11 depth potential with
+        alpha = 1/curvtype.  Defaults 1000, 250, 125, 15 (depth potential at
+        every level; the 4th level is only used with ``n_steps`` 4).
     fwhm_flow : float
         Velocity-update smoothing FWHM (default 16.0).
     fwhm_curv : float
-        Curvature pre-smoothing FWHM applied to both surfaces (default 16.0).
+        FWHM of the surface smoothing before the feature is computed, divided
+        by the level number (1..``n_steps``) and by a further 1.5 for the
+        template (default 16.0).
     fwhm_disp : float
         Displacement-field smoothing FWHM, the elastic prior (default 6.0).
     max_step_deg : float
@@ -105,7 +110,8 @@ def spherical_demon(source_surface,
     step_factor : float
         Global step-size factor (default 1.0).
     rotate : bool
-        Rigid rotation pre-alignment on the coarsest level (default True).
+        Rigid rotation pre-alignment, applied to the source sphere before the
+        coarsest level (default True).
     smooth_velocity : bool
         Smooth the velocity update, a fluid prior (default True).
     smooth_displacement : bool
@@ -245,8 +251,8 @@ def spherical_demon(source_surface,
                 % (n_trg, mask_arr.shape[0]))
         opt.cortex_mask = &mask_arr[0]
 
-    # Build the coarse-to-fine pyramid: finest level = n_points, each coarser
-    # level uses 1/4 of the points (mirrors the CLI).
+    # Build the coarse-to-fine pyramid: finest level = n_points triangles,
+    # each coarser level a quarter of them (mirrors the CLI).
     cdef int lvl, npl = n_points
     for lvl in range(opt.n_steps - 1, -1, -1):
         opt.level_points[lvl] = npl

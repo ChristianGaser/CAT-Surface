@@ -29,16 +29,27 @@ extern "C" {
  * calling CAT_WarpDemonsRegister().
  */
 typedef struct {
-    int    n_points;            /**< fallback spherical resolution if level_points unset */
+    int    n_points;            /**< fallback resolution if level_points is unset,
+                                   in triangles of the icosahedral grid (20480
+                                   triangles = 10242 vertices) */
     int    level_points[CAT_WARP_DEMONS_MAX_STEPS]; /**< resolution per pyramid level
-                                   (coarse -> fine); <=0 falls back to n_points */
-    int    n_steps;             /**< number of multi-resolution levels (1..3) */
-    int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /**< curvature type per level:
+                                   (coarse -> fine), in triangles; <=0 falls back
+                                   to n_points */
+    int    n_steps;             /**< number of multi-resolution levels
+                                   (1..CAT_WARP_DEMONS_MAX_STEPS) */
+    int    curvtype[CAT_WARP_DEMONS_MAX_STEPS]; /**< feature per level, as in
+                                   get_polygon_vertex_curvatures_cg():
                                    0 mean curv (3mm, deg), 1 gaussian,
                                    2 curvedness, 3 shape index,
-                                   4 mean curv (rad), 5 sulcal-depth-like */
+                                   4 mean curv (rad), 5 sulcal-depth-like,
+                                   6 bending energy, 7 sharpness, 8 folding
+                                   index, 9 min curv, 10 max curv, 11 sulc
+                                   (inflation-based depth), >11 depth potential
+                                   with alpha = 1/curvtype (the default at every
+                                   level) */
     int    iters;               /**< maximum iterations per level */
-    int    rotate;              /**< rigid rotation pre-alignment on level 0. The
+    int    rotate;              /**< rigid rotation pre-alignment, applied to the
+                                   source sphere before level 0. The
                                    rotation is found by an exhaustive
                                    coarse-to-fine global search over all three
                                    angles (as FreeSurfer's
@@ -64,10 +75,13 @@ typedef struct {
                                    of linear-then-renormalize */
     int    unfold;              /**< if nonzero, run a post-step that relaxes folded
                                    (negative-area) triangles in the final warp
-                                   until orientations are restored (or this many
+                                   until orientations are restored (at most 200
                                    iterations); removes up-sampling folds */
     double fwhm_flow;           /**< FWHM for velocity-update smoothing (fluid) */
-    double fwhm_curv;           /**< FWHM for the initial curvature smoothing */
+    double fwhm_curv;           /**< FWHM of the surface smoothing before the
+                                   feature is computed, divided by the level
+                                   number (1..n_steps) and by a further 1.5 for
+                                   the template */
     double fwhm_disp;           /**< FWHM for displacement-field smoothing (elastic) */
     double rate;                /**< per-iteration multiplier for fwhm_flow */
     double max_step_deg;        /**< clamp per-iteration step (deg); <=0 disables */
@@ -101,7 +115,9 @@ typedef struct {
  *
  * Uses Spherical Demons (Yeo et al.) with diffeomorphic integration and a
  * 4-level coarse-to-fine depth-potential pyramid (320 -> 1280 -> 5120 -> 20480
- * points: n_points at the finest level, a quarter of it at each coarser one).
+ * triangles, i.e. 162 -> 642 -> 2562 -> 10242 vertices: n_points at the finest
+ * level, a quarter of it at each coarser one; alpha = 1/1000, 1/250, 1/125 and
+ * 1/15).
  * Smoothing FWHM is scaled by mesh spacing, anchored to a fixed reference
  * resolution. Rotation pre-alignment, velocity and elastic displacement
  * smoothing, the Tikhonov regularization (sigma_x = 20) and the
@@ -115,10 +131,11 @@ void CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt);
  * \brief Register a source surface to a template by warping its sphere.
  *
  * Resamples both surfaces and their spheres to opt->n_points, optionally
- * applies a rigid rotation pre-alignment, then runs Spherical Demons
- * registration for each feature stage, carrying the accumulated warp forward
- * between stages. The deformed source sphere at full input resolution is
- * returned.
+ * applies a rigid rotation pre-alignment to the source sphere, then runs
+ * Spherical Demons registration for each feature stage, carrying the
+ * accumulated warp forward between stages. The rotation is not part of the
+ * warp, so the elastic prior on the warp cannot shrink it back. The deformed
+ * source sphere at full input resolution is returned.
  *
  * \param src               (in)  source cortical surface mesh
  * \param src_sphere        (in)  spherical parameterization of src

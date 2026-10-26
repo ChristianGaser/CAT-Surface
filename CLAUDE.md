@@ -870,7 +870,8 @@ surface too once the sphere came from `CAT_Surf2Sphere` (14.4 deg), 1.4 deg with
 on the sphere against the cortex (log2, three hemispheres): frontal pole -1.2 to -1.7, cuneus and
 pericalcarine -0.9 to -1.5, parahippocampal +0.6 to +1.1; the SD over regions is 0.53-0.68
 against 0.36-0.39 for FreeSurfer's sphere.  The coarse levels of the registration (320 and 1280
-points) see a compressed lobe as a handful of vertices, and `l_dist` pulls towards the metric of
+triangles, i.e. 162 and 642 vertices) see a compressed lobe as a handful of vertices, and
+`l_dist` pulls towards the metric of
 the input sphere, so the distortion survives: on `stop_at` 10 spheres kappa is 0.834 / 0.837 /
 0.840 at `l_dist` 0.6 / 0.3 / 0, while with FreeSurfer's sphere 0.6 is the better setting (0.851
 vs 0.846).  More areal smoothing (`stop_at` 10, the value the tool's help has always recommended;
@@ -1049,6 +1050,55 @@ correlation fell from 0.274 to 0.203 against `avg_sulc` and from 0.296 to 0.224 
 leave-one-out mean (better in 12 and 11 of 28).  The relaxation also folds the untangled sphere
 again (369 -> 236 bad triangles on average, more than it started with on some hemispheres:
 BUSS02 lh 123 -> 147, yv98 lh 307 -> 399).
+
+### The global rotation belongs to the sphere, not to the warp
+
+`CAT_WarpDemonsRegister()` used to fold the rotation of its global search into the running warp
+(`g = R^-1`).  `warp_demon` smooths the **total** displacement against the undeformed grid in
+every iteration (the elastic prior), and a rigid rotation is a first-order field that every
+heat-kernel pass shrinks, so wherever the data term is weak the warp drifted back towards the
+unrotated input.  The rotation is now applied to a copy of the source sphere and the pyramid
+starts from the identity.  A bumpy sphere registered to itself through a map rotated by 20 deg
+(`tests/test_demons.c`) came back with a median error of 1.17 deg in its featureless cap and
+0.48 deg elsewhere (0.12 / 0.08 without a rotation); now 0.17 / 0.13.
+
+It was found through the two hemispheres `-relax` broke on Mindboggle-101 (T1Prep 0.8.1, 20
+subjects, LOO Dice against the other 19).  The global rotations there are large (median 15 deg,
+up to 31), and OASIS-TRT-20-16 rh lost its parahippocampal gyrus into the template's medial
+wall (0.72 -> 0.00): it started 13 deg into the wall after the rotation, and the registration
+ended where the *unrotated* input had it (+20 deg against +19).  With the fix it is 0.77.
+Over all 40 hemispheres, against the same spheres registered the old way:
+
+| input sphere | LOO | pairs | better |
+| --- | --- | --- | --- |
+| `stop_at` 6, fold removal | +0.001 [-0.003, +0.005] | +0.001 [-0.005, +0.007] | 12/20 subjects |
+| **`stop_at` 6, `-relax`** | **+0.004 [+0.001, +0.008]** | **+0.007 [+0.002, +0.013]** | 17/20, 157/190 pairs |
+
+(subject bootstrap; the relaxed arm goes 0.8445 / 0.7845 -> 0.8488 / 0.7914).  Without the two
+failing hemispheres it is still +0.003 / +0.004, both intervals above zero.
+
+**MMRR-3T7T-2-2 lh, the other one, is not fixed** -- its central region slips one gyrus
+forward (postcentral 0.61 -> 0.23; 0.31 with the fix).  Its central and postcentral sulci are
+equally deep, on T1Prep's central surface and on FreeSurfer's pial alike (depth potential 1/250:
+-0.78 / -0.86; most hemispheres have the central sulcus clearly deepest), and shifting its start
+along the anterior direction shows a capture range of only +2 to +6 deg, against more than
+19 deg for unambiguous hemispheres.  The relaxed sphere starts it at +11 deg, the inflated one at
++6.  FreeSurfer 8.1 registers it (0.90 / 0.93).
+
+The relaxed spheres also carry a systematic bias against the fsaverage sphere: they reproduce
+T1Prep's central-surface metric, which gives the insula and entorhinal cortex half their
+template share and the precentral gyrus 15-20% less, so after the rotation the parahippocampal
+gyrus starts a median 4-5 deg into the medial wall and the left central region 4-5 deg anterior.
+Measured and not done:
+
+- Registering to a template sphere warped by the mean of that bias (estimated on 17 independent
+  T1Prep 0.7.7 subjects, composed back onto fsaverage) fixes OASIS-TRT-20-16 rh but moves the
+  central region of NKI-TRT-20-9 rh one gyrus instead (+0.003 LOO).
+- Relaxing towards the white or the pial surface instead of the central one: LOO 0.836 /
+  0.841 against 0.845, and the failures move to other hemispheres.
+- Coarse-level stiffness (1.5-2.5), the cortex mask, `l_dist` 0.3 or 0, `fwhm_curv` 24, and
+  features computed on the full mesh and sampled onto each level (the pyramid point-samples the
+  geometry: r 0.69-0.89 against that at the 162-vertex level): none repairs either hemisphere.
 
 ## Head-motion correction (`CAT_VolRealign`, an mcflirt replacement)
 
