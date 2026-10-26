@@ -1239,6 +1239,58 @@ capture range: from the header with up to 10 mm / 6 deg the worst trial went fro
 trial failed at either distance.  The contrast auto-detection samples at wm_dist too; on that
 real run its contrast fell from -5.7 / -4.5% to -3.7 / -3.2%, three times the 1% threshold.
 
+## Geodesic shooting (`CAT_VolShoot`, CAT12/CAT26's optimised shooting)
+
+`CAT_VolShoot` (library `Include/CAT_VolShoot.h`, `cat_surf.vol_shoot`) is CAT26's geodesic
+shooting, `run_Shooting` and `regsetup` of `cat_main_registration.m`, in C. It registers GM/WM maps
+to the five `Template_*_GS` shooting templates on a grid refined from 2.5 mm to the template
+resolution, with CAT's early level switching and CAT's safeguards: a class of its own for very large
+ventricles, the filtering of Jacobian hot spots, and lesion masking. `regstr` 4 runs SPM's default
+schedule instead. Defaults live in `CAT_VolShootOptionsInit()`; the Python keywords left at `None`
+keep them.
+
+It is three layers:
+
+- **`3rdparty/spm_shoot/`**: SPM26's C behind `spm_diffeo`, `spm_bsplinc` and `spm_bsplins`, vendored
+  with documented modifications (README there). Include only `spm_shoot.h`; the `shoot_*.h` headers
+  rename SPM's generic symbols by macros.
+- **`Lib/CAT_Cat12Utils.c`**: CAT12's MATLAB helpers as the safeguards call them (`cat_vol_smooth3X`,
+  `cat_vol_div`, `cat_vol_morph` l/d/o/ldc/ldo, `cat_vol_localstat`, `cat_vbdist`). libCAT's own
+  `localstat3` and distance transforms do not reproduce them.
+- **`Lib/CAT_VolShoot.c`**: CAT's driver plus the MATLAB-level parts of SPM's Shoot toolbox
+  (`spm_shoot_update`, `spm_shoot3d`, and `spm_shoot_greens` through FFTW).
+
+Everything was checked against CAT26 itself:
+
+- **SPM primitives:** bit-identical to the SPM26 mex for every thread count
+  (`tests/spm_shoot_reference/`).
+- **CAT12 helpers:** voxel-identical to MATLAB except smoothing, which differs by float rounding
+  (`tests/cat12_utils_reference/`).
+- **End to end:** on 20 Mindboggle subjects (T1Prep's affine GM/WM maps), the deformations agree
+  with CAT26's MATLAB run to 7.6e-5 voxels, and the label Dice is identical.
+- **Speed:** 37 s single-threaded and 12 s with 8 threads on an M2 Ultra, against 68 s for
+  single-threaded MATLAB. Results do not depend on the number of threads.
+
+Things that are easy to get wrong:
+
+- **No floating-point contraction.** SPM's mex files contain no fused multiply-add. `libspmshoot.la`
+  is built with `-ffp-contract=off`, which GCC needs; clang honours the pragma in `shoot_types.h`.
+  The driver sets the pragma too, because MATLAB does not fuse either.
+- **Zero the accumulated outputs.** SPM adds into the outputs of `kernel`, `push`, `pushc` and
+  `pushc_grads`, and the fmg scratch must be zero as well. MATLAB's gateways hand them zeroed
+  arrays; forgetting this broke every shooting step after the second.
+- **No concurrent calls.** The primitives thread internally (`spm_shoot_set_threads`, 0 = serial)
+  and must never be called from several threads at once.
+- **Mirrored grids.** CAT's corner logic (`if tmpbb(1)<tmpbb(2)`, swap) orders the registration
+  grid like a LAS image, so for any other orientation it mirrors the template grid. Outputs are
+  reordered through `Mads`.
+- **CAT's own quirks are kept.** `extdt` uses MATLAB's matrix division, so in effect it tests
+  `max(dt)`. The hot-spot loop takes `div(u(:,:,:,1))` three times. `rred(ti)` is the first column.
+- **MATLAB references need double or uint8 input.** `run_Shooting` must get its `Ycls` as double or
+  uint8, never single. `single(Ycls{k1})` does not copy a single array, and `spm_smooth` writes in
+  place, so the maps get smoothed cumulatively over the levels. This cost 0.003 Dice before it was
+  found.
+
 ## Architecture rules
 
 1. **Library-first:** All non-trivial logic belongs in `Lib/`, not `Progs/`.
