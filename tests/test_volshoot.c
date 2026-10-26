@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "CAT_VolShoot.h"
+#include "CAT_GeodesicShoot.h"
 
 /*
  * Geodesic shooting on an analytic phantom.

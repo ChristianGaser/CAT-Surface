@@ -24,7 +24,7 @@
 #include <float.h>
 #include <fftw3.h>
 
-#include "CAT_VolShoot.h"
+#include "CAT_GeodesicShoot.h"
 #include "CAT_Vol.h"
 #include "CAT_Cat12Utils.h"
 #include "spm_shoot.h"
