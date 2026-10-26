@@ -800,3 +800,35 @@ cdef extern from "CAT_Realign.h":
                              int mats, int plots, int rmsabs, int rmsrel)
     void CAT_VolRealignImageName(const char *base, char *image, size_t size)
     void CAT_VolRealignFree(CAT_VolRealignResult *res)
+
+
+# ---------------------------------------------------------------------------
+# CAT_VolShoot.h — geodesic shooting (CAT12/CAT26's optimised shooting)
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_VolShoot.h":
+    ctypedef struct CAT_VolShootOpts:
+        double regstr
+        int nits
+        double ll1th
+        double lowres
+        int hydro
+        int hotspot
+        int n_threads
+        int verbose
+    ctypedef struct CAT_VolShootInfo:
+        int iterations
+        int level_iterations[5]
+        double level_res[5]
+        double ll_match
+        double ll_reg
+        int hydro_levels
+        int hotspot_corrections
+        double det_min
+        double det_max
+    void CAT_VolShootOptionsInit(CAT_VolShootOpts *opts)
+    int  CAT_VolShoot(const float **cls, int n_cls, const int *dims,
+                      const double *mat, const double *affine,
+                      const float **templates, const int *tdims,
+                      const double *tmat, double tpm_vx, const float *lesion,
+                      const CAT_VolShootOpts *opts, float *y, float *iy,
+                      float *jac, CAT_VolShootInfo *info)

@@ -17,6 +17,7 @@ downloads are needed during compilation.
 | **expat** | XML parsing library (version 2.9.0, 2026) | MIT License | [libexpat](https://libexpat.github.io/) |
 | **nii2mesh** | Mesh simplification (quadric decimation) | BSD-2-Clause | [neurolabusc/nii2mesh](https://github.com/neurolabusc/nii2mesh) |
 | **s2kit10** | Spherical harmonics transform | GPL-2+ | Kostelec & Rockmore |
+| **spm_shoot** | Geodesic shooting primitives of SPM26 (`spm_diffeo`, B-splines) | GPL-2+ (SPM) | John Ashburner, Wellcome Centre for Human Neuroimaging |
 | **dartel** | Diffeomorphic registration (no longer bundled, see below) | GPL-2+ (SPM) | John Ashburner |
 | **genus0** | Topology correction | No license grant in the source (see below) | Steve Haker (BWH/Harvard) |
 
@@ -30,10 +31,15 @@ require that their notice is kept with every copy: see `zlib/LICENSE`,
 ParseArgv headers), `bicpl-surface/COPYING`, `nifti/LICENSE`,
 `gifticlib/LICENSE.gifti` and `nii2mesh/LICENSE`.
 
-### GPL Components (fftw, s2kit10, dartel)
+### GPL Components (fftw, s2kit10, spm_shoot, dartel)
 - **fftw**: GPL-2+ (see `fftw/COPYING`). It is built as a static library and
   linked into `libCAT` and into every program in `Progs/`.
 - **s2kit10**: GPL-2+, compiled into `libCAT`.
+- **spm_shoot**: GPL-2+, compiled into `libCAT`: SPM26's C code behind
+  `spm_diffeo`, `spm_bsplinc` and `spm_bsplins` (regularisers, multigrid
+  solver, deformations, inversion, B-splines), on which `../Lib/CAT_VolShoot.c`
+  runs CAT's geodesic shooting.  Modified for CAT-Surface: MATLAB glue removed,
+  symbols prefixed, OpenMP replaced by pthreads; see `spm_shoot/README.md`.
 - **dartel**: no longer bundled; the DARTEL code was moved to `../deprecated/`.
   A small part of `diffeopoly.c` ((c) John Ashburner 2007, from SPM) remains in
   `../Lib/CAT_WarpDemons.c` (sphere sample points of Spherical Demons).
@@ -42,8 +48,8 @@ Because FFTW and s2kit10 are part of every CAT-Surface binary, the binaries,
 `libCAT` and the `cat-surf` Python package can only be distributed under the
 GPL. The commercial option in `../LICENSE` covers the CAT-Surface original
 source code; a commercial binary additionally needs a commercial FFTW license
-(available from MIT), a replacement for s2kit10 and a check of the code
-derived from DARTEL.
+(available from MIT), replacements for s2kit10 and spm_shoot and a check of
+the code derived from DARTEL.
 
 ### genus0 (no license grant)
 The genus0 sources (`genus0.c`, `genus0.h`) name the authors (Steve Haker and

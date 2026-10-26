@@ -102,6 +102,7 @@ from cat_surf._vol import (
     vol_dilate_geodesic,
     vol_box_morph,
     vol_bspline_sample,
+    vol_shoot,
 )
 
 # --- Registration ---
@@ -357,6 +358,7 @@ __all__ = [
     "vol_dilate_geodesic",
     "vol_box_morph",
     "vol_bspline_sample",
+    "vol_shoot",
     "vol_open_ppm_sulci",
     # Registration
     "bbreg",
