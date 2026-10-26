@@ -28,10 +28,15 @@
 #define SPHERE_RADIUS 100.0
 #define EXP_MAX_COMPOSITIONS 12
 #define BINTREE_FACTOR 0.5
+/* Resolutions here and in CAT_WarpDemonsOptions are triangle counts of the
+ * icosahedral grid create_tetrahedral_sphere() builds: 320, 1280, 5120 and
+ * 20480 triangles have 162, 642, 2562 and 10242 vertices. */
+
 /* Reference resolution the per-level smoothing FWHM is anchored to, so the
  * amount of smoothing at a given mesh resolution does not depend on how many
- * pyramid levels are used. Set to the default coarsest level so adding finer or
- * coarser levels does not change the smoothing at the established resolutions. */
+ * pyramid levels are used. 5120 was the coarsest level when the pyramid had two
+ * levels; keeping the anchor there left the smoothing at those resolutions
+ * unchanged when the coarser levels were added. */
 #define SMOOTH_REF_POINTS 5120
 /* Resolution the exhaustive global rotation search runs at. The search is
  * decoupled from the pyramid. It evaluates (nangles+1)^3 rotations per pass, so
@@ -1251,8 +1256,9 @@ warp_demon(polygons_struct *src, polygons_struct *src_sphere,
  * \brief Fill an options struct with the default Spherical Demons setup.
  *
  * Initializes every field of \p opt to the default multi-resolution Spherical
- * Demons configuration (2-level coarse-to-fine sulcal-depth pyramid, 5120 ->
- * 20480 points, diffeomorphic integration, constant Tikhonov regularization).
+ * Demons configuration (4-level coarse-to-fine pyramid of 320 -> 1280 -> 5120
+ * -> 20480 triangles, matching the depth potential with alpha = 1/1000, 1/250,
+ * 1/125 and 1/15; diffeomorphic integration, constant Tikhonov regularization).
  * Override individual fields afterwards before calling CAT_WarpDemonsRegister().
  *
  * \param opt (out) options struct to initialize
@@ -1261,25 +1267,25 @@ void
 CAT_WarpDemonsDefaults(CAT_WarpDemonsOptions *opt)
 {
     opt->n_points            = 20480;
-    /* 2-level coarse-to-fine sulcal-depth pyramid. Empirically this is the
-     * sweet spot: near-Dartel accuracy, fold-free and fast. Finer levels and a
-     * mean-curvature stage are available but tend to overfit the noisy
-     * high-frequency curvature and degrade the overall alignment. */
+    /* 4-level coarse-to-fine pyramid. Every level matches the depth potential
+     * (curvtype > 11, alpha = 1/curvtype); a smaller alpha gives a smoother,
+     * larger-scale map, so the coarse levels align lobes and the fine ones
+     * single folds. */
     opt->n_steps             = 4;
-    /* finest level = n_points, each coarser one a quarter of it, as both
-       front-ends set it */
+    /* finest level = n_points triangles, each coarser one a quarter of it, as
+       both front-ends set it */
     opt->level_points[0]     = 320;
     opt->level_points[1]     = 1280;
     opt->level_points[2]     = 5120;
     opt->level_points[3]     = 20480;
-    opt->curvtype[0]         = 1000;   /* sulcal-depth-like */
+    opt->curvtype[0]         = 1000;   /* depth potential, alpha = 1/1000 */
     opt->curvtype[1]         = 250;
     opt->curvtype[2]         = 125;
-    opt->curvtype[3]         = 15;   /* mean curvature (only if a 4th level is used) */
+    opt->curvtype[3]         = 15;     /* depth potential, alpha = 1/15 */
     opt->iters               = 150;
     opt->rotate              = 1;
     opt->rot_max_degrees     = 64.0; /* FreeSurfer's default global search span */
-    opt->rot_min_degrees     = 1.0;  /* NM refine polishes below this */
+    opt->rot_min_degrees     = 1.0;  /* the search stops below this span */
     opt->rot_nangles         = 4;    /* (4+1)^3 = 125 evaluations per pass */
     opt->smooth_velocity     = 1;   /* on (the original SD default is off) */
     opt->smooth_displacement = 1;   /* SD default: elastic displacement smoothing on */
@@ -1656,8 +1662,9 @@ CAT_WarpDemonsRegister(polygons_struct *src, polygons_struct *src_sphere,
                                    mask_level, 0, 0);
         }
         if (opt->verbose)
-            printf("Level %d/%d: %d points, curvature type %d, fwhm-flow %.3g%s\n",
-                   level+1, opt->n_steps, np, ctype, fwhm_level,
+            printf("Level %d/%d: %d triangles (%d vertices), curvature type %d, "
+                   "fwhm-flow %.3g%s\n", level+1, opt->n_steps, np,
+                   orig_sphere.n_points, ctype, fwhm_level,
                    mask_level ? ", cortex-masked" : "");
 
         warp_demon(&sm_src, &sm_src_sphere, &orig_sphere, &sm_trg,
