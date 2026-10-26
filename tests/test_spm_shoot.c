@@ -225,6 +225,33 @@ static void test_smalldef_zero(void)
     free(Jid);
 }
 
+/** \brief A zero right-hand side is already converged for cgs3. */
+static void test_cgs_zero_rhs_with_A(void)
+{
+    double prm[8], param[8];
+    float *A = (float *)calloc(6*M, sizeof(float));
+    float *b = (float *)calloc(3*M, sizeof(float));
+    float *x = (float *)calloc(3*M, sizeof(float));
+    float *r = (float *)calloc(3*M, sizeof(float));
+    float *p = (float *)calloc(3*M, sizeof(float));
+    float *Ap = (float *)calloc(3*M, sizeof(float));
+    size_t i;
+    int ok = 1;
+
+    params(4.0, rp_cat, prm, param);
+    spm_cgs3(dm, A, b, param, 1e-4, 10, x, r, p, Ap);
+    for (i = 0; i < 3*M; i++)
+        ok &= isfinite(x[i]) && x[i] == 0.0f;
+    MU_ASSERT("cgs3 keeps the zero solution for a zero right-hand side", ok);
+
+    free(A);
+    free(b);
+    free(x);
+    free(r);
+    free(p);
+    free(Ap);
+}
+
 /** \brief Composing with the identity on either side changes nothing. */
 static void test_composition_identity(void)
 {
@@ -503,6 +530,7 @@ int main(void)
     MU_RUN_TEST(test_pull_identity);
     MU_RUN_TEST(test_push_adjoint);
     MU_RUN_TEST(test_smalldef_zero);
+    MU_RUN_TEST(test_cgs_zero_rhs_with_A);
     MU_RUN_TEST(test_composition_identity);
     MU_RUN_TEST(test_fmg_inverts_vel2mom);
     MU_RUN_TEST(test_kernel_is_impulse_response);

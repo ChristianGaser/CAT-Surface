@@ -221,17 +221,10 @@ main(int argc, char *argv[])
     size_t nt;
 
     CAT_VolShootOptionsInit(&opts);
-    if (ParseArgv(&argc, argv, argTable, 0))
-    {
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    if (cat_check_unknown_options(argc, argv, argv[0]))
-    {
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    if ((argc != 4 && argc != 8) || (!y_file && !iy_file && !jac_file))
+    if (ParseArgv(&argc, argv, argTable, 0) ||
+        cat_check_unknown_options(argc, argv, argv[0]) ||
+        (argc != 4 && argc != 8) ||
+        (!y_file && !iy_file && !jac_file))
     {
         usage(argv[0]);
         exit(EXIT_FAILURE);

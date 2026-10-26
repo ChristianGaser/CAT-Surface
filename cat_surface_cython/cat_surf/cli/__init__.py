@@ -47,6 +47,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_VolSheetness                  -> vol_sheetness
     CAT_VolSmooth                     -> vol_smooth
     CAT_VolThicknessPbt               -> vol_thickness_pbt
+    CAT_VolShoot                     -> vol_shoot
 """
 from __future__ import annotations
 
@@ -867,91 +868,96 @@ def vol_realign(in_file, out=None, reffile=None, refvol=-1, mats=False,
     return res
 
 
-def vol_shoot(gm_file, wm_file, templates, y_file=None, iy_file=None,
-              jac_file=None, affine_file=None, lesion_file=None, tpm_vx=1.5,
-              regstr=None, nits=None, lowres=None, hydro=None, hotspot=None,
+def vol_shoot(gm_file, wm_file, template_files, y_file=None, iy_file=None,
+              jac_file=None, regstr=None, nits=None, lowres=None, affine=None,
+              lesion_file=None, tpm_vx=1.5, hydro=True, hotspot=True,
               n_threads=None, verbose=False):
-    """Mirror of ``CAT_VolShoot``.
+    """Mirror of ``CAT_VolShoot``, with SPM-format deformation output.
 
-    ``templates`` may be the five template paths, coarse to fine, or the
-    ``Template_0`` path whose ``_0_`` component is replaced to find the rest.
-    Deformation outputs use SPM's 5-D vector layout and contain world
-    coordinates in millimetres.
+    *template_files* is either the ``Template_0`` path containing ``_0_``
+    (the other four names are derived from it) or a sequence of five paths in
+    coarse-to-fine order.  Deformation fields are written in SPM's 5-D layout
+    ``(X, Y, Z, 1, 3)`` as world coordinates in millimetres.
 
     Parameters
     ----------
     gm_file, wm_file : str
-        Tissue probability maps on the input grid.
-    templates : str or sequence of str
-        Five shooting-template paths, or the first template path.
+        Input tissue-probability maps.
+    template_files : str or sequence of str
+        Five shooting templates, coarse to fine; each contains GM and WM as
+        its first two volumes.
     y_file, iy_file, jac_file : str, optional
-        Output paths for the forward deformation, inverse deformation, and
-        Jacobian, respectively. At least one output is required.
-    affine_file : str, optional
-        Text file with the 4x4 input-to-template world mapping.
-    lesion_file : str, optional
-        Lesion mask on the input grid.
-    tpm_vx : float
-        Tissue probability map voxel size in mm (default 1.5).
-    regstr, nits, lowres, hydro, hotspot, n_threads : optional
-        Forwarded to :func:`cat_surf.vol_shoot`; ``None`` uses the library
-        defaults.
-    verbose : bool
-        Print CAT's iteration log.
+        Forward deformation, inverse deformation and Jacobian output paths.
+        At least one must be given, as for the binary.
+    regstr, nits, lowres, affine, lesion_file, tpm_vx, hydro, hotspot,
+    n_threads, verbose
+        ``-regstr``, ``-nits``, ``-lowres``, ``-affine``, ``-lesion``,
+        ``-tpm-vx``, ``-no-hydro``, ``-no-hotspot``, ``-threads`` and
+        ``-verbose``.  ``affine`` is a 4x4 input-to-template world matrix or
+        a text file containing it.  ``None`` uses the library defaults.
+
+    Returns
+    -------
+    dict
+        The in-memory result from :func:`cat_surf.vol_shoot`, with paths for
+        any files written.
     """
     import nibabel as nib
 
-    if not y_file and not iy_file and not jac_file:
-        raise ValueError("at least one of y_file, iy_file, or jac_file is required")
+    if not any((y_file, iy_file, jac_file)):
+        raise ValueError("at least one of y_file, iy_file or jac_file is required")
 
-    gm_img = _load_volume_meta(gm_file)
-    wm_img = _load_volume_meta(wm_file)
-    gm = gm_img.get_fdata(dtype=np.float32)
-    wm = wm_img.get_fdata(dtype=np.float32)
-
-    if isinstance(templates, (str, os.PathLike)):
-        first = os.fspath(templates)
+    if isinstance(template_files, (str, os.PathLike)):
+        first = os.fspath(template_files)
         marker = first.rfind("_0_")
         if marker < 0:
             raise ValueError("a single template path must contain '_0_'")
         template_files = [first[:marker + 1] + str(k) + first[marker + 2:]
                           for k in range(5)]
     else:
-        template_files = list(templates)
+        template_files = list(template_files)
         if len(template_files) != 5:
-            raise ValueError("templates must contain five paths")
+            raise ValueError("template_files must contain five paths")
 
-    template_imgs = [_load_volume_meta(path) for path in template_files]
-    template_arrays = [img.get_fdata(dtype=np.float32) for img in template_imgs]
-    affine = np.loadtxt(affine_file).reshape(4, 4) if affine_file else None
+    gm_img, wm_img = nib.load(gm_file), nib.load(wm_file)
+    gm = gm_img.get_fdata(dtype=np.float32)
+    wm = wm_img.get_fdata(dtype=np.float32)
+    template_imgs = [nib.load(path) for path in template_files]
+    templates = [img.get_fdata(dtype=np.float32) for img in template_imgs]
+
     lesion = None
-    if lesion_file:
-        lesion = _load_volume_meta(lesion_file).get_fdata(dtype=np.float32)
+    if lesion_file is not None:
+        lesion = nib.load(lesion_file).get_fdata(dtype=np.float32)
+    if isinstance(affine, (str, os.PathLike)):
+        affine = np.loadtxt(affine)
 
-    result = _vol_shoot(
-        gm, wm, template_arrays, gm_img.affine, template_imgs[0].affine,
+    res = _vol_shoot(
+        gm, wm, templates, gm_img.affine, template_imgs[0].affine,
         affine=affine, tpm_vx=tpm_vx, lesion=lesion, regstr=regstr,
         nits=nits, lowres=lowres, hydro=hydro, hotspot=hotspot,
-        n_threads=n_threads, verbose=verbose, inverse=iy_file is not None)
+        n_threads=n_threads, verbose=verbose,
+        inverse=iy_file is not None,
+    )
 
-    def write_deformation(path, field, voxel_to_world, reference):
-        field = np.asarray(field, dtype=np.float64)
-        world = np.einsum("...j,ij->...i", field, voxel_to_world[:3, :3])
-        world += voxel_to_world[:3, 3]
-        image = nib.Nifti1Image(world[..., np.newaxis, :].astype(np.float32),
-                                reference.affine, reference.header.copy())
-        image.header.set_intent("vector")
+    def write_deformation(path, field, grid_img, coord_affine):
+        mm = np.einsum("ij,...j->...i", coord_affine[:3, :3], field)
+        mm += coord_affine[:3, 3]
+        image = nib.Nifti1Image(mm[..., np.newaxis, :], grid_img.affine,
+                                grid_img.header.copy())
         image.header.set_data_dtype(np.float32)
+        image.header.set_intent("vector")
         nib.save(image, path)
 
-    if y_file:
-        write_deformation(y_file, result["y"], gm_img.affine, template_imgs[0])
-    if iy_file:
-        write_deformation(iy_file, result["iy"], template_imgs[0].affine, gm_img)
-    if jac_file:
-        _save_volume_like(jac_file, result["jac"], template_imgs[0], dtype=np.float32)
-
-    return {"y_file": y_file, "iy_file": iy_file, "jac_file": jac_file}
+    if y_file is not None:
+        write_deformation(y_file, res["y"], template_imgs[0], gm_img.affine)
+        res["y_file"] = y_file
+    if iy_file is not None:
+        write_deformation(iy_file, res["iy"], gm_img, template_imgs[0].affine)
+        res["iy_file"] = iy_file
+    if jac_file is not None:
+        _save_volume_like(jac_file, res["jac"], template_imgs[0], dtype=np.float32)
+        res["jac_file"] = jac_file
+    return res
 
 
 def surf_resample_multi(units, output_file, fwhm=0.0, areal=False):

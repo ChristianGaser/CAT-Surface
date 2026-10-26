@@ -388,9 +388,38 @@ test_invalid(void)
     }
 }
 
+static void
+test_invalid_iterations(void)
+{
+    float **tpl = make_templates();
+    float *y = (float *)malloc(sizeof(float) * 3 * NV);
+    const float *cls[2] = {tpl[4], tpl[4] + NV};
+    const float *t[CAT_SHOOT_NTEMPLATES];
+    CAT_VolShootOpts o;
+    CAT_VolShootInfo info;
+    double M[16];
+    int nits, l;
+
+    for (l = 0; l < CAT_SHOOT_NTEMPLATES; l++) t[l] = tpl[l];
+    grid_matrix(M);
+    CAT_VolShootOptionsInit(&o);
+    for (nits = 1; nits < 3; nits++)
+    {
+        o.nits = nits;
+        MU_ASSERT("shooting rejects fewer than three iterations",
+                  CAT_VolShoot(cls, 2, (int[]){NX, NY, NZ}, M, NULL, t, (int[]){NX, NY, NZ},
+                               M, 1.5, NULL, &o, y, NULL, NULL, &info) == 1);
+    }
+
+    free(y);
+    for (l = 0; l < CAT_SHOOT_NTEMPLATES; l++) free(tpl[l]);
+    free(tpl);
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_invalid);
+    MU_RUN_TEST(test_invalid_iterations);
     MU_RUN_TEST(test_identity);
     MU_RUN_TEST(test_recovers_deformation);
     MU_RUN_TEST(test_hydro);
