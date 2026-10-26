@@ -832,6 +832,11 @@ Where it came from, and what keeps it:
 - **The deform loops pass their neighbour table** to `find_near_*_intersections_nb()` instead of
   rebuilding it every iteration, and the spatial grid keeps its nodes in one pool, so freeing
   it no longer walks all 250^3 cells.
+- **`smooth_heatkernel()` computes the kernel weights once when it smooths values**: the points
+  do not move, so neither do the distances. 3.2-3.9x at FWHM 25 on a 164k-vertex surface
+  (2.7-3.0x at 15), bit-identical with and without NaN values, also the sign of a zero. It has
+  to sum in the order of `heatkernel_blur_points()` and start from 0. Smoothing the points
+  themselves keeps the per-iteration path.
 
 Measured and deliberately not done:
 

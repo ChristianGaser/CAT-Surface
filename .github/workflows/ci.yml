@@ -51,3 +51,31 @@ jobs:
 
       - name: Smoke-test Python bindings
         run: python cat_surface_cython/tests/smoke_test.py
+
+  # The unit tests again under AddressSanitizer and UndefinedBehaviorSanitizer,
+  # with LeakSanitizer, which ASan enables on Linux: a leak in a tested path
+  # fails the test, which matters because T1Prep runs libCAT in its own
+  # process.  A sanitizer only sees the code the tests reach: test_readers,
+  # test_hull and the long-path test in test_nifti reach the memory errors of
+  # the 2026-10 audit, which an -O2 build runs through without a sign.
+  sanitizers:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool autoconf-archive build-essential pkg-config zip zlib1g-dev
+      - name: Configure
+        run: |
+          autoupdate
+          autoreconf -fi
+          # -fno-sanitize-recover makes undefined behaviour fail the test
+          # instead of printing a line in its log.
+          ./configure --enable-static --disable-shared \
+            CFLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=undefined" \
+            LDFLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: make -j$(nproc)
+      - name: Test
+        run: make check || { cat tests/test-suite.log; exit 1; }

@@ -13,8 +13,6 @@
 
 #include "CAT_ConvexHull.h"
 
-static int KeyFactor = 100000;
-
 /* file-local helpers, defined below */
 private  int  get_points_of_region(polygons_struct  *, Point ** );
 private  void  get_convex_hull(int, Point *, polygons_struct * );
@@ -37,28 +35,31 @@ int dbg2 = 0;
  * convex hull is mapped through a spherical representation to preserve
  * correspondence with the original surface.
  *
- * \param polygons        (in)  input surface mesh
+ * \param polygons        (in)  input surface mesh (triangles only)
  * \param polygons_sphere (in)  target spherical mesh (NULL to skip resampling)
- * \return Newly allocated object list containing the convex hull surface
+ * \return Newly allocated object list containing the convex hull surface, or
+ *         NULL if the surface is not a triangle mesh
  */
 object_struct **
 surface_get_convex_hull(polygons_struct *polygons, polygons_struct *polygons_sphere)
 {
 
     int i, n_points, n_done;
-    Point *points, *length_points;
+    Point *points = NULL, *length_points;
     polygons_struct new_polygons, *convex_polygons, *sphere_convex;
-    object_struct **object;
+    object_struct **object, **resampled, *sphere_object;
+
+    n_points = get_points_of_region(polygons, &points);
+    if (n_points < 0)
+        return NULL;
 
     object = (object_struct **)malloc(sizeof(object_struct *));
     *object = create_object(POLYGONS);
-
-    n_points = get_points_of_region(polygons, &points);
-    KeyFactor = n_points;
-
     convex_polygons = get_polygons_ptr(*object);
 
     get_convex_hull(n_points, points, convex_polygons);
+    if (points)
+        FREE(points);
     check_polygons_neighbours_computed(convex_polygons);
 
     /* refine mesh to minimal length of 3mm */
@@ -74,19 +75,24 @@ surface_get_convex_hull(polygons_struct *polygons, polygons_struct *polygons_sph
         delete_polygons(convex_polygons);
         *convex_polygons = new_polygons;
     } while (n_done > 0);
+    FREE(length_points);
 
     /* do resampling to original sphere if defined */
     if (polygons_sphere != NULL)
     {
 
         /* get sphere of convex hull (using Laplace Beltrami approach) */
-        sphere_convex = get_polygons_ptr(create_object(POLYGONS));
+        sphere_object = create_object(POLYGONS);
+        sphere_convex = get_polygons_ptr(sphere_object);
         copy_polygons(convex_polygons, sphere_convex);
         //          fprintf(stderr,"Warning: Laplace-Beltrami approach results in rotated sphere and link to original surface is lost\n");
         //          find_conformal_map(sphere_convex);
         surf_to_sphere(sphere_convex, 5, 0);
 
-        object = resample_surface_to_target_sphere(convex_polygons, sphere_convex, polygons_sphere, NULL, NULL, 0, 0);
+        resampled = resample_surface_to_target_sphere(convex_polygons, sphere_convex, polygons_sphere, NULL, NULL, 0, 0);
+        delete_object(sphere_object);
+        delete_object_list(1, object);
+        object = resampled;
     }
 
     return object;
@@ -97,17 +103,20 @@ surface_get_convex_hull(polygons_struct *polygons, polygons_struct *polygons_sph
  *
  * Uses vertex normals to test local support planes and keeps points that
  * are not exceeded by any neighbor, yielding a reduced set of candidates
- * for convex hull construction.
+ * for convex hull construction.  Vertices that no polygon uses are not part
+ * of the surface and are skipped.
  *
  * \param polygons (in)  input surface mesh
  * \param points   (out) allocated array of candidate points
- * \return Number of candidate points
+ * \return Number of candidate points, or -1 if the surface is not a
+ *         triangle mesh
  */
 private int
 get_points_of_region(polygons_struct *polygons, Point *points[])
 {
 
-    int n_points;
+    int i, j, n_points;
+    int n_convex = 0;
 
     Point *coords;     // coordinates
     Vector *normals;   // normal vectors
@@ -116,47 +125,38 @@ get_points_of_region(polygons_struct *polygons, Point *points[])
     double plane_const, check;
 
     if (get_surface_point_normals(polygons, &n_points, &coords, &normals,
-                                  &n_ngh, &ngh) == OK)
+                                  &n_ngh, &ngh) != OK)
+        return -1;
+
+    // Find the convex points for a surface.
+    for (i = 0; i < n_points; i++)
     {
-        // Find the convex points for a surface.
-
-        int i, j;
-        int n_convex = 0;
-
-        for (i = 0; i < n_points; i++)
+        if (n_ngh[i] == 0)
+            continue;
+        plane_const = coords[i].coords[0] * normals[i].coords[0] +
+                      coords[i].coords[1] * normals[i].coords[1] +
+                      coords[i].coords[2] * normals[i].coords[2];
+        for (j = 0; j < n_ngh[i]; j++)
         {
-            plane_const = coords[i].coords[0] * normals[i].coords[0] +
-                          coords[i].coords[1] * normals[i].coords[1] +
-                          coords[i].coords[2] * normals[i].coords[2];
-            for (j = 0; j < n_ngh[i]; j++)
+            if (ngh[i][j] < n_points)
             {
-                if (ngh[i][j] < n_points)
-                {
-                    check = coords[ngh[i][j]].coords[0] * normals[i].coords[0] +
-                            coords[ngh[i][j]].coords[1] * normals[i].coords[1] +
-                            coords[ngh[i][j]].coords[2] * normals[i].coords[2];
-                    if (check > plane_const)
-                        break;
-                }
+                check = coords[ngh[i][j]].coords[0] * normals[i].coords[0] +
+                        coords[ngh[i][j]].coords[1] * normals[i].coords[1] +
+                        coords[ngh[i][j]].coords[2] * normals[i].coords[2];
+                if (check > plane_const)
+                    break;
             }
-            if (j == n_ngh[i])
-                ADD_ELEMENT_TO_ARRAY(*points, n_convex, coords[i], DEFAULT_CHUNK_SIZE);
         }
-        if (coords)
-            FREE(coords);
-        if (normals)
-            FREE(normals);
-        if (n_ngh)
-            FREE(n_ngh);
-        if (ngh)
-        {
-            FREE(ngh[0]); // this is ngh_array
-            FREE(ngh);
-        }
-        n_points = n_convex;
+        if (j == n_ngh[i])
+            ADD_ELEMENT_TO_ARRAY(*points, n_convex, coords[i], DEFAULT_CHUNK_SIZE);
     }
+    FREE(coords);
+    FREE(normals);
+    FREE(n_ngh);
+    FREE(ngh[0]); // this is ngh_array
+    FREE(ngh);
 
-    return (n_points);
+    return (n_convex);
 }
 
 /**
@@ -379,24 +379,28 @@ typedef QUEUE_STRUCT(queue_entry) queue_struct;
 
 #define ENLARGE_THRESHOLD 0.25
 #define NEW_DENSITY 0.125
-#define KEY_FACTOR 1000000
 
 /**
- * \brief Compute a unique hash key for an undirected edge.
+ * \brief Compute the hash keys of an undirected edge.
  *
- * Produces a symmetric key for the edge between two vertex indices,
- * independent of edge direction, for use in hash tables.
+ * Returns the two vertex indices of the edge, smaller one first, so that
+ * both directions of an edge give the same pair of keys.  Two keys rather
+ * than one combined int: the product min * n_points + max overflowed on
+ * real pial surfaces.
  *
  * \param polygons (in)  mesh containing the polygon
  * \param poly     (in)  polygon index
  * \param edge     (in)  edge index within polygon
- * \return Hash key for the edge
+ * \param key0     (out) smaller vertex index
+ * \param key1     (out) larger vertex index
  */
-private int
-get_edge_key(
+private void
+get_edge_keys(
     polygons_struct *polygons,
     int poly,
-    int edge)
+    int edge,
+    int *key0,
+    int *key1)
 {
 
     int p0, p1, size;
@@ -407,7 +411,8 @@ get_edge_key(
     p1 = polygons->indices[POINT_INDEX(polygons->end_indices, poly,
                                        (edge + 1) % size)];
 
-    return (IJ(MIN(p0, p1), MAX(p0, p1), KeyFactor));
+    *key0 = MIN(p0, p1);
+    *key1 = MAX(p0, p1);
 }
 
 /**
@@ -425,30 +430,30 @@ get_edge_key(
 private void
 add_edge_to_list(
     queue_struct *queue,
-    hash_table_struct *edge_table,
+    hash2_table_struct *edge_table,
     polygons_struct *polygons,
     int poly,
     int edge)
 {
-    int key;
+    int key0, key1;
     edge_struct edge_ptr;
     queue_entry entry;
 
-    key = get_edge_key(polygons, poly, edge);
+    get_edge_keys(polygons, poly, edge, &key0, &key1);
 
-    if (lookup_in_hash_table(edge_table, key, NULL))
+    if (lookup_in_hash2_table(edge_table, key0, key1, NULL))
     {
         /* This is quite convoluted, but it works. CL */
-        remove_from_hash_table(edge_table, key, (void *)&edge_ptr);
+        remove_from_hash2_table(edge_table, key0, key1, (void *)&edge_ptr);
         if ((edge_ptr.ref_count == 2) && dbg)
-            printf(" bad count for edge %d %d\n", key / KeyFactor, key % KeyFactor);
+            printf(" bad count for edge %d %d\n", key0, key1);
         edge_ptr.ref_count++;
-        insert_in_hash_table(edge_table, key, (void *)&edge_ptr);
+        insert_in_hash2_table(edge_table, key0, key1, (void *)&edge_ptr);
     }
     else
     {
         edge_ptr.ref_count = 1;
-        insert_in_hash_table(edge_table, key, (void *)&edge_ptr);
+        insert_in_hash2_table(edge_table, key0, key1, (void *)&edge_ptr);
 
         entry.poly = poly;
         entry.edge = edge;
@@ -613,7 +618,7 @@ get_convex_hull(
     int i, min_ind, ind, second_ind, size;
     int n_bad_ref_count, n_edges;
     Vector hinge, new_hinge, normal, new_normal;
-    int *new_indices, other_index, key;
+    int *new_indices, other_index, key0, key1;
     int poly, edge, new_poly;
     int n_vertices, *vertices;
     int *poly_vertices;
@@ -622,8 +627,8 @@ get_convex_hull(
     queue_entry entry;
     queue_struct queue;
     edge_struct edge_ptr;
-    hash_table_struct edge_table;
-    hash_table_pointer hash_ptr;
+    hash2_table_struct edge_table;
+    hash2_table_pointer hash_ptr;
 
     initialize_polygons(polygons, WHITE, NULL);
 
@@ -676,8 +681,8 @@ get_convex_hull(
 
     INITIALIZE_QUEUE(queue);
 
-    initialize_hash_table(&edge_table, 1000, sizeof(edge_struct),
-                          ENLARGE_THRESHOLD, NEW_DENSITY);
+    initialize_hash2_table(&edge_table, 1000, sizeof(edge_struct),
+                           ENLARGE_THRESHOLD, NEW_DENSITY);
 
     for_less(i, 0, n_vertices)
     {
@@ -691,9 +696,9 @@ get_convex_hull(
         poly = entry.poly;
         edge = entry.edge;
 
-        key = get_edge_key(polygons, poly, edge);
+        get_edge_keys(polygons, poly, edge, &key0, &key1);
 
-        if (!lookup_in_hash_table(&edge_table, key, (void *)&edge_ptr))
+        if (!lookup_in_hash2_table(&edge_table, key0, key1, (void *)&edge_ptr))
         {
             fprintf(stderr, "Convex hull\n");
         }
@@ -748,11 +753,11 @@ get_convex_hull(
     if (point_flags)
         FREE(point_flags);
 
-    initialize_hash_pointer(&hash_ptr);
+    initialize_hash2_pointer(&hash_ptr);
 
     n_bad_ref_count = 0;
     n_edges = 0;
-    while (get_next_hash_entry(&edge_table, &hash_ptr, (void *)&edge_ptr))
+    while (get_next_hash2_entry(&edge_table, &hash_ptr, (void *)&edge_ptr))
     {
         if (edge_ptr.ref_count != 2)
         {
@@ -763,7 +768,7 @@ get_convex_hull(
         ++n_edges;
     }
 
-    delete_hash_table(&edge_table);
+    delete_hash2_table(&edge_table);
 
     if ((n_bad_ref_count > 0) && dbg)
         print("N ref counts != 2: %d/%d\n", n_bad_ref_count, n_edges);
@@ -942,6 +947,9 @@ get_surface_point_normals(polygons_struct *surface,
 
     int i;
 
+    if (get_surface_neighbours(surface, n_neighbours, neighbours) != OK)
+        return (ERROR);
+
     // Make a copy of the coordinates and the normals, since
     // delete_object_list will destroy them.
 
@@ -957,8 +965,6 @@ get_surface_point_normals(polygons_struct *surface,
         (*normals)[i].coords[1] = surface->normals[i].coords[1];
         (*normals)[i].coords[2] = surface->normals[i].coords[2];
     }
-
-    get_surface_neighbours(surface, n_neighbours, neighbours);
 
     return (OK);
 }
@@ -990,38 +996,15 @@ get_surface_neighbours(polygons_struct *surface,
     int **ngh;
     int *ngh_array;
 
-    // Check if all polygons are triangles.
+    // Check if all polygons are triangles.  The indices are 0-based, as the
+    // readers check; an unused vertex 0 used to be taken for 1-based
+    // numbering and every index of the caller's mesh was shifted down.
 
-    if (3 * surface->n_items != surface->end_indices[surface->n_items - 1])
+    if (surface->n_items == 0 ||
+        3 * surface->n_items != surface->end_indices[surface->n_items - 1])
     {
-        printf("Surface must contain only triangular polygons.\n");
+        fprintf(stderr, "Surface must contain only triangular polygons.\n");
         return ERROR;
-    }
-
-    // Check if the node numbering starts at 0 or 1.
-
-    int min_idx, max_idx;
-
-    min_idx = 100 * surface->n_points; // anything big
-    max_idx = 0;                       // anything small
-
-    for (i = 0; i < 3 * surface->n_items; i++)
-    {
-        if (surface->indices[i] < min_idx)
-            min_idx = surface->indices[i];
-        if (surface->indices[i] > max_idx)
-            max_idx = surface->indices[i];
-    }
-
-    // Shift numbering to start at zero, for array indexing. Note
-    // that we don't care if surface->indices array is modified.
-
-    if (min_idx != 0)
-    {
-        for (i = 0; i < 3 * surface->n_items; i++)
-        {
-            surface->indices[i] -= min_idx;
-        }
     }
 
     // Count number of triangles attached to each node.
@@ -1084,6 +1067,12 @@ get_surface_neighbours(polygons_struct *surface,
 
     for (i = 0; i < surface->n_points; i++)
     {
+        // a vertex has as many slots as triangles: none for an unused
+        // vertex, whose slots would be the next vertex's (or past the end
+        // of ngh_array for the last one), and one for a single triangle
+        if (n_ngh[i] == 0)
+            continue;
+
         for (k = 0; k < n_ngh[i]; k++)
         {
             tri = &(surface->indices[3 * ngh[i][k]]);
@@ -1097,7 +1086,8 @@ get_surface_neighbours(polygons_struct *surface,
         }
 
         ngh[i][0] = tmp[0];
-        ngh[i][1] = tmp[1];
+        if (n_ngh[i] > 1)
+            ngh[i][1] = tmp[1];
         for (k = 2; k < n_ngh[i]; k++)
         {
             for (j = 1; j < n_ngh[i]; j++)

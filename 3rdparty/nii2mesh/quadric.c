@@ -138,7 +138,11 @@ static bool collapse_preserves_topology(int u, int v,
       }
     }
   }
-  if (ni != 2) return false;
+  if (ni != 2) {
+    free(Nu);
+    free(Nv);
+    return false;
+  }
 
   /* The intersection must match exactly the two opposites of this edge. */
   int hits = 0;

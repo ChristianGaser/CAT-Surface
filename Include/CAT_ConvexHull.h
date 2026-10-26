@@ -28,9 +28,10 @@ extern int dbg2;
 /**
  * \brief Compute convex hull surface and optionally resample to a target sphere.
  *
- * \param polygons        (in)  input surface mesh
+ * \param polygons        (in)  input surface mesh (triangles only)
  * \param polygons_sphere (in)  target spherical mesh (NULL to skip resampling)
- * \return Newly allocated object list containing the convex hull surface
+ * \return Newly allocated object list containing the convex hull surface, or
+ *         NULL if the surface is not a triangle mesh
  */
 object_struct ** surface_get_convex_hull(polygons_struct *polygons,
                                          polygons_struct *polygons_sphere);

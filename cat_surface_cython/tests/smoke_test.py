@@ -1057,6 +1057,19 @@ def test_resample_annot_formats():
 #    a glued sulcus is recoverable, a subcortical mass is not, and thickness
 #    alone cannot separate them.
 # ---------------------------------------------------------------------------
+def test_hull_and_normalized_area():
+    section("sulcus_depth and get_area_normalized")
+    v, f = _icosphere(3, 50.0)
+    depth = cat_surf.sulcus_depth(v, f)
+    check("a sphere lies on its own convex hull", np.abs(depth).max() < 0.1,
+          f"max depth {np.abs(depth).max():.3g}")
+    # it freed the address of a local pointer and aborted the interpreter
+    area, total = cat_surf.get_area_normalized(v, f, v, f)
+    check("get_area_normalized returns 4 pi r^2 for a sphere",
+          abs(total / (4 * np.pi * 50.0 ** 2) - 1) < 0.01, f"{total:.1f}")
+    check("and values that add up to it", abs(area.sum() / total - 1) < 1e-9)
+
+
 def main():
     print(f"cat_surf {cat_surf.__version__} — binding smoke test")
     for test in (test_api_surface, test_sheetness, test_oriented_filters,
@@ -1069,7 +1082,8 @@ def main():
                  test_surf_info, test_vol_calc, test_box_morph,
                  test_bspline_sample, test_vol_realign, test_bbreg_defaults,
                  test_resample_annot_formats, test_sanlm_repeatable,
-                 test_amap_rejects_bad_labels, test_missing_files_raise):
+                 test_amap_rejects_bad_labels, test_missing_files_raise,
+                 test_hull_and_normalized_area):
         try:
             test()
         except Exception:  # pragma: no cover

@@ -66,10 +66,12 @@ void get_smoothed_curvatures(polygons_struct *polygons, double *values,
 /**
  * \brief Compute sulcal depth using convex hull Euclidean distance.
  *
- * \param surface (in)  cortical surface mesh
+ * \param surface (in)  cortical surface mesh (triangles only)
  * \param depth   (out) double[n_points]; distance to convex hull for each vertex
+ * \return 0 on success, -1 if the surface is not a triangle mesh (depth is
+ *         then left unchanged)
  */
-void compute_sulcus_depth(polygons_struct *surface, double *depth);
+int compute_sulcus_depth(polygons_struct *surface, double *depth);
 /**
  * \brief Compute FreeSurfer-style sulcal depth (average convexity).
  *

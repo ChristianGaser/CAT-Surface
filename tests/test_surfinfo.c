@@ -71,10 +71,12 @@ free_mesh(polygons_struct *polygons)
     free(polygons->normals);
     free(polygons->end_indices);
     free(polygons->indices);
+    free(polygons->colours);    /* from initialize_polygons() */
     polygons->points = NULL;
     polygons->normals = NULL;
     polygons->end_indices = NULL;
     polygons->indices = NULL;
+    polygons->colours = NULL;
     polygons->n_points = 0;
     polygons->n_items = 0;
 }

@@ -512,6 +512,61 @@ test_reads_the_file_asked_for(void)
     remove(nii);
 }
 
+/**
+ * \brief The writers take output paths of more than 1024 characters.
+ *
+ * They built the file names in a 1024-byte stack buffer, which a longer path
+ * overflowed.  "/." components make the path long without new directories.
+ * Where PATH_MAX is 1024 (macOS) the file cannot be opened, and only the
+ * absence of the overflow is tested, which needs a sanitizer to show.
+ */
+static void
+test_writes_long_paths(void)
+{
+    const char *file = "/tmp/test_nifti_long_path.nii";
+    char path[1300], *p;
+    int dims[3] = {NX, NY, NZ};
+    double vox[3] = {1.0, 1.0, 1.0};
+    float fimg[NVOX], *back = NULL;
+    double img[NVOX];
+    nifti_image *nim;
+    FILE *fp;
+    int i;
+
+    strcpy(path, "/tmp");
+    p = path + strlen(path);
+    for (i = 0; i < 600; i++)
+    {
+        *p++ = '/';
+        *p++ = '.';
+    }
+    strcpy(p, file + 4);
+    for (i = 0; i < NVOX; i++)
+    {
+        fimg[i] = (float)i;
+        img[i] = (double)i;
+    }
+    remove(file);
+
+    write_nifti_double(path, img, DT_FLOAT32, 1.0, dims, vox, NULL);
+    write_nifti_float(path, fimg, DT_FLOAT32, 1.0, dims, vox, NULL);
+    MU_ASSERT("the writers return for a path of more than 1024 characters",
+              strlen(path) > 1024);
+
+    fp = fopen(file, "rb");
+    if (fp)
+    {
+        fclose(fp);
+        nim = read_nifti_float(file, &back, 0);
+        MU_ASSERT("and the file reads back where the system allows such paths",
+                  nim != NULL && back[NVOX - 1] == (float)(NVOX - 1));
+        if (nim)
+            nifti_image_free(nim);
+        free(back);
+        remove(file);
+    }
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_reads_the_file_asked_for);
@@ -521,6 +576,7 @@ int main(void)
     MU_RUN_TEST(test_4d_writer_round_trip);
     MU_RUN_TEST(test_world_matrix);
     MU_RUN_TEST(test_fsl_matrices);
+    MU_RUN_TEST(test_writes_long_paths);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

@@ -356,7 +356,8 @@ def sulcus_depth(vertices, faces):
     cdef int n = poly.n_points
 
     cdef cnp.ndarray[cnp.float64_t, ndim=1] depth = np.zeros(n, dtype=np.float64)
-    C.compute_sulcus_depth(poly, <double *>depth.data)
+    if C.compute_sulcus_depth(poly, <double *>depth.data) != 0:
+        raise RuntimeError("sulcus_depth: the convex hull needs a triangle mesh")
     return depth
 
 

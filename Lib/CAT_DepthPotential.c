@@ -100,13 +100,12 @@ compute_depth_potential(polygons_struct *polygons, double alpha)
 
     if (normals)
         FREE(normals);
-    if (n_neighbours)
-        FREE(n_neighbours);
-    if (neighbours)
-    {
-        FREE(neighbours[0]); // this is ngh_array
-        FREE(neighbours);
-    }
+    /* one list per point, not one array as in the convex hull code */
+    delete_polygon_point_neighbours(polygons, n_neighbours, neighbours,
+                                    NULL, NULL);
+    free(laplacian.ia);
+    free(laplacian.ja);
+    free(laplacian.A);
     if (areas)
         free(areas);
     if (mc)

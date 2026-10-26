@@ -10,8 +10,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
 # Included by the tests rather than compiled on their own.
 EXTRA_DIST = minunit.h math_subset.c
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_readers
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_readers
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_readers test_hull
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_readers test_hull
 
 test_math_SOURCES = test_math.c
 
@@ -76,6 +76,10 @@ test_annot_LDADD = $(top_builddir)/libCAT.la -lm
 test_readers_SOURCES = test_readers.c
 
 test_readers_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_hull_SOURCES = test_hull.c
+
+test_hull_LDADD = $(top_builddir)/libCAT.la -lm
 
 test_morph_SOURCES = test_morph.c
 

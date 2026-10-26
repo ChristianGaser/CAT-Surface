@@ -323,6 +323,7 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
         values = compute_depth_potential(polygons, alpha);
         for (pidx = 0; pidx < polygons->n_points; pidx++)
             curvatures[pidx] = values[pidx];
+        free(values);
         /* sulcal depth like estimator (single-step smoothing approximation) */
     }
     else if (curvtype == 5)
@@ -341,6 +342,7 @@ void get_polygon_vertex_curvatures_cg(polygons_struct *polygons, int n_neighbour
                              (Point_y(polygonsIn->points[p]) - Point_y(polygons->points[p])) * Point_y(polygonsIn->normals[p]) +
                              (Point_z(polygonsIn->points[p]) - Point_z(polygons->points[p])) * Point_z(polygonsIn->normals[p]));
         }
+        delete_polygons(polygonsIn);
         free(polygonsIn);
     }
     else
@@ -452,21 +454,22 @@ void get_smoothed_curvatures(polygons_struct *polygons,
  *  3. For each surface vertex: find closest point on convex hull
  *  4. Store Euclidean distance as depth measure
  *
- * \param surface (in)  cortical surface mesh
+ * \param surface (in)  cortical surface mesh (triangles only)
  * \param depth   (out) double[n_points]; distance to convex hull for each vertex
+ * \return 0 on success, -1 if the surface is not a triangle mesh (depth is
+ *         then left unchanged)
  */
-void compute_sulcus_depth(polygons_struct *surface, double *depth)
+int compute_sulcus_depth(polygons_struct *surface, double *depth)
 {
     polygons_struct *convex;
     object_struct **object;
     Point closest;
     int i, poly;
 
-    object = (object_struct **)malloc(sizeof(object_struct *));
-    *object = create_object(POLYGONS);
-
     /* get convex hull */
     object = surface_get_convex_hull(surface, NULL);
+    if (object == NULL)
+        return -1;
     convex = get_polygons_ptr(*object);
 
     if (convex->bintree == NULL)
@@ -479,8 +482,9 @@ void compute_sulcus_depth(polygons_struct *surface, double *depth)
         depth[i] = distance_between_points(&surface->points[i], &closest);
     }
 
+    /* also deletes the bintree */
     delete_object_list(1, object);
-    delete_the_bintree(&convex->bintree);
+    return 0;
 }
 
 /**

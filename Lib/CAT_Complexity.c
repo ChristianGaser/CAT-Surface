@@ -150,6 +150,7 @@ void get_localfd(polygons_struct *polygons, double *x, double **areas, int x_len
         fd[p] += 2;
     }
 
+    free(polyfd);
     free(logx);
     free(logy);
     free(pcount);
