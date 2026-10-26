@@ -5,13 +5,14 @@ AM_CPPFLAGS = -I$(top_srcdir)/Include \
     -I$(top_srcdir)/3rdparty/gifticlib \
     -I$(top_srcdir)/3rdparty/expat/lib \
     -I$(top_srcdir)/3rdparty/nii2mesh \
-    -I$(top_srcdir)/3rdparty/nifti
+    -I$(top_srcdir)/3rdparty/nifti \
+    -I$(top_srcdir)/3rdparty/spm_shoot
 
 # Included by the tests rather than compiled on their own.
 EXTRA_DIST = minunit.h math_subset.c
 
-check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_demons test_readers test_hull
-TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_demons test_readers test_hull
+check_PROGRAMS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_demons test_readers test_hull test_spm_shoot test_cat12_utils test_volshoot
+TESTS = test_math test_glmformula test_sheetness test_calc test_surfinfo test_pialprofile test_deform test_folding test_intersect test_annot test_morph test_resample test_nifti test_volaverage test_bspline test_volumereg test_volrealign test_bbreg test_sulc test_separate test_sphere_relax test_sphere_untangle test_demons test_readers test_hull test_spm_shoot test_cat12_utils test_volshoot
 
 test_math_SOURCES = test_math.c
 
@@ -112,3 +113,15 @@ test_volumereg_LDADD = $(top_builddir)/libCAT.la -lm
 test_volrealign_SOURCES = test_volrealign.c
 
 test_volrealign_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_spm_shoot_SOURCES = test_spm_shoot.c
+
+test_spm_shoot_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_cat12_utils_SOURCES = test_cat12_utils.c
+
+test_cat12_utils_LDADD = $(top_builddir)/libCAT.la -lm
+
+test_volshoot_SOURCES = test_volshoot.c
+
+test_volshoot_LDADD = $(top_builddir)/libCAT.la -lm
