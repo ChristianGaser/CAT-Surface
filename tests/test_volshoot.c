@@ -365,6 +365,19 @@ test_invalid(void)
     MU_ASSERT("defaults: 64 iterations", o.nits == 64);
     MU_ASSERT("invalid: no maps", CAT_VolShoot(NULL, 2, dims, M, NULL, NULL, dims, M, 1.5,
                                                NULL, &o, y, NULL, NULL, NULL) == 1);
+    {
+        float a = 0.0f;
+        const float *cls[2] = {&a, &a}, *t[CAT_SHOOT_NTEMPLATES] = {&a, &a, &a, &a, &a};
+        int nits;
+        for (nits = 1; nits < 3; nits++)
+        {
+            o.nits = nits;
+            MU_ASSERT("invalid: fewer than three iterations",
+                      CAT_VolShoot(cls, 2, dims, M, NULL, t, dims, M, 1.5, NULL, &o, y, NULL,
+                                   NULL, NULL) == 1);
+        }
+        o.nits = 64;
+    }
     o.regstr = 2.0;
     {
         float a = 0.0f;

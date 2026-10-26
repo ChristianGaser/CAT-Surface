@@ -49,7 +49,7 @@ static ArgvInfo argTable[] = {
     {"-lowres", ARGV_FLOAT, (char *)1, (char *)&opts.lowres,
      "Coarsest registration resolution in mm."},
     {"-affine", ARGV_STRING, (char *)1, (char *)&affine_file,
-     "Text file with the 4x4 template-to-input world matrix (CAT's res.Affine);\n\t\t\tdefault: identity, i.e. maps already in template space."},
+     "Text file with the 4x4 input-to-template world matrix (CAT's res.Affine);\n\t\t\tdefault: identity, i.e. maps already in template space."},
     {"-lesion", ARGV_STRING, (char *)1, (char *)&lesion_file,
      "Lesion mask on the input grid; the template replaces the tissue there."},
     {"-tpm-vx", ARGV_FLOAT, (char *)1, (char *)&tpm_vx,
@@ -83,7 +83,7 @@ usage(const char *executable)
             "  -regstr <v>     0.5 optimised shooting, 4 SPM's default schedule [%g]\n"
             "  -nits <n>       maximum Gauss-Newton iterations [%d]\n"
             "  -lowres <mm>    coarsest registration resolution [%g]\n"
-            "  -affine <file>  4x4 template-to-input world matrix [identity]\n"
+            "  -affine <file>  4x4 input-to-template world matrix [identity]\n"
             "  -lesion <file>  lesion mask on the input grid\n"
             "  -tpm-vx <mm>    voxel size scaling the regularisation [1.5]\n"
             "  -no-hydro       no separate class for very large ventricles\n"
@@ -221,10 +221,18 @@ main(int argc, char *argv[])
     size_t nt;
 
     CAT_VolShootOptionsInit(&opts);
-    if (ParseArgv(&argc, argv, argTable, 0) || (argc != 4 && argc != 8) ||
-        (!y_file && !iy_file && !jac_file))
+    if (ParseArgv(&argc, argv, argTable, 0))
     {
-        cat_check_unknown_options(argc, argv, argv[0]);
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    if (cat_check_unknown_options(argc, argv, argv[0]))
+    {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    if ((argc != 4 && argc != 8) || (!y_file && !iy_file && !jac_file))
+    {
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }

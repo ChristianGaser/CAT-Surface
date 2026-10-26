@@ -1331,7 +1331,8 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
     if (opts_in) opts = *opts_in;
     else CAT_VolShootOptionsInit(&opts);
     if (info) memset(info, 0, sizeof(*info));
-    if (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || !cls || !templates || !y_out)
+    if (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || !cls || !templates || !y_out ||
+        opts.nits < 3)
         return 1;
 
     nthreads = (opts.n_threads > 0) ? opts.n_threads : cat_parallel_nthreads(1 << 20);
