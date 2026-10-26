@@ -803,9 +803,9 @@ cdef extern from "CAT_Realign.h":
 
 
 # ---------------------------------------------------------------------------
-# CAT_VolShoot.h — geodesic shooting (CAT12/CAT26's optimised shooting)
+# CAT_GeodesicShoot.h — geodesic shooting (CAT12/CAT26's optimised shooting)
 # ---------------------------------------------------------------------------
-cdef extern from "CAT_VolShoot.h":
+cdef extern from "CAT_GeodesicShoot.h":
     ctypedef struct CAT_VolShootOpts:
         double regstr
         int nits

@@ -22,7 +22,7 @@
 #include "ParseArgv.h"
 #include "CAT_NiftiLib.h"
 #include "CAT_ArgvCheck.h"
-#include "CAT_VolShoot.h"
+#include "CAT_GeodesicShoot.h"
 
 static CAT_VolShootOpts opts; /* defaults set in main() before parsing */
 
