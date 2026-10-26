@@ -300,7 +300,7 @@ main(int argc, char **argv)
             s->maxabs = maxabs;
         if (maxref > 0 && maxabs / maxref > s->maxrel)
             s->maxrel = maxabs / maxref;
-        if (exact ? ndiff != 0 : (maxref > 0 && maxabs / maxref > 1e-5))
+        if (exact ? ndiff != 0 : maxabs > 1e-5 * maxref)
             status = 1;
     }
     fclose(mf);

@@ -110,7 +110,7 @@ void cgs3(mwSize dm[], float A[], float b[], double param[], double tol, int nit
     for(it=0; it<(mwIndex)nit; it++)
     {
         /* if norm(r) < tol*norm(b), break; end; */
-        if (norm(m,r) < nb)
+        if (norm(m,r) <= nb)
             break;
 
         /* p      = r + beta*p; */

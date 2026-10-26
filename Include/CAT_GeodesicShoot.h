@@ -10,8 +10,8 @@
  * Copyright Christian Gaser, University of Jena.
  */
 
-#ifndef _CAT_VOLSHOOT_H_
-#define _CAT_VOLSHOOT_H_
+#ifndef _CAT_GEODESICSHOOT_H_
+#define _CAT_GEODESICSHOOT_H_
 
 /** Number of templates of a shooting series (Template_0 .. Template_4). */
 #define CAT_SHOOT_NTEMPLATES 5
