@@ -31,7 +31,7 @@ static char *iy_file = NULL;
 static char *jac_file = NULL;
 static char *affine_file = NULL;
 static char *lesion_file = NULL;
-static double tpm_vx = 1.5;
+static double reg_vx = 0.0;
 static int no_hydro = 0;
 static int no_hotspot = 0;
 
@@ -43,17 +43,19 @@ static ArgvInfo argTable[] = {
     {"-jac", ARGV_STRING, (char *)1, (char *)&jac_file,
      "Write the Jacobian determinant of the deformation (template grid)."},
     {"-regstr", ARGV_FLOAT, (char *)1, (char *)&opts.regstr,
-     "0.5: CAT's optimised shooting (default); (0,1]: its level-switch threshold;\n\t\t\t4: SPM's default schedule at the template resolution."},
+     "CAT's optimised shooting: 1 (default) runs every iteration, (0,1) switches\n\t\t\tlevels early (CAT: 0.5); 4: SPM's default schedule."},
     {"-nits", ARGV_INT, (char *)1, (char *)&opts.nits,
      "Maximum number of Gauss-Newton iterations."},
     {"-lowres", ARGV_FLOAT, (char *)1, (char *)&opts.lowres,
      "Coarsest registration resolution in mm."},
+    {"-reg-scale", ARGV_FLOAT, (char *)1, (char *)&opts.reg_scale,
+     "Factor on CAT's regularisation (default 0.5, CAT: 1); smaller values allow\n\t\t\tmore local deformation."},
     {"-affine", ARGV_STRING, (char *)1, (char *)&affine_file,
      "Text file with the 4x4 input-to-template world matrix (CAT's res.Affine);\n\t\t\tdefault: identity, i.e. maps already in template space."},
     {"-lesion", ARGV_STRING, (char *)1, (char *)&lesion_file,
      "Lesion mask on the input grid; the template replaces the tissue there."},
-    {"-tpm-vx", ARGV_FLOAT, (char *)1, (char *)&tpm_vx,
-     "Voxel size of the tissue probability map in mm, which scales the regularisation."},
+    {"-reg-vx", ARGV_FLOAT, (char *)1, (char *)&reg_vx,
+     "Voxel size of the regulariser in mm; 0 (default) uses the template's\n\t\t\t(CAT always takes its TPM's 1.5 mm)."},
     {"-no-hydro", ARGV_CONSTANT, (char *)1, (char *)&no_hydro,
      "Do not model very large ventricles as a class of their own."},
     {"-no-hotspot", ARGV_CONSTANT, (char *)1, (char *)&no_hotspot,
@@ -80,17 +82,19 @@ usage(const char *executable)
             "found by replacing that with _1_ .. _4_.  The maps are probabilities in\n"
             "[0, 1]; GM and WM are the first two volumes of every template.\n\n"
             "Options (defaults in brackets):\n"
-            "  -regstr <v>     0.5 optimised shooting, 4 SPM's default schedule [%g]\n"
+            "  -regstr <v>     CAT's optimised shooting: 1 all iterations, 0.5 CAT's\n"
+            "                  early level switching; 4 SPM's default schedule [%g]\n"
             "  -nits <n>       maximum Gauss-Newton iterations [%d]\n"
             "  -lowres <mm>    coarsest registration resolution [%g]\n"
+            "  -reg-scale <f>  factor on CAT's regularisation (CAT: 1) [%g]\n"
             "  -affine <file>  4x4 input-to-template world matrix [identity]\n"
             "  -lesion <file>  lesion mask on the input grid\n"
-            "  -tpm-vx <mm>    voxel size scaling the regularisation [1.5]\n"
+            "  -reg-vx <mm>    voxel size of the regulariser [template's]\n"
             "  -no-hydro       no separate class for very large ventricles\n"
             "  -no-hotspot     no filtering of Jacobian hot spots\n"
             "  -threads <n>    worker threads\n"
             "  -verbose        print the iteration log\n\n",
-            executable, executable, d.regstr, d.nits, d.lowres);
+            executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale);
 }
 
 /* sto_xyz of a header as a row-major double matrix */
@@ -308,7 +312,7 @@ main(int argc, char *argv[])
     }
 
     k = CAT_VolShoot(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
-                     tpm_vx, lesion, &opts, y, iy, jac, &info);
+                     reg_vx, lesion, &opts, y, iy, jac, &info);
     if (k)
     {
         fprintf(stderr, "Error: shooting failed (%s).\n",

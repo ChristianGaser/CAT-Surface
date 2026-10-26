@@ -1260,6 +1260,24 @@ ventricles, the filtering of Jacobian hot spots, and lesion masking. `regstr` 4 
 schedule instead. Defaults live in `CAT_VolShootOptionsInit()`; the Python keywords left at `None`
 keep them.
 
+**The defaults are not CAT's.** They are `regstr` 1 (every scheduled iteration) and `reg_scale` 0.5
+(half of CAT's regularisation), the setting with the best label accuracy in T1Prep's Mindboggle
+evaluation. CAT itself runs `regstr` 0.5 and `reg_scale` 1, and the CAT26 reproduction below uses
+those. Measured on 20 subjects (LOO Dice):
+
+| setting | Dice | Jacobian p1-p99 | time |
+| --- | --- | --- | --- |
+| CAT's | 0.742 | 0.61-1.31 | 13 s |
+| default | 0.770 | 0.54-1.45 | 30 s |
+
+At equal Jacobian spread, CAT's 1 mm templates gave no better Dice than its 1.5 mm ones, at three
+to seven times the time.
+
+**The regulariser's voxel size is the template's** (`reg_vx` <= 0). CAT always takes its TPM's
+1.5 mm, which equals the template's for its 1.5 mm series. On a 1 mm series CAT's choice weakens
+the regularisation: with 1 mm, 1 mm templates match 1.5 mm with `reg_scale` 0.25. Pass `reg_vx`
+1.5 to reproduce CAT exactly.
+
 It is three layers:
 
 - **`3rdparty/spm_shoot/`**: SPM26's C behind `spm_diffeo`, `spm_bsplinc` and `spm_bsplins`, vendored
@@ -1277,8 +1295,9 @@ Everything was checked against CAT26 itself:
   (`tests/spm_shoot_reference/`).
 - **CAT12 helpers:** voxel-identical to MATLAB except smoothing, which differs by float rounding
   (`tests/cat12_utils_reference/`).
-- **End to end:** on 20 Mindboggle subjects (T1Prep's affine GM/WM maps), the deformations agree
-  with CAT26's MATLAB run to 7.6e-5 voxels, and the label Dice is identical.
+- **End to end:** on 20 Mindboggle subjects (T1Prep's affine GM/WM maps), with CAT's settings
+  (`regstr` 0.5, `reg_scale` 1, `reg_vx` 1.5), the deformations agree with CAT26's MATLAB run to
+  7.6e-5 voxels, and the label Dice is identical.
 - **Speed:** 37 s single-threaded and 12 s with 8 threads on an M2 Ultra, against 68 s for
   single-threaded MATLAB. Results do not depend on the number of threads.
 

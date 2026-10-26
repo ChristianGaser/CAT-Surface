@@ -22,21 +22,25 @@
 /**
  * \brief Settings of CAT_VolShoot().
  *
- * Initialise with CAT_VolShootOptionsInit(); the defaults are CAT12/CAT26's
- * (cat_defaults.m: extopts.regstr = 0.5; cat_main_registration.m: nits = 64,
- * ll1th = 0.001, ll3th = 0.002).
+ * Initialise with CAT_VolShootOptionsInit().  The defaults are the setting
+ * with the best label accuracy on Mindboggle-101 (T1Prep's evaluation):
+ * regstr 1 and half of CAT's regularisation.  CAT12/CAT26 itself runs
+ * regstr 0.5 and reg_scale 1 (cat_defaults.m: extopts.regstr = 0.5;
+ * cat_main_registration.m: nits = 64, ll1th = 0.001).
  */
 typedef struct
 {
-    double regstr;   /**< 0.5 (default): CAT's optimised shooting, 2.5 to the
-                          template resolution in five levels with early level
-                          switching; any value in (0, 1] sets the threshold of
-                          that switching (1 = most iterations); 4: SPM's
-                          default schedule, every level at the template
-                          resolution */
+    double regstr;   /**< 1 (default): CAT's optimised shooting, 2.5 mm to the
+                          template resolution in five levels, every scheduled
+                          iteration run; values in (0, 1) switch to the next
+                          level early (CAT's default 0.5 after about three
+                          iterations per level); 4: SPM's default schedule,
+                          every level at the template resolution */
     int nits;        /**< maximum number of Gauss-Newton iterations (64) */
     double ll1th;    /**< base of the level-switch threshold (0.001) */
     double lowres;   /**< coarsest registration resolution in mm (2.5) */
+    double reg_scale; /**< factor on CAT's regularisation (0.5; CAT: 1);
+                           smaller values allow more local deformation */
     int hydro;       /**< separate very large ventricles as their own class,
                           as CAT does (1) */
     int hotspot;     /**< filter local Jacobian hot spots of the velocity,
@@ -62,7 +66,7 @@ typedef struct
 } CAT_VolShootInfo;
 
 /**
- * \brief Fill a CAT_VolShootOpts with CAT26's defaults.
+ * \brief Fill a CAT_VolShootOpts with the defaults (best label accuracy).
  *
  * \param opts (out) options to initialise
  */
@@ -96,8 +100,11 @@ void CAT_VolShootOptionsInit(CAT_VolShootOpts *opts);
  *                        holds n_cls volumes of tdims, one after the other
  * \param tdims     (in)  template dimensions
  * \param tmat      (in)  template voxel-to-world matrix
- * \param tpm_vx    (in)  voxel size of CAT's tissue probability map in mm,
- *                        which scales the regularisation (1.5 for SPM's TPM)
+ * \param reg_vx    (in)  voxel size of the regulariser in mm; <= 0 uses the
+ *                        template's.  CAT takes its TPM's 1.5 mm at every
+ *                        template resolution, which equals the template's for
+ *                        its 1.5 mm series but weakens the regularisation of a
+ *                        1 mm series
  * \param lesion    (in)  optional lesion mask on the input grid (NULL: none)
  * \param opts      (in)  settings; NULL uses CAT_VolShootOptionsInit()
  * \param y         (out) tdims x 3: for every template voxel the input voxel
@@ -112,7 +119,7 @@ void CAT_VolShootOptionsInit(CAT_VolShootOpts *opts);
 int CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
                  const double mat[16], const double affine[16],
                  const float *const templates[CAT_SHOOT_NTEMPLATES],
-                 const int tdims[3], const double tmat[16], double tpm_vx,
+                 const int tdims[3], const double tmat[16], double reg_vx,
                  const float *lesion, const CAT_VolShootOpts *opts,
                  float *y, float *iy, float *jac, CAT_VolShootInfo *info);
 

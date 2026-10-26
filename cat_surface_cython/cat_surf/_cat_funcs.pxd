@@ -811,6 +811,7 @@ cdef extern from "CAT_GeodesicShoot.h":
         int nits
         double ll1th
         double lowres
+        double reg_scale
         int hydro
         int hotspot
         int n_threads
@@ -829,6 +830,6 @@ cdef extern from "CAT_GeodesicShoot.h":
     int  CAT_VolShoot(const float **cls, int n_cls, const int *dims,
                       const double *mat, const double *affine,
                       const float **templates, const int *tdims,
-                      const double *tmat, double tpm_vx, const float *lesion,
+                      const double *tmat, double reg_vx, const float *lesion,
                       const CAT_VolShootOpts *opts, float *y, float *iy,
                       float *jac, CAT_VolShootInfo *info)
