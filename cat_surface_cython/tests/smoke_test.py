@@ -831,7 +831,7 @@ def test_bspline_sample():
         check(f"{why} is a ValueError", raised)
 
 
-def test_vol_shoot():
+def test_vol_shoot_affine():
     section("Geodesic shooting")
 
     shape = (21, 23, 19)
@@ -1193,6 +1193,7 @@ def main():
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
                  test_bspline_sample, test_vol_realign, test_vol_shoot,
+                 test_vol_shoot_affine,
                  test_bbreg_defaults,
                  test_resample_annot_formats, test_sanlm_repeatable,
                  test_amap_rejects_bad_labels, test_missing_files_raise,
