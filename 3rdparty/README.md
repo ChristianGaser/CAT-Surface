@@ -37,7 +37,7 @@ ParseArgv headers), `bicpl-surface/COPYING`, `nifti/LICENSE`,
 - **s2kit10**: GPL-2+, compiled into `libCAT`.
 - **spm_shoot**: GPL-2+, compiled into `libCAT`: SPM26's C code behind
   `spm_diffeo`, `spm_bsplinc` and `spm_bsplins` (regularisers, multigrid
-  solver, deformations, inversion, B-splines), on which `../Lib/CAT_VolShoot.c`
+  solver, deformations, inversion, B-splines), on which `../Lib/CAT_GeodesicShoot.c`
   runs CAT's geodesic shooting.  Modified for CAT-Surface: MATLAB glue removed,
   symbols prefixed, OpenMP replaced by pthreads; see `spm_shoot/README.md`.
 - **dartel**: no longer bundled; the DARTEL code was moved to `../deprecated/`.

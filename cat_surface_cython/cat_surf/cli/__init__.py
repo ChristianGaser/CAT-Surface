@@ -47,6 +47,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_VolSheetness                  -> vol_sheetness
     CAT_VolSmooth                     -> vol_smooth
     CAT_VolThicknessPbt               -> vol_thickness_pbt
+    CAT_VolShoot                     -> vol_shoot
 """
 from __future__ import annotations
 
@@ -89,6 +90,7 @@ from cat_surf import (
     vol_calc as _vol_calc,
     vol_sheetness as _vol_sheetness,
     vol_realign as _vol_realign,
+    vol_shoot as _vol_shoot,
     vol_oriented_median as _vol_oriented_median,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
@@ -866,6 +868,98 @@ def vol_realign(in_file, out=None, reffile=None, refvol=-1, mats=False,
     return res
 
 
+def vol_shoot(gm_file, wm_file, template_files, y_file=None, iy_file=None,
+              jac_file=None, regstr=None, nits=None, lowres=None, affine=None,
+              lesion_file=None, tpm_vx=1.5, hydro=True, hotspot=True,
+              n_threads=None, verbose=False):
+    """Mirror of ``CAT_VolShoot``, with SPM-format deformation output.
+
+    *template_files* is either the ``Template_0`` path containing ``_0_``
+    (the other four names are derived from it) or a sequence of five paths in
+    coarse-to-fine order.  Deformation fields are written in SPM's 5-D layout
+    ``(X, Y, Z, 1, 3)`` as world coordinates in millimetres.
+
+    Parameters
+    ----------
+    gm_file, wm_file : str
+        Input tissue-probability maps.
+    template_files : str or sequence of str
+        Five shooting templates, coarse to fine; each contains GM and WM as
+        its first two volumes.
+    y_file, iy_file, jac_file : str, optional
+        Forward deformation, inverse deformation and Jacobian output paths.
+        At least one must be given, as for the binary.
+    regstr, nits, lowres, affine, lesion_file, tpm_vx, hydro, hotspot,
+    n_threads, verbose
+        ``-regstr``, ``-nits``, ``-lowres``, ``-affine``, ``-lesion``,
+        ``-tpm-vx``, ``-no-hydro``, ``-no-hotspot``, ``-threads`` and
+        ``-verbose``.  ``affine`` is a 4x4 input-to-template world matrix or
+        a text file containing it.  ``None`` uses the library defaults.
+
+    Returns
+    -------
+    dict
+        The in-memory result from :func:`cat_surf.vol_shoot`, with paths for
+        any files written.
+    """
+    import nibabel as nib
+
+    if not any((y_file, iy_file, jac_file)):
+        raise ValueError("at least one of y_file, iy_file or jac_file is required")
+
+    if isinstance(template_files, (str, os.PathLike)):
+        first = os.fspath(template_files)
+        marker = first.rfind("_0_")
+        if marker < 0:
+            raise ValueError("a single template path must contain '_0_'")
+        template_files = [first[:marker + 1] + str(k) + first[marker + 2:]
+                          for k in range(5)]
+    else:
+        template_files = list(template_files)
+        if len(template_files) != 5:
+            raise ValueError("template_files must contain five paths")
+
+    gm_img, wm_img = nib.load(gm_file), nib.load(wm_file)
+    gm = gm_img.get_fdata(dtype=np.float32)
+    wm = wm_img.get_fdata(dtype=np.float32)
+    template_imgs = [nib.load(path) for path in template_files]
+    templates = [img.get_fdata(dtype=np.float32) for img in template_imgs]
+
+    lesion = None
+    if lesion_file is not None:
+        lesion = nib.load(lesion_file).get_fdata(dtype=np.float32)
+    if isinstance(affine, (str, os.PathLike)):
+        affine = np.loadtxt(affine)
+
+    res = _vol_shoot(
+        gm, wm, templates, gm_img.affine, template_imgs[0].affine,
+        affine=affine, tpm_vx=tpm_vx, lesion=lesion, regstr=regstr,
+        nits=nits, lowres=lowres, hydro=hydro, hotspot=hotspot,
+        n_threads=n_threads, verbose=verbose,
+        inverse=iy_file is not None,
+    )
+
+    def write_deformation(path, field, grid_img, coord_affine):
+        mm = np.einsum("ij,...j->...i", coord_affine[:3, :3], field)
+        mm += coord_affine[:3, 3]
+        image = nib.Nifti1Image(mm[..., np.newaxis, :], grid_img.affine,
+                                grid_img.header.copy())
+        image.header.set_data_dtype(np.float32)
+        image.header.set_intent("vector")
+        nib.save(image, path)
+
+    if y_file is not None:
+        write_deformation(y_file, res["y"], template_imgs[0], gm_img.affine)
+        res["y_file"] = y_file
+    if iy_file is not None:
+        write_deformation(iy_file, res["iy"], gm_img, template_imgs[0].affine)
+        res["iy_file"] = iy_file
+    if jac_file is not None:
+        _save_volume_like(jac_file, res["jac"], template_imgs[0], dtype=np.float32)
+        res["jac_file"] = jac_file
+    return res
+
+
 def surf_resample_multi(units, output_file, fwhm=0.0, areal=False):
     """Mirror of ``CAT_SurfResampleMulti``.
 
@@ -1087,4 +1181,5 @@ __all__ = [
     "vol_smooth",
     "vol_calc",
     "vol_thickness_pbt",
+    "vol_shoot",
 ]

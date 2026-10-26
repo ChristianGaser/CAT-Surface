@@ -1252,7 +1252,7 @@ real run its contrast fell from -5.7 / -4.5% to -3.7 / -3.2%, three times the 1%
 
 ## Geodesic shooting (`CAT_VolShoot`, CAT12/CAT26's optimised shooting)
 
-`CAT_VolShoot` (library `Include/CAT_VolShoot.h`, `cat_surf.vol_shoot`) is CAT26's geodesic
+`CAT_VolShoot` (library `Include/CAT_GeodesicShoot.h`, `cat_surf.vol_shoot`) is CAT26's geodesic
 shooting, `run_Shooting` and `regsetup` of `cat_main_registration.m`, in C. It registers GM/WM maps
 to the five `Template_*_GS` shooting templates on a grid refined from 2.5 mm to the template
 resolution, with CAT's early level switching and CAT's safeguards: a class of its own for very large
@@ -1268,7 +1268,7 @@ It is three layers:
 - **`Lib/CAT_Cat12Utils.c`**: CAT12's MATLAB helpers as the safeguards call them (`cat_vol_smooth3X`,
   `cat_vol_div`, `cat_vol_morph` l/d/o/ldc/ldo, `cat_vol_localstat`, `cat_vbdist`). libCAT's own
   `localstat3` and distance transforms do not reproduce them.
-- **`Lib/CAT_VolShoot.c`**: CAT's driver plus the MATLAB-level parts of SPM's Shoot toolbox
+- **`Lib/CAT_GeodesicShoot.c`**: CAT's driver plus the MATLAB-level parts of SPM's Shoot toolbox
   (`spm_shoot_update`, `spm_shoot3d`, and `spm_shoot_greens` through FFTW).
 
 Everything was checked against CAT26 itself:

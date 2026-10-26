@@ -890,6 +890,71 @@ def test_vol_realign():
 
 
 # ---------------------------------------------------------------------------
+# Geodesic shooting: identical asymmetric maps on an oblique world grid give
+# identity deformations in C- and Fortran-order inputs.
+# ---------------------------------------------------------------------------
+def test_vol_shoot():
+    section("Geodesic shooting")
+
+    shape = (16, 17, 15)
+    x, y, z = np.meshgrid(*(np.arange(n, dtype=np.float32) for n in shape),
+                          indexing="ij")
+    gm = (0.55 * np.exp(-((x - 5) ** 2 / 18 + (y - 8) ** 2 / 25 +
+                          (z - 6) ** 2 / 14)) +
+          0.25 * np.exp(-((x - 11) ** 2 / 8 + (y - 4) ** 2 / 12 +
+                          (z - 10) ** 2 / 7))).astype(np.float32)
+    wm = (0.75 * np.exp(-((x - 8) ** 2 / 20 + (y - 10) ** 2 / 17 +
+                          (z - 7) ** 2 / 13))).astype(np.float32)
+    extra = np.full(shape, 100.0, np.float32)
+    template = np.stack((gm, wm, extra), axis=-1)
+
+    mat = np.diag([1.5, 1.5, 1.5, 1.0])
+    mat[:3, 3] = [-11.25, -12.0, -10.5]
+    affine = np.eye(4)
+    affine[:3, 3] = [3.0, -1.5, 4.5]
+    template_mat = affine @ mat
+    grid = np.stack(np.meshgrid(*(np.arange(n, dtype=np.float32)
+                                  for n in shape), indexing="ij"), axis=-1)
+
+    results = []
+    for order in ("C", "F"):
+        arrays = [np.array(template, order=order) for _ in range(5)]
+        results.append(cat_surf.vol_shoot(
+            np.array(gm, order=order), np.array(wm, order=order), arrays,
+            mat, template_mat, affine=affine, nits=3, n_threads=1,
+            inverse=True,
+        ))
+
+    for result in results:
+        inverse = result["iy"][2:-2, 2:-2, 2:-2]
+        inverse_grid = grid[2:-2, 2:-2, 2:-2]
+        check("forward field has template-grid shape",
+              result["y"].shape == shape + (3,))
+        check("inverse field has input-grid shape",
+              result["iy"].shape == shape + (3,))
+        check("Jacobian has template-grid shape", result["jac"].shape == shape)
+        check("forward field and Jacobian are finite",
+              np.isfinite(result["y"]).all() and np.isfinite(result["jac"]).all())
+        check("input-to-template affine maps the identity fixture correctly",
+              np.abs(result["y"][2:-2, 2:-2, 2:-2] -
+                     grid[2:-2, 2:-2, 2:-2]).max() < 0.5)
+        check("inverse field maps interior voxels back to identity",
+              np.isfinite(inverse).all() and
+              np.abs(inverse - inverse_grid).max() < 0.1)
+    check("C- and Fortran-order inputs give identical fields",
+          np.array_equal(results[0]["y"], results[1]["y"], equal_nan=True) and
+          np.array_equal(results[0]["iy"], results[1]["iy"], equal_nan=True))
+
+    for nits in (1, 2):
+        try:
+            cat_surf.vol_shoot(gm, wm, [template] * 5, mat, template_mat,
+                               affine=affine, nits=nits, n_threads=1)
+            check(f"nits={nits} is rejected", False)
+        except ValueError:
+            check(f"nits={nits} is rejected", True)
+
+
+# ---------------------------------------------------------------------------
 # Boundary-based registration: cat_surf.bbreg takes its defaults from
 # CAT_BBRegOptionsInit(), as CAT_SurfBBReg does, so the two give the same
 # transform.  They had drifted apart: wm_dist 0.5 against 2.0, a +-15 mm
@@ -1080,7 +1145,8 @@ def main():
                  test_fix_self_intersect_reference, test_pbt_front_ends_agree,
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
-                 test_bspline_sample, test_vol_realign, test_bbreg_defaults,
+                 test_bspline_sample, test_vol_realign, test_vol_shoot,
+                 test_bbreg_defaults,
                  test_resample_annot_formats, test_sanlm_repeatable,
                  test_amap_rejects_bad_labels, test_missing_files_raise,
                  test_hull_and_normalized_area):

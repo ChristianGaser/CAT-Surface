@@ -10,8 +10,8 @@
  * Copyright Christian Gaser, University of Jena.
  */
 
-#ifndef _CAT_VOLSHOOT_H_
-#define _CAT_VOLSHOOT_H_
+#ifndef _CAT_GEODESICSHOOT_H_
+#define _CAT_GEODESICSHOOT_H_
 
 /** Number of templates of a shooting series (Template_0 .. Template_4). */
 #define CAT_SHOOT_NTEMPLATES 5
@@ -89,7 +89,7 @@ void CAT_VolShootOptionsInit(CAT_VolShootOpts *opts);
  *                        hold at least as many volumes
  * \param dims      (in)  input grid dimensions
  * \param mat       (in)  input grid voxel-to-world matrix
- * \param affine    (in)  template-to-input world mapping (CAT's res.Affine);
+ * \param affine    (in)  input-to-template world mapping (CAT's res.Affine);
  *                        NULL for the identity, i.e. maps already in template
  *                        space such as CAT's rp* or T1Prep's affine maps
  * \param templates (in)  CAT_SHOOT_NTEMPLATES templates, coarse to fine; each
