@@ -831,6 +831,53 @@ def test_bspline_sample():
         check(f"{why} is a ValueError", raised)
 
 
+def test_vol_shoot():
+    section("Geodesic shooting")
+
+    shape = (21, 23, 19)
+    x, y, z = np.meshgrid(*(np.arange(n, dtype=np.float32) for n in shape),
+                          indexing="ij")
+    gm = np.exp(-((x - 7.2) ** 2 / 24 + (y - 11.1) ** 2 / 31 +
+                  (z - 8.4) ** 2 / 20)).astype(np.float32)
+    wm = np.exp(-((x - 11.3) ** 2 / 19 + (y - 10.2) ** 2 / 26 +
+                  (z - 9.1) ** 2 / 23)).astype(np.float32)
+    extra = np.full(shape, 17.0, np.float32)
+    template = np.stack((gm, wm, extra), axis=-1)
+    templates = [template.copy() for _ in range(5)]
+    mat = np.diag([1.1, 1.2, 1.3, 1.0])
+    mat[:3, 3] = -0.5 * (np.asarray(shape) - 1) * np.diag(mat)[:3]
+
+    result_c = cat_surf.vol_shoot(gm, wm, templates, mat, mat, nits=3,
+                                  n_threads=1, inverse=True)
+    result_f = cat_surf.vol_shoot(
+        np.asfortranarray(gm), np.asfortranarray(wm),
+        [np.asfortranarray(t) for t in templates], mat, mat, nits=3,
+        n_threads=1, inverse=True)
+
+    interior = np.s_[2:-2, 2:-2, 2:-2]
+    check("forward and inverse deformation shapes",
+          result_c["y"].shape == shape + (3,) and
+          result_c["iy"].shape == shape + (3,))
+    check("Jacobian and forward field are finite",
+          result_c["jac"].shape == shape and
+          np.isfinite(result_c["y"]).all() and
+          np.isfinite(result_c["jac"]).all())
+    check("inverse field is finite in the interior",
+          np.isfinite(result_c["iy"][interior]).all())
+    check("C- and Fortran-ordered inputs agree",
+          np.array_equal(result_c["y"], result_f["y"]) and
+          np.allclose(result_c["iy"], result_f["iy"], equal_nan=True) and
+          np.array_equal(result_c["jac"], result_f["jac"]))
+
+    grid = np.stack(np.meshgrid(*(np.arange(n, dtype=np.float32)
+                                  for n in shape), indexing="ij"), axis=-1)
+    forward_error = np.linalg.norm(result_c["y"] - grid, axis=-1)
+    inverse_error = np.linalg.norm(result_c["iy"] - grid, axis=-1)
+    check("asymmetric identity maps preserve voxel coordinates",
+          np.max(forward_error[interior]) < 1.0 and
+          np.max(inverse_error[interior]) < 1.0)
+
+
 # ---------------------------------------------------------------------------
 # Head-motion correction: known shifts of an analytic phantom are recovered,
 # the reference volume is the identity, and mcflirt's outputs have their
