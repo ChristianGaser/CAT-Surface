@@ -4,10 +4,15 @@
 > quick-reference loaded automatically by Claude Code.
 
 ## Sub-Agent Routing Rules
-- **Always sequential:** All tasks (security, performance, style, refactoring) must be processed sequentially.
-- **No parallelization:** Only one sub-agent or one check may be active at a time.
-- **Workflow:** First execute `security`, then `performance`, then `style`. Wait for each step to complete.
-- **Dependencies:** B tasks must wait for the output of A tasks.
+
+- **Use sub-agents freely:** delegate self-contained work (exploration, research, porting or
+  reviewing separate modules, long validation runs) to sub-agents, and run independent ones
+  in parallel.
+- **Dependencies:** a task that needs another task's output waits for it.
+- **Reviews:** `security`, `performance` and `style` checks are independent and may run in
+  parallel; merge their findings before changing code.
+- **No shared state:** parallel agents never edit the same files or share a build directory --
+  give each its own files (or a git worktree) and its own build/scratch directory.
 
 ## Background Execution Rules
  
@@ -815,6 +820,12 @@ Where it came from, and what keeps it:
   ~10^7 responses to read one percentile -- 12 s of the old PBT between them.
   `tests/test_sheetness.c` checks both against a sort-based reference. Do not reintroduce a
   sort or an allocation inside a per-voxel loop.
+- **No OpenMP, only pthreads.** OpenMP was removed in June 2026: libomp in the macOS wheels
+  clashed with PyTorch's runtime in T1Prep's process, and it dragged libomp/libgomp builds
+  into the wheel, Windows and conda packaging. Never add `#pragma omp`, `-fopenmp` or an
+  OpenMP runtime; ported code that has OpenMP loops (SPM's `shoot_*.c`, for example) gets
+  them rewritten as `cat_parallel_run()` workers, keeping the race-free loop order of the
+  OpenMP path where the order matters (red-black relaxation).
 - **Per-voxel stencils run on `cat_parallel_run()`** (`Include/CAT_Vol.h`), split by slices
   and capped at `MAX_NTHREADS` = 4 per process, since T1Prep runs both hemispheres at once
   (raising it to 8 gained 3% on an 8-core 4P+4E Mac). The sheetness eigen loop and

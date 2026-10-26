@@ -275,6 +275,7 @@ When adding or changing a CLI tool:
   - **\return** explains return values and error conditions
   - Examples: [CAT_Vol.c morphological operations](Lib/CAT_Vol.c#L1388-L1410), [CAT_Math.c type conversions](Lib/CAT_Math.c#L95-L108)
 - **Library-first architecture:** place all non-trivial logic in `Lib/` library modules, not in `Progs/` CLI wrappers. CLI tools should only handle argument parsing, I/O, and calls to library functions.
+- **No OpenMP:** parallel loops use the pthreads helper `cat_parallel_run()` (`Include/CAT_Vol.h`). OpenMP was removed in June 2026 because its runtime clashed with PyTorch's in T1Prep and complicated the wheel, Windows and conda builds; rewrite OpenMP loops in ported code instead of keeping the pragmas.
 
 ## Ignore Rules
 
