@@ -21,6 +21,10 @@
 
 int euler_characteristic(polygons_struct *polygons, int verbose);
 
+/* genus0 iterations without the median filter after the n_iter with it, for a
+   surface that is not genus 0 by then */
+#define N_ITER_UNFILTERED 5
+
 /*
  * Edge tables for local Euler characteristic computation in 2x2x2 cubes.
  *
@@ -905,7 +909,9 @@ keep_largest_triangulated_component(polygons_struct *polygons)
  * \param iter_laplacian    (in)  number of Laplacian smoothing iterations
  * \param dist_morph        (in)  distance offset for morphological expansion (mm)
  * \param n_median_filter   (in)  iterations of median filtering to apply
- * \param n_iter            (in)  total outer loop iterations
+ * \param n_iter            (in)  topology-correction iterations with the median
+ *                               filter; a surface that is not genus 0 by then
+ *                               gets up to N_ITER_UNFILTERED more without it
  * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
  * \param topo_sheet        (in)  dark-sheet response a defect must run along
  *                               before it is cut instead of filled; 0 disables
@@ -1443,7 +1449,17 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
         }
     }
 
-    while ((EC != 2) && (count < n_iter))
+    /* The median filter below does not preserve topology.  On some
+       hemispheres it brings back handles as fast as genus0 removes them, so
+       that the n_iter iterations end with Euler characteristics such as -12
+       (-32 -38 -30 -14 -12) and the surface is returned with handles.  If
+       they do not reach genus 0, genus0 goes on without the filter, which
+       took one more iteration on those hemispheres.  A surface that becomes
+       genus 0 within n_iter is not affected.  Without genus0 changes
+       (best_change_values 0) another iteration would not change anything. */
+    int n_iter_max = n_iter + ((best_change_values > 0) ? N_ITER_UNFILTERED : 0);
+
+    while ((EC != 2) && (count < n_iter_max))
     {
         /* Ask genus0 what filling and what cutting would do here, and cut in
            advance the defects that filling would resolve by closing a sulcus.
@@ -1519,7 +1535,7 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
                     count_change++;
             }
 
-            if (n_median_filter)
+            if (n_median_filter && count < n_iter)
             {
                 /* find areas that were corrected for topology artefacts and dilate them */
                 for (i = 0; i < nvol; i++)
@@ -1572,6 +1588,9 @@ object_struct *apply_marching_cubes(float *input_float, nifti_image *nii_ptr,
     if (verbose)
         fprintf(stdout, "Euler characteristics after %d iterations: %d (%d voxel changed).\n", 
             count, EC, count_change);
+    if (EC != 2)
+        fprintf(stderr, "Warning: the surface is not genus 0 (Euler characteristic %d).\n",
+                EC);
 
     /* Laplacian smoothing to reduce noise in the mesh */
     if (iter_laplacian > 0)

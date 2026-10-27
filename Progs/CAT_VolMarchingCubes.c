@@ -139,7 +139,8 @@ static ArgvInfo argTable[] = {
      improving the quality of the surface reconstruction in subsequent steps."},
   
   {"-iter", ARGV_INT, (char *) TRUE, (char *) &n_iter,
-    "Maximum number of iterations."},
+    "Topology-correction iterations with the median filter; a surface\n\
+     that is not genus 0 by then gets up to 5 more without it."},
   
   {"-fast", ARGV_CONSTANT, (char *) TRUE, (char *) &fast,
     "Enable fast processing without any preprocessing, smoothing, or topology \n\
