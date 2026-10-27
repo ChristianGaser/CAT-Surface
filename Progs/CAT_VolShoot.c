@@ -34,6 +34,12 @@ static char *lesion_file = NULL;
 static double reg_vx = 0.0;
 static int no_hydro = 0;
 static int no_hotspot = 0;
+static char *t1_file = NULL;
+static char *t1_tpl_file = NULL;
+static char *t1_mask_file = NULL;
+static double t1_weight = 1.0;
+static int t1_degree = 3;
+static int t1_from = CAT_SHOOT_NTEMPLATES - 1;
 
 static ArgvInfo argTable[] = {
     {"-y", ARGV_STRING, (char *)1, (char *)&y_file,
@@ -60,6 +66,18 @@ static ArgvInfo argTable[] = {
      "Do not model very large ventricles as a class of their own."},
     {"-no-hotspot", ARGV_CONSTANT, (char *)1, (char *)&no_hotspot,
      "Do not filter local Jacobian hot spots of the velocity."},
+    {"-t1", ARGV_STRING, (char *)1, (char *)&t1_file,
+     "Experimental: intensity image on the input grid, matched by sum of squares."},
+    {"-t1-template", ARGV_STRING, (char *)1, (char *)&t1_tpl_file,
+     "Template intensity on the template grid."},
+    {"-t1-mask", ARGV_STRING, (char *)1, (char *)&t1_mask_file,
+     "Weight of the intensity term on the template grid."},
+    {"-t1-weight", ARGV_FLOAT, (char *)1, (char *)&t1_weight,
+     "Curvature of the intensity term relative to the tissue term."},
+    {"-t1-degree", ARGV_INT, (char *)1, (char *)&t1_degree,
+     "Degree of the polynomial intensity mapping."},
+    {"-t1-from", ARGV_INT, (char *)1, (char *)&t1_from,
+     "First level (0..4) with the intensity term; default: the last only.  A level\n\t\t\tk < 4 reads <template>_L<k>.nii when that file exists."},
     {"-threads", ARGV_INT, (char *)1, (char *)&opts.n_threads,
      "Number of worker threads (default: the library's)."},
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&opts.verbose,
@@ -222,6 +240,7 @@ main(int argc, char *argv[])
     int dims[3], d2[3], tdims[3], k, nvol;
     char *tnames[CAT_SHOOT_NTEMPLATES];
     CAT_VolShootInfo info;
+    CAT_VolShootIntensity ich;
     size_t nt;
 
     CAT_VolShootOptionsInit(&opts);
@@ -311,8 +330,74 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    k = CAT_VolShoot(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
-                     reg_vx, lesion, &opts, y, iy, jac, &info);
+    if (t1_file)
+    {
+        float *img, *timg, *tmask = NULL;
+        if (!t1_tpl_file)
+        {
+            fprintf(stderr, "Error: -t1 needs -t1-template.\n");
+            exit(EXIT_FAILURE);
+        }
+        img = read_map(t1_file, d2, NULL, NULL);
+        if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
+        {
+            fprintf(stderr, "Error: %s is not on the grid of %s.\n", t1_file, argv[1]);
+            exit(EXIT_FAILURE);
+        }
+        timg = read_map(t1_tpl_file, d2, NULL, NULL);
+        if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+        {
+            fprintf(stderr, "Error: %s is not on the template grid.\n", t1_tpl_file);
+            exit(EXIT_FAILURE);
+        }
+        if (t1_mask_file)
+        {
+            tmask = read_map(t1_mask_file, d2, NULL, NULL);
+            if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+            {
+                fprintf(stderr, "Error: %s is not on the template grid.\n", t1_mask_file);
+                exit(EXIT_FAILURE);
+            }
+        }
+        memset(&ich, 0, sizeof(ich));
+        ich.img = img;
+        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+        {
+            char *lname, *dot;
+            FILE *fp;
+            ich.tpl[k] = (k >= t1_from) ? timg : NULL;
+            if (k < t1_from || k == CAT_SHOOT_NTEMPLATES - 1) continue;
+            /* <template>_L<k>.nii: the template of a coarser level, if given */
+            lname = (char *)malloc(strlen(t1_tpl_file) + 8);
+            strcpy(lname, t1_tpl_file);
+            dot = strstr(lname, ".nii");
+            if (dot)
+            {
+                char ext[16];
+                strncpy(ext, strstr(t1_tpl_file, ".nii"), sizeof(ext) - 1);
+                ext[sizeof(ext) - 1] = '\0';
+                sprintf(dot, "_L%d%s", k, ext);
+                if ((fp = fopen(lname, "r")) != NULL)
+                {
+                    fclose(fp);
+                    ich.tpl[k] = read_map(lname, d2, NULL, NULL);
+                    if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+                    {
+                        fprintf(stderr, "Error: %s is not on the template grid.\n", lname);
+                        exit(EXIT_FAILURE);
+                    }
+                    if (opts.verbose) printf("level %d: intensity template %s\n", k, lname);
+                }
+            }
+            free(lname);
+        }
+        ich.mask = tmask;
+        ich.weight = t1_weight;
+        ich.degree = t1_degree;
+    }
+
+    k = CAT_VolShootEx(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
+                       reg_vx, lesion, t1_file ? &ich : NULL, &opts, y, iy, jac, &info);
     if (k)
     {
         fprintf(stderr, "Error: shooting failed (%s).\n",

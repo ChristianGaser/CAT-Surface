@@ -66,6 +66,40 @@ typedef struct
 } CAT_VolShootInfo;
 
 /**
+ * \brief An intensity channel matched by sum of squares (experimental).
+ *
+ * Added to the multinomial matching of the tissue classes at the levels that
+ * have a template intensity.  The template intensity is mapped to the
+ * subject's by a polynomial refitted at every iteration, and the term is
+ * scaled so that \p weight 1 gives it the summed curvature of the
+ * multinomial term at the first iteration of the level.
+ */
+typedef struct
+{
+    const float *img;                       /**< subject intensity, input grid */
+    const float *tpl[CAT_SHOOT_NTEMPLATES]; /**< template intensity per level on
+                                                 the template grid; NULL: the
+                                                 level runs without it */
+    const float *mask;   /**< weight on the template grid (NULL: 1 everywhere) */
+    double weight;       /**< curvature relative to the multinomial term */
+    int degree;          /**< degree of the intensity mapping (1..5) */
+} CAT_VolShootIntensity;
+
+/**
+ * \brief CAT_VolShoot() with an optional intensity channel (experimental).
+ *
+ * \param ich (in) intensity channel; NULL runs CAT_VolShoot() unchanged
+ * \return as CAT_VolShoot()
+ */
+int CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
+                   const double mat[16], const double affine[16],
+                   const float *const templates[CAT_SHOOT_NTEMPLATES],
+                   const int tdims[3], const double tmat[16], double reg_vx,
+                   const float *lesion, const CAT_VolShootIntensity *ich,
+                   const CAT_VolShootOpts *opts, float *y, float *iy,
+                   float *jac, CAT_VolShootInfo *info);
+
+/**
  * \brief Fill a CAT_VolShootOpts with the defaults (best label accuracy).
  *
  * \param opts (out) options to initialise
