@@ -1062,11 +1062,247 @@ derivs_range(void *p, int z0, int z1)
     }
 }
 
+/* ======================================================================== */
+/* An intensity channel matched by sum of squares (experimental)            */
+/* ======================================================================== */
+
+#define ICH_MAXDEG 5
+
+typedef struct
+{
+    int on;         /* this level has a template intensity */
+    size_t n;
+    float *fi;      /* subject intensity on the registration grid */
+    float *T;       /* template intensity at the grid points */
+    float *DT;      /* its derivatives, 3*n */
+    float *M;       /* weight of the term */
+    float *fp;      /* subject intensity pulled through y */
+    double *coef;   /* B-spline coefficients of the template intensity */
+    double lambda;  /* < 0: set at the first iteration of the level */
+    int tissue;     /* tissue classes are registered as well */
+    double c[ICH_MAXDEG + 1];
+    double ll, sd;  /* last matching term and weighted residual SD */
+} Intensity;
+
+static void
+ich_free(Intensity *I)
+{
+    free(I->fi);
+    free(I->T);
+    free(I->DT);
+    free(I->M);
+    free(I->fp);
+    free(I->coef);
+    memset(I, 0, sizeof(Intensity));
+}
+
+static int
+ich_alloc(Intensity *I, size_t nmax)
+{
+    I->fi = (float *)malloc(sizeof(float) * nmax);
+    I->T = (float *)malloc(sizeof(float) * nmax);
+    I->DT = (float *)malloc(sizeof(float) * 3 * nmax);
+    I->M = (float *)malloc(sizeof(float) * nmax);
+    I->fp = (float *)malloc(sizeof(float) * nmax);
+    I->coef = (double *)malloc(sizeof(double) * nmax);
+    return (I->fi && I->T && I->DT && I->M && I->fp && I->coef) ? 0 : 2;
+}
+
+/* The template intensity and its derivatives at the grid points, from its
+ * quadratic B-spline coefficients, as tplderiv_build() does for the classes. */
+static int
+ich_tpl(Intensity *I, const int d[3])
+{
+    size_t nxy = (size_t)d[0] * d[1], n = I->n, i;
+    mwSize dm[3];
+    int deg[3] = {2, 2, 2}, wrapflags[3] = {1, 1, 1}, x, y, z;
+    double *x0 = (double *)malloc(sizeof(double) * 3 * nxy);
+    double *g = (double *)malloc(sizeof(double) * 4 * nxy);
+
+    if (!x0 || !g)
+    {
+        free(x0);
+        free(g);
+        return 2;
+    }
+    dm[0] = d[0];
+    dm[1] = d[1];
+    dm[2] = d[2];
+    for (y = 0; y < d[1]; y++)
+        for (x = 0; x < d[0]; x++)
+        {
+            x0[x + (size_t)d[0] * y] = x + 1;
+            x0[nxy + x + (size_t)d[0] * y] = y + 1;
+        }
+    for (z = 0; z < d[2]; z++)
+    {
+        for (i = 0; i < nxy; i++) x0[2 * nxy + i] = z + 1;
+        spm_bsplins3(I->coef, dm, nxy, x0, x0 + nxy, x0 + 2 * nxy, deg, wrapflags,
+                     g, g + nxy, g + 2 * nxy, g + 3 * nxy);
+        for (i = 0; i < nxy; i++)
+        {
+            size_t v = (size_t)z * nxy + i;
+            I->T[v] = (float)g[i];
+            I->DT[v] = (float)g[nxy + i];
+            I->DT[n + v] = (float)g[2 * nxy + i];
+            I->DT[2 * n + v] = (float)g[3 * nxy + i];
+        }
+    }
+    free(x0);
+    free(g);
+    return 0;
+}
+
+/* Solve the (m x m) system S c = r in place by Gaussian elimination with
+ * partial pivoting. */
+static int
+solve_small(double *S, double *r, int m)
+{
+    int i, j, k;
+    for (k = 0; k < m; k++)
+    {
+        int p = k;
+        for (i = k + 1; i < m; i++)
+            if (fabs(S[i * m + k]) > fabs(S[p * m + k])) p = i;
+        if (fabs(S[p * m + k]) < 1e-300) return 1;
+        if (p != k)
+        {
+            double t;
+            for (j = 0; j < m; j++)
+            {
+                t = S[k * m + j];
+                S[k * m + j] = S[p * m + j];
+                S[p * m + j] = t;
+            }
+            t = r[k];
+            r[k] = r[p];
+            r[p] = t;
+        }
+        for (i = k + 1; i < m; i++)
+        {
+            double f = S[i * m + k] / S[k * m + k];
+            for (j = k; j < m; j++) S[i * m + j] -= f * S[k * m + j];
+            r[i] -= f * r[k];
+        }
+    }
+    for (k = m - 1; k >= 0; k--)
+    {
+        double s = r[k];
+        for (j = k + 1; j < m; j++) s -= S[k * m + j] * r[j];
+        r[k] = s / S[k * m + k];
+    }
+    return 0;
+}
+
+/* Add 1/2 lambda sum w (f(y) - h(T))^2, w = mask * dt, to the Gauss-Newton
+ * system of the multinomial term: the subject intensity is pulled through y,
+ * h is the polynomial mapping of the template intensity to the subject's
+ * (refitted here), and b, A follow the sign convention of derivs_range(). */
+static void
+ich_update(Intensity *I, const int d[3], const float *y, const float *dt,
+           float *b, float *A, double weight, int degree)
+{
+    size_t n = I->n, i;
+    mwSize dm0[4];
+    int m = degree + 1, p, q;
+    double S[(ICH_MAXDEG + 1) * (ICH_MAXDEG + 1)], r[ICH_MAXDEG + 1];
+    double sa = 0.0, sr = 0.0, sw = 0.0;
+
+    spm_set_bound(0);
+    dm0[0] = d[0];
+    dm0[1] = d[1];
+    dm0[2] = d[2];
+    dm0[3] = 1;
+    spm_pullc(dm0, (mwSize)n, 1, (float *)y, I->fi, I->fp);
+
+    /* h(T) = sum_p c_p T^p by weighted least squares */
+    memset(S, 0, sizeof(S));
+    memset(r, 0, sizeof(r));
+    for (i = 0; i < n; i++)
+    {
+        double w = (double)I->M[i] * dt[i], tp[2 * ICH_MAXDEG + 1];
+        if (!(w > 0) || !isfinite(I->fp[i]) || !isfinite(I->T[i])) continue;
+        tp[0] = 1.0;
+        for (p = 1; p < 2 * m - 1; p++) tp[p] = tp[p - 1] * I->T[i];
+        for (p = 0; p < m; p++)
+        {
+            r[p] += w * tp[p] * I->fp[i];
+            for (q = 0; q < m; q++) S[p * m + q] += w * tp[p + q];
+        }
+    }
+    if (solve_small(S, r, m))
+    {
+        for (p = 0; p < m; p++) r[p] = 0.0;
+        r[1] = 1.0;
+    }
+    for (p = 0; p < m; p++) I->c[p] = r[p];
+
+    /* residuals and the curvature of the term before scaling */
+    for (i = 0; i < n; i++)
+    {
+        double w = (double)I->M[i] * dt[i], h = 0.0, hp = 0.0, tq = 1.0, res, g2;
+        if (!(w > 0) || !isfinite(I->fp[i]) || !isfinite(I->T[i])) continue;
+        for (p = 0; p < m; p++)
+        {
+            h += I->c[p] * tq;
+            if (p + 1 < m) hp += (p + 1) * I->c[p + 1] * tq;
+            tq *= I->T[i];
+        }
+        res = I->fp[i] - h;
+        g2 = hp * hp * ((double)I->DT[i] * I->DT[i] + (double)I->DT[n + i] * I->DT[n + i] +
+                        (double)I->DT[2 * n + i] * I->DT[2 * n + i]);
+        sa += w * g2;
+        sr += w * res * res;
+        sw += w;
+    }
+    if (I->lambda < 0)
+    {
+        /* with tissue classes, weight times the curvature of their term;
+         * without, weight times the ML precision 1/sigma^2 */
+        if (I->tissue)
+        {
+            double tr = 0.0;
+            for (i = 0; i < n; i++) tr += (double)A[i] + A[n + i] + A[2 * n + i];
+            I->lambda = (sa > 0) ? weight * tr / sa : 0.0;
+        }
+        else
+            I->lambda = (sr > 0) ? weight * sw / sr : 0.0;
+    }
+    for (i = 0; i < n; i++)
+    {
+        double w = (double)I->M[i] * dt[i], h = 0.0, hp = 0.0, tq = 1.0, res, gx, gy, gz;
+        if (!(w > 0) || !isfinite(I->fp[i]) || !isfinite(I->T[i])) continue;
+        for (p = 0; p < m; p++)
+        {
+            h += I->c[p] * tq;
+            if (p + 1 < m) hp += (p + 1) * I->c[p + 1] * tq;
+            tq *= I->T[i];
+        }
+        res = I->fp[i] - h;
+        w *= I->lambda;
+        gx = hp * I->DT[i];
+        gy = hp * I->DT[n + i];
+        gz = hp * I->DT[2 * n + i];
+        b[i] += (float)(w * res * gx);
+        b[n + i] += (float)(w * res * gy);
+        b[2 * n + i] += (float)(w * res * gz);
+        A[i] += (float)(w * gx * gx);
+        A[n + i] += (float)(w * gy * gy);
+        A[2 * n + i] += (float)(w * gz * gz);
+        A[3 * n + i] += (float)(w * gx * gy);
+        A[4 * n + i] += (float)(w * gx * gz);
+        A[5 * n + i] += (float)(w * gy * gz);
+    }
+    I->ll = 0.5 * I->lambda * sr;
+    I->sd = (sw > 0) ? sqrt(sr / sw) : 0.0;
+}
+
 /* [u, ll1, ll2] = spm_shoot_update(g, f, u, y, dt, prm, bs_args, scale) */
 static int
 shoot_update(Shoot *S, const TplDeriv *T, const float *f, float *u,
              const float *y, const float *dt, const double prm[8],
-             double scale, double *ll1, double *ll2, float *work)
+             double scale, double *ll1, double *ll2, float *work,
+             Intensity *I, const CAT_VolShootIntensity *ich)
 {
     size_t n = T->n, i;
     float *f1 = work;                 /* ng*n */
@@ -1100,6 +1336,11 @@ shoot_update(Shoot *S, const TplDeriv *T, const float *f, float *u,
     parallel_for(T->d[2], S->nthreads, derivs_range, &dc);
     for (z = 0; z < T->d[2]; z++) ll += lls[z];
     free(lls);
+    if (I && I->on)
+    {
+        ich_update(I, T->d, y, dt, b, A, ich->weight, ich->degree);
+        if (!I->tissue) ll = I->ll;
+    }
 
     gw_vel2mom(T->d, u, prm, m0);
     for (i = 0; i < 3 * n; i++) l2 += (double)(m0[i] * u[i]);
@@ -1297,6 +1538,109 @@ vec_min_finite(const float *v, size_t n)
     return m;
 }
 
+/* Template of a coarser level, derived from the final one by Gaussian
+ * smoothing (FWHM in mm): nvol volumes of grid d with voxel-to-world tmat. */
+static float *
+derive_level(const float *src, int nvol, const int d[3], const double tmat[16],
+             double fwhm, int nthreads)
+{
+    size_t n = (size_t)d[0] * d[1] * d[2];
+    float *out = (float *)malloc(sizeof(float) * nvol * n);
+    double fw[3];
+    int i, k;
+
+    if (!out) return NULL;
+    memcpy(out, src, sizeof(float) * nvol * n);
+    for (i = 0; i < 3; i++)
+        fw[i] = fwhm / sqrt(tmat[i] * tmat[i] + tmat[4 + i] * tmat[4 + i] +
+                            tmat[8 + i] * tmat[8 + i]);
+    if (fwhm > 0)
+        for (k = 0; k < nvol; k++) spm_smooth_vol(NULL, out + (size_t)k * n, d, fw, nthreads);
+    return out;
+}
+
+/* The intensity channel of one level: the subject's intensity sampled like
+ * the tissue maps, the template's smoothed and sampled like the class
+ * templates, and the weight sampled from the template grid. */
+static int
+ich_level(Intensity *I, const CAT_VolShootIntensity *ich, const float *tpl, int ti,
+          const Level *Lv, const int dims[3], const int tdims[3], double tmpres,
+          const float *lesion, double resfac, int nthreads)
+{
+    size_t n_in = (size_t)dims[0] * dims[1] * dims[2];
+    size_t ntpl = (size_t)tdims[0] * tdims[1] * tdims[2], v;
+    size_t nb = (n_in > ntpl) ? n_in : ntpl;
+    double *dbuf, fw[3], mn;
+    float *fbuf;
+    int ret;
+
+    I->on = 0;
+    if (!ich || !ich->img || !tpl) return 0;
+    I->n = (size_t)Lv->rd[0] * Lv->rd[1] * Lv->rd[2];
+    I->lambda = -1.0;
+    dbuf = (double *)malloc(sizeof(double) * nb);
+    fbuf = (float *)malloc(sizeof(float) * nb);
+    if (!dbuf || !fbuf)
+    {
+        free(dbuf);
+        free(fbuf);
+        return 2;
+    }
+
+    fw[0] = fw[1] = fw[2] = Lv->rred * 0.1 * ((NLEV - (ti + 1) > 0) ? NLEV - (ti + 1) : 0);
+    memcpy(fbuf, ich->img, sizeof(float) * n_in);
+    spm_smooth_vol(NULL, fbuf, dims, fw, nthreads);
+    for (v = 0; v < n_in; v++) dbuf[v] = (double)fbuf[v];
+    sample_volume(dbuf, dims, Lv->Mrregs, Lv->rd, I->fi, nthreads);
+    /* outside the subject's (skull-stripped) image the term is undefined:
+     * NaN there, which the trilinear pull widens by a voxel and
+     * ich_update() skips, so that the edge of the brain mask exerts no force */
+    for (v = 0; v < n_in; v++) dbuf[v] = (ich->img[v] > 0) ? 1.0 : 0.0;
+    sample_volume(dbuf, dims, Lv->Mrregs, Lv->rd, fbuf, nthreads);
+    for (v = 0; v < I->n; v++)
+        if (!isfinite(I->fi[v]) || !(fbuf[v] > 0.999f)) I->fi[v] = NAN;
+    /* a lesion, sampled as for the tissue maps, takes no part either: the
+     * tissue maps get the template there, which an intensity on another
+     * scale cannot */
+    if (lesion)
+    {
+        memcpy(fbuf, lesion, sizeof(float) * n_in);
+        if (resfac > 1)
+        {
+            fw[0] = fw[1] = fw[2] = (resfac - 1) * 2;
+            spm_smooth_vol(NULL, fbuf, dims, fw, nthreads);
+        }
+        for (v = 0; v < n_in; v++) dbuf[v] = (double)fbuf[v];
+        sample_volume(dbuf, dims, Lv->Mrregs, Lv->rd, fbuf, nthreads);
+        for (v = 0; v < I->n; v++)
+            if (fbuf[v] > 0.5f) I->fi[v] = NAN;
+    }
+
+    fw[0] = fw[1] = fw[2] = Lv->res / tmpres;
+    for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[v];
+    spm_smooth_vol(dbuf, NULL, tdims, fw, nthreads);
+    sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, fbuf, nthreads);
+    mn = vec_min_finite(fbuf, I->n);
+    for (v = 0; v < I->n; v++)
+        if (isnan(fbuf[v])) fbuf[v] = (float)mn;
+    bsplinc_wrap2(fbuf, Lv->rd, I->coef);
+    ret = ich_tpl(I, Lv->rd);
+
+    if (!ret && ich->mask)
+    {
+        for (v = 0; v < ntpl; v++) dbuf[v] = (double)ich->mask[v];
+        sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, I->M, nthreads);
+        for (v = 0; v < I->n; v++)
+            I->M[v] = isfinite(I->M[v]) ? ((I->M[v] < 0) ? 0.0f : ((I->M[v] > 1) ? 1.0f : I->M[v])) : 0.0f;
+    }
+    else
+        for (v = 0; v < I->n; v++) I->M[v] = 1.0f;
+    free(dbuf);
+    free(fbuf);
+    I->on = !ret;
+    return ret;
+}
+
 int
 CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
              const double mat[16], const double affine[16],
@@ -1306,10 +1650,52 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
              float *y_out, float *iy_out, float *jac_out,
              CAT_VolShootInfo *info)
 {
+    return CAT_VolShootEx(cls, n_cls, dims, mat, affine, templates, tdims, tmat, reg_vx,
+                          lesion, NULL, opts_in, y_out, iy_out, jac_out, info);
+}
+
+/**
+ * \brief Label template of a shooting template: 1 + GM + 2 WM.
+ *
+ * The partial-volume label (CSF 1, GM 2, WM 3) the template's GM and WM
+ * predict; 1 wherever it holds neither, outside the brain too.
+ *
+ * \param tpl   (in)  template with GM and WM as its first two volumes
+ * \param tdims (in)  template dimensions
+ * \param label (out) tdims: the label template
+ */
+void
+CAT_VolShootLabelTemplate(const float *tpl, const int tdims[3], float *label)
+{
+    size_t n = (size_t)tdims[0] * tdims[1] * tdims[2], i;
+
+    for (i = 0; i < n; i++) label[i] = 1.0f + tpl[i] + 2.0f * tpl[n + i];
+}
+
+/**
+ * \brief CAT_VolShoot() with an optional intensity channel (experimental).
+ *
+ * \p n_cls 0 registers by the intensity channel alone; a NULL template below
+ * the last is the final one smoothed by CAT_SHOOT_LEVEL_FWHM.  Lesions take
+ * no part in the intensity term.
+ *
+ * \param ich (in) intensity channel; NULL runs CAT_VolShoot() unchanged
+ * \return as CAT_VolShoot()
+ */
+int
+CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
+               const double mat[16], const double affine[16],
+               const float *const templates[CAT_SHOOT_NTEMPLATES],
+               const int tdims[3], const double tmat[16], double reg_vx,
+               const float *lesion, const CAT_VolShootIntensity *ich,
+               const CAT_VolShootOpts *opts_in, float *y_out, float *iy_out,
+               float *jac_out, CAT_VolShootInfo *info)
+{
     CAT_VolShootOpts opts;
     Level L[NLEV];
     Shoot S;
     TplDeriv T;
+    Intensity I;
     double M0[16], tmpM[16], Aff[16], iM0[16], iAff[16], P[16];
     double bb[2][3], mmtmp[4][8], vxtpm[4][8], vx3rr[4][8], Q[4][8];
     double tmpres, regres, vx_vol, resfac[NLEV], ll1th;
@@ -1325,15 +1711,26 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
     double prm[8], ll[2] = {0, 0}, llo[2];
     int int_N = 1, hydro = 0, ng = 0, old_threads = 0;
     const double scale = 0.8; /* sd.scale */
+    const double level_fwhm[NLEV] = CAT_SHOOT_LEVEL_FWHM;
+    const float *tpl[NLEV], *itpl[NLEV];
+    float *tpl_own[NLEV], *itpl_own[NLEV];
+    int has_ich = (ich && ich->img);
 
     memset(&S, 0, sizeof(S));
     memset(&T, 0, sizeof(T));
+    memset(&I, 0, sizeof(I));
     for (k = 0; k < MAXCLS; k++) coef[k] = NULL;
+    for (k = 0; k < NLEV; k++) tpl_own[k] = itpl_own[k] = NULL;
     if (opts_in) opts = *opts_in;
     else CAT_VolShootOptionsInit(&opts);
     if (info) memset(info, 0, sizeof(*info));
-    if (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || opts.nits < 3 ||
-        !cls || !templates || !y_out || !(opts.reg_scale > 0))
+    if (opts.nits < 3 || !y_out || !(opts.reg_scale > 0)) return 1;
+    if (n_cls == 0 ? !has_ich
+                   : (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || !cls || !templates ||
+                      !templates[NLEV - 1]))
+        return 1;
+    if (has_ich && (!ich->tpl[NLEV - 1] || ich->degree < 1 || ich->degree > ICH_MAXDEG ||
+                    !(ich->weight >= 0) || ich->from < 0 || ich->from >= NLEV))
         return 1;
 
     nthreads = (opts.n_threads > 0) ? opts.n_threads : cat_parallel_nthreads(1 << 20);
@@ -1342,6 +1739,33 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
     old_threads = spm_shoot_get_threads();
     spm_shoot_set_threads(nthreads);
     spm_shoot_clear_error();
+
+    /* the templates of the levels; those not given are the final one smoothed */
+    for (k = 0; k < NLEV; k++)
+    {
+        tpl[k] = (n1 > 0) ? templates[k] : NULL;
+        itpl[k] = (has_ich && k >= ich->from) ? ich->tpl[k] : NULL;
+        if (k == NLEV - 1) continue;
+        if (n1 > 0 && !tpl[k])
+        {
+            if (!(tpl_own[k] = derive_level(templates[NLEV - 1], n1, tdims, tmat, level_fwhm[k], nthreads)))
+            {
+                ret = 2;
+                goto done;
+            }
+            tpl[k] = tpl_own[k];
+        }
+        if (has_ich && k >= ich->from && !itpl[k])
+        {
+            if (!(itpl_own[k] = derive_level(ich->tpl[NLEV - 1], 1, tdims, tmat, level_fwhm[k], nthreads)))
+            {
+                ret = 2;
+                goto done;
+            }
+            itpl[k] = itpl_own[k];
+        }
+    }
+    I.tissue = (n1 > 0);
 
     nii2spm(mat, M0);
     nii2spm(tmat, tmpM);
@@ -1505,7 +1929,7 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
     msk = (unsigned char *)malloc(nmax);
     for (k = 0; k < MAXCLS; k++) coef[k] = (double *)malloc(sizeof(double) * nmax);
     if (!f || !u || !y || !J || !dt || !work || !t1 || !t2 || !t3 || !bgexp ||
-        !msk || shoot_alloc(&S, nmax))
+        !msk || shoot_alloc(&S, nmax) || (has_ich && ich_alloc(&I, nmax)))
     {
         ret = 2;
         goto done;
@@ -1576,7 +2000,7 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
                 size_t v;
                 float *gk = t1;
                 double mn;
-                for (v = 0; v < ntpl; v++) dbuf[v] = (double)templates[ti][k * ntpl + v];
+                for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[ti][k * ntpl + v];
                 spm_smooth_vol(dbuf, NULL, tdims, fw, nthreads);
                 sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, gk, nthreads);
                 mn = vec_min_finite(gk, n);
@@ -1712,7 +2136,7 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
                 for (k = 0; k < n1; k++)
                 {
                     float *tk = t1;
-                    for (v = 0; v < ntpl; v++) dbuf[v] = (double)templates[ti][k * ntpl + v];
+                    for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[ti][k * ntpl + v];
                     sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, tk, nthreads);
                     mn = vec_min_finite(tk, n);
                     for (v = 0; v < n; v++)
@@ -1739,7 +2163,21 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
             /* template derivatives of this level */
             ret = tplderiv_build(&T, Lv->rd, ng, coef);
             if (ret) goto done;
-            for (i = 0; i < (int)n; i++) bgexp[i] = (float)exp(coef[2][i]);
+            if (has_ich)
+            {
+                ret = ich_level(&I, ich, itpl[ti], ti, Lv, dims, tdims, tmpres, lesion,
+                                resfac[ti], nthreads);
+                if (ret) goto done;
+            }
+            /* CAT takes g{3} as the background, which it is for two classes
+             * (with the ventricle class, it is that class); with a CSF class
+             * the background is the last one */
+            for (i = 0; i < (int)n; i++) bgexp[i] = (float)exp(coef[(n1 == 2) ? 2 : n1][i]);
+            /* without tissue classes the one class left is background
+             * everywhere, which would keep CAT's hot-spot filter from acting
+             * at all: treat everything as brain instead */
+            if (n1 == 0)
+                for (i = 0; i < (int)n; i++) bgexp[i] = 0.0f;
 
             ll[0] = ll[1] = 0;
             if (it == 1)
@@ -1798,7 +2236,7 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
 
         llo[0] = ll[0];
         llo[1] = ll[1];
-        ret = shoot_update(&S, &T, f, u, y, dt, prm, scale, &ll[0], &ll[1], work);
+        ret = shoot_update(&S, &T, f, u, y, dt, prm, scale, &ll[0], &ll[1], work, &I, ich);
         if (ret) goto done;
         ret = shoot3d(&S, L[ti].rd, u, prm, int_N, y, J);
         if (ret) goto done;
@@ -1809,6 +2247,10 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
             printf("%5d | %0.2f | %7.4f%8.4f%8.4f | %8.4f\n", it, L[ti].res,
                    ll[0] / (3.0 * n), ll[1] / (3.0 * n), (ll[0] + ll[1]) / (3.0 * n),
                    sched[it - 1]);
+        if (opts.verbose && I.on)
+            printf("      intensity: ll %8.4f  sd %.4f  lambda %.4g  h = %.3f %+.3f T %+.3f T^2 %+.3f T^3\n",
+                   I.ll / (3.0 * n), I.sd, I.lambda, I.c[0], I.c[1],
+                   (ich->degree > 1) ? I.c[2] : 0.0, (ich->degree > 2) ? I.c[3] : 0.0);
         if (opts.verbose) fflush(stdout);
 
         if (opts.regstr != 4 && opts.hotspot && (extdt > 20 || nonfinite))
@@ -1959,6 +2401,12 @@ done:
     free(msk);
     for (k = 0; k < MAXCLS; k++) free(coef[k]);
     tplderiv_free(&T);
+    ich_free(&I);
+    for (k = 0; k < NLEV; k++)
+    {
+        free(tpl_own[k]);
+        free(itpl_own[k]);
+    }
     shoot_free(&S);
     spm_shoot_set_threads(old_threads);
     return ret;

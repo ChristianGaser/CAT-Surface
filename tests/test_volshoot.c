@@ -350,6 +350,159 @@ test_hydro(void)
     free(jac);
 }
 
+/** \brief Mean |a - b| over the voxels of a 3 x NV field (in voxels). */
+static double
+field_diff(const float *a, const float *b, const unsigned char *in)
+{
+    double s = 0.0;
+    size_t v, n = 0;
+
+    for (v = 0; v < NV; v++)
+    {
+        if (in && !in[v]) continue;
+        s += sqrt((a[v] - b[v]) * (a[v] - b[v]) + (a[NV + v] - b[NV + v]) * (a[NV + v] - b[NV + v]) +
+                  (a[2 * NV + v] - b[2 * NV + v]) * (a[2 * NV + v] - b[2 * NV + v]));
+        n++;
+    }
+    return n ? s / n : 0.0;
+}
+
+static int
+run_label(const float *lab, float **ltpl, const float *lesion, float *y, float *jac,
+          CAT_VolShootInfo *info)
+{
+    CAT_VolShootIntensity ich;
+    CAT_VolShootOpts o;
+    double M[16];
+    int dims[3] = {NX, NY, NZ}, l;
+
+    memset(&ich, 0, sizeof(ich));
+    ich.img = lab;
+    for (l = 0; l < CAT_SHOOT_NTEMPLATES; l++) ich.tpl[l] = ltpl[l];
+    ich.weight = 0.25;
+    ich.degree = 3;
+    ich.from = 0;
+    grid_matrix(M);
+    CAT_VolShootOptionsInit(&o);
+    o.n_threads = 2;
+    return CAT_VolShootEx(NULL, 0, dims, M, NULL, NULL, dims, M, 0.0, lesion, &ich, &o, y, NULL,
+                          jac, info);
+}
+
+/* A partial-volume label image alone, against the label templates the tissue
+ * templates predict, undoes the known deformation as well; its background
+ * takes no part.  A lesion mask keeps a corrupted region from pulling. */
+static void
+test_label(void)
+{
+    float **tpl = make_templates(), *ltpl[CAT_SHOOT_NTEMPLATES];
+    float *gm = (float *)malloc(sizeof(float) * NV), *wm = (float *)malloc(sizeof(float) * NV);
+    float *lab = (float *)malloc(sizeof(float) * NV), *bad = (float *)malloc(sizeof(float) * NV);
+    float *lesion = (float *)calloc(NV, sizeof(float));
+    float *y = (float *)malloc(sizeof(float) * 3 * NV), *jac = (float *)malloc(sizeof(float) * NV);
+    float *y1 = (float *)malloc(sizeof(float) * 3 * NV), *y2 = (float *)malloc(sizeof(float) * 3 * NV);
+    unsigned char *near = (unsigned char *)calloc(NV, 1);
+    CAT_VolShootInfo info;
+    double M[16], before, after, err = 0.0, d_free, d_masked;
+    size_t v, nb = 0;
+    int dims[3] = {NX, NY, NZ}, ret, l;
+
+    /* 1 + GM + 2 WM */
+    {
+        const float t2[4] = {0.2f, 0.5f, 0.3f, 0.5f};
+        float out[2];
+        CAT_VolShootLabelTemplate(t2, (int[]){2, 1, 1}, out);
+        MU_ASSERT("label template: 1 + GM + 2 WM",
+                  fabsf(out[0] - 1.8f) < 1e-6f && fabsf(out[1] - 2.5f) < 1e-6f);
+    }
+    for (l = 0; l < CAT_SHOOT_NTEMPLATES; l++)
+    {
+        ltpl[l] = (float *)malloc(sizeof(float) * NV);
+        CAT_VolShootLabelTemplate(tpl[l], dims, ltpl[l]);
+    }
+
+    /* the deformed phantom as a skull-stripped label: CSF 1 for about 3 mm
+     * around the brain, background 0 beyond */
+    make_maps(gm, wm, 3.0, 0.0);
+    for (v = 0; v < NV; v++) lab[v] = gm[v] + wm[v];
+    box_smooth(lab, 2);
+    for (v = 0; v < NV; v++) lab[v] = (lab[v] > 0.01f) ? 1.0f + gm[v] + 2.0f * wm[v] : 0.0f;
+
+    before = mismatch(gm, wm, tpl[4], NULL);
+    ret = run_label(lab, ltpl, NULL, y, jac, &info);
+    MU_ASSERT("label: shooting succeeds", ret == 0);
+    MU_ASSERT("label: finite field", all_finite(y, 3 * NV) && all_finite(jac, NV));
+    MU_ASSERT("label: positive Jacobians", info.det_min > 0.0);
+    after = mismatch(gm, wm, tpl[4], y);
+    if (after >= 0.3 * before)
+        printf("  label: mismatch %.5f -> %.5f\n", before, after);
+    MU_ASSERT("label: the mismatch drops below 30%", after < 0.3 * before);
+    grid_matrix(M);
+    for (v = 0; v < NV; v++)
+    {
+        int i = (int)(v % NX), j = (int)((v / NX) % NY), k = (int)(v / ((size_t)NX * NY));
+        double x = M[0] * i + M[3], yy = M[5] * j + M[7], z = M[10] * k + M[11], d[3], g, w;
+        phantom(x, yy, z, 0.0, &g, &w);
+        if (g + w < 0.5) continue;
+        displacement(x, yy, z, 3.0, d);
+        err += fabs((y[v] - i) * VOX - d[0]) + fabs((y[NV + v] - j) * VOX - d[1]) +
+               fabs((y[2 * NV + v] - k) * VOX - d[2]);
+        nb++;
+    }
+    err /= 3.0 * nb;
+    if (err >= 0.6)
+        printf("  label: mean |error| %.3f mm\n", err);
+    MU_ASSERT("label: displacement recovered within 0.6 mm on average", err < 0.6);
+
+    /* a CSF-filled hole of 6 mm radius in the white matter, once unmasked
+     * and once under a lesion mask: the mask keeps the field near the clean
+     * one where the template samples the hole */
+    memcpy(bad, lab, sizeof(float) * NV);
+    for (v = 0; v < NV; v++)
+    {
+        int i = (int)(v % NX), j = (int)((v / NX) % NY), k = (int)(v / ((size_t)NX * NY));
+        double x = M[0] * i + M[3], yy = M[5] * j + M[7] - 8.0, z = M[10] * k + M[11];
+        if (x * x + yy * yy + z * z <= 36.0)
+        {
+            bad[v] = 1.0f;
+            lesion[v] = 1.0f;
+        }
+    }
+    for (v = 0; v < NV; v++)
+    {
+        double x = M[0] * y[v] + M[3], yy = M[5] * y[NV + v] + M[7] - 8.0,
+               z = M[10] * y[2 * NV + v] + M[11];
+        near[v] = (x * x + yy * yy + z * z <= 100.0);
+    }
+    ret = run_label(bad, ltpl, NULL, y1, jac, &info);
+    MU_ASSERT("label lesion: unmasked run succeeds", ret == 0);
+    ret = run_label(bad, ltpl, lesion, y2, jac, &info);
+    MU_ASSERT("label lesion: masked run succeeds", ret == 0);
+    d_free = field_diff(y1, y, near);
+    d_masked = field_diff(y2, y, near);
+    if (!(d_masked < 0.25 * d_free))
+        printf("  label lesion: |y - y_clean| near the hole %.4f unmasked, %.4f masked (voxels)\n",
+               d_free, d_masked);
+    MU_ASSERT("label lesion: the mask keeps the field near the clean one", d_masked < 0.25 * d_free);
+
+    for (l = 0; l < CAT_SHOOT_NTEMPLATES; l++)
+    {
+        free(tpl[l]);
+        free(ltpl[l]);
+    }
+    free(tpl);
+    free(gm);
+    free(wm);
+    free(lab);
+    free(bad);
+    free(lesion);
+    free(y);
+    free(y1);
+    free(y2);
+    free(jac);
+    free(near);
+}
+
 /* Invalid input is refused, not crashed on. */
 static void
 test_invalid(void)
@@ -424,6 +577,7 @@ int main(void)
     MU_RUN_TEST(test_identity);
     MU_RUN_TEST(test_recovers_deformation);
     MU_RUN_TEST(test_hydro);
+    MU_RUN_TEST(test_label);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
