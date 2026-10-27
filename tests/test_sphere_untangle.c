@@ -19,6 +19,8 @@
  * compressed a thousandfold, as the folds of an inflated sphere sit where it
  * is compressed most.  The removal has to leave no bad triangle and move
  * nothing outside the cap; a map without folds has to come back unchanged.
+ * A surface with a handle, which no map unfolds, keeps the folds around it
+ * without an error.
  */
 
 #define RADIUS 100.0
@@ -196,6 +198,111 @@ test_untangle_keeps_foldfree_map(void)
     delete_polygons(&before);
 }
 
+/**
+ * \brief Sphere mesh with a handle: triangles t1 and t2, a few rings apart,
+ * are replaced by a prism tube between their vertices (genus 1, Euler
+ * characteristic 0).  Returns the first triangle of the tube.
+ */
+static int
+make_sphere_with_handle(polygons_struct *p, int *t2_out)
+{
+    polygons_struct s;
+    double c1[3], best = 1e30;
+    int a[3], b[3], t, k, i, t2 = -1, n = 0, *idx;
+
+    make_sphere(&s);
+    for (k = 0; k < 3; k++)
+    {
+        a[k] = s.indices[POINT_INDEX(s.end_indices, 0, k)];
+        c1[k] = 0.0;
+    }
+    for (i = 0; i < 3; i++)
+        for (k = 0; k < 3; k++)
+            c1[k] += Point_coord(s.points[a[i]], k) / 3.0;
+    /* t2: the triangle sharing no vertex with t1 whose centre lies closest to
+       15 mm (about four edges) from that of t1 */
+    for (t = 1; t < s.n_items; t++)
+    {
+        double d = 0.0, c2[3] = {0.0, 0.0, 0.0};
+        int shared = 0;
+
+        for (i = 0; i < 3; i++)
+        {
+            int v = s.indices[POINT_INDEX(s.end_indices, t, i)];
+            shared += (v == a[0] || v == a[1] || v == a[2]);
+            for (k = 0; k < 3; k++)
+                c2[k] += Point_coord(s.points[v], k) / 3.0;
+        }
+        for (k = 0; k < 3; k++)
+            d += (c2[k] - c1[k]) * (c2[k] - c1[k]);
+        d = fabs(sqrt(d) - 15.0);
+        if (!shared && d < best)
+        {
+            best = d;
+            t2 = t;
+        }
+    }
+    for (k = 0; k < 3; k++)
+        b[k] = s.indices[POINT_INDEX(s.end_indices, t2, k)];
+
+    /* the quad between edge (a_i, a_i+1) of t1 and edge (b_j+1, b_j) of t2,
+       with b paired in reverse (a_i with b_-i), keeps the orientation */
+    copy_polygons(&s, p);
+    p->n_items = s.n_items - 2 + 6;
+    idx = (int *)malloc(sizeof(int) * 3 * p->n_items);
+    for (t = 0; t < s.n_items; t++)
+        if (t != 0 && t != t2)
+            for (k = 0; k < 3; k++)
+                idx[n++] = s.indices[POINT_INDEX(s.end_indices, t, k)];
+    for (i = 0; i < 3; i++)
+    {
+        int ai = a[i], aj = a[(i + 1) % 3];
+        int bi = b[(3 - i) % 3], bj = b[(3 - (i + 1)) % 3];
+
+        idx[n++] = ai;
+        idx[n++] = aj;
+        idx[n++] = bj;
+        idx[n++] = ai;
+        idx[n++] = bj;
+        idx[n++] = bi;
+    }
+    free(p->indices);
+    free(p->end_indices);
+    p->indices = idx;
+    p->end_indices = (int *)malloc(sizeof(int) * p->n_items);
+    for (t = 0; t < p->n_items; t++)
+        p->end_indices[t] = 3 * (t + 1);
+    delete_polygons(&s);
+    *t2_out = t2;
+    return p->n_items - 6;
+}
+
+/**
+ * \brief A surface that is not genus 0 keeps the folds around its handle
+ * (no map of it is fold-free) but is no error: the patches around the handle
+ * are no disks, and the removal goes on with the next cluster or returns.
+ */
+static void
+test_untangle_handle(void)
+{
+    polygons_struct surface, map;
+    int tube, t2, left, bad;
+
+    make_sphere_with_handle(&surface, &t2);
+    tube = make_sphere_with_handle(&map, &t2);
+    MU_ASSERT("handle: Euler characteristic 0",
+              surface.n_points - surface.n_items / 2 == 0);
+    bad = count_bad(&map);
+    MU_ASSERT("handle: the tube folds on the sphere", bad > 0 && tube > 0);
+    left = CAT_SphereRemoveFolds(&surface, &map, 0);
+    if (left <= 0)
+        printf("  handle: %d bad triangles before, returned %d\n", bad, left);
+    MU_ASSERT("handle: no error", left >= 0);
+    MU_ASSERT("handle: the folds around the handle stay", left > 0);
+    delete_polygons(&surface);
+    delete_polygons(&map);
+}
+
 /** \brief Meshes that do not belong together are refused. */
 static void
 test_untangle_rejects_mismatch(void)
@@ -217,6 +324,7 @@ int main(void)
     MU_RUN_TEST(test_untangle_crease);
     MU_RUN_TEST(test_untangle_compressed_crease);
     MU_RUN_TEST(test_untangle_keeps_foldfree_map);
+    MU_RUN_TEST(test_untangle_handle);
     MU_RUN_TEST(test_untangle_rejects_mismatch);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;

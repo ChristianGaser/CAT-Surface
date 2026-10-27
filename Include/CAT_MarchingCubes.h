@@ -42,7 +42,9 @@ void correct_topology(float *volume, float *vol_changed, float thresh,
  * \param iter_laplacian    (in)  number of Laplacian smoothing iterations
  * \param dist_morph        (in)  distance offset for morphological expansion (mm)
  * \param n_median_filter   (in)  iterations of median filtering to apply
- * \param n_iter            (in)  total outer loop iterations
+ * \param n_iter            (in)  topology-correction iterations with the median
+ *                               filter; a surface that is not genus 0 by then
+ *                               gets up to 5 more without it
  * \param strength_gyri_mask (in) weighting factor for gyral preservation masking (0-1)
  * \param sulci_opts        (in)  buried-sulcus correction on the PPM, or NULL to skip
  *                                    it. A buried sulcus is a valley in the PPM whose floor

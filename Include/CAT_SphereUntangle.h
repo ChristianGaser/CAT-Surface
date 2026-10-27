@@ -36,7 +36,9 @@ extern "C"
      * only if all its triangles end up good, and no vertex outside the
      * accepted disks moves.
      *
-     * A map without bad triangles is left untouched, bit for bit.
+     * A map without bad triangles is left untouched, bit for bit.  A surface
+     * that is not genus 0 cannot be mapped without folds: the clusters around
+     * its handles never grow into a disk and are left.
      *
      * \param surface (in)     the surface the sphere maps (e.g. the central
      *                         surface), same mesh as \p sphere
