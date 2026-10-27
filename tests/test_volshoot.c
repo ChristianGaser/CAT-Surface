@@ -207,7 +207,7 @@ run(const float *gm, const float *wm, float **tpl, double regstr, int threads,
     CAT_VolShootOptionsInit(&o);
     o.regstr = regstr;
     o.n_threads = threads;
-    return CAT_VolShoot(cls, 2, dims, M, NULL, t, dims, M, 1.5, NULL, &o, y, NULL, jac, info);
+    return CAT_VolShoot(cls, 2, dims, M, NULL, t, dims, M, 0.0, NULL, &o, y, NULL, jac, info);
 }
 
 static int
@@ -231,7 +231,7 @@ test_identity(void)
     size_t v, nb = 0;
     int ret, l;
 
-    ret = run(tpl[4], tpl[4] + NV, tpl, 0.5, 2, y, jac, &info);
+    ret = run(tpl[4], tpl[4] + NV, tpl, 1.0, 2, y, jac, &info);
     MU_ASSERT("identity: shooting succeeds", ret == 0);
     grid_matrix(M);
     for (v = 0; v < NV; v++)
@@ -276,7 +276,7 @@ test_recovers_deformation(void)
 
     make_maps(gm, wm, 3.0, 0.0);
     before = mismatch(gm, wm, tpl[4], NULL);
-    ret = run(gm, wm, tpl, 0.5, 1, y, jac, &info);
+    ret = run(gm, wm, tpl, 1.0, 1, y, jac, &info);
     MU_ASSERT("deformation: shooting succeeds", ret == 0);
     MU_ASSERT("deformation: finite field", all_finite(y, 3 * NV));
     after = mismatch(gm, wm, tpl[4], y);
@@ -304,7 +304,7 @@ test_recovers_deformation(void)
     MU_ASSERT("deformation: displacement recovered within 0.6 mm on average", err < 0.6);
 
     /* the same result for every number of threads */
-    ret = run(gm, wm, tpl, 0.5, 4, y4, jac, &info);
+    ret = run(gm, wm, tpl, 1.0, 4, y4, jac, &info);
     MU_ASSERT("threads: shooting succeeds", ret == 0);
     MU_ASSERT("threads: 1 and 4 threads give identical fields",
               memcmp(y, y4, sizeof(float) * 3 * NV) == 0);
@@ -335,7 +335,7 @@ test_hydro(void)
     int ret, l;
 
     make_maps(gm, wm, 0.0, 11.0);
-    ret = run(gm, wm, tpl, 0.5, 2, y, jac, &info);
+    ret = run(gm, wm, tpl, 1.0, 2, y, jac, &info);
     MU_ASSERT("hydro: shooting succeeds", ret == 0);
     if (info.hydro_levels == 0)
         printf("  hydro: the ventricle class was not used\n");
@@ -361,7 +361,8 @@ test_invalid(void)
 
     grid_matrix(M);
     CAT_VolShootOptionsInit(&o);
-    MU_ASSERT("defaults: regstr 0.5", o.regstr == 0.5);
+    MU_ASSERT("defaults: regstr 1", o.regstr == 1.0);
+    MU_ASSERT("defaults: half of CAT's regularisation", o.reg_scale == 0.5);
     MU_ASSERT("defaults: 64 iterations", o.nits == 64);
     MU_ASSERT("invalid: no maps", CAT_VolShoot(NULL, 2, dims, M, NULL, NULL, dims, M, 1.5,
                                                NULL, &o, y, NULL, NULL, NULL) == 1);

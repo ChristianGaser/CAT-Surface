@@ -1596,8 +1596,9 @@ def vol_bspline_sample(volume, grid, bint align_corners=True,
 # Geodesic shooting  (mirrors CAT_VolShoot)
 # ===================================================================
 def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
-              double tpm_vx=1.5, lesion=None, regstr=None, nits=None,
-              lowres=None, hydro=None, hotspot=None, n_threads=None,
+              reg_vx=None, lesion=None, regstr=None, nits=None,
+              lowres=None, reg_scale=None, hydro=None, hotspot=None,
+              n_threads=None,
               bint verbose=False, bint inverse=False):
     """
     Geodesic shooting of GM/WM maps onto a shooting template series.
@@ -1626,15 +1627,20 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
         Input-to-template world mapping (CAT's ``res.Affine``).  None means
         identity: maps already in template space, such as CAT's ``rp*`` or
         T1Prep's affine-registered maps.
-    tpm_vx : float
-        Voxel size of the tissue probability map in mm, which scales the
-        regularisation (1.5 for SPM's TPM, as in CAT).
+    reg_vx : float, optional
+        Voxel size of the regulariser in mm.  None uses the template's; CAT
+        takes its TPM's 1.5 mm at every template resolution, which equals
+        the template's for its 1.5 mm series.
     lesion : array_like, (X, Y, Z), optional
         Lesion mask on the input grid; the template replaces the tissue there.
-    regstr, nits, lowres, hydro, hotspot, n_threads : optional
-        None keeps the library default of ``CAT_VolShootOptionsInit()``:
-        regstr 0.5 (optimised shooting; 4 is SPM's default schedule), nits 64,
-        lowres 2.5 mm, hydro and hotspot on, the library's thread count.
+    regstr, nits, lowres, reg_scale, hydro, hotspot, n_threads : optional
+        None keeps the library default of ``CAT_VolShootOptionsInit()``, the
+        setting with the best label accuracy on Mindboggle-101: regstr 1
+        (CAT's optimised shooting with every scheduled iteration; CAT itself
+        runs 0.5, which switches levels early; 4 is SPM's default schedule),
+        nits 64, lowres 2.5 mm, reg_scale 0.5 (a factor on CAT's
+        regularisation; CAT: 1), hydro and hotspot on, the library's thread
+        count.
     verbose : bool
         Print CAT's iteration log.
     inverse : bool
@@ -1665,6 +1671,7 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
     cdef const double *aff_ptr = NULL
     cdef const float *les_ptr = NULL
     cdef float *iy_ptr = NULL
+    cdef double rvx = 0.0
 
     C.CAT_VolShootOptionsInit(&opts)
     if regstr is not None:
@@ -1673,6 +1680,8 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
         opts.nits = int(nits)
     if lowres is not None:
         opts.lowres = float(lowres)
+    if reg_scale is not None:
+        opts.reg_scale = float(reg_scale)
     if hydro is not None:
         opts.hydro = 1 if hydro else 0
     if hotspot is not None:
@@ -1680,6 +1689,8 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
     if n_threads is not None:
         opts.n_threads = int(n_threads)
     opts.verbose = 1 if verbose else 0
+    if reg_vx is not None:
+        rvx = float(reg_vx)
 
     g = np.asfortranarray(gm, dtype=np.float32)
     w = np.asfortranarray(wm, dtype=np.float32)
@@ -1733,7 +1744,7 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
         iy = np.empty(tuple(g.shape) + (3,), dtype=np.float32, order="F")
         iy_ptr = <float *>cnp.PyArray_DATA(iy)
 
-    ret = C.CAT_VolShoot(cls, 2, dims, M, aff_ptr, tpl, tdims, TM, tpm_vx,
+    ret = C.CAT_VolShoot(cls, 2, dims, M, aff_ptr, tpl, tdims, TM, rvx,
                          les_ptr, &opts, <float *>cnp.PyArray_DATA(y), iy_ptr,
                          <float *>cnp.PyArray_DATA(jac), &info)
     if ret == 1:

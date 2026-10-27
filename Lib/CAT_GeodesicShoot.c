@@ -1276,10 +1276,11 @@ hotspot_repeat(float *u, const float *dt, const int d[3], double vr, int nfilt,
 void
 CAT_VolShootOptionsInit(CAT_VolShootOpts *opts)
 {
-    opts->regstr = 0.5;
+    opts->regstr = 1.0;
     opts->nits = 64;
     opts->ll1th = 0.001;
     opts->lowres = 2.5;
+    opts->reg_scale = 0.5;
     opts->hydro = 1;
     opts->hotspot = 1;
     opts->n_threads = 0;
@@ -1300,7 +1301,7 @@ int
 CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
              const double mat[16], const double affine[16],
              const float *const templates[CAT_SHOOT_NTEMPLATES],
-             const int tdims[3], const double tmat[16], double tpm_vx,
+             const int tdims[3], const double tmat[16], double reg_vx,
              const float *lesion, const CAT_VolShootOpts *opts_in,
              float *y_out, float *iy_out, float *jac_out,
              CAT_VolShootInfo *info)
@@ -1332,7 +1333,7 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
     else CAT_VolShootOptionsInit(&opts);
     if (info) memset(info, 0, sizeof(*info));
     if (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || opts.nits < 3 ||
-        !cls || !templates || !y_out)
+        !cls || !templates || !y_out || !(opts.reg_scale > 0))
         return 1;
 
     nthreads = (opts.n_threads > 0) ? opts.n_threads : cat_parallel_nthreads(1 << 20);
@@ -1351,6 +1352,9 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
     /* regsetup */
     tmpres = fabs(tmpM[0]);
     regres = tmpres; /* reg.opt.rres for regstr 0.5 and 4 */
+    /* CAT's vxreg is its TPM's resolution (1.5 mm) whatever the template's;
+     * by default the regulariser gets the template's voxel size instead */
+    if (!(reg_vx > 0)) reg_vx = tmpres;
     vx_vol = sqrt(M0[0] * M0[0] + M0[4] * M0[4] + M0[8] * M0[8]);
     if (opts.regstr == 4)
     {
@@ -1786,9 +1790,9 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
 
         /* the regularisation of this iteration */
         {
-            double vx3 = tpm_vx * tpm_vx * tpm_vx;
-            prm[0] = prm[1] = prm[2] = tpm_vx;
-            for (i = 0; i < 5; i++) prm[3 + i] = rparam[i] * sched[it - 1] * vx3;
+            double vx3 = reg_vx * reg_vx * reg_vx;
+            prm[0] = prm[1] = prm[2] = reg_vx;
+            for (i = 0; i < 5; i++) prm[3 + i] = opts.reg_scale * rparam[i] * sched[it - 1] * vx3;
             int_N = eul_its[it - 1];
         }
 
@@ -1819,10 +1823,10 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
             extdt = ext_det(dt, n, &nonfinite);
             while ((nonfinite && nfilt < 20) || (extdt > dtl && nfilt < 4))
             {
-                double vx3 = tpm_vx * tpm_vx * tpm_vx;
+                double vx3 = reg_vx * reg_vx * reg_vx;
                 hotspot_repeat(u, dt, L[ti].rd, vr, nfilt, dtl, bgexp, t1, t2, t3, msk);
                 for (i = 0; i <= nits; i++) sched[i] = pow(sched[i], 1.1);
-                for (i = 0; i < 5; i++) prm[3 + i] = rparam[i] * sched[it] * vx3;
+                for (i = 0; i < 5; i++) prm[3 + i] = opts.reg_scale * rparam[i] * sched[it] * vx3;
                 ret = shoot3d(&S, L[ti].rd, u, prm, int_N, y, J);
                 if (ret) goto done;
                 jac_det(L[ti].rd, J, dt);

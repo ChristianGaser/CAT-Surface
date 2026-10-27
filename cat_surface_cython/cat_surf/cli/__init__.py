@@ -869,9 +869,9 @@ def vol_realign(in_file, out=None, reffile=None, refvol=-1, mats=False,
 
 
 def vol_shoot(gm_file, wm_file, template_files, y_file=None, iy_file=None,
-              jac_file=None, regstr=None, nits=None, lowres=None, affine=None,
-              lesion_file=None, tpm_vx=1.5, hydro=True, hotspot=True,
-              n_threads=None, verbose=False):
+              jac_file=None, regstr=None, nits=None, lowres=None,
+              reg_scale=None, affine=None, lesion_file=None, reg_vx=None,
+              hydro=True, hotspot=True, n_threads=None, verbose=False):
     """Mirror of ``CAT_VolShoot``, with SPM-format deformation output.
 
     *template_files* is either the ``Template_0`` path containing ``_0_``
@@ -889,12 +889,12 @@ def vol_shoot(gm_file, wm_file, template_files, y_file=None, iy_file=None,
     y_file, iy_file, jac_file : str, optional
         Forward deformation, inverse deformation and Jacobian output paths.
         At least one must be given, as for the binary.
-    regstr, nits, lowres, affine, lesion_file, tpm_vx, hydro, hotspot,
-    n_threads, verbose
-        ``-regstr``, ``-nits``, ``-lowres``, ``-affine``, ``-lesion``,
-        ``-tpm-vx``, ``-no-hydro``, ``-no-hotspot``, ``-threads`` and
-        ``-verbose``.  ``affine`` is a 4x4 input-to-template world matrix or
-        a text file containing it.  ``None`` uses the library defaults.
+    regstr, nits, lowres, reg_scale, affine, lesion_file, reg_vx, hydro,
+    hotspot, n_threads, verbose
+        ``-regstr``, ``-nits``, ``-lowres``, ``-reg-scale``, ``-affine``,
+        ``-lesion``, ``-reg-vx``, ``-no-hydro``, ``-no-hotspot``, ``-threads``
+        and ``-verbose``.  ``affine`` is a 4x4 input-to-template world matrix
+        or a text file containing it.  ``None`` uses the library defaults.
 
     Returns
     -------
@@ -933,9 +933,9 @@ def vol_shoot(gm_file, wm_file, template_files, y_file=None, iy_file=None,
 
     res = _vol_shoot(
         gm, wm, templates, gm_img.affine, template_imgs[0].affine,
-        affine=affine, tpm_vx=tpm_vx, lesion=lesion, regstr=regstr,
-        nits=nits, lowres=lowres, hydro=hydro, hotspot=hotspot,
-        n_threads=n_threads, verbose=verbose,
+        affine=affine, reg_vx=reg_vx, lesion=lesion, regstr=regstr,
+        nits=nits, lowres=lowres, reg_scale=reg_scale, hydro=hydro,
+        hotspot=hotspot, n_threads=n_threads, verbose=verbose,
         inverse=iy_file is not None,
     )
 
