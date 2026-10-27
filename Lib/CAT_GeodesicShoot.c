@@ -1079,6 +1079,7 @@ typedef struct
     float *fp;      /* subject intensity pulled through y */
     double *coef;   /* B-spline coefficients of the template intensity */
     double lambda;  /* < 0: set at the first iteration of the level */
+    int tissue;     /* tissue classes are registered as well */
     double c[ICH_MAXDEG + 1];
     double ll, sd;  /* last matching term and weighted residual SD */
 } Intensity;
@@ -1256,9 +1257,16 @@ ich_update(Intensity *I, const int d[3], const float *y, const float *dt,
     }
     if (I->lambda < 0)
     {
-        double tr = 0.0;
-        for (i = 0; i < n; i++) tr += (double)A[i] + A[n + i] + A[2 * n + i];
-        I->lambda = (sa > 0) ? weight * tr / sa : 0.0;
+        /* with tissue classes, weight times the curvature of their term;
+         * without, weight times the ML precision 1/sigma^2 */
+        if (I->tissue)
+        {
+            double tr = 0.0;
+            for (i = 0; i < n; i++) tr += (double)A[i] + A[n + i] + A[2 * n + i];
+            I->lambda = (sa > 0) ? weight * tr / sa : 0.0;
+        }
+        else
+            I->lambda = (sr > 0) ? weight * sw / sr : 0.0;
     }
     for (i = 0; i < n; i++)
     {
@@ -1328,7 +1336,11 @@ shoot_update(Shoot *S, const TplDeriv *T, const float *f, float *u,
     parallel_for(T->d[2], S->nthreads, derivs_range, &dc);
     for (z = 0; z < T->d[2]; z++) ll += lls[z];
     free(lls);
-    if (I && I->on) ich_update(I, T->d, y, dt, b, A, ich->weight, ich->degree);
+    if (I && I->on)
+    {
+        ich_update(I, T->d, y, dt, b, A, ich->weight, ich->degree);
+        if (!I->tissue) ll = I->ll;
+    }
 
     gw_vel2mom(T->d, u, prm, m0);
     for (i = 0; i < 3 * n; i++) l2 += (double)(m0[i] * u[i]);
@@ -1526,12 +1538,34 @@ vec_min_finite(const float *v, size_t n)
     return m;
 }
 
+/* Template of a coarser level, derived from the final one by Gaussian
+ * smoothing (FWHM in mm): nvol volumes of grid d with voxel-to-world tmat. */
+static float *
+derive_level(const float *src, int nvol, const int d[3], const double tmat[16],
+             double fwhm, int nthreads)
+{
+    size_t n = (size_t)d[0] * d[1] * d[2];
+    float *out = (float *)malloc(sizeof(float) * nvol * n);
+    double fw[3];
+    int i, k;
+
+    if (!out) return NULL;
+    memcpy(out, src, sizeof(float) * nvol * n);
+    for (i = 0; i < 3; i++)
+        fw[i] = fwhm / sqrt(tmat[i] * tmat[i] + tmat[4 + i] * tmat[4 + i] +
+                            tmat[8 + i] * tmat[8 + i]);
+    if (fwhm > 0)
+        for (k = 0; k < nvol; k++) spm_smooth_vol(NULL, out + (size_t)k * n, d, fw, nthreads);
+    return out;
+}
+
 /* The intensity channel of one level: the subject's intensity sampled like
  * the tissue maps, the template's smoothed and sampled like the class
  * templates, and the weight sampled from the template grid. */
 static int
-ich_level(Intensity *I, const CAT_VolShootIntensity *ich, int ti, const Level *Lv,
-          const int dims[3], const int tdims[3], double tmpres, int nthreads)
+ich_level(Intensity *I, const CAT_VolShootIntensity *ich, const float *tpl, int ti,
+          const Level *Lv, const int dims[3], const int tdims[3], double tmpres,
+          int nthreads)
 {
     size_t n_in = (size_t)dims[0] * dims[1] * dims[2];
     size_t ntpl = (size_t)tdims[0] * tdims[1] * tdims[2], v;
@@ -1541,7 +1575,7 @@ ich_level(Intensity *I, const CAT_VolShootIntensity *ich, int ti, const Level *L
     int ret;
 
     I->on = 0;
-    if (!ich || !ich->img || !ich->tpl[ti]) return 0;
+    if (!ich || !ich->img || !tpl) return 0;
     I->n = (size_t)Lv->rd[0] * Lv->rd[1] * Lv->rd[2];
     I->lambda = -1.0;
     dbuf = (double *)malloc(sizeof(double) * nb);
@@ -1567,7 +1601,7 @@ ich_level(Intensity *I, const CAT_VolShootIntensity *ich, int ti, const Level *L
         if (!isfinite(I->fi[v]) || !(fbuf[v] > 0.999f)) I->fi[v] = NAN;
 
     fw[0] = fw[1] = fw[2] = Lv->res / tmpres;
-    for (v = 0; v < ntpl; v++) dbuf[v] = (double)ich->tpl[ti][v];
+    for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[v];
     spm_smooth_vol(dbuf, NULL, tdims, fw, nthreads);
     sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, fbuf, nthreads);
     mn = vec_min_finite(fbuf, I->n);
@@ -1633,18 +1667,26 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
     double prm[8], ll[2] = {0, 0}, llo[2];
     int int_N = 1, hydro = 0, ng = 0, old_threads = 0;
     const double scale = 0.8; /* sd.scale */
+    const double level_fwhm[NLEV] = CAT_SHOOT_LEVEL_FWHM;
+    const float *tpl[NLEV], *itpl[NLEV];
+    float *tpl_own[NLEV], *itpl_own[NLEV];
+    int has_ich = (ich && ich->img);
 
     memset(&S, 0, sizeof(S));
     memset(&T, 0, sizeof(T));
     memset(&I, 0, sizeof(I));
     for (k = 0; k < MAXCLS; k++) coef[k] = NULL;
+    for (k = 0; k < NLEV; k++) tpl_own[k] = itpl_own[k] = NULL;
     if (opts_in) opts = *opts_in;
     else CAT_VolShootOptionsInit(&opts);
     if (info) memset(info, 0, sizeof(*info));
-    if (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || opts.nits < 3 ||
-        !cls || !templates || !y_out || !(opts.reg_scale > 0))
+    if (opts.nits < 3 || !y_out || !(opts.reg_scale > 0)) return 1;
+    if (n_cls == 0 ? !has_ich
+                   : (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || !cls || !templates ||
+                      !templates[NLEV - 1]))
         return 1;
-    if (ich && ich->img && (ich->degree < 1 || ich->degree > ICH_MAXDEG || !(ich->weight >= 0)))
+    if (has_ich && (!ich->tpl[NLEV - 1] || ich->degree < 1 || ich->degree > ICH_MAXDEG ||
+                    !(ich->weight >= 0) || ich->from < 0 || ich->from >= NLEV))
         return 1;
 
     nthreads = (opts.n_threads > 0) ? opts.n_threads : cat_parallel_nthreads(1 << 20);
@@ -1653,6 +1695,33 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
     old_threads = spm_shoot_get_threads();
     spm_shoot_set_threads(nthreads);
     spm_shoot_clear_error();
+
+    /* the templates of the levels; those not given are the final one smoothed */
+    for (k = 0; k < NLEV; k++)
+    {
+        tpl[k] = (n1 > 0) ? templates[k] : NULL;
+        itpl[k] = (has_ich && k >= ich->from) ? ich->tpl[k] : NULL;
+        if (k == NLEV - 1) continue;
+        if (n1 > 0 && !tpl[k])
+        {
+            if (!(tpl_own[k] = derive_level(templates[NLEV - 1], n1, tdims, tmat, level_fwhm[k], nthreads)))
+            {
+                ret = 2;
+                goto done;
+            }
+            tpl[k] = tpl_own[k];
+        }
+        if (has_ich && k >= ich->from && !itpl[k])
+        {
+            if (!(itpl_own[k] = derive_level(ich->tpl[NLEV - 1], 1, tdims, tmat, level_fwhm[k], nthreads)))
+            {
+                ret = 2;
+                goto done;
+            }
+            itpl[k] = itpl_own[k];
+        }
+    }
+    I.tissue = (n1 > 0);
 
     nii2spm(mat, M0);
     nii2spm(tmat, tmpM);
@@ -1816,7 +1885,7 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
     msk = (unsigned char *)malloc(nmax);
     for (k = 0; k < MAXCLS; k++) coef[k] = (double *)malloc(sizeof(double) * nmax);
     if (!f || !u || !y || !J || !dt || !work || !t1 || !t2 || !t3 || !bgexp ||
-        !msk || shoot_alloc(&S, nmax) || (ich && ich->img && ich_alloc(&I, nmax)))
+        !msk || shoot_alloc(&S, nmax) || (has_ich && ich_alloc(&I, nmax)))
     {
         ret = 2;
         goto done;
@@ -1887,7 +1956,7 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 size_t v;
                 float *gk = t1;
                 double mn;
-                for (v = 0; v < ntpl; v++) dbuf[v] = (double)templates[ti][k * ntpl + v];
+                for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[ti][k * ntpl + v];
                 spm_smooth_vol(dbuf, NULL, tdims, fw, nthreads);
                 sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, gk, nthreads);
                 mn = vec_min_finite(gk, n);
@@ -2023,7 +2092,7 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 for (k = 0; k < n1; k++)
                 {
                     float *tk = t1;
-                    for (v = 0; v < ntpl; v++) dbuf[v] = (double)templates[ti][k * ntpl + v];
+                    for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[ti][k * ntpl + v];
                     sample_volume(dbuf, tdims, Lv->Mads, Lv->rd, tk, nthreads);
                     mn = vec_min_finite(tk, n);
                     for (v = 0; v < n; v++)
@@ -2050,15 +2119,20 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
             /* template derivatives of this level */
             ret = tplderiv_build(&T, Lv->rd, ng, coef);
             if (ret) goto done;
-            if (ich && ich->img)
+            if (has_ich)
             {
-                ret = ich_level(&I, ich, ti, Lv, dims, tdims, tmpres, nthreads);
+                ret = ich_level(&I, ich, itpl[ti], ti, Lv, dims, tdims, tmpres, nthreads);
                 if (ret) goto done;
             }
             /* CAT takes g{3} as the background, which it is for two classes
              * (with the ventricle class, it is that class); with a CSF class
              * the background is the last one */
             for (i = 0; i < (int)n; i++) bgexp[i] = (float)exp(coef[(n1 == 2) ? 2 : n1][i]);
+            /* without tissue classes the one class left is background
+             * everywhere, which would keep CAT's hot-spot filter from acting
+             * at all: treat everything as brain instead */
+            if (n1 == 0)
+                for (i = 0; i < (int)n; i++) bgexp[i] = 0.0f;
 
             ll[0] = ll[1] = 0;
             if (it == 1)
@@ -2283,6 +2357,11 @@ done:
     for (k = 0; k < MAXCLS; k++) free(coef[k]);
     tplderiv_free(&T);
     ich_free(&I);
+    for (k = 0; k < NLEV; k++)
+    {
+        free(tpl_own[k]);
+        free(itpl_own[k]);
+    }
     shoot_free(&S);
     spm_shoot_set_threads(old_threads);
     return ret;

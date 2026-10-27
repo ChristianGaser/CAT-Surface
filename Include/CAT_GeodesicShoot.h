@@ -20,6 +20,13 @@
 #define CAT_SHOOT_MAXCLASSES 3
 
 /**
+ * FWHM in mm by which the template of a level is derived from the final one
+ * when only that is given: CAT's MNI152NLin2009cAsym series is close to it
+ * (Template_k_GS ~ Template_4_GS smoothed by these, R^2 0.96-0.999).
+ */
+#define CAT_SHOOT_LEVEL_FWHM {6.5, 3.0, 1.5, 1.0, 0.0}
+
+/**
  * \brief Settings of CAT_VolShoot().
  *
  * Initialise with CAT_VolShootOptionsInit().  The defaults are the setting
@@ -68,25 +75,36 @@ typedef struct
 /**
  * \brief An intensity channel matched by sum of squares (experimental).
  *
- * Added to the multinomial matching of the tissue classes at the levels that
- * have a template intensity.  The template intensity is mapped to the
- * subject's by a polynomial refitted at every iteration, and the term is
- * scaled so that \p weight 1 gives it the summed curvature of the
- * multinomial term at the first iteration of the level.
+ * A label or T1 image matched to a template intensity from level \p from on,
+ * next to the multinomial matching of the tissue classes or instead of it.
+ * The template intensity is mapped to the subject's by a polynomial refitted
+ * at every iteration.  With tissue classes, \p weight 1 gives the term the
+ * summed curvature of the multinomial term at the first iteration of the
+ * level; without them, \p weight multiplies the maximum-likelihood precision
+ * 1/sigma^2 of the residuals at that iteration.  Voxels where the subject's
+ * image is not positive (outside a skull-stripped brain) do not count.
  */
 typedef struct
 {
     const float *img;                       /**< subject intensity, input grid */
     const float *tpl[CAT_SHOOT_NTEMPLATES]; /**< template intensity per level on
-                                                 the template grid; NULL: the
-                                                 level runs without it */
+                                                 the template grid; tpl[4] is
+                                                 required, a NULL level is
+                                                 tpl[4] smoothed by
+                                                 CAT_SHOOT_LEVEL_FWHM */
     const float *mask;   /**< weight on the template grid (NULL: 1 everywhere) */
-    double weight;       /**< curvature relative to the multinomial term */
+    double weight;       /**< see above */
     int degree;          /**< degree of the intensity mapping (1..5) */
+    int from;            /**< first level (0..4) with the term */
 } CAT_VolShootIntensity;
 
 /**
  * \brief CAT_VolShoot() with an optional intensity channel (experimental).
+ *
+ * As CAT_VolShoot(), with two extensions for testing: \p n_cls may be 0
+ * (\p cls and \p templates NULL) when \p ich is given, which registers by
+ * the intensity alone; and a NULL entry of \p templates below the last is
+ * the final template smoothed by CAT_SHOOT_LEVEL_FWHM.
  *
  * \param ich (in) intensity channel; NULL runs CAT_VolShoot() unchanged
  * \return as CAT_VolShoot()

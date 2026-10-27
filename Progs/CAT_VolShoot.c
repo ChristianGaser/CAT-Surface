@@ -70,17 +70,17 @@ static ArgvInfo argTable[] = {
     {"-no-hotspot", ARGV_CONSTANT, (char *)1, (char *)&no_hotspot,
      "Do not filter local Jacobian hot spots of the velocity."},
     {"-t1", ARGV_STRING, (char *)1, (char *)&t1_file,
-     "Experimental: intensity image on the input grid, matched by sum of squares."},
+     "Experimental: intensity image (label or T1) on the input grid, matched by sum\n\t\t\tof squares; without GM/WM maps the registration uses it alone."},
     {"-t1-template", ARGV_STRING, (char *)1, (char *)&t1_tpl_file,
-     "Template intensity on the template grid."},
+     "Its template: a name with _0_ is a series (_1_ .. _4_), any other name the\n\t\t\tfinal level; missing levels are the final one smoothed."},
     {"-t1-mask", ARGV_STRING, (char *)1, (char *)&t1_mask_file,
      "Weight of the intensity term on the template grid."},
     {"-t1-weight", ARGV_FLOAT, (char *)1, (char *)&t1_weight,
-     "Curvature of the intensity term relative to the tissue term."},
+     "With GM/WM maps: curvature of the intensity term relative to theirs; without:\n\t\t\tfactor on the ML precision 1/sigma^2."},
     {"-t1-degree", ARGV_INT, (char *)1, (char *)&t1_degree,
      "Degree of the polynomial intensity mapping."},
     {"-t1-from", ARGV_INT, (char *)1, (char *)&t1_from,
-     "First level (0..4) with the intensity term; default: the last only.  A level\n\t\t\tk < 4 reads <template>_L<k>.nii when that file exists."},
+     "First level (0..4) with the intensity term (default: the last only; 0\n\t\t\twithout GM/WM maps)."},
     {"-threads", ARGV_INT, (char *)1, (char *)&opts.n_threads,
      "Number of worker threads (default: the library's)."},
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&opts.verbose,
@@ -95,13 +95,17 @@ usage(const char *executable)
     CAT_VolShootOptionsInit(&d);
     fprintf(stderr,
             "\nUsage: %s [options] <GM> <WM> <Template_0> [<Template_1> .. <Template_4>]\n"
+            "       %s [options] -t1 <image> -t1-template <template>\n"
             "          -y <y.nii> [-iy <iy.nii>] [-jac <jac.nii>]\n\n"
             "Geodesic shooting of GM and WM maps onto a series of five shooting\n"
             "templates, as CAT12/CAT26 runs it:\n\n"
             "    %s -y y_sub.nii rp1sub.nii rp2sub.nii Template_0_GS.nii\n\n"
-            "With a single template its name must contain _0_; the other four are\n"
-            "found by replacing that with _1_ .. _4_.  The maps are probabilities in\n"
-            "[0, 1]; GM and WM are the first two volumes of every template.\n\n"
+            "A single template whose name contains _0_ names the series: the other\n"
+            "four replace that with _1_ .. _4_.  Any other name is the final level,\n"
+            "and the coarser ones are derived from it by smoothing.  The maps are\n"
+            "probabilities in [0, 1]; GM and WM are the first two volumes of every\n"
+            "template.  Experimental: -t1 adds a label or T1 image, or replaces the\n"
+            "maps when they are not given.\n\n"
             "Options (defaults in brackets):\n"
             "  -regstr <v>     CAT's optimised shooting: 1 all iterations, 0.5 CAT's\n"
             "                  early level switching; 4 SPM's default schedule [%g]\n"
@@ -115,7 +119,7 @@ usage(const char *executable)
             "  -no-hotspot     no filtering of Jacobian hot spots\n"
             "  -threads <n>    worker threads\n"
             "  -verbose        print the iteration log\n\n",
-            executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale);
+            executable, executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale);
 }
 
 /* sto_xyz of a header as a row-major double matrix */
@@ -233,79 +237,61 @@ template_name(const char *first, int k)
     return name;
 }
 
-int
-main(int argc, char *argv[])
+static int
+file_exists(const char *file)
 {
-    const float *cls[3], *tpl[CAT_SHOOT_NTEMPLATES];
-    float *gm, *wm, *lesion = NULL, *y, *iy = NULL, *jac = NULL;
-    nifti_image *hdr_in, *hdr_tpl = NULL;
-    double mat[16], tmat[16], Aff[16];
-    int dims[3], d2[3], tdims[3], k, nvol;
-    char *tnames[CAT_SHOOT_NTEMPLATES];
-    CAT_VolShootInfo info;
-    CAT_VolShootIntensity ich;
-    size_t nt;
+    FILE *fp = fopen(file, "r");
+    if (!fp) return 0;
+    fclose(fp);
+    return 1;
+}
 
-    CAT_VolShootOptionsInit(&opts);
-    if (ParseArgv(&argc, argv, argTable, 0) ||
-        cat_check_unknown_options(argc, argv, argv[0]) ||
-        (argc != 4 && argc != 8) ||
-        (!y_file && !iy_file && !jac_file))
-    {
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    opts.hydro = !no_hydro;
-    opts.hotspot = !no_hotspot;
+/* The templates of the levels from first on.  A name with _0_ is a series
+ * (level k replaces it with _k_; missing files stay NULL), any other name the
+ * final level.  NULL levels are derived from the final one by the library.
+ * The grid and header are those of the first template read. */
+static void
+read_series(const char *name, int nvol_min, int first, const float *tpl[],
+            int tdims[3], double tmat[16], nifti_image **hdr)
+{
+    int k, d2[3], nvol, have = 0;
 
-    if (argc == 4)
-    {
-        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
-            if (!(tnames[k] = template_name(argv[3], k)))
-            {
-                fprintf(stderr, "Error: %s has no _0_ to derive the other templates from.\n",
-                        argv[3]);
-                exit(EXIT_FAILURE);
-            }
-    }
-    else
-        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++) tnames[k] = argv[3 + k];
-
-    gm = read_map(argv[1], dims, NULL, &hdr_in);
-    wm = read_map(argv[2], d2, NULL, NULL);
-    if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
-    {
-        fprintf(stderr, "Error: %s and %s differ in size.\n", argv[1], argv[2]);
-        exit(EXIT_FAILURE);
-    }
-    header_matrix(hdr_in, mat);
-    cls[0] = gm;
-    cls[1] = wm;
-    if (csf_file)
-    {
-        cls[2] = read_map(csf_file, d2, NULL, NULL);
-        if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
-        {
-            fprintf(stderr, "Error: %s and %s differ in size.\n", argv[1], csf_file);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+    for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++) tpl[k] = NULL;
+    for (k = first; k < CAT_SHOOT_NTEMPLATES; k++)
     {
         nifti_image *h;
-        tpl[k] = read_map(tnames[k], d2, &nvol, &h);
-        if (nvol < (csf_file ? 3 : 2))
+        char *tn = NULL;
+        if (strstr(name, "_0_"))
+            tn = template_name(name, k);
+        else if (k == CAT_SHOOT_NTEMPLATES - 1)
         {
-            fprintf(stderr, "Error: %s needs GM, WM%s as its first volumes.\n", tnames[k],
-                    csf_file ? " and CSF" : "");
+            tn = (char *)malloc(strlen(name) + 1);
+            strcpy(tn, name);
+        }
+        if (!tn || !file_exists(tn))
+        {
+            if (k == CAT_SHOOT_NTEMPLATES - 1)
+            {
+                fprintf(stderr, "Error: the final template %s is missing.\n", tn ? tn : name);
+                exit(EXIT_FAILURE);
+            }
+            if (opts.verbose) printf("level %d: the final template smoothed\n", k);
+            free(tn);
+            continue;
+        }
+        tpl[k] = read_map(tn, d2, &nvol, &h);
+        if (nvol < nvol_min)
+        {
+            fprintf(stderr, "Error: %s needs %d volumes.\n", tn, nvol_min);
             exit(EXIT_FAILURE);
         }
-        if (k == 0)
+        if (!have)
         {
-            memcpy(tdims, d2, sizeof(tdims));
+            memcpy(tdims, d2, sizeof(int) * 3);
             header_matrix(h, tmat);
-            hdr_tpl = h;
+            if (hdr) *hdr = h;
+            else nifti_image_free(h);
+            have = 1;
         }
         else
         {
@@ -316,6 +302,130 @@ main(int argc, char *argv[])
             }
             nifti_image_free(h);
         }
+        if (opts.verbose) printf("level %d: template %s\n", k, tn);
+        free(tn);
+    }
+}
+
+int
+main(int argc, char *argv[])
+{
+    const float *cls[3], *tpl[CAT_SHOOT_NTEMPLATES];
+    float *lesion = NULL, *y, *iy = NULL, *jac = NULL;
+    nifti_image *hdr_in = NULL, *hdr_tpl = NULL;
+    double mat[16], tmat[16], Aff[16];
+    int dims[3], d2[3], tdims[3], k, n_cls = 0;
+    CAT_VolShootInfo info;
+    CAT_VolShootIntensity ich;
+    size_t nt;
+
+    CAT_VolShootOptionsInit(&opts);
+    if (ParseArgv(&argc, argv, argTable, 0) ||
+        cat_check_unknown_options(argc, argv, argv[0]) ||
+        !((argc == 1 && t1_file) || argc == 4 || argc == 8) ||
+        (!y_file && !iy_file && !jac_file))
+    {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    if (!t1_file != !t1_tpl_file)
+    {
+        fprintf(stderr, "Error: -t1 and -t1-template go together.\n");
+        exit(EXIT_FAILURE);
+    }
+    opts.hydro = !no_hydro;
+    opts.hotspot = !no_hotspot;
+    for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++) tpl[k] = NULL;
+
+    /* the tissue maps and their templates */
+    if (argc > 1)
+    {
+        n_cls = csf_file ? 3 : 2;
+        cls[0] = read_map(argv[1], dims, NULL, &hdr_in);
+        header_matrix(hdr_in, mat);
+        for (k = 1; k < n_cls; k++)
+        {
+            cls[k] = read_map((k == 1) ? argv[2] : csf_file, d2, NULL, NULL);
+            if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
+            {
+                fprintf(stderr, "Error: the tissue maps differ in size.\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (argc == 4)
+            read_series(argv[3], n_cls, 0, tpl, tdims, tmat, &hdr_tpl);
+        else
+            for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+            {
+                int nvol;
+                nifti_image *h;
+                tpl[k] = read_map(argv[3 + k], d2, &nvol, &h);
+                if (nvol < n_cls)
+                {
+                    fprintf(stderr, "Error: %s needs %d volumes.\n", argv[3 + k], n_cls);
+                    exit(EXIT_FAILURE);
+                }
+                if (k == 0)
+                {
+                    memcpy(tdims, d2, sizeof(tdims));
+                    header_matrix(h, tmat);
+                    hdr_tpl = h;
+                }
+                else
+                {
+                    if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+                    {
+                        fprintf(stderr, "Error: the templates differ in size.\n");
+                        exit(EXIT_FAILURE);
+                    }
+                    nifti_image_free(h);
+                }
+            }
+    }
+
+    /* the intensity channel; without tissue maps it defines both grids */
+    if (t1_file)
+    {
+        int td[3];
+        double tm[16];
+        float *img;
+        memset(&ich, 0, sizeof(ich));
+        if (!n_cls && t1_from == CAT_SHOOT_NTEMPLATES - 1) t1_from = 0;
+        img = read_map(t1_file, d2, NULL, n_cls ? NULL : &hdr_in);
+        if (n_cls && (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2]))
+        {
+            fprintf(stderr, "Error: %s is not on the grid of %s.\n", t1_file, argv[1]);
+            exit(EXIT_FAILURE);
+        }
+        if (!n_cls)
+        {
+            memcpy(dims, d2, sizeof(dims));
+            header_matrix(hdr_in, mat);
+        }
+        read_series(t1_tpl_file, 1, t1_from, ich.tpl, td, tm, n_cls ? NULL : &hdr_tpl);
+        if (n_cls && (td[0] != tdims[0] || td[1] != tdims[1] || td[2] != tdims[2]))
+        {
+            fprintf(stderr, "Error: %s is not on the template grid.\n", t1_tpl_file);
+            exit(EXIT_FAILURE);
+        }
+        if (!n_cls)
+        {
+            memcpy(tdims, td, sizeof(tdims));
+            memcpy(tmat, tm, sizeof(tmat));
+        }
+        if (t1_mask_file)
+        {
+            ich.mask = read_map(t1_mask_file, d2, NULL, NULL);
+            if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+            {
+                fprintf(stderr, "Error: %s is not on the template grid.\n", t1_mask_file);
+                exit(EXIT_FAILURE);
+            }
+        }
+        ich.img = img;
+        ich.weight = t1_weight;
+        ich.degree = t1_degree;
+        ich.from = t1_from;
     }
 
     if (affine_file && read_matrix(affine_file, Aff))
@@ -328,7 +438,7 @@ main(int argc, char *argv[])
         lesion = read_map(lesion_file, d2, NULL, NULL);
         if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
         {
-            fprintf(stderr, "Error: %s is not on the grid of %s.\n", lesion_file, argv[1]);
+            fprintf(stderr, "Error: %s is not on the input grid.\n", lesion_file);
             exit(EXIT_FAILURE);
         }
     }
@@ -343,74 +453,9 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    if (t1_file)
-    {
-        float *img, *timg, *tmask = NULL;
-        if (!t1_tpl_file)
-        {
-            fprintf(stderr, "Error: -t1 needs -t1-template.\n");
-            exit(EXIT_FAILURE);
-        }
-        img = read_map(t1_file, d2, NULL, NULL);
-        if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
-        {
-            fprintf(stderr, "Error: %s is not on the grid of %s.\n", t1_file, argv[1]);
-            exit(EXIT_FAILURE);
-        }
-        timg = read_map(t1_tpl_file, d2, NULL, NULL);
-        if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
-        {
-            fprintf(stderr, "Error: %s is not on the template grid.\n", t1_tpl_file);
-            exit(EXIT_FAILURE);
-        }
-        if (t1_mask_file)
-        {
-            tmask = read_map(t1_mask_file, d2, NULL, NULL);
-            if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
-            {
-                fprintf(stderr, "Error: %s is not on the template grid.\n", t1_mask_file);
-                exit(EXIT_FAILURE);
-            }
-        }
-        memset(&ich, 0, sizeof(ich));
-        ich.img = img;
-        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
-        {
-            char *lname, *dot;
-            FILE *fp;
-            ich.tpl[k] = (k >= t1_from) ? timg : NULL;
-            if (k < t1_from || k == CAT_SHOOT_NTEMPLATES - 1) continue;
-            /* <template>_L<k>.nii: the template of a coarser level, if given */
-            lname = (char *)malloc(strlen(t1_tpl_file) + 8);
-            strcpy(lname, t1_tpl_file);
-            dot = strstr(lname, ".nii");
-            if (dot)
-            {
-                char ext[16];
-                strncpy(ext, strstr(t1_tpl_file, ".nii"), sizeof(ext) - 1);
-                ext[sizeof(ext) - 1] = '\0';
-                sprintf(dot, "_L%d%s", k, ext);
-                if ((fp = fopen(lname, "r")) != NULL)
-                {
-                    fclose(fp);
-                    ich.tpl[k] = read_map(lname, d2, NULL, NULL);
-                    if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
-                    {
-                        fprintf(stderr, "Error: %s is not on the template grid.\n", lname);
-                        exit(EXIT_FAILURE);
-                    }
-                    if (opts.verbose) printf("level %d: intensity template %s\n", k, lname);
-                }
-            }
-            free(lname);
-        }
-        ich.mask = tmask;
-        ich.weight = t1_weight;
-        ich.degree = t1_degree;
-    }
-
-    k = CAT_VolShootEx(cls, csf_file ? 3 : 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
-                       reg_vx, lesion, t1_file ? &ich : NULL, &opts, y, iy, jac, &info);
+    k = CAT_VolShootEx(n_cls ? cls : NULL, n_cls, dims, mat, affine_file ? Aff : NULL,
+                       n_cls ? tpl : NULL, tdims, tmat, reg_vx, lesion,
+                       t1_file ? &ich : NULL, &opts, y, iy, jac, &info);
     if (k)
     {
         fprintf(stderr, "Error: shooting failed (%s).\n",
