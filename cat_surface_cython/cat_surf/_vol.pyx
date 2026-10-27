@@ -1049,7 +1049,8 @@ def vol_marching_cubes(volume, double threshold=0.5,
     n_median_filter : int
         Iterations of median filtering for artefact regions (default 2).
     n_iter : int
-        Maximum number of topology-correction iterations (default 5).
+        Topology-correction iterations with the median filter (default 5);
+        a surface that is not genus 0 by then gets up to 5 more without it.
     strength_sulci : float
         Strength of the buried-sulcus correction on the PPM, and its
         on/off gate (default 0 = off).  Raising it enables the
