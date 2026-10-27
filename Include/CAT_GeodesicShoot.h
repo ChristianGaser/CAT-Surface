@@ -82,7 +82,8 @@ typedef struct
  * summed curvature of the multinomial term at the first iteration of the
  * level; without them, \p weight multiplies the maximum-likelihood precision
  * 1/sigma^2 of the residuals at that iteration.  Voxels where the subject's
- * image is not positive (outside a skull-stripped brain) do not count.
+ * image is not positive (outside a skull-stripped brain) do not count, nor
+ * do those of a lesion mask passed to CAT_VolShootEx().
  */
 typedef struct
 {
@@ -116,6 +117,22 @@ int CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                    const float *lesion, const CAT_VolShootIntensity *ich,
                    const CAT_VolShootOpts *opts, float *y, float *iy,
                    float *jac, CAT_VolShootInfo *info);
+
+/**
+ * \brief Label template of a shooting template: 1 + GM + 2 WM.
+ *
+ * The partial-volume label of CAT and T1Prep (CSF 1, GM 2, WM 3) that the
+ * tissue probabilities of a shooting template predict, as the template of a
+ * label image registered with CAT_VolShootEx().  Where the template holds
+ * neither GM nor WM -- CSF and the space around the brain alike -- it is 1.
+ * No brain mask is needed: the subject's background (label 0) takes no part
+ * in the matching, so the edge of its skull-strip exerts no force.
+ *
+ * \param tpl   (in)  template with GM and WM as its first two volumes
+ * \param tdims (in)  template dimensions
+ * \param label (out) tdims: the label template
+ */
+void CAT_VolShootLabelTemplate(const float *tpl, const int tdims[3], float *label);
 
 /**
  * \brief Fill a CAT_VolShootOpts with the defaults (best label accuracy).

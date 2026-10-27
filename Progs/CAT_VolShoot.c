@@ -9,7 +9,8 @@
  * CAT26 runs it (cat_main_registration.m, run_Shooting).  This is a thin CLI
  * wrapper around CAT_VolShoot().
  *
- * Input  : GM and WM maps (probabilities) and the five shooting templates.
+ * Input  : GM and WM maps (probabilities), or with -label a partial-volume
+ *          label image, and the five shooting templates.
  * Output : with -y the deformation in SPM's y_ format, with -iy its inverse,
  *          with -jac the Jacobian determinants.
  */
@@ -31,16 +32,12 @@ static char *iy_file = NULL;
 static char *jac_file = NULL;
 static char *affine_file = NULL;
 static char *lesion_file = NULL;
-static char *csf_file = NULL;
 static double reg_vx = 0.0;
 static int no_hydro = 0;
 static int no_hotspot = 0;
-static char *t1_file = NULL;
-static char *t1_tpl_file = NULL;
-static char *t1_mask_file = NULL;
-static double t1_weight = 1.0;
-static int t1_degree = 3;
-static int t1_from = CAT_SHOOT_NTEMPLATES - 1;
+static char *label_file = NULL;
+#define LABEL_WEIGHT 0.25
+static double label_weight = LABEL_WEIGHT;
 
 static ArgvInfo argTable[] = {
     {"-y", ARGV_STRING, (char *)1, (char *)&y_file,
@@ -59,28 +56,18 @@ static ArgvInfo argTable[] = {
      "Factor on CAT's regularisation (default 0.5, CAT: 1); smaller values allow\n\t\t\tmore local deformation."},
     {"-affine", ARGV_STRING, (char *)1, (char *)&affine_file,
      "Text file with the 4x4 input-to-template world matrix (CAT's res.Affine);\n\t\t\tdefault: identity, i.e. maps already in template space."},
-    {"-csf", ARGV_STRING, (char *)1, (char *)&csf_file,
-     "Experimental: CSF map as a third class; the templates must hold CSF as their\n\t\t\tthird volume."},
     {"-lesion", ARGV_STRING, (char *)1, (char *)&lesion_file,
-     "Lesion mask on the input grid; the template replaces the tissue there."},
+     "Lesion mask on the input grid; the template replaces the tissue there, and\n\t\t\ta label image is ignored there."},
     {"-reg-vx", ARGV_FLOAT, (char *)1, (char *)&reg_vx,
      "Voxel size of the regulariser in mm; 0 (default) uses the template's\n\t\t\t(CAT always takes its TPM's 1.5 mm)."},
     {"-no-hydro", ARGV_CONSTANT, (char *)1, (char *)&no_hydro,
      "Do not model very large ventricles as a class of their own."},
     {"-no-hotspot", ARGV_CONSTANT, (char *)1, (char *)&no_hotspot,
      "Do not filter local Jacobian hot spots of the velocity."},
-    {"-t1", ARGV_STRING, (char *)1, (char *)&t1_file,
-     "Experimental: intensity image (label or T1) on the input grid, matched by sum\n\t\t\tof squares; without GM/WM maps the registration uses it alone."},
-    {"-t1-template", ARGV_STRING, (char *)1, (char *)&t1_tpl_file,
-     "Its template: a name with _0_ is a series (_1_ .. _4_), any other name the\n\t\t\tfinal level; missing levels are the final one smoothed."},
-    {"-t1-mask", ARGV_STRING, (char *)1, (char *)&t1_mask_file,
-     "Weight of the intensity term on the template grid."},
-    {"-t1-weight", ARGV_FLOAT, (char *)1, (char *)&t1_weight,
-     "With GM/WM maps: curvature of the intensity term relative to theirs; without:\n\t\t\tfactor on the ML precision 1/sigma^2."},
-    {"-t1-degree", ARGV_INT, (char *)1, (char *)&t1_degree,
-     "Degree of the polynomial intensity mapping."},
-    {"-t1-from", ARGV_INT, (char *)1, (char *)&t1_from,
-     "First level (0..4) with the intensity term (default: the last only; 0\n\t\t\twithout GM/WM maps)."},
+    {"-label", ARGV_STRING, (char *)1, (char *)&label_file,
+     "Experimental: register a partial-volume label image (0 background, CSF 1, GM 2,\n\t\t\tWM 3) on the input grid instead of GM/WM maps, by sum of squares against\n\t\t\tthe label the templates predict (1 + GM + 2 WM)."},
+    {"-label-weight", ARGV_FLOAT, (char *)1, (char *)&label_weight,
+     "Factor on the ML precision 1/sigma^2 of the label residuals."},
     {"-threads", ARGV_INT, (char *)1, (char *)&opts.n_threads,
      "Number of worker threads (default: the library's)."},
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&opts.verbose,
@@ -95,7 +82,7 @@ usage(const char *executable)
     CAT_VolShootOptionsInit(&d);
     fprintf(stderr,
             "\nUsage: %s [options] <GM> <WM> <Template_0> [<Template_1> .. <Template_4>]\n"
-            "       %s [options] -t1 <image> -t1-template <template>\n"
+            "       %s [options] -label <label> <Template_0> [<Template_1> .. <Template_4>]\n"
             "          -y <y.nii> [-iy <iy.nii>] [-jac <jac.nii>]\n\n"
             "Geodesic shooting of GM and WM maps onto a series of five shooting\n"
             "templates, as CAT12/CAT26 runs it:\n\n"
@@ -104,8 +91,11 @@ usage(const char *executable)
             "four replace that with _1_ .. _4_.  Any other name is the final level,\n"
             "and the coarser ones are derived from it by smoothing.  The maps are\n"
             "probabilities in [0, 1]; GM and WM are the first two volumes of every\n"
-            "template.  Experimental: -t1 adds a label or T1 image, or replaces the\n"
-            "maps when they are not given.\n\n"
+            "template.\n\n"
+            "Experimental: -label registers a partial-volume label image (0 background,\n"
+            "CSF 1, GM 2, WM 3) instead of the maps, against the label each template\n"
+            "predicts, 1 + GM + 2 WM.  The background takes no part, so no brain mask\n"
+            "is needed.\n\n"
             "Options (defaults in brackets):\n"
             "  -regstr <v>     CAT's optimised shooting: 1 all iterations, 0.5 CAT's\n"
             "                  early level switching; 4 SPM's default schedule [%g]\n"
@@ -117,9 +107,12 @@ usage(const char *executable)
             "  -reg-vx <mm>    voxel size of the regulariser [template's]\n"
             "  -no-hydro       no separate class for very large ventricles\n"
             "  -no-hotspot     no filtering of Jacobian hot spots\n"
+            "  -label <file>   register this label image instead of the maps\n"
+            "  -label-weight <f> factor on the ML precision of the label term [%g]\n"
             "  -threads <n>    worker threads\n"
             "  -verbose        print the iteration log\n\n",
-            executable, executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale);
+            executable, executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale,
+            LABEL_WEIGHT);
 }
 
 /* sto_xyz of a header as a row-major double matrix */
@@ -310,122 +303,99 @@ read_series(const char *name, int nvol_min, int first, const float *tpl[],
 int
 main(int argc, char *argv[])
 {
-    const float *cls[3], *tpl[CAT_SHOOT_NTEMPLATES];
+    const float *cls[2], *tpl[CAT_SHOOT_NTEMPLATES];
     float *lesion = NULL, *y, *iy = NULL, *jac = NULL;
     nifti_image *hdr_in = NULL, *hdr_tpl = NULL;
     double mat[16], tmat[16], Aff[16];
-    int dims[3], d2[3], tdims[3], k, n_cls = 0;
+    int dims[3], d2[3], tdims[3], k, n_maps;
     CAT_VolShootInfo info;
     CAT_VolShootIntensity ich;
     size_t nt;
 
     CAT_VolShootOptionsInit(&opts);
     if (ParseArgv(&argc, argv, argTable, 0) ||
-        cat_check_unknown_options(argc, argv, argv[0]) ||
-        !((argc == 1 && t1_file) || argc == 4 || argc == 8) ||
-        (!y_file && !iy_file && !jac_file))
+        cat_check_unknown_options(argc, argv, argv[0]))
     {
         usage(argv[0]);
         exit(EXIT_FAILURE);
     }
-    if (!t1_file != !t1_tpl_file)
+    /* GM and WM before the templates, or nothing with a label image */
+    n_maps = label_file ? 0 : 2;
+    if (!(argc == n_maps + 2 || argc == n_maps + 6) || (!y_file && !iy_file && !jac_file))
     {
-        fprintf(stderr, "Error: -t1 and -t1-template go together.\n");
+        usage(argv[0]);
         exit(EXIT_FAILURE);
     }
     opts.hydro = !no_hydro;
     opts.hotspot = !no_hotspot;
-    for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++) tpl[k] = NULL;
 
-    /* the tissue maps and their templates */
-    if (argc > 1)
+    /* the subject */
+    memset(&ich, 0, sizeof(ich));
+    if (label_file)
+        ich.img = read_map(label_file, dims, NULL, &hdr_in);
+    else
     {
-        n_cls = csf_file ? 3 : 2;
         cls[0] = read_map(argv[1], dims, NULL, &hdr_in);
-        header_matrix(hdr_in, mat);
-        for (k = 1; k < n_cls; k++)
+        cls[1] = read_map(argv[2], d2, NULL, NULL);
+        if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
         {
-            cls[k] = read_map((k == 1) ? argv[2] : csf_file, d2, NULL, NULL);
-            if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
+            fprintf(stderr, "Error: the tissue maps differ in size.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    header_matrix(hdr_in, mat);
+
+    /* the templates */
+    if (argc == n_maps + 2)
+        read_series(argv[n_maps + 1], 2, 0, tpl, tdims, tmat, &hdr_tpl);
+    else
+        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+        {
+            int nvol;
+            nifti_image *h;
+            tpl[k] = read_map(argv[n_maps + 1 + k], d2, &nvol, &h);
+            if (nvol < 2)
             {
-                fprintf(stderr, "Error: the tissue maps differ in size.\n");
+                fprintf(stderr, "Error: %s needs GM and WM.\n", argv[n_maps + 1 + k]);
                 exit(EXIT_FAILURE);
             }
-        }
-        if (argc == 4)
-            read_series(argv[3], n_cls, 0, tpl, tdims, tmat, &hdr_tpl);
-        else
-            for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+            if (k == 0)
             {
-                int nvol;
-                nifti_image *h;
-                tpl[k] = read_map(argv[3 + k], d2, &nvol, &h);
-                if (nvol < n_cls)
+                memcpy(tdims, d2, sizeof(tdims));
+                header_matrix(h, tmat);
+                hdr_tpl = h;
+            }
+            else
+            {
+                if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
                 {
-                    fprintf(stderr, "Error: %s needs %d volumes.\n", argv[3 + k], n_cls);
+                    fprintf(stderr, "Error: the templates differ in size.\n");
                     exit(EXIT_FAILURE);
                 }
-                if (k == 0)
-                {
-                    memcpy(tdims, d2, sizeof(tdims));
-                    header_matrix(h, tmat);
-                    hdr_tpl = h;
-                }
-                else
-                {
-                    if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
-                    {
-                        fprintf(stderr, "Error: the templates differ in size.\n");
-                        exit(EXIT_FAILURE);
-                    }
-                    nifti_image_free(h);
-                }
+                nifti_image_free(h);
             }
-    }
+        }
+    nt = (size_t)tdims[0] * tdims[1] * tdims[2];
 
-    /* the intensity channel; without tissue maps it defines both grids */
-    if (t1_file)
+    /* the label templates predicted by the tissue templates; a level without
+     * a template is derived by the library, as for the maps */
+    if (label_file)
     {
-        int td[3];
-        double tm[16];
-        float *img;
-        memset(&ich, 0, sizeof(ich));
-        if (!n_cls && t1_from == CAT_SHOOT_NTEMPLATES - 1) t1_from = 0;
-        img = read_map(t1_file, d2, NULL, n_cls ? NULL : &hdr_in);
-        if (n_cls && (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2]))
+        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
         {
-            fprintf(stderr, "Error: %s is not on the grid of %s.\n", t1_file, argv[1]);
-            exit(EXIT_FAILURE);
-        }
-        if (!n_cls)
-        {
-            memcpy(dims, d2, sizeof(dims));
-            header_matrix(hdr_in, mat);
-        }
-        read_series(t1_tpl_file, 1, t1_from, ich.tpl, td, tm, n_cls ? NULL : &hdr_tpl);
-        if (n_cls && (td[0] != tdims[0] || td[1] != tdims[1] || td[2] != tdims[2]))
-        {
-            fprintf(stderr, "Error: %s is not on the template grid.\n", t1_tpl_file);
-            exit(EXIT_FAILURE);
-        }
-        if (!n_cls)
-        {
-            memcpy(tdims, td, sizeof(tdims));
-            memcpy(tmat, tm, sizeof(tmat));
-        }
-        if (t1_mask_file)
-        {
-            ich.mask = read_map(t1_mask_file, d2, NULL, NULL);
-            if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+            float *lt;
+            if (!tpl[k]) continue;
+            if (!(lt = (float *)malloc(sizeof(float) * nt)))
             {
-                fprintf(stderr, "Error: %s is not on the template grid.\n", t1_mask_file);
+                fprintf(stderr, "Error: out of memory.\n");
                 exit(EXIT_FAILURE);
             }
+            CAT_VolShootLabelTemplate(tpl[k], tdims, lt);
+            ich.tpl[k] = lt;
         }
-        ich.img = img;
-        ich.weight = t1_weight;
-        ich.degree = t1_degree;
-        ich.from = t1_from;
+        ich.weight = label_weight;
+        ich.degree = 3;
+        ich.from = 0;
     }
 
     if (affine_file && read_matrix(affine_file, Aff))
@@ -443,7 +413,6 @@ main(int argc, char *argv[])
         }
     }
 
-    nt = (size_t)tdims[0] * tdims[1] * tdims[2];
     y = (float *)malloc(sizeof(float) * 3 * nt);
     if (iy_file) iy = (float *)malloc(sizeof(float) * 3 * (size_t)dims[0] * dims[1] * dims[2]);
     if (jac_file) jac = (float *)malloc(sizeof(float) * nt);
@@ -453,9 +422,12 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    k = CAT_VolShootEx(n_cls ? cls : NULL, n_cls, dims, mat, affine_file ? Aff : NULL,
-                       n_cls ? tpl : NULL, tdims, tmat, reg_vx, lesion,
-                       t1_file ? &ich : NULL, &opts, y, iy, jac, &info);
+    if (label_file)
+        k = CAT_VolShootEx(NULL, 0, dims, mat, affine_file ? Aff : NULL, NULL, tdims, tmat,
+                           reg_vx, lesion, &ich, &opts, y, iy, jac, &info);
+    else
+        k = CAT_VolShoot(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
+                         reg_vx, lesion, &opts, y, iy, jac, &info);
     if (k)
     {
         fprintf(stderr, "Error: shooting failed (%s).\n",

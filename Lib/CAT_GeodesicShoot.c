@@ -1565,7 +1565,7 @@ derive_level(const float *src, int nvol, const int d[3], const double tmat[16],
 static int
 ich_level(Intensity *I, const CAT_VolShootIntensity *ich, const float *tpl, int ti,
           const Level *Lv, const int dims[3], const int tdims[3], double tmpres,
-          int nthreads)
+          const float *lesion, double resfac, int nthreads)
 {
     size_t n_in = (size_t)dims[0] * dims[1] * dims[2];
     size_t ntpl = (size_t)tdims[0] * tdims[1] * tdims[2], v;
@@ -1599,6 +1599,22 @@ ich_level(Intensity *I, const CAT_VolShootIntensity *ich, const float *tpl, int 
     sample_volume(dbuf, dims, Lv->Mrregs, Lv->rd, fbuf, nthreads);
     for (v = 0; v < I->n; v++)
         if (!isfinite(I->fi[v]) || !(fbuf[v] > 0.999f)) I->fi[v] = NAN;
+    /* a lesion, sampled as for the tissue maps, takes no part either: the
+     * tissue maps get the template there, which an intensity on another
+     * scale cannot */
+    if (lesion)
+    {
+        memcpy(fbuf, lesion, sizeof(float) * n_in);
+        if (resfac > 1)
+        {
+            fw[0] = fw[1] = fw[2] = (resfac - 1) * 2;
+            spm_smooth_vol(NULL, fbuf, dims, fw, nthreads);
+        }
+        for (v = 0; v < n_in; v++) dbuf[v] = (double)fbuf[v];
+        sample_volume(dbuf, dims, Lv->Mrregs, Lv->rd, fbuf, nthreads);
+        for (v = 0; v < I->n; v++)
+            if (fbuf[v] > 0.5f) I->fi[v] = NAN;
+    }
 
     fw[0] = fw[1] = fw[2] = Lv->res / tmpres;
     for (v = 0; v < ntpl; v++) dbuf[v] = (double)tpl[v];
@@ -1638,6 +1654,34 @@ CAT_VolShoot(const float *const cls[], int n_cls, const int dims[3],
                           lesion, NULL, opts_in, y_out, iy_out, jac_out, info);
 }
 
+/**
+ * \brief Label template of a shooting template: 1 + GM + 2 WM.
+ *
+ * The partial-volume label (CSF 1, GM 2, WM 3) the template's GM and WM
+ * predict; 1 wherever it holds neither, outside the brain too.
+ *
+ * \param tpl   (in)  template with GM and WM as its first two volumes
+ * \param tdims (in)  template dimensions
+ * \param label (out) tdims: the label template
+ */
+void
+CAT_VolShootLabelTemplate(const float *tpl, const int tdims[3], float *label)
+{
+    size_t n = (size_t)tdims[0] * tdims[1] * tdims[2], i;
+
+    for (i = 0; i < n; i++) label[i] = 1.0f + tpl[i] + 2.0f * tpl[n + i];
+}
+
+/**
+ * \brief CAT_VolShoot() with an optional intensity channel (experimental).
+ *
+ * \p n_cls 0 registers by the intensity channel alone; a NULL template below
+ * the last is the final one smoothed by CAT_SHOOT_LEVEL_FWHM.  Lesions take
+ * no part in the intensity term.
+ *
+ * \param ich (in) intensity channel; NULL runs CAT_VolShoot() unchanged
+ * \return as CAT_VolShoot()
+ */
 int
 CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                const double mat[16], const double affine[16],
@@ -2121,7 +2165,8 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
             if (ret) goto done;
             if (has_ich)
             {
-                ret = ich_level(&I, ich, itpl[ti], ti, Lv, dims, tdims, tmpres, nthreads);
+                ret = ich_level(&I, ich, itpl[ti], ti, Lv, dims, tdims, tmpres, lesion,
+                                resfac[ti], nthreads);
                 if (ret) goto done;
             }
             /* CAT takes g{3} as the background, which it is for two classes
