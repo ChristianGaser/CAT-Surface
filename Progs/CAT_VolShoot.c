@@ -31,6 +31,7 @@ static char *iy_file = NULL;
 static char *jac_file = NULL;
 static char *affine_file = NULL;
 static char *lesion_file = NULL;
+static char *csf_file = NULL;
 static double reg_vx = 0.0;
 static int no_hydro = 0;
 static int no_hotspot = 0;
@@ -58,6 +59,8 @@ static ArgvInfo argTable[] = {
      "Factor on CAT's regularisation (default 0.5, CAT: 1); smaller values allow\n\t\t\tmore local deformation."},
     {"-affine", ARGV_STRING, (char *)1, (char *)&affine_file,
      "Text file with the 4x4 input-to-template world matrix (CAT's res.Affine);\n\t\t\tdefault: identity, i.e. maps already in template space."},
+    {"-csf", ARGV_STRING, (char *)1, (char *)&csf_file,
+     "Experimental: CSF map as a third class; the templates must hold CSF as their\n\t\t\tthird volume."},
     {"-lesion", ARGV_STRING, (char *)1, (char *)&lesion_file,
      "Lesion mask on the input grid; the template replaces the tissue there."},
     {"-reg-vx", ARGV_FLOAT, (char *)1, (char *)&reg_vx,
@@ -233,7 +236,7 @@ template_name(const char *first, int k)
 int
 main(int argc, char *argv[])
 {
-    const float *cls[2], *tpl[CAT_SHOOT_NTEMPLATES];
+    const float *cls[3], *tpl[CAT_SHOOT_NTEMPLATES];
     float *gm, *wm, *lesion = NULL, *y, *iy = NULL, *jac = NULL;
     nifti_image *hdr_in, *hdr_tpl = NULL;
     double mat[16], tmat[16], Aff[16];
@@ -278,14 +281,24 @@ main(int argc, char *argv[])
     header_matrix(hdr_in, mat);
     cls[0] = gm;
     cls[1] = wm;
+    if (csf_file)
+    {
+        cls[2] = read_map(csf_file, d2, NULL, NULL);
+        if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
+        {
+            fprintf(stderr, "Error: %s and %s differ in size.\n", argv[1], csf_file);
+            exit(EXIT_FAILURE);
+        }
+    }
 
     for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
     {
         nifti_image *h;
         tpl[k] = read_map(tnames[k], d2, &nvol, &h);
-        if (nvol < 2)
+        if (nvol < (csf_file ? 3 : 2))
         {
-            fprintf(stderr, "Error: %s needs GM and WM as its first volumes.\n", tnames[k]);
+            fprintf(stderr, "Error: %s needs GM, WM%s as its first volumes.\n", tnames[k],
+                    csf_file ? " and CSF" : "");
             exit(EXIT_FAILURE);
         }
         if (k == 0)
@@ -396,7 +409,7 @@ main(int argc, char *argv[])
         ich.degree = t1_degree;
     }
 
-    k = CAT_VolShootEx(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
+    k = CAT_VolShootEx(cls, csf_file ? 3 : 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
                        reg_vx, lesion, t1_file ? &ich : NULL, &opts, y, iy, jac, &info);
     if (k)
     {

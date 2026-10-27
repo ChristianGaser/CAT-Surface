@@ -2055,7 +2055,10 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 ret = ich_level(&I, ich, ti, Lv, dims, tdims, tmpres, nthreads);
                 if (ret) goto done;
             }
-            for (i = 0; i < (int)n; i++) bgexp[i] = (float)exp(coef[2][i]);
+            /* CAT takes g{3} as the background, which it is for two classes
+             * (with the ventricle class, it is that class); with a CSF class
+             * the background is the last one */
+            for (i = 0; i < (int)n; i++) bgexp[i] = (float)exp(coef[(n1 == 2) ? 2 : n1][i]);
 
             ll[0] = ll[1] = 0;
             if (it == 1)
