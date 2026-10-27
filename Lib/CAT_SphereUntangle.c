@@ -11,6 +11,7 @@
  * Copyright Christian Gaser, University of Jena.
  */
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,6 +55,10 @@ static const int patch_rings[] = {2, 4, 8, 16, 32};
 /* the rim of a patch must lie within this cosine of its centre (about 72
    degrees), so that its gnomonic projection stays well conditioned */
 #define MIN_COS 0.3
+
+/* grow_patch() out of memory: any int is a possible Euler characteristic -- a
+   patch around a handle of the surface has -1 */
+#define PATCH_NO_MEMORY INT_MIN
 
 typedef struct
 {
@@ -330,8 +335,8 @@ static void collect_faces(untangle_ctx *c, patch *p)
 /* Grows the free vertices k rings around the seed, adds the holes that the
    patch encloses (the triangles outside it that are reached from its rim and
    form a small component across edges) and collects its triangles and rim.
-   Returns the Euler characteristic of the patch (1 for a disk), or -1 if out
-   of memory. */
+   Returns the Euler characteristic of the patch (1 for a disk), or
+   PATCH_NO_MEMORY. */
 static int grow_patch(untangle_ctx *c, const int *seed, int n_seed, int k,
                       patch *p)
 {
@@ -374,7 +379,7 @@ static int grow_patch(untangle_ctx *c, const int *seed, int n_seed, int k,
         free(cstart);
         free(csize);
         free(cbig);
-        return -1;
+        return PATCH_NO_MEMORY;
     }
     cap = 4 * p->nF + 2000;
     top = 0;
@@ -1184,6 +1189,11 @@ int CAT_SphereRemoveFolds(polygons_struct *surface, polygons_struct *sphere,
     n_bad0 = n_bad;
     if (verbose)
         printf("Fold removal: %d bad triangles in %d clusters\n", n_bad, n_cl);
+    /* V - F/2 for a closed triangulated surface; with a handle, the sphere
+       folds around it whatever the map */
+    if (verbose && 2 * c.n - c.n_faces != 4)
+        printf("Fold removal: the surface is not genus 0 (Euler characteristic %d), "
+               "the folds around its handles stay\n", c.n - c.n_faces / 2);
     if (n_bad == 0)
     {
         ret = 0;
@@ -1253,10 +1263,17 @@ int CAT_SphereRemoveFolds(polygons_struct *surface, polygons_struct *sphere,
             {
                 chi_patch = grow_patch(&c, seeds + off[k], off[k + 1] - off[k],
                                        patch_rings[r], &p);
-                if (chi_patch < 0)
+                if (chi_patch == PATCH_NO_MEMORY)
                     goto done;
                 if (chi_patch != 1)
+                {
+                    /* not a disk: more rings close a hole of it, but never
+                       a handle of the surface */
+                    if (verbose > 2)
+                        printf("    %d rings: not a disk (Euler characteristic %d)\n",
+                               patch_rings[r], chi_patch);
                     continue;
+                }
                 for (i = 0; i < p.nF; i++)
                     if (signed_height(&c, c.x, p.F[i]) < c.hmin)
                         break;
