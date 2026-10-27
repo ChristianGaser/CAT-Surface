@@ -126,7 +126,9 @@ int CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
  * label image registered with CAT_VolShootEx().  Where the template holds
  * neither GM nor WM -- CSF and the space around the brain alike -- it is 1.
  * No brain mask is needed: the subject's background (label 0) takes no part
- * in the matching, so the edge of its skull-strip exerts no force.
+ * in the matching, so the edge of its skull-strip exerts no force.  A
+ * template that is 0 outside a brain mask, with the background matched,
+ * was tested on Mindboggle-101 and adds nothing at a matched weight.
  *
  * \param tpl   (in)  template with GM and WM as its first two volumes
  * \param tdims (in)  template dimensions

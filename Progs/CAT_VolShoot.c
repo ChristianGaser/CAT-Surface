@@ -67,7 +67,7 @@ static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *)1, (char *)&label_file,
      "Experimental: register a partial-volume label image (0 background, CSF 1, GM 2,\n\t\t\tWM 3) on the input grid instead of GM/WM maps, by sum of squares against\n\t\t\tthe label the templates predict (1 + GM + 2 WM)."},
     {"-label-weight", ARGV_FLOAT, (char *)1, (char *)&label_weight,
-     "Factor on the ML precision 1/sigma^2 of the label residuals."},
+     "Factor on the ML precision 1/sigma^2 of the label residuals; 0.25 has about\n\t\t\tthe regularity of the GM/WM default, larger values deform more."},
     {"-threads", ARGV_INT, (char *)1, (char *)&opts.n_threads,
      "Number of worker threads (default: the library's)."},
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&opts.verbose,
@@ -108,7 +108,8 @@ usage(const char *executable)
             "  -no-hydro       no separate class for very large ventricles\n"
             "  -no-hotspot     no filtering of Jacobian hot spots\n"
             "  -label <file>   register this label image instead of the maps\n"
-            "  -label-weight <f> factor on the ML precision of the label term [%g]\n"
+            "  -label-weight <f>\n"
+            "                  factor on the ML precision of the label term [%g]\n"
             "  -threads <n>    worker threads\n"
             "  -verbose        print the iteration log\n\n",
             executable, executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale,
