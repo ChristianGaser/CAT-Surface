@@ -48,6 +48,8 @@ make check
 # Build the Python bindings against the tree and smoke-test them.
 # Needed because cat_surf/_*.c are untracked build artifacts, so only an
 # actual build proves the .pyx sources still cythonize, compile and link.
+# setup.py stops if libCAT.a is older than Lib/ or Include/ (run make first)
+# or lacks an arch being built (python.org universal2: ARCHFLAGS="-arch arm64").
 CAT_SURFACE_ROOT=$PWD CAT_BUILD_DIR=$PWD pip install ./cat_surface_cython
 python cat_surface_cython/tests/smoke_test.py
 

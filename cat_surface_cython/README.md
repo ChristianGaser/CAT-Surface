@@ -41,6 +41,13 @@ build installs it for you:
 pip install ./cat_surface_cython
 ```
 
+The build stops if `libCAT.a` is older than the C sources in `Lib/` or
+`Include/` (run `make` first), or if it lacks an architecture the extension is
+built for. The universal2 Pythons from python.org build for arm64 and x86_64,
+so against an arm64-only libCAT restrict the build with
+`ARCHFLAGS="-arch arm64" pip install ./cat_surface_cython`.
+`CAT_STRICT_BUILD=0` turns both errors into warnings.
+
 For an in-place development build, Cython has to be in the ambient
 environment and libCAT has to be findable:
 

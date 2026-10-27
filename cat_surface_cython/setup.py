@@ -20,6 +20,9 @@ before running cibuildwheel.  See python-wheels.yml for details.
 Environment variables:
     CAT_SURFACE_ROOT  Source tree root   (default: parent of this file)
     CAT_BUILD_DIR     Autotools build tree containing .libs/libCAT.a
+    CAT_STRICT_BUILD  0 turns the libCAT checks below from build errors into
+                      warnings (default: a stale libCAT.a, or one missing an
+                      architecture being built, stops the build)
 """
 import os
 import re
@@ -36,23 +39,26 @@ _HERE = os.path.abspath(os.path.dirname(__file__))
 # cover every architecture the extension is built for — still produces a
 # wheel that installs cleanly: unresolved symbols in a Python extension are
 # left for dynamic lookup.  The failure only surfaces much later, at import,
-# as "symbol not found in flat namespace '_CAT_...'".  The checks below turn
-# those silent mismatches into visible warnings at build time.
-_STRICT = os.environ.get("CAT_STRICT_BUILD", "") not in ("", "0")
+# as "symbol not found in flat namespace '_CAT_...'".  The checks below
+# therefore stop the build.  They used to warn only, but pip prints a build's
+# output only with -v, so the warning went unseen and the broken wheel was
+# installed anyway.  CAT_STRICT_BUILD=0 turns them back into warnings.
+_STRICT = os.environ.get("CAT_STRICT_BUILD") != "0"
 
 
-def _warn(msg):
-    """Report a build-time mismatch; abort instead if CAT_STRICT_BUILD is set."""
+def _mismatch(msg):
+    """Stop the build over a mismatch; only warn when CAT_STRICT_BUILD=0."""
     if _STRICT:
-        sys.exit(f"ERROR: {msg}")
+        sys.exit(f"ERROR: {msg}\n  Set CAT_STRICT_BUILD=0 to build anyway.")
     print(f"WARNING: {msg}", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # Paths — CI puts everything into _vendor/; local dev uses the source tree
 # ---------------------------------------------------------------------------
 _VENDOR = os.path.join(_HERE, "_vendor")
+_VENDORED = os.path.isdir(_VENDOR)
 
-if os.path.isdir(_VENDOR):
+if _VENDORED:
     # ---- CI / vendored mode ----
     CAT_ROOT = _VENDOR
     BUILD_DIR = os.path.join(_VENDOR, "build")
@@ -134,12 +140,16 @@ def _newest_source_mtime(root):
     return newest
 
 
-_src_mtime = _newest_source_mtime(CAT_ROOT)
+# Only a checkout can be stale.  The wheel builds' vendored tree holds just
+# headers, copied next to an archive CI built from the same commit moments
+# before, so their mtimes are copy times: the Linux job copies them after the
+# archive, which made every Linux wheel build report a stale libCAT.a.
+_src_mtime = 0.0 if _VENDORED else _newest_source_mtime(CAT_ROOT)
 if _src_mtime and _src_mtime > os.path.getmtime(LIBCAT_A):
-    _warn(
+    _mismatch(
         f"{LIBCAT_A}\n  is older than the newest C source in {CAT_ROOT}.\n"
-        "  The bindings will link against a stale library and any symbol added\n"
-        "  since that build will fail at import, not at build time.\n"
+        "  The bindings would link against a stale library: any symbol added\n"
+        "  since that build fails at import, the rest runs the old code.\n"
         "  Run 'make' in the build tree first, or point CAT_BUILD_DIR at the\n"
         "  tree you actually build in."
     )
@@ -170,7 +180,7 @@ _have = _archive_archs(LIBCAT_A)
 _want = _target_archs()
 _missing = _want - _have if (_have and _want) else set()
 if _missing:
-    _warn(
+    _mismatch(
         f"{LIBCAT_A}\n  provides {'/'.join(sorted(_have))} but the extension is "
         f"being built for {'/'.join(sorted(_want))}.\n"
         f"  The {'/'.join(sorted(_missing))} slice(s) would link with every libCAT\n"
