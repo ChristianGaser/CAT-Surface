@@ -9,7 +9,8 @@
  * CAT26 runs it (cat_main_registration.m, run_Shooting).  This is a thin CLI
  * wrapper around CAT_VolShoot().
  *
- * Input  : GM and WM maps (probabilities) and the five shooting templates.
+ * Input  : GM and WM maps (probabilities), or with -label a partial-volume
+ *          label image, and the five shooting templates.
  * Output : with -y the deformation in SPM's y_ format, with -iy its inverse,
  *          with -jac the Jacobian determinants.
  */
@@ -34,6 +35,9 @@ static char *lesion_file = NULL;
 static double reg_vx = 0.0;
 static int no_hydro = 0;
 static int no_hotspot = 0;
+static char *label_file = NULL;
+#define LABEL_WEIGHT 0.25
+static double label_weight = LABEL_WEIGHT;
 
 static ArgvInfo argTable[] = {
     {"-y", ARGV_STRING, (char *)1, (char *)&y_file,
@@ -53,13 +57,17 @@ static ArgvInfo argTable[] = {
     {"-affine", ARGV_STRING, (char *)1, (char *)&affine_file,
      "Text file with the 4x4 input-to-template world matrix (CAT's res.Affine);\n\t\t\tdefault: identity, i.e. maps already in template space."},
     {"-lesion", ARGV_STRING, (char *)1, (char *)&lesion_file,
-     "Lesion mask on the input grid; the template replaces the tissue there."},
+     "Lesion mask on the input grid; the template replaces the tissue there, and\n\t\t\ta label image is ignored there."},
     {"-reg-vx", ARGV_FLOAT, (char *)1, (char *)&reg_vx,
      "Voxel size of the regulariser in mm; 0 (default) uses the template's\n\t\t\t(CAT always takes its TPM's 1.5 mm)."},
     {"-no-hydro", ARGV_CONSTANT, (char *)1, (char *)&no_hydro,
      "Do not model very large ventricles as a class of their own."},
     {"-no-hotspot", ARGV_CONSTANT, (char *)1, (char *)&no_hotspot,
      "Do not filter local Jacobian hot spots of the velocity."},
+    {"-label", ARGV_STRING, (char *)1, (char *)&label_file,
+     "Experimental: register a partial-volume label image (0 background, CSF 1, GM 2,\n\t\t\tWM 3) on the input grid instead of GM/WM maps, by sum of squares against\n\t\t\tthe label the templates predict (1 + GM + 2 WM)."},
+    {"-label-weight", ARGV_FLOAT, (char *)1, (char *)&label_weight,
+     "Factor on the ML precision 1/sigma^2 of the label residuals; 0.25 has about\n\t\t\tthe regularity of the GM/WM default, larger values deform more."},
     {"-threads", ARGV_INT, (char *)1, (char *)&opts.n_threads,
      "Number of worker threads (default: the library's)."},
     {"-verbose", ARGV_CONSTANT, (char *)1, (char *)&opts.verbose,
@@ -74,13 +82,20 @@ usage(const char *executable)
     CAT_VolShootOptionsInit(&d);
     fprintf(stderr,
             "\nUsage: %s [options] <GM> <WM> <Template_0> [<Template_1> .. <Template_4>]\n"
+            "       %s [options] -label <label> <Template_0> [<Template_1> .. <Template_4>]\n"
             "          -y <y.nii> [-iy <iy.nii>] [-jac <jac.nii>]\n\n"
             "Geodesic shooting of GM and WM maps onto a series of five shooting\n"
             "templates, as CAT12/CAT26 runs it:\n\n"
             "    %s -y y_sub.nii rp1sub.nii rp2sub.nii Template_0_GS.nii\n\n"
-            "With a single template its name must contain _0_; the other four are\n"
-            "found by replacing that with _1_ .. _4_.  The maps are probabilities in\n"
-            "[0, 1]; GM and WM are the first two volumes of every template.\n\n"
+            "A single template whose name contains _0_ names the series: the other\n"
+            "four replace that with _1_ .. _4_.  Any other name is the final level,\n"
+            "and the coarser ones are derived from it by smoothing.  The maps are\n"
+            "probabilities in [0, 1]; GM and WM are the first two volumes of every\n"
+            "template.\n\n"
+            "Experimental: -label registers a partial-volume label image (0 background,\n"
+            "CSF 1, GM 2, WM 3) instead of the maps, against the label each template\n"
+            "predicts, 1 + GM + 2 WM.  The background takes no part, so no brain mask\n"
+            "is needed.\n\n"
             "Options (defaults in brackets):\n"
             "  -regstr <v>     CAT's optimised shooting: 1 all iterations, 0.5 CAT's\n"
             "                  early level switching; 4 SPM's default schedule [%g]\n"
@@ -92,9 +107,13 @@ usage(const char *executable)
             "  -reg-vx <mm>    voxel size of the regulariser [template's]\n"
             "  -no-hydro       no separate class for very large ventricles\n"
             "  -no-hotspot     no filtering of Jacobian hot spots\n"
+            "  -label <file>   register this label image instead of the maps\n"
+            "  -label-weight <f>\n"
+            "                  factor on the ML precision of the label term [%g]\n"
             "  -threads <n>    worker threads\n"
             "  -verbose        print the iteration log\n\n",
-            executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale);
+            executable, executable, executable, d.regstr, d.nits, d.lowres, d.reg_scale,
+            LABEL_WEIGHT);
 }
 
 /* sto_xyz of a header as a row-major double matrix */
@@ -212,68 +231,61 @@ template_name(const char *first, int k)
     return name;
 }
 
-int
-main(int argc, char *argv[])
+static int
+file_exists(const char *file)
 {
-    const float *cls[2], *tpl[CAT_SHOOT_NTEMPLATES];
-    float *gm, *wm, *lesion = NULL, *y, *iy = NULL, *jac = NULL;
-    nifti_image *hdr_in, *hdr_tpl = NULL;
-    double mat[16], tmat[16], Aff[16];
-    int dims[3], d2[3], tdims[3], k, nvol;
-    char *tnames[CAT_SHOOT_NTEMPLATES];
-    CAT_VolShootInfo info;
-    size_t nt;
+    FILE *fp = fopen(file, "r");
+    if (!fp) return 0;
+    fclose(fp);
+    return 1;
+}
 
-    CAT_VolShootOptionsInit(&opts);
-    if (ParseArgv(&argc, argv, argTable, 0) ||
-        cat_check_unknown_options(argc, argv, argv[0]) ||
-        (argc != 4 && argc != 8) ||
-        (!y_file && !iy_file && !jac_file))
-    {
-        usage(argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    opts.hydro = !no_hydro;
-    opts.hotspot = !no_hotspot;
+/* The templates of the levels from first on.  A name with _0_ is a series
+ * (level k replaces it with _k_; missing files stay NULL), any other name the
+ * final level.  NULL levels are derived from the final one by the library.
+ * The grid and header are those of the first template read. */
+static void
+read_series(const char *name, int nvol_min, int first, const float *tpl[],
+            int tdims[3], double tmat[16], nifti_image **hdr)
+{
+    int k, d2[3], nvol, have = 0;
 
-    if (argc == 4)
-    {
-        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
-            if (!(tnames[k] = template_name(argv[3], k)))
-            {
-                fprintf(stderr, "Error: %s has no _0_ to derive the other templates from.\n",
-                        argv[3]);
-                exit(EXIT_FAILURE);
-            }
-    }
-    else
-        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++) tnames[k] = argv[3 + k];
-
-    gm = read_map(argv[1], dims, NULL, &hdr_in);
-    wm = read_map(argv[2], d2, NULL, NULL);
-    if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
-    {
-        fprintf(stderr, "Error: %s and %s differ in size.\n", argv[1], argv[2]);
-        exit(EXIT_FAILURE);
-    }
-    header_matrix(hdr_in, mat);
-    cls[0] = gm;
-    cls[1] = wm;
-
-    for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+    for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++) tpl[k] = NULL;
+    for (k = first; k < CAT_SHOOT_NTEMPLATES; k++)
     {
         nifti_image *h;
-        tpl[k] = read_map(tnames[k], d2, &nvol, &h);
-        if (nvol < 2)
+        char *tn = NULL;
+        if (strstr(name, "_0_"))
+            tn = template_name(name, k);
+        else if (k == CAT_SHOOT_NTEMPLATES - 1)
         {
-            fprintf(stderr, "Error: %s needs GM and WM as its first volumes.\n", tnames[k]);
+            tn = (char *)malloc(strlen(name) + 1);
+            strcpy(tn, name);
+        }
+        if (!tn || !file_exists(tn))
+        {
+            if (k == CAT_SHOOT_NTEMPLATES - 1)
+            {
+                fprintf(stderr, "Error: the final template %s is missing.\n", tn ? tn : name);
+                exit(EXIT_FAILURE);
+            }
+            if (opts.verbose) printf("level %d: the final template smoothed\n", k);
+            free(tn);
+            continue;
+        }
+        tpl[k] = read_map(tn, d2, &nvol, &h);
+        if (nvol < nvol_min)
+        {
+            fprintf(stderr, "Error: %s needs %d volumes.\n", tn, nvol_min);
             exit(EXIT_FAILURE);
         }
-        if (k == 0)
+        if (!have)
         {
-            memcpy(tdims, d2, sizeof(tdims));
+            memcpy(tdims, d2, sizeof(int) * 3);
             header_matrix(h, tmat);
-            hdr_tpl = h;
+            if (hdr) *hdr = h;
+            else nifti_image_free(h);
+            have = 1;
         }
         else
         {
@@ -284,6 +296,107 @@ main(int argc, char *argv[])
             }
             nifti_image_free(h);
         }
+        if (opts.verbose) printf("level %d: template %s\n", k, tn);
+        free(tn);
+    }
+}
+
+int
+main(int argc, char *argv[])
+{
+    const float *cls[2], *tpl[CAT_SHOOT_NTEMPLATES];
+    float *lesion = NULL, *y, *iy = NULL, *jac = NULL;
+    nifti_image *hdr_in = NULL, *hdr_tpl = NULL;
+    double mat[16], tmat[16], Aff[16];
+    int dims[3], d2[3], tdims[3], k, n_maps;
+    CAT_VolShootInfo info;
+    CAT_VolShootIntensity ich;
+    size_t nt;
+
+    CAT_VolShootOptionsInit(&opts);
+    if (ParseArgv(&argc, argv, argTable, 0) ||
+        cat_check_unknown_options(argc, argv, argv[0]))
+    {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    /* GM and WM before the templates, or nothing with a label image */
+    n_maps = label_file ? 0 : 2;
+    if (!(argc == n_maps + 2 || argc == n_maps + 6) || (!y_file && !iy_file && !jac_file))
+    {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    opts.hydro = !no_hydro;
+    opts.hotspot = !no_hotspot;
+
+    /* the subject */
+    memset(&ich, 0, sizeof(ich));
+    if (label_file)
+        ich.img = read_map(label_file, dims, NULL, &hdr_in);
+    else
+    {
+        cls[0] = read_map(argv[1], dims, NULL, &hdr_in);
+        cls[1] = read_map(argv[2], d2, NULL, NULL);
+        if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
+        {
+            fprintf(stderr, "Error: the tissue maps differ in size.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    header_matrix(hdr_in, mat);
+
+    /* the templates */
+    if (argc == n_maps + 2)
+        read_series(argv[n_maps + 1], 2, 0, tpl, tdims, tmat, &hdr_tpl);
+    else
+        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+        {
+            int nvol;
+            nifti_image *h;
+            tpl[k] = read_map(argv[n_maps + 1 + k], d2, &nvol, &h);
+            if (nvol < 2)
+            {
+                fprintf(stderr, "Error: %s needs GM and WM.\n", argv[n_maps + 1 + k]);
+                exit(EXIT_FAILURE);
+            }
+            if (k == 0)
+            {
+                memcpy(tdims, d2, sizeof(tdims));
+                header_matrix(h, tmat);
+                hdr_tpl = h;
+            }
+            else
+            {
+                if (d2[0] != tdims[0] || d2[1] != tdims[1] || d2[2] != tdims[2])
+                {
+                    fprintf(stderr, "Error: the templates differ in size.\n");
+                    exit(EXIT_FAILURE);
+                }
+                nifti_image_free(h);
+            }
+        }
+    nt = (size_t)tdims[0] * tdims[1] * tdims[2];
+
+    /* the label templates predicted by the tissue templates; a level without
+     * a template is derived by the library, as for the maps */
+    if (label_file)
+    {
+        for (k = 0; k < CAT_SHOOT_NTEMPLATES; k++)
+        {
+            float *lt;
+            if (!tpl[k]) continue;
+            if (!(lt = (float *)malloc(sizeof(float) * nt)))
+            {
+                fprintf(stderr, "Error: out of memory.\n");
+                exit(EXIT_FAILURE);
+            }
+            CAT_VolShootLabelTemplate(tpl[k], tdims, lt);
+            ich.tpl[k] = lt;
+        }
+        ich.weight = label_weight;
+        ich.degree = 3;
+        ich.from = 0;
     }
 
     if (affine_file && read_matrix(affine_file, Aff))
@@ -296,12 +409,11 @@ main(int argc, char *argv[])
         lesion = read_map(lesion_file, d2, NULL, NULL);
         if (d2[0] != dims[0] || d2[1] != dims[1] || d2[2] != dims[2])
         {
-            fprintf(stderr, "Error: %s is not on the grid of %s.\n", lesion_file, argv[1]);
+            fprintf(stderr, "Error: %s is not on the input grid.\n", lesion_file);
             exit(EXIT_FAILURE);
         }
     }
 
-    nt = (size_t)tdims[0] * tdims[1] * tdims[2];
     y = (float *)malloc(sizeof(float) * 3 * nt);
     if (iy_file) iy = (float *)malloc(sizeof(float) * 3 * (size_t)dims[0] * dims[1] * dims[2]);
     if (jac_file) jac = (float *)malloc(sizeof(float) * nt);
@@ -311,8 +423,12 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    k = CAT_VolShoot(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
-                     reg_vx, lesion, &opts, y, iy, jac, &info);
+    if (label_file)
+        k = CAT_VolShootEx(NULL, 0, dims, mat, affine_file ? Aff : NULL, NULL, tdims, tmat,
+                           reg_vx, lesion, &ich, &opts, y, iy, jac, &info);
+    else
+        k = CAT_VolShoot(cls, 2, dims, mat, affine_file ? Aff : NULL, tpl, tdims, tmat,
+                         reg_vx, lesion, &opts, y, iy, jac, &info);
     if (k)
     {
         fprintf(stderr, "Error: shooting failed (%s).\n",
