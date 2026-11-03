@@ -1077,7 +1077,10 @@ int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
  *
  * The two loop limits are exposed because they are what governs the runtime:
  * each pass re-detects the remaining defects and runs up to maxiter smoothing
- * iterations on them.
+ * iterations on them.  Defects that resist smoothing (e.g. crossed sheets)
+ * would otherwise use up all max_passes, each with a detection on the whole
+ * mesh, so the loop also stops once the number of defects has not reached a
+ * new minimum for CAT_INTERSECT_PATIENCE passes.
  *
  * \param polygons (in/out) mesh to repair
  * \param max_passes (in) maximum number of detect/smooth passes (default 10)
@@ -1090,7 +1093,7 @@ int remove_intersections_iter(polygons_struct *polygons, int max_passes,
 {
     int *defects, *polydefects, n_intersects = 0;
     int *n_neighbours, **neighbours;
-    int counter;
+    int counter, n_best = -1, n_stalled = 0;
 
     defects = (int *)malloc(sizeof(int) * polygons->n_points);
     polydefects = (int *)malloc(sizeof(int) * polygons->n_items);
@@ -1112,6 +1115,20 @@ int remove_intersections_iter(polygons_struct *polygons, int max_passes,
                                           n_neighbours, neighbours);
         if (n_intersects == 0)
             break;
+
+        /* n_intersects is up to date here (detected after the last smoothing) */
+        if (n_best < 0 || n_intersects < n_best)
+        {
+            n_best = n_intersects;
+            n_stalled = 0;
+        }
+        else if (++n_stalled >= CAT_INTERSECT_PATIENCE)
+        {
+            if (verbose)
+                printf("%3d self intersections left after %d passes without progress.\n",
+                       n_intersects, n_stalled);
+            break;
+        }
 
         if (verbose)
             printf("%3d self intersections found that will be corrected.\n", n_intersects);

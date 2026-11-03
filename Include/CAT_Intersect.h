@@ -120,6 +120,9 @@ int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
 /**
  * \brief Remove all self-intersections from a mesh with explicit iteration limits.
  *
+ * Stops before max_passes when the number of remaining defects has not reached
+ * a new minimum for CAT_INTERSECT_PATIENCE passes.
+ *
  * \param polygons (in/out) mesh to repair
  * \param max_passes (in) maximum number of detect/smooth passes (default 10)
  * \param maxiter (in) maximum smoothing iterations per pass (default 50)
@@ -128,6 +131,12 @@ int find_intersecting_defects(polygons_struct *polygons, int *polydefects,
  */
 int remove_intersections_iter(polygons_struct *polygons, int max_passes,
                               int maxiter, int verbose);
+
+/** Passes without a new minimum of remaining defects after which
+ *  remove_intersections_iter() gives up before max_passes. */
+#ifndef CAT_INTERSECT_PATIENCE
+#define CAT_INTERSECT_PATIENCE 3
+#endif
 
 /** Share of the way back to the reference per retreat step. */
 #define CAT_RETREAT_FRACTION 0.25
