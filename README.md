@@ -50,7 +50,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 |-----------------------------|-------------|
 | **CAT_Vol2Surf**                | Projects values from a 3D image (volume) onto the cortical surface mesh vertices. |
 | **CAT_VolAmap**                 | Performs adaptive maximum a posteriori tissue classification/segmentation on volumetric MRI data. |
-| **CAT_VolCalc**                 | Voxel-wise image calculator in the spirit of SPM's `spm_imcalc`: evaluates a formula over one or more co-registered volumes. In matrix mode the variable `X` stands for the vector of all inputs at a voxel, so `mean(X)`, `median(X)` and `std(X)` reduce across any number of images. |
+| **CAT_VolCalc**                 | Voxel-wise image calculator in the spirit of SPM's `spm_imcalc`: evaluates a formula over one or more co-registered volumes. In matrix mode the variable `X` stands for the vector of all inputs at a voxel, so `mean(X)`, `median(X)` and `std(X)` reduce across any number of images. A 4D file counts as one input per volume, so the same formulas reduce over the volumes of a 4D series. |
 | **CAT_VolLocalStat**            | Applies a local statistic (mean, min, max, std, median, grey open/close) over a voxel neighbourhood. `-oriented` runs the median over a sheetness-oriented neighbourhood so it cannot close a thin structure (see below). |
 | **CAT_VolMarchingCubes**        | Extracts a surface mesh from volumetric data using a marching cubes isosurface algorithm. |
 | **CAT_VolSanlm**                | Applies spatially adaptive non-local means denoising to volumetric MRI images. |
@@ -111,7 +111,7 @@ Below is a summary of the available command-line programs in CAT-Surface, each d
 | **CAT_SurfSmoothDiffusion**     | Heat-kernel diffusion smoothing of values or surface points. |
 | **CAT_SurfSmoothLaplacian**     | HC Laplacian smoothing of surface meshes (Vollmer et al., 1999). |
 | **CAT_GlmEstimate**             | Estimates a general linear model on vertex- or voxel-wise data, from groups and covariate files or an R-style model formula (`-formula`). |
-| **CAT_VolAverage**              | Averages volumes (`-mean`; each volume of a 4D file is one sample), optionally writing the standard deviation and z-scores. |
+| **CAT_VolAverage**              | Averages volumes (`-mean`; each volume of a 4D file is one sample), optionally writing the standard deviation and z-scores. `-select labels.txt=2` uses only the volumes whose label in a text file (one per volume) has one of the given values, e.g. the controls of a 4D file of z-maps. |
 | **CAT_VolLayerSmooth**          | Smooths within cortical layers, along iso-depth contours, without crossing the GM/WM or GM/CSF boundary. |
 | **CAT_VolOrnlm**                | Optimized blockwise non-local means (ORNLM) denoising. |
 
