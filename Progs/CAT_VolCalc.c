@@ -15,6 +15,7 @@
 #include "CAT_NiftiLib.h"
 #include "CAT_Calc.h"
 #include "CAT_ArgvCheck.h"
+#include "CAT_VolumeStats.h"
 
 char *expression = NULL;
 char *datatype   = NULL;
@@ -79,7 +80,10 @@ Usage: %s -expression \"<formula>\" [options] <in1.nii> [<in2.nii> ...] <out.nii
     share a grid, and the result is written to <out.nii>.\n\
 \n\
     The inputs are addressed as i1, i2, ... in the order given on the command\n\
-    line.  Numeric literals and the constants pi, inf and nan are available,\n\
+    line.  A 4D file counts as one input per volume: its volumes take the\n\
+    next numbers in turn, so with a single 4D file i3 is its third volume,\n\
+    and 3D and 4D files may be mixed.  The result is always one 3D image.\n\
+    Numeric literals and the constants pi, inf and nan are available,\n\
     as are the operators\n\
 \n\
         + - * / ^        arithmetic ('^' is right associative)\n\
@@ -97,8 +101,9 @@ Usage: %s -expression \"<formula>\" [options] <in1.nii> [<in2.nii> ...] <out.nii
 Matrix mode:\n\
 \n\
     The variable X stands for the whole vector of input values at the current\n\
-    voxel, which is what makes a formula independent of how many images are\n\
-    passed.  Three reductions consume it:\n\
+    voxel, over all files and all volumes of 4D files, which is what makes a\n\
+    formula independent of how many images are passed.  Three reductions\n\
+    consume it:\n\
 \n\
         mean(X)     mean across images\n\
         median(X)   median across images\n\
@@ -117,8 +122,8 @@ Matrix mode:\n\
     counted as one.  A voxel at which nothing finite remains yields NaN, as\n\
     does std() of fewer than two finite values.\n\
 \n\
-    All inputs are held in memory as doubles, so a long file list costs\n\
-    8 bytes per voxel per image.\n\
+    All inputs are held in memory as doubles, so a long file list or a long\n\
+    4D series costs 8 bytes per voxel per volume.\n\
 \n\
 Options:\n\
     -expression <str>  Formula to evaluate (required).\n\
@@ -132,10 +137,12 @@ Examples:\n\
     %s -expression \"i1./mean(X)\" -v sub*.nii ratio.nii\n\
     %s -expression \"median(X)\" sub*.nii median.nii\n\
     %s -expression \"std(X)\" sub*.nii sd.nii\n\
+    %s -expression \"median(X)\" zmaps4d.nii median.nii\n\
+    %s -expression \"mean(abs(X)>1.96)\" zmaps4d.nii share_extreme.nii\n\
     %s -expression \"mean(X)>0.5\" -dt uint8 sub*.nii majority_mask.nii\n\n";
 
     fprintf(stderr, usage_str, executable, executable, executable, executable,
-            executable, executable, executable);
+            executable, executable, executable, executable, executable);
 }
 
 /* Main program */
@@ -143,10 +150,10 @@ int
 main(int argc, char *argv[])
 {
     char **infiles, *outfile, err[256];
-    int i, n_img, dt, dims[3];
-    double **images = NULL, *result = NULL, voxelsize[3], slope;
-    size_t nvox = 0;
-    nifti_image *nii_ptr = NULL, *nii_ptr2 = NULL;
+    int i, k, n_files, n_img, dt;
+    double **images = NULL, **buffers = NULL, *result = NULL, slope;
+    nifti_image *hdr;
+    CAT_VolAverageResult scan;
     CAT_CalcExpr *expr = NULL;
 
     if (ParseArgv(&argc, argv, argTable, 0) || (argc < 3) ||
@@ -165,7 +172,7 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    n_img = argc - 2;
+    n_files = argc - 2;
     infiles = &argv[1];
     outfile = argv[argc - 1];
 
@@ -175,12 +182,35 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* Parse before reading anything: a typo in the formula should not cost
+    /* The headers only: every volume is one input, so a 4D file contributes
+       one per volume, and the formula has to be checked against that number.
+       Files of another matrix size or with more than four dimensions are
+       refused here. */
+    if (CAT_VolAverageScan(infiles, n_files, 0, &scan))
+        exit(EXIT_FAILURE);
+    n_img = scan.n_samples;
+
+    /* No reslicing here: an expression evaluated across grids that do not
+       line up is meaningless, so refuse a different voxel size rather than
+       guess. */
+    for (i = 1; i < n_files; i++) {
+        hdr = nifti_image_read(infiles[i], 0);
+        k = (hdr != NULL) && equal_image_dimensions(scan.header, hdr);
+        if (hdr != NULL)
+            nifti_image_free(hdr);
+        if (!k) {
+            fprintf(stderr, "Error: %s does not share the grid of %s.\n",
+                    infiles[i], infiles[0]);
+            goto fail;
+        }
+    }
+
+    /* Parse before reading any data: a typo in the formula should not cost
        the time it takes to load a long file list. */
     expr = CAT_CalcParse(expression, n_img, err, sizeof(err));
     if (expr == NULL) {
         fprintf(stderr, "Error in expression \"%s\":\n  %s.\n", expression, err);
-        exit(EXIT_FAILURE);
+        goto fail;
     }
 
     if (verbose) {
@@ -188,50 +218,25 @@ main(int argc, char *argv[])
         fprintf(stdout, "Inputs:     %d image%s%s\n", n_img,
                 n_img == 1 ? "" : "s",
                 CAT_CalcUsesMatrix(expr) ? " (matrix mode)" : "");
+        for (i = 0, k = 1; i < n_files; k += scan.n_volumes[i], i++) {
+            if (scan.n_volumes[i] > 1)
+                fprintf(stdout, "  i%d-i%d %s (%d volumes)\n", k,
+                        k + scan.n_volumes[i] - 1, infiles[i], scan.n_volumes[i]);
+            else
+                fprintf(stdout, "  i%-3d %s\n", k, infiles[i]);
+        }
     }
 
-    images = (double **) calloc((size_t) n_img, sizeof(double *));
-    if (images == NULL) {
-        fprintf(stderr, "Memory allocation error.\n");
+    if (CAT_VolAverageRead(infiles, n_files, &scan, &images, &buffers))
         goto fail;
-    }
 
-    for (i = 0; i < n_img; i++) {
-        if (verbose)
-            fprintf(stdout, "  i%-3d %s\n", i + 1, infiles[i]);
-
-        nii_ptr2 = read_nifti_double(infiles[i], &images[i], 0);
-        if (nii_ptr2 == NULL) {
-            fprintf(stderr, "Error reading %s.\n", infiles[i]);
-            goto fail;
-        }
-
-        if (i == 0) {
-            nii_ptr = nii_ptr2;
-            nvox = nii_ptr->nvox;
-            voxelsize[0] = nii_ptr->dx;
-            voxelsize[1] = nii_ptr->dy;
-            voxelsize[2] = nii_ptr->dz;
-            dims[0] = nii_ptr->nx;
-            dims[1] = nii_ptr->ny;
-            dims[2] = nii_ptr->nz;
-        } else if (!equal_image_dimensions(nii_ptr, nii_ptr2) ||
-                   nii_ptr2->nvox != nvox) {
-            /* No reslicing here: an expression evaluated across grids that do
-               not line up is meaningless, so refuse rather than guess. */
-            fprintf(stderr, "Error: %s does not share the grid of %s.\n",
-                    infiles[i], infiles[0]);
-            goto fail;
-        }
-    }
-
-    result = (double *) malloc(sizeof(double) * nvox);
+    result = (double *) malloc(sizeof(double) * scan.n_voxels);
     if (result == NULL) {
         fprintf(stderr, "Memory allocation error.\n");
         goto fail;
     }
 
-    if (CAT_CalcApply(expr, images, n_img, nvox, result) != 0)
+    if (CAT_CalcApply(expr, images, n_img, scan.n_voxels, result) != 0)
         goto fail;
 
     /* slope 0.0 asks write_nifti_double() to fit the data to the output type
@@ -241,25 +246,22 @@ main(int argc, char *argv[])
     if (verbose)
         fprintf(stdout, "Output:     %s\n", outfile);
 
-    if (!write_nifti_double(outfile, result, dt, slope, dims, voxelsize, nii_ptr))
+    if (!write_nifti_double(outfile, result, dt, slope, scan.dims, scan.voxelsize,
+                            scan.header))
         goto fail;
 
-    for (i = 0; i < n_img; i++)
-        free(images[i]);
-    free(images);
+    CAT_VolAverageReadFree(images, buffers, n_files);
     free(result);
     CAT_CalcFree(expr);
+    CAT_VolAverageFree(&scan);
 
     return EXIT_SUCCESS;
 
 fail:
-    if (images != NULL) {
-        for (i = 0; i < n_img; i++)
-            free(images[i]);
-        free(images);
-    }
+    CAT_VolAverageReadFree(images, buffers, n_files);
     free(result);
     CAT_CalcFree(expr);
+    CAT_VolAverageFree(&scan);
 
     return EXIT_FAILURE;
 }
