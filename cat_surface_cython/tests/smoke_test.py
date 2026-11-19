@@ -712,6 +712,33 @@ def test_vol_calc():
         raised = True
     check("differing shapes are a ValueError", raised)
 
+    # The file mirror takes a 4-D file as one input per volume, as CAT_VolCalc.
+    import nibabel as nib
+    with tempfile.TemporaryDirectory() as d:
+        f3, f4, out = (os.path.join(d, n) for n in ("a.nii", "bc.nii", "out.nii"))
+        nib.save(nib.Nifti1Image(a.astype(np.float32), np.eye(4)), f3)
+        nib.save(nib.Nifti1Image(np.stack([b, c], axis=-1).astype(np.float32),
+                                 np.eye(4)), f4)
+        a32, b32, c32 = (v.astype(np.float32).astype(np.float64) for v in (a, b, c))
+
+        cli.vol_calc(f4, out, "i2-i1")
+        res = nib.load(out)
+        check("a 4-D file: i1 and i2 are its volumes",
+              np.allclose(res.get_fdata(), c32 - b32, atol=1e-6))
+        check("the result of a 4-D input is 3-D", res.shape == a.shape)
+
+        cli.vol_calc([f3, f4], out, "median(X)")
+        check("X spans a 3-D file and the volumes of a 4-D file",
+              np.allclose(nib.load(out).get_fdata(),
+                          np.median(np.stack([a32, b32, c32]), axis=0), atol=1e-6))
+
+        try:
+            cli.vol_calc(f4, out, "i3")
+            raised = False
+        except ValueError:
+            raised = True
+        check("a volume that the 4-D file does not have is a ValueError", raised)
+
 
 # ---------------------------------------------------------------------------
 # Box morphology: a cube of side 2r+1, outside the volume is background.

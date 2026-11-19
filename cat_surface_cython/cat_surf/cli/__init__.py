@@ -602,11 +602,15 @@ def vol_calc(input_files, output_file, expression, dt="float32",
     Evaluate a voxel-wise formula over NIfTI volumes that share one grid
     and write the result.  The inputs are addressed as ``i1``, ``i2``, ...
     in the order given; see :func:`cat_surf.vol_calc` for the grammar.
+    A 4-D file counts as one input per volume: its volumes take the next
+    numbers in turn, and ``X`` spans all volumes of all files.  The result
+    is always one 3-D image.
 
     Parameters
     ----------
     input_files : str or sequence of str
-        Input NIfTI files.  The first one provides the output header.
+        Input NIfTI files, 3-D or 4-D.  The first one provides the output
+        header.
     output_file : str
         Output NIfTI file.
     expression : str
@@ -631,37 +635,45 @@ def vol_calc(input_files, output_file, expression, dt="float32",
     if dt not in _VOL_CALC_DTYPES:
         raise ValueError(f"Unknown data type '{dt}'.")
 
-    # Parse on a single voxel before loading anything, so a typo in the
-    # formula does not cost the time it takes to read a long file list.
-    _vol_calc([np.zeros((1, 1, 1))] * len(input_files), expression)
-
-    if verbose:
-        print(f"Expression: {expression}")
-        print(f"Inputs:     {len(input_files)} image"
-              f"{'' if len(input_files) == 1 else 's'}")
-
-    ref = None
-    vols = []
-    for k, f in enumerate(input_files, start=1):
-        if verbose:
-            print(f"  i{k:<3d} {f}")
-        img = nib.load(f)
-        shape = img.shape[:3]
-        if int(np.prod(img.shape[3:], dtype=np.int64)) != 1:
-            raise ValueError(f"{f} is not a 3-D volume.")
-        if ref is None:
-            ref = img
-        elif (shape != ref.shape[:3] or not np.allclose(
+    # The headers only: every volume is one input, so a 4-D file contributes
+    # one per volume, and the formula is checked against that number.
+    imgs = [nib.load(f) for f in input_files]
+    ref = imgs[0]
+    n_vols = []
+    for f, img in zip(input_files, imgs):
+        if int(np.prod(img.shape[4:], dtype=np.int64)) != 1:
+            raise ValueError(f"{f} has more than four dimensions.")
+        if (img.shape[:3] != ref.shape[:3] or not np.allclose(
                 img.header.get_zooms()[:3], ref.header.get_zooms()[:3],
                 atol=1e-3)):
             # No reslicing here, as in the binary: a formula evaluated
             # across grids that do not line up is meaningless.
             raise ValueError(f"{f} does not share the grid of "
                              f"{input_files[0]}.")
-        vol = img.get_fdata(dtype=np.float64).reshape(shape, order="F")
+        n_vols.append(int(img.shape[3]) if len(img.shape) > 3 else 1)
+    n_img = sum(n_vols)
+
+    # Parse on a single voxel before loading anything, so a typo in the
+    # formula does not cost the time it takes to read a long file list.
+    _vol_calc([np.zeros((1, 1, 1))] * n_img, expression)
+
+    if verbose:
+        print(f"Expression: {expression}")
+        print(f"Inputs:     {n_img} image{'' if n_img == 1 else 's'}")
+
+    shape = ref.shape[:3]
+    vols = []
+    k = 1
+    for f, img, nt in zip(input_files, imgs, n_vols):
+        if verbose:
+            print(f"  i{k}-i{k + nt - 1} {f} ({nt} volumes)" if nt > 1
+                  else f"  i{k:<3d} {f}")
+        data = img.get_fdata(dtype=np.float64).reshape(shape + (nt,), order="F")
         # The NIfTI reader behind the binary loads non-finite values as zero.
-        vol[~np.isfinite(vol)] = 0.0
-        vols.append(vol)
+        data[~np.isfinite(data)] = 0.0
+        vols.extend(data[..., t] for t in range(nt))
+        k += nt
+    del imgs
 
     result = _vol_calc(vols, expression)
     del vols
