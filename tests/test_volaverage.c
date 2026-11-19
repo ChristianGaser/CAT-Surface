@@ -394,6 +394,347 @@ test_nonfinite_values_are_zero(void)
     remove(file);
 }
 
+/*
+ * CAT_VolAverageSelect() uses a part of the samples, chosen by a label per
+ * sample: the controls of a 4D file of z-maps, the scans without motion.
+ */
+
+static const char *file_labels = "test_volaverage_labels.txt";
+
+/** \brief Write a text file. */
+static void
+write_text(const char *file, const char *text)
+{
+    FILE *fp = fopen(file, "w");
+
+    if (fp)
+    {
+        fputs(text, fp);
+        fclose(fp);
+    }
+}
+
+/** \brief Mean and std (n - 1) of the n listed volumes by the two-pass formula. */
+static void
+reference_of(const int *volumes, int n, double *mean, double *sd)
+{
+    double s, d;
+    int t, i;
+
+    for (i = 0; i < NVOX; i++)
+    {
+        s = 0.0;
+        for (t = 0; t < n; t++)
+            s += (double)fixture[volumes[t] * NVOX + i];
+        mean[i] = s / n;
+        s = 0.0;
+        for (t = 0; t < n; t++)
+        {
+            d = (double)fixture[volumes[t] * NVOX + i] - mean[i];
+            s += d * d;
+        }
+        sd[i] = sqrt(s / (n - 1));
+    }
+}
+
+/**
+ * \brief The selection picks exactly the n listed samples of the inputs, and
+ *        the mean and the std are those of these volumes.
+ */
+static int
+selection_gives(char **in, int nfiles, const char *labels, const char *selection,
+                const int *volumes, int n)
+{
+    CAT_VolAverageResult r;
+    double mean[NVOX], sd[NVOX];
+    int ok, t, k = 0, listed;
+
+    write_text(file_labels, labels);
+    ok = CAT_VolAverageScan(in, nfiles, 0, &r) == 0 &&
+         CAT_VolAverageSelect(selection, &r) == 0 &&
+         r.n_selected == n && r.n_samples == NT && r.selected != NULL;
+    for (t = 0; ok && t < NT; t++)
+    {
+        listed = (k < n && volumes[k] == t);
+        ok = (r.selected[t] == listed);
+        k += listed;
+    }
+    ok = ok && CAT_VolAverageCompute(in, nfiles, 1, 0, &r) == 0;
+    if (ok)
+    {
+        reference_of(volumes, n, mean, sd);
+        ok = same_values(r.mean, mean, NVOX, 1e-9) && same_values(r.std, sd, NVOX, 1e-9);
+    }
+
+    CAT_VolAverageFree(&r);
+    remove(file_labels);
+    return ok;
+}
+
+/** \brief Labels equal to one of the values, as numbers, as text and without values. */
+static void
+test_select_by_label(void)
+{
+    static const int twos[] = {0, 2, 3}, ones[] = {1, 4, 5}, all[] = {0, 1, 2, 3, 4, 5};
+    static const int flags[] = {1, 2, 4}, ctrl[] = {0, 2, 4};
+    const char *file_eq = "test_volaverage_a=b.txt";
+    const char *groups = "2\n1\n2\n2\n1\n1\n";
+    char *in[1];
+
+    make_fixture(0.0f);
+    in[0] = (char *)file_4d;
+
+    MU_ASSERT("the volumes with the label 2",
+              selection_gives(in, 1, groups, "test_volaverage_labels.txt=2", twos, 3));
+    MU_ASSERT("the volumes with the label 1",
+              selection_gives(in, 1, groups, "test_volaverage_labels.txt=1", ones, 3));
+    MU_ASSERT("several values",
+              selection_gives(in, 1, groups, "test_volaverage_labels.txt=1,2", all, 6));
+    MU_ASSERT("numbers are compared as numbers: 2 is 2.0",
+              selection_gives(in, 1, groups, "test_volaverage_labels.txt= 2.0", twos, 3));
+    MU_ASSERT("a value that no label has is ignored next to one that some have",
+              selection_gives(in, 1, groups, "test_volaverage_labels.txt=7,1", ones, 3));
+    MU_ASSERT("without values: the labels that are not 0",
+              selection_gives(in, 1, "0\n1\n1\n0\n3\n0\n", "test_volaverage_labels.txt",
+                              flags, 3));
+    MU_ASSERT("text labels; empty lines, white space and CR are ignored",
+              selection_gives(in, 1, "ctrl\npat\n\n  ctrl \r\npat\nctrl\npat\n",
+                              "test_volaverage_labels.txt=ctrl", ctrl, 3));
+    MU_ASSERT("a label file without a final newline",
+              selection_gives(in, 1, "2\n1\n2\n2\n1\n1", "test_volaverage_labels.txt=1",
+                              ones, 3));
+
+    /* a file of the whole name wins over splitting at '=' */
+    write_text(file_eq, "0\n1\n1\n0\n3\n0\n");
+    MU_ASSERT("an existing file whose name contains '='",
+              selection_gives(in, 1, "9\n9\n9\n9\n9\n9\n", file_eq, flags, 3));
+    remove(file_eq);
+
+    remove_fixture();
+}
+
+/** \brief The labels follow the samples over 3D and 4D files; unused files are not needed. */
+static void
+test_select_across_files(void)
+{
+    static const int twos[] = {0, 2, 3}, last[] = {4, 5};
+    char *in[4];
+
+    make_fixture(0.0f);
+    in[0] = vol_names[0];
+    in[1] = (char *)file_mid;           /* volumes 1 to 3 */
+    in[2] = vol_names[4];
+    in[3] = vol_names[5];
+
+    MU_ASSERT("a selection across a 3D and a 4D file",
+              selection_gives(in, 4, "2\n1\n2\n2\n1\n1\n", "test_volaverage_labels.txt=2",
+                              twos, 3));
+    MU_ASSERT("a selection that leaves out the 4D file",
+              selection_gives(in, 4, "a\nb\nb\nb\nc\nc\n", "test_volaverage_labels.txt=c",
+                              last, 2));
+
+    remove_fixture();
+}
+
+/** \brief What cannot be a selection is refused and leaves the result as it was. */
+static void
+test_select_errors(void)
+{
+    CAT_VolAverageResult r;
+    char *in[1];
+
+    make_fixture(0.0f);
+    in[0] = (char *)file_4d;
+
+    memset(&r, 0, sizeof(r));
+    MU_ASSERT("no selection before the scan",
+              CAT_VolAverageSelect("test_volaverage_labels.txt=1", &r) != 0);
+
+    if (CAT_VolAverageScan(in, 1, 0, &r) == 0)
+    {
+        MU_ASSERT("without a selection all samples are used",
+                  r.selected == NULL && r.n_selected == NT);
+        MU_ASSERT("a missing label file",
+                  CAT_VolAverageSelect("test_volaverage_none.txt=1", &r) != 0);
+        write_text(file_labels, "1\n2\n1\n2\n1\n");
+        MU_ASSERT("five labels for six volumes",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=1", &r) != 0);
+        write_text(file_labels, "1\n2\n1\n2\n1\n2\n");
+        MU_ASSERT("a value that no volume has",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=7", &r) != 0);
+        MU_ASSERT("an empty value",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=1,,2", &r) != 0);
+        MU_ASSERT("no value after '='",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=", &r) != 0);
+        write_text(file_labels, "0\n0\n0\n0\n0\n0\n");
+        MU_ASSERT("only zeros and no values",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt", &r) != 0);
+        write_text(file_labels, "a\nb\na\nb\na\nb\n");
+        MU_ASSERT("text labels need values",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt", &r) != 0);
+        MU_ASSERT("a refused selection leaves all samples in use",
+                  r.selected == NULL && r.n_selected == NT);
+
+        MU_ASSERT("a valid selection after the refused ones",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=a", &r) == 0 &&
+                  r.n_selected == 3);
+        MU_ASSERT("a refused selection keeps the previous one",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=c", &r) != 0 &&
+                  r.n_selected == 3 && r.selected != NULL && r.selected[0] && !r.selected[1]);
+        MU_ASSERT("a new selection replaces the previous one",
+                  CAT_VolAverageSelect("test_volaverage_labels.txt=b", &r) == 0 &&
+                  r.n_selected == 3 && !r.selected[0] && r.selected[1]);
+        CAT_VolAverageFree(&r);
+    }
+    else
+        MU_ASSERT("the 4D file is scanned", 0);
+
+    remove(file_labels);
+    remove_fixture();
+}
+
+/** \brief The std needs two selected volumes; the mean of one is that volume. */
+static void
+test_select_single_volume(void)
+{
+    CAT_VolAverageResult r;
+    char *in[1];
+    double vol[NVOX];
+    int i;
+
+    make_fixture(0.0f);
+    in[0] = (char *)file_4d;
+    write_text(file_labels, "0\n0\n0\n1\n0\n0\n");
+
+    if (CAT_VolAverageScan(in, 1, 0, &r) == 0 && CAT_VolAverageSelect(file_labels, &r) == 0)
+    {
+        MU_ASSERT("one selected volume has no standard deviation",
+                  CAT_VolAverageCompute(in, 1, 1, 0, &r) != 0);
+        for (i = 0; i < NVOX; i++)
+            vol[i] = (double)fixture[3 * NVOX + i];
+        MU_ASSERT("its mean is the volume itself",
+                  CAT_VolAverageCompute(in, 1, 0, 0, &r) == 0 &&
+                  same_values(r.mean, vol, NVOX, 1e-9));
+        CAT_VolAverageFree(&r);
+    }
+    else
+        MU_ASSERT("one volume is selected", 0);
+
+    remove(file_labels);
+    remove_fixture();
+}
+
+/** \brief Z-scores of the selected volumes as for these volumes alone; NaN for the others. */
+static void
+test_select_zscores(void)
+{
+    static const int used[] = {0, 1, 2, 5};
+    CAT_VolAverageResult r4, r3;
+    char *in4[1], *in3[4];
+    double z4[NT], z3[4];
+    int t, ok;
+
+    make_fixture(20.0f);
+    in4[0] = (char *)file_4d;
+    for (t = 0; t < 4; t++)
+        in3[t] = vol_names[used[t]];
+    write_text(file_labels, "1\n1\n1\n0\n0\n1\n");
+
+    ok = CAT_VolAverageScan(in4, 1, 0, &r4) == 0 &&
+         CAT_VolAverageSelect(file_labels, &r4) == 0 &&
+         CAT_VolAverageCompute(in4, 1, 1, 0, &r4) == 0 &&
+         CAT_VolAverageZscore(in4, 1, &r4, 0, z4) == 0;
+    MU_ASSERT("z-scores of the selection", ok);
+    if (ok)
+    {
+        ok = CAT_VolAverageScan(in3, 4, 0, &r3) == 0 &&
+             CAT_VolAverageCompute(in3, 4, 1, 0, &r3) == 0 &&
+             CAT_VolAverageZscore(in3, 4, &r3, 0, z3) == 0;
+        MU_ASSERT("z-scores of the same volumes as separate files", ok);
+        if (ok)
+        {
+            for (t = 0; t < 4; t++)
+                ok = ok && fabs(z4[used[t]] - z3[t]) <= 1e-12;
+            MU_ASSERT("the selected volumes keep their place among all samples", ok);
+            MU_ASSERT("the others have no z-score", isnan(z4[3]) && isnan(z4[4]));
+            CAT_VolAverageFree(&r3);
+        }
+    }
+
+    CAT_VolAverageFree(&r4);
+    remove(file_labels);
+    remove_fixture();
+}
+
+/** \brief Largest difference of a sample from volume t of the fixture is 0. */
+static int
+is_volume(const double *sample, int t)
+{
+    int i;
+
+    for (i = 0; i < NVOX; i++)
+        if (sample[i] != (double)fixture[t * NVOX + i])
+            return 0;
+    return 1;
+}
+
+/**
+ * \brief CAT_VolAverageRead() gives one pointer per volume, so a 4D file is
+ *        as many inputs of CAT_VolCalc as it has volumes.
+ */
+static void
+test_read_samples(void)
+{
+    CAT_VolAverageResult r;
+    double **samples = NULL, **buffers = NULL;
+    char *in[3];
+    int t, ok;
+
+    make_fixture(0.0f);
+
+    in[0] = (char *)file_4d;
+    ok = CAT_VolAverageScan(in, 1, 0, &r) == 0 &&
+         CAT_VolAverageRead(in, 1, &r, &samples, &buffers) == 0;
+    MU_ASSERT("the 4D file is read", ok);
+    for (t = 0; ok && t < NT; t++)
+        ok = is_volume(samples[t], t);
+    MU_ASSERT("one sample per volume, in the order of the volumes", ok);
+    CAT_VolAverageReadFree(samples, buffers, 1);
+    CAT_VolAverageFree(&r);
+
+    in[0] = vol_names[0];
+    in[1] = (char *)file_mid;           /* volumes 1 to 3 */
+    in[2] = vol_names[5];
+    ok = CAT_VolAverageScan(in, 3, 0, &r) == 0 && r.n_samples == 5 &&
+         CAT_VolAverageRead(in, 3, &r, &samples, &buffers) == 0;
+    MU_ASSERT("3D and 4D files are read", ok);
+    MU_ASSERT("their volumes follow each other",
+              ok && is_volume(samples[0], 0) && is_volume(samples[1], 1) &&
+              is_volume(samples[2], 2) && is_volume(samples[3], 3) &&
+              is_volume(samples[4], 5));
+    CAT_VolAverageReadFree(samples, buffers, 3);
+
+    write_text(file_labels, "0\n0\n1\n0\n1\n");
+    ok = ok && CAT_VolAverageSelect(file_labels, &r) == 0 &&
+         CAT_VolAverageRead(in, 3, &r, &samples, &buffers) == 0;
+    MU_ASSERT("a selection is read", ok);
+    MU_ASSERT("only the selected volumes are returned",
+              ok && is_volume(samples[0], 2) && is_volume(samples[1], 5));
+    MU_ASSERT("a file without a selected volume is not read", ok && buffers[0] == NULL);
+    CAT_VolAverageReadFree(samples, buffers, 3);
+    CAT_VolAverageFree(&r);
+
+    in[0] = (char *)"test_volaverage_none.nii";
+    memset(&r, 0, sizeof(r));
+    MU_ASSERT("nothing is read before the scan",
+              CAT_VolAverageRead(in, 1, &r, &samples, &buffers) != 0 &&
+              samples == NULL && buffers == NULL);
+    CAT_VolAverageReadFree(NULL, NULL, 0);
+
+    remove(file_labels);
+    remove_fixture();
+}
+
 int main(void)
 {
     MU_RUN_TEST(test_four_d_file_is_many_samples);
@@ -404,6 +745,12 @@ int main(void)
     MU_RUN_TEST(test_zscores_per_volume);
     MU_RUN_TEST(test_zscore_needs_std);
     MU_RUN_TEST(test_nonfinite_values_are_zero);
+    MU_RUN_TEST(test_select_by_label);
+    MU_RUN_TEST(test_select_across_files);
+    MU_RUN_TEST(test_select_errors);
+    MU_RUN_TEST(test_select_single_volume);
+    MU_RUN_TEST(test_select_zscores);
+    MU_RUN_TEST(test_read_samples);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }
