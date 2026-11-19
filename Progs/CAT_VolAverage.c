@@ -11,7 +11,8 @@
  * wrapper around the library functions in CAT_VolumeStats.
  *
  * Input  : one or more NIfTI files, all with the same matrix size.  A 3D file
- *          is one sample, a 4D file one sample per volume.
+ *          is one sample, a 4D file one sample per volume.  -select uses only
+ *          the volumes with given labels (CAT_VolAverageSelect()).
  * Output : whatever is asked for with -mean, -std, -zscore and -zscore-txt.
  */
 
@@ -30,6 +31,7 @@ char *mean_filename = NULL;
 char *std_filename = NULL;
 char *zscore_filename = NULL;
 char *zscore_txt_filename = NULL;
+char *selection = NULL;
 
 static ArgvInfo argTable[] = {
     {"-mean", ARGV_STRING, (char *) 1, (char *) &mean_filename,
@@ -42,6 +44,13 @@ static ArgvInfo argTable[] = {
           "Write filenames and z-scores in csv-file (one row per volume)."},
     {"-zscore-txt", ARGV_STRING, (char *) 1, (char *) &zscore_txt_filename,
           "Write z-scores in txt-file (one line per volume)."},
+    {"-select", ARGV_STRING, (char *) 1, (char *) &selection,
+          "Use only a part of the volumes: <file>[=<value>[,<value>...]], where\n\
+         <file> is a text file with one label per volume (one per line, in\n\
+         the order of the files and of the volumes of a 4D file).  The volumes\n\
+         whose label is one of the values are used; without values, those\n\
+         whose label is a number other than 0.  All outputs then refer to\n\
+         these volumes only."},
     {"-v", ARGV_CONSTANT, (char *) 1, (char *) &verbose,
           "Be verbose."},
      {NULL, ARGV_END, NULL, NULL, NULL}
@@ -51,12 +60,18 @@ static void usage(const char *executable)
 {
     (void) fprintf(stderr,
     "\nUsage: %s [-mean mean.nii] [-std std.nii] [-zscore zscore.csv]\n"
-    "          [-zscore-txt zscore.txt] in1.nii ... inx.nii\n\n"
+    "          [-zscore-txt zscore.txt] [-select labels.txt[=values]]\n"
+    "          in1.nii ... inx.nii\n\n"
     "All files are inputs; the mean image is only written with -mean.\n"
     "A 4D file counts as one sample per volume, so\n"
     "     %s -mean mean.nii -std std.nii zmaps4d.nii\n"
-    "gives the mean and standard deviation over its volumes.\n"
-    "     %s -help\n\n", executable, executable, executable);
+    "gives the mean and standard deviation over its volumes.\n\n"
+    "-select uses only a part of the volumes, chosen by a text file with one\n"
+    "label per volume (one per line), e.g. the group of every subject:\n"
+    "     %s -std std_controls.nii -select group.txt=2 zmaps4d.nii\n"
+    "takes the volumes with the label 2, group.txt=1,3 those with 1 or 3, and\n"
+    "group.txt alone those whose label is not 0.\n"
+    "     %s -help\n\n", executable, executable, executable, executable);
 }
 
 /* Main program */
@@ -104,6 +119,13 @@ int main(int argc, char *argv[])
     fprintf(stdout, "%d volume%s in %d file%s\n", res.n_samples,
             (res.n_samples == 1) ? "" : "s", nfiles, (nfiles == 1) ? "" : "s");
 
+    if (selection != NULL) {
+        if (CAT_VolAverageSelect(selection, &res))
+            exit(EXIT_FAILURE);
+        fprintf(stdout, "%d volume%s selected (%s)\n", res.n_selected,
+                (res.n_selected == 1) ? "" : "s", selection);
+    }
+
     if (CAT_VolAverageCompute(infiles, nfiles, need_std, verbose, &res))
         exit(EXIT_FAILURE);
 
@@ -121,8 +143,11 @@ int main(int argc, char *argv[])
             fid = SAFE_FOPEN(zscore_filename, "w");
             fprintf(fid,"filename,z-score\n");
             for (f=0, k=0; f<nfiles; f++) {
-                /* the volumes of a 4D file are numbered from 1 */
+                /* the volumes of a 4D file are numbered from 1; with
+                   -select only the selected volumes are listed */
                 for (v=0; v<res.n_volumes[f]; v++, k++) {
+                    if (res.selected && !res.selected[k])
+                        continue;
                     if (res.n_volumes[f] > 1)
                         fprintf(fid,"%s[%d],%g\n",infiles[f],v+1,zscore[k]);
                     else
@@ -134,7 +159,8 @@ int main(int argc, char *argv[])
         if (zscore_txt_filename != NULL) {
             fid = SAFE_FOPEN(zscore_txt_filename, "w");
             for (k=0; k<res.n_samples; k++)
-                fprintf(fid,"%g\n",zscore[k]);
+                if (!res.selected || res.selected[k])
+                    fprintf(fid,"%g\n",zscore[k]);
             fclose(fid);
         }
 
