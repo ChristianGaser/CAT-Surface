@@ -33,8 +33,16 @@
 static const size_t NT = (size_t)TX * TY * TZ;
 static const size_t NI = (size_t)IX * IY * IZ;
 
-/* intensity of GM, WM, CSF, bone, soft tissue, air */
-static const double MU[NCLS] = {65.0, 100.0, 30.0, 12.0, 140.0, 3.0};
+/* intensity of GM, WM, CSF, bone, soft tissue, air; soft tissue varies by
+ * +-30 around its value, as fat and muscle do */
+static const double MU[NCLS] = {65.0, 100.0, 30.0, 12.0, 150.0, 3.0};
+
+/* voxels deep in white matter that can be made brighter: every third one
+ * along each axis within HOT_RADIUS mm (template) of the centre of the head,
+ * too few to widen the Gaussian of white matter by much; HOT_Z is how many SD
+ * of white matter they are raised by */
+#define HOT_RADIUS 12.0
+#define HOT_Z 5.6
 
 /** \brief Smooth step from 1 (inside, d < 0) to 0 (outside), width w mm. */
 static double
@@ -167,7 +175,9 @@ make_templates(void)
                 {
                     size_t v = i + (size_t)TX * (j + (size_t)TY * k);
                     phantom(M[0] * i + M[3], M[5] * j + M[7], M[10] * k + M[11], p);
-                    for (c = 0; c < NCLS; c++) tpl[l][c * NT + v] = (float)p[c];
+                    /* no class falls below 1e-4, as in CAT's templates */
+                    for (c = 0; c < NCLS; c++)
+                        tpl[l][c * NT + v] = (float)((p[c] + 1e-4) / (1.0 + NCLS * 1e-4));
                 }
         if (l < CAT_SHOOT_NTEMPLATES - 1)
             for (c = 0; c < NCLS; c++) box_smooth(tpl[l] + c * NT, (CAT_SHOOT_NTEMPLATES - l) / 2);
@@ -195,6 +205,16 @@ lcg_normal(unsigned long long *state)
     return sqrt(-2.0 * log(u1)) * cos(6.283185307179586 * u2);
 }
 
+/** \brief Whether voxel (i, j, k) at template position t is one of the bright ones. */
+static int
+is_hot(int i, int j, int k, const double t[3])
+{
+    return i % 3 == 0 && j % 3 == 0 && k % 3 == 0 &&
+           sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]) < HOT_RADIUS;
+}
+
+static double hot_factor = 1.0; /* brightness of these voxels */
+
 /**
  * \brief The image with noise of SD sd and the bias field, and the class of
  *        every voxel (truth).
@@ -221,9 +241,12 @@ make_image(float *img, unsigned char *truth, double sd, int with_bias)
                 phantom(t[0], t[1], t[2], p);
                 for (c = 0; c < NCLS; c++)
                 {
-                    val += p[c] * MU[c];
+                    double mu = MU[c];
+                    if (c == 4) mu += 30.0 * sin(0.07 * t[1] + 0.05 * t[2]);
+                    val += p[c] * mu;
                     if (p[c] > p[best]) best = c;
                 }
+                if (is_hot(i, j, k, t)) val *= hot_factor;
                 if (with_bias) val *= exp(log_bias(s));
                 val += sd * lcg_normal(&state);
                 img[v] = (float)((val > 0.2) ? val : 0.2);
@@ -276,6 +299,18 @@ run(const float *img, float **tpl, const CAT_UnifiedSegOpts *o, unsigned char *p
     grid_matrix(TX, TY, TZ, TVOX, Mt);
     return CAT_UnifiedSeg(img, dims, M, t, tdims, Mt, NULL, NULL, o, prob, label, NULL, NULL,
                           bias, NULL, NULL, NULL, res);
+}
+
+/** \brief The smaller variance of the Gaussians of GM and WM (one each). */
+static double
+tissue_variance(const CAT_UnifiedSegResult *res)
+{
+    double v = HUGE_VAL;
+    int g;
+
+    for (g = 0; g < res->n_gauss; g++)
+        if (res->lkp[g] < 2 && res->vr[g] < v) v = res->vr[g];
+    return v;
 }
 
 /* The classes, the affine matrix, the bias field and the label map of the
@@ -464,11 +499,12 @@ test_noise(void)
 {
     float **tpl = make_templates();
     float *img = (float *)malloc(sizeof(float) * NI);
+    float *label = (float *)malloc(sizeof(float) * NI);
     unsigned char *prob = (unsigned char *)malloc(NCLS * NI);
     unsigned char *truth = (unsigned char *)malloc(NI);
     CAT_UnifiedSegOpts o;
     CAT_UnifiedSegResult res;
-    double sd_plain = 0.0, sd_noise = 0.0, est_plain = 0.0;
+    double sd_plain = 0.0, sd_noise = 0.0, est_plain = 0.0, add, excess;
     int ret, g;
 
     make_image(img, truth, 0.0, 0);
@@ -485,7 +521,7 @@ test_noise(void)
     CAT_UnifiedSegResultFree(&res);
 
     o.noise = 0.05;
-    ret = run(img, tpl, &o, prob, NULL, NULL, &res);
+    ret = run(img, tpl, &o, prob, label, NULL, &res);
     MU_ASSERT("the image is segmented with added noise", ret == 0);
     if (!ret)
     {
@@ -497,6 +533,15 @@ test_noise(void)
         MU_ASSERT("the added noise widens the Gaussian of white matter", sd_noise > 1.5 * sd_plain);
         MU_ASSERT("grey matter is recovered with added noise", dice(prob, truth, 0) > 0.9);
         MU_ASSERT("white matter is recovered with added noise", dice(prob, truth, 1) > 0.95);
+        /* the segmented image has no added noise: the pure tissues of the
+         * partial volume model are narrower by it than the Gaussians.  The
+         * Gaussians live in bias-corrected intensities and the difference is
+         * taken over the brain voxels of the lattice, so the two agree only
+         * roughly (the ratio is 0.91 here). */
+        add = res.noise_added * (res.intensity_range[1] - res.intensity_range[0]);
+        excess = tissue_variance(&res) - res.pve_sd * res.pve_sd;
+        MU_ASSERT("partial volumes are estimated", res.pve_done);
+        MU_ASSERT("the pure tissues lose the added noise", fabs(excess / (add * add) - 1.0) < 0.25);
     }
     CAT_UnifiedSegResultFree(&res);
 
@@ -509,8 +554,129 @@ test_noise(void)
     CAT_UnifiedSegResultFree(&res);
 
     free(img);
+    free(label);
     free(prob);
     free(truth);
+    free_templates(tpl);
+}
+
+/* White matter that is brighter than its Gaussian allows -- a gyrus next to
+ * a coil element, steeper than the bias field can follow -- must stay brain.
+ * With a floor of 1e-4 under the priors of the classes outside the brain, as
+ * SPM and CAT's templates have it, the broad Gaussian of soft tissue takes
+ * such voxels from about 4.5 SD above white matter and the label map gets a
+ * hole: at HOT_Z all bright voxels of this phantom were lost (mean label
+ * 0.02). Without the floor they stay brain up to about 7 SD. */
+static void
+test_bright_white_matter(void)
+{
+    float **tpl = make_templates();
+    float *img = (float *)malloc(sizeof(float) * NI);
+    float *label = (float *)malloc(sizeof(float) * NI);
+    unsigned char *prob = (unsigned char *)malloc(NCLS * NI);
+    CAT_UnifiedSegOpts o;
+    CAT_UnifiedSegResult res;
+    double M[16], s[3], t[3], lab = 0.0, cv = 0.0;
+    size_t v, nhot = 0, lost = 0;
+    int i, j, k, g, ret;
+
+    grid_matrix(IX, IY, IZ, IVOX, M);
+    phantom_options(&o);
+    o.samp = IVOX; /* every voxel, so that a bright one counts the same wherever it lies */
+
+    /* the spread of white matter without bright voxels sets their brightness */
+    make_image(img, NULL, 2.0, 1);
+    ret = run(img, tpl, &o, prob, NULL, NULL, &res);
+    MU_ASSERT("the image without bright voxels is segmented", ret == 0);
+    if (!ret)
+        for (g = 0; g < res.n_gauss; g++)
+            if (res.lkp[g] == 1) cv = sqrt(res.vr[g]) / res.mn[g];
+    CAT_UnifiedSegResultFree(&res);
+    MU_ASSERT("white matter has a spread", cv > 0.0);
+
+    hot_factor = 1.0 + HOT_Z * cv;
+    make_image(img, NULL, 2.0, 1);
+    hot_factor = 1.0;
+    ret = run(img, tpl, &o, prob, label, NULL, &res);
+    MU_ASSERT("the image with bright voxels is segmented", ret == 0);
+    if (!ret)
+    {
+        for (k = 0; k < IZ; k++)
+            for (j = 0; j < IY; j++)
+                for (i = 0; i < IX; i++)
+                {
+                    v = i + (size_t)IX * (j + (size_t)IY * k);
+                    s[0] = M[0] * i + M[3];
+                    s[1] = M[5] * j + M[7];
+                    s[2] = M[10] * k + M[11];
+                    to_template(s, t);
+                    if (!is_hot(i, j, k, t)) continue;
+                    nhot++;
+                    lab += label[v];
+                    if (prob[0 * NI + v] + prob[1 * NI + v] + prob[2 * NI + v] < 128) lost++;
+                }
+        MU_ASSERT("there are bright voxels", nhot >= 3);
+        MU_ASSERT("white matter that is too bright stays brain", lost == 0);
+        MU_ASSERT("and keeps the label of white matter", nhot && lab / (double)nhot > 2.9);
+    }
+    CAT_UnifiedSegResultFree(&res);
+
+    free(img);
+    free(label);
+    free(prob);
+    free_templates(tpl);
+}
+
+/* With the SANLM filter the parameters still come from the image as it came:
+ * they are those of a run without the filter, and only the segmentation
+ * changes. */
+static void
+test_filter_keeps_estimation(void)
+{
+    float **tpl = make_templates();
+    float *img = (float *)malloc(sizeof(float) * NI);
+    unsigned char *p1 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *p2 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *truth = (unsigned char *)malloc(NI);
+    float *label = (float *)malloc(sizeof(float) * NI);
+    CAT_UnifiedSegOpts o;
+    CAT_UnifiedSegResult r1, r2;
+    int ret1, ret2;
+
+    make_image(img, truth, 4.0, 1);
+    phantom_options(&o);
+    ret1 = run(img, tpl, &o, p1, label, NULL, &r1);
+    o.sanlm = 1;
+    ret2 = run(img, tpl, &o, p2, label, NULL, &r2);
+    MU_ASSERT("the runs with and without the filter succeed", ret1 == 0 && ret2 == 0);
+    if (!ret1 && !ret2)
+    {
+        MU_ASSERT("the filter does not change the Gaussians",
+                  memcmp(r1.mn, r2.mn, sizeof(r1.mn)) == 0 && memcmp(r1.vr, r2.vr, sizeof(r1.vr)) == 0);
+        MU_ASSERT("the filter does not change the affine matrix",
+                  memcmp(r1.affine, r2.affine, sizeof(r1.affine)) == 0);
+        MU_ASSERT("the filter changes the segmentation", memcmp(p1, p2, NCLS * NI) != 0);
+        MU_ASSERT("white matter is recovered from the filtered image", dice(p2, truth, 1) > 0.97);
+        /* the pure tissues of the partial volume model lie in the order and
+         * about the spacing of the phantom: (65 - 30) / (100 - 30) */
+        MU_ASSERT("the pure tissues are ordered CSF, GM, WM",
+                  r2.pve_mean[0] < r2.pve_mean[1] && r2.pve_mean[1] < r2.pve_mean[2]);
+        MU_ASSERT("grey matter lies half way between CSF and white matter",
+                  fabs((r2.pve_mean[1] - r2.pve_mean[0]) / (r2.pve_mean[2] - r2.pve_mean[0]) - 0.5) < 0.12);
+        /* a pure tissue is as wide as the narrowest tissue Gaussian, less
+         * what the filter took out of the image that is segmented */
+        MU_ASSERT("without the filter a pure tissue has the width of its Gaussian",
+                  fabs(r1.pve_sd * r1.pve_sd / tissue_variance(&r1) - 1.0) < 1e-6);
+        MU_ASSERT("with the filter it is narrower", r2.pve_sd < 0.97 * r1.pve_sd);
+    }
+    CAT_UnifiedSegResultFree(&r1);
+    CAT_UnifiedSegResultFree(&r2);
+
+    free(img);
+    free(p1);
+    free(p2);
+    free(truth);
+    free(label);
     free_templates(tpl);
 }
 
@@ -605,6 +771,8 @@ int main(void)
     MU_RUN_TEST(test_phantom);
     MU_RUN_TEST(test_threads_and_missing);
     MU_RUN_TEST(test_noise);
+    MU_RUN_TEST(test_bright_white_matter);
+    MU_RUN_TEST(test_filter_keeps_estimation);
     MU_RUN_TEST(test_options);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;

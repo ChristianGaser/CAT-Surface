@@ -83,12 +83,13 @@ typedef struct
                              reaches this fraction of the intensity range (1st
                              to 99th percentile); an image that is already
                              noisier is left alone.  The final segmentation is
-                             always computed from the image without it.  0: off
-                             (default) */
+                             always computed from the image without it (the
+                             filtered one with sanlm).  0: off (default) */
     unsigned int noise_seed; /**< seed of the added noise (1) */
-    int sanlm;          /**< 1: denoise the image with the SANLM filter first;
-                             everything that follows uses the filtered image
-                             (0) */
+    int sanlm;          /**< 1: the segmentation is computed from the image
+                             denoised with the SANLM filter; the parameters
+                             are still estimated from the image as it came,
+                             whose noise gives the Gaussians their width (0) */
     double sanlm_strength; /**< strength of the SANLM filter (1) */
     int sanlm_rician;   /**< 1: Rician noise model of the SANLM filter (0) */
     double mrf;         /**< strength of the Markov random field cleanup of the
@@ -129,8 +130,8 @@ typedef struct
     double ll;          /**< final log-likelihood per voxel used */
     int n_samples;      /**< voxels the parameters were estimated from */
     double intensity_range[2]; /**< 1st and 99th percentile of the image */
-    double noise_estimated; /**< noise SD of the image, as a fraction of the
-                                 intensity range */
+    double noise_estimated; /**< noise SD of the image as it came, as a
+                                 fraction of the intensity range */
     double noise_added;     /**< SD of the noise added for the estimation,
                                  same unit (0: none) */
     int pve_done;       /**< partial volumes were estimated */

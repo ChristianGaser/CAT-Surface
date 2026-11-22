@@ -65,7 +65,7 @@ static ArgvInfo argTable[] = {
     {"-params", ARGV_STRING, (char *)1, (char *)&params_file,
      "Write the estimated parameters and a summary of the run as JSON."},
     {"-sanlm", ARGV_CONSTANT, (char *)1, (char *)&opts.sanlm,
-     "Denoise the image with the SANLM filter first."},
+     "Segment the image denoised with the SANLM filter; the parameters are still\n\t\t\testimated from the image as it came."},
     {"-sanlm-strength", ARGV_FLOAT, (char *)1, (char *)&opts.sanlm_strength,
      "Strength of the SANLM filter."},
     {"-rician", ARGV_CONSTANT, (char *)1, (char *)&opts.sanlm_rician,
@@ -149,7 +149,8 @@ usage(const char *executable)
             "  -jac <file>        Jacobian determinants (template grid)\n"
             "  -params <file>     estimated parameters and summary, JSON\n\n"
             "Options (defaults in brackets):\n"
-            "  -sanlm             SANLM filter first\n"
+            "  -sanlm             segment the SANLM-filtered image (parameters are\n"
+            "                     estimated from the image as it came)\n"
             "  -sanlm-strength <f>  strength of the filter [%g]\n"
             "  -rician            Rician noise model of the filter\n"
             "  -noise <f>         estimate the parameters from the image with noise\n"

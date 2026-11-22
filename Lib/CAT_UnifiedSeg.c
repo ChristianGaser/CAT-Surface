@@ -33,7 +33,7 @@
 #define MAXK CAT_USEG_MAXK
 #define NLEV CAT_SHOOT_NTEMPLATES
 #define USEG_MAX_THREADS 16
-#define TPL_TINY 1e-4    /* tiny of spm_load_priors8.m */
+#define TPL_TINY 1e-9    /* keeps the log of a prior finite; SPM's tiny is 1e-4 */
 #define MOM_TINY 4.9e-32 /* eps*eps of spm_preproc8.m */
 #define DBL_EPS 2.220446049250313e-16
 #define AFF_SAMP_COARSE 8.0 /* mm between the voxels of the coarse affine search */
@@ -392,50 +392,89 @@ typedef struct
 {
     Tpl *T;
     const float *src;
+    double pmin[KB]; /* the floor of every class */
 } tplload_ctx;
+
+/* The priors of template voxel i (n voxels per class) without the floor
+ * pmin of each class, summing to one. */
+static void
+tpl_prior(const float *src, size_t n, size_t i, const double pmin[KB], double v[KB])
+{
+    double sum = 0.0;
+    int k;
+
+    for (k = 0; k < KB; k++)
+    {
+        v[k] = (double)src[k * n + i] - pmin[k];
+        if (!(v[k] > 0)) v[k] = 0.0;
+        sum += v[k];
+    }
+    if (!(sum > 0)) sum = 1.0;
+    for (k = 0; k < KB; k++) v[k] /= sum;
+}
 
 static void
 tplload_range(void *p, int z0, int z1)
 {
     tplload_ctx *c = (tplload_ctx *)p;
-    size_t nxy = (size_t)c->T->d[0] * c->T->d[1], n = c->T->n, i;
+    size_t nxy = (size_t)c->T->d[0] * c->T->d[1], i;
+    double v[KB];
     int k;
 
     for (i = nxy * z0; i < nxy * z1; i++)
-        for (k = 0; k < KB; k++)
-        {
-            float v = c->src[k * n + i];
-            if (!(v > 0)) v = 0.0f;
-            c->T->lt[KB * i + k] = logf(v + (float)TPL_TINY);
-        }
+    {
+        tpl_prior(c->src, c->T->n, i, c->pmin, v);
+        for (k = 0; k < KB; k++) c->T->lt[KB * i + k] = (float)log(v[k] + TPL_TINY);
+    }
 }
 
 /* Load the template of a level.  Beyond its volume the prior is the mean of
  * its bottom slice (below) or of its top slice (anywhere else), as bg1 and
  * bg2 of spm_load_priors8.m -- but without the brain classes, which SPM
- * keeps there and which then label neck and shoulders as CSF. */
+ * keeps there and which then label neck and shoulders as CSF.
+ *
+ * A class that the template rules out gets no floor.  SPM adds 1e-4 to every
+ * prior, and shooting templates come with a floor of their own (the smallest
+ * value of a class, 1e-4 in CAT's series).  With such a floor the classes
+ * outside the brain act as outlier classes inside it: white matter that is
+ * four to five SD brighter than its Gaussian -- a gyrus next to a coil
+ * element, where the bias field is steeper than its basis allows -- has a
+ * likelihood ratio of more than 1e4 in favour of the broad Gaussians of soft
+ * tissue, becomes soft tissue, and leaves a hole in the brain.  So the floor
+ * of every class is taken off, in the volume and in the slices that stand for
+ * what lies beyond it, and TPL_TINY only keeps the logarithm finite. */
 static void
 tpl_load(Tpl *T, int level, int nthreads)
 {
     tplload_ctx c;
     size_t nxy = (size_t)T->d[0] * T->d[1], i;
+    double v[KB], s1[KB], s2[KB];
     int k;
 
     if (T->level == level) return;
     c.T = T;
     c.src = T->tpl[level];
-    par_for(T->d[2], nthreads, tplload_range, &c);
     for (k = 0; k < KB; k++)
     {
-        const float *v = c.src + (size_t)k * T->n;
-        double s1 = 0.0, s2 = 0.0;
-        for (i = 0; i < nxy; i++)
-        {
-            s1 += (v[i] > 0) ? v[i] : 0.0;
-            s2 += (v[T->n - nxy + i] > 0) ? v[T->n - nxy + i] : 0.0;
-        }
-        T->bg1[k] = log(s1 / (double)nxy + TPL_TINY);
-        T->bg2[k] = log(s2 / (double)nxy + TPL_TINY);
+        const float *t = c.src + (size_t)k * T->n;
+        float mn = t[0];
+        for (i = 1; i < T->n; i++)
+            if (t[i] < mn) mn = t[i];
+        c.pmin[k] = (mn > 0) ? (double)mn : 0.0;
+    }
+    par_for(T->d[2], nthreads, tplload_range, &c);
+    for (k = 0; k < KB; k++) s1[k] = s2[k] = 0.0;
+    for (i = 0; i < nxy; i++)
+    {
+        tpl_prior(c.src, T->n, i, c.pmin, v);
+        for (k = 0; k < KB; k++) s1[k] += v[k];
+        tpl_prior(c.src, T->n, T->n - nxy + i, c.pmin, v);
+        for (k = 0; k < KB; k++) s2[k] += v[k];
+    }
+    for (k = 0; k < KB; k++)
+    {
+        T->bg1[k] = log(s1[k] / (double)nxy + TPL_TINY);
+        T->bg2[k] = log(s2[k] / (double)nxy + TPL_TINY);
         /* the templates hold the whole brain: there is none outside them */
         if (k == C_GM || k == C_WM || k == C_CSF) T->bg1[k] = T->bg2[k] = log(TPL_TINY);
     }
@@ -1192,7 +1231,8 @@ typedef struct
 {
     int d[3], sk[3];
     size_t n, nm;       /* voxels, and those that are used */
-    float *f;           /* intensity */
+    float *f;           /* intensity of the image the parameters come from */
+    float *fseg;        /* intensity of the image that is segmented */
     unsigned char *msk;
     float *b, *lb;      /* KB*n: priors and their logs, class fastest */
     float *lbf, *bf;    /* log bias field and bias field */
@@ -1212,6 +1252,7 @@ lattice_free(Lattice *L)
 {
     int i;
     free(L->f);
+    free(L->fseg);
     free(L->msk);
     free(L->b);
     free(L->lb);
@@ -1507,8 +1548,9 @@ lattice_bias(Lattice *L, int nthreads)
     return 0;
 }
 
-/* The lattice of voxels samp mm apart with the image est; voxels without
- * data in clean, masked out, or below the template take no part. */
+/* The lattice of voxels samp mm apart with the image est, and clean, the one
+ * that is segmented; voxels without data in clean, masked out, or below the
+ * template take no part. */
 static int
 lattice_build(Lattice *L, const float *est, const float *clean, const unsigned char *mask,
               const int dims[3], const double vx[3], const double Tvox[16], double zmin,
@@ -1531,6 +1573,7 @@ lattice_build(Lattice *L, const float *est, const float *clean, const unsigned c
     }
     L->n = (size_t)L->d[0] * L->d[1] * L->d[2];
     L->f = (float *)calloc(L->n, sizeof(float));
+    L->fseg = (float *)calloc(L->n, sizeof(float));
     L->msk = (unsigned char *)calloc(L->n, 1);
     L->b = (float *)malloc(sizeof(float) * KB * L->n);
     L->lb = (float *)malloc(sizeof(float) * KB * L->n);
@@ -1539,7 +1582,8 @@ lattice_build(Lattice *L, const float *est, const float *clean, const unsigned c
     L->wt1 = (float *)malloc(sizeof(float) * L->n);
     L->wt2 = (float *)malloc(sizeof(float) * L->n);
     L->ty = (float *)malloc(sizeof(float) * 3 * L->n);
-    if (!L->f || !L->msk || !L->b || !L->lb || !L->lbf || !L->bf || !L->wt1 || !L->wt2 || !L->ty)
+    if (!L->f || !L->fseg || !L->msk || !L->b || !L->lb || !L->lbf || !L->bf || !L->wt1 || !L->wt2 ||
+        !L->ty)
         return 2;
 
     /* only voxels above zmin, in template voxels along z, are used: SPM
@@ -1556,6 +1600,7 @@ lattice_build(Lattice *L, const float *est, const float *clean, const unsigned c
                 if (!is_valid(clean[v]) || (mask && !mask[v]) || !(tz > zmin)) continue;
                 L->msk[i] = 1;
                 L->f[i] = est[v];
+                L->fseg[i] = clean[v];
                 L->nm++;
             }
     if (L->nm < 1000) return 3;
@@ -1823,7 +1868,8 @@ gmm_split(Gmm *G, const int ngaus[KB])
 
 typedef struct
 {
-    const float *clean; /* the image that is segmented */
+    const float *orig;  /* the image as it came: affine registration */
+    const float *clean; /* the image that is segmented (filtered if asked for) */
     const float *est;   /* the image the parameters are estimated from */
     const unsigned char *mask;
     int dims[3];
@@ -1842,7 +1888,6 @@ typedef struct
     float *ireg;     /* image on the registration grid */
     size_t nreg;
     double range[2];
-    double noise_sd; /* SD of the noise added to est */
     double t_em, t_bias, t_prior, t_fill; /* seconds spent in the model */
     int n_bias, n_cg;                     /* bias updates and their CG iterations */
 } State;
@@ -2401,6 +2446,79 @@ pve_fractions(const Pve *P, double y, const double pr[3], double fr[3])
     }
 }
 
+/* The log weights of the Gaussians and of the classes, for posteriors. */
+typedef struct
+{
+    double cg[MAXK], hg[MAXK], lwp[KB];
+} GmmLogs;
+
+static void
+gmm_logs(const Gmm *G, GmmLogs *gl)
+{
+    int k, g;
+
+    for (g = 0; g < G->K; g++)
+    {
+        gl->cg[g] = log(G->mg[g]) - 0.5 * log(2.0 * M_PI * G->vr[g]);
+        gl->hg[g] = 0.5 / G->vr[g];
+    }
+    for (k = 0; k < KB; k++) gl->lwp[k] = log(G->wp[k]);
+}
+
+/* The posterior of the segmentation that lattice voxel i is brain; cr gets
+ * its bias-corrected intensity. */
+static double
+lattice_brain(const State *S, const GmmLogs *gl, size_t i, double *cr)
+{
+    const Lattice *L = &S->L;
+    const Gmm *G = &S->G;
+    const float *lb = L->lb + KB * i;
+    double lq[MAXK], mx = -HUGE_VAL, q[KB], sq = 0.0;
+    int k, g;
+
+    *cr = (double)L->f[i] * L->bf[i];
+    for (g = 0; g < G->K; g++)
+    {
+        double d = *cr - G->mn[g];
+        lq[g] = gl->cg[g] - gl->hg[g] * d * d + gl->lwp[G->lkp[g]] + lb[G->lkp[g]];
+        if (lq[g] > mx) mx = lq[g];
+    }
+    for (k = 0; k < KB; k++) q[k] = 0.0;
+    for (g = 0; g < G->K; g++) q[G->lkp[g]] += exp(lq[g] - mx);
+    for (k = 0; k < KB; k++) sq += q[k];
+    return (q[C_CSF] + q[C_GM] + q[C_WM]) / sq;
+}
+
+/* The variance that the image the parameters were estimated from has more
+ * than the one that is segmented -- added noise, or what the filter took
+ * out -- inside the brain and in bias-corrected intensities: the mean squared
+ * difference of the two on the lattice, weighted by the posterior that a
+ * voxel is brain.  Over the whole image the filter takes out about twice as
+ * much (as SD: 18.7 against 10.5 in a 0.75 mm image, 10.1 against 5.7 and
+ * 9.4 against 4.8 in two of 1 mm), because it also smooths the fine structure
+ * of the scalp. */
+static double
+pve_excess_variance(const State *S)
+{
+    const Lattice *L = &S->L;
+    double s = 0.0, w = 0.0;
+    GmmLogs gl;
+    size_t i;
+
+    if (S->est == S->clean) return 0.0;
+    gmm_logs(&S->G, &gl);
+    for (i = 0; i < L->n; i++)
+    {
+        double cr, pb, d;
+        if (!L->msk[i]) continue;
+        pb = lattice_brain(S, &gl, i, &cr);
+        d = ((double)L->f[i] - L->fseg[i]) * L->bf[i];
+        s += pb * d * d;
+        w += pb;
+    }
+    return (w > 0) ? s / w : 0.0;
+}
+
 /* One EM step for the means of the pure tissues on the lattice: with the
  * posterior of the six cases, a pure voxel pulls the mean of its tissue to
  * its intensity y and a mixture pulls (1-t) m_a + t m_b there, a
@@ -2410,38 +2528,23 @@ static int
 pve_em_step(const State *S, const Pve *P, double m[3])
 {
     const Lattice *L = &S->L;
-    const Gmm *G = &S->G;
-    double A[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, rhs[3] = {0, 0, 0}, cg[MAXK], hg[MAXK], lwp[KB];
+    double A[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}, rhs[3] = {0, 0, 0};
+    GmmLogs gl;
     size_t i;
-    int k, g;
+    int k;
 
-    for (g = 0; g < G->K; g++)
-    {
-        cg[g] = log(G->mg[g]) - 0.5 * log(2.0 * M_PI * G->vr[g]);
-        hg[g] = 0.5 / G->vr[g];
-    }
-    for (k = 0; k < KB; k++) lwp[k] = log(G->wp[k]);
+    gmm_logs(&S->G, &gl);
     for (i = 0; i < L->n; i++)
     {
         const float *lb = L->lb + KB * i;
-        double cr, lq[MAXK], mx = -HUGE_VAL, q[KB], sq = 0.0, pb, pr[3], sb = 0.0;
+        double cr, pb, pr[3], sb = 0.0;
         double post[6], t1[3], t2[3];
         if (!L->msk[i]) continue;
-        cr = (double)L->f[i] * L->bf[i];
-        for (g = 0; g < G->K; g++)
-        {
-            double d = cr - G->mn[g];
-            lq[g] = cg[g] - hg[g] * d * d + lwp[G->lkp[g]] + lb[G->lkp[g]];
-            if (lq[g] > mx) mx = lq[g];
-        }
-        for (k = 0; k < KB; k++) q[k] = 0.0;
-        for (g = 0; g < G->K; g++) q[G->lkp[g]] += exp(lq[g] - mx);
-        for (k = 0; k < KB; k++) sq += q[k];
-        pb = (q[C_CSF] + q[C_GM] + q[C_WM]) / sq;
+        pb = lattice_brain(S, &gl, i, &cr);
         if (!(pb > 0.01)) continue;
         for (k = 0; k < 3; k++)
         {
-            pr[k] = exp(lb[pve_cls[k]] + lwp[pve_cls[k]]);
+            pr[k] = exp(lb[pve_cls[k]] + gl.lwp[pve_cls[k]]);
             sb += pr[k];
         }
         for (k = 0; k < 3; k++) pr[k] /= sb;
@@ -2467,31 +2570,54 @@ pve_em_step(const State *S, const Pve *P, double m[3])
 
 /* The intensities of pure CSF, GM and WM and the variance of a pure tissue.
  * The Gaussians of the segmentation are widened by partial volumes: the
- * narrowest of the three tissues is taken as the variance of a pure tissue,
- * and the means start at the largest Gaussian of each tissue and are refined
- * by EM steps of the partial volume model.  If these carry a mean more than
- * half way to another tissue the model does not fit, and the means of the
- * segmentation are kept.  The image that is segmented has no added noise,
- * so its tables get the variance less noise_var. */
+ * narrower of those of grey and white matter is taken as the variance of a
+ * pure tissue, and the means start at a Gaussian of each tissue and are
+ * refined by EM steps of the partial volume model.  The Gaussian of pure CSF
+ * is left out of the variance: it is dark and therefore narrow, and as the
+ * width of all three tissues it turned the spread of white matter into
+ * partial volumes (label RMSE against CAT's p0 higher in 4 of 9 images, lower
+ * in none).  If these carry a mean more than half
+ * way to another tissue the model does not fit, and the means of the
+ * segmentation are kept.  The image that is segmented has less noise than
+ * the one the parameters come from (added noise, or what the filter took
+ * out), so its tables get the variance less pve_excess_variance(). */
 static int
-pve_setup(State *S, Pve *P, double noise_var)
+pve_setup(State *S, Pve *P)
 {
     const Gmm *G = &S->G;
     double vmin = HUGE_VAL, dmin, m0[3], m[3];
     int it, k, g, ret, ok = 1;
 
     memset(P, 0, sizeof(Pve));
-    for (k = 0; k < 3; k++)
+    /* grey and white matter: their largest Gaussian.  CSF: of its Gaussians
+     * that hold at least a tenth of it and lie beyond grey matter as seen
+     * from white matter, the one farthest from grey matter -- the others
+     * hold its partial volumes with grey matter and are often the larger
+     * ones.  Without such a Gaussian (another contrast), its largest. */
+    for (k = 2; k >= 0; k--)
     {
         double best = -1.0;
-        for (g = 0; g < G->K; g++)
-            if (G->lkp[g] == pve_cls[k] && G->mg[g] > best)
+        int gb = -1, pass;
+        for (pass = (k == 0) ? 0 : 1; pass < 2 && gb < 0; pass++)
+            for (g = 0; g < G->K; g++)
             {
-                best = G->mg[g];
-                P->m[k] = G->mn[g];
+                double score = G->mg[g];
+                if (G->lkp[g] != pve_cls[k]) continue;
+                if (pass == 0)
+                {
+                    double away = (G->mn[g] - P->m[1]) * (P->m[1] - P->m[2]);
+                    if (!(G->mg[g] >= 0.1) || !(away > 0)) continue;
+                    score = fabs(G->mn[g] - P->m[1]);
+                }
+                if (score > best)
+                {
+                    best = score;
+                    gb = g;
+                }
             }
-        for (g = 0; g < G->K; g++)
-            if (G->lkp[g] == pve_cls[k] && G->mn[g] == P->m[k] && G->vr[g] < vmin) vmin = G->vr[g];
+        if (gb < 0) return 0;
+        P->m[k] = G->mn[gb];
+        if (k > 0 && G->vr[gb] < vmin) vmin = G->vr[gb];
         m0[k] = P->m[k];
     }
     dmin = fabs(m0[1] - m0[0]);
@@ -2516,7 +2642,7 @@ pve_setup(State *S, Pve *P, double noise_var)
     }
     if (!ok)
         for (k = 0; k < 3; k++) P->m[k] = m0[k];
-    P->v = vmin - noise_var;
+    P->v = vmin - pve_excess_variance(S);
     if (!(P->v > 1e-4 * dmin * dmin)) P->v = 1e-4 * dmin * dmin;
     if ((ret = pve_tables(P))) return ret;
     P->ok = 1;
@@ -2885,7 +3011,7 @@ head_anchors(const State *S, const AffLat *A, double cs[3], double ct[3])
             for (x = 0; x < A->d[0]; x++)
                 if (A->msk[x + (size_t)A->d[0] * (y + (size_t)A->d[1] * z)])
                 {
-                    mean += S->clean[(size_t)x * A->sk[0] + (size_t)S->dims[0] * ((size_t)y * A->sk[1]) +
+                    mean += S->orig[(size_t)x * A->sk[0] + (size_t)S->dims[0] * ((size_t)y * A->sk[1]) +
                                      nxy * ((size_t)z * A->sk[2])];
                     cnt++;
                 }
@@ -2904,7 +3030,7 @@ head_anchors(const State *S, const AffLat *A, double cs[3], double ct[3])
             {
                 double xv[3] = {(double)x * A->sk[0], (double)y * A->sk[1], (double)z * A->sk[2]};
                 if (!A->msk[x + (size_t)A->d[0] * (y + (size_t)A->d[1] * z)]) continue;
-                if (!(S->clean[(size_t)xv[0] + (size_t)S->dims[0] * (size_t)xv[1] + nxy * (size_t)xv[2]] > mean))
+                if (!(S->orig[(size_t)xv[0] + (size_t)S->dims[0] * (size_t)xv[1] + nxy * (size_t)xv[2]] > mean))
                     continue;
                 for (r = 0; r < 3; r++)
                     xyz[3 * m + r] = (float)(S->mat[r * 4] * xv[0] + S->mat[r * 4 + 1] * xv[1] +
@@ -2994,7 +3120,7 @@ affine_register(State *S, const double *init, double Aff[16], double *ll_out)
     int ns = 0, nc = 0, i, k, zi, err = 0, ret, used[AFF_NSTART];
 
     tpl_load(&S->tpl, 0, S->nthreads);
-    if ((ret = afflat_build(&A, S->clean, S->mask, S->dims, S->vx, AFF_SAMP_COARSE))) goto done;
+    if ((ret = afflat_build(&A, S->orig, S->mask, S->dims, S->vx, AFF_SAMP_COARSE))) goto done;
     A.ff = fudge_factor(16.0, S->vx, A.sk);
     if ((ret = head_anchors(S, &A, cs, ct))) goto done;
     if (init) memcpy(M[ns++], init, sizeof(double) * 16);
@@ -3040,7 +3166,7 @@ affine_register(State *S, const double *init, double Aff[16], double *ll_out)
         goto done;
     }
     /* closer to rigid first, then with the regularisation of the image */
-    if ((ret = afflat_build(&A, S->clean, S->mask, S->dims, S->vx, AFF_SAMP_FINE))) goto done;
+    if ((ret = afflat_build(&A, S->orig, S->mask, S->dims, S->vx, AFF_SAMP_FINE))) goto done;
     for (k = 0; k < nc; k++)
     {
         double l;
@@ -3122,17 +3248,29 @@ CAT_UnifiedSegResultFree(CAT_UnifiedSegResult *res)
     res->bias_coef = NULL;
 }
 
-/* The image that is segmented (filtered if asked for) and the one the
- * parameters are estimated from (with added noise if asked for). */
+/* The image that is segmented and the one the parameters are estimated from.
+ *
+ * With the SANLM filter the two differ: the segmentation is computed from
+ * the filtered image, the parameters are estimated from the image as it
+ * came.  Estimated from the filtered image, the Gaussian of white matter
+ * gets too narrow against that of grey matter, which partial volumes keep
+ * wide, and the result is worse than without the filter (mean Dice of nine
+ * images 0.860 against 0.866, and 0.870 this way).
+ *
+ * opts->noise adds Gaussian noise to the estimation image until its noise
+ * reaches that level; an image that is noisier already is left alone. */
 static int
 prepare_images(State *S, const float *src, float **clean_own, float **est_own,
                CAT_UnifiedSegResult *res)
 {
-    size_t n = (size_t)S->dims[0] * S->dims[1] * S->dims[2];
-    double t0 = wall_time(), sd, target, add = 0.0;
+    size_t n = (size_t)S->dims[0] * S->dims[1] * S->dims[2], i;
+    double t0 = wall_time(), sd, target, add = 0.0, range;
     int ret;
 
-    S->clean = src;
+    S->orig = S->clean = S->est = src;
+    if ((ret = robust_range(src, n, S->mask, S->range))) return ret;
+    range = S->range[1] - S->range[0];
+    sd = estimate_noise(src, S->dims, S->mask, S->range[0] + 0.1 * range);
     if (S->o.sanlm)
     {
         *clean_own = (float *)malloc(sizeof(float) * n);
@@ -3140,50 +3278,39 @@ prepare_images(State *S, const float *src, float **clean_own, float **est_own,
         memcpy(*clean_own, src, sizeof(float) * n);
         sanlm(*clean_own, 3, 1, S->o.sanlm_rician, S->o.sanlm_strength, S->dims);
         /* the filter must not create or remove voxels without data */
-        {
-            size_t i;
-            for (i = 0; i < n; i++)
-                if (!is_valid(src[i])) (*clean_own)[i] = src[i];
-                else if (!is_valid((*clean_own)[i])) (*clean_own)[i] = src[i];
-        }
+        for (i = 0; i < n; i++)
+            if (!is_valid(src[i]) || !is_valid((*clean_own)[i])) (*clean_own)[i] = src[i];
         S->clean = *clean_own;
         if (res) res->time_filter = wall_time() - t0;
         if (S->o.verbose) printf("SANLM filter: %.1f s\n", wall_time() - t0);
     }
-    if ((ret = robust_range(S->clean, n, S->mask, S->range))) return ret;
-    sd = estimate_noise(S->clean, S->dims, S->mask, S->range[0] + 0.1 * (S->range[1] - S->range[0]));
-    S->est = S->clean;
-    if (S->o.noise > 0)
-    {
-        target = S->o.noise * (S->range[1] - S->range[0]);
-        if (target > sd) add = sqrt(target * target - sd * sd);
-    }
+    target = S->o.noise * range;
+    if (target > sd) add = sqrt(target * target - sd * sd);
     if (add > 0)
     {
         noise_ctx c;
         *est_own = (float *)malloc(sizeof(float) * n);
         if (!*est_own) return 2;
-        c.in = S->clean;
+        c.in = src;
         c.out = *est_own;
         c.d = S->dims;
         c.sd = add;
         c.seed = (uint64_t)S->o.noise_seed;
         par_for(S->dims[2], S->nthreads, noise_range, &c);
         S->est = *est_own;
-        S->noise_sd = add;
     }
     if (res)
     {
         res->intensity_range[0] = S->range[0];
         res->intensity_range[1] = S->range[1];
-        res->noise_estimated = sd / (S->range[1] - S->range[0]);
-        res->noise_added = add / (S->range[1] - S->range[0]);
+        res->noise_estimated = sd / range;
+        res->noise_added = add / range;
     }
     if (S->o.verbose)
         printf("Intensity range %g .. %g, noise %.2f%% of it%s\n", S->range[0], S->range[1],
-               100.0 * sd / (S->range[1] - S->range[0]), (add > 0) ? "" : ", none added");
+               100.0 * sd / range, (add > 0) ? "" : ", none added");
     if (S->o.verbose && add > 0)
-        printf("  noise of %.2f%% added for the estimation\n", 100.0 * add / (S->range[1] - S->range[0]));
+        printf("  noise of %.2f%% added for the estimation\n", 100.0 * add / range);
     return 0;
 }
 
@@ -3250,7 +3377,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
     CAT_VolShootModel model;
     CAT_VolShootInfo info;
     float *clean_own = NULL, *est_own = NULL, *y_own = NULL, *iy_own = NULL;
-    double Aff[16], itmat[16], t0 = wall_time(), t1, noise_var;
+    double Aff[16], itmat[16], t0 = wall_time(), t1;
     size_t n, ntpl;
     int k, r, ret = 0;
 
@@ -3300,7 +3427,6 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
 
     /* 1. the images */
     if ((ret = prepare_images(&S, src, &clean_own, &est_own, res))) goto done;
-    noise_var = S.noise_sd * S.noise_sd;
 
     /* 2. affine registration */
     t1 = wall_time();
@@ -3410,7 +3536,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
     t1 = wall_time();
     if (S.o.pve && (label || pve))
     {
-        if ((ret = pve_setup(&S, &P, noise_var))) goto done;
+        if ((ret = pve_setup(&S, &P))) goto done;
         if (res && P.ok)
         {
             res->pve_done = 1;

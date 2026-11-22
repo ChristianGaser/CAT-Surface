@@ -1885,11 +1885,16 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
     noise : float, optional
         Gaussian noise is added to the image the parameters are estimated
         from until its noise SD reaches this fraction of the intensity range;
-        the segmentation is computed from the image without it.
+        the segmentation is computed from the image without it (the filtered
+        one with ``sanlm``).
     noise_seed : int, optional
         Seed of the added noise.
     sanlm, sanlm_strength, sanlm_rician : optional
-        Denoise the image with the SANLM filter first.
+        Segment the image denoised with the SANLM filter (its strength, and
+        the Rician noise model).  The parameters are still estimated from the
+        image as it came, whose noise gives the Gaussians their width; the
+        class maps, the label map and the bias-corrected image come from the
+        filtered one.
     mrf : float, optional
         Strength of the Markov random field cleanup of the class maps.
     pve : bool, optional
