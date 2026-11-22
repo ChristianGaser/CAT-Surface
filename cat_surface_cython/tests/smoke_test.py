@@ -1078,7 +1078,7 @@ def test_vol_unified_seg():
     check("the defaults are those of the library",
           d["ngaus"] == [1, 1, 2, 3, 4, 2] and d["bias_model"] == "spline" and
           d["affreg"] == "mni" and d["noise"] == 0.0 and d["pve"] is True and
-          d["sanlm"] is False)
+          d["sanlm"] is False and d["cleanup"] == 1 and d["pve_head"] is False)
 
     res = cat_surf.vol_unified_seg(image, templates, mat, mat, fractions=True,
                                    bias=True, deformation=True, inverse=True,
@@ -1097,8 +1097,19 @@ def test_vol_unified_seg():
     check("grey and white matter are recovered",
           dice(0) > 0.9 and dice(1) > 0.9, f"GM {dice(0):.3f} WM {dice(1):.3f}")
     check("label, fractions, corrected image and bias field have the image grid",
-          res["label"].shape == shape and res["fractions"].shape == shape + (3,) and
+          res["label"].shape == shape and res["fractions"].shape == shape + (6,) and
           res["corrected"].shape == shape and res["bias"].shape == shape)
+    check("the fractions of the six classes sum to one",
+          np.abs(res["fractions"].sum(axis=-1).astype(int) - 255).max() <= 4)
+    check("by default the fractions of bone, soft tissue and air are their "
+          "posteriors",
+          not res["params"]["pve_head_done"] and
+          np.abs(res["fractions"][..., 3:].astype(int) -
+                 res["prob"][..., 3:].astype(int)).max() <= 1)
+    check("the volumes from the fractions are reported",
+          len(res["params"]["volume_pve_ml"]) == 6 and
+          abs(sum(res["params"]["volume_pve_ml"]) - sum(res["params"]["volume_ml"])) <
+          0.01 * sum(res["params"]["volume_ml"]))
     check("the label is 3 in white matter and 0 in air",
           abs(float(res["label"][truth == 1].mean()) - 3.0) < 0.15 and
           float(res["label"][truth == 5].mean()) < 0.05)
@@ -1124,9 +1135,16 @@ def test_vol_unified_seg():
     check("the DCT bias field and added noise run",
           res_d["params"]["bias_model"] == "dct" and
           res_d["params"]["noise_added"] > 0)
+    res_c = cat_surf.vol_unified_seg(image, templates, mat, mat, cleanup=0,
+                                     pve_head=True, mrf=1.0, fractions=True,
+                                     label=False, corrected=False, **kw)
+    check("without the cleanup, with the MRF and with the head model it runs",
+          res_c["params"]["pve_head_done"] and
+          np.abs(res_c["fractions"].sum(axis=-1).astype(int) - 255).max() <= 4)
 
     for bad, why in ((dict(ngaus=[1, 1, 1]), "three Gaussian counts"),
                      (dict(bias_model="poly"), "an unknown bias model"),
+                     (dict(cleanup=3), "cleanup level 3"),
                      (dict(affine_mode="fixed"), "a fixed matrix that is missing")):
         try:
             cat_surf.vol_unified_seg(image, templates, mat, mat, **dict(kw, **bad))

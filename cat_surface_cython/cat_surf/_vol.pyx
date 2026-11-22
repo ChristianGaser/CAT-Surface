@@ -1819,7 +1819,9 @@ def vol_unified_seg_defaults():
         "sanlm_strength": o.sanlm_strength,
         "sanlm_rician": bool(o.sanlm_rician),
         "mrf": o.mrf,
+        "cleanup": o.cleanup,
         "pve": bool(o.pve),
+        "pve_head": bool(o.pve_head),
         "regstr": o.shoot.regstr,
         "reg_scale": o.shoot.reg_scale,
         "lowres": o.shoot.lowres,
@@ -1831,7 +1833,8 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
                     affine_mode=None, affreg=None, ngaus=None, samp=None,
                     bias_model=None, biasfwhm=None, biasreg=None, wp_reg=None,
                     tol=None, noise=None, noise_seed=None, sanlm=None,
-                    sanlm_strength=None, sanlm_rician=None, mrf=None, pve=None,
+                    sanlm_strength=None, sanlm_rician=None, mrf=None,
+                    cleanup=None, pve=None, pve_head=None,
                     regstr=None, reg_scale=None, lowres=None, nits=None,
                     n_threads=None, int verbose=0, bint prob=True,
                     bint label=True, bint fractions=False, bint corrected=True,
@@ -1897,8 +1900,17 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         filtered one.
     mrf : float, optional
         Strength of the Markov random field cleanup of the class maps.
+    cleanup : {0, 1, 2}, optional
+        SPM's cleanup of the brain classes (``clean_gwc``), after the MRF:
+        grey and white matter, then CSF, that conditional dilation from white
+        matter does not reach are removed.  0 off, 1 light, 2 thorough.
     pve : bool, optional
         Estimate partial volumes of CSF, GM and WM for the label map.
+    pve_head : bool, optional
+        Estimate partial volumes of bone, soft tissue and air (mixtures of
+        soft tissue with bone and with air) for ``fractions`` as well.  Off by
+        default: their fractions are then their posteriors.  Nothing else
+        depends on it.
     regstr, reg_scale, lowres, nits : optional
         Settings of the shooting.
     n_threads : int, optional
@@ -1916,8 +1928,9 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
     dict
         ``prob``: (X, Y, Z, 6) uint8, class posteriors times 255;
         ``label``: (X, Y, Z) float32, 0 background, 1 CSF, 2 GM, 3 WM with
-        partial volumes in between; ``fractions``: (X, Y, Z, 3) uint8, the
-        fractions of GM, WM and CSF times 255; ``corrected``: the
+        partial volumes in between; ``fractions``: (X, Y, Z, 6) uint8, the
+        fractions of the six classes times 255 (bone, soft tissue and air:
+        their posteriors unless ``pve_head``); ``corrected``: the
         bias-corrected image; ``bias``: the bias field; ``y``: (X', Y', Z', 3)
         float32, for every template voxel the image voxel (0-based) it pulls
         from, with ``jac``, its Jacobian determinant; ``iy``: (X, Y, Z, 3),
@@ -1985,8 +1998,12 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         opts.sanlm_rician = 1 if sanlm_rician else 0
     if mrf is not None:
         opts.mrf = float(mrf)
+    if cleanup is not None:
+        opts.cleanup = int(cleanup)
     if pve is not None:
         opts.pve = 1 if pve else 0
+    if pve_head is not None:
+        opts.pve_head = 1 if pve_head else 0
     if regstr is not None:
         opts.shoot.regstr = float(regstr)
     if reg_scale is not None:
@@ -2052,7 +2069,7 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         out["label"] = np.empty(shape, dtype=np.float32, order="F")
         label_ptr = <float *>cnp.PyArray_DATA(out["label"])
     if fractions:
-        out["fractions"] = np.empty(shape + (3,), dtype=np.uint8, order="F")
+        out["fractions"] = np.empty(shape + (6,), dtype=np.uint8, order="F")
         pve_ptr = <unsigned char *>cnp.PyArray_DATA(out["fractions"])
     if corrected:
         out["corrected"] = np.empty(shape, dtype=np.float32, order="F")
@@ -2104,9 +2121,11 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         "noise_estimated": res.noise_estimated,
         "noise_added": res.noise_added,
         "pve_done": bool(res.pve_done),
+        "pve_head_done": bool(res.pve_head_done),
         "pve_mean": [res.pve_mean[k] for k in range(3)],
         "pve_sd": res.pve_sd,
         "volume_ml": [res.volume[k] for k in range(6)],
+        "volume_pve_ml": [res.pve_volume[k] for k in range(6)],
         "shooting": {
             "iterations": res.shoot.iterations,
             "level_iterations": [res.shoot.level_iterations[k] for k in range(5)],

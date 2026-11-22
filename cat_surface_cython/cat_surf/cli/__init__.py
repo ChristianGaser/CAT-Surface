@@ -981,8 +981,9 @@ def vol_unified_seg(image_file, template_files, prob_file=None, label_file=None,
                     noise_seed=None, ngaus=None, samp=None, bias_model=None,
                     biasfwhm=None, biasreg=None, wp_reg=None, tol=None,
                     affreg=None, affine=None, affine_mode=None, mask_file=None,
-                    mrf=None, pve=None, regstr=None, reg_scale=None,
-                    lowres=None, nits=None, n_threads=None, verbose=0):
+                    mrf=None, cleanup=None, pve=None, pve_head=None,
+                    regstr=None, reg_scale=None, lowres=None, nits=None,
+                    n_threads=None, verbose=0):
     """Mirror of ``CAT_VolUnifiedSeg``.
 
     Unified segmentation of an image into the six classes of a shooting
@@ -1002,18 +1003,20 @@ def vol_unified_seg(image_file, template_files, prob_file=None, label_file=None,
     prob_file, label_file, pve_file, corrected_file, bias_file, y_file,
     iy_file, jac_file, params_file : str, optional
         ``-prob`` (the six class maps, 4-D), ``-label`` (label map with
-        partial volumes), ``-pve`` (fractions of GM, WM and CSF, 4-D),
+        partial volumes), ``-pve`` (fractions of the six classes, 4-D),
         ``-corrected``, ``-bias``, ``-y``, ``-iy``, ``-jac`` and ``-params``
         (JSON).  At least one must be given, as for the binary.
     sanlm, sanlm_strength, rician, noise, noise_seed, ngaus, samp, bias_model,
     biasfwhm, biasreg, wp_reg, tol, affreg, affine, affine_mode, mask_file,
-    mrf, pve, regstr, reg_scale, lowres, nits, n_threads, verbose
+    mrf, cleanup, pve, pve_head, regstr, reg_scale, lowres, nits, n_threads,
+    verbose
         ``-sanlm``, ``-sanlm-strength``, ``-rician``, ``-noise``,
         ``-noise-seed``, ``-ngaus``, ``-samp``, ``-bias-model``, ``-biasfwhm``,
         ``-biasreg``, ``-wp-reg``, ``-tol``, ``-affreg``, ``-affine`` (a 4x4
         matrix or a text file with it; ``affine_mode`` ``"refine"`` and
         ``"fixed"`` are ``-affine-refine`` and ``-affine-fixed``), ``-mask``,
-        ``-mrf``, ``-no-pve`` (``pve=False``), ``-regstr``, ``-reg-scale``,
+        ``-mrf``, ``-cleanup``, ``-no-pve`` (``pve=False``), ``-pve-head``
+        (``pve_head=True``), ``-regstr``, ``-reg-scale``,
         ``-lowres``, ``-nits``, ``-threads`` and ``-verbose`` (2: ``-debug``).
         ``None`` uses the library defaults.
 
@@ -1059,7 +1062,8 @@ def vol_unified_seg(image_file, template_files, prob_file=None, label_file=None,
         samp=samp, bias_model=bias_model, biasfwhm=biasfwhm, biasreg=biasreg,
         wp_reg=wp_reg, tol=tol, noise=noise, noise_seed=noise_seed,
         sanlm=sanlm, sanlm_strength=sanlm_strength, sanlm_rician=rician,
-        mrf=mrf, pve=pve, regstr=regstr, reg_scale=reg_scale, lowres=lowres,
+        mrf=mrf, cleanup=cleanup, pve=pve, pve_head=pve_head, regstr=regstr,
+        reg_scale=reg_scale, lowres=lowres,
         nits=nits, n_threads=n_threads, verbose=verbose,
         prob=prob_file is not None, label=label_file is not None,
         fractions=pve_file is not None, corrected=corrected_file is not None,

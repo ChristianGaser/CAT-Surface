@@ -868,7 +868,9 @@ cdef extern from "CAT_UnifiedSeg.h":
         double sanlm_strength
         int sanlm_rician
         double mrf
+        int cleanup
         int pve
+        int pve_head
         CAT_VolShootOpts shoot
         int n_threads
         int verbose
@@ -890,9 +892,11 @@ cdef extern from "CAT_UnifiedSeg.h":
         double noise_estimated
         double noise_added
         int pve_done
+        int pve_head_done
         double pve_mean[3]
         double pve_sd
         double volume[6]
+        double pve_volume[6]
         CAT_VolShootInfo shoot
         double time_total
         double time_filter
