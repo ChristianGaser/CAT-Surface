@@ -833,3 +833,82 @@ cdef extern from "CAT_GeodesicShoot.h":
                       const double *tmat, double reg_vx, const float *lesion,
                       const CAT_VolShootOpts *opts, float *y, float *iy,
                       float *jac, CAT_VolShootInfo *info)
+
+
+# ---------------------------------------------------------------------------
+# CAT_UnifiedSeg.h — unified segmentation with geodesic shooting
+# ---------------------------------------------------------------------------
+cdef extern from "CAT_UnifiedSeg.h":
+    enum:
+        CAT_USEG_NCLASSES
+        CAT_USEG_MAXK
+        CAT_USEG_AFFREG_NONE
+        CAT_USEG_AFFREG_MNI
+        CAT_USEG_AFFREG_EASTERN
+        CAT_USEG_AFFREG_SUBJ
+        CAT_USEG_AFFREG_RIGID
+        CAT_USEG_BIAS_DCT
+        CAT_USEG_BIAS_SPLINE
+        CAT_USEG_AFFINE_ESTIMATE
+        CAT_USEG_AFFINE_REFINE
+        CAT_USEG_AFFINE_FIXED
+    ctypedef struct CAT_UnifiedSegOpts:
+        int ngaus[6]
+        double samp
+        int bias_model
+        double biasfwhm
+        double biasreg
+        double tol
+        double wp_reg
+        int affreg
+        int affine_mode
+        double noise
+        unsigned int noise_seed
+        int sanlm
+        double sanlm_strength
+        int sanlm_rician
+        double mrf
+        int pve
+        CAT_VolShootOpts shoot
+        int n_threads
+        int verbose
+    ctypedef struct CAT_UnifiedSegResult:
+        double affine[16]
+        double affine_ll
+        int n_gauss
+        int lkp[48]
+        double mg[48]
+        double mn[48]
+        double vr[48]
+        double wp[6]
+        int bias_model
+        int bias_dims[3]
+        double *bias_coef
+        double ll
+        int n_samples
+        double intensity_range[2]
+        double noise_estimated
+        double noise_added
+        int pve_done
+        double pve_mean[3]
+        double pve_sd
+        double volume[6]
+        CAT_VolShootInfo shoot
+        double time_total
+        double time_filter
+        double time_affine
+        double time_fit
+        double time_write
+    void CAT_UnifiedSegOptionsInit(CAT_UnifiedSegOpts *opts)
+    void CAT_UnifiedSegResultFree(CAT_UnifiedSegResult *res)
+    int  CAT_UnifiedSeg(const float *src, const int *dims, const double *mat,
+                        const float **templates, const int *tdims,
+                        const double *tmat, const unsigned char *mask,
+                        const double *affine, const CAT_UnifiedSegOpts *opts,
+                        unsigned char *prob, float *label, unsigned char *pve,
+                        float *corrected, float *bias, float *y, float *iy,
+                        float *jac, CAT_UnifiedSegResult *res)
+    int  CAT_UnifiedSegWriteJson(const char *file,
+                                 const CAT_UnifiedSegResult *res,
+                                 const CAT_UnifiedSegOpts *opts,
+                                 const char *image, const char *tpl)

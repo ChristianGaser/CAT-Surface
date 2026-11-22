@@ -923,7 +923,7 @@ tplderiv_free(TplDeriv *T)
  * whole volume at that slice with periodic boundaries.  Slice by slice, so
  * that the B-spline calls (threaded inside) never run concurrently. */
 static int
-tplderiv_build(TplDeriv *T, const int d[3], int ng, double *const *coef)
+tplderiv_build(TplDeriv *T, const int d[3], int ng, double *const *coef, int raw)
 {
     size_t nxy = (size_t)d[0] * d[1], i;
     mwSize dm[3];
@@ -935,12 +935,17 @@ tplderiv_build(TplDeriv *T, const int d[3], int ng, double *const *coef)
     T->n = (size_t)d[0] * d[1] * d[2];
     T->ng = ng;
     T->logmu = (float *)malloc(sizeof(float) * ng * T->n);
-    T->mu = (float *)malloc(sizeof(float) * ng * T->n);
     T->D = (float *)malloc(sizeof(float) * 3 * ng * T->n);
-    T->W = (float *)malloc(sizeof(float) * ng * ng * T->n);
+    /* a data model weights the classes itself: it gets the log template as
+     * the B-spline gives it and normalises per voxel (model_range()) */
+    if (!raw)
+    {
+        T->mu = (float *)malloc(sizeof(float) * ng * T->n);
+        T->W = (float *)malloc(sizeof(float) * ng * ng * T->n);
+    }
     x0 = (double *)malloc(sizeof(double) * 3 * nxy);
     g = (double *)malloc(sizeof(double) * 4 * ng * nxy);
-    if (!T->logmu || !T->mu || !T->D || !T->W || !x0 || !g)
+    if (!T->logmu || !T->D || (!raw && (!T->mu || !T->W)) || !x0 || !g)
     {
         free(x0);
         free(g);
@@ -966,6 +971,19 @@ tplderiv_build(TplDeriv *T, const int d[3], int ng, double *const *coef)
         for (k = 0; k < ng; k++)
             spm_bsplins3(coef[k], dm, nxy, x0, x1, x2, deg, wrapflags, g + k * nxy,
                          d0 + k * nxy, d1 + k * nxy, d2 + k * nxy);
+        if (raw)
+        {
+            for (k = 0; k < ng; k++)
+                for (i = 0; i < nxy; i++)
+                {
+                    size_t v = (size_t)z * nxy + i;
+                    T->logmu[k * T->n + v] = (float)g[k * nxy + i];
+                    T->D[(3 * k + 0) * T->n + v] = (float)d0[k * nxy + i];
+                    T->D[(3 * k + 1) * T->n + v] = (float)d1[k * nxy + i];
+                    T->D[(3 * k + 2) * T->n + v] = (float)d2[k * nxy + i];
+                }
+            continue;
+        }
         for (i = 0; i < nxy; i++)
         {
             size_t v = (size_t)z * nxy + i;
@@ -1057,6 +1075,102 @@ derivs_range(void *p, int z0, int z1)
             c->A[3 * n + i] = a4;
             c->A[4 * n + i] = a5;
             c->A[5 * n + i] = a6;
+        }
+        c->ll_slice[z] = ll;
+    }
+}
+
+typedef struct
+{
+    const TplDeriv *T;    /* raw: logmu is the unnormalised log template */
+    const double *logw;   /* log class weights */
+    const float *fp;      /* ng*n: class likelihoods pulled through y */
+    const float *dt;
+    float *b, *A;
+    double *ll_slice;
+} model_ctx;
+
+/* The Gauss-Newton system of a data model (CAT_VolShootModel).  At template
+ * voxel x the prior is mu = softmax(log template + log weights) and the
+ * posterior q_k = mu_k f_k(y(x)) / s, s = sum_j mu_j f_j(y(x)); the matching
+ * term is -sum_x dt log s.  Its gradient with respect to the log template is
+ * dt (q - mu), that of the multinomial term with q for the tissue maps, and
+ * the Hessian is the multinomial one, dt (diag(mu) - mu mu'), which bounds
+ * the Hessian of -log s from above: a step of the EM algorithm.  It is
+ * accumulated as dt (sum mu_k D_k D_k' - m m'), m = sum mu_k D_k. */
+static void
+model_range(void *p, int z0, int z1)
+{
+    model_ctx *c = (model_ctx *)p;
+    const TplDeriv *T = c->T;
+    size_t n = T->n, nxy = (size_t)T->d[0] * T->d[1];
+    int z, k, ng = T->ng;
+
+    for (z = z0; z < z1; z++)
+    {
+        size_t i0 = (size_t)z * nxy, i;
+        double ll = 0.0;
+        for (i = i0; i < i0 + nxy; i++)
+        {
+            double mu[CAT_SHOOT_MODEL_MAXCLASSES], q[CAT_SHOOT_MODEL_MAXCLASSES];
+            double amax = -HUGE_VAL, smu = 0.0, s = 0.0, dti = c->dt[i];
+            double m0 = 0.0, m1 = 0.0, m2 = 0.0, b0 = 0.0, b1 = 0.0, b2 = 0.0;
+            double a00 = 0.0, a11 = 0.0, a22 = 0.0, a01 = 0.0, a02 = 0.0, a12 = 0.0;
+            int ok = 1;
+
+            for (k = 0; k < ng; k++)
+            {
+                mu[k] = (double)T->logmu[k * n + i] + c->logw[k];
+                if (mu[k] > amax) amax = mu[k];
+            }
+            for (k = 0; k < ng; k++)
+            {
+                mu[k] = exp(mu[k] - amax);
+                smu += mu[k];
+            }
+            for (k = 0; k < ng; k++)
+            {
+                double fk = c->fp[k * n + i];
+                mu[k] /= smu;
+                if (!isfinite(fk) || fk < 0) ok = 0;
+                q[k] = mu[k] * fk;
+                s += q[k];
+            }
+            /* no data here: the posterior is the prior, which exerts no force */
+            if (!ok || !(s > 0))
+                for (k = 0; k < ng; k++) q[k] = mu[k];
+            else
+            {
+                for (k = 0; k < ng; k++) q[k] /= s;
+                ll -= dti * log(s);
+            }
+            for (k = 0; k < ng; k++)
+            {
+                const float *Dk = T->D + 3 * k * n;
+                double d0 = Dk[i], d1 = Dk[n + i], d2 = Dk[2 * n + i];
+                double w = q[k] - mu[k];
+                b0 += w * d0;
+                b1 += w * d1;
+                b2 += w * d2;
+                m0 += mu[k] * d0;
+                m1 += mu[k] * d1;
+                m2 += mu[k] * d2;
+                a00 += mu[k] * d0 * d0;
+                a11 += mu[k] * d1 * d1;
+                a22 += mu[k] * d2 * d2;
+                a01 += mu[k] * d0 * d1;
+                a02 += mu[k] * d0 * d2;
+                a12 += mu[k] * d1 * d2;
+            }
+            c->b[i] = (float)(dti * b0);
+            c->b[n + i] = (float)(dti * b1);
+            c->b[2 * n + i] = (float)(dti * b2);
+            c->A[i] = (float)(dti * (a00 - m0 * m0));
+            c->A[n + i] = (float)(dti * (a11 - m1 * m1));
+            c->A[2 * n + i] = (float)(dti * (a22 - m2 * m2));
+            c->A[3 * n + i] = (float)(dti * (a01 - m0 * m1));
+            c->A[4 * n + i] = (float)(dti * (a02 - m0 * m2));
+            c->A[5 * n + i] = (float)(dti * (a12 - m1 * m2));
         }
         c->ll_slice[z] = ll;
     }
@@ -1302,7 +1416,7 @@ static int
 shoot_update(Shoot *S, const TplDeriv *T, const float *f, float *u,
              const float *y, const float *dt, const double prm[8],
              double scale, double *ll1, double *ll2, float *work,
-             Intensity *I, const CAT_VolShootIntensity *ich)
+             Intensity *I, const CAT_VolShootIntensity *ich, const double *logw)
 {
     size_t n = T->n, i;
     float *f1 = work;                 /* ng*n */
@@ -1323,17 +1437,34 @@ shoot_update(Shoot *S, const TplDeriv *T, const float *f, float *u,
     dm0[2] = T->d[2];
     dm0[3] = T->ng;
     spm_pullc(dm0, (mwSize)n, (mwSize)T->ng, (float *)y, (float *)f, f1);
-    for (k = 0; k < T->ng; k++)
-        for (i = 0; i < n; i++) f1[k * n + i] = f1[k * n + i] * dt[i];
 
     lls = (double *)calloc(T->d[2], sizeof(double));
-    dc.T = T;
-    dc.f1 = f1;
-    dc.dt = dt;
-    dc.b = b;
-    dc.A = A;
-    dc.ll_slice = lls;
-    parallel_for(T->d[2], S->nthreads, derivs_range, &dc);
+    if (!lls) return 2;
+    if (logw)
+    {
+        /* a data model: f holds class likelihoods, see model_range() */
+        model_ctx mc;
+        mc.T = T;
+        mc.logw = logw;
+        mc.fp = f1;
+        mc.dt = dt;
+        mc.b = b;
+        mc.A = A;
+        mc.ll_slice = lls;
+        parallel_for(T->d[2], S->nthreads, model_range, &mc);
+    }
+    else
+    {
+        for (k = 0; k < T->ng; k++)
+            for (i = 0; i < n; i++) f1[k * n + i] = f1[k * n + i] * dt[i];
+        dc.T = T;
+        dc.f1 = f1;
+        dc.dt = dt;
+        dc.b = b;
+        dc.A = A;
+        dc.ll_slice = lls;
+        parallel_for(T->d[2], S->nthreads, derivs_range, &dc);
+    }
     for (z = 0; z < T->d[2]; z++) ll += lls[z];
     free(lls);
     if (I && I->on)
@@ -1672,24 +1803,38 @@ CAT_VolShootLabelTemplate(const float *tpl, const int tdims[3], float *label)
     for (i = 0; i < n; i++) label[i] = 1.0f + tpl[i] + 2.0f * tpl[n + i];
 }
 
-/**
- * \brief CAT_VolShoot() with an optional intensity channel (experimental).
- *
- * \p n_cls 0 registers by the intensity channel alone; a NULL template below
- * the last is the final one smoothed by CAT_SHOOT_LEVEL_FWHM.  Lesions take
- * no part in the intensity term.
- *
- * \param ich (in) intensity channel; NULL runs CAT_VolShoot() unchanged
- * \return as CAT_VolShoot()
- */
-int
-CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
-               const double mat[16], const double affine[16],
-               const float *const templates[CAT_SHOOT_NTEMPLATES],
-               const int tdims[3], const double tmat[16], double reg_vx,
-               const float *lesion, const CAT_VolShootIntensity *ich,
-               const CAT_VolShootOpts *opts_in, float *y_out, float *iy_out,
-               float *jac_out, CAT_VolShootInfo *info)
+/* Hand the state of the registration to a data model, which refreshes its
+ * class likelihoods f and the log class weights. */
+static int
+model_update(const CAT_VolShootModel *model, const Level *Lv, int ti, int it,
+             int start, const float *y, const float *dt, float *f, double *logw)
+{
+    CAT_VolShootLevel lv;
+
+    lv.level = ti;
+    lv.iteration = it;
+    lv.start = start;
+    memcpy(lv.dims, Lv->rd, sizeof(int) * 3);
+    lv.res = Lv->res;
+    memcpy(lv.to_input, Lv->Mrregs, sizeof(double) * 16);
+    memcpy(lv.to_template, Lv->Mads, sizeof(double) * 16);
+    lv.y = y;
+    lv.dt = dt;
+    return model->update(model->ctx, &lv, f, logw);
+}
+
+/* The registration of CAT_VolShootEx() and CAT_VolShootFit(): tissue maps
+ * (cls, with an optional intensity channel) or the class likelihoods of a
+ * data model, which then stands in for cls, lesion and ich. */
+static int
+shoot_run(const float *const cls[], int n_cls, const int dims[3],
+          const double mat[16], const double affine[16],
+          const float *const templates[CAT_SHOOT_NTEMPLATES],
+          const int tdims[3], const double tmat[16], double reg_vx,
+          const float *lesion, const CAT_VolShootIntensity *ich,
+          const CAT_VolShootModel *model,
+          const CAT_VolShootOpts *opts_in, float *y_out, float *iy_out,
+          float *jac_out, CAT_VolShootInfo *info)
 {
     CAT_VolShootOpts opts;
     Level L[NLEV];
@@ -1707,9 +1852,13 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
     float *f = NULL, *u = NULL, *y = NULL, *J = NULL, *dt = NULL, *work = NULL;
     float *t1 = NULL, *t2 = NULL, *t3 = NULL, *bgexp = NULL;
     unsigned char *msk = NULL;
-    double *coef[MAXCLS];
+    double *coef[CAT_SHOOT_MODEL_MAXCLASSES];
+    double logw[CAT_SHOOT_MODEL_MAXCLASSES];
     double prm[8], ll[2] = {0, 0}, llo[2];
-    int int_N = 1, hydro = 0, ng = 0, old_threads = 0;
+    int int_N = 1, hydro = 0, ng = 0, old_threads = 0, n_done = 0;
+    /* classes a level holds at most: with a model its own, else the tissue
+     * classes, the background and the ventricle class */
+    int maxc = model ? model->n_cls : MAXCLS;
     const double scale = 0.8; /* sd.scale */
     const double level_fwhm[NLEV] = CAT_SHOOT_LEVEL_FWHM;
     const float *tpl[NLEV], *itpl[NLEV];
@@ -1719,15 +1868,26 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
     memset(&S, 0, sizeof(S));
     memset(&T, 0, sizeof(T));
     memset(&I, 0, sizeof(I));
-    for (k = 0; k < MAXCLS; k++) coef[k] = NULL;
+    for (k = 0; k < CAT_SHOOT_MODEL_MAXCLASSES; k++)
+    {
+        coef[k] = NULL;
+        logw[k] = 0.0;
+    }
     for (k = 0; k < NLEV; k++) tpl_own[k] = itpl_own[k] = NULL;
     if (opts_in) opts = *opts_in;
     else CAT_VolShootOptionsInit(&opts);
     if (info) memset(info, 0, sizeof(*info));
     if (opts.nits < 3 || !y_out || !(opts.reg_scale > 0)) return 1;
-    if (n_cls == 0 ? !has_ich
-                   : (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || !cls || !templates ||
-                      !templates[NLEV - 1]))
+    if (model)
+    {
+        if (model->n_cls < 2 || model->n_cls > CAT_SHOOT_MODEL_MAXCLASSES ||
+            !model->update || !templates || !templates[NLEV - 1])
+            return 1;
+        n1 = model->n_cls;
+    }
+    else if (n_cls == 0 ? !has_ich
+                        : (n_cls < 2 || n_cls > CAT_SHOOT_MAXCLASSES || !cls || !templates ||
+                           !templates[NLEV - 1]))
         return 1;
     if (has_ich && (!ich->tpl[NLEV - 1] || ich->degree < 1 || ich->degree > ICH_MAXDEG ||
                     !(ich->weight >= 0) || ich->from < 0 || ich->from >= NLEV))
@@ -1916,25 +2076,25 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
     }
 
     /* buffers on the finest grid */
-    f = (float *)malloc(sizeof(float) * MAXCLS * nmax);
+    f = (float *)malloc(sizeof(float) * maxc * nmax);
     u = (float *)calloc(3 * nmax, sizeof(float));
     y = (float *)malloc(sizeof(float) * 3 * nmax);
     J = (float *)malloc(sizeof(float) * 9 * nmax);
     dt = (float *)malloc(sizeof(float) * nmax);
-    work = (float *)malloc(sizeof(float) * (MAXCLS + 15) * nmax);
+    work = (float *)malloc(sizeof(float) * (maxc + 15) * nmax);
     t1 = (float *)malloc(sizeof(float) * nmax);
     t2 = (float *)malloc(sizeof(float) * nmax);
     t3 = (float *)malloc(sizeof(float) * nmax);
     bgexp = (float *)malloc(sizeof(float) * nmax);
     msk = (unsigned char *)malloc(nmax);
-    for (k = 0; k < MAXCLS; k++) coef[k] = (double *)malloc(sizeof(double) * nmax);
+    for (k = 0; k < maxc; k++) coef[k] = (double *)malloc(sizeof(double) * nmax);
     if (!f || !u || !y || !J || !dt || !work || !t1 || !t2 || !t3 || !bgexp ||
         !msk || shoot_alloc(&S, nmax) || (has_ich && ich_alloc(&I, nmax)))
     {
         ret = 2;
         goto done;
     }
-    for (k = 0; k < MAXCLS; k++)
+    for (k = 0; k < maxc; k++)
         if (!coef[k])
         {
             ret = 2;
@@ -1977,9 +2137,10 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
             Lv = &L[ti];
             n = (size_t)Lv->rd[0] * Lv->rd[1] * Lv->rd[2];
 
-            /* the tissue maps, smoothed a little on the coarse levels */
+            /* the tissue maps, smoothed a little on the coarse levels; a data
+             * model fills its class likelihoods once y is known (below) */
             fw[0] = fw[1] = fw[2] = Lv->rred * 0.1 * ((NLEV - (ti + 1) > 0) ? NLEV - (ti + 1) : 0);
-            for (k = 0; k < n1; k++)
+            for (k = 0; !model && k < n1; k++)
             {
                 size_t v;
                 memcpy(fbuf, cls[k], sizeof(float) * n_in);
@@ -1989,7 +2150,8 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 for (v = 0; v < n; v++)
                     if (!isfinite(f[k * n + v])) f[k * n + v] = 0.0f;
             }
-            for (i = 0; i < (int)n; i++) f[(size_t)n1 * n + i] = 1.0f;
+            if (!model)
+                for (i = 0; i < (int)n; i++) f[(size_t)n1 * n + i] = 1.0f;
 
             /* the template */
             gbg = t3;
@@ -2007,17 +2169,27 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 for (v = 0; v < n; v++)
                     if (isnan(gk[v])) gk[v] = (float)mn;
                 for (v = 0; v < n; v++) gbg[v] = gbg[v] - gk[v];
+                /* the classes of a model are all given, so none is defined as
+                 * what the others leave: keep them off log(0) instead */
+                if (model)
+                    for (v = 0; v < n; v++)
+                        if (!(gk[v] > 1e-6f)) gk[v] = 1e-6f;
                 for (v = 0; v < n; v++) gk[v] = logf(gk[v]);
                 bsplinc_wrap2(gk, Lv->rd, coef[k]);
             }
-            for (i = 0; i < (int)n; i++)
-                t1[i] = logf((gbg[i] > (float)MATLAB_EPS) ? gbg[i] : (float)MATLAB_EPS);
-            bsplinc_wrap2(t1, Lv->rd, coef[n1]);
-            ng = n1 + 1;
+            if (model)
+                ng = n1;
+            else
+            {
+                for (i = 0; i < (int)n; i++)
+                    t1[i] = logf((gbg[i] > (float)MATLAB_EPS) ? gbg[i] : (float)MATLAB_EPS);
+                bsplinc_wrap2(t1, Lv->rd, coef[n1]);
+                ng = n1 + 1;
+            }
 
             /* RD202101: a very large ventricle becomes a class of its own */
             hydro = 0;
-            if (opts.regstr != 4 && opts.hydro && n1 == 2)
+            if (!model && opts.regstr != 4 && opts.hydro && n1 == 2)
             {
                 float *Ygwm = (float *)malloc(sizeof(float) * n);
                 float *Yven = (float *)malloc(sizeof(float) * n);
@@ -2147,7 +2319,7 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
             }
 
             /* the background */
-            for (k = 0; k < ng - 1; k++)
+            for (k = 0; !model && k < ng - 1; k++)
             {
                 size_t v;
                 for (v = 0; v < n; v++)
@@ -2161,7 +2333,7 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
             free(fbuf);
 
             /* template derivatives of this level */
-            ret = tplderiv_build(&T, Lv->rd, ng, coef);
+            ret = tplderiv_build(&T, Lv->rd, ng, coef, model != NULL);
             if (ret) goto done;
             if (has_ich)
             {
@@ -2172,7 +2344,8 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
             /* CAT takes g{3} as the background, which it is for two classes
              * (with the ventricle class, it is that class); with a CSF class
              * the background is the last one */
-            for (i = 0; i < (int)n; i++) bgexp[i] = (float)exp(coef[(n1 == 2) ? 2 : n1][i]);
+            for (i = 0; i < (int)n; i++)
+                bgexp[i] = (float)exp(coef[model ? ng - 1 : ((n1 == 2) ? 2 : n1)][i]);
             /* without tissue classes the one class left is background
              * everywhere, which would keep CAT's hot-spot filter from acting
              * at all: treat everything as brain instead */
@@ -2224,6 +2397,11 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 if (ret) goto done;
                 jac_det(Lv->rd, J, dt);
             }
+            if (model)
+            {
+                ret = model_update(model, Lv, ti, n_done, 1, y, dt, f, logw);
+                if (ret) goto done;
+            }
         }
 
         /* the regularisation of this iteration */
@@ -2236,7 +2414,8 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
 
         llo[0] = ll[0];
         llo[1] = ll[1];
-        ret = shoot_update(&S, &T, f, u, y, dt, prm, scale, &ll[0], &ll[1], work, &I, ich);
+        ret = shoot_update(&S, &T, f, u, y, dt, prm, scale, &ll[0], &ll[1], work, &I, ich,
+                           model ? logw : NULL);
         if (ret) goto done;
         ret = shoot3d(&S, L[ti].rd, u, prm, int_N, y, J);
         if (ret) goto done;
@@ -2283,7 +2462,11 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
         {
             double nu = 3.0 * n, r1 = ll[0] / nu;
             double rr = ll[0] / ((llo[0] > MATLAB_EPS) ? llo[0] : MATLAB_EPS);
-            if (opts.regstr > 0 && opts.regstr != 4 && nfilt == 0 && !hydro && r1 < 0.075 &&
+            /* CAT's 0.075 is the level of the multinomial term of two tissue
+             * maps; the term of a data model has another scale, so only its
+             * relative change counts there */
+            if (opts.regstr > 0 && opts.regstr != 4 && nfilt == 0 && !hydro &&
+                (model || r1 < 0.075) &&
                 (ti > 0 || (ti == 0 && r1 < 1 && rr < 1 && rr > (1 - 0.01))) &&
                 (r1 < 1 && rr < 1 && rr > (1 - ll1th)) && tmpl_no[it - 1] > 1)
             {
@@ -2300,6 +2483,14 @@ CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
                 it++;
         }
         if (info) info->iterations++;
+        n_done++;
+        /* the next iteration stays on this level: let the model re-estimate
+         * its parameters with the new deformation (a new level asks itself) */
+        if (model && it <= nits && tmpl_no[it - 1] == ti + 1)
+        {
+            ret = model_update(model, &L[ti], ti, n_done, 0, y, dt, f, logw);
+            if (ret) goto done;
+        }
     }
 
     /* outputs: y in input voxels (0-based), Jacobians, inverse.  The last
@@ -2399,7 +2590,7 @@ done:
     free(t3);
     free(bgexp);
     free(msk);
-    for (k = 0; k < MAXCLS; k++) free(coef[k]);
+    for (k = 0; k < CAT_SHOOT_MODEL_MAXCLASSES; k++) free(coef[k]);
     tplderiv_free(&T);
     ich_free(&I);
     for (k = 0; k < NLEV; k++)
@@ -2410,4 +2601,64 @@ done:
     shoot_free(&S);
     spm_shoot_set_threads(old_threads);
     return ret;
+}
+
+/**
+ * \brief CAT_VolShoot() with an optional intensity channel (experimental).
+ *
+ * \p n_cls 0 registers by the intensity channel alone; a NULL template below
+ * the last is the final one smoothed by CAT_SHOOT_LEVEL_FWHM.  Lesions take
+ * no part in the intensity term.
+ *
+ * \param ich (in) intensity channel; NULL runs CAT_VolShoot() unchanged
+ * \return as CAT_VolShoot()
+ */
+int
+CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
+               const double mat[16], const double affine[16],
+               const float *const templates[CAT_SHOOT_NTEMPLATES],
+               const int tdims[3], const double tmat[16], double reg_vx,
+               const float *lesion, const CAT_VolShootIntensity *ich,
+               const CAT_VolShootOpts *opts_in, float *y_out, float *iy_out,
+               float *jac_out, CAT_VolShootInfo *info)
+{
+    return shoot_run(cls, n_cls, dims, mat, affine, templates, tdims, tmat, reg_vx,
+                     lesion, ich, NULL, opts_in, y_out, iy_out, jac_out, info);
+}
+
+/**
+ * \brief Geodesic shooting with a data model in place of tissue maps.
+ *
+ * The grids, schedule and safeguards of CAT_VolShoot(), driven by class
+ * likelihoods that the model re-estimates at every iteration: each
+ * Gauss-Newton step is an EM step for the deformation.
+ *
+ * \param model     (in)  the data model
+ * \param dims      (in)  input grid dimensions
+ * \param mat       (in)  input grid voxel-to-world matrix
+ * \param affine    (in)  input-to-template world mapping; NULL: identity
+ * \param templates (in)  CAT_SHOOT_NTEMPLATES templates of model->n_cls
+ *                        volumes; a NULL entry below the last is derived
+ * \param tdims     (in)  template dimensions
+ * \param tmat      (in)  template voxel-to-world matrix
+ * \param reg_vx    (in)  voxel size of the regulariser; <= 0: the template's
+ * \param opts_in   (in)  settings; NULL uses CAT_VolShootOptionsInit()
+ * \param y_out     (out) as CAT_VolShoot()
+ * \param iy_out    (out) optional (NULL), as CAT_VolShoot()
+ * \param jac_out   (out) optional (NULL), as CAT_VolShoot()
+ * \param info      (out) optional (NULL) summary of the run
+ * \return 0 on success, 1 on invalid input, 2 on memory failure, or the
+ *         non-zero code model->update() returned
+ */
+int
+CAT_VolShootFit(const CAT_VolShootModel *model, const int dims[3],
+                const double mat[16], const double affine[16],
+                const float *const templates[CAT_SHOOT_NTEMPLATES],
+                const int tdims[3], const double tmat[16], double reg_vx,
+                const CAT_VolShootOpts *opts_in, float *y_out, float *iy_out,
+                float *jac_out, CAT_VolShootInfo *info)
+{
+    if (!model) return 1;
+    return shoot_run(NULL, 0, dims, mat, affine, templates, tdims, tmat, reg_vx,
+                     NULL, NULL, model, opts_in, y_out, iy_out, jac_out, info);
 }

@@ -1029,6 +1029,162 @@ def test_vol_shoot():
 
 
 # ---------------------------------------------------------------------------
+# Unified segmentation: a head of concentric shells with one intensity per
+# class, a bias field and noise, against templates that are its smoothed
+# class maps.  The array API and the file-based mirror must agree, and every
+# keyword left at None must be the default of CAT_UnifiedSegOptionsInit().
+# ---------------------------------------------------------------------------
+def _useg_phantom():
+    shape = (37, 43, 37)
+    vox = 5.0
+    mat = np.diag([vox, vox, vox, 1.0])
+    mat[:3, 3] = -0.5 * vox * (np.asarray(shape) - 1)
+    x, y, z = (vox * (np.arange(n, dtype=np.float64) - 0.5 * (n - 1))
+               for n in shape)
+    x, y, z = np.meshgrid(x, y, z, indexing="ij")
+    r = 67.0 * np.sqrt((x / 67.0) ** 2 + (y / 80.0) ** 2 + (z / 67.0) ** 2)
+    fold = 4.0 * np.sin(0.13 * x) * np.cos(0.11 * y)
+    inside = [0.5 * (1.0 - np.tanh((r - b) / 2.4))
+              for b in (25.0 + fold, 38.0, 46.0, 55.0, 65.0)]
+    cls = np.stack([np.clip(inside[1] - inside[0], 0, 1), inside[0],
+                    np.clip(inside[2] - inside[1], 0, 1),
+                    np.clip(inside[3] - inside[2], 0, 1),
+                    np.clip(inside[4] - inside[3], 0, 1), 1.0 - inside[4]],
+                   axis=-1).astype(np.float32)
+    mu = np.array([65.0, 100.0, 30.0, 12.0, 140.0, 3.0])
+    rng = np.random.default_rng(3)
+    image = (cls @ mu) * np.exp(0.2 * np.sin(x / 45.0) + 0.15 * np.cos(y / 50.0))
+    image = np.maximum(image + rng.normal(0.0, 2.0, shape), 0.2).astype(np.float32)
+
+    def smooth(a, n):
+        for _ in range(n):
+            for ax in range(3):
+                a = (np.roll(a, 1, ax) + a + np.roll(a, -1, ax)) / 3.0
+        return a
+
+    templates = [np.stack([smooth(cls[..., k], n) for k in range(6)],
+                          axis=-1).astype(np.float32) for n in (3, 2, 1, 1, 0)]
+    return image, templates, mat, np.argmax(cls, axis=-1)
+
+
+def test_vol_unified_seg():
+    section("Unified segmentation")
+
+    image, templates, mat, truth = _useg_phantom()
+    shape = image.shape
+    kw = dict(ngaus=[1] * 6, lowres=8.0, samp=9.0, n_threads=2)
+
+    d = cat_surf.vol_unified_seg_defaults()
+    check("the defaults are those of the library",
+          d["ngaus"] == [1, 1, 2, 3, 4, 2] and d["bias_model"] == "spline" and
+          d["affreg"] == "mni" and d["noise"] == 0.0 and d["pve"] is True and
+          d["sanlm"] is False)
+
+    res = cat_surf.vol_unified_seg(image, templates, mat, mat, fractions=True,
+                                   bias=True, deformation=True, inverse=True,
+                                   **kw)
+    prob = res["prob"]
+    hard = np.argmax(prob, axis=-1)
+
+    def dice(k):
+        return 2.0 * ((hard == k) & (truth == k)).sum() / \
+            ((hard == k).sum() + (truth == k).sum())
+
+    check("class maps are uint8 on the image grid",
+          prob.shape == shape + (6,) and prob.dtype == np.uint8)
+    check("the posteriors sum to one",
+          np.abs(prob.sum(axis=-1).astype(int) - 255).max() <= 3)
+    check("grey and white matter are recovered",
+          dice(0) > 0.9 and dice(1) > 0.9, f"GM {dice(0):.3f} WM {dice(1):.3f}")
+    check("label, fractions, corrected image and bias field have the image grid",
+          res["label"].shape == shape and res["fractions"].shape == shape + (3,) and
+          res["corrected"].shape == shape and res["bias"].shape == shape)
+    check("the label is 3 in white matter and 0 in air",
+          abs(float(res["label"][truth == 1].mean()) - 3.0) < 0.15 and
+          float(res["label"][truth == 5].mean()) < 0.05)
+    check("the corrected image is the image times the bias field",
+          np.allclose(res["corrected"], image * res["bias"], rtol=1e-5))
+    check("deformation, Jacobian and inverse have their grids",
+          res["y"].shape == shape + (3,) and res["jac"].shape == shape and
+          res["iy"].shape == shape + (3,))
+    p = res["params"]
+    check("the parameters hold one Gaussian per class",
+          len(p["mn"]) == 6 and p["lkp"] == list(range(6)) and
+          p["affine"].shape == (4, 4) and p["bias_coef"].ndim == 3)
+    check("the means of the tissues are ordered as in the phantom",
+          p["mn"][2] < p["mn"][0] < p["mn"][1])
+
+    res_f = cat_surf.vol_unified_seg(
+        np.asfortranarray(image), [np.asfortranarray(t) for t in templates],
+        mat, mat, label=False, corrected=False, **kw)
+    check("C- and Fortran-order inputs give identical class maps",
+          np.array_equal(prob, res_f["prob"]))
+    res_d = cat_surf.vol_unified_seg(image, templates, mat, mat,
+                                     bias_model="dct", noise=0.05, **kw)
+    check("the DCT bias field and added noise run",
+          res_d["params"]["bias_model"] == "dct" and
+          res_d["params"]["noise_added"] > 0)
+
+    for bad, why in ((dict(ngaus=[1, 1, 1]), "three Gaussian counts"),
+                     (dict(bias_model="poly"), "an unknown bias model"),
+                     (dict(affine_mode="fixed"), "a fixed matrix that is missing")):
+        try:
+            cat_surf.vol_unified_seg(image, templates, mat, mat, **dict(kw, **bad))
+            raised = False
+        except ValueError:
+            raised = True
+        check(f"{why} is a ValueError", raised)
+    try:
+        cat_surf.vol_unified_seg(np.zeros(shape, np.float32), templates, mat,
+                                 mat, **kw)
+        raised = False
+    except RuntimeError:
+        raised = True
+    check("an image without data is a RuntimeError", raised)
+
+    try:
+        import nibabel as nib
+    except ImportError:
+        print("  SKIP nibabel not installed: file-based mirror not tested")
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        img_file = os.path.join(tmp, "image.nii")
+        nib.save(nib.Nifti1Image(image, mat), img_file)
+        tpl_files = []
+        for k, t in enumerate(templates):
+            tpl_files.append(os.path.join(tmp, f"Template_{k}_GS.nii"))
+            nib.save(nib.Nifti1Image(t, mat), tpl_files[-1])
+        out = {n: os.path.join(tmp, n + ".nii") for n in
+               ("prob", "label", "pve", "corrected", "y", "iy", "jac")}
+        params_file = os.path.join(tmp, "seg8.json")
+        cli.vol_unified_seg(
+            img_file, tpl_files[0], prob_file=out["prob"], label_file=out["label"],
+            pve_file=out["pve"], corrected_file=out["corrected"], y_file=out["y"],
+            iy_file=out["iy"], jac_file=out["jac"], params_file=params_file, **kw)
+        pf = nib.load(out["prob"])
+        check("the mirror writes the class maps of the array API",
+              np.array_equal(np.asarray(pf.dataobj.get_unscaled()), prob) and
+              abs(pf.dataobj.slope - 1.0 / 255.0) < 1e-9)
+        check("the mirror writes the label map of the array API",
+              np.array_equal(nib.load(out["label"]).get_fdata(dtype=np.float32),
+                             res["label"]))
+        check("the mirror writes deformations in SPM's layout",
+              nib.load(out["y"]).shape == shape + (1, 3) and
+              nib.load(out["iy"]).shape == shape + (1, 3))
+        import json
+        with open(params_file) as fp:
+            js = json.load(fp)
+        check("the mirror writes the parameters as JSON",
+              js["mn"] == p["mn"] and js["bias_dims"] == list(p["bias_coef"].shape))
+        try:
+            cli.vol_unified_seg(img_file, tpl_files)
+            raised = False
+        except ValueError:
+            raised = True
+        check("the mirror needs an output, as the binary does", raised)
+
+
+# ---------------------------------------------------------------------------
 # Boundary-based registration: cat_surf.bbreg takes its defaults from
 # CAT_BBRegOptionsInit(), as CAT_SurfBBReg does, so the two give the same
 # transform.  They had drifted apart: wm_dist 0.5 against 2.0, a +-15 mm
@@ -1220,7 +1376,7 @@ def main():
                  test_option_no_ops,
                  test_surf_info, test_vol_calc, test_box_morph,
                  test_bspline_sample, test_vol_realign, test_vol_shoot,
-                 test_vol_shoot_affine,
+                 test_vol_shoot_affine, test_vol_unified_seg,
                  test_bbreg_defaults,
                  test_resample_annot_formats, test_sanlm_repeatable,
                  test_amap_rejects_bad_labels, test_missing_files_raise,

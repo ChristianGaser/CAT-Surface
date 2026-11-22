@@ -1323,6 +1323,146 @@ Things that are easy to get wrong:
   place, so the maps get smoothed cumulatively over the levels. This cost 0.003 Dice before it was
   found.
 
+## Unified segmentation (`CAT_VolUnifiedSeg`, SPM's model with shooting)
+
+`CAT_VolUnifiedSeg` (library `Include/CAT_UnifiedSeg.h`, `cat_surf.vol_unified_seg`,
+`cat_surf.cli.vol_unified_seg`) is SPM's unified segmentation as CAT runs it
+(`cat_spm_preproc_run.m`, `cat_spm_preproc8.m`, `cat_spm_preproc_write8.m`, `spm_maff8.m`), in C,
+for one channel and with mixtures of Gaussians only. Its priors are a **shooting template series
+of six classes** (GM, WM, CSF, bone, soft tissue, air; `Template_0..4_GS.nii`, no TPM), deformed
+onto the image by geodesic shooting on the five levels of `CAT_VolShoot` instead of SPM's
+small-deformation model. Outputs: the six class maps, a label map with partial volumes, the
+bias-corrected image, `y`/`iy`/Jacobian, and the parameters as JSON (what SPM keeps in
+`*_seg8.mat`). Defaults live in `CAT_UnifiedSegOptionsInit()`; Python keywords left at `None` keep
+them (`cat_surf.vol_unified_seg_defaults()` reports them).
+
+**How the two parts are coupled.** `CAT_VolShootFit()` runs the grids, schedule and safeguards of
+`CAT_VolShoot` with a *data model* (`CAT_VolShootModel`) in place of fixed tissue maps: a callback
+hands it the likelihoods of the classes on the registration grid. At a template voxel the
+posterior is `q_k = w_k mu_k f_k(y) / sum`, the gradient is that of the multinomial term with `q`
+for the pulled maps, and the multinomial Hessian bounds the true one from above -- so every
+Gauss-Newton step is an EM step for the deformation. Between the steps the Gaussians, class
+weights and bias field are re-estimated on image voxels `samp` mm apart, as SPM does, with the
+priors pulled through the inverse of the current deformation (`spm_invdef` on that lattice).
+`CAT_VolShoot` itself is untouched: `y`, `iy` and the Jacobian are bit-identical to before.
+
+Measured on 20 T1 images (`~/Dropbox/T1`: 0.5-1.3 mm, 1.5-7 T, six storage orientations,
+skull-stripped, defaced, a hydrocephalus, an infant), against `cat_spm_preproc_run` with SPM's TPM
+in MATLAB R2023b. Dice is against CAT's `p0` on the nine images that have one -- **not an
+independent truth**: the templates stem from CAT segmentations, SPM's TPM does not.
+
+| | GM | WM | CSF | time per image |
+| --- | --- | --- | --- | --- |
+| SPM (`cat_spm_preproc_run`) | 0.880 | 0.910 | 0.774 | 35-117 s, median 70 |
+| **`CAT_VolUnifiedSeg`** | **0.888** | **0.933** | 0.768 | 17-24 s, median 19 (4 threads) |
+| ... with `-sanlm -noise 0.02` | 0.893 | 0.936 | 0.777 | +3-9 s |
+| ... class weights free as in SPM (`-wp-reg 0`) | 0.843 | 0.909 | 0.737 | |
+
+Better than SPM for GM in 6 of 9 images, WM in 9, CSF in 5; worse on a motion scan (ADHD200, GM
+0.83 vs 0.88), an R1 map and an averaged scan. One image takes 52 / 19 / 14 s with 1 / 4 / 8
+threads; results are bit-identical for every thread count (sums are kept per slice).
+
+Over all 20 images the hard labels of the two agree with a Dice of 0.83 / 0.89 / 0.72 (GM, WM,
+CSF) and 0.53 / 0.76 / 0.94 (bone, soft tissue, air). Where they disagree most, SPM is the one
+that failed (checked by eye): it labels most of the cortex of the hydrocephalus (4397) as CSF,
+and its **bone class is empty** in sbg52, sii39 and Schneider sub-03 (14-46 ml against 650-770 ml
+here; the skull is soft tissue or CSF there). Two things to know before using the bone class: the
+eyes come out as bone (as dark as bone, and the templates hold little CSF there, where SPM's TPM
+does), and below the templates dark noise is labelled bone (002: 1718 ml) -- restrict it to the
+field of view of the templates. This SPM is `cat_spm_preproc_run` with its defaults, without the
+preprocessing (APP) that CAT puts in front of it.
+
+### The class weights must not be free (`wp_reg`)
+
+The one finding that decides whether this works. With SPM's free class weights the Gaussians come
+out as SPM's (avg_rTrioTim: GM 139 +- 16 vs 135 +- 17, WM 180 +- 6.6 vs 178 +- 6.7), but the weights
+do not: SPM ends at GM : WM : CSF = 0.32 : 0.24 : 0.24, this code at 0.14 : 0.05 : 0.41. SPM's TPM was
+made with the same model, so its priors match what a single Gaussian per tissue classifies. The
+shooting templates give WM what that Gaussian leaves to GM (partial volumes), the free weights
+compensate by turning WM down three- to fourfold, and the deformation then follows the
+misclassification -- more shooting iterations made it *worse* (`-regstr 1`: mean Dice 0.798,
+ADHD200 GM 0.52). Holding the weights near 1/6 fixes all of it. `wp_reg` gives pseudo-counts of
+that multiple of the prior mass of every class (scale-free, unlike SPM's `wp_reg` of one voxel):
+
+| `wp_reg` | 0 | 0.1 | 0.25 | **0.5** | 1 | 2 | fixed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| mean Dice (9 images) | 0.830 | 0.857 | 0.864 | **0.865** | 0.865 | 0.864 | 0.864 |
+
+Fixed is best for young brains (IXI 0.933 vs 0.927), a little freedom for atrophy (ADNI_005: 0.885
+fixed, 0.922 at 0.5, 0.934 at 0.25): the brain has more CSF than the template. With the weights
+held, `-regstr 1` no longer hurts (0.867) but doubles the time, so the default is 0.5. More
+Gaussians for GM and WM (`2 2 2 3 4 2`) help with free weights (0.854) but not with held ones.
+
+### Affine registration
+
+`spm_maff8` (mutual information of intensity and class), but SPM's two starts are not enough.
+Shifting the header by 40-100 mm or tilting it by 20-30 deg, the first version -- header origin
+and centre of mass, the better *coarse* result refined -- failed on IXI (tilted head: 100 mm off)
+and picked a wrong optimum for 002 (1.17 bits where 1.39 is reachable); sii39 was caught at a zoom
+of 1.12 instead of 1.32. Now 12 coarse starts (header origin, and the top 130 mm of the head put
+onto that of the template -- independent of how much neck is in the field of view -- straight and
+tilted +-20 deg, each at zoom 1, 1.2, 1.4), of which the best three *different* solutions are
+refined and the best final one is kept: 0.7-1.3 s, and every shift, tilt and combination tested
+returns within 1.7 mm of the unperturbed solution on three images. Not covered: a header whose
+voxels are 20% too small (zoom beyond the starts and the `mni` prior), and infants.
+
+### Bias field: splines or DCT, solved without the matrix
+
+`-bias-model spline` (default) uses cubic B-splines with knots `0.75 biasfwhm` apart and
+independent coefficients of precision `biasreg h^3`: SPM's prior (a Gaussian-smoothed field of
+that FWHM) with basis functions of compact support, so `biasfwhm` and `biasreg` keep their
+meaning, and unlike the DCT the model does not change with the field of view. `dct` is SPM's.
+Either way the Gauss-Newton system is never formed: it is solved by conjugate gradients through
+the separable basis (the dense DCT system of 12^3 coefficients cost a 24 MB matrix and a
+1.7 Gflop Cholesky per update). The CG result reproduced the dense one to all printed digits.
+
+Accuracy is the same: mean Dice 0.863 (spline) vs 0.865 (DCT), single images differing by up to
+0.03 either way; the spline needs half the CG iterations. **Halving the knot spacing level by
+level, as N4 does, was implemented and removed**: 0.861 against 0.862, better on two images and
+worse on two. N4's histogram sharpening has no place here -- the mixture model already supplies
+the bias-free target.
+
+### Noise for the estimation (`noise`), SANLM first (`sanlm`)
+
+A noise-free image makes the model degenerate, as known: on a phantom built from a segmentation
+(one intensity per class, mixed at the boundaries) the WM Gaussian collapses to SD 1.4 while GM
+takes every partial volume (SD 26). `noise` adds Gaussian noise to the image the parameters are
+estimated from until its noise SD (median absolute Haar detail / 0.6745) reaches that fraction of
+the 1-99% intensity range; an image that is noisier already is left alone, and the segmentation
+is always computed from the image without it, with the variances the noise gave:
+
+| phantom, `noise` | 0 | 0.01 | 0.02 | 0.05 |
+| --- | --- | --- | --- | --- |
+| Dice GM / WM | 0.917 / 0.892 | 0.952 / 0.988 | 0.964 / 0.994 | 0.976 / 0.986 |
+
+The noise estimate reads structure as noise when voxels are coarse against the anatomy (1.9% on
+the 3.6 mm test phantom, 0.07% on the 1 mm one), so less is added there than asked for.
+`sanlm` filters first (3-4 s); on its own it narrows the WM Gaussian and costs WM Dice on IXI
+(0.941 -> 0.933), together with `noise 0.02` it was the best setting of the table above.
+
+### Label map and partial volumes
+
+The label (0, CSF 1, GM 2, WM 3) is the brain posterior times the expected label of a partial
+volume model: a brain voxel is pure CSF, GM or WM or a mixture of two with any fraction, pure with
+prior `p_a^2` and mixed with `2 p_a p_b` from the deformed templates. The variance of a pure
+tissue is the narrowest tissue Gaussian (less the added noise); the pure means are refined by EM
+on the model. Against CAT's `p0` its RMSE is lower than that of the posterior mean
+`CSF + 2 GM + 3 WM` on all nine images (0.158-0.410 vs 0.180-0.432) and lower than SPM's on
+seven. A first version re-estimated the means from voxels it called pure -- a truncated selection
+that pushed the WM mean up by 5-50% and labelled WM as 2.7.
+
+Things to know:
+
+- **Outside the templates there is no brain.** SPM continues its priors by the mean of the
+  border slices, brain classes included, which labels neck and shoulders as CSF; here the brain
+  classes are left out there, and voxels below the templates take no part in the estimation.
+- Voxels that are zero or not finite carry no data: they get their prior, also in the volumes of
+  the JSON file (a skull-stripped image reports the template's bone and air).
+- `CAT_VolShootFit` leaves a level as soon as the matching term improves by less than the
+  threshold of `regstr`: CAT's absolute level of 0.075 belongs to the term of two tissue maps.
+- Not done: SPM's histogram model, several channels, the `cleanup` of `spm_preproc_write8`,
+  writing warped or imported classes. Infants are segmented with adult contrast and come out wrong.
+
 ## Architecture rules
 
 1. **Library-first:** All non-trivial logic belongs in `Lib/`, not `Progs/`.
