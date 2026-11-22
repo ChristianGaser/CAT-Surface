@@ -94,9 +94,21 @@ typedef struct
     int sanlm_rician;   /**< 1: Rician noise model of the SANLM filter (0) */
     double mrf;         /**< strength of the Markov random field cleanup of the
                              class maps, as SPM's (0: off) */
+    int cleanup;        /**< SPM's cleanup of the brain classes (clean_gwc of
+                             spm_preproc_write8.m), after the MRF: grey and
+                             white matter, then CSF, that cannot be reached
+                             from white matter by conditional dilation are
+                             removed.  0: off, 1: light (default), 2: thorough.
+                             The steps are counted in mm, not voxels */
     int pve;            /**< 1: estimate partial volumes of CSF, GM and WM for
                              the label map (default); 0: the label is the
                              posterior mean CSF + 2 GM + 3 WM */
+    int pve_head;       /**< 1: partial volumes of bone, soft tissue and air
+                             (mixtures of soft tissue with bone and with air)
+                             for the fractions; 0: their posteriors (default).
+                             Nothing else depends on it: the class maps, the
+                             label map and the fractions of CSF, GM and WM are
+                             the same either way */
     CAT_VolShootOpts shoot; /**< the shooting: regstr, reg_scale, lowres, ...
                                  (CAT_VolShootOptionsInit(), with regstr 0.5) */
     int n_threads;      /**< worker threads; <= 0: the library default */
@@ -135,10 +147,15 @@ typedef struct
     double noise_added;     /**< SD of the noise added for the estimation,
                                  same unit (0: none) */
     int pve_done;       /**< partial volumes were estimated */
+    int pve_head_done;  /**< partial volumes of the head were estimated */
     double pve_mean[3]; /**< intensity of pure CSF, GM and WM */
     double pve_sd;      /**< SD of a pure tissue in the partial volume model */
-    double volume[CAT_USEG_NCLASSES]; /**< volume of every class in ml; voxels
-                                           without data count with their prior */
+    double volume[CAT_USEG_NCLASSES]; /**< volume of every class in ml from
+                                           the posteriors; voxels without data
+                                           count with their prior */
+    double pve_volume[CAT_USEG_NCLASSES]; /**< the same from the fractions
+                                               (0 unless a label map or the
+                                               fractions were asked for) */
     CAT_VolShootInfo shoot;  /**< summary of the shooting */
     double time_total;  /**< seconds, wall clock */
     double time_filter; /**< SANLM filter */
@@ -183,7 +200,9 @@ void CAT_UnifiedSegResultFree(CAT_UnifiedSegResult *res);
  *    series, where every Gauss-Newton step is an EM step that matches the
  *    templates to the current class posteriors (CAT_VolShootFit()).
  * 4. The class posteriors of every voxel from the final parameters
- *    (cat_spm_preproc_write8.m), and a label map with partial volumes.
+ *    (cat_spm_preproc_write8.m), optionally with its MRF and its cleanup of
+ *    the brain classes, a label map with partial volumes, and the fractions
+ *    of all six classes.
  *
  * Voxels that are zero or not finite carry no data: they take no part in
  * the estimation and get their prior as posterior, so skull-stripped and
@@ -209,9 +228,12 @@ void CAT_UnifiedSegResultFree(CAT_UnifiedSegResult *res);
  *                        one after the other: class posteriors times 255
  * \param label     (out) optional (NULL), dims: label map, 0 background,
  *                        1 CSF, 2 GM, 3 WM, with partial volumes in between
- * \param pve       (out) optional (NULL), 3 volumes of dims: fractions of
- *                        GM, WM and CSF times 255 (the partial volume estimate;
- *                        without opts->pve the posteriors of these classes)
+ * \param pve       (out) optional (NULL), CAT_USEG_NCLASSES volumes of dims:
+ *                        the fraction of every class times 255 -- the posterior
+ *                        of the brain (head) times the partial volume estimate
+ *                        of CSF, GM and WM (bone, soft tissue and air) given
+ *                        that the voxel is brain (head); without opts->pve
+ *                        (opts->pve_head) the posteriors of these classes
  * \param corrected (out) optional (NULL), dims: bias-corrected image
  * \param bias      (out) optional (NULL), dims: bias field (corrected / image)
  * \param y         (out) optional (NULL), tdims x 3: for every template voxel

@@ -40,11 +40,16 @@
 #define AFF_SAMP_FINE 5.0   /* and of its refinement */
 #define PVE_NTAB 1024       /* intensity bins of the partial volume tables */
 #define PVE_NINT 32         /* nodes of the integral over the mixing fraction */
+#define HEAD_NTAB_MAX 16384 /* intensity bins of the tables of the head */
+#define HEAD_NPAIR 2        /* mixtures of the head: bone-soft, soft-air */
+#define CLEAN_TH_FINAL 0.05 /* threshold of the masks of clean_gwc */
 
 /* template classes */
 #define C_GM 0
 #define C_WM 1
 #define C_CSF 2
+#define C_BONE 3
+#define C_SOFT 4
 #define C_AIR 5
 
 /* ======================================================================== */
@@ -2572,15 +2577,17 @@ pve_em_step(const State *S, const Pve *P, double m[3])
  * The Gaussians of the segmentation are widened by partial volumes: the
  * narrower of those of grey and white matter is taken as the variance of a
  * pure tissue, and the means start at a Gaussian of each tissue and are
- * refined by EM steps of the partial volume model.  The Gaussian of pure CSF
- * is left out of the variance: it is dark and therefore narrow, and as the
- * width of all three tissues it turned the spread of white matter into
- * partial volumes (label RMSE against CAT's p0 higher in 4 of 9 images, lower
- * in none).  If these carry a mean more than half
- * way to another tissue the model does not fit, and the means of the
- * segmentation are kept.  The image that is segmented has less noise than
- * the one the parameters come from (added noise, or what the filter took
- * out), so its tables get the variance less pve_excess_variance(). */
+ * refined by EM steps of the partial volume model.  If these carry a mean
+ * more than half way to another tissue the model does not fit, and the means
+ * of the segmentation are kept.
+ *
+ * The Gaussian of pure CSF is left out of the variance: it is dark and
+ * therefore narrow, and as the width of all three tissues it turned the
+ * spread of white matter into partial volumes (label RMSE against CAT's p0
+ * higher in 5 of 9 images, by up to 0.019, lower in none).  The image that is
+ * segmented has less noise than the one the parameters come from (added
+ * noise, or what the filter took out), so its tables get the variance less
+ * pve_excess_variance(). */
 static int
 pve_setup(State *S, Pve *P)
 {
@@ -2649,6 +2656,435 @@ pve_setup(State *S, Pve *P)
     return 0;
 }
 
+
+/* ======================================================================== */
+/* Partial volumes of the head                                              */
+/* ======================================================================== */
+
+/* Bone, soft tissue and air are mixtures of Gaussians themselves -- cortical
+ * bone and marrow, muscle and fat, background noise -- so one intensity per
+ * class, as for the brain, would read muscle as half fat and half air.  Here
+ * a pure voxel of a head class follows the Gaussians of its class, and a
+ * voxel that holds the fraction t of class b and 1-t of class a follows one
+ * Gaussian of each: mean (1-t) m_g + t m_h, variance (1-t) v_g + t v_h, the
+ * pairs weighted by their mixing proportions and t uniform.  The mixtures
+ * are bone with soft tissue and soft tissue with air.  Tables over the
+ * bias-corrected intensity hold the likelihood of every mixture and the
+ * expected fraction t; their bins are a quarter of the narrowest Gaussian
+ * wide, and the integral over t has nodes close enough that its mean moves
+ * by a quarter of the narrower SD between them. */
+typedef struct
+{
+    int ok, ntab;
+    double y0, dy;
+    float *dens; /* ntab x HEAD_NPAIR: likelihood of the mixture */
+    float *frac; /* ntab x HEAD_NPAIR: E[t] */
+} HeadPve;
+
+static const int head_pair[HEAD_NPAIR][2] = {{C_BONE, C_SOFT}, {C_SOFT, C_AIR}};
+
+static int
+head_pve_setup(const State *S, HeadPve *H)
+{
+    const Gmm *G = &S->G;
+    double lo = HUGE_VAL, hi = -HUGE_VAL, sdmin = HUGE_VAL, *den = NULL, *num = NULL;
+    int g, h, p, i, it;
+
+    memset(H, 0, sizeof(*H));
+    for (g = 0; g < G->K; g++)
+    {
+        double sd = sqrt(G->vr[g]);
+        if (G->lkp[g] < C_BONE) continue;
+        if (!(sd > 0) || !isfinite(G->mn[g])) return 0;
+        if (G->mn[g] - 6.0 * sd < lo) lo = G->mn[g] - 6.0 * sd;
+        if (G->mn[g] + 6.0 * sd > hi) hi = G->mn[g] + 6.0 * sd;
+        if (sd < sdmin) sdmin = sd;
+    }
+    if (!(hi > lo)) return 0;
+    H->y0 = lo;
+    H->dy = 0.25 * sdmin;
+    H->ntab = (int)ceil((hi - lo) / H->dy) + 1;
+    if (H->ntab > HEAD_NTAB_MAX)
+    {
+        H->ntab = HEAD_NTAB_MAX;
+        H->dy = (hi - lo) / (H->ntab - 1);
+    }
+    H->dens = (float *)malloc(sizeof(float) * H->ntab * HEAD_NPAIR);
+    H->frac = (float *)malloc(sizeof(float) * H->ntab * HEAD_NPAIR);
+    den = (double *)malloc(sizeof(double) * H->ntab);
+    num = (double *)malloc(sizeof(double) * H->ntab);
+    if (!H->dens || !H->frac || !den || !num)
+    {
+        free(den);
+        free(num);
+        return 2;
+    }
+    for (p = 0; p < HEAD_NPAIR; p++)
+    {
+        for (i = 0; i < H->ntab; i++) den[i] = num[i] = 0.0;
+        for (g = 0; g < G->K; g++)
+            for (h = 0; h < G->K; h++)
+            {
+                double dm, smin, w;
+                int nt;
+                if (G->lkp[g] != head_pair[p][0] || G->lkp[h] != head_pair[p][1]) continue;
+                dm = G->mn[h] - G->mn[g];
+                smin = sqrt((G->vr[g] < G->vr[h]) ? G->vr[g] : G->vr[h]);
+                nt = (int)ceil(4.0 * fabs(dm) / smin);
+                if (nt < PVE_NINT) nt = PVE_NINT;
+                if (nt > 8192) nt = 8192;
+                w = G->mg[g] * G->mg[h] / nt;
+                for (it = 0; it < nt; it++)
+                {
+                    double t = (it + 0.5) / nt, mu = G->mn[g] + t * dm;
+                    double var = (1.0 - t) * G->vr[g] + t * G->vr[h], sd = sqrt(var);
+                    double c = w / sqrt(2.0 * M_PI * var);
+                    int i0 = (int)floor((mu - 6.0 * sd - H->y0) / H->dy);
+                    int i1 = (int)ceil((mu + 6.0 * sd - H->y0) / H->dy);
+                    if (i0 < 0) i0 = 0;
+                    if (i1 > H->ntab - 1) i1 = H->ntab - 1;
+                    for (i = i0; i <= i1; i++)
+                    {
+                        double d = H->y0 + i * H->dy - mu, e = c * exp(-0.5 * d * d / var);
+                        den[i] += e;
+                        num[i] += t * e;
+                    }
+                }
+            }
+        for (i = 0; i < H->ntab; i++)
+        {
+            H->dens[i * HEAD_NPAIR + p] = (float)den[i];
+            H->frac[i * HEAD_NPAIR + p] = (float)((den[i] > 0) ? num[i] / den[i] : 0.5);
+        }
+    }
+    free(den);
+    free(num);
+    H->ok = 1;
+    return 0;
+}
+
+/* Expected fractions of bone, soft tissue and air of a head voxel with
+ * intensity y, the likelihoods L of the six classes (their Gaussians) and
+ * the priors pr of the three head classes (summing to one).  As for the
+ * brain, a pure voxel has the prior pr_a^2 and a mixture 2 pr_a pr_b; the
+ * mixture p is only a case where bit p of allowed is set.  Returns 0 if no
+ * case has a likelihood. */
+static int
+head_fractions(const HeadPve *H, double y, const double L[KB], const double pr[3],
+               unsigned allowed, double fr[3])
+{
+    double pos = (y - H->y0) / H->dy, w, post[3 + HEAD_NPAIR], t[HEAD_NPAIR], s = 0.0;
+    int i, k, p;
+
+    if (pos < 0) pos = 0;
+    if (pos > H->ntab - 1) pos = H->ntab - 1;
+    i = (int)floor(pos);
+    if (i > H->ntab - 2) i = H->ntab - 2;
+    w = pos - i;
+    for (k = 0; k < 3; k++)
+    {
+        post[k] = pr[k] * pr[k] * L[C_BONE + k];
+        s += post[k];
+    }
+    for (p = 0; p < HEAD_NPAIR; p++)
+    {
+        int a = head_pair[p][0] - C_BONE, b = head_pair[p][1] - C_BONE;
+        double lm = (1 - w) * H->dens[i * HEAD_NPAIR + p] + w * H->dens[(i + 1) * HEAD_NPAIR + p];
+        t[p] = (1 - w) * H->frac[i * HEAD_NPAIR + p] + w * H->frac[(i + 1) * HEAD_NPAIR + p];
+        post[3 + p] = (allowed & (1u << p)) ? 2.0 * pr[a] * pr[b] * lm : 0.0;
+        s += post[3 + p];
+    }
+    if (!(s > 0)) return 0;
+    for (k = 0; k < 3; k++) fr[k] = post[k] / s;
+    for (p = 0; p < HEAD_NPAIR; p++)
+    {
+        fr[head_pair[p][0] - C_BONE] += post[3 + p] / s * (1.0 - t[p]);
+        fr[head_pair[p][1] - C_BONE] += post[3 + p] / s * t[p];
+    }
+    return 1;
+}
+
+/* ======================================================================== */
+/* Cleanup of the brain classes (clean_gwc of spm_preproc_write8.m)         */
+/* ======================================================================== */
+
+/* The cleanup grows a brain mask from white matter: two erosions, then
+ * conditional dilations through grey and white matter, then through CSF,
+ * where every step thresholds the mask, multiplies it with the posteriors of
+ * the classes it may grow into and smooths it with a 3x3x3 kernel.  Grey and
+ * white matter outside the first mask and CSF outside the second are removed.
+ * The steps run on the bounding box of the brain classes -- outside it the
+ * products are zero, so the result is the same -- and stop once a step no
+ * longer changes the thresholded product, after which every further step
+ * would repeat it.  Within a step, a slice is only thresholded again if its
+ * smoothed mask changed, and only smoothed again if the product changed in
+ * it or a neighbouring slice; what is skipped would come out unchanged. */
+typedef struct
+{
+    const unsigned char *P; /* KB volumes of the image, posteriors times 255 */
+    size_t n;               /* voxels of the image */
+    int d[3];               /* image dimensions */
+    int o[3], bd[3];        /* bounding box: first voxel and dimensions */
+    unsigned char *a;       /* bounding box: thresholded product */
+    unsigned char *b;       /* bounding box: smoothed */
+    int ncls;               /* GM + WM (2) or GM + WM + CSF (3) */
+    double th;              /* threshold of b / 255 */
+    unsigned char *chg;     /* per slice of the box: the product changed */
+    unsigned char *chgb;    /* per slice of the box: the smoothed mask changed */
+    double k[3];            /* the separable kernel */
+} clean_ctx;
+
+/* a = (b / 255 > th) (P_GM + P_WM [+ P_CSF]), saturated at 255 */
+static void
+clean_threshold_range(void *p, int z0, int z1)
+{
+    clean_ctx *c = (clean_ctx *)p;
+    size_t nxy = (size_t)c->d[0] * c->d[1], bxy = (size_t)c->bd[0] * c->bd[1];
+    int x, y, z, k;
+
+    for (z = z0; z < z1; z++)
+    {
+        unsigned char chg = 0;
+        if (!c->chgb[z])
+        {
+            c->chg[z] = 0;
+            continue;
+        }
+        for (y = 0; y < c->bd[1]; y++)
+            for (x = 0; x < c->bd[0]; x++)
+            {
+                size_t i = x + (size_t)c->bd[0] * y + bxy * z;
+                size_t v = (x + c->o[0]) + (size_t)c->d[0] * (y + c->o[1]) + nxy * (z + c->o[2]);
+                int val = 0;
+                unsigned char nv;
+                if ((double)c->b[i] / 255.0 > c->th)
+                    for (k = 0; k < c->ncls; k++) val += c->P[k * c->n + v];
+                nv = (unsigned char)((val > 255) ? 255 : val);
+                chg |= (nv != c->a[i]);
+                c->a[i] = nv;
+            }
+        c->chg[z] = chg;
+    }
+}
+
+/* b = a smoothed as spm_conv_vol does it, in its order of summation: x and
+ * y truncated at the edges of the image, z normalised by the weights used
+ * there, rounded to uint8; inside the image but outside the box a is zero. */
+static void
+clean_smooth_range(void *p, int z0, int z1)
+{
+    clean_ctx *c = (clean_ctx *)p;
+    int nx = c->bd[0], ny = c->bd[1], nz = c->bd[2], x, y, z, j;
+    size_t bxy = (size_t)nx * ny;
+    double *sl = (double *)malloc(sizeof(double) * (3 * bxy + (size_t)((nx > ny) ? nx : ny)));
+    double *buf;
+    int have[3] = {-1000, -1000, -1000};
+
+    if (!sl) return;
+    buf = sl + 3 * bxy;
+    for (z = z0; z < z1; z++)
+    {
+        double out_w;
+        int zz;
+        unsigned char chgb = 0;
+        if (!(c->chg[z] || (z > 0 && c->chg[z - 1]) || (z < nz - 1 && c->chg[z + 1])))
+        {
+            c->chgb[z] = 0;
+            continue;
+        }
+        /* x and y smoothed slices z-1, z, z+1 of the box, in a ring */
+        for (zz = z - 1; zz <= z + 1; zz++)
+        {
+            double *s;
+            int slot = ((zz % 3) + 3) % 3;
+            if (zz < 0 || zz >= nz || have[slot] == zz) continue;
+            s = sl + (size_t)slot * bxy;
+            for (y = 0; y < ny; y++)
+            {
+                const unsigned char *row = c->a + (size_t)nx * y + bxy * zz;
+                for (x = 0; x < nx; x++)
+                {
+                    double v = 0.0;
+                    if (x < nx - 1) v += row[x + 1] * c->k[0];
+                    v += row[x] * c->k[1];
+                    if (x > 0) v += row[x - 1] * c->k[2];
+                    s[x + (size_t)nx * y] = v;
+                }
+            }
+            for (x = 0; x < nx; x++)
+            {
+                for (y = 0; y < ny; y++) buf[y] = s[x + (size_t)nx * y];
+                for (y = 0; y < ny; y++)
+                {
+                    double v = 0.0;
+                    if (y < ny - 1) v += buf[y + 1] * c->k[0];
+                    v += buf[y] * c->k[1];
+                    if (y > 0) v += buf[y - 1] * c->k[2];
+                    s[x + (size_t)nx * y] = v;
+                }
+            }
+            have[slot] = zz;
+        }
+        /* z: beyond the box but inside the image the product is zero; at
+         * the edge of the image spm_conv_vol divides by the weights used */
+        out_w = 0.0;
+        if (z < nz - 1 || c->o[2] + nz < c->d[2]) out_w += c->k[0];
+        out_w += c->k[1];
+        if (z > 0 || c->o[2] > 0) out_w += c->k[2];
+        for (j = 0; j < (int)bxy; j++)
+        {
+            double v = 0.0;
+            if (z < nz - 1) v += c->k[0] * sl[(size_t)((z + 1) % 3) * bxy + j];
+            v += c->k[1] * sl[(size_t)(z % 3) * bxy + j];
+            if (z > 0) v += c->k[2] * sl[(size_t)((z - 1) % 3) * bxy + j];
+            v /= out_w;
+            if (v < 0) v = 0.0;
+            else if (v > 255.0) v = 255.0;
+            {
+                unsigned char nb = (unsigned char)floor(v + 0.5);
+                chgb |= (nb != c->b[(size_t)j + bxy * z]);
+                c->b[(size_t)j + bxy * z] = nb;
+            }
+        }
+        c->chgb[z] = chgb;
+    }
+    free(sl);
+}
+
+/* Steps of clean_gwc from the current b; returns whether it stopped early. */
+static void
+clean_steps(clean_ctx *c, int nsteps, int nfirst, double th_first, double th, int nthreads)
+{
+    int j, z;
+
+    for (j = 0; j < nsteps; j++)
+    {
+        int chg = 0;
+        c->th = (j < nfirst) ? th_first : th;
+        /* a new threshold or a new loop: every slice */
+        if (j == 0 || j == nfirst)
+            for (z = 0; z < c->bd[2]; z++) c->chgb[z] = 1;
+        par_for(c->bd[2], nthreads, clean_threshold_range, c);
+        par_for(c->bd[2], nthreads, clean_smooth_range, c);
+        for (z = 0; z < c->bd[2]; z++) chg |= c->chg[z];
+        /* the same product under the same threshold: a fixed point */
+        if (!chg && j > nfirst) break;
+    }
+}
+
+/* SPM's cleanup of the brain classes for posteriors P (KB volumes times
+ * 255): keep gets bit 0 where grey and white matter stay and bit 1 where CSF
+ * stays.  SPM also removes a class wherever it is below 5%, which takes the
+ * partial volumes out of CSF next to cortex and ventricles; so bits 2 and 3
+ * keep grey and white matter, and CSF, in the priors of the partial volume
+ * model everywhere except where the cleanup removed more than that, i.e.
+ * where its mask did not reach.  level 1 dilates through voxels whose mask
+ * exceeds 0.15, level 2 0.2.  SPM runs 2 erosions and 32 steps of each dilation whatever the voxel
+ * size; here they are 2 and 32 mm, which is the same at 1 mm.  At 0.5 mm
+ * SPM's counts reach half as far and cost 1.1 ml more brain on a 0.5 mm image
+ * (CAT's cat_main_clean_gwc.m scales them for the same reason).  With SPM's
+ * counts the masks are those of clean_gwc in MATLAB, voxel for voxel. */
+static int
+clean_gwc(const State *S, const unsigned char *P, int level, unsigned char *keep)
+{
+    clean_ctx c;
+    const int *d = S->dims;
+    size_t n = (size_t)d[0] * d[1] * d[2], nxy = (size_t)d[0] * d[1], nb, i;
+    int lo[3] = {d[0], d[1], d[2]}, hi[3] = {-1, -1, -1}, x, y, z, k, nero, nit;
+    double sm, vx = cbrt(S->vx[0] * S->vx[1] * S->vx[2]), th1 = (level >= 2) ? 0.2 : 0.15;
+
+    memset(keep, 4 | 8, n); /* nothing to remove outside the box */
+    for (z = 0; z < d[2]; z++)
+        for (y = 0; y < d[1]; y++)
+            for (x = 0; x < d[0]; x++)
+            {
+                size_t v = x + (size_t)d[0] * y + nxy * z;
+                if (!(P[C_GM * n + v] || P[C_WM * n + v] || P[C_CSF * n + v])) continue;
+                if (x < lo[0]) lo[0] = x;
+                if (x > hi[0]) hi[0] = x;
+                if (y < lo[1]) lo[1] = y;
+                if (y > hi[1]) hi[1] = y;
+                if (z < lo[2]) lo[2] = z;
+                if (z > hi[2]) hi[2] = z;
+            }
+    if (hi[0] < 0) return 0;
+
+    memset(&c, 0, sizeof(c));
+    c.P = P;
+    c.n = n;
+    for (k = 0; k < 3; k++)
+    {
+        c.d[k] = d[k];
+        c.o[k] = lo[k];
+        c.bd[k] = hi[k] - lo[k] + 1;
+    }
+    nb = (size_t)c.bd[0] * c.bd[1] * c.bd[2];
+    c.a = (unsigned char *)calloc(nb, 1);
+    c.b = (unsigned char *)malloc(nb);
+    c.chg = (unsigned char *)calloc((size_t)c.bd[2], 1);
+    c.chgb = (unsigned char *)calloc((size_t)c.bd[2], 1);
+    if (!c.a || !c.b || !c.chg || !c.chgb)
+    {
+        free(c.a);
+        free(c.b);
+        free(c.chg);
+        free(c.chgb);
+        return 2;
+    }
+    /* [0.75 1 0.75] scaled so that the 3x3x3 kernel sums to one */
+    sm = pow(15.625, 1.0 / 3.0);
+    c.k[0] = c.k[2] = 0.75 / sm;
+    c.k[1] = 1.0 / sm;
+    nero = (int)floor(2.0 / vx + 0.5);
+    nit = (int)floor(32.0 / vx + 0.5);
+    if (nero < 1) nero = 1;
+    if (nit < nero + 1) nit = nero + 1;
+
+    /* grey and white matter, from white matter */
+    for (z = 0; z < c.bd[2]; z++)
+        for (y = 0; y < c.bd[1]; y++)
+            for (x = 0; x < c.bd[0]; x++)
+                c.b[x + (size_t)c.bd[0] * (y + (size_t)c.bd[1] * z)] =
+                    P[C_WM * n + (x + lo[0]) + (size_t)d[0] * (y + lo[1]) + nxy * (z + lo[2])];
+    c.ncls = 2;
+    clean_steps(&c, nit, nero, 0.6, th1, S->nthreads);
+    for (z = 0; z < c.bd[2]; z++)
+        for (y = 0; y < c.bd[1]; y++)
+            for (x = 0; x < c.bd[0]; x++)
+            {
+                size_t b = x + (size_t)c.bd[0] * (y + (size_t)c.bd[1] * z);
+                size_t v = (x + lo[0]) + (size_t)d[0] * (y + lo[1]) + nxy * (z + lo[2]);
+                double gw = (P[C_GM * n + v] + P[C_WM * n + v]) / 255.0;
+                int reach = (double)c.b[b] / 255.0 > CLEAN_TH_FINAL;
+                unsigned char kv = 0;
+                if ((reach ? gw : 0.0) > CLEAN_TH_FINAL) kv |= 1;
+                if (reach || !(gw > CLEAN_TH_FINAL)) kv |= 4;
+                keep[v] = kv;
+            }
+
+    /* and CSF, from that mask */
+    c.ncls = 3;
+    for (i = 0; i < nb; i++) c.a[i] = 0;
+    clean_steps(&c, nit, 0, th1, th1, S->nthreads);
+    for (z = 0; z < c.bd[2]; z++)
+        for (y = 0; y < c.bd[1]; y++)
+            for (x = 0; x < c.bd[0]; x++)
+            {
+                size_t b = x + (size_t)c.bd[0] * (y + (size_t)c.bd[1] * z);
+                size_t v = (x + lo[0]) + (size_t)d[0] * (y + lo[1]) + nxy * (z + lo[2]);
+                double gwc = ((keep[v] & 1) ? (P[C_GM * n + v] + P[C_WM * n + v]) / 255.0 : 0.0) +
+                             P[C_CSF * n + v] / 255.0;
+                int reach = (double)c.b[b] / 255.0 > CLEAN_TH_FINAL;
+                if ((reach ? gwc : 0.0) > CLEAN_TH_FINAL) keep[v] |= 2;
+                if (reach || !(gwc > CLEAN_TH_FINAL)) keep[v] |= 8;
+            }
+    free(c.a);
+    free(c.b);
+    free(c.chg);
+    free(c.chgb);
+    return 0;
+}
+
 /* ======================================================================== */
 /* Final segmentation (cat_spm_preproc_write8.m)                            */
 /* ======================================================================== */
@@ -2658,16 +3094,39 @@ typedef struct
     State *S;
     const float *iy;      /* 3 volumes: template voxel of every voxel */
     const Pve *P;
-    double *Bf[3];        /* DCT basis at every voxel of an axis */
+    const HeadPve *H;
+    double *Bf[3];        /* bias basis at every voxel of an axis */
+    int final;            /* 0: posteriors into Q or prob only; 1: everything */
+    int head_pass;        /* after the final pass: the fractions of the head */
+    unsigned char *hard;  /* final pass: the class of largest posterior */
+    int from_prob;        /* final pass: the posteriors are those in prob (MRF) */
+    const unsigned char *keep; /* cleanup: bit 0 keeps GM and WM, bit 1 CSF */
     unsigned char *prob;  /* KB volumes */
     float *Q;             /* KB volumes for the MRF, or NULL */
     float *label;
-    unsigned char *pve;
+    unsigned char *pve;   /* KB volumes */
     float *corrected, *bias;
     double *vol;          /* per slice: KB sums of the posteriors */
+    double *pvol;         /* per slice: KB sums of the fractions */
     double cg[MAXK], hg[MAXK], lwp[KB];
 } write_ctx;
 
+/* The posteriors of every voxel, and in the final pass the label map, the
+ * fractions, the corrected image and the bias field.  Without the MRF and
+ * the cleanup one pass does everything.  Otherwise a first pass writes the
+ * posteriors (Q for the MRF, prob for the cleanup), and the final pass takes
+ * them from prob (after the MRF) or computes them again, removes what the
+ * cleanup removed and renormalises, with 1e-4 added to soft tissue as
+ * cat_main_clean_gwc.m does, so that no voxel is left without a class.
+ *
+ * The fractions of the head need the classes of the neighbours, so a pass of
+ * their own follows the final one: a voxel can only be a mixture of two head
+ * classes where both are the class of largest posterior of some voxel of its
+ * 3x3x3 neighbourhood.  Partial volumes arise at boundaries; without that
+ * condition the priors, which are smooth and flat below the templates, let
+ * mixtures of fat and air explain muscle, a pure tissue of intermediate
+ * intensity (in the neck of a 0.5 mm image, 40% of the volume that the
+ * posteriors gave to bone went to air). */
 static void
 write_range(void *p, int z0, int z1)
 {
@@ -2688,8 +3147,18 @@ write_range(void *p, int z0, int z1)
     }
     for (z = z0; z < z1; z++)
     {
-        double *vol = c->vol + (size_t)z * KB;
-        for (k = 0; k < KB; k++) vol[k] = 0.0;
+        double *vol = c->vol ? c->vol + (size_t)z * KB : NULL;
+        double *pvol = c->pvol ? c->pvol + (size_t)z * KB : NULL;
+        for (k = 0; k < KB; k++)
+        {
+            if (c->head_pass)
+            {
+                if (k >= C_BONE) pvol[k] = 0.0;
+                continue;
+            }
+            if (vol) vol[k] = 0.0;
+            if (pvol) pvol[k] = 0.0;
+        }
         if (L->nbt)
         {
             const double *b2 = c->Bf[2] + (size_t)z * nb2;
@@ -2714,7 +3183,8 @@ write_range(void *p, int z0, int z1)
             for (x = 0; x < d[0]; x++)
             {
                 size_t v = x + (size_t)d[0] * y + nxy * z;
-                double bf = 1.0, t[3], a[KB], pr[KB], q[KB], sq = 0.0, cr = 0.0, pb, fr[3], lab;
+                double bf = 1.0, t[3], a[KB], pr[KB], q[KB], lk[KB], sq = 0.0, cr = 0.0, pb, ph;
+                double fr[3], hf[3], lab;
                 float fv = S->clean[v];
                 int ok = is_valid(fv) && (!S->mask || S->mask[v]);
 
@@ -2725,8 +3195,9 @@ write_range(void *p, int z0, int z1)
                     for (j = 0; j < nb1; j++) s += tmp[(size_t)x * nb1 + j] * b1[j];
                     bf = exp(s);
                 }
-                if (c->bias) c->bias[v] = (float)bf;
-                if (c->corrected) c->corrected[v] = isfinite(fv) ? (float)(fv * bf) : 0.0f;
+                if (c->final && !c->head_pass && c->bias) c->bias[v] = (float)bf;
+                if (c->final && !c->head_pass && c->corrected)
+                    c->corrected[v] = isfinite(fv) ? (float)(fv * bf) : 0.0f;
 
                 /* the prior */
                 for (r = 0; r < 3; r++) t[r] = c->iy[r * n + v];
@@ -2737,52 +3208,128 @@ write_range(void *p, int z0, int z1)
                 tpl_sample(&S->tpl, t[0], t[1], t[2], a, NULL);
                 softmax_k(a, c->lwp, pr, NULL);
 
-                /* the posterior; without data it is the prior */
+                /* the likelihoods of the classes and the posterior; without
+                 * data the posterior is the prior */
+                for (k = 0; k < KB; k++) lk[k] = 0.0;
                 if (ok)
                 {
                     cr = (double)fv * bf;
-                    for (k = 0; k < KB; k++) q[k] = 0.0;
                     for (g = 0; g < G->K; g++)
                     {
                         double dd = cr - G->mn[g];
-                        q[G->lkp[g]] += exp(c->cg[g] - c->hg[g] * dd * dd);
+                        lk[G->lkp[g]] += exp(c->cg[g] - c->hg[g] * dd * dd);
                     }
+                }
+                if (c->final && c->from_prob)
+                    for (k = 0; k < KB; k++) q[k] = c->prob[k * n + v] / 255.0;
+                else if (ok)
+                {
                     for (k = 0; k < KB; k++)
                     {
-                        q[k] = (q[k] + DBL_EPS) * pr[k];
+                        q[k] = (lk[k] + DBL_EPS) * pr[k];
                         sq += q[k];
                     }
                     for (k = 0; k < KB; k++) q[k] /= sq;
                 }
                 else
                     for (k = 0; k < KB; k++) q[k] = pr[k];
+                if (!c->final)
+                {
+                    for (k = 0; k < KB; k++)
+                    {
+                        if (c->Q) c->Q[k * n + v] = (float)q[k];
+                        if (c->prob) c->prob[k * n + v] = (unsigned char)floor(255.0 * q[k] + 0.5);
+                    }
+                    continue;
+                }
+                if (c->keep)
+                {
+                    /* the posteriors lose what the cleanup removed; the priors
+                     * of the partial volume model only what its masks did not
+                     * reach, not what fell below its 5% */
+                    if (!(c->keep[v] & 1)) q[C_GM] = q[C_WM] = 0.0;
+                    if (!(c->keep[v] & 2)) q[C_CSF] = 0.0;
+                    if (!(c->keep[v] & 4)) pr[C_GM] = pr[C_WM] = 0.0;
+                    if (!(c->keep[v] & 8)) pr[C_CSF] = 0.0;
+                    q[C_SOFT] += 1e-4;
+                    sq = 0.0;
+                    for (k = 0; k < KB; k++) sq += q[k];
+                    for (k = 0; k < KB; k++) q[k] /= sq;
+                }
+                if (c->head_pass)
+                {
+                    double ht[3], sh = pr[C_BONE] + pr[C_SOFT] + pr[C_AIR];
+                    unsigned allowed = 0;
+                    int seen[KB] = {0, 0, 0, 0, 0, 0}, done = 0, dx, dy, dz;
+                    ph = q[C_BONE] + q[C_SOFT] + q[C_AIR];
+                    for (dz = -1; dz <= 1; dz++)
+                        for (dy = -1; dy <= 1; dy++)
+                            for (dx = -1; dx <= 1; dx++)
+                            {
+                                int xx = x + dx, yy = y + dy, zz = z + dz;
+                                if (xx < 0 || yy < 0 || zz < 0 || xx >= d[0] || yy >= d[1] || zz >= d[2])
+                                    continue;
+                                seen[c->hard[xx + (size_t)d[0] * yy + nxy * zz]] = 1;
+                            }
+                    for (k = 0; k < HEAD_NPAIR; k++)
+                        if (seen[head_pair[k][0]] && seen[head_pair[k][1]]) allowed |= 1u << k;
+                    if (ok && ph > 0 && sh > 0)
+                    {
+                        for (k = 0; k < 3; k++) ht[k] = pr[C_BONE + k] / sh;
+                        done = head_fractions(c->H, cr, lk, ht, allowed, hf);
+                    }
+                    if (!done)
+                        for (k = 0; k < 3; k++) hf[k] = (ph > 0) ? q[C_BONE + k] / ph : 0.0;
+                    for (k = 0; k < 3; k++)
+                    {
+                        pvol[C_BONE + k] += ph * hf[k];
+                        if (c->pve)
+                            c->pve[(C_BONE + k) * n + v] = (unsigned char)floor(255.0 * ph * hf[k] + 0.5);
+                    }
+                    continue;
+                }
                 for (k = 0; k < KB; k++)
                 {
-                    if (c->Q) c->Q[k * n + v] = (float)q[k];
                     if (c->prob) c->prob[k * n + v] = (unsigned char)floor(255.0 * q[k] + 0.5);
                     vol[k] += q[k];
                 }
+                if (c->hard)
+                {
+                    int kb = 0;
+                    for (k = 1; k < KB; k++)
+                        if (q[k] > q[kb]) kb = k;
+                    c->hard[v] = (unsigned char)kb;
+                }
 
-                /* the brain: fractions of CSF, GM and WM given that it is one */
+                /* fractions of CSF, GM and WM given that the voxel is brain,
+                 * and of bone, soft tissue and air given that it is head */
                 if (!c->label && !c->pve) continue;
                 pb = q[C_CSF] + q[C_GM] + q[C_WM];
-                if (c->P && c->P->ok && ok)
+                ph = q[C_BONE] + q[C_SOFT] + q[C_AIR];
+                if (c->P && c->P->ok && ok && pb > 0)
                 {
                     double pt[3], sb = pr[C_CSF] + pr[C_GM] + pr[C_WM];
-                    for (k = 0; k < 3; k++) pt[k] = pr[pve_cls[k]] / sb;
+                    for (k = 0; k < 3; k++) pt[k] = (sb > 0) ? pr[pve_cls[k]] / sb : 0.0;
                     pve_fractions(c->P, cr, pt, fr);
                 }
                 else
                     for (k = 0; k < 3; k++) fr[k] = (pb > 0) ? q[pve_cls[k]] / pb : 0.0;
-                /* with an MRF the posterior of the brain follows later */
+                /* the head: its posteriors, unless the head pass follows */
+                for (k = 0; k < 3; k++) hf[k] = (ph > 0) ? q[C_BONE + k] / ph : 0.0;
                 lab = fr[0] + 2.0 * fr[1] + 3.0 * fr[2];
-                if (c->label) c->label[v] = (float)(c->Q ? lab : pb * lab);
+                if (c->label) c->label[v] = (float)(pb * lab);
+                pvol[C_CSF] += pb * fr[0];
+                pvol[C_GM] += pb * fr[1];
+                pvol[C_WM] += pb * fr[2];
+                if (!c->hard)
+                    for (k = 0; k < 3; k++) pvol[C_BONE + k] += ph * hf[k];
                 if (c->pve)
                 {
-                    double sc = c->Q ? 255.0 : 255.0 * pb;
-                    c->pve[v] = (unsigned char)floor(sc * fr[1] + 0.5);         /* GM */
-                    c->pve[n + v] = (unsigned char)floor(sc * fr[2] + 0.5);     /* WM */
-                    c->pve[2 * n + v] = (unsigned char)floor(sc * fr[0] + 0.5); /* CSF */
+                    c->pve[C_GM * n + v] = (unsigned char)floor(255.0 * pb * fr[1] + 0.5);
+                    c->pve[C_WM * n + v] = (unsigned char)floor(255.0 * pb * fr[2] + 0.5);
+                    c->pve[C_CSF * n + v] = (unsigned char)floor(255.0 * pb * fr[0] + 0.5);
+                    for (k = 0; k < 3 && !c->hard; k++)
+                        c->pve[(C_BONE + k) * n + v] = (unsigned char)floor(255.0 * ph * hf[k] + 0.5);
                 }
             }
     }
@@ -2858,16 +3405,17 @@ mrf_cleanup(const State *S, const float *Q, unsigned char *P)
             par_for(S->dims[2], S->nthreads, mrf_range, &c);
 }
 
-/* The posteriors of every voxel, the label map and the corrected image. */
+/* The posteriors of every voxel, the label map, the fractions and the
+ * corrected image: the MRF of cat_spm_preproc_write8.m, then its cleanup. */
 static int
-write_segmentation(State *S, const float *iy, const Pve *P, unsigned char *prob,
+write_segmentation(State *S, const float *iy, const Pve *P, const HeadPve *H, unsigned char *prob,
                    float *label, unsigned char *pve, float *corrected, float *bias,
                    CAT_UnifiedSegResult *res)
 {
     write_ctx c;
     const Lattice *L = &S->L;
-    size_t n = (size_t)S->dims[0] * S->dims[1] * S->dims[2], v;
-    unsigned char *own = NULL;
+    size_t n = (size_t)S->dims[0] * S->dims[1] * S->dims[2];
+    unsigned char *own = NULL, *keep = NULL;
     double voxvol;
     int g, k, z, ret = 0;
 
@@ -2875,13 +3423,14 @@ write_segmentation(State *S, const float *iy, const Pve *P, unsigned char *prob,
     c.S = S;
     c.iy = iy;
     c.P = P;
-    c.prob = prob;
-    c.label = label;
-    c.pve = pve;
-    c.corrected = corrected;
-    c.bias = bias;
+    c.H = H;
     c.vol = (double *)calloc((size_t)S->dims[2] * KB, sizeof(double));
-    if (!c.vol) return 2;
+    c.pvol = (double *)calloc((size_t)S->dims[2] * KB, sizeof(double));
+    if (!c.vol || !c.pvol)
+    {
+        ret = 2;
+        goto done;
+    }
     for (k = 0; k < 3 && L->nbt; k++)
     {
         c.Bf[k] = (double *)malloc(sizeof(double) * (size_t)S->dims[k] * L->nb[k]);
@@ -2898,36 +3447,62 @@ write_segmentation(State *S, const float *iy, const Pve *P, unsigned char *prob,
         c.hg[g] = 0.5 / S->G.vr[g];
     }
     for (k = 0; k < KB; k++) c.lwp[k] = log(S->G.wp[k]);
-    if (S->o.mrf > 0)
+    tpl_load(&S->tpl, NLEV - 1, S->nthreads);
+
+    if (S->o.mrf > 0 || S->o.cleanup > 0)
     {
-        c.Q = (float *)malloc(sizeof(float) * KB * n);
-        if (!prob) c.prob = own = (unsigned char *)malloc(KB * n);
-        if (!c.Q || !c.prob)
+        if (!prob) prob = own = (unsigned char *)malloc(KB * n);
+        if (S->o.mrf > 0) c.Q = (float *)malloc(sizeof(float) * KB * n);
+        if (!prob || (S->o.mrf > 0 && !c.Q))
+        {
+            ret = 2;
+            goto done;
+        }
+        /* the MRF starts from zero; the cleanup needs the posteriors */
+        c.prob = (S->o.mrf > 0) ? NULL : prob;
+        par_for(S->dims[2], S->nthreads, write_range, &c);
+        if (c.Q)
+        {
+            mrf_cleanup(S, c.Q, prob);
+            free(c.Q);
+            c.Q = NULL;
+            c.from_prob = 1;
+        }
+        if (S->o.cleanup > 0)
+        {
+            double t0 = wall_time();
+            keep = (unsigned char *)malloc(n);
+            if (!keep || (ret = clean_gwc(S, prob, S->o.cleanup, keep)))
+            {
+                if (!ret) ret = 2;
+                goto done;
+            }
+            if (S->o.verbose) printf("Cleanup: %.1f s\n", wall_time() - t0);
+        }
+    }
+    c.final = 1;
+    c.keep = keep;
+    c.prob = prob;
+    c.label = label;
+    c.pve = pve;
+    c.corrected = corrected;
+    c.bias = bias;
+    if (H && H->ok && (label || pve))
+    {
+        c.hard = (unsigned char *)malloc(n);
+        if (!c.hard)
         {
             ret = 2;
             goto done;
         }
     }
-    tpl_load(&S->tpl, NLEV - 1, S->nthreads);
     par_for(S->dims[2], S->nthreads, write_range, &c);
-
-    if (c.Q)
+    if (c.hard)
     {
-        mrf_cleanup(S, c.Q, c.prob);
-        for (z = 0; z < S->dims[2]; z++)
-            for (k = 0; k < KB; k++) c.vol[(size_t)z * KB + k] = 0.0;
-        for (k = 0; k < KB; k++)
-            for (v = 0; v < n; v++)
-                c.vol[(v / ((size_t)S->dims[0] * S->dims[1])) * KB + k] += c.prob[k * n + v] / 255.0;
-        for (v = 0; v < n && (label || pve); v++)
-        {
-            double pb = (c.prob[C_GM * n + v] + c.prob[C_WM * n + v] + c.prob[C_CSF * n + v]) / 255.0;
-            if (pb > 1.0) pb = 1.0;
-            if (label) label[v] = (float)(pb * label[v]);
-            for (k = 0; k < 3 && pve; k++)
-                pve[k * n + v] = (unsigned char)floor(pb * pve[k * n + v] + 0.5);
-        }
+        c.head_pass = 1;
+        par_for(S->dims[2], S->nthreads, write_range, &c);
     }
+
     if (res)
     {
         voxvol = fabs(S->mat[0] * (S->mat[5] * S->mat[10] - S->mat[6] * S->mat[9]) -
@@ -2935,16 +3510,24 @@ write_segmentation(State *S, const float *iy, const Pve *P, unsigned char *prob,
                       S->mat[2] * (S->mat[4] * S->mat[9] - S->mat[5] * S->mat[8]));
         for (k = 0; k < KB; k++)
         {
-            double s = 0.0;
-            for (z = 0; z < S->dims[2]; z++) s += c.vol[(size_t)z * KB + k];
+            double s = 0.0, sp = 0.0;
+            for (z = 0; z < S->dims[2]; z++)
+            {
+                s += c.vol[(size_t)z * KB + k];
+                sp += c.pvol[(size_t)z * KB + k];
+            }
             res->volume[k] = s * voxvol / 1000.0;
+            res->pve_volume[k] = (label || pve) ? sp * voxvol / 1000.0 : 0.0;
         }
     }
 
 done:
     free(c.vol);
+    free(c.pvol);
     free(c.Q);
+    free(c.hard);
     free(own);
+    free(keep);
     for (k = 0; k < 3; k++) free(c.Bf[k]);
     return ret;
 }
@@ -2954,7 +3537,7 @@ done:
 /* ======================================================================== */
 
 #define AFF_SLAB 130.0   /* mm of the head below its top that anchor a start */
-#define AFF_NSTART 13    /* 3 zooms x 4 starts, and a given matrix */
+#define AFF_NSTART 16    /* 3 zooms x 5 starts, and a given matrix */
 #define AFF_NREFINE 3    /* candidates that are refined */
 
 /* Centroid in mm of the upper AFF_SLAB * zoom mm of the points with weight
@@ -3056,6 +3639,59 @@ head_anchors(const State *S, const AffLat *A, double cs[3], double ct[3])
     return ret ? 3 : 0;
 }
 
+/* CAT26's start (cat_vol_set_com.m): the centre of mass of the voxels
+ * brighter than the median of those at least as bright as the median of the
+ * image, which cat_run_job.m puts onto [0 -20 -15] mm, the centre of mass of
+ * MNI space, before its first affine registration.  Taken from the voxels of
+ * the coarse lattice, zeros included as there. */
+static const double com_mni[3] = {0.0, -20.0, -15.0};
+
+static int
+com_anchor(const State *S, const AffLat *A, double cs[3])
+{
+    size_t nxy = (size_t)S->dims[0] * S->dims[1];
+    float *val = (float *)malloc(sizeof(float) * (A->n ? A->n : 1));
+    double sw = 0.0, m1, m2;
+    ptrdiff_t m = 0, i, j;
+    int x, y, z, r;
+
+    cs[0] = cs[1] = cs[2] = 0.0;
+    if (!val) return 2;
+    for (z = 0; z < A->d[2]; z++)
+        for (y = 0; y < A->d[1]; y++)
+            for (x = 0; x < A->d[0]; x++)
+            {
+                size_t v = (size_t)x * A->sk[0] + (size_t)S->dims[0] * ((size_t)y * A->sk[1]) +
+                           nxy * ((size_t)z * A->sk[2]);
+                if (isfinite(S->orig[v]) && (!S->mask || S->mask[v])) val[m++] = S->orig[v];
+            }
+    if (m < 100)
+    {
+        free(val);
+        return 3;
+    }
+    m1 = select_float(val, m, m / 2);
+    for (i = 0, j = 0; i < m; i++)
+        if (val[i] >= m1) val[j++] = val[i];
+    m2 = select_float(val, j, j / 2);
+    free(val);
+    for (z = 0; z < A->d[2]; z++)
+        for (y = 0; y < A->d[1]; y++)
+            for (x = 0; x < A->d[0]; x++)
+            {
+                double xv[3] = {(double)x * A->sk[0], (double)y * A->sk[1], (double)z * A->sk[2]};
+                size_t v = (size_t)xv[0] + (size_t)S->dims[0] * (size_t)xv[1] + nxy * (size_t)xv[2];
+                if (!(isfinite(S->orig[v]) && S->orig[v] > m2) || (S->mask && !S->mask[v])) continue;
+                for (r = 0; r < 3; r++)
+                    cs[r] += S->mat[r * 4] * xv[0] + S->mat[r * 4 + 1] * xv[1] + S->mat[r * 4 + 2] * xv[2] +
+                             S->mat[r * 4 + 3];
+                sw += 1.0;
+            }
+    if (!(sw > 0)) return 3;
+    for (r = 0; r < 3; r++) cs[r] /= sw;
+    return 0;
+}
+
 /* M maps cs to ct with a zoom and a rotation by pitch radians about x. */
 static void
 start_matrix(const double cs[3], const double ct[3], double zoom, double pitch, double M[16])
@@ -3106,23 +3742,26 @@ affine_distance(const double A[16], const double B[16], const double p[3])
  * starts fail when the head is far from where the header says and tilted, a
  * head can be caught at too small a zoom (MNI space is larger than most
  * heads), and the coarse objective does not always rank the solutions as the
- * fine one does.  So the coarse registration starts from the header and from
- * the top of the head put onto that of the template, straight and tilted by
- * 20 degrees either way, each with three zooms; the best AFF_NREFINE
- * different solutions are refined, and the best of those is kept. */
+ * fine one does.  So the coarse registration starts from the header, from
+ * the top of the head put onto that of the template (straight and tilted by
+ * 20 degrees either way) and from CAT26's centre of mass, each with three
+ * zooms; the best AFF_NREFINE different solutions are refined, and the best
+ * of those is kept.  The centre of mass changed the result in one of 54
+ * shifted, tilted and cropped images (6 subjects), from 5.7 to 2.7 mm off. */
 static int
 affine_register(State *S, const double *init, double Aff[16], double *ll_out)
 {
     static const double zooms[3] = {1.0, 1.2, 1.4};
     AffLat A;
-    double M[AFF_NSTART][16], ll[AFF_NSTART], cand[AFF_NREFINE][16], cs[3], ct[3];
+    double M[AFF_NSTART][16], ll[AFF_NSTART], cand[AFF_NREFINE][16], cs[3], ct[3], cm[3];
     double bestll = -HUGE_VAL;
-    int ns = 0, nc = 0, i, k, zi, err = 0, ret, used[AFF_NSTART];
+    int ns = 0, nc = 0, i, k, zi, err = 0, ret, used[AFF_NSTART], use_com;
 
     tpl_load(&S->tpl, 0, S->nthreads);
     if ((ret = afflat_build(&A, S->orig, S->mask, S->dims, S->vx, AFF_SAMP_COARSE))) goto done;
     A.ff = fudge_factor(16.0, S->vx, A.sk);
     if ((ret = head_anchors(S, &A, cs, ct))) goto done;
+    use_com = !com_anchor(S, &A, cm);
     if (init) memcpy(M[ns++], init, sizeof(double) * 16);
     if (!init || S->o.affine_mode == CAT_USEG_AFFINE_ESTIMATE)
         for (zi = 0; zi < 3; zi++)
@@ -3132,6 +3771,7 @@ affine_register(State *S, const double *init, double Aff[16], double *ll_out)
             start_matrix(cs, ct, zooms[zi], 0.0, M[ns++]);
             start_matrix(cs, ct, zooms[zi], 20.0 * M_PI / 180.0, M[ns++]);
             start_matrix(cs, ct, zooms[zi], -20.0 * M_PI / 180.0, M[ns++]);
+            if (use_com) start_matrix(cm, com_mni, zooms[zi], 0.0, M[ns++]);
         }
     for (i = 0; i < ns; i++)
     {
@@ -3229,6 +3869,8 @@ CAT_UnifiedSegOptionsInit(CAT_UnifiedSegOpts *opts)
     opts->sanlm_rician = 0;
     opts->mrf = 0.0;
     opts->pve = 1;
+    opts->pve_head = 0;
+    opts->cleanup = 1;
     CAT_VolShootOptionsInit(&opts->shoot);
     opts->shoot.regstr = 0.5;
     opts->n_threads = 0;
@@ -3374,6 +4016,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
 {
     State S;
     Pve P;
+    HeadPve H;
     CAT_VolShootModel model;
     CAT_VolShootInfo info;
     float *clean_own = NULL, *est_own = NULL, *y_own = NULL, *iy_own = NULL;
@@ -3383,6 +4026,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
 
     memset(&S, 0, sizeof(S));
     memset(&P, 0, sizeof(P));
+    memset(&H, 0, sizeof(H));
     if (res) memset(res, 0, sizeof(*res));
     if (!src || !dims || !mat || !templates || !tdims || !tmat) return 1;
     if (opts_in) S.o = *opts_in;
@@ -3393,7 +4037,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
         if (S.o.ngaus[k] < 1 || S.o.ngaus[k] > CAT_USEG_MAXGAUSS) return 1;
     if (!(S.o.samp > 0) || !(S.o.tol > 0) || !(S.o.biasreg >= 0) || S.o.noise < 0 || S.o.mrf < 0)
         return 1;
-    if (!(S.o.wp_reg >= 0)) return 1;
+    if (!(S.o.wp_reg >= 0) || S.o.cleanup < 0 || S.o.cleanup > 2) return 1;
     if (S.o.bias_model != CAT_USEG_BIAS_DCT && S.o.bias_model != CAT_USEG_BIAS_SPLINE) return 1;
     if (S.o.affine_mode != CAT_USEG_AFFINE_ESTIMATE && !affine) return 1;
     for (k = 0; k < 3; k++)
@@ -3548,7 +4192,13 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
                    sqrt(P.v));
         if (S.o.verbose && !P.ok) printf("Partial volumes: tissues not separated, skipped\n");
     }
-    ret = write_segmentation(&S, iy, &P, prob, label, pve, corrected, bias, res);
+    if (S.o.pve_head && (label || pve))
+    {
+        if ((ret = head_pve_setup(&S, &H))) goto done;
+        if (res) res->pve_head_done = H.ok;
+        if (S.o.verbose && !H.ok) printf("Partial volumes of the head: skipped\n");
+    }
+    ret = write_segmentation(&S, iy, &P, &H, prob, label, pve, corrected, bias, res);
     if (res)
     {
         res->time_write = wall_time() - t1;
@@ -3562,6 +4212,8 @@ done:
     if (ret && res) CAT_UnifiedSegResultFree(res);
     free(P.dens);
     free(P.frac);
+    free(H.dens);
+    free(H.frac);
     lattice_free(&S.L);
     free(S.acc);
     free(S.ireg);
@@ -3680,8 +4332,11 @@ CAT_UnifiedSegWriteJson(const char *file, const CAT_UnifiedSegResult *res,
             res->noise_estimated, res->noise_added, opts->noise, opts->noise_seed);
     fprintf(fp, "  \"pve\": {\"done\": %s, \"mean\": ", res->pve_done ? "true" : "false");
     json_array(fp, res->pve_mean, 3);
-    fprintf(fp, ", \"sd\": %.9g},\n  \"volume_ml\": ", res->pve_sd);
+    fprintf(fp, ", \"sd\": %.9g, \"head\": %s},\n  \"volume_ml\": ", res->pve_sd,
+            res->pve_head_done ? "true" : "false");
     json_array(fp, res->volume, KB);
+    fprintf(fp, ",\n  \"volume_pve_ml\": ");
+    json_array(fp, res->pve_volume, KB);
     fprintf(fp, ",\n  \"tiv_ml\": %.9g,\n", res->volume[C_GM] + res->volume[C_WM] + res->volume[C_CSF]);
     fprintf(fp, "  \"shooting\": {\"iterations\": %d, \"level_iterations\": [%d, %d, %d, %d, %d], "
                 "\"det_min\": %.6g, \"det_max\": %.6g, \"hotspot_corrections\": %d},\n",
@@ -3693,10 +4348,12 @@ CAT_UnifiedSegWriteJson(const char *file, const CAT_UnifiedSegResult *res,
     fprintf(fp, "  \"options\": {\"ngaus\": ");
     json_array(fp, v, KB);
     fprintf(fp, ", \"samp\": %g, \"tol\": %g, \"affreg\": \"%s\", \"sanlm\": %s, \"mrf\": %g, "
-                "\"regstr\": %g, \"reg_scale\": %g, \"lowres\": %g},\n",
+                "\"cleanup\": %d, \"pve\": %s, \"pve_head\": %s, \"regstr\": %g, \"reg_scale\": %g, "
+                "\"lowres\": %g},\n",
             opts->samp, opts->tol,
             affreg[(opts->affreg >= 0 && opts->affreg <= 4) ? opts->affreg : 0],
-            opts->sanlm ? "true" : "false", opts->mrf, opts->shoot.regstr, opts->shoot.reg_scale,
+            opts->sanlm ? "true" : "false", opts->mrf, opts->cleanup, opts->pve ? "true" : "false",
+            opts->pve_head ? "true" : "false", opts->shoot.regstr, opts->shoot.reg_scale,
             opts->shoot.lowres);
     fprintf(fp, "  \"time_s\": {\"filter\": %.2f, \"affine\": %.2f, \"estimation\": %.2f, "
                 "\"segmentation\": %.2f, \"total\": %.2f}\n}\n",

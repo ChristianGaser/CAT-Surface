@@ -51,7 +51,7 @@ static ArgvInfo argTable[] = {
     {"-label", ARGV_STRING, (char *)1, (char *)&label_file,
      "Write the label map: 0 background, 1 CSF, 2 GM, 3 WM, partial volumes in between."},
     {"-pve", ARGV_STRING, (char *)1, (char *)&pve_file,
-     "Write the fractions of GM, WM and CSF from the partial volume model as one 4-D file."},
+     "Write the fractions of the six classes as one 4-D file: CSF, GM and WM from\n\t\t\tthe partial volume model, bone, soft tissue and air their posteriors\n\t\t\t(with -pve-head from a partial volume model of the head)."},
     {"-corrected", ARGV_STRING, (char *)1, (char *)&corrected_file,
      "Write the bias-corrected image."},
     {"-bias", ARGV_STRING, (char *)1, (char *)&bias_file,
@@ -100,8 +100,12 @@ static ArgvInfo argTable[] = {
      "Mask on the image grid: voxels where it is zero carry no data (lesions)."},
     {"-mrf", ARGV_FLOAT, (char *)1, (char *)&opts.mrf,
      "Strength of the Markov random field cleanup of the class maps (SPM: 1)."},
+    {"-cleanup", ARGV_INT, (char *)1, (char *)&opts.cleanup,
+     "SPM's cleanup of the brain classes: 0 off, 1 light, 2 thorough."},
     {"-no-pve", ARGV_CONSTANT, (char *)1, (char *)&no_pve,
      "No partial volume model: the label is the posterior mean."},
+    {"-pve-head", ARGV_CONSTANT, (char *)1, (char *)&opts.pve_head,
+     "Partial volume model of the head as well: the fractions of bone, soft tissue\n\t\t\tand air from mixtures of soft tissue with bone and with air, instead of\n\t\t\ttheir posteriors."},
     {"-regstr", ARGV_FLOAT, (char *)1, (char *)&opts.shoot.regstr,
      "Shooting: 1 runs every scheduled iteration, (0,1) leaves a level early."},
     {"-reg-scale", ARGV_FLOAT, (char *)1, (char *)&opts.shoot.reg_scale,
@@ -141,7 +145,8 @@ usage(const char *executable)
             "Outputs (at least one):\n"
             "  -prob <file>       the six class maps, 4-D\n"
             "  -label <file>      label map with partial volumes (0, CSF 1, GM 2, WM 3)\n"
-            "  -pve <file>        fractions of GM, WM and CSF, 4-D\n"
+            "  -pve <file>        fractions of the six classes, 4-D (bone, soft tissue\n"
+            "                     and air: their posteriors unless -pve-head)\n"
             "  -corrected <file>  bias-corrected image\n"
             "  -bias <file>       bias field\n"
             "  -y <file>          deformation, SPM's y_ format (template grid)\n"
@@ -170,7 +175,10 @@ usage(const char *executable)
             "  -affine-fixed      use that matrix as it is\n"
             "  -mask <file>       zero marks voxels without data\n"
             "  -mrf <f>           Markov random field cleanup of the class maps [%g]\n"
+            "  -cleanup <n>       SPM's cleanup of the brain classes: 0 off, 1 light,\n"
+            "                     2 thorough [%d]\n"
             "  -no-pve            label map without the partial volume model\n"
+            "  -pve-head          partial volume model of bone, soft tissue and air too\n"
             "  -regstr <v>        shooting: 1 all iterations, (0,1) early level switch [%g]\n"
             "  -reg-scale <f>     shooting: factor on the regularisation [%g]\n"
             "  -lowres <mm>       shooting: coarsest resolution [%g]\n"
@@ -181,8 +189,8 @@ usage(const char *executable)
             executable, executable, d.sanlm_strength, d.noise, d.noise_seed, d.ngaus[0],
             d.ngaus[1], d.ngaus[2], d.ngaus[3], d.ngaus[4], d.ngaus[5], d.samp,
             (d.bias_model == CAT_USEG_BIAS_DCT) ? "dct" : "spline", d.biasfwhm,
-            d.biasreg, d.wp_reg, d.tol, d.mrf, d.shoot.regstr, d.shoot.reg_scale, d.shoot.lowres,
-            d.shoot.nits);
+            d.biasreg, d.wp_reg, d.tol, d.mrf, d.cleanup, d.shoot.regstr, d.shoot.reg_scale,
+            d.shoot.lowres, d.shoot.nits);
 }
 
 /* sto_xyz of a header as a row-major double matrix */
@@ -371,6 +379,11 @@ main(int argc, char *argv[])
     }
     if (verbose2) opts.verbose = 2;
     if (no_pve) opts.pve = 0;
+    if (opts.cleanup < 0 || opts.cleanup > 2)
+    {
+        fprintf(stderr, "Error: -cleanup must be 0, 1 or 2.\n");
+        exit(EXIT_FAILURE);
+    }
     if (affreg_name && (opts.affreg = parse_affreg(affreg_name)) < 0)
     {
         fprintf(stderr, "Error: unknown -affreg %s.\n", affreg_name);
@@ -469,7 +482,7 @@ main(int argc, char *argv[])
 
     if (prob_file) prob = (unsigned char *)malloc(CAT_USEG_NCLASSES * n);
     if (label_file) label = (float *)malloc(sizeof(float) * n);
-    if (pve_file) pve = (unsigned char *)malloc(3 * n);
+    if (pve_file) pve = (unsigned char *)malloc(CAT_USEG_NCLASSES * n);
     if (corrected_file) corrected = (float *)malloc(sizeof(float) * n);
     if (bias_file) bias = (float *)malloc(sizeof(float) * n);
     if (y_file) y = (float *)malloc(sizeof(float) * 3 * nt);
@@ -494,7 +507,7 @@ main(int argc, char *argv[])
 
     if (prob_file && write_bytes(prob_file, prob, dims, CAT_USEG_NCLASSES, hdr_in))
         exit(EXIT_FAILURE);
-    if (pve_file && write_bytes(pve_file, pve, dims, 3, hdr_in)) exit(EXIT_FAILURE);
+    if (pve_file && write_bytes(pve_file, pve, dims, CAT_USEG_NCLASSES, hdr_in)) exit(EXIT_FAILURE);
     if (label_file && !write_nifti_float(label_file, label, DT_FLOAT32, 1.0, dims, vox, hdr_in))
         exit(EXIT_FAILURE);
     if (corrected_file &&
