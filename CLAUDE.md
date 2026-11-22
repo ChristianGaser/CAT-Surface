@@ -1331,9 +1331,11 @@ Things that are easy to get wrong:
 for one channel and with mixtures of Gaussians only. Its priors are a **shooting template series
 of six classes** (GM, WM, CSF, bone, soft tissue, air; `Template_0..4_GS.nii`, no TPM), deformed
 onto the image by geodesic shooting on the five levels of `CAT_VolShoot` instead of SPM's
-small-deformation model. Outputs: the six class maps, a label map with partial volumes, the
-bias-corrected image, `y`/`iy`/Jacobian, and the parameters as JSON (what SPM keeps in
-`*_seg8.mat`). Defaults live in `CAT_UnifiedSegOptionsInit()`; Python keywords left at `None` keep
+small-deformation model. Outputs: the six class maps (optionally with SPM's MRF, and by default
+with its cleanup of the brain classes), a label map with partial volumes, the fractions of all six
+classes (those of bone, soft tissue and air from a model of their own only with `-pve-head`), the
+bias-corrected image, `y`/`iy`/Jacobian, and the parameters as JSON (what SPM keeps
+in `*_seg8.mat`). Defaults live in `CAT_UnifiedSegOptionsInit()`; Python keywords left at `None` keep
 them (`cat_surf.vol_unified_seg_defaults()` reports them).
 
 **How the two parts are coupled.** `CAT_VolShootFit()` runs the grids, schedule and safeguards of
@@ -1354,13 +1356,18 @@ independent truth**: the templates stem from CAT segmentations, SPM's TPM does n
 | | GM | WM | CSF | time per image |
 | --- | --- | --- | --- | --- |
 | SPM (`cat_spm_preproc_run`) | 0.880 | 0.910 | 0.774 | 35-117 s, median 70 |
-| **`CAT_VolUnifiedSeg`** | **0.888** | **0.933** | 0.768 | 17-24 s, median 19 (4 threads) |
-| ... with `-sanlm -noise 0.02` | 0.893 | 0.936 | 0.777 | +3-9 s |
+| **`CAT_VolUnifiedSeg`** | **0.891** | **0.933** | **0.775** | 16-24 s, median 19 (6 threads) |
+| ... with `-sanlm` | 0.895 | 0.935 | 0.781 | +3-9 s |
+| ... with `-sanlm -noise 0.02` | 0.898 | 0.939 | 0.788 | +3-9 s |
 | ... class weights free as in SPM (`-wp-reg 0`) | 0.843 | 0.909 | 0.737 | |
 
-Better than SPM for GM in 6 of 9 images, WM in 9, CSF in 5; worse on a motion scan (ADHD200, GM
-0.83 vs 0.88), an R1 map and an averaged scan. One image takes 52 / 19 / 14 s with 1 / 4 / 8
-threads; results are bit-identical for every thread count (sums are kept per slice).
+Better than SPM for GM in 6 of 9 images, WM in 9, CSF in 6; worse on a motion scan (ADHD200, GM
+0.85 vs 0.88), an R1 map (Aarhus) and an averaged scan. The label map has a lower RMSE against
+CAT's `p0` than SPM's posterior mean on 8 of 9 images (0.157-0.383; Aarhus 0.264 vs 0.256). One
+image took 52 / 19 / 14 s with 1 / 4 / 8 threads before the cleanup, which adds 0.5 s on a 1 mm image
+(IXI) and 4.1 s at 0.5 mm (yv98), the extra pass over the posteriors it needs included; `-pve-head`
+adds 0.3 and 1.5 s more. Results are bit-identical for every thread count
+(sums are kept per slice), with the MRF and the cleanup too.
 
 Over all 20 images the hard labels of the two agree with a Dice of 0.83 / 0.89 / 0.72 (GM, WM,
 CSF) and 0.53 / 0.76 / 0.94 (bone, soft tissue, air). Where they disagree most, SPM is the one
@@ -1393,6 +1400,23 @@ fixed, 0.922 at 0.5, 0.934 at 0.25): the brain has more CSF than the template. W
 held, `-regstr 1` no longer hurts (0.867) but doubles the time, so the default is 0.5. More
 Gaussians for GM and WM (`2 2 2 3 4 2`) help with free weights (0.854) but not with held ones.
 
+### No floor under the priors: holes in white matter
+
+SPM adds `tiny` = 1e-4 to every prior, and CAT's shooting templates carry a floor of 1e-4 in every
+class. Inside the brain that turns bone, soft tissue and air into outlier classes: white matter
+more than about 4.5 SD above its Gaussian -- gyral crowns next to a coil element, where the bias
+field is steeper than its basis allows -- has a likelihood ratio of over 1e4 for the broad
+soft-tissue Gaussians and became soft tissue, i.e. label 0 inside white matter. On HR075 that was
+101 voxels by default and 863 (47 clusters, up to 233 voxels) with `-sanlm`, which narrows the
+WM Gaussian. The floor of every class (its minimum over the template) is now subtracted before
+the priors are renormalised, and `TPL_TINY` (1e-9) only keeps the logarithm finite: in CAT's pure
+WM (p0 >= 2.95, 993k voxels) the share classed as soft tissue went from 0.003% / 0.12% (`-sanlm`)
+to 0, against 0.016% for SPM, and voxels up to 8 SD above the WM mean keep a label of 3.0. What is
+left (40-49 voxels, clusters of up to 13) sits in the medulla, where CAT's label is 2.3-2.4 too.
+`test_bright_white_matter` puts voxels 5.6 SD above white matter: all of them lost with the
+floor (mean label 0.02), none without. The mean Dice of the nine images rose by 0.003 (ADHD200 GM
++0.029).
+
 ### Affine registration
 
 `spm_maff8` (mutual information of intensity and class), but SPM's two starts are not enough.
@@ -1405,6 +1429,16 @@ tilted +-20 deg, each at zoom 1, 1.2, 1.4), of which the best three *different* 
 refined and the best final one is kept: 0.7-1.3 s, and every shift, tilt and combination tested
 returns within 1.7 mm of the unperturbed solution on three images. Not covered: a header whose
 voxels are 20% too small (zoom beyond the starts and the `mni` prior), and infants.
+
+CAT26's centre of mass is three more starts (`cat_vol_set_com.m`: the voxels brighter than the
+median of those at least as bright as the median, put onto [0 -20 -15] mm; `cat_run_job.m` uses it
+as the only start of its first `spm_affreg`). Over 6 subjects x 9 variants -- 40 and 80 mm of the
+neck cropped, 10 and 20 mm of the head top cropped, 100 mm of empty field added below, header
+shifts and tilts -- the result was the same within 0.2 mm in 52 cases, improved once (IXI, header
+shifted 60 mm with 60 mm of neck cropped: 5.7 -> 2.7 mm) and was never worse. The head-top anchor
+already does what the centre of mass does for a multi-start search, without depending on how much
+neck is in the field of view; the extra starts cost about 0.15 s. Cropping 80 mm of a 180 mm field
+of view leaves IXI 8 mm off with either start, because the lower brain is gone.
 
 ### Bias field: splines or DCT, solved without the matrix
 
@@ -1437,19 +1471,41 @@ is always computed from the image without it, with the variances the noise gave:
 
 The noise estimate reads structure as noise when voxels are coarse against the anatomy (1.9% on
 the 3.6 mm test phantom, 0.07% on the 1 mm one), so less is added there than asked for.
-`sanlm` filters first (3-4 s); on its own it narrows the WM Gaussian and costs WM Dice on IXI
-(0.941 -> 0.933), together with `noise 0.02` it was the best setting of the table above.
+
+**`sanlm` filters the image that is segmented, not the one the parameters come from.** Estimated
+from the filtered image, the Gaussian of white matter got too narrow against that of grey matter,
+which partial volumes keep wide, and the result was worse than without the filter (mean Dice
+0.860 against 0.866); estimated from the image as it came, and segmenting the filtered one, it
+is 0.870 -- the same as adding matched synthetic noise to the filtered image, and `-rician` makes
+no difference. The affine registration uses the unfiltered image too. `-noise 0.02` helps the
+nearly noise-free averaged scan (GM 0.857 -> 0.896) but costs ADNI_005 (0.898 -> 0.885); 0.015 and
+0.01 sit in between. With nine images that is no basis for a default, so it stays off.
 
 ### Label map and partial volumes
 
 The label (0, CSF 1, GM 2, WM 3) is the brain posterior times the expected label of a partial
 volume model: a brain voxel is pure CSF, GM or WM or a mixture of two with any fraction, pure with
-prior `p_a^2` and mixed with `2 p_a p_b` from the deformed templates. The variance of a pure
-tissue is the narrowest tissue Gaussian (less the added noise); the pure means are refined by EM
-on the model. Against CAT's `p0` its RMSE is lower than that of the posterior mean
-`CSF + 2 GM + 3 WM` on all nine images (0.158-0.410 vs 0.180-0.432) and lower than SPM's on
-seven. A first version re-estimated the means from voxels it called pure -- a truncated selection
-that pushed the WM mean up by 5-50% and labelled WM as 2.7.
+prior `p_a^2` and mixed with `2 p_a p_b` from the deformed templates. The pure means are refined
+by EM on the model. A first version re-estimated the means from voxels it called pure -- a
+truncated selection that pushed the WM mean up by 5-50% and labelled WM as 2.7. Three choices that
+were measured:
+
+- **Pure CSF is not CSF's largest Gaussian.** With two CSF Gaussians the larger one usually holds
+  the CSF/GM partial volumes (HR075: 245 against 141 for the dark one), and the EM refinement was
+  then rejected in 7 of 20 images. Pure CSF starts at the Gaussian (mixing >= 0.1) that lies beyond
+  GM as seen from WM and is farthest from GM; "farthest from GM" alone picked a junk Gaussian
+  brighter than WM on sii39.
+- **The variance of a pure tissue is the narrower of the GM and WM Gaussians.** CSF's dark
+  Gaussian is narrow by being dark; as the width of all three it turned the spread of WM into
+  partial volumes (label RMSE higher in 5 of 9 images, by up to 0.019, lower in none).
+- **The image that is segmented has less noise than the one the parameters come from** (added
+  noise, or what the SANLM filter removed), so the pure variance loses the mean squared difference
+  of the two on the brain voxels of the lattice. Over the whole image the filter removes twice as
+  much (SD 18.7 against 10.5 on HR075): it smooths the scalp too.
+
+Against CAT's `p0` the label RMSE is lower than that of the posterior mean `CSF + 2 GM + 3 WM`
+on all nine images and lower than SPM's on seven; these changes took HR075 from 0.229 to 0.193 and
+yv98 from 0.249 to 0.217.
 
 Things to know:
 
@@ -1460,8 +1516,62 @@ Things to know:
   the JSON file (a skull-stripped image reports the template's bone and air).
 - `CAT_VolShootFit` leaves a level as soon as the matching term improves by less than the
   threshold of `regstr`: CAT's absolute level of 0.075 belongs to the term of two tissue maps.
-- Not done: SPM's histogram model, several channels, the `cleanup` of `spm_preproc_write8`,
-  writing warped or imported classes. Infants are segmented with adult contrast and come out wrong.
+- Not done: SPM's histogram model, several channels, writing warped or imported classes. Infants
+  are segmented with adult contrast and come out wrong.
+
+### Cleanup of the brain classes (`cleanup`)
+
+`clean_gwc` of `spm_preproc_write8.m`, after the MRF: a mask grown from white matter by two
+erosions and conditional dilations through GM+WM, then through CSF, each step thresholding,
+multiplying with the posteriors and smoothing with a 3x3x3 kernel; GM/WM outside the first mask
+and CSF outside the second are removed. Level 1 (the default, as in SPM) dilates through > 0.15,
+level 2 through > 0.2. With SPM's step counts the masks equal those of `clean_gwc` in MATLAB
+voxel for voxel (IXI and HR075); the class maps differ by rounding, and where every brain class
+was removed SPM can leave a voxel with no class at all -- those become soft tissue here (+1e-4, as
+in `cat_main_clean_gwc.m`). Two departures:
+
+- **The steps are counted in mm.** SPM runs 2 erosions and 32 dilations whatever the voxel size,
+  which at 0.5 mm reaches half as far and cost yv98 1.1 ml more brain; CAT scales them as well.
+- **The label and the fractions follow it**: where it removes a class for being out of reach, the
+  class also leaves the priors of the partial volume model, so a voxel left with CSF only is pure
+  CSF, not a GM/CSF mixture. Not where SPM's 5% floor removes it: dropping those from the priors
+  took the GM partial volume out of sulcal CSF (GM fraction 0.33 -> 0.25 there, label RMSE of the
+  averaged scan 0.249 -> 0.268). With the cleanup the label RMSE is within 0.005 of without it
+  (lower in 4 of 9 images).
+
+Nine images (mean): GM+WM outside CAT's brain mask dilated by 2 mm 4.5 -> 1.0 ml (level 2: 0.6),
+mostly IXI (15.8 -> 5.0 -> 1.6) and ADNI_005 (12.4 -> 1.0), at a cost of 0.25 ml (0.5 ml) of
+CAT's GM/WM; whole-image Dice GM 0.885 -> 0.887. It takes 0.1-1.1 s, 2.8 s at 0.5 mm, where the
+dilation fronts move in most slices of the box (slices whose input did not change are skipped,
+which is exact but saves only 18% there).
+
+### Partial volumes of the head (`pve_head`, off by default)
+
+The fractions output holds all six classes: the brain posterior times the brain fractions, and the
+head posterior times the fractions of bone, soft tissue and air. By default those are the head
+posteriors themselves; `-pve-head` (`pve_head=True`) takes them from a second model. The option
+changes nothing else -- class maps, label map and brain fractions are bit-identical either way
+(`test_head_fractions` asserts it) -- and it is off because nothing below validates it. The head classes
+are mixtures of Gaussians themselves (cortical bone and marrow, muscle and fat), so one intensity
+per class would read muscle as half fat, half air. A pure head voxel follows the Gaussians of its
+class; a mixture with fraction t follows one Gaussian of each class, mean `(1-t) m_g + t m_h`,
+variance `(1-t) v_g + t v_h`. Mixtures: bone-soft and soft-air (bone-air is dark on dark and
+cannot be told from either pure class). Priors as for the brain.
+
+**A mixture is only allowed where both classes are the largest posterior of some voxel of the
+3x3x3 neighbourhood.** Without that, the smooth priors -- flat below the templates -- let fat-air
+mixtures explain muscle: in the neck of yv98, voxels with a bone posterior of 0.5-0.9 got an air
+fraction of 0.40. That needs the classes of the neighbours, so the head fractions take a pass of
+their own (1.3-1.5 s at 0.5 mm, 0.2-0.4 s at 1 mm).
+
+There is no ground truth for the head. What was checked: block-averaging four images of 0.5-0.8 mm
+to 1.5-1.6 mm, the fractions of the coarse image agree with the block-averaged fine fractions
+better than the posteriors do with theirs (bone MAE 3.0-5.0% against 4.3-6.3%, soft 2.8-6.6
+against 3.3-7.4; air mixed); in the skull vault the bone fraction is the posterior (bone P > 0.9:
+fraction 0.95). The model moves 20-35% of the posterior bone volume of those four images into soft
+tissue and air (yv98 743 -> 573 ml; IXI at 1 mm 894 -> 722 ml, 19%), nearly all of it in face and
+neck, where the posteriors themselves speckle between bone and soft tissue. For bone measures,
+restrict to the vault.
 
 ## Architecture rules
 
