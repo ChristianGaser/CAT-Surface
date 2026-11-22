@@ -1504,8 +1504,9 @@ were measured:
   much (SD 18.7 against 10.5 on HR075): it smooths the scalp too.
 
 Against CAT's `p0` the label RMSE is lower than that of the posterior mean `CSF + 2 GM + 3 WM`
-on all nine images and lower than SPM's on seven; these changes took HR075 from 0.229 to 0.193 and
-yv98 from 0.249 to 0.217.
+on all nine images and lower than SPM's on eight (not on the Aarhus R1 map); these changes took
+HR075 from 0.229 to 0.193 and yv98 from 0.249 to 0.217 (0.187 and 0.216 since the cleanup limits
+the partial volumes, below).
 
 Things to know:
 
@@ -1532,18 +1533,44 @@ in `cat_main_clean_gwc.m`). Two departures:
 
 - **The steps are counted in mm.** SPM runs 2 erosions and 32 dilations whatever the voxel size,
   which at 0.5 mm reaches half as far and cost yv98 1.1 ml more brain; CAT scales them as well.
-- **The label and the fractions follow it**: where it removes a class for being out of reach, the
-  class also leaves the priors of the partial volume model, so a voxel left with CSF only is pure
-  CSF, not a GM/CSF mixture. Not where SPM's 5% floor removes it: dropping those from the priors
+- **The label and the fractions follow it**: where its mask does not reach, a class also leaves
+  the priors of the partial volume model, so a voxel left with CSF only is pure CSF, not a GM/CSF
+  mixture. Not where SPM's 5% floor removes it inside the mask: dropping those from the priors
   took the GM partial volume out of sulcal CSF (GM fraction 0.33 -> 0.25 there, label RMSE of the
-  averaged scan 0.249 -> 0.268). With the cleanup the label RMSE is within 0.005 of without it
-  (lower in 4 of 9 images).
+  averaged scan 0.249 -> 0.268).
 
 Nine images (mean): GM+WM outside CAT's brain mask dilated by 2 mm 4.5 -> 1.0 ml (level 2: 0.6),
 mostly IXI (15.8 -> 5.0 -> 1.6) and ADNI_005 (12.4 -> 1.0), at a cost of 0.25 ml (0.5 ml) of
 CAT's GM/WM; whole-image Dice GM 0.885 -> 0.887. It takes 0.1-1.1 s, 2.8 s at 0.5 mm, where the
 dilation fronts move in most slices of the box (slices whose input did not change are skipped,
 which is exact but saves only 18% there).
+
+**Out of reach means out of the priors, whatever the posterior.** GM and WM used to stay in the
+priors where the mask did not reach but their posterior was below 5% anyway, and that left a thin,
+interrupted rim of GM fraction around the brain, apart from the cortex, where the GM class map is
+zero. Dura and vessels lie between CSF and GM in intensity; the posteriors give them to CSF's
+brighter Gaussian (HR075: 245 against 141 for the dark one), but the partial volume model has one
+narrow pure CSF and read them as CSF/GM mixtures. On HR075 18 ml of the GM fraction lay more than
+1.1 mm from the nearest voxel of largest GM posterior, against 0.9 ml of the GM posterior; 3.1 ml
+now. (Closer than that the GM fraction where the posterior is 0 is mostly the partial volume of
+the cortex itself, and stays.) Over the nine images with a CAT `p0` the GM fraction outside CAT's
+brain mask fell in all nine, from 10.1 to 5.2 ml on average (IXI 19.5 -> 6.1, ADNI_005 16.2 ->
+7.3, HR075 12.7 -> 5.2, averaged scan 11.6 -> 3.1), and the label RMSE fell in six (IXI 0.1758 -> 0.1685, HR075 0.1910 -> 0.1874, ADNI_005 0.1574
+-> 0.1547). It rose in three, none of them a loss of cortex: on the averaged scan (0.2519 ->
+0.2552) CAT's `p0` labels the transverse sinus and the tentorium GM, and that is what went there;
+on ADNI_067 (0.2968 -> 0.2983) the GM removed lay in CAT's CSF, where the brain posterior is only
+0.74 and the spurious GM had lifted the label towards CAT's 1.0; on the Aarhus R1 map (0.2642 ->
+0.2655), whose CSF and GM are 2 SD apart, 0.7 ml of CAT's GM went with it. `-cleanup 0` limits
+nothing. `test_cleanup_fractions` puts a sheet 60% of the way from CSF to GM into the CSF: GM
+fraction 0.68 there without the cleanup, 0 with it, cortex unchanged.
+
+The model falls back on the nearest pure tissue where every likelihood underflows in single
+precision (some 13 SD from pure CSF); it now takes the nearest one that has a prior, or a vessel
+beyond the reach comes out as WM (7 voxels on HR075, up to 0.9 WM).
+
+Measured and not done: growing a second mask on from SPM's through the GM+WM fractions themselves,
+so that cortex the posteriors miss stays within reach. On HR075 it leaked through the CSF into the
+rim and kept half of it (13.7 ml beyond 1.1 mm).
 
 ### Partial volumes of the head (`pve_head`, off by default)
 
