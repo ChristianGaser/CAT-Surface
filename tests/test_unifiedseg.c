@@ -57,18 +57,33 @@ static int island = 0;
 #define ISLAND_X 76.0
 #define ISLAND_RADIUS 9.0
 
+/* a sheet between CSF and grey matter in intensity inside the CSF, in the
+ * image only, as dura and vessels are; with it the CSF reaches to a radius of
+ * 52 mm instead of 46, so that the sheet lies more than two voxels of the
+ * image from the cortex */
+static int dura = 0;
+#define DURA_RADIUS 48.5
+#define DURA_HALF 1.0
+
+/** \brief Radius of the ellipsoidal shells at template position (x, y, z) in mm. */
+static double
+phantom_radius(double x, double y, double z)
+{
+    return 67.0 * sqrt((x * x) / (67.0 * 67.0) + (y * y) / (80.0 * 80.0) + (z * z) / (67.0 * 67.0));
+}
+
 /** \brief Class probabilities at template position (x, y, z) in mm. */
 static void
 phantom(double x, double y, double z, double p[NCLS])
 {
-    double r = 67.0 * sqrt((x * x) / (67.0 * 67.0) + (y * y) / (80.0 * 80.0) + (z * z) / (67.0 * 67.0));
+    double r = phantom_radius(x, y, z);
     double fold = 4.0 * sin(0.13 * x) * cos(0.11 * y) + 2.7 * sin(0.09 * z + 0.15 * y);
     double w = 1.9;
-    double in0 = inside(r - (25.0 + fold), w); /* white matter */
-    double in1 = inside(r - 38.0, w);          /* brain */
-    double in2 = inside(r - 46.0, w);          /* inside the skull */
-    double in3 = inside(r - 55.0, w);          /* skull */
-    double in4 = inside(r - 65.0, w);          /* head */
+    double in0 = inside(r - (25.0 + fold), w);          /* white matter */
+    double in1 = inside(r - 38.0, w);                   /* brain */
+    double in2 = inside(r - (dura ? 52.0 : 46.0), w);   /* inside the skull */
+    double in3 = inside(r - (dura ? 58.0 : 55.0), w);   /* skull */
+    double in4 = inside(r - 65.0, w);                   /* head */
 
     p[1] = in0;
     p[0] = (in1 - in0 > 0.0) ? in1 - in0 : 0.0;
@@ -261,6 +276,14 @@ make_image(float *img, unsigned char *truth, double sd, int with_bias)
                     if (p[c] > p[best]) best = c;
                 }
                 if (is_hot(i, j, k, t)) val *= hot_factor;
+                if (dura)
+                {
+                    /* 60% of the way from CSF to grey matter: on a 0.75 mm
+                     * MPRAGE such a rim lay 49% of the way (median), 72%
+                     * (90th percentile) */
+                    double sh = inside(fabs(phantom_radius(t[0], t[1], t[2]) - DURA_RADIUS) - DURA_HALF, 0.3);
+                    val = (1.0 - sh) * val + sh * (MU[2] + 0.6 * (MU[0] - MU[2]));
+                }
                 if (with_bias) val *= exp(log_bias(s));
                 val += sd * lcg_normal(&state);
                 img[v] = (float)((val > 0.2) ? val : 0.2);
@@ -740,6 +763,83 @@ test_cleanup(void)
     free_templates(tpl);
 }
 
+/* Dura and vessels lie between CSF and grey matter in intensity.  The
+ * posteriors give them to a brighter Gaussian of CSF, but the partial volume
+ * model has none and reads them as mixtures of CSF and grey matter: a rim of
+ * grey matter apart from the cortex.  With the cleanup a voxel that its mask
+ * of grey and white matter does not reach holds neither, its label is that of
+ * CSF, and the partial volumes of the cortex stay as they were. */
+static void
+test_cleanup_fractions(void)
+{
+    float **tpl;
+    float *img = (float *)malloc(sizeof(float) * NI);
+    float *label = (float *)malloc(sizeof(float) * NI);
+    unsigned char *prob = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *pve0 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *pve1 = (unsigned char *)malloc(NCLS * NI);
+    CAT_UnifiedSegOpts o;
+    CAT_UnifiedSegResult r0, r1;
+    double M[16], s[3], t[3], p[NCLS], g0 = 0.0, g1 = 0.0, lmax = 0.0, eb = 0.0;
+    size_t v, nsheet = 0, nedge = 0;
+    int i, j, k, ret0, ret1;
+
+    dura = 1;
+    tpl = make_templates();
+    make_image(img, NULL, 2.0, 1);
+    grid_matrix(IX, IY, IZ, IVOX, M);
+    phantom_options(&o);
+    o.ngaus[2] = 2; /* CSF, as by default */
+    o.cleanup = 0;
+    ret0 = run_all(img, tpl, &o, prob, NULL, pve0, NULL, &r0);
+    o.cleanup = 1;
+    ret1 = run_all(img, tpl, &o, prob, label, pve1, NULL, &r1);
+    MU_ASSERT("the phantom with a sheet in the CSF is segmented", ret0 == 0 && ret1 == 0);
+    if (!ret0 && !ret1)
+    {
+        for (k = 0; k < IZ; k++)
+            for (j = 0; j < IY; j++)
+                for (i = 0; i < IX; i++)
+                {
+                    v = i + (size_t)IX * (j + (size_t)IY * k);
+                    s[0] = M[0] * i + M[3];
+                    s[1] = M[5] * j + M[7];
+                    s[2] = M[10] * k + M[11];
+                    to_template(s, t);
+                    phantom(t[0], t[1], t[2], p);
+                    if (fabs(phantom_radius(t[0], t[1], t[2]) - DURA_RADIUS) < 0.6)
+                    {
+                        nsheet++;
+                        g0 += pve0[v] / 255.0;
+                        g1 += pve1[v] / 255.0;
+                        if (label[v] > lmax) lmax = label[v];
+                    }
+                    else if (p[0] > 0.2 && p[0] < 0.8 && p[2] > 0.1)
+                    {
+                        /* the boundary of cortex and CSF */
+                        nedge++;
+                        eb += fabs((double)pve1[v] - (double)pve0[v]) / 255.0;
+                    }
+                }
+        MU_ASSERT("the sheet has voxels", nsheet >= 50);
+        MU_ASSERT("without the cleanup the sheet is read as a mixture with grey matter",
+                  nsheet && g0 / nsheet > 0.15);
+        MU_ASSERT("with it the sheet holds no grey matter", nsheet && g1 / nsheet < 0.01);
+        MU_ASSERT("and has the label of CSF", lmax <= 1.0 + 1e-6);
+        MU_ASSERT("the partial volumes of the cortex stay", nedge > 50 && eb / nedge < 0.02);
+    }
+    CAT_UnifiedSegResultFree(&r0);
+    CAT_UnifiedSegResultFree(&r1);
+    dura = 0;
+
+    free(img);
+    free(label);
+    free(prob);
+    free(pve0);
+    free(pve1);
+    free_templates(tpl);
+}
+
 /* Bone, soft tissue and air mix where the head has its boundaries.  With
  * opts->pve_head their fractions follow the mixture the phantom image was
  * made of more closely than the posteriors do, agree with the posteriors
@@ -992,6 +1092,7 @@ int main(void)
     MU_RUN_TEST(test_bright_white_matter);
     MU_RUN_TEST(test_filter_keeps_estimation);
     MU_RUN_TEST(test_cleanup);
+    MU_RUN_TEST(test_cleanup_fractions);
     MU_RUN_TEST(test_head_fractions);
     MU_RUN_TEST(test_options);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
