@@ -51,6 +51,12 @@ inside(double d, double w)
     return 0.5 * (1.0 - tanh(d / w));
 }
 
+/* an island of grey matter outside the head, in the templates and the image,
+ * that the cleanup must take out of the brain classes */
+static int island = 0;
+#define ISLAND_X 76.0
+#define ISLAND_RADIUS 9.0
+
 /** \brief Class probabilities at template position (x, y, z) in mm. */
 static void
 phantom(double x, double y, double z, double p[NCLS])
@@ -70,6 +76,14 @@ phantom(double x, double y, double z, double p[NCLS])
     p[3] = (in3 - in2 > 0.0) ? in3 - in2 : 0.0;
     p[4] = (in4 - in3 > 0.0) ? in4 - in3 : 0.0;
     p[5] = 1.0 - in4;
+    if (island)
+    {
+        double d = sqrt((x - ISLAND_X) * (x - ISLAND_X) + y * y + z * z);
+        double is = inside(d - ISLAND_RADIUS, w);
+        int k;
+        for (k = 0; k < NCLS; k++) p[k] *= 1.0 - is;
+        p[0] += is;
+    }
 }
 
 /** \brief NIfTI-style matrix of a grid centred on the origin. */
@@ -283,6 +297,22 @@ phantom_options(CAT_UnifiedSegOpts *o)
     for (k = 0; k < NCLS; k++) o->ngaus[k] = 1;
     o->shoot.lowres = 6.5;
     o->samp = 7.0;
+}
+
+static int
+run_all(const float *img, float **tpl, const CAT_UnifiedSegOpts *o, unsigned char *prob,
+        float *label, unsigned char *pve, float *bias, CAT_UnifiedSegResult *res)
+{
+    const float *t[CAT_SHOOT_NTEMPLATES];
+    const int dims[3] = {IX, IY, IZ}, tdims[3] = {TX, TY, TZ};
+    double M[16], Mt[16];
+    int l;
+
+    for (l = 0; l < CAT_SHOOT_NTEMPLATES; l++) t[l] = tpl[l];
+    grid_matrix(IX, IY, IZ, IVOX, M);
+    grid_matrix(TX, TY, TZ, TVOX, Mt);
+    return CAT_UnifiedSeg(img, dims, M, t, tdims, Mt, NULL, NULL, o, prob, label, pve, NULL,
+                          bias, NULL, NULL, NULL, res);
 }
 
 static int
@@ -627,6 +657,194 @@ test_bright_white_matter(void)
     free_templates(tpl);
 }
 
+/* SPM's cleanup takes grey matter that cannot be reached from white matter
+ * out of the brain classes -- an island outside the head, in the templates
+ * and in the image -- and leaves the classes of the brain as they are.  (It
+ * does zero grey and white matter below 5% everywhere, by design.) */
+static void
+test_cleanup(void)
+{
+    float **tpl;
+    float *img = (float *)malloc(sizeof(float) * NI);
+    unsigned char *p0 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *p1 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *truth = (unsigned char *)malloc(NI);
+    CAT_UnifiedSegOpts o;
+    CAT_UnifiedSegResult r0, r1;
+    double M[16], s[3], t[3];
+    size_t v, nisl = 0, gm0 = 0, gm1 = 0, broken = 0;
+    int i, j, k, ret0, ret1;
+
+    island = 1;
+    tpl = make_templates();
+    make_image(img, truth, 2.0, 1);
+    island = 0;
+    grid_matrix(IX, IY, IZ, IVOX, M);
+    phantom_options(&o);
+    o.cleanup = 0;
+    ret0 = run(img, tpl, &o, p0, NULL, NULL, &r0);
+    o.cleanup = 1;
+    ret1 = run(img, tpl, &o, p1, NULL, NULL, &r1);
+    MU_ASSERT("the phantom with an island is segmented", ret0 == 0 && ret1 == 0);
+    if (!ret0 && !ret1)
+    {
+        for (k = 0; k < IZ; k++)
+            for (j = 0; j < IY; j++)
+                for (i = 0; i < IX; i++)
+                {
+                    double d;
+                    v = i + (size_t)IX * (j + (size_t)IY * k);
+                    s[0] = M[0] * i + M[3];
+                    s[1] = M[5] * j + M[7];
+                    s[2] = M[10] * k + M[11];
+                    to_template(s, t);
+                    d = sqrt((t[0] - ISLAND_X) * (t[0] - ISLAND_X) + t[1] * t[1] + t[2] * t[2]);
+                    if (d < ISLAND_RADIUS - 1.0)
+                    {
+                        nisl++;
+                        gm0 += (p0[v] > 127);
+                        gm1 += (p1[NI * 0 + v] + p1[NI * 1 + v] > 127);
+                    }
+                    if (d < ISLAND_RADIUS + 6.0)
+                        truth[v] = 255; /* the island is not brain */
+                    else
+                    {
+                        /* a voxel the cleanup turns from its class, which it
+                         * held by more than a tie, into another */
+                        int c, b0 = 0, b1 = 0, second = 0;
+                        for (c = 1; c < NCLS; c++)
+                        {
+                            if (p0[c * NI + v] > p0[b0 * NI + v]) b0 = c;
+                            if (p1[c * NI + v] > p1[b1 * NI + v]) b1 = c;
+                        }
+                        for (c = 0; c < NCLS; c++)
+                            if (c != b0 && p0[c * NI + v] > second) second = p0[c * NI + v];
+                        broken += (b0 == truth[v] && b1 != truth[v] && p0[b0 * NI + v] > second + 2);
+                    }
+                }
+        MU_ASSERT("the island has voxels", nisl >= 5);
+        MU_ASSERT("without the cleanup the island is grey matter", gm0 * 2 > nisl);
+        MU_ASSERT("the cleanup takes it out of grey and white matter", gm1 == 0);
+        MU_ASSERT("and turns no voxel elsewhere into a wrong class", broken == 0);
+        MU_ASSERT("grey and white matter are recovered as well as without it",
+                  dice(p1, truth, 0) >= dice(p0, truth, 0) - 1e-3 &&
+                  dice(p1, truth, 1) >= dice(p0, truth, 1) - 1e-3);
+    }
+    CAT_UnifiedSegResultFree(&r0);
+    CAT_UnifiedSegResultFree(&r1);
+
+    free(img);
+    free(p0);
+    free(p1);
+    free(truth);
+    free_templates(tpl);
+}
+
+/* Bone, soft tissue and air mix where the head has its boundaries.  With
+ * opts->pve_head their fractions follow the mixture the phantom image was
+ * made of more closely than the posteriors do, agree with the posteriors
+ * where one class is pure, and with the brain fractions they sum to one.
+ * Without it, the default, they are the posteriors, and the option changes
+ * nothing else: class maps, label map and brain fractions are identical. */
+static void
+test_head_fractions(void)
+{
+    float **tpl = make_templates();
+    float *img = (float *)malloc(sizeof(float) * NI);
+    float *label = (float *)malloc(sizeof(float) * NI);
+    float *label0 = (float *)malloc(sizeof(float) * NI);
+    unsigned char *prob = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *pve = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *prob0 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *pve0 = (unsigned char *)malloc(NCLS * NI);
+    CAT_UnifiedSegOpts o;
+    CAT_UnifiedSegResult res, res0;
+    double M[16], s[3], t[3], p[NCLS], ef = 0.0, ep = 0.0, epure = 0.0;
+    size_t v, nmix = 0, npure = 0, badsum = 0;
+    int i, j, k, c, ret, ret0, dmax = 0;
+
+    make_image(img, NULL, 2.0, 1);
+    grid_matrix(IX, IY, IZ, IVOX, M);
+    phantom_options(&o);
+    MU_ASSERT("the partial volumes of the head are off by default", o.pve_head == 0);
+    ret0 = run_all(img, tpl, &o, prob0, label0, pve0, NULL, &res0);
+    MU_ASSERT("the phantom is segmented without the head model", ret0 == 0);
+    if (!ret0)
+    {
+        MU_ASSERT("no partial volumes of the head were estimated", !res0.pve_head_done);
+        for (v = 0; v < NI; v++)
+            for (c = 3; c < NCLS; c++)
+            {
+                int dd = abs((int)pve0[c * NI + v] - (int)prob0[c * NI + v]);
+                if (dd > dmax) dmax = dd;
+            }
+        MU_ASSERT("without it the fractions of the head are its posteriors", dmax <= 1);
+    }
+    o.pve_head = 1;
+    ret = run_all(img, tpl, &o, prob, label, pve, NULL, &res);
+    MU_ASSERT("the phantom is segmented with fractions", ret == 0);
+    if (!ret)
+    {
+        MU_ASSERT("the partial volumes of the head were estimated", res.pve_head_done);
+        MU_ASSERT("the head model leaves the class maps, the label and the brain fractions alone",
+                  !ret0 && memcmp(prob, prob0, NCLS * NI) == 0 &&
+                  memcmp(label, label0, sizeof(float) * NI) == 0 &&
+                  memcmp(pve, pve0, 3 * NI) == 0);
+        MU_ASSERT("the head model changes the fractions of the head",
+                  !ret0 && memcmp(pve + 3 * NI, pve0 + 3 * NI, 3 * NI) != 0);
+        for (k = 0; k < IZ; k++)
+            for (j = 0; j < IY; j++)
+                for (i = 0; i < IX; i++)
+                {
+                    int sum = 0;
+                    double mx = 0.0;
+                    v = i + (size_t)IX * (j + (size_t)IY * k);
+                    for (c = 0; c < NCLS; c++) sum += pve[c * NI + v];
+                    if (abs(sum - 255) > 4) badsum++;
+                    s[0] = M[0] * i + M[3];
+                    s[1] = M[5] * j + M[7];
+                    s[2] = M[10] * k + M[11];
+                    to_template(s, t);
+                    phantom(t[0], t[1], t[2], p);
+                    if (p[3] + p[4] + p[5] < 0.999) continue; /* the head only */
+                    for (c = 3; c < NCLS; c++)
+                        if (p[c] > mx) mx = p[c];
+                    if (mx > 0.99)
+                    {
+                        for (c = 3; c < NCLS; c++)
+                            epure += fabs((double)pve[c * NI + v] - (double)prob[c * NI + v]) / 255.0;
+                        npure++;
+                    }
+                    else if (mx < 0.9)
+                    {
+                        for (c = 3; c < NCLS; c++)
+                        {
+                            ef += fabs(pve[c * NI + v] / 255.0 - p[c]);
+                            ep += fabs(prob[c * NI + v] / 255.0 - p[c]);
+                        }
+                        nmix++;
+                    }
+                }
+        MU_ASSERT("the fractions of all classes sum to one", badsum == 0);
+        MU_ASSERT("there are mixed voxels in the head", nmix > 100);
+        MU_ASSERT("where they mix the fractions are closer to the truth than the posteriors",
+                  nmix && ef < 0.8 * ep);
+        MU_ASSERT("where one class is pure they agree with the posteriors",
+                  npure && epure / (3.0 * npure) < 0.02);
+    }
+    CAT_UnifiedSegResultFree(&res);
+    CAT_UnifiedSegResultFree(&res0);
+
+    free(img);
+    free(label);
+    free(label0);
+    free(prob);
+    free(pve);
+    free(prob0);
+    free(pve0);
+    free_templates(tpl);
+}
+
 /* With the SANLM filter the parameters still come from the image as it came:
  * they are those of a run without the filter, and only the segmentation
  * changes. */
@@ -773,6 +991,8 @@ int main(void)
     MU_RUN_TEST(test_noise);
     MU_RUN_TEST(test_bright_white_matter);
     MU_RUN_TEST(test_filter_keeps_estimation);
+    MU_RUN_TEST(test_cleanup);
+    MU_RUN_TEST(test_head_fractions);
     MU_RUN_TEST(test_options);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
