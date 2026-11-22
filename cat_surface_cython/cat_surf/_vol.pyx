@@ -1903,7 +1903,11 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
     cleanup : {0, 1, 2}, optional
         SPM's cleanup of the brain classes (``clean_gwc``), after the MRF:
         grey and white matter, then CSF, that conditional dilation from white
-        matter does not reach are removed.  0 off, 1 light, 2 thorough.
+        matter does not reach are removed.  The partial volume model follows
+        it: where its mask of grey and white matter does not reach, ``label``
+        and ``fractions`` hold neither, so that dura and vessels in the CSF
+        are not read as mixtures with grey matter.  0 off (and no such
+        limit), 1 light, 2 thorough.
     pve : bool, optional
         Estimate partial volumes of CSF, GM and WM for the label map.
     pve_head : bool, optional
