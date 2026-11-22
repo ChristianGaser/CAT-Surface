@@ -136,6 +136,90 @@ int CAT_VolShootEx(const float *const cls[], int n_cls, const int dims[3],
  */
 void CAT_VolShootLabelTemplate(const float *tpl, const int tdims[3], float *label);
 
+/** Largest number of classes of a data model (CAT_VolShootModel). */
+#define CAT_SHOOT_MODEL_MAXCLASSES 8
+
+/**
+ * \brief The state of the registration as a data model sees it.
+ *
+ * Voxel coordinates are 1-based, as SPM's: the matrices are 4x4, row-major.
+ */
+typedef struct
+{
+    int level;              /**< 0 .. CAT_SHOOT_NTEMPLATES - 1 */
+    int iteration;          /**< Gauss-Newton iterations run so far */
+    int start;              /**< 1: the level starts (new grid, new template) */
+    int dims[3];            /**< registration grid of the level */
+    double res;             /**< its resolution in mm */
+    double to_input[16];    /**< registration voxel -> input voxel */
+    double to_template[16]; /**< registration voxel -> template voxel */
+    const float *y;         /**< 3 volumes of dims: for every registration voxel
+                                 on the template side the registration voxel on
+                                 the input side it pulls from */
+    const float *dt;        /**< dims: Jacobian determinants of y */
+} CAT_VolShootLevel;
+
+/**
+ * \brief A data term evaluated by the caller: class likelihoods, not maps.
+ *
+ * CAT_VolShoot() registers tissue maps that are fixed.  With a model the
+ * maps are the likelihoods of the template's classes, which the caller
+ * re-estimates while the registration runs (the unified segmentation,
+ * CAT_UnifiedSeg()).  \p update is called when a level starts and after
+ * every iteration that stays on the level.  It fills \p f, n_cls volumes on
+ * the registration grid on the input side: the likelihood of every class at
+ * that voxel, scaled to sum to one over the classes (all equal where there
+ * is no data).  \p logw receives the log of the class weights, which are
+ * added to the log template before it is normalised.
+ *
+ * At a template voxel x the posterior of class k is then
+ * q_k = w_k mu_k(x) f_k(y(x)) / sum_j w_j mu_j(x) f_j(y(x)), and the
+ * Gauss-Newton step is that of the multinomial matching with q in place of
+ * the pulled tissue maps: an EM step for the deformation.
+ */
+typedef struct
+{
+    int n_cls;  /**< classes, including the background: the templates hold
+                     this many volumes, summing to one */
+    void *ctx;  /**< handed to update() */
+    /** \return 0, or non-zero to stop the registration with that code */
+    int (*update)(void *ctx, const CAT_VolShootLevel *lv, float *f, double *logw);
+} CAT_VolShootModel;
+
+/**
+ * \brief Geodesic shooting with a data model in place of tissue maps.
+ *
+ * The registration of CAT_VolShoot() -- the same grids, schedule and
+ * safeguards, without the ventricle class -- driven by the class likelihoods
+ * of \p model.  The level is left early as soon as the matching term
+ * improves by less than the threshold of opts->regstr, whatever its value.
+ *
+ * \param model     (in)  the data model
+ * \param dims      (in)  input grid dimensions
+ * \param mat       (in)  input grid voxel-to-world matrix
+ * \param affine    (in)  input-to-template world mapping; NULL: identity
+ * \param templates (in)  CAT_SHOOT_NTEMPLATES templates, coarse to fine, of
+ *                        model->n_cls volumes each; a NULL entry below the
+ *                        last is the final one smoothed by
+ *                        CAT_SHOOT_LEVEL_FWHM
+ * \param tdims     (in)  template dimensions
+ * \param tmat      (in)  template voxel-to-world matrix
+ * \param reg_vx    (in)  voxel size of the regulariser; <= 0: the template's
+ * \param opts      (in)  settings; NULL uses CAT_VolShootOptionsInit()
+ * \param y         (out) as CAT_VolShoot()
+ * \param iy        (out) optional (NULL), as CAT_VolShoot()
+ * \param jac       (out) optional (NULL), as CAT_VolShoot()
+ * \param info      (out) optional (NULL) summary of the run
+ * \return 0 on success, 1 on invalid input, 2 on memory failure, or the
+ *         non-zero code model->update() returned
+ */
+int CAT_VolShootFit(const CAT_VolShootModel *model, const int dims[3],
+                    const double mat[16], const double affine[16],
+                    const float *const templates[CAT_SHOOT_NTEMPLATES],
+                    const int tdims[3], const double tmat[16], double reg_vx,
+                    const CAT_VolShootOpts *opts, float *y, float *iy,
+                    float *jac, CAT_VolShootInfo *info);
+
 /**
  * \brief Fill a CAT_VolShootOpts with the defaults (best label accuracy).
  *
