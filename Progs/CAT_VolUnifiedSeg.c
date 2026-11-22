@@ -101,7 +101,7 @@ static ArgvInfo argTable[] = {
     {"-mrf", ARGV_FLOAT, (char *)1, (char *)&opts.mrf,
      "Strength of the Markov random field cleanup of the class maps (SPM: 1)."},
     {"-cleanup", ARGV_INT, (char *)1, (char *)&opts.cleanup,
-     "SPM's cleanup of the brain classes: 0 off, 1 light, 2 thorough."},
+     "SPM's cleanup of the brain classes: 0 off, 1 light, 2 thorough.  Where its\n\t\t\tmask of grey and white matter does not reach, the label map and the\n\t\t\tfractions hold neither (dura and vessels in the CSF are not read as\n\t\t\tmixtures with grey matter)."},
     {"-no-pve", ARGV_CONSTANT, (char *)1, (char *)&no_pve,
      "No partial volume model: the label is the posterior mean."},
     {"-pve-head", ARGV_CONSTANT, (char *)1, (char *)&opts.pve_head,

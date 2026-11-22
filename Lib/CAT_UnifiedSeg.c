@@ -2436,10 +2436,13 @@ pve_fractions(const Pve *P, double y, const double pr[3], double fr[3])
 
     if (!pve_posterior(P, y, pr, post, t1, t2))
     {
-        /* beyond every tissue: the nearest pure one */
-        int kb = 0;
-        for (k = 1; k < 3; k++)
-            if (fabs(y - P->m[k]) < fabs(y - P->m[kb])) kb = k;
+        /* beyond every tissue: the nearest pure one that has a prior, so
+         * that a tissue the cleanup took out of the priors stays out */
+        int kb = -1, pass;
+        for (pass = 0; pass < 2 && kb < 0; pass++)
+            for (k = 0; k < 3; k++)
+                if ((pass || pr[k] > 0) && (kb < 0 || fabs(y - P->m[k]) < fabs(y - P->m[kb])))
+                    kb = k;
         for (k = 0; k < 3; k++) fr[k] = (k == kb) ? 1.0 : 0.0;
         return;
     }
@@ -2974,16 +2977,24 @@ clean_steps(clean_ctx *c, int nsteps, int nfirst, double th_first, double th, in
 
 /* SPM's cleanup of the brain classes for posteriors P (KB volumes times
  * 255): keep gets bit 0 where grey and white matter stay and bit 1 where CSF
- * stays.  SPM also removes a class wherever it is below 5%, which takes the
- * partial volumes out of CSF next to cortex and ventricles; so bits 2 and 3
- * keep grey and white matter, and CSF, in the priors of the partial volume
- * model everywhere except where the cleanup removed more than that, i.e.
- * where its mask did not reach.  level 1 dilates through voxels whose mask
- * exceeds 0.15, level 2 0.2.  SPM runs 2 erosions and 32 steps of each dilation whatever the voxel
- * size; here they are 2 and 32 mm, which is the same at 1 mm.  At 0.5 mm
- * SPM's counts reach half as far and cost 1.1 ml more brain on a 0.5 mm image
- * (CAT's cat_main_clean_gwc.m scales them for the same reason).  With SPM's
- * counts the masks are those of clean_gwc in MATLAB, voxel for voxel. */
+ * stays.  Bits 2 and 3 keep grey and white matter, and CSF, in the priors of
+ * the partial volume model: wherever the masks reach, also where SPM's floor
+ * of 5% takes them out of the posteriors (that would take the partial volumes
+ * out of CSF next to cortex and ventricles), and nowhere else.  Beyond the
+ * reach of the mask of grey and white matter a voxel cannot hold either of
+ * them, whatever its posteriors: dura and vessels lie between CSF and grey
+ * matter in intensity, the posteriors give them to a brighter Gaussian of
+ * CSF, and the partial volume model, which has no such Gaussian, read them as
+ * mixtures of CSF and grey matter -- a rim of grey matter around the brain,
+ * separated from the cortex by CSF (on a 0.75 mm image 18 ml of the grey
+ * matter fraction lay more than 1.1 mm from the cortex, 3 ml now).
+ *
+ * level 1 dilates through voxels whose mask exceeds 0.15, level 2 0.2.  SPM
+ * runs 2 erosions and 32 steps of each dilation whatever the voxel size; here
+ * they are 2 and 32 mm, which is the same at 1 mm.  At 0.5 mm SPM's counts
+ * reach half as far and cost 1.1 ml more brain on a 0.5 mm image (CAT's
+ * cat_main_clean_gwc.m scales them for the same reason).  With SPM's counts
+ * the masks are those of clean_gwc in MATLAB, voxel for voxel. */
 static int
 clean_gwc(const State *S, const unsigned char *P, int level, unsigned char *keep)
 {
@@ -3058,7 +3069,7 @@ clean_gwc(const State *S, const unsigned char *P, int level, unsigned char *keep
                 int reach = (double)c.b[b] / 255.0 > CLEAN_TH_FINAL;
                 unsigned char kv = 0;
                 if ((reach ? gw : 0.0) > CLEAN_TH_FINAL) kv |= 1;
-                if (reach || !(gw > CLEAN_TH_FINAL)) kv |= 4;
+                if (reach) kv |= 4;
                 keep[v] = kv;
             }
 
@@ -3076,7 +3087,7 @@ clean_gwc(const State *S, const unsigned char *P, int level, unsigned char *keep
                              P[C_CSF * n + v] / 255.0;
                 int reach = (double)c.b[b] / 255.0 > CLEAN_TH_FINAL;
                 if ((reach ? gwc : 0.0) > CLEAN_TH_FINAL) keep[v] |= 2;
-                if (reach || !(gwc > CLEAN_TH_FINAL)) keep[v] |= 8;
+                if (reach) keep[v] |= 8;
             }
     free(c.a);
     free(c.b);

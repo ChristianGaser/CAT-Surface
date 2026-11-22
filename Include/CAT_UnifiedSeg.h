@@ -98,8 +98,14 @@ typedef struct
                              spm_preproc_write8.m), after the MRF: grey and
                              white matter, then CSF, that cannot be reached
                              from white matter by conditional dilation are
-                             removed.  0: off, 1: light (default), 2: thorough.
-                             The steps are counted in mm, not voxels */
+                             removed.  The partial volume model follows it: a
+                             voxel its mask of grey and white matter does not
+                             reach holds neither in the label map and the
+                             fractions, so that dura and vessels in the CSF
+                             are not read as mixtures with grey matter.
+                             0: off (and no such limit), 1: light (default),
+                             2: thorough.  The steps are counted in mm, not
+                             voxels */
     int pve;            /**< 1: estimate partial volumes of CSF, GM and WM for
                              the label map (default); 0: the label is the
                              posterior mean CSF + 2 GM + 3 WM */
