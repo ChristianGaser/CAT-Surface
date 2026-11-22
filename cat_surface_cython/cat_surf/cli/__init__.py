@@ -48,6 +48,7 @@ The binary ``CAT_<X>`` maps to ``cat_surf.cli.<x>`` where ``<x>`` is
     CAT_VolSmooth                     -> vol_smooth
     CAT_VolThicknessPbt               -> vol_thickness_pbt
     CAT_VolShoot                     -> vol_shoot
+    CAT_VolUnifiedSeg                -> vol_unified_seg
 """
 from __future__ import annotations
 
@@ -91,6 +92,7 @@ from cat_surf import (
     vol_sheetness as _vol_sheetness,
     vol_realign as _vol_realign,
     vol_shoot as _vol_shoot,
+    vol_unified_seg as _vol_unified_seg,
     vol_oriented_median as _vol_oriented_median,
     surf2roi_multi as _surf2roi_multi,
     resample_multi as _resample_multi,
@@ -972,6 +974,150 @@ def vol_shoot(gm_file, wm_file, template_files, y_file=None, iy_file=None,
     return res
 
 
+def vol_unified_seg(image_file, template_files, prob_file=None, label_file=None,
+                    pve_file=None, corrected_file=None, bias_file=None,
+                    y_file=None, iy_file=None, jac_file=None, params_file=None,
+                    sanlm=None, sanlm_strength=None, rician=None, noise=None,
+                    noise_seed=None, ngaus=None, samp=None, bias_model=None,
+                    biasfwhm=None, biasreg=None, wp_reg=None, tol=None,
+                    affreg=None, affine=None, affine_mode=None, mask_file=None,
+                    mrf=None, pve=None, regstr=None, reg_scale=None,
+                    lowres=None, nits=None, n_threads=None, verbose=0):
+    """Mirror of ``CAT_VolUnifiedSeg``.
+
+    Unified segmentation of an image into the six classes of a shooting
+    template series (GM, WM, CSF, bone, soft tissue, air), with the templates
+    deformed onto the image by geodesic shooting.
+
+    *template_files* is either the ``Template_0`` path containing ``_0_``
+    (the other four names are derived from it) or a sequence of five paths in
+    coarse-to-fine order.
+
+    Parameters
+    ----------
+    image_file : str
+        The image.
+    template_files : str or sequence of str
+        Five shooting templates of six classes each.
+    prob_file, label_file, pve_file, corrected_file, bias_file, y_file,
+    iy_file, jac_file, params_file : str, optional
+        ``-prob`` (the six class maps, 4-D), ``-label`` (label map with
+        partial volumes), ``-pve`` (fractions of GM, WM and CSF, 4-D),
+        ``-corrected``, ``-bias``, ``-y``, ``-iy``, ``-jac`` and ``-params``
+        (JSON).  At least one must be given, as for the binary.
+    sanlm, sanlm_strength, rician, noise, noise_seed, ngaus, samp, bias_model,
+    biasfwhm, biasreg, wp_reg, tol, affreg, affine, affine_mode, mask_file,
+    mrf, pve, regstr, reg_scale, lowres, nits, n_threads, verbose
+        ``-sanlm``, ``-sanlm-strength``, ``-rician``, ``-noise``,
+        ``-noise-seed``, ``-ngaus``, ``-samp``, ``-bias-model``, ``-biasfwhm``,
+        ``-biasreg``, ``-wp-reg``, ``-tol``, ``-affreg``, ``-affine`` (a 4x4
+        matrix or a text file with it; ``affine_mode`` ``"refine"`` and
+        ``"fixed"`` are ``-affine-refine`` and ``-affine-fixed``), ``-mask``,
+        ``-mrf``, ``-no-pve`` (``pve=False``), ``-regstr``, ``-reg-scale``,
+        ``-lowres``, ``-nits``, ``-threads`` and ``-verbose`` (2: ``-debug``).
+        ``None`` uses the library defaults.
+
+    Returns
+    -------
+    dict
+        The in-memory result from :func:`cat_surf.vol_unified_seg`, with
+        paths for any files written.
+    """
+    import json
+    import nibabel as nib
+
+    outputs = (prob_file, label_file, pve_file, corrected_file, bias_file,
+               y_file, iy_file, jac_file, params_file)
+    if not any(outputs):
+        raise ValueError("at least one output file is required")
+
+    if isinstance(template_files, (str, os.PathLike)):
+        first = os.fspath(template_files)
+        marker = first.rfind("_0_")
+        if marker < 0:
+            raise ValueError("a single template path must contain '_0_'")
+        template_files = [first[:marker + 1] + str(k) + first[marker + 2:]
+                          for k in range(5)]
+    else:
+        template_files = list(template_files)
+        if len(template_files) != 5:
+            raise ValueError("template_files must contain five paths")
+
+    img = nib.load(image_file)
+    src = img.get_fdata(dtype=np.float32)
+    template_imgs = [nib.load(path) for path in template_files]
+    templates = [t.get_fdata(dtype=np.float32) for t in template_imgs]
+    mask = None
+    if mask_file is not None:
+        mask = nib.load(mask_file).get_fdata(dtype=np.float32) != 0
+    if isinstance(affine, (str, os.PathLike)):
+        affine = np.loadtxt(affine)
+
+    res = _vol_unified_seg(
+        src, templates, img.affine, template_imgs[0].affine, mask=mask,
+        affine=affine, affine_mode=affine_mode, affreg=affreg, ngaus=ngaus,
+        samp=samp, bias_model=bias_model, biasfwhm=biasfwhm, biasreg=biasreg,
+        wp_reg=wp_reg, tol=tol, noise=noise, noise_seed=noise_seed,
+        sanlm=sanlm, sanlm_strength=sanlm_strength, sanlm_rician=rician,
+        mrf=mrf, pve=pve, regstr=regstr, reg_scale=reg_scale, lowres=lowres,
+        nits=nits, n_threads=n_threads, verbose=verbose,
+        prob=prob_file is not None, label=label_file is not None,
+        fractions=pve_file is not None, corrected=corrected_file is not None,
+        bias=bias_file is not None,
+        deformation=y_file is not None or jac_file is not None,
+        inverse=iy_file is not None,
+    )
+
+    def write_bytes(path, data):
+        header = img.header.copy()
+        header.set_data_dtype(np.uint8)
+        image = nib.Nifti1Image(data, img.affine, header)
+        image.header.set_slope_inter(1.0 / 255.0, 0.0)
+        nib.save(image, path)
+
+    def write_deformation(path, field, grid_img, coord_affine):
+        mm = np.einsum("ij,...j->...i", coord_affine[:3, :3], field)
+        mm += coord_affine[:3, 3]
+        image = nib.Nifti1Image(mm[..., np.newaxis, :], grid_img.affine,
+                                grid_img.header.copy())
+        image.header.set_data_dtype(np.float32)
+        image.header.set_intent("vector")
+        nib.save(image, path)
+
+    if prob_file is not None:
+        write_bytes(prob_file, res["prob"])
+        res["prob_file"] = prob_file
+    if pve_file is not None:
+        write_bytes(pve_file, res["fractions"])
+        res["pve_file"] = pve_file
+    for key, path in (("label", label_file), ("corrected", corrected_file),
+                      ("bias", bias_file)):
+        if path is not None:
+            _save_volume_like(path, res[key], img, dtype=np.float32)
+            res[key + "_file"] = path
+    if y_file is not None:
+        write_deformation(y_file, res["y"], template_imgs[0], img.affine)
+        res["y_file"] = y_file
+    if iy_file is not None:
+        write_deformation(iy_file, res["iy"], img, template_imgs[0].affine)
+        res["iy_file"] = iy_file
+    if jac_file is not None:
+        _save_volume_like(jac_file, res["jac"], template_imgs[0], dtype=np.float32)
+        res["jac_file"] = jac_file
+    if params_file is not None:
+        params = dict(res["params"], image=os.fspath(image_file),
+                      template=os.fspath(template_files[0]))
+        params["affine"] = np.asarray(params["affine"]).tolist()
+        if params["bias_coef"] is not None:
+            coef = np.asarray(params["bias_coef"])
+            params["bias_dims"] = list(coef.shape)
+            params["bias_coef"] = coef.ravel(order="F").tolist()
+        with open(params_file, "w") as fp:
+            json.dump(params, fp, indent=2)
+        res["params_file"] = params_file
+    return res
+
+
 def surf_resample_multi(units, output_file, fwhm=0.0, areal=False):
     """Mirror of ``CAT_SurfResampleMulti``.
 
@@ -1194,4 +1340,5 @@ __all__ = [
     "vol_calc",
     "vol_thickness_pbt",
     "vol_shoot",
+    "vol_unified_seg",
 ]

@@ -1771,3 +1771,347 @@ def vol_shoot(gm, wm, templates, mat, template_mat, affine=None,
     if inverse:
         out["iy"] = iy
     return out
+
+
+# ===================================================================
+# Unified segmentation with geodesic shooting  (mirrors CAT_VolUnifiedSeg)
+# ===================================================================
+_USEG_AFFREG = {"none": C.CAT_USEG_AFFREG_NONE, "mni": C.CAT_USEG_AFFREG_MNI,
+                "eastern": C.CAT_USEG_AFFREG_EASTERN,
+                "subj": C.CAT_USEG_AFFREG_SUBJ, "rigid": C.CAT_USEG_AFFREG_RIGID}
+_USEG_BIAS = {"dct": C.CAT_USEG_BIAS_DCT, "spline": C.CAT_USEG_BIAS_SPLINE}
+_USEG_AFFINE = {"estimate": C.CAT_USEG_AFFINE_ESTIMATE,
+                "refine": C.CAT_USEG_AFFINE_REFINE,
+                "fixed": C.CAT_USEG_AFFINE_FIXED}
+_USEG_CLASSES = ("GM", "WM", "CSF", "bone", "soft tissue", "air")
+
+
+def vol_unified_seg_defaults():
+    """
+    The defaults of :func:`vol_unified_seg`, as ``CAT_UnifiedSegOptionsInit()``
+    sets them.
+
+    Returns
+    -------
+    dict
+        One entry per keyword that :func:`vol_unified_seg` leaves to the
+        library when it is None.
+    """
+    cdef C.CAT_UnifiedSegOpts o
+    cdef int k
+    C.CAT_UnifiedSegOptionsInit(&o)
+    names = {v: n for n, v in _USEG_AFFREG.items()}
+    bias = {v: n for n, v in _USEG_BIAS.items()}
+    mode = {v: n for n, v in _USEG_AFFINE.items()}
+    return {
+        "ngaus": [o.ngaus[k] for k in range(6)],
+        "samp": o.samp,
+        "bias_model": bias[o.bias_model],
+        "biasfwhm": o.biasfwhm,
+        "biasreg": o.biasreg,
+        "tol": o.tol,
+        "wp_reg": o.wp_reg,
+        "affreg": names[o.affreg],
+        "affine_mode": mode[o.affine_mode],
+        "noise": o.noise,
+        "noise_seed": o.noise_seed,
+        "sanlm": bool(o.sanlm),
+        "sanlm_strength": o.sanlm_strength,
+        "sanlm_rician": bool(o.sanlm_rician),
+        "mrf": o.mrf,
+        "pve": bool(o.pve),
+        "regstr": o.shoot.regstr,
+        "reg_scale": o.shoot.reg_scale,
+        "lowres": o.shoot.lowres,
+        "nits": o.shoot.nits,
+    }
+
+
+def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
+                    affine_mode=None, affreg=None, ngaus=None, samp=None,
+                    bias_model=None, biasfwhm=None, biasreg=None, wp_reg=None,
+                    tol=None, noise=None, noise_seed=None, sanlm=None,
+                    sanlm_strength=None, sanlm_rician=None, mrf=None, pve=None,
+                    regstr=None, reg_scale=None, lowres=None, nits=None,
+                    n_threads=None, int verbose=0, bint prob=True,
+                    bint label=True, bint fractions=False, bint corrected=True,
+                    bint bias=False, bint deformation=False,
+                    bint inverse=False):
+    """
+    Unified segmentation of one image with geodesic shooting.
+
+    The model of SPM's unified segmentation -- a mixture of Gaussians per
+    class, a smooth bias field and class priors that are deformed onto the
+    image -- with the priors taken from a shooting template series of six
+    classes (GM, WM, CSF, bone, soft tissue, air) and deformed by geodesic
+    shooting on a grid of increasing resolution.  Voxels that are zero or not
+    finite carry no data and get their prior, so skull-stripped and defaced
+    images can be segmented.
+
+    Arrays are indexed ``[x, y, z]`` as nibabel returns them, and matrices
+    are nibabel affines (0-based voxels to mm).
+
+    Parameters
+    ----------
+    src : array_like, (X, Y, Z)
+        The image.
+    templates : sequence of 5 array_like, (X', Y', Z', 6)
+        The shooting templates, coarse to fine, each with the six classes.
+    mat, template_mat : array_like, (4, 4)
+        Voxel-to-world matrices of the image and of the templates.
+    mask : array_like, (X, Y, Z), optional
+        Voxels where it is zero carry no data (lesions).
+    affine : array_like, (4, 4), optional
+        Image-to-template world mapping, used as ``affine_mode`` says:
+        ``"estimate"`` (one more starting point of the registration),
+        ``"refine"`` (the only starting point) or ``"fixed"`` (as it is).
+    affreg : {"mni", "eastern", "subj", "rigid", "none"}, optional
+        Regularisation of the affine registration.
+    ngaus : sequence of 6 int, optional
+        Gaussians per class.
+    samp : float, optional
+        Distance in mm of the voxels the parameters are estimated from.
+    bias_model : {"spline", "dct"}, optional
+        Basis functions of the bias field: cubic B-splines, or SPM's
+        discrete cosine transform.
+    biasfwhm, biasreg : float, optional
+        Smoothness (FWHM in mm; 0: no bias correction) and regularisation of
+        the bias field.
+    wp_reg : float, optional
+        Holds the class weights near 1/6, as a multiple of the prior mass of
+        a class.  0 estimates them freely as SPM does; large values fix them.
+    tol : float, optional
+        Stopping criterion of the EM steps.
+    noise : float, optional
+        Gaussian noise is added to the image the parameters are estimated
+        from until its noise SD reaches this fraction of the intensity range;
+        the segmentation is computed from the image without it.
+    noise_seed : int, optional
+        Seed of the added noise.
+    sanlm, sanlm_strength, sanlm_rician : optional
+        Denoise the image with the SANLM filter first.
+    mrf : float, optional
+        Strength of the Markov random field cleanup of the class maps.
+    pve : bool, optional
+        Estimate partial volumes of CSF, GM and WM for the label map.
+    regstr, reg_scale, lowres, nits : optional
+        Settings of the shooting.
+    n_threads : int, optional
+        Worker threads.
+    verbose : int
+        1 prints the stages and parameters, 2 every iteration.
+    prob, label, fractions, corrected, bias, deformation, inverse : bool
+        Which results to compute and return.
+
+    Keywords left at None keep the library default of
+    ``CAT_UnifiedSegOptionsInit()`` (see :func:`vol_unified_seg_defaults`).
+
+    Returns
+    -------
+    dict
+        ``prob``: (X, Y, Z, 6) uint8, class posteriors times 255;
+        ``label``: (X, Y, Z) float32, 0 background, 1 CSF, 2 GM, 3 WM with
+        partial volumes in between; ``fractions``: (X, Y, Z, 3) uint8, the
+        fractions of GM, WM and CSF times 255; ``corrected``: the
+        bias-corrected image; ``bias``: the bias field; ``y``: (X', Y', Z', 3)
+        float32, for every template voxel the image voxel (0-based) it pulls
+        from, with ``jac``, its Jacobian determinant; ``iy``: (X, Y, Z, 3),
+        for every image voxel the template voxel it maps to (NaN where
+        undefined); ``params``: the estimated parameters and a summary of the
+        run.
+    """
+    cdef C.CAT_UnifiedSegOpts opts
+    cdef C.CAT_UnifiedSegResult res
+    cdef const float *tpl[5]
+    cdef int dims[3]
+    cdef int tdims[3]
+    cdef int k, ret, nb
+    cdef double M[16]
+    cdef double TM[16]
+    cdef double A[16]
+    cdef const double *aff_ptr = NULL
+    cdef const unsigned char *mask_ptr = NULL
+    cdef unsigned char *prob_ptr = NULL
+    cdef unsigned char *pve_ptr = NULL
+    cdef float *label_ptr = NULL
+    cdef float *corr_ptr = NULL
+    cdef float *bias_ptr = NULL
+    cdef float *y_ptr = NULL
+    cdef float *iy_ptr = NULL
+    cdef float *jac_ptr = NULL
+
+    C.CAT_UnifiedSegOptionsInit(&opts)
+    if ngaus is not None:
+        if len(ngaus) != 6:
+            raise ValueError("ngaus must hold six values")
+        for k in range(6):
+            opts.ngaus[k] = int(ngaus[k])
+    if samp is not None:
+        opts.samp = float(samp)
+    if bias_model is not None:
+        if bias_model not in _USEG_BIAS:
+            raise ValueError("bias_model must be 'spline' or 'dct'")
+        opts.bias_model = _USEG_BIAS[bias_model]
+    if biasfwhm is not None:
+        opts.biasfwhm = float(biasfwhm)
+    if biasreg is not None:
+        opts.biasreg = float(biasreg)
+    if wp_reg is not None:
+        opts.wp_reg = float(wp_reg)
+    if tol is not None:
+        opts.tol = float(tol)
+    if affreg is not None:
+        if affreg not in _USEG_AFFREG:
+            raise ValueError("affreg must be mni, eastern, subj, rigid or none")
+        opts.affreg = _USEG_AFFREG[affreg]
+    if affine_mode is not None:
+        if affine_mode not in _USEG_AFFINE:
+            raise ValueError("affine_mode must be estimate, refine or fixed")
+        opts.affine_mode = _USEG_AFFINE[affine_mode]
+    if noise is not None:
+        opts.noise = float(noise)
+    if noise_seed is not None:
+        opts.noise_seed = int(noise_seed)
+    if sanlm is not None:
+        opts.sanlm = 1 if sanlm else 0
+    if sanlm_strength is not None:
+        opts.sanlm_strength = float(sanlm_strength)
+    if sanlm_rician is not None:
+        opts.sanlm_rician = 1 if sanlm_rician else 0
+    if mrf is not None:
+        opts.mrf = float(mrf)
+    if pve is not None:
+        opts.pve = 1 if pve else 0
+    if regstr is not None:
+        opts.shoot.regstr = float(regstr)
+    if reg_scale is not None:
+        opts.shoot.reg_scale = float(reg_scale)
+    if lowres is not None:
+        opts.shoot.lowres = float(lowres)
+    if nits is not None:
+        opts.shoot.nits = int(nits)
+    if n_threads is not None:
+        opts.n_threads = int(n_threads)
+    opts.verbose = verbose
+
+    img = np.asfortranarray(src, dtype=np.float32)
+    if img.ndim != 3:
+        raise ValueError("src must be a 3-D array")
+    if len(templates) != 5:
+        raise ValueError("templates must hold the five shooting templates")
+    tarrs = []
+    for t in templates:
+        t = np.asarray(t)
+        if t.ndim != 4 or t.shape[3] != 6:
+            raise ValueError("each template must be (X, Y, Z, 6)")
+        ta = np.asfortranarray(t, dtype=np.float32)
+        if tarrs and ta.shape != tarrs[0].shape:
+            raise ValueError("the templates differ in size")
+        tarrs.append(ta)
+    for k in range(3):
+        dims[k] = img.shape[k]
+        tdims[k] = tarrs[0].shape[k]
+    for k in range(5):
+        tpl[k] = <const float *>cnp.PyArray_DATA(tarrs[k])
+
+    m = np.ascontiguousarray(mat, dtype=np.float64).reshape(-1)
+    tm = np.ascontiguousarray(template_mat, dtype=np.float64).reshape(-1)
+    if m.size != 16 or tm.size != 16:
+        raise ValueError("mat and template_mat must be 4x4")
+    for k in range(16):
+        M[k] = m[k]
+        TM[k] = tm[k]
+    if affine is not None:
+        a = np.ascontiguousarray(affine, dtype=np.float64).reshape(-1)
+        if a.size != 16:
+            raise ValueError("affine must be 4x4")
+        for k in range(16):
+            A[k] = a[k]
+        aff_ptr = A
+    elif opts.affine_mode != C.CAT_USEG_AFFINE_ESTIMATE:
+        raise ValueError("affine_mode 'refine' and 'fixed' need an affine matrix")
+    msk = None
+    if mask is not None:
+        msk = np.asfortranarray(np.asarray(mask) != 0, dtype=np.uint8)
+        if msk.shape != img.shape:
+            raise ValueError("mask must be on the grid of src")
+        mask_ptr = <const unsigned char *>cnp.PyArray_DATA(msk)
+
+    shape = tuple(img.shape)
+    tshape = tuple(tarrs[0].shape[:3])
+    out = {}
+    if prob:
+        out["prob"] = np.empty(shape + (6,), dtype=np.uint8, order="F")
+        prob_ptr = <unsigned char *>cnp.PyArray_DATA(out["prob"])
+    if label:
+        out["label"] = np.empty(shape, dtype=np.float32, order="F")
+        label_ptr = <float *>cnp.PyArray_DATA(out["label"])
+    if fractions:
+        out["fractions"] = np.empty(shape + (3,), dtype=np.uint8, order="F")
+        pve_ptr = <unsigned char *>cnp.PyArray_DATA(out["fractions"])
+    if corrected:
+        out["corrected"] = np.empty(shape, dtype=np.float32, order="F")
+        corr_ptr = <float *>cnp.PyArray_DATA(out["corrected"])
+    if bias:
+        out["bias"] = np.empty(shape, dtype=np.float32, order="F")
+        bias_ptr = <float *>cnp.PyArray_DATA(out["bias"])
+    if deformation:
+        out["y"] = np.empty(tshape + (3,), dtype=np.float32, order="F")
+        out["jac"] = np.empty(tshape, dtype=np.float32, order="F")
+        y_ptr = <float *>cnp.PyArray_DATA(out["y"])
+        jac_ptr = <float *>cnp.PyArray_DATA(out["jac"])
+    if inverse:
+        out["iy"] = np.empty(shape + (3,), dtype=np.float32, order="F")
+        iy_ptr = <float *>cnp.PyArray_DATA(out["iy"])
+
+    ret = C.CAT_UnifiedSeg(<const float *>cnp.PyArray_DATA(img), dims, M, tpl,
+                           tdims, TM, mask_ptr, aff_ptr, &opts, prob_ptr,
+                           label_ptr, pve_ptr, corr_ptr, bias_ptr, y_ptr,
+                           iy_ptr, jac_ptr, &res)
+    if ret == 1:
+        raise ValueError("vol_unified_seg: invalid input (grids, matrices or options)")
+    if ret == 2:
+        raise MemoryError("vol_unified_seg: out of memory")
+    if ret:
+        raise RuntimeError("vol_unified_seg: the estimation failed "
+                           "(too few voxels with data, or a degenerate model)")
+
+    nb = res.bias_dims[0] * res.bias_dims[1] * res.bias_dims[2] if res.bias_coef != NULL else 0
+    coef = np.empty(nb, dtype=np.float64)
+    for k in range(nb):
+        coef[k] = res.bias_coef[k]
+    out["params"] = {
+        "classes": list(_USEG_CLASSES),
+        "affine": np.array([res.affine[k] for k in range(16)]).reshape(4, 4),
+        "affine_mutual_information": res.affine_ll,
+        "lkp": [res.lkp[k] for k in range(res.n_gauss)],
+        "mg": [res.mg[k] for k in range(res.n_gauss)],
+        "mn": [res.mn[k] for k in range(res.n_gauss)],
+        "vr": [res.vr[k] for k in range(res.n_gauss)],
+        "wp": [res.wp[k] for k in range(6)],
+        "ll": res.ll,
+        "n_samples": res.n_samples,
+        "bias_model": "dct" if res.bias_model == C.CAT_USEG_BIAS_DCT else "spline",
+        "bias_coef": (coef.reshape((res.bias_dims[0], res.bias_dims[1],
+                                    res.bias_dims[2]), order="F")
+                      if nb else None),
+        "intensity_range": [res.intensity_range[0], res.intensity_range[1]],
+        "noise_estimated": res.noise_estimated,
+        "noise_added": res.noise_added,
+        "pve_done": bool(res.pve_done),
+        "pve_mean": [res.pve_mean[k] for k in range(3)],
+        "pve_sd": res.pve_sd,
+        "volume_ml": [res.volume[k] for k in range(6)],
+        "shooting": {
+            "iterations": res.shoot.iterations,
+            "level_iterations": [res.shoot.level_iterations[k] for k in range(5)],
+            "det_min": res.shoot.det_min,
+            "det_max": res.shoot.det_max,
+            "hotspot_corrections": res.shoot.hotspot_corrections,
+        },
+        "time_s": {"filter": res.time_filter, "affine": res.time_affine,
+                   "estimation": res.time_fit, "segmentation": res.time_write,
+                   "total": res.time_total},
+    }
+    C.CAT_UnifiedSegResultFree(&res)
+    return out

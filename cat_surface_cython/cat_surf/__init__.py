@@ -103,6 +103,8 @@ from cat_surf._vol import (
     vol_box_morph,
     vol_bspline_sample,
     vol_shoot,
+    vol_unified_seg,
+    vol_unified_seg_defaults,
 )
 
 # --- Registration ---
@@ -359,6 +361,8 @@ __all__ = [
     "vol_box_morph",
     "vol_bspline_sample",
     "vol_shoot",
+    "vol_unified_seg",
+    "vol_unified_seg_defaults",
     "vol_open_ppm_sulci",
     # Registration
     "bbreg",
