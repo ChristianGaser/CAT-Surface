@@ -713,7 +713,11 @@ def test_vol_calc():
     check("differing shapes are a ValueError", raised)
 
     # The file mirror takes a 4-D file as one input per volume, as CAT_VolCalc.
-    import nibabel as nib
+    try:
+        import nibabel as nib
+    except ImportError:
+        print("  SKIP nibabel not installed: file-based mirror not tested")
+        return
     with tempfile.TemporaryDirectory() as d:
         f3, f4, out = (os.path.join(d, n) for n in ("a.nii", "bc.nii", "out.nii"))
         nib.save(nib.Nifti1Image(a.astype(np.float32), np.eye(4)), f3)
