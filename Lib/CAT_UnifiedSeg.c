@@ -43,6 +43,15 @@
 #define HEAD_NTAB_MAX 16384 /* intensity bins of the tables of the head */
 #define HEAD_NPAIR 2        /* mixtures of the head: bone-soft, soft-air */
 #define CLEAN_TH_FINAL 0.05 /* threshold of the masks of clean_gwc */
+#define GMS_NBIN 80         /* intensity bins of the spatial estimate of pure grey matter */
+#define GMS_CSF 0.30        /* below this share of the way from CSF to WM: the CSF side */
+#define GMS_WM 0.10         /* within this share of the way of WM: the WM side */
+#define GMS_DIST 0.75       /* mm a voxel keeps from both sides (at least one voxel) */
+#define GMS_MIN_ML 10.0     /* smallest volume the estimate is taken from */
+#define GMS_OUT 0           /* not brain, or the CSF side */
+#define GMS_WMS 1           /* the WM side */
+#define GMS_MID 2           /* between the two, but not grey matter by the templates */
+#define GMS_BIN0 3          /* GMS_BIN0 + bin: between the two and grey matter */
 
 /* template classes */
 #define C_GM 0
@@ -3097,6 +3106,191 @@ clean_gwc(const State *S, const unsigned char *P, int level, unsigned char *keep
 }
 
 /* ======================================================================== */
+/* The intensity of pure grey matter, from where it lies                    */
+/* ======================================================================== */
+
+/* The mixture model can put the Gaussian of grey matter in the wrong place
+ * without losing likelihood.  In a brain whose cortex the deformed templates
+ * do not cover (a hydrocephalus: 4397) the Gaussian of grey matter filled
+ * with the partial volumes of CSF and that of white matter took the bright
+ * cortex; pure grey matter came out at 0.49 of the intensity of white matter
+ * where the cortex has 0.8, the log-likelihood was the same to three digits
+ * for solutions between 0.47 and 0.74, and the label map read the cortex as
+ * half white matter (514 ml of white matter where CAT finds 255).  The
+ * histogram of such a brain has no mode between CSF and white matter, so no
+ * model of the intensities alone can find the value.
+ *
+ * Where grey matter lies does tell: the intensities of pure CSF and white
+ * matter are well determined, and a voxel of the brain that is neither, and
+ * has no such voxel next to it, is the inside of grey matter whatever its
+ * intensity.  Every voxel gets one of four codes in the first pass over the
+ * posteriors: not brain or darker than GMS_CSF of the way from CSF to white
+ * matter (the CSF side), within GMS_WM of white matter (the WM side), in
+ * between, or in between and grey matter by the deformed templates -- its
+ * prior is the largest of the three brain classes -- with the bin of its
+ * intensity.  The estimate is the mode of the bins of the last kind that
+ * keep GMS_DIST mm, and at least one voxel, from both sides.
+ *
+ * The prior is what makes it usable.  Without it white matter that a
+ * residual bias field leaves below the WM side fills the selection: on
+ * sii39 (0.8 mm, bias field of 60 mm FWHM) the estimate was 0.84 of white
+ * matter where the model and a reference label map agree on 0.53 and 0.58;
+ * with it 0.61.  It stays a coarse estimate: against the grey matter of
+ * reference label maps of twelve images it is within -0.00 to +0.05 of the
+ * intensity of white matter on nine, where the model is within 0.05 on all
+ * twelve, and off by more where the residual bias is strong (sbg52: 0.68
+ * against 0.59), where grey matter lies below the CSF side (an R1 map: 0.69
+ * against 0.56) and where the intensity of CSF is off (a motion scan: 0.76
+ * against 0.58).  It is therefore only used to reject a model that is far
+ * off (opts->pve_gm_tol), never to refine one: of 20 images and a simulated
+ * one, at their own resolution, only 4397 differs by more than the default
+ * of 0.35 of the way from CSF to white matter (0.49; the next are an infant
+ * and the motion scan with 0.27 and 0.26), and the other 20 label maps are
+ * bit-identical to those without the check. */
+
+/* The code of a voxel: c0 the intensity of pure CSF, dcw that of pure white
+ * matter less c0, cr the bias-corrected intensity, q and pr the posteriors
+ * and the priors of the classes. */
+static unsigned char
+gms_code(double c0, double dcw, int ok, double cr, const double q[KB], const double pr[KB])
+{
+    double rel;
+    int b;
+
+    if (!ok || q[C_CSF] + q[C_GM] + q[C_WM] < 0.5) return GMS_OUT;
+    rel = (cr - c0) / dcw;
+    if (rel < GMS_CSF) return GMS_OUT;
+    if (rel > 1.0 - GMS_WM) return GMS_WMS;
+    if (!(pr[C_GM] > pr[C_WM] && pr[C_GM] > pr[C_CSF]) ||
+        pr[C_GM] + pr[C_WM] + pr[C_CSF] < 0.5)
+        return GMS_MID;
+    b = (int)(rel * GMS_NBIN);
+    if (b < 0) b = 0;
+    if (b > GMS_NBIN - 1) b = GMS_NBIN - 1;
+    return (unsigned char)(GMS_BIN0 + b);
+}
+
+typedef struct
+{
+    const unsigned char *gms;
+    const int *d;
+    int noff;
+    const int *off; /* noff x 3: the voxels closer than the distance to keep */
+    size_t *hist;   /* per slice: GMS_NBIN counts */
+} gms_ctx;
+
+/* The histogram of the voxels of grey matter that have no voxel of either
+ * side among their neighbours; a neighbour outside the image is none. */
+static void
+gms_range(void *p, int z0, int z1)
+{
+    gms_ctx *c = (gms_ctx *)p;
+    const int *d = c->d;
+    size_t nxy = (size_t)d[0] * d[1];
+    int x, y, z, i;
+
+    for (z = z0; z < z1; z++)
+    {
+        size_t *h = c->hist + (size_t)z * GMS_NBIN;
+        for (i = 0; i < GMS_NBIN; i++) h[i] = 0;
+        for (y = 0; y < d[1]; y++)
+            for (x = 0; x < d[0]; x++)
+            {
+                unsigned char code = c->gms[x + (size_t)d[0] * y + nxy * z];
+                if (code < GMS_BIN0) continue;
+                for (i = 0; i < c->noff; i++)
+                {
+                    const int *o = c->off + 3 * i;
+                    int xx = x + o[0], yy = y + o[1], zz = z + o[2];
+                    if (xx < 0 || yy < 0 || zz < 0 || xx >= d[0] || yy >= d[1] || zz >= d[2])
+                        continue;
+                    if (c->gms[xx + (size_t)d[0] * yy + nxy * zz] <= GMS_WMS) break;
+                }
+                if (i == c->noff) h[code - GMS_BIN0]++;
+            }
+    }
+}
+
+/* The intensity of pure grey matter from the codes of the first pass, as a
+ * share of the way from pure CSF to pure white matter, and the volume in ml
+ * it is taken from.  Returns 0 without an estimate: less than GMS_MIN_ML,
+ * or no memory.  The mode is that of the histogram smoothed with a Gaussian
+ * of two bins. */
+static int
+gm_spatial(const State *S, const unsigned char *gms, double *rel, double *ml)
+{
+    gms_ctx c;
+    const int *d = S->dims;
+    double r = GMS_DIST, vmax = S->vx[0], voxvol = S->vx[0] * S->vx[1] * S->vx[2];
+    double h[GMS_NBIN], sm[GMS_NBIN], w[17], tot = 0.0;
+    size_t nmax = 1;
+    int rad[3], *off, noff = 0, dx, dy, dz, i, j, k, z, best = 0;
+
+    *rel = 0.0;
+    *ml = 0.0;
+    for (k = 1; k < 3; k++)
+        if (S->vx[k] > vmax) vmax = S->vx[k];
+    if (r < 1.01 * vmax) r = 1.01 * vmax;
+    for (k = 0; k < 3; k++)
+    {
+        rad[k] = (int)floor(r / S->vx[k]);
+        nmax *= (size_t)(2 * rad[k] + 1);
+    }
+    off = (int *)malloc(sizeof(int) * 3 * nmax);
+    c.hist = (size_t *)malloc(sizeof(size_t) * (size_t)d[2] * GMS_NBIN);
+    if (!off || !c.hist)
+    {
+        free(off);
+        free(c.hist);
+        return 0;
+    }
+    for (dz = -rad[2]; dz <= rad[2]; dz++)
+        for (dy = -rad[1]; dy <= rad[1]; dy++)
+            for (dx = -rad[0]; dx <= rad[0]; dx++)
+            {
+                double l2 = dx * S->vx[0] * dx * S->vx[0] + dy * S->vx[1] * dy * S->vx[1] +
+                            dz * S->vx[2] * dz * S->vx[2];
+                if (!(dx || dy || dz) || !(l2 < r * r)) continue;
+                off[3 * noff] = dx;
+                off[3 * noff + 1] = dy;
+                off[3 * noff + 2] = dz;
+                noff++;
+            }
+    c.gms = gms;
+    c.d = d;
+    c.noff = noff;
+    c.off = off;
+    par_for(d[2], S->nthreads, gms_range, &c);
+    for (i = 0; i < GMS_NBIN; i++)
+    {
+        size_t s = 0;
+        for (z = 0; z < d[2]; z++) s += c.hist[(size_t)z * GMS_NBIN + i];
+        h[i] = (double)s;
+        tot += h[i];
+    }
+    free(off);
+    free(c.hist);
+    *ml = tot * voxvol / 1000.0;
+    if (!(*ml >= GMS_MIN_ML)) return 0;
+
+    for (j = -8; j <= 8; j++) w[j + 8] = exp(-0.5 * j * j / 4.0);
+    for (i = 0; i < GMS_NBIN; i++)
+    {
+        sm[i] = 0.0;
+        for (j = -8; j <= 8; j++)
+        {
+            k = i + j; /* reflected at the ends */
+            if (k < 0) k = -k - 1;
+            if (k > GMS_NBIN - 1) k = 2 * GMS_NBIN - 1 - k;
+            sm[i] += w[j + 8] * h[k];
+        }
+        if (sm[i] > sm[best]) best = i;
+    }
+    *rel = (best + 0.5) / GMS_NBIN;
+    return 1;
+}
+
+/* ======================================================================== */
 /* Final segmentation (cat_spm_preproc_write8.m)                            */
 /* ======================================================================== */
 
@@ -3113,6 +3307,8 @@ typedef struct
     int from_prob;        /* final pass: the posteriors are those in prob (MRF) */
     const unsigned char *keep; /* cleanup: bit 0 keeps GM and WM, bit 1 CSF */
     unsigned char *prob;  /* KB volumes */
+    unsigned char *gms;   /* first pass: GMS_* of every voxel, or NULL */
+    double gms_c, gms_d;  /* intensity of pure CSF, and of pure WM less that */
     float *Q;             /* KB volumes for the MRF, or NULL */
     float *label;
     unsigned char *pve;   /* KB volumes */
@@ -3251,6 +3447,7 @@ write_range(void *p, int z0, int z1)
                         if (c->Q) c->Q[k * n + v] = (float)q[k];
                         if (c->prob) c->prob[k * n + v] = (unsigned char)floor(255.0 * q[k] + 0.5);
                     }
+                    if (c->gms) c->gms[v] = gms_code(c->gms_c, c->gms_d, ok, cr, q, pr);
                     continue;
                 }
                 if (c->keep)
@@ -3416,17 +3613,61 @@ mrf_cleanup(const State *S, const float *Q, unsigned char *P)
             par_for(S->dims[2], S->nthreads, mrf_range, &c);
 }
 
+/* Holds the intensity of pure grey matter of the partial volume model
+ * against the spatial estimate.  Bright voxels beyond the reach of the
+ * cleanup's mask of grey and white matter (keep, or NULL) are no brain
+ * tissue and count as outside.  If the two differ by more than
+ * opts->pve_gm_tol of the way from pure CSF to pure white matter the model
+ * is taken to have failed and gets the estimate; the intensities of CSF and
+ * white matter and the variance stay.  Without an estimate nothing changes. */
+static void
+gm_check(State *S, unsigned char *gms, const unsigned char *keep, Pve *P,
+         CAT_UnifiedSegResult *res)
+{
+    size_t n = (size_t)S->dims[0] * S->dims[1] * S->dims[2], v;
+    double rel, ml, est, d = P->m[2] - P->m[0];
+    int corrected = 0;
+
+    if (keep)
+        for (v = 0; v < n; v++)
+            if (!(keep[v] & 4)) gms[v] = GMS_OUT;
+    if (!gm_spatial(S, gms, &rel, &ml))
+    {
+        if (res) res->pve_gm_volume = ml;
+        if (S->o.verbose)
+            printf("Grey matter: no spatial estimate (%.1f ml of its inside)\n", ml);
+        return;
+    }
+    est = P->m[0] + rel * d;
+    if (S->o.pve_gm_tol > 0 && fabs(est - P->m[1]) > S->o.pve_gm_tol * fabs(d))
+    {
+        P->m[1] = est;
+        corrected = !pve_tables(P);
+    }
+    if (res)
+    {
+        res->pve_gm_spatial = est;
+        res->pve_gm_volume = ml;
+        res->pve_gm_corrected = corrected;
+        if (corrected) res->pve_mean[1] = est;
+    }
+    if (S->o.verbose)
+        printf("Grey matter: %.4g in the partial volume model, %.4g where it lies (%.0f ml)%s\n",
+               res ? res->pve_gm_fit : P->m[1], est, ml,
+               corrected ? " -- the model was replaced" : "");
+}
+
 /* The posteriors of every voxel, the label map, the fractions and the
  * corrected image: the MRF of cat_spm_preproc_write8.m, then its cleanup. */
 static int
-write_segmentation(State *S, const float *iy, const Pve *P, const HeadPve *H, unsigned char *prob,
+write_segmentation(State *S, const float *iy, Pve *P, const HeadPve *H, unsigned char *prob,
                    float *label, unsigned char *pve, float *corrected, float *bias,
                    CAT_UnifiedSegResult *res)
 {
     write_ctx c;
     const Lattice *L = &S->L;
     size_t n = (size_t)S->dims[0] * S->dims[1] * S->dims[2];
-    unsigned char *own = NULL, *keep = NULL;
+    unsigned char *own = NULL, *keep = NULL, *gms = NULL;
     double voxvol;
     int g, k, z, ret = 0;
 
@@ -3460,18 +3701,36 @@ write_segmentation(State *S, const float *iy, const Pve *P, const HeadPve *H, un
     for (k = 0; k < KB; k++) c.lwp[k] = log(S->G.wp[k]);
     tpl_load(&S->tpl, NLEV - 1, S->nthreads);
 
-    if (S->o.mrf > 0 || S->o.cleanup > 0)
+    /* the check of the intensity of pure grey matter needs a first pass too */
+    if (P && P->ok && S->o.pve_gm_tol >= 0 && (label || pve) && P->m[2] != P->m[0])
     {
-        if (!prob) prob = own = (unsigned char *)malloc(KB * n);
+        gms = (unsigned char *)malloc(n);
+        if (!gms)
+        {
+            ret = 2;
+            goto done;
+        }
+    }
+    if (S->o.mrf > 0 || S->o.cleanup > 0 || gms)
+    {
+        int need = (S->o.mrf > 0 || S->o.cleanup > 0);
+        if (need && !prob) prob = own = (unsigned char *)malloc(KB * n);
         if (S->o.mrf > 0) c.Q = (float *)malloc(sizeof(float) * KB * n);
-        if (!prob || (S->o.mrf > 0 && !c.Q))
+        if ((need && !prob) || (S->o.mrf > 0 && !c.Q))
         {
             ret = 2;
             goto done;
         }
         /* the MRF starts from zero; the cleanup needs the posteriors */
         c.prob = (S->o.mrf > 0) ? NULL : prob;
+        if (gms)
+        {
+            c.gms = gms;
+            c.gms_c = P->m[0];
+            c.gms_d = P->m[2] - P->m[0];
+        }
         par_for(S->dims[2], S->nthreads, write_range, &c);
+        c.gms = NULL;
         if (c.Q)
         {
             mrf_cleanup(S, c.Q, prob);
@@ -3490,6 +3749,7 @@ write_segmentation(State *S, const float *iy, const Pve *P, const HeadPve *H, un
             }
             if (S->o.verbose) printf("Cleanup: %.1f s\n", wall_time() - t0);
         }
+        if (gms) gm_check(S, gms, keep, P, res);
     }
     c.final = 1;
     c.keep = keep;
@@ -3539,6 +3799,7 @@ done:
     free(c.hard);
     free(own);
     free(keep);
+    free(gms);
     for (k = 0; k < 3; k++) free(c.Bf[k]);
     return ret;
 }
@@ -3880,6 +4141,7 @@ CAT_UnifiedSegOptionsInit(CAT_UnifiedSegOpts *opts)
     opts->sanlm_rician = 0;
     opts->mrf = 0.0;
     opts->pve = 1;
+    opts->pve_gm_tol = 0.35;
     opts->pve_head = 0;
     opts->cleanup = 1;
     CAT_VolShootOptionsInit(&opts->shoot);
@@ -4049,6 +4311,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
     if (!(S.o.samp > 0) || !(S.o.tol > 0) || !(S.o.biasreg >= 0) || S.o.noise < 0 || S.o.mrf < 0)
         return 1;
     if (!(S.o.wp_reg >= 0) || S.o.cleanup < 0 || S.o.cleanup > 2) return 1;
+    if (S.o.pve_gm_tol != S.o.pve_gm_tol) return 1;
     if (S.o.bias_model != CAT_USEG_BIAS_DCT && S.o.bias_model != CAT_USEG_BIAS_SPLINE) return 1;
     if (S.o.affine_mode != CAT_USEG_AFFINE_ESTIMATE && !affine) return 1;
     for (k = 0; k < 3; k++)
@@ -4196,6 +4459,7 @@ CAT_UnifiedSeg(const float *src, const int dims[3], const double mat[16],
         {
             res->pve_done = 1;
             for (k = 0; k < 3; k++) res->pve_mean[k] = P.m[k];
+            res->pve_gm_fit = P.m[1];
             res->pve_sd = sqrt(P.v);
         }
         if (S.o.verbose && P.ok)
@@ -4343,8 +4607,10 @@ CAT_UnifiedSegWriteJson(const char *file, const CAT_UnifiedSegResult *res,
             res->noise_estimated, res->noise_added, opts->noise, opts->noise_seed);
     fprintf(fp, "  \"pve\": {\"done\": %s, \"mean\": ", res->pve_done ? "true" : "false");
     json_array(fp, res->pve_mean, 3);
-    fprintf(fp, ", \"sd\": %.9g, \"head\": %s},\n  \"volume_ml\": ", res->pve_sd,
-            res->pve_head_done ? "true" : "false");
+    fprintf(fp, ", \"sd\": %.9g, \"head\": %s, \"gm_fit\": %.9g, \"gm_spatial\": %.9g, "
+                "\"gm_volume_ml\": %.6g, \"gm_corrected\": %s},\n  \"volume_ml\": ",
+            res->pve_sd, res->pve_head_done ? "true" : "false", res->pve_gm_fit,
+            res->pve_gm_spatial, res->pve_gm_volume, res->pve_gm_corrected ? "true" : "false");
     json_array(fp, res->volume, KB);
     fprintf(fp, ",\n  \"volume_pve_ml\": ");
     json_array(fp, res->pve_volume, KB);
@@ -4359,13 +4625,13 @@ CAT_UnifiedSegWriteJson(const char *file, const CAT_UnifiedSegResult *res,
     fprintf(fp, "  \"options\": {\"ngaus\": ");
     json_array(fp, v, KB);
     fprintf(fp, ", \"samp\": %g, \"tol\": %g, \"affreg\": \"%s\", \"sanlm\": %s, \"mrf\": %g, "
-                "\"cleanup\": %d, \"pve\": %s, \"pve_head\": %s, \"regstr\": %g, \"reg_scale\": %g, "
-                "\"lowres\": %g},\n",
+                "\"cleanup\": %d, \"pve\": %s, \"pve_gm_tol\": %g, \"pve_head\": %s, "
+                "\"regstr\": %g, \"reg_scale\": %g, \"lowres\": %g},\n",
             opts->samp, opts->tol,
             affreg[(opts->affreg >= 0 && opts->affreg <= 4) ? opts->affreg : 0],
             opts->sanlm ? "true" : "false", opts->mrf, opts->cleanup, opts->pve ? "true" : "false",
-            opts->pve_head ? "true" : "false", opts->shoot.regstr, opts->shoot.reg_scale,
-            opts->shoot.lowres);
+            opts->pve_gm_tol, opts->pve_head ? "true" : "false", opts->shoot.regstr,
+            opts->shoot.reg_scale, opts->shoot.lowres);
     fprintf(fp, "  \"time_s\": {\"filter\": %.2f, \"affine\": %.2f, \"estimation\": %.2f, "
                 "\"segmentation\": %.2f, \"total\": %.2f}\n}\n",
             res->time_filter, res->time_affine, res->time_fit, res->time_write, res->time_total);

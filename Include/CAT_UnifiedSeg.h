@@ -109,6 +109,19 @@ typedef struct
     int pve;            /**< 1: estimate partial volumes of CSF, GM and WM for
                              the label map (default); 0: the label is the
                              posterior mean CSF + 2 GM + 3 WM */
+    double pve_gm_tol;  /**< the intensity of pure grey matter of the partial
+                             volume model is held against an estimate from
+                             where grey matter lies: the voxels of the brain
+                             that the deformed templates call grey matter and
+                             that keep 0.75 mm, and at least a voxel, from
+                             everything as dark as CSF and as bright as white
+                             matter.  If the two differ by more than this
+                             share of the way from pure CSF to pure white
+                             matter, the model failed and the estimate
+                             replaces its value (0.35).  0: the estimate is
+                             only reported, < 0: not computed.  Without the
+                             MRF and the cleanup it costs a pass over the
+                             image */
     int pve_head;       /**< 1: partial volumes of bone, soft tissue and air
                              (mixtures of soft tissue with bone and with air)
                              for the fractions; 0: their posteriors (default).
@@ -156,6 +169,14 @@ typedef struct
     int pve_head_done;  /**< partial volumes of the head were estimated */
     double pve_mean[3]; /**< intensity of pure CSF, GM and WM */
     double pve_sd;      /**< SD of a pure tissue in the partial volume model */
+    double pve_gm_fit;  /**< intensity of pure GM as the partial volume model
+                             estimated it; pve_mean[1] unless it was replaced */
+    double pve_gm_spatial; /**< the same from where grey matter lies
+                                (opts->pve_gm_tol); 0 without an estimate */
+    double pve_gm_volume;  /**< volume in ml that estimate is taken from; it
+                                needs 10 ml */
+    int pve_gm_corrected;  /**< the two differed by more than opts->pve_gm_tol
+                                and pve_mean[1] is the spatial estimate */
     double volume[CAT_USEG_NCLASSES]; /**< volume of every class in ml from
                                            the posteriors; voxels without data
                                            count with their prior */

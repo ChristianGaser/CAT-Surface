@@ -104,6 +104,8 @@ static ArgvInfo argTable[] = {
      "SPM's cleanup of the brain classes: 0 off, 1 light, 2 thorough.  Where its\n\t\t\tmask of grey and white matter does not reach, the label map and the\n\t\t\tfractions hold neither (dura and vessels in the CSF are not read as\n\t\t\tmixtures with grey matter)."},
     {"-no-pve", ARGV_CONSTANT, (char *)1, (char *)&no_pve,
      "No partial volume model: the label is the posterior mean."},
+    {"-pve-gm-tol", ARGV_FLOAT, (char *)1, (char *)&opts.pve_gm_tol,
+     "The intensity of pure grey matter of the partial volume model is held against\n\t\t\tan estimate from where grey matter lies; if they differ by more than this\n\t\t\tshare of the way from CSF to white matter, the estimate replaces it.\n\t\t\t0: only report the estimate, negative: do not compute it."},
     {"-pve-head", ARGV_CONSTANT, (char *)1, (char *)&opts.pve_head,
      "Partial volume model of the head as well: the fractions of bone, soft tissue\n\t\t\tand air from mixtures of soft tissue with bone and with air, instead of\n\t\t\ttheir posteriors."},
     {"-regstr", ARGV_FLOAT, (char *)1, (char *)&opts.shoot.regstr,
@@ -178,6 +180,9 @@ usage(const char *executable)
             "  -cleanup <n>       SPM's cleanup of the brain classes: 0 off, 1 light,\n"
             "                     2 thorough [%d]\n"
             "  -no-pve            label map without the partial volume model\n"
+            "  -pve-gm-tol <f>    replace the intensity of pure grey matter by a spatial\n"
+            "                     estimate if they differ by more than this share of the\n"
+            "                     way from CSF to white matter; 0: report only, <0: off [%g]\n"
             "  -pve-head          partial volume model of bone, soft tissue and air too\n"
             "  -regstr <v>        shooting: 1 all iterations, (0,1) early level switch [%g]\n"
             "  -reg-scale <f>     shooting: factor on the regularisation [%g]\n"
@@ -189,8 +194,8 @@ usage(const char *executable)
             executable, executable, d.sanlm_strength, d.noise, d.noise_seed, d.ngaus[0],
             d.ngaus[1], d.ngaus[2], d.ngaus[3], d.ngaus[4], d.ngaus[5], d.samp,
             (d.bias_model == CAT_USEG_BIAS_DCT) ? "dct" : "spline", d.biasfwhm,
-            d.biasreg, d.wp_reg, d.tol, d.mrf, d.cleanup, d.shoot.regstr, d.shoot.reg_scale,
-            d.shoot.lowres, d.shoot.nits);
+            d.biasreg, d.wp_reg, d.tol, d.mrf, d.cleanup, d.pve_gm_tol, d.shoot.regstr,
+            d.shoot.reg_scale, d.shoot.lowres, d.shoot.nits);
 }
 
 /* sto_xyz of a header as a row-major double matrix */
