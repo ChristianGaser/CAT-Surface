@@ -1520,6 +1520,78 @@ Things to know:
 - Not done: SPM's histogram model, several channels, writing warped or imported classes. Infants
   are segmented with adult contrast and come out wrong.
 
+### The intensity of pure grey matter is checked (`pve_gm_tol`)
+
+The mixture model can put grey matter in the wrong place without losing likelihood. On the
+hydrocephalus (4397) the deformed templates do not cover the cortex: the Gaussian of GM filled
+with the partial volumes of CSF (218 +- 71 with T1Prep's settings: 0.5 mm grid, `samp` 2,
+`biasfwhm` 30), that of WM took the bright cortex (379 +- 38), and pure GM came out at 0.49 of
+the intensity of WM where the cortex has about 0.8 (CAT26's tissue peaks: 0.78). The label map read the cortex as half white matter: 514 ml of WM in T1Prep against
+255 ml in CAT26. The histogram of that brain has no mode between CSF and WM, and the
+log-likelihood per voxel was -4.602 to -4.600 for solutions between 0.47 and 0.74, so nothing
+that looks at intensities alone can find the value. **No setting moves it**: two Gaussians for
+GM, for WM or for both, one or three for CSF, four for bone, `cleanup` 0 and 2, `mrf`, `biasfwhm`
+60 instead of 30, `biasreg` ten times larger and smaller, `wp_reg` 5, `reg_scale` 0.25 and 1,
+`regstr` 1, `samp` 1 and 3 and the unfiltered image all end at 0.47-0.57. `wp_reg` 0 ends at 0.84
+and breaks the label around the ventricles. Three Gaussians for GM end at 0.74, by accident:
+their mixing proportions were 0.33, 0.33 and 0.34, and the largest one is taken as pure GM.
+
+Where grey matter lies does tell. The first pass over the posteriors gives every voxel one of
+four codes: not brain or darker than 30% of the way from pure CSF to pure WM (the CSF side),
+within 10% of WM (the WM side), in between, or in between and grey matter by the deformed
+templates (its prior is the largest of the three brain classes). The estimate is the mode of the
+intensity of the voxels of the last kind that keep 0.75 mm, and at least one voxel, from both
+sides, with voxels beyond the reach of the cleanup's mask counted as outside. It needs 10 ml.
+`res->pve_gm_fit`, `pve_gm_spatial`, `pve_gm_volume` and `pve_gm_corrected` report both values
+(`params["pve_gm_*"]` in Python, `"pve": {"gm_fit", "gm_spatial", ...}` in the JSON file).
+
+**It rejects a model, it does not refine one.** If the two differ by more than `pve_gm_tol`
+(0.35) of the way from pure CSF to pure WM, the estimate replaces the value of the model; the
+intensities of CSF and WM and the variance stay. 0 only reports, a negative value skips the
+estimate. The 20 images and the simulated HR075 at their own resolution, library defaults
+(model, estimate as a share of the intensity of WM; difference as a share of the way from CSF
+to WM):
+
+| | model | estimate | difference |
+| --- | --- | --- | --- |
+| **4397** | 0.485 | 0.830 | **+0.49** |
+| infant (BUSS02) | 0.978 | 0.903 | -0.27 |
+| motion scan (ADHD200) | 0.610 | 0.759 | +0.26 |
+| R1 map (Aarhus) | 0.580 | 0.685 | +0.18 |
+| sbg52, OASIS1 | 0.574, 0.628 | 0.678, 0.742 | +0.15 |
+| the other 15 | | | -0.00 to +0.10 |
+
+Only 4397 is over the tolerance, and the label maps of the other 20 are bit-identical to those
+without the check. The same holds on T1Prep's 0.5 mm grid (seven images: 4397 +0.46, the others
++0.00 to +0.05). **One image is all the evidence for the tolerance**; it sits between 0.27 and
+0.46.
+
+On 4397 the label changes in 9% of the voxels (23% on the 0.5 mm grid). Through T1Prep:
+CSF / GM / WM 305 / 418 / 514 ml -> 485 / 341 / 408 (CAT26: 526 / 336 / 255), absolute Euler
+number of the two hemispheres 2588 -> 686, glued vertices 2.0% -> 0.5-1.0%. **The thickness does
+not recover**: median 1.41 -> 1.30 mm against 2.06 mm in CAT26 -- T1Prep's networks give 1.45 mm
+on that scan too, so that is not the segmentation alone.
+
+Measured and not done:
+
+- **The estimate without the prior.** White matter that a residual bias field leaves below the
+  WM side fills the selection: sii39 at 0.8 mm with a bias field of 60 mm FWHM gave 0.84 where
+  the model has 0.53 and the GM of a reference label map 0.58; with the prior 0.61.
+- **A shell just inside the CSF, without a WM side.** The mode jumps to white matter (R1 map
+  0.96, motion scan 0.96).
+- **Using it for every image.** Against the GM of reference label maps (T1Prep's `p0`, the truth
+  for the simulated image) it is within -0.00 to +0.05 of the intensity of WM on nine of twelve
+  images, +0.09 on sbg52, +0.12 on the R1 map, whose GM lies below the CSF side, and +0.18 on the
+  motion scan, whose CSF the model has at 0.42 of WM instead of 0.25. The model itself is within
+  0.05 on all twelve. On 4397 the estimate (without the prior, 0.5 mm grid) moves from 0.78 to
+  0.85 with the WM side at 15% to 5%.
+- **Choosing the number of Gaussians by likelihood.** Every Gaussian more gains hundreds to
+  thousands of nats on the 700k voxels of the estimation against a BIC penalty of about 20, so
+  the likelihood always takes the largest model, and on 4397 it does not tell 0.47 from 0.74.
+  On six images that are segmented well (T1Prep's settings) the soft Dice of GM and WM changes
+  by at most 0.013 between `1 1`, `2 1`, `3 1`, `1 2` and `2 2` Gaussians for GM and WM (best on
+  average: `2 2`, +0.005 and +0.002; simulated image 0.916 / 0.947 -> 0.923 / 0.951).
+
 ### Cleanup of the brain classes (`cleanup`)
 
 `clean_gwc` of `spm_preproc_write8.m`, after the MRF: a mask grown from white matter by two
