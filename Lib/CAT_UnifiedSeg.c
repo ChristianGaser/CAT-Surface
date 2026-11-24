@@ -4129,7 +4129,7 @@ CAT_UnifiedSegOptionsInit(CAT_UnifiedSegOpts *opts)
     opts->samp = 3.0;
     opts->wp_reg = 0.5;
     opts->bias_model = CAT_USEG_BIAS_SPLINE;
-    opts->biasfwhm = 60.0;
+    opts->biasfwhm = 30.0;
     opts->biasreg = 1e-3;
     opts->tol = 1e-4;
     opts->affreg = CAT_USEG_AFFREG_MNI;
