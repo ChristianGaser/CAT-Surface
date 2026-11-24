@@ -999,6 +999,98 @@ test_filter_keeps_estimation(void)
 }
 
 /* The SANLM filter, SPM's number of Gaussians, the MRF and the JSON file. */
+/* The intensity of pure grey matter is estimated a second time, from the
+ * voxels the templates call grey matter that keep a voxel from everything as
+ * dark as CSF and as bright as white matter.  On the phantom, where the
+ * model is right, the estimate agrees with it and with the truth, so nothing
+ * is replaced and the result is the one without the check, bit for bit.  A
+ * tolerance of nearly zero forces the replacement: the partial volume model
+ * then holds the estimate and the label map follows it. */
+static void
+test_gm_level(void)
+{
+    float **tpl = make_templates();
+    float *img = (float *)malloc(sizeof(float) * NI);
+    float *l0 = (float *)malloc(sizeof(float) * NI);
+    float *l1 = (float *)malloc(sizeof(float) * NI);
+    unsigned char *p0 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *p1 = (unsigned char *)malloc(NCLS * NI);
+    unsigned char *truth = (unsigned char *)malloc(NI);
+    CAT_UnifiedSegOpts o;
+    CAT_UnifiedSegResult r0, r1;
+    double way, m0 = 0.0, m1 = 0.0;
+    size_t v, ng = 0;
+    int ret0, ret1;
+
+    make_image(img, truth, 2.0, 1);
+    phantom_options(&o);
+    MU_ASSERT("the check is on by default", o.pve_gm_tol > 0);
+    ret0 = run(img, tpl, &o, p0, l0, NULL, &r0);
+    o.pve_gm_tol = -1.0;
+    ret1 = run(img, tpl, &o, p1, l1, NULL, &r1);
+    MU_ASSERT("the phantom is segmented with and without the check", ret0 == 0 && ret1 == 0);
+    if (!ret0 && !ret1)
+    {
+        way = r0.pve_mean[2] - r0.pve_mean[0];
+        MU_ASSERT("the estimate is taken from enough voxels", r0.pve_gm_volume >= 10.0);
+        MU_ASSERT("it agrees with the model",
+                  fabs(r0.pve_gm_spatial - r0.pve_gm_fit) < 0.08 * way);
+        /* as a share of the way from CSF to white matter: the bias field
+         * leaves the scale of the corrected intensities open */
+        MU_ASSERT("and with the intensity of grey matter in the phantom",
+                  fabs((r0.pve_gm_spatial - r0.pve_mean[0]) / way -
+                       (MU[0] - MU[2]) / (MU[1] - MU[2])) < 0.08);
+        MU_ASSERT("so the model is kept",
+                  !r0.pve_gm_corrected && r0.pve_gm_fit == r0.pve_mean[1]);
+        MU_ASSERT("without the check there is no estimate",
+                  r1.pve_gm_spatial == 0.0 && !r1.pve_gm_corrected);
+        MU_ASSERT("and the class maps and the label map are the same",
+                  !memcmp(p0, p1, NCLS * NI) && !memcmp(l0, l1, sizeof(float) * NI));
+    }
+    CAT_UnifiedSegResultFree(&r1);
+
+    o.pve_gm_tol = 0.0;
+    ret1 = run(img, tpl, &o, p1, l1, NULL, &r1);
+    MU_ASSERT("a tolerance of zero only reports the estimate",
+              ret1 == 0 && r1.pve_gm_spatial == r0.pve_gm_spatial && !r1.pve_gm_corrected &&
+              !memcmp(l0, l1, sizeof(float) * NI));
+    CAT_UnifiedSegResultFree(&r1);
+
+    o.pve_gm_tol = 1e-9;
+    ret1 = run(img, tpl, &o, p1, l1, NULL, &r1);
+    MU_ASSERT("the phantom is segmented with a forced replacement", ret1 == 0);
+    if (!ret0 && !ret1)
+    {
+        MU_ASSERT("the estimate replaces the value of the model",
+                  r1.pve_gm_corrected && r1.pve_mean[1] == r1.pve_gm_spatial &&
+                  r1.pve_gm_fit == r0.pve_gm_fit && r1.pve_gm_spatial == r0.pve_gm_spatial);
+        MU_ASSERT("the other two intensities stay",
+                  r1.pve_mean[0] == r0.pve_mean[0] && r1.pve_mean[2] == r0.pve_mean[2]);
+        MU_ASSERT("the class maps do not depend on it", !memcmp(p0, p1, NCLS * NI));
+        for (v = 0; v < NI; v++)
+            if (truth[v] == 0)
+            {
+                ng++;
+                m0 += l0[v];
+                m1 += l1[v];
+            }
+        /* a brighter pure grey matter reads the same voxels as less white */
+        MU_ASSERT("the label of grey matter follows the new intensity",
+                  ng > 1000 && (m1 - m0) * (r1.pve_gm_spatial - r1.pve_gm_fit) < 0.0);
+        MU_ASSERT("and stays that of grey matter", fabs(m1 / ng - 2.0) < 0.15);
+    }
+    CAT_UnifiedSegResultFree(&r0);
+    CAT_UnifiedSegResultFree(&r1);
+
+    free(img);
+    free(l0);
+    free(l1);
+    free(p0);
+    free(p1);
+    free(truth);
+    free_templates(tpl);
+}
+
 static void
 test_options(void)
 {
@@ -1073,6 +1165,11 @@ test_invalid(void)
               CAT_UnifiedSeg(img, dims, M, t, tdims, Mt, NULL, NULL, &o, prob, NULL, NULL, NULL, NULL,
                              NULL, NULL, NULL, NULL) == 1);
     phantom_options(&o);
+    o.pve_gm_tol = NAN;
+    MU_ASSERT("a tolerance that is no number is refused",
+              CAT_UnifiedSeg(img, dims, M, t, tdims, Mt, NULL, NULL, &o, prob, NULL, NULL, NULL, NULL,
+                             NULL, NULL, NULL, NULL) == 1);
+    phantom_options(&o);
     o.affine_mode = CAT_USEG_AFFINE_FIXED;
     MU_ASSERT("a fixed affine matrix must be given",
               CAT_UnifiedSeg(img, dims, M, t, tdims, Mt, NULL, NULL, &o, prob, NULL, NULL, NULL, NULL,
@@ -1094,6 +1191,7 @@ int main(void)
     MU_RUN_TEST(test_cleanup);
     MU_RUN_TEST(test_cleanup_fractions);
     MU_RUN_TEST(test_head_fractions);
+    MU_RUN_TEST(test_gm_level);
     MU_RUN_TEST(test_options);
     printf("%d tests run, %d failed\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
