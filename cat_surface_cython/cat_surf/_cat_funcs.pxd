@@ -870,6 +870,7 @@ cdef extern from "CAT_UnifiedSeg.h":
         double mrf
         int cleanup
         int pve
+        double pve_gm_tol
         int pve_head
         CAT_VolShootOpts shoot
         int n_threads
@@ -895,6 +896,10 @@ cdef extern from "CAT_UnifiedSeg.h":
         int pve_head_done
         double pve_mean[3]
         double pve_sd
+        double pve_gm_fit
+        double pve_gm_spatial
+        double pve_gm_volume
+        int pve_gm_corrected
         double volume[6]
         double pve_volume[6]
         CAT_VolShootInfo shoot

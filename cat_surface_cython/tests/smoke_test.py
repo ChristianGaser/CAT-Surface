@@ -1078,7 +1078,8 @@ def test_vol_unified_seg():
     check("the defaults are those of the library",
           d["ngaus"] == [1, 1, 2, 3, 4, 2] and d["bias_model"] == "spline" and
           d["affreg"] == "mni" and d["noise"] == 0.0 and d["pve"] is True and
-          d["sanlm"] is False and d["cleanup"] == 1 and d["pve_head"] is False)
+          d["sanlm"] is False and d["cleanup"] == 1 and d["pve_head"] is False and
+          d["pve_gm_tol"] == 0.35)
 
     res = cat_surf.vol_unified_seg(image, templates, mat, mat, fractions=True,
                                    bias=True, deformation=True, inverse=True,
@@ -1124,6 +1125,18 @@ def test_vol_unified_seg():
           p["affine"].shape == (4, 4) and p["bias_coef"].ndim == 3)
     check("the means of the tissues are ordered as in the phantom",
           p["mn"][2] < p["mn"][0] < p["mn"][1])
+    check("pure grey matter is estimated from where it lies too, and agrees",
+          p["pve_gm_volume_ml"] >= 10 and not p["pve_gm_corrected"] and
+          p["pve_gm_fit"] == p["pve_mean"][1] and
+          abs(p["pve_gm_spatial"] - p["pve_gm_fit"]) <
+          0.1 * (p["pve_mean"][2] - p["pve_mean"][0]),
+          f"model {p['pve_gm_fit']:.1f}, estimate {p['pve_gm_spatial']:.1f}")
+    res_g = cat_surf.vol_unified_seg(image, templates, mat, mat,
+                                     pve_gm_tol=-1, corrected=False, **kw)
+    check("without that check the result is the same and no estimate is reported",
+          res_g["params"]["pve_gm_spatial"] == 0.0 and
+          np.array_equal(res_g["label"], res["label"]) and
+          np.array_equal(res_g["prob"], prob))
 
     res_f = cat_surf.vol_unified_seg(
         np.asfortranarray(image), [np.asfortranarray(t) for t in templates],

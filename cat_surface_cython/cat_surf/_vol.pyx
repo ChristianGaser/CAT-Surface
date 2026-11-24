@@ -1821,6 +1821,7 @@ def vol_unified_seg_defaults():
         "mrf": o.mrf,
         "cleanup": o.cleanup,
         "pve": bool(o.pve),
+        "pve_gm_tol": o.pve_gm_tol,
         "pve_head": bool(o.pve_head),
         "regstr": o.shoot.regstr,
         "reg_scale": o.shoot.reg_scale,
@@ -1834,7 +1835,7 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
                     bias_model=None, biasfwhm=None, biasreg=None, wp_reg=None,
                     tol=None, noise=None, noise_seed=None, sanlm=None,
                     sanlm_strength=None, sanlm_rician=None, mrf=None,
-                    cleanup=None, pve=None, pve_head=None,
+                    cleanup=None, pve=None, pve_gm_tol=None, pve_head=None,
                     regstr=None, reg_scale=None, lowres=None, nits=None,
                     n_threads=None, int verbose=0, bint prob=True,
                     bint label=True, bint fractions=False, bint corrected=True,
@@ -1910,6 +1911,15 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         limit), 1 light, 2 thorough.
     pve : bool, optional
         Estimate partial volumes of CSF, GM and WM for the label map.
+    pve_gm_tol : float, optional
+        The intensity of pure grey matter of the partial volume model is
+        held against an estimate from where grey matter lies: the voxels of
+        the brain that the deformed templates call grey matter and that keep
+        0.75 mm, and at least a voxel, from everything as dark as CSF and as
+        bright as white matter.  If the two differ by more than this share
+        of the way from pure CSF to pure white matter, the estimate replaces
+        the value of the model.  0 only reports the estimate
+        (``params["pve_gm_spatial"]``), a negative value does not compute it.
     pve_head : bool, optional
         Estimate partial volumes of bone, soft tissue and air (mixtures of
         soft tissue with bone and with air) for ``fractions`` as well.  Off by
@@ -2006,6 +2016,8 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         opts.cleanup = int(cleanup)
     if pve is not None:
         opts.pve = 1 if pve else 0
+    if pve_gm_tol is not None:
+        opts.pve_gm_tol = float(pve_gm_tol)
     if pve_head is not None:
         opts.pve_head = 1 if pve_head else 0
     if regstr is not None:
@@ -2128,6 +2140,10 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
         "pve_head_done": bool(res.pve_head_done),
         "pve_mean": [res.pve_mean[k] for k in range(3)],
         "pve_sd": res.pve_sd,
+        "pve_gm_fit": res.pve_gm_fit,
+        "pve_gm_spatial": res.pve_gm_spatial,
+        "pve_gm_volume_ml": res.pve_gm_volume,
+        "pve_gm_corrected": bool(res.pve_gm_corrected),
         "volume_ml": [res.volume[k] for k in range(6)],
         "volume_pve_ml": [res.pve_volume[k] for k in range(6)],
         "shooting": {
