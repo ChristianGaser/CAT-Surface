@@ -1481,6 +1481,31 @@ no difference. The affine registration uses the unfiltered image too. `-noise 0.
 nearly noise-free averaged scan (GM 0.857 -> 0.896) but costs ADNI_005 (0.898 -> 0.885); 0.015 and
 0.01 sit in between. With nine images that is no basis for a default, so it stays off.
 
+**The noise is added before the affine registration**, which reads the estimation image with
+its added noise (the anchors of its starts and both of its lattices), on the grounds that an
+image without noise is as degenerate for the joint histogram of intensity and class as for the
+mixture. With `noise` 0 the estimation image is the image as it came, so nothing changes without
+the option. The one measurement of the effect does not show a gain. HR075 (0.75 mm) and three
+simulations of it on its own grid, the header unmoved and moved seven times by up to 40 mm with
+tilts of up to 15 deg, T1Prep's affine pass (`samp` 8, `lowres` 6, no bias field); the error is
+the largest distance of the corners of a 160 x 200 x 160 mm box around the head from where the
+registration of the original scan puts them:
+
+| image | noise estimated | `noise` 0 | 0.01 | 0.02 |
+| --- | --- | --- | --- | --- |
+| the scan after SANLM | 1.22% | 0.7-0.9 mm | nothing added | 0.4-0.7 mm in six, 2.4 mm in two (1.58% added) |
+| simulation, no noise, no bias | 1.35% | 3.1-3.7 mm | nothing added | 3.3-4.0 mm (1.48% added) |
+| simulation, SNR 30, bias 30% | 3.69% | 3.1-3.9 mm | nothing added | nothing added |
+| constant tissues, no texture | 0.34% | 5.7-6.4 mm | 6.2-6.3 mm (0.94% added) | 5.8-6.4 mm (1.97% added) |
+
+The registration was stable without added noise in every row (0.2 to 0.7 mm between the header
+positions). Added noise narrowed the spread once (constant tissues, 0.01), widened it once, and
+on the filtered scan sent two of eight positions 2.4 mm off. One subject and eight positions are
+no basis for a claim either way; what they do rule out is that the registration of these images
+needed the noise. Note the second column: an image without noise that has the texture of an
+anatomy reads 1.2 to 1.4% at 0.75 mm, so `noise` 0.01 adds nothing to it -- only the image of
+constant tissues reads as noise-free.
+
 ### Label map and partial volumes
 
 The label (0, CSF 1, GM 2, WM 3) is the brain posterior times the expected label of a partial
