@@ -1882,9 +1882,9 @@ gmm_split(Gmm *G, const int ngaus[KB])
 
 typedef struct
 {
-    const float *orig;  /* the image as it came: affine registration */
     const float *clean; /* the image that is segmented (filtered if asked for) */
-    const float *est;   /* the image the parameters are estimated from */
+    const float *est;   /* the image as it came, with noise added if asked for:
+                           the affine registration and the parameters */
     const unsigned char *mask;
     int dims[3];
     double mat[16], vx[3];
@@ -3866,7 +3866,7 @@ head_anchors(const State *S, const AffLat *A, double cs[3], double ct[3])
             for (x = 0; x < A->d[0]; x++)
                 if (A->msk[x + (size_t)A->d[0] * (y + (size_t)A->d[1] * z)])
                 {
-                    mean += S->orig[(size_t)x * A->sk[0] + (size_t)S->dims[0] * ((size_t)y * A->sk[1]) +
+                    mean += S->est[(size_t)x * A->sk[0] + (size_t)S->dims[0] * ((size_t)y * A->sk[1]) +
                                      nxy * ((size_t)z * A->sk[2])];
                     cnt++;
                 }
@@ -3885,7 +3885,7 @@ head_anchors(const State *S, const AffLat *A, double cs[3], double ct[3])
             {
                 double xv[3] = {(double)x * A->sk[0], (double)y * A->sk[1], (double)z * A->sk[2]};
                 if (!A->msk[x + (size_t)A->d[0] * (y + (size_t)A->d[1] * z)]) continue;
-                if (!(S->orig[(size_t)xv[0] + (size_t)S->dims[0] * (size_t)xv[1] + nxy * (size_t)xv[2]] > mean))
+                if (!(S->est[(size_t)xv[0] + (size_t)S->dims[0] * (size_t)xv[1] + nxy * (size_t)xv[2]] > mean))
                     continue;
                 for (r = 0; r < 3; r++)
                     xyz[3 * m + r] = (float)(S->mat[r * 4] * xv[0] + S->mat[r * 4 + 1] * xv[1] +
@@ -3935,7 +3935,7 @@ com_anchor(const State *S, const AffLat *A, double cs[3])
             {
                 size_t v = (size_t)x * A->sk[0] + (size_t)S->dims[0] * ((size_t)y * A->sk[1]) +
                            nxy * ((size_t)z * A->sk[2]);
-                if (isfinite(S->orig[v]) && (!S->mask || S->mask[v])) val[m++] = S->orig[v];
+                if (isfinite(S->est[v]) && (!S->mask || S->mask[v])) val[m++] = S->est[v];
             }
     if (m < 100)
     {
@@ -3953,7 +3953,7 @@ com_anchor(const State *S, const AffLat *A, double cs[3])
             {
                 double xv[3] = {(double)x * A->sk[0], (double)y * A->sk[1], (double)z * A->sk[2]};
                 size_t v = (size_t)xv[0] + (size_t)S->dims[0] * (size_t)xv[1] + nxy * (size_t)xv[2];
-                if (!(isfinite(S->orig[v]) && S->orig[v] > m2) || (S->mask && !S->mask[v])) continue;
+                if (!(isfinite(S->est[v]) && S->est[v] > m2) || (S->mask && !S->mask[v])) continue;
                 for (r = 0; r < 3; r++)
                     cs[r] += S->mat[r * 4] * xv[0] + S->mat[r * 4 + 1] * xv[1] + S->mat[r * 4 + 2] * xv[2] +
                              S->mat[r * 4 + 3];
@@ -4030,7 +4030,7 @@ affine_register(State *S, const double *init, double Aff[16], double *ll_out)
     int ns = 0, nc = 0, i, k, zi, err = 0, ret, used[AFF_NSTART], use_com;
 
     tpl_load(&S->tpl, 0, S->nthreads);
-    if ((ret = afflat_build(&A, S->orig, S->mask, S->dims, S->vx, AFF_SAMP_COARSE))) goto done;
+    if ((ret = afflat_build(&A, S->est, S->mask, S->dims, S->vx, AFF_SAMP_COARSE))) goto done;
     A.ff = fudge_factor(16.0, S->vx, A.sk);
     if ((ret = head_anchors(S, &A, cs, ct))) goto done;
     use_com = !com_anchor(S, &A, cm);
@@ -4078,7 +4078,7 @@ affine_register(State *S, const double *init, double Aff[16], double *ll_out)
         goto done;
     }
     /* closer to rigid first, then with the regularisation of the image */
-    if ((ret = afflat_build(&A, S->orig, S->mask, S->dims, S->vx, AFF_SAMP_FINE))) goto done;
+    if ((ret = afflat_build(&A, S->est, S->mask, S->dims, S->vx, AFF_SAMP_FINE))) goto done;
     for (k = 0; k < nc; k++)
     {
         double l;
@@ -4173,7 +4173,10 @@ CAT_UnifiedSegResultFree(CAT_UnifiedSegResult *res)
  * images 0.860 against 0.866, and 0.870 this way).
  *
  * opts->noise adds Gaussian noise to the estimation image until its noise
- * reaches that level; an image that is noisier already is left alone. */
+ * reaches that level; an image that is noisier already is left alone.  This
+ * runs before the affine registration, which reads the estimation image as
+ * well: an image without noise is as degenerate for the joint histogram of
+ * intensity and class as it is for the mixture of Gaussians. */
 static int
 prepare_images(State *S, const float *src, float **clean_own, float **est_own,
                CAT_UnifiedSegResult *res)
@@ -4182,7 +4185,7 @@ prepare_images(State *S, const float *src, float **clean_own, float **est_own,
     double t0 = wall_time(), sd, target, add = 0.0, range;
     int ret;
 
-    S->orig = S->clean = S->est = src;
+    S->clean = S->est = src;
     if ((ret = robust_range(src, n, S->mask, S->range))) return ret;
     range = S->range[1] - S->range[0];
     sd = estimate_noise(src, S->dims, S->mask, S->range[0] + 0.1 * range);
@@ -4225,7 +4228,8 @@ prepare_images(State *S, const float *src, float **clean_own, float **est_own,
         printf("Intensity range %g .. %g, noise %.2f%% of it%s\n", S->range[0], S->range[1],
                100.0 * sd / range, (add > 0) ? "" : ", none added");
     if (S->o.verbose && add > 0)
-        printf("  noise of %.2f%% added for the estimation\n", 100.0 * add / range);
+        printf("  noise of %.2f%% added for the affine registration and the estimation\n",
+               100.0 * add / range);
     return 0;
 }
 

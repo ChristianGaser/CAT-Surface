@@ -79,12 +79,13 @@ typedef struct
     int affreg;         /**< CAT_USEG_AFFREG_* (MNI) */
     int affine_mode;    /**< CAT_USEG_AFFINE_* (ESTIMATE) */
     double noise;       /**< > 0: Gaussian noise is added to the image the
-                             parameters are estimated from until its noise SD
-                             reaches this fraction of the intensity range (1st
-                             to 99th percentile); an image that is already
-                             noisier is left alone.  The final segmentation is
-                             always computed from the image without it (the
-                             filtered one with sanlm).  0: off (default) */
+                             affine registration and the parameters are
+                             estimated from until its noise SD reaches this
+                             fraction of the intensity range (1st to 99th
+                             percentile); an image that is already noisier is
+                             left alone.  The final segmentation is always
+                             computed from the image without it (the filtered
+                             one with sanlm).  0: off (default) */
     unsigned int noise_seed; /**< seed of the added noise (1) */
     int sanlm;          /**< 1: the segmentation is computed from the image
                              denoised with the SANLM filter; the parameters
@@ -216,10 +217,10 @@ void CAT_UnifiedSegResultFree(CAT_UnifiedSegResult *res);
  * scaled by a class weight.  The steps:
  *
  * 1. Optionally the SANLM filter, and optionally added noise for the image
- *    the parameters are estimated from (opts->noise).
- * 2. Affine registration to the first template by maximising the mutual
- *    information of intensity and class (spm_maff8.m), from several starting
- *    points.
+ *    everything is estimated from (opts->noise).
+ * 2. Affine registration of that image, with its added noise, to the first
+ *    template by maximising the mutual information of intensity and class
+ *    (spm_maff8.m), from several starting points.
  * 3. On voxels opts->samp apart, the Gaussians, the class weights and the
  *    bias field are estimated by EM and Gauss-Newton as in cat_spm_preproc8.m.
  *    They alternate with the deformation: geodesic shooting on a grid refined

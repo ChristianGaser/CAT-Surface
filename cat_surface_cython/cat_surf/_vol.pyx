@@ -1887,10 +1887,11 @@ def vol_unified_seg(src, templates, mat, template_mat, mask=None, affine=None,
     tol : float, optional
         Stopping criterion of the EM steps.
     noise : float, optional
-        Gaussian noise is added to the image the parameters are estimated
-        from until its noise SD reaches this fraction of the intensity range;
-        the segmentation is computed from the image without it (the filtered
-        one with ``sanlm``).
+        Gaussian noise is added to the image the affine registration and the
+        parameters are estimated from until its noise SD reaches this fraction
+        of the intensity range; an image that is noisier already is left
+        alone.  The segmentation is computed from the image without it (the
+        filtered one with ``sanlm``).
     noise_seed : int, optional
         Seed of the added noise.
     sanlm, sanlm_strength, sanlm_rician : optional

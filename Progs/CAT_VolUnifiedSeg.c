@@ -71,7 +71,7 @@ static ArgvInfo argTable[] = {
     {"-rician", ARGV_CONSTANT, (char *)1, (char *)&opts.sanlm_rician,
      "Rician noise model of the SANLM filter."},
     {"-noise", ARGV_FLOAT, (char *)1, (char *)&opts.noise,
-     "Add Gaussian noise to the image the parameters are estimated from, until its\n\t\t\tnoise SD reaches this fraction of the intensity range (e.g. 0.02).  The\n\t\t\tsegmentation itself is computed without it."},
+     "Add Gaussian noise to the image the affine registration and the parameters\n\t\t\tare estimated from, until its noise SD reaches this fraction of the intensity\n\t\t\trange (e.g. 0.02).  The segmentation itself is computed without it."},
     {"-noise-seed", ARGV_INT, (char *)1, (char *)&opts.noise_seed,
      "Seed of the added noise."},
     {"-ngaus", ARGV_INT, (char *)CAT_USEG_NCLASSES, (char *)opts.ngaus,
@@ -160,9 +160,9 @@ usage(const char *executable)
             "                     estimated from the image as it came)\n"
             "  -sanlm-strength <f>  strength of the filter [%g]\n"
             "  -rician            Rician noise model of the filter\n"
-            "  -noise <f>         estimate the parameters from the image with noise\n"
-            "                     added up to this fraction of its intensity range;\n"
-            "                     the segmentation is computed without it [%g]\n"
+            "  -noise <f>         register the image and estimate the parameters with\n"
+            "                     noise added up to this fraction of its intensity\n"
+            "                     range; the segmentation is computed without it [%g]\n"
             "  -noise-seed <n>    seed of the added noise [%u]\n"
             "  -ngaus <6 values>  Gaussians per class [%d %d %d %d %d %d]\n"
             "  -samp <mm>         distance of the voxels used for estimation [%g]\n"
